@@ -200,7 +200,7 @@ fn deploy_bundled_skills(app: &AppHandle) {
     };
     let mut bundled: std::collections::HashSet<std::ffi::OsString> = std::collections::HashSet::new();
     let mut all_ok = true;
-    for resource in ["skills", "skills-office", "skills-core"] {
+    for resource in ["skills-core"] {
         let src = match app
             .path()
             .resolve(resource, tauri::path::BaseDirectory::Resource)
