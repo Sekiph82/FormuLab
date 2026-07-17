@@ -14,7 +14,7 @@ import { Elapsed } from "@/components/thread/ToolGroup";
 import { Composer } from "@/components/thread/Composer";
 import { GOAL_RESUME_NUDGE, GoalPill } from "@/components/thread/GoalPill";
 import { baseName } from "@/components/thread/WorkspaceChip";
-import { WorkflowStarters } from "@/components/thread/WorkflowStarters";
+import { FormulationStudio } from "@/components/thread/FormulationStudio";
 import { InteractionPrompt } from "@/components/thread/InteractionPrompt";
 import { InspectorShell } from "@/components/inspector/InspectorShell";
 import { MaximizePaneButton, RightPane } from "@/components/inspector/RightPane";
@@ -387,7 +387,7 @@ export function LiveSessionPage() {
               </div>
             )}
             {connected && isEmpty && !sessionId && (
-              <WorkflowStarters onPick={(p) => void onSend(p)} />
+              <FormulationStudio onPick={(p) => void onSend(p)} />
             )}
             {historyLoading && <ThreadSkeleton />}
             {!historyLoading && thread && <BlockList blocks={thread.blocks} handlers={handlers} />}

@@ -258,5 +258,63 @@
     "clearAria": "목표 지우기",
     "unmet": "차단됨",
     "limited": "한도 도달"
+  },
+  "studio": {
+    "heading": "What do you want to formulate?",
+    "subheading": "Describe a product. FormuLab reads open-access literature and proposes an evidence-based, cost-optimized candidate formula.",
+    "target": {
+      "label": "Target product",
+      "placeholder": "e.g. a sulfate-free gentle shampoo · an anti-limescale bathroom spray · a whitening toothpaste"
+    },
+    "category": {
+      "label": "Category"
+    },
+    "market": {
+      "label": "Target market",
+      "any": "Any / infer",
+      "eu": "European Union",
+      "us": "United States",
+      "tr": "Türkiye"
+    },
+    "audience": {
+      "label": "Intended audience",
+      "unspecified": "Unspecified",
+      "child": "Child",
+      "woman": "Woman",
+      "man": "Man",
+      "unisex": "Unisex"
+    },
+    "cat": {
+      "auto": "Auto-detect",
+      "shampoo": "Shampoo",
+      "conditioner": "Conditioner",
+      "bodyWash": "Body wash",
+      "barSoap": "Bar soap",
+      "handCream": "Hand cream",
+      "toothpaste": "Toothpaste",
+      "mouthwash": "Mouthwash",
+      "laundryDetergent": "Laundry detergent",
+      "fabricSoftener": "Fabric softener",
+      "dishSoap": "Dishwashing liquid",
+      "surfaceCleaner": "Surface cleaner",
+      "glassCleaner": "Glass cleaner",
+      "limescaleRemover": "Limescale remover",
+      "airFreshener": "Air freshener"
+    },
+    "more": "More options",
+    "cost": {
+      "label": "Max cost (optional)",
+      "placeholder": "e.g. 2.5 USD/kg"
+    },
+    "performance": {
+      "label": "Performance notes (optional)",
+      "placeholder": "e.g. high foam, pH 5.5, fragrance-free"
+    },
+    "materials": {
+      "label": "On-hand raw materials (optional)",
+      "placeholder": "One per line: name, price/kg, active%   e.g.  SLES, 1.4, 70"
+    },
+    "generate": "Generate formulation",
+    "disclaimer": "Candidate only — not a validated recipe. Requires lab validation and regulatory review. Hazardous or illicit targets are refused."
   }
 }

@@ -6,13 +6,10 @@ import {
   ArrowLeft,
   Beaker,
   ChevronRight,
-  Files,
-  FlaskConical,
   Folder,
   FolderInput,
   FolderOpen,
   FolderTree,
-  NotebookPen,
   PanelLeft,
   Plus,
   Settings,
@@ -377,29 +374,9 @@ export function Sidebar({ project }: { project: Project }) {
             onClick={startNew}
           />
           <NavRow
-            icon={<NotebookPen size={16} />}
-            label={t("items.notebooks")}
-            onClick={() => navigate("/notebooks")}
-          />
-          <NavRow
-            icon={<FolderTree size={16} />}
-            label={t("items.files")}
-            onClick={() => navigate("/files")}
-          />
-          <NavRow
-            icon={<FlaskConical size={16} />}
-            label={t("items.runs")}
-            onClick={() => navigate("/runs")}
-          />
-          <NavRow
             icon={<Beaker size={16} />}
             label={t("items.optimizer")}
             onClick={() => navigate("/optimizer")}
-          />
-          <NavRow
-            icon={<Files size={16} />}
-            label={t("items.skills")}
-            onClick={() => navigate("/skills")}
           />
         </nav>
 
