@@ -39,11 +39,16 @@ tighter safety limits).
 in one call; only open endpoints.
 
 **Fast mode is always on. Do NOT download PDFs; work from titles + abstracts.**
-Use ONE combined query and a low cap:
+Use ONE combined query and a low cap to keep the model context small (this
+matters on free-tier providers with tight per-minute token limits):
 
 ```bash
-python discover.py "sulfate-free gentle shampoo formulation surfactant preservative" --max 12
+python discover.py "sulfate-free gentle shampoo formulation surfactant preservative" --max 6
 ```
+
+Do NOT read `papers.json` wholesale into the reply or re-paste abstracts —
+extract only the ingredient/function/wt% facts you need, cite the DOI, and keep
+the working context lean.
 
 Writes `literature/papers.csv` + `papers.json` (with a `source_db` column so
 patents and journals are distinguishable). Only add a second query, or raise
