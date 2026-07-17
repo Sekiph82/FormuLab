@@ -9,10 +9,10 @@ afterEach(() => useUiStore.getState().setLocale("en"));
 
 describe("Sidebar i18n", () => {
   it("renders migrated nav labels and section heading in English", async () => {
-    renderAt("/optimizer");
+    renderAt("/files");
 
     const nav = await screen.findByRole("navigation");
-    expect(within(nav).getByText("Optimizer")).toBeInTheDocument();
+    expect(within(nav).getByText("Files")).toBeInTheDocument();
     expect(screen.getByText("Sessions")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
   });
