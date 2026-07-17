@@ -279,12 +279,23 @@ fn sync_skill_pack(src: &Path, dst: &Path) -> std::io::Result<Vec<std::ffi::OsSt
         if !entry.file_type()?.is_dir() || !entry.path().join("SKILL.md").is_file() {
             continue;
         }
-        let target = dst.join(entry.file_name());
+        let name = entry.file_name();
+        let target = dst.join(&name);
+        // A single unusual skill (deep-path packs, or a file the OS trips on with
+        // a spurious reparse error) must NOT abort the whole pack — the core
+        // formulation skills have to land regardless. Log and skip that one.
         if target.exists() {
-            std::fs::remove_dir_all(&target)?;
+            if let Err(e) = std::fs::remove_dir_all(&target) {
+                eprintln!("skill deploy: skip {name:?} (remove failed): {e}");
+                continue;
+            }
         }
-        copy_dir(&entry.path(), &target)?;
-        deployed.push(entry.file_name());
+        if let Err(e) = copy_dir(&entry.path(), &target) {
+            eprintln!("skill deploy: skip {name:?} (copy failed): {e}");
+            let _ = std::fs::remove_dir_all(&target); // don't leave a half-copy
+            continue;
+        }
+        deployed.push(name);
     }
     Ok(deployed)
 }
