@@ -36,24 +36,30 @@ tighter safety limits).
 ### 1. Retrieve (open access only)
 
 `discover.py` queries **OpenAlex + Europe PMC (PubMed/PMC + patents) + arXiv**
-in one call; only open endpoints, only OA full text is downloaded.
+in one call; only open endpoints.
+
+**Fast mode is always on. Do NOT download PDFs; work from titles + abstracts.**
+Use ONE combined query and a low cap:
 
 ```bash
-python discover.py "sulfate-free gentle shampoo formulation" \
-    "mild surfactant baby shampoo" "shampoo preservative system" --max 40 --pdfs
+python discover.py "sulfate-free gentle shampoo formulation surfactant preservative" --max 12
 ```
 
 Writes `literature/papers.csv` + `papers.json` (with a `source_db` column so
-patents and journals are distinguishable). Use several queries — one per
-function you expect (cleansing base, each active, thickener, preservative, …).
+patents and journals are distinguishable). Only add a second query, or raise
+`--max`, if the first pass returns too few relevant hits.
 
 ### 2. Read & extract
 
-From the OA papers/patents, pull — **with a citation (DOI or patent id) per
-fact** — each ingredient, its **function** (surfactant, emulsifier, active,
-preservative, chelator, builder, abrasive, thickener, pH adjuster, fragrance,
-…), and any reported **wt% / w/w**. Note the study type. Do not paste long
-verbatim text; extract the data and cite.
+Work from the **abstracts already in `papers.json`** — that is enough; do not
+open or read full PDFs, and do not loop over papers one by one. In a single
+pass, pull — **with a citation (DOI or patent id) per fact** — each ingredient,
+its **function** (surfactant, emulsifier, active, preservative, chelator,
+builder, abrasive, thickener, pH adjuster, fragrance, …), and any reported
+**wt% / w/w**. Combine with established cosmetic/detergent formulation knowledge
+for the product class; move straight to the card. Do not paste long verbatim
+text; extract the data and cite. Be efficient — favor finishing the card over
+extra tool calls.
 
 ### 3. Synthesize the candidate
 
