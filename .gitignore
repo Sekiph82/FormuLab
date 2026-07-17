@@ -70,3 +70,7 @@ skills-lock.json
 
 # Generated workspace data (formulation runs)
 docs/shampoo-formulation/
+
+# App-generated session workspaces (dated) and workspace scaffolding
+/20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]-*/
+.openscience/
