@@ -30,7 +30,9 @@ describe("WorkflowStarters strings (i18n)", () => {
 
 describe("LiveSessionPage strings (i18n)", () => {
   it("renders the disconnected-runtime card in English (no Tauri sidecar in tests)", async () => {
-    renderAt("/live");
+    // "/live" is now the formulation home; a specific session route mounts the
+    // LiveSessionPage thread, where the disconnected-runtime card lives.
+    renderAt("/live/test-session");
     expect(await screen.findByText("OpenCode runtime")).toBeInTheDocument();
     expect(
       screen.getByText((_, node) =>

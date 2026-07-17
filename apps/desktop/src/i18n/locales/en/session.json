@@ -282,7 +282,9 @@
       "any": "Any / infer",
       "eu": "European Union",
       "us": "United States",
-      "tr": "Türkiye"
+      "tr": "Türkiye",
+      "kenya": "Kenya",
+      "africa": "Africa"
     },
     "audience": {
       "label": "Intended audience",
@@ -323,6 +325,13 @@
       "placeholder": "One per line: name, price/kg, active%   e.g.  SLES, 1.4, 70"
     },
     "generate": "Generate formulation",
-    "disclaimer": "Candidate only — not a validated recipe. Requires lab validation and regulatory review. Hazardous or illicit targets are refused."
+    "disclaimer": "Candidate only — not a validated recipe. Requires lab validation and regulatory review. Hazardous or illicit targets are refused.",
+    "result": {
+      "heading": "Formulation card",
+      "new": "New",
+      "connect": "Connect the runtime to generate a formulation.",
+      "working": "Working — reading the literature and drafting your formulation. This can take a few minutes.",
+      "empty": "Describe a product on the left and press Generate. The formulation card will appear here."
+    }
   }
 }

@@ -73,18 +73,56 @@ python ../formulation-optimizer/optimize.py candidate.json
 
 Use the user's on-hand materials and max cost when provided.
 
-### 5. Report — show it in full
+### 5. Report — the formulation card
 
-Output the **complete formulation card in your reply** — do NOT shorten or
-summarize it to a few lines. The reply and the saved file must match. Save it as
-`<product-slug>/formulation-card.md` and include:
+Output the **complete card in your reply** (in English) — do NOT shorten or
+summarize it. The reply and the saved file must be identical; save it as
+`<product-slug>/formulation-card.md`.
 
-- the final **wt% per ingredient** and the total (water q.s. to 100%);
-- the **rationale with citations**;
-- **assumptions / estimated ranges** and a **confidence** note;
-- a **regulatory + safety** section for the target market;
-- the cost-optimization result;
-- an explicit **"needs lab validation"** line.
+**Give a single EXACT weight-% for every ingredient — never a range.** Choose
+the value within the literature range, and make the column sum to 100% with
+Water (Aqua) as `q.s. 100`. Follow this exact structure and headings:
+
+```markdown
+# Formulation Card: <Product Name>
+
+**Purpose:** <one sentence: what it does and its key claims (e.g. SLS-free, fragrance-free)>
+
+**References:** <Author Year (DOI:...)>, <Author Year (DOI:...)>, ...
+
+## Formulation Table
+
+| # | Ingredient (INCI) | Function | Weight % |
+|---|---|---|---|
+| 1 | Water (Aqua) | Solvent | q.s. 100 |
+| 2 | <INCI> | <function> | 14.0 |
+| … | … | … | … |
+
+## How It Works
+
+### <Mechanism group, e.g. Dandruff control>
+<why these ingredients, at these exact levels, with citations>
+
+### <Soothing / Mild cleansing / …>
+<…>
+
+## What to Avoid
+- ❌ <ingredient/class> — <reason>
+- ❌ …
+
+## Usage
+1. <step>
+2. <step>
+
+## ⚠️ Warnings
+- Evidence-based candidate, not a commercial product.
+- Lab validation (stability, preservative-efficacy, patch testing) is required.
+- Therapeutic claims are subject to regional regulation (EU Regulation 1223/2009, FDA OTC monographs).
+- <active-specific regulatory note for the target market, incl. Kenya/Africa where relevant>
+```
+
+Also print the cost-optimization result (total cost + achieved active) below the
+table when materials/prices allow it.
 
 ## Honest limits — state these every time
 

@@ -17,15 +17,17 @@ const CATEGORIES = [
   "surfaceCleaner", "glassCleaner", "limescaleRemover", "airFreshener",
 ] as const;
 const AUDIENCES = ["unspecified", "child", "woman", "man", "unisex"] as const;
-const MARKETS = ["any", "eu", "us", "tr"] as const;
+const MARKETS = ["any", "eu", "us", "tr", "kenya", "africa"] as const;
 
 type Category = (typeof CATEGORIES)[number];
 type Audience = (typeof AUDIENCES)[number];
 type Market = (typeof MARKETS)[number];
 
-// English terms used when composing the agent brief, independent of UI locale.
+// Short English terms for the brief, independent of UI locale. The
+// formulation-discovery skill knows how to interpret each field (audience,
+// market, …), so the brief itself stays compact.
 const CATEGORY_EN: Record<Category, string> = {
-  auto: "infer from the description", shampoo: "shampoo", conditioner: "hair conditioner",
+  auto: "auto-detect", shampoo: "shampoo", conditioner: "hair conditioner",
   bodyWash: "body wash", barSoap: "bar soap", handCream: "hand cream",
   toothpaste: "toothpaste", mouthwash: "mouthwash", laundryDetergent: "laundry detergent",
   fabricSoftener: "fabric softener", dishSoap: "dishwashing liquid",
@@ -33,43 +35,31 @@ const CATEGORY_EN: Record<Category, string> = {
   limescaleRemover: "limescale remover", airFreshener: "air freshener",
 };
 const AUDIENCE_EN: Record<Audience, string> = {
-  unspecified: "not specified — do not restrict the formula to a demographic",
-  child: "children — prioritize mildness, fragrance-free or low-fragrance, tear-free where relevant, and stricter safety limits",
-  woman: "women — consider typical preferences but stay evidence-based",
-  man: "men — consider typical preferences but stay evidence-based",
-  unisex: "unisex — suitable for everyone",
+  unspecified: "unspecified", child: "children", woman: "women", man: "men", unisex: "unisex",
 };
 const MARKET_EN: Record<Market, string> = {
-  any: "not specified — flag region-specific rules generally (EU CosIng, US FDA OTC)",
-  eu: "European Union — check EU Regulation 1223/2009 / CosIng and detergent rules",
-  us: "United States — check FDA OTC monographs and EPA rules where relevant",
-  tr: "Türkiye — broadly follows EU cosmetic/detergent rules; verify locally",
+  any: "any / infer", eu: "European Union", us: "United States", tr: "Türkiye",
+  kenya: "Kenya", africa: "Africa",
 };
+
+// The sentinel first line marks a session as a formulation run so the thread
+// renders the focused studio view instead of the raw chat.
+export const FORMULATION_BRIEF_MARKER = "Formulation brief";
 
 function buildBrief(f: {
   target: string; category: Category; audience: Audience; market: Market;
   maxCost: string; performance: string; materials: string;
 }): string {
   const lines = [
-    "Use the formulation-discovery skill to design a candidate chemical formulation from open-access literature.",
+    `${FORMULATION_BRIEF_MARKER} — use the formulation-discovery skill and output the full formulation card (its exact format, single exact wt% per ingredient, not ranges).`,
     "",
-    "BRIEF",
-    `- Target product: ${f.target.trim()}`,
-    `- Category: ${CATEGORY_EN[f.category]}`,
-    `- Intended audience: ${AUDIENCE_EN[f.audience]}`,
-    `- Target market / regulations: ${MARKET_EN[f.market]}`,
-    `- Max cost: ${f.maxCost.trim() || "not specified"}`,
-    `- Performance requirements: ${f.performance.trim() || "none specified"}`,
-    `- On-hand raw materials: ${f.materials.trim() ? "\n" + f.materials.trim() : "none provided — propose suitable ones from the literature"}`,
-    "",
-    "PIPELINE (follow every step):",
-    "1. Retrieve open-access literature with discover.py across OpenAlex + Europe PMC (PubMed/PMC + patents) + arXiv.",
-    "2. Extract ingredients, their function, and typical wt% ranges — a citation (DOI) per fact.",
-    "3. Synthesize an evidence-based candidate formulation table (ingredient, function, wt%, confidence, source).",
-    "4. Cost-optimize the numeric parts with the formulation-optimizer skill.",
-    "5. Output the COMPLETE formulation report in your reply — do NOT shorten or summarize it. Show the full card: per-ingredient wt%, total, rationale with citations, assumptions/estimates, confidence, and a regulatory + safety section. Also save it to a new product folder as formulation-card.md.",
-    "",
-    "Honor the safety gate: refuse hazardous, weaponizable, or illicit targets. State the honest limits (candidate only, ranges estimated, needs lab validation).",
+    `Target product: ${f.target.trim()}`,
+    `Category: ${CATEGORY_EN[f.category]}`,
+    `Audience: ${AUDIENCE_EN[f.audience]}`,
+    `Market: ${MARKET_EN[f.market]}`,
+    `Max cost: ${f.maxCost.trim() || "not specified"}`,
+    `Performance: ${f.performance.trim() || "none specified"}`,
+    `On-hand materials: ${f.materials.trim() || "none provided — propose from the literature"}`,
   ];
   return lines.join("\n");
 }
@@ -92,14 +82,14 @@ export function FormulationStudio({ onPick }: { onPick: (prompt: string) => void
   };
 
   return (
-    <div className="flex min-h-[62vh] flex-col items-center justify-center">
-      <div className="w-full max-w-[560px]">
-        <div className="text-center">
-          <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-surface-2 text-accent ring-1 ring-border">
-            <Beaker size={20} strokeWidth={1.75} />
+    <div className="h-full overflow-y-auto px-5 py-6">
+      <div className="mx-auto w-full max-w-[520px]">
+        <div>
+          <div className="mb-3 grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-accent ring-1 ring-border">
+            <Beaker size={19} strokeWidth={1.75} />
           </div>
-          <h2 className="font-serif text-[26px] leading-tight text-text">{t("studio.heading")}</h2>
-          <p className="mx-auto mt-2 max-w-[460px] text-sm leading-relaxed text-muted">
+          <h2 className="font-serif text-[22px] leading-tight text-text">{t("studio.heading")}</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">
             {t("studio.subheading")}
           </p>
         </div>
