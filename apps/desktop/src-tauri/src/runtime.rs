@@ -56,7 +56,7 @@ fn base_workspace_file(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// The active workspace folder OpenCode / the kernel / previews / provenance all
-/// operate in. Defaults to the base folder (`~/Documents/OpenScience`) until the
+/// operate in. Defaults to the base folder (`~/Documents/FormuLab`) until the
 /// user opens or creates another one; the choice persists across restarts.
 pub fn workspace_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(f) = active_workspace_file(app) {
@@ -71,7 +71,7 @@ pub fn workspace_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// The workspace root new dated session folders are created under. A folder
-/// the user picked in Settings wins; the default is `~/Documents/OpenScience`
+/// the user picked in Settings wins; the default is `~/Documents/FormuLab`
 /// (no space — the agent runs shell commands against this path, and unquoted
 /// spaces break them), falling back to `$HOME/Documents`.
 pub fn base_workspace_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -92,12 +92,12 @@ pub fn base_workspace_dir(app: &AppHandle) -> Result<PathBuf, String> {
             PathBuf::from(home).join("Documents")
         }
     };
-    let dir = docs.join("OpenScience");
+    let dir = docs.join("FormuLab");
 
     // One-time migrations, oldest name last. A failed rename (e.g. cross-volume)
     // keeps the existing location rather than splitting the user's files.
     if !dir.exists() {
-        for old in [docs.join("Open Science"), runtime_root(app)?.join("workspace")] {
+        for old in [docs.join("FormuLab"), runtime_root(app)?.join("workspace")] {
             if old.is_dir() {
                 if std::fs::rename(&old, &dir).is_ok() {
                     break;
@@ -708,7 +708,7 @@ fn spawn_sidecar(app: &AppHandle, port: u16) -> Result<CommandChild, String> {
         // Lets bundled skill helpers (e.g. remote-compute's record_run.py) stamp
         // the recording app version into provenance — they run outside the app
         // and can't otherwise know it.
-        .env("OPENSCIENCE_APP_VERSION", app.package_info().version.to_string())
+        .env("FormuLab_APP_VERSION", app.package_info().version.to_string())
         .current_dir(workspace);
     // GUI-launched apps get a minimal PATH; give the agent the user's real tools.
     let mut cmd = cmd.env("PATH", enriched_path());
@@ -780,7 +780,7 @@ pub fn workspace_path(app: AppHandle) -> Result<String, String> {
     Ok(workspace_dir(&app)?.to_string_lossy().to_string())
 }
 
-/// The base folder new dated workspaces are created under (`~/Documents/OpenScience`).
+/// The base folder new dated workspaces are created under (`~/Documents/FormuLab`).
 #[tauri::command]
 pub fn workspace_base(app: AppHandle) -> Result<String, String> {
     Ok(base_workspace_dir(&app)?.to_string_lossy().to_string())
@@ -848,14 +848,14 @@ pub fn set_workspace(
 /// Record which session owns the active workspace, so bundled skill helpers
 /// (record_run.py) can stamp remote runs with their `sessionId` — the app knows
 /// the id but the off-app helper only sees the workspace. Written as
-/// `<workspace>/.openscience/session.txt`; best-effort, empty ids are ignored.
+/// `<workspace>/.FormuLab/session.txt`; best-effort, empty ids are ignored.
 #[tauri::command]
 pub fn mark_session(app: AppHandle, session_id: String) -> Result<(), String> {
     let id = session_id.trim();
     if id.is_empty() {
         return Ok(());
     }
-    let dir = workspace_dir(&app)?.join(".openscience");
+    let dir = workspace_dir(&app)?.join(".FormuLab");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join("session.txt");
     // Write-then-rename so a concurrent read never sees a half-written id.

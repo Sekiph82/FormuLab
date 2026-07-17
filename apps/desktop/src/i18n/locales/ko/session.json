@@ -91,12 +91,12 @@
       "title": "리포트 추적성 감사",
       "description": "인용, 출처 없는 수치, 그림과 코드 간 일치 여부를 확인합니다."
     },
-    "example-climate": {
-      "title": "예제 살펴보기: 기후 변화 추세",
-      "description": "실제 NASA GISTEMP 데이터 — 추세, 연대별 비교, 그림, 리포트."
-    },
     "error": {
       "setup": "예제를 설정할 수 없습니다: {{message}}"
+    },
+    "example-shampoo": {
+      "title": "Explore an example: shampoo formulation",
+      "description": "Cost-optimize a surfactant blend to a target active content, then write a report."
     }
   },
   "live": {

@@ -91,12 +91,12 @@
       "title": "Bericht auf Nachvollziehbarkeit prüfen",
       "description": "Zitate, unbelegte Zahlen und die Übereinstimmung von Abbildung und Code prüfen."
     },
-    "example-climate": {
-      "title": "Ein Beispiel erkunden: Klimatrends",
-      "description": "Echte NASA-GISTEMP-Daten — Trend, Dekadenvergleich, Abbildung und Bericht."
-    },
     "error": {
       "setup": "Das Beispiel konnte nicht eingerichtet werden: {{message}}"
+    },
+    "example-shampoo": {
+      "title": "Explore an example: shampoo formulation",
+      "description": "Cost-optimize a surfactant blend to a target active content, then write a report."
     }
   },
   "live": {

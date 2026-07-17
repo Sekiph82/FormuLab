@@ -91,12 +91,12 @@
       "title": "レポートのトレーサビリティを検証",
       "description": "引用、出典のない数値、図とコードの整合性を確認します。"
     },
-    "example-climate": {
-      "title": "例を試す: 気候変動トレンド",
-      "description": "実際の NASA GISTEMP データ — トレンド、10 年ごとの比較、図、レポート。"
-    },
     "error": {
       "setup": "例を準備できませんでした: {{message}}"
+    },
+    "example-shampoo": {
+      "title": "Explore an example: shampoo formulation",
+      "description": "Cost-optimize a surfactant blend to a target active content, then write a report."
     }
   },
   "live": {

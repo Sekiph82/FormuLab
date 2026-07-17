@@ -1,5 +1,5 @@
 // Run provenance: turn the agent's experiment executions (bash) into run
-// records in `.openscience/runs.jsonl`. Unlike file provenance (which records
+// records in `.FormuLab/runs.jsonl`. Unlike file provenance (which records
 // an authored file's text), a *run* is the reproducibility recipe — the
 // command, code version, environment, hardware, inputs, and outputs of an
 // execution. Pure derivation lives here; the Tauri bridge is separate so this
@@ -143,7 +143,7 @@ export function runInputFromEvent(event: ToolUpdatedEvent): RunInput | null {
   // Remote runs (HPC/Modal) execute off-box — their env, hardware, and outputs
   // live on the cluster/cloud, invisible here. Recording them from the laptop
   // would stamp the wrong environment, so the remote-compute / modal-run skills
-  // record them instead (into .openscience/remote-runs.jsonl) with real remote
+  // record them instead (into .FormuLab/remote-runs.jsonl) with real remote
   // facts. The passive capture handles local runs only.
   if (surfaceForCommand(command) !== "local") return null;
   if (!looksLikeExecution(command)) return null;
@@ -175,7 +175,7 @@ export function reproduceRunPrompt(r: RunRecord): string {
     if (bits.length) parts.push(`It ran on ${bits.join(" · ")}.`);
     if (env.packages)
       parts.push(
-        `The environment had ${env.packages.count} installed Python packages, pinned in \`.openscience/env/${env.packages.hash}.txt\` — install matching versions from that lockfile if the result differs.`,
+        `The environment had ${env.packages.count} installed Python packages, pinned in \`.FormuLab/env/${env.packages.hash}.txt\` — install matching versions from that lockfile if the result differs.`,
       );
   }
   const code = fileList(r.code ?? []);

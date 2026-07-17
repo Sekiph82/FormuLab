@@ -1,5 +1,5 @@
 // Projects: a named workspace folder under the base dir, marked by
-// `<folder>/.openscience/project.json`. The folder IS the workspace — sessions
+// `<folder>/.FormuLab/project.json`. The folder IS the workspace — sessions
 // group under a project by their `directory`, so no registry or database
 // exists to drift out of sync. Folders without the marker stay plain dated
 // session workspaces.
@@ -50,7 +50,7 @@ pub struct ProjectInfo {
 }
 
 fn meta_file(dir: &Path) -> PathBuf {
-    dir.join(".openscience").join("project.json")
+    dir.join(".FormuLab").join("project.json")
 }
 
 fn now_ms() -> u64 {
@@ -277,7 +277,7 @@ pub fn set_project_pinned(app: AppHandle, id: String, pinned: bool) -> Result<()
 /// - Imported project: its base-dir folder is only a stub pointer (no user
 ///   files) → remove the stub; the external repo is untouched.
 /// - App-created project: the folder holds the workspace files → remove only the
-///   `.openscience/project.json` marker, demoting it to a plain folder. Nothing
+///   `.FormuLab/project.json` marker, demoting it to a plain folder. Nothing
 ///   else on disk is deleted.
 fn delete_in(base: &Path, id: &str) -> Result<(), String> {
     let dir = project_dir_by_id(base, id).ok_or("project not found")?;
@@ -379,7 +379,7 @@ mod tests {
         assert_eq!(info.path, ext.canonicalize().unwrap().to_string_lossy());
 
         // Nothing was written into the user's repo (metadata lives in the stub).
-        assert!(!ext.join(".openscience").join("project.json").exists());
+        assert!(!ext.join(".FormuLab").join("project.json").exists());
 
         // An app-created project (no source) is not imported and lives in its folder.
         let (own, own_meta) = create_in(&base, "My Study").unwrap();
@@ -414,7 +414,7 @@ mod tests {
         m.name = "Renamed".into();
         write_meta(&stub, &m).unwrap();
         assert_eq!(read_meta(&stub).unwrap().name, "Renamed");
-        assert!(!ext.join(".openscience").join("project.json").exists());
+        assert!(!ext.join(".FormuLab").join("project.json").exists());
 
         let _ = fs::remove_dir_all(&base);
     }
@@ -460,8 +460,8 @@ mod tests {
         let base = std::env::temp_dir().join(format!("os-project-bad-{}", std::process::id()));
         let _ = fs::remove_dir_all(&base);
         let dir = base.join("broken");
-        fs::create_dir_all(dir.join(".openscience")).unwrap();
-        fs::write(dir.join(".openscience").join("project.json"), "{not json").unwrap();
+        fs::create_dir_all(dir.join(".FormuLab")).unwrap();
+        fs::write(dir.join(".FormuLab").join("project.json"), "{not json").unwrap();
         assert!(read_meta(&dir).is_none());
         let _ = fs::remove_dir_all(&base);
     }

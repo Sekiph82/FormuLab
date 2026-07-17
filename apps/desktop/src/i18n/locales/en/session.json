@@ -91,12 +91,12 @@
       "title": "Audit a report for traceability",
       "description": "Check citations, unsourced numbers, and figure-versus-code consistency."
     },
-    "example-climate": {
-      "title": "Explore an example: climate trends",
-      "description": "Real NASA GISTEMP data — trend, decadal comparison, figure, and report."
-    },
     "error": {
       "setup": "Could not set up the example: {{message}}"
+    },
+    "example-shampoo": {
+      "title": "Explore an example: shampoo formulation",
+      "description": "Cost-optimize a surfactant blend to a target active content, then write a report."
     }
   },
   "live": {

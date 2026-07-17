@@ -3,7 +3,7 @@
 Minimize the raw-material cost of a batch while meeting an active-matter
 target and respecting per-material stock and maximum-usage limits.
 
-This is a clean-room implementation written for Open Science: pure Python +
+This is a clean-room implementation written for FormuLab: pure Python +
 PuLP (which bundles the CBC solver), no Excel / VBA / win32com. Data goes in
 and comes out as plain dicts, so the same core backs the desktop UI (via a
 Tauri command) and the agent skill (via a CSV/JSON wrapper).

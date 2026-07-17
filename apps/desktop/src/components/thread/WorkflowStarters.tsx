@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ChevronRight, FileSearch, FlaskConical, Globe2, LineChart } from "lucide-react";
+import { Beaker, ChevronRight, FileSearch, FlaskConical, LineChart } from "lucide-react";
 import { installExample, isTauri } from "@/lib/tauri";
 import { toast } from "@/lib/toast";
 
@@ -42,18 +42,17 @@ export const WORKFLOW_STARTERS: WorkflowStarter[] = [
       "Ask me which document to audit if there is more than one candidate.",
   },
   {
-    id: "example-climate",
-    icon: <Globe2 size={17} strokeWidth={1.75} />,
+    id: "example-shampoo",
+    icon: <Beaker size={17} strokeWidth={1.75} />,
     prompt:
-      "Analyze the real climate dataset at climate-trends/data/gistemp_global_means.csv " +
-      "(NASA GISTEMP v4 global land–ocean temperature anomalies in °C vs the 1951–1980 mean; " +
-      "the header is on line 2 and missing values are `***` — see climate-trends/README.md). " +
-      "Load the annual J-D series, quantify the warming rate (°C/decade) over the full record and " +
-      "over 1975–present, compare decadal means, save one publication-quality figure as " +
-      "climate-trends/warming_trend.png, and write climate-trends/report.md citing the dataset " +
-      "source — every number must come from the code you ran.",
+      "Use the formulation-optimizer skill on shampoo-formulation/data/materials.csv " +
+      "(a surfactant system; see shampoo-formulation/README.md for the target batch size and " +
+      "minimum active-surfactant content). Find the lowest-cost blend that meets the active " +
+      "target within each material's stock and max-usage limit, then write " +
+      "shampoo-formulation/result.md with the optimal mix (kg and %), the total cost, and the " +
+      "achieved active content — every number must come from the solver.",
     prepare: async () => {
-      if (isTauri) await installExample("climate-trends");
+      if (isTauri) await installExample("shampoo-formulation");
     },
   },
 ];
@@ -72,9 +71,9 @@ export function WorkflowStarters({ onPick }: { onPick: (prompt: string) => void 
     demo: { title: t("starters.demo.title"), description: t("starters.demo.description") },
     analyze: { title: t("starters.analyze.title"), description: t("starters.analyze.description") },
     audit: { title: t("starters.audit.title"), description: t("starters.audit.description") },
-    "example-climate": {
-      title: t("starters.example-climate.title"),
-      description: t("starters.example-climate.description"),
+    "example-shampoo": {
+      title: t("starters.example-shampoo.title"),
+      description: t("starters.example-shampoo.description"),
     },
   };
   return (

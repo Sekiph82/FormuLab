@@ -15,8 +15,8 @@ fn git_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
-const AUTHOR_NAME: &str = "Open Science Desktop";
-const AUTHOR_EMAIL: &str = "open-science-desktop@local";
+const AUTHOR_NAME: &str = "FormuLab";
+const AUTHOR_EMAIL: &str = "FormuLab@local";
 
 /// Files at or above this size are kept out of snapshots. Git stores every
 /// version whole (binaries never delta or compress) and never reclaims the
@@ -49,7 +49,7 @@ const MAX_DIR_BYTES: u64 = 50 * 1024 * 1024;
 /// ignored; anything genuinely too big is caught by the >= 100 MB size guard,
 /// which is format-agnostic (a small `.mp4` is kept, a huge `.csv` is not).
 const DEFAULT_GITIGNORE: &str = "\
-# Managed by Open Science Desktop.
+# Managed by FormuLab.
 # Excludes paths with no provenance value plus secrets that must never be
 # committed. Research outputs, data, notebooks, and code are intentionally kept;
 # files >= 100 MB are dropped by the snapshot size guard, not by this list.
@@ -359,30 +359,30 @@ fn unstage_bulk_dirs(root: &Path) -> Result<(), String> {
 /// is how we recognize an app-managed repo that is safe to `add -A`/commit into;
 /// we never touch a git repository the user brought into the workspace himself.
 fn snapshot_marker(root: &Path) -> PathBuf {
-    root.join(".git").join(".openscience-snapshots")
+    root.join(".git").join(".FormuLab-snapshots")
 }
 
-/// Written under a workspace's `.openscience/` to opt it out of app-managed
+/// Written under a workspace's `.FormuLab/` to opt it out of app-managed
 /// snapshots entirely — used for IMPORTED workspaces (a repo/folder the user
 /// brought in) so the app never `git init`s or commits into it, even when the
 /// folder isn't a git repo yet.
 const NO_SNAPSHOT_MARKER: &str = ".no-snapshots";
 
 fn no_snapshot_marker(root: &Path) -> PathBuf {
-    root.join(".openscience").join(NO_SNAPSHOT_MARKER)
+    root.join(".FormuLab").join(NO_SNAPSHOT_MARKER)
 }
 
 /// Prepare an IMPORTED (user-brought) workspace so the app never auto-commits
 /// into it. A real git repo is already safe (our commit path skips any repo
-/// without the snapshot marker); there we only keep the app's `.openscience/`
+/// without the snapshot marker); there we only keep the app's `.FormuLab/`
 /// dir out of the user's `git status` via a local `.git/info/exclude` (never
 /// their tracked `.gitignore`). A plain folder gets an explicit opt-out marker
 /// so a later commit never `git init`s it. Best-effort; failures are non-fatal.
 pub fn mark_imported(root: &Path) {
     if root.join(".git").is_dir() {
-        exclude_locally(root, ".openscience/");
+        exclude_locally(root, ".FormuLab/");
     } else {
-        let osdir = root.join(".openscience");
+        let osdir = root.join(".FormuLab");
         let _ = std::fs::create_dir_all(&osdir);
         let _ = std::fs::write(no_snapshot_marker(root), b"imported\n");
     }
@@ -620,10 +620,10 @@ mod tests {
 
         super::mark_imported(&root);
         // A real repo isn't given the opt-out marker (marker-absence already
-        // makes commit() skip it) but gets a LOCAL exclude for .openscience/.
+        // makes commit() skip it) but gets a LOCAL exclude for .FormuLab/.
         assert!(!super::no_snapshot_marker(&root).exists());
         let exclude = fs::read_to_string(root.join(".git/info/exclude")).unwrap();
-        assert!(exclude.lines().any(|l| l.trim() == ".openscience/"));
+        assert!(exclude.lines().any(|l| l.trim() == ".FormuLab/"));
 
         // Still declined by commit(), user's history untouched, and idempotent.
         assert_eq!(commit(&root, "should be skipped").unwrap(), false);
@@ -631,7 +631,7 @@ mod tests {
         let count = fs::read_to_string(root.join(".git/info/exclude"))
             .unwrap()
             .lines()
-            .filter(|l| l.trim() == ".openscience/")
+            .filter(|l| l.trim() == ".FormuLab/")
             .count();
         assert_eq!(count, 1);
         let _ = fs::remove_dir_all(&root);

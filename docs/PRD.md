@@ -367,7 +367,7 @@ discussion. Shipped versions are kept here as the delivery record.
     dangerous only" and "full access" (#20);
   - system-level notifications when the agent is blocked on a permission or
     question (#21).
-- **v0.4.0 Reach & interop** — using Open Science from outside the desktop window:
+- **v0.4.0 Reach & interop** — using FormuLab from outside the desktop window:
   - LAN web UI with authentication (phone / second machine on the same
     network) (#3);
   - messaging-platform integrations (Slack / Discord / Telegram / Feishu) for

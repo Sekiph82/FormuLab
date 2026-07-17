@@ -7,7 +7,7 @@ use tauri::{path::BaseDirectory, AppHandle, Manager};
 use crate::runtime::workspace_dir;
 
 /// Bundled example projects; the command rejects anything else.
-const EXAMPLES: &[&str] = &["climate-trends"];
+const EXAMPLES: &[&str] = &["shampoo-formulation", "surface-cleaner"];
 
 /// Copy `src` into `dst` recursively WITHOUT overwriting existing files — a
 /// re-installed example must never clobber the user's edited copy.
