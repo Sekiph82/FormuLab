@@ -215,6 +215,16 @@ def render_card(formula: Dict[str, Any], violations: List[str]) -> str:
     return "\n".join(md)
 
 
+def card_filename(session_id: str, version: str) -> str:
+    """The one name a card is stored under, in the session AND in the library.
+
+    `Formulation_Card_<session>_<version>.md` — the session id already carries
+    the date, time and product, so the same file name identifies the card
+    wherever it sits, and the library sorts chronologically by product.
+    """
+    return f"Formulation_Card_{session_id}_{version}.md"
+
+
 def archive_formulas(
     formulas_dir: str,
     cards: List[Dict[str, Any]],
@@ -225,8 +235,8 @@ def archive_formulas(
     """Copy every produced card into the flat formula library and index it.
 
     The library is the one place that holds EVERY formula ever generated, across
-    sessions: `<date>-<slug>-<version>.md` plus an `index.json` describing each
-    entry so the set stays browsable without opening the files.
+    sessions, under the SAME file name the session uses, plus an `index.json`
+    describing each entry so the set stays browsable without opening the files.
     """
     os.makedirs(formulas_dir, exist_ok=True)
     index_path = os.path.join(formulas_dir, "index.json")
@@ -236,18 +246,14 @@ def archive_formulas(
     except Exception:
         index = []
 
-    date = time.strftime("%Y-%m-%d")
     created = time.strftime("%Y-%m-%d %H:%M:%S")
     written: List[str] = []
     for card in cards:
         version = card["version"]
-        name = f"{date}-{slug}-{version}.md"
-        path = os.path.join(formulas_dir, name)
-        # Same product formulated twice in a day: keep both, newest suffixed.
-        if os.path.exists(path):
-            name = f"{date}-{slug}-{version}-{int(time.time())}.md"
-            path = os.path.join(formulas_dir, name)
-        with open(path, "w", encoding="utf-8") as fh:
+        # Session id carries date + time + product, so this name is already
+        # unique — no collision suffix needed.
+        name = card_filename(session_id, version)
+        with open(os.path.join(formulas_dir, name), "w", encoding="utf-8") as fh:
             fh.write(card["markdown"])
         written.append(name)
 
@@ -325,6 +331,9 @@ def run(
     if unevidenced:
         log("[warn] no literature retrieved — cards will be marked as not literature-grounded")
 
+    # The session folder's own name identifies every card written from this run.
+    session_id = os.path.basename(out_dir.rstrip("/\\"))
+
     cards = []
     for idx, f in enumerate(formulas[:n], 1):
         ingredients = [str(i.get("inci", "")) for i in f.get("ingredients", [])]
@@ -339,7 +348,7 @@ def run(
             ]
         md = render_card(f, violations)
         version = f"v{idx}"
-        with open(os.path.join(out_dir, f"formulation-card-{version}.md"), "w", encoding="utf-8") as fh:
+        with open(os.path.join(out_dir, card_filename(session_id, version)), "w", encoding="utf-8") as fh:
             fh.write(md)
         cards.append({"version": version, "markdown": md, "formula": f, "violations": violations})
 
@@ -350,9 +359,7 @@ def run(
     archived: List[str] = []
     if formulas_dir:
         try:
-            archived = archive_formulas(
-                formulas_dir, cards, brief, slug, os.path.basename(out_dir.rstrip("/\\")),
-            )
+            archived = archive_formulas(formulas_dir, cards, brief, slug, session_id)
             log(f"archived {len(archived)} formula(s) to the library")
         except Exception as e:
             # The library is a convenience copy — never fail a good run over it.

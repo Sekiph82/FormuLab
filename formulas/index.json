@@ -142,5 +142,41 @@
     "session": "2026-07-18-1634-anti-dandruff-shampoo",
     "ingredients": 10,
     "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-1638-sensitive-skin-body-wash_v1.md",
+    "name": "Ultra-Mild Glucoside Body Wash",
+    "target": "sensitive skin body wash",
+    "category": "body wash",
+    "market": "eu",
+    "version": "v1",
+    "created": "2026-07-18 16:38:26",
+    "session": "2026-07-18-1638-sensitive-skin-body-wash",
+    "ingredients": 9,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-1638-sensitive-skin-body-wash_v2.md",
+    "name": "Isethionate-Betaine Soothing Wash",
+    "target": "sensitive skin body wash",
+    "category": "body wash",
+    "market": "eu",
+    "version": "v2",
+    "created": "2026-07-18 16:38:26",
+    "session": "2026-07-18-1638-sensitive-skin-body-wash",
+    "ingredients": 9,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-1638-sensitive-skin-body-wash_v3.md",
+    "name": "Botanical Infused Sarcosinate Wash",
+    "target": "sensitive skin body wash",
+    "category": "body wash",
+    "market": "eu",
+    "version": "v3",
+    "created": "2026-07-18 16:38:26",
+    "session": "2026-07-18-1638-sensitive-skin-body-wash",
+    "ingredients": 9,
+    "violations": []
   }
 ]

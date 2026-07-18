@@ -203,7 +203,13 @@ fn read_cards(dir: &std::path::Path) -> Vec<serde_json::Value> {
             .filter(|p| {
                 p.file_name()
                     .and_then(|n| n.to_str())
-                    .map(|n| n.starts_with("formulation-card-v") && n.ends_with(".md"))
+                    .map(|n| {
+                        n.ends_with(".md")
+                            // current: Formulation_Card_<session>_v1.md
+                            && (n.starts_with("Formulation_Card_")
+                                // sessions written before the rename
+                                || n.starts_with("formulation-card-v"))
+                    })
                     .unwrap_or(false)
             })
             .collect(),
@@ -213,11 +219,14 @@ fn read_cards(dir: &std::path::Path) -> Vec<serde_json::Value> {
     files
         .iter()
         .filter_map(|p| {
-            let version = p
-                .file_name()
-                .and_then(|n| n.to_str())
-                .and_then(|n| n.strip_prefix("formulation-card-"))
-                .and_then(|n| n.strip_suffix(".md"))
+            let stem = p.file_name().and_then(|n| n.to_str())?.trim_end_matches(".md");
+            // The version is the trailing "v<N>" segment under either scheme.
+            let version = stem
+                .rsplit(['_', '-'])
+                .next()
+                .filter(|s| {
+                    s.starts_with('v') && s.len() > 1 && s[1..].chars().all(|c| c.is_ascii_digit())
+                })
                 .unwrap_or("v?")
                 .to_string();
             let md = std::fs::read_to_string(p).ok()?;

@@ -51,8 +51,11 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(len(res["cards"]), 2)
             self.assertEqual([c["version"] for c in res["cards"]], ["v1", "v2"])
             self.assertIn("Formulation Card", res["cards"][0]["markdown"])
-            self.assertTrue(os.path.isfile(os.path.join(out, "formulation-card-v1.md")))
-            self.assertTrue(os.path.isfile(os.path.join(out, "formulation-card-v2.md")))
+            # Cards are named for their session, so the file identifies itself
+            # wherever it is copied: Formulation_Card_<session>_v1.md
+            sid = os.path.basename(out)
+            self.assertTrue(os.path.isfile(os.path.join(out, f"Formulation_Card_{sid}_v1.md")))
+            self.assertTrue(os.path.isfile(os.path.join(out, f"Formulation_Card_{sid}_v2.md")))
             # No banned ingredient -> no violations.
             self.assertEqual(res["cards"][0]["violations"], [])
 
@@ -98,6 +101,12 @@ class PipelineTests(unittest.TestCase):
             with open(os.path.join(formulas, "index.json"), encoding="utf-8") as fh:
                 index = json.load(fh)
             self.assertEqual(len(index), 2)
+            # Library copy carries the SAME name as the session copy.
+            sid = os.path.basename(out)
+            self.assertEqual(
+                sorted(res["archived"]),
+                [f"Formulation_Card_{sid}_v1.md", f"Formulation_Card_{sid}_v2.md"],
+            )
             self.assertEqual(index[0]["target"], "mild shampoo")
             self.assertEqual(index[0]["market"], "eu")
             self.assertEqual({e["version"] for e in index}, {"v1", "v2"})
