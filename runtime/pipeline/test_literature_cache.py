@@ -137,10 +137,37 @@ class CacheTests(unittest.TestCase):
             # Every angle was asked, and no single angle monopolised the quota.
             queried = {q for _, q in calls}
             self.assertEqual(len(queried), 3)
-            # The best source carried it; arXiv was never needed.
-            self.assertNotIn("arxiv", {src for src, _ in calls})
+            # More than one database contributed: the evidence behind a formula
+            # should not rest on a single index even when that index is strong.
             used = {p["doi"].split("/")[1].split("-")[0] for p in got}
-            self.assertEqual(used, {"openalex"})
+            self.assertGreater(len(used), 1)
+            # ...and the strongest source still leads, capped at its share.
+            self.assertLessEqual(sum(1 for p in got if "openalex" in p["doi"]), 5)
+
+    def test_single_source_still_fills_the_quota(self):
+        # Regression: the per-source cap must not starve the evidence base when
+        # only one database is available — diversity is a preference, not a
+        # reason to hand back 5 papers instead of 15.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+
+            class FakeDiscover:
+                FETCHERS = {"openalex": lambda q, n: [
+                    fake_paper(f"solo-{abs(hash(q)) % 999}-{i}", q) for i in range(n)]}
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig = lc._load_fetchers
+            lc._load_fetchers = lambda: FakeDiscover
+            try:
+                got = lc.gather(["antidandruff shampoo surfactant", "shampoo preservative"],
+                                out, lib, target=15, sources="openalex", download_pdfs=False)
+            finally:
+                lc._load_fetchers = orig
+            self.assertEqual(len(got), 15)
 
     def test_off_domain_papers_are_rejected(self):
         # A physics preprint that merely contains the word "formulation" must not

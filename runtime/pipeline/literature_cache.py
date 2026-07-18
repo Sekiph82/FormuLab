@@ -301,47 +301,59 @@ def gather(
         priority = {"openalex": 0, "openaire": 1, "europepmc": 2, "crossref": 3, "arxiv": 9}
         srcs.sort(key=lambda s: priority.get(s, 99))
         pairs = [(q, src) for src in srcs for q in queries]
-        per_pair = max(2, -(-target // max(1, len(queries))))  # ceil, floor of 2
         # No single database may supply the whole quota. Each indexes a
         # different slice of the literature, so a formula backed by three
         # independent sources is better corroborated than one backed by fifteen
         # papers from a single index — even when that index is the strongest.
-        per_source_cap = max(3, -(-target // 3))
+        #
+        # Two passes: the first honours the cap so several databases get in, the
+        # second lifts it to top up whatever is still missing. Diversity is a
+        # preference, never a reason to return a thinner evidence base — with a
+        # single source available the cap would otherwise starve the quota.
+        base_cap = max(3, -(-target // 3))
         per_source: Dict[str, int] = {}
-        for q, src in pairs:
+        for cap in (base_cap, target):
             if len(new) >= target:
                 break
-            if per_source.get(src, 0) >= per_source_cap:
-                continue  # this database has contributed its share
-            try:
-                rows = discover.FETCHERS[src](q, target)
-            except Exception as e:
-                log(f"  [warn] {src} failed: {e}")
-                continue
-            taken = 0
-            qterms = _terms(q)
-            for row in rows:
-                if taken >= per_pair or len(new) >= target:
+            # How much one (source, angle) pair may contribute. Derived from the
+            # cap so a source spends its share ACROSS the angles: if this equals
+            # the cap, the first angle exhausts the source and the rest are
+            # never asked.
+            per_pair = max(2, -(-cap // max(1, len(queries))))
+            for q, src in pairs:
+                if len(new) >= target:
                     break
-                if per_source.get(src, 0) >= per_source_cap:
-                    break
-                k = paper_key(row)
-                if not k or k in lib_keys or k in new_keys:
+                if per_source.get(src, 0) >= cap:
+                    continue  # this database has contributed its share
+                try:
+                    rows = discover.FETCHERS[src](q, target)
+                except Exception as e:
+                    log(f"  [warn] {src} failed: {e}")
                     continue
-                # NOTE: discover.is_relevant is deliberately NOT used here. It
-                # asks "does this contain formulation jargon?", which rejects
-                # genuine domain papers ("Removal and prevention of limescale in
-                # plumbing tubes" has no such vocabulary) while admitting any
-                # preprint containing the word "formulation". anchored() +
-                # topical() test the thing we actually care about: is this paper
-                # about this product, and about this angle.
-                if not topical(row, qterms) or not anchored(row, anchor_terms):
-                    continue
-                new.append(row)
-                new_keys.add(k)
-                index.append(row)  # grow the shared library
-                taken += 1
-                per_source[src] = per_source.get(src, 0) + 1
+                taken = 0
+                qterms = _terms(q)
+                for row in rows:
+                    if taken >= per_pair or len(new) >= target:
+                        break
+                    if per_source.get(src, 0) >= cap:
+                        break
+                    k = paper_key(row)
+                    if not k or k in lib_keys or k in new_keys:
+                        continue
+                    # NOTE: discover.is_relevant is deliberately NOT used here.
+                    # It asks "does this contain formulation jargon?", which
+                    # rejects genuine domain papers ("Removal and prevention of
+                    # limescale in plumbing tubes" has no such vocabulary) while
+                    # admitting any preprint containing the word "formulation".
+                    # anchored() + topical() test what we actually care about:
+                    # is this paper about this product, and about this angle.
+                    if not topical(row, qterms) or not anchored(row, anchor_terms):
+                        continue
+                    new.append(row)
+                    new_keys.add(k)
+                    index.append(row)  # grow the shared library
+                    taken += 1
+                    per_source[src] = per_source.get(src, 0) + 1
         spread = ", ".join(f"{s}:{n}" for s, n in sorted(per_source.items())) or "none"
         log(f"fetched {len(new)} new papers across {len(queries)} angles ({spread})")
         # Fresh-preferred, but always deliver up to `target`: if the deduped
