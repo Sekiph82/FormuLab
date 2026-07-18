@@ -101,12 +101,20 @@ pub fn resolve_under(root: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(full)
 }
 
-/// The folder tree a file command operates in: the ACTIVE session workspace
-/// (default) or the base folder every session workspace is created under.
-/// Pages declare their scope explicitly — no fallback guessing between the
-/// two, so an identical relative path can never resolve ambiguously.
+/// The folder tree a file command operates in. `data` (sessions + the shared
+/// literature cache) and `formulas` (the formula library) are the two the Files
+/// page shows — together they are everything a run produces. Pages declare their
+/// scope explicitly — no fallback guessing, so an identical relative path can
+/// never resolve ambiguously.
 pub fn scope_root(app: &AppHandle, root: Option<&str>) -> Result<PathBuf, String> {
-    match root.unwrap_or("workspace") {
+    let under_project = |name: &str| -> Result<PathBuf, String> {
+        let dir = crate::formulation_v2::project_root(app)?.join(name);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        Ok(dir)
+    };
+    match root.unwrap_or("data") {
+        "data" => under_project("data"),
+        "formulas" => under_project("formulas"),
         "workspace" => workspace_dir(app),
         "base" => crate::runtime::base_workspace_dir(app),
         other => Err(format!("unknown root scope: {other}")),

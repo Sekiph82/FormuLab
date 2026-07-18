@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ExternalLink, NotebookPen, Plus } from "lucide-react";
 import { addTextToWorkspace, isTauri, jupyterStatus, openJupyterLab, workspaceBase, workspacePath } from "@/lib/tauri";
-import { listNotebooks, type NotebookEntry } from "@/lib/artifactFile";
+import { listNotebooks, type NotebookEntry, type FileRoot } from "@/lib/artifactFile";
 import { emptyIpynb } from "@/lib/notebook-file";
 import type { KernelLanguage } from "@/lib/kernel";
 import { NotebookEditor } from "@/components/notebook/NotebookEditor";
@@ -21,7 +21,7 @@ export function NotebooksPage() {
   const [entries, setEntries] = useState<NotebookEntry[]>([]);
   /** Open notebook + the tree its path resolves in ("base" = listed here;
    *  "workspace" = just created in the active session folder). */
-  const [open, setOpen] = useState<{ path: string; root: "workspace" | "base" } | null>(null);
+  const [open, setOpen] = useState<{ path: string; root: FileRoot } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   // Whether the app-managed Jupyter env exists — gates the "Open JupyterLab"
   // button (no point offering it before setup).

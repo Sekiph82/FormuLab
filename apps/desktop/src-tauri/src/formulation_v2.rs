@@ -57,7 +57,7 @@ fn default_n() -> u32 {
 /// Kept independent of OpenCode's workspace base (which re-roots per run and is
 /// going away) so the layout survives that removal. A pointer file overrides it;
 /// otherwise it falls back to the workspace base.
-fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(p) = app.path().app_data_dir() {
         let pointer = p.join("runtime").join("formulab-root.txt");
         if let Ok(s) = std::fs::read_to_string(&pointer) {

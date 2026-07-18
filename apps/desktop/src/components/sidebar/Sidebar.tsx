@@ -1,16 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Beaker,
-  ChevronRight,
-  Files,
   FlaskConical,
-  Folder,
-  FolderInput,
-  FolderOpen,
   FolderTree,
   NotebookPen,
   PanelLeft,
@@ -18,10 +12,7 @@ import {
   Settings,
   Trash2,
 } from "lucide-react";
-import type { Project } from "@ai4s/shared";
 import { cn } from "@/lib/cn";
-import { useRuntimeStore } from "@/lib/runtime";
-import { pickFolder, renameProject, type ProjectInfo } from "@/lib/tauri";
 import {
   SIDEBAR_MAX,
   SIDEBAR_MIN,
@@ -37,34 +28,18 @@ import {
   type SessionSummary,
 } from "@/lib/formulationV2";
 import { SETTINGS_SECTIONS, resolveSection } from "@/components/settings/sections";
-import { StatusPills } from "./StatusPills";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import logo from "@/assets/logo.webp";
-
-interface Row {
-  id: string;
-  title: string;
-  to: string;
-  kind: "session" | "example";
-}
 
 /** Dragging the divider below this pointer x collapses the sidebar; dragging
  *  back past it re-expands. Sits below SIDEBAR_MIN so there is a clear "snap". */
 const COLLAPSE_BELOW = 140;
 
-/** Projects the user folded shut (ids). Projects default to open — a
- *  researcher has a handful, and their sessions ARE the sidebar's content. */
-const COLLAPSED_KEY = "ai4s.collapsedProjects";
-function initialCollapsedProjects(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function Sidebar({ project }: { project: Project }) {
+/**
+ * App navigation plus the list of saved formulations. The list is read from the
+ * project folder (app data), not from any agent runtime — opening one shows its
+ * stored cards without re-running a model.
+ */
+export function Sidebar() {
   const { t } = useTranslation(["nav", "settings"]);
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,19 +48,6 @@ export function Sidebar({ project }: { project: Project }) {
   // would strand the user with no way back.
   const inSettings = location.pathname.startsWith("/settings");
   const activeSection = resolveSection(location.pathname.split("/")[2]);
-  const {
-    sessions,
-    projects,
-    workspace,
-    hiddenExamples,
-    startDraft,
-    startDraftInWorkspace,
-    createProject,
-    importProject,
-    refreshProjects,
-    deleteSession,
-    hideExample,
-  } = useRuntimeStore();
   const showUpdateBadge = useUpdateStore((s) => s.showBadge);
   const {
     sidebarCollapsed,
@@ -94,10 +56,12 @@ export function Sidebar({ project }: { project: Project }) {
     setSidebarWidth,
     toggleSidebar,
   } = useUiStore();
+
   // While dragging, the live width lives here; the store (and localStorage)
   // are only written on pointer-up.
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const dragging = dragWidth !== null;
+  const width = dragWidth ?? sidebarWidth;
 
   const onDividerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -123,219 +87,21 @@ export function Sidebar({ project }: { project: Project }) {
     setDragWidth(null);
   };
 
-  const startNew = () => {
-    startDraft();
-    navigate("/live");
-  };
-
-  // ---- Projects: sessions group under a project by workspace folder ----
-  const [collapsedProjects, setCollapsedProjects] = useState<string[]>(
-    initialCollapsedProjects,
-  );
-  const [namingProject, setNamingProject] = useState(false);
-  const [createBusy, setCreateBusy] = useState(false);
-  const [importBusy, setImportBusy] = useState(false);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-
-  const toggleProject = (id: string) =>
-    setCollapsedProjects((prev) => {
-      const next = prev.includes(id)
-        ? prev.filter((x) => x !== id)
-        : [...prev, id];
-      if (typeof window !== "undefined")
-        window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
-      return next;
-    });
-
-  const submitNewProject = async (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed || createBusy) {
-      setNamingProject(false);
-      return;
-    }
-    setCreateBusy(true);
-    const created = await createProject(trimmed);
-    setCreateBusy(false);
-    setNamingProject(false);
-    if (created) navigate("/live");
-  };
-
-  // Import an existing repo/folder as a project: pick a folder, then reference
-  // it in place (never moved, never auto-committed into).
-  const handleImport = async () => {
-    if (importBusy) return;
-    const path = await pickFolder();
-    if (!path) return;
-    setImportBusy(true);
-    const imported = await importProject(path);
-    setImportBusy(false);
-    if (imported) navigate("/live");
-  };
-
-  const newSessionIn = async (p: ProjectInfo) => {
-    await startDraftInWorkspace(p.path);
-    navigate("/live");
-  };
-
-  const submitRename = async (p: ProjectInfo, name: string) => {
-    setRenamingId(null);
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === p.name) return;
-    try {
-      await renameProject(p.id, trimmed);
-      await refreshProjects();
-    } catch {
-      /* the sidebar keeps showing the old name */
-    }
-  };
-
-  // Subagent child sessions are internals of their parent conversation —
-  // their asks and progress surface there, so they get no row of their own.
-  const topSessions = sessions.filter((s) => !s.parentId);
-  const projectByPath = new Map(projects.map((p) => [p.path, p]));
-  const sessionsByProject = new Map<string, Row[]>(
-    projects.map((p) => [p.id, []]),
-  );
-  const looseRows: Row[] = [];
-  for (const s of topSessions) {
-    const row: Row = {
-      id: s.id,
-      title: s.title,
-      to: `/live/${s.id}`,
-      kind: "session",
-    };
-    const owner = s.directory ? projectByPath.get(s.directory) : undefined;
-    if (owner) sessionsByProject.get(owner.id)!.push(row);
-    else looseRows.push(row);
-  }
-  // Recency per project = its newest session's update time (else its creation).
-  const updatedByProject = new Map<string, number>();
-  for (const s of topSessions) {
-    if (!s.directory || s.updated == null) continue;
-    const owner = projectByPath.get(s.directory);
-    if (owner)
-      updatedByProject.set(owner.id, Math.max(updatedByProject.get(owner.id) ?? 0, s.updated));
-  }
-  const recencyOf = (p: ProjectInfo) => updatedByProject.get(p.id) ?? p.createdAt;
-  // The sidebar shows every pinned project plus the few most-recent others; the
-  // full list (search, delete, …) lives on the Projects page.
-  const RECENT_LIMIT = 5;
-  const byRecency = [...projects].sort((a, b) => recencyOf(b) - recencyOf(a));
-  const visibleProjects = [
-    ...byRecency.filter((p) => p.pinned),
-    ...byRecency.filter((p) => !p.pinned).slice(0, RECENT_LIMIT),
-  ];
-  const hiddenProjectCount = projects.length - visibleProjects.length;
-  const exampleRows: Row[] = project.sessions
-    .filter((e) => !hiddenExamples.includes(e.id))
-    .map((e) => ({
-      id: e.id,
-      title: e.title,
-      to: `/example/${e.id}`,
-      kind: "example" as const,
-    }));
-
-  const [pendingDelete, setPendingDelete] = useState<Row | null>(null);
-
-  const confirmDelete = () => {
-    const row = pendingDelete;
-    setPendingDelete(null);
-    if (!row) return;
-    if (row.kind === "session") void deleteSession(row.id);
-    else hideExample(row.id);
-    if (location.pathname === row.to) navigate("/live");
-  };
-
-  // With the overlay titlebar (macOS), reserve a draggable strip at the top so
-  // the traffic lights don't overlap the logo and the window stays movable.
-  const isMac = navigator.userAgent.includes("Mac");
-  const overlayTitlebar = useOverlayTitlebar();
-
-  const width = dragWidth ?? sidebarWidth;
-
-  // ---- Saved formulations (v2 direct pipeline) ----
-  // These live in app data, not in the OpenCode runtime, so the sidebar owns
-  // their fetch and refreshes on the change event the workspace fires.
+  // ---- Saved formulations ----
   const [formulations, setFormulations] = useState<SessionSummary[]>([]);
-  const refreshFormulations = useCallback(() => {
+  const refresh = useCallback(() => {
     void listSessions()
       .then(setFormulations)
       .catch(() => setFormulations([]));
   }, []);
   useEffect(() => {
-    refreshFormulations();
-    window.addEventListener(SESSIONS_CHANGED_EVENT, refreshFormulations);
-    return () => window.removeEventListener(SESSIONS_CHANGED_EVENT, refreshFormulations);
-  }, [refreshFormulations]);
+    refresh();
+    window.addEventListener(SESSIONS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(SESSIONS_CHANGED_EVENT, refresh);
+  }, [refresh]);
 
-  const formulationRow = (s: SessionSummary) => {
-    const to = `/live/${s.id}`;
-    const title = s.brief?.target ?? s.id;
-    return (
-      <div key={s.id} className="group relative">
-        <NavLink
-          to={to}
-          className={cn(
-            "flex items-center gap-2 rounded-input py-1 pl-2 pr-8 text-[13px] hover:bg-surface-2",
-            location.pathname === to ? "bg-surface-2 text-text" : "text-text/90",
-          )}
-        >
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
-          <span className="flex-1 truncate">{title}</span>
-          {s.card_count > 1 && (
-            <span className="shrink-0 text-[10px] tabular-nums text-muted">
-              {s.card_count}
-            </span>
-          )}
-        </NavLink>
-        <button
-          onClick={async () => {
-            await deleteFormulationSession(s.id).catch(() => {});
-            refreshFormulations();
-            if (location.pathname === to) navigate("/live");
-          }}
-          aria-label={t("history.deleteAria", { title })}
-          className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded p-1 text-muted hover:bg-border hover:text-error group-hover:block"
-        >
-          <Trash2 size={13} />
-        </button>
-      </div>
-    );
-  };
-
-  const sessionRow = (row: Row) => (
-    <div key={row.to} className="group relative">
-      <NavLink
-        to={row.to}
-        className={cn(
-          "flex items-center gap-2 rounded-input py-1 pl-2 pr-8 text-[13px] hover:bg-surface-2",
-          location.pathname === row.to
-            ? "bg-surface-2 text-text"
-            : "text-text/90",
-        )}
-      >
-        <span
-          className={cn(
-            "h-1.5 w-1.5 shrink-0 rounded-full",
-            row.kind === "example" ? "bg-muted" : "bg-ok",
-          )}
-        />
-        <span className="flex-1 truncate">{row.title}</span>
-        {row.kind === "example" && (
-          <span className="shrink-0 rounded-full bg-surface-2 px-1.5 text-[10px] uppercase tracking-wide text-muted ring-1 ring-border">
-            {t("history.exampleTag")}
-          </span>
-        )}
-      </NavLink>
-      <button
-        onClick={() => setPendingDelete(row)}
-        aria-label={t("history.deleteAria", { title: row.title })}
-        className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded p-1 text-muted hover:bg-border hover:text-error group-hover:block"
-      >
-        <Trash2 size={13} />
-      </button>
-    </div>
-  );
+  const isMac = navigator.userAgent.includes("Mac");
+  const overlayTitlebar = useOverlayTitlebar();
 
   return (
     <div
@@ -369,6 +135,7 @@ export function Sidebar({ project }: { project: Project }) {
             )}
           </div>
         )}
+
         {inSettings && (
           <>
             <div className={cn("px-3 pb-2", overlayTitlebar ? "pt-0" : "pt-3")}>
@@ -399,301 +166,123 @@ export function Sidebar({ project }: { project: Project }) {
             </nav>
           </>
         )}
+
         {!inSettings && (
-        <>
-        <div className={cn("px-4 pb-3", overlayTitlebar ? "pt-1" : "pt-4")}>
-          <div className="flex items-baseline gap-1.5">
-            <img src={logo} alt="" className="h-[18px] w-auto self-center" />
-            {/* eslint-disable-next-line i18next/no-literal-string -- product brand name, not translated across locales (see AGENTS.md) */}
-            <div className="font-serif text-[17px] font-semibold leading-none tracking-tight text-text">
-              FormuLab
+          <>
+            <div className={cn("px-4 pb-3", overlayTitlebar ? "pt-1" : "pt-4")}>
+              <div className="flex items-baseline gap-1.5">
+                <img src={logo} alt="" className="h-[18px] w-auto self-center" />
+                {/* eslint-disable-next-line i18next/no-literal-string -- product brand name, not translated across locales (see AGENTS.md) */}
+                <div className="font-serif text-[17px] font-semibold leading-none tracking-tight text-text">
+                  FormuLab
+                </div>
+                <span className="text-[10px] uppercase tracking-widest text-muted">
+                  {t("sidebar.betaBadge")}
+                </span>
+                {!overlayTitlebar && (
+                  <button
+                    onClick={toggleSidebar}
+                    aria-label={t("sidebar.collapse")}
+                    title={t("sidebar.collapseTitle", {
+                      shortcut: isMac ? "⌘B" : "Ctrl+B",
+                    })}
+                    className="ml-auto self-center rounded p-1 text-text hover:bg-surface-2"
+                  >
+                    <PanelLeft size={14} strokeWidth={1.5} />
+                  </button>
+                )}
+              </div>
             </div>
-            <span className="text-[10px] uppercase tracking-widest text-muted">
-              {t("sidebar.betaBadge")}
-            </span>
-            {!overlayTitlebar && (
-              <button
-                onClick={toggleSidebar}
-                aria-label={t("sidebar.collapse")}
-                title={t("sidebar.collapseTitle", {
-                  shortcut: isMac ? "⌘B" : "Ctrl+B",
-                })}
-                className="ml-auto self-center rounded p-1 text-text hover:bg-surface-2"
-              >
-                <PanelLeft size={14} strokeWidth={1.5} />
-              </button>
-            )}
-          </div>
-        </div>
 
-        <nav className="flex flex-col px-3">
-          <NavRow
-            icon={<Plus size={16} />}
-            label={t("items.new")}
-            onClick={startNew}
-          />
-          <NavRow
-            icon={<Beaker size={16} />}
-            label={t("items.optimizer")}
-            onClick={() => navigate("/optimizer")}
-          />
-          <NavRow
-            icon={<NotebookPen size={16} />}
-            label={t("items.notebooks")}
-            onClick={() => navigate("/notebooks")}
-          />
-          <NavRow
-            icon={<FolderTree size={16} />}
-            label={t("items.files")}
-            onClick={() => navigate("/files")}
-          />
-          <NavRow
-            icon={<FlaskConical size={16} />}
-            label={t("items.runs")}
-            onClick={() => navigate("/runs")}
-          />
-          <NavRow
-            icon={<Files size={16} />}
-            label={t("items.skills")}
-            onClick={() => navigate("/skills")}
-          />
-        </nav>
+            <nav className="flex flex-col px-3">
+              <NavRow
+                icon={<Plus size={16} />}
+                label={t("items.new")}
+                onClick={() => navigate("/live")}
+              />
+              <NavRow
+                icon={<Beaker size={16} />}
+                label={t("items.optimizer")}
+                onClick={() => navigate("/optimizer")}
+              />
+              <NavRow
+                icon={<NotebookPen size={16} />}
+                label={t("items.notebooks")}
+                onClick={() => navigate("/notebooks")}
+              />
+              <NavRow
+                icon={<FolderTree size={16} />}
+                label={t("items.files")}
+                onClick={() => navigate("/files")}
+              />
+              <NavRow
+                icon={<FlaskConical size={16} />}
+                label={t("items.runs")}
+                onClick={() => navigate("/runs")}
+              />
+            </nav>
 
-        <div className="mt-4 flex-1 overflow-y-auto px-3 pb-2">
-          <div className="flex items-center gap-1 px-0.5 py-1">
-            <button
-              onClick={() => navigate("/projects")}
-              title={t("projects.seeAll")}
-              className={cn(
-                "group/head flex min-w-0 flex-1 items-center gap-1.5 rounded-input px-1.5 py-1 text-[13px] font-medium outline-none hover:bg-surface-2",
-                location.pathname === "/projects" ? "text-text" : "text-muted hover:text-text",
-              )}
-            >
-              <FolderTree size={14} className="shrink-0" />
-              <span className="flex-1 truncate text-left">{t("projects.heading")}</span>
-              <ChevronRight size={13} className="shrink-0 opacity-60 transition-transform group-hover/head:translate-x-0.5" />
-            </button>
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  aria-label={t("projects.new")}
-                  title={t("projects.new")}
-                  className="rounded p-0.5 text-muted outline-none hover:bg-surface-2 hover:text-text"
-                >
-                  <Plus size={13} />
-                </button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content
-                  align="end"
-                  sideOffset={6}
-                  className="z-50 min-w-[210px] rounded-card border border-border bg-surface p-1 text-[13px] text-text shadow-pop"
-                >
-                  <DropdownMenu.Item
-                    onSelect={() => setNamingProject(true)}
-                    className="flex cursor-pointer items-center gap-2 rounded-input px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
-                  >
-                    <Plus size={14} className="shrink-0 text-muted" />
-                    <span className="truncate">{t("projects.menuScratch")}</span>
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    onSelect={() => void handleImport()}
-                    className="flex cursor-pointer items-center gap-2 rounded-input px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
-                  >
-                    <FolderInput size={14} className="shrink-0 text-muted" />
-                    <span className="truncate">{t("projects.menuExisting")}</span>
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-          </div>
-          {namingProject && (
-            <NameProjectDialog
-              defaultName={t("projects.new")}
-              title={t("projects.nameTitle")}
-              subtitle={t("projects.nameSubtitle")}
-              placeholder={t("projects.namePlaceholder")}
-              busy={createBusy}
-              onSave={(v) => void submitNewProject(v)}
-              onCancel={() => {
-                if (!createBusy) setNamingProject(false);
-              }}
-            />
-          )}
-          {projects.length === 0 && !namingProject && (
-            <button
-              onClick={() => setNamingProject(true)}
-              className="flex w-full items-center gap-2 rounded-input px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-text"
-            >
-              <Folder size={14} className="shrink-0" />
-              <span className="truncate">{t("projects.new")}</span>
-            </button>
-          )}
-          {visibleProjects.map((p) => {
-            const open = !collapsedProjects.includes(p.id);
-            const active = p.path === workspace;
-            const rows = sessionsByProject.get(p.id) ?? [];
-            return (
-              <div key={p.id}>
-                {renamingId === p.id ? (
-                  <div className="py-0.5 pl-5 pr-1">
-                    <InlineNameInput
-                      defaultValue={p.name}
-                      placeholder={t("projects.namePlaceholder")}
-                      onSubmit={(v) => void submitRename(p, v)}
-                      onCancel={() => setRenamingId(null)}
-                    />
-                  </div>
-                ) : (
-                  <div className="group/project relative">
-                    <button
-                      onClick={() => toggleProject(p.id)}
-                      aria-expanded={open}
-                      className="flex w-full items-center gap-1.5 rounded-input py-1 pl-1 pr-10 text-[13px] text-text hover:bg-surface-2"
-                    >
-                      <ChevronRight
-                        size={11}
+            <div className="mt-4 flex-1 overflow-y-auto px-3 pb-2">
+              <div className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted">
+                {t("history.heading")}
+              </div>
+              {formulations.length === 0 ? (
+                <div className="px-2 py-2 text-xs text-muted">{t("history.empty")}</div>
+              ) : (
+                formulations.map((s) => {
+                  const to = `/live/${s.id}`;
+                  const title = s.brief?.target ?? s.id;
+                  return (
+                    <div key={s.id} className="group relative">
+                      <NavLink
+                        to={to}
                         className={cn(
-                          "shrink-0 text-muted transition-transform duration-150",
-                          open && "rotate-90",
+                          "flex items-center gap-2 rounded-input py-1 pl-2 pr-8 text-[13px] hover:bg-surface-2",
+                          location.pathname === to ? "bg-surface-2 text-text" : "text-text/90",
                         )}
-                      />
-                      {open ? (
-                        <FolderOpen
-                          size={14}
-                          className={cn(
-                            "shrink-0",
-                            active ? "text-accent" : "text-muted",
-                          )}
-                        />
-                      ) : (
-                        <Folder
-                          size={14}
-                          className={cn(
-                            "shrink-0",
-                            active ? "text-accent" : "text-muted",
-                          )}
-                        />
-                      )}
-                      <span
-                        className="min-w-0 flex-1 truncate text-left font-medium"
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          setRenamingId(p.id);
-                        }}
-                        title={p.imported ? p.path : t("projects.renameHint")}
                       >
-                        {p.name}
-                      </span>
-                      {p.imported && (
-                        <span
-                          className="shrink-0 rounded bg-surface-2 px-1 text-[9px] uppercase tracking-wide text-muted"
-                          title={p.path}
-                        >
-                          {t("projects.importedBadge")}
-                        </span>
-                      )}
-                    </button>
-                    <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center">
-                      {rows.length > 0 && (
-                        <span className="px-1 text-[10px] tabular-nums text-muted group-hover/project:hidden">
-                          {rows.length}
-                        </span>
-                      )}
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
+                        <span className="flex-1 truncate">{title}</span>
+                        {s.card_count > 1 && (
+                          <span className="shrink-0 text-[10px] tabular-nums text-muted">
+                            {s.card_count}
+                          </span>
+                        )}
+                      </NavLink>
                       <button
-                        onClick={() => void newSessionIn(p)}
-                        aria-label={t("projects.newSessionAria", {
-                          name: p.name,
-                        })}
-                        title={t("projects.newSessionAria", { name: p.name })}
-                        className="hidden rounded p-1 text-muted hover:bg-border hover:text-text group-hover/project:block"
+                        onClick={async () => {
+                          await deleteFormulationSession(s.id).catch(() => {});
+                          refresh();
+                          if (location.pathname === to) navigate("/live");
+                        }}
+                        aria-label={t("history.deleteAria", { title })}
+                        className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded p-1 text-muted hover:bg-border hover:text-error group-hover:block"
                       >
-                        <Plus size={13} />
+                        <Trash2 size={13} />
                       </button>
                     </div>
-                  </div>
-                )}
-                <div
-                  className={cn(
-                    "grid transition-[grid-template-rows] duration-200 ease-out",
-                    open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-                  )}
-                >
-                  <div className="overflow-hidden">
-                    <div className="mb-0.5 ml-[15px] border-l border-border-faint pl-1.5">
-                      {rows.length === 0 && (
-                        <div className="px-2 py-1 text-xs text-muted">
-                          {t("projects.noSessions")}
-                        </div>
-                      )}
-                      {rows.map(sessionRow)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {hiddenProjectCount > 0 && (
-            <button
-              onClick={() => navigate("/projects")}
-              className="flex w-full items-center gap-2 rounded-input px-2 py-1 pl-6 text-[13px] text-muted hover:bg-surface-2 hover:text-text"
-            >
-              <span className="truncate">{t("projects.seeAll")}</span>
-              <span className="text-[10px] tabular-nums text-muted">+{hiddenProjectCount}</span>
-            </button>
-          )}
-          <div className="mt-3 px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted">
-            {t("history.heading")}
-          </div>
-          {formulations.length === 0 && exampleRows.length === 0 && (
-            <div className="px-2 py-2 text-xs text-muted">
-              {t("history.empty")}
+                  );
+                })
+              )}
             </div>
-          )}
-          {formulations.map(formulationRow)}
-          {exampleRows.map(sessionRow)}
-        </div>
 
-        <div className="border-t border-border px-3 py-3">
-          <StatusPills />
-          <button
-            className="relative mt-2 flex items-center gap-2 rounded-input px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-text"
-            onClick={() => navigate("/settings")}
-            aria-label={t("sidebar.settings")}
-          >
-            <Settings size={15} />
-            <span>{t("sidebar.settings")}</span>
-            {showUpdateBadge && (
-              <span
-                aria-hidden="true"
-                className="ml-auto h-2 w-2 rounded-full bg-error shadow-[0_0_0_2px_var(--color-surface)]"
-              />
-            )}
-          </button>
-        </div>
-        </>
-        )}
-
-        {pendingDelete && (
-          <ConfirmDialog
-            title={
-              pendingDelete.kind === "session"
-                ? t("confirmDelete.sessionTitle")
-                : t("confirmDelete.exampleTitle")
-            }
-            body={
-              pendingDelete.kind === "session"
-                ? t("confirmDelete.sessionBody", { title: pendingDelete.title })
-                : t("confirmDelete.exampleBody", { title: pendingDelete.title })
-            }
-            confirmLabel={
-              pendingDelete.kind === "session"
-                ? t("confirmDelete.deleteAction")
-                : t("confirmDelete.hideAction")
-            }
-            onConfirm={confirmDelete}
-            onCancel={() => setPendingDelete(null)}
-          />
+            <div className="border-t border-border px-3 py-3">
+              <button
+                className="relative flex items-center gap-2 rounded-input px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-text"
+                onClick={() => navigate("/settings")}
+                aria-label={t("sidebar.settings")}
+              >
+                <Settings size={15} />
+                <span>{t("sidebar.settings")}</span>
+                {showUpdateBadge && (
+                  <span
+                    aria-hidden="true"
+                    className="ml-auto h-2 w-2 rounded-full bg-error shadow-[0_0_0_2px_var(--color-surface)]"
+                  />
+                )}
+              </button>
+            </div>
+          </>
         )}
       </aside>
 
@@ -713,9 +302,7 @@ export function Sidebar({ project }: { project: Project }) {
         <div
           className={cn(
             "absolute inset-y-0 right-0 w-[2px] transition-colors",
-            dragging
-              ? "bg-accent/60"
-              : "bg-transparent group-hover:bg-accent/40",
+            dragging ? "bg-accent/60" : "bg-transparent group-hover:bg-accent/40",
           )}
         />
       </div>
@@ -740,125 +327,5 @@ function NavRow({
       <span className="text-muted">{icon}</span>
       <span>{label}</span>
     </button>
-  );
-}
-
-/** One-line name editor used for "new project" and rename: Enter submits,
- *  Escape or clicking away cancels — no dialog, the row edits in place. */
-function InlineNameInput({
-  defaultValue = "",
-  placeholder,
-  busy = false,
-  onSubmit,
-  onCancel,
-}: {
-  defaultValue?: string;
-  placeholder?: string;
-  busy?: boolean;
-  onSubmit: (value: string) => void;
-  onCancel: () => void;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
-  return (
-    <input
-      ref={ref}
-      defaultValue={defaultValue}
-      placeholder={placeholder}
-      disabled={busy}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onSubmit(e.currentTarget.value);
-        else if (e.key === "Escape") onCancel();
-      }}
-      onBlur={() => {
-        if (!busy) onCancel();
-      }}
-      className={cn(
-        "w-full min-w-0 rounded-input border border-accent/50 bg-surface px-2 py-[3px] text-[13px] text-text outline-none placeholder:text-muted focus:border-accent",
-        busy && "animate-pulse opacity-60",
-      )}
-    />
-  );
-}
-
-/** Modal for naming a new (from-scratch) project: a focused, pre-selected input
- *  with Save/Cancel. Used instead of an inline row so "New project" reads as a
- *  deliberate step (matching the from-scratch / existing-folder menu split). */
-function NameProjectDialog({
-  defaultName,
-  title,
-  subtitle,
-  placeholder,
-  busy,
-  onSave,
-  onCancel,
-}: {
-  defaultName: string;
-  title: string;
-  subtitle: string;
-  placeholder?: string;
-  busy: boolean;
-  onSave: (value: string) => void;
-  onCancel: () => void;
-}) {
-  const { t } = useTranslation("common");
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
-  const save = () => {
-    const v = ref.current?.value ?? "";
-    if (v.trim() && !busy) onSave(v);
-  };
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-      onClick={() => !busy && onCancel()}
-      role="presentation"
-    >
-      <div
-        role="dialog"
-        aria-label={title}
-        className="w-[420px] max-w-[calc(100vw-2rem)] rounded-card border border-border bg-surface p-5 shadow-card"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="text-base font-semibold text-text">{title}</div>
-        <p className="mt-1 text-sm text-muted">{subtitle}</p>
-        <input
-          ref={ref}
-          defaultValue={defaultName}
-          placeholder={placeholder}
-          disabled={busy}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") save();
-            else if (e.key === "Escape") onCancel();
-          }}
-          className={cn(
-            "mt-4 w-full rounded-input border border-border bg-surface px-3 py-2 text-sm text-text outline-none placeholder:text-muted focus:border-accent",
-            busy && "animate-pulse opacity-60",
-          )}
-        />
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            className="rounded-input border border-border px-3 py-1.5 text-sm text-text hover:bg-surface-2 disabled:opacity-50"
-            onClick={onCancel}
-            disabled={busy}
-          >
-            {t("actions.cancel")}
-          </button>
-          <button
-            className="rounded-input bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            onClick={save}
-            disabled={busy}
-          >
-            {t("actions.save")}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

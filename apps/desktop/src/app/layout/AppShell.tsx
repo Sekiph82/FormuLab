@@ -6,7 +6,6 @@ import { cn } from "@/lib/cn";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { CommandPalette } from "@/components/command-palette/CommandPalette";
 import { Toaster } from "@/components/ui/Toaster";
-import { mockProject } from "@/lib/mock";
 import { ensureSetupProgressListener } from "@/lib/setup";
 import { useOverlayTitlebar, useUiStore } from "@/lib/store";
 import { overlayTitlebarStyle } from "@/lib/titlebar";
@@ -87,7 +86,7 @@ export function AppShell() {
     // The window background lives on <main>, not the shell: under vibrancy
     // the area behind the (translucent) sidebar must stay transparent.
     <div className="flex h-screen w-screen overflow-hidden text-text">
-      <Sidebar project={mockProject} />
+      <Sidebar />
       <main className="flex min-w-0 flex-1 flex-col bg-bg">
         {/* Titlebar strip for pages that don't own one: keeps the whole top
             of the content area draggable under the macOS overlay titlebar,

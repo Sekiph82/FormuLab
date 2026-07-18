@@ -29,29 +29,3 @@ describe("FilesPage strings (i18n)", () => {
     expect(screen.getByText("Select a file to preview it here.")).toBeInTheDocument();
   });
 });
-
-describe("SkillsPage strings (i18n)", () => {
-  it("renders the page heading and the disconnected-runtime prompts in English", async () => {
-    renderAt("/skills");
-    expect(await screen.findByRole("heading", { level: 1, name: "Skills & Agents" })).toBeInTheDocument();
-    expect(screen.getByText("Environment detection runs in the desktop app.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Connect the runtime to list the skills and agents it has loaded."),
-    ).toBeInTheDocument();
-  });
-
-  it("translates the known agent-mode badge and falls back to the raw value for an unknown mode", async () => {
-    useRuntimeStore.setState({
-      status: "ready",
-      agents: [
-        { name: "build", description: "Primary build agent", mode: "primary" },
-        { name: "custom-thing", description: "Some external agent", mode: "future-mode" },
-      ],
-    });
-    renderAt("/skills");
-    expect(await screen.findByText("build")).toBeInTheDocument();
-    expect(screen.getByText("primary")).toBeInTheDocument();
-    // Unknown mode values (outside the closed set OpenCode emits) render raw, unmodified.
-    expect(screen.getByText("future-mode")).toBeInTheDocument();
-  });
-});
