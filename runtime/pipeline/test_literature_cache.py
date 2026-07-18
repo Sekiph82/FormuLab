@@ -66,6 +66,35 @@ class CacheTests(unittest.TestCase):
             # Library grew (1 old + 15 new).
             self.assertEqual(len(lc.load_index(lib)), 16)
 
+    def test_short_fresh_tops_up_from_cache(self):
+        # 11 relevant cached (<15) but APIs return only 4 genuinely new ->
+        # session = 4 fresh + top-up from cache to reach 15 (never fewer than cache).
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [fake_paper(i, "antidandruff shampoo surfactant") for i in range(11)])
+            out = os.path.join(tmp, "session")
+
+            class FakeDiscover:
+                FETCHERS = {
+                    "openalex": lambda q, n: [fake_paper(500 + i, "antidandruff shampoo surfactant") for i in range(4)],
+                }
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig = lc._load_fetchers
+            lc._load_fetchers = lambda: FakeDiscover
+            try:
+                got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
+                                target=15, sources="openalex")
+            finally:
+                lc._load_fetchers = orig
+
+            self.assertEqual(len(got), 15)  # 4 fresh + 11 cached
+            fresh = [p for p in got if int(p["doi"].split("/")[1]) >= 500]
+            self.assertEqual(len(fresh), 4)  # fresh preferred, all included
+            self.assertEqual(len({p["doi"] for p in got}), 15)  # no dupes
+
     def test_search_ranks_by_overlap(self):
         index = [fake_paper(1, "toothpaste silica"), fake_paper(2, "antidandruff shampoo surfactant")]
         hits = lc.search_cache(["antidandruff shampoo"], index, 5)

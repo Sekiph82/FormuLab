@@ -145,7 +145,21 @@ def gather(
                     if len(new) >= target:
                         break
         log(f"fetched {len(new)} new papers")
+        # Fresh-preferred, but always deliver up to `target`: if the deduped
+        # fresh batch is short (the APIs returned mostly already-cached work),
+        # top up from the ranked cache so the session never has FEWER sources
+        # than the library already held.
         selected = new[:target]
+        if len(selected) < target:
+            have = {paper_key(p) for p in selected}
+            for p in cached:
+                if len(selected) >= target:
+                    break
+                if paper_key(p) not in have:
+                    selected.append(p)
+                    have.add(paper_key(p))
+            log(f"topped up from cache -> {len(selected)} papers "
+                f"({len(new)} fresh + {len(selected) - len(new)} cached)")
 
     save_index(library, index)
 

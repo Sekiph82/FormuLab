@@ -1,7 +1,9 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Beaker, ChevronDown, Sparkles } from "lucide-react";
+import { Beaker, ChevronDown, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
+import type { FormulationBrief } from "@/lib/formulationV2";
 
 /**
  * FormulationStudio — the app's front door. The user describes a target product
@@ -37,34 +39,33 @@ const CATEGORY_EN: Record<Category, string> = {
 const AUDIENCE_EN: Record<Audience, string> = {
   unspecified: "unspecified", child: "children", woman: "women", man: "men", unisex: "unisex",
 };
-const MARKET_EN: Record<Market, string> = {
-  any: "any / infer", eu: "European Union", us: "United States", tr: "Türkiye",
-  kenya: "Kenya", africa: "Africa",
-};
 
-// The sentinel first line marks a session as a formulation run so the thread
-// renders the focused studio view instead of the raw chat.
-export const FORMULATION_BRIEF_MARKER = "Formulation brief";
-
+// Build the structured brief the v2 pipeline consumes. Short English values
+// (locale-independent) so region_profiles / rules can key off them directly.
 function buildBrief(f: {
   target: string; category: Category; audience: Audience; market: Market;
   maxCost: string; performance: string; materials: string;
-}): string {
-  const lines = [
-    `${FORMULATION_BRIEF_MARKER} — use the formulation-discovery skill and output the full formulation card (its exact format, single exact wt% per ingredient, not ranges).`,
-    "",
-    `Target product: ${f.target.trim()}`,
-    `Category: ${CATEGORY_EN[f.category]}`,
-    `Audience: ${AUDIENCE_EN[f.audience]}`,
-    `Market: ${MARKET_EN[f.market]}`,
-    `Max cost: ${f.maxCost.trim() || "not specified"}`,
-    `Performance: ${f.performance.trim() || "none specified"}`,
-    `On-hand materials: ${f.materials.trim() || "none provided — propose from the literature"}`,
-  ];
-  return lines.join("\n");
+}): FormulationBrief {
+  return {
+    target: f.target.trim(),
+    category: CATEGORY_EN[f.category],
+    audience: AUDIENCE_EN[f.audience],
+    market: f.market, // pass the slug (kenya/eu/…) — region_profiles resolves it
+    max_cost: f.maxCost.trim() || undefined,
+    performance: f.performance.trim() || undefined,
+    materials: f.materials.trim() || undefined,
+  };
 }
 
-export function FormulationStudio({ onPick }: { onPick: (prompt: string) => void }) {
+export function FormulationStudio({
+  onSubmit,
+  busy = false,
+  headerSlot,
+}: {
+  onSubmit: (brief: FormulationBrief) => void;
+  busy?: boolean;
+  headerSlot?: ReactNode;
+}) {
   const { t } = useTranslation(["session", "common"]);
   const [target, setTarget] = useState("");
   const [category, setCategory] = useState<Category>("auto");
@@ -75,10 +76,10 @@ export function FormulationStudio({ onPick }: { onPick: (prompt: string) => void
   const [showMore, setShowMore] = useState(false);
   const [materials, setMaterials] = useState("");
 
-  const canGenerate = target.trim().length > 2;
+  const canGenerate = target.trim().length > 2 && !busy;
   const generate = () => {
     if (!canGenerate) return;
-    onPick(buildBrief({ target, category, audience, market, maxCost, performance, materials }));
+    onSubmit(buildBrief({ target, category, audience, market, maxCost, performance, materials }));
   };
 
   return (
@@ -93,6 +94,8 @@ export function FormulationStudio({ onPick }: { onPick: (prompt: string) => void
             {t("studio.subheading")}
           </p>
         </div>
+
+        {headerSlot}
 
         <div className="mt-6 space-y-3 rounded-card border border-border bg-surface p-4 shadow-card">
           {/* Target product */}
@@ -195,8 +198,8 @@ export function FormulationStudio({ onPick }: { onPick: (prompt: string) => void
             disabled={!canGenerate}
             className="flex w-full items-center justify-center gap-2 rounded-input bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
           >
-            <Sparkles size={16} />
-            {t("studio.generate")}
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {busy ? t("studio.result.working") : t("studio.generate")}
           </button>
         </div>
 

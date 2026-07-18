@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate, type RouteObject } from "react-router-dom";
 import { AppShell } from "./layout/AppShell";
 import { SessionPage } from "./routes/SessionPage";
-import { FormulationWorkspace } from "@/components/thread/FormulationWorkspace";
+import { FormulationWorkspaceV2 } from "@/components/thread/FormulationWorkspaceV2";
 import { SkillsPage } from "./routes/SkillsPage";
 import { NotebooksPage } from "./routes/NotebooksPage";
 import { OptimizerPage } from "./routes/OptimizerPage";
@@ -17,8 +17,8 @@ export const routes: RouteObject[] = [
     element: <AppShell />,
     children: [
       { index: true, element: <Navigate to="/live" replace /> },
-      { path: "live", element: <FormulationWorkspace /> },
-      { path: "live/:sessionId", element: <FormulationWorkspace /> },
+      { path: "live", element: <FormulationWorkspaceV2 /> },
+      { path: "live/:sessionId", element: <FormulationWorkspaceV2 /> },
       { path: "example/:sessionId", element: <SessionPage /> },
       { path: "skills", element: <SkillsPage /> },
       { path: "notebooks", element: <NotebooksPage /> },

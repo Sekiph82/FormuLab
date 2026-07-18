@@ -323,7 +323,15 @@
       "new": "New",
       "connect": "Connect the runtime to generate a formulation.",
       "working": "Working — reading the literature and drafting your formulation. This can take a few minutes.",
-      "empty": "Describe a product on the left and press Generate. The formulation card will appear here."
+      "empty": "Describe a product on the left and press Generate. The formulation card will appear here.",
+      "readOnly": "保存済み・読み取り専用",
+      "refusedTitle": "リクエストは拒否されました",
+      "errorTitle": "問題が発生しました",
+      "needKey": "左側にAPIキーを追加してから生成してください。"
+    },
+    "sessions": {
+      "heading": "セッション",
+      "empty": "保存した処方はここに表示されます。"
     }
   }
 }

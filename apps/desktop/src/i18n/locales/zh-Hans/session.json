@@ -323,7 +323,15 @@
       "new": "New",
       "connect": "Connect the runtime to generate a formulation.",
       "working": "Working — reading the literature and drafting your formulation. This can take a few minutes.",
-      "empty": "Describe a product on the left and press Generate. The formulation card will appear here."
+      "empty": "Describe a product on the left and press Generate. The formulation card will appear here.",
+      "readOnly": "已保存 · 只读",
+      "refusedTitle": "请求被拒绝",
+      "errorTitle": "出错了",
+      "needKey": "在左侧添加 API 密钥，然后点击生成。"
+    },
+    "sessions": {
+      "heading": "会话",
+      "empty": "已保存的配方显示在此处。"
     }
   }
 }

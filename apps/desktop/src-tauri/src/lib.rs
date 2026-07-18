@@ -4,6 +4,7 @@ mod artifact_file;
 mod debug_log;
 mod examples;
 mod formulation;
+mod formulation_v2;
 mod git_snapshot;
 mod goal;
 mod harness;
@@ -108,6 +109,10 @@ pub fn run() {
             kernel::python_interpreter,
             kernel::set_python_path,
             formulation::run_formulation_optimize,
+            formulation_v2::generate_formulation,
+            formulation_v2::list_sessions,
+            formulation_v2::read_session,
+            formulation_v2::delete_session,
             artifact_file::read_artifact,
             artifact_file::open_path,
             artifact_file::reveal_path,

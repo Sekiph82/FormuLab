@@ -331,7 +331,15 @@
       "new": "New",
       "connect": "Connect the runtime to generate a formulation.",
       "working": "Working — reading the literature and drafting your formulation. This can take a few minutes.",
-      "empty": "Describe a product on the left and press Generate. The formulation card will appear here."
+      "empty": "Describe a product on the left and press Generate. The formulation card will appear here.",
+      "readOnly": "guardado · solo lectura",
+      "refusedTitle": "Solicitud rechazada",
+      "errorTitle": "Algo salió mal",
+      "needKey": "Añade una clave de API a la izquierda y luego pulsa Generar."
+    },
+    "sessions": {
+      "heading": "Sesiones",
+      "empty": "Las formulaciones guardadas aparecen aquí."
     }
   }
 }

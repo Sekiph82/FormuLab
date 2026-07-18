@@ -387,7 +387,7 @@ export function LiveSessionPage() {
               </div>
             )}
             {connected && isEmpty && !sessionId && (
-              <FormulationStudio onPick={(p) => void onSend(p)} />
+              <FormulationStudio onSubmit={(b) => void onSend(b.target)} />
             )}
             {historyLoading && <ThreadSkeleton />}
             {!historyLoading && thread && <BlockList blocks={thread.blocks} handlers={handlers} />}

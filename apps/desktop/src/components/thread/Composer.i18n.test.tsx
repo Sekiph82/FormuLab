@@ -28,13 +28,12 @@ describe("WorkflowStarters strings (i18n)", () => {
   });
 });
 
-describe("FormulationWorkspace strings (i18n)", () => {
-  it("renders the disconnected-runtime prompt in English (no Tauri sidecar in tests)", async () => {
-    // Both "/live" and "/live/:id" render the formulation workspace; when the
-    // runtime isn't connected its result pane shows a connect prompt.
-    renderAt("/live/test-session");
-    expect(
-      await screen.findByText("Connect the runtime to generate a formulation."),
-    ).toBeInTheDocument();
+describe("FormulationWorkspaceV2 strings (i18n)", () => {
+  it("renders the studio's provider selector in English (direct pipeline, no sidecar)", async () => {
+    // "/live" renders the v2 workspace: a self-contained studio with a provider
+    // bar — no OpenCode runtime, so it shows immediately without a connection.
+    renderAt("/live");
+    expect(await screen.findByText("Provider")).toBeInTheDocument();
+    expect(screen.getByText("Stored locally on this device only.")).toBeInTheDocument();
   });
 });
