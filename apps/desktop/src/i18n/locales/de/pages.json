@@ -35,7 +35,10 @@
       "stopLabel": "Stopp",
       "runLabel": "Ausführen",
       "addCellLabel": "Zelle hinzufügen"
-    }
+    },
+    "setUpJupyter": "Jupyter einrichten",
+    "settingUpJupyter": "Wird eingerichtet…",
+    "setUpJupyterTitle": "Eine isolierte Jupyter-Umgebung herunterladen und installieren"
   },
   "files": {
     "loading": "Wird geladen…",

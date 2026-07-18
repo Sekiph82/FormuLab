@@ -1,32 +1,25 @@
-// App-lifetime owner of the long-running uv provisioning flows (isolated
-// Jupyter env, science-MCP connectors). This state lived inside SettingsPage
-// before, so navigating away — clicking a chat or a history session —
-// unmounted the page, discarded the "setting up…" flags, and (worse) severed
-// the setup-progress listener, making a still-running download look frozen and
+// App-lifetime owner of the long-running uv provisioning flow (the isolated
+// Jupyter env). This state lived inside a page before, so navigating away
+// unmounted it, discarded the "setting up…" flag, and (worse) severed the
+// setup-progress listener, making a still-running download look frozen and
 // inviting a second click that collided on the same env dir. Owning it here
 // means the download is unaffected by which page is open.
 import { create } from "zustand";
-import { getClient, useRuntimeStore } from "./runtime";
-import { setupJupyter, startJupyter, setupScienceMcp, watchSetupProgress } from "./tauri";
-import { SCIENCE_CONNECTORS, connectorConfig } from "./scienceConnectors";
+import { setupJupyter, startJupyter, watchSetupProgress } from "./tauri";
 import { toast } from "./toast";
 
 interface SetupState {
   /** True while the isolated Jupyter env is being provisioned. */
   jupyterBusy: boolean;
-  /** The science connector currently provisioning, by id (null = none). */
-  connectorId: string | null;
   /** Latest live uv output line — reassurance during a hundreds-of-MB download. */
   line: string | null;
-  /** Bumped when any provisioning run finishes, so open pages re-read status. */
+  /** Bumped when a provisioning run finishes, so open pages re-read status. */
   generation: number;
   enableJupyter: () => Promise<void>;
-  enableConnector: (id: string, apiKey?: string) => Promise<void>;
 }
 
 export const useSetupStore = create<SetupState>((set, get) => ({
   jupyterBusy: false,
-  connectorId: null,
   line: null,
   generation: 0,
 
@@ -39,44 +32,19 @@ export const useSetupStore = create<SetupState>((set, get) => ({
       toast.success("Setting up Jupyter — first run downloads a few hundred MB, please wait…");
       await setupJupyter();
       const s = await startJupyter();
-      if (!s.url || !s.token || !s.mcp_command) throw new Error("setup finished incomplete");
-      await getClient()!.addMcpServer("jupyter", {
-        type: "local",
-        command: [s.mcp_command],
-        enabled: true,
-        environment: { JUPYTER_URL: s.url, JUPYTER_TOKEN: s.token, ALLOW_IMG_OUTPUT: "true" },
-      });
-      toast.success("Jupyter MCP enabled — the agent can now drive notebooks.");
-      await useRuntimeStore.getState().loadCatalog();
+      if (!s.url || !s.token) throw new Error("setup finished incomplete");
+      toast.success("Jupyter is ready — notebooks can now run.");
     } catch (e) {
       toast.error(`Jupyter setup failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       set((st) => ({ jupyterBusy: false, line: null, generation: st.generation + 1 }));
     }
   },
-
-  enableConnector: async (id, apiKey) => {
-    if (get().connectorId) return; // one connector provisioning at a time
-    const c = SCIENCE_CONNECTORS.find((x) => x.id === id);
-    if (!c) return;
-    set({ connectorId: id, line: null });
-    try {
-      toast.success(`Setting up ${c.label} — first run downloads a managed Python, please wait…`);
-      const python = await setupScienceMcp(c.pkg);
-      await getClient()!.addMcpServer(c.id, connectorConfig(c, python, apiKey));
-      toast.success(`${c.label} enabled — the agent can now use it from chat.`);
-      await useRuntimeStore.getState().loadCatalog();
-    } catch (e) {
-      toast.error(`${c.label} setup failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      set((st) => ({ connectorId: null, line: null, generation: st.generation + 1 }));
-    }
-  },
 }));
 
 // A SINGLE app-lifetime uv-progress listener. Registered once from AppShell so
-// a page unmount can never sever it — the old per-page listener died with
-// SettingsPage and made a running download look frozen.
+// a page unmount can never sever it — a per-page listener died with the page
+// and made a running download look frozen.
 let progressUnlisten: (() => void) | null = null;
 
 /** Start the shared uv-progress listener (idempotent). Call once from AppShell. */

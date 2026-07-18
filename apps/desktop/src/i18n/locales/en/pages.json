@@ -67,7 +67,10 @@
       "stopLabel": "Stop",
       "runLabel": "Run",
       "addCellLabel": "Add cell"
-    }
+    },
+    "setUpJupyter": "Set up Jupyter",
+    "settingUpJupyter": "Setting up…",
+    "setUpJupyterTitle": "Download and install an isolated Jupyter environment"
   },
   "files": {
     "loading": "Loading…",

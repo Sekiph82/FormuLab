@@ -17,8 +17,8 @@ describe("CommandPalette", () => {
     const input = await screen.findByPlaceholderText("Type a command…");
     expect(input).toBeInTheDocument();
 
-    await user.type(input, "audit");
-    expect(screen.getByText("Audit a report (traceability review)")).toBeInTheDocument();
+    await user.type(input, "files");
+    expect(screen.getByText("Open files")).toBeInTheDocument();
     expect(screen.queryByText("Open notebooks")).not.toBeInTheDocument();
   });
 });

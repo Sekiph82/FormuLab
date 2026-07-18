@@ -4,8 +4,7 @@
     "general": "General",
     "appearance": "Apariencia",
     "models": "Modelos",
-    "runtime": "Entorno de ejecución",
-    "connectors": "Conectores",
+    "runtime": "Python",
     "compute": "Cómputo",
     "privacy": "Privacidad"
   },

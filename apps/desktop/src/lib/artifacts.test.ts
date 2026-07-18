@@ -1,27 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { ToolUpdatedEvent } from "@ai4s/sdk";
 import type { ArtifactInspector } from "@ai4s/shared";
 import {
   artifactBlockToInspector,
-  deriveArtifact,
   extractArtifactRefs,
   extToKind,
   fileInspectorFromBlock,
   previewKind,
   previewKindForName,
-  refToArtifactBlock,
   resolveArtifactContent,
 } from "./artifacts";
 
-const write = (input: Record<string, unknown>, over: Partial<ToolUpdatedEvent> = {}): ToolUpdatedEvent => ({
-  type: "tool.updated",
-  sessionId: "s",
-  callId: "c",
-  tool: "write",
-  status: "success",
-  input,
-  ...over,
-});
 
 describe("extToKind", () => {
   it("maps extensions to kinds and defaults unknown to data", () => {
@@ -31,33 +19,6 @@ describe("extToKind", () => {
     expect(extToKind("ipynb")).toBe("notebook");
     expect(extToKind("pdf")).toBe("report");
     expect(extToKind("xyz")).toBe("data");
-  });
-});
-
-describe("deriveArtifact", () => {
-  it("derives a script artifact with content + language from a write tool", () => {
-    const a = deriveArtifact(write({ filePath: "src/make_fig.py", content: "print(1)" }));
-    expect(a).toMatchObject({
-      kind: "artifact",
-      filename: "make_fig.py",
-      artifact: "script",
-      tool: "write",
-      content: "print(1)",
-      language: "python",
-    });
-  });
-
-  it("classifies an image write as a figure (no text content required)", () => {
-    const a = deriveArtifact(write({ path: "figures/atlas.png" }));
-    expect(a?.artifact).toBe("figure");
-    expect(a?.filename).toBe("atlas.png");
-    expect(a?.content).toBeUndefined();
-  });
-
-  it("returns null for non-write tools, failures, and missing paths", () => {
-    expect(deriveArtifact(write({ filePath: "a.py" }, { tool: "bash" }))).toBeNull();
-    expect(deriveArtifact(write({ filePath: "a.py" }, { status: "running" }))).toBeNull();
-    expect(deriveArtifact(write({ content: "x" }))).toBeNull();
   });
 });
 
@@ -172,49 +133,8 @@ describe("previewKindForName", () => {
   });
 });
 
-describe("refToArtifactBlock", () => {
-  it("builds a path-only artifact block from a mentioned file", () => {
-    expect(refToArtifactBlock("canvas-project/canvas.pdf")).toMatchObject({
-      kind: "artifact",
-      path: "canvas-project/canvas.pdf",
-      filename: "canvas.pdf",
-      artifact: "report",
-      tool: "output",
-    });
-  });
-});
-
 describe("artifactBlockToInspector", () => {
-  it("shows text content for a text artifact", () => {
-    const insp = artifactBlockToInspector({
-      kind: "artifact",
-      path: "a.py",
-      filename: "a.py",
-      artifact: "script",
-      tool: "write",
-      content: "print(1)",
-      language: "python",
-    });
-    expect(insp.code).toBe("print(1)");
-    expect(insp.language).toBe("python");
-  });
 
-  it("surfaces the notebook a jupyter MCP tool works on as a live artifact", () => {
-    const a = deriveArtifact(
-      write(
-        { notebook_name: "scatter-demo", notebook_path: "scatter-demo.ipynb", mode: "create" },
-        { tool: "jupyter_use_notebook" },
-      ),
-    );
-    expect(a).toMatchObject({
-      kind: "artifact",
-      path: "scatter-demo.ipynb",
-      artifact: "notebook",
-      tool: "jupyter_use_notebook",
-    });
-    // Cell-level tools carry no path — no artifact, no crash.
-    expect(deriveArtifact(write({ cell_index: 0 }, { tool: "jupyter_execute_cell" }))).toBeNull();
-  });
 
   it("routes .ipynb artifacts to the runnable notebook editor, others to file preview", () => {
     const nb = fileInspectorFromBlock({

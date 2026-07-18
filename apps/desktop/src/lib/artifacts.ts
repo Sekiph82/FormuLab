@@ -1,7 +1,6 @@
 // Turn the agent's file-writing tool calls into traceable artifacts.
 // Pure and transport-agnostic so it can be unit-tested without a live runtime.
 
-import type { ToolUpdatedEvent } from "@ai4s/sdk";
 import type {
   ArtifactBlock,
   ArtifactInspector,
@@ -31,12 +30,9 @@ const EXT_LANG: Record<string, string> = {
 };
 
 /** Tools whose input names a file path we can surface as an artifact. */
-const WRITE_TOOLS = new Set(["write", "edit", "create", "str_replace_editor", "apply_patch"]);
 
 /** Input keys that carry the target file path, in priority order. */
-const PATH_KEYS = ["filePath", "path", "file", "filename", "file_path"];
 /** Input keys that carry the written text content. */
-const CONTENT_KEYS = ["content", "new_str", "text"];
 
 export function extToKind(ext: string): ArtifactKind {
   return EXT_KIND[ext.toLowerCase()] ?? "data";
@@ -195,50 +191,7 @@ export function refToArtifactBlock(path: string): ArtifactBlock {
   };
 }
 
-function firstString(input: Record<string, unknown>, keys: string[]): string | undefined {
-  for (const k of keys) {
-    const v = input[k];
-    if (typeof v === "string" && v.trim()) return v.trim();
-  }
-  return undefined;
-}
 
-/**
- * Derive an artifact from a completed file-writing tool call, or `null` when the
- * event is not a successful write we can trace to a path.
- */
-export function deriveArtifact(event: ToolUpdatedEvent): ArtifactBlock | null {
-  if (event.status !== "success") return null;
-  const tool = (event.tool ?? "").toLowerCase();
-  const input = event.input ?? {};
-
-  // Jupyter MCP tools name the notebook they operate on — surface it live.
-  if (tool.includes("jupyter")) {
-    const nb = firstString(input, ["notebook_path", "path", "document_id"]);
-    if (!nb || !nb.endsWith(".ipynb")) return null;
-    const filename = nb.split(/[\\/]/).pop() || nb;
-    return { kind: "artifact", path: nb, filename, artifact: "notebook", tool: event.tool };
-  }
-
-  if (!WRITE_TOOLS.has(tool)) return null;
-
-  const path = firstString(input, PATH_KEYS);
-  if (!path) return null;
-
-  const filename = path.split(/[\\/]/).pop() || path;
-  const dot = filename.lastIndexOf(".");
-  const ext = dot >= 0 ? filename.slice(dot + 1) : "";
-
-  return {
-    kind: "artifact",
-    path,
-    filename,
-    artifact: extToKind(ext),
-    tool: event.tool,
-    content: firstString(input, CONTENT_KEYS),
-    language: EXT_LANG[ext.toLowerCase()],
-  };
-}
 
 /** One file section parsed out of an apply_patch `patchText`. */
 export interface PatchFile {

@@ -5,7 +5,6 @@
 // execution. Pure derivation lives here; the Tauri bridge is separate so this
 // can be unit-tested without a desktop shell.
 import type { RunArtifact, RunRecord } from "@ai4s/shared";
-import type { ToolUpdatedEvent } from "@ai4s/sdk";
 import { isTauri, logDebug } from "./tauri";
 
 /** The compute surface a run targeted. Only "local" runs produce workspace
@@ -130,32 +129,6 @@ export function looksLikeExecution(command: string): boolean {
   return commandSegments(command).some(isLocalExecution) || surfaceForCommand(command) !== "local";
 }
 
-/**
- * Derive a run record input from a completed tool call, or `null` when the
- * event is not a recordable experiment execution (non-bash, still running,
- * no command, or a read-only/housekeeping command).
- */
-export function runInputFromEvent(event: ToolUpdatedEvent): RunInput | null {
-  if ((event.tool ?? "").toLowerCase() !== "bash") return null;
-  if (event.status !== "success" && event.status !== "failed") return null;
-  const command = typeof event.input?.command === "string" ? event.input.command.trim() : "";
-  if (!command) return null;
-  // Remote runs (HPC/Modal) execute off-box — their env, hardware, and outputs
-  // live on the cluster/cloud, invisible here. Recording them from the laptop
-  // would stamp the wrong environment, so the remote-compute / modal-run skills
-  // record them instead (into .FormuLab/remote-runs.jsonl) with real remote
-  // facts. The passive capture handles local runs only.
-  if (surfaceForCommand(command) !== "local") return null;
-  if (!looksLikeExecution(command)) return null;
-  return {
-    command,
-    log: event.output,
-    startedAt: event.startedAt,
-    endedAt: event.endedAt,
-    status: event.status === "success" ? "ok" : "failed",
-    surface: "local",
-  };
-}
 
 /** The prompt the Reproduce action drafts for a run — prefilled, reviewed, and
  *  user-sent (human in the loop, never auto-run). Unlike reproducing a file,

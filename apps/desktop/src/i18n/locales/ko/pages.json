@@ -35,7 +35,10 @@
       "stopLabel": "정지",
       "runLabel": "실행",
       "addCellLabel": "셀 추가"
-    }
+    },
+    "setUpJupyter": "Jupyter 설정",
+    "settingUpJupyter": "설정 중…",
+    "setUpJupyterTitle": "격리된 Jupyter 환경을 다운로드하여 설치합니다"
   },
   "files": {
     "loading": "불러오는 중…",

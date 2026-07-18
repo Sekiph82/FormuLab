@@ -4,8 +4,7 @@
     "general": "일반",
     "appearance": "화면 모드",
     "models": "모델",
-    "runtime": "런타임",
-    "connectors": "커넥터",
+    "runtime": "Python",
     "compute": "컴퓨팅",
     "privacy": "개인정보"
   },

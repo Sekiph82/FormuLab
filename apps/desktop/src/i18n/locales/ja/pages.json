@@ -35,7 +35,10 @@
       "stopLabel": "停止",
       "runLabel": "実行",
       "addCellLabel": "セルを追加"
-    }
+    },
+    "setUpJupyter": "Jupyter をセットアップ",
+    "settingUpJupyter": "セットアップ中…",
+    "setUpJupyterTitle": "独立した Jupyter 環境をダウンロードしてインストールします"
   },
   "files": {
     "loading": "読み込み中…",

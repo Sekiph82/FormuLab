@@ -12,36 +12,7 @@
     "notebooks": "Notebooks",
     "files": "Files",
     "runs": "Runs",
-    "optimizer": "Optimizer",
-    "skills": "Skills",
-    "projects": "Projects"
-  },
-  "projects": {
-    "heading": "Projects",
-    "new": "New project",
-    "importedBadge": "imported",
-    "menuScratch": "Start from scratch",
-    "menuExisting": "Use an existing folder",
-    "nameTitle": "Name project",
-    "nameSubtitle": "Keep it short and recognizable",
-    "namePlaceholder": "Project name",
-    "newSessionAria": "New session in {{name}}",
-    "noSessions": "No sessions yet.",
-    "renameHint": "Double-click to rename",
-    "pageSearch": "Search projects",
-    "colName": "Name",
-    "colSources": "Sources",
-    "colUpdated": "Updated",
-    "noResults": "No projects match.",
-    "pin": "Pin",
-    "unpin": "Unpin",
-    "rename": "Rename",
-    "remove": "Remove",
-    "more": "More",
-    "removeTitle": "Remove {{name}}?",
-    "removeBody": "This removes the project from the sidebar. Files on disk will not be deleted.",
-    "seeAll": "All projects",
-    "openFolder": "Open {{path}}"
+    "optimizer": "Optimizer"
   },
   "history": {
     "heading": "Sessions",
@@ -73,13 +44,11 @@
     "placeholder": "Type a command…",
     "noResults": "No results.",
     "actions": {
-      "newSession": "New session",
-      "analyzeData": "Analyze my data (new workflow)",
-      "auditReport": "Audit a report (traceability review)",
+      "newSession": "New formulation",
       "openNotebooks": "Open notebooks",
-      "manageSkills": "Manage skills",
       "openSettings": "Open settings",
-      "toggleTheme": "Switch theme (light / warm / dark)"
+      "toggleTheme": "Switch theme (light / warm / dark)",
+      "openFiles": "Open files"
     }
   }
 }

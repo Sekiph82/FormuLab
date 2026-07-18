@@ -35,7 +35,10 @@
       "stopLabel": "Detener",
       "runLabel": "Ejecutar",
       "addCellLabel": "Añadir celda"
-    }
+    },
+    "setUpJupyter": "Configurar Jupyter",
+    "settingUpJupyter": "Configurando…",
+    "setUpJupyterTitle": "Descargar e instalar un entorno Jupyter aislado"
   },
   "files": {
     "loading": "Cargando…",

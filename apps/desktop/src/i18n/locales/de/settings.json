@@ -4,8 +4,7 @@
     "general": "Allgemein",
     "appearance": "Erscheinungsbild",
     "models": "Modelle",
-    "runtime": "Laufzeit",
-    "connectors": "Konnektoren",
+    "runtime": "Python",
     "compute": "Rechenleistung",
     "privacy": "Datenschutz"
   },

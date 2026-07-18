@@ -1,20 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RunRecord } from "@ai4s/shared";
-import type { ToolUpdatedEvent } from "@ai4s/sdk";
-import { looksLikeExecution, reproduceRunPrompt, runInputFromEvent, surfaceForCommand } from "./runs";
+import { looksLikeExecution, reproduceRunPrompt, surfaceForCommand } from "./runs";
 
-const bash = (over: Partial<ToolUpdatedEvent> = {}): ToolUpdatedEvent => ({
-  type: "tool.updated",
-  sessionId: "ses_1",
-  callId: "call_1",
-  tool: "bash",
-  status: "success",
-  input: { command: "python train.py --lr 3e-4" },
-  output: "epoch 1 done\naccuracy 0.93\n",
-  startedAt: 1_000,
-  endedAt: 9_000,
-  ...over,
-});
 
 describe("looksLikeExecution", () => {
   it("recognizes interpreter and build/run commands", () => {
@@ -130,40 +117,6 @@ describe("surfaceForCommand", () => {
   it("does not treat a marker word inside an argument as a remote surface", () => {
     expect(surfaceForCommand('git commit -m "add sbatch script"')).toBe("local");
     expect(surfaceForCommand("python a.py --note 'use srun'")).toBe("local");
-  });
-});
-
-describe("runInputFromEvent", () => {
-  it("derives a run from a successful execution command", () => {
-    expect(runInputFromEvent(bash())).toEqual({
-      command: "python train.py --lr 3e-4",
-      log: "epoch 1 done\naccuracy 0.93\n",
-      startedAt: 1_000,
-      endedAt: 9_000,
-      status: "ok",
-      surface: "local",
-    });
-  });
-
-  it("skips remote submissions — the remote-compute/modal-run skills record those with real remote facts", () => {
-    // The local passive capture can't see remote env/hardware/outputs, so it
-    // stays out of the way rather than stamping the laptop's environment.
-    expect(runInputFromEvent(bash({ input: { command: "modal run app.py" } }))).toBeNull();
-    expect(runInputFromEvent(bash({ input: { command: "srun python train.py" } }))).toBeNull();
-    expect(runInputFromEvent(bash({ input: { command: 'ssh cluster "sbatch train.slurm"' } }))).toBeNull();
-  });
-
-  it("records a failed run too (a crashed experiment is provenance)", () => {
-    const r = runInputFromEvent(bash({ status: "failed", output: "Traceback…" }));
-    expect(r?.status).toBe("failed");
-  });
-
-  it("ignores non-bash, non-terminal, pathless, and non-execution commands", () => {
-    expect(runInputFromEvent(bash({ tool: "write" }))).toBeNull();
-    expect(runInputFromEvent(bash({ status: "running" }))).toBeNull();
-    expect(runInputFromEvent(bash({ status: "pending" }))).toBeNull();
-    expect(runInputFromEvent(bash({ input: {} }))).toBeNull();
-    expect(runInputFromEvent(bash({ input: { command: "ls -la" } }))).toBeNull();
   });
 });
 

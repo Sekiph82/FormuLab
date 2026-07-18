@@ -35,7 +35,10 @@
       "stopLabel": "停止",
       "runLabel": "运行",
       "addCellLabel": "添加单元格"
-    }
+    },
+    "setUpJupyter": "设置 Jupyter",
+    "settingUpJupyter": "正在设置…",
+    "setUpJupyterTitle": "下载并安装独立的 Jupyter 环境"
   },
   "files": {
     "loading": "正在加载…",

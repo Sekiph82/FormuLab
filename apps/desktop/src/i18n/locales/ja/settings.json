@@ -4,8 +4,7 @@
     "general": "一般",
     "appearance": "外観",
     "models": "モデル",
-    "runtime": "ランタイム",
-    "connectors": "コネクタ",
+    "runtime": "Python",
     "compute": "コンピューティング",
     "privacy": "プライバシー"
   },

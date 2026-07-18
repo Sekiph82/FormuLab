@@ -4,8 +4,7 @@
     "general": "通用",
     "appearance": "外观",
     "models": "模型",
-    "runtime": "运行时",
-    "connectors": "连接器",
+    "runtime": "Python",
     "compute": "计算",
     "privacy": "隐私"
   },

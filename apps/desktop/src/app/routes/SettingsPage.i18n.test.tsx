@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { renderAt } from "@/test/render";
 import { useUiStore } from "@/lib/store";
-import { useRuntimeStore } from "@/lib/runtime";
 import { shippedLocales } from "@/i18n/config";
 
 describe("Settings language selector", () => {
@@ -30,18 +29,15 @@ describe("Settings page strings (i18n)", () => {
     expect(screen.getByText("available in the desktop app")).toBeInTheDocument();
     // The sidebar became the settings navigation with a way back to the app.
     expect(screen.getByRole("button", { name: "Back to app" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Connectors" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Models" })).toBeInTheDocument();
   });
 
-  it("renders each section's own title and disconnected-runtime prompt", async () => {
+  it("renders each section's own title", async () => {
+    // The agent-runtime and MCP sections went with OpenCode; what remains under
+    // "runtime" is the local Python kernel the notebooks use.
     const runtime = renderAt("/settings/runtime");
-    expect(await screen.findByText("Agent runtime")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Python" })).toBeInTheDocument();
     runtime.unmount();
-
-    const connectors = renderAt("/settings/connectors");
-    expect(await screen.findByText("MCP servers")).toBeInTheDocument();
-    expect(screen.getByText("Connect the runtime to configure MCP servers.")).toBeInTheDocument();
-    connectors.unmount();
 
     // The model section belongs to the direct formulation pipeline, so it needs
     // no runtime connection — it renders its selector straight away.
@@ -49,21 +45,13 @@ describe("Settings page strings (i18n)", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Model" })).toBeInTheDocument();
   });
 
-  it("renders the formulation model/key surface without a runtime connection", async () => {
-    const original = useRuntimeStore.getState();
-    let view: ReturnType<typeof renderAt> | undefined;
-    try {
-      // Disconnected on purpose: provider/model/key are local settings now.
-      useRuntimeStore.setState({ status: "offline", defaultModel: null });
-      view = renderAt("/settings/models");
-      expect(
-        await screen.findByText("The model and API key used to generate formulations"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Provider")).toBeInTheDocument();
-      expect(screen.getByText("API key")).toBeInTheDocument();
-    } finally {
-      view?.unmount();
-      useRuntimeStore.setState({ status: original.status, defaultModel: original.defaultModel });
-    }
+  it("renders the formulation model/key surface", async () => {
+    // Provider/model/key are local settings; nothing to connect to.
+    renderAt("/settings/models");
+    expect(
+      await screen.findByText("The model and API key used to generate formulations"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Provider")).toBeInTheDocument();
+    expect(screen.getByText("API key")).toBeInTheDocument();
   });
 });
