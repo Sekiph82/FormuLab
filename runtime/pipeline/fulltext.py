@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import re
 import xml.etree.ElementTree as ET
+import zlib
 from typing import List
 
 # Section titles worth reading for formulation work, best first. A paper's
@@ -95,17 +96,63 @@ def excerpt(path: str, max_chars: int = 3000) -> str:
     return joined[:max_chars].rstrip()
 
 
-def excerpt_for(paper: dict, pdf_dir: str, max_chars: int = 3000) -> str:
-    """Excerpt for a paper if we downloaded a readable full text for it.
+def _pdf_text(path: str, max_chars: int) -> str:
+    """Pull readable text out of a PDF using only the standard library.
 
-    Only XML is parsed: PDFs need a third-party parser, and adding one for the
-    minority of downloads that are PDFs is not worth the dependency yet — those
-    papers fall back to their abstract.
+    A PDF's text lives in compressed content streams; each stream holds show-text
+    operators whose arguments are the literal strings drawn on the page. Decoding
+    those gets us the wording — enough to read concentrations and method text —
+    without taking on a PDF-parsing dependency for what is a minority of
+    downloads. Encrypted or purely scanned PDFs yield nothing, and that is fine:
+    the paper falls back to its abstract.
     """
+    try:
+        raw = open(path, "rb").read()
+    except Exception:
+        return ""
+
+    out: List[str] = []
+    for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", raw, re.S):
+        chunk = match.group(1)
+        try:
+            chunk = zlib.decompress(chunk)
+        except Exception:
+            continue  # not Flate-compressed (or an image); skip it
+        # Text-showing operators: (literal) Tj / TJ, and arrays of them.
+        for tm in re.finditer(rb"\((?:\\.|[^\\()])*\)", chunk):
+            s = tm.group(0)[1:-1]
+            s = re.sub(rb"\\([()\\])", rb"\1", s)
+            s = s.replace(rb"\n", b" ").replace(rb"\r", b" ").replace(rb"\t", b" ")
+            try:
+                text = s.decode("utf-8", "ignore")
+            except Exception:
+                continue
+            if text.strip():
+                out.append(text)
+        if sum(len(t) for t in out) > max_chars * 4:
+            break
+
+    text = re.sub(r"\s+", " ", " ".join(out)).strip()
+    # Below this, we got glyph soup rather than prose — not worth showing.
+    return text if len(text) > 200 else ""
+
+
+def excerpt_for(paper: dict, pdf_dir: str, max_chars: int = 3000) -> str:
+    """Excerpt for a paper whose full text we downloaded, XML or PDF."""
     name = paper.get("pdf_file") or ""
-    if not name.endswith(".xml"):
-        return ""
     path = os.path.join(pdf_dir, name)
-    if not os.path.isfile(path):
+    if not name or not os.path.isfile(path):
         return ""
-    return excerpt(path, max_chars)
+    if name.endswith(".xml"):
+        return excerpt(path, max_chars)
+    if name.endswith(".pdf"):
+        # Prefer the sections we can identify; a PDF gives us flat text, so lead
+        # with the substantive sentences rather than the title page.
+        text = _pdf_text(path, max_chars)
+        if not text:
+            return ""
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        keep = [s for s in sentences if _SUBSTANCE.search(s)]
+        body = " ".join(keep) if len(" ".join(keep)) > 400 else text
+        return body[:max_chars].rstrip()
+    return ""

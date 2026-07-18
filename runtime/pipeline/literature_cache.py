@@ -141,6 +141,16 @@ def search_cache(
 
 # ---------------------------------------------------------------- gather ------
 
+# How many candidates to line up per paper we want to end up reading. Most
+# search hits are paywalled or blocked, so reaching 15 full texts takes a pool
+# several times that size; too small a factor silently returns a thin session.
+POOL_FACTOR = 8
+
+# Rows to request from one database for one angle. Large enough to be worth the
+# round trip, small enough that OpenAlex does not answer with a 429.
+PAGE_SIZE = 40
+
+
 def _pdf_name(paper: Dict[str, Any], i: int) -> str:
     base = (paper.get("doi") or f"{paper.get('source_db', 'src')}-{i}").strip().lower()
     return re.sub(r"[^a-z0-9._-]+", "_", base)[:120] + ".pdf"
@@ -210,32 +220,34 @@ def _download_fulltext(url: str, dest: str, timeout: int = 30) -> tuple[str | No
 
 
 def fetch_pdfs(
-    papers: List[Dict[str, Any]],
+    candidates: List[Dict[str, Any]],
     library: str,
     out_dir: str,
+    target: int = 0,
     log: Callable[[str], None] = lambda m: None,
     workers: int = 6,
-) -> int:
-    """Download each paper's open-access PDF into the SHARED library, then copy
-    it into this session.
+) -> List[Dict[str, Any]]:
+    """Download open-access full texts, returning the papers actually obtained.
+
+    Works through `candidates` in batches and stops once `target` full texts are
+    in hand (0 = attempt every candidate), so the caller can hand in a large pool
+    and get back a fixed number of papers it can genuinely read.
 
     Library-first means a paper is fetched at most once ever: a later session
     citing the same work copies the file instead of re-downloading it. Only
     genuinely open-access URLs are touched — paywalled work is skipped, never
-    circumvented. Failures are non-fatal; the run continues with metadata.
+    circumvented.
     """
     lib_pdfs = os.path.join(library, "pdfs")
     ses_pdfs = os.path.join(out_dir, "pdfs")
     os.makedirs(lib_pdfs, exist_ok=True)
     os.makedirs(ses_pdfs, exist_ok=True)
 
-    # Every paper gets a status, so the session's papers.csv explains itself:
-    # 15 rows with 4 files is expected, not a failure, and the column says why.
     jobs = []
-    for i, p in enumerate(papers):
+    for i, p in enumerate(candidates):
         url = (p.get("oa_url") or "").strip()
         if not p.get("is_oa"):
-            p["fulltext"] = "not open access - abstract only"
+            p["fulltext"] = "not open access"
         elif not url.lower().startswith("http"):
             p["fulltext"] = "open access but no file link published"
         else:
@@ -255,23 +267,29 @@ def fetch_pdfs(
             return None
         return (p, os.path.basename(written), written, reason)
 
-    got = 0
-    if jobs:
+    # Phase 1 — fetch into the shared library, in batches, until we have enough.
+    # A batch runs in parallel and can overshoot slightly; the surplus stays in
+    # the library for a later session rather than being thrown away.
+    fetched: List[tuple] = []
+    batch = max(workers, (target or len(jobs)))
+    for start in range(0, len(jobs), batch):
+        if target and len(fetched) >= target:
+            break
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            for res in pool.map(ensure, jobs):
-                if not res:
-                    continue
-                p, name, lib_path, reason = res
-                try:
-                    shutil.copyfile(lib_path, os.path.join(ses_pdfs, name))
-                except Exception:
-                    p["fulltext"] = "could not copy into the session"
-                    continue
-                p["pdf_file"] = name
-                p["fulltext"] = reason
-                got += 1
-    log(f"full texts: {got}/{len(papers)} open-access files saved "
-        f"(the rest are paywalled or blocked to automated clients)")
+            fetched.extend(r for r in pool.map(ensure, jobs[start:start + batch]) if r)
+
+    # Phase 2 — the session gets exactly the papers it will cite.
+    got: List[Dict[str, Any]] = []
+    for p, name, lib_path, reason in (fetched[:target] if target else fetched):
+        try:
+            shutil.copyfile(lib_path, os.path.join(ses_pdfs, name))
+        except Exception:
+            p["fulltext"] = "could not copy into the session"
+            continue
+        p["pdf_file"] = name
+        p["fulltext"] = reason
+        got.append(p)
+    log(f"full texts: {len(got)} obtained from {len(jobs)} open-access candidate(s)")
     return got
 
 
@@ -303,16 +321,21 @@ def gather(
     index = load_index(library)
     anchor_terms = _terms(anchor)
 
-    cached = search_cache(queries, index, target, anchor_terms)
-    if len(cached) >= target:
+    # We want `target` papers we can actually READ, and most search hits are
+    # paywalled, so gather a much larger candidate pool and let the download
+    # step decide which ones make the session.
+    pool = target * POOL_FACTOR if download_pdfs else target
+
+    cached = search_cache(queries, index, pool, anchor_terms)
+    if len(cached) >= pool:
         # The shared library already covers this query — use it, no API call.
-        log(f"cache: {len(cached)} relevant papers from the shared library (no API needed)")
-        selected = cached[:target]
+        log(f"cache: {len(cached)} relevant candidates from the shared library (no API needed)")
+        candidates = cached[:pool]
     else:
         # Not enough in the library: fetch a FRESH set of `target` NEW papers
         # (deduped against the whole library so they are genuinely new) for this
         # session, and add them to the shared library.
-        log(f"cache: only {len(cached)}/{target} in the library — fetching {target} new from the open APIs")
+        log(f"cache: only {len(cached)}/{pool} candidates in the library — searching the open APIs")
         discover = _load_fetchers()
         srcs = [s.strip() for s in sources.split(",") if s.strip() in discover.FETCHERS]
         lib_keys = {paper_key(p) for p in index}
@@ -346,10 +369,10 @@ def gather(
         # second lifts it to top up whatever is still missing. Diversity is a
         # preference, never a reason to return a thinner evidence base — with a
         # single source available the cap would otherwise starve the quota.
-        base_cap = max(3, -(-target // 3))
+        base_cap = max(3, -(-pool // 3))
         per_source: Dict[str, int] = {}
-        for cap in (base_cap, target):
-            if len(new) >= target:
+        for cap in (base_cap, pool):
+            if len(new) >= pool:
                 break
             # How much one (source, angle) pair may contribute. Derived from the
             # cap so a source spends its share ACROSS the angles: if this equals
@@ -357,19 +380,22 @@ def gather(
             # never asked.
             per_pair = max(2, -(-cap // max(1, len(queries))))
             for q, src in pairs:
-                if len(new) >= target:
+                if len(new) >= pool:
                     break
                 if per_source.get(src, 0) >= cap:
                     continue  # this database has contributed its share
                 try:
-                    rows = discover.FETCHERS[src](q, target)
+                    # Ask for a page, not the whole pool: requesting 120 rows per
+                    # angle earns a 429 from OpenAlex, and the pool is filled by
+                    # asking several angles rather than one huge query.
+                    rows = discover.FETCHERS[src](q, min(pool, PAGE_SIZE))
                 except Exception as e:
                     log(f"  [warn] {src} failed: {e}")
                     continue
                 taken = 0
                 qterms = _terms(q)
                 for row in rows:
-                    if taken >= per_pair or len(new) >= target:
+                    if taken >= per_pair or len(new) >= pool:
                         break
                     if per_source.get(src, 0) >= cap:
                         break
@@ -396,25 +422,31 @@ def gather(
         # fresh batch is short (the APIs returned mostly already-cached work),
         # top up from the ranked cache so the session never has FEWER sources
         # than the library already held.
-        selected = new[:target]
-        if len(selected) < target:
-            have = {paper_key(p) for p in selected}
+        candidates = new[:pool]
+        if len(candidates) < pool:
+            have = {paper_key(p) for p in candidates}
             for p in cached:
-                if len(selected) >= target:
+                if len(candidates) >= pool:
                     break
                 if paper_key(p) not in have:
-                    selected.append(p)
+                    candidates.append(p)
                     have.add(paper_key(p))
-            log(f"topped up from cache -> {len(selected)} papers "
-                f"({len(new)} fresh + {len(selected) - len(new)} cached)")
 
-    # Pull the open-access full texts (shared library first, then copied into the
-    # session) before the index is written, so `pdf_file` is recorded for each.
-    if download_pdfs and selected:
+    # The session is the papers we can actually read. Candidates whose full text
+    # we cannot obtain are not written anywhere: a reference we never read does
+    # not belong in the evidence list.
+    if download_pdfs:
+        log(f"{len(candidates)} candidates -> downloading until {target} full texts")
         try:
-            fetch_pdfs(selected, library, out_dir, log=log)
+            selected = fetch_pdfs(candidates, library, out_dir, target=target, log=log)
         except Exception as e:
-            log(f"[warn] pdf download skipped: {e}")
+            log(f"[warn] full-text download failed: {e}")
+            selected = []
+        if len(selected) < target:
+            log(f"[note] only {len(selected)} of {target} could be obtained in full "
+                f"— the rest of the candidates are paywalled or blocked")
+    else:
+        selected = candidates[:target]
 
     save_index(library, index)
 
@@ -430,21 +462,16 @@ def gather(
     with open(os.path.join(out_dir, "papers.json"), "w", encoding="utf-8") as fh:
         json.dump(selected, fh, ensure_ascii=False, indent=2)
 
-    # A short note next to the files, because "15 papers but 4 files" looks like
-    # a bug until you know only open-access work can be downloaded at all.
-    saved = [p for p in selected if p.get("pdf_file")]
+    # A short note next to the files: this folder IS the evidence list.
     with open(os.path.join(out_dir, "README.txt"), "w", encoding="utf-8") as fh:
         fh.write(
-            f"{len(selected)} papers informed this formulation.\n"
-            f"{len(saved)} of them are stored in full under pdfs/.\n\n"
-            "Every paper here is used: its title, abstract and metadata go to the\n"
-            "model. Only open-access papers can be downloaded in full, so the rest\n"
-            "contribute their abstract only. The `fulltext` column in papers.csv\n"
-            "says which is which, and why.\n\n"
-            "Common reasons a paper has no file:\n"
-            "  - not open access (the publisher sells it)\n"
-            "  - open access, but the publisher blocks automated download\n"
-            "  - the link points at a landing page rather than the article\n\n"
+            f"{len(selected)} papers informed this formulation, and all of them\n"
+            "are stored in full under pdfs/.\n\n"
+            "Only papers whose full text could be downloaded are listed here: the\n"
+            "model reads the papers themselves, so a reference it could not read\n"
+            "does not belong in the list. Search hits that were paywalled or\n"
+            "blocked were skipped and are not recorded.\n\n"
             "Paywalled papers are never bypassed.\n"
         )
+
     return selected

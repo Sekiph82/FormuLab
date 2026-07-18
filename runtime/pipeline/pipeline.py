@@ -357,6 +357,7 @@ def run(
     out_dir: str,
     n: int = 3,
     formulas_dir: str | None = None,
+    download_fulltexts: bool = True,
     llm_call: Callable[..., str] = llm.call,
     log: Callable[[str], None] = lambda m: None,
 ) -> Dict[str, Any]:
@@ -378,7 +379,8 @@ def run(
     # sharpen the search without drifting off-domain.
     anchor = f"{brief.get('target', '')} {brief.get('category', '')}"
     papers = literature_cache.gather(
-        queries, lit_dir, library, target=15, anchor=anchor, log=log,
+        queries, lit_dir, library, target=15, anchor=anchor,
+        download_pdfs=download_fulltexts, log=log,
     )
     log(f"literature ready: {len(papers)} papers")
 

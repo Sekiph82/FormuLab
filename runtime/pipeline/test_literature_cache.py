@@ -1,5 +1,6 @@
 """Tests for the shared literature cache (cache-first retrieval)."""
 
+import csv
 import json
 import os
 import tempfile
@@ -29,7 +30,8 @@ class CacheTests(unittest.TestCase):
             orig = lc._load_fetchers
             lc._load_fetchers = lambda: (_ for _ in ()).throw(AssertionError("hit API despite full cache"))
             try:
-                got = lc.gather(["antidandruff shampoo surfactant"], out, lib, target=15)
+                got = lc.gather(["antidandruff shampoo surfactant"], out, lib, target=15,
+                                download_pdfs=False)
             finally:
                 lc._load_fetchers = orig
 
@@ -56,7 +58,7 @@ class CacheTests(unittest.TestCase):
             lc._load_fetchers = lambda: FakeDiscover
             try:
                 got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
-                                target=15, sources="openalex")
+                                target=15, sources="openalex", download_pdfs=False)
             finally:
                 lc._load_fetchers = orig
 
@@ -86,7 +88,7 @@ class CacheTests(unittest.TestCase):
             lc._load_fetchers = lambda: FakeDiscover
             try:
                 got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
-                                target=15, sources="openalex")
+                                target=15, sources="openalex", download_pdfs=False)
             finally:
                 lc._load_fetchers = orig
 
@@ -129,6 +131,7 @@ class CacheTests(unittest.TestCase):
                     ["antidandruff shampoo surfactant", "antidandruff efficacy active",
                      "shampoo preservative stability"],
                     out, lib, target=15, sources="openalex,europepmc,arxiv",
+                    download_pdfs=False,
                 )
             finally:
                 lc._load_fetchers = orig
@@ -182,6 +185,53 @@ class CacheTests(unittest.TestCase):
         self.assertIsNone(lc.sniff_fulltext(b"\n  <html lang='en'><head>"))
         self.assertIsNone(lc.sniff_fulltext(b'<?xml version="1.0"?><!DOCTYPE html><html>'))
         self.assertIsNone(lc.sniff_fulltext(b"{}", "text/html; charset=utf-8"))
+
+    def test_session_contains_only_papers_we_downloaded(self):
+        # The session IS the evidence list: a candidate whose full text cannot be
+        # fetched is not listed at all, and the pool is searched until `target`
+        # readable papers are in hand.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+
+            def candidate(i, q):
+                p = fake_paper(f"cand-{i}", q)
+                # Only every third candidate is actually downloadable.
+                p["oa_url"] = f"https://example.org/{i}.xml" if i % 3 == 0 else ""
+                return p
+
+            class FakeDiscover:
+                FETCHERS = {"openalex": lambda q, n: [candidate(i, q) for i in range(n)]}
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            def fake_dl(url, dest, timeout=30):
+                path = dest[:-4] + ".xml"
+                with open(path, "wb") as fh:
+                    fh.write(b"<?xml version='1.0'?><article/>")
+                return path, "full text saved"
+
+            orig_f, orig_d = lc._load_fetchers, lc._download_fulltext
+            lc._load_fetchers = lambda: FakeDiscover
+            lc._download_fulltext = fake_dl
+            try:
+                got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
+                                target=5, sources="openalex")
+            finally:
+                lc._load_fetchers, lc._download_fulltext = orig_f, orig_d
+
+            self.assertEqual(len(got), 5)
+            # Every listed paper has a file, and the files are really there.
+            self.assertTrue(all(p.get("pdf_file") for p in got))
+            files = os.listdir(os.path.join(out, "pdfs"))
+            self.assertEqual(len(files), 5)
+            # papers.csv lists exactly those five, nothing skipped.
+            with open(os.path.join(out, "papers.csv"), encoding="utf-8-sig") as fh:
+                rows = list(csv.DictReader(fh))
+            self.assertEqual(len(rows), 5)
+            self.assertTrue(all(r["pdf_file"] for r in rows))
 
     def test_off_domain_papers_are_rejected(self):
         # A physics preprint that merely contains the word "formulation" must not

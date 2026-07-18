@@ -45,7 +45,7 @@ class PipelineTests(unittest.TestCase):
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo", "market": "kenya"},
                 provider="mock", model="m", api_key="", library=lib, out_dir=out, n=2,
-                llm_call=mock_llm(formulas),
+                download_fulltexts=False, llm_call=mock_llm(formulas),
             )
             self.assertEqual(res["status"], "ok")
             self.assertEqual(len(res["cards"]), 2)
@@ -70,7 +70,7 @@ class PipelineTests(unittest.TestCase):
             res = pipeline.run(
                 {"target": "antidandruff shampoo", "category": "shampoo"},
                 provider="mock", model="m", api_key="", library=lib, out_dir=out, n=1,
-                llm_call=mock_llm(bad),
+                download_fulltexts=False, llm_call=mock_llm(bad),
             )
             self.assertEqual(res["status"], "ok")
             self.assertTrue(res["cards"][0]["violations"])  # SLES flagged
@@ -92,7 +92,7 @@ class PipelineTests(unittest.TestCase):
             res = pipeline.run(
                 {"target": "mild shampoo", "category": "shampoo", "market": "eu"},
                 provider="mock", model="m", api_key="", library=lib, out_dir=out, n=2,
-                formulas_dir=formulas, llm_call=mock_llm(made),
+                formulas_dir=formulas, download_fulltexts=False, llm_call=mock_llm(made),
             )
             self.assertEqual(res["status"], "ok")
             self.assertEqual(len(res["archived"]), 2)
@@ -145,7 +145,7 @@ class PipelineTests(unittest.TestCase):
                 res = pipeline.run(
                     {"target": "obscure niche product", "category": "cleaner"},
                     provider="mock", model="m", api_key="", library=lib, out_dir=out, n=1,
-                    llm_call=mock_llm([{"name": "x", "purpose": "y",
+                    download_fulltexts=False, llm_call=mock_llm([{"name": "x", "purpose": "y",
                                         "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent",
                                                          "weight_pct": "q.s. 100"}],
                                         "warnings": []}]),
@@ -196,7 +196,7 @@ class PipelineTests(unittest.TestCase):
             res = pipeline.run(
                 {"target": "an explosive detonator mixture"},
                 provider="mock", model="m", api_key="", library=os.path.join(tmp, "l"),
-                out_dir=os.path.join(tmp, "s"), llm_call=mock_llm([]),
+                out_dir=os.path.join(tmp, "s"), download_fulltexts=False, llm_call=mock_llm([]),
             )
             self.assertEqual(res["status"], "refused")
 
