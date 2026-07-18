@@ -30,7 +30,7 @@ export function FormulationWorkspace() {
   const { t } = useTranslation(["session", "common"]);
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { status, startDraft, openSession, sendPrompt, threads, currentId, runningSessions, sending } =
+  const { status, startDraft, openSession, sendPrompt, interrupt, threads, currentId, runningSessions, sending } =
     useRuntimeStore();
   const connected = status === "ready";
 
@@ -46,6 +46,13 @@ export function FormulationWorkspace() {
   const thread = threads[activeId];
   const blocks: ThreadBlock[] = thread?.blocks ?? [];
   const running = !!(currentId && runningSessions[currentId]);
+
+  // Opening a PAST session (URL has an id) must show its saved card, never
+  // resume generating — if the sidecar re-runs an unfinished turn on reconnect,
+  // stop it so the stored answer stays put.
+  useEffect(() => {
+    if (sessionId && running) void interrupt();
+  }, [sessionId, running, interrupt]);
   const working = sending || running;
   const hasRun = blocks.some((b) => b.kind === "user");
   // Opening a session fetches its history — show a spinner until it lands.
