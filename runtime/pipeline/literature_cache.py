@@ -146,17 +146,26 @@ def _pdf_name(paper: Dict[str, Any], i: int) -> str:
     return re.sub(r"[^a-z0-9._-]+", "_", base)[:120] + ".pdf"
 
 
-def _download_pdf(url: str, dest: str, timeout: int = 30) -> bool:
-    """Fetch one open-access PDF. Verifies it really is a PDF before keeping it."""
+def _download_fulltext(url: str, dest: str, timeout: int = 30) -> str | None:
+    """Fetch one open-access full text, returning the path actually written.
+
+    Accepts a PDF or the XML Europe PMC's REST service serves for PMC articles
+    (which is the sanctioned route and richer than a PDF). Anything else is a
+    landing page, so it is discarded rather than saved as a junk file.
+    """
     req = urllib.request.Request(url, headers={"User-Agent": "FormuLab/1.0 (formulation research)"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             head = r.read(5)
-            if head[:4] != b"%PDF":
-                return False  # HTML landing page, not the file
+            if head[:4] == b"%PDF":
+                pass
+            elif head[:5] == b"<?xml":
+                dest = dest[:-4] + ".xml" if dest.endswith(".pdf") else dest
+            else:
+                return None  # HTML landing page, not the article
             body = r.read()
     except Exception:
-        return False
+        return None
     tmp = dest + ".part"
     try:
         with open(tmp, "wb") as fh:
@@ -169,8 +178,8 @@ def _download_pdf(url: str, dest: str, timeout: int = 30) -> bool:
                 os.remove(tmp)
             except OSError:
                 pass
-        return False
-    return True
+        return None
+    return dest
 
 
 def fetch_pdfs(
@@ -203,9 +212,14 @@ def fetch_pdfs(
     def ensure(job):
         p, url, name = job
         lib_path = os.path.join(lib_pdfs, name)
-        if not os.path.exists(lib_path) and not _download_pdf(url, lib_path):
+        xml_path = lib_path[:-4] + ".xml"
+        for existing in (lib_path, xml_path):  # already in the shared library
+            if os.path.exists(existing):
+                return (p, os.path.basename(existing), existing)
+        written = _download_fulltext(url, lib_path)
+        if not written:
             return None
-        return (p, name, lib_path)
+        return (p, os.path.basename(written), written)
 
     got = 0
     if jobs:
@@ -220,7 +234,8 @@ def fetch_pdfs(
                     continue
                 p["pdf_file"] = name
                 got += 1
-    log(f"pdfs: {got}/{len(papers)} open-access files in the session and the shared library")
+    log(f"full texts: {got}/{len(papers)} open-access files saved "
+        f"(the rest are paywalled or blocked to automated clients)")
     return got
 
 
@@ -233,9 +248,11 @@ def gather(
     # preprints and holds essentially no consumer-formulation literature, so it
     # contributes noise that merely shares a word: a "limescale remover" query
     # pulls back image-inpainting "object remover" and watermark-removal papers.
-    # OpenAlex carries the chemistry and Europe PMC the biomed + patent side.
-    # Fewer, on-domain sources beat a padded list.
-    sources: str = "openalex,europepmc",
+    # The four defaults each cover a different slice: OpenAlex the chemistry,
+    # OpenAIRE the European open-access repositories (green-OA copies that are
+    # actually downloadable), Europe PMC the biomedical side plus patents, and
+    # Crossref essentially every remaining DOI.
+    sources: str = "openalex,openaire,europepmc,crossref",
     anchor: str = "",
     download_pdfs: bool = True,
     log: Callable[[str], None] = lambda m: None,
@@ -276,14 +293,26 @@ def gather(
         # So: walk sources best-first, and within each source ask every angle,
         # capped so one angle cannot monopolise the quota. A strong source fills
         # the budget across all angles; weaker ones only top up what is missing.
-        priority = {"openalex": 0, "europepmc": 1, "arxiv": 2}
+        # Ordered by how much usable evidence each returns for formulation work:
+        # OpenAlex and OpenAIRE almost always carry abstracts (and OpenAIRE
+        # carries downloadable links), Europe PMC adds biomed + patents, and
+        # Crossref is broadest but deposits an abstract only about a third of
+        # the time. arXiv sits last and is off by default.
+        priority = {"openalex": 0, "openaire": 1, "europepmc": 2, "crossref": 3, "arxiv": 9}
         srcs.sort(key=lambda s: priority.get(s, 99))
         pairs = [(q, src) for src in srcs for q in queries]
         per_pair = max(2, -(-target // max(1, len(queries))))  # ceil, floor of 2
+        # No single database may supply the whole quota. Each indexes a
+        # different slice of the literature, so a formula backed by three
+        # independent sources is better corroborated than one backed by fifteen
+        # papers from a single index — even when that index is the strongest.
+        per_source_cap = max(3, -(-target // 3))
         per_source: Dict[str, int] = {}
         for q, src in pairs:
             if len(new) >= target:
                 break
+            if per_source.get(src, 0) >= per_source_cap:
+                continue  # this database has contributed its share
             try:
                 rows = discover.FETCHERS[src](q, target)
             except Exception as e:
@@ -293,6 +322,8 @@ def gather(
             qterms = _terms(q)
             for row in rows:
                 if taken >= per_pair or len(new) >= target:
+                    break
+                if per_source.get(src, 0) >= per_source_cap:
                     break
                 k = paper_key(row)
                 if not k or k in lib_keys or k in new_keys:
