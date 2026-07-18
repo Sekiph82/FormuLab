@@ -6,7 +6,6 @@ mod examples;
 mod formulation;
 mod formulation_v2;
 mod git_snapshot;
-mod goal;
 mod harness;
 mod compute;
 mod jupyter;
@@ -15,12 +14,10 @@ mod large_file;
 mod modal;
 mod opencode_config;
 mod preview_server;
-mod project;
 mod provenance;
 mod runs;
 mod runs_index;
 mod runtime;
-mod science_mcp;
 mod tools;
 #[cfg(target_os = "macos")]
 mod macos;
@@ -71,39 +68,14 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            runtime::start_runtime,
-            runtime::runtime_password,
-            runtime::stop_runtime,
             runtime::workspace_path,
             runtime::workspace_base,
             runtime::set_workspace_base,
             runtime::open_workspace_base,
-            runtime::set_workspace,
-            runtime::mark_session,
-            runtime::new_dated_workspace,
-            goal::goal_state,
-            goal::goal_update,
-            project::create_project,
-            project::import_project,
-            project::list_projects,
-            project::rename_project,
-            project::set_project_pinned,
-            project::delete_project,
-            project::open_project_folder,
             runtime::pick_folder,
-            runtime::import_opencode_login,
-            runtime::provider_auth_exists,
-            runtime::remove_config_entry,
             jupyter::jupyter_status,
             jupyter::setup_jupyter,
             jupyter::start_jupyter,
-            runtime::configure_opencode,
-            runtime::get_approval_mode,
-            runtime::set_approval_mode,
-            runtime::get_proxy_setting,
-            runtime::set_proxy_setting,
-            runtime::get_mirror_setting,
-            runtime::set_mirror_setting,
             kernel::kernel_execute,
             kernel::kernel_reset,
             kernel::python_interpreter,
@@ -120,7 +92,6 @@ pub fn run() {
             artifact_file::resolve_artifact,
             artifact_file::save_text_file,
             artifact_file::open_url,
-            artifact_file::add_files_to_workspace,
             artifact_file::add_text_to_workspace,
             artifact_file::list_notebooks,
             artifact_file::list_dir,
@@ -132,10 +103,6 @@ pub fn run() {
             runs::list_runs,
             runs::read_run_log,
             runs_index::query_runs_cmd,
-            science_mcp::science_mcp_python,
-            science_mcp::setup_science_mcp,
-            examples::install_example,
-            git_snapshot::commit_workspace_snapshot,
             compute::list_ssh_hosts,
             compute::compute_machines,
             compute::add_compute_machine,
