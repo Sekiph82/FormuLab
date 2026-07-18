@@ -178,5 +178,77 @@
     "session": "2026-07-18-1638-sensitive-skin-body-wash",
     "ingredients": 9,
     "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-1809-anti-dandruff-shampoo-for-sensitive-scalp_v1.md",
+    "name": "Piroctone Olamine Gentle Cleansing Shampoo",
+    "target": "anti-dandruff shampoo for sensitive scalp",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v1",
+    "created": "2026-07-18 18:09:16",
+    "session": "2026-07-18-1809-anti-dandruff-shampoo-for-sensitive-scalp",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-1809-anti-dandruff-shampoo-for-sensitive-scalp_v2.md",
+    "name": "Zinc PCA & Glucoside Soothing Shampoo",
+    "target": "anti-dandruff shampoo for sensitive scalp",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v2",
+    "created": "2026-07-18 18:09:16",
+    "session": "2026-07-18-1809-anti-dandruff-shampoo-for-sensitive-scalp",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-1809-anti-dandruff-shampoo-for-sensitive-scalp_v3.md",
+    "name": "Botanical Complex Anti-Dandruff Wash",
+    "target": "anti-dandruff shampoo for sensitive scalp",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v3",
+    "created": "2026-07-18 18:09:16",
+    "session": "2026-07-18-1809-anti-dandruff-shampoo-for-sensitive-scalp",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-2353-gum-health-protective-toothpaste_v1.md",
+    "name": "GumShield Pro-Remineralizing Paste",
+    "target": "gum health protective toothpaste",
+    "category": "toothpaste",
+    "market": "kenya",
+    "version": "v1",
+    "created": "2026-07-18 23:53:22",
+    "session": "2026-07-18-2353-gum-health-protective-toothpaste",
+    "ingredients": 12,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-2353-gum-health-protective-toothpaste_v2.md",
+    "name": "Bio-Active Chitosan Gum Care",
+    "target": "gum health protective toothpaste",
+    "category": "toothpaste",
+    "market": "kenya",
+    "version": "v2",
+    "created": "2026-07-18 23:53:22",
+    "session": "2026-07-18-2353-gum-health-protective-toothpaste",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-18-2353-gum-health-protective-toothpaste_v3.md",
+    "name": "Enamel-Shield Citrate Paste",
+    "target": "gum health protective toothpaste",
+    "category": "toothpaste",
+    "market": "kenya",
+    "version": "v3",
+    "created": "2026-07-18 23:53:22",
+    "session": "2026-07-18-2353-gum-health-protective-toothpaste",
+    "ingredients": 11,
+    "violations": []
   }
 ]

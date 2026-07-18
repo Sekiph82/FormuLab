@@ -146,23 +146,44 @@ def _pdf_name(paper: Dict[str, Any], i: int) -> str:
     return re.sub(r"[^a-z0-9._-]+", "_", base)[:120] + ".pdf"
 
 
+def sniff_fulltext(head: bytes, content_type: str = "") -> str | None:
+    """Classify a response body as "pdf", "xml", or None (not an article).
+
+    Only the real thing is kept. A landing page is HTML and must NEVER be saved
+    — it is not the paper, and a folder of .html stubs is worse than an empty
+    one. Full-text XML is not always a clean "<?xml" either: Europe PMC serves
+    JATS starting with a newline and "<!DOCTYPE article ...", which a naive
+    magic-byte check rejects even though it IS the article.
+    """
+    if head[:4] == b"%PDF":
+        return "pdf"
+    start = head.lstrip()[:400].lower()
+    # HTML in any guise (including XHTML that opens with an XML declaration).
+    if b"<!doctype html" in start or start.startswith(b"<html") or b"<html" in start[:200]:
+        return None
+    if "text/html" in content_type.lower():
+        return None
+    if start.startswith((b"<?xml", b"<!doctype article", b"<article")):
+        return "xml"
+    return None
+
+
 def _download_fulltext(url: str, dest: str, timeout: int = 30) -> str | None:
     """Fetch one open-access full text, returning the path actually written.
 
-    Accepts a PDF or the XML Europe PMC's REST service serves for PMC articles
-    (which is the sanctioned route and richer than a PDF). Anything else is a
-    landing page, so it is discarded rather than saved as a junk file.
+    Accepts a PDF or the JATS XML Europe PMC's REST service serves for PMC
+    articles (the sanctioned route, and richer than a PDF). Anything else is a
+    landing page and is discarded rather than saved as a junk file.
     """
     req = urllib.request.Request(url, headers={"User-Agent": "FormuLab/1.0 (formulation research)"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            head = r.read(5)
-            if head[:4] == b"%PDF":
-                pass
-            elif head[:5] == b"<?xml":
-                dest = dest[:-4] + ".xml" if dest.endswith(".pdf") else dest
-            else:
-                return None  # HTML landing page, not the article
+            head = r.read(512)
+            kind = sniff_fulltext(head, r.headers.get("Content-Type", ""))
+            if kind is None:
+                return None
+            if kind == "xml" and dest.endswith(".pdf"):
+                dest = dest[:-4] + ".xml"
             body = r.read()
     except Exception:
         return None

@@ -169,6 +169,20 @@ class CacheTests(unittest.TestCase):
                 lc._load_fetchers = orig
             self.assertEqual(len(got), 15)
 
+    def test_fulltext_sniffing_accepts_jats_and_never_html(self):
+        # Regression: Europe PMC serves JATS starting with a newline and
+        # "<!DOCTYPE article", which a naive "<?xml" check rejected — real full
+        # texts were being dropped.
+        jats = b'\n<!DOCTYPE article\n  PUBLIC "-//NLM//DTD JATS (Z39.96)...">\n<article xml:lang="en">'
+        self.assertEqual(lc.sniff_fulltext(jats), "xml")
+        self.assertEqual(lc.sniff_fulltext(b'<?xml version="1.0"?><article/>'), "xml")
+        self.assertEqual(lc.sniff_fulltext(b"%PDF-1.7\n..."), "pdf")
+        # A landing page is never the paper and must not be saved.
+        self.assertIsNone(lc.sniff_fulltext(b"<!DOCTYPE html><html><body>Sign in"))
+        self.assertIsNone(lc.sniff_fulltext(b"\n  <html lang='en'><head>"))
+        self.assertIsNone(lc.sniff_fulltext(b'<?xml version="1.0"?><!DOCTYPE html><html>'))
+        self.assertIsNone(lc.sniff_fulltext(b"{}", "text/html; charset=utf-8"))
+
     def test_off_domain_papers_are_rejected(self):
         # A physics preprint that merely contains the word "formulation" must not
         # be accepted as evidence for a household-chemistry query.
