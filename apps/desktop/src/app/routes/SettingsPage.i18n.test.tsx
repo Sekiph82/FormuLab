@@ -54,7 +54,7 @@ describe("Settings page strings (i18n)", () => {
     let view: ReturnType<typeof renderAt> | undefined;
     try {
       // Disconnected on purpose: provider/model/key are local settings now.
-      useRuntimeStore.setState({ status: "idle", defaultModel: null });
+      useRuntimeStore.setState({ status: "offline", defaultModel: null });
       view = renderAt("/settings/models");
       expect(
         await screen.findByText("The model and API key used to generate formulations"),
