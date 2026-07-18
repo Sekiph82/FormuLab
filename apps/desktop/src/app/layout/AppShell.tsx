@@ -7,7 +7,6 @@ import { Sidebar } from "@/components/sidebar/Sidebar";
 import { CommandPalette } from "@/components/command-palette/CommandPalette";
 import { Toaster } from "@/components/ui/Toaster";
 import { mockProject } from "@/lib/mock";
-import { useRuntimeStore } from "@/lib/runtime";
 import { ensureSetupProgressListener } from "@/lib/setup";
 import { useOverlayTitlebar, useUiStore } from "@/lib/store";
 import { overlayTitlebarStyle } from "@/lib/titlebar";
@@ -33,10 +32,10 @@ export function AppShell() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  // In the packaged desktop app, auto-start the bundled OpenCode and connect,
-  // and bring the Jupyter server back up if the user enabled it before.
+  // Formulation runs through the direct pipeline (a Tauri command), so there is
+  // no agent runtime to start here — only the Jupyter server the notebooks page
+  // uses, brought back up if the user enabled it before.
   useEffect(() => {
-    void useRuntimeStore.getState().bootstrap();
     void ensureJupyter();
     // One app-lifetime listener for uv provisioning progress, so a running
     // download's live output survives navigating between pages.

@@ -34,14 +34,12 @@
     "active": true,
     "targets": "all",
     "externalBin": [
-      "binaries/opencode",
       "binaries/uv"
     ],
     "macOS": {
       "minimumSystemVersion": "13.0"
     },
     "resources": {
-      "../../../runtime/goal-plugin": "goal-plugin/",
       "../../../runtime/skills/core": "skills-core/",
       "../../../runtime/harness": "harness/",
       "../../../examples/shampoo-formulation": "examples/shampoo-formulation/",
