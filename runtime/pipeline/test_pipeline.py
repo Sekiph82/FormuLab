@@ -162,6 +162,35 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("emulsion", joined)
         self.assertNotIn("foam", joined)
 
+    def test_citations_are_checked_against_the_retrieved_papers(self):
+        # The model picks a real DOI but invents the author line to go with it.
+        # Real rows: Europe PMC writes "Meyer F, ..." (surname first), OpenAlex
+        # writes "Valéria CC Marinho; ..." (surname last).
+        papers = [{
+            "doi": "10.3290/j.ohpd.c_2697", "year": 2026,
+            "authors": "Meyer F, Mohammed ZS, Deschner J, Enax J.",
+            "title": "Natural Agents for the Improvement of Gingival Health",
+        }, {
+            "doi": "10.1002/14651858.cd002278", "year": 2003,
+            "authors": "Valéria CC Marinho; Julian P. T. Higgins; Stuart Logan",
+            "title": "Fluoride toothpastes for preventing dental caries",
+        }]
+        formula = {"references": [
+            {"author": "Figueiredo et al.", "year": "2025", "doi": "10.3290/j.ohpd.c_2697"},
+            {"author": "Smith et al.", "year": "2003", "doi": "10.1002/14651858.cd002278"},
+            {"author": "Nobody", "year": "2024", "doi": "10.9999/invented"},
+        ]}
+        notes = pipeline.verify_references(formula, papers)
+
+        refs = formula["references"]
+        self.assertEqual(len(refs), 2)                      # the invented DOI is dropped
+        self.assertEqual(refs[0]["doi"], "10.3290/j.ohpd.c_2697")
+        self.assertEqual(refs[0]["author"], "Meyer et al.")  # surname-first source
+        self.assertEqual(refs[0]["year"], "2026")
+        self.assertEqual(refs[1]["author"], "Marinho et al.")  # surname-last source
+        self.assertTrue(any("corrected" in n for n in notes))
+        self.assertTrue(any("not drawn from the retrieved sources" in n for n in notes))
+
     def test_safety_gate_refuses(self):
         with tempfile.TemporaryDirectory() as tmp:
             res = pipeline.run(

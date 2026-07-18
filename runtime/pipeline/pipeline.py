@@ -16,6 +16,7 @@ import re
 import time
 from typing import Any, Callable, Dict, List
 
+import fulltext
 import llm
 import literature_cache
 from rules import derive_constraints, validate
@@ -127,9 +128,14 @@ def _system_prompt(constraints: Dict[str, Any], n: int) -> str:
     req = ", ".join(constraints["require_functions"]) or "none"
     ph = constraints["target_ph"] or "appropriate for the product class"
     rules_txt = " ".join(constraints["reasons"])
-    return f"""You are a formulation chemist. From the provided open-access literature abstracts and
-established cosmetic/detergent science, propose {n} DISTINCT, evidence-based candidate formulas
-for the product. Return STRICT JSON only.
+    return f"""You are a formulation chemist. Using the provided open-access literature —
+entries marked FULL TEXT carry the paper's own methods and results, entries marked ABSTRACT ONLY
+carry only a summary — plus established cosmetic/detergent science, propose {n} DISTINCT,
+evidence-based candidate formulas for the product. Return STRICT JSON only.
+
+Ground the formulas in what the sources actually report: prefer ingredients, concentrations and
+pH values that appear in the FULL TEXT entries, and cite the DOI you drew each choice from. Do
+not invent a DOI — cite only DOIs listed below.
 
 HARD RULES (must be obeyed in every formula):
 - Region: {p['display']} — water hardness {p['water_hardness']}, climate {p['climate']}, {p['notes']}
@@ -156,17 +162,83 @@ JSON schema:
 Make the {n} formulas genuinely different (e.g. different active systems), each obeying every hard rule."""
 
 
-def _paper_context(papers: List[Dict[str, Any]], limit: int = 15) -> str:
+def _paper_context(papers: List[Dict[str, Any]], pdf_dir: str = "", limit: int = 15) -> str:
+    """Build the evidence block the model reasons over.
+
+    Papers whose full text we downloaded are quoted at length — that is the
+    point of downloading them. The rest contribute their abstract. Each entry
+    says which it is, so the model can weigh a full methods section differently
+    from a 600-character summary.
+    """
     lines = []
     for p in papers[:limit]:
-        ab = (p.get("abstract") or "")[:600]
-        lines.append(f"- [{p.get('source_db','')}] {p.get('title','')} "
-                     f"(DOI:{p.get('doi','')}, {p.get('year','')}). {ab}")
-    return "\n".join(lines)
+        head = (f"[{p.get('source_db','')}] {p.get('title','')} "
+                f"(DOI:{p.get('doi','')}, {p.get('year','')})")
+        body = fulltext.excerpt_for(p, pdf_dir) if pdf_dir else ""
+        if body:
+            lines.append(f"--- FULL TEXT: {head}\n{body}")
+        else:
+            lines.append(f"--- ABSTRACT ONLY: {head}\n{(p.get('abstract') or '')[:600]}")
+    return "\n\n".join(lines)
 
 
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (text or "product").lower()).strip("-")[:48] or "product"
+
+
+def _author_list(authors: str) -> List[str]:
+    """Split an author string. OpenAlex separates with ';', Europe PMC with ','."""
+    sep = ";" if ";" in authors else ","
+    return [a.strip() for a in authors.split(sep) if a.strip()]
+
+
+def _surname(name: str) -> str:
+    """The family name, whichever order the source used.
+
+    Europe PMC writes "Meyer F" (surname first, then initials); OpenAlex writes
+    "Valéria CC Marinho" (surname last). Trailing initials are the tell: a short
+    all-caps final token means the name is surname-first.
+    """
+    parts = [p for p in name.replace(".", " ").split() if p]
+    if not parts:
+        return ""
+    last = parts[-1]
+    if len(parts) > 1 and len(last) <= 3 and last.isupper():
+        return parts[0]
+    return last
+
+
+def verify_references(formula: Dict[str, Any], papers: List[Dict[str, Any]]) -> List[str]:
+    """Check every citation against the papers we actually supplied.
+
+    The model reliably picks a real DOI from the set but will invent the author
+    line to go with it — a card citing "Figueiredo et al." for a paper by Meyer
+    et al. looks authoritative and is wrong. Author and year are therefore taken
+    from OUR metadata whenever the DOI matches, and a citation whose DOI we never
+    supplied is dropped: an unverifiable reference is worse than none.
+
+    Returns notes describing anything corrected or removed.
+    """
+    by_doi = {(p.get("doi") or "").lower().strip(): p for p in papers if p.get("doi")}
+    notes: List[str] = []
+    kept: List[Dict[str, Any]] = []
+    for ref in formula.get("references") or []:
+        doi = str(ref.get("doi", "")).lower().strip().replace("https://doi.org/", "")
+        paper = by_doi.get(doi)
+        if not paper:
+            notes.append(f"removed a citation not drawn from the retrieved sources (DOI:{doi or 'none'})")
+            continue
+        authors = _author_list(paper.get("authors") or "")
+        surname = _surname(authors[0]) if authors else ""
+        correct_author = (f"{surname} et al." if surname and len(authors) > 1
+                          else surname or ref.get("author", ""))
+        correct_year = str(paper.get("year") or ref.get("year", ""))
+        if ref.get("author") and correct_author and ref["author"] != correct_author:
+            notes.append(f"corrected citation for DOI:{doi} ({ref['author']} -> {correct_author})")
+        kept.append({"author": correct_author, "year": correct_year, "doi": doi,
+                     "title": paper.get("title", "")})
+    formula["references"] = kept
+    return notes
 
 
 def render_card(formula: Dict[str, Any], violations: List[str]) -> str:
@@ -311,8 +383,12 @@ def run(
     log(f"literature ready: {len(papers)} papers")
 
     system = _system_prompt(constraints, n)
+    context = _paper_context(papers, os.path.join(lit_dir, "pdfs"))
+    full = context.count("--- FULL TEXT:")
+    log(f"evidence: {full} full text(s) read, {len(papers) - full} abstract-only")
     user = (f"PRODUCT BRIEF: {json.dumps(brief, ensure_ascii=False)}\n\n"
-            f"OPEN-ACCESS LITERATURE (titles + abstracts):\n{_paper_context(papers)}")
+            f"OPEN-ACCESS LITERATURE (full text where we could obtain it, "
+            f"otherwise the abstract):\n{context}")
 
     try:
         raw = llm_call(provider=provider, model=model, api_key=api_key, system=system, user=user)
@@ -338,6 +414,9 @@ def run(
     for idx, f in enumerate(formulas[:n], 1):
         ingredients = [str(i.get("inci", "")) for i in f.get("ingredients", [])]
         violations = validate(ingredients, constraints)
+        # Citations are checked against the retrieved set, never taken on trust.
+        for note in verify_references(f, papers):
+            log(f"citation: {note}")
         if unevidenced:
             f = dict(f)
             f["warnings"] = list(f.get("warnings") or []) + [
