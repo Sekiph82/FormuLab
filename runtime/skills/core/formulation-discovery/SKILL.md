@@ -35,8 +35,13 @@ tighter safety limits).
 
 ### 1. Retrieve (open access only)
 
-`discover.py` queries **OpenAlex + Europe PMC (PubMed/PMC + patents) + arXiv**
-in one call; only open endpoints.
+**Retrieve literature ONLY by running `discover.py` in this skill's folder.** It
+already queries the three required open sources — **OpenAlex + Europe PMC
+(PubMed/PMC + patents) + arXiv** — in one call. Do NOT use any other retrieval
+tool for this step (no web search, no `paper-search`/`paper_search`, no
+`biomcp`, no other MCP): those are not the sanctioned open-access sources and
+must not back the formulation. If `discover.py` is missing or errors, say so
+rather than falling back to another search tool.
 
 **Fast mode is always on. Do NOT download PDFs; work from titles + abstracts.**
 Retrieve **at least 15 papers** so the evidence base is solid, using ONE
