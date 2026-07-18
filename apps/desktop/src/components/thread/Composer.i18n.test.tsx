@@ -28,16 +28,13 @@ describe("WorkflowStarters strings (i18n)", () => {
   });
 });
 
-describe("LiveSessionPage strings (i18n)", () => {
-  it("renders the disconnected-runtime card in English (no Tauri sidecar in tests)", async () => {
-    // "/live" is now the formulation home; a specific session route mounts the
-    // LiveSessionPage thread, where the disconnected-runtime card lives.
+describe("FormulationWorkspace strings (i18n)", () => {
+  it("renders the disconnected-runtime prompt in English (no Tauri sidecar in tests)", async () => {
+    // Both "/live" and "/live/:id" render the formulation workspace; when the
+    // runtime isn't connected its result pane shows a connect prompt.
     renderAt("/live/test-session");
-    expect(await screen.findByText("OpenCode runtime")).toBeInTheDocument();
     expect(
-      screen.getByText((_, node) =>
-        node?.textContent === "The desktop app runs a bundled OpenCode automatically. In the browser, start one with opencode serve and connect.",
-      ),
+      await screen.findByText("Connect the runtime to generate a formulation."),
     ).toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileText, Loader2, Plus, TriangleAlert } from "lucide-react";
 import type { ThreadBlock } from "@ai4s/shared";
@@ -7,11 +8,16 @@ import { AgentMessage } from "./atoms";
 import { FormulationStudio } from "./FormulationStudio";
 
 /**
- * The formulation home: a fixed three-region layout (nav sidebar ~1/8, studio
- * form ~3/8, result ~4/8). The form stays put; "Generate" sends the brief to
- * the agent WITHOUT navigating, and the right pane shows only the finished
- * formulation card — every intermediate tool call / helper file is hidden, so
- * the user sees "Working…" and then the card, nothing else.
+ * The one and only formulation surface — a fixed three-region layout (nav
+ * sidebar ~1/8, studio form ~3/8, result ~4/8). It backs BOTH the home
+ * (`/live`, a fresh draft) and an opened past session (`/live/:sessionId`), so
+ * the user always sees the same three panes; clicking a session in the sidebar
+ * loads its card into the right pane instead of swapping to a full-width chat.
+ *
+ * The form stays put; "Generate" runs the pipeline through the agent WITHOUT
+ * unmounting, and the right pane shows only the finished formulation card —
+ * every intermediate tool call / helper file is hidden (just "Working…" then
+ * the card).
  */
 
 // Only the agent's formulation card is shown — narration and tool chatter are
@@ -22,20 +28,28 @@ function isCard(markdown: string): boolean {
 
 export function FormulationWorkspace() {
   const { t } = useTranslation(["session", "common"]);
-  const { status, startDraft, sendPrompt, threads, currentId, runningSessions, sending } =
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
+  const { status, startDraft, openSession, sendPrompt, threads, currentId, runningSessions, sending } =
     useRuntimeStore();
   const connected = status === "ready";
 
-  // Ensure a blank draft exists so the first Generate has somewhere to land.
+  // Follow the URL: open the session it names, or make sure a blank draft exists
+  // for the home route. openSession sets currentId to the opened session.
   useEffect(() => {
-    if (connected && !useRuntimeStore.getState().currentId) startDraft();
-  }, [connected, startDraft]);
+    if (!connected) return;
+    if (sessionId) void openSession(sessionId);
+    else if (!useRuntimeStore.getState().currentId) startDraft();
+  }, [connected, sessionId, openSession, startDraft]);
 
-  const thread = currentId ? threads[currentId] : threads[DRAFT_KEY];
+  const activeId = currentId ?? DRAFT_KEY;
+  const thread = threads[activeId];
   const blocks: ThreadBlock[] = thread?.blocks ?? [];
   const running = !!(currentId && runningSessions[currentId]);
   const working = sending || running;
   const hasRun = blocks.some((b) => b.kind === "user");
+  // Opening a session fetches its history — show a spinner until it lands.
+  const loadingHistory = !!sessionId && !!connected && !thread?.loaded;
 
   const card = [...blocks]
     .reverse()
@@ -46,18 +60,33 @@ export function FormulationWorkspace() {
       (b): b is Extract<ThreadBlock, { kind: "artifact" }> =>
         b.kind === "artifact" && b.filename.toLowerCase() === "formulation-card.md",
     );
-  // Finished the turn but produced no recognizable card — show the agent's last
-  // words rather than a blank pane.
   const fallback =
     !card && hasRun && !working
       ? [...blocks].reverse().find((b): b is Extract<ThreadBlock, { kind: "agent" }> => b.kind === "agent")
       : undefined;
 
+  // Generate always lands on a fresh session once the current one has a run, so
+  // a new product never appends to an old card.
+  const onGenerate = (prompt: string) => {
+    const st = useRuntimeStore.getState();
+    const cur = st.currentId ? st.threads[st.currentId] : st.threads[DRAFT_KEY];
+    if ((cur?.blocks ?? []).some((b) => b.kind === "user")) {
+      st.startDraft();
+      if (sessionId) navigate("/live");
+    }
+    void sendPrompt(prompt);
+  };
+
+  const onNew = () => {
+    startDraft();
+    if (sessionId) navigate("/live");
+  };
+
   return (
     <div className="flex h-full min-w-0">
       {/* Studio form — ~3/7 of the content area (≈ 3/8 of the screen). */}
       <div className="flex-[3] min-w-[300px] overflow-hidden border-r border-border">
-        <FormulationStudio onPick={(p) => void sendPrompt(p)} />
+        <FormulationStudio onPick={onGenerate} />
       </div>
 
       {/* Result — ~4/7 of the content area (≈ 4/8 of the screen). */}
@@ -68,7 +97,7 @@ export function FormulationWorkspace() {
           </div>
           {hasRun && (
             <button
-              onClick={() => startDraft()}
+              onClick={onNew}
               className="flex items-center gap-1 rounded-input px-2 py-1 text-xs text-muted hover:bg-surface-2 hover:text-text"
             >
               <Plus size={13} /> {t("studio.result.new")}
@@ -88,7 +117,7 @@ export function FormulationWorkspace() {
                 </div>
               )}
             </>
-          ) : working ? (
+          ) : working || loadingHistory ? (
             <div className="flex items-start gap-3 rounded-card border border-border bg-surface p-5">
               <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-accent" />
               <div className="text-sm text-text">{t("studio.result.working")}</div>
