@@ -39,20 +39,19 @@ tighter safety limits).
 in one call; only open endpoints.
 
 **Fast mode is always on. Do NOT download PDFs; work from titles + abstracts.**
-Use ONE combined query and a low cap to keep the model context small (this
-matters on free-tier providers with tight per-minute token limits):
+Retrieve **at least 15 papers** so the evidence base is solid, using ONE
+combined query (add a second query only for a multi-active product):
 
 ```bash
-python discover.py "sulfate-free gentle shampoo formulation surfactant preservative" --max 6
+python discover.py "sulfate-free gentle shampoo formulation surfactant preservative" --max 15
 ```
 
-Do NOT read `papers.json` wholesale into the reply or re-paste abstracts —
-extract only the ingredient/function/wt% facts you need, cite the DOI, and keep
-the working context lean.
+Do NOT re-paste whole abstracts into the reply — extract only the
+ingredient/function/wt% facts you need and cite the DOI.
 
 Writes `literature/papers.csv` + `papers.json` (with a `source_db` column so
-patents and journals are distinguishable). Only add a second query, or raise
-`--max`, if the first pass returns too few relevant hits.
+patents and journals are distinguishable). Raise `--max` further only if the
+first pass returns too few relevant hits.
 
 ### 2. Read & extract
 

@@ -23,6 +23,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import csv
 import json
 import os
@@ -220,15 +221,21 @@ def main(argv):
 
     os.makedirs(args.out, exist_ok=True)
     sources = [s.strip() for s in args.sources.split(",") if s.strip() in FETCHERS]
+
+    # Fetch every (query, source) pair in parallel — the sources are independent
+    # network calls, so this cuts retrieval time to roughly the slowest single
+    # endpoint instead of the sum of them all.
+    def fetch_one(q, src):
+        try:
+            return src, FETCHERS[src](q, args.max)
+        except Exception as e:
+            print(f"  [warn] {src} failed: {e}", file=sys.stderr)
+            return src, []
+
+    tasks = [(q, src) for q in args.queries for src in sources]
     seen, papers = set(), []
-    for q in args.queries:
-        for src in sources:
-            print(f"[{src}] {q!r}", file=sys.stderr)
-            try:
-                rows = FETCHERS[src](q, args.max)
-            except Exception as e:
-                print(f"  [warn] {src} failed: {e}", file=sys.stderr)
-                continue
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(tasks) or 1)) as pool:
+        for src, rows in pool.map(lambda t: fetch_one(*t), tasks):
             for row in rows:
                 key = row["doi"] or norm_title(row["title"])
                 if not key or key in seen:
