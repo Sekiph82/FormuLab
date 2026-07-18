@@ -83,3 +83,6 @@ docs/shampoo-formulation/
 /sessions/
 /literature/
 /apps/desktop/sessions/
+
+# Generated formula library (user output, kept local).
+/formulas/

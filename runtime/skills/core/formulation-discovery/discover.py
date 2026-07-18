@@ -97,12 +97,22 @@ def fetch_openalex(query, max_results):
             best = w.get("best_oa_location") or w.get("primary_location") or {}
             authors = [(a.get("author") or {}).get("display_name", "") for a in (w.get("authorships") or [])]
             concepts = [c.get("display_name", "") for c in (w.get("concepts") or [])[:6]]
+            # Prefer an ACTUAL pdf link from any open location: the best
+            # location's landing page is usually publisher HTML (or blocks
+            # automated clients), while a repository copy of the same paper is
+            # directly downloadable.
+            pdf = best.get("pdf_url")
+            if not pdf:
+                for loc in (w.get("locations") or []):
+                    if loc.get("is_oa") and loc.get("pdf_url"):
+                        pdf = loc["pdf_url"]
+                        break
             out.append(_row(
                 "openalex", w.get("title"), w.get("publication_year"),
                 "; ".join(a for a in authors if a),
                 ((w.get("primary_location") or {}).get("source") or {}).get("display_name", ""),
                 w.get("doi"), oa.get("is_oa"),
-                best.get("pdf_url") or best.get("landing_page_url") or oa.get("oa_url"),
+                pdf or best.get("landing_page_url") or oa.get("oa_url"),
                 w.get("cited_by_count", 0), ", ".join(concepts),
                 _reconstruct_abstract(w.get("abstract_inverted_index")),
             ))
@@ -136,6 +146,13 @@ def fetch_europepmc(query, max_results):
                     break
                 if u.get("availabilityCode") in ("OA", "F") and not oa_url:
                     oa_url = u.get("url", "")
+            # Europe PMC's own OA render endpoint serves the PDF directly for
+            # articles in PMC, where the listed fullTextUrl is often a publisher
+            # landing page that returns HTML (or blocks non-browser clients).
+            pmcid = r.get("pmcid") or ""
+            if pmcid and (not oa_url or not oa_url.lower().endswith(".pdf")):
+                if r.get("inPMC") == "Y" or r.get("isOpenAccess") == "Y":
+                    oa_url = f"https://europepmc.org/articles/{pmcid}?pdf=render"
             venue = ((r.get("journalInfo") or {}).get("journal") or {}).get("title", "") or src
             out.append(_row(
                 db, r.get("title"), r.get("pubYear"), r.get("authorString", ""),

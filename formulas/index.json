@@ -70,5 +70,77 @@
     "session": "1784379937-laundry-powder-detergent-for-white-cloth",
     "ingredients": 7,
     "violations": []
+  },
+  {
+    "file": "2026-07-18-anti-dandruff-shampoo-v1.md",
+    "name": "Piroctone Olamine Botanical Anti-Dandruff Shampoo",
+    "target": "anti-dandruff shampoo",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v1",
+    "created": "2026-07-18 16:32:43",
+    "session": "2026-07-18-1632-anti-dandruff-shampoo",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-anti-dandruff-shampoo-v2.md",
+    "name": "Zinc PCA & Salicylic Acid Clarifying Shampoo",
+    "target": "anti-dandruff shampoo",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v2",
+    "created": "2026-07-18 16:32:43",
+    "session": "2026-07-18-1632-anti-dandruff-shampoo",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-anti-dandruff-shampoo-v3.md",
+    "name": "Neem & Gluconolactone Mild Scalp Shampoo",
+    "target": "anti-dandruff shampoo",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v3",
+    "created": "2026-07-18 16:32:43",
+    "session": "2026-07-18-1632-anti-dandruff-shampoo",
+    "ingredients": 9,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-anti-dandruff-shampoo-v1-1784381670.md",
+    "name": "Piroctone Olamine Botanical Clarifier",
+    "target": "anti-dandruff shampoo",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v1",
+    "created": "2026-07-18 16:34:30",
+    "session": "2026-07-18-1634-anti-dandruff-shampoo",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-anti-dandruff-shampoo-v2-1784381670.md",
+    "name": "Isethionate Mild Scalp Relief",
+    "target": "anti-dandruff shampoo",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v2",
+    "created": "2026-07-18 16:34:30",
+    "session": "2026-07-18-1634-anti-dandruff-shampoo",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-anti-dandruff-shampoo-v3-1784381670.md",
+    "name": "Neem-Infused Gentle Cleanser",
+    "target": "anti-dandruff shampoo",
+    "category": "shampoo",
+    "market": "kenya",
+    "version": "v3",
+    "created": "2026-07-18 16:34:30",
+    "session": "2026-07-18-1634-anti-dandruff-shampoo",
+    "ingredients": 10,
+    "violations": []
   }
 ]

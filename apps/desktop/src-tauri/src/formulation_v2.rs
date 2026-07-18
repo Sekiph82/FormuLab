@@ -17,7 +17,6 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
@@ -49,13 +48,30 @@ fn default_n() -> u32 {
     3
 }
 
-/// Everything the user creates lives under ONE visible folder — the workspace
-/// base (Settings → Workspace), not a hidden app-data dir: sessions/,
-/// literature/ (shared cache) and formulas/ (the flat formula library) sit side
-/// by side so the whole project is in a single place the user can browse, back
-/// up, or move.
+/// The project folder everything the user creates lives under:
+///
+///   <root>/formulas/            the flat library of every formula ever made
+///   <root>/data/sessions/       one folder per successful run
+///   <root>/data/literature/     the shared paper + PDF cache
+///
+/// Kept independent of OpenCode's workspace base (which re-roots per run and is
+/// going away) so the layout survives that removal. A pointer file overrides it;
+/// otherwise it falls back to the workspace base.
+fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Ok(p) = app.path().app_data_dir() {
+        let pointer = p.join("runtime").join("formulab-root.txt");
+        if let Ok(s) = std::fs::read_to_string(&pointer) {
+            let dir = PathBuf::from(s.trim());
+            if dir.is_dir() {
+                return Ok(dir);
+            }
+        }
+    }
+    crate::runtime::base_workspace_dir(app)
+}
+
 fn data_dir(app: &AppHandle, sub: &[&str]) -> Result<PathBuf, String> {
-    let mut dir = crate::runtime::base_workspace_dir(app)?;
+    let mut dir = project_root(app)?;
     for s in sub {
         dir = dir.join(s);
     }
@@ -94,26 +110,6 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(pipe)
 }
 
-/// A filesystem-safe slug from the brief's target (for the session dir name).
-fn slug(brief: &serde_json::Value) -> String {
-    let target = brief
-        .get("target")
-        .and_then(|t| t.as_str())
-        .unwrap_or("product");
-    let s: String = target
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect();
-    let s = s.trim_matches('-').to_string();
-    let s: String = s.chars().take(40).collect();
-    if s.is_empty() {
-        "product".to_string()
-    } else {
-        s
-    }
-}
-
 /// Run the pipeline: materialize, invoke run_cli.py with the request on stdin,
 /// return the parsed result JSON. Keeps the session only on `status == "ok"`.
 #[tauri::command(async)]
@@ -125,15 +121,12 @@ pub async fn generate_formulation(
     let cli = pipe.join("run_cli.py");
     let (python, _source) = crate::kernel::python_bin(&app)?;
 
-    let library = data_dir(&app, &["literature"])?; // shared cache across sessions
+    let library = data_dir(&app, &["data", "literature"])?; // shared cache + pdfs
     let formulas = data_dir(&app, &["formulas"])?; // flat library of every card
-    let sessions = data_dir(&app, &["sessions"])?;
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let out_dir = sessions.join(format!("{ts}-{}", slug(&request.brief)));
+    let sessions = data_dir(&app, &["data", "sessions"])?;
 
+    // Python names the session folder (it has date formatting) as
+    // YYYY-MM-DD-HHMM-<slug> and reports the path back.
     let payload = serde_json::json!({
         "brief": request.brief,
         "provider": request.provider,
@@ -141,7 +134,7 @@ pub async fn generate_formulation(
         "api_key": request.api_key,
         "library_dir": library.to_string_lossy(),
         "formulas_dir": formulas.to_string_lossy(),
-        "out_dir": out_dir.to_string_lossy(),
+        "sessions_dir": sessions.to_string_lossy(),
         "n": request.n,
     });
     let input_json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
@@ -173,7 +166,6 @@ pub async fn generate_formulation(
     let result: serde_json::Value = match serde_json::from_str(stdout.trim()) {
         Ok(v) => v,
         Err(_) => {
-            let _ = std::fs::remove_dir_all(&out_dir);
             let msg = stderr.trim();
             return Err(if msg.is_empty() {
                 format!("pipeline produced no result (exit {:?})", out.status.code())
@@ -183,28 +175,21 @@ pub async fn generate_formulation(
         }
     };
 
-    // Only keep sessions that actually produced cards; drop failed/refused runs.
+    // The session folder is named and reported by Python; a failed or refused
+    // run has it removed so only real results are ever listed.
+    let session_dir = result
+        .get("session_dir")
+        .and_then(|s| s.as_str())
+        .map(PathBuf::from);
     let ok = result.get("status").and_then(|s| s.as_str()) == Some("ok");
     if ok {
-        let mut enriched = result;
-        if let Some(obj) = enriched.as_object_mut() {
-            obj.insert(
-                "session_dir".into(),
-                serde_json::Value::String(out_dir.to_string_lossy().into()),
-            );
-            obj.insert(
-                "session_id".into(),
-                serde_json::Value::String(
-                    out_dir
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into())
-                        .unwrap_or_default(),
-                ),
-            );
-        }
-        Ok(enriched)
+        Ok(result)
     } else {
-        let _ = std::fs::remove_dir_all(&out_dir);
+        if let Some(dir) = session_dir {
+            if dir.starts_with(&sessions) {
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+        }
         Ok(result) // status: "refused" | "error" — surfaced to the UI, no session kept
     }
 }
@@ -245,7 +230,7 @@ fn read_cards(dir: &std::path::Path) -> Vec<serde_json::Value> {
 /// newest first. Each entry carries enough for the sidebar without re-running.
 #[tauri::command(async)]
 pub async fn list_sessions(app: AppHandle) -> Result<serde_json::Value, String> {
-    let sessions = data_dir(&app, &["sessions"])?;
+    let sessions = data_dir(&app, &["data", "sessions"])?;
     let mut items: Vec<serde_json::Value> = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&sessions) {
         for entry in rd.filter_map(|e| e.ok()) {
@@ -254,12 +239,9 @@ pub async fn list_sessions(app: AppHandle) -> Result<serde_json::Value, String> 
                 continue;
             }
             let id = entry.file_name().to_string_lossy().to_string();
-            // Session id is "<epoch>-<slug>": recover the timestamp for sorting.
-            let created = id
-                .split('-')
-                .next()
-                .and_then(|s| s.parse::<u64>().ok())
-                .unwrap_or(0);
+            // Ids start with "YYYY-MM-DD-HHMM", which sorts chronologically as
+            // text — so the name itself is the sort key, newest first.
+            let created: String = id.chars().take(15).collect();
             let brief = std::fs::read_to_string(path.join("brief.json"))
                 .ok()
                 .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
@@ -278,9 +260,9 @@ pub async fn list_sessions(app: AppHandle) -> Result<serde_json::Value, String> 
         }
     }
     items.sort_by(|a, b| {
-        b.get("created")
-            .and_then(|v| v.as_u64())
-            .cmp(&a.get("created").and_then(|v| v.as_u64()))
+        b.get("id")
+            .and_then(|v| v.as_str())
+            .cmp(&a.get("id").and_then(|v| v.as_str()))
     });
     Ok(serde_json::Value::Array(items))
 }
@@ -295,7 +277,7 @@ pub async fn read_session(
     if id.contains('/') || id.contains('\\') || id.contains("..") {
         return Err("invalid session id".into());
     }
-    let dir = data_dir(&app, &["sessions"])?.join(&id);
+    let dir = data_dir(&app, &["data", "sessions"])?.join(&id);
     if !dir.is_dir() {
         return Err(format!("session not found: {id}"));
     }
@@ -318,7 +300,7 @@ pub async fn delete_session(app: AppHandle, id: String) -> Result<(), String> {
     if id.contains('/') || id.contains('\\') || id.contains("..") {
         return Err("invalid session id".into());
     }
-    let dir = data_dir(&app, &["sessions"])?.join(&id);
+    let dir = data_dir(&app, &["data", "sessions"])?.join(&id);
     if dir.is_dir() {
         std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
     }

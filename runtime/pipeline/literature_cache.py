@@ -17,11 +17,14 @@ Per-session (OUT dir):
 
 from __future__ import annotations
 
+import concurrent.futures
 import csv
 import json
 import os
 import re
+import shutil
 import sys
+import urllib.request
 from typing import Any, Callable, Dict, List
 
 # Reuse the retrieval fetchers + relevance filter from the discovery script.
@@ -138,6 +141,89 @@ def search_cache(
 
 # ---------------------------------------------------------------- gather ------
 
+def _pdf_name(paper: Dict[str, Any], i: int) -> str:
+    base = (paper.get("doi") or f"{paper.get('source_db', 'src')}-{i}").strip().lower()
+    return re.sub(r"[^a-z0-9._-]+", "_", base)[:120] + ".pdf"
+
+
+def _download_pdf(url: str, dest: str, timeout: int = 30) -> bool:
+    """Fetch one open-access PDF. Verifies it really is a PDF before keeping it."""
+    req = urllib.request.Request(url, headers={"User-Agent": "FormuLab/1.0 (formulation research)"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            head = r.read(5)
+            if head[:4] != b"%PDF":
+                return False  # HTML landing page, not the file
+            body = r.read()
+    except Exception:
+        return False
+    tmp = dest + ".part"
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(head)
+            fh.write(body)
+        os.replace(tmp, dest)
+    except Exception:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        return False
+    return True
+
+
+def fetch_pdfs(
+    papers: List[Dict[str, Any]],
+    library: str,
+    out_dir: str,
+    log: Callable[[str], None] = lambda m: None,
+    workers: int = 6,
+) -> int:
+    """Download each paper's open-access PDF into the SHARED library, then copy
+    it into this session.
+
+    Library-first means a paper is fetched at most once ever: a later session
+    citing the same work copies the file instead of re-downloading it. Only
+    genuinely open-access URLs are touched — paywalled work is skipped, never
+    circumvented. Failures are non-fatal; the run continues with metadata.
+    """
+    lib_pdfs = os.path.join(library, "pdfs")
+    ses_pdfs = os.path.join(out_dir, "pdfs")
+    os.makedirs(lib_pdfs, exist_ok=True)
+    os.makedirs(ses_pdfs, exist_ok=True)
+
+    jobs = []
+    for i, p in enumerate(papers):
+        url = (p.get("oa_url") or "").strip()
+        if not p.get("is_oa") or not url.lower().startswith("http"):
+            continue
+        jobs.append((p, url, _pdf_name(p, i)))
+
+    def ensure(job):
+        p, url, name = job
+        lib_path = os.path.join(lib_pdfs, name)
+        if not os.path.exists(lib_path) and not _download_pdf(url, lib_path):
+            return None
+        return (p, name, lib_path)
+
+    got = 0
+    if jobs:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            for res in pool.map(ensure, jobs):
+                if not res:
+                    continue
+                p, name, lib_path = res
+                try:
+                    shutil.copyfile(lib_path, os.path.join(ses_pdfs, name))
+                except Exception:
+                    continue
+                p["pdf_file"] = name
+                got += 1
+    log(f"pdfs: {got}/{len(papers)} open-access files in the session and the shared library")
+    return got
+
+
 def gather(
     queries: List[str],
     out_dir: str,
@@ -151,6 +237,7 @@ def gather(
     # Fewer, on-domain sources beat a padded list.
     sources: str = "openalex,europepmc",
     anchor: str = "",
+    download_pdfs: bool = True,
     log: Callable[[str], None] = lambda m: None,
 ) -> List[Dict[str, Any]]:
     """Return >=`target` relevant papers, cache-first.
@@ -242,10 +329,19 @@ def gather(
             log(f"topped up from cache -> {len(selected)} papers "
                 f"({len(new)} fresh + {len(selected) - len(new)} cached)")
 
+    # Pull the open-access full texts (shared library first, then copied into the
+    # session) before the index is written, so `pdf_file` is recorded for each.
+    if download_pdfs and selected:
+        try:
+            fetch_pdfs(selected, library, out_dir, log=log)
+        except Exception as e:
+            log(f"[warn] pdf download skipped: {e}")
+
     save_index(library, index)
 
     # Session copy.
-    fields = ["source_db", "title", "year", "authors", "venue", "doi", "is_oa", "oa_url", "cited_by", "concepts"]
+    fields = ["source_db", "title", "year", "authors", "venue", "doi", "is_oa",
+              "oa_url", "cited_by", "concepts", "pdf_file"]
     with open(os.path.join(out_dir, "papers.csv"), "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
