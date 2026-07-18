@@ -37,6 +37,35 @@ class CacheTests(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(out, "papers.json")))
             self.assertTrue(os.path.isfile(os.path.join(out, "papers.csv")))
 
+    def test_short_cache_fetches_fresh_15(self):
+        # Cache has < target relevant -> fetch `target` NEW papers, grow library.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [fake_paper(1, "antidandruff shampoo surfactant")])  # only 1
+            out = os.path.join(tmp, "session")
+
+            class FakeDiscover:
+                FETCHERS = {
+                    "openalex": lambda q, n: [fake_paper(100 + i, "antidandruff shampoo surfactant") for i in range(n)],
+                }
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig = lc._load_fetchers
+            lc._load_fetchers = lambda: FakeDiscover
+            try:
+                got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
+                                target=15, sources="openalex")
+            finally:
+                lc._load_fetchers = orig
+
+            self.assertEqual(len(got), 15)
+            # All 15 are the freshly-fetched ones (doi 10.1/100..), not the cached #1.
+            self.assertTrue(all(p["doi"].startswith("10.1/1") for p in got))
+            # Library grew (1 old + 15 new).
+            self.assertEqual(len(lc.load_index(lib)), 16)
+
     def test_search_ranks_by_overlap(self):
         index = [fake_paper(1, "toothpaste silica"), fake_paper(2, "antidandruff shampoo surfactant")]
         hits = lc.search_cache(["antidandruff shampoo"], index, 5)

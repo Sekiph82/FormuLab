@@ -108,20 +108,28 @@ def gather(
     """
     os.makedirs(out_dir, exist_ok=True)
     index = load_index(library)
-    seen = {paper_key(p) for p in index}
 
-    selected = search_cache(queries, index, target)
-    log(f"cache: {len(selected)}/{target} relevant papers from the shared library")
-
-    if len(selected) < target:
+    cached = search_cache(queries, index, target)
+    if len(cached) >= target:
+        # The shared library already covers this query — use it, no API call.
+        log(f"cache: {len(cached)} relevant papers from the shared library (no API needed)")
+        selected = cached[:target]
+    else:
+        # Not enough in the library: fetch a FRESH set of `target` NEW papers
+        # (deduped against the whole library so they are genuinely new) for this
+        # session, and add them to the shared library.
+        log(f"cache: only {len(cached)}/{target} in the library — fetching {target} new from the open APIs")
         discover = _load_fetchers()
         srcs = [s.strip() for s in sources.split(",") if s.strip() in discover.FETCHERS]
+        lib_keys = {paper_key(p) for p in index}
         new: List[Dict[str, Any]] = []
-        selected_keys = {paper_key(p) for p in selected}
+        new_keys: set = set()
         for q in queries:
-            if len(selected) + len(new) >= target:
+            if len(new) >= target:
                 break
             for src in srcs:
+                if len(new) >= target:
+                    break
                 try:
                     rows = discover.FETCHERS[src](q, target)
                 except Exception as e:
@@ -129,18 +137,16 @@ def gather(
                     continue
                 for row in rows:
                     k = paper_key(row)
-                    if not k or k in selected_keys or k in {paper_key(x) for x in new}:
-                        continue
-                    if not discover.is_relevant(row):
+                    if not k or k in lib_keys or k in new_keys or not discover.is_relevant(row):
                         continue
                     new.append(row)
-                    if k not in seen:
-                        seen.add(k)
-                        index.append(row)  # grow the shared library
-        log(f"fetched {len(new)} new papers from the open APIs")
-        selected += new
+                    new_keys.add(k)
+                    index.append(row)  # grow the shared library
+                    if len(new) >= target:
+                        break
+        log(f"fetched {len(new)} new papers")
+        selected = new[:target]
 
-    selected = selected[:max(target, len(selected))]
     save_index(library, index)
 
     # Session copy.
