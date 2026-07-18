@@ -1,0 +1,74 @@
+[
+  {
+    "file": "2026-07-18-anti-dandruff-anti-pelliculair-shampoo-v1.md",
+    "name": "Chelating Isethionate Anti-Dandruff Shampoo",
+    "target": "anti dandruff / anti-pelliculair shampoo",
+    "category": "auto-detect",
+    "market": "kenya",
+    "version": "v1",
+    "created": "2026-07-18 16:04:28",
+    "session": "1784379855-anti-dandruff---anti-pelliculair-shampoo",
+    "ingredients": 11,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-anti-dandruff-anti-pelliculair-shampoo-v2.md",
+    "name": "Botanical Glucoside Clarifying Shampoo",
+    "target": "anti dandruff / anti-pelliculair shampoo",
+    "category": "auto-detect",
+    "market": "kenya",
+    "version": "v2",
+    "created": "2026-07-18 16:04:28",
+    "session": "1784379855-anti-dandruff---anti-pelliculair-shampoo",
+    "ingredients": 11,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-anti-dandruff-anti-pelliculair-shampoo-v3.md",
+    "name": "Sulfosuccinate Scalp-Balancing Shampoo",
+    "target": "anti dandruff / anti-pelliculair shampoo",
+    "category": "auto-detect",
+    "market": "kenya",
+    "version": "v3",
+    "created": "2026-07-18 16:04:28",
+    "session": "1784379855-anti-dandruff---anti-pelliculair-shampoo",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-laundry-powder-detergent-for-white-clothes-only-v1.md",
+    "name": "BrightWhite Mineral-Builder Powder",
+    "target": "laundry powder detergent for white clothes only",
+    "category": "auto-detect",
+    "market": "any",
+    "version": "v1",
+    "created": "2026-07-18 16:05:46",
+    "session": "1784379937-laundry-powder-detergent-for-white-cloth",
+    "ingredients": 8,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-laundry-powder-detergent-for-white-clothes-only-v2.md",
+    "name": "Enzymatic Bio-Bright Powder",
+    "target": "laundry powder detergent for white clothes only",
+    "category": "auto-detect",
+    "market": "any",
+    "version": "v2",
+    "created": "2026-07-18 16:05:46",
+    "session": "1784379937-laundry-powder-detergent-for-white-cloth",
+    "ingredients": 8,
+    "violations": []
+  },
+  {
+    "file": "2026-07-18-laundry-powder-detergent-for-white-clothes-only-v3.md",
+    "name": "Biosurfactant Eco-White Powder",
+    "target": "laundry powder detergent for white clothes only",
+    "category": "auto-detect",
+    "market": "any",
+    "version": "v3",
+    "created": "2026-07-18 16:05:46",
+    "session": "1784379937-laundry-powder-detergent-for-white-cloth",
+    "ingredients": 7,
+    "violations": []
+  }
+]

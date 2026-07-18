@@ -67,7 +67,21 @@ def save_index(library: str, papers: List[Dict[str, Any]]) -> None:
 
 # ---------------------------------------------------------------- ranking -----
 
-_STOP = {"a", "an", "the", "for", "of", "and", "or", "to", "in", "on", "with", "formulation"}
+# Words that carry no discriminating power for THIS domain. Generic research
+# vocabulary ("evaluation", "active", "system") must not count toward topical
+# overlap: without this, "On the Evaluation Criterions for the Active Learning
+# Processes" matches a limescale-remover query on two terms and is accepted.
+_STOP = {
+    "a", "an", "the", "for", "of", "and", "or", "to", "in", "on", "with",
+    # formulation jargon — true of every paper we want AND many we don't
+    "formulation", "formulations", "preparation", "ingredient", "ingredients",
+    "active", "actives", "composition", "system", "systems", "agent", "agents",
+    # research boilerplate
+    "study", "studies", "evaluation", "efficacy", "analysis", "assessment",
+    "performance", "properties", "property", "effect", "effects", "method",
+    "methods", "application", "applications", "review", "novel", "new",
+    "using", "based", "development", "characterization", "optimization",
+}
 
 
 def _terms(text: str) -> List[str]:
@@ -79,12 +93,44 @@ def score(paper: Dict[str, Any], query_terms: List[str]) -> int:
     return sum(1 for t in set(query_terms) if t in hay)
 
 
-def search_cache(queries: List[str], index: List[Dict[str, Any]], want: int) -> List[Dict[str, Any]]:
+def topical(paper: Dict[str, Any], query_terms: List[str]) -> bool:
+    """Does the paper actually share the QUERY's subject, not just formulation jargon?
+
+    discover.is_relevant only asks "does this look like a formulation paper?",
+    and its term list is generic enough ("formulation", "active", "composition")
+    that a gauge-theory preprint titled "Unified formulation for … spin fields"
+    passes. Fetched papers must clear the same topical bar the cache path uses,
+    or off-domain preprints get fed to the model as evidence.
+    """
+    need = 2 if len(set(query_terms)) >= 3 else 1
+    return score(paper, query_terms) >= need
+
+
+def anchored(paper: Dict[str, Any], anchor_terms: List[str]) -> bool:
+    """Is the paper about THIS product at all?
+
+    Each angle query drifts toward its own sub-topic ("preservative stability",
+    "hard water"), so per-angle overlap alone lets off-domain work in. Every
+    accepted paper must also share the product's own vocabulary (target +
+    category) — that is what keeps a limescale query away from spin fields.
+    """
+    if not anchor_terms:
+        return True
+    return score(paper, anchor_terms) >= 1
+
+
+def search_cache(
+    queries: List[str],
+    index: List[Dict[str, Any]],
+    want: int,
+    anchor_terms: List[str] | None = None,
+) -> List[Dict[str, Any]]:
     """Rank cached papers by overlap with the queries; return the relevant top-`want`."""
     qterms: List[str] = []
     for q in queries:
         qterms += _terms(q)
-    scored = [(score(p, qterms), p) for p in index]
+    anchor = anchor_terms or []
+    scored = [(score(p, qterms), p) for p in index if anchored(p, anchor)]
     # A paper is "relevant" if it shares at least 2 query terms.
     hits = [p for s, p in sorted(scored, key=lambda sp: sp[0], reverse=True) if s >= 2]
     return hits[:want]
@@ -97,7 +143,14 @@ def gather(
     out_dir: str,
     library: str,
     target: int = 15,
-    sources: str = "openalex,europepmc,arxiv",
+    # arXiv is deliberately NOT a default source. It indexes physics/CS/math
+    # preprints and holds essentially no consumer-formulation literature, so it
+    # contributes noise that merely shares a word: a "limescale remover" query
+    # pulls back image-inpainting "object remover" and watermark-removal papers.
+    # OpenAlex carries the chemistry and Europe PMC the biomed + patent side.
+    # Fewer, on-domain sources beat a padded list.
+    sources: str = "openalex,europepmc",
+    anchor: str = "",
     log: Callable[[str], None] = lambda m: None,
 ) -> List[Dict[str, Any]]:
     """Return >=`target` relevant papers, cache-first.
@@ -108,8 +161,9 @@ def gather(
     """
     os.makedirs(out_dir, exist_ok=True)
     index = load_index(library)
+    anchor_terms = _terms(anchor)
 
-    cached = search_cache(queries, index, target)
+    cached = search_cache(queries, index, target, anchor_terms)
     if len(cached) >= target:
         # The shared library already covers this query — use it, no API call.
         log(f"cache: {len(cached)} relevant papers from the shared library (no API needed)")
@@ -124,27 +178,54 @@ def gather(
         lib_keys = {paper_key(p) for p in index}
         new: List[Dict[str, Any]] = []
         new_keys: set = set()
-        for q in queries:
+
+        # Spread the budget over the ANGLES, not over the sources: the point is
+        # to cover different questions, and the sources are NOT equally
+        # authoritative for formulation work. OpenAlex is multidisciplinary and
+        # carries the chemistry; Europe PMC covers the derm/biomed angle; arXiv
+        # is mostly physics/CS preprints and is a last resort here — giving it an
+        # equal share drowns a consumer-chemistry query in irrelevant preprints.
+        #
+        # So: walk sources best-first, and within each source ask every angle,
+        # capped so one angle cannot monopolise the quota. A strong source fills
+        # the budget across all angles; weaker ones only top up what is missing.
+        priority = {"openalex": 0, "europepmc": 1, "arxiv": 2}
+        srcs.sort(key=lambda s: priority.get(s, 99))
+        pairs = [(q, src) for src in srcs for q in queries]
+        per_pair = max(2, -(-target // max(1, len(queries))))  # ceil, floor of 2
+        per_source: Dict[str, int] = {}
+        for q, src in pairs:
             if len(new) >= target:
                 break
-            for src in srcs:
-                if len(new) >= target:
+            try:
+                rows = discover.FETCHERS[src](q, target)
+            except Exception as e:
+                log(f"  [warn] {src} failed: {e}")
+                continue
+            taken = 0
+            qterms = _terms(q)
+            for row in rows:
+                if taken >= per_pair or len(new) >= target:
                     break
-                try:
-                    rows = discover.FETCHERS[src](q, target)
-                except Exception as e:
-                    log(f"  [warn] {src} failed: {e}")
+                k = paper_key(row)
+                if not k or k in lib_keys or k in new_keys:
                     continue
-                for row in rows:
-                    k = paper_key(row)
-                    if not k or k in lib_keys or k in new_keys or not discover.is_relevant(row):
-                        continue
-                    new.append(row)
-                    new_keys.add(k)
-                    index.append(row)  # grow the shared library
-                    if len(new) >= target:
-                        break
-        log(f"fetched {len(new)} new papers")
+                # NOTE: discover.is_relevant is deliberately NOT used here. It
+                # asks "does this contain formulation jargon?", which rejects
+                # genuine domain papers ("Removal and prevention of limescale in
+                # plumbing tubes" has no such vocabulary) while admitting any
+                # preprint containing the word "formulation". anchored() +
+                # topical() test the thing we actually care about: is this paper
+                # about this product, and about this angle.
+                if not topical(row, qterms) or not anchored(row, anchor_terms):
+                    continue
+                new.append(row)
+                new_keys.add(k)
+                index.append(row)  # grow the shared library
+                taken += 1
+                per_source[src] = per_source.get(src, 0) + 1
+        spread = ", ".join(f"{s}:{n}" for s, n in sorted(per_source.items())) or "none"
+        log(f"fetched {len(new)} new papers across {len(queries)} angles ({spread})")
         # Fresh-preferred, but always deliver up to `target`: if the deduped
         # fresh batch is short (the APIs returned mostly already-cached work),
         # top up from the ranked cache so the session never has FEWER sources

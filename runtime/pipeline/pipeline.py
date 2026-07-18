@@ -38,12 +38,86 @@ def safety_gate(target: str) -> str | None:
     return None
 
 
-def build_queries(brief: Dict[str, Any]) -> List[str]:
+# Product classes whose "base system" is a cleansing/surfactant problem vs. a
+# different core technology — the retrieval angle differs accordingly.
+_CLEANSING = ("shampoo", "body wash", "bar soap", "dishwashing", "detergent",
+              "surface cleaner", "glass cleaner", "hand wash", "cleanser")
+_ORAL = ("toothpaste", "mouthwash")
+_LEAVE_ON = ("cream", "lotion", "conditioner", "serum", "balm", "softener")
+
+
+# Qualifiers that narrow a product name past what a literature index can match
+# ("shampoo for eczema-prone scalp" -> "shampoo"). The angle terms re-add focus.
+_FILLER = {"for", "with", "without", "free", "prone", "and", "or", "the", "a", "an",
+           "my", "our", "type", "kind", "use", "used", "very", "extra", "super"}
+
+
+def _head(name: str, max_words: int = 3) -> str:
+    """The searchable core of a product name: first few content words."""
+    words = [w for w in re.findall(r"[A-Za-z0-9-]+", name or "") if w.lower() not in _FILLER]
+    return " ".join(words[:max_words]) or "product"
+
+
+def build_queries(brief: Dict[str, Any], constraints: Dict[str, Any] | None = None) -> List[str]:
+    """Plan several retrieval angles instead of one catch-all query.
+
+    A single query ("<target> formulation ingredients") returns one narrow slice
+    and lets the first source fill the whole quota. Real formulation evidence is
+    spread across distinct questions — the active's efficacy, the base system,
+    preservation, the regional water/climate constraint, safety — so we ask each
+    separately and let the cache layer spread the budget across them.
+
+    Deterministic on purpose: no extra LLM call, no added latency, and the same
+    brief always plans the same angles.
+    """
     target = str(brief.get("target", "")).strip()
     cat = str(brief.get("category", "")).strip()
-    base = target if target else cat
-    q = f"{base} formulation ingredients"
-    return [q]
+    catl = f"{cat} {target}".lower()
+
+    # Keep queries SHORT. These APIs match conjunctively: a five-concept query
+    # like "limescale remover for kettles formulation ingredients" returns zero
+    # hits, while "limescale removal" returns solid ones. So each angle is the
+    # product head plus ONE distinguishing term.
+    head = _head(cat if cat and cat != "auto-detect" else target)
+
+    queries: List[str] = [head]
+
+    # 1. Does the active/claim work?
+    queries.append(f"{head} efficacy")
+
+    # 2. The base system — what the product is mostly made of.
+    if any(k in catl for k in _CLEANSING):
+        queries.append(f"{head} surfactant")
+    elif any(k in catl for k in _ORAL):
+        queries.append(f"{head} abrasive fluoride")
+    elif any(k in catl for k in _LEAVE_ON):
+        queries.append(f"{head} emulsion stability")
+    else:
+        queries.append(f"{head} raw materials")
+
+    # 3. Preservation + shelf life.
+    queries.append(f"{head} preservative")
+
+    if constraints:
+        p = constraints.get("profile") or {}
+        # 4. The regional constraint that actually changes the formula.
+        if p.get("water_hardness") in ("hard", "very_hard"):
+            queries.append(f"{head} hard water")
+        if p.get("climate") in ("hot_humid", "hot_dry", "tropical"):
+            queries.append(f"{head} thermal stability")
+        # 5. Safety angle for sensitive/child/medicated targets.
+        if constraints.get("sensitive"):
+            queries.append(f"{head} skin irritation")
+
+    # Dedup, preserve order, keep the budget sane.
+    seen: set = set()
+    out: List[str] = []
+    for q in queries:
+        k = " ".join(q.lower().split())
+        if k and k not in seen:
+            seen.add(k)
+            out.append(" ".join(q.split()))
+    return out[:6]
 
 
 def _system_prompt(constraints: Dict[str, Any], n: int) -> str:
@@ -220,7 +294,14 @@ def run(
     constraints = derive_constraints(brief)
     os.makedirs(out_dir, exist_ok=True)
     lit_dir = os.path.join(out_dir, "literature")
-    papers = literature_cache.gather(build_queries(brief), lit_dir, library, target=15, log=log)
+    queries = build_queries(brief, constraints)
+    log(f"planned {len(queries)} retrieval angles")
+    # Anchor every retrieved paper to the product itself, so an angle query can
+    # sharpen the search without drifting off-domain.
+    anchor = f"{brief.get('target', '')} {brief.get('category', '')}"
+    papers = literature_cache.gather(
+        queries, lit_dir, library, target=15, anchor=anchor, log=log,
+    )
     log(f"literature ready: {len(papers)} papers")
 
     system = _system_prompt(constraints, n)
@@ -237,10 +318,25 @@ def run(
     if not formulas:
         return {"status": "error", "message": "model returned no formulas"}
 
+    # A card is only "evidence-based" if evidence was actually retrieved. When
+    # retrieval comes back empty the formula rests on the model's general
+    # knowledge alone — say so on the card instead of implying citations exist.
+    unevidenced = not papers
+    if unevidenced:
+        log("[warn] no literature retrieved — cards will be marked as not literature-grounded")
+
     cards = []
     for idx, f in enumerate(formulas[:n], 1):
         ingredients = [str(i.get("inci", "")) for i in f.get("ingredients", [])]
         violations = validate(ingredients, constraints)
+        if unevidenced:
+            f = dict(f)
+            f["warnings"] = list(f.get("warnings") or []) + [
+                "No open-access literature was found for this product, so this "
+                "formulation reflects general formulation science only — it is "
+                "NOT grounded in retrieved sources, and any references shown "
+                "should be verified independently.",
+            ]
         md = render_card(f, violations)
         version = f"v{idx}"
         with open(os.path.join(out_dir, f"formulation-card-{version}.md"), "w", encoding="utf-8") as fh:

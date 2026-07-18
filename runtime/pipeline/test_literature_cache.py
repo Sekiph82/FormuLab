@@ -95,6 +95,82 @@ class CacheTests(unittest.TestCase):
             self.assertEqual(len(fresh), 4)  # fresh preferred, all included
             self.assertEqual(len({p["doi"] for p in got}), 15)  # no dupes
 
+    def test_budget_spreads_across_angles_best_source_first(self):
+        # The budget is spread over the ANGLES; sources are tried best-first, so
+        # a strong OpenAlex fills the quota across every angle and the weaker
+        # arXiv is never reached.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+            calls = []
+
+            def make(src):
+                def fetch(q, n):
+                    calls.append((src, q))
+                    # On-topic for whichever angle was asked (so the topical gate
+                    # passes), with unique dois so nothing dedups away.
+                    base = abs(hash((src, q))) % 9000
+                    return [fake_paper(f"{src}-{base}-{i}", q) for i in range(n)]
+                return fetch
+
+            class FakeDiscover:
+                FETCHERS = {"openalex": make("openalex"),
+                            "europepmc": make("europepmc"),
+                            "arxiv": make("arxiv")}
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig = lc._load_fetchers
+            lc._load_fetchers = lambda: FakeDiscover
+            try:
+                got = lc.gather(
+                    ["antidandruff shampoo surfactant", "antidandruff efficacy active",
+                     "shampoo preservative stability"],
+                    out, lib, target=15, sources="openalex,europepmc,arxiv",
+                )
+            finally:
+                lc._load_fetchers = orig
+
+            self.assertEqual(len(got), 15)
+            # Every angle was asked, and no single angle monopolised the quota.
+            queried = {q for _, q in calls}
+            self.assertEqual(len(queried), 3)
+            # The best source carried it; arXiv was never needed.
+            self.assertNotIn("arxiv", {src for src, _ in calls})
+            used = {p["doi"].split("/")[1].split("-")[0] for p in got}
+            self.assertEqual(used, {"openalex"})
+
+    def test_off_domain_papers_are_rejected(self):
+        # A physics preprint that merely contains the word "formulation" must not
+        # be accepted as evidence for a household-chemistry query.
+        qterms = lc._terms("limescale remover kettles descaling")
+        physics = {"title": "Unified formulation for helicity and continuous spin fermionic fields",
+                   "abstract": "gauge theory formulation of massless fields", "concepts": ""}
+        ontopic = {"title": "Descaling kettles: citric acid limescale removal",
+                   "abstract": "limescale descaling efficacy of acids", "concepts": ""}
+        self.assertFalse(lc.topical(physics, qterms))
+        self.assertTrue(lc.topical(ontopic, qterms))
+
+    def test_generic_research_words_do_not_make_a_paper_relevant(self):
+        # Regression: these real arXiv titles were accepted for a limescale query
+        # because the angle queries contain "evaluation"/"active"/"ingredient".
+        anchor = lc._terms("limescale remover for kettles limescale remover")
+        junk = [
+            {"title": "On the Evaluation Criterions for the Active Learning Processes",
+             "abstract": "active learning evaluation", "concepts": ""},
+            {"title": "Unified formulation for helicity and continuous spin fermionic fields",
+             "abstract": "gauge theory formulation", "concepts": ""},
+            {"title": "Normalization of peer-evaluation measures of group research quality",
+             "abstract": "research evaluation metrics", "concepts": ""},
+        ]
+        for row in junk:
+            self.assertFalse(lc.anchored(row, anchor), row["title"])
+        good = {"title": "Citric acid descaling of limescale in kettles",
+                "abstract": "limescale removal efficacy", "concepts": ""}
+        self.assertTrue(lc.anchored(good, anchor))
+
     def test_search_ranks_by_overlap(self):
         index = [fake_paper(1, "toothpaste silica"), fake_paper(2, "antidandruff shampoo surfactant")]
         hits = lc.search_cache(["antidandruff shampoo"], index, 5)

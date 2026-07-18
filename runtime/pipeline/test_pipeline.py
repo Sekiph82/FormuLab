@@ -103,6 +103,56 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual({e["version"] for e in index}, {"v1", "v2"})
             self.assertEqual(index[0]["session"], "123-shampoo")
 
+    def test_planner_builds_distinct_angles(self):
+        from rules import derive_constraints
+        brief = {"target": "anti-dandruff shampoo", "category": "shampoo", "market": "kenya"}
+        qs = pipeline.build_queries(brief, derive_constraints(brief))
+        self.assertGreater(len(qs), 3)          # several angles, not one query
+        self.assertEqual(len(qs), len(set(qs)))  # no duplicates
+        joined = " ".join(qs).lower()
+        self.assertIn("surfactant", joined)      # cleansing base system
+        self.assertIn("preservative", joined)    # preservation
+        self.assertIn("hard water", joined)      # Kenya -> hard water angle
+        self.assertIn("irritation", joined)      # anti-dandruff -> sensitive angle
+
+    def test_queries_stay_short_enough_to_match(self):
+        # Long conjunctive queries return zero hits from the open APIs, so every
+        # angle must stay at the product head plus one distinguishing term.
+        brief = {"target": "anti-dandruff shampoo for eczema-prone scalp",
+                 "category": "shampoo", "market": "kenya"}
+        from rules import derive_constraints
+        for q in pipeline.build_queries(brief, derive_constraints(brief)):
+            self.assertLessEqual(len(q.split()), 4, q)
+
+    def test_cards_declare_when_no_literature_was_found(self):
+        # A formula with no retrieved evidence must say so rather than look cited.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])  # empty library
+            out = os.path.join(tmp, "session")
+            orig = lc.gather
+            lc.gather = lambda *a, **k: []  # retrieval finds nothing
+            try:
+                res = pipeline.run(
+                    {"target": "obscure niche product", "category": "cleaner"},
+                    provider="mock", model="m", api_key="", library=lib, out_dir=out, n=1,
+                    llm_call=mock_llm([{"name": "x", "purpose": "y",
+                                        "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent",
+                                                         "weight_pct": "q.s. 100"}],
+                                        "warnings": []}]),
+                )
+            finally:
+                lc.gather = orig
+            self.assertEqual(res["status"], "ok")
+            self.assertIn("NOT grounded in retrieved sources", res["cards"][0]["markdown"])
+
+    def test_planner_adapts_to_product_class(self):
+        # A leave-on product must not be asked surfactant/foam questions.
+        qs = pipeline.build_queries({"target": "hand cream", "category": "hand cream"})
+        joined = " ".join(qs).lower()
+        self.assertIn("emulsion", joined)
+        self.assertNotIn("foam", joined)
+
     def test_safety_gate_refuses(self):
         with tempfile.TemporaryDirectory() as tmp:
             res = pipeline.run(
