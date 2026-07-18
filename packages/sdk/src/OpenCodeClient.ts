@@ -105,7 +105,10 @@ export class OpenCodeClient implements AgentRuntime {
     this.authToken = opts.password ? btoa(`${opts.username ?? "opencode"}:${opts.password}`) : null;
     this.authHeader = this.authToken ? `Basic ${this.authToken}` : null;
     this.directory = opts.directory ?? null;
-    this.connectTimeoutMs = opts.connectTimeoutMs ?? 5000;
+    // Opening the SSE stream can take well over 5 s when the sidecar is cold or
+    // just re-rooted to a new dated workspace (every formulation does this), so
+    // a tight timeout strands the UI in "connecting". 20 s covers the re-root.
+    this.connectTimeoutMs = opts.connectTimeoutMs ?? 20000;
     this.requestTimeoutMs = opts.requestTimeoutMs ?? 15000;
   }
 

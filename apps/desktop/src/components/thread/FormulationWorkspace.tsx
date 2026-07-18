@@ -20,10 +20,14 @@ import { FormulationStudio } from "./FormulationStudio";
  * the card).
  */
 
-// Only the agent's formulation card is shown — narration and tool chatter are
-// filtered out by matching the card's shape (its title or its table).
+// Only the FINISHED card is shown — narration ("…synthesize a formulation
+// card…") must not match, so require the real structure: a "# Formulation
+// Card" heading, or an ingredient table with a Weight-% column.
 function isCard(markdown: string): boolean {
-  return /formulation card/i.test(markdown) || (markdown.includes("|") && /weight\s*%/i.test(markdown));
+  return (
+    /^#{1,3}\s*Formulation Card/im.test(markdown) ||
+    (/\|\s*(#|Ingredient)/i.test(markdown) && /weight\s*%/i.test(markdown))
+  );
 }
 
 export function FormulationWorkspace() {
