@@ -168,12 +168,14 @@ def sniff_fulltext(head: bytes, content_type: str = "") -> str | None:
     return None
 
 
-def _download_fulltext(url: str, dest: str, timeout: int = 30) -> str | None:
-    """Fetch one open-access full text, returning the path actually written.
+def _download_fulltext(url: str, dest: str, timeout: int = 30) -> tuple[str | None, str]:
+    """Fetch one open-access full text.
 
-    Accepts a PDF or the JATS XML Europe PMC's REST service serves for PMC
-    articles (the sanctioned route, and richer than a PDF). Anything else is a
-    landing page and is discarded rather than saved as a junk file.
+    Returns (path_written, reason). Accepts a PDF or the JATS XML Europe PMC's
+    REST service serves for PMC articles (the sanctioned route, and richer than
+    a PDF). Anything else is a landing page and is discarded rather than saved
+    as a junk file. The reason is recorded per paper so a session can explain
+    why it has 15 references but fewer files.
     """
     req = urllib.request.Request(url, headers={"User-Agent": "FormuLab/1.0 (formulation research)"})
     try:
@@ -181,12 +183,16 @@ def _download_fulltext(url: str, dest: str, timeout: int = 30) -> str | None:
             head = r.read(512)
             kind = sniff_fulltext(head, r.headers.get("Content-Type", ""))
             if kind is None:
-                return None
+                return None, "link is a landing page, not the article"
             if kind == "xml" and dest.endswith(".pdf"):
                 dest = dest[:-4] + ".xml"
             body = r.read()
-    except Exception:
-        return None
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return None, "publisher blocks automated download"
+        return None, f"link returned HTTP {e.code}"
+    except Exception as e:
+        return None, f"download failed ({type(e).__name__})"
     tmp = dest + ".part"
     try:
         with open(tmp, "wb") as fh:
@@ -199,8 +205,8 @@ def _download_fulltext(url: str, dest: str, timeout: int = 30) -> str | None:
                 os.remove(tmp)
             except OSError:
                 pass
-        return None
-    return dest
+        return None, "could not write the file"
+    return dest, "full text saved"
 
 
 def fetch_pdfs(
@@ -223,12 +229,18 @@ def fetch_pdfs(
     os.makedirs(lib_pdfs, exist_ok=True)
     os.makedirs(ses_pdfs, exist_ok=True)
 
+    # Every paper gets a status, so the session's papers.csv explains itself:
+    # 15 rows with 4 files is expected, not a failure, and the column says why.
     jobs = []
     for i, p in enumerate(papers):
         url = (p.get("oa_url") or "").strip()
-        if not p.get("is_oa") or not url.lower().startswith("http"):
-            continue
-        jobs.append((p, url, _pdf_name(p, i)))
+        if not p.get("is_oa"):
+            p["fulltext"] = "not open access - abstract only"
+        elif not url.lower().startswith("http"):
+            p["fulltext"] = "open access but no file link published"
+        else:
+            p["fulltext"] = "pending"
+            jobs.append((p, url, _pdf_name(p, i)))
 
     def ensure(job):
         p, url, name = job
@@ -236,11 +248,12 @@ def fetch_pdfs(
         xml_path = lib_path[:-4] + ".xml"
         for existing in (lib_path, xml_path):  # already in the shared library
             if os.path.exists(existing):
-                return (p, os.path.basename(existing), existing)
-        written = _download_fulltext(url, lib_path)
+                return (p, os.path.basename(existing), existing, "full text saved (from cache)")
+        written, reason = _download_fulltext(url, lib_path)
         if not written:
+            p["fulltext"] = reason
             return None
-        return (p, os.path.basename(written), written)
+        return (p, os.path.basename(written), written, reason)
 
     got = 0
     if jobs:
@@ -248,12 +261,14 @@ def fetch_pdfs(
             for res in pool.map(ensure, jobs):
                 if not res:
                     continue
-                p, name, lib_path = res
+                p, name, lib_path, reason = res
                 try:
                     shutil.copyfile(lib_path, os.path.join(ses_pdfs, name))
                 except Exception:
+                    p["fulltext"] = "could not copy into the session"
                     continue
                 p["pdf_file"] = name
+                p["fulltext"] = reason
                 got += 1
     log(f"full texts: {got}/{len(papers)} open-access files saved "
         f"(the rest are paywalled or blocked to automated clients)")
@@ -404,12 +419,32 @@ def gather(
     save_index(library, index)
 
     # Session copy.
+    # `fulltext` says, in words, why a row does or does not have a file: every
+    # paper here is read as metadata, but only open-access ones can be fetched.
     fields = ["source_db", "title", "year", "authors", "venue", "doi", "is_oa",
-              "oa_url", "cited_by", "concepts", "pdf_file"]
-    with open(os.path.join(out_dir, "papers.csv"), "w", newline="", encoding="utf-8") as fh:
+              "oa_url", "cited_by", "concepts", "pdf_file", "fulltext"]
+    with open(os.path.join(out_dir, "papers.csv"), "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
         w.writerows(selected)
     with open(os.path.join(out_dir, "papers.json"), "w", encoding="utf-8") as fh:
         json.dump(selected, fh, ensure_ascii=False, indent=2)
+
+    # A short note next to the files, because "15 papers but 4 files" looks like
+    # a bug until you know only open-access work can be downloaded at all.
+    saved = [p for p in selected if p.get("pdf_file")]
+    with open(os.path.join(out_dir, "README.txt"), "w", encoding="utf-8") as fh:
+        fh.write(
+            f"{len(selected)} papers informed this formulation.\n"
+            f"{len(saved)} of them are stored in full under pdfs/.\n\n"
+            "Every paper here is used: its title, abstract and metadata go to the\n"
+            "model. Only open-access papers can be downloaded in full, so the rest\n"
+            "contribute their abstract only. The `fulltext` column in papers.csv\n"
+            "says which is which, and why.\n\n"
+            "Common reasons a paper has no file:\n"
+            "  - not open access (the publisher sells it)\n"
+            "  - open access, but the publisher blocks automated download\n"
+            "  - the link points at a landing page rather than the article\n\n"
+            "Paywalled papers are never bypassed.\n"
+        )
     return selected
