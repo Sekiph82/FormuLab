@@ -75,7 +75,7 @@
   },
   "model": {
     "title": "Modell",
-    "hint": "Die unten aufgeführten Anbieter stellen die hier wählbaren Modelle bereit",
+    "hint": "Modell und API-Schlüssel für die Erstellung von Formulierungen",
     "connectPrompt": "Verbinden Sie die Runtime, um Modelle zu konfigurieren.",
     "notSet": "Nicht festgelegt — Standardmodell wählen",
     "providersDivider": "Anbieter",

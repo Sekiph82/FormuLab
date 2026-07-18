@@ -29,11 +29,12 @@ describe("WorkflowStarters strings (i18n)", () => {
 });
 
 describe("FormulationWorkspaceV2 strings (i18n)", () => {
-  it("renders the studio's provider selector in English (direct pipeline, no sidecar)", async () => {
-    // "/live" renders the v2 workspace: a self-contained studio with a provider
-    // bar — no OpenCode runtime, so it shows immediately without a connection.
+  it("renders the studio and its result pane in English (direct pipeline, no sidecar)", async () => {
+    // "/live" renders the v2 workspace: studio + result, no OpenCode runtime, so
+    // it shows immediately without a connection. Provider/model live in Settings,
+    // so no provider UI appears here.
     renderAt("/live");
-    expect(await screen.findByText("Provider")).toBeInTheDocument();
-    expect(screen.getByText("Stored locally on this device only.")).toBeInTheDocument();
+    expect(await screen.findByText("Formulation card")).toBeInTheDocument();
+    expect(screen.queryByText("Provider")).not.toBeInTheDocument();
   });
 });

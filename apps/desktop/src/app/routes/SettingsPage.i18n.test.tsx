@@ -43,21 +43,24 @@ describe("Settings page strings (i18n)", () => {
     expect(screen.getByText("Connect the runtime to configure MCP servers.")).toBeInTheDocument();
     connectors.unmount();
 
+    // The model section belongs to the direct formulation pipeline, so it needs
+    // no runtime connection — it renders its selector straight away.
     renderAt("/settings/models");
-    expect(await screen.findByText("Connect the runtime to configure models.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Model" })).toBeInTheDocument();
   });
 
-  it("renders separate model browsing and provider management surfaces when connected", async () => {
+  it("renders the formulation model/key surface without a runtime connection", async () => {
     const original = useRuntimeStore.getState();
     let view: ReturnType<typeof renderAt> | undefined;
     try {
-      useRuntimeStore.setState({ status: "ready", defaultModel: null });
+      // Disconnected on purpose: provider/model/key are local settings now.
+      useRuntimeStore.setState({ status: "idle", defaultModel: null });
       view = renderAt("/settings/models");
-      // No client behind this render: the Models card sits in its loading
-      // state while the separate Providers card is already on screen.
-      expect(await screen.findByText("Loading the model catalog…")).toBeInTheDocument();
-      expect(screen.getByRole("heading", { level: 2, name: "Providers" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Manage" })).toHaveAttribute("aria-expanded", "false");
+      expect(
+        await screen.findByText("The model and API key used to generate formulations"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Provider")).toBeInTheDocument();
+      expect(screen.getByText("API key")).toBeInTheDocument();
     } finally {
       view?.unmount();
       useRuntimeStore.setState({ status: original.status, defaultModel: original.defaultModel });

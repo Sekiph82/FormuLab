@@ -152,6 +152,19 @@ export async function generateFormulation(
   });
 }
 
+/**
+ * Fired on `window` whenever the saved-session set changes (a run succeeded, a
+ * session was deleted). The sidebar listens so its history list refreshes
+ * without the workspace needing a reference to it.
+ */
+export const SESSIONS_CHANGED_EVENT = "formulab:sessions-changed";
+
+export function notifySessionsChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(SESSIONS_CHANGED_EVENT));
+  }
+}
+
 export async function listSessions(): Promise<SessionSummary[]> {
   if (!isTauri) return [];
   return call<SessionSummary[]>("list_sessions", {});

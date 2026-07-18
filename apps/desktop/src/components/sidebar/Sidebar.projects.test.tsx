@@ -17,7 +17,7 @@ afterEach(() =>
 );
 
 describe("Sidebar projects", () => {
-  it("groups sessions into their project and keeps the rest loose", async () => {
+  it("groups sessions into their project; loose runtime sessions get no row", async () => {
     useRuntimeStore.setState({
       projects: [PROJECT],
       sessions: [
@@ -30,10 +30,12 @@ describe("Sidebar projects", () => {
     renderAt("/files");
 
     expect(await screen.findByText("BCI Trends")).toBeInTheDocument();
-    // Both groups render their sessions; the child session does not appear.
+    // The project group renders its sessions; the child session does not appear.
     expect(screen.getByText("paper search")).toBeInTheDocument();
-    expect(screen.getByText("quick question")).toBeInTheDocument();
     expect(screen.queryByText("subtask")).not.toBeInTheDocument();
+    // Loose runtime sessions no longer get a row: the history list below the
+    // projects now lists saved formulations (app data), not runtime sessions.
+    expect(screen.queryByText("quick question")).not.toBeInTheDocument();
     // The project offers its own "new session" entry point.
     expect(
       screen.getByRole("button", { name: "New session in BCI Trends" }),

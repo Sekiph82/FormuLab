@@ -75,7 +75,7 @@
   },
   "model": {
     "title": "模型",
-    "hint": "下方的供应商提供可在此选择的模型",
+    "hint": "用于生成配方的模型和 API 密钥",
     "connectPrompt": "连接运行时以配置模型。",
     "notSet": "未设置——选择一个默认模型",
     "providersDivider": "供应商",

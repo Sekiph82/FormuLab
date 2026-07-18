@@ -75,7 +75,7 @@
   },
   "model": {
     "title": "Modèle",
-    "hint": "Les fournisseurs ci-dessous proposent les modèles que vous pouvez choisir ici",
+    "hint": "Le modèle et la clé API utilisés pour générer les formulations",
     "connectPrompt": "Connectez le runtime pour configurer les modèles.",
     "notSet": "Non défini — choisissez un modèle par défaut",
     "providersDivider": "Fournisseurs",

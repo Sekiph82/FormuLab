@@ -75,7 +75,7 @@
   },
   "model": {
     "title": "Model",
-    "hint": "Providers below supply the models you can pick here",
+    "hint": "The model and API key used to generate formulations",
     "connectPrompt": "Connect the runtime to configure models.",
     "notSet": "Not set — pick a default model",
     "providersDivider": "Providers",

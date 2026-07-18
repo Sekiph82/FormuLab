@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -30,6 +30,12 @@ import {
 } from "@/lib/store";
 import { useUpdateStore } from "@/lib/update";
 import { overlayTitlebarStyle } from "@/lib/titlebar";
+import {
+  listSessions,
+  deleteSession as deleteFormulationSession,
+  SESSIONS_CHANGED_EVENT,
+  type SessionSummary,
+} from "@/lib/formulationV2";
 import { SETTINGS_SECTIONS, resolveSection } from "@/components/settings/sections";
 import { StatusPills } from "./StatusPills";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -246,6 +252,56 @@ export function Sidebar({ project }: { project: Project }) {
   const overlayTitlebar = useOverlayTitlebar();
 
   const width = dragWidth ?? sidebarWidth;
+
+  // ---- Saved formulations (v2 direct pipeline) ----
+  // These live in app data, not in the OpenCode runtime, so the sidebar owns
+  // their fetch and refreshes on the change event the workspace fires.
+  const [formulations, setFormulations] = useState<SessionSummary[]>([]);
+  const refreshFormulations = useCallback(() => {
+    void listSessions()
+      .then(setFormulations)
+      .catch(() => setFormulations([]));
+  }, []);
+  useEffect(() => {
+    refreshFormulations();
+    window.addEventListener(SESSIONS_CHANGED_EVENT, refreshFormulations);
+    return () => window.removeEventListener(SESSIONS_CHANGED_EVENT, refreshFormulations);
+  }, [refreshFormulations]);
+
+  const formulationRow = (s: SessionSummary) => {
+    const to = `/live/${s.id}`;
+    const title = s.brief?.target ?? s.id;
+    return (
+      <div key={s.id} className="group relative">
+        <NavLink
+          to={to}
+          className={cn(
+            "flex items-center gap-2 rounded-input py-1 pl-2 pr-8 text-[13px] hover:bg-surface-2",
+            location.pathname === to ? "bg-surface-2 text-text" : "text-text/90",
+          )}
+        >
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
+          <span className="flex-1 truncate">{title}</span>
+          {s.card_count > 1 && (
+            <span className="shrink-0 text-[10px] tabular-nums text-muted">
+              {s.card_count}
+            </span>
+          )}
+        </NavLink>
+        <button
+          onClick={async () => {
+            await deleteFormulationSession(s.id).catch(() => {});
+            refreshFormulations();
+            if (location.pathname === to) navigate("/live");
+          }}
+          aria-label={t("history.deleteAria", { title })}
+          className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded p-1 text-muted hover:bg-border hover:text-error group-hover:block"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+    );
+  };
 
   const sessionRow = (row: Row) => (
     <div key={row.to} className="group relative">
@@ -589,12 +645,12 @@ export function Sidebar({ project }: { project: Project }) {
           <div className="mt-3 px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted">
             {t("history.heading")}
           </div>
-          {looseRows.length === 0 && exampleRows.length === 0 && (
+          {formulations.length === 0 && exampleRows.length === 0 && (
             <div className="px-2 py-2 text-xs text-muted">
               {t("history.empty")}
             </div>
           )}
-          {looseRows.map(sessionRow)}
+          {formulations.map(formulationRow)}
           {exampleRows.map(sessionRow)}
         </div>
 

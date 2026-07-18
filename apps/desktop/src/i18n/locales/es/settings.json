@@ -75,7 +75,7 @@
   },
   "model": {
     "title": "Modelo",
-    "hint": "Los proveedores de abajo aportan los modelos que puedes elegir aquí",
+    "hint": "El modelo y la clave de API usados para generar formulaciones",
     "connectPrompt": "Conecta el entorno de ejecución para configurar modelos.",
     "notSet": "Sin configurar — elige un modelo predeterminado",
     "providersDivider": "Proveedores",
