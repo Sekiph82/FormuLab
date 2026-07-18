@@ -72,6 +72,37 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(res["status"], "ok")
             self.assertTrue(res["cards"][0]["violations"])  # SLES flagged
 
+    def test_archives_every_card_to_the_formula_library(self):
+        # Every card also lands in the flat library, with an index entry.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "sessions", "123-shampoo")
+            formulas = os.path.join(tmp, "formulas")
+            made = [
+                {"name": "A", "purpose": "x",
+                 "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"}],
+                 "warnings": []},
+                {"name": "B", "purpose": "y",
+                 "ingredients": [{"inci": "Decyl Glucoside", "function": "Surfactant", "weight_pct": "10.0"}],
+                 "warnings": []},
+            ]
+            res = pipeline.run(
+                {"target": "mild shampoo", "category": "shampoo", "market": "eu"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=2,
+                formulas_dir=formulas, llm_call=mock_llm(made),
+            )
+            self.assertEqual(res["status"], "ok")
+            self.assertEqual(len(res["archived"]), 2)
+            for name in res["archived"]:
+                self.assertTrue(os.path.isfile(os.path.join(formulas, name)))
+            with open(os.path.join(formulas, "index.json"), encoding="utf-8") as fh:
+                index = json.load(fh)
+            self.assertEqual(len(index), 2)
+            self.assertEqual(index[0]["target"], "mild shampoo")
+            self.assertEqual(index[0]["market"], "eu")
+            self.assertEqual({e["version"] for e in index}, {"v1", "v2"})
+            self.assertEqual(index[0]["session"], "123-shampoo")
+
     def test_safety_gate_refuses(self):
         with tempfile.TemporaryDirectory() as tmp:
             res = pipeline.run(

@@ -38,6 +38,7 @@ def main() -> None:
     model = req.get("model", "")
     api_key = req.get("api_key", "")
     library_dir = req.get("library_dir", "")
+    formulas_dir = req.get("formulas_dir") or None
     out_dir = req.get("out_dir", "")
     n = int(req.get("n", 3) or 3)
 
@@ -55,7 +56,8 @@ def main() -> None:
     try:
         res = pipeline.run(
             brief, provider=provider, model=model, api_key=api_key,
-            library=library_dir, out_dir=out_dir, n=n, log=log,
+            library=library_dir, out_dir=out_dir, n=n,
+            formulas_dir=formulas_dir, log=log,
         )
     except Exception as e:
         return _err(f"pipeline crashed: {e}")

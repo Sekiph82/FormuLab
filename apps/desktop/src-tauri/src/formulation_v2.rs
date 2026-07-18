@@ -49,6 +49,22 @@ fn default_n() -> u32 {
     3
 }
 
+/// Everything the user creates lives under ONE visible folder — the workspace
+/// base (Settings → Workspace), not a hidden app-data dir: sessions/,
+/// literature/ (shared cache) and formulas/ (the flat formula library) sit side
+/// by side so the whole project is in a single place the user can browse, back
+/// up, or move.
+fn data_dir(app: &AppHandle, sub: &[&str]) -> Result<PathBuf, String> {
+    let mut dir = crate::runtime::base_workspace_dir(app)?;
+    for s in sub {
+        dir = dir.join(s);
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+/// App-private scratch (the materialized Python package) — code, not user data,
+/// so it stays out of the user's folder.
 fn app_dir(app: &AppHandle, sub: &[&str]) -> Result<PathBuf, String> {
     let mut dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     for s in sub {
@@ -109,8 +125,9 @@ pub async fn generate_formulation(
     let cli = pipe.join("run_cli.py");
     let (python, _source) = crate::kernel::python_bin(&app)?;
 
-    let library = app_dir(&app, &["literature"])?; // shared cache across sessions
-    let sessions = app_dir(&app, &["sessions"])?;
+    let library = data_dir(&app, &["literature"])?; // shared cache across sessions
+    let formulas = data_dir(&app, &["formulas"])?; // flat library of every card
+    let sessions = data_dir(&app, &["sessions"])?;
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -123,6 +140,7 @@ pub async fn generate_formulation(
         "model": request.model,
         "api_key": request.api_key,
         "library_dir": library.to_string_lossy(),
+        "formulas_dir": formulas.to_string_lossy(),
         "out_dir": out_dir.to_string_lossy(),
         "n": request.n,
     });
@@ -227,7 +245,7 @@ fn read_cards(dir: &std::path::Path) -> Vec<serde_json::Value> {
 /// newest first. Each entry carries enough for the sidebar without re-running.
 #[tauri::command(async)]
 pub async fn list_sessions(app: AppHandle) -> Result<serde_json::Value, String> {
-    let sessions = app_dir(&app, &["sessions"])?;
+    let sessions = data_dir(&app, &["sessions"])?;
     let mut items: Vec<serde_json::Value> = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&sessions) {
         for entry in rd.filter_map(|e| e.ok()) {
@@ -277,7 +295,7 @@ pub async fn read_session(
     if id.contains('/') || id.contains('\\') || id.contains("..") {
         return Err("invalid session id".into());
     }
-    let dir = app_dir(&app, &["sessions"])?.join(&id);
+    let dir = data_dir(&app, &["sessions"])?.join(&id);
     if !dir.is_dir() {
         return Err(format!("session not found: {id}"));
     }
@@ -300,7 +318,7 @@ pub async fn delete_session(app: AppHandle, id: String) -> Result<(), String> {
     if id.contains('/') || id.contains('\\') || id.contains("..") {
         return Err("invalid session id".into());
     }
-    let dir = app_dir(&app, &["sessions"])?.join(&id);
+    let dir = data_dir(&app, &["sessions"])?.join(&id);
     if dir.is_dir() {
         std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
     }

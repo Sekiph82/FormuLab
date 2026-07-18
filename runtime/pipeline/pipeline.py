@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from typing import Any, Callable, Dict, List
 
 import llm
@@ -140,6 +141,61 @@ def render_card(formula: Dict[str, Any], violations: List[str]) -> str:
     return "\n".join(md)
 
 
+def archive_formulas(
+    formulas_dir: str,
+    cards: List[Dict[str, Any]],
+    brief: Dict[str, Any],
+    slug: str,
+    session_id: str,
+) -> List[str]:
+    """Copy every produced card into the flat formula library and index it.
+
+    The library is the one place that holds EVERY formula ever generated, across
+    sessions: `<date>-<slug>-<version>.md` plus an `index.json` describing each
+    entry so the set stays browsable without opening the files.
+    """
+    os.makedirs(formulas_dir, exist_ok=True)
+    index_path = os.path.join(formulas_dir, "index.json")
+    try:
+        with open(index_path, encoding="utf-8") as fh:
+            index = json.load(fh)
+    except Exception:
+        index = []
+
+    date = time.strftime("%Y-%m-%d")
+    created = time.strftime("%Y-%m-%d %H:%M:%S")
+    written: List[str] = []
+    for card in cards:
+        version = card["version"]
+        name = f"{date}-{slug}-{version}.md"
+        path = os.path.join(formulas_dir, name)
+        # Same product formulated twice in a day: keep both, newest suffixed.
+        if os.path.exists(path):
+            name = f"{date}-{slug}-{version}-{int(time.time())}.md"
+            path = os.path.join(formulas_dir, name)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(card["markdown"])
+        written.append(name)
+
+        formula = card.get("formula", {}) or {}
+        index.append({
+            "file": name,
+            "name": formula.get("name", ""),
+            "target": brief.get("target", ""),
+            "category": brief.get("category", ""),
+            "market": brief.get("market", ""),
+            "version": version,
+            "created": created,
+            "session": session_id,
+            "ingredients": len(formula.get("ingredients", []) or []),
+            "violations": card.get("violations", []),
+        })
+
+    with open(index_path, "w", encoding="utf-8") as fh:
+        json.dump(index, fh, ensure_ascii=False, indent=2)
+    return written
+
+
 def run(
     brief: Dict[str, Any],
     provider: str,
@@ -148,6 +204,7 @@ def run(
     library: str,
     out_dir: str,
     n: int = 3,
+    formulas_dir: str | None = None,
     llm_call: Callable[..., str] = llm.call,
     log: Callable[[str], None] = lambda m: None,
 ) -> Dict[str, Any]:
@@ -193,4 +250,17 @@ def run(
     with open(os.path.join(out_dir, "brief.json"), "w", encoding="utf-8") as fh:
         json.dump({"brief": brief, "constraints_reasons": constraints["reasons"]}, fh, ensure_ascii=False, indent=2)
 
-    return {"status": "ok", "cards": cards, "slug": _slug(target), "papers": len(papers)}
+    slug = _slug(target)
+    archived: List[str] = []
+    if formulas_dir:
+        try:
+            archived = archive_formulas(
+                formulas_dir, cards, brief, slug, os.path.basename(out_dir.rstrip("/\\")),
+            )
+            log(f"archived {len(archived)} formula(s) to the library")
+        except Exception as e:
+            # The library is a convenience copy — never fail a good run over it.
+            log(f"[warn] could not archive to the formula library: {e}")
+
+    return {"status": "ok", "cards": cards, "slug": slug,
+            "papers": len(papers), "archived": archived}

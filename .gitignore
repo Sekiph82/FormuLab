@@ -75,7 +75,11 @@ docs/shampoo-formulation/
 /20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]-*/
 .openscience/
 
-# v2 local runtime data (shared literature cache + saved sessions)
+# All app-generated data lives in ONE folder inside the project: sessions,
+# the shared literature cache, the formula library, and legacy OpenCode
+# workspaces. Local user output, deliberately not committed.
+/data/
+# Legacy locations (kept so older checkouts stay clean).
 /sessions/
 /literature/
 /apps/desktop/sessions/
