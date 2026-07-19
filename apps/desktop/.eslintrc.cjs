@@ -63,6 +63,10 @@ module.exports = {
             // the same kind of technical union tag as "variant" — the component maps
             // it to colours, and the text beside it is what actually gets translated.
             "tone",
+            // "kind" is the same kind of technical discriminated-union tag as
+            // "variant"/"tone" above (e.g. RuleManager's "compatibility" |
+            // "safety"), never text shown to anyone.
+            "kind",
             "language",
             "dot",
             "options",

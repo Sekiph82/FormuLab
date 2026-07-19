@@ -80,6 +80,9 @@ export interface FormulaBuilderProps {
   canRedo?: boolean;
   /** Autosave status, shown so "is my work safe?" is always answerable. */
   autosaveState?: "idle" | "saving" | "saved";
+  /** Set (to a new value, even the same id again) to select and scroll a line
+   *  into view — used by the Compatibility/Safety tabs' "go to line" links. */
+  focusLineId?: string | null;
 }
 
 export function FormulaBuilder({
@@ -98,9 +101,17 @@ export function FormulaBuilder({
   canUndo = false,
   canRedo = false,
   autosaveState = "idle",
+  focusLineId,
 }: FormulaBuilderProps) {
   const { t } = useTranslation(["session", "common"]);
   const [selected, setSelected] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusLineId) return;
+    setSelected(focusLineId);
+    const row = gridRef.current?.querySelector(`[data-line-id="${CSS.escape(focusLineId)}"]`);
+    row?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focusLineId]);
   const [filter, setFilter] = useState("");
   const [visible, setVisible] = useState<Set<OptionalColumn>>(new Set());
   const [dragId, setDragId] = useState<string | null>(null);

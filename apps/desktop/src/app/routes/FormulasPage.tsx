@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, GitCompare, Plus, Wallet } from "lucide-react";
+import { FileText, FlaskConical, GitCompare, Plus, ShieldAlert, Wallet } from "lucide-react";
 import {
   buildKenyaCatalog,
   createVersion,
@@ -18,6 +18,8 @@ import {
 import { FormulaBuilder } from "@/components/formula/FormulaBuilder";
 import { VersionCompare } from "@/components/formula/VersionCompare";
 import { CostPanel } from "@/components/formula/CostPanel";
+import { CompatibilityPanel } from "@/components/formula/CompatibilityPanel";
+import { SafetyPanel } from "@/components/formula/SafetyPanel";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
 import { SaveVersionDialog } from "@/components/formula/SaveVersionDialog";
 import { useUndoable } from "@/components/formula/useUndoable";
@@ -35,7 +37,7 @@ import {
 import { listRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 
-type Tab = "builder" | "versions" | "cost";
+type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety";
 
 /**
  * The Formula Builder workspace — FormuLab's primary working surface.
@@ -58,6 +60,7 @@ export function FormulasPage() {
   const [savingVersion, setSavingVersion] = useState(false);
   const [autosave, setAutosave] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [focusLineId, setFocusLineId] = useState<string | null>(null);
 
   const draft = useUndoable<FormulationDraft | null>(null);
   // Bound before the JSX: a tab key written inline reads as display text to the
@@ -66,6 +69,14 @@ export function FormulasPage() {
     builder: () => setTab("builder"),
     versions: () => setTab("versions"),
     cost: () => setTab("cost"),
+    compatibility: () => setTab("compatibility"),
+    safety: () => setTab("safety"),
+  };
+  /** Jump to the builder and select/scroll a specific line — used by the
+   *  Compatibility/Safety tabs' "go to line" links. */
+  const focusLine = (lineId: string) => {
+    setTab("builder");
+    setFocusLineId(lineId);
   };
   const active = projects.find((p) => p.id === activeId) ?? null;
   const baseVersion = versions.find((v) => v.id === draft.value?.baseVersionId);
@@ -255,6 +266,16 @@ export function FormulasPage() {
           <TabButton active={tab === "cost"} onClick={goTo.cost} icon={<Wallet size={13} />}>
             {t("builder.tabCost")}
           </TabButton>
+          <TabButton
+            active={tab === "compatibility"}
+            onClick={goTo.compatibility}
+            icon={<FlaskConical size={13} />}
+          >
+            {t("builder.tabCompatibility")}
+          </TabButton>
+          <TabButton active={tab === "safety"} onClick={goTo.safety} icon={<ShieldAlert size={13} />}>
+            {t("builder.tabSafety")}
+          </TabButton>
         </nav>
       </header>
 
@@ -284,11 +305,30 @@ export function FormulasPage() {
             onRedo={draft.redo}
             canUndo={draft.canUndo}
             canRedo={draft.canRedo}
+            focusLineId={focusLineId}
           />
         )}
 
         {tab === "versions" && (
           <VersionsTab versions={versions} onRestore={onRestore} />
+        )}
+
+        {tab === "compatibility" && draft.value && (
+          <CompatibilityPanel
+            formulation={active}
+            versionId={baseVersion?.id}
+            lines={draft.value.lines}
+            onFocusLine={focusLine}
+          />
+        )}
+
+        {tab === "safety" && draft.value && (
+          <SafetyPanel
+            formulation={active}
+            versionId={baseVersion?.id}
+            lines={draft.value.lines}
+            onFocusLine={focusLine}
+          />
         )}
 
         {tab === "cost" && draft.value && (

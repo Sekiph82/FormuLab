@@ -105,6 +105,25 @@ export async function backupCollection(collection: Collection): Promise<string> 
   return call<string>("backup_master_collection", { collection });
 }
 
+/**
+ * Load a collection, seeding it from `seed` the first time it is ever empty.
+ *
+ * Used for the compatibility/safety rule libraries: they ship as code
+ * (`SEED_COMPATIBILITY_RULES` / `SEED_SAFETY_RULES`) so the app has a rule
+ * set on first run with no import step, but from that point on they live in
+ * the project's own data and are editable — re-seeding never overwrites an
+ * edit, because it only runs when the collection is still empty.
+ */
+export async function listRecordsSeeded<C extends Collection>(
+  collection: C,
+  seed: CollectionTypes[C][],
+): Promise<CollectionTypes[C][]> {
+  const existing = await listRecords(collection);
+  if (existing.length > 0 || seed.length === 0) return existing;
+  await upsertRecords(collection, seed);
+  return listRecords(collection);
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
