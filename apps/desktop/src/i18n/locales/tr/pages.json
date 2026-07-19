@@ -1,7 +1,7 @@
 {
   "optimizer": {
     "title": "Formülasyon Optimize Edici",
-    "description": "Stok ve kullanım sınırları içinde bir aktif madde hedefini karşılayan en ucuz hammadde karışımını bulur. Paketlenmiş Python + PuLP üzerinde doğrusal programlama çözer.",
+    "description": "Stok ve kullanım sınırları içinde, aktif madde hedefini karşılayan en ucuz hammadde karışımını bulur. Paketlenmiş Python + PuLP ile bir doğrusal programlama problemi çözer.",
     "desktopOnly": "Optimize edici masaüstü uygulamasında çalışır (paketlenmiş Python çözücüsüne ihtiyaç duyar).",
     "solve": "Optimize et",
     "solving": "Optimize ediliyor…",
