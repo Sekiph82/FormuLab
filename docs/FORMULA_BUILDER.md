@@ -167,6 +167,11 @@ it, when, and why.
   [SAFETY_ENGINE.md](SAFETY_ENGINE.md). The regulatory, DOE and stability
   modules are **not implemented**; their template warning topics remain
   prompts to think, not checks.
+- The **Optimizer** tab (mixed-integer constraint solving,
+  [ADVANCED_OPTIMIZER.md](ADVANCED_OPTIMIZER.md)) and per-line **Replace
+  material** action ([MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md))
+  both apply results to a new working draft only, never a saved version.
 - Column widths are fixed; resizing is not implemented.
-- Materials, suppliers, costing, packaging, factory profiles, compatibility
-  and safety are translated into all 8 shipped locales, including Turkish.
+- Materials, suppliers, costing, packaging, factory profiles, compatibility,
+  safety, optimizer and substitution are translated into all 8 shipped
+  locales, including Turkish.

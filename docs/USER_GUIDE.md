@@ -200,14 +200,49 @@ schema version, export timestamp, approval status, cost-snapshot ID, and
 target family/SKUs; a non-approved formula is stamped `R&D DRAFT — NOT
 PRODUCTION APPROVED` on every export format.
 
+## 14. Advanced optimization
+
+Open the **Optimizer** tab. Unlike the plain cost-minimizing Formulation
+Optimizer, this is a real constraint-solving workspace: pick candidate
+materials, add functional-group constraints (e.g. "at least 15% anionic
+surfactant"), choose one or more objectives (cost, supply risk, carbon
+score, stock utilization, evidence confidence — weighted together), and
+**Run**. Every candidate pair is automatically checked against the real
+Compatibility and Safety engines before the solve, so the optimizer can
+never select a combination those engines flag as blocking. An infeasible
+run explains why in plain language with suggested next steps, not just
+"infeasible". **Apply to draft** never overwrites the saved version it
+started from — it creates a new working draft, and the run is remembered so
+approval readiness can later verify it was genuinely usable. Full model:
+[ADVANCED_OPTIMIZER.md](ADVANCED_OPTIMIZER.md).
+
+## 15. Material substitution
+
+Click the replace-material icon on any formula line to open scored,
+ranked candidates for that material — scored on real data (function match,
+active-matter equivalence, ionic character, pH/HLB similarity, regulatory
+status, available stock, landed cost, and a live compatibility/safety
+re-check), never by name similarity. A candidate that would introduce a
+blocking finding is still shown, sorted last, so you can see why it ranked
+where it did. Applying a candidate uses the active-equivalent percentage
+(10% of a 70%-active material needs 20% of a 35%-active replacement to
+contribute the same active matter) and, like an optimizer result, only ever
+creates a new working draft. Full model:
+[MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md).
+
 ## Known limitations
 
 See [IMPLEMENTATION_STATUS.md](architecture/IMPLEMENTATION_STATUS.md) for the
 authoritative list of what is built versus not yet started. In short: the
-regulatory engine, advanced constraint optimizer, DOE, lab-trial, stability-
-study and reverse-formulation modules described in the full specification
-are designed but not implemented. Compatibility and safety are deterministic
-rule engines against a hand-maintained, explicitly non-exhaustive seed rule
-set — they are not a regulatory engine and do not establish legal
-compliance. Nothing in this guide describes an unimplemented module as
-available.
+regulatory engine, DOE, lab-trial, stability-study and reverse-formulation
+modules described in the full specification are designed but not
+implemented. The Advanced Optimizer does not enforce soft constraints as
+soft yet and does not solve property targets (pH, viscosity, ...); material
+substitution's one-to-one path is complete but system (multi-material)
+substitution is not yet built — see
+[ADVANCED_OPTIMIZER.md](ADVANCED_OPTIMIZER.md#what-this-is-not) and
+[MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md#one-to-one-vs-system-substitution).
+Compatibility and safety are deterministic rule engines against a
+hand-maintained, explicitly non-exhaustive seed rule set — they are not a
+regulatory engine and do not establish legal compliance. Nothing in this
+guide describes an unimplemented module as available.

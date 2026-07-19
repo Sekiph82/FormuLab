@@ -19,6 +19,16 @@ FormuLab is a desktop workbench that pairs a general AI research environment
 - **Formulation Optimizer** — a linear program (PuLP + CBC) that finds the
   lowest-cost raw-material mix meeting an active-content target within stock and
   usage limits. Available as a UI tab *and* an agent skill.
+- **Advanced Formulation Constraint Optimizer** — a separate, mixed-integer
+  solver over composition, functional-group, ratio and conditional
+  constraints, multi-objective (weighted or lexicographic), with structured
+  infeasibility explanations and automatic exclusion of any material
+  combination the real compatibility/safety engines flag as blocking. See
+  [docs/ADVANCED_OPTIMIZER.md](docs/ADVANCED_OPTIMIZER.md).
+- **Material Substitution** — deterministic, scored candidate ranking for
+  replacing one raw material with another, using real price/stock/supplier
+  data and a live compatibility/safety re-check, never name similarity. See
+  [docs/MATERIAL_SUBSTITUTION.md](docs/MATERIAL_SUBSTITUTION.md).
 - **Formulation Discovery** — give a target product ("an anti-dandruff, soothing
   shampoo") and the agent retrieves open-access literature (OpenAlex), extracts
   the ingredients/functions/concentrations reported there, synthesizes an
@@ -26,6 +36,10 @@ FormuLab is a desktop workbench that pairs a general AI research environment
 - **Formula Builder** — the daily working surface: a versioned formulation
   workspace with an editable grid, water q.s., deterministic decimal arithmetic,
   validation, immutable versions and version comparison.
+- **Compatibility and safety engines** — deterministic, versioned rule
+  checking (never the LLM) with human-review-gated approval; see
+  [docs/COMPATIBILITY_ENGINE.md](docs/COMPATIBILITY_ENGINE.md) and
+  [docs/SAFETY_ENGINE.md](docs/SAFETY_ENGINE.md).
 - **Raw materials and costing** — material master, suppliers, append-only price
   history, inventory, landed cost, packaging BOMs and per-SKU cost snapshots.
 

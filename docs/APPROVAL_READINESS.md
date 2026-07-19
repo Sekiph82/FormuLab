@@ -41,7 +41,7 @@ interface ApprovalReadiness {
 
 ## What blocks readiness
 
-`assessApprovalReadiness(input)` walks four sources and is deterministic —
+`assessApprovalReadiness(input)` walks six sources and is deterministic —
 the same inputs always produce the same blockers, in the same order, so it
 can be re-run on every save, before showing an approval dialog, or in a test
 without surprise:
@@ -62,6 +62,28 @@ without surprise:
    `HUMAN_REVIEW_CLASSIFICATIONS` and `humanReviewAcknowledged` is not set,
    a `human_review` blocker is added regardless of whether any other finding
    exists.
+5. **An applied optimization run whose stored result was not actually
+   usable**: if `FormulationVersion.appliedOptimizationRunCode` is set, the
+   caller looks up the real, persisted `OptimizationRun` by that code and
+   reports its stored `result.status` as `appliedOptimizationRun`. A status
+   other than `optimal`/`feasible` — or no such run existing at all — blocks
+   with an `optimization` source. This is a defensive re-check against a
+   forged or stale reference, not a duplicate of the solver: the solver
+   already refused to report `optimal` for an infeasible problem: see
+   [ADVANCED_OPTIMIZER.md](ADVANCED_OPTIMIZER.md).
+6. **An applied substitution run whose stored result had no valid
+   candidate**: the same re-check for `appliedSubstitutionRunCode` against
+   the persisted `SubstitutionRun.result.status` (`substitution` source) —
+   see [MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md).
+
+Optimization and substitution runs are opt-in checks: a version with neither
+`appliedOptimizationRunCode` nor `appliedSubstitutionRunCode` set (the
+common case — most versions are authored directly) is unaffected by 5 and 6.
+Applying an optimization or substitution result is itself never an approval
+— see [ADVANCED_OPTIMIZER.md](ADVANCED_OPTIMIZER.md#workflow) and
+[MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md#workflow-spec-56):
+both workflows only ever produce a new working draft, and AI explanation
+text generated alongside either has no path to `blockers`.
 
 A compatibility or safety finding stops blocking only once its id appears in
 `resolvedFindingIds` — i.e. only after a formal resolution record exists for
@@ -99,7 +121,8 @@ entry point wherever readiness has already been computed.
 This applies identically regardless of how the transition is attempted: a UI
 button, a domain-service call, an import, a version restore, a clone, or an
 agent event. None of those paths grant an exemption — see
-`packages/shared/src/engine/approvalReadiness.test.ts` (16 tests) and
+`packages/shared/src/engine/approvalReadiness.test.ts` (22 tests, including
+the 6 optimization/substitution stored-status checks above) and
 `versioning.test.ts` for the bypass-attempt coverage, including agent/system/
 import actors and legacy-data migration paths.
 

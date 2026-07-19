@@ -107,6 +107,14 @@ Additional guarantees:
 Tests covering each bypass attempt are in
 `packages/shared/src/engine/versioning.test.ts`.
 
+A version created from an applied Advanced Optimizer or substitution result
+carries `appliedOptimizationRunCode` / `appliedSubstitutionRunCode` —
+[APPROVAL_READINESS.md](APPROVAL_READINESS.md) looks up the real, persisted
+run by that code and blocks approval if its stored result was not actually
+usable, a defensive re-check independent of the solver's/scorer's own
+correctness. Neither field grants or implies approval; both are additive,
+optional, and absent on every version authored directly.
+
 ## Known limitations
 
 - Variant comparison covers two versions at a time; there is no whole-tree

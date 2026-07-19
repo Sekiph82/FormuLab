@@ -3,10 +3,14 @@
 Honest state of the Kenya R&D platform transformation. "Done" here means
 implemented, wired in and covered by a passing test — not scaffolded.
 
-Last updated: end of the gap-closure phase — Excel import, supplier/
-packaging/factory-profile editors, formula lifecycle controls, structured
-version exports, the Compatibility Engine, the Safety Engine, cross-cutting
-Approval Readiness, and the Turkish locale.
+Last updated: end of the Advanced Optimizer / Substitution Engine phase —
+the gap-closure phase before it covered Excel import, supplier/packaging/
+factory-profile editors, formula lifecycle controls, structured version
+exports, the Compatibility Engine, the Safety Engine, cross-cutting Approval
+Readiness, and the Turkish locale; this phase adds the mixed-integer
+Advanced Formulation Constraint Optimizer, one-to-one material
+substitution, the optimization/substitution approval-readiness checks, and
+the platform's first migration runner.
 
 ## Scale note
 
@@ -226,6 +230,69 @@ See [APPROVAL_READINESS.md](../APPROVAL_READINESS.md).
   Chemical identifiers (CAS, INCI) are left untouched by design.
 - Desktop lint is clean (`pnpm --filter @ai4s/desktop lint` exits 0).
 
+### Advanced Formulation Constraint Optimizer (spec §1) — core solving
+See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md),
+[OPTIMIZATION_CONSTRAINTS.md](../OPTIMIZATION_CONSTRAINTS.md),
+[MULTI_OBJECTIVE_OPTIMIZATION.md](../MULTI_OBJECTIVE_OPTIMIZATION.md),
+[INFEASIBILITY_ANALYSIS.md](../INFEASIBILITY_ANALYSIS.md),
+[SOLVER_ARCHITECTURE.md](../SOLVER_ARCHITECTURE.md). The "Partially done"
+table above lists the real, disclosed gaps (soft constraints, property
+targets, profile/scenario UI) this section does not repeat.
+- Real mixed-integer solve (`runtime/formulation/advanced_optimizer.py`,
+  PuLP + CBC), additive to the untouched simple optimizer — composition,
+  functional-group, ratio and conditional constraints, all enforced, not
+  scaffolded
+- Compatibility/safety exclusion is real: every candidate pair is checked
+  with the actual `evaluateCompatibility`/`evaluateSafety` engines before a
+  solve, not a duplicated or hypothetical rule set
+- Weighted and lexicographic multi-objective, with `performance_score` and
+  `regulatory_uncertainty` refused outright rather than computed from
+  nothing
+- Structured infeasibility (4 deterministic causes + a disclosed generic
+  fallback) and sensitivity reporting that correctly refuses to print CBC
+  duals for a mixed-integer solve
+- Real cancellation (the spawned solver process is tracked and killable,
+  not merely a UI spinner) and PuLP auto-provisioning shared with the
+  simple optimizer's existing install path
+- Optimizer tab in the Formula Builder: candidate selection, functional
+  constraints, objective picker, run/cancel, results, infeasibility,
+  apply-to-draft — never overwrites a saved version
+- 36 Python tests, 10 shared TS tests, 6 approval-readiness tests
+
+### Raw-Material Substitution Engine (spec §12) — one-to-one
+See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md).
+- Deterministic scoring (`engine/substitution.ts`) over 15 real dimensions
+  traced to actual material/price/inventory/supplier/compatibility/safety
+  data; a dimension with no backing data reports `missingData`, never a
+  perfect-match default
+- Active-equivalent replacement, technical-maximum capping, ranking that
+  sorts a blocking finding after every clean candidate
+- "Replace material" action wired into the Formula Builder; applying a
+  candidate creates a new working draft and persists an immutable
+  `SubstitutionRun` record before touching it
+- 19 tests (`engine/substitution.test.ts`)
+- System (multi-material) substitution is schema-modelled, not yet built —
+  see the "Partially done" table
+
+### Approval readiness — optimization/substitution integration
+`assessApprovalReadiness` (see [APPROVAL_READINESS.md](../APPROVAL_READINESS.md))
+now also re-checks an applied optimization or substitution run's actual
+persisted result status against `FormulationVersion.appliedOptimizationRunCode`/
+`appliedSubstitutionRunCode` — a defensive check against a forged or stale
+reference, distinct from the solver's/scorer's own correctness. 6 new
+tests bring `approvalReadiness.test.ts` to 22.
+
+### Migration runner (spec §23) — minimal, real
+See [MIGRATIONS.md](../MIGRATIONS.md).
+- A generic `registerMigration`/`migrateRecord`/`migrateCollection` runner
+  (`engine/migrations.ts`) previously did not exist at all; every schema
+  already carried `schemaVersion` but nothing walked an old record forward
+- Registered for the four new optimizer/substitution collections; no
+  existing collection is migrated by it (opting one in is a deliberate
+  future change)
+- 10 tests against a synthetic schema proving chain-walking, duplicate-step
+  detection, and non-advancing-migration protection
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it
@@ -233,16 +300,13 @@ plainly so nothing here reads as available.
 
 | Area | Spec § |
 |---|---|
-| Advanced constraint optimizer (functional/ratio/conditional, multi-objective, structured infeasibility) | 1 |
 | Evidence origin classification wired into the pipeline | 4 |
 | Regulatory engine + rule import | 13 |
 | Manufacturing methods + batch records | 8 |
 | Lab trials + stability studies | 9 |
 | DOE | 10 |
 | Reverse formulation | 11 |
-| Substitution engine | 12 |
 | PDF/Word exports (JSON/CSV/Excel/ERP-draft-CSV exports exist — see gap-closure UI, Done) | 20, 21 |
-| Persistence migrations (schema-version field exists; no migration runner) | 23 |
 | Security threat model docs | 24 |
 | CI matrix, SBOM, secret scanning | 26 |
 | Identity rename (`ai4s` → `formulab`) | 22 |
@@ -252,6 +316,8 @@ plainly so nothing here reads as available.
 | Area | State |
 |---|---|
 | Localisation of screens outside the 8 shipped locales' major workflows | The parity test requires every locale to carry every key; a handful of generic-chrome strings (unrelated to the R&D workflows) may still read as an unreviewed literal translation rather than idiomatic phrasing pending a native-speaker pass. `scripts/i18n-fill-missing.py` fills gaps without overwriting real translations. |
+| Advanced constraint optimizer (spec §1) | Composition, functional-group, ratio and conditional constraints solve for real (mixed-integer where needed); soft constraints are schema-complete but currently enforced as hard; property targets are accepted but not solved or reported; the 31 seeded product-family profiles and the `OptimizationScenario` shape are not yet loaded/compared by the UI. See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md) for the exact boundary. |
+| Substitution engine (spec §12) | One-to-one substitution is fully scored and wired to the UI, re-running the real compatibility/safety engines per candidate. System (multi-material) substitution is modelled (`isSystem`, `requiresOptimization`) but not yet generated or routed through the optimizer. See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md). |
 
 ## Existing functionality preserved
 

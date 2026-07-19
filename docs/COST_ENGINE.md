@@ -152,3 +152,11 @@ difference is an artefact of what could not be costed, not a real cost movement.
 
 - No margin, pricing or profitability modelling.
 - Utilities are modelled per batch, not per process step.
+- The [Advanced Optimizer](ADVANCED_OPTIMIZER.md)'s `raw_material_cost`/
+  `landed_cost` objectives currently compute identically (true landed-cost
+  allocation is not yet plumbed into `OptimizationMaterial`), and
+  `total_factory_cost` is an alias of `landed_cost` — labour/utilities/QC/
+  waste/overhead are batch-level costs that do not move with which
+  materials are chosen, so they are correctly excluded from what a mix
+  optimizer optimizes. See
+  [MULTI_OBJECTIVE_OPTIMIZATION.md](MULTI_OBJECTIVE_OPTIMIZATION.md).

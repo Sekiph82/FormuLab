@@ -130,6 +130,13 @@ the collection into `backups/` first.
 The collection name is an allow-list on the Rust side; joining untrusted text
 onto a path is how a renderer bug becomes an arbitrary file write.
 
+This same material master is the candidate pool for the [Advanced
+Optimizer](ADVANCED_OPTIMIZER.md) and the source of every scored dimension
+in [material substitution](MATERIAL_SUBSTITUTION.md) — a field left
+`missing`/`unknown` here (rather than guessed) is exactly what those two
+engines report as `missingData` or an unknown active-matter/regulatory
+figure, never a silent zero or a silent perfect match.
+
 ## Known limitations
 
 - SDS/TDS/COA documents are modelled as references; there is no upload or
