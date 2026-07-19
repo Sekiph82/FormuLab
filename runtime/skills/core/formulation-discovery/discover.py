@@ -86,8 +86,13 @@ def _reconstruct_abstract(inv):
 def fetch_openalex(query, max_results):
     out, cursor = [], "*"
     while len(out) < max_results:
+        # Only open-access work: a paywalled hit costs a slot in the candidate
+        # pool and can never be downloaded or read, so it is filtered out at the
+        # source rather than discarded after the fact. Mirrors the OpenAlex UI
+        # filter `open_access.is_oa:true`.
         params = {"search": query, "per-page": str(min(50, max_results)),
-                  "cursor": cursor, "mailto": MAILTO}
+                  "cursor": cursor, "mailto": MAILTO,
+                  "filter": "open_access.is_oa:true"}
         data = json.loads(_get(f"https://api.openalex.org/works?{urllib.parse.urlencode(params)}"))
         results = data.get("results", [])
         if not results:
@@ -129,7 +134,10 @@ def fetch_europepmc(query, max_results):
     out, cursor = [], "*"
     base = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     while len(out) < max_results:
-        params = {"query": query, "format": "json", "resultType": "core",
+        # OPEN_ACCESS:y restricts to the OA subset, whose full text Europe PMC
+        # will actually serve — the rest can only ever contribute an abstract.
+        params = {"query": f"({query}) AND (OPEN_ACCESS:y)", "format": "json",
+                  "resultType": "core",
                   "pageSize": str(min(100, max_results)), "cursorMark": cursor}
         data = json.loads(_get(f"{base}?{urllib.parse.urlencode(params)}"))
         results = (data.get("resultList") or {}).get("result", [])
@@ -204,7 +212,9 @@ def fetch_crossref(query, max_results):
     industrial chemistry journals other sources rank lower. Roughly a third of
     records carry a deposited abstract; the rest still contribute title, venue
     and DOI, and dedup by DOI merges them with richer records from elsewhere."""
-    url = ("https://api.crossref.org/works?"
+    # has-full-text keeps records that advertise a retrievable body, which is the
+    # closest Crossref gets to an open-access filter.
+    url = ("https://api.crossref.org/works?filter=has-full-text:true&"
            f"query={urllib.parse.quote(query)}&rows={min(100, max_results)}"
            "&select=title,abstract,issued,author,container-title,DOI,"
            "is-referenced-by-count,link,license")
