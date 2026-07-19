@@ -12,6 +12,10 @@
 //   data/master/exchange_rates.json
 //   data/master/factory_profiles.json
 //   data/master/cost_snapshots.json
+//   data/master/optimization_profiles.json
+//   data/master/optimization_runs.json
+//   data/master/optimization_scenarios.json
+//   data/master/substitution_runs.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // One JSON array per collection rather than a database: the whole point of
@@ -34,7 +38,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 16] = [
+const COLLECTIONS: [(&str, bool); 20] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -56,6 +60,16 @@ const COLLECTIONS: [(&str, bool); 16] = [
     ("safety_snapshots", true),
     ("safety_resolutions", true),
     ("material_hazard_records", false),
+    // Advanced Optimizer: profiles are editable structural defaults; a run
+    // (the exact problem sent to the solver + the result it returned) and a
+    // named scenario are both immutable once written — re-solving creates a
+    // new run, never edits one in place.
+    ("optimization_profiles", false),
+    ("optimization_runs", true),
+    ("optimization_scenarios", true),
+    // Substitution engine: a run (the request + its scored candidates, and
+    // which one was applied) is immutable for the same reason.
+    ("substitution_runs", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {

@@ -17,8 +17,27 @@ import type { ProductSafetyClassification, SafetyFinding } from "../schemas/safe
 import { HUMAN_REVIEW_CLASSIFICATIONS } from "./safety";
 import { canTransitionTo, type Actor, type TransitionResult } from "../schemas/status";
 import { HUMAN_ONLY_STATUSES, type FormulaStatus } from "../schemas/formulation";
+import type { OptimizationRunStatus } from "../schemas/optimization";
+import type { SubstitutionResultStatus } from "../schemas/substitution";
 
-export type ApprovalBlockerSource = "validation" | "compatibility" | "safety" | "human_review";
+/** Statuses that count as a genuine, usable optimizer result. Anything else
+ *  (`infeasible`, `unbounded`, `timeout`, `cancelled`, `error`) means the
+ *  solver did not actually produce a formula the draft could honestly have
+ *  been built from — a version claiming to have applied such a run is either
+ *  stale or forged, and readiness blocks on it either way. */
+const VALID_OPTIMIZATION_STATUSES: readonly OptimizationRunStatus[] = ["optimal", "feasible"];
+
+/** Statuses that count as a genuine substitution outcome a candidate could
+ *  actually have been applied from. */
+const VALID_SUBSTITUTION_STATUSES: readonly SubstitutionResultStatus[] = ["candidates_found"];
+
+export type ApprovalBlockerSource =
+  | "validation"
+  | "compatibility"
+  | "safety"
+  | "human_review"
+  | "optimization"
+  | "substitution";
 
 export interface ApprovalBlocker {
   id: string;
@@ -53,6 +72,15 @@ export interface ApprovalReadinessInput {
   /** Set once a named human has acknowledged the mandatory-review
    *  classification itself (distinct from resolving any one finding). */
   humanReviewAcknowledged?: boolean;
+  /** Set when `FormulationVersion.appliedOptimizationRunCode` is present —
+   *  the caller must look up the ACTUAL persisted `OptimizationRun` by that
+   *  code and report its real, stored `result.status` here. This is a
+   *  defensive re-check, not a duplicate of the solver: a version cannot
+   *  claim to have applied an optimization result whose stored record
+   *  disagrees (or does not exist — pass `status: undefined` in that case). */
+  appliedOptimizationRun?: { code: string; status: OptimizationRunStatus | undefined };
+  /** Same defensive re-check for `FormulationVersion.appliedSubstitutionRunCode`. */
+  appliedSubstitutionRun?: { code: string; status: SubstitutionResultStatus | undefined };
 }
 
 /**
@@ -109,6 +137,32 @@ export function assessApprovalReadiness(input: ApprovalReadinessInput): Approval
       source: "human_review",
       message: `This product is classified "${input.productClassification.replace(/_/g, " ")}" and requires a named human to review and acknowledge before approval can proceed.`,
     });
+  }
+
+  if (input.appliedOptimizationRun) {
+    const { code, status } = input.appliedOptimizationRun;
+    if (!status || !VALID_OPTIMIZATION_STATUSES.includes(status)) {
+      blockers.push({
+        id: `optimization-run:${code}`,
+        source: "optimization",
+        message: status
+          ? `This version applied optimization run "${code}", but that run's stored result is "${status}", not a usable optimal/feasible result.`
+          : `This version applied optimization run "${code}", but no such run record exists.`,
+      });
+    }
+  }
+
+  if (input.appliedSubstitutionRun) {
+    const { code, status } = input.appliedSubstitutionRun;
+    if (!status || !VALID_SUBSTITUTION_STATUSES.includes(status)) {
+      blockers.push({
+        id: `substitution-run:${code}`,
+        source: "substitution",
+        message: status
+          ? `This version applied substitution run "${code}", but that run's stored result is "${status}", not a valid selected candidate.`
+          : `This version applied substitution run "${code}", but no such run record exists.`,
+      });
+    }
   }
 
   return { ready: blockers.length === 0, blockers, warnings };

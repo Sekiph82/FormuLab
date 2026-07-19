@@ -216,6 +216,14 @@ export const formulationVersionSchema = z.object({
   compatibilityFindingIds: z.array(z.string()).default([]),
   safetyFindingIds: z.array(z.string()).default([]),
   approvalRecordIds: z.array(z.string()).default([]),
+  /** Set when this version's draft was produced by applying an Advanced
+   *  Optimizer run's result (`OptimizationRun.code`) or a substitution run's
+   *  selected candidate (`SubstitutionRun.code`) — see
+   *  `engine/approvalReadiness.ts` and docs/APPROVAL_READINESS.md. Optional
+   *  and additive: a version with neither field was authored directly, which
+   *  remains the common case. */
+  appliedOptimizationRunCode: z.string().optional(),
+  appliedSubstitutionRunCode: z.string().optional(),
   /** Markdown rendering, for humans and export only. Never parsed back. */
   markdown: z.string().optional(),
 });

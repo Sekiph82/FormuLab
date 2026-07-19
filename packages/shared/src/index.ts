@@ -509,6 +509,12 @@ export * from "./catalog/safetyRules";
 export * from "./engine/approvalReadiness";
 export * from "./engine/lifecycle";
 export * from "./engine/exports";
+export * from "./schemas/optimization";
+export * from "./engine/optimization";
+export * from "./catalog/optimizationProfiles";
+export * from "./schemas/substitution";
+export * from "./engine/substitution";
+export * from "./engine/migrations";
 export {
   PRECISION,
   CURRENCY_DP,

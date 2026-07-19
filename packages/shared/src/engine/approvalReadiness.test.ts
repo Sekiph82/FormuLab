@@ -127,6 +127,71 @@ describe("assessApprovalReadiness", () => {
     expect(r.warnings).toHaveLength(1);
     expect(r.blockers).toHaveLength(0);
   });
+
+  it("is ready when the applied optimization run's stored status is optimal", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [],
+      compatibilityFindings: [],
+      safetyFindings: [],
+      appliedOptimizationRun: { code: "opt-1", status: "optimal" },
+    });
+    expect(r.ready).toBe(true);
+  });
+
+  it("blocks when a version claims an optimization run whose stored status is infeasible", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [],
+      compatibilityFindings: [],
+      safetyFindings: [],
+      appliedOptimizationRun: { code: "opt-1", status: "infeasible" },
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers[0].source).toBe("optimization");
+    expect(r.blockers[0].id).toBe("optimization-run:opt-1");
+  });
+
+  it("blocks when a version claims an optimization run that does not exist in the store", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [],
+      compatibilityFindings: [],
+      safetyFindings: [],
+      appliedOptimizationRun: { code: "opt-forged", status: undefined },
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers[0].message).toContain("no such run record exists");
+  });
+
+  it("is ready when the applied substitution run's stored status is candidates_found", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [],
+      compatibilityFindings: [],
+      safetyFindings: [],
+      appliedSubstitutionRun: { code: "sub-1", status: "candidates_found" },
+    });
+    expect(r.ready).toBe(true);
+  });
+
+  it("blocks when a version claims a substitution run with no valid candidate", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [],
+      compatibilityFindings: [],
+      safetyFindings: [],
+      appliedSubstitutionRun: { code: "sub-1", status: "no_valid_candidate" },
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers[0].source).toBe("substitution");
+  });
+
+  it("blocks when a version claims a forged substitution run", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [],
+      compatibilityFindings: [],
+      safetyFindings: [],
+      appliedSubstitutionRun: { code: "sub-forged", status: undefined },
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers[0].message).toContain("no such run record exists");
+  });
 });
 
 describe("canTransitionWithReadiness — bypass attempts", () => {
