@@ -44,6 +44,11 @@ fn probe_with_path(name: &str, bin: &str, version_arg: &str, path: Option<&str>)
 
 #[cfg(test)]
 mod tests {
+    // Both tests below are `#[cfg(unix)]` (they `chmod` a shell-script fixture
+    // executable, which has no Windows equivalent), so on a non-unix target
+    // nothing in this module uses `super::*` — gate the import the same way
+    // rather than leaving a platform-conditional unused-import warning.
+    #[cfg(unix)]
     use super::*;
 
     // A Finder-launched app has a minimal PATH, so probing with the plain

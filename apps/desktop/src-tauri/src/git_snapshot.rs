@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
-
 use crate::workspace::quiet_command;
 
 /// Serializes every snapshot commit process-wide. The frontend (on
@@ -371,8 +370,6 @@ fn no_snapshot_marker(root: &Path) -> PathBuf {
     root.join(".FormuLab").join(NO_SNAPSHOT_MARKER)
 }
 
-
-
 /// Ensure an app-owned snapshot repo exists. Returns `Ok(false)` when the folder
 /// already holds a git repo we did not create, or is an imported workspace —
 /// the caller must then NOT commit, so the user's own history and staged work
@@ -404,7 +401,9 @@ fn ensure_owned_repo(root: &Path) -> Result<bool, String> {
 }
 
 pub fn commit(root: &Path, message: &str) -> Result<bool, String> {
-    let _lock = git_lock().lock().map_err(|_| "git snapshot lock poisoned".to_string())?;
+    let _lock = git_lock()
+        .lock()
+        .map_err(|_| "git snapshot lock poisoned".to_string())?;
     if !ensure_owned_repo(root)? {
         // Not an app-managed repo — never commit into the user's own history.
         return Ok(false);
@@ -429,7 +428,6 @@ pub fn commit_best_effort(root: &Path, message: &str) {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{commit, git_available};
@@ -446,12 +444,12 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("AGENTS.md"), "rules\n").unwrap();
 
-        assert_eq!(commit(&root, "Initialize workspace").unwrap(), true);
+        assert!(commit(&root, "Initialize workspace").unwrap());
         assert!(root.join(".git").is_dir());
-        assert_eq!(commit(&root, "No changes").unwrap(), false);
+        assert!(!commit(&root, "No changes").unwrap());
 
         fs::write(root.join("AGENTS.md"), "rules\nmore\n").unwrap();
-        assert_eq!(commit(&root, "Update workspace").unwrap(), true);
+        assert!(commit(&root, "Update workspace").unwrap());
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -465,10 +463,14 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("small.txt"), "keep me\n").unwrap();
-        fs::write(root.join("big.bin"), vec![0u8; super::MAX_BLOB_BYTES as usize]).unwrap();
+        fs::write(
+            root.join("big.bin"),
+            vec![0u8; super::MAX_BLOB_BYTES as usize],
+        )
+        .unwrap();
 
         // The small file is committed; the oversized one is not.
-        assert_eq!(commit(&root, "Initialize workspace").unwrap(), true);
+        assert!(commit(&root, "Initialize workspace").unwrap());
         let tracked = super::capture(&root, &["ls-files"]).unwrap();
         let tracked = String::from_utf8_lossy(&tracked);
         assert!(tracked.contains("small.txt"));
@@ -496,7 +498,7 @@ mod tests {
             fs::write(root.join("dataset").join(format!("sample_{i}.dat")), &chunk).unwrap();
         }
 
-        assert_eq!(commit(&root, "Initialize workspace").unwrap(), true);
+        assert!(commit(&root, "Initialize workspace").unwrap());
         let tracked = super::capture(&root, &["ls-files"]).unwrap();
         let tracked = String::from_utf8_lossy(&tracked);
         assert!(tracked.contains("train.py"));
@@ -517,7 +519,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("AGENTS.md"), "rules\n").unwrap();
 
-        assert_eq!(commit(&root, "Initialize workspace").unwrap(), true);
+        assert!(commit(&root, "Initialize workspace").unwrap());
         let gitignore = fs::read_to_string(root.join(".gitignore")).unwrap();
         assert!(gitignore.contains("node_modules/"));
         assert!(gitignore.contains(".env"));
@@ -541,13 +543,25 @@ mod tests {
         fs::write(root.join("data.txt"), "user work in progress\n").unwrap();
 
         // We must decline it, leave the tree/index alone, and plant no marker.
-        assert_eq!(commit(&root, "should be skipped").unwrap(), false);
+        assert!(!commit(&root, "should be skipped").unwrap());
         assert!(!super::snapshot_marker(&root).exists());
         let _ = fs::remove_dir_all(&root);
     }
 
+    /// `ensure_owned_repo` still honors a `.FormuLab/.no-snapshots` marker on a
+    /// plain folder (see `no_snapshot_marker`) — a workspace bearing it is never
+    /// `git init`ed or committed into. The writer side of this mechanism
+    /// (`mark_imported`, plus a `.git/info/exclude`-writing counterpart for an
+    /// already-a-repo workspace) was removed in 09bc5e5 ("Finish removing
+    /// OpenCode from the Rust side") along with the whole external-workspace
+    /// "import as project" feature it served — grep confirms no `ProjectInfo`,
+    /// `import_project`, `create_project` or `list_projects` exists anywhere in
+    /// this crate today, so there is nothing left to call a writer with. The
+    /// check itself is cheap and harmless to leave in place for when that
+    /// feature returns; this test plants the marker directly (what a future
+    /// writer would do) to prove the check side still works.
     #[test]
-    fn imported_plain_folder_is_never_initialized_or_committed() {
+    fn a_workspace_bearing_the_no_snapshot_marker_is_never_initialized_or_committed() {
         if !git_available() {
             eprintln!("git unavailable; skipping git snapshot test");
             return;
@@ -557,43 +571,13 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("notes.md"), "brought-in work\n").unwrap();
 
-        // Importing a plain (non-repo) folder opts it out of snapshots.
-        super::mark_imported(&root);
-        assert!(super::no_snapshot_marker(&root).exists());
+        let marker = super::no_snapshot_marker(&root);
+        fs::create_dir_all(marker.parent().unwrap()).unwrap();
+        fs::write(&marker, b"imported\n").unwrap();
 
         // A later commit must NOT `git init` it and must NOT commit.
-        assert_eq!(commit(&root, "should be skipped").unwrap(), false);
+        assert!(!commit(&root, "should be skipped").unwrap());
         assert!(!root.join(".git").exists());
-        let _ = fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn importing_a_repo_keeps_it_pristine_and_excludes_the_provenance_dir() {
-        if !git_available() {
-            eprintln!("git unavailable; skipping git snapshot test");
-            return;
-        }
-        let root = std::env::temp_dir().join(format!("os-git-imported-repo-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
-        super::run(&root, &["init"]).unwrap();
-
-        super::mark_imported(&root);
-        // A real repo isn't given the opt-out marker (marker-absence already
-        // makes commit() skip it) but gets a LOCAL exclude for .FormuLab/.
-        assert!(!super::no_snapshot_marker(&root).exists());
-        let exclude = fs::read_to_string(root.join(".git/info/exclude")).unwrap();
-        assert!(exclude.lines().any(|l| l.trim() == ".FormuLab/"));
-
-        // Still declined by commit(), user's history untouched, and idempotent.
-        assert_eq!(commit(&root, "should be skipped").unwrap(), false);
-        super::mark_imported(&root); // no duplicate exclude line
-        let count = fs::read_to_string(root.join(".git/info/exclude"))
-            .unwrap()
-            .lines()
-            .filter(|l| l.trim() == ".FormuLab/")
-            .count();
-        assert_eq!(count, 1);
         let _ = fs::remove_dir_all(&root);
     }
 }
