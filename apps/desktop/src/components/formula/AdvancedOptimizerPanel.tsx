@@ -31,6 +31,8 @@ const METRICS: OptimizationMetric[] = [
   "carbon_score",
   "stock_utilization",
   "evidence_confidence",
+  "compatibility_risk",
+  "safety_risk",
 ];
 
 interface ObjectiveRow {
@@ -130,6 +132,77 @@ function blockingExclusionConstraints(
   return constraints;
 }
 
+const SEVERITY_RISK_WEIGHT: Record<"info" | "warning" | "error", number> = {
+  info: 0.1,
+  warning: 0.4,
+  error: 0.8,
+};
+
+/** A `human_review_required`/incomplete-data finding is weighted UP, not
+ *  skipped — unknown data is never treated as safe (the platform-wide
+ *  DATA_STATES convention, applied here to risk scoring). */
+const UNVERIFIED_RISK_MULTIPLIER = 1.3;
+
+/**
+ * The real implementation behind the `compatibility_risk`/`safety_risk`
+ * objective metrics (spec §A4). `blockingExclusionConstraints` above already
+ * turns every `blocking` finding into a hard exclusion — this instead scores
+ * every non-blocking finding (info/warning/error) so the optimizer can
+ * genuinely prefer a lower-risk candidate when cost/other constraints allow
+ * it, rather than the two risk objectives evaluating to a flat, meaningless
+ * zero. Uses the SAME `evaluateCompatibility`/`evaluateSafety` engines the
+ * Compatibility/Safety tabs use — no rule logic is duplicated here.
+ *
+ * Scored per MATERIAL (summed across every pairing it appears in among the
+ * chosen candidates, capped at 1.0), because the solver's objective is
+ * linear in one variable per material, not a pairwise matrix. Every chosen
+ * material gets an explicit `0`, never `undefined`, as soon as there is at
+ * least one other candidate to pair it against — `undefined` (meaning "no
+ * data, contributes nothing to the objective") is reserved for the genuine
+ * edge case of a single-candidate pool where no pairwise evaluation is even
+ * possible, never used as a shortcut for "did not bother checking".
+ */
+function gradedRiskScores(
+  chosen: RawMaterial[],
+  allMaterials: RawMaterial[],
+): { compatibilityRisk: Record<string, number>; safetyRisk: Record<string, number> } {
+  const compatibilityRisk: Record<string, number> = {};
+  const safetyRisk: Record<string, number> = {};
+  if (chosen.length < 2) return { compatibilityRisk, safetyRisk };
+
+  for (const m of chosen) {
+    compatibilityRisk[m.code] = 0;
+    safetyRisk[m.code] = 0;
+  }
+
+  for (let i = 0; i < chosen.length; i++) {
+    for (let j = i + 1; j < chosen.length; j++) {
+      const lines = [syntheticLine(chosen[i], 0), syntheticLine(chosen[j], 1)];
+      const compat = evaluateCompatibility(lines, SEED_COMPATIBILITY_RULES, { materials: allMaterials });
+      const safety = evaluateSafety(lines, SEED_SAFETY_RULES, { materials: allMaterials });
+
+      for (const f of compat) {
+        if (f.severity === "blocking") continue; // already a hard exclusion via blockingExclusionConstraints.
+        let weight = SEVERITY_RISK_WEIGHT[f.severity];
+        if (f.verificationStatus === "human_review_required" || f.dataIncomplete) weight *= UNVERIFIED_RISK_MULTIPLIER;
+        for (const code of f.materialIds) {
+          if (code in compatibilityRisk) compatibilityRisk[code] = Math.min(1, compatibilityRisk[code] + weight);
+        }
+      }
+      for (const f of safety) {
+        if (f.severity === "blocking") continue;
+        let weight = SEVERITY_RISK_WEIGHT[f.severity];
+        if (f.humanReviewRequired || f.dataIncomplete) weight *= UNVERIFIED_RISK_MULTIPLIER;
+        for (const code of f.affectedMaterialIds) {
+          if (code in safetyRisk) safetyRisk[code] = Math.min(1, safetyRisk[code] + weight);
+        }
+      }
+    }
+  }
+
+  return { compatibilityRisk, safetyRisk };
+}
+
 export function AdvancedOptimizerPanel({
   formulation,
   batchKg,
@@ -184,6 +257,7 @@ export function AdvancedOptimizerPanel({
   const buildProblem = useCallback(() => {
     const asOf = new Date().toISOString();
     const chosen = materials.filter((m) => selected.has(m.code) && m.active);
+    const { compatibilityRisk, safetyRisk } = gradedRiskScores(chosen, materials);
     const optMaterials = chosen.map((m) => {
       const priceChoice = priceFor(prices, m.code, asOf);
       const stockRecords = inventory.filter((r) => r.materialCode === m.code);
@@ -210,6 +284,8 @@ export function AdvancedOptimizerPanel({
         stock: stockRecords.length > 0 ? { value: String(availableKg), state: "known" as const } : undefined,
         casNumbers: m.casNumbers,
         excluded: false,
+        compatibilityRiskScore: compatibilityRisk[m.code],
+        safetyRiskScore: safetyRisk[m.code],
       };
     });
 
