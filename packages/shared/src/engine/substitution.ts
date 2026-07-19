@@ -19,7 +19,7 @@
  * platform's material master — inventing a score for them would be exactly
  * the "ranked by name similarity" anti-pattern this module exists to avoid).
  */
-import { dec, tryDec, Decimal } from "./decimal";
+import { dec, tryDec, fmt, Decimal } from "./decimal";
 import type { IonicCharacter } from "../schemas/materials";
 import type { MaterialFunction } from "../schemas/formulation";
 import type {
@@ -449,7 +449,7 @@ export function activeEquivalentPercent(
   const candidateActive = tryDec(candidateActiveMatterPercent);
   if (targetActive === undefined || candidateActive === undefined || candidateActive.isZero()) return undefined;
   const contributedActive = dec(targetLinePercent).times(targetActive).div(100);
-  return contributedActive.times(100).div(candidateActive).toDecimalPlaces(4).toString();
+  return fmt(contributedActive.times(100).div(candidateActive), "percent");
 }
 
 /** Build the `SubstitutionCandidate` record from a scored candidate — the
@@ -501,7 +501,7 @@ export function buildCandidateRecord(
     hasBlockingSafetyFinding: candidate.hasBlockingSafetyFinding ?? false,
     costImpact:
       target.landedCost !== undefined && candidate.landedCost !== undefined
-        ? dec(candidate.landedCost).minus(dec(target.landedCost)).toDecimalPlaces(6).toString()
+        ? fmt(dec(candidate.landedCost).minus(dec(target.landedCost)), "unitPrice")
         : undefined,
     landedCostImpact: undefined,
     stockAvailable: candidate.availableStockKg === undefined ? undefined : dec(candidate.availableStockKg).greaterThan(0),

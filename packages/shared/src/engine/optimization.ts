@@ -11,7 +11,7 @@
  * sanity-check a result without re-solving), and the fixed ceiling on what
  * this platform is honestly capable of computing for a given property.
  */
-import { dec, ZERO } from "./decimal";
+import { dec, fmt, ZERO } from "./decimal";
 import { MATERIAL_FUNCTIONS, type MaterialFunction } from "../schemas/formulation";
 import {
   FORMULATION_PROPERTIES,
@@ -74,18 +74,12 @@ void PROPERTY_CLASSIFICATIONS;
  *  arithmetic the solver used, recomputable here for display and for
  *  cross-checking a persisted `OptimizationRun` without re-solving. */
 export function totalActiveContribution(lines: readonly OptimizedFormulaLine[]): string {
-  return lines
-    .reduce((sum, l) => sum.plus(dec(l.activeContributionPercent)), ZERO)
-    .toDecimalPlaces(4)
-    .toString();
+  return fmt(lines.reduce((sum, l) => sum.plus(dec(l.activeContributionPercent)), ZERO), "percent");
 }
 
 /** Sum of raw-material `percent` across a set of resolved formula lines. */
 export function totalRawPercent(lines: readonly OptimizedFormulaLine[]): string {
-  return lines
-    .reduce((sum, l) => sum.plus(dec(l.percent)), ZERO)
-    .toDecimalPlaces(4)
-    .toString();
+  return fmt(lines.reduce((sum, l) => sum.plus(dec(l.percent)), ZERO), "percent");
 }
 
 /**
@@ -107,7 +101,7 @@ export function functionalGroupContribution(
     basis === "active_matter" && line.activeContributionPercent !== undefined
       ? line.activeContributionPercent
       : line.percent;
-  return dec(value).toDecimalPlaces(4).toString();
+  return fmt(dec(value), "percent");
 }
 
 /** Every function group this platform models, for UI pickers — re-exported
