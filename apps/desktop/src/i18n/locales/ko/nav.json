@@ -12,7 +12,9 @@
     "notebooks": "노트북",
     "files": "파일",
     "runs": "실행",
-    "optimizer": "최적화 도구"
+    "optimizer": "최적화 도구",
+    "formulas": "Formulas",
+    "materials": "Materials"
   },
   "history": {
     "heading": "세션",

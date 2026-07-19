@@ -43,6 +43,9 @@ module.exports = {
             "styleName",
             "style",
             "type",
+            // "inputMode" is the HTML keyboard hint ("decimal", "numeric"), a
+            // technical enum like "type" — never shown to anyone.
+            "inputMode",
             "key",
             "id",
             "width",
@@ -56,6 +59,10 @@ module.exports = {
             "value",
             "root",
             "variant",
+            // "tone" is a visual-severity discriminator ("ok" | "warn" | "error"),
+            // the same kind of technical union tag as "variant" — the component maps
+            // it to colours, and the text beside it is what actually gets translated.
+            "tone",
             "language",
             "dot",
             "options",

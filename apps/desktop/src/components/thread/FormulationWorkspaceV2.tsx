@@ -15,6 +15,9 @@ import {
 import { AgentMessage } from "./atoms";
 import { FormulationStudio } from "./FormulationStudio";
 import { CostingPanel } from "./CostingPanel";
+import { FormulaBuilder } from "@/components/formula/FormulaBuilder";
+import { linesFromGeneratedFormula } from "@/lib/formulations";
+import type { FormulationLine } from "@ai4s/shared";
 
 /**
  * FormuLab v2 workspace — the direct-pipeline surface, no OpenCode. Two regions:
@@ -194,9 +197,79 @@ function ResultBody({
     );
   }
   if (view.mode === "cards") {
-    const card = view.cards[Math.min(active, view.cards.length - 1)];
+    return <CardsView view={view} active={active} setActive={setActive} t={t} />;
+  }
+  // empty
+  return (
+    <div className="px-6 py-5">
+      <div className="mx-auto mt-[18vh] max-w-[360px] text-center text-sm text-muted">
+        <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-surface-2 text-muted ring-1 ring-border">
+          <FileText size={18} />
+        </div>
+        {keyMissing
+          ? t("studio.result.needKey")
+          : t("studio.result.empty")}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The generated card, and the editable formula behind it.
+ *
+ * A generated card is a starting point, not the end of the workflow: the
+ * chemist edits it here and saves a version. The card stays available as the
+ * printable, citable record of what was generated.
+ */
+function CardsView({
+  view,
+  active,
+  setActive,
+  t,
+}: {
+  view: Extract<View, { mode: "cards" }>;
+  active: number;
+  setActive: (i: number) => void;
+  t: TFunction<readonly ["session", "common"]>;
+}) {
+  const card = view.cards[Math.min(active, view.cards.length - 1)];
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<FormulationLine[]>([]);
+  const [batchKg, setBatchKg] = useState("100");
+
+  // Entering edit mode seeds the grid from the generated formula, carrying each
+  // ingredient's origin through as a model estimate rather than a fact.
+  const startEditing = () => {
+    if (draft.length === 0 && card.formula) {
+      setDraft(linesFromGeneratedFormula(card.formula));
+    }
+    setEditing(true);
+  };
+
     return (
       <div className="flex h-full flex-col">
+        <div className="print-hide flex shrink-0 items-center gap-1 border-b border-border-faint px-6 pt-3">
+          <button
+            onClick={() => setEditing(false)}
+            className={cn(
+              "rounded-t-input border-b-2 px-3 py-1.5 text-xs font-medium transition-colors",
+              !editing ? "border-accent text-text" : "border-transparent text-muted hover:text-text",
+            )}
+          >
+            {t("builder.cardTab")}
+          </button>
+          {card.formula ? (
+            <button
+              onClick={startEditing}
+              className={cn(
+                "rounded-t-input border-b-2 px-3 py-1.5 text-xs font-medium transition-colors",
+                editing ? "border-accent text-text" : "border-transparent text-muted hover:text-text",
+              )}
+            >
+              {t("builder.editTab")}
+            </button>
+          ) : null}
+        </div>
         {view.cards.length > 1 && (
           <div className="print-hide flex shrink-0 gap-1 border-b border-border-faint px-6 pt-3">
             {view.cards.map((c, i) => (
@@ -218,26 +291,22 @@ function ResultBody({
             ))}
           </div>
         )}
-        {/* print-area: the only thing that reaches paper (see index.css). */}
-        <div className="print-area min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <AgentMessage markdown={card.markdown} />
-          {card.formula ? <CostingPanel formula={card.formula} /> : null}
-        </div>
+        {editing && card.formula ? (
+          <FormulaBuilder
+            lines={draft}
+            onChange={setDraft}
+            batchKg={batchKg}
+            onBatchChange={setBatchKg}
+            dirty={draft.length > 0}
+          />
+        ) : (
+          /* print-area: the only thing that reaches paper (see index.css). */
+          <div className="print-area min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <AgentMessage markdown={card.markdown} />
+            {card.formula ? <CostingPanel formula={card.formula} /> : null}
+          </div>
+        )}
       </div>
-    );
-  }
-  // empty
-  return (
-    <div className="px-6 py-5">
-      <div className="mx-auto mt-[18vh] max-w-[360px] text-center text-sm text-muted">
-        <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-surface-2 text-muted ring-1 ring-border">
-          <FileText size={18} />
-        </div>
-        {keyMissing
-          ? t("studio.result.needKey", "Add an API key on the left, then Generate.")
-          : t("studio.result.empty")}
-      </div>
-    </div>
   );
 }
 

@@ -12,7 +12,9 @@
     "notebooks": "ノートブック",
     "files": "ファイル",
     "runs": "実行",
-    "optimizer": "最適化"
+    "optimizer": "最適化",
+    "formulas": "Formulas",
+    "materials": "Materials"
   },
   "history": {
     "heading": "セッション",

@@ -4,12 +4,14 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Beaker,
+  Boxes,
   FlaskConical,
   FolderTree,
   NotebookPen,
   PanelLeft,
   Plus,
   Settings,
+  Table2,
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -199,6 +201,16 @@ export function Sidebar() {
                 icon={<Plus size={16} />}
                 label={t("items.new")}
                 onClick={() => navigate("/live")}
+              />
+              <NavRow
+                icon={<Table2 size={16} />}
+                label={t("items.formulas")}
+                onClick={() => navigate("/formulas")}
+              />
+              <NavRow
+                icon={<Boxes size={16} />}
+                label={t("items.materials")}
+                onClick={() => navigate("/materials")}
               />
               <NavRow
                 icon={<Beaker size={16} />}

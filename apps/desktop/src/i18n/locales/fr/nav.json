@@ -12,7 +12,9 @@
     "notebooks": "Notebooks",
     "files": "Fichiers",
     "runs": "Exécutions",
-    "optimizer": "Optimiseur"
+    "optimizer": "Optimiseur",
+    "formulas": "Formulas",
+    "materials": "Materials"
   },
   "history": {
     "heading": "Sessions",

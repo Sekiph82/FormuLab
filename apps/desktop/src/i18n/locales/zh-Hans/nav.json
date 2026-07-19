@@ -12,7 +12,9 @@
     "notebooks": "笔记本",
     "files": "文件",
     "runs": "运行",
-    "optimizer": "优化器"
+    "optimizer": "优化器",
+    "formulas": "Formulas",
+    "materials": "Materials"
   },
   "history": {
     "heading": "会话",
