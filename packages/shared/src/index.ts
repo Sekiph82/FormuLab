@@ -482,3 +482,11 @@ export function seriesColor(i: number, theme: ChartTheme): string {
   const c = chartPalette(theme).categorical;
   return c[((i % c.length) + c.length) % c.length];
 }
+
+// ---- Formulation domain schemas (Kenya R&D platform) ------------------------
+// Versioned, validated shapes shared by the UI, the Python pipeline and exports.
+export * from "./schemas/product";
+export * from "./schemas/formulation";
+export * from "./schemas/status";
+export * from "./schemas/events";
+export * from "./catalog/kenya";
