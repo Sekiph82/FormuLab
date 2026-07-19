@@ -476,6 +476,16 @@
       "dialogTitle": "Create a named variant",
       "nameLabel": "Variant name",
       "hint": "Starts a new draft from this version. Saving it records this name as the variant's branch, and the parent relationship is kept."
+    },
+    "export": {
+      "button": "Export",
+      "json": "JSON formulation package",
+      "csv": "CSV formula",
+      "xlsx": "Excel formula sheet",
+      "costSnapshot": "Cost snapshot (JSON)",
+      "packagingBom": "Packaging BOM (JSON)",
+      "erpBom": "ERP draft BOM (CSV)",
+      "erpRecipe": "ERP draft recipe (CSV)"
     }
   },
   "compare": {

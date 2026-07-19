@@ -17,7 +17,9 @@ import {
   type Formulation,
   type FormulationDraft,
   type FormulationLine,
+  type CostSnapshot,
   type FormulationVersion,
+  type PackagingBom,
   type RawMaterial,
 } from "@ai4s/shared";
 import { FormulaBuilder } from "@/components/formula/FormulaBuilder";
@@ -25,6 +27,7 @@ import { VersionCompare } from "@/components/formula/VersionCompare";
 import { CostPanel } from "@/components/formula/CostPanel";
 import { CompatibilityPanel } from "@/components/formula/CompatibilityPanel";
 import { SafetyPanel } from "@/components/formula/SafetyPanel";
+import { ExportMenu } from "@/components/formula/ExportMenu";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
 import { SaveVersionDialog } from "@/components/formula/SaveVersionDialog";
 import { useUndoable } from "@/components/formula/useUndoable";
@@ -69,6 +72,8 @@ export function FormulasPage() {
   const [focusLineId, setFocusLineId] = useState<string | null>(null);
   const [auditLog, setAuditLog] = useState<AuditEvent[]>([]);
   const [pendingBranchName, setPendingBranchName] = useState<string | undefined>(undefined);
+  const [costSnapshots, setCostSnapshots] = useState<CostSnapshot[]>([]);
+  const [packagingBoms, setPackagingBoms] = useState<PackagingBom[]>([]);
 
   const draft = useUndoable<FormulationDraft | null>(null);
   // Bound before the JSX: a tab key written inline reads as display text to the
@@ -102,6 +107,8 @@ export function FormulasPage() {
   useEffect(() => {
     void refreshProjects();
     void listRecords("materials").then(setMaterials);
+    void listRecords("cost_snapshots").then(setCostSnapshots);
+    void listRecords("packaging_boms").then(setPackagingBoms);
   }, [refreshProjects]);
 
   const openProject = useCallback(
@@ -354,10 +361,13 @@ export function FormulasPage() {
           />
         )}
 
-        {tab === "versions" && (
+        {tab === "versions" && active && (
           <VersionsTab
+            formulation={active}
             versions={versions}
             auditLog={auditLog}
+            costSnapshots={costSnapshots}
+            packagingBoms={packagingBoms}
             onRestore={onRestore}
             onLifecycleAction={onLifecycleAction}
             onCreateVariant={onCreateVariant}
@@ -405,14 +415,20 @@ export function FormulasPage() {
 }
 
 function VersionsTab({
+  formulation,
   versions,
   auditLog,
+  costSnapshots,
+  packagingBoms,
   onRestore,
   onLifecycleAction,
   onCreateVariant,
 }: {
+  formulation: Formulation;
   versions: FormulationVersion[];
   auditLog: AuditEvent[];
+  costSnapshots: CostSnapshot[];
+  packagingBoms: PackagingBom[];
   onRestore: (v: FormulationVersion) => void;
   onLifecycleAction: (v: FormulationVersion, to: "retired" | "rejected" | "concept", reason: string) => Promise<void>;
   onCreateVariant: (v: FormulationVersion, branchName: string) => Promise<void>;
@@ -479,7 +495,14 @@ function VersionsTab({
                         })}`}
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                  <div className="flex shrink-0 flex-wrap items-start justify-end gap-1">
+                    <ExportMenu
+                      formulation={formulation}
+                      version={v}
+                      effectiveStatus={status}
+                      costSnapshot={costSnapshots.filter((c) => c.versionId === v.id).sort((a, b) => b.calculatedAt.localeCompare(a.calculatedAt))[0]}
+                      packagingBom={packagingBoms.find((b) => formulation.targetSkuCodes.includes(b.skuCode))}
+                    />
                     <button
                       onClick={() => onRestore(v)}
                       title={t("builder.restoreTitle")}
