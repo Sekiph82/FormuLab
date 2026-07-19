@@ -337,7 +337,8 @@
       "errorTitle": "問題が発生しました",
       "needKey": "左側にAPIキーを追加してから生成してください。",
       "print": "印刷",
-      "printTitle": "この処方カードを印刷します（プリンターを選択、または PDF に印刷）"
+      "printTitle": "この処方カードを印刷します（プリンターを選択、または PDF に印刷）",
+      "sourcesCount": "{{count}} sources"
     },
     "sessions": {
       "heading": "セッション",

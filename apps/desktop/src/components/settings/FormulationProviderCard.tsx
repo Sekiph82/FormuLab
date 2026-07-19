@@ -46,7 +46,7 @@ export function FormulationProviderCard() {
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">
-            Provider
+            {t("model.providerLabel")}
           </span>
           <div className="relative">
             <select
@@ -56,8 +56,7 @@ export function FormulationProviderCard() {
             >
               {PROVIDERS.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label}
-                  {p.free ? " · free tier" : ""}
+                  {p.free ? t("model.providerFreeTier", { label: p.label }) : p.label}
                 </option>
               ))}
             </select>
@@ -70,7 +69,7 @@ export function FormulationProviderCard() {
 
         <label className="block">
           <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">
-            Model
+            {t("model.modelLabel")}
           </span>
           <input
             list="formulab-model-options"
@@ -90,7 +89,7 @@ export function FormulationProviderCard() {
         <label className="mt-3 block">
           <span className="mb-1 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted">
             <span className="flex items-center gap-1">
-              <Key size={11} /> API key
+              <Key size={11} /> {t("model.apiKeyLabel")}
               {hasKey && <Check size={12} className="text-ok" />}
             </span>
             {def.keyUrl && (
@@ -100,7 +99,7 @@ export function FormulationProviderCard() {
                 rel="noreferrer"
                 className="flex items-center gap-0.5 normal-case text-accent hover:underline"
               >
-                get a key <ExternalLink size={10} />
+                {t("model.getKey")} <ExternalLink size={10} />
               </a>
             )}
           </span>
@@ -120,12 +119,10 @@ export function FormulationProviderCard() {
               onClick={() => setShowKey((s) => !s)}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted hover:text-text"
             >
-              {showKey ? "hide" : "show"}
+              {showKey ? t("model.hideKey") : t("model.showKey")}
             </button>
           </div>
-          <span className="mt-1.5 block text-[11px] text-muted">
-            Stored locally on this device only — never uploaded or committed.
-          </span>
+          <span className="mt-1.5 block text-[11px] text-muted">{t("model.keyStoredLocally")}</span>
         </label>
       )}
     </Section>

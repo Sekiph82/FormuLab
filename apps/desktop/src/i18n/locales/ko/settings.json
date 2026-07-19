@@ -97,7 +97,15 @@
     "noResults": "“{{query}}”와 일치하는 모델이 없습니다.",
     "clearSearch": "검색 지우기",
     "addFavorite": "{{model}}을 즐겨찾기에 추가",
-    "removeFavorite": "{{model}}을 즐겨찾기에서 제거"
+    "removeFavorite": "{{model}}을 즐겨찾기에서 제거",
+    "providerLabel": "Provider",
+    "providerFreeTier": "{{label}} · free tier",
+    "modelLabel": "Model",
+    "apiKeyLabel": "API key",
+    "getKey": "get a key",
+    "hideKey": "hide",
+    "showKey": "show",
+    "keyStoredLocally": "Stored locally on this device only — never uploaded or committed."
   },
   "providers": {
     "title": "공급자",
@@ -125,7 +133,8 @@
     "customKeyPlaceholder": "API 키 — 선택 사항, Ollama는 필요 없음",
     "customModelsPlaceholder": "모델 ID, 쉼표로 구분",
     "addEndpoint": "엔드포인트 추가",
-    "importLogin": "이미 OpenCode CLI를 사용 중이신가요? 로그인 정보 가져오기"
+    "importLogin": "이미 OpenCode CLI를 사용 중이신가요? 로그인 정보 가져오기",
+    "modelCount_one": "{{count}} model"
   },
   "mcp": {
     "title": "MCP 서버",
@@ -249,7 +258,8 @@
       "diskFree": "{{size}} 여유",
       "gpuHomogeneous": "{{name}} {{count}}개",
       "gpuMixed": "GPU {{count}}개",
-      "slurmPrefix": "Slurm "
+      "slurmPrefix": "Slurm ",
+      "cores_one": "{{count}} core"
     },
     "usage": {
       "cpuLoad": "CPU 부하",

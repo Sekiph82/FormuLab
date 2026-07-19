@@ -48,7 +48,7 @@ export function CostingPanel({ formula }: { formula: unknown }) {
             inputMode="decimal"
             className="w-20 rounded-input border border-border bg-surface px-2 py-1 text-right text-[12px] text-text outline-none focus:border-accent"
           />
-          kg
+          {t("builder.kgUnit")}
         </label>
         <button
           onClick={() => void run()}

@@ -337,7 +337,8 @@
       "errorTitle": "Une erreur s'est produite",
       "needKey": "Ajoutez une clé API à gauche, puis cliquez sur Générer.",
       "print": "Imprimer",
-      "printTitle": "Imprimer cette fiche de formulation (choisir une imprimante ou Imprimer en PDF)"
+      "printTitle": "Imprimer cette fiche de formulation (choisir une imprimante ou Imprimer en PDF)",
+      "sourcesCount": "{{count}} sources"
     },
     "sessions": {
       "heading": "Sessions",

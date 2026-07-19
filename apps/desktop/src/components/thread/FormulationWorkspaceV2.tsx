@@ -122,7 +122,9 @@ export function FormulationWorkspaceV2() {
           </div>
           <div className="flex items-center gap-3">
             {view.mode === "cards" && view.papers != null && (
-              <span className="text-[11px] text-muted">{view.papers} sources</span>
+              <span className="text-[11px] text-muted">
+                {t("studio.result.sourcesCount", { count: view.papers })}
+              </span>
             )}
             {view.mode === "cards" && (
               // The OS print dialog reaches every installed printer, and its

@@ -333,6 +333,7 @@
       "working": "Working — reading the literature and drafting your formulation. This can take a few minutes.",
       "empty": "Describe a product on the left and press Generate. The formulation card will appear here.",
       "readOnly": "saved · read-only",
+      "sourcesCount": "{{count}} sources",
       "refusedTitle": "Request declined",
       "errorTitle": "Something went wrong",
       "needKey": "Add an API key on the left, then Generate.",

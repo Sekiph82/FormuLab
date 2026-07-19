@@ -337,7 +337,8 @@
       "errorTitle": "出错了",
       "needKey": "在左侧添加 API 密钥，然后点击生成。",
       "print": "打印",
-      "printTitle": "打印此配方卡（选择打印机，或打印为 PDF）"
+      "printTitle": "打印此配方卡（选择打印机，或打印为 PDF）",
+      "sourcesCount": "{{count}} sources"
     },
     "sessions": {
       "heading": "会话",

@@ -97,7 +97,15 @@
     "noResults": "没有模型匹配“{{query}}”。",
     "clearSearch": "清除搜索",
     "addFavorite": "将 {{model}} 添加到收藏",
-    "removeFavorite": "从收藏中移除 {{model}}"
+    "removeFavorite": "从收藏中移除 {{model}}",
+    "providerLabel": "Provider",
+    "providerFreeTier": "{{label}} · free tier",
+    "modelLabel": "Model",
+    "apiKeyLabel": "API key",
+    "getKey": "get a key",
+    "hideKey": "hide",
+    "showKey": "show",
+    "keyStoredLocally": "Stored locally on this device only — never uploaded or committed."
   },
   "providers": {
     "title": "供应商",
@@ -125,7 +133,8 @@
     "customKeyPlaceholder": "API 密钥 — 可选，Ollama 不需要",
     "customModelsPlaceholder": "模型 ID，以逗号分隔",
     "addEndpoint": "添加端点",
-    "importLogin": "已经在使用 OpenCode CLI？导入其登录信息"
+    "importLogin": "已经在使用 OpenCode CLI？导入其登录信息",
+    "modelCount_one": "{{count}} model"
   },
   "mcp": {
     "title": "MCP 服务器",
@@ -249,7 +258,8 @@
       "diskFree": "剩余 {{size}}",
       "gpuHomogeneous": "{{count}}× {{name}}",
       "gpuMixed": "{{count}} 个 GPU",
-      "slurmPrefix": "Slurm "
+      "slurmPrefix": "Slurm ",
+      "cores_one": "{{count}} core"
     },
     "usage": {
       "cpuLoad": "CPU 负载",

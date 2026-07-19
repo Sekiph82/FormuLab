@@ -97,7 +97,15 @@
     "noResults": "Aucun modèle ne correspond à « {{query}} ».",
     "clearSearch": "Effacer la recherche",
     "addFavorite": "Ajouter {{model}} aux favoris",
-    "removeFavorite": "Retirer {{model}} des favoris"
+    "removeFavorite": "Retirer {{model}} des favoris",
+    "providerLabel": "Provider",
+    "providerFreeTier": "{{label}} · free tier",
+    "modelLabel": "Model",
+    "apiKeyLabel": "API key",
+    "getKey": "get a key",
+    "hideKey": "hide",
+    "showKey": "show",
+    "keyStoredLocally": "Stored locally on this device only — never uploaded or committed."
   },
   "providers": {
     "title": "Fournisseurs",

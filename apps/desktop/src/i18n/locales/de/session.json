@@ -337,7 +337,8 @@
       "errorTitle": "Etwas ist schiefgelaufen",
       "needKey": "Füge links einen API-Schlüssel hinzu und klicke dann auf Generieren.",
       "print": "Drucken",
-      "printTitle": "Diese Formulierungskarte drucken (Drucker wählen oder als PDF drucken)"
+      "printTitle": "Diese Formulierungskarte drucken (Drucker wählen oder als PDF drucken)",
+      "sourcesCount": "{{count}} sources"
     },
     "sessions": {
       "heading": "Sitzungen",

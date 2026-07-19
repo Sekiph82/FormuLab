@@ -15,7 +15,7 @@ import os
 
 BASE = "apps/desktop/src/i18n/locales"
 SOURCE = "en"
-NAMESPACES = ["session.json", "nav.json"]
+NAMESPACES = ["session.json", "nav.json", "settings.json"]
 
 
 def fill_missing(src, dst):

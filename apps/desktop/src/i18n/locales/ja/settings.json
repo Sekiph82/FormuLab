@@ -97,7 +97,15 @@
     "noResults": "「{{query}}」に一致するモデルはありません。",
     "clearSearch": "検索をクリア",
     "addFavorite": "{{model}} をお気に入りに追加",
-    "removeFavorite": "{{model}} をお気に入りから削除"
+    "removeFavorite": "{{model}} をお気に入りから削除",
+    "providerLabel": "Provider",
+    "providerFreeTier": "{{label}} · free tier",
+    "modelLabel": "Model",
+    "apiKeyLabel": "API key",
+    "getKey": "get a key",
+    "hideKey": "hide",
+    "showKey": "show",
+    "keyStoredLocally": "Stored locally on this device only — never uploaded or committed."
   },
   "providers": {
     "title": "プロバイダー",
@@ -125,7 +133,8 @@
     "customKeyPlaceholder": "API キー — 任意、Ollama では不要です",
     "customModelsPlaceholder": "モデル ID（カンマ区切り）",
     "addEndpoint": "エンドポイントを追加",
-    "importLogin": "すでに OpenCode CLI を使っていますか？ そのログインをインポート"
+    "importLogin": "すでに OpenCode CLI を使っていますか？ そのログインをインポート",
+    "modelCount_one": "{{count}} model"
   },
   "mcp": {
     "title": "MCP サーバー",
@@ -249,7 +258,8 @@
       "diskFree": "空き容量 {{size}}",
       "gpuHomogeneous": "{{count}}× {{name}}",
       "gpuMixed": "{{count}} 個の GPU",
-      "slurmPrefix": "Slurm "
+      "slurmPrefix": "Slurm ",
+      "cores_one": "{{count}} core"
     },
     "usage": {
       "cpuLoad": "CPU 負荷",
