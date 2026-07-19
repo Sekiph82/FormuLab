@@ -30,7 +30,7 @@ pub async fn modal_status(app: AppHandle) -> Result<ModalStatus, String> {
     let cmd = app.shell().command("modal").args(["--version"]);
     // GUI-launched apps get a minimal PATH; use the same enriched PATH the agent
     // sees so a conda/user-installed `modal` is found.
-    let cmd = cmd.env("PATH", crate::runtime::enriched_path());
+    let cmd = cmd.env("PATH", crate::workspace::enriched_path());
     let out = cmd.output().await;
     let (installed, version) = match out {
         Ok(o) if o.status.success() => {

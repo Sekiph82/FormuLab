@@ -1,9 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
-use tauri::AppHandle;
 
-use crate::runtime::quiet_command;
+use crate::workspace::quiet_command;
 
 /// Serializes every snapshot commit process-wide. The frontend (on
 /// `session.idle`) and several Rust record paths can all try to commit the same
@@ -372,41 +371,7 @@ fn no_snapshot_marker(root: &Path) -> PathBuf {
     root.join(".FormuLab").join(NO_SNAPSHOT_MARKER)
 }
 
-/// Prepare an IMPORTED (user-brought) workspace so the app never auto-commits
-/// into it. A real git repo is already safe (our commit path skips any repo
-/// without the snapshot marker); there we only keep the app's `.FormuLab/`
-/// dir out of the user's `git status` via a local `.git/info/exclude` (never
-/// their tracked `.gitignore`). A plain folder gets an explicit opt-out marker
-/// so a later commit never `git init`s it. Best-effort; failures are non-fatal.
-pub fn mark_imported(root: &Path) {
-    if root.join(".git").is_dir() {
-        exclude_locally(root, ".FormuLab/");
-    } else {
-        let osdir = root.join(".FormuLab");
-        let _ = std::fs::create_dir_all(&osdir);
-        let _ = std::fs::write(no_snapshot_marker(root), b"imported\n");
-    }
-}
 
-/// Append a pattern to `.git/info/exclude` (a local, untracked ignore that does
-/// not modify the user's committed `.gitignore`) unless already present.
-fn exclude_locally(root: &Path, pattern: &str) {
-    let exclude = root.join(".git").join("info").join("exclude");
-    let existing = std::fs::read_to_string(&exclude).unwrap_or_default();
-    if existing.lines().any(|l| l.trim() == pattern) {
-        return;
-    }
-    if let Some(parent) = exclude.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let mut content = existing;
-    if !content.is_empty() && !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(pattern);
-    content.push('\n');
-    let _ = std::fs::write(&exclude, content);
-}
 
 /// Ensure an app-owned snapshot repo exists. Returns `Ok(false)` when the folder
 /// already holds a git repo we did not create, or is an imported workspace —
@@ -464,11 +429,6 @@ pub fn commit_best_effort(root: &Path, message: &str) {
     }
 }
 
-#[tauri::command(async)]
-pub fn commit_workspace_snapshot(app: AppHandle, message: String) -> Result<bool, String> {
-    let root = crate::runtime::workspace_dir(&app)?;
-    commit(&root, &message)
-}
 
 #[cfg(test)]
 mod tests {

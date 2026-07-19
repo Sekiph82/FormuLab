@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
 use crate::provenance::{capture_env, content_hash, EnvInfo, ProvenanceState};
-use crate::runtime::workspace_dir;
+use crate::workspace::workspace_dir;
 
 const STORE_DIR: &str = ".FormuLab";
 const RUNS_FILE: &str = "runs.jsonl";

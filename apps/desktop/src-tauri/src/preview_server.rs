@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
 use crate::artifact_file::{locate_under, mime_for, resolve_under};
-use crate::runtime::workspace_dir;
+use crate::workspace::workspace_dir;
 
 #[derive(Default)]
 pub struct PreviewState(Mutex<Option<(u16, String)>>);
@@ -308,10 +308,10 @@ pub fn preview_url(
         Some(pt) => pt,
         None => {
             let handle = app.clone();
-            let token = crate::runtime::random_hex(16);
+            let token = crate::workspace::random_hex(16);
             let p = serve(&token, move |scope| match scope {
                 "w" => workspace_dir(&handle).ok(),
-                "b" => crate::runtime::base_workspace_dir(&handle).ok(),
+                "b" => crate::workspace::base_workspace_dir(&handle).ok(),
                 _ => None,
             })
             .map_err(|e| e.to_string())?;

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::ShellExt;
 
-use crate::runtime::{base_workspace_dir, workspace_dir};
+use crate::workspace::{base_workspace_dir, workspace_dir};
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct HpcJob {

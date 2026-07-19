@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
-use crate::runtime::workspace_dir;
+use crate::workspace::workspace_dir;
 
 /// Largest file we inline into a preview. Beyond this the UI shows a "too large"
 /// note (with an open-externally affordance) rather than loading it — a huge
@@ -116,7 +116,7 @@ pub fn scope_root(app: &AppHandle, root: Option<&str>) -> Result<PathBuf, String
         "data" => under_project("data"),
         "formulas" => under_project("formulas"),
         "workspace" => workspace_dir(app),
-        "base" => crate::runtime::base_workspace_dir(app),
+        "base" => crate::workspace::base_workspace_dir(app),
         other => Err(format!("unknown root scope: {other}")),
     }
 }
@@ -467,33 +467,6 @@ pub fn write_workspace_file(
     Ok(())
 }
 
-/// Pick local files via the native open dialog and copy them into the agent
-/// workspace so the agent can read them. Returns workspace-relative names
-/// (deduplicated as name-1.ext, name-2.ext on collision); empty on cancel.
-#[tauri::command]
-pub async fn add_files_to_workspace(app: AppHandle) -> Result<Vec<String>, String> {
-    use tauri_plugin_dialog::DialogExt;
-    let Some(picked) = app.dialog().file().blocking_pick_files() else {
-        return Ok(Vec::new()); // user cancelled
-    };
-    let ws = workspace_dir(&app)?;
-    let mut added = Vec::new();
-    for file in picked {
-        let src = file.into_path().map_err(|e| e.to_string())?;
-        let name = src
-            .file_name()
-            .ok_or("picked path has no file name")?
-            .to_string_lossy()
-            .to_string();
-        let dst_name = unique_name(&ws, &name);
-        std::fs::copy(&src, ws.join(&dst_name)).map_err(|e| format!("copy failed: {e}"))?;
-        added.push(dst_name);
-    }
-    if !added.is_empty() {
-        crate::git_snapshot::commit_best_effort(&ws, "Add workspace files");
-    }
-    Ok(added)
-}
 
 /// Write text content into the workspace under `filename` (deduplicated as
 /// name-1.ext on collision). Used when a long paste becomes a file. Returns

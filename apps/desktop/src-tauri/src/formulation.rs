@@ -45,7 +45,7 @@ fn run_core(
     script: &PathBuf,
     input_json: &str,
 ) -> Result<Result<serde_json::Value, String>, String> {
-    let mut cmd = crate::runtime::quiet_command(python);
+    let mut cmd = crate::workspace::quiet_command(python);
     cmd.arg(script)
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8")

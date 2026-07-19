@@ -2,22 +2,19 @@
 // bundled OpenCode sidecar (isolated config/data + dedicated port; killed on exit).
 mod artifact_file;
 mod debug_log;
-mod examples;
 mod formulation;
 mod formulation_v2;
 mod git_snapshot;
-mod harness;
 mod compute;
 mod jupyter;
 mod kernel;
 mod large_file;
 mod modal;
-mod opencode_config;
 mod preview_server;
 mod provenance;
 mod runs;
 mod runs_index;
-mod runtime;
+mod workspace;
 mod tools;
 #[cfg(target_os = "macos")]
 mod macos;
@@ -28,7 +25,6 @@ use jupyter::JupyterState;
 use kernel::KernelState;
 use preview_server::PreviewState;
 use provenance::ProvenanceState;
-use runtime::RuntimeState;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -47,7 +43,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
-        .manage(RuntimeState::default())
         .manage(KernelState::default())
         .manage(JupyterState::default())
         .manage(PreviewState::default())
@@ -68,11 +63,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            runtime::workspace_path,
-            runtime::workspace_base,
-            runtime::set_workspace_base,
-            runtime::open_workspace_base,
-            runtime::pick_folder,
+            workspace::workspace_path,
+            workspace::workspace_base,
+            workspace::set_workspace_base,
+            workspace::open_workspace_base,
+            workspace::pick_folder,
             jupyter::jupyter_status,
             jupyter::setup_jupyter,
             jupyter::start_jupyter,
@@ -125,7 +120,6 @@ pub fn run() {
             // the OpenCode sidecar / kernel / Jupyter orphan on every quit. The
             // cleanup is idempotent, so running on both is safe.
             if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
-                runtime::kill_child(&app.state::<RuntimeState>());
                 kernel::kill_kernel(&app.state::<KernelState>());
                 jupyter::kill_jupyter(&app.state::<JupyterState>());
             }

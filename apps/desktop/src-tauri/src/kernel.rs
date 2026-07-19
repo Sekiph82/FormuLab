@@ -259,7 +259,7 @@ fn rscript_candidates() -> Vec<String> {
 /// home dirs. A conda python launched by absolute path keeps numpy's DLLs in
 /// `Library\bin`; without it on PATH, imports fail even though python runs.
 fn python_path_env(python: &str) -> String {
-    let base = crate::runtime::enriched_path();
+    let base = crate::workspace::enriched_path();
     let _ = &python; // used on Windows only
     #[cfg(windows)]
     if let Some(home) = std::path::Path::new(python).parent() {
@@ -285,9 +285,9 @@ fn python_path_env(python: &str) -> String {
 /// Windows Store `python.exe` alias runs but exits non-zero, and picking it
 /// would make every cell fail and respawn.
 fn interpreter_ok(bin: &str) -> bool {
-    let mut c = crate::runtime::quiet_command(bin);
+    let mut c = crate::workspace::quiet_command(bin);
     c.arg("--version");
-    c.env("PATH", crate::runtime::enriched_path());
+    c.env("PATH", crate::workspace::enriched_path());
     c.output().map(|o| o.status.success()).unwrap_or(false)
 }
 
@@ -414,7 +414,7 @@ fn spawn_kernel(app: &AppHandle, lang: &str, cwd: &std::path::Path, key: &str) -
         "python" => {
             let script = materialize(app, "kernel_bridge.py", PY_BRIDGE_SRC)?;
             let (python, _source) = python_bin(app)?;
-            let mut c = crate::runtime::quiet_command(&python);
+            let mut c = crate::workspace::quiet_command(&python);
             c.arg(script);
             c.env("PATH", python_path_env(&python));
             // Force UTF-8 for the stdio protocol and user file I/O. Without this,
@@ -433,10 +433,10 @@ fn spawn_kernel(app: &AppHandle, lang: &str, cwd: &std::path::Path, key: &str) -
             // One code file per kernel — concurrent R notebooks must not share it.
             let code_file = kernel_dir(app)?.join(format!("r_cell_{}.R", key_hash(key)));
             std::fs::write(&code_file, "").map_err(|e| e.to_string())?;
-            let mut c = crate::runtime::quiet_command(rscript);
+            let mut c = crate::workspace::quiet_command(rscript);
             c.arg(script).arg(&code_file);
             // Same enriched PATH as the agent so a conda/homebrew R resolves.
-            c.env("PATH", crate::runtime::enriched_path());
+            c.env("PATH", crate::workspace::enriched_path());
             (c, Some(code_file))
         }
         _ => return Err(format!("unsupported kernel language: {lang}")),
@@ -563,7 +563,7 @@ fn resolve_kernel(
                 .to_path_buf();
             Ok((dir, kernel_key(lang, Some(&abs))))
         }
-        None => Ok((crate::runtime::workspace_dir(app)?, kernel_key(lang, None))),
+        None => Ok((crate::workspace::workspace_dir(app)?, kernel_key(lang, None))),
     }
 }
 

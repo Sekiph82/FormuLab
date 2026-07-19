@@ -67,7 +67,7 @@ pub(crate) fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
             }
         }
     }
-    crate::runtime::base_workspace_dir(app)
+    crate::workspace::base_workspace_dir(app)
 }
 
 fn data_dir(app: &AppHandle, sub: &[&str]) -> Result<PathBuf, String> {
@@ -139,7 +139,7 @@ pub async fn generate_formulation(
     });
     let input_json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
 
-    let mut cmd = crate::runtime::quiet_command(&python);
+    let mut cmd = crate::workspace::quiet_command(&python);
     cmd.arg(&cli)
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8")

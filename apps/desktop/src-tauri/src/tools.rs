@@ -14,12 +14,12 @@ fn probe(name: &str, bin: &str, version_arg: &str) -> ToolStatus {
     // Search the SAME enriched PATH the kernel and the agent's shell run
     // under — a GUI-launched app has a minimal PATH, and probing with it
     // misreported the user's anaconda/homebrew tools as missing.
-    let path = Some(crate::runtime::enriched_path());
+    let path = Some(crate::workspace::enriched_path());
     probe_with_path(name, bin, version_arg, path.as_deref())
 }
 
 fn probe_with_path(name: &str, bin: &str, version_arg: &str, path: Option<&str>) -> ToolStatus {
-    let mut cmd = crate::runtime::quiet_command(bin);
+    let mut cmd = crate::workspace::quiet_command(bin);
     cmd.arg(version_arg);
     if let Some(p) = path {
         cmd.env("PATH", p);

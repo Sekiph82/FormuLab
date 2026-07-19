@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 
-use crate::runtime::{free_port, workspace_dir};
+use crate::workspace::{free_port, workspace_dir};
 
 // Pinned per datalayer/jupyter-mcp-server's documented requirements, plus the
 // core scientific stack: this env is now the DEFAULT interpreter for the app's
@@ -77,7 +77,7 @@ fn kill_orphan_jupyter(app: &AppHandle) {
     if let Ok(path) = pid_path(app) {
         if let Ok(pid) = std::fs::read_to_string(&path).map(|s| s.trim().to_string()) {
             if !pid.is_empty() && pid.chars().all(|c| c.is_ascii_digit()) {
-                let _ = crate::runtime::quiet_command("taskkill")
+                let _ = crate::workspace::quiet_command("taskkill")
                     .args([
                         "/FI",
                         &format!("PID eq {pid}"),
@@ -125,7 +125,7 @@ fn load_meta(app: &AppHandle) -> Option<ServerMeta> {
 // guessable, and this token is the only thing between localhost and the
 // Jupyter server.
 fn random_token() -> String {
-    crate::runtime::random_hex(16)
+    crate::workspace::random_hex(16)
 }
 
 #[derive(serde::Serialize)]
@@ -246,26 +246,6 @@ fn spawn_lab(app: &AppHandle, state: &JupyterState) -> Result<JupyterStatus, Str
     Ok(status_of(app, state))
 }
 
-/// Follow a workspace switch: a running jupyter-lab keeps the root_dir it was
-/// born with, so it must be restarted rooted in the NEW active workspace —
-/// otherwise the agent's jupyter MCP keeps writing notebooks into the old
-/// folder, invisible to the Notebooks page and previews. Port and token are
-/// fixed in server meta, so the MCP config entry stays valid across the
-/// restart. Runs in the background: a session switch must not wait on it.
-pub fn reroot_jupyter(app: &AppHandle) {
-    let app = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<JupyterState>();
-        let _guard = state.lifecycle.lock().unwrap();
-        if !*state.running.lock().unwrap() {
-            return;
-        }
-        kill_jupyter(&state);
-        if let Err(e) = spawn_lab(&app, &state) {
-            eprintln!("jupyter re-root failed: {e}");
-        }
-    });
-}
 
 pub fn kill_jupyter(state: &JupyterState) {
     if let Some(child) = state.child.lock().unwrap().take() {

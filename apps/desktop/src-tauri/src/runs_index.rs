@@ -11,7 +11,7 @@ use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use tauri::AppHandle;
 
 use crate::runs::RunRecord;
-use crate::runtime::base_workspace_dir;
+use crate::workspace::base_workspace_dir;
 
 const DB_FILE: &str = "runs.db";
 /// Bump to force a full rebuild when the schema or ingest logic changes.
