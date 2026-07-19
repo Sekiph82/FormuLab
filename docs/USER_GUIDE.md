@@ -205,16 +205,38 @@ PRODUCTION APPROVED` on every export format.
 Open the **Optimizer** tab. Unlike the plain cost-minimizing Formulation
 Optimizer, this is a real constraint-solving workspace: pick candidate
 materials, add functional-group constraints (e.g. "at least 15% anionic
-surfactant"), choose one or more objectives (cost, supply risk, carbon
-score, stock utilization, evidence confidence — weighted together), and
-**Run**. Every candidate pair is automatically checked against the real
-Compatibility and Safety engines before the solve, so the optimizer can
-never select a combination those engines flag as blocking. An infeasible
-run explains why in plain language with suggested next steps, not just
-"infeasible". **Apply to draft** never overwrites the saved version it
-started from — it creates a new working draft, and the run is remembered so
-approval readiness can later verify it was genuinely usable. Full model:
+surfactant") — soft or hard, with a penalty weight and allowed deviation for
+a soft one — property targets (calculated for real where the platform
+honestly can: active matter, total solids, several named actives; a
+`laboratory_required` property is never given a fabricated value), an
+optional cost ceiling, and one or more objectives (cost, supply risk, carbon
+score, stock utilization, evidence confidence, and graded compatibility/
+safety risk — weighted together, or lexicographic priority). Every candidate
+pair is automatically checked against the real Compatibility and Safety
+engines before the solve, so the optimizer can never select a combination
+those engines flag as blocking. **Run** — a solve that had to relax a soft
+constraint reports `feasible_with_penalties`, distinct from a clean
+`optimal`, with each soft constraint's requested target, achieved value and
+deviation shown. An infeasible run explains why in plain language with
+suggested next steps, not just "infeasible". **Apply to draft** never
+overwrites the saved version it started from — it creates a new working
+draft, and the run is remembered so approval readiness can later verify it
+was genuinely usable. Full model:
 [ADVANCED_OPTIMIZER.md](ADVANCED_OPTIMIZER.md).
+
+**Scenarios** — the same tab's Scenarios section lets you name and save a
+"what if" (its full candidate/constraint/objective selection and a frozen
+price/inventory snapshot), reload it later, clone it, rename it, retire it,
+or restore a retired one as a new scenario. Load one of the 31 seeded
+Kenya product-family structural profiles (apply only what's missing, merge
+it in, or replace your current selection — the last asks for confirmation
+first) as a starting point; every profile is explicitly `not_verified` and
+needs chemist review, never an approved recipe. Select two or more runs
+(from one scenario's history or several scenarios) and **Compare** to see
+cost, risk, soft violations, stock utilization and solve time side by side,
+with the lowest/highest of each highlighted — never a single fabricated
+"best overall" score. Full model:
+[OPTIMIZATION_SCENARIOS.md](OPTIMIZATION_SCENARIOS.md).
 
 ## 15. Material substitution
 
@@ -227,8 +249,20 @@ blocking finding is still shown, sorted last, so you can see why it ranked
 where it did. Applying a candidate uses the active-equivalent percentage
 (10% of a 70%-active material needs 20% of a 35%-active replacement to
 contribute the same active matter) and, like an optimizer result, only ever
-creates a new working draft. Full model:
-[MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md).
+creates a new working draft.
+
+**System substitution** — check additional formula lines in the same
+dialog to replace several lines with a whole new material system at once
+(a surfactant blend, a preservation system, a thickener + neutralizer, ...).
+Pick which functions to preserve, generate candidate systems (by real
+function coverage, never name similarity, within configurable candidate
+limits), then **Evaluate through optimizer** to route every proposal
+through the actual Advanced Optimizer and score the results. A rejected
+combination shows why; an infeasible one shows its structured cause.
+Applying a system replaces every selected line with the new materials in a
+new working draft. Full model:
+[MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md),
+[SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md).
 
 ## Known limitations
 
@@ -236,13 +270,17 @@ See [IMPLEMENTATION_STATUS.md](architecture/IMPLEMENTATION_STATUS.md) for the
 authoritative list of what is built versus not yet started. In short: the
 regulatory engine, DOE, lab-trial, stability-study and reverse-formulation
 modules described in the full specification are designed but not
-implemented. The Advanced Optimizer does not enforce soft constraints as
-soft yet and does not solve property targets (pH, viscosity, ...); material
-substitution's one-to-one path is complete but system (multi-material)
-substitution is not yet built — see
+implemented. The Advanced Optimizer's screen has no builder for composition,
+ratio or conditional constraints (only functional-group constraints,
+property targets, a cost ceiling, and the automatic compatibility/safety
+exclusion are user-facing) and no lexicographic-priority selector; the
+Substitution dialog's system mode does not yet wire graded compatibility/
+safety risk into a system's score (real hard exclusions still apply) — see
 [ADVANCED_OPTIMIZER.md](ADVANCED_OPTIMIZER.md#what-this-is-not) and
-[MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md#one-to-one-vs-system-substitution).
+[SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md#known-limitations).
 Compatibility and safety are deterministic rule engines against a
 hand-maintained, explicitly non-exhaustive seed rule set — they are not a
-regulatory engine and do not establish legal compliance. Nothing in this
-guide describes an unimplemented module as available.
+regulatory engine and do not establish legal compliance. Approval readiness
+is fully implemented and tested but not yet called from any approval screen
+in the desktop UI. Nothing in this guide describes an unimplemented module
+as available.

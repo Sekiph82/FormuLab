@@ -75,10 +75,19 @@ without surprise:
    candidate**: the same re-check for `appliedSubstitutionRunCode` against
    the persisted `SubstitutionRun.result.status` (`substitution` source) —
    see [MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md).
+7. **An applied substitution run with no selected candidate, or a selected
+   candidate that is itself blocked**: even when 6's status check passes
+   (`candidates_found`), the caller also reports whether the run actually
+   has a `selectedCandidateId` and whether that specific candidate carries a
+   blocking compatibility/safety finding. A run that only ever browsed
+   candidates without applying one, or whose "applied" candidate turns out
+   to be the blocked one, blocks readiness the same as a missing run would
+   — this closes the gap where "a run exists and found *some* candidates"
+   was being read as "a valid candidate was actually chosen and applied."
 
 Optimization and substitution runs are opt-in checks: a version with neither
 `appliedOptimizationRunCode` nor `appliedSubstitutionRunCode` set (the
-common case — most versions are authored directly) is unaffected by 5 and 6.
+common case — most versions are authored directly) is unaffected by 5–7.
 Applying an optimization or substitution result is itself never an approval
 — see [ADVANCED_OPTIMIZER.md](ADVANCED_OPTIMIZER.md#workflow) and
 [MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md#workflow-spec-56):
@@ -121,8 +130,8 @@ entry point wherever readiness has already been computed.
 This applies identically regardless of how the transition is attempted: a UI
 button, a domain-service call, an import, a version restore, a clone, or an
 agent event. None of those paths grant an exemption — see
-`packages/shared/src/engine/approvalReadiness.test.ts` (22 tests, including
-the 6 optimization/substitution stored-status checks above) and
+`packages/shared/src/engine/approvalReadiness.test.ts` (24 tests, including
+the 7 optimization/substitution stored-status checks above) and
 `versioning.test.ts` for the bypass-attempt coverage, including agent/system/
 import actors and legacy-data migration paths.
 
@@ -136,3 +145,11 @@ import actors and legacy-data migration paths.
 - Does not auto-resolve anything. A blocker clears only when a listed source
   condition genuinely changes — a resolution record is created, a line is
   fixed, a validation severity drops.
+- **Not yet called from any desktop UI screen.** `assessApprovalReadiness`/
+  `canTransitionWithReadiness` are complete and fully tested, but no
+  component in `apps/desktop/src` invokes them yet — there is no approval
+  dialog in the UI that actually gates `pilot_approved`/`production_approved`
+  on this module's output today. This is a pre-existing gap, not something
+  the Advanced Optimizer scenario/system-substitution work introduced or
+  closed; wiring an approval screen to this module is separate, not-yet-done
+  work.

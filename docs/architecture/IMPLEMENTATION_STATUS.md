@@ -3,14 +3,17 @@
 Honest state of the Kenya R&D platform transformation. "Done" here means
 implemented, wired in and covered by a passing test — not scaffolded.
 
-Last updated: end of the Advanced Optimizer / Substitution Engine phase —
-the gap-closure phase before it covered Excel import, supplier/packaging/
-factory-profile editors, formula lifecycle controls, structured version
-exports, the Compatibility Engine, the Safety Engine, cross-cutting Approval
-Readiness, and the Turkish locale; this phase adds the mixed-integer
-Advanced Formulation Constraint Optimizer, one-to-one material
-substitution, the optimization/substitution approval-readiness checks, and
-the platform's first migration runner.
+Last updated: end of the Advanced Optimizer / Substitution Engine
+gap-closure phase (soft constraints, property targets, graded risk
+objectives, expanded infeasibility diagnostics, optimization scenarios with
+product-family profile application, and multi-material system
+substitution). Before that: Excel import, supplier/packaging/factory-
+profile editors, formula lifecycle controls, structured version exports,
+the Compatibility Engine, the Safety Engine, cross-cutting Approval
+Readiness, the Turkish locale, the mixed-integer Advanced Formulation
+Constraint Optimizer's core solve, one-to-one material substitution, the
+optimization/substitution approval-readiness checks, and the platform's
+first migration runner.
 
 ## Scale note
 
@@ -273,13 +276,21 @@ screen, no ratio/conditional-constraint builder — see
   not merely a UI spinner) and PuLP auto-provisioning shared with the
   simple optimizer's existing install path
 - Optimizer tab in the Formula Builder: candidate selection, functional
-  constraints, objective picker (including the two graded risk metrics),
-  run/cancel, results, infeasibility, apply-to-draft — never overwrites a
-  saved version
-- 57 Python tests, 10 shared TS tests, 6 approval-readiness tests
+  constraints, property targets, cost ceiling, objective picker (including
+  the two graded risk metrics), run/cancel, results, infeasibility,
+  apply-to-draft — never overwrites a saved version
+- Scenarios section: create/save/clone/rename/retire/restore a scenario
+  (append-only revisions — see [OPTIMIZATION_SCENARIOS.md](../OPTIMIZATION_SCENARIOS.md)),
+  load any of the 31 seeded product-family profiles (apply-missing/merge/
+  replace-with-confirmation), and compare two or more persisted runs with
+  deterministic, per-rule (never "best overall") highlights
+- 57 Python tests, 17 `engine/optimization.test.ts`, 20
+  `engine/scenarios.test.ts`, 9 `AdvancedOptimizerPanel.test.tsx` (real
+  component + real engines, only the Tauri boundary mocked — see
+  [OPTIMIZER_UI_VERIFICATION.md](../OPTIMIZER_UI_VERIFICATION.md))
 
-### Raw-Material Substitution Engine (spec §12) — one-to-one
-See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md).
+### Raw-Material Substitution Engine (spec §12) — one-to-one and system
+See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md), [SYSTEM_SUBSTITUTION.md](../SYSTEM_SUBSTITUTION.md).
 - Deterministic scoring (`engine/substitution.ts`) over 15 real dimensions
   traced to actual material/price/inventory/supplier/compatibility/safety
   data; a dimension with no backing data reports `missingData`, never a
@@ -289,17 +300,29 @@ See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md).
 - "Replace material" action wired into the Formula Builder; applying a
   candidate creates a new working draft and persists an immutable
   `SubstitutionRun` record before touching it
-- 19 tests (`engine/substitution.test.ts`)
-- System (multi-material) substitution is schema-modelled, not yet built —
-  see the "Partially done" table
+- System (multi-material) substitution now generates real candidate
+  combinations (`engine/systemSubstitution.ts`'s `generateSystemCandidates`
+  — by function coverage and the other real fields listed in
+  SYSTEM_SUBSTITUTION.md, never name similarity, with configurable
+  generation limits), routes each through the actual Advanced Optimizer
+  (`buildSystemSubstitutionProblem`), and scores the result
+  (`scoreSystemResult`) — selecting more than one formula line in the
+  Substitution dialog enters system mode
+- 19 tests (`engine/substitution.test.ts`), 21
+  (`engine/systemSubstitution.test.ts`), 5 (`SubstitutionPanel.test.tsx`,
+  same real-component/mocked-Tauri-boundary discipline)
 
 ### Approval readiness — optimization/substitution integration
 `assessApprovalReadiness` (see [APPROVAL_READINESS.md](../APPROVAL_READINESS.md))
-now also re-checks an applied optimization or substitution run's actual
-persisted result status against `FormulationVersion.appliedOptimizationRunCode`/
+re-checks an applied optimization or substitution run's actual persisted
+result status against `FormulationVersion.appliedOptimizationRunCode`/
 `appliedSubstitutionRunCode` — a defensive check against a forged or stale
-reference, distinct from the solver's/scorer's own correctness. 6 new
-tests bring `approvalReadiness.test.ts` to 22.
+reference, distinct from the solver's/scorer's own correctness — and now
+also blocks when a substitution run has no `selectedCandidateId` recorded,
+or when the selected candidate itself carries a blocking finding. Not yet
+called from any desktop UI screen (a pre-existing gap — see
+APPROVAL_READINESS.md's "What this does not do"). 24 tests total in
+`approvalReadiness.test.ts`.
 
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).
@@ -335,8 +358,8 @@ plainly so nothing here reads as available.
 | Area | State |
 |---|---|
 | Localisation of screens outside the 8 shipped locales' major workflows | The parity test requires every locale to carry every key; a handful of generic-chrome strings (unrelated to the R&D workflows) may still read as an unreviewed literal translation rather than idiomatic phrasing pending a native-speaker pass. `scripts/i18n-fill-missing.py` fills gaps without overwriting real translations. |
-| Advanced constraint optimizer (spec §1) | Composition, functional-group, ratio and conditional constraints, soft-constraint penalty relaxation, property targets, a cost ceiling, and graded compatibility/safety risk objectives all solve for real (mixed-integer where needed). The remaining gap is the UI: no input for any soft-constraint parameter, property target, cost ceiling, ratio/conditional constraint, or lexicographic priority; the 31 seeded product-family profiles and the `OptimizationScenario` shape are not yet loaded/compared by the UI. See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md) for the exact boundary. |
-| Substitution engine (spec §12) | One-to-one substitution is fully scored and wired to the UI, re-running the real compatibility/safety engines per candidate. System (multi-material) substitution is modelled (`isSystem`, `requiresOptimization`) but not yet generated or routed through the optimizer. See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md). |
+| Advanced constraint optimizer (spec §1) | Composition, functional-group, ratio and conditional constraints, soft-constraint penalty relaxation, property targets, a cost ceiling, and graded compatibility/safety risk objectives all solve for real (mixed-integer where needed). The Scenarios section now has a real, working lifecycle (create/save/clone/rename/retire/restore, append-only revisions), loads all 31 seeded product-family profiles (apply-missing/merge/replace), and compares two or more persisted runs with deterministic per-rule highlights. The remaining UI gap: no composition/ratio/conditional-constraint builder, no lexicographic priority selector, no per-material lock editor. See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md), [OPTIMIZATION_SCENARIOS.md](../OPTIMIZATION_SCENARIOS.md). |
+| Substitution engine (spec §12) | One-to-one substitution is fully scored and wired to the UI, re-running the real compatibility/safety engines per candidate. System (multi-material) substitution now generates real candidate combinations by function coverage, routes each through the actual Advanced Optimizer, and scores the result — selecting multiple formula lines in the Substitution dialog enters system mode. Graded compatibility/safety risk objectives are not yet wired into a system's base problem (real hard exclusions still are). See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md), [SYSTEM_SUBSTITUTION.md](../SYSTEM_SUBSTITUTION.md). |
 
 ## Existing functionality preserved
 

@@ -31,6 +31,13 @@ history, and the Python solver. See:
 - [PROPERTY_TARGETS.md](PROPERTY_TARGETS.md) — which properties the solver
   can genuinely calculate, which are honestly `laboratory_required`, and how
   a target can be enforced as a hard or soft constraint.
+- [OPTIMIZATION_SCENARIOS.md](OPTIMIZATION_SCENARIOS.md) — scenario
+  lifecycle, the append-only revision model, product-family profile
+  application, and run comparison.
+- [SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md) — multi-material
+  substitution: candidate generation, optimizer routing, scoring.
+- [OPTIMIZER_UI_VERIFICATION.md](OPTIMIZER_UI_VERIFICATION.md) — what was
+  and was not verified for the Optimizer/Substitution screens, and why.
 - [MULTI_OBJECTIVE_OPTIMIZATION.md](MULTI_OBJECTIVE_OPTIMIZATION.md) —
   weighted and lexicographic strategies, metric normalization, and which
   metrics are refused outright (`performance_score`,
@@ -85,21 +92,25 @@ the real calculation and enforcement today.
 `catalog/optimizationProfiles.ts` seeds 31 structural profiles (required/
 allowed/forbidden function groups, `not_verified`, `requiresChemistReview:
 true` — the same honesty convention as the compatibility/safety seed rule
-sets) for the named Kenya families. **These profiles are not yet loaded or
-applied by the Optimizer UI** — there is no "load this family's profile"
-action in `AdvancedOptimizerPanel.tsx` yet. They exist as a persisted,
-editable (`optimization_profiles` collection) starting point for a future
-UI affordance, not as something the current screen consumes automatically.
+sets) for the named Kenya families, one per family named in the
+specification. The Optimizer screen's Scenarios section loads them for
+real: pick a profile, then **Apply missing** / **Merge** / **Replace**
+(the last requires a confirming click) — see
+[OPTIMIZATION_SCENARIOS.md](OPTIMIZATION_SCENARIOS.md) for exactly what
+each mode does and does not touch.
 
 ## Scenarios
 
-`OptimizationScenario` is modelled in the schema (a named problem +
-inclusion/exclusion set + a frozen price/inventory snapshot) but **there is
-no scenario-creation or scenario-comparison UI yet**. Comparing two
-approaches today means running the Optimizer twice with different
-candidates/constraints/objectives and comparing the two persisted
-`OptimizationRun` records by hand (both are saved to `optimization_runs`
-regardless of whether either is applied).
+`OptimizationScenario` now has a real, working lifecycle in the UI: create
+from the current candidate/constraint/objective selection, save, clone,
+rename, retire, and restore a retired scenario as a new one — all through
+`AdvancedOptimizerPanel.tsx`'s Scenarios section. Every run is persisted
+against the scenario's group (`OptimizationRun.scenarioId`), so a
+scenario's full run history survives navigation, and comparing two or more
+runs (from the same scenario or different ones) renders a real comparison
+table with per-metric highlights (never a fabricated "best overall"). See
+[OPTIMIZATION_SCENARIOS.md](OPTIMIZATION_SCENARIOS.md) for the append-only
+revision model this is built on.
 
 ## Graded compatibility/safety risk
 
@@ -151,38 +162,46 @@ re-validated (its stored result status, not just its presence) before
 
 ## What this is not
 
-- The solver enforces soft constraints, property targets and a cost ceiling
-  for real (see [SOFT_CONSTRAINTS.md](SOFT_CONSTRAINTS.md) /
-  [PROPERTY_TARGETS.md](PROPERTY_TARGETS.md)), but **the Optimizer screen has
-  no UI for any of the three yet** — no penalty-weight/allowed-deviation
-  inputs on a constraint, no property-target editor, no cost-ceiling field.
-  A `FormulationProblem` built by another caller gets the real behavior.
-- Does not load or apply the seeded product-family profiles yet (only 1 of
-  the eventual 31 is seeded today —
-  `packages/shared/src/catalog/optimizationProfiles.ts`), and has no
-  scenario-creation or scenario-comparison screen, even though
-  `OptimizationScenario`/`OptimizationProfile` are modelled and persisted
-  (`optimization_scenarios`/`optimization_profiles` collections).
-- Does not have a ratio- or conditional-constraint builder in the UI; only
-  functional-group constraints and the automatic compatibility/safety
-  exclusion are user-facing today, even though the solver and schema
-  support the full set.
+- Property targets and a cost ceiling have a real, if minimal, editor now
+  (add a target with a min/max and hard/soft/reported-only, one cost-ceiling
+  field) — see [PROPERTY_TARGETS.md](PROPERTY_TARGETS.md). Soft-constraint
+  parameters (`penaltyWeight`/`allowedDeviation`) are exposed only on the
+  functional-constraint rows, not on composition constraints (there is no
+  composition-constraint builder at all — see the next bullet).
+- Does not have a composition-, ratio-, or conditional-constraint builder in
+  the UI; only functional-group constraints, property targets, a cost
+  ceiling, and the automatic compatibility/safety exclusion are user-facing
+  today, even though the solver and schema support the full set. A loaded
+  scenario or applied profile that carries any of these three still sends
+  them to the solver correctly (shown as a read-only count), just not
+  editable here.
 - The UI does not yet expose lexicographic priority selection (weighted
   only), even though the solver supports it and now solves soft-constraint
   penalties in their own tier ahead of every priority (see
   [SOFT_CONSTRAINTS.md](SOFT_CONSTRAINTS.md)).
-- [MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md) covers the
-  Substitution screen's own, separate gap: `isSystem`/`systemMaterialIds`
-  are modelled but the UI does not yet generate a multi-material system
-  candidate or route one through this optimizer.
+- No per-material lock editor in the Scenarios section yet — a scenario's
+  `problem.materials[].lockedPercent` round-trips correctly when loaded, but
+  there is no UI control to set one.
 - Does not guarantee cleaning performance, stability, or regulatory
   compliance — see [MULTI_OBJECTIVE_OPTIMIZATION.md](MULTI_OBJECTIVE_OPTIMIZATION.md).
+
+See [OPTIMIZATION_SCENARIOS.md](OPTIMIZATION_SCENARIOS.md) and
+[SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md) for their own, more
+detailed "known limitations" sections.
 
 ## Tests
 
 `runtime/formulation/test_advanced_optimizer.py` (57 — composition,
 functional, ratio, conditional, soft-constraint relaxation, property
 targets, cost ceiling, graded risk objectives, and infeasibility diagnostic
-coverage), `packages/shared/src/engine/optimization.test.ts` (10),
-`packages/shared/src/engine/approvalReadiness.test.ts` (the 6 optimizer/
-substitution readiness cases).
+coverage), `packages/shared/src/engine/optimization.test.ts` (17, including
+`blockingExclusionConstraints`/`gradedRiskScores`),
+`packages/shared/src/engine/scenarios.test.ts` (20 — lifecycle, profile
+application, comparison), `packages/shared/src/engine/systemSubstitution.test.ts`
+(21 — candidate generation, problem building, scoring),
+`packages/shared/src/engine/approvalReadiness.test.ts` (24, including the
+substitution no-selection/blocked-selection checks),
+`apps/desktop/src/components/formula/AdvancedOptimizerPanel.test.tsx` (9)
+and `SubstitutionPanel.test.tsx` (5) — see
+[OPTIMIZER_UI_VERIFICATION.md](OPTIMIZER_UI_VERIFICATION.md) for exactly
+what those two integration suites cover and what they do not.

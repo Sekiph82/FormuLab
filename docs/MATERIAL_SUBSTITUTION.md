@@ -74,12 +74,18 @@ candidate that needs the [Advanced Optimizer](ADVANCED_OPTIMIZER.md) to
 actually place, rather than a direct line-percentage edit — a system
 substitution is not attempted through simple percentage scaling.
 
-**Current state: one-to-one substitution is fully implemented and wired to
-the UI. System substitution (multi-material replacement routed through the
-optimizer) is modelled in the schema (`isSystem`, `systemMaterialIds`,
-`requiresOptimization`) but the UI does not yet generate a system candidate
-or the seeded sub-problem that would hand it to the solver** — a real,
-disclosed gap, not a silently missing feature.
+**Current state: both are implemented and wired to the UI.** One-to-one
+substitution scores individual candidates directly. System substitution
+(select two or more formula lines in the Substitution dialog to enter
+system mode) generates candidate material combinations
+(`generateSystemCandidates` — by function coverage, never name similarity),
+routes each one through the real Advanced Optimizer
+(`buildSystemSubstitutionProblem`), and scores the result
+(`scoreSystemResult`) — see [SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md)
+for the full mechanism, the configurable candidate-generation limits, and
+what remains a genuine gap (graded compatibility/safety risk objectives are
+not yet wired into a system's base problem, and property-target-based
+preservation is not yet exposed from this screen).
 
 ## Filters
 
@@ -114,12 +120,14 @@ per candidate, just not yet filterable.
    naturally on the next tab visit / autosave — the same re-evaluation any
    line edit triggers, not a substitution-specific code path.
 
-Steps 8–9 of the specification (re-optimize the formula when required,
-compare before/after as a dedicated view) are not yet built: applying a
-`requiresOptimization` system candidate does not currently hand off to the
-optimizer, and there is no dedicated before/after comparison screen for a
-substitution (the general [version comparison](FORMULA_VERSIONING.md) view
-covers the same need once both states are saved as versions).
+Step 8 of the specification (re-optimize the formula when required) is now
+real for a system substitution — see the workflow in
+[SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md). Step 9 (a dedicated
+before/after comparison view) is still not built as its own screen; the
+general [version comparison](FORMULA_VERSIONING.md) view covers the same
+need once both states are saved as versions, and the Advanced Optimizer's
+own [scenario comparison](OPTIMIZATION_SCENARIOS.md) covers comparing
+several candidate systems' optimizer results before applying any of them.
 
 ## What this is not
 

@@ -21,14 +21,22 @@ FormuLab is a desktop workbench that pairs a general AI research environment
   usage limits. Available as a UI tab *and* an agent skill.
 - **Advanced Formulation Constraint Optimizer** — a separate, mixed-integer
   solver over composition, functional-group, ratio and conditional
-  constraints, multi-objective (weighted or lexicographic), with structured
-  infeasibility explanations and automatic exclusion of any material
-  combination the real compatibility/safety engines flag as blocking. See
-  [docs/ADVANCED_OPTIMIZER.md](docs/ADVANCED_OPTIMIZER.md).
+  constraints, genuine soft-constraint penalty relaxation, calculated
+  property targets, a cost ceiling, multi-objective (weighted or
+  lexicographic) including graded compatibility/safety risk, structured
+  infeasibility explanations, and automatic exclusion of any material
+  combination the real compatibility/safety engines flag as blocking.
+  Named, comparable optimization scenarios (save/clone/rename/retire,
+  product-family profile application, run comparison) build on top of it.
+  See [docs/ADVANCED_OPTIMIZER.md](docs/ADVANCED_OPTIMIZER.md) and
+  [docs/OPTIMIZATION_SCENARIOS.md](docs/OPTIMIZATION_SCENARIOS.md).
 - **Material Substitution** — deterministic, scored candidate ranking for
   replacing one raw material with another, using real price/stock/supplier
-  data and a live compatibility/safety re-check, never name similarity. See
-  [docs/MATERIAL_SUBSTITUTION.md](docs/MATERIAL_SUBSTITUTION.md).
+  data and a live compatibility/safety re-check, never name similarity —
+  plus multi-material system substitution (one/many-to-many, routed through
+  the real optimizer). See
+  [docs/MATERIAL_SUBSTITUTION.md](docs/MATERIAL_SUBSTITUTION.md) and
+  [docs/SYSTEM_SUBSTITUTION.md](docs/SYSTEM_SUBSTITUTION.md).
 - **Formulation Discovery** — give a target product ("an anti-dandruff, soothing
   shampoo") and the agent retrieves open-access literature (OpenAlex), extracts
   the ingredients/functions/concentrations reported there, synthesizes an
