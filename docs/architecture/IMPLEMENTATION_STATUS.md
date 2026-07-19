@@ -232,32 +232,51 @@ See [APPROVAL_READINESS.md](../APPROVAL_READINESS.md).
 
 ### Advanced Formulation Constraint Optimizer (spec §1) — core solving
 See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md),
+[SOFT_CONSTRAINTS.md](../SOFT_CONSTRAINTS.md),
+[PROPERTY_TARGETS.md](../PROPERTY_TARGETS.md),
 [OPTIMIZATION_CONSTRAINTS.md](../OPTIMIZATION_CONSTRAINTS.md),
 [MULTI_OBJECTIVE_OPTIMIZATION.md](../MULTI_OBJECTIVE_OPTIMIZATION.md),
 [INFEASIBILITY_ANALYSIS.md](../INFEASIBILITY_ANALYSIS.md),
-[SOLVER_ARCHITECTURE.md](../SOLVER_ARCHITECTURE.md). The "Partially done"
-table above lists the real, disclosed gaps (soft constraints, property
-targets, profile/scenario UI) this section does not repeat.
+[SOLVER_ARCHITECTURE.md](../SOLVER_ARCHITECTURE.md). The real, disclosed
+remaining gap is the UI, not the solver: no property-target/cost-ceiling/
+soft-constraint-parameter inputs, no profile-loading or scenario-comparison
+screen, no ratio/conditional-constraint builder — see
+[ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md)'s "What this is not".
 - Real mixed-integer solve (`runtime/formulation/advanced_optimizer.py`,
   PuLP + CBC), additive to the untouched simple optimizer — composition,
   functional-group, ratio and conditional constraints, all enforced, not
   scaffolded
+- Soft constraints are real penalty-based relaxation (slack variables +
+  weighted objective terms), not hard-constraint pass-through: hard never
+  relaxes, soft relaxes only when necessary, a higher penalty weight
+  protects its constraint over a lower one, and `feasible_with_penalties` is
+  a distinct status from `optimal`
+- Property targets are genuinely calculated (`active_matter`, `total_solids`,
+  the five named actives, plus post-solve `hlb`/`density`), never
+  fabricated for the five properties that stay `laboratory_required`
+- Graded compatibility/safety risk objectives: a non-blocking finding scores
+  real severity-weighted risk (`compatibility_risk`/`safety_risk`
+  objectives), computed by the same real engines a blocking finding already
+  used for hard exclusion — never a flat, uninformative zero
 - Compatibility/safety exclusion is real: every candidate pair is checked
   with the actual `evaluateCompatibility`/`evaluateSafety` engines before a
   solve, not a duplicated or hypothetical rule set
 - Weighted and lexicographic multi-objective, with `performance_score` and
   `regulatory_uncertainty` refused outright rather than computed from
-  nothing
-- Structured infeasibility (4 deterministic causes + a disclosed generic
-  fallback) and sensitivity reporting that correctly refuses to print CBC
-  duals for a mixed-integer solve
+  nothing; soft-constraint penalties minimize in their own lexicographic
+  tier ahead of every user priority
+- Structured infeasibility: composition/functional/ratio/conditional/
+  property deterministic checks plus a whole-pool compatibility/safety
+  exclusion-lockout check, and a disclosed generic fallback when no specific
+  cause can be proven
 - Real cancellation (the spawned solver process is tracked and killable,
   not merely a UI spinner) and PuLP auto-provisioning shared with the
   simple optimizer's existing install path
 - Optimizer tab in the Formula Builder: candidate selection, functional
-  constraints, objective picker, run/cancel, results, infeasibility,
-  apply-to-draft — never overwrites a saved version
-- 36 Python tests, 10 shared TS tests, 6 approval-readiness tests
+  constraints, objective picker (including the two graded risk metrics),
+  run/cancel, results, infeasibility, apply-to-draft — never overwrites a
+  saved version
+- 57 Python tests, 10 shared TS tests, 6 approval-readiness tests
 
 ### Raw-Material Substitution Engine (spec §12) — one-to-one
 See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md).
@@ -316,7 +335,7 @@ plainly so nothing here reads as available.
 | Area | State |
 |---|---|
 | Localisation of screens outside the 8 shipped locales' major workflows | The parity test requires every locale to carry every key; a handful of generic-chrome strings (unrelated to the R&D workflows) may still read as an unreviewed literal translation rather than idiomatic phrasing pending a native-speaker pass. `scripts/i18n-fill-missing.py` fills gaps without overwriting real translations. |
-| Advanced constraint optimizer (spec §1) | Composition, functional-group, ratio and conditional constraints solve for real (mixed-integer where needed); soft constraints are schema-complete but currently enforced as hard; property targets are accepted but not solved or reported; the 31 seeded product-family profiles and the `OptimizationScenario` shape are not yet loaded/compared by the UI. See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md) for the exact boundary. |
+| Advanced constraint optimizer (spec §1) | Composition, functional-group, ratio and conditional constraints, soft-constraint penalty relaxation, property targets, a cost ceiling, and graded compatibility/safety risk objectives all solve for real (mixed-integer where needed). The remaining gap is the UI: no input for any soft-constraint parameter, property target, cost ceiling, ratio/conditional constraint, or lexicographic priority; the 31 seeded product-family profiles and the `OptimizationScenario` shape are not yet loaded/compared by the UI. See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md) for the exact boundary. |
 | Substitution engine (spec §12) | One-to-one substitution is fully scored and wired to the UI, re-running the real compatibility/safety engines per candidate. System (multi-material) substitution is modelled (`isSystem`, `requiresOptimization`) but not yet generated or routed through the optimizer. See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md). |
 
 ## Existing functionality preserved

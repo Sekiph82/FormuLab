@@ -9,16 +9,17 @@ honesty convention as a compatibility or safety rule
 ([COMPATIBILITY_ENGINE.md](COMPATIBILITY_ENGINE.md)): a constraint loaded
 into a solve is not authoritative just because it is loaded.
 
-**Soft constraints are modelled in the schema but not yet enforced by the
-solver as soft.** Every constraint the current `advanced_optimizer.py`
-builds is added as a hard PuLP constraint regardless of `strictness` — a
-soft constraint that cannot be satisfied makes the whole solve infeasible
-today, rather than being violated with a reported penalty. This is a real,
-disclosed gap: implementing a genuine soft constraint (an LP penalty
-variable added to the objective, one per soft constraint, weighted by
-severity) is designed for in the schema (`ConstraintResult.penaltyApplied`)
-but not implemented in the solver. Treat every constraint you add as
-effectively hard until this is closed.
+**Soft constraints are genuinely enforced as soft.** A `strictness: "soft"`
+constraint (composition, functional, ratio, or the two conditional
+target-percentage types) becomes a relaxed constraint plus a non-negative
+slack variable, weighted by its own required `penaltyWeight` and added to
+the objective — see [SOFT_CONSTRAINTS.md](SOFT_CONSTRAINTS.md) for the exact
+mechanism, which constraint types can never be soft regardless of what is
+requested, and what `ConstraintResult.penaltyApplied`/`requestedTarget`/
+`achievedValue`/`deviation` report. No UI yet exposes the
+`penaltyWeight`/`penaltyType`/`allowedDeviation` fields a soft constraint
+needs — a `FormulationProblem` built by another caller gets the real
+enforcement today.
 
 ## Composition constraints
 
@@ -35,7 +36,7 @@ effectively hard until this is closed.
 | `water_qs` | no separate variable — resolved implicitly by `total_equals_100` plus every other constraint | accepted, no-op (kept for round-trip parity with the Formula Builder's own q.s. line concept) |
 | `min_total_active_matter` / `max_total_active_matter` | sum of `x_i * active_pct_i / 100` bounded | yes |
 | `min_phase_percentage` / `max_phase_percentage` | — | **not wired**: `OptimizationMaterial` has no `phase` field (only a plain `FormulationLine` does), so there is nothing to bind to yet |
-| `min_total_solids` / `max_total_solids` / `min_total_water` / `max_total_water` | — | **not wired**: `OptimizationMaterial` has no `solidsPercent`/`waterPercent` field (only `RawMaterial` does) |
+| `min_total_solids` / `max_total_solids` / `min_total_water` / `max_total_water` | `sum(x_i * solidsPercent_i / 100)` / `waterPercent_i` `{>=,<=} ...` | yes |
 
 The last two rows are accepted by the schema (so a profile can name them)
 and silently skipped by the solver — a documented limitation, not a bug: a

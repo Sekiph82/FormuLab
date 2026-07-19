@@ -25,12 +25,20 @@ history, and the Python solver. See:
 - [OPTIMIZATION_CONSTRAINTS.md](OPTIMIZATION_CONSTRAINTS.md) — composition,
   functional-group, ratio and conditional constraints, and which of the
   eight constraint types the solver actually enforces today.
+- [SOFT_CONSTRAINTS.md](SOFT_CONSTRAINTS.md) — penalty-based relaxation:
+  what becomes soft, how a violation is scored, and what
+  `feasible_with_penalties` means.
+- [PROPERTY_TARGETS.md](PROPERTY_TARGETS.md) — which properties the solver
+  can genuinely calculate, which are honestly `laboratory_required`, and how
+  a target can be enforced as a hard or soft constraint.
 - [MULTI_OBJECTIVE_OPTIMIZATION.md](MULTI_OBJECTIVE_OPTIMIZATION.md) —
   weighted and lexicographic strategies, metric normalization, and which
   metrics are refused outright (`performance_score`,
   `regulatory_uncertainty`) rather than computed dishonestly.
-- [INFEASIBILITY_ANALYSIS.md](INFEASIBILITY_ANALYSIS.md) — the four
-  deterministic infeasibility checks and their suggested actions.
+- [INFEASIBILITY_ANALYSIS.md](INFEASIBILITY_ANALYSIS.md) — the deterministic
+  infeasibility checks (composition, functional, ratio, conditional,
+  property, and compatibility/safety-exclusion lockout) and their suggested
+  actions.
 - [SOLVER_ARCHITECTURE.md](SOLVER_ARCHITECTURE.md) — why the solve itself
   stays in Python, the TS/Python contract, timeout/cancellation, and
   deterministic naming.
@@ -60,12 +68,17 @@ trusting the request:
 | `ph`, `hlb`, `density`, `available_chlorine`, `peroxide_active`, `qac_active`, `chlorhexidine_active`, `fluoride_level` | `rule_based_estimate` — a weighted-average approximation, never presented as measured |
 | `viscosity`, `foam_profile`, `hard_water_tolerance`, `wet_wipe_lotion_loading` | `laboratory_required` — always, no matter what is requested |
 
-**Property targets are modelled in the schema and accepted on a
-`FormulationProblem`, but the solver does not currently enforce them as
-constraints or report a computed value for them.** `propertyTargets` is
-always sent as `[]` by the current UI. This is a real, disclosed gap: the
-capability ceiling above governs what a *future* implementation is allowed
-to claim, not a claim that property targets are solved today.
+**The solver genuinely calculates and can enforce (hard or soft) every
+`calculated`/`rule_based_estimate` property above** — see
+[PROPERTY_TARGETS.md](PROPERTY_TARGETS.md) for the exact formulas and the
+`PropertyResult` each target produces. `laboratory_required` properties are
+never enforced and never given a fabricated value.
+
+**The disclosed gap is in the UI, not the solver**: `AdvancedOptimizerPanel.tsx`
+still always sends `propertyTargets: []` and never sets `costCeiling` — there
+is no property-target or cost-ceiling input on the Optimizer screen yet.
+Building a `FormulationProblem` by hand (or from a future UI affordance) gets
+the real calculation and enforcement today.
 
 ## Product-family optimization profiles
 
@@ -87,6 +100,26 @@ approaches today means running the Optimizer twice with different
 candidates/constraints/objectives and comparing the two persisted
 `OptimizationRun` records by hand (both are saved to `optimization_runs`
 regardless of whether either is applied).
+
+## Graded compatibility/safety risk
+
+A `blocking` compatibility or safety finding between two candidates always
+becomes a hard exclusion (`if_present_then_excluded`) — the solver can never
+select both. Every other finding (`info`/`warning`/`error`) instead feeds
+the `compatibility_risk`/`safety_risk` objective metrics as a real,
+severity-weighted score: `AdvancedOptimizerPanel.tsx`'s `gradedRiskScores`
+runs the same `evaluateCompatibility`/`evaluateSafety` engines pairwise over
+every pair of selected candidates (the same evaluation
+`blockingExclusionConstraints` already does), sums each material's
+severity-weighted findings (`info` 0.1, `warning` 0.4, `error` 0.8, ×1.3 for
+a `human_review_required`/data-incomplete finding), caps at 1.0, and passes
+the result as `compatibilityRiskScore`/`safetyRiskScore` on each
+`OptimizationMaterial`. The solver never runs the rules itself — it only
+consumes these numbers via `_metric_unit_value` in `advanced_optimizer.py`.
+A candidate that was actually paired against another (pool size ≥ 2) always
+gets an explicit `0`, never `undefined` — unscored is reserved for the
+single-candidate case where no pairing was even possible, never used as a
+shortcut for "did not check."
 
 ## Workflow
 
@@ -118,21 +151,38 @@ re-validated (its stored result status, not just its presence) before
 
 ## What this is not
 
-- Does not enforce soft constraints as soft yet — see
-  [OPTIMIZATION_CONSTRAINTS.md](OPTIMIZATION_CONSTRAINTS.md).
-- Does not solve property targets — see "Property targets" above.
-- Does not load or apply the seeded product-family profiles yet, and has no
-  scenario-comparison screen — see the two sections above.
+- The solver enforces soft constraints, property targets and a cost ceiling
+  for real (see [SOFT_CONSTRAINTS.md](SOFT_CONSTRAINTS.md) /
+  [PROPERTY_TARGETS.md](PROPERTY_TARGETS.md)), but **the Optimizer screen has
+  no UI for any of the three yet** — no penalty-weight/allowed-deviation
+  inputs on a constraint, no property-target editor, no cost-ceiling field.
+  A `FormulationProblem` built by another caller gets the real behavior.
+- Does not load or apply the seeded product-family profiles yet (only 1 of
+  the eventual 31 is seeded today —
+  `packages/shared/src/catalog/optimizationProfiles.ts`), and has no
+  scenario-creation or scenario-comparison screen, even though
+  `OptimizationScenario`/`OptimizationProfile` are modelled and persisted
+  (`optimization_scenarios`/`optimization_profiles` collections).
 - Does not have a ratio- or conditional-constraint builder in the UI; only
   functional-group constraints and the automatic compatibility/safety
   exclusion are user-facing today, even though the solver and schema
   support the full set.
+- The UI does not yet expose lexicographic priority selection (weighted
+  only), even though the solver supports it and now solves soft-constraint
+  penalties in their own tier ahead of every priority (see
+  [SOFT_CONSTRAINTS.md](SOFT_CONSTRAINTS.md)).
+- [MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md) covers the
+  Substitution screen's own, separate gap: `isSystem`/`systemMaterialIds`
+  are modelled but the UI does not yet generate a multi-material system
+  candidate or route one through this optimizer.
 - Does not guarantee cleaning performance, stability, or regulatory
   compliance — see [MULTI_OBJECTIVE_OPTIMIZATION.md](MULTI_OBJECTIVE_OPTIMIZATION.md).
 
 ## Tests
 
-`runtime/formulation/test_advanced_optimizer.py` (36), 
-`packages/shared/src/engine/optimization.test.ts` (10),
+`runtime/formulation/test_advanced_optimizer.py` (57 — composition,
+functional, ratio, conditional, soft-constraint relaxation, property
+targets, cost ceiling, graded risk objectives, and infeasibility diagnostic
+coverage), `packages/shared/src/engine/optimization.test.ts` (10),
 `packages/shared/src/engine/approvalReadiness.test.ts` (the 6 optimizer/
 substitution readiness cases).
