@@ -660,6 +660,100 @@ class InfeasibilityTests(unittest.TestCase):
         for cause in res["infeasibility"]["causes"]:
             self.assertTrue(cause["message"])
             self.assertIsInstance(cause["suggestedActions"], list)
+        codes = [c["code"] for c in res["infeasibility"]["causes"]]
+        self.assertIn("ratio_maximum_conflict", codes)
+
+    def test_ratio_minimum_conflict_diagnosed_when_pinned(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000)),
+            material("b", price=1.0, active=100, stock=val(1000)),
+        ]
+        res = solve(
+            problem(
+                materials,
+                comp=[
+                    comp_constraint("t", "total_equals_100"),
+                    comp_constraint("fix_a", "exact_percentage", materialId="a", exactPercent="10"),
+                    comp_constraint("fix_b", "exact_percentage", materialId="b", exactPercent="90"),
+                ],
+                ratio=[
+                    {
+                        "id": "impossible_min_ratio",
+                        "displayName": "impossible min",
+                        "numerator": {"materialIds": ["a"], "basis": "raw_material"},
+                        "denominator": {"materialIds": ["b"], "basis": "raw_material"},
+                        "ratioType": "min_ratio",
+                        "value": "1",
+                        "strictness": "hard",
+                    }
+                ],
+            )
+        )
+        self.assertEqual(res["status"], "infeasible")
+        codes = [c["code"] for c in res["infeasibility"]["causes"]]
+        self.assertIn("ratio_minimum_conflict", codes)
+
+    def test_ratio_division_by_zero_diagnosed(self):
+        materials = [material("a", price=1.0, active=100, stock=val(1000))]
+        res = solve(
+            problem(
+                materials,
+                comp=[
+                    comp_constraint("t", "total_equals_100"),
+                    comp_constraint("fix_a", "exact_percentage", materialId="a", exactPercent="100"),
+                ],
+                ratio=[
+                    {
+                        "id": "no_denominator",
+                        "displayName": "no denominator",
+                        "numerator": {"materialIds": ["a"], "basis": "raw_material"},
+                        "denominator": {"materialIds": ["nonexistent"], "basis": "raw_material"},
+                        "ratioType": "exact_ratio",
+                        "value": "1",
+                        "strictness": "hard",
+                    }
+                ],
+            )
+        )
+        self.assertEqual(res["status"], "infeasible")
+        codes = [c["code"] for c in res["infeasibility"]["causes"]]
+        self.assertIn("ratio_division_by_zero", codes)
+
+    def test_property_target_unreachable_diagnosed(self):
+        materials = [material("a", price=1.0, active=30, stock=val(1000))]
+        p = problem(materials, comp=[comp_constraint("t", "total_equals_100")])
+        p["propertyTargets"] = [
+            {"id": "am_unreachable", "property": "active_matter", "minValue": "80", "enforceAs": "hard"}
+        ]
+        res = solve(p)
+        self.assertEqual(res["status"], "infeasible")
+        codes = [c["code"] for c in res["infeasibility"]["causes"]]
+        self.assertIn("property_target_unreachable", codes)
+
+    def test_all_candidates_mutually_excluded_diagnosed(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000), minUsePercent="0", maxUsePercent="50"),
+            material("b", price=1.0, active=100, stock=val(1000), minUsePercent="0", maxUsePercent="50"),
+        ]
+        res = solve(
+            problem(
+                materials,
+                comp=[comp_constraint("t", "total_equals_100")],
+                cond=[
+                    {
+                        "id": "mutual_exclusion",
+                        "displayName": "a excludes b",
+                        "conditionType": "if_present_then_excluded",
+                        "trigger": {"materialId": "a"},
+                        "target": {"materialId": "b"},
+                        "strictness": "hard",
+                    }
+                ],
+            )
+        )
+        self.assertEqual(res["status"], "infeasible")
+        codes = [c["code"] for c in res["infeasibility"]["causes"]]
+        self.assertIn("compatibility_or_safety_exclusions_remove_all_candidates", codes)
 
 
 class PrecisionTests(unittest.TestCase):
@@ -741,6 +835,367 @@ class PropertyBasedInvariantTests(unittest.TestCase):
         res2 = solve(p)
         self.assertEqual(res1["objectiveResults"], res2["objectiveResults"])
         self.assertEqual(res1["totals"], res2["totals"])
+
+
+class SoftConstraintTests(unittest.TestCase):
+    """Spec §A2 — penalty-based relaxation."""
+
+    def test_hard_constraint_never_relaxes(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000)),
+            material("b", price=1.0, active=100, stock=val(1000)),
+        ]
+        res = solve(
+            problem(
+                materials,
+                comp=[
+                    comp_constraint("t", "total_equals_100"),
+                    comp_constraint("exact_a", "exact_percentage", materialId="a", exactPercent="60"),
+                    comp_constraint("exact_b", "exact_percentage", materialId="b", exactPercent="60"),
+                ],
+            )
+        )
+        self.assertEqual(res["status"], "infeasible")
+
+    def test_soft_constraint_relaxes_only_when_necessary(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000)),
+            material("b", price=1.0, active=100, stock=val(1000)),
+        ]
+        res = solve(
+            problem(
+                materials,
+                comp=[
+                    comp_constraint("t", "total_equals_100"),
+                    comp_constraint("exact_a", "exact_percentage", materialId="a", exactPercent="60"),
+                    comp_constraint(
+                        "exact_b",
+                        "exact_percentage",
+                        materialId="b",
+                        exactPercent="60",
+                        strictness="soft",
+                        penaltyWeight="1",
+                        allowedDeviation="0",
+                    ),
+                ],
+            )
+        )
+        self.assertEqual(res["status"], "feasible_with_penalties")
+        line_a = next(l for l in res["formulaLines"] if l["materialId"] == "a")
+        line_b = next(l for l in res["formulaLines"] if l["materialId"] == "b")
+        self.assertEqual(line_a["percent"], "60.0000")
+        self.assertEqual(line_b["percent"], "40.0000")
+        cr_a = next(c for c in res["constraintResults"] if c["constraintId"] == "exact_a")
+        cr_b = next(c for c in res["constraintResults"] if c["constraintId"] == "exact_b")
+        self.assertTrue(cr_a["satisfied"])
+        self.assertFalse(cr_b["satisfied"])
+        self.assertEqual(cr_b["requestedTarget"], "60.0000")
+        self.assertEqual(cr_b["achievedValue"], "40.0000")
+        self.assertEqual(cr_b["deviation"], "20.0000")
+
+    def test_soft_constraint_satisfied_when_reachable_is_not_flagged(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000)),
+            material("b", price=1.0, active=100, stock=val(1000)),
+        ]
+        res = solve(
+            problem(
+                materials,
+                comp=[
+                    comp_constraint("t", "total_equals_100"),
+                    comp_constraint(
+                        "exact_a",
+                        "exact_percentage",
+                        materialId="a",
+                        exactPercent="30",
+                        strictness="soft",
+                        penaltyWeight="1",
+                        allowedDeviation="0",
+                    ),
+                ],
+            )
+        )
+        self.assertEqual(res["status"], "optimal")
+        line_a = next(l for l in res["formulaLines"] if l["materialId"] == "a")
+        self.assertEqual(line_a["percent"], "30.0000")
+        cr_a = next(c for c in res["constraintResults"] if c["constraintId"] == "exact_a")
+        self.assertTrue(cr_a["satisfied"])
+        self.assertEqual(cr_a["deviation"], "0.0000")
+
+    def test_higher_penalty_weight_wins_over_lower(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000)),
+            material("b", price=1.0, active=100, stock=val(1000)),
+        ]
+        res = solve(
+            problem(
+                materials,
+                comp=[
+                    comp_constraint("t", "total_equals_100"),
+                    comp_constraint(
+                        "min_a",
+                        "min_percentage",
+                        materialId="a",
+                        minPercent="50",
+                        strictness="soft",
+                        penaltyWeight="10",
+                        allowedDeviation="0",
+                    ),
+                    comp_constraint(
+                        "max_a",
+                        "max_percentage",
+                        materialId="a",
+                        maxPercent="30",
+                        strictness="soft",
+                        penaltyWeight="1",
+                        allowedDeviation="0",
+                    ),
+                ],
+            )
+        )
+        line_a = next(l for l in res["formulaLines"] if l["materialId"] == "a")
+        self.assertAlmostEqual(float(line_a["percent"]), 50.0, places=2)
+        cr_min = next(c for c in res["constraintResults"] if c["constraintId"] == "min_a")
+        cr_max = next(c for c in res["constraintResults"] if c["constraintId"] == "max_a")
+        self.assertTrue(cr_min["satisfied"])
+        self.assertFalse(cr_max["satisfied"])
+
+    def test_lexicographic_soft_penalties_minimized_before_objective_preference(self):
+        materials = [
+            material("cheap", price=1.0, active=100, stock=val(1000)),
+            material("costly", price=5.0, active=100, stock=val(1000)),
+        ]
+        problem_dict = problem(
+            materials,
+            comp=[
+                comp_constraint("t", "total_equals_100"),
+                comp_constraint(
+                    "min_costly",
+                    "min_percentage",
+                    materialId="costly",
+                    minPercent="40",
+                    strictness="soft",
+                    penaltyWeight="1",
+                    allowedDeviation="0",
+                ),
+            ],
+            objectives=[{"metric": "raw_material_cost", "direction": "minimize", "priority": 0}],
+        )
+        problem_dict["objectiveConfig"]["type"] = "lexicographic"
+        res = solve(problem_dict)
+        # Cost minimization alone would want 0% of the costly material, but
+        # the penalty tier is solved (and frozen) before any objective tier.
+        self.assertEqual(res["status"], "optimal")
+        line_costly = next(l for l in res["formulaLines"] if l["materialId"] == "costly")
+        self.assertAlmostEqual(float(line_costly["percent"]), 40.0, places=2)
+
+    def test_penalty_values_deterministic(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000)),
+            material("b", price=1.0, active=100, stock=val(1000)),
+        ]
+        p = problem(
+            materials,
+            comp=[
+                comp_constraint("t", "total_equals_100"),
+                comp_constraint("exact_a", "exact_percentage", materialId="a", exactPercent="60"),
+                comp_constraint(
+                    "exact_b",
+                    "exact_percentage",
+                    materialId="b",
+                    exactPercent="60",
+                    strictness="soft",
+                    penaltyWeight="1",
+                    allowedDeviation="0",
+                ),
+            ],
+        )
+        res1 = solve(p)
+        res2 = solve(p)
+        self.assertEqual(res1["constraintResults"], res2["constraintResults"])
+
+    def test_soft_penalties_exceed_tolerance_warning(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000)),
+            material("b", price=1.0, active=100, stock=val(1000)),
+        ]
+        res = solve(
+            problem(
+                materials,
+                comp=[
+                    comp_constraint("t", "total_equals_100"),
+                    comp_constraint("exact_a", "exact_percentage", materialId="a", exactPercent="60"),
+                    comp_constraint(
+                        "exact_b",
+                        "exact_percentage",
+                        materialId="b",
+                        exactPercent="60",
+                        strictness="soft",
+                        penaltyWeight="1",
+                        allowedDeviation="0",
+                    ),
+                ],
+            )
+        )
+        self.assertEqual(res["status"], "feasible_with_penalties")
+        codes = [w["code"] for w in res["warnings"]]
+        self.assertIn("soft_penalties_exceed_tolerance", codes)
+
+    def test_soft_constraint_without_penalty_weight_raises(self):
+        materials = [material("a", price=1.0, active=100, stock=val(1000))]
+        with self.assertRaises(OptimizerError):
+            solve(
+                problem(
+                    materials,
+                    comp=[
+                        comp_constraint("t", "total_equals_100"),
+                        comp_constraint(
+                            "exact_a", "exact_percentage", materialId="a", exactPercent="30", strictness="soft"
+                        ),
+                    ],
+                )
+            )
+
+
+class PropertyTargetTests(unittest.TestCase):
+    """Spec §A3 — deterministic where possible, honest elsewhere."""
+
+    def test_total_solids_calculated(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000), solidsPercent=val(90)),
+            material("b", price=1.0, active=100, stock=val(1000), solidsPercent=val(10)),
+        ]
+        p = problem(materials, comp=[comp_constraint("t", "total_equals_100")])
+        p["propertyTargets"] = [{"id": "solids1", "property": "total_solids", "minValue": "20"}]
+        res = solve(p)
+        self.assertEqual(res["status"], "optimal")
+        pr = next(r for r in res["propertyResults"] if r["targetId"] == "solids1")
+        self.assertEqual(pr["classification"], "calculated")
+        self.assertEqual(pr["dataCompleteness"], "complete")
+        self.assertIsNotNone(pr["value"])
+
+    def test_ph_is_laboratory_required_never_fabricated(self):
+        materials = [material("a", price=1.0, active=100, stock=val(1000))]
+        p = problem(materials, comp=[comp_constraint("t", "total_equals_100")])
+        p["propertyTargets"] = [{"id": "ph1", "property": "ph", "targetValue": "7"}]
+        res = solve(p)
+        pr = next(r for r in res["propertyResults"] if r["targetId"] == "ph1")
+        self.assertEqual(pr["classification"], "laboratory_required")
+        self.assertIsNone(pr.get("value"))
+        self.assertEqual(pr["constraintStatus"], "unsupported")
+        self.assertTrue(pr["laboratoryConfirmationRequired"])
+
+    def test_hlb_weighted_average_reported_not_enforced(self):
+        materials = [
+            material("a", price=1.0, active=100, stock=val(1000), hlb=val(12)),
+            material("b", price=1.0, active=100, stock=val(1000), hlb=val(4)),
+        ]
+        p = problem(
+            materials,
+            comp=[
+                comp_constraint("t", "total_equals_100"),
+                comp_constraint("exact_a", "exact_percentage", materialId="a", exactPercent="50"),
+            ],
+        )
+        p["propertyTargets"] = [{"id": "hlb1", "property": "hlb", "targetValue": "8"}]
+        res = solve(p)
+        pr = next(r for r in res["propertyResults"] if r["targetId"] == "hlb1")
+        self.assertEqual(pr["classification"], "rule_based_estimate")
+        self.assertAlmostEqual(float(pr["value"]), 8.0, places=2)
+        self.assertEqual(pr["constraintStatus"], "reported_only")
+
+    def test_property_target_enforced_as_hard(self):
+        materials = [
+            material("a", price=1.0, active=90, stock=val(1000)),
+            material("b", price=1.0, active=10, stock=val(1000)),
+        ]
+        p = problem(materials, comp=[comp_constraint("t", "total_equals_100")])
+        p["propertyTargets"] = [{"id": "am1", "property": "active_matter", "minValue": "50", "enforceAs": "hard"}]
+        res = solve(p)
+        self.assertEqual(res["status"], "optimal")
+        pr = next(r for r in res["propertyResults"] if r["targetId"] == "am1")
+        self.assertEqual(pr["constraintStatus"], "enforced_hard")
+        self.assertGreaterEqual(float(pr["value"]), 50.0 - 1e-6)
+
+    def test_property_target_enforced_as_soft_can_violate(self):
+        materials = [material("a", price=1.0, active=30, stock=val(1000))]
+        p = problem(materials, comp=[comp_constraint("t", "total_equals_100")])
+        p["propertyTargets"] = [
+            {
+                "id": "am2",
+                "property": "active_matter",
+                "minValue": "80",
+                "enforceAs": "soft",
+                "penaltyWeight": "1",
+            }
+        ]
+        res = solve(p)
+        self.assertEqual(res["status"], "feasible_with_penalties")
+        pr = next(r for r in res["propertyResults"] if r["targetId"] == "am2")
+        self.assertEqual(pr["constraintStatus"], "enforced_soft_violated")
+
+
+class CostCeilingTests(unittest.TestCase):
+    """Spec §A2 — the global raw-material-cost budget, always soft."""
+
+    def test_cost_ceiling_penalizes_over_budget(self):
+        materials = [
+            material("cheap", price=1.0, active=100, stock=val(1000)),
+            material("costly", price=5.0, active=100, stock=val(1000)),
+        ]
+        p = problem(
+            materials,
+            comp=[
+                comp_constraint("t", "total_equals_100"),
+                comp_constraint("force_costly", "min_percentage", materialId="costly", minPercent="100"),
+            ],
+        )
+        p["costCeiling"] = {"value": "300", "currency": "KES", "penaltyWeight": "1"}
+        res = solve(p)
+        self.assertEqual(res["status"], "feasible_with_penalties")
+        cr = next(c for c in res["constraintResults"] if c["constraintId"] == "cost_ceiling")
+        self.assertEqual(cr["kind"], "cost")
+        self.assertFalse(cr["satisfied"])
+
+    def test_cost_ceiling_not_penalized_when_within_budget(self):
+        materials = [material("cheap", price=1.0, active=100, stock=val(1000))]
+        p = problem(materials, comp=[comp_constraint("t", "total_equals_100")])
+        p["costCeiling"] = {"value": "1000", "currency": "KES", "penaltyWeight": "1"}
+        res = solve(p)
+        self.assertEqual(res["status"], "optimal")
+        cr = next(c for c in res["constraintResults"] if c["constraintId"] == "cost_ceiling")
+        self.assertTrue(cr["satisfied"])
+
+
+class GradedRiskObjectiveTests(unittest.TestCase):
+    """Spec §A4 — real graded risk scoring, consumed (not computed) here."""
+
+    def test_optimizer_prefers_lower_compatibility_risk_material(self):
+        materials = [
+            material("risky", price=1.0, active=100, stock=val(1000), compatibilityRiskScore=0.9),
+            material("safe", price=1.0, active=100, stock=val(1000), compatibilityRiskScore=0.1),
+        ]
+        res = solve(
+            problem(
+                materials,
+                comp=[comp_constraint("t", "total_equals_100")],
+                objectives=[{"metric": "compatibility_risk", "direction": "minimize", "weight": "1"}],
+            )
+        )
+        self.assertEqual(res["status"], "optimal")
+        safe_pct = next((float(l["percent"]) for l in res["formulaLines"] if l["materialId"] == "safe"), 0.0)
+        self.assertAlmostEqual(safe_pct, 100.0, places=2)
+
+    def test_compatibility_risk_objective_requires_at_least_one_scored_material(self):
+        materials = [material("a", price=1.0, active=100, stock=val(1000))]  # no compatibilityRiskScore
+        with self.assertRaises(OptimizerError):
+            solve(
+                problem(
+                    materials,
+                    comp=[comp_constraint("t", "total_equals_100")],
+                    objectives=[{"metric": "compatibility_risk", "direction": "minimize", "weight": "1"}],
+                )
+            )
 
 
 if __name__ == "__main__":

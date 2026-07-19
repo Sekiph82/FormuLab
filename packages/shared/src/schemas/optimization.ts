@@ -49,6 +49,14 @@ export const OPTIMIZATION_VERIFICATION_STATUSES = [
 ] as const;
 export type OptimizationVerificationStatus = (typeof OPTIMIZATION_VERIFICATION_STATUSES)[number];
 
+/** How a soft constraint's deviation from target is penalized. `linear_absolute`
+ *  penalizes distance from target in either direction; `under_target`/
+ *  `over_target` penalize only the one direction that matters for a
+ *  minimum-style or maximum-style constraint (a soft minimum is never
+ *  penalized for exceeding it). */
+export const SOFT_PENALTY_TYPES = ["linear_absolute", "under_target", "over_target"] as const;
+export type SoftPenaltyType = (typeof SOFT_PENALTY_TYPES)[number];
+
 /** Common metadata every constraint type carries, spread into each concrete
  *  constraint schema below rather than factored into a wrapper object — the
  *  solver and the UI both want a flat, constraint-type-specific shape. */
@@ -61,6 +69,22 @@ const constraintMetaShape = {
   verificationStatus: z.enum(OPTIMIZATION_VERIFICATION_STATUSES).default("not_verified"),
   explanation: z.string().optional(),
   active: z.boolean().default(true),
+  /** Required when `strictness: "soft"`; ignored for a hard constraint. A
+   *  soft constraint with no `penaltyWeight` is rejected by the solver
+   *  (`OptimizerError`) rather than silently treated as unweighted (weight
+   *  0 would mean "never enforce it," which is not the same as "soft"). */
+  penaltyWeight: decimalString.optional(),
+  penaltyType: z.enum(SOFT_PENALTY_TYPES).optional(),
+  /** Deviation (in the constraint's own unit — percentage points for a
+   *  composition/functional constraint, a ratio unit for a ratio
+   *  constraint) within which a soft constraint counts as `satisfied`
+   *  despite the slack not being exactly zero. Defaults to 0. */
+  allowedDeviation: decimalString.optional(),
+  deviationUnit: z.string().optional(),
+  /** Lexicographic tier a soft constraint's penalty belongs to, mirroring
+   *  `OptimizationObjective.priority` — a soft constraint can be prioritized
+   *  against another the same way objectives are. Ignored for `weighted`. */
+  priority: z.number().int().nonnegative().optional(),
 };
 
 // ---------------------------------------------------------------------------
@@ -100,6 +124,12 @@ export const optimizationMaterialSchema = z.object({
   solidsPercent: optimizationValueSchema.optional(),
   waterPercent: optimizationValueSchema.optional(),
   density: optimizationValueSchema.optional(),
+  /** Hydrophile-lipophile balance, for the `hlb` property target's weighted
+   *  average — a real linear calculation, still only a `rule_based_estimate`
+   *  (see `PROPERTY_CAPABILITY`, engine/optimization.ts) since a formula's
+   *  effective HLB is not a strict linear function of its emulsifiers'
+   *  individual HLB values in reality. */
+  hlb: optimizationValueSchema.optional(),
 
   functions: z.array(z.enum(MATERIAL_FUNCTIONS)).default([]),
   ionicCharacter: z.enum(IONIC_CHARACTERS).optional(),
@@ -112,6 +142,16 @@ export const optimizationMaterialSchema = z.object({
   /** 0 (best) .. 1 (worst). Optional and never invented — absent unless a
    *  human or an explicit scoring rule set it. */
   supplyRiskScore: z.number().min(0).max(1).optional(),
+  /** 0 (best) .. 1 (worst) graded compatibility/safety risk (spec §A4),
+   *  computed by the CALLER from real `evaluateCompatibility`/`evaluateSafety`
+   *  findings against the rest of the candidate pool — see
+   *  `gradedRiskScores` in AdvancedOptimizerPanel.tsx. The solver only
+   *  consumes these numbers; it never runs the compatibility/safety rules
+   *  itself. A `blocking` finding never reaches here — that already became a
+   *  hard `if_present_then_excluded` conditional constraint, so these two
+   *  scores only ever reflect non-blocking (info/warning/error) findings. */
+  compatibilityRiskScore: z.number().min(0).max(1).optional(),
+  safetyRiskScore: z.number().min(0).max(1).optional(),
   /** 0 (no evidence) .. 1 (fully verified). */
   evidenceConfidenceScore: z.number().min(0).max(1).optional(),
   /** Lower is better; unit and basis are the caller's convention (e.g.
@@ -311,6 +351,15 @@ export const propertyTargetSchema = z.object({
    *  property, which the solver enforces regardless of what is requested
    *  here. */
   requestedClassification: z.enum(PROPERTY_CLASSIFICATIONS).default("unknown"),
+  /** Only meaningful for a property whose `PROPERTY_CAPABILITY` is
+   *  `calculated` or `rule_based_estimate` — a `laboratory_required`
+   *  property can never be enforced as a constraint (`constraintStatus`
+   *  will read `unsupported` in the result regardless of what is set here).
+   *  Absent (the default) means the target is informational-only: reported,
+   *  never enforced. */
+  enforceAs: z.enum(["hard", "soft"]).optional(),
+  penaltyWeight: decimalString.optional(),
+  penaltyType: z.enum(SOFT_PENALTY_TYPES).optional(),
 });
 export type PropertyTarget = z.infer<typeof propertyTargetSchema>;
 
@@ -435,6 +484,23 @@ export const formulationProblemSchema = z.object({
   ratioConstraints: z.array(ratioConstraintSchema).default([]),
   conditionalConstraints: z.array(conditionalConstraintSchema).default([]),
   propertyTargets: z.array(propertyTargetSchema).default([]),
+  /** A global raw-material-cost budget — the one soft constraint that is
+   *  not per-material or per-group, so it gets its own field rather than a
+   *  synthetic `CompositionConstraint`. Always `over_target`-style: cost
+   *  above `value` is penalized, cost below it never is. Hard cost ceilings
+   *  are not supported — a strict budget the solver cannot exceed under any
+   *  circumstance is architecturally a hard hard-material-cost constraint,
+   *  which would need a Big-M-free linear cap already achievable by
+   *  tightening `raw_material_cost`'s weight; a true hard ceiling risks
+   *  turning any tight budget into silent infeasibility with no
+   *  informative cause, which is worse than a graded penalty. */
+  costCeiling: z
+    .object({
+      value: decimalString,
+      currency: z.string().default("KES"),
+      penaltyWeight: decimalString,
+    })
+    .optional(),
 
   compatibilityPolicy: compatibilityOptimizationPolicySchema.default({
     mode: "exclude_blocking",
@@ -466,6 +532,11 @@ export type FormulationProblem = z.infer<typeof formulationProblemSchema>;
 export const OPTIMIZATION_RUN_STATUSES = [
   "optimal",
   "feasible",
+  /** Every hard constraint is satisfied, but at least one soft constraint's
+   *  slack is nonzero beyond its `allowedDeviation` — the result is real and
+   *  usable, but it is not the "everything requested was met" result an
+   *  unqualified `optimal` would imply. See docs/SOFT_CONSTRAINTS.md. */
+  "feasible_with_penalties",
   "infeasible",
   "unbounded",
   "timeout",
@@ -514,12 +585,22 @@ export type ObjectiveResult = z.infer<typeof objectiveResultSchema>;
 
 export const constraintResultSchema = z.object({
   constraintId: z.string().min(1),
-  kind: z.enum(["composition", "functional", "ratio", "conditional", "property"]),
+  kind: z.enum(["composition", "functional", "ratio", "conditional", "property", "cost"]),
   strictness: z.enum(CONSTRAINT_STRICTNESS),
   satisfied: z.boolean(),
   /** How far from the boundary the optimal solution landed (positive =
    *  slack/room to spare; only meaningful for inequality constraints). */
   slack: decimalString.optional(),
+  /** The constraint's own target value, in its own unit — only set for a
+   *  soft constraint (a hard constraint's target is exactly what its
+   *  `minPercent`/`maxPercent`/`value`/etc. already says). */
+  requestedTarget: decimalString.optional(),
+  /** What the optimal solution actually achieved for this constraint's
+   *  expression — set for a soft constraint alongside `requestedTarget`. */
+  achievedValue: decimalString.optional(),
+  /** `|achievedValue - requestedTarget|` in the constraint's own unit —
+   *  zero for a fully-satisfied soft constraint, nonzero for a relaxed one. */
+  deviation: decimalString.optional(),
   /** Set on a soft constraint the optimizer chose to violate. */
   penaltyApplied: decimalString.optional(),
   message: z.string().optional(),
@@ -576,6 +657,44 @@ export const solverMetadataSchema = z.object({
 });
 export type SolverMetadata = z.infer<typeof solverMetadataSchema>;
 
+/** What the solver actually did with one `PropertyTarget`. `constraintStatus`
+ *  is separate from `classification`: a property can be `calculated` (an
+ *  honest, exact figure) yet still `unsupported` as a *constraint* if the
+ *  caller never asked `enforceAs` to bind it — the value is still reported,
+ *  just not enforced. See docs/PROPERTY_TARGETS.md. */
+export const PROPERTY_CONSTRAINT_STATUSES = [
+  "enforced_hard",
+  "enforced_soft_satisfied",
+  "enforced_soft_violated",
+  "reported_only",
+  "unsupported",
+] as const;
+export type PropertyConstraintStatus = (typeof PROPERTY_CONSTRAINT_STATUSES)[number];
+
+export const propertyResultSchema = z.object({
+  targetId: z.string().min(1),
+  property: z.enum(FORMULATION_PROPERTIES),
+  targetValue: decimalString.optional(),
+  /** The computed/estimated value — absent when the property is
+   *  `laboratory_required` or data was too incomplete to compute even a
+   *  rule-based estimate. */
+  value: decimalString.optional(),
+  /** Free-text, human-readable description of exactly how `value` was
+   *  derived (e.g. "sum of active-matter contribution from materials
+   *  functioning as qac_active", "batch_kg / sum(kg_i / density_i)") — so a
+   *  chemist can judge the estimate's own reliability, not just its number. */
+  method: z.string().optional(),
+  dataCompleteness: z.enum(["complete", "partial", "insufficient"]),
+  classification: z.enum(PROPERTY_CLASSIFICATIONS),
+  constraintStatus: z.enum(PROPERTY_CONSTRAINT_STATUSES),
+  /** True whenever `classification` is not `calculated` — i.e. for every
+   *  `rule_based_estimate`/`model_estimate`/`laboratory_required` property,
+   *  restated here as a plain boolean so a UI does not have to know the
+   *  classification taxonomy just to decide whether to show a warning. */
+  laboratoryConfirmationRequired: z.boolean(),
+});
+export type PropertyResult = z.infer<typeof propertyResultSchema>;
+
 export const advancedOptimizationResultSchema = z.object({
   schemaVersion: z.literal("1.0"),
   runId: z.string().min(1),
@@ -586,6 +705,7 @@ export const advancedOptimizationResultSchema = z.object({
   totals: optimizationTotalsSchema.optional(),
   objectiveResults: z.array(objectiveResultSchema).default([]),
   constraintResults: z.array(constraintResultSchema).default([]),
+  propertyResults: z.array(propertyResultSchema).default([]),
   warnings: z.array(optimizationWarningSchema).default([]),
   infeasibility: infeasibilityReportSchema.optional(),
   sensitivity: sensitivityReportSchema.optional(),
