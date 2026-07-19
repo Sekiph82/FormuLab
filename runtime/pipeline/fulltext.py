@@ -96,6 +96,89 @@ def excerpt(path: str, max_chars: int = 3000) -> str:
     return joined[:max_chars].rstrip()
 
 
+def jats_to_markdown(data: bytes) -> str:
+    """Render a JATS article as readable Markdown.
+
+    We store this instead of the raw XML: the reader wants a paper they can
+    open, and a .xml file shows up as markup (Windows even labels it an "Edge
+    HTML Document"). Markdown keeps the section structure the excerpt logic
+    relies on while being plain text a person can read.
+    """
+    try:
+        root = ET.fromstring(data)
+    except Exception:
+        return ""
+
+    def first(path: str) -> str:
+        el = root.find(path)
+        return _text_of(el) if el is not None else ""
+
+    out: List[str] = []
+    title = first(".//article-title")
+    if title:
+        out.append(f"# {title}\n")
+
+    authors = []
+    for c in root.findall(".//contrib"):
+        sur, given = c.find(".//surname"), c.find(".//given-names")
+        name = " ".join(x.text for x in (given, sur) if x is not None and x.text)
+        if name:
+            authors.append(name)
+    meta = []
+    if authors:
+        meta.append("**Authors:** " + "; ".join(authors[:12]))
+    journal = first(".//journal-title")
+    if journal:
+        meta.append(f"**Journal:** {journal}")
+    for el in root.findall(".//article-id"):
+        if el.get("pub-id-type") == "doi" and el.text:
+            meta.append(f"**DOI:** {el.text}")
+            break
+    if meta:
+        out.append("\n".join(meta) + "\n")
+
+    abstract = root.find(".//abstract")
+    if abstract is not None:
+        a = _text_of(abstract)
+        if a:
+            out.append(f"## Abstract\n\n{a}\n")
+
+    for title_text, body in _sections(root):
+        out.append(f"## {title_text or 'Section'}\n\n{body}\n")
+
+    return "\n".join(out).strip()
+
+
+def markdown_excerpt(path: str, max_chars: int = 3000) -> str:
+    """Excerpt a stored Markdown paper, methods/results first."""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except Exception:
+        return ""
+    blocks: List[tuple[str, str]] = []
+    current, buf = "", []
+    for line in text.split("\n"):
+        if line.startswith("## "):
+            if buf:
+                blocks.append((current, " ".join(buf).strip()))
+            current, buf = line[3:].strip(), []
+        elif not line.startswith("# "):
+            buf.append(line.strip())
+    if buf:
+        blocks.append((current, " ".join(buf).strip()))
+
+    parts: List[str] = []
+    for title_text, body in sorted(blocks, key=lambda b: _rank(b[0])):
+        if not body or sum(len(p) for p in parts) >= max_chars:
+            continue
+        if len(body) > 900:
+            sentences = re.split(r"(?<=[.!?])\s+", body)
+            keep = [s for s in sentences if _SUBSTANCE.search(s)] or sentences
+            body = " ".join(keep)
+        parts.append(f"{title_text.upper() or 'SECTION'}: {body}")
+    return "\n".join(parts)[:max_chars].rstrip()
+
+
 def _pdf_text(path: str, max_chars: int) -> str:
     """Pull readable text out of a PDF using only the standard library.
 
@@ -143,7 +226,9 @@ def excerpt_for(paper: dict, pdf_dir: str, max_chars: int = 3000) -> str:
     path = os.path.join(pdf_dir, name)
     if not name or not os.path.isfile(path):
         return ""
-    if name.endswith(".xml"):
+    if name.endswith(".md"):
+        return markdown_excerpt(path, max_chars)
+    if name.endswith(".xml"):  # papers stored before the Markdown switch
         return excerpt(path, max_chars)
     if name.endswith(".pdf"):
         # Prefer the sections we can identify; a PDF gives us flat text, so lead

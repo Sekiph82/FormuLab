@@ -27,6 +27,8 @@ import sys
 import urllib.request
 from typing import Any, Callable, Dict, List
 
+import fulltext
+
 # Reuse the retrieval fetchers + relevance filter from the discovery script.
 _DISCOVERY = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -194,9 +196,15 @@ def _download_fulltext(url: str, dest: str, timeout: int = 30) -> tuple[str | No
             kind = sniff_fulltext(head, r.headers.get("Content-Type", ""))
             if kind is None:
                 return None, "link is a landing page, not the article"
-            if kind == "xml" and dest.endswith(".pdf"):
-                dest = dest[:-4] + ".xml"
             body = r.read()
+            if kind == "xml":
+                # Store the article as readable Markdown rather than raw JATS:
+                # the folder is for a person to open, and .xml reads as markup.
+                text = fulltext.jats_to_markdown(head + body)
+                if not text:
+                    return None, "full text could not be converted"
+                dest = (dest[:-4] if dest.endswith(".pdf") else dest) + ".md"
+                head, body = text.encode("utf-8"), b""
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
             return None, "publisher blocks automated download"
@@ -257,8 +265,9 @@ def fetch_pdfs(
     def ensure(job):
         p, url, name = job
         lib_path = os.path.join(lib_pdfs, name)
+        md_path = lib_path[:-4] + ".md"
         xml_path = lib_path[:-4] + ".xml"
-        for existing in (lib_path, xml_path):  # already in the shared library
+        for existing in (lib_path, md_path, xml_path):  # already in the shared library
             if os.path.exists(existing):
                 return (p, os.path.basename(existing), existing, "full text saved (from cache)")
         written, reason = _download_fulltext(url, lib_path)

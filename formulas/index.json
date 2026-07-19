@@ -250,5 +250,41 @@
     "session": "2026-07-18-2353-gum-health-protective-toothpaste",
     "ingredients": 11,
     "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-19-0410-gum-health-protective-toothpaste_v1.md",
+    "name": "Hydroxyapatite-CaP Remineralizing Gum Guard",
+    "target": "gum health protective toothpaste",
+    "category": "toothpaste",
+    "market": "eu",
+    "version": "v1",
+    "created": "2026-07-19 04:11:42",
+    "session": "2026-07-19-0410-gum-health-protective-toothpaste",
+    "ingredients": 9,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-19-0410-gum-health-protective-toothpaste_v2.md",
+    "name": "Herbal Biofilm Defense Toothpaste",
+    "target": "gum health protective toothpaste",
+    "category": "toothpaste",
+    "market": "eu",
+    "version": "v2",
+    "created": "2026-07-19 04:11:42",
+    "session": "2026-07-19-0410-gum-health-protective-toothpaste",
+    "ingredients": 9,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-19-0410-gum-health-protective-toothpaste_v3.md",
+    "name": "Potassium-Calm Sensitivity Relief",
+    "target": "gum health protective toothpaste",
+    "category": "toothpaste",
+    "market": "eu",
+    "version": "v3",
+    "created": "2026-07-19 04:11:42",
+    "session": "2026-07-19-0410-gum-health-protective-toothpaste",
+    "ingredients": 9,
+    "violations": []
   }
 ]
