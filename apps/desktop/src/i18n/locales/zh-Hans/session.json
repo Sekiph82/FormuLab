@@ -327,7 +327,9 @@
       "readOnly": "已保存 · 只读",
       "refusedTitle": "请求被拒绝",
       "errorTitle": "出错了",
-      "needKey": "在左侧添加 API 密钥，然后点击生成。"
+      "needKey": "在左侧添加 API 密钥，然后点击生成。",
+      "print": "打印",
+      "printTitle": "打印此配方卡（选择打印机，或打印为 PDF）"
     },
     "sessions": {
       "heading": "会话",

@@ -297,3 +297,90 @@ body {
 .fade-in {
   animation: fade-in 150ms ease-out 150ms backwards;
 }
+
+/* ---------------------------------------------------------------- printing --
+ * Printing a formulation card goes through the OS print dialog (window.print),
+ * so it reaches any installed printer and "Print to PDF" produces the PDF
+ * without the app shipping a PDF engine. The rules below turn the app window
+ * into a document: everything that is app furniture disappears, and only the
+ * card is laid out on paper.
+ */
+@media print {
+  /* Paper is white and ink is expensive: drop the dark theme entirely. */
+  :root,
+  :root[data-theme="dark"] {
+    --color-bg: #ffffff;
+    --color-surface: #ffffff;
+    --color-surface-2: #ffffff;
+    --color-text: #000000;
+    --color-muted: #333333;
+    --color-border: #999999;
+    --color-border-faint: #cccccc;
+  }
+
+  @page {
+    margin: 16mm 14mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* App furniture: navigation, the brief form, tabs, buttons, toasts. */
+  .print-hide,
+  aside,
+  nav,
+  button {
+    display: none !important;
+  }
+
+  /* Let the card flow across pages instead of being trapped in a scroll pane. */
+  .print-area,
+  .print-area * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    padding: 0;
+    font-size: 11pt;
+    line-height: 1.45;
+    color: #000;
+  }
+
+  /* A formulation table split across a page break is unusable at the bench. */
+  table {
+    page-break-inside: avoid;
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th,
+  td {
+    border: 1px solid #999;
+    padding: 4px 6px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    page-break-after: avoid;
+  }
+
+  /* Warnings must never be orphaned from the formula they qualify. */
+  blockquote,
+  li {
+    page-break-inside: avoid;
+  }
+
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+}

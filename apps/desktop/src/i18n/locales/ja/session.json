@@ -327,7 +327,9 @@
       "readOnly": "保存済み・読み取り専用",
       "refusedTitle": "リクエストは拒否されました",
       "errorTitle": "問題が発生しました",
-      "needKey": "左側にAPIキーを追加してから生成してください。"
+      "needKey": "左側にAPIキーを追加してから生成してください。",
+      "print": "印刷",
+      "printTitle": "この処方カードを印刷します（プリンターを選択、または PDF に印刷）"
     },
     "sessions": {
       "heading": "セッション",

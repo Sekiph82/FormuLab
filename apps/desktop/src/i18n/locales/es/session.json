@@ -335,7 +335,9 @@
       "readOnly": "guardado · solo lectura",
       "refusedTitle": "Solicitud rechazada",
       "errorTitle": "Algo salió mal",
-      "needKey": "Añade una clave de API a la izquierda y luego pulsa Generar."
+      "needKey": "Añade una clave de API a la izquierda y luego pulsa Generar.",
+      "print": "Imprimir",
+      "printTitle": "Imprimir esta ficha de formulación (elija impresora o Imprimir a PDF)"
     },
     "sessions": {
       "heading": "Sesiones",

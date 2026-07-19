@@ -335,7 +335,9 @@
       "readOnly": "enregistré · lecture seule",
       "refusedTitle": "Demande refusée",
       "errorTitle": "Une erreur s'est produite",
-      "needKey": "Ajoutez une clé API à gauche, puis cliquez sur Générer."
+      "needKey": "Ajoutez une clé API à gauche, puis cliquez sur Générer.",
+      "print": "Imprimer",
+      "printTitle": "Imprimer cette fiche de formulation (choisir une imprimante ou Imprimer en PDF)"
     },
     "sessions": {
       "heading": "Sessions",

@@ -335,7 +335,9 @@
       "readOnly": "saved · read-only",
       "refusedTitle": "Request declined",
       "errorTitle": "Something went wrong",
-      "needKey": "Add an API key on the left, then Generate."
+      "needKey": "Add an API key on the left, then Generate.",
+      "print": "Print",
+      "printTitle": "Print this formulation card (choose a printer, or Print to PDF)"
     },
     "sessions": {
       "heading": "Sessions",

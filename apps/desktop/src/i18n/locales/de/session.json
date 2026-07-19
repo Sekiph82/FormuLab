@@ -335,7 +335,9 @@
       "readOnly": "gespeichert · schreibgeschützt",
       "refusedTitle": "Anfrage abgelehnt",
       "errorTitle": "Etwas ist schiefgelaufen",
-      "needKey": "Füge links einen API-Schlüssel hinzu und klicke dann auf Generieren."
+      "needKey": "Füge links einen API-Schlüssel hinzu und klicke dann auf Generieren.",
+      "print": "Drucken",
+      "printTitle": "Diese Formulierungskarte drucken (Drucker wählen oder als PDF drucken)"
     },
     "sessions": {
       "heading": "Sitzungen",

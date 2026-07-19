@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { FileText, Loader2, TriangleAlert, ShieldAlert } from "lucide-react";
+import { FileText, Loader2, Printer, TriangleAlert, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   generateFormulation,
@@ -101,13 +101,13 @@ export function FormulationWorkspaceV2() {
   return (
     <div className="flex h-full min-w-0">
       {/* Studio form. */}
-      <div className="flex-[3] min-w-[300px] overflow-hidden border-r border-border">
+      <div className="print-hide flex-[3] min-w-[300px] overflow-hidden border-r border-border">
         <FormulationStudio onSubmit={onSubmit} busy={busy && !sessionId} />
       </div>
 
       {/* Result — v1…vN tabs. */}
       <div className="flex flex-[4] min-w-0 flex-col">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-3">
+        <div className="print-hide flex shrink-0 items-center justify-between border-b border-border px-6 py-3">
           <div className="text-xs font-medium uppercase tracking-wider text-muted">
             {t("studio.result.heading")}
             {view.mode === "cards" && view.readOnly && (
@@ -116,9 +116,23 @@ export function FormulationWorkspaceV2() {
               </span>
             )}
           </div>
-          {view.mode === "cards" && view.papers != null && (
-            <span className="text-[11px] text-muted">{view.papers} sources</span>
-          )}
+          <div className="flex items-center gap-3">
+            {view.mode === "cards" && view.papers != null && (
+              <span className="text-[11px] text-muted">{view.papers} sources</span>
+            )}
+            {view.mode === "cards" && (
+              // The OS print dialog reaches every installed printer, and its
+              // "Print to PDF" target produces the PDF without a PDF engine here.
+              <button
+                onClick={() => window.print()}
+                title={t("studio.result.printTitle")}
+                className="flex items-center gap-1.5 rounded-input border border-border bg-surface px-2.5 py-1 text-xs text-text transition-colors hover:bg-surface-2"
+              >
+                <Printer size={13} className="text-muted" />
+                {t("studio.result.print")}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -183,7 +197,7 @@ function ResultBody({
     return (
       <div className="flex h-full flex-col">
         {view.cards.length > 1 && (
-          <div className="flex shrink-0 gap-1 border-b border-border-faint px-6 pt-3">
+          <div className="print-hide flex shrink-0 gap-1 border-b border-border-faint px-6 pt-3">
             {view.cards.map((c, i) => (
               <button
                 key={c.version}
@@ -203,7 +217,8 @@ function ResultBody({
             ))}
           </div>
         )}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        {/* print-area: the only thing that reaches paper (see index.css). */}
+        <div className="print-area min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <AgentMessage markdown={card.markdown} />
         </div>
       </div>
