@@ -3,6 +3,7 @@
 mod artifact_file;
 mod debug_log;
 mod formulation;
+mod formulation_advanced;
 mod formulation_v2;
 mod formulations;
 mod masterdata;
@@ -51,6 +52,7 @@ pub fn run() {
         .manage(PreviewState::default())
         .manage(ProvenanceState::default())
         .manage(runs::RunState::default())
+        .manage(formulation_advanced::AdvancedOptimizerState::default())
         // The transparent + vibrancy window loses tao's traffic-light inset on
         // some machines (tao only re-applies it from drawRect). Re-pin on the
         // events that cover launch, resize, and the in-app theme switch.
@@ -80,6 +82,8 @@ pub fn run() {
             kernel::python_interpreter,
             kernel::set_python_path,
             formulation::run_formulation_optimize,
+            formulation_advanced::run_advanced_formulation_optimize,
+            formulation_advanced::cancel_advanced_formulation_optimize,
             formulation_v2::generate_formulation,
             formulation_v2::list_sessions,
             formulation_v2::read_session,
