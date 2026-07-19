@@ -490,3 +490,24 @@ export * from "./schemas/formulation";
 export * from "./schemas/status";
 export * from "./schemas/events";
 export * from "./catalog/kenya";
+export * from "./catalog/templates";
+export * from "./engine/formula";
+export * from "./engine/versioning";
+export * from "./engine/declaration";
+export * from "./schemas/materials";
+export * from "./schemas/costing";
+export * from "./engine/cost";
+export * from "./engine/importer";
+export {
+  PRECISION,
+  CURRENCY_DP,
+  moneyDp,
+  tryDec,
+  parseHumanDecimal,
+  fmt,
+  fmtMoney,
+  displayMoney,
+  sum,
+  nearlyEqual,
+  type PrecisionKind,
+} from "./engine/decimal";

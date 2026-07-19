@@ -15,7 +15,14 @@ import {
 export type Actor =
   | { kind: "human"; role: ApprovalRole; userId: string }
   | { kind: "agent"; runId: string }
-  | { kind: "system"; reason: string };
+  | { kind: "system"; reason: string }
+  /**
+   * A file bringing formulas in from a spreadsheet or another system. Even when
+   * the source file says "approved", that claim carries no authority here: the
+   * signature was given somewhere FormuLab cannot audit, so it must be granted
+   * again, by a person, inside FormuLab.
+   */
+  | { kind: "import"; source: string };
 
 export const APPROVAL_ROLES = [
   "researcher",

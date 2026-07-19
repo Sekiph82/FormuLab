@@ -4,6 +4,8 @@ mod artifact_file;
 mod debug_log;
 mod formulation;
 mod formulation_v2;
+mod formulations;
+mod masterdata;
 mod materials;
 mod git_snapshot;
 mod compute;
@@ -85,6 +87,22 @@ pub fn run() {
             materials::import_materials,
             materials::list_materials,
             materials::cost_formulation,
+            formulations::list_formulations,
+            formulations::read_formulation,
+            formulations::save_formulation,
+            formulations::save_formulation_version,
+            formulations::delete_formulation,
+            formulations::read_formulation_draft,
+            formulations::save_formulation_draft,
+            formulations::discard_formulation_draft,
+            formulations::save_approval_record,
+            formulations::list_approval_records,
+            formulations::append_audit_event,
+            formulations::read_audit_log,
+            masterdata::list_master_records,
+            masterdata::upsert_master_records,
+            masterdata::delete_master_record,
+            masterdata::backup_master_collection,
             artifact_file::read_artifact,
             artifact_file::open_path,
             artifact_file::reveal_path,
