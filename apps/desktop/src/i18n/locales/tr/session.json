@@ -1,0 +1,819 @@
+{
+  "notFound": {
+    "title": "Oturum bulunamadı",
+    "hint": "Kenar çubuğundan bir oturum seçin."
+  },
+  "composer": {
+    "placeholder": {
+      "default": "Bir şey sorun",
+      "arguments": "Argümanlar (isteğe bağlı) — çalıştırmak için Enter",
+      "shell": "Çalışma alanı klasöründe bir kabuk komutu çalıştır",
+      "plan": "Neyin planlanacağını açıklayın — hiçbir dosya değiştirilmeyecek"
+    },
+    "commandsAria": "Komutlar",
+    "source": {
+      "skill": "beceri",
+      "mcp": "mcp"
+    },
+    "file": {
+      "removeAria": "{{name}} kaldır"
+    },
+    "attach": {
+      "addAria": "Dosya ekle",
+      "title": "Çalışma alanına yerel dosyalar ekle"
+    },
+    "command": {
+      "chipTitle": "Bu komutu çalıştırır — argüman yazın veya adı düzenlemek için Backspace'e basın",
+      "removeAria": "Komutu kaldır"
+    },
+    "shellMode": {
+      "badge": "kabuk",
+      "title": "Doğrudan oturumun çalışma alanı klasöründe çalışır"
+    },
+    "stop": {
+      "aria": "Durdur",
+      "title": "Bu turu kes (Esc)"
+    },
+    "send": {
+      "aria": "Gönder"
+    },
+    "agent": {
+      "aria": "Ajan modu",
+      "title": "Önce planla veya hemen inşa et",
+      "menuAria": "Ajan modları",
+      "menuTitle": "Ajan nasıl çalışmalı?",
+      "build": {
+        "label": "İnşa et",
+        "description": "Dosyaları düzenler ve komutları çalıştırır"
+      },
+      "plan": {
+        "label": "Planla",
+        "description": "Salt okunur: önce araştırır ve bir plan dosyası yazar"
+      }
+    },
+    "approval": {
+      "aria": "Onay modu",
+      "title": "Ajan eylemleri nasıl onaylanır",
+      "menuAria": "Onay modları",
+      "menuTitle": "Ajan eylemleri nasıl onaylanmalı?",
+      "approve": {
+        "label": "Benim için onayla",
+        "description": "Silme, kurma veya uzağa gitmeden önce sorar"
+      },
+      "full": {
+        "label": "Tam erişim",
+        "description": "Sormadan her komutu çalıştırır"
+      }
+    },
+    "error": {
+      "paste": "Yapıştırma kaydedilemedi: {{message}}",
+      "addFiles": "Dosyalar eklenemedi: {{message}}"
+    }
+  },
+  "localCommand": {
+    "newDescription": "Bu klasördeki sohbet bağlamını temizle",
+    "clearDescription": "/new ile aynı; dosyalar bu klasörde kalır",
+    "cleared": "Sohbet bağlamı temizlendi. Dosyalar aynı klasörde kalır."
+  },
+  "starters": {
+    "newSession": "Yeni oturum",
+    "heading": "Neye bakalım?",
+    "subheading": "Analizinizi aşağıda açıklayın — veya bunlardan biriyle başlayın.",
+    "demo": {
+      "title": "Uçtan uca bir demo analiz çalıştır",
+      "description": "Bir veri kümesi simüle edin, bir model uydurun ve izlenebilir bir şekil ve rapor üretin."
+    },
+    "analyze": {
+      "title": "Verimi analiz et",
+      "description": "Ajanı eklediğiniz bir dosyaya yönlendirin; şekiller ve bir rapor alın."
+    },
+    "audit": {
+      "title": "İzlenebilirlik için bir raporu denetle",
+      "description": "Alıntıları, kaynaksız sayıları ve şekil-kod tutarlılığını kontrol edin."
+    },
+    "error": {
+      "setup": "Örnek kurulamadı: {{message}}"
+    },
+    "example-shampoo": {
+      "title": "Bir örneği keşfedin: şampuan formülasyonu",
+      "description": "Hedef bir aktif madde içeriğine göre bir surfaktan karışımını maliyet açısından optimize edin, ardından bir rapor yazın."
+    }
+  },
+  "live": {
+    "runtime": {
+      "title": "OpenCode çalışma zamanı",
+      "bodyPrefix": "Masaüstü uygulaması otomatik olarak paketlenmiş bir OpenCode çalıştırır. Tarayıcıda, şununla bir tane başlatın:",
+      "bodySuffix": " ve bağlanın."
+    },
+    "connect": "Bağlan",
+    "subagentFallback": "bir alt ajan",
+    "header": {
+      "expandSidebarAria": "Kenar çubuğunu genişlet",
+      "expandSidebarTitle": "Kenar çubuğunu genişlet ({{shortcut}})"
+    },
+    "filesToggle": {
+      "default": "Dosyalar",
+      "title": "Bu oturumun klasörüne sohbetin yanında göz atın"
+    },
+    "runsToggle": {
+      "label": "Çalıştırmalar",
+      "title": "Bu oturumun deney çalıştırmaları — sohbetin yanında"
+    },
+    "notebook": {
+      "openTitle": "{{path}} aç — ajan bu oturumda bu not defteri üzerinde çalışır"
+    },
+    "connBadge": {
+      "title": "OpenCode · {{status}}",
+      "status": {
+        "ready": "hazır",
+        "connecting": "bağlanıyor",
+        "error": "hata",
+        "offline": "çevrimdışı"
+      }
+    },
+    "status": {
+      "paused": "Duraklatıldı — ajan aşağıda cevabınızı bekliyor",
+      "startingSession": "Oturum kendi klasöründe başlatılıyor…",
+      "retrying": "Sağlayıcı hatası — yeniden deneniyor (deneme {{attempt}})",
+      "working": "Çalışıyor…"
+    },
+    "placeholder": {
+      "disconnected": "Sohbet etmek için bağlanın",
+      "waiting": "Yanıt bekleniyor…"
+    }
+  },
+  "tool": {
+    "status": {
+      "pending": "Beklemede",
+      "running": "Çalışıyor",
+      "waiting-approval": "Bekliyor",
+      "success": "Başarılı",
+      "warning": "Uyarı",
+      "failed": "Başarısız"
+    },
+    "verb": {
+      "Ran": "Çalıştırdı",
+      "Created": "Oluşturdu",
+      "Edited": "Düzenledi",
+      "Read": "Okudu",
+      "Searched": "Aradı",
+      "Listed": "Listeledi",
+      "Fetched": "Getirdi"
+    },
+    "group": {
+      "phrase": {
+        "ran_one": "bir komut çalıştırdı",
+        "ran_other": "{{count}} komut çalıştırdı",
+        "created_one": "bir dosya oluşturdu",
+        "created_other": "{{count}} dosya oluşturdu",
+        "edited_one": "bir dosya düzenledi",
+        "edited_other": "{{count}} dosya düzenledi",
+        "read_one": "bir dosya okudu",
+        "read_other": "{{count}} dosya okudu",
+        "searched_one": "bir arama çalıştırdı",
+        "searched_other": "{{count}} arama çalıştırdı",
+        "listed": "dosyaları listeledi",
+        "fetched_one": "bir sayfa getirdi",
+        "fetched_other": "{{count}} sayfa getirdi",
+        "default_one": "bir adım çalıştırdı",
+        "default_other": "{{count}} adım çalıştırdı"
+      },
+      "failedCount": "{{count}} başarısız"
+    }
+  },
+  "artifact": {
+    "kind": {
+      "figure": "şekil",
+      "script": "betik",
+      "report": "rapor",
+      "table": "tablo",
+      "notebook": "not defteri",
+      "model": "model",
+      "data": "veri"
+    },
+    "via": "· {{tool}} ile",
+    "open": "Aç"
+  },
+  "figure": {
+    "downloadAria": "Şekli indir",
+    "addAnnotationAria": "Açıklama ekle",
+    "annotationAria": "Açıklama {{index}}: {{note}}",
+    "notePlaceholder": "Bir not ekleyin…",
+    "noteAria": "Açıklama notu",
+    "send": "Gönder"
+  },
+  "reviewer": {
+    "heading": "İnceleyici",
+    "badge": {
+      "warn": "Uyar",
+      "ok": "Tamam",
+      "error": "Hata"
+    },
+    "checkTag": {
+      "citation": "alıntı",
+      "number": "sayı",
+      "figure": "şekil ↔ kod",
+      "domain": "alan",
+      "integrity": "bütünlük"
+    },
+    "findingCount_one": "· {{count}} bulgu",
+    "findingCount_other": "· {{count}} bulgu",
+    "dismissedCount": "· {{count}} reddedildi",
+    "dismissAria": "Bulguyu reddet: {{title}}",
+    "dismissTitle": "Bu bulguyu reddet",
+    "allDismissed": "Tüm bulgular reddedildi."
+  },
+  "interaction": {
+    "question": {
+      "heading": "Ajan girdinize ihtiyaç duyuyor",
+      "customPlaceholder": "Veya kendi cevabınızı yazın…"
+    },
+    "permission": {
+      "heading": "Ajan izin istiyor:"
+    },
+    "askedBy": "{{origin}} tarafından soruldu",
+    "skip": "Atla",
+    "submit": "Gönder",
+    "reject": "Reddet",
+    "alwaysAllow": "Her zaman izin ver",
+    "allowOnce": "Bir kez izin ver"
+  },
+  "stepSummary": {
+    "steps": "{{count}} adım"
+  },
+  "thread": {
+    "exampleBadge": "Örnek · salt okunur",
+    "sampleNotice": "Bu bir örnek oturumdur. Gerçekten sohbet etmek için canlı bir ajan oturumu başlatın."
+  },
+  "workspaceChip": {
+    "fallbackName": "Çalışma alanı",
+    "titlePinned": "{{workspace}} — farklı bir klasör seçmek için tıklayın",
+    "titleUnpinned": "Yeni tarihli bir klasörde başlar ({{name}}) — bunun yerine bir klasör seçmek için tıklayın",
+    "chooseAria": "Oturum klasörü seç",
+    "switching": "Değiştiriliyor…"
+  },
+  "agentMessage": {
+    "previewTitle": "{{path}} önizle"
+  },
+  "goal": {
+    "label": "Hedef",
+    "running": "çalışıyor",
+    "runningTurns": "otomatik tur {{count}}",
+    "paused": "duraklatıldı",
+    "done": "tamamlandı",
+    "pauseAria": "Hedefi duraklat (otomatik devamı durdurur)",
+    "resumeAria": "Hedefi devam ettir",
+    "clearAria": "Hedefi temizle",
+    "unmet": "engellendi",
+    "limited": "sınıra ulaşıldı"
+  },
+  "studio": {
+    "heading": "Neyi formüle etmek istiyorsunuz?",
+    "subheading": "Bir ürünü açıklayın. FormuLab açık erişimli literatürü okur ve kanıta dayalı, maliyet açısından optimize edilmiş bir aday formül önerir.",
+    "target": {
+      "label": "Hedef ürün",
+      "placeholder": "örn. sülfatsız yumuşak bir şampuan · kireç önleyici bir banyo spreyi · beyazlatıcı bir diş macunu"
+    },
+    "category": {
+      "label": "Kategori"
+    },
+    "market": {
+      "label": "Hedef pazar",
+      "any": "Herhangi biri / çıkarım yap",
+      "eu": "Avrupa Birliği",
+      "us": "Amerika Birleşik Devletleri",
+      "tr": "Türkiye",
+      "kenya": "Kenya",
+      "africa": "Afrika"
+    },
+    "audience": {
+      "label": "Hedef kitle",
+      "unspecified": "Belirtilmemiş",
+      "child": "Çocuk",
+      "woman": "Kadın",
+      "man": "Erkek",
+      "unisex": "Uniseks"
+    },
+    "cat": {
+      "auto": "Otomatik algıla",
+      "shampoo": "Şampuan",
+      "conditioner": "Saç kremi",
+      "bodyWash": "Duş jeli",
+      "barSoap": "Kalıp sabun",
+      "handCream": "El kremi",
+      "toothpaste": "Diş macunu",
+      "mouthwash": "Ağız gargarası",
+      "laundryDetergent": "Çamaşır deterjanı",
+      "fabricSoftener": "Yumuşatıcı",
+      "dishSoap": "Bulaşık deterjanı",
+      "surfaceCleaner": "Yüzey temizleyici",
+      "glassCleaner": "Cam temizleyici",
+      "limescaleRemover": "Kireç çözücü",
+      "airFreshener": "Oda kokusu"
+    },
+    "more": "Daha fazla seçenek",
+    "cost": {
+      "label": "Maks. maliyet (isteğe bağlı)",
+      "placeholder": "örn. 2,5 USD/kg"
+    },
+    "performance": {
+      "label": "Performans notları (isteğe bağlı)",
+      "placeholder": "örn. yüksek köpük, pH 5,5, parfümsüz"
+    },
+    "materials": {
+      "label": "Eldeki hammaddeler (isteğe bağlı)",
+      "placeholder": "Satır başına bir tane: ad, fiyat/kg, aktif%   örn.  SLES, 1.4, 70"
+    },
+    "generate": "Formülasyon üret",
+    "disclaimer": "Yalnızca adaydır — doğrulanmış bir reçete değildir. Laboratuvar doğrulaması ve mevzuat incelemesi gerektirir. Tehlikeli veya yasa dışı hedefler reddedilir.",
+    "result": {
+      "heading": "Formülasyon kartı",
+      "new": "Yeni",
+      "connect": "Bir formülasyon üretmek için çalışma zamanını bağlayın.",
+      "working": "Çalışıyor — literatür okunuyor ve formülasyonunuz taslak haline getiriliyor. Bu birkaç dakika sürebilir.",
+      "empty": "Solda bir ürün açıklayın ve Üret'e basın. Formülasyon kartı burada görünecek.",
+      "readOnly": "kaydedildi · salt okunur",
+      "sourcesCount": "{{count}} kaynak",
+      "refusedTitle": "İstek reddedildi",
+      "humanReviewTitle": "Devam etmeden önce insan incelemesi gerekli",
+      "reviewerNameLabel": "İnceleyen adı",
+      "acknowledgeAndContinue": "Onayla ve devam et",
+      "errorTitle": "Bir şeyler ters gitti",
+      "needKey": "Solda bir API anahtarı ekleyin, sonra Üret'e basın.",
+      "print": "Yazdır",
+      "printTitle": "Bu formülasyon kartını yazdır (bir yazıcı seçin veya PDF olarak yazdırın)"
+    },
+    "sessions": {
+      "heading": "Oturumlar",
+      "empty": "Kaydedilen formülasyonlar burada görünür."
+    },
+    "costing": {
+      "title": "Maliyetlendirme",
+      "batch": "Parti",
+      "calculate": "Maliyeti hesapla",
+      "partial": "Bu toplam formülün %{{pct}}'ini kapsıyor. Fiyatlandırılmayan: {{list}}.",
+      "needMaterials": "Bu formülü maliyetlendirmek için Ayarlar → Genel bölümünden hammadde fiyat listenizi içe aktarın."
+    }
+  },
+  "builder": {
+    "addLine": "Satır ekle",
+    "batch": "Parti",
+    "total": "Toplam",
+    "activeMatter": "Aktif",
+    "saveVersion": "Sürümü kaydet",
+    "saving": "Kaydediliyor…",
+    "saveTitle": "Yeni değişmez bir sürüm olarak kaydet",
+    "noChanges": "Kaydedilmemiş değişiklik yok",
+    "phase": "Faz",
+    "material": "Hammadde",
+    "function": "İşlev",
+    "percent": "%",
+    "activeCol": "Aktif %",
+    "quantity": "Miktar (kg)",
+    "origin": "Kaynak",
+    "materialPlaceholder": "Hammadde veya INCI adı",
+    "qsTitle": "Kalanı %100'e tamamlar",
+    "qsToggle": "Bu bileşenle %100'e tamamla",
+    "removeLine": "Satırı kaldır",
+    "empty": "Henüz bileşen yok. Bir satır ekleyin veya üretilmiş bir kartı açıp düzenleyin.",
+    "noFindings": "Doğrulama bulgusu yok.",
+    "groupActiveTitle": "Bu işlevsel grup tarafından katkıda bulunulan aktif madde",
+    "editTab": "Formülü düzenle",
+    "cardTab": "Kart",
+    "allProjects": "Tüm projeler",
+    "projects": "Formül projeleri",
+    "newProject": "Yeni proje",
+    "noProjects": "Henüz formülasyon projesi yok. Bir formül oluşturmaya başlamak için bir tane oluşturun.",
+    "projectName": "Proje adı",
+    "projectCode": "Proje kodu",
+    "projectCodeHint": "Bir parti kaydının ve bir ERP satırının kullanacağı tutamaç.",
+    "autoGenerated": "Otomatik oluşturuldu",
+    "productFamily": "Ürün ailesi",
+    "selectFamily": "Bir ürün ailesi seçin",
+    "templateRoles": "Gerekli işlevsel roller",
+    "templateDisclaimer": "Yalnızca yapısal şablon. Hiçbir yüzde sağlanmaz ve burada hiçbir şey üretim onaylı değildir.",
+    "targetSkus": "Ambalaj SKU'ları",
+    "targetSkusHint": "Paket boyutu kimyayı değiştirmez; ambalaj maliyetini değiştirir.",
+    "marketLabel": "Hedef pazar",
+    "market": {
+      "KE": "Kenya",
+      "EAC": "Doğu Afrika Topluluğu"
+    },
+    "targetBatch": "Hedef parti (kg)",
+    "brief": "Ürün özeti",
+    "claims": "Hedef iddialar",
+    "claimsHint": "Satır başına bir tane. Test edilene kadar özlemseldir.",
+    "create": "Proje oluştur",
+    "sections": "Proje bölümleri",
+    "tabBuilder": "Oluşturucu",
+    "tabVersions": "Sürümler ({{count}})",
+    "tabCost": "Maliyet",
+    "tabCompatibility": "Uyumluluk",
+    "tabSafety": "Güvenlik",
+    "undo": "Geri al",
+    "redo": "Yinele",
+    "filter": "Satırları filtrele",
+    "columns": "Sütunlar",
+    "col": {
+      "materialCode": "Hammadde kodu",
+      "tradeName": "Ticari ad",
+      "inciName": "INCI adı",
+      "supplier": "Tedarikçi",
+      "price": "Birim fiyat",
+      "lineCost": "Satır maliyeti",
+      "notes": "Notlar"
+    },
+    "materialCode": "Kod",
+    "tradeName": "Ticari ad",
+    "inci": "INCI",
+    "supplier": "Tedarikçi",
+    "unitPrice": "Birim fiyat",
+    "lineCost": "Satır maliyeti",
+    "notes": "Notlar",
+    "phaseLabel": "Faz {{phase}}",
+    "dragHint": "Yeniden sıralamak için sürükleyin",
+    "duplicateLine": "Satırı çoğalt",
+    "pickMaterial": "Hammadde kütüphanesinden seç",
+    "searchMaterials": "Hammaddeleri koda, ada, INCI'ye veya CAS'a göre ara",
+    "noMaterials": "Eşleşen hammadde yok.",
+    "noActiveData": "aktif madde kaydedilmemiş",
+    "noMatches": "Filtreyle eşleşen satır yok.",
+    "totalRow": "Toplam",
+    "costBasisTitle": "Fiyatı olan satırların toplamı. Sondaki + işareti bazı satırların fiyatı olmadığı anlamına gelir.",
+    "pinQs": "Bu satırı mevcut yüzdesinde sabitle",
+    "originTitle": "Bu sayının nereden geldiği",
+    "goToLine": "Satıra git",
+    "findingSummary": "{{errors}} hata, {{warnings}} uyarı",
+    "incomplete": "(eksik)",
+    "groupIncompleteTitle": "Bu grubun %{{pct}}'inde beyan edilmiş aktif madde yok, bu yüzden rakam bir alt sınırdır.",
+    "unsaved": "Kaydedilmemiş değişiklikler",
+    "autosaving": "Taslak kaydediliyor...",
+    "autosaved": "Taslak kaydedildi",
+    "autosaveTitle": "Otomatik kaydetme çalışan taslağı yazar. Sürümler bilinçli olarak kaydedilir.",
+    "saveVersionTitle": "{{label}} sürümünü kaydet",
+    "derivedFrom": "{{label}} sürümünden türetildi.",
+    "changeReason": "Değişiklik nedeni",
+    "changeReasonPlaceholder": "örn. maliyeti düşürmek için SLES'i azalt",
+    "changeNotes": "Değişiklik notları",
+    "immutableNote": "Kaydedilmiş bir sürüm asla düzenlenmez. Sonraki değişiklikler bu sürümü kendi ebeveyni olarak kaydeden yeni bir sürüm oluşturur.",
+    "noVersions": "Henüz kaydedilmiş sürüm yok. Oluşturucudan bir tane kaydedin.",
+    "versionHistory": "Geçmiş",
+    "compare": "Karşılaştır",
+    "restore": "Geri yükle",
+    "restoreTitle": "Bu sürümü yeni bir çalışma taslağına yükle. Sürümün kendisi değişmez.",
+    "lifecycle": {
+      "retire": "Kullanımdan kaldır",
+      "reject": "Reddet",
+      "reopen": "Yeniden aç",
+      "retireTitle": "Sürümü kullanımdan kaldır",
+      "rejectTitle": "Sürümü reddet",
+      "reopenTitle": "Reddedilen sürümü yeniden aç",
+      "reason": "Neden",
+      "notAllowed": "Bu durum değişikliğine buradan izin verilmiyor."
+    },
+    "variant": {
+      "create": "Varyant oluştur",
+      "dialogTitle": "Adlandırılmış bir varyant oluştur",
+      "nameLabel": "Varyant adı",
+      "hint": "Bu sürümden yeni bir taslak başlatır. Kaydetmek bu adı varyantın dalı olarak kaydeder ve ebeveyn ilişkisi korunur."
+    },
+    "export": {
+      "button": "Dışa aktar",
+      "json": "JSON formülasyon paketi",
+      "csv": "CSV formül",
+      "xlsx": "Excel formül sayfası",
+      "costSnapshot": "Maliyet anlık görüntüsü (JSON)",
+      "packagingBom": "Ambalaj BOM (JSON)",
+      "erpBom": "ERP taslak BOM (CSV)",
+      "erpRecipe": "ERP taslak reçetesi (CSV)"
+    },
+    "kgUnit": "kg",
+    "qsAbbrev": "q.s.",
+    "activePercent": "%{{pct}} aktif"
+  },
+  "compare": {
+    "needTwo": "Karşılaştırmak için en az iki sürüm kaydedin.",
+    "before": "Kimden",
+    "after": "Kime",
+    "showUnchanged": "Değişmeyen satırları göster",
+    "added": "Eklendi",
+    "removed": "Kaldırıldı",
+    "changed": "Değiştirildi",
+    "totalPercent": "Toplam",
+    "activeMatter": "Aktif madde",
+    "batch": "Parti",
+    "status": "Durum",
+    "claimsAdded": "Eklenen iddialar",
+    "claimsRemoved": "Kaldırılan iddialar",
+    "skusAdded": "Eklenen SKU'lar",
+    "skusRemoved": "Kaldırılan SKU'lar",
+    "material": "Hammadde",
+    "delta": "Fark",
+    "otherChanges": "Diğer değişiklikler",
+    "identical": "İki sürüm birbiriyle aynı.",
+    "reason": "Neden",
+    "notes": "Notlar",
+    "author": "Yazar",
+    "created": "Oluşturuldu",
+    "copyable": "Kopyalanabilir fark"
+  },
+  "cost": {
+    "currency": "Para birimi",
+    "factoryProfile": "Fabrika maliyet profili",
+    "noProfile": "Yok - yalnızca hammadde",
+    "exampleOnly": "örnek rakamlar",
+    "density": "Yoğunluk (kg/L)",
+    "densityPlaceholder": "örn. 1.02",
+    "saveSnapshot": "Maliyet anlık görüntüsünü kaydet",
+    "snapshotTitle": "Bu hesaplamayı mevcut sürüme göre dondur",
+    "needVersion": "Önce bir formül sürümü kaydedin; bir anlık görüntünün bir sürüme işaret etmesi gerekir.",
+    "layers": "Maliyet katmanları",
+    "rawMaterial": "Hammadde",
+    "landed": "Teslim maliyeti dahil hammadde",
+    "labour": "Doğrudan işçilik",
+    "utilities": "Yardımcı hizmetler",
+    "qc": "Kalite kontrol",
+    "waste": "Fire ve proses kaybı",
+    "overhead": "Fabrika genel gideri",
+    "totalManufacturing": "Toplam üretim",
+    "perKg": "Kg başına",
+    "perLitre": "Litre başına",
+    "perSku": "Ambalaj SKU başına maliyet",
+    "sku": "SKU",
+    "fill": "Dolum",
+    "bulk": "Dökme",
+    "packaging": "Ambalaj",
+    "filled": "Doldurulmuş birim",
+    "packed": "Paketlenmiş birim",
+    "perCase": "Koli başına",
+    "lines": "Satır detayı",
+    "material": "Hammadde",
+    "unitPrice": "Birim fiyat",
+    "lineCost": "Satır maliyeti",
+    "basis": "Temel",
+    "missing": {
+      "no_price": "kayıtlı fiyat yok",
+      "no_exchange_rate": "döviz kuru yok",
+      "expired_price": "fiyatın süresi dolmuş"
+    },
+    "incomplete": "Bu maliyet eksik",
+    "snapshots": "Kaydedilmiş anlık görüntüler",
+    "noSnapshots": "Bu proje için kaydedilmiş maliyet anlık görüntüsü yok.",
+    "warningCount": "{{count}} uyarı"
+  },
+  "materials": {
+    "sections": "Ana veri bölümleri",
+    "tab": {
+      "materials": "Hammaddeler",
+      "suppliers": "Tedarikçiler",
+      "prices": "Fiyat geçmişi",
+      "inventory": "Envanter",
+      "rates": "Döviz kurları",
+      "packagingComponents": "Ambalaj",
+      "packagingBoms": "Ambalaj BOM'ları",
+      "factoryProfiles": "Fabrika profilleri"
+    },
+    "newMaterial": "Yeni hammadde",
+    "newSupplier": "Yeni tedarikçi",
+    "template": "Şablon (CSV)",
+    "templateXlsx": "Şablon (Excel)",
+    "import": "İçe aktar",
+    "export": "Dışa aktar (CSV)",
+    "exportXlsx": "Dışa aktar (Excel)",
+    "appendOnlyNote": "Bu kayıtlar yalnızca eklenebilir. Geçmiş bir maliyet anlık görüntüsü bunlara işaret ettiği için düzenlenmez, yerlerine yenisi eklenir.",
+    "search": "Hammaddeleri ara",
+    "filterFunction": "İşlev",
+    "allFunctions": "Tüm işlevler",
+    "showInactive": "Etkin olmayanları göster",
+    "count": "{{count}} hammadde",
+    "empty": "Henüz kayıt yok.",
+    "code": "Kod",
+    "name": "Ad",
+    "functions": "İşlevler",
+    "active": "Aktif madde",
+    "density": "Yoğunluk",
+    "supplierData": "Fiyatlar",
+    "stock": "Mevcut",
+    "inactive": "etkin değil",
+    "notRecorded": "kaydedilmemiş",
+    "priceCount": "{{count}} fiyat kaydı",
+    "noPrice": "fiyat yok",
+    "country": "Ülke",
+    "currency": "Para birimi",
+    "quality": "Kalite durumu",
+    "material": "Hammadde",
+    "supplier": "Tedarikçi",
+    "price": "Fiyat",
+    "landed": "Teslim maliyeti dahil",
+    "effective": "Yürürlük",
+    "verification": "Doğrulama",
+    "lot": "Lot",
+    "quantity": "Miktar",
+    "available": "Mevcut",
+    "expiry": "Son kullanma",
+    "qcState": "KK durumu",
+    "quarantined": "karantinada",
+    "released": "serbest bırakıldı",
+    "pending": "beklemede",
+    "pair": "Çift",
+    "rate": "Kur",
+    "source": "Kaynak",
+    "noRates": "Kaydedilmiş döviz kuru yok.",
+    "ratesNote": "Kurlar bir kişi tarafından girilir veya içe aktarılır. FormuLab hiçbir zaman kendi başına bir kur getirmez ve her maliyet kullandığı kuru gösterir.",
+    "editMaterial": "Hammadde",
+    "identity": "Kimlik",
+    "physical": "Fiziksel özellikler",
+    "usage": "Kullanım seviyeleri",
+    "supplyAndSafety": "Tedarik ve güvenlik",
+    "other": "Diğer",
+    "tradeName": "Ticari ad",
+    "inci": "INCI adı",
+    "cas": "CAS numaraları",
+    "manufacturer": "Üretici",
+    "form": "Fiziksel form",
+    "ionic": "İyonik karakter",
+    "activeMatter": "Aktif madde %",
+    "activeHint": "Bilinmiyorsa boş bırakın. Boş bir alan bilinmiyor olarak bildirilir, asla sıfır olarak sayılmaz.",
+    "densityHint": "Litre başına kg. Hacim dolumunu maliyetlendirmek için gereklidir.",
+    "phRange": "pH aralığı",
+    "hlb": "HLB",
+    "minUse": "Önerilen min %",
+    "maxUse": "Önerilen maks %",
+    "technicalMax": "Teknik maks %",
+    "technicalMaxHint": "Bunun üzerinde, bir spesifikasyon ne derse desin, hammadde işlevini yerine getirmez.",
+    "shelfLife": "Raf ömrü (ay)",
+    "functionsHint": "Bir hammadde birden fazla rol üstlenebilir.",
+    "countryOfOrigin": "Menşe ülke",
+    "storage": "Depolama koşulları",
+    "hazards": "Tehlike sınıflandırmaları",
+    "hazardsHint": "SDS'den harfiyen kaydedilmiştir. Asla çıkarım yapılmaz.",
+    "substitutes": "İkame hammadde kodları",
+    "listHint": "Noktalı virgülle ayırın.",
+    "supplierHint": "Kayıtlı {{count}} tedarikçi. Bunları tedarikçi içe aktarma yoluyla bağlayın.",
+    "notes": "Notlar",
+    "activeRecord": "Etkin kayıt",
+    "deactivateHint": "Silmek yerine devre dışı bırakın: mevcut formüller ve maliyet anlık görüntüleri hâlâ bu hammaddeye referans veriyor.",
+    "importTitle": "{{what}} içe aktar",
+    "chooseFile": "Bir CSV veya Excel (.xlsx) dosyası seçin",
+    "fileUnreadable": "Bu dosya okunamadı. Bozuk, parola korumalı veya geçerli bir CSV/.xlsx dosyası olmayabilir.",
+    "willCreate": "Oluştur",
+    "willUpdate": "Güncelle",
+    "willSkip": "Atla",
+    "unmapped": "Tanınmayan ve göz ardı edilen sütunlar: {{headers}}",
+    "errorCount": "{{count}} satır içe aktarılamıyor",
+    "warningCount": "{{count}} uyarı",
+    "previewRows": "{{count}} satırı önizle",
+    "rowLabel": "Satır {{row}}",
+    "partialImport": "Geçerli {{good}} satırı içe aktar ve başarısız olan {{bad}} satırı atla",
+    "importing": "İçe aktarılıyor...",
+    "commit": "İçe aktar",
+    "importResult": "{{inserted}} oluşturuldu, {{updated}} güncellendi.",
+    "phMin": "pH minimum",
+    "phMax": "pH maksimum"
+  },
+  "compatibility": {
+    "needVersion": "Bir uyumluluk anlık görüntüsünü buna eklemek için önce bir sürüm kaydedin.",
+    "snapshotSaved": "Uyumluluk anlık görüntüsü kaydedildi.",
+    "phTarget": "Hedef pH",
+    "phPlaceholder": "örn. 6.5",
+    "processTemp": "Proses sıcaklığı (°C)",
+    "tempPlaceholder": "örn. 45",
+    "manageRules": "Kuralları yönet",
+    "snapshotTitle": "Mevcut bulguları bu sürüme değişmez bir anlık görüntü olarak kaydet",
+    "saveSnapshot": "Anlık görüntüyü kaydet",
+    "severity": {
+      "blocking": "Engelleyici",
+      "error": "Hata",
+      "warning": "Uyarı",
+      "info": "Bilgi"
+    },
+    "dataIncompleteCount": "{{count}} bulgu doğrulanamadı — veri eksik",
+    "empty": "Mevcut formül ve kural seti için uyumluluk bulgusu yok.",
+    "unknown": "bilinmiyor — veri eksik",
+    "recommendedAction": "Önerilen eylem",
+    "verification": "Doğrulama"
+  },
+  "safety": {
+    "snapshotSaved": "Güvenlik anlık görüntüsü kaydedildi.",
+    "classification": "Ürün güvenlik sınıflandırması",
+    "classificationValue": {
+      "ordinary_consumer_product": "Sıradan tüketici ürünü",
+      "industrial_cleaning_product": "Endüstriyel temizlik ürünü",
+      "hazardous_lawful_product": "Tehlikeli ama yasal ürün",
+      "regulated_disinfectant": "Düzenlemeye tabi dezenfektan",
+      "medical_or_health_related_product": "Tıbbi veya sağlıkla ilgili ürün",
+      "restricted_request": "Kısıtlı istek",
+      "prohibited_request": "Yasak istek",
+      "human_review_required": "İnsan incelemesi gerekli"
+    },
+    "humanReviewRequired": "Bu sınıflandırma, formül onaylanmadan önce adlandırılmış bir insanın inceleyip onaylamasını gerektirir.",
+    "humanReviewAcknowledged": "İncelendi ve onaylandı.",
+    "reviewerName": "İnceleyen adı",
+    "resolutionReason": "Neden",
+    "acknowledge": "Onayla",
+    "manageRules": "Kuralları yönet",
+    "snapshotTitle": "Mevcut bulguları bu sürüme değişmez bir anlık görüntü olarak kaydet",
+    "saveSnapshot": "Anlık görüntüyü kaydet",
+    "humanReviewCount": "{{count}} bulgu insan incelemesi gerektiriyor",
+    "empty": "Mevcut formül ve kural seti için güvenlik bulgusu yok.",
+    "resolved": "Çözüldü",
+    "requiredPpe": "Gerekli KKD",
+    "requiredControls": "Gerekli mühendislik kontrolleri",
+    "resolve": "Çöz",
+    "resolveDialogTitle": "Engelleyici güvenlik bulgusunu çöz",
+    "resolutionKind": "Çözüm",
+    "resolutionKindAccepted": "Kabul edilen risk — olduğu gibi devam ediliyor",
+    "resolutionKindChanged": "Sorunu gidermek için formül değiştirildi",
+    "resolutionKindDisputed": "Kural itiraz edildi — inceleme gerekiyor",
+    "confirmResolve": "Çözümü onayla"
+  },
+  "ruleManager": {
+    "newRuleName": "Yeni kural",
+    "invalidJson": "Bu geçerli bir JSON değil.",
+    "invalidShape": "Her kural en azından bir id, bir ad ve koşullar gerektirir.",
+    "importResult": "{{count}} kural içe aktarıldı.",
+    "backToFindings": "Bulgular",
+    "title": "Kural yönetimi",
+    "newRule": "Yeni kural",
+    "importJson": "JSON içe aktar",
+    "exportJson": "JSON dışa aktar",
+    "exportXlsx": "Excel dışa aktar",
+    "name": "Ad",
+    "severity": "Önem derecesi",
+    "status": "Durum",
+    "verification": "Doğrulama",
+    "active": "Etkin",
+    "verified": "Doğrulanmış",
+    "activeYes": "Etkin",
+    "activeNo": "Etkin değil",
+    "deprecate": "Kullanımdan kaldır",
+    "empty": "Henüz kural yok.",
+    "importHint": "Bu ekrandan dışa aktarılmış (veya elle düzenlenmiş) bir kural JSON dizisi yapıştırın. Satırlar id'lerine göre eşleştirilir ve güncellenir.",
+    "message": "Mesaj",
+    "fullJson": "Tam kural (JSON)",
+    "jsonHint": "Koşulları ve diğer alanları burada düzenleyin; bu kutudan çıktığınızda uygulanır."
+  },
+  "supplier": {
+    "legalName": "Yasal ad",
+    "contactPerson": "İletişim kişisi",
+    "email": "E-posta",
+    "phone": "Telefon",
+    "incoterm": "Incoterm",
+    "paymentTerms": "Ödeme koşulları",
+    "leadTime": "Varsayılan teslim süresi (gün)",
+    "moq": "MOQ notları",
+    "approvedStatus": "Onaylı tedarikçi",
+    "associatedMaterials": "İlişkili hammaddeler",
+    "noLinks": "Bu tedarikçiye henüz bağlı hammadde yok.",
+    "linkMaterial": "Hammadde bağla",
+    "selectMaterial": "Bir hammadde seçin…",
+    "priceHistory": "Fiyat geçmişi",
+    "reviewerName": "İnceleyen adı",
+    "resolutionReason": "Neden"
+  },
+  "packaging": {
+    "newComponent": "Yeni bileşen",
+    "newBom": "Yeni BOM",
+    "description": "Açıklama",
+    "componentType": "Bileşen türü",
+    "unit": "Birim",
+    "weightG": "Ağırlık (g)",
+    "materialType": "Malzeme türü",
+    "wasteFactor": "Fire oranı (%)",
+    "targetSku": "Hedef ambalaj SKU'su",
+    "selectSku": "Bir SKU seçin…",
+    "fillQuantity": "Dolum miktarı",
+    "fillUnit": "Dolum birimi",
+    "fillLoss": "Dolum kaybı (%)",
+    "unitsPerCase": "Koli başına birim",
+    "bomLines": "Bileşenler",
+    "addLine": "Bileşen ekle",
+    "component": "Bileşen",
+    "quantityPerUnit": "Birim başına miktar",
+    "noBomLines": "Henüz bileşen eklenmedi.",
+    "noBoms": "Henüz ambalaj BOM'u yok.",
+    "totalCost": "Toplam ambalaj maliyeti"
+  },
+  "factoryProfile": {
+    "newProfile": "Yeni profil",
+    "clone": "Kopyala",
+    "notVerified": "Doğrulanmamış",
+    "verified": "Doğrulanmış",
+    "exampleOnly": "Yalnızca örnek — fabrika verisiyle değiştirin",
+    "electricityPerKwh": "kWh başına elektrik maliyeti",
+    "waterPerM3": "m³ başına su maliyeti",
+    "steamPerKg": "Kg başına buhar maliyeti",
+    "compressedAirPerBatch": "Parti başına basınçlı hava maliyeti",
+    "directLabourPerHour": "Saat başına doğrudan işçilik oranı",
+    "labourHoursPerBatch": "Parti başına işçilik saati",
+    "kwhPerBatch": "Parti başına kWh",
+    "waterM3PerBatch": "Parti başına su (m³)",
+    "steamKgPerBatch": "Parti başına buhar (kg)",
+    "qcCostPerBatch": "Parti başına KK maliyeti",
+    "qcPercentOfBatch": "Parti yüzdesi olarak KK maliyeti",
+    "processLossPercent": "Proses kaybı (%)",
+    "wasteDisposalPerBatch": "Parti başına atık bertaraf maliyeti",
+    "overheadPercent": "Genel gider (doğrudan maliyetin %'si)",
+    "overheadPerBatch": "Parti başına genel gider (sabit)"
+  }
+}

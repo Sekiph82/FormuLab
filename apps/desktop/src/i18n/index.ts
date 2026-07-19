@@ -3,7 +3,7 @@ import { initReactI18next } from "react-i18next";
 
 import { DEFAULT_LOCALE, detectInitialLocale } from "./config";
 
-// Statically bundled: the whole UI string set across 7 languages is a few KB,
+// Statically bundled: the whole UI string set across 8 languages is a few KB,
 // so it ships in the main chunk. Revisit lazy-loading only if this grows large.
 import enCommon from "./locales/en/common.json";
 import enNav from "./locales/en/nav.json";
@@ -68,6 +68,15 @@ import koInspector from "./locales/ko/inspector.json";
 import koErrors from "./locales/ko/errors.json";
 import koPages from "./locales/ko/pages.json";
 
+import trCommon from "./locales/tr/common.json";
+import trNav from "./locales/tr/nav.json";
+import trSettings from "./locales/tr/settings.json";
+import trRuns from "./locales/tr/runs.json";
+import trSession from "./locales/tr/session.json";
+import trInspector from "./locales/tr/inspector.json";
+import trErrors from "./locales/tr/errors.json";
+import trPages from "./locales/tr/pages.json";
+
 export const NAMESPACES = [
   "common", "nav", "settings", "runs", "session", "inspector", "errors", "pages",
 ] as const;
@@ -80,6 +89,7 @@ const resources = {
   de: { common: deCommon, nav: deNav, settings: deSettings, runs: deRuns, session: deSession, inspector: deInspector, errors: deErrors, pages: dePages },
   fr: { common: frCommon, nav: frNav, settings: frSettings, runs: frRuns, session: frSession, inspector: frInspector, errors: frErrors, pages: frPages },
   ko: { common: koCommon, nav: koNav, settings: koSettings, runs: koRuns, session: koSession, inspector: koInspector, errors: koErrors, pages: koPages },
+  tr: { common: trCommon, nav: trNav, settings: trSettings, runs: trRuns, session: trSession, inspector: trInspector, errors: trErrors, pages: trPages },
 } as const;
 
 void i18n.use(initReactI18next).init({

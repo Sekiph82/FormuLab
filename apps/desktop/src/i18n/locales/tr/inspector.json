@@ -1,0 +1,272 @@
+{
+  "shell": {
+    "maximizePanel": "Paneli büyüt",
+    "restorePanel": "Paneli geri yükle",
+    "closeInspector": "İnceleyiciyi kapat"
+  },
+  "artifact": {
+    "previousVersionAria": "Önceki sürüm",
+    "nextVersionAria": "Sonraki sürüm",
+    "downloadAria": "İndir",
+    "downloadScript": "Betiği indir",
+    "inputsLabel": "Girdiler",
+    "noExecutionLog": "Çalıştırma günlüğü yok.",
+    "noMessages": "Bu sürüm için mesaj yok.",
+    "noEnvironmentInfo": "Ortam bilgisi yok.",
+    "reviewPassed": "İnceleme geçti — {{version}} koda ve girdilere izlenebiliyor.",
+    "reviewNotPassed": "{{version}} henüz inceleme geçmedi.",
+    "tabs": {
+      "Code": "Kod",
+      "Execution Log": "Çalıştırma Günlüğü",
+      "Messages": "Mesajlar",
+      "Environment": "Ortam",
+      "Review": "İnceleme"
+    }
+  },
+  "notebook": {
+    "title": "Not defteri",
+    "sharedWithAgent": "Ajanla paylaşıldı",
+    "live": "Canlı",
+    "outputLabel": "> çıktı",
+    "running": "çalışıyor…",
+    "sentToKernel": "→ ajanın çekirdeğine gönderildi",
+    "localOnly": "(yerel çekirdek yalnızca masaüstü uygulamasında kullanılabilir)",
+    "kernelError": "çekirdek hatası: {{message}}",
+    "exprPlaceholder": "Bir ifade yazın ve Enter'a basın",
+    "exprAria": "Not defteri ifadesi",
+    "runAria": "İfadeyi çalıştır"
+  },
+  "provenance": {
+    "loadingHistory": "Geçmiş yükleniyor…",
+    "emptyPrefix": "Henüz kaydedilmiş sürüm yok. Ajan her yazdığında",
+    "emptySuffix": ", burada bunu üreten kod, model ve konuşmayla birlikte bir sürüm eklenir.",
+    "envTitle": "Bu sürümün üretildiği ortam",
+    "lockfileTitle": "Bu sürüm için yakalanan pip freeze kilit dosyasını görüntüle",
+    "packageCount_one": "{{count}} paket",
+    "packageCount_other": "{{count}} paket",
+    "pipFreezePrefix": "pip freeze · ",
+    "reproduce": "Yeniden üret",
+    "reproduceRunTitle": "Bu dosyanın çalıştırmasını yeniden çalıştırıp çıktıları karşılaştıran bir istem taslağı oluştur",
+    "reproduceVersionTitle": "Bu sürümün kodunu yeniden çalıştırıp sonucu karşılaştıran bir istem taslağı oluştur",
+    "openConversation": "Konuşmayı aç",
+    "openConversationTitle": "Bu sürümün geldiği konuşmayı aç",
+    "loadingLockfile": "Yükleniyor…",
+    "openRunTitle": "Bu çalıştırmayı Çalıştırmalar görünümünde aç",
+    "producedByRunPrefix": "Şu çalıştırma tarafından üretildi",
+    "commandSeparator": " — ",
+    "producedByRunSuffix": ". Bu dosya kod çalıştırmanın bir çıktısıdır; Yeniden Üret o komutu yeniden çalıştırıp sonucu karşılaştırır.",
+    "contentNotCaptured": "Bu sürüm için içerik yakalanmadı (ikili bir yazma veya yalnızca bir fark kaydeden bir düzenleme)."
+  },
+  "filePreview": {
+    "historyAria": "Geçmiş",
+    "historyTitle": "Geçmiş — kodu ve konuşmasıyla kaydedilen her sürüm",
+    "openExternally": "Harici olarak aç",
+    "openExternallyTitle": "Varsayılan uygulamada aç",
+    "tabs": {
+      "preview": "Önizleme",
+      "code": "Kod"
+    },
+    "loading": "{{filename}} yükleniyor…",
+    "desktopOnly": "Önizleme masaüstü uygulamasında kullanılabilir.",
+    "sourceDesktopOnly": "Kaynak masaüstü uygulamasında kullanılabilir.",
+    "binaryNoPreview": "Bu dosya ikili ve önizlemesi yok — harici olarak açın.",
+    "artifactKind": {
+      "figure": "şekil",
+      "script": "betik",
+      "report": "rapor",
+      "table": "tablo",
+      "notebook": "not defteri",
+      "model": "model",
+      "data": "veri"
+    },
+    "htmlPreviewTitle": "HTML önizleme",
+    "pdfPreviewTitle": "PDF önizleme",
+    "tableView": {
+      "table": "Tablo",
+      "chart": "Grafik"
+    },
+    "tooLarge": "{{filename}} önizlemek için çok büyük",
+    "tooLargeBody": "Büyük bir dosyanın uygulamayı kilitlememesi için önizlemeler sınırlandırılmıştır. Yüklemeden inceleyin — büyük dosya sondajı şemasını, şeklini, bir örneğini ve önemli sayıları akışla okur, dosyanın tamamını asla yüklemez — veya sistem uygulamanızda açın.",
+    "inspectWithoutLoading": "Yüklemeden incele",
+    "pointer": {
+      "format": "Biçim",
+      "size": "Boyut",
+      "gzipped": "(gzip'li)",
+      "approxRows": "Satır (yaklaşık)",
+      "rows": "Satır",
+      "approxReads": "Okuma (yaklaşık)",
+      "approxSequences": "Dizi (yaklaşık)",
+      "approxVariants": "Varyant (yaklaşık)",
+      "columns": "Sütunlar",
+      "readLength": "Okuma uzunluğu",
+      "readLengthValue": "{{min}}–{{max}} (ortalama {{mean}})",
+      "samples": "Örnekler",
+      "schema": "Şema",
+      "datasets": "Veri kümeleri",
+      "sampleIds": "Örnek kimlikleri"
+    }
+  },
+  "office": {
+    "rendering": "Oluşturuluyor…",
+    "docxRenderError": "Bu belge oluşturulamadı: {{message}}",
+    "xlsxReadError": "Bu çalışma kitabı okunamadı: {{message}}",
+    "pptxRenderError": "Bu sunum oluşturulamadı: {{message}}",
+    "noSheets": "Bu çalışma kitabında sayfa yok.",
+    "truncatedPrefix": "Kısaltılmış önizleme · ",
+    "embeddedChartsNote": "Gömülü grafikler oluşturulmaz."
+  },
+  "table": {
+    "showingFirstRows_one": "İlk {{count}} satır gösteriliyor",
+    "showingFirstRows_other": "İlk {{count}} satır gösteriliyor"
+  },
+  "mesh": {
+    "mode": {
+      "shaded": "Gölgeli",
+      "wireframe": "Tel kafes"
+    },
+    "modelViewerAria": "{{filename}} 3B model görüntüleyici",
+    "resetView": "Görünümü sıfırla",
+    "triangleCount_one": "{{formatted}} üçgen",
+    "triangleCount_other": "{{formatted}} üçgen",
+    "rendering": "Model oluşturuluyor…",
+    "fileProblem": "Dosya sorunu",
+    "noGeometry": "Bu 3B dosyada görünür geometri yok — dışa aktarım eksik veya bozuk görünüyor.",
+    "unsupportedFormat": "Desteklenmeyen 3B biçim: .{{ext}}",
+    "badge3D": "3B"
+  },
+  "fits": {
+    "readError": "Bu FITS dosyası okunamadı — {{error}}.",
+    "colormap": {
+      "magma": "magma",
+      "viridis": "viridis",
+      "gray": "gri"
+    },
+    "stretch": {
+      "linear": "doğrusal",
+      "log": "logaritmik",
+      "asinh": "asinh"
+    },
+    "hoverHintImage": "piksel değeri ve gök koordinatı için üzerine gelin",
+    "pixelValue": "piksel ({{x}}, {{y}}) = {{value}}",
+    "value": "değer",
+    "axisSampleFallback": "örnek",
+    "spectrumSummary_one": "spektrum · {{count}} örnek",
+    "spectrumSummary_other": "spektrum · {{count}} örnek",
+    "hoverHintSpectrum": "bir örneği okumak için üzerine gelin"
+  },
+  "genome": {
+    "notAnnotationFile": "Bir genom açıklama dosyası değil.",
+    "noFeaturesFound": "Bu {{format}} dosyasında özellik bulunamadı.",
+    "contigAria": "Kontig",
+    "featureCount": "{{count}} özellik",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır",
+    "resetView": "Görünümü sıfırla",
+    "strandLabel": "iplik {{strand}}",
+    "featureLabel": "özellik",
+    "scoreLabel": "skor {{score}}",
+    "panZoomHint": "Kaydırmak için sürükleyin · yakınlaştırmak için kaydırın",
+    "showingRows": " · {{total}} satırdan {{shown}} gösteriliyor",
+    "truncatedNotice": " · dosya 50.000 özellikte kesildi"
+  },
+  "molecule": {
+    "style": {
+      "stick": "Çubuk",
+      "sphere": "Küre",
+      "cartoon": "Karikatür"
+    },
+    "moleculeViewerAria": "{{filename}} 3B molekül görüntüleyici",
+    "notChemicalFile": "Bir kimyasal yapı dosyası değil.",
+    "noStructuresFound": "Bu dosyada kimyasal yapı bulunamadı.",
+    "resetView": "Görünümü sıfırla",
+    "atomCount_one": "{{count}} atom",
+    "atomCount_other": "{{count}} atom",
+    "renderingStructure": "Yapı oluşturuluyor…",
+    "badge3D": "3B"
+  },
+  "dos": {
+    "readError": "Bu DOSCAR okunamadı — {{error}}.",
+    "unknownFormat": "bilinmeyen biçim",
+    "viewLabel": "DOS",
+    "pointCount_one": "{{count}} nokta",
+    "pointCount_other": "{{count}} nokta",
+    "spinPolarizedSuffix": " · spin kutuplu",
+    "axisToggle": {
+      "relative": "E − E_F",
+      "absolute": "mutlak E"
+    },
+    "axisLabel": {
+      "relative": "E − E_F (eV)",
+      "absolute": "Enerji (eV)"
+    },
+    "yAxisLabel": "DOS (durum/eV)",
+    "spinUpLabel": "↑ spin yukarı",
+    "spinDownLabel": "↓ spin aşağı",
+    "emptyHint": "Fermi E_F'de · bir noktayı okumak için üzerine gelin"
+  },
+  "band": {
+    "readError": "Bu EIGENVAL okunamadı — {{error}}.",
+    "unknownFormat": "bilinmeyen biçim",
+    "viewLabel": "bantlar",
+    "bandCount_one": "{{count}} bant",
+    "bandCount_other": "{{count}} bant",
+    "kpointCount_one": "{{count}} k-noktası",
+    "kpointCount_other": "{{count}} k-noktası",
+    "spinPolarizedSuffix": " · spin kutuplu",
+    "spinUpShort": "yukarı",
+    "spinDownShort": "aşağı",
+    "kpointIndexAxis": "k-noktası indeksi (0…{{max}})",
+    "energyAxis": "Enerji (eV)",
+    "hoverHint": "k-noktası ve enerjiyi okumak için üzerine gelin"
+  },
+  "phase": {
+    "readError": "Bu faz diyagramı okunamadı — {{error}}.",
+    "unknownFormat": "bilinmeyen biçim",
+    "phaseCount_one": "{{count}} faz",
+    "phaseCount_other": "{{count}} faz",
+    "stableCount": "{{count}} kararlı",
+    "xAxisLabel": "bileşim (kesir {{element}})",
+    "yAxisLabel": "oluşum enerjisi (eV/atom)",
+    "stableOnHull": "kararlı (yapı üzerinde)",
+    "aboveHull": "yapının +{{value}} eV/atom üzerinde",
+    "hoverDefaultHint": "bir faz üzerine gelin · dolu = kararlı, boş = yarı kararlı"
+  },
+  "anomaly": {
+    "readError": "Bu anomali ızgarası okunamadı — {{error}}.",
+    "unknownFormat": "bilinmeyen biçim",
+    "gridLabel": "ızgara",
+    "hoverHint": "bir ızgara hücresini okumak için üzerine gelin",
+    "noData": "veri yok"
+  },
+  "qcode": {
+    "readError": "Bu kodlama dosyası okunamadı — {{error}}.",
+    "unknownFormat": "bilinmeyen biçim",
+    "sourceCount_one": "{{count}} kaynak",
+    "sourceCount_other": "{{count}} kaynak",
+    "codeCount_one": "{{count}} kod",
+    "codeCount_other": "{{count}} kod",
+    "exactSpansBadge": "alıntılar tam kaynak aralıklarıdır",
+    "exactSpansTitle": "Vurgular tam kaynak aralıklarıdır — alıntılar kaynaktan dilimlenir, asla üretilmez.",
+    "codebookHeading": "Kod kitabı",
+    "clearFilter": "filtreyi temizle",
+    "warningsCount_one": "{{count}} açıklama atlandı veya işaretlendi:",
+    "warningsCount_other": "{{count}} açıklama atlandı veya işaretlendi:",
+    "hoverDefaultHint": "kodlarını görmek için bir vurgunun üzerine gelin · aralıklarını izole etmek için bir koda tıklayın"
+  },
+  "tableChart": {
+    "chartType": {
+      "line": "çizgi",
+      "bar": "sütun",
+      "scatter": "dağılım"
+    },
+    "rowIndexOption": "satır #",
+    "rowLabel": "satır",
+    "xAxisFieldLabel": "x:",
+    "toggleSeries": {
+      "hide": "Seriyi gizle",
+      "show": "Seriyi göster"
+    },
+    "selectSeriesHint": "çizmek için bir seri seçin",
+    "noNumericColumns": "Grafiğe dökülecek sayısal sütun yok."
+  }
+}

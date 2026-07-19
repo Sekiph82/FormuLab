@@ -1,0 +1,56 @@
+{
+  "sidebar": {
+    "collapse": "Kenar çubuğunu daralt",
+    "collapseTitle": "Kenar çubuğunu daralt ({{shortcut}})",
+    "expand": "Kenar çubuğunu genişlet",
+    "expandTitle": "Kenar çubuğunu genişlet ({{shortcut}})",
+    "betaBadge": "Beta",
+    "settings": "Ayarlar"
+  },
+  "items": {
+    "new": "Yeni",
+    "notebooks": "Not defterleri",
+    "files": "Dosyalar",
+    "runs": "Çalıştırmalar",
+    "optimizer": "Optimize edici",
+    "formulas": "Formüller",
+    "materials": "Hammaddeler"
+  },
+  "history": {
+    "heading": "Oturumlar",
+    "empty": "Henüz konuşma yok.",
+    "exampleTag": "örnek",
+    "deleteAria": "{{title}} sil"
+  },
+  "confirmDelete": {
+    "sessionTitle": "Oturum silinsin mi?",
+    "sessionBody": "\"{{title}}\" ve mesajları silinecek. Bu işlem geri alınamaz.",
+    "exampleTitle": "Örnek gizlensin mi?",
+    "exampleBody": "\"{{title}}\" kenar çubuğundan gizlenecek.",
+    "deleteAction": "Sil",
+    "hideAction": "Gizle"
+  },
+  "status": {
+    "runtime": "Çalışma zamanı",
+    "model": "Model",
+    "modelNotSet": "ayarlanmadı",
+    "values": {
+      "ready": "hazır",
+      "connecting": "bağlanıyor",
+      "error": "hata",
+      "offline": "çevrimdışı"
+    }
+  },
+  "commandPalette": {
+    "ariaLabel": "Komut paleti",
+    "placeholder": "Bir komut yazın…",
+    "noResults": "Sonuç yok.",
+    "actions": {
+      "newSession": "Yeni formülasyon",
+      "openNotebooks": "Not defterlerini aç",
+      "openSettings": "Ayarları aç",
+      "toggleTheme": "Temayı değiştir (açık / sıcak / koyu)",
+      "openFiles": "Dosyaları aç"
+    }
+  }
+}

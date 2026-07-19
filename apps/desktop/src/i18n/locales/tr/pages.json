@@ -1,0 +1,137 @@
+{
+  "optimizer": {
+    "title": "Formülasyon Optimize Edici",
+    "description": "Stok ve kullanım sınırları içinde bir aktif madde hedefini karşılayan en ucuz hammadde karışımını bulur. Paketlenmiş Python + PuLP üzerinde doğrusal programlama çözer.",
+    "desktopOnly": "Optimize edici masaüstü uygulamasında çalışır (paketlenmiş Python çözücüsüne ihtiyaç duyar).",
+    "solve": "Optimize et",
+    "solving": "Optimize ediliyor…",
+    "materials": {
+      "heading": "Hammaddeler",
+      "name": "Hammadde",
+      "namePlaceholder": "Ad",
+      "price": "Birim fiyat",
+      "stock": "Stok (kg)",
+      "active": "Aktif %",
+      "maxUsage": "Maks. kullanım %",
+      "add": "Hammadde ekle",
+      "removeAria": "{{name}} kaldır"
+    },
+    "constraints": {
+      "batchSize": "Parti büyüklüğü (kg)",
+      "minActive": "Min. aktif %"
+    },
+    "result": {
+      "heading": "Optimum formülasyon",
+      "totalCost": "Toplam maliyet",
+      "achievedActive": "Aktif madde",
+      "batch": "Parti",
+      "qty": "Miktar (kg)",
+      "share": "Pay",
+      "cost": "Maliyet",
+      "notOptimal": "Optimum çözüm bulunamadı ({{status}})"
+    }
+  },
+  "notebooks": {
+    "title": "Not defterleri",
+    "openJupyterLab": "JupyterLab'ı aç",
+    "openJupyterLabTitle": "Tam JupyterLab'ı (aynı ortam ve dosyalarla) tarayıcınızda açın",
+    "newNotebook": "Yeni not defteri",
+    "pythonNotebook": "Python not defteri",
+    "rNotebook": "R not defteri",
+    "description": "Oturum klasörlerinizdeki tüm Jupyter not defterleri, en yeniden eskiye. Hücreler, not defterinin kendi klasöründeki yerel Python veya R çekirdeğinde çalışır; ajan aynı dosyalar üzerinde çalışır.",
+    "createsIn": "Yeni not defterleri şurada oluşturulur",
+    "empty": {
+      "tauri": "Henüz not defteri yok. Bir tane oluşturun veya ajandan bir tane üretmesini isteyin.",
+      "web": "Not defterleri masaüstü uygulamasında kullanılabilir."
+    },
+    "toast": {
+      "openingJupyterLab": "JupyterLab tarayıcınızda açılıyor…",
+      "setUpJupyterFirst": "Önce Jupyter'i kurun — Ayarlar → MCP sunucuları → Jupyter.",
+      "couldNotOpenJupyterLab": "JupyterLab açılamadı",
+      "couldNotCreateNotebook": "Not defteri oluşturulamadı"
+    },
+    "editor": {
+      "backAria": "Not defterlerine dön",
+      "languageR": "R",
+      "languagePython": "Python",
+      "saved": "Kaydedildi",
+      "unsaved": "Kaydedilmedi",
+      "shortcutHint": "Shift/⌘+Enter bir hücreyi çalıştırır · ajanla paylaşılır",
+      "openJupyterLabAria": "JupyterLab'da aç",
+      "historyAria": "Geçmiş",
+      "historyTitle": "Geçmiş — kodu ve konuşmasıyla kaydedilen her sürüm",
+      "reloadAria": "Diskten yeniden yükle",
+      "reloadTitle": "Yeniden yükle (ajanın değişikliklerini yansıt)",
+      "closeAria": "İnceleyiciyi kapat",
+      "stopCellTitle": "Durdur — bu not defterinin çekirdeğini yeniden başlatır (değişkenler sıfırlanır)",
+      "stopLabel": "Durdur",
+      "runLabel": "Çalıştır",
+      "addCellLabel": "Hücre ekle"
+    },
+    "setUpJupyter": "Jupyter'i kur",
+    "settingUpJupyter": "Kuruluyor…",
+    "setUpJupyterTitle": "İzole bir Jupyter ortamı indir ve kur"
+  },
+  "files": {
+    "loading": "Yükleniyor…",
+    "folderEmpty": "Bu klasör boş.",
+    "explorerUnavailableWeb": "Dosya gezgini masaüstü uygulamasında kullanılabilir.",
+    "selectFilePrompt": "Önizlemek için bir dosya seçin.",
+    "pane": {
+      "subtitle": "bu oturumun klasörü",
+      "closeAria": "Dosyaları kapat"
+    },
+    "contextMenu": {
+      "copyPath": "Yolu kopyala",
+      "copyRelativePath": "Göreli yolu kopyala",
+      "relativePathLabel": "Göreli yol",
+      "openInDefaultApp": "Varsayılan uygulamada aç"
+    }
+  },
+  "skills": {
+    "title": "Beceriler ve Ajanlar",
+    "description": {
+      "prefix": "OpenCode çalışma zamanından canlı olarak yüklenir — paketlenmiş ai4s-skills paketi artı çalışma alanınızda ",
+      "suffix": " altındaki her şey."
+    },
+    "install": {
+      "sectionTitle": "Bir beceri kur",
+      "placeholder": "Bir beceri (Markdown) veya bir GitHub URL'si yapıştırın — ajan bunu .opencode/skills/ içine kurar",
+      "starting": "Başlatılıyor…",
+      "cta": "Ajanla kur",
+      "hintConnected": "Bir oturum açar ve ajandan eklemesini ister (customize-opencode).",
+      "hintDisconnected": "Önce çalışma zamanını bağlayın."
+    },
+    "environment": {
+      "sectionTitle": "Bilimsel ortam",
+      "detectionUnavailable": "Ortam algılama masaüstü uygulamasında çalışır.",
+      "found": "bulundu",
+      "notFound": "bulunamadı",
+      "note": "OpenCode, kodu burada kurulu olan her şeyle çalıştırır (örn. kabuk aracı üzerinden Python). Python/R/Jupyter pakete dahil değildir; analiz için bunları veya bir Science Pack'i kurun."
+    },
+    "agentsSection": {
+      "sectionTitle": "Ajanlar ({{count}})",
+      "empty": "Bildirilen ajan yok.",
+      "agentMode": {
+        "primary": "birincil",
+        "subagent": "alt ajan",
+        "all": "tümü"
+      }
+    },
+    "skillsListSection": {
+      "sectionTitle": "Beceriler ({{count}})",
+      "empty": "Henüz yüklenmiş beceri yok.",
+      "source": {
+        "builtin": "yerleşik",
+        "project": "proje",
+        "user": "kullanıcı"
+      }
+    },
+    "disconnected": "Yüklediği becerileri ve ajanları listelemek için çalışma zamanını bağlayın."
+  },
+  "notFound": {
+    "title": "404 — Bulunamadı",
+    "hint": "Bu sayfa mevcut değil.",
+    "backLink": "Çalışma alanına dön"
+  }
+}

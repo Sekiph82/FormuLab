@@ -26,6 +26,7 @@ export const LOCALES: LocaleMeta[] = [
   { code: "de", label: "German", nativeName: "Deutsch", dir: "ltr", shipped: true },
   { code: "fr", label: "French", nativeName: "Français", dir: "ltr", shipped: true },
   { code: "ko", label: "Korean", nativeName: "한국어", dir: "ltr", shipped: true },
+  { code: "tr", label: "Turkish", nativeName: "Türkçe", dir: "ltr", shipped: true },
   { code: "pt-BR", label: "Portuguese (Brazil)", nativeName: "Português (Brasil)", dir: "ltr", shipped: false },
   { code: "ar", label: "Arabic", nativeName: "العربية", dir: "rtl", shipped: false },
 ];
