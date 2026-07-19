@@ -342,6 +342,13 @@
     "sessions": {
       "heading": "Sessions",
       "empty": "Les formulations enregistrées apparaissent ici."
+    },
+    "costing": {
+      "title": "Coût",
+      "batch": "Lot",
+      "calculate": "Calculer le coût",
+      "partial": "Ce total couvre {{pct}} % de la formule. Sans prix : {{list}}.",
+      "needMaterials": "Importez votre liste de prix dans Paramètres → Général pour calculer le coût."
     }
   }
 }

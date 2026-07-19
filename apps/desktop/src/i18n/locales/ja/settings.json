@@ -266,5 +266,13 @@
       "couldNotCancel": "{{id}} をキャンセルできませんでした",
       "jobCanceled": "ジョブ {{id}} をキャンセルしました"
     }
+  },
+  "materials": {
+    "title": "原料",
+    "hint": "価格表 — 原価計算はこの価格を使用します",
+    "import": "価格表を読み込む",
+    "summary": "原料 {{count}} 件、価格あり {{priced}} 件（{{currency}}）",
+    "mixedCurrency": "複数の通貨（{{list}}）が混在しています。統一するまで合計は表示されません。",
+    "columns": "CSV または TSV。認識する列: 名称/原料、INCI、CAS、価格、通貨、単位、仕入先、在庫、ERP コード。"
   }
 }

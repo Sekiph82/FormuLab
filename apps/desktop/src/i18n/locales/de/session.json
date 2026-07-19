@@ -342,6 +342,13 @@
     "sessions": {
       "heading": "Sitzungen",
       "empty": "Gespeicherte Formulierungen erscheinen hier."
+    },
+    "costing": {
+      "title": "Kalkulation",
+      "batch": "Charge",
+      "calculate": "Kosten berechnen",
+      "partial": "Diese Summe deckt {{pct}} % der Rezeptur ab. Ohne Preis: {{list}}.",
+      "needMaterials": "Importieren Sie Ihre Rohstoff-Preisliste unter Einstellungen → Allgemein."
     }
   }
 }

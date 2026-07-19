@@ -4,6 +4,7 @@ mod artifact_file;
 mod debug_log;
 mod formulation;
 mod formulation_v2;
+mod materials;
 mod git_snapshot;
 mod compute;
 mod jupyter;
@@ -68,6 +69,7 @@ pub fn run() {
             workspace::set_workspace_base,
             workspace::open_workspace_base,
             workspace::pick_folder,
+            workspace::pick_file,
             jupyter::jupyter_status,
             jupyter::setup_jupyter,
             jupyter::start_jupyter,
@@ -80,6 +82,9 @@ pub fn run() {
             formulation_v2::list_sessions,
             formulation_v2::read_session,
             formulation_v2::delete_session,
+            materials::import_materials,
+            materials::list_materials,
+            materials::cost_formulation,
             artifact_file::read_artifact,
             artifact_file::open_path,
             artifact_file::reveal_path,

@@ -108,6 +108,23 @@ pub async fn pick_folder(app: AppHandle) -> Result<Option<String>, String> {
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
+/// Native "choose a file" dialog, filtered to `extensions` (e.g. csv/tsv).
+/// Returns the absolute path, or None on cancel.
+#[tauri::command]
+pub async fn pick_file(app: AppHandle, extensions: Vec<String>) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let mut dialog = app.dialog().file();
+    if !extensions.is_empty() {
+        let refs: Vec<&str> = extensions.iter().map(|s| s.as_str()).collect();
+        dialog = dialog.add_filter("Supported files", &refs);
+    }
+    let Some(picked) = dialog.blocking_pick_file() else {
+        return Ok(None);
+    };
+    let path = picked.into_path().map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
 // ------------------------------------------------------------ process bits ---
 
 /// A GUI app spawning a console-subsystem child (python.exe, taskkill, git…)

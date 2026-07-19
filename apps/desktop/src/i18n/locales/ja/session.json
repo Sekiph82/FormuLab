@@ -334,6 +334,13 @@
     "sessions": {
       "heading": "セッション",
       "empty": "保存した処方はここに表示されます。"
+    },
+    "costing": {
+      "title": "原価",
+      "batch": "バッチ",
+      "calculate": "原価を計算",
+      "partial": "この合計は処方の {{pct}}% を対象としています。価格なし: {{list}}。",
+      "needMaterials": "設定 → 一般で原料価格表を読み込むと原価を計算できます。"
     }
   }
 }

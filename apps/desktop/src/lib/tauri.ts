@@ -307,6 +307,13 @@ export async function pickFolder(): Promise<string | null> {
   return invoke<string | null>("pick_folder");
 }
 
+/** Native file picker, filtered to `extensions`; null on cancel or in the browser. */
+export async function pickFile(extensions: string[] = []): Promise<string | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string | null>("pick_file", { extensions });
+}
+
 export interface ToolStatus {
   name: string;
   found: boolean;

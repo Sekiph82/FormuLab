@@ -334,6 +334,13 @@
     "sessions": {
       "heading": "세션",
       "empty": "저장된 배합이 여기에 표시됩니다."
+    },
+    "costing": {
+      "title": "원가",
+      "batch": "배치",
+      "calculate": "원가 계산",
+      "partial": "이 합계는 배합의 {{pct}}%를 반영합니다. 가격 없음: {{list}}.",
+      "needMaterials": "설정 → 일반에서 원료 가격표를 가져오면 원가를 계산할 수 있습니다."
     }
   }
 }

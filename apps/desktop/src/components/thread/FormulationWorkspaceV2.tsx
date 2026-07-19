@@ -14,6 +14,7 @@ import {
 } from "@/lib/formulationV2";
 import { AgentMessage } from "./atoms";
 import { FormulationStudio } from "./FormulationStudio";
+import { CostingPanel } from "./CostingPanel";
 
 /**
  * FormuLab v2 workspace — the direct-pipeline surface, no OpenCode. Two regions:
@@ -220,6 +221,7 @@ function ResultBody({
         {/* print-area: the only thing that reaches paper (see index.css). */}
         <div className="print-area min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <AgentMessage markdown={card.markdown} />
+          {card.formula ? <CostingPanel formula={card.formula} /> : null}
         </div>
       </div>
     );

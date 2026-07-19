@@ -268,5 +268,13 @@
       "couldNotCancel": "Impossible d'annuler {{id}}",
       "jobCanceled": "Tâche {{id}} annulée"
     }
+  },
+  "materials": {
+    "title": "Matières premières",
+    "hint": "Votre liste de prix — le calcul des coûts l'utilise",
+    "import": "Importer la liste de prix",
+    "summary": "{{count}} matières, {{priced}} avec prix ({{currency}})",
+    "mixedCurrency": "Les prix utilisent plusieurs devises ({{list}}) ; les totaux restent vides jusqu'à unification.",
+    "columns": "CSV ou TSV. Colonnes reconnues : nom/matière, INCI, CAS, prix, devise, unité, fournisseur, stock, code ERP."
   }
 }

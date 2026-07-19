@@ -342,6 +342,13 @@
     "sessions": {
       "heading": "Sessions",
       "empty": "Saved formulations appear here."
+    },
+    "costing": {
+      "title": "Costing",
+      "batch": "Batch",
+      "calculate": "Calculate cost",
+      "partial": "This total covers {{pct}}% of the formula. Not priced: {{list}}.",
+      "needMaterials": "Import your raw-material price list in Settings → General to cost this formula."
     }
   }
 }

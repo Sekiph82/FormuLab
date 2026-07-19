@@ -334,6 +334,13 @@
     "sessions": {
       "heading": "会话",
       "empty": "已保存的配方显示在此处。"
+    },
+    "costing": {
+      "title": "成本核算",
+      "batch": "批量",
+      "calculate": "计算成本",
+      "partial": "此合计涵盖配方的 {{pct}}%。无价格：{{list}}。",
+      "needMaterials": "在设置 → 常规中导入原料价格表即可核算成本。"
     }
   }
 }

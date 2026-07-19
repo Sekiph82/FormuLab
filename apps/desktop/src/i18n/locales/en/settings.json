@@ -268,5 +268,13 @@
       "couldNotCancel": "Could not cancel {{id}}",
       "jobCanceled": "Job {{id}} canceled"
     }
+  },
+  "materials": {
+    "title": "Raw materials",
+    "hint": "Your price list — costing uses these prices",
+    "import": "Import price list",
+    "summary": "{{count}} materials, {{priced}} priced ({{currency}})",
+    "mixedCurrency": "Prices use more than one currency ({{list}}); totals are left blank until the list uses one.",
+    "columns": "CSV or TSV. Recognised columns: name/material, INCI, CAS, price, currency, unit, supplier, stock, ERP code — English or Turkish headers."
   }
 }

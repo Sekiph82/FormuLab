@@ -29,6 +29,7 @@ import { RemoteComputeCard } from "@/components/settings/RemoteComputeCard";
 import { ModalCard } from "@/components/settings/ModalCard";
 import { DataFlowCard } from "@/components/settings/DataFlowCard";
 import { FormulationProviderCard } from "@/components/settings/FormulationProviderCard";
+import { MaterialsCard } from "@/components/settings/MaterialsCard";
 import { loadProviderConfig } from "@/lib/formulationV2";
 import { Row, Section, Switch } from "@/components/settings/Section";
 import { resolveSection } from "@/components/settings/sections";
@@ -150,6 +151,9 @@ export function SettingsPage() {
         {/* ---- Models ---- */}
         {/* Provider + model + key for the direct formulation pipeline. */}
         {section === "models" && <FormulationProviderCard />}
+
+        {/* ---- Raw materials (the prices costing uses) ---- */}
+        {section === "general" && <MaterialsCard />}
 
         {/* ---- Workspace ---- */}
         {section === "general" && (

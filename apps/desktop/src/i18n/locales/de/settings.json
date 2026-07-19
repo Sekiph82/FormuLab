@@ -268,5 +268,13 @@
       "couldNotCancel": "{{id}} konnte nicht abgebrochen werden",
       "jobCanceled": "Job {{id}} abgebrochen"
     }
+  },
+  "materials": {
+    "title": "Rohstoffe",
+    "hint": "Ihre Preisliste — die Kalkulation nutzt diese Preise",
+    "import": "Preisliste importieren",
+    "summary": "{{count}} Rohstoffe, {{priced}} mit Preis ({{currency}})",
+    "mixedCurrency": "Die Preise nutzen mehrere Währungen ({{list}}); Summen bleiben leer, bis nur eine verwendet wird.",
+    "columns": "CSV oder TSV. Erkannte Spalten: Name/Material, INCI, CAS, Preis, Währung, Einheit, Lieferant, Bestand, ERP-Code."
   }
 }

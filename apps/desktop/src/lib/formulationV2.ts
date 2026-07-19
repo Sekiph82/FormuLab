@@ -177,3 +177,78 @@ export async function readSession(id: string): Promise<SessionDetail> {
 export async function deleteSession(id: string): Promise<void> {
   return call<void>("delete_session", { id });
 }
+
+// ------------------------------------------------------- materials + costing ---
+
+export interface Material {
+  material_id: string;
+  name: string;
+  inci: string;
+  price: number | null;
+  currency: string;
+  unit: string;
+  supplier: string;
+  /** An ERP item code once this app is fed by one; empty until then. */
+  external_ref: string;
+}
+
+export interface MaterialsDoc {
+  status: "ok";
+  schema_version: number;
+  updated: string;
+  currency: string;
+  mixed_currencies?: string[];
+  materials: Material[];
+}
+
+export interface ImportResult {
+  status: "ok" | "error";
+  message?: string;
+  count?: number;
+  priced?: number;
+  currency?: string;
+  warnings?: string[];
+  mixed_currencies?: string[];
+}
+
+export interface CostLine {
+  ingredient: string;
+  weight_pct: number;
+  qs: boolean;
+  kg: number;
+  unit_price: number | null;
+  cost: number | null;
+  supplier: string;
+  note?: string;
+}
+
+export interface CostSheet {
+  status: "ok" | "error";
+  message?: string;
+  batch_kg: number;
+  currency: string;
+  lines: CostLine[];
+  total_cost: number;
+  cost_per_kg: number;
+  covered_pct: number;
+  complete: boolean;
+  unmatched: string[];
+  markdown: string;
+}
+
+/** Import a raw-material price list the user picked (CSV/TSV). */
+export async function importMaterials(path: string): Promise<ImportResult> {
+  return call<ImportResult>("import_materials", { path });
+}
+
+export async function listMaterials(): Promise<MaterialsDoc> {
+  return call<MaterialsDoc>("list_materials", {});
+}
+
+/** Cost one formula against the imported materials. Arithmetic, not a model. */
+export async function costFormulation(
+  formula: unknown,
+  batchKg: number,
+): Promise<CostSheet> {
+  return call<CostSheet>("cost_formulation", { formula, batchKg });
+}

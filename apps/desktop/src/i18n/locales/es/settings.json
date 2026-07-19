@@ -268,5 +268,13 @@
       "couldNotCancel": "No se pudo cancelar {{id}}",
       "jobCanceled": "Trabajo {{id}} cancelado"
     }
+  },
+  "materials": {
+    "title": "Materias primas",
+    "hint": "Su lista de precios — el cálculo de costes la utiliza",
+    "import": "Importar lista de precios",
+    "summary": "{{count}} materiales, {{priced}} con precio ({{currency}})",
+    "mixedCurrency": "Los precios usan más de una moneda ({{list}}); los totales quedan vacíos hasta unificarla.",
+    "columns": "CSV o TSV. Columnas reconocidas: nombre/material, INCI, CAS, precio, moneda, unidad, proveedor, stock, código ERP."
   }
 }

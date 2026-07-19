@@ -266,5 +266,13 @@
       "couldNotCancel": "无法取消 {{id}}",
       "jobCanceled": "任务 {{id}} 已取消"
     }
+  },
+  "materials": {
+    "title": "原料",
+    "hint": "您的价格表 — 成本核算使用这些价格",
+    "import": "导入价格表",
+    "summary": "{{count}} 种原料，{{priced}} 种有价格（{{currency}}）",
+    "mixedCurrency": "价格包含多种货币（{{list}}）；统一之前不显示合计。",
+    "columns": "CSV 或 TSV。可识别列：名称/原料、INCI、CAS、价格、货币、单位、供应商、库存、ERP 编码。"
   }
 }

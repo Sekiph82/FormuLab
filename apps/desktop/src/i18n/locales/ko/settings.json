@@ -266,5 +266,13 @@
       "couldNotCancel": "{{id}}을(를) 취소할 수 없습니다",
       "jobCanceled": "작업 {{id}}이(가) 취소되었습니다"
     }
+  },
+  "materials": {
+    "title": "원료",
+    "hint": "가격표 — 원가 계산에 이 가격을 사용합니다",
+    "import": "가격표 가져오기",
+    "summary": "원료 {{count}}개, 가격 있음 {{priced}}개({{currency}})",
+    "mixedCurrency": "여러 통화({{list}})가 섞여 있습니다. 통일할 때까지 합계는 표시되지 않습니다.",
+    "columns": "CSV 또는 TSV. 인식 열: 이름/원료, INCI, CAS, 가격, 통화, 단위, 공급업체, 재고, ERP 코드."
   }
 }

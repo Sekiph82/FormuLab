@@ -90,10 +90,22 @@ fn app_dir(app: &AppHandle, sub: &[&str]) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// The app-private directory the Python package is materialized into. Shared
+/// with materials.rs, which drops its own scripts beside it so their imports
+/// resolve.
+pub(crate) fn pipeline_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app_dir(app, &["runtime", "pipeline"])
+}
+
+/// A folder under the user's project root (`data`, `formulas`, …).
+pub(crate) fn project_data_dir(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
+    data_dir(app, &[name])
+}
+
 /// Materialize the pipeline package + discover.py into app-private storage and
 /// return the directory holding run_cli.py.
 fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
-    let pipe = app_dir(app, &["runtime", "pipeline"])?;
+    let pipe = pipeline_dir(app)?;
     for (name, src) in [
         ("pipeline.py", F_PIPELINE),
         ("llm.py", F_LLM),
