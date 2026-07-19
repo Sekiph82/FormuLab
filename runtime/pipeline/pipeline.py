@@ -39,6 +39,93 @@ def safety_gate(target: str) -> str | None:
     return None
 
 
+# Deterministic pre-generation safety classification. Mirrors the TypeScript
+# PRODUCT_SAFETY_CLASSIFICATIONS enum in packages/shared/src/schemas/safety.ts
+# — kept in sync by hand, the same way HUMAN_ONLY_STATUSES is duplicated
+# between status.ts and formulations.rs elsewhere in this project. This gate
+# runs BEFORE literature discovery or any model call: a prompt instruction is
+# not a safety control, a keyword-matched, testable function is.
+PRODUCT_SAFETY_CLASSIFICATIONS = (
+    "ordinary_consumer_product",
+    "industrial_cleaning_product",
+    "hazardous_lawful_product",
+    "regulated_disinfectant",
+    "medical_or_health_related_product",
+    "restricted_request",
+    "prohibited_request",
+    "human_review_required",
+)
+
+_RESTRICTED_KEYWORDS = (
+    "pesticide", "insecticide", "rodenticide", "fumigant", "veterinary drug",
+    "controlled precursor",
+)
+_MEDICAL_KEYWORDS = (
+    "toothpaste", "mouthwash", "therapeutic", "medicated", "medical device",
+    "wound care", "prescription", "drug",
+)
+_DISINFECTANT_KEYWORDS = (
+    "disinfectant", "sanitiser", "sanitizer", "qac", "quaternary ammonium",
+    "chlorhexidine", "biocide", "germicide", "antimicrobial surface",
+)
+_HAZARDOUS_LAWFUL_KEYWORDS = (
+    "bleach", "hypochlorite", "sodium hypochlorite", "acid cleaner", "caustic",
+    "sulfuric", "hydrochloric", "oven cleaner",
+)
+_INDUSTRIAL_KEYWORDS = (
+    "degreaser", "industrial cleaner", "floor cleaner", "limescale remover", "descaler",
+)
+
+# Classifications that always require a named human to review and
+# acknowledge before literature discovery/generation proceeds, even though
+# the request itself is lawful.
+_HUMAN_REVIEW_TIERS = frozenset({
+    "regulated_disinfectant", "medical_or_health_related_product", "restricted_request",
+})
+
+
+def classify_target(target: str) -> str:
+    """Deterministic classification of a free-text product target."""
+    t = (target or "").lower()
+    if safety_gate(target):
+        return "prohibited_request"
+    if any(k in t for k in _RESTRICTED_KEYWORDS):
+        return "restricted_request"
+    if any(k in t for k in _MEDICAL_KEYWORDS):
+        return "medical_or_health_related_product"
+    if any(k in t for k in _DISINFECTANT_KEYWORDS):
+        return "regulated_disinfectant"
+    if any(k in t for k in _HAZARDOUS_LAWFUL_KEYWORDS):
+        return "hazardous_lawful_product"
+    if any(k in t for k in _INDUSTRIAL_KEYWORDS):
+        return "industrial_cleaning_product"
+    return "ordinary_consumer_product"
+
+
+def safety_decision(target: str) -> tuple[str, str]:
+    """(classification, decision) where decision is one of
+    "proceed" | "human_review_required" | "refused"."""
+    classification = classify_target(target)
+    if classification == "prohibited_request":
+        return classification, "refused"
+    if classification in _HUMAN_REVIEW_TIERS:
+        return classification, "human_review_required"
+    return classification, "proceed"
+
+
+def _log_safety_decision(library: str, record: Dict[str, Any]) -> None:
+    """Append one line to data/safety/ai_request_log.jsonl (sibling of the
+    literature cache). Best-effort: a logging failure must never block the
+    pipeline itself."""
+    try:
+        safety_dir = os.path.join(os.path.dirname(library.rstrip("/\\")), "safety")
+        os.makedirs(safety_dir, exist_ok=True)
+        with open(os.path.join(safety_dir, "ai_request_log.jsonl"), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
 # Product classes whose "base system" is a cleansing/surfactant problem vs. a
 # different core technology — the retrieval angle differs accordingly.
 _CLEANSING = ("shampoo", "body wash", "bar soap", "dishwashing", "detergent",
@@ -366,9 +453,41 @@ def run(
     if not target:
         return {"status": "error", "message": "no target product given"}
 
-    refusal = safety_gate(target)
-    if refusal:
-        return {"status": "refused", "message": refusal}
+    classification, decision = safety_decision(target)
+    reviewer = str(brief.get("human_review_by", "")).strip()
+    acknowledged = bool(brief.get("human_review_acknowledged")) and bool(reviewer)
+    log_record: Dict[str, Any] = {
+        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "target": target,
+        "classification": classification,
+        "decision": decision,
+    }
+
+    if decision == "refused":
+        log_record["outcome"] = "refused"
+        _log_safety_decision(library, log_record)
+        return {
+            "status": "refused",
+            "classification": classification,
+            "message": safety_gate(target) or "Refused: prohibited request class.",
+        }
+
+    if decision == "human_review_required" and not acknowledged:
+        log_record["outcome"] = "pending_human_review"
+        _log_safety_decision(library, log_record)
+        return {
+            "status": "human_review_required",
+            "classification": classification,
+            "message": (
+                f'This product classifies as "{classification.replace("_", " ")}" and requires '
+                f"a named human to review and acknowledge before literature discovery proceeds."
+            ),
+        }
+
+    log_record["outcome"] = "proceeded"
+    if decision == "human_review_required":
+        log_record["acknowledged_by"] = reviewer
+    _log_safety_decision(library, log_record)
 
     constraints = derive_constraints(brief)
     os.makedirs(out_dir, exist_ok=True)

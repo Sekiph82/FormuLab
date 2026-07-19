@@ -14,7 +14,23 @@ export interface FormulationBrief {
   max_cost?: string;
   performance?: string;
   materials?: string;
+  /** Set when resubmitting after a human_review_required response, so the
+   *  safety gate can record who reviewed a hazardous/regulated/medical
+   *  classification before literature discovery proceeds. */
+  human_review_acknowledged?: boolean;
+  human_review_by?: string;
 }
+
+/** Mirrors PRODUCT_SAFETY_CLASSIFICATIONS in packages/shared/src/schemas/safety.ts. */
+export type SafetyClassification =
+  | "ordinary_consumer_product"
+  | "industrial_cleaning_product"
+  | "hazardous_lawful_product"
+  | "regulated_disinfectant"
+  | "medical_or_health_related_product"
+  | "restricted_request"
+  | "prohibited_request"
+  | "human_review_required";
 
 export interface FormulationCard {
   version: string; // "v1", "v2", …
@@ -24,13 +40,16 @@ export interface FormulationCard {
 }
 
 export interface GenerateResult {
-  status: "ok" | "refused" | "error";
+  status: "ok" | "refused" | "error" | "human_review_required";
   message?: string;
   cards?: FormulationCard[];
   slug?: string;
   papers?: number;
   session_id?: string;
   session_dir?: string;
+  /** Present on "refused" and "human_review_required" — the deterministic
+   *  pre-generation safety classification the request was given. */
+  classification?: SafetyClassification;
 }
 
 export interface SessionSummary {

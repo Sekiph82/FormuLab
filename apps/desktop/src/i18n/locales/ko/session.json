@@ -338,7 +338,10 @@
       "needKey": "왼쪽에서 API 키를 추가한 다음 생성하세요.",
       "print": "인쇄",
       "printTitle": "이 배합 카드를 인쇄합니다 (프린터 선택 또는 PDF로 인쇄)",
-      "sourcesCount": "{{count}} sources"
+      "sourcesCount": "{{count}} sources",
+      "humanReviewTitle": "Human review required before this can proceed",
+      "reviewerNameLabel": "Reviewer name",
+      "acknowledgeAndContinue": "Acknowledge and continue"
     },
     "sessions": {
       "heading": "세션",

@@ -338,7 +338,10 @@
       "needKey": "Añade una clave de API a la izquierda y luego pulsa Generar.",
       "print": "Imprimir",
       "printTitle": "Imprimir esta ficha de formulación (elija impresora o Imprimir a PDF)",
-      "sourcesCount": "{{count}} sources"
+      "sourcesCount": "{{count}} sources",
+      "humanReviewTitle": "Human review required before this can proceed",
+      "reviewerNameLabel": "Reviewer name",
+      "acknowledgeAndContinue": "Acknowledge and continue"
     },
     "sessions": {
       "heading": "Sesiones",

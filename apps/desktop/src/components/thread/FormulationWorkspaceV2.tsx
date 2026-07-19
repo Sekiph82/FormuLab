@@ -37,7 +37,8 @@ type View =
   | { mode: "loading" }
   | { mode: "cards"; cards: FormulationCard[]; readOnly: boolean; papers?: number; slug?: string }
   | { mode: "refused"; message: string }
-  | { mode: "error"; message: string };
+  | { mode: "error"; message: string }
+  | { mode: "human_review"; message: string; classification: string; brief: FormulationBrief };
 
 export function FormulationWorkspaceV2() {
   const { t } = useTranslation(["session", "common"]);
@@ -89,12 +90,27 @@ export function FormulationWorkspaceV2() {
         notifySessionsChanged(); // refresh the sidebar's saved list
       } else if (res.status === "refused") {
         setView({ mode: "refused", message: res.message ?? "Refused." });
+      } else if (res.status === "human_review_required") {
+        setView({
+          mode: "human_review",
+          message: res.message ?? "",
+          classification: res.classification ?? "human_review_required",
+          brief,
+        });
       } else {
         setView({ mode: "error", message: res.message ?? "Generation failed." });
       }
     } catch (e) {
       setView({ mode: "error", message: String(e) });
     }
+  };
+
+  /** Resubmit the same brief with a named human's acknowledgement attached —
+   *  the safety gate (runtime/pipeline/pipeline.py) requires both a true
+   *  flag and a non-empty reviewer name before it lets a
+   *  hazardous/regulated/medical request through to literature discovery. */
+  const acknowledgeAndContinue = async (brief: FormulationBrief, reviewerName: string) => {
+    await onSubmit({ ...brief, human_review_acknowledged: true, human_review_by: reviewerName });
   };
 
   // Provider config lives in Settings → Model; read it to tell the user when a
@@ -148,6 +164,7 @@ export function FormulationWorkspaceV2() {
             setActive={setActive}
             keyMissing={keyMissing}
             t={t}
+            onAcknowledge={acknowledgeAndContinue}
           />
         </div>
       </div>
@@ -161,12 +178,14 @@ function ResultBody({
   setActive,
   keyMissing,
   t,
+  onAcknowledge,
 }: {
   view: View;
   active: number;
   setActive: (i: number) => void;
   keyMissing: boolean;
   t: TFunction<readonly ["session", "common"]>;
+  onAcknowledge: (brief: FormulationBrief, reviewerName: string) => Promise<void>;
 }) {
   if (view.mode === "loading") {
     return (
@@ -197,6 +216,9 @@ function ResultBody({
         body={view.message}
       />
     );
+  }
+  if (view.mode === "human_review") {
+    return <HumanReviewNotice view={view} t={t} onAcknowledge={onAcknowledge} />;
   }
   if (view.mode === "cards") {
     return <CardsView view={view} active={active} setActive={setActive} t={t} />;
@@ -336,6 +358,67 @@ function Notice({
           {title}
         </div>
         <p className="text-[13px] leading-relaxed text-muted">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The safety gate (runtime/pipeline/pipeline.py, `safety_decision`) refused
+ * to run literature discovery for a hazardous/regulated/medical classified
+ * request until a named human reviews and acknowledges it. This is that
+ * review step — not a formality: the acknowledgement is logged with the
+ * reviewer's name and re-sent with the resubmitted request.
+ */
+function HumanReviewNotice({
+  view,
+  t,
+  onAcknowledge,
+}: {
+  view: Extract<View, { mode: "human_review" }>;
+  t: TFunction<readonly ["session", "common"]>;
+  onAcknowledge: (brief: FormulationBrief, reviewerName: string) => Promise<void>;
+}) {
+  const [reviewerName, setReviewerName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!reviewerName.trim() || busy) return;
+    setBusy(true);
+    try {
+      await onAcknowledge(view.brief, reviewerName.trim());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="px-6 py-5">
+      <div className="rounded-card border border-amber-500/40 bg-amber-500/5 p-5">
+        <div className="mb-1.5 flex items-center gap-2 text-sm font-medium text-text">
+          <ShieldAlert size={18} className="text-amber-500" />
+          {t("studio.result.humanReviewTitle")}
+        </div>
+        <p className="text-[13px] leading-relaxed text-muted">{view.message}</p>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-medium text-muted">
+              {t("studio.result.reviewerNameLabel")}
+            </span>
+            <input
+              value={reviewerName}
+              onChange={(e) => setReviewerName(e.target.value)}
+              className="w-56 rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
+            />
+          </label>
+          <button
+            onClick={() => void submit()}
+            disabled={!reviewerName.trim() || busy}
+            className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
+          >
+            {t("studio.result.acknowledgeAndContinue")}
+          </button>
+        </div>
       </div>
     </div>
   );

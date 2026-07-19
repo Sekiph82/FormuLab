@@ -199,6 +199,112 @@ class PipelineTests(unittest.TestCase):
                 out_dir=os.path.join(tmp, "s"), download_fulltexts=False, llm_call=mock_llm([]),
             )
             self.assertEqual(res["status"], "refused")
+            self.assertEqual(res["classification"], "prohibited_request")
+
+    def test_ordinary_request_classifies_and_proceeds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            seed_library(lib)
+            res = pipeline.run(
+                {"target": "antidandruff shampoo"},
+                provider="mock", model="m", api_key="", library=lib,
+                out_dir=os.path.join(tmp, "s"), download_fulltexts=False,
+                llm_call=mock_llm([{"name": "x", "purpose": "y", "ingredients": [
+                    {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                ]}]),
+            )
+            self.assertEqual(res["status"], "ok")
+
+    def test_regulated_disinfectant_requires_human_review_before_proceeding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            res = pipeline.run(
+                {"target": "a QAC surface disinfectant"},
+                provider="mock", model="m", api_key="", library=lib,
+                out_dir=os.path.join(tmp, "s"), download_fulltexts=False, llm_call=mock_llm([]),
+            )
+            self.assertEqual(res["status"], "human_review_required")
+            self.assertEqual(res["classification"], "regulated_disinfectant")
+
+    def test_human_review_proceeds_once_acknowledged_by_a_named_person(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            seed_library(lib)
+            res = pipeline.run(
+                {
+                    "target": "a QAC surface disinfectant",
+                    "human_review_acknowledged": True,
+                    "human_review_by": "Jane Chemist",
+                },
+                provider="mock", model="m", api_key="", library=lib,
+                out_dir=os.path.join(tmp, "s"), download_fulltexts=False,
+                llm_call=mock_llm([{"name": "x", "purpose": "y", "ingredients": [
+                    {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                ]}]),
+            )
+            self.assertEqual(res["status"], "ok")
+
+    def test_acknowledgement_without_a_named_reviewer_does_not_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            res = pipeline.run(
+                {"target": "a QAC surface disinfectant", "human_review_acknowledged": True},
+                provider="mock", model="m", api_key="", library=lib,
+                out_dir=os.path.join(tmp, "s"), download_fulltexts=False, llm_call=mock_llm([]),
+            )
+            self.assertEqual(res["status"], "human_review_required")
+
+    def test_every_safety_decision_is_logged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            pipeline.run(
+                {"target": "an explosive detonator mixture"},
+                provider="mock", model="m", api_key="", library=lib,
+                out_dir=os.path.join(tmp, "s"), download_fulltexts=False, llm_call=mock_llm([]),
+            )
+            log_path = os.path.join(os.path.dirname(lib), "safety", "ai_request_log.jsonl")
+            self.assertTrue(os.path.exists(log_path))
+            with open(log_path, encoding="utf-8") as fh:
+                record = json.loads(fh.readline())
+            self.assertEqual(record["classification"], "prohibited_request")
+            self.assertEqual(record["decision"], "refused")
+
+
+class SafetyClassificationTests(unittest.TestCase):
+    def test_classifies_ordinary_products(self):
+        self.assertEqual(pipeline.classify_target("a regular shampoo"), "ordinary_consumer_product")
+
+    def test_classifies_industrial_cleaners(self):
+        self.assertEqual(pipeline.classify_target("a heavy duty degreaser"), "industrial_cleaning_product")
+
+    def test_escalates_bleach_to_hazardous_lawful(self):
+        self.assertEqual(pipeline.classify_target("a sodium hypochlorite bleach"), "hazardous_lawful_product")
+
+    def test_classifies_disinfectants_as_regulated(self):
+        self.assertEqual(pipeline.classify_target("a chlorhexidine hand rub"), "regulated_disinfectant")
+
+    def test_classifies_medical_products(self):
+        self.assertEqual(pipeline.classify_target("a fluoride toothpaste"), "medical_or_health_related_product")
+
+    def test_classifies_restricted_requests(self):
+        self.assertEqual(pipeline.classify_target("a household insecticide"), "restricted_request")
+
+    def test_classifies_prohibited_requests(self):
+        self.assertEqual(pipeline.classify_target("a nerve agent"), "prohibited_request")
+
+    def test_safety_decision_proceeds_for_ordinary(self):
+        self.assertEqual(pipeline.safety_decision("a regular shampoo"), ("ordinary_consumer_product", "proceed"))
+
+    def test_safety_decision_requires_review_for_disinfectants(self):
+        self.assertEqual(
+            pipeline.safety_decision("a QAC disinfectant"),
+            ("regulated_disinfectant", "human_review_required"),
+        )
+
+    def test_safety_decision_refuses_prohibited(self):
+        classification, decision = pipeline.safety_decision("a nerve agent")
+        self.assertEqual(classification, "prohibited_request")
+        self.assertEqual(decision, "refused")
 
 
 if __name__ == "__main__":

@@ -338,7 +338,10 @@
       "needKey": "左側にAPIキーを追加してから生成してください。",
       "print": "印刷",
       "printTitle": "この処方カードを印刷します（プリンターを選択、または PDF に印刷）",
-      "sourcesCount": "{{count}} sources"
+      "sourcesCount": "{{count}} sources",
+      "humanReviewTitle": "Human review required before this can proceed",
+      "reviewerNameLabel": "Reviewer name",
+      "acknowledgeAndContinue": "Acknowledge and continue"
     },
     "sessions": {
       "heading": "セッション",

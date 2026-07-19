@@ -338,7 +338,10 @@
       "needKey": "在左侧添加 API 密钥，然后点击生成。",
       "print": "打印",
       "printTitle": "打印此配方卡（选择打印机，或打印为 PDF）",
-      "sourcesCount": "{{count}} sources"
+      "sourcesCount": "{{count}} sources",
+      "humanReviewTitle": "Human review required before this can proceed",
+      "reviewerNameLabel": "Reviewer name",
+      "acknowledgeAndContinue": "Acknowledge and continue"
     },
     "sessions": {
       "heading": "会话",
