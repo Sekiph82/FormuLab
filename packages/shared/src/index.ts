@@ -511,9 +511,11 @@ export * from "./engine/lifecycle";
 export * from "./engine/exports";
 export * from "./schemas/optimization";
 export * from "./engine/optimization";
+export * from "./engine/scenarios";
 export * from "./catalog/optimizationProfiles";
 export * from "./schemas/substitution";
 export * from "./engine/substitution";
+export * from "./engine/systemSubstitution";
 export * from "./engine/migrations";
 export {
   PRECISION,

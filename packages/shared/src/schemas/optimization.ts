@@ -740,6 +740,20 @@ export const optimizationRunSchema = z.object({
 });
 export type OptimizationRun = z.infer<typeof optimizationRunSchema>;
 
+/** A scenario record's own lifecycle. `optimization_scenarios` is an
+ *  append-only master-data collection (same immutability the module
+ *  docstring above already promises for a run) — so "rename", "retire" and
+ *  "save an edit" cannot rewrite an existing record in place. Each is
+ *  instead a NEW record sharing the same `scenarioGroupId`, with a higher
+ *  `revision`; the current state of a scenario is whichever record in its
+ *  group has the highest revision. `active` is the normal, current state;
+ *  `retired` marks a record (and therefore, once it is the latest in its
+ *  group, the whole scenario) as no longer in active use — restoring a
+ *  retired scenario always creates a brand-new group (see
+ *  `docs/OPTIMIZATION_SCENARIOS.md`), never un-retires the old one. */
+export const SCENARIO_STATUSES = ["active", "retired"] as const;
+export type ScenarioStatus = (typeof SCENARIO_STATUSES)[number];
+
 /** A named, comparable "what if" — e.g. "Lowest landed cost", "No SLES",
  *  "Kenya-local stock first". Stores enough of the problem and the resulting
  *  run to compare scenarios later without re-solving; historical scenario
@@ -747,21 +761,59 @@ export type OptimizationRun = z.infer<typeof optimizationRunSchema>;
 export const optimizationScenarioSchema = z.object({
   schemaVersion: z.literal("1.0"),
   code: z.string().min(1),
+  /** Stable across every revision of "the same" scenario (a save-edit,
+   *  rename, or retire) — see `SCENARIO_STATUSES` above. A NEW value only
+   *  when the scenario is genuinely a different one: created fresh, cloned,
+   *  or restored from a retired scenario. */
+  scenarioGroupId: z.string().min(1),
+  /** 1 for the first record in a group; each subsequent save-edit/rename/
+   *  retire within the same group increments it. The current state of a
+   *  scenario is the highest-revision record in its group. */
+  revision: z.number().int().positive().default(1),
+  /** The record (by `code`, within the same `scenarioGroupId`) this
+   *  revision supersedes — absent for a group's first record. */
+  previousCode: z.string().optional(),
+  /** The record this scenario was cloned or restored from, in a DIFFERENT
+   *  group — absent for a scenario created from scratch. Distinct from
+   *  `previousCode`, which only ever links revisions within one group. */
+  clonedFromCode: z.string().optional(),
+  status: z.enum(SCENARIO_STATUSES).default("active"),
+
   projectId: z.string().min(1),
   name: z.string().min(1),
+  description: z.string().optional(),
   baseFormulaVersionId: z.string().optional(),
+  /** The working draft this scenario was created from, when it was not
+   *  started from a saved version — distinct fields because a draft has no
+   *  stable version id to point at. */
+  sourceDraftId: z.string().optional(),
   includedMaterialIds: z.array(z.string()).default([]),
   excludedMaterialIds: z.array(z.string()).default([]),
   /** The full problem this scenario resolved to, after applying its
    *  inclusion/exclusion/constraint choices on top of the base problem —
-   *  stored whole, not as a diff, so the scenario is self-contained. */
+   *  stored whole, not as a diff, so the scenario is self-contained.
+   *  Locked materials, composition/functional/ratio/conditional
+   *  constraints, property targets, soft-constraint penalties, objectives,
+   *  solver settings and the compatibility/safety policy are all already
+   *  part of this single embedded `FormulationProblem` — there is no
+   *  separate, parallel copy of any of them on the scenario record itself. */
   problem: formulationProblemSchema,
   /** Prices/inventory are read live when a scenario is authored, then frozen
    *  here — re-opening a scenario later must not silently re-price it. */
   priceSnapshotAt: z.string(),
   inventorySnapshotAt: z.string(),
+  /** The most recent run of this scenario, for a quick "last result" link —
+   *  the full, append-only run history is `OptimizationRun` records whose
+   *  `scenarioId` equals this scenario's `scenarioGroupId`, never only this
+   *  one field. */
   runCode: z.string().optional(),
+  createdBy: z.string().default("local"),
   createdAt: z.string(),
+  /** Equal to `createdAt` for this immutable record — it is never mutated
+   *  after being written. A caller wanting "when was this scenario last
+   *  touched" reads the `createdAt` of the latest revision in its group,
+   *  not a field that changes underneath an existing record. */
+  updatedAt: z.string(),
 });
 export type OptimizationScenario = z.infer<typeof optimizationScenarioSchema>;
 
