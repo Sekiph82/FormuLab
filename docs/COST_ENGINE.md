@@ -150,10 +150,5 @@ difference is an artefact of what could not be costed, not a real cost movement.
 
 ## Known limitations
 
-- Packaging components and BOMs have schemas, storage, costing and tests, but
-  **no dedicated editing UI**; they are populated through the master-data store
-  or by import.
-- Factory cost profiles likewise have no editor screen yet; they are selected in
-  the Cost tab but entered through the store.
 - No margin, pricing or profitability modelling.
 - Utilities are modelled per batch, not per process step.

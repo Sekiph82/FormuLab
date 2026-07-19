@@ -132,9 +132,6 @@ onto a path is how a renderer bug becomes an arbitrary file write.
 
 ## Known limitations
 
-- Supplier editing is create-and-import only; there is no supplier detail form.
-- Material–supplier links, substitutes and material-function rows have import
-  schemas but no dedicated UI.
 - SDS/TDS/COA documents are modelled as references; there is no upload or
   viewer.
 - Inventory has no movement history.

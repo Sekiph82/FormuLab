@@ -109,8 +109,8 @@ Tests covering each bypass attempt are in
 
 ## Known limitations
 
-- Branch/variant naming is stored but there is no branch-management UI.
-- Version export is via the existing card print path; a per-version structured
-  export is not implemented.
-- Retire and reject are modelled in the status machine but have no UI control
-  yet.
+- Variant comparison covers two versions at a time; there is no whole-tree
+  graph view.
+- Restore is the only merge path — there is no automatic merge of formula
+  percentages across variants, by design (see
+  [FORMULA_BUILDER.md](FORMULA_BUILDER.md)).

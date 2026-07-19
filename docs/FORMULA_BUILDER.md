@@ -162,8 +162,11 @@ it, when, and why.
 
 ## Known limitations
 
-- The regulatory, compatibility, safety, DOE and stability modules are **not
-  implemented**. The template warning topics are prompts to think, not checks.
+- Compatibility and safety are implemented as deterministic engines — see
+  [COMPATIBILITY_ENGINE.md](COMPATIBILITY_ENGINE.md) and
+  [SAFETY_ENGINE.md](SAFETY_ENGINE.md). The regulatory, DOE and stability
+  modules are **not implemented**; their template warning topics remain
+  prompts to think, not checks.
 - Column widths are fixed; resizing is not implemented.
-- The new builder, materials and costing screens ship with English strings in
-  all locales pending translation.
+- Materials, suppliers, costing, packaging, factory profiles, compatibility
+  and safety are translated into all 8 shipped locales, including Turkish.

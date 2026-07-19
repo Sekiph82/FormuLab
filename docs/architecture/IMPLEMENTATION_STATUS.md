@@ -3,8 +3,10 @@
 Honest state of the Kenya R&D platform transformation. "Done" here means
 implemented, wired in and covered by a passing test — not scaffolded.
 
-Last updated: end of Phase 2 (Formula Builder + versioning) and Phase 3
-(raw materials + cost engine).
+Last updated: end of the gap-closure phase — Excel import, supplier/
+packaging/factory-profile editors, formula lifecycle controls, structured
+version exports, the Compatibility Engine, the Safety Engine, cross-cutting
+Approval Readiness, and the Turkish locale.
 
 ## Scale note
 
@@ -131,6 +133,99 @@ See [COST_ENGINE.md](../COST_ENGINE.md).
   factory-cost / missing data, reporting several causes rather than inventing a
   split
 
+### Compatibility engine (spec §14)
+See [COMPATIBILITY_ENGINE.md](../COMPATIBILITY_ENGINE.md).
+- Deterministic, versioned rule model (`schemas/compatibility.ts`) — an LLM
+  may explain a finding, it never produces one
+- 20 seed rules (`catalog/compatibilityRules.ts`), one per category named in
+  the specification (anionic/cationic, QAC/anionic, chlorhexidine/anionic,
+  acid/hypochlorite, hypochlorite/amine, oxidizer/reducer, peroxide/metal,
+  preservative/pH, carbomer/electrolyte, carbomer neutralizer, fragrance and
+  active solubility, metal-ion sensitivity, enzyme/oxidizer, temperature- and
+  packaging-dependent rules), every one carrying an honest
+  `verificationStatus` and empty `sourceReferences` rather than an invented
+  citation — explicitly not exhaustive
+- Deterministic evaluation engine, snapshotted per formula version
+  (`ruleVersionsUsed` pinned so a later rule edit cannot rewrite a past
+  result), duplicate-finding-proof, missing-data reported as
+  `dataIncomplete` rather than silently safe
+- Compatibility tab, rule management screen, JSON/Excel export, JSON import
+- 20 tests (`engine/compatibility.test.ts`)
+
+### Safety engine (spec §15)
+See [SAFETY_ENGINE.md](../SAFETY_ENGINE.md).
+- Hazard data model (`schemas/safety.ts`): 16 hazard classes, 9 GHS
+  pictograms, signal words, `MaterialHazardRecord` by CAS number, 4-state
+  verification (`verified` / `not_verified` / `imported_unverified` /
+  `human_review_required`) — no GHS classification is ever invented
+- Deterministic product-safety classification (`classifyProductSafety`) into
+  the 8 specified classes, driven by the catalog's seeded `hazardClass` field
+  plus claim keywords, never a model's guess
+- 16 seed safety rules (`catalog/safetyRules.ts`) covering 16 of the 17
+  specified categories; the 17th (medical/therapeutic claim escalation) is
+  handled by product classification rather than a per-line rule
+- `SafetyFinding` with `humanReviewRequired`/`dataIncomplete`; a blocking
+  finding cannot be dismissed without a `SafetyResolution` record (named
+  reviewer, reason, resolution kind, timestamp) — no AI or bulk-import path
+  can create one
+- Pre-generation AI-request safety gate (`runtime/pipeline/pipeline.py`,
+  `classify_target`/`safety_decision`): refuses prohibited targets before
+  literature discovery runs, requires named-human acknowledgement for
+  regulated/medical/hazardous classes, logs every decision to
+  `data/safety/ai_request_log.jsonl`
+- Safety tab, rule management screen (shared with compatibility), resolution
+  workflow, audit history
+- 19 tests (`engine/safety.test.ts`) plus the pipeline's own safety-gate
+  tests
+
+### Approval readiness (cross-cutting)
+See [APPROVAL_READINESS.md](../APPROVAL_READINESS.md).
+- `assessApprovalReadiness` combines blocking formula-validation findings,
+  blocking compatibility findings, blocking safety findings and unresolved
+  mandatory human review into one `{ ready, blockers, warnings }` result
+- `canTransitionWithReadiness` is the single call site pairing this content
+  gate with the existing actor/role gate (`canTransitionTo`) before granting
+  `pilot_approved`/`production_approved`
+- Bypass-attempt tests cover UI, domain service, import, restore, clone and
+  agent-event paths
+- 16 tests (`engine/approvalReadiness.test.ts`)
+
+### Gap-closure UI (raw materials, suppliers, packaging, factory, versions)
+- **Excel (`.xlsx`) import** is real: `apps/desktop/src/lib/xlsx.ts` reads
+  the first worksheet into the same row pipeline CSV uses (preview,
+  row-level errors/warnings, partial import all apply identically);
+  macro-enabled and legacy binary workbooks are rejected before parsing.
+  Downloadable `.xlsx`/CSV templates exist for every supported collection.
+- Supplier detail screen (`SupplierEditor.tsx`): legal name, contact,
+  Incoterm, payment terms, lead time, MOQ notes, approved-supplier status,
+  linked materials, price history — all fields persist through
+  `upsertRecords`.
+- Packaging component and BOM editors (`PackagingComponentEditor.tsx`,
+  `PackagingBomEditor.tsx`): component type/weight/material type/waste
+  factor/effective dates, BOM line add/remove/reorder, carton and
+  shrink-wrap allocation, total packaging cost.
+- Factory cost profile editor (`FactoryProfileEditor.tsx`): create, edit,
+  clone, activate/deactivate; `verified` / `not_verified` / `example_only`
+  stays visibly marked on every profile.
+- Formula lifecycle controls (`packages/shared/src/engine/lifecycle.ts`):
+  retire, reject, restore-into-new-draft, with reason and audit trail;
+  restore never restores production approval. 10 tests
+  (`engine/lifecycle.test.ts`).
+- Structured version exports (`packages/shared/src/engine/exports.ts`): JSON
+  formulation package, CSV formula, Excel formula sheet, cost-snapshot
+  export, packaging-BOM export, ERP draft BOM CSV, ERP draft recipe CSV — all
+  stamped with formula/version id, schema version, export timestamp,
+  approval status, and an `R&D DRAFT / NOT PRODUCTION APPROVED` watermark
+  when unapproved. 8 tests (`engine/exports.test.ts`). No PDF or Word export.
+- Named variant creation and version comparison UI (`VersionCompare.tsx`);
+  no whole-tree graph view, and merging is restore-into-new-draft only, by
+  design — no automatic merge of formula percentages.
+- **Localisation**: 8 shipped locales (added Turkish), with the major R&D
+  workflows (Formula Builder, Versions, Materials, Suppliers, Costing,
+  Packaging, Factory profiles, Compatibility, Safety) fully translated.
+  Chemical identifiers (CAS, INCI) are left untouched by design.
+- Desktop lint is clean (`pnpm --filter @ai4s/desktop lint` exits 0).
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it
@@ -141,14 +236,12 @@ plainly so nothing here reads as available.
 | Advanced constraint optimizer (functional/ratio/conditional, multi-objective, structured infeasibility) | 1 |
 | Evidence origin classification wired into the pipeline | 4 |
 | Regulatory engine + rule import | 13 |
-| Compatibility engine | 14 |
-| Safety engine (structured classification, GHS) | 15 |
 | Manufacturing methods + batch records | 8 |
 | Lab trials + stability studies | 9 |
 | DOE | 10 |
 | Reverse formulation | 11 |
 | Substitution engine | 12 |
-| Exports (PDF/Word/Excel/ERP) | 20, 21 |
+| PDF/Word exports (JSON/CSV/Excel/ERP-draft-CSV exports exist — see gap-closure UI, Done) | 20, 21 |
 | Persistence migrations (schema-version field exists; no migration runner) | 23 |
 | Security threat model docs | 24 |
 | CI matrix, SBOM, secret scanning | 26 |
@@ -158,12 +251,7 @@ plainly so nothing here reads as available.
 
 | Area | State |
 |---|---|
-| Packaging components + BOMs | Schemas, storage, costing and tests exist. **No editing UI** — populated through the master-data store or import. |
-| Factory cost profiles | Same: modelled, costed, tested, selectable in the Cost tab, but no editor screen. |
-| Supplier records | Create and import work; there is no supplier detail form. |
-| Material-supplier links, substitutes, material functions | Import schemas exist; no UI tab. |
-| Localisation of the new screens | ~245 new keys are English in all seven locales. The parity test requires the keys to exist; an unreviewed machine translation of safety-relevant text ("recorded verbatim from the SDS") would be worse than a readable English string. `scripts/i18n-fill-missing.py` fills gaps without overwriting real translations. |
-| Excel import | CSV only. No `.xlsx` reader on the import path. |
+| Localisation of screens outside the 8 shipped locales' major workflows | The parity test requires every locale to carry every key; a handful of generic-chrome strings (unrelated to the R&D workflows) may still read as an unreviewed literal translation rather than idiomatic phrasing pending a native-speaker pass. `scripts/i18n-fill-missing.py` fills gaps without overwriting real translations. |
 
 ## Existing functionality preserved
 

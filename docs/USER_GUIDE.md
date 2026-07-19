@@ -101,11 +101,25 @@ Inventory records (lot, quantity, reserved/available, expiry, COA and
 quarantine status) support stock-awareness in costing without pretending to
 be a full ERP module.
 
-Import materials, suppliers, prices and inventory from CSV: preview rows,
-see row-level errors and warnings separately, and choose whether to commit a
-partial import. Import is idempotent on the stable internal code, so
-re-importing the same file does not create duplicates. See
-[IMPORT_EXPORT.md](IMPORT_EXPORT.md).
+Import materials, suppliers, material-supplier links, prices, inventory,
+packaging components, packaging BOMs and factory cost profiles from CSV or
+Excel (`.xlsx`): preview rows, see row-level errors and warnings separately,
+and choose whether to commit a partial import. Import is idempotent on the
+stable internal code, so re-importing the same file does not create
+duplicates. Spreadsheet formula injection is stripped on import and on
+export; macro-bearing or otherwise unsupported binary content is rejected
+rather than executed. Downloadable `.xlsx` templates exist for every
+importable collection. See [IMPORT_EXPORT.md](IMPORT_EXPORT.md).
+
+**Materials** also has editor screens for supplier detail (contact,
+Incoterm, payment terms, lead time, MOQ notes, approved-supplier and quality
+status, linked materials and price history), packaging components and
+packaging BOMs (component list, add/remove/reorder, quantity per SKU, waste
+factor, carton and shrink-wrap allocation, total packaging cost), and
+factory cost profiles (create, edit, clone, activate/deactivate, effective
+date, utility and labour rates, QC allocation, waste rate, overhead basis).
+Demonstration figures on a factory profile stay marked `example_only` /
+`not_verified` until someone replaces them with real factory data.
 
 ## 8. Cost a formula
 
@@ -135,10 +149,65 @@ change, price change, exchange-rate change, packaging change or factory-cost
 change, and reports missing-data impact as its own category rather than
 folding it into one of the others.
 
+## 10. Compatibility
+
+Open the **Compatibility** tab on a formula. A deterministic rule engine —
+not the LLM — checks the formula's materials, functions, ionic character,
+concentrations, target pH, process temperature, addition order and
+packaging against a hand-maintained, versioned rule set (anionic/cationic,
+QAC/anionic, chlorhexidine, hypochlorite interactions, oxidizer/reducer,
+carbomer, packaging incompatibilities, and more). Findings are `info` /
+`warning` / `error` / `blocking`; missing data produces an explicit
+"unknown — data missing" finding, never a false pass. Findings are
+snapshotted onto a saved version and re-run whenever the draft changes.
+**Manage rules** lets you create, edit, deprecate and import/export rules as
+JSON or Excel. Full model: [COMPATIBILITY_ENGINE.md](COMPATIBILITY_ENGINE.md).
+
+## 11. Safety
+
+Open the **Safety** tab. The product is classified deterministically
+(ordinary consumer / industrial / hazardous lawful / regulated disinfectant
+/ medical / restricted / prohibited / human-review-required), and a
+versioned rule set checks for known hazard interactions, corrosivity, pH
+extremes, sensitizer and acute-toxicity thresholds, and more. A `blocking`
+finding cannot be dismissed — resolving one requires a named reviewer, a
+reason, a date and an audit record; the LLM can never resolve or approve one
+on its own. The same deterministic classification also gates AI
+formulation requests before literature discovery runs: a prohibited target
+is refused outright, a hazardous/regulated/medical one requires a named
+human's acknowledgement before generation proceeds. Full model:
+[SAFETY_ENGINE.md](SAFETY_ENGINE.md).
+
+## 12. Approval readiness
+
+A formula cannot reach `pilot_approved` or `production_approved` while any
+blocking validation error, blocking compatibility finding, blocking safety
+finding, or unresolved mandatory human review is open — the UI names every
+blocker. See [APPROVAL_READINESS.md](APPROVAL_READINESS.md).
+
+## 13. Lifecycle, variants and exports
+
+Saved versions are immutable but not static: **retire** or **reject** a
+version with a reason, **reopen** a rejected one into a new draft, and
+**create a named variant** from any saved version to branch exploration
+without disturbing the parent line. None of this — retire, reopen, clone,
+or variant creation — ever inherits or grants production approval.
+
+**Export** a selected version as a JSON formulation package, CSV or Excel
+formula sheet, cost-snapshot JSON, packaging-BOM JSON, or draft ERP BOM/
+recipe CSV. Every export carries formula ID, version ID, version label,
+schema version, export timestamp, approval status, cost-snapshot ID, and
+target family/SKUs; a non-approved formula is stamped `R&D DRAFT — NOT
+PRODUCTION APPROVED` on every export format.
+
 ## Known limitations
 
 See [IMPLEMENTATION_STATUS.md](architecture/IMPLEMENTATION_STATUS.md) for the
 authoritative list of what is built versus not yet started. In short: the
-regulatory, compatibility, safety-classification, DOE, lab-trial and
-reverse-formulation modules described in the full specification are designed
-but not implemented. Nothing in this guide describes them as available.
+regulatory engine, advanced constraint optimizer, DOE, lab-trial, stability-
+study and reverse-formulation modules described in the full specification
+are designed but not implemented. Compatibility and safety are deterministic
+rule engines against a hand-maintained, explicitly non-exhaustive seed rule
+set — they are not a regulatory engine and do not establish legal
+compliance. Nothing in this guide describes an unimplemented module as
+available.

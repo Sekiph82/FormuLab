@@ -114,13 +114,19 @@ schemas (`MATERIAL_SUPPLIER_FIELDS`, `SUBSTITUTE_FIELDS`,
 
 ## Export
 
-Exports the current filtered view as CSV, with the canonical field names as
-headers and every cell neutralised.
+Exports the current filtered view as CSV or `.xlsx`, with the canonical field
+names as headers and every cell neutralised. Blank `.xlsx`/CSV import
+templates are downloadable from the same screen for every supported
+collection (raw materials, suppliers, prices, inventory, packaging components,
+packaging BOMs, factory cost profiles).
 
 ## Known limitations
 
-- CSV only. There is no `.xlsx` reader or writer — save the sheet as CSV first.
-  (`xlsx` is bundled for the file viewer but not wired into this path.)
+- `.xlsx` is read (`apps/desktop/src/lib/xlsx.ts`, `readWorkbookRows`) and fed
+  into the same row pipeline as CSV, so preview, row-level errors/warnings and
+  partial import all apply identically. Macro-enabled and legacy binary
+  workbooks (`.xlsm`, `.xltm`, `.xlam`, `.xlsb`, `.xls`) are rejected before
+  parsing. Only the first worksheet is read.
 - No column-mapping UI for headings the aliases do not cover; rename the column
   in the sheet.
 - No import undo. The collection is backed up before destructive operations, but
