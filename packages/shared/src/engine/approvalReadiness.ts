@@ -79,8 +79,20 @@ export interface ApprovalReadinessInput {
    *  claim to have applied an optimization result whose stored record
    *  disagrees (or does not exist — pass `status: undefined` in that case). */
   appliedOptimizationRun?: { code: string; status: OptimizationRunStatus | undefined };
-  /** Same defensive re-check for `FormulationVersion.appliedSubstitutionRunCode`. */
-  appliedSubstitutionRun?: { code: string; status: SubstitutionResultStatus | undefined };
+  /** Same defensive re-check for `FormulationVersion.appliedSubstitutionRunCode`.
+   *  `selectedCandidateId`/`selectedCandidateBlocked` are read from the same
+   *  persisted `SubstitutionRun` — `undefined` status means no such run
+   *  exists; a `status` present but no `selectedCandidateId` means the run
+   *  produced candidates but nothing was ever actually chosen (a browsed,
+   *  not applied, result); `selectedCandidateBlocked: true` means the
+   *  candidate that WAS selected itself carries a blocking compatibility or
+   *  safety finding — none of these three are a usable "applied" outcome. */
+  appliedSubstitutionRun?: {
+    code: string;
+    status: SubstitutionResultStatus | undefined;
+    selectedCandidateId?: string;
+    selectedCandidateBlocked?: boolean;
+  };
 }
 
 /**
@@ -153,7 +165,7 @@ export function assessApprovalReadiness(input: ApprovalReadinessInput): Approval
   }
 
   if (input.appliedSubstitutionRun) {
-    const { code, status } = input.appliedSubstitutionRun;
+    const { code, status, selectedCandidateId, selectedCandidateBlocked } = input.appliedSubstitutionRun;
     if (!status || !VALID_SUBSTITUTION_STATUSES.includes(status)) {
       blockers.push({
         id: `substitution-run:${code}`,
@@ -161,6 +173,18 @@ export function assessApprovalReadiness(input: ApprovalReadinessInput): Approval
         message: status
           ? `This version applied substitution run "${code}", but that run's stored result is "${status}", not a valid selected candidate.`
           : `This version applied substitution run "${code}", but no such run record exists.`,
+      });
+    } else if (!selectedCandidateId) {
+      blockers.push({
+        id: `substitution-run:${code}:no-selection`,
+        source: "substitution",
+        message: `This version applied substitution run "${code}", but that run has no selected candidate recorded — candidates were browsed, not applied.`,
+      });
+    } else if (selectedCandidateBlocked) {
+      blockers.push({
+        id: `substitution-run:${code}:blocked-selection`,
+        source: "substitution",
+        message: `This version applied substitution run "${code}", but its selected candidate carries a blocking compatibility or safety finding.`,
       });
     }
   }

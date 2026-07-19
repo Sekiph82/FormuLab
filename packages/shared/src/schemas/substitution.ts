@@ -10,7 +10,7 @@
  * `docs/MATERIAL_SUBSTITUTION.md` for the weight table and worked examples.
  */
 import { z } from "zod";
-import { decimalString } from "./formulation";
+import { decimalString, MATERIAL_FUNCTIONS } from "./formulation";
 
 export const SUBSTITUTION_REASONS = [
   "out_of_stock",
@@ -32,8 +32,17 @@ export const substitutionRequestSchema = z.object({
   code: z.string().min(1),
   projectId: z.string().min(1),
   formulaVersionId: z.string().min(1),
+  /** The primary line/material — always set, including for a system
+   *  substitution (the first of `lineIds`/`materialIds`), so any caller
+   *  that only knows the one-to-one shape keeps working unchanged. */
   lineId: z.string().min(1),
   materialId: z.string().min(1),
+  /** Present (length > 1) for a system substitution — every source line/
+   *  material being replaced together. Absent or length-1 is a plain
+   *  one-to-one request; `lineId`/`materialId` above always equals
+   *  `lineIds[0]`/`materialIds[0]` when these are set. */
+  lineIds: z.array(z.string()).optional(),
+  materialIds: z.array(z.string()).optional(),
 
   reason: z.enum(SUBSTITUTION_REASONS),
   reasonNotes: z.string().optional(),
@@ -45,10 +54,59 @@ export const substitutionRequestSchema = z.object({
   preserveFunction: z.boolean().default(true),
   preserveCostCeiling: z.boolean().optional(),
 
+  /** System-substitution-only fields (spec §A7 / §3.2) — ignored by a plain
+   *  one-to-one request, which scores individual candidates directly
+   *  instead of generating and optimizer-routing a system. */
+  preserveFunctions: z.array(z.enum(MATERIAL_FUNCTIONS)).optional(),
+  preservePropertyTargets: z.array(z.string()).optional(),
+  maxReplacementMaterials: z.number().int().positive().optional(),
+  costCeiling: decimalString.optional(),
+  /** Optional, not defaulted — absent means "not specified" for a plain
+   *  one-to-one request, which never reads these three fields at all. */
+  requireStock: z.boolean().optional(),
+  requireApprovedSupplier: z.boolean().optional(),
+  preferKenyaLocal: z.boolean().optional(),
+
   requestedAt: z.string(),
   requestedBy: z.string().default("local"),
 });
 export type SubstitutionRequest = z.infer<typeof substitutionRequestSchema>;
+
+/** Candidate-generation limits (spec §3.3) — how far system-candidate
+ *  generation is allowed to search before it must stop, so a large material
+ *  pool can never make "generate systems" hang or produce an unusable wall
+ *  of results. Every default is deliberately small; a chemist can raise it
+ *  and accept the longer search. */
+export const systemCandidateLimitsSchema = z.object({
+  maxCandidateMaterials: z.number().int().positive().default(30),
+  maxMaterialsPerSystem: z.number().int().min(2).max(4).default(3),
+  maxCandidateSystems: z.number().int().positive().default(8),
+  maxSolverTimeSeconds: z.number().positive().default(15),
+});
+export type SystemCandidateLimits = z.infer<typeof systemCandidateLimitsSchema>;
+
+/** Why a proposed material combination was never even sent to the
+ *  optimizer, or why the optimizer rejected it — deterministic, not a
+ *  guess. Distinct from `InfeasibilityCause` (schemas/optimization.ts),
+ *  which explains why a single already-built `FormulationProblem` had no
+ *  solution; this explains why a whole candidate SYSTEM was excluded before
+ *  or instead of ever reaching that stage. */
+export const SYSTEM_REJECTION_REASONS = [
+  "missing_required_function",
+  "candidate_pool_exhausted",
+  "duplicate_of_evaluated_system",
+  "optimizer_infeasible",
+  "optimizer_error",
+] as const;
+export type SystemRejectionReason = (typeof SYSTEM_REJECTION_REASONS)[number];
+
+export const rejectedSystemCandidateSchema = z.object({
+  materialIds: z.array(z.string()).min(1),
+  materialCodes: z.array(z.string()).min(1),
+  reason: z.enum(SYSTEM_REJECTION_REASONS),
+  message: z.string().min(1),
+});
+export type RejectedSystemCandidate = z.infer<typeof rejectedSystemCandidateSchema>;
 
 /** One scored dimension of a candidate. `missingData: true` means the
  *  platform has no real figure for this dimension on this candidate — the
@@ -134,6 +192,13 @@ export const substitutionResultSchema = z.object({
   status: z.enum(SUBSTITUTION_RESULT_STATUSES),
   candidates: z.array(substitutionCandidateSchema).default([]),
   recommendedCandidateId: z.string().optional(),
+  /** Every candidate system that was considered and did not become a
+   *  `candidates` entry — recorded so a chemist can see WHY a plausible
+   *  combination was dropped, not just that it is absent (spec: "record
+   *  every candidate system considered"). Always empty for a one-to-one
+   *  request. */
+  rejectedSystemCandidates: z.array(rejectedSystemCandidateSchema).default([]),
+  candidateLimits: systemCandidateLimitsSchema.optional(),
   warnings: z.array(substitutionWarningSchema).default([]),
   computedAt: z.string(),
 });
