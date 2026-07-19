@@ -460,7 +460,23 @@
     "qsAbbrev": "q.s.",
     "activePercent": "{{pct}}% active",
     "tabCompatibility": "Compatibility",
-    "tabSafety": "Safety"
+    "tabSafety": "Safety",
+    "lifecycle": {
+      "retire": "Retire",
+      "reject": "Reject",
+      "reopen": "Reopen",
+      "retireTitle": "Retire version",
+      "rejectTitle": "Reject version",
+      "reopenTitle": "Reopen rejected version",
+      "reason": "Reason",
+      "notAllowed": "That status change is not allowed from here."
+    },
+    "variant": {
+      "create": "Create variant",
+      "dialogTitle": "Create a named variant",
+      "nameLabel": "Variant name",
+      "hint": "Starts a new draft from this version. Saving it records this name as the variant's branch, and the parent relationship is kept."
+    }
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",

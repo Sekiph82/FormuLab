@@ -2,13 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileText, FlaskConical, GitCompare, Plus, ShieldAlert, Wallet } from "lucide-react";
 import {
+  attemptLifecycleTransition,
   buildKenyaCatalog,
+  cloneToDraft,
   createVersion,
   draftDiffersFrom,
   draftFromVersion,
+  effectiveStatus,
   emptyDraft,
   nextVersionNumber,
   templateForFamily,
+  type Actor,
+  type AuditEvent,
   type Formulation,
   type FormulationDraft,
   type FormulationLine,
@@ -28,6 +33,7 @@ import {
   auditEvent,
   discardDraft,
   listFormulations,
+  readAuditLog,
   readDraft,
   readFormulation,
   saveDraft,
@@ -61,6 +67,8 @@ export function FormulasPage() {
   const [autosave, setAutosave] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const [focusLineId, setFocusLineId] = useState<string | null>(null);
+  const [auditLog, setAuditLog] = useState<AuditEvent[]>([]);
+  const [pendingBranchName, setPendingBranchName] = useState<string | undefined>(undefined);
 
   const draft = useUndoable<FormulationDraft | null>(null);
   // Bound before the JSX: a tab key written inline reads as display text to the
@@ -103,6 +111,7 @@ export function FormulasPage() {
       setError(null);
       const { versions: vs } = await readFormulation(id);
       setVersions(vs);
+      setAuditLog(await readAuditLog(id));
 
       // Prefer the working draft; fall back to the newest version; else empty.
       const existing = await readDraft(id);
@@ -173,6 +182,7 @@ export function FormulasPage() {
         changeNotes,
         author: "local",
         parentVersion: baseVersion,
+        branchName: pendingBranchName,
         nextVersionNumber: nextVersionNumber(versions),
         validation: {
           requiresPreservative: template?.requiresPreservative,
@@ -199,21 +209,56 @@ export function FormulasPage() {
       draft.reset(draftFromVersion(version));
       await refreshProjects();
       setSavingVersion(false);
+      setPendingBranchName(undefined);
       setError(null);
     } catch (e) {
       setError(String(e));
     }
   };
 
-  /** Load an old version into a NEW draft. Never edits the version in place. */
+  /** Load an old version into a NEW draft. Never edits the version in place —
+   *  works the same whether the version is current, retired or rejected. */
   const onRestore = async (version: FormulationVersion) => {
-    draft.reset(draftFromVersion(version));
+    draft.reset(cloneToDraft(version));
     setTab("builder");
     if (active) {
       await appendAudit(
         auditEvent(active.id, "version.restored_to_draft", { versionId: version.id }),
       );
     }
+  };
+
+  /** Start a named variant from a saved version: same mechanism as restore
+   *  (a new draft, the saved version untouched), but the next save carries a
+   *  branch name so the resulting version is visibly part of that variant. */
+  const onCreateVariant = async (version: FormulationVersion, branchName: string) => {
+    draft.reset(cloneToDraft(version));
+    setPendingBranchName(branchName);
+    setTab("builder");
+    if (active) {
+      await appendAudit(
+        auditEvent(active.id, "version.variant_started", { versionId: version.id, detail: branchName }),
+      );
+    }
+  };
+
+  /**
+   * Retire, reject or reopen a version. Never rewrites the version file —
+   * the change is an audit event, and `effectiveStatus` derives the
+   * version's current status from the log. See engine/lifecycle.ts.
+   */
+  const onLifecycleAction = async (version: FormulationVersion, to: "retired" | "rejected" | "concept", reason: string) => {
+    if (!active) return;
+    const current = effectiveStatus(version, auditLog);
+    const actor: Actor = { kind: "human", role: "chemist", userId: "local" };
+    const result = attemptLifecycleTransition(current, to, actor);
+    if (!result.allowed || !result.action) {
+      setError(result.message ?? t("builder.lifecycle.notAllowed"));
+      return;
+    }
+    await appendAudit(auditEvent(active.id, result.action, { versionId: version.id, detail: reason }));
+    setAuditLog(await readAuditLog(active.id));
+    setError(null);
   };
 
   const onLinesChange = (lines: FormulationLine[], opts?: { checkpoint?: boolean }) => {
@@ -310,7 +355,13 @@ export function FormulasPage() {
         )}
 
         {tab === "versions" && (
-          <VersionsTab versions={versions} onRestore={onRestore} />
+          <VersionsTab
+            versions={versions}
+            auditLog={auditLog}
+            onRestore={onRestore}
+            onLifecycleAction={onLifecycleAction}
+            onCreateVariant={onCreateVariant}
+          />
         )}
 
         {tab === "compatibility" && draft.value && (
@@ -355,13 +406,23 @@ export function FormulasPage() {
 
 function VersionsTab({
   versions,
+  auditLog,
   onRestore,
+  onLifecycleAction,
+  onCreateVariant,
 }: {
   versions: FormulationVersion[];
+  auditLog: AuditEvent[];
   onRestore: (v: FormulationVersion) => void;
+  onLifecycleAction: (v: FormulationVersion, to: "retired" | "rejected" | "concept", reason: string) => Promise<void>;
+  onCreateVariant: (v: FormulationVersion, branchName: string) => Promise<void>;
 }) {
   const { t } = useTranslation("session");
   const [mode, setMode] = useState<"list" | "compare">(versions.length > 1 ? "compare" : "list");
+  const [pendingAction, setPendingAction] = useState<{ version: FormulationVersion; to: "retired" | "rejected" | "concept" } | null>(
+    null,
+  );
+  const [variantSource, setVariantSource] = useState<FormulationVersion | null>(null);
   const showList = () => setMode("list");
   const showCompare = () => setMode("compare");
 
@@ -388,35 +449,236 @@ function VersionsTab({
           <VersionCompare versions={versions} />
         ) : (
           <ul className="divide-y divide-border-faint">
-            {versions.map((v) => (
-              <li key={v.id} className="flex items-start gap-3 px-4 py-3">
-                <span className="rounded bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-muted">
-                  {v.versionLabel ?? `0.${v.versionNumber}`}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[12px] text-text">{v.changeReason ?? "—"}</div>
-                  {v.changeNotes && <div className="text-[11px] text-muted">{v.changeNotes}</div>}
-                  <div className="mt-0.5 text-[11px] text-muted">
-                    {v.status} · {v.author} · {new Date(v.createdAt).toLocaleString()}
-                    {v.totalsSnapshot && ` · ${v.totalsSnapshot.totalPercent}%`}
-                    {v.validationSnapshot &&
-                      ` · ${t("builder.findingSummary", {
-                        errors: v.validationSnapshot.errorCount + v.validationSnapshot.blockingCount,
-                        warnings: v.validationSnapshot.warningCount,
-                      })}`}
+            {versions.map((v) => {
+              const status = effectiveStatus(v, auditLog);
+              const canRetire = status === "pilot_approved" || status === "production_approved";
+              const canReject = status !== "rejected" && status !== "production_approved" && status !== "retired";
+              const canReopen = status === "rejected";
+              return (
+                <li key={v.id} className="flex items-start gap-3 px-4 py-3">
+                  <span className="rounded bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-muted">
+                    {v.versionLabel ?? `0.${v.versionNumber}`}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] text-text">
+                      {v.changeReason ?? "—"}
+                      {v.branchName && (
+                        <span className="ml-1.5 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
+                          {v.branchName}
+                        </span>
+                      )}
+                    </div>
+                    {v.changeNotes && <div className="text-[11px] text-muted">{v.changeNotes}</div>}
+                    <div className="mt-0.5 text-[11px] text-muted">
+                      {status} · {v.author} · {new Date(v.createdAt).toLocaleString()}
+                      {v.totalsSnapshot && ` · ${v.totalsSnapshot.totalPercent}%`}
+                      {v.validationSnapshot &&
+                        ` · ${t("builder.findingSummary", {
+                          errors: v.validationSnapshot.errorCount + v.validationSnapshot.blockingCount,
+                          warnings: v.validationSnapshot.warningCount,
+                        })}`}
+                    </div>
                   </div>
-                </div>
-                <button
-                  onClick={() => onRestore(v)}
-                  title={t("builder.restoreTitle")}
-                  className="shrink-0 rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text"
-                >
-                  {t("builder.restore")}
-                </button>
-              </li>
-            ))}
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                    <button
+                      onClick={() => onRestore(v)}
+                      title={t("builder.restoreTitle")}
+                      className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text"
+                    >
+                      {t("builder.restore")}
+                    </button>
+                    <button
+                      onClick={() => setVariantSource(v)}
+                      className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text"
+                    >
+                      {t("builder.variant.create")}
+                    </button>
+                    {canRetire && (
+                      <button
+                        onClick={() => setPendingAction({ version: v, to: "retired" })}
+                        className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text"
+                      >
+                        {t("builder.lifecycle.retire")}
+                      </button>
+                    )}
+                    {canReject && (
+                      <button
+                        onClick={() => setPendingAction({ version: v, to: "rejected" })}
+                        className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text"
+                      >
+                        {t("builder.lifecycle.reject")}
+                      </button>
+                    )}
+                    {canReopen && (
+                      <button
+                        onClick={() => setPendingAction({ version: v, to: "concept" })}
+                        className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text"
+                      >
+                        {t("builder.lifecycle.reopen")}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
+      </div>
+
+      {pendingAction && (
+        <LifecycleReasonDialog
+          action={pendingAction.to}
+          onCancel={() => setPendingAction(null)}
+          onConfirm={async (reason) => {
+            await onLifecycleAction(pendingAction.version, pendingAction.to, reason);
+            setPendingAction(null);
+          }}
+        />
+      )}
+
+      {variantSource && (
+        <VariantNameDialog
+          onCancel={() => setVariantSource(null)}
+          onConfirm={async (branchName) => {
+            await onCreateVariant(variantSource, branchName);
+            setVariantSource(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function VariantNameDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: (branchName: string) => Promise<void>;
+}) {
+  const { t } = useTranslation(["session", "common"]);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    try {
+      await onConfirm(name.trim());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("builder.variant.create")}
+    >
+      <div className="my-auto w-[26rem] max-w-full rounded-card border border-border bg-surface shadow-xl">
+        <h2 className="border-b border-border px-5 py-3 text-[14px] font-medium text-text">
+          {t("builder.variant.dialogTitle")}
+        </h2>
+        <div className="px-5 py-4">
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-medium text-muted">{t("builder.variant.nameLabel")}</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              className="w-full rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
+            />
+          </label>
+          <p className="mt-2 text-[11px] text-muted">{t("builder.variant.hint")}</p>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <button
+            onClick={onCancel}
+            className="rounded-input border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-text"
+          >
+            {t("common:actions.cancel")}
+          </button>
+          <button
+            onClick={() => void submit()}
+            disabled={!name.trim() || busy}
+            className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
+          >
+            {t("builder.variant.create")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LifecycleReasonDialog({
+  action,
+  onCancel,
+  onConfirm,
+}: {
+  action: "retired" | "rejected" | "concept";
+  onCancel: () => void;
+  onConfirm: (reason: string) => Promise<void>;
+}) {
+  const { t } = useTranslation(["session", "common"]);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const title =
+    action === "retired"
+      ? t("builder.lifecycle.retireTitle")
+      : action === "rejected"
+        ? t("builder.lifecycle.rejectTitle")
+        : t("builder.lifecycle.reopenTitle");
+
+  const submit = async () => {
+    if (!reason.trim() || busy) return;
+    setBusy(true);
+    try {
+      await onConfirm(reason.trim());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="my-auto w-[28rem] max-w-full rounded-card border border-border bg-surface shadow-xl">
+        <h2 className="border-b border-border px-5 py-3 text-[14px] font-medium text-text">{title}</h2>
+        <div className="px-5 py-4">
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-medium text-muted">{t("builder.lifecycle.reason")}</span>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              autoFocus
+              className="w-full rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
+            />
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          <button
+            onClick={onCancel}
+            className="rounded-input border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-text"
+          >
+            {t("common:actions.cancel")}
+          </button>
+          <button
+            onClick={() => void submit()}
+            disabled={!reason.trim() || busy}
+            className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
+          >
+            {t("common:actions.save")}
+          </button>
+        </div>
       </div>
     </div>
   );

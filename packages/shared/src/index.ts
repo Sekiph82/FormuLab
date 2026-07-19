@@ -507,6 +507,7 @@ export * from "./schemas/safety";
 export * from "./engine/safety";
 export * from "./catalog/safetyRules";
 export * from "./engine/approvalReadiness";
+export * from "./engine/lifecycle";
 export {
   PRECISION,
   CURRENCY_DP,
