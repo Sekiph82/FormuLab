@@ -3,9 +3,14 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Ban, Loader2, Play, Wand2 } from "lucide-react";
 import {
+  SEED_COMPATIBILITY_RULES,
+  SEED_SAFETY_RULES,
+  evaluateCompatibility,
+  evaluateSafety,
   newId,
   priceFor,
   type AdvancedOptimizationResult,
+  type ConditionalConstraint,
   type Formulation,
   type FormulationLine,
   type FormulationProblem,
@@ -61,6 +66,68 @@ interface OptimizeResult {
   infeasibility?: { causes: Array<{ code: string; message: string; suggestedActions: string[] }> };
   solverMetadata?: { isMixedInteger: boolean; solveTimeMs: number };
   runId?: string;
+}
+
+/** Build a minimal, schema-valid two-line formulation so the real
+ *  compatibility/safety engines can be asked "would these two candidates,
+ *  substituted into a formula together, produce a blocking finding?" —
+ *  this is the ONLY thing these synthetic lines are for; they are never
+ *  displayed or persisted. */
+function syntheticLine(m: RawMaterial, lineNumber: number): FormulationLine {
+  return {
+    id: `synthetic-${m.code}`,
+    lineNumber,
+    phase: "A",
+    materialCode: m.code,
+    displayName: m.displayName,
+    functions: m.functions,
+    percent: "10",
+    isQsToHundred: false,
+    activeMatterPercent: m.activeMatterPercent,
+    provenance: { origin: "model_estimate", evidenceClaimIds: [] },
+  };
+}
+
+/**
+ * The real implementation of `compatibilityPolicy`/`safetyPolicy`'s
+ * `"exclude_blocking"` mode (spec: "reuse the current Compatibility and
+ * Safety engines... do not duplicate their rules inside the optimizer").
+ * Every pair of candidate materials is checked with the SAME engines the
+ * Compatibility/Safety tabs use; a pair that produces a `blocking` finding
+ * becomes an `if_present_then_excluded` conditional constraint, so the
+ * solver can never select both. O(n²) rule evaluations over the candidate
+ * pool — fine at the pool sizes (tens of materials) this screen deals with,
+ * not attempted for a full raw-material library.
+ */
+function blockingExclusionConstraints(
+  chosen: RawMaterial[],
+  allMaterials: RawMaterial[],
+): ConditionalConstraint[] {
+  const constraints: ConditionalConstraint[] = [];
+  for (let i = 0; i < chosen.length; i++) {
+    for (let j = i + 1; j < chosen.length; j++) {
+      const a = chosen[i];
+      const b = chosen[j];
+      const lines = [syntheticLine(a, 0), syntheticLine(b, 1)];
+      const compat = evaluateCompatibility(lines, SEED_COMPATIBILITY_RULES, { materials: allMaterials });
+      const safety = evaluateSafety(lines, SEED_SAFETY_RULES, { materials: allMaterials });
+      const blocked = compat.some((f) => f.severity === "blocking") || safety.some((f) => f.severity === "blocking");
+      if (!blocked) continue;
+      constraints.push({
+        id: newId("cond"),
+        displayName: `${a.code} excludes ${b.code}`,
+        conditionType: "if_present_then_excluded",
+        trigger: { materialId: a.code },
+        target: { materialId: b.code },
+        severity: "blocking",
+        strictness: "hard",
+        verificationStatus: "not_verified",
+        presenceThresholdPercent: "0.001",
+        active: true,
+      });
+    }
+  }
+  return constraints;
 }
 
 export function AdvancedOptimizerPanel({
@@ -179,7 +246,7 @@ export function AdvancedOptimizerPanel({
         active: true,
       })),
       ratioConstraints: [],
-      conditionalConstraints: [],
+      conditionalConstraints: blockingExclusionConstraints(chosen, materials),
       propertyTargets: [],
       compatibilityPolicy: { mode: "exclude_blocking" },
       safetyPolicy: { mode: "exclude_blocking" },
