@@ -69,7 +69,8 @@ export interface TransitionResult {
     | "NOT_A_VALID_TRANSITION"
     | "APPROVAL_REQUIRES_HUMAN"
     | "ROLE_NOT_AUTHORIZED"
-    | "APPROVAL_RECORD_REQUIRED";
+    | "APPROVAL_RECORD_REQUIRED"
+    | "NOT_READY_FOR_APPROVAL";
   message?: string;
 }
 

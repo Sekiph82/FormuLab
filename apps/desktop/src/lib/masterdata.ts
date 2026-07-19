@@ -7,14 +7,21 @@
  * a typo is a compile error rather than a runtime "unknown collection".
  */
 import type {
+  CompatibilityRule,
+  CompatibilitySnapshot,
   CostSnapshot,
   ExchangeRate,
   FactoryCostProfile,
   InventoryRecord,
+  MaterialHazardRecord,
   MaterialPrice,
+  MaterialSupplier,
   PackagingBom,
   PackagingComponent,
   RawMaterial,
+  SafetyResolution,
+  SafetyRule,
+  SafetySnapshot,
   Supplier,
 } from "@ai4s/shared";
 import { isTauri } from "./tauri";
@@ -28,7 +35,14 @@ export type Collection =
   | "packaging_boms"
   | "exchange_rates"
   | "factory_profiles"
-  | "cost_snapshots";
+  | "cost_snapshots"
+  | "material_suppliers"
+  | "compatibility_rules"
+  | "compatibility_snapshots"
+  | "safety_rules"
+  | "safety_snapshots"
+  | "safety_resolutions"
+  | "material_hazard_records";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -40,6 +54,13 @@ interface CollectionTypes {
   exchange_rates: ExchangeRate;
   factory_profiles: FactoryCostProfile;
   cost_snapshots: CostSnapshot;
+  material_suppliers: MaterialSupplier;
+  compatibility_rules: CompatibilityRule;
+  compatibility_snapshots: CompatibilitySnapshot;
+  safety_rules: SafetyRule;
+  safety_snapshots: SafetySnapshot;
+  safety_resolutions: SafetyResolution;
+  material_hazard_records: MaterialHazardRecord;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

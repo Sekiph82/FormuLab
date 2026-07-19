@@ -34,7 +34,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 9] = [
+const COLLECTIONS: [(&str, bool); 16] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -45,6 +45,17 @@ const COLLECTIONS: [(&str, bool); 9] = [
     ("exchange_rates", true),
     ("factory_profiles", false),
     ("cost_snapshots", true),
+    ("material_suppliers", false),
+    // Compatibility engine: rules are editable; a snapshot, once calculated
+    // against a formula version, is never rewritten.
+    ("compatibility_rules", false),
+    ("compatibility_snapshots", true),
+    // Safety engine: rules and hazard records are editable; a snapshot and a
+    // human's resolution of a finding are both append-only audit records.
+    ("safety_rules", false),
+    ("safety_snapshots", true),
+    ("safety_resolutions", true),
+    ("material_hazard_records", false),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
