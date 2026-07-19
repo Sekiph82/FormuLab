@@ -16,12 +16,16 @@ import type {
   MaterialHazardRecord,
   MaterialPrice,
   MaterialSupplier,
+  OptimizationProfile,
+  OptimizationRun,
+  OptimizationScenario,
   PackagingBom,
   PackagingComponent,
   RawMaterial,
   SafetyResolution,
   SafetyRule,
   SafetySnapshot,
+  SubstitutionRun,
   Supplier,
 } from "@ai4s/shared";
 import { isTauri } from "./tauri";
@@ -42,7 +46,11 @@ export type Collection =
   | "safety_rules"
   | "safety_snapshots"
   | "safety_resolutions"
-  | "material_hazard_records";
+  | "material_hazard_records"
+  | "optimization_profiles"
+  | "optimization_runs"
+  | "optimization_scenarios"
+  | "substitution_runs";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -61,6 +69,10 @@ interface CollectionTypes {
   safety_snapshots: SafetySnapshot;
   safety_resolutions: SafetyResolution;
   material_hazard_records: MaterialHazardRecord;
+  optimization_profiles: OptimizationProfile;
+  optimization_runs: OptimizationRun;
+  optimization_scenarios: OptimizationScenario;
+  substitution_runs: SubstitutionRun;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

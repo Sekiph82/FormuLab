@@ -489,7 +489,9 @@
       "packagingBom": "Packaging BOM (JSON)",
       "erpBom": "ERP draft BOM (CSV)",
       "erpRecipe": "ERP draft recipe (CSV)"
-    }
+    },
+    "tabOptimizer": "Optimizer",
+    "replaceMaterial": "Replace material"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",
@@ -815,5 +817,48 @@
     "wasteDisposalPerBatch": "Waste disposal cost per batch",
     "overheadPercent": "Overhead (% of direct cost)",
     "overheadPerBatch": "Overhead per batch (flat)"
+  },
+  "optimizer": {
+    "candidatesHeading": "Candidate materials ({{count}} selected)",
+    "functionalConstraints": "Functional-group constraints",
+    "addConstraint": "Add constraint",
+    "noConstraints": "No functional constraints yet.",
+    "minTotal": "at least",
+    "maxTotal": "at most",
+    "objectives": "Objectives",
+    "addObjective": "Add objective",
+    "minimize": "minimize",
+    "maximize": "maximize",
+    "weight": "Weight",
+    "run": "Run optimization",
+    "running": "Optimizing…",
+    "cancel": "Cancel",
+    "applyToDraft": "Apply to draft",
+    "needCandidates": "Select at least one candidate material.",
+    "desktopOnly": "The Advanced Optimizer runs in the desktop app (it needs the bundled Python solver).",
+    "errorTitle": "Optimization failed",
+    "totalConstraint": "Formula totals 100%",
+    "infeasible": "No combination of the selected candidates satisfies every constraint.",
+    "statusLabel": "Status",
+    "material": "Material",
+    "activeContribution": "Active contribution",
+    "qty": "Qty (kg)",
+    "cost": "Cost",
+    "total": "Total",
+    "mixedIntegerNote": "This solve included at least one conditional constraint, so sensitivity (shadow prices) is not available for it.",
+    "provenanceNote": "Advanced Optimizer run {{runId}}. Candidate only — requires chemist review."
+  },
+  "substitution": {
+    "title": "Replace material",
+    "reason": "Reason",
+    "filterInStock": "In-stock only",
+    "filterApproved": "No blocking compatibility findings",
+    "filterNoBlocking": "No blocking compatibility or safety findings",
+    "noCandidates": "No candidates match the current filters.",
+    "suggestedPercent": "Suggested",
+    "activeEquivalent": "Active-equivalent",
+    "costImpact": "Cost impact",
+    "apply": "Apply",
+    "provenanceNote": "Substitution run {{runId}}. Candidate only — requires chemist review."
   }
 }

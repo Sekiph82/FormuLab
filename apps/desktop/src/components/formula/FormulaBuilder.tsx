@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
+  ArrowLeftRight,
   ChevronDown,
   Copy,
   GripVertical,
@@ -83,6 +84,10 @@ export interface FormulaBuilderProps {
   /** Set (to a new value, even the same id again) to select and scroll a line
    *  into view — used by the Compatibility/Safety tabs' "go to line" links. */
   focusLineId?: string | null;
+  /** Opens the substitution workflow (spec §5) for one line — the Formula
+   *  Builder itself does not score candidates, it only surfaces the entry
+   *  point next to each line. */
+  onReplaceMaterial?: (lineId: string) => void;
 }
 
 export function FormulaBuilder({
@@ -102,6 +107,7 @@ export function FormulaBuilder({
   canRedo = false,
   autosaveState = "idle",
   focusLineId,
+  onReplaceMaterial,
 }: FormulaBuilderProps) {
   const { t } = useTranslation(["session", "common"]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -701,6 +707,16 @@ export function FormulaBuilder({
                         >
                           <Copy size={12} />
                         </button>
+                        {onReplaceMaterial && (
+                          <button
+                            onClick={() => onReplaceMaterial(line.id)}
+                            aria-label={t("builder.replaceMaterial")}
+                            title={t("builder.replaceMaterial")}
+                            className="rounded p-0.5 text-muted hover:text-text"
+                          >
+                            <ArrowLeftRight size={12} />
+                          </button>
+                        )}
                         <button
                           onClick={() => removeLine(line.id)}
                           aria-label={t("builder.removeLine")}

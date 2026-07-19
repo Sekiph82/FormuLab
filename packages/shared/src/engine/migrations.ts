@@ -30,15 +30,20 @@ export interface SchemaMigration<T = Record<string, unknown>> {
 
 export type MigrationRegistry = Record<string, SchemaMigration[]>;
 
-/** Add one migration step for `collection`. Steps are looked up by
- *  `fromVersion` at run time, so registration order does not matter, but
- *  registering two steps with the same `fromVersion` for one collection is a
- *  programming error (ambiguous which one should run) and throws
- *  immediately rather than silently picking one. */
-export function registerMigration(
+/** Add one migration step for `collection`. Generic so a caller's `migrate`
+ *  function is checked against its own record shape rather than the
+ *  registry's necessarily-erased `Record<string, unknown>` storage type —
+ *  the registry itself is a runtime-only structure keyed by dynamic
+ *  collection names, not something TypeScript can track per-collection
+ *  without much heavier machinery this module deliberately does not add.
+ *  Steps are looked up by `fromVersion` at run time, so registration order
+ *  does not matter, but registering two steps with the same `fromVersion`
+ *  for one collection is a programming error (ambiguous which one should
+ *  run) and throws immediately rather than silently picking one. */
+export function registerMigration<T = Record<string, unknown>>(
   registry: MigrationRegistry,
   collection: string,
-  migration: SchemaMigration,
+  migration: SchemaMigration<T>,
 ): void {
   const steps = (registry[collection] ??= []);
   if (steps.some((s) => s.fromVersion === migration.fromVersion)) {
@@ -46,7 +51,7 @@ export function registerMigration(
       `duplicate migration for "${collection}" from version "${migration.fromVersion}"`,
     );
   }
-  steps.push(migration);
+  steps.push(migration as unknown as SchemaMigration);
 }
 
 export interface MigrationResult<T = Record<string, unknown>> {

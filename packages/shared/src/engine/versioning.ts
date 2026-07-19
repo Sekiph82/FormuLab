@@ -121,6 +121,12 @@ export interface CreateVersionInput {
   nextVersionNumber: number;
   validation?: ValidationOptions;
   sourceRunIds?: string[];
+  /** Set when this draft was produced by applying an Advanced Optimizer run
+   *  or a substitution run's selected candidate — see
+   *  `FormulationVersion.appliedOptimizationRunCode`/
+   *  `appliedSubstitutionRunCode` and docs/APPROVAL_READINESS.md. */
+  appliedOptimizationRunCode?: string;
+  appliedSubstitutionRunCode?: string;
 }
 
 /**
@@ -175,6 +181,8 @@ export function createVersion(input: CreateVersionInput): FormulationVersion {
     targetClaimsSnapshot: [...(input.formulation.targetClaims ?? [])],
     targetSkuCodesSnapshot: [...input.formulation.targetSkuCodes],
     sourceRunIds: input.sourceRunIds ?? [],
+    appliedOptimizationRunCode: input.appliedOptimizationRunCode,
+    appliedSubstitutionRunCode: input.appliedSubstitutionRunCode,
     regulatoryFindingIds: [],
     compatibilityFindingIds: [],
     safetyFindingIds: [],

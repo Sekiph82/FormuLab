@@ -195,6 +195,27 @@ export async function runFormulationOptimize(
   return invoke<FormulationResult>("run_formulation_optimize", { input });
 }
 
+/** Solve an Advanced Optimizer `FormulationProblem` (`@ai4s/shared`'s
+ *  `FormulationProblem`/`AdvancedOptimizationResult` types) — a separate
+ *  command and script from the simple optimizer above. Returns null when not
+ *  running in the desktop app. */
+export async function runAdvancedFormulationOptimize(
+  input: unknown,
+): Promise<unknown | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("run_advanced_formulation_optimize", { input });
+}
+
+/** Kill whatever Advanced Optimizer solve is currently running, if any.
+ *  Resolves `true` when a run was actually cancelled. No-op (`false`) in the
+ *  browser or when nothing was running. */
+export async function cancelAdvancedFormulationOptimize(): Promise<boolean> {
+  if (!isTauri) return false;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<boolean>("cancel_advanced_formulation_optimize");
+}
+
 /** Auto-start Jupyter on launch when it was enabled before. Silent no-op otherwise. */
 export async function ensureJupyter(): Promise<void> {
   try {

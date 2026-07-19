@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, FlaskConical, GitCompare, Plus, ShieldAlert, Wallet } from "lucide-react";
+import { FileText, FlaskConical, GitCompare, Plus, ShieldAlert, Sparkles, Wallet } from "lucide-react";
 import {
   attemptLifecycleTransition,
   buildKenyaCatalog,
@@ -27,6 +27,8 @@ import { VersionCompare } from "@/components/formula/VersionCompare";
 import { CostPanel } from "@/components/formula/CostPanel";
 import { CompatibilityPanel } from "@/components/formula/CompatibilityPanel";
 import { SafetyPanel } from "@/components/formula/SafetyPanel";
+import { AdvancedOptimizerPanel } from "@/components/formula/AdvancedOptimizerPanel";
+import { SubstitutionDialog } from "@/components/formula/SubstitutionPanel";
 import { ExportMenu } from "@/components/formula/ExportMenu";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
 import { SaveVersionDialog } from "@/components/formula/SaveVersionDialog";
@@ -46,7 +48,7 @@ import {
 import { listRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 
-type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety";
+type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety" | "optimizer";
 
 /**
  * The Formula Builder workspace — FormuLab's primary working surface.
@@ -72,6 +74,9 @@ export function FormulasPage() {
   const [focusLineId, setFocusLineId] = useState<string | null>(null);
   const [auditLog, setAuditLog] = useState<AuditEvent[]>([]);
   const [pendingBranchName, setPendingBranchName] = useState<string | undefined>(undefined);
+  const [pendingOptimizationRunCode, setPendingOptimizationRunCode] = useState<string | undefined>(undefined);
+  const [pendingSubstitutionRunCode, setPendingSubstitutionRunCode] = useState<string | undefined>(undefined);
+  const [substitutingLineId, setSubstitutingLineId] = useState<string | null>(null);
   const [costSnapshots, setCostSnapshots] = useState<CostSnapshot[]>([]);
   const [packagingBoms, setPackagingBoms] = useState<PackagingBom[]>([]);
 
@@ -84,6 +89,7 @@ export function FormulasPage() {
     cost: () => setTab("cost"),
     compatibility: () => setTab("compatibility"),
     safety: () => setTab("safety"),
+    optimizer: () => setTab("optimizer"),
   };
   /** Jump to the builder and select/scroll a specific line — used by the
    *  Compatibility/Safety tabs' "go to line" links. */
@@ -196,7 +202,11 @@ export function FormulasPage() {
           requiresPhAdjuster: template?.requiresPhAdjuster,
           requiresInci: template?.requiresInci,
         },
+        appliedOptimizationRunCode: pendingOptimizationRunCode,
+        appliedSubstitutionRunCode: pendingSubstitutionRunCode,
       });
+      setPendingOptimizationRunCode(undefined);
+      setPendingSubstitutionRunCode(undefined);
       await saveFormulationVersion(version);
       await saveFormulation({
         ...active,
@@ -272,6 +282,27 @@ export function FormulasPage() {
     draft.set((d) => (d ? { ...d, lines } : d), opts);
   };
 
+  /** An Advanced Optimizer run was applied: it becomes a new working draft
+   *  (never overwrites the saved version it started from), and the run's
+   *  code is remembered so the NEXT saved version records it — see
+   *  `appliedOptimizationRunCode` above and docs/APPROVAL_READINESS.md. */
+  const onApplyOptimizationResult = (lines: FormulationLine[], runCode: string) => {
+    onLinesChange(lines, { checkpoint: true });
+    setPendingOptimizationRunCode(runCode);
+    setTab("builder");
+  };
+
+  /** A substitution candidate was applied to one line: same never-overwrite-
+   *  the-saved-version rule as an optimization result — this becomes part of
+   *  the working draft, and the run's code is remembered for the next save. */
+  const onApplySubstitution = (newLine: FormulationLine, runCode: string) => {
+    if (!draft.value) return;
+    const lines = draft.value.lines.map((l) => (l.id === newLine.id ? newLine : l));
+    onLinesChange(lines, { checkpoint: true });
+    setPendingSubstitutionRunCode(runCode);
+    setSubstitutingLineId(null);
+  };
+
   // ------------------------------------------------------------------- view ---
 
   if (!active) {
@@ -328,6 +359,9 @@ export function FormulasPage() {
           <TabButton active={tab === "safety"} onClick={goTo.safety} icon={<ShieldAlert size={13} />}>
             {t("builder.tabSafety")}
           </TabButton>
+          <TabButton active={tab === "optimizer"} onClick={goTo.optimizer} icon={<Sparkles size={13} />}>
+            {t("builder.tabOptimizer")}
+          </TabButton>
         </nav>
       </header>
 
@@ -358,6 +392,7 @@ export function FormulasPage() {
             canUndo={draft.canUndo}
             canRedo={draft.canRedo}
             focusLineId={focusLineId}
+            onReplaceMaterial={setSubstitutingLineId}
           />
         )}
 
@@ -400,6 +435,15 @@ export function FormulasPage() {
             batchKg={draft.value.basisBatchKg}
           />
         )}
+
+        {tab === "optimizer" && draft.value && (
+          <AdvancedOptimizerPanel
+            formulation={active}
+            batchKg={draft.value.basisBatchKg}
+            currentLines={draft.value.lines}
+            onApplyResult={onApplyOptimizationResult}
+          />
+        )}
       </div>
 
       {savingVersion && draft.value && (
@@ -408,6 +452,16 @@ export function FormulasPage() {
           parentLabel={baseVersion?.versionLabel}
           onCancel={() => setSavingVersion(false)}
           onSave={onSaveVersion}
+        />
+      )}
+
+      {substitutingLineId && draft.value && (
+        <SubstitutionDialog
+          formulation={active}
+          line={draft.value.lines.find((l) => l.id === substitutingLineId)!}
+          allLines={draft.value.lines}
+          onApply={onApplySubstitution}
+          onClose={() => setSubstitutingLineId(null)}
         />
       )}
     </div>
