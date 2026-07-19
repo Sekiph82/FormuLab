@@ -161,12 +161,12 @@ describe("assessApprovalReadiness", () => {
     expect(r.blockers[0].message).toContain("no such run record exists");
   });
 
-  it("is ready when the applied substitution run's stored status is candidates_found", () => {
+  it("is ready when the applied substitution run's stored status is candidates_found and a candidate is selected", () => {
     const r = assessApprovalReadiness({
       validationFindings: [],
       compatibilityFindings: [],
       safetyFindings: [],
-      appliedSubstitutionRun: { code: "sub-1", status: "candidates_found" },
+      appliedSubstitutionRun: { code: "sub-1", status: "candidates_found", selectedCandidateId: "cand-1" },
     });
     expect(r.ready).toBe(true);
   });
@@ -191,6 +191,33 @@ describe("assessApprovalReadiness", () => {
     });
     expect(r.ready).toBe(false);
     expect(r.blockers[0].message).toContain("no such run record exists");
+  });
+
+  it("blocks when the applied substitution run has candidates but nothing was selected", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [],
+      compatibilityFindings: [],
+      safetyFindings: [],
+      appliedSubstitutionRun: { code: "sub-1", status: "candidates_found" },
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers[0].message).toContain("no selected candidate recorded");
+  });
+
+  it("blocks when the applied substitution run's selected candidate is itself blocked", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [],
+      compatibilityFindings: [],
+      safetyFindings: [],
+      appliedSubstitutionRun: {
+        code: "sub-1",
+        status: "candidates_found",
+        selectedCandidateId: "cand-1",
+        selectedCandidateBlocked: true,
+      },
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers[0].message).toContain("blocking compatibility or safety finding");
   });
 });
 
