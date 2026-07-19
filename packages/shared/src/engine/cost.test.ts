@@ -316,6 +316,7 @@ describe("conversion cost", () => {
     overheadPercent: "10",
     effectiveFrom: "2026-01-01",
     verification: "verified",
+    active: true,
     updatedAt: NOW,
   };
 

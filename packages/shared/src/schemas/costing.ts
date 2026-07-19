@@ -179,6 +179,7 @@ export const factoryCostProfileSchema = z.object({
    */
   verification: z.enum(["verified", "not_verified", "example_only"]).default("not_verified"),
   notes: z.string().optional(),
+  active: z.boolean().default(true),
   updatedAt: z.string(),
 });
 export type FactoryCostProfile = z.infer<typeof factoryCostProfileSchema>;

@@ -2,23 +2,34 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, FileSpreadsheet, Plus, Search, Upload } from "lucide-react";
 import {
+  FACTORY_PROFILE_FIELDS,
   INVENTORY_FIELDS,
   MATERIAL_FIELDS,
   MATERIAL_FUNCTIONS,
+  PACKAGING_COMPONENT_FIELDS,
   PRICE_FIELDS,
   SUPPLIER_FIELDS,
+  buildKenyaCatalog,
   landedUnitCost,
   templateCsv,
   toCsv,
   type ExchangeRate,
+  type FactoryCostProfile,
   type FieldSpec,
   type InventoryRecord,
   type MaterialPrice,
+  type MaterialSupplier,
+  type PackagingBom,
+  type PackagingComponent,
   type RawMaterial,
   type Supplier,
 } from "@ai4s/shared";
 import { ImportDialog } from "@/components/formula/ImportDialog";
 import { MaterialEditor } from "@/components/formula/MaterialEditor";
+import { SupplierEditor } from "@/components/formula/SupplierEditor";
+import { PackagingComponentEditor } from "@/components/formula/PackagingComponentEditor";
+import { PackagingBomEditor } from "@/components/formula/PackagingBomEditor";
+import { FactoryProfileEditor, cloneFactoryProfile } from "@/components/formula/FactoryProfileEditor";
 import { buildXlsxBlob } from "@/lib/xlsx";
 import {
   listRecords,
@@ -30,7 +41,15 @@ import {
 } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 
-type Tab = "materials" | "suppliers" | "prices" | "inventory" | "rates";
+type Tab =
+  | "materials"
+  | "suppliers"
+  | "prices"
+  | "inventory"
+  | "rates"
+  | "packagingComponents"
+  | "packagingBoms"
+  | "factoryProfiles";
 
 const TAB_CONFIG: Record<
   Tab,
@@ -41,6 +60,11 @@ const TAB_CONFIG: Record<
   prices: { collection: "material_prices", fields: PRICE_FIELDS, appendOnly: true },
   inventory: { collection: "inventory", fields: INVENTORY_FIELDS },
   rates: { collection: "exchange_rates", fields: [], appendOnly: true },
+  packagingComponents: { collection: "packaging_components", fields: PACKAGING_COMPONENT_FIELDS },
+  // BOMs are a nested structure (components + quantities per SKU), edited in
+  // their own dialog rather than as a flat imported table.
+  packagingBoms: { collection: "packaging_boms", fields: [] },
+  factoryProfiles: { collection: "factory_profiles", fields: FACTORY_PROFILE_FIELDS },
 };
 
 /**
@@ -60,26 +84,42 @@ export function MaterialsPage() {
   const [prices, setPrices] = useState<MaterialPrice[]>([]);
   const [inventory, setInventory] = useState<InventoryRecord[]>([]);
   const [rates, setRates] = useState<ExchangeRate[]>([]);
+  const [materialSuppliers, setMaterialSuppliers] = useState<MaterialSupplier[]>([]);
+  const [packagingComponents, setPackagingComponents] = useState<PackagingComponent[]>([]);
+  const [packagingBoms, setPackagingBoms] = useState<PackagingBom[]>([]);
+  const [factoryProfiles, setFactoryProfiles] = useState<FactoryCostProfile[]>([]);
   const [query, setQuery] = useState("");
   const [fnFilter, setFnFilter] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState<RawMaterial | null>(null);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [editingComponent, setEditingComponent] = useState<PackagingComponent | null>(null);
+  const [editingBom, setEditingBom] = useState<PackagingBom | null>(null);
+  const [editingProfile, setEditingProfile] = useState<FactoryCostProfile | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [m, s, p, i, r] = await Promise.all([
+    const [m, s, p, i, r, ms, pc, pb, fp] = await Promise.all([
       listRecords("materials"),
       listRecords("suppliers"),
       listRecords("material_prices"),
       listRecords("inventory"),
       listRecords("exchange_rates"),
+      listRecords("material_suppliers"),
+      listRecords("packaging_components"),
+      listRecords("packaging_boms"),
+      listRecords("factory_profiles"),
     ]);
     setMaterials(m);
     setSuppliers(s);
     setPrices(p);
     setInventory(i);
     setRates(r);
+    setMaterialSuppliers(ms);
+    setPackagingComponents(pc);
+    setPackagingBoms(pb);
+    setFactoryProfiles(fp);
   }, []);
 
   useEffect(() => {
@@ -118,16 +158,26 @@ export function MaterialsPage() {
 
   const config = TAB_CONFIG[tab];
 
-  const currentRows = (): Record<string, unknown>[] =>
-    tab === "materials"
-      ? filteredMaterials
-      : tab === "suppliers"
-        ? suppliers
-        : tab === "prices"
-          ? prices
-          : tab === "inventory"
-            ? inventory
-            : rates;
+  const currentRows = (): Record<string, unknown>[] => {
+    switch (tab) {
+      case "materials":
+        return filteredMaterials;
+      case "suppliers":
+        return suppliers;
+      case "prices":
+        return prices;
+      case "inventory":
+        return inventory;
+      case "rates":
+        return rates;
+      case "packagingComponents":
+        return packagingComponents;
+      case "packagingBoms":
+        return packagingBoms;
+      case "factoryProfiles":
+        return factoryProfiles;
+    }
+  };
 
   const exportCurrent = () => {
     const rows = currentRows();
@@ -172,11 +222,80 @@ export function MaterialsPage() {
     await load();
   };
 
-  const createSupplier = async () => {
+  const createSupplier = () => {
     const code = `SUP-${Date.now().toString(36).toUpperCase()}`;
-    await upsertRecords("suppliers", [newSupplier(code, code)]);
+    setEditingSupplier(newSupplier(code, ""));
+  };
+
+  const saveSupplier = async (s: Supplier) => {
+    await upsertRecords("suppliers", [s]);
+    setEditingSupplier(null);
     await load();
   };
+
+  const createComponent = () => {
+    setEditingComponent({
+      schemaVersion: "1.0",
+      code: `PKG-${Date.now().toString(36).toUpperCase()}`,
+      description: "",
+      componentType: "bottle",
+      unit: "piece",
+      currency: "KES",
+      wasteFactorPercent: "0",
+      active: true,
+      updatedAt: nowIso(),
+    });
+  };
+
+  const saveComponent = async (c: PackagingComponent) => {
+    await upsertRecords("packaging_components", [c]);
+    setEditingComponent(null);
+    await load();
+  };
+
+  const createBom = () => {
+    setEditingBom({
+      schemaVersion: "1.0",
+      code: `BOM-${Date.now().toString(36).toUpperCase()}`,
+      skuCode: "",
+      lines: [],
+      fillQuantity: "0",
+      fillUnit: "ml",
+      fillLossPercent: "0",
+      updatedAt: nowIso(),
+    });
+  };
+
+  const saveBom = async (b: PackagingBom) => {
+    await upsertRecords("packaging_boms", [b]);
+    setEditingBom(null);
+    await load();
+  };
+
+  const createProfile = () => {
+    setEditingProfile({
+      schemaVersion: "1.0",
+      code: `FP-${Date.now().toString(36).toUpperCase()}`,
+      name: "",
+      currency: "KES",
+      processLossPercent: "0",
+      effectiveFrom: nowIso().slice(0, 10),
+      verification: "not_verified",
+      active: true,
+      updatedAt: nowIso(),
+    });
+  };
+
+  const saveProfile = async (p: FactoryCostProfile) => {
+    await upsertRecords("factory_profiles", [p]);
+    setEditingProfile(null);
+    await load();
+  };
+
+  const catalogSkus = useMemo(() => {
+    const catalog = buildKenyaCatalog();
+    return catalog.skus.map((s) => ({ code: s.skuCode, label: `${s.skuCode} — ${s.displayName}` }));
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -213,6 +332,30 @@ export function MaterialsPage() {
             className="flex items-center gap-1.5 rounded-input bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg hover:opacity-90"
           >
             <Plus size={13} /> {t("materials.newSupplier")}
+          </button>
+        )}
+        {tab === "packagingComponents" && (
+          <button
+            onClick={createComponent}
+            className="flex items-center gap-1.5 rounded-input bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg hover:opacity-90"
+          >
+            <Plus size={13} /> {t("packaging.newComponent")}
+          </button>
+        )}
+        {tab === "packagingBoms" && (
+          <button
+            onClick={createBom}
+            className="flex items-center gap-1.5 rounded-input bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg hover:opacity-90"
+          >
+            <Plus size={13} /> {t("packaging.newBom")}
+          </button>
+        )}
+        {tab === "factoryProfiles" && (
+          <button
+            onClick={createProfile}
+            className="flex items-center gap-1.5 rounded-input bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg hover:opacity-90"
+          >
+            <Plus size={13} /> {t("factoryProfile.newProfile")}
           </button>
         )}
         {config.fields.length > 0 && (
@@ -313,17 +456,36 @@ export function MaterialsPage() {
             onEdit={setEditing}
           />
         )}
-        {tab === "suppliers" && <SupplierTable suppliers={suppliers} />}
+        {tab === "suppliers" && <SupplierTable suppliers={suppliers} onEdit={setEditingSupplier} />}
         {tab === "prices" && <PriceTable prices={prices} />}
         {tab === "inventory" && <InventoryTable inventory={inventory} />}
         {tab === "rates" && <RateTable rates={rates} />}
+        {tab === "packagingComponents" && (
+          <PackagingComponentTable components={packagingComponents} onEdit={setEditingComponent} />
+        )}
+        {tab === "packagingBoms" && <PackagingBomTable boms={packagingBoms} onEdit={setEditingBom} />}
+        {tab === "factoryProfiles" && (
+          <FactoryProfileTable
+            profiles={factoryProfiles}
+            onEdit={setEditingProfile}
+            onClone={(p) => setEditingProfile(cloneFactoryProfile(p))}
+          />
+        )}
       </div>
 
       {importing && (
         <ImportDialog
           title={t(`materials.tab.${tab}`)}
           fields={config.fields}
-          existingCodes={existingCodesFor(tab, { materials, suppliers, prices, inventory, rates })}
+          existingCodes={existingCodesFor(tab, {
+            materials,
+            suppliers,
+            prices,
+            inventory,
+            rates,
+            packagingComponents,
+            factoryProfiles,
+          })}
           onCancel={() => setImporting(false)}
           onCommit={onImported}
         />
@@ -336,6 +498,40 @@ export function MaterialsPage() {
           onCancel={() => setEditing(null)}
           onSave={saveMaterial}
         />
+      )}
+
+      {editingSupplier && (
+        <SupplierEditor
+          supplier={editingSupplier}
+          materials={materials}
+          links={materialSuppliers}
+          prices={prices}
+          onCancel={() => setEditingSupplier(null)}
+          onSave={saveSupplier}
+          onLinksChanged={load}
+        />
+      )}
+
+      {editingComponent && (
+        <PackagingComponentEditor
+          component={editingComponent}
+          onCancel={() => setEditingComponent(null)}
+          onSave={saveComponent}
+        />
+      )}
+
+      {editingBom && (
+        <PackagingBomEditor
+          bom={editingBom}
+          skuOptions={catalogSkus}
+          components={packagingComponents}
+          onCancel={() => setEditingBom(null)}
+          onSave={saveBom}
+        />
+      )}
+
+      {editingProfile && (
+        <FactoryProfileEditor profile={editingProfile} onCancel={() => setEditingProfile(null)} onSave={saveProfile} />
       )}
     </div>
   );
@@ -418,7 +614,7 @@ function MaterialTable({
   );
 }
 
-function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
+function SupplierTable({ suppliers, onEdit }: { suppliers: Supplier[]; onEdit: (s: Supplier) => void }) {
   const { t } = useTranslation("session");
   return (
     <table className="w-full border-collapse text-[12px]">
@@ -429,19 +625,184 @@ function SupplierTable({ suppliers }: { suppliers: Supplier[] }) {
           <th className="px-3 py-1.5 font-medium">{t("materials.country")}</th>
           <th className="px-3 py-1.5 font-medium">{t("materials.currency")}</th>
           <th className="px-3 py-1.5 font-medium">{t("materials.quality")}</th>
+          <th className="px-3 py-1.5 text-right font-medium">{t("supplier.approvedStatus")}</th>
         </tr>
       </thead>
       <tbody>
         {suppliers.map((s) => (
-          <tr key={s.code} className="border-b border-border-faint">
-            <td className="px-3 py-1.5 font-mono text-[11px] text-muted">{s.code}</td>
-            <td className="px-3 py-1.5 text-text">{s.displayName}</td>
+          <tr key={s.code} className="border-b border-border-faint hover:bg-surface-2">
+            <td className="px-3 py-1.5">
+              <button onClick={() => onEdit(s)} className="font-mono text-[11px] text-accent hover:underline">
+                {s.code}
+              </button>
+            </td>
+            <td className="px-3 py-1.5 text-text">
+              {s.displayName}
+              {!s.active && <span className="ml-1.5 rounded bg-surface-2 px-1 text-[10px] text-muted">{t("materials.inactive")}</span>}
+            </td>
             <td className="px-3 py-1.5 text-muted">{s.country ?? "—"}</td>
             <td className="px-3 py-1.5 text-muted">{s.currency}</td>
             <td className="px-3 py-1.5 text-muted">{s.qualityStatus.replace(/_/g, " ")}</td>
+            <td className="px-3 py-1.5 text-right">
+              {s.approved ? <span className="text-ok">{t("supplier.approvedStatus")}</span> : "—"}
+            </td>
           </tr>
         ))}
         {suppliers.length === 0 && (
+          <tr>
+            <td colSpan={6} className="py-10 text-center text-muted">
+              {t("materials.empty")}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+function PackagingComponentTable({
+  components,
+  onEdit,
+}: {
+  components: PackagingComponent[];
+  onEdit: (c: PackagingComponent) => void;
+}) {
+  const { t } = useTranslation("session");
+  return (
+    <table className="w-full border-collapse text-[12px]">
+      <thead className="sticky top-0 bg-surface">
+        <tr className="border-b border-border text-left text-muted">
+          <th className="px-3 py-1.5 font-medium">{t("materials.code")}</th>
+          <th className="px-3 py-1.5 font-medium">{t("packaging.description")}</th>
+          <th className="px-3 py-1.5 font-medium">{t("packaging.componentType")}</th>
+          <th className="px-3 py-1.5 text-right font-medium">{t("cost.unitPrice")}</th>
+          <th className="px-3 py-1.5 text-right font-medium">{t("packaging.wasteFactor")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {components.map((c) => (
+          <tr key={c.code} className="border-b border-border-faint hover:bg-surface-2">
+            <td className="px-3 py-1.5">
+              <button onClick={() => onEdit(c)} className="font-mono text-[11px] text-accent hover:underline">
+                {c.code}
+              </button>
+            </td>
+            <td className="px-3 py-1.5 text-text">
+              {c.description}
+              {!c.active && <span className="ml-1.5 rounded bg-surface-2 px-1 text-[10px] text-muted">{t("materials.inactive")}</span>}
+            </td>
+            <td className="px-3 py-1.5 text-muted">{c.componentType.replace(/_/g, " ")}</td>
+            <td className="px-3 py-1.5 text-right tabular-nums text-muted">
+              {c.unitPrice ? `${c.unitPrice} ${c.currency}` : "—"}
+            </td>
+            <td className="px-3 py-1.5 text-right tabular-nums text-muted">{c.wasteFactorPercent}%</td>
+          </tr>
+        ))}
+        {components.length === 0 && (
+          <tr>
+            <td colSpan={5} className="py-10 text-center text-muted">
+              {t("materials.empty")}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+function PackagingBomTable({ boms, onEdit }: { boms: PackagingBom[]; onEdit: (b: PackagingBom) => void }) {
+  const { t } = useTranslation("session");
+  return (
+    <table className="w-full border-collapse text-[12px]">
+      <thead className="sticky top-0 bg-surface">
+        <tr className="border-b border-border text-left text-muted">
+          <th className="px-3 py-1.5 font-medium">{t("materials.code")}</th>
+          <th className="px-3 py-1.5 font-medium">{t("packaging.targetSku")}</th>
+          <th className="px-3 py-1.5 text-right font-medium">{t("packaging.fillQuantity")}</th>
+          <th className="px-3 py-1.5 text-right font-medium">{t("packaging.bomLines")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {boms.map((b) => (
+          <tr key={b.code} className="border-b border-border-faint hover:bg-surface-2">
+            <td className="px-3 py-1.5">
+              <button onClick={() => onEdit(b)} className="font-mono text-[11px] text-accent hover:underline">
+                {b.code}
+              </button>
+            </td>
+            <td className="px-3 py-1.5 text-text">{b.skuCode}</td>
+            <td className="px-3 py-1.5 text-right tabular-nums text-muted">
+              {b.fillQuantity} {b.fillUnit}
+            </td>
+            <td className="px-3 py-1.5 text-right tabular-nums text-muted">{b.lines.length}</td>
+          </tr>
+        ))}
+        {boms.length === 0 && (
+          <tr>
+            <td colSpan={4} className="py-10 text-center text-muted">
+              {t("packaging.noBoms")}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+function FactoryProfileTable({
+  profiles,
+  onEdit,
+  onClone,
+}: {
+  profiles: FactoryCostProfile[];
+  onEdit: (p: FactoryCostProfile) => void;
+  onClone: (p: FactoryCostProfile) => void;
+}) {
+  const { t } = useTranslation("session");
+  return (
+    <table className="w-full border-collapse text-[12px]">
+      <thead className="sticky top-0 bg-surface">
+        <tr className="border-b border-border text-left text-muted">
+          <th className="px-3 py-1.5 font-medium">{t("materials.code")}</th>
+          <th className="px-3 py-1.5 font-medium">{t("materials.name")}</th>
+          <th className="px-3 py-1.5 font-medium">{t("materials.verification")}</th>
+          <th className="px-3 py-1.5 font-medium">{t("materials.effective")}</th>
+          <th className="px-3 py-1.5" />
+        </tr>
+      </thead>
+      <tbody>
+        {profiles.map((p) => (
+          <tr key={p.code} className="border-b border-border-faint hover:bg-surface-2">
+            <td className="px-3 py-1.5">
+              <button onClick={() => onEdit(p)} className="font-mono text-[11px] text-accent hover:underline">
+                {p.code}
+              </button>
+            </td>
+            <td className="px-3 py-1.5 text-text">
+              {p.name}
+              {!p.active && <span className="ml-1.5 rounded bg-surface-2 px-1 text-[10px] text-muted">{t("materials.inactive")}</span>}
+            </td>
+            <td className="px-3 py-1.5 text-muted">
+              {p.verification === "example_only" ? (
+                <span className="text-warn">{t("factoryProfile.exampleOnly")}</span>
+              ) : p.verification === "verified" ? (
+                <span className="text-ok">{t("factoryProfile.verified")}</span>
+              ) : (
+                <span className="text-muted">{t("factoryProfile.notVerified")}</span>
+              )}
+            </td>
+            <td className="px-3 py-1.5 text-muted">{p.effectiveFrom}</td>
+            <td className="px-3 py-1.5 text-right">
+              <button
+                onClick={() => onClone(p)}
+                className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text"
+              >
+                {t("factoryProfile.clone")}
+              </button>
+            </td>
+          </tr>
+        ))}
+        {profiles.length === 0 && (
           <tr>
             <td colSpan={5} className="py-10 text-center text-muted">
               {t("materials.empty")}
@@ -643,6 +1004,26 @@ function stampDefaults(tab: Tab, row: Record<string, unknown>): Record<string, u
         ...base,
         updatedAt: nowIso(),
       };
+    case "packagingComponents":
+      return {
+        unit: "piece",
+        currency: "KES",
+        wasteFactorPercent: "0",
+        active: true,
+        ...base,
+        updatedAt: nowIso(),
+      };
+    case "factoryProfiles":
+      return {
+        currency: "KES",
+        processLossPercent: "0",
+        // An imported factory profile is unverified until someone confirms
+        // the figures against the factory's own accounts.
+        verification: "not_verified",
+        active: true,
+        ...base,
+        updatedAt: nowIso(),
+      };
     default:
       return base;
   }
@@ -656,6 +1037,8 @@ function existingCodesFor(
     prices: MaterialPrice[];
     inventory: InventoryRecord[];
     rates: ExchangeRate[];
+    packagingComponents: PackagingComponent[];
+    factoryProfiles: FactoryCostProfile[];
   },
 ): string[] {
   switch (tab) {
@@ -667,6 +1050,10 @@ function existingCodesFor(
       return data.prices.map((p) => p.code);
     case "inventory":
       return data.inventory.map((i) => i.code);
+    case "packagingComponents":
+      return data.packagingComponents.map((c) => c.code);
+    case "factoryProfiles":
+      return data.factoryProfiles.map((p) => p.code);
     default:
       return data.rates.map((r) => r.code);
   }
