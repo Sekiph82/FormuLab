@@ -303,6 +303,18 @@ export function FormulasPage() {
     setSubstitutingLineId(null);
   };
 
+  /** A multi-material SYSTEM substitution was applied: every line in
+   *  `removedLineIds` is dropped and `newLines` takes its place — same
+   *  never-overwrite-the-saved-version rule as a one-to-one substitution. */
+  const onApplySystemSubstitution = (removedLineIds: string[], newLines: FormulationLine[], runCode: string) => {
+    if (!draft.value) return;
+    const removed = new Set(removedLineIds);
+    const lines = [...draft.value.lines.filter((l) => !removed.has(l.id)), ...newLines];
+    onLinesChange(lines, { checkpoint: true });
+    setPendingSubstitutionRunCode(runCode);
+    setSubstitutingLineId(null);
+  };
+
   // ------------------------------------------------------------------- view ---
 
   if (!active) {
@@ -461,6 +473,7 @@ export function FormulasPage() {
           line={draft.value.lines.find((l) => l.id === substitutingLineId)!}
           allLines={draft.value.lines}
           onApply={onApplySubstitution}
+          onApplySystem={onApplySystemSubstitution}
           onClose={() => setSubstitutingLineId(null)}
         />
       )}

@@ -3,26 +3,49 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Ban, Loader2, Play, Wand2 } from "lucide-react";
 import {
-  SEED_COMPATIBILITY_RULES,
-  SEED_SAFETY_RULES,
-  evaluateCompatibility,
-  evaluateSafety,
+  applyProfileToProblem,
+  blockingExclusionConstraints,
+  cloneScenario,
+  compareOptimizationRuns,
+  createScenario,
+  currentScenariosByGroup,
+  gradedRiskScores,
   newId,
   priceFor,
+  renameScenario,
+  restoreRetiredScenarioAsNew,
+  retireScenario,
+  saveScenarioRevision,
+  SEED_OPTIMIZATION_PROFILES,
+  FORMULATION_PROPERTIES,
   type AdvancedOptimizationResult,
+  type CompositionConstraint,
   type ConditionalConstraint,
   type Formulation,
   type FormulationLine,
   type FormulationProblem,
+  type FormulationProperty,
   type InventoryRecord,
   type MaterialFunction,
   type MaterialPrice,
   type OptimizationMetric,
   type ObjectiveDirection,
+  type OptimizationProfile,
+  type OptimizationRun,
+  type OptimizationScenario,
+  type ProfileApplyMode,
+  type RatioConstraint,
   type RawMaterial,
+  type ScenarioComparison,
 } from "@ai4s/shared";
-import { listRecords, upsertRecords } from "@/lib/masterdata";
+import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { runAdvancedFormulationOptimize, cancelAdvancedFormulationOptimize } from "@/lib/tauri";
+import { cn } from "@/lib/cn";
+
+/** A run whose formula lines are real and safe to persist/apply — includes
+ *  `feasible_with_penalties` (every hard constraint held; at least one soft
+ *  constraint was relaxed) alongside a clean `optimal`/`feasible`. */
+const USABLE_RESULT_STATUSES = new Set(["optimal", "feasible", "feasible_with_penalties"]);
 
 const METRICS: OptimizationMetric[] = [
   "raw_material_cost",
@@ -46,6 +69,18 @@ interface FunctionalRow {
   functionGroups: MaterialFunction[];
   constraintType: "min_total" | "max_total";
   value: string;
+  strictness: "hard" | "soft";
+  penaltyWeight: string;
+  allowedDeviation: string;
+}
+
+interface PropertyTargetRow {
+  id: string;
+  property: FormulationProperty;
+  minValue: string;
+  maxValue: string;
+  enforceAs: "reported_only" | "hard" | "soft";
+  penaltyWeight: string;
 }
 
 // Loosely typed — the real shape is `AdvancedOptimizationResult`
@@ -64,143 +99,30 @@ interface OptimizeResult {
   }>;
   totals?: { totalPercent: string; totalActiveMatterPercent: string; totalRawMaterialCost?: string };
   objectiveResults?: Array<{ metric: string; rawValue: string; normalizedValue?: string }>;
+  constraintResults?: Array<{
+    constraintId: string;
+    kind: string;
+    strictness: string;
+    satisfied: boolean;
+    requestedTarget?: string;
+    achievedValue?: string;
+    deviation?: string;
+    penaltyApplied?: string;
+  }>;
+  propertyResults?: Array<{
+    targetId: string;
+    property: string;
+    value?: string;
+    method?: string;
+    dataCompleteness: string;
+    classification: string;
+    constraintStatus: string;
+    laboratoryConfirmationRequired: boolean;
+  }>;
   warnings?: Array<{ code: string; message: string }>;
   infeasibility?: { causes: Array<{ code: string; message: string; suggestedActions: string[] }> };
   solverMetadata?: { isMixedInteger: boolean; solveTimeMs: number };
   runId?: string;
-}
-
-/** Build a minimal, schema-valid two-line formulation so the real
- *  compatibility/safety engines can be asked "would these two candidates,
- *  substituted into a formula together, produce a blocking finding?" —
- *  this is the ONLY thing these synthetic lines are for; they are never
- *  displayed or persisted. */
-function syntheticLine(m: RawMaterial, lineNumber: number): FormulationLine {
-  return {
-    id: `synthetic-${m.code}`,
-    lineNumber,
-    phase: "A",
-    materialCode: m.code,
-    displayName: m.displayName,
-    functions: m.functions,
-    percent: "10",
-    isQsToHundred: false,
-    activeMatterPercent: m.activeMatterPercent,
-    provenance: { origin: "model_estimate", evidenceClaimIds: [] },
-  };
-}
-
-/**
- * The real implementation of `compatibilityPolicy`/`safetyPolicy`'s
- * `"exclude_blocking"` mode (spec: "reuse the current Compatibility and
- * Safety engines... do not duplicate their rules inside the optimizer").
- * Every pair of candidate materials is checked with the SAME engines the
- * Compatibility/Safety tabs use; a pair that produces a `blocking` finding
- * becomes an `if_present_then_excluded` conditional constraint, so the
- * solver can never select both. O(n²) rule evaluations over the candidate
- * pool — fine at the pool sizes (tens of materials) this screen deals with,
- * not attempted for a full raw-material library.
- */
-function blockingExclusionConstraints(
-  chosen: RawMaterial[],
-  allMaterials: RawMaterial[],
-): ConditionalConstraint[] {
-  const constraints: ConditionalConstraint[] = [];
-  for (let i = 0; i < chosen.length; i++) {
-    for (let j = i + 1; j < chosen.length; j++) {
-      const a = chosen[i];
-      const b = chosen[j];
-      const lines = [syntheticLine(a, 0), syntheticLine(b, 1)];
-      const compat = evaluateCompatibility(lines, SEED_COMPATIBILITY_RULES, { materials: allMaterials });
-      const safety = evaluateSafety(lines, SEED_SAFETY_RULES, { materials: allMaterials });
-      const blocked = compat.some((f) => f.severity === "blocking") || safety.some((f) => f.severity === "blocking");
-      if (!blocked) continue;
-      constraints.push({
-        id: newId("cond"),
-        displayName: `${a.code} excludes ${b.code}`,
-        conditionType: "if_present_then_excluded",
-        trigger: { materialId: a.code },
-        target: { materialId: b.code },
-        severity: "blocking",
-        strictness: "hard",
-        verificationStatus: "not_verified",
-        presenceThresholdPercent: "0.001",
-        active: true,
-      });
-    }
-  }
-  return constraints;
-}
-
-const SEVERITY_RISK_WEIGHT: Record<"info" | "warning" | "error", number> = {
-  info: 0.1,
-  warning: 0.4,
-  error: 0.8,
-};
-
-/** A `human_review_required`/incomplete-data finding is weighted UP, not
- *  skipped — unknown data is never treated as safe (the platform-wide
- *  DATA_STATES convention, applied here to risk scoring). */
-const UNVERIFIED_RISK_MULTIPLIER = 1.3;
-
-/**
- * The real implementation behind the `compatibility_risk`/`safety_risk`
- * objective metrics (spec §A4). `blockingExclusionConstraints` above already
- * turns every `blocking` finding into a hard exclusion — this instead scores
- * every non-blocking finding (info/warning/error) so the optimizer can
- * genuinely prefer a lower-risk candidate when cost/other constraints allow
- * it, rather than the two risk objectives evaluating to a flat, meaningless
- * zero. Uses the SAME `evaluateCompatibility`/`evaluateSafety` engines the
- * Compatibility/Safety tabs use — no rule logic is duplicated here.
- *
- * Scored per MATERIAL (summed across every pairing it appears in among the
- * chosen candidates, capped at 1.0), because the solver's objective is
- * linear in one variable per material, not a pairwise matrix. Every chosen
- * material gets an explicit `0`, never `undefined`, as soon as there is at
- * least one other candidate to pair it against — `undefined` (meaning "no
- * data, contributes nothing to the objective") is reserved for the genuine
- * edge case of a single-candidate pool where no pairwise evaluation is even
- * possible, never used as a shortcut for "did not bother checking".
- */
-function gradedRiskScores(
-  chosen: RawMaterial[],
-  allMaterials: RawMaterial[],
-): { compatibilityRisk: Record<string, number>; safetyRisk: Record<string, number> } {
-  const compatibilityRisk: Record<string, number> = {};
-  const safetyRisk: Record<string, number> = {};
-  if (chosen.length < 2) return { compatibilityRisk, safetyRisk };
-
-  for (const m of chosen) {
-    compatibilityRisk[m.code] = 0;
-    safetyRisk[m.code] = 0;
-  }
-
-  for (let i = 0; i < chosen.length; i++) {
-    for (let j = i + 1; j < chosen.length; j++) {
-      const lines = [syntheticLine(chosen[i], 0), syntheticLine(chosen[j], 1)];
-      const compat = evaluateCompatibility(lines, SEED_COMPATIBILITY_RULES, { materials: allMaterials });
-      const safety = evaluateSafety(lines, SEED_SAFETY_RULES, { materials: allMaterials });
-
-      for (const f of compat) {
-        if (f.severity === "blocking") continue; // already a hard exclusion via blockingExclusionConstraints.
-        let weight = SEVERITY_RISK_WEIGHT[f.severity];
-        if (f.verificationStatus === "human_review_required" || f.dataIncomplete) weight *= UNVERIFIED_RISK_MULTIPLIER;
-        for (const code of f.materialIds) {
-          if (code in compatibilityRisk) compatibilityRisk[code] = Math.min(1, compatibilityRisk[code] + weight);
-        }
-      }
-      for (const f of safety) {
-        if (f.severity === "blocking") continue;
-        let weight = SEVERITY_RISK_WEIGHT[f.severity];
-        if (f.humanReviewRequired || f.dataIncomplete) weight *= UNVERIFIED_RISK_MULTIPLIER;
-        for (const code of f.affectedMaterialIds) {
-          if (code in safetyRisk) safetyRisk[code] = Math.min(1, safetyRisk[code] + weight);
-        }
-      }
-    }
-  }
-
-  return { compatibilityRisk, safetyRisk };
 }
 
 export function AdvancedOptimizerPanel({
@@ -220,6 +142,8 @@ export function AdvancedOptimizerPanel({
   const [inventory, setInventory] = useState<InventoryRecord[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [functional, setFunctional] = useState<FunctionalRow[]>([]);
+  const [propertyTargets, setPropertyTargets] = useState<PropertyTargetRow[]>([]);
+  const [costCeiling, setCostCeiling] = useState<string>("");
   const [objectives, setObjectives] = useState<ObjectiveRow[]>([
     { metric: "raw_material_cost", direction: "minimize", weight: "1" },
   ]);
@@ -227,16 +151,59 @@ export function AdvancedOptimizerPanel({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OptimizeResult | null>(null);
 
+  // ---------------------------------------------------------------- scenarios ---
+  const [scenarios, setScenarios] = useState<OptimizationScenario[]>([]);
+  const [profiles, setProfiles] = useState<OptimizationProfile[]>([]);
+  const [runs, setRuns] = useState<OptimizationRun[]>([]);
+  const [activeScenarioCode, setActiveScenarioCode] = useState<string | null>(null);
+  const [scenarioNameInput, setScenarioNameInput] = useState("");
+  const [selectedProfileCode, setSelectedProfileCode] = useState("");
+  /** Constraints a loaded scenario or an applied profile contributed, beyond
+   *  what this screen's own candidate/functional/objective editors cover —
+   *  merged into every built problem, and shown as a plain read-only list
+   *  (see "What this is not" in docs/ADVANCED_OPTIMIZER.md: there is no
+   *  ratio/conditional/composition constraint builder here yet) rather than
+   *  silently dropped. */
+  const [profileExtras, setProfileExtras] = useState<{
+    compositionConstraints: CompositionConstraint[];
+    ratioConstraints: RatioConstraint[];
+    conditionalConstraints: ConditionalConstraint[];
+  }>({ compositionConstraints: [], ratioConstraints: [], conditionalConstraints: [] });
+  const [compareSelection, setCompareSelection] = useState<Set<string>>(new Set());
+  const [comparison, setComparison] = useState<ScenarioComparison | null>(null);
+  const [confirmReplaceProfile, setConfirmReplaceProfile] = useState(false);
+  const [scenarioBusy, setScenarioBusy] = useState(false);
+
+  const currentScenarios = useMemo(() => currentScenariosByGroup(scenarios), [scenarios]);
+  const activeScenario = useMemo(
+    () => currentScenarios.find((s) => s.code === activeScenarioCode) ?? null,
+    [currentScenarios, activeScenarioCode],
+  );
+  const scenarioRunHistory = useMemo(
+    () => (activeScenario ? runs.filter((r) => r.scenarioId === activeScenario.scenarioGroupId) : []),
+    [runs, activeScenario],
+  );
+  const scenarioNameByGroupId = useMemo(
+    () => new Map(currentScenarios.map((s) => [s.scenarioGroupId, s.name])),
+    [currentScenarios],
+  );
+
   useEffect(() => {
     void (async () => {
-      const [m, p, i] = await Promise.all([
+      const [m, p, i, s, pf, r] = await Promise.all([
         listRecords("materials"),
         listRecords("material_prices"),
         listRecords("inventory"),
+        listRecords("optimization_scenarios"),
+        listRecordsSeeded("optimization_profiles", SEED_OPTIMIZATION_PROFILES),
+        listRecords("optimization_runs"),
       ]);
       setMaterials(m);
       setPrices(p);
       setInventory(i);
+      setScenarios(s);
+      setProfiles(pf);
+      setRuns(r.filter((run) => run.projectId === formulation.id));
       // Default candidate set: whatever the current draft already uses.
       const codes = new Set(currentLines.map((l) => l.materialCode).filter((c): c is string => !!c));
       setSelected(codes);
@@ -244,6 +211,15 @@ export function AdvancedOptimizerPanel({
     // Only seed the default selection once, on first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const refreshScenarios = useCallback(async () => {
+    setScenarios(await listRecords("optimization_scenarios"));
+  }, []);
+
+  const refreshRuns = useCallback(async () => {
+    const r = await listRecords("optimization_runs");
+    setRuns(r.filter((run) => run.projectId === formulation.id));
+  }, [formulation.id]);
 
   const toggleMaterial = (code: string) => {
     setSelected((prev) => {
@@ -308,6 +284,7 @@ export function AdvancedOptimizerPanel({
           verificationStatus: "verified",
           active: true,
         },
+        ...profileExtras.compositionConstraints,
       ],
       functionalConstraints: functional.map((f) => ({
         id: f.id,
@@ -317,13 +294,28 @@ export function AdvancedOptimizerPanel({
         constraintType: f.constraintType,
         value: f.value,
         severity: "blocking",
-        strictness: "hard",
+        strictness: f.strictness,
+        penaltyWeight: f.strictness === "soft" ? f.penaltyWeight : undefined,
+        penaltyType: f.strictness === "soft" ? "linear_absolute" : undefined,
+        allowedDeviation: f.strictness === "soft" ? f.allowedDeviation : undefined,
         verificationStatus: "not_verified",
         active: true,
       })),
-      ratioConstraints: [],
-      conditionalConstraints: blockingExclusionConstraints(chosen, materials),
-      propertyTargets: [],
+      ratioConstraints: profileExtras.ratioConstraints,
+      conditionalConstraints: [...blockingExclusionConstraints(chosen, materials), ...profileExtras.conditionalConstraints],
+      propertyTargets: propertyTargets
+        .filter((p) => p.minValue || p.maxValue)
+        .map((p) => ({
+          id: p.id,
+          property: p.property,
+          minValue: p.minValue || undefined,
+          maxValue: p.maxValue || undefined,
+          enforceAs: p.enforceAs === "reported_only" ? undefined : p.enforceAs,
+          penaltyWeight: p.enforceAs === "soft" ? p.penaltyWeight : undefined,
+          penaltyType: p.enforceAs === "soft" ? "linear_absolute" : undefined,
+          requestedClassification: "calculated" as const,
+        })),
+      costCeiling: costCeiling ? { value: costCeiling, currency: "KES", penaltyWeight: "1" } : undefined,
       compatibilityPolicy: { mode: "exclude_blocking" },
       safetyPolicy: { mode: "exclude_blocking" },
       objectiveConfig: {
@@ -335,7 +327,7 @@ export function AdvancedOptimizerPanel({
       createdAt: asOf,
     };
     return problem;
-  }, [materials, selected, prices, inventory, formulation, batchKg, functional, objectives, t]);
+  }, [materials, selected, prices, inventory, formulation, batchKg, functional, propertyTargets, costCeiling, profileExtras, objectives, t]);
 
   const run = async () => {
     if (selected.size === 0) {
@@ -357,7 +349,7 @@ export function AdvancedOptimizerPanel({
         return;
       }
       setResult(res);
-      if (res.status === "optimal" || res.status === "feasible") {
+      if (USABLE_RESULT_STATUSES.has(res.status)) {
         const runCode = newId("optrun");
         // `res` at this point is a genuine solver AdvancedOptimizationResult
         // (that is exactly what an "optimal"/"feasible" status means) — the
@@ -369,12 +361,18 @@ export function AdvancedOptimizerPanel({
             schemaVersion: "1.0",
             code: runCode,
             projectId: formulation.id,
+            scenarioId: activeScenario?.scenarioGroupId,
             problem,
             result: { ...res, runId: res.runId ?? runCode } as unknown as AdvancedOptimizationResult,
             createdAt: new Date().toISOString(),
           },
         ]);
         setResult({ ...res, runId: runCode });
+        // The scenario record itself is not touched by running it — its full,
+        // append-only run history is every `OptimizationRun` whose
+        // `scenarioId` matches this scenario's group (`scenarioRunHistory`),
+        // not a field that would need a new scenario revision per run.
+        await refreshRuns();
       }
     } catch (e) {
       setError(String(e));
@@ -420,12 +418,203 @@ export function AdvancedOptimizerPanel({
   const addFunctionalRow = () => {
     setFunctional((rows) => [
       ...rows,
-      { id: newId("func"), functionGroups: [], constraintType: "min_total", value: "0" },
+      {
+        id: newId("func"),
+        functionGroups: [],
+        constraintType: "min_total",
+        value: "0",
+        strictness: "hard",
+        penaltyWeight: "1",
+        allowedDeviation: "0",
+      },
+    ]);
+  };
+
+  const addPropertyTargetRow = () => {
+    setPropertyTargets((rows) => [
+      ...rows,
+      { id: newId("proptgt"), property: "active_matter", minValue: "", maxValue: "", enforceAs: "reported_only", penaltyWeight: "1" },
     ]);
   };
 
   const addObjectiveRow = () => {
     setObjectives((rows) => [...rows, { metric: "supply_risk", direction: "minimize", weight: "0.2" }]);
+  };
+
+  // ------------------------------------------------------------- scenarios ---
+
+  const onNewScenario = async () => {
+    if (!scenarioNameInput.trim()) return;
+    setScenarioBusy(true);
+    try {
+      const asOf = new Date().toISOString();
+      const s = createScenario({
+        projectId: formulation.id,
+        name: scenarioNameInput.trim(),
+        sourceDraftId: formulation.id,
+        problem: buildProblem(),
+        priceSnapshotAt: asOf,
+        inventorySnapshotAt: asOf,
+      });
+      await upsertRecords("optimization_scenarios", [s]);
+      await refreshScenarios();
+      setActiveScenarioCode(s.code);
+      setScenarioNameInput("");
+    } finally {
+      setScenarioBusy(false);
+    }
+  };
+
+  const onSaveScenario = async () => {
+    if (!activeScenario) return;
+    setScenarioBusy(true);
+    try {
+      const updated = saveScenarioRevision(activeScenario, { problem: buildProblem() });
+      await upsertRecords("optimization_scenarios", [updated]);
+      await refreshScenarios();
+      setActiveScenarioCode(updated.code);
+    } finally {
+      setScenarioBusy(false);
+    }
+  };
+
+  const onCloneScenario = async () => {
+    if (!activeScenario) return;
+    setScenarioBusy(true);
+    try {
+      const clone = cloneScenario(activeScenario, { name: `${activeScenario.name} (${t("optimizer.scenario.copySuffix")})` });
+      await upsertRecords("optimization_scenarios", [clone]);
+      await refreshScenarios();
+      setActiveScenarioCode(clone.code);
+    } finally {
+      setScenarioBusy(false);
+    }
+  };
+
+  const onRenameScenario = async () => {
+    if (!activeScenario || !scenarioNameInput.trim()) return;
+    setScenarioBusy(true);
+    try {
+      const renamed = renameScenario(activeScenario, scenarioNameInput.trim());
+      await upsertRecords("optimization_scenarios", [renamed]);
+      await refreshScenarios();
+      setActiveScenarioCode(renamed.code);
+      setScenarioNameInput("");
+    } finally {
+      setScenarioBusy(false);
+    }
+  };
+
+  const onRetireScenario = async () => {
+    if (!activeScenario) return;
+    setScenarioBusy(true);
+    try {
+      const retired = retireScenario(activeScenario);
+      await upsertRecords("optimization_scenarios", [retired]);
+      await refreshScenarios();
+      setActiveScenarioCode(null);
+    } finally {
+      setScenarioBusy(false);
+    }
+  };
+
+  const onRestoreScenario = async (retired: OptimizationScenario) => {
+    setScenarioBusy(true);
+    try {
+      const restored = restoreRetiredScenarioAsNew(retired);
+      await upsertRecords("optimization_scenarios", [restored]);
+      await refreshScenarios();
+      setActiveScenarioCode(restored.code);
+    } finally {
+      setScenarioBusy(false);
+    }
+  };
+
+  /** Load a scenario's problem back into this screen's own editor state —
+   *  candidate selection, functional constraints and objectives round-trip
+   *  exactly; everything else the problem carries that this screen has no
+   *  editor for (ratio/conditional/composition constraints beyond the
+   *  automatic ones) is preserved in `profileExtras` so it is still sent to
+   *  the solver, never silently dropped. */
+  const onLoadScenario = (scenario: OptimizationScenario) => {
+    setActiveScenarioCode(scenario.code);
+    setComparison(null);
+    const p = scenario.problem;
+    setSelected(new Set(p.materials.filter((m) => !m.excluded).map((m) => m.materialCode)));
+    setFunctional(
+      p.functionalConstraints.map((f) => ({
+        id: f.id,
+        functionGroups: f.functionGroups,
+        constraintType: f.constraintType === "at_least_one_present" ? "min_total" : f.constraintType,
+        value: f.value ?? "0",
+        strictness: f.strictness === "soft" ? "soft" : "hard",
+        penaltyWeight: f.penaltyWeight ?? "1",
+        allowedDeviation: f.allowedDeviation ?? "0",
+      })),
+    );
+    setPropertyTargets(
+      p.propertyTargets.map((pt) => ({
+        id: pt.id,
+        property: pt.property,
+        minValue: pt.minValue ?? "",
+        maxValue: pt.maxValue ?? "",
+        enforceAs: pt.enforceAs ?? "reported_only",
+        penaltyWeight: pt.penaltyWeight ?? "1",
+      })),
+    );
+    setCostCeiling(p.costCeiling?.value ?? "");
+    setObjectives(p.objectiveConfig.objectives.map((o) => ({ metric: o.metric, direction: o.direction, weight: o.weight ?? "1" })));
+    setProfileExtras({
+      compositionConstraints: p.compositionConstraints.filter((c) => c.id !== "total"),
+      ratioConstraints: p.ratioConstraints,
+      conditionalConstraints: [], // regenerated live by blockingExclusionConstraints from the (now-reloaded) candidate set.
+    });
+  };
+
+  const onApplyProfile = (mode: ProfileApplyMode) => {
+    const profile = profiles.find((p) => p.code === selectedProfileCode);
+    if (!profile) return;
+    if (mode === "replace" && !confirmReplaceProfile) {
+      setConfirmReplaceProfile(true);
+      return;
+    }
+    setConfirmReplaceProfile(false);
+    const result = applyProfileToProblem(buildProblem(), profile, mode);
+    setProfileExtras({
+      compositionConstraints: result.problem.compositionConstraints.filter((c) => c.id !== "total"),
+      ratioConstraints: result.problem.ratioConstraints,
+      conditionalConstraints: [],
+    });
+    setPropertyTargets(
+      result.problem.propertyTargets.map((pt) => ({
+        id: pt.id,
+        property: pt.property,
+        minValue: pt.minValue ?? "",
+        maxValue: pt.maxValue ?? "",
+        enforceAs: pt.enforceAs ?? "reported_only",
+        penaltyWeight: pt.penaltyWeight ?? "1",
+      })),
+    );
+    if (mode === "replace" && result.problem.objectiveConfig.objectives.length > 0) {
+      setObjectives(
+        result.problem.objectiveConfig.objectives.map((o) => ({ metric: o.metric, direction: o.direction, weight: o.weight ?? "1" })),
+      );
+    }
+  };
+
+  const toggleCompareRun = (code: string) => {
+    setCompareSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  };
+
+  const runCompare = () => {
+    const chosen = runs.filter((r) => compareSelection.has(r.code));
+    if (chosen.length < 2) return;
+    setComparison(compareOptimizationRuns(chosen, scenarioNameByGroupId));
   };
 
   const sortedMaterials = useMemo(
@@ -435,6 +624,209 @@ export function AdvancedOptimizerPanel({
 
   return (
     <div className="h-full overflow-auto px-5 py-4">
+      <section className="mb-4 rounded-card border border-border bg-surface-2 p-3">
+        <h3 className="mb-2 text-[12px] font-medium text-text">{t("optimizer.scenario.heading")}</h3>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <select
+            value={activeScenarioCode ?? ""}
+            onChange={(e) => {
+              const s = currentScenarios.find((x) => x.code === e.target.value);
+              if (s) onLoadScenario(s);
+              else {
+                setActiveScenarioCode(null);
+                setComparison(null);
+              }
+            }}
+            aria-label={t("optimizer.scenario.selector")}
+            className="rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text"
+          >
+            <option value="">{t("optimizer.scenario.none")}</option>
+            {currentScenarios
+              .filter((s) => s.status === "active")
+              .map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
+          <input
+            value={scenarioNameInput}
+            onChange={(e) => setScenarioNameInput(e.target.value)}
+            placeholder={t("optimizer.scenario.namePlaceholder")}
+            className="rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text"
+          />
+          <button
+            onClick={() => void onNewScenario()}
+            disabled={scenarioBusy || !scenarioNameInput.trim()}
+            className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface disabled:opacity-40"
+          >
+            {t("optimizer.scenario.new")}
+          </button>
+          {activeScenario && (
+            <>
+              <button
+                onClick={() => void onSaveScenario()}
+                disabled={scenarioBusy}
+                className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10 disabled:opacity-40"
+              >
+                {t("optimizer.scenario.save")}
+              </button>
+              <button
+                onClick={() => void onCloneScenario()}
+                disabled={scenarioBusy}
+                className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface disabled:opacity-40"
+              >
+                {t("optimizer.scenario.clone")}
+              </button>
+              <button
+                onClick={() => void onRenameScenario()}
+                disabled={scenarioBusy || !scenarioNameInput.trim()}
+                className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface disabled:opacity-40"
+              >
+                {t("optimizer.scenario.rename")}
+              </button>
+              <button
+                onClick={() => void onRetireScenario()}
+                disabled={scenarioBusy}
+                className="rounded-input border border-error/40 px-2 py-1 text-[11px] text-error hover:bg-error/10 disabled:opacity-40"
+              >
+                {t("optimizer.scenario.retire")}
+              </button>
+            </>
+          )}
+        </div>
+
+        {currentScenarios.some((s) => s.status === "retired") && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+            <span>{t("optimizer.scenario.retiredHeading")}:</span>
+            {currentScenarios
+              .filter((s) => s.status === "retired")
+              .map((s) => (
+                <button
+                  key={s.code}
+                  onClick={() => void onRestoreScenario(s)}
+                  className="rounded-input border border-border px-1.5 py-0.5 hover:bg-surface"
+                >
+                  {s.name} — {t("optimizer.scenario.restore")}
+                </button>
+              ))}
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border-faint pt-2">
+          <span className="text-[11px] font-medium text-muted">{t("optimizer.scenario.profileHeading")}</span>
+          <select
+            value={selectedProfileCode}
+            onChange={(e) => {
+              setSelectedProfileCode(e.target.value);
+              setConfirmReplaceProfile(false);
+            }}
+            aria-label={t("optimizer.scenario.profileSelector")}
+            className="rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text"
+          >
+            <option value="">{t("optimizer.scenario.profileNone")}</option>
+            {profiles.map((p) => (
+              <option key={p.code} value={p.code}>
+                {p.displayName}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => onApplyProfile("apply_missing")}
+            disabled={!selectedProfileCode}
+            className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface disabled:opacity-40"
+          >
+            {t("optimizer.scenario.applyMissing")}
+          </button>
+          <button
+            onClick={() => onApplyProfile("merge")}
+            disabled={!selectedProfileCode}
+            className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface disabled:opacity-40"
+          >
+            {t("optimizer.scenario.merge")}
+          </button>
+          <button
+            onClick={() => onApplyProfile("replace")}
+            disabled={!selectedProfileCode}
+            className={cn(
+              "rounded-input border px-2 py-1 text-[11px] disabled:opacity-40",
+              confirmReplaceProfile ? "border-error bg-error/10 text-error" : "border-border text-text hover:bg-surface",
+            )}
+          >
+            {confirmReplaceProfile ? t("optimizer.scenario.replaceConfirm") : t("optimizer.scenario.replace")}
+          </button>
+          {selectedProfileCode && (
+            <span className="text-[10px] text-muted">{t("optimizer.scenario.requiresChemistReview")}</span>
+          )}
+        </div>
+
+        {(profileExtras.compositionConstraints.length > 0 ||
+          profileExtras.ratioConstraints.length > 0 ||
+          propertyTargets.length > 0) && (
+          <p className="mt-2 text-[10px] text-muted">
+            {t("optimizer.scenario.extrasNote", {
+              composition: profileExtras.compositionConstraints.length,
+              ratio: profileExtras.ratioConstraints.length,
+              property: propertyTargets.length,
+            })}
+          </p>
+        )}
+
+        {scenarioRunHistory.length > 0 && (
+          <div className="mt-3 border-t border-border-faint pt-2">
+            <span className="text-[11px] font-medium text-muted">{t("optimizer.scenario.runHistory")}</span>
+            <ul className="mt-1 space-y-1">
+              {scenarioRunHistory.map((r) => (
+                <li key={r.code} className="flex items-center gap-2 text-[11px] text-text">
+                  <input
+                    type="checkbox"
+                    checked={compareSelection.has(r.code)}
+                    onChange={() => toggleCompareRun(r.code)}
+                    aria-label={t("optimizer.scenario.selectForCompare")}
+                  />
+                  <span>{r.code}</span>
+                  <span className="text-muted">{r.result.status}</span>
+                  <span className="text-muted tabular-nums">{r.result.totals?.totalRawMaterialCost ?? "—"}</span>
+                  <span className="text-muted">{r.createdAt}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {runs.length >= 2 && (
+          <div className="mt-3 border-t border-border-faint pt-2">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[11px] font-medium text-muted">{t("optimizer.scenario.allRuns")}</span>
+              <button
+                onClick={runCompare}
+                disabled={compareSelection.size < 2}
+                className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface disabled:opacity-40"
+              >
+                {t("optimizer.scenario.compare")}
+              </button>
+            </div>
+            <ul className="max-h-24 space-y-1 overflow-auto">
+              {runs.map((r) => (
+                <li key={r.code} className="flex items-center gap-2 text-[11px] text-text">
+                  <input
+                    type="checkbox"
+                    checked={compareSelection.has(r.code)}
+                    onChange={() => toggleCompareRun(r.code)}
+                    aria-label={t("optimizer.scenario.selectForCompare")}
+                  />
+                  <span>{r.code}</span>
+                  <span className="text-muted">{r.result.status}</span>
+                  {r.scenarioId && <span className="text-muted">{scenarioNameByGroupId.get(r.scenarioId) ?? r.scenarioId}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {comparison && <ScenarioComparisonView comparison={comparison} t={t} />}
+      </section>
+
       <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section>
           <h3 className="mb-2 text-[12px] font-medium text-text">
@@ -516,6 +908,93 @@ export function AdvancedOptimizerPanel({
 
       <section className="mb-4">
         <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-[12px] font-medium text-text">{t("optimizer.propertyTargets")}</h3>
+          <button
+            onClick={addPropertyTargetRow}
+            className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2"
+          >
+            {t("optimizer.addPropertyTarget")}
+          </button>
+        </div>
+        <div className="space-y-1.5">
+          {propertyTargets.map((row, idx) => (
+            <div key={row.id} className="flex flex-wrap items-center gap-1.5 rounded-input border border-border px-2 py-1.5">
+              <select
+                value={row.property}
+                onChange={(e) =>
+                  setPropertyTargets((rows) => rows.map((r, i) => (i === idx ? { ...r, property: e.target.value as FormulationProperty } : r)))
+                }
+                className="rounded-input border border-border bg-surface px-1 py-1 text-[11px]"
+              >
+                {FORMULATION_PROPERTIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={row.minValue}
+                onChange={(e) => setPropertyTargets((rows) => rows.map((r, i) => (i === idx ? { ...r, minValue: e.target.value } : r)))}
+                placeholder={t("optimizer.minValue")}
+                inputMode="decimal"
+                className="w-16 rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
+              />
+              <input
+                value={row.maxValue}
+                onChange={(e) => setPropertyTargets((rows) => rows.map((r, i) => (i === idx ? { ...r, maxValue: e.target.value } : r)))}
+                placeholder={t("optimizer.maxValue")}
+                inputMode="decimal"
+                className="w-16 rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
+              />
+              <select
+                value={row.enforceAs}
+                onChange={(e) =>
+                  setPropertyTargets((rows) =>
+                    rows.map((r, i) => (i === idx ? { ...r, enforceAs: e.target.value as PropertyTargetRow["enforceAs"] } : r)),
+                  )
+                }
+                className="rounded-input border border-border bg-surface px-1 py-1 text-[11px]"
+              >
+                <option value="reported_only">{t("optimizer.reportedOnly")}</option>
+                <option value="hard">{t("optimizer.hard")}</option>
+                <option value="soft">{t("optimizer.soft")}</option>
+              </select>
+              {row.enforceAs === "soft" && (
+                <input
+                  value={row.penaltyWeight}
+                  onChange={(e) =>
+                    setPropertyTargets((rows) => rows.map((r, i) => (i === idx ? { ...r, penaltyWeight: e.target.value } : r)))
+                  }
+                  placeholder={t("optimizer.penaltyWeight")}
+                  inputMode="decimal"
+                  className="w-16 rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
+                />
+              )}
+              <button
+                onClick={() => setPropertyTargets((rows) => rows.filter((_, i) => i !== idx))}
+                aria-label={t("common:actions.remove")}
+                className="ml-auto text-[11px] text-muted hover:text-error"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {propertyTargets.length === 0 && <p className="text-[11px] text-muted">{t("optimizer.noPropertyTargets")}</p>}
+        </div>
+        <label className="mt-2 flex items-center gap-1.5 text-[11px] text-text">
+          {t("optimizer.costCeiling")}
+          <input
+            value={costCeiling}
+            onChange={(e) => setCostCeiling(e.target.value)}
+            inputMode="decimal"
+            placeholder={t("optimizer.costCeilingPlaceholder")}
+            className="w-24 rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
+          />
+        </label>
+      </section>
+
+      <section className="mb-4">
+        <div className="mb-2 flex items-center justify-between">
           <h3 className="text-[12px] font-medium text-text">{t("optimizer.objectives")}</h3>
           <button
             onClick={addObjectiveRow}
@@ -581,7 +1060,7 @@ export function AdvancedOptimizerPanel({
             <Ban size={13} /> {t("optimizer.cancel")}
           </button>
         )}
-        {result?.formulaLines && (result.status === "optimal" || result.status === "feasible") && (
+        {result?.formulaLines && USABLE_RESULT_STATUSES.has(result.status) && (
           <button
             onClick={apply}
             className="flex items-center gap-1.5 rounded-input border border-accent px-3 py-1.5 text-xs text-accent hover:bg-accent/10"
@@ -650,7 +1129,7 @@ function ResultView({
     );
   }
 
-  if (result.status !== "optimal" && result.status !== "feasible") {
+  if (!USABLE_RESULT_STATUSES.has(result.status)) {
     return (
       <div className="rounded-card border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted">
         {t("optimizer.statusLabel")}: {result.status}
@@ -658,8 +1137,17 @@ function ResultView({
     );
   }
 
+  const softResults = (result.constraintResults ?? []).filter((c) => c.strictness === "soft");
+  const violatedSoft = softResults.filter((c) => !c.satisfied);
+
   return (
     <div>
+      {result.status === "feasible_with_penalties" && (
+        <div role="status" className="mb-3 rounded-input border border-warn/40 bg-warn/10 px-3 py-2 text-[12px] text-warn">
+          {t("optimizer.feasibleWithPenalties", { count: violatedSoft.length })}
+        </div>
+      )}
+
       <table className="w-full text-[12px]">
         <thead>
           <tr className="border-b border-border text-left text-[11px] text-muted">
@@ -704,6 +1192,54 @@ function ResultView({
         </div>
       )}
 
+      {softResults.length > 0 && (
+        <div className="mt-3">
+          <h4 className="mb-1 text-[11px] font-medium text-muted">{t("optimizer.softConstraints")}</h4>
+          <ul className="space-y-1">
+            {softResults.map((c) => (
+              <li
+                key={c.constraintId}
+                className={cn(
+                  "rounded-input border px-2 py-1.5 text-[11px]",
+                  c.satisfied ? "border-border text-muted" : "border-warn/40 bg-warn/10 text-warn",
+                )}
+              >
+                {c.constraintId} — {c.satisfied ? t("optimizer.satisfied") : t("optimizer.violated")}
+                {c.requestedTarget !== undefined && (
+                  <span className="ml-2 tabular-nums">
+                    {t("optimizer.requestedVsAchieved", { requested: c.requestedTarget, achieved: c.achievedValue ?? "—" })}
+                  </span>
+                )}
+                {c.deviation !== undefined && (
+                  <span className="ml-2 tabular-nums">
+                    {t("optimizer.deviation")}: {c.deviation}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result.propertyResults && result.propertyResults.length > 0 && (
+        <div className="mt-3">
+          <h4 className="mb-1 text-[11px] font-medium text-muted">{t("optimizer.propertyResultsHeading")}</h4>
+          <ul className="space-y-1">
+            {result.propertyResults.map((p) => (
+              <li key={p.targetId} className="rounded-input border border-border px-2 py-1.5 text-[11px] text-text">
+                <span className="font-medium">{p.property}</span>: {p.value ?? t("optimizer.laboratoryRequired")}
+                <span className="ml-2 text-muted">
+                  ({p.classification}, {p.dataCompleteness}, {p.constraintStatus})
+                </span>
+                {p.laboratoryConfirmationRequired && (
+                  <span className="ml-2 rounded bg-warn/10 px-1 py-0.5 text-warn">{t("optimizer.labConfirmationRequired")}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {result.warnings && result.warnings.length > 0 && (
         <ul className="mt-3 space-y-1">
           {result.warnings.map((w, i) => (
@@ -717,6 +1253,80 @@ function ResultView({
       {result.solverMetadata?.isMixedInteger && (
         <p className="mt-3 text-[10px] text-muted">{t("optimizer.mixedIntegerNote")}</p>
       )}
+    </div>
+  );
+}
+
+const HIGHLIGHT_LABEL_KEY: Record<string, string> = {
+  lowest_cost: "optimizer.scenario.highlightLowestCost",
+  lowest_safety_risk: "optimizer.scenario.highlightLowestSafetyRisk",
+  lowest_compatibility_risk: "optimizer.scenario.highlightLowestCompatibilityRisk",
+  fewest_soft_violations: "optimizer.scenario.highlightFewestSoftViolations",
+  highest_stock_utilization: "optimizer.scenario.highlightHighestStockUtilization",
+};
+
+/** Renders a `ScenarioComparison` — every row read straight from a
+ *  persisted `OptimizationRun`'s own stored result, never re-solved. Never
+ *  labels one row "best overall": only the per-rule highlights
+ *  `compareOptimizationRuns` itself decided (see engine/scenarios.ts), each
+ *  shown next to the row it belongs to. */
+function ScenarioComparisonView({
+  comparison,
+  t,
+}: {
+  comparison: ScenarioComparison;
+  t: TFunction<readonly ["session", "common"]>;
+}) {
+  const highlightsByRun = new Map<string, string[]>();
+  for (const h of comparison.highlights) {
+    const list = highlightsByRun.get(h.runCode) ?? [];
+    const key = HIGHLIGHT_LABEL_KEY[h.rule] ?? h.rule;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- i18next's key union is too large for a dynamic lookup to narrow to.
+    list.push(t(key as any));
+    highlightsByRun.set(h.runCode, list);
+  }
+
+  return (
+    <div className="mt-3 border-t border-border-faint pt-2">
+      <h4 className="mb-1 text-[11px] font-medium text-muted">{t("optimizer.scenario.comparisonHeading")}</h4>
+      <div className="overflow-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="border-b border-border text-left text-muted">
+              <th className="py-1 font-medium">{t("optimizer.scenario.compareRun")}</th>
+              <th className="py-1 font-medium">{t("optimizer.scenario.compareScenario")}</th>
+              <th className="py-1 font-medium">{t("optimizer.statusLabel")}</th>
+              <th className="py-1 text-right font-medium">{t("optimizer.cost")}</th>
+              <th className="py-1 text-right font-medium">{t("optimizer.scenario.compareSoftViolations")}</th>
+              <th className="py-1 text-right font-medium">{t("optimizer.scenario.compareCompatRisk")}</th>
+              <th className="py-1 text-right font-medium">{t("optimizer.scenario.compareSafetyRisk")}</th>
+              <th className="py-1 text-right font-medium">{t("optimizer.scenario.compareStockUtilization")}</th>
+              <th className="py-1 text-right font-medium">{t("optimizer.scenario.compareMissingData")}</th>
+              <th className="py-1 text-right font-medium">{t("optimizer.scenario.compareSolveTime")}</th>
+              <th className="py-1 font-medium">{t("optimizer.scenario.compareHighlights")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {comparison.rows.map((row) => (
+              <tr key={row.runCode} className="border-b border-border-faint">
+                <td className="py-1 text-text">{row.runCode}</td>
+                <td className="py-1 text-muted">{row.scenarioName ?? "—"}</td>
+                <td className="py-1 text-muted">{row.status}</td>
+                <td className="py-1 text-right tabular-nums text-muted">{row.totalRawMaterialCost ?? "—"}</td>
+                <td className="py-1 text-right tabular-nums text-muted">{row.softViolationCount}</td>
+                <td className="py-1 text-right tabular-nums text-muted">{row.compatibilityRisk ?? "—"}</td>
+                <td className="py-1 text-right tabular-nums text-muted">{row.safetyRisk ?? "—"}</td>
+                <td className="py-1 text-right tabular-nums text-muted">{row.stockUtilization ?? "—"}</td>
+                <td className="py-1 text-right tabular-nums text-muted">{row.missingDataWarningCount}</td>
+                <td className="py-1 text-right tabular-nums text-muted">
+                  {t("optimizer.scenario.compareSolveTimeValue", { ms: row.solveTimeMs.toFixed(0) })}
+                </td>
+                <td className="py-1 text-accent">{(highlightsByRun.get(row.runCode) ?? []).join(", ") || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
