@@ -632,6 +632,9 @@
     "commit": "Import",
     "importResult": "{{inserted}} created, {{updated}} updated.",
     "phMin": "pH minimum",
-    "phMax": "pH maximum"
+    "phMax": "pH maximum",
+    "templateXlsx": "Template (Excel)",
+    "exportXlsx": "Export (Excel)",
+    "fileUnreadable": "This file could not be read. It may be corrupted, password-protected, or not a valid CSV/.xlsx file."
   }
 }

@@ -131,3 +131,94 @@ function cellRef(ref: string): { r: number; c: number } | null {
   for (const ch of m[1]) c = c * 26 + (ch.charCodeAt(0) - 64);
   return { r: parseInt(m[2], 10), c };
 }
+
+// ------------------------------------------------------------- import/export ---
+//
+// Master-data import/export accepts `.xlsx` alongside CSV. Both end up as
+// `string[][]` and go through the exact same validation in
+// `previewImportRows` (packages/shared/src/engine/importer.ts) — a supplier's
+// spreadsheet is validated identically whichever format they happened to send.
+
+/** A cell's text as an import would want to read it: a plain string, numbers
+ *  and dates rendered the way a person typed them rather than reformatted. */
+function cellText(value: ExcelJS.CellValue): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    // Rich text / formula result / hyperlink objects: take the readable text.
+    const rich = value as { richText?: { text: string }[]; text?: string; result?: unknown };
+    if (Array.isArray(rich.richText)) return rich.richText.map((r) => r.text).join("");
+    if (typeof rich.text === "string") return rich.text;
+    if (rich.result !== undefined) return cellText(rich.result as ExcelJS.CellValue);
+    return "";
+  }
+  return String(value);
+}
+
+/** Extensions that carry macros or are a legacy binary format ExcelJS cannot
+ *  parse safely. Rejected before any parse is attempted. */
+const UNSUPPORTED_WORKBOOK_EXTENSIONS = [".xlsm", ".xltm", ".xlam", ".xlsb", ".xls"];
+
+export function rejectUnsupportedWorkbook(filename: string): string | null {
+  const lower = filename.toLowerCase();
+  const bad = UNSUPPORTED_WORKBOOK_EXTENSIONS.find((ext) => lower.endsWith(ext));
+  return bad
+    ? `${bad} files are not accepted (macro-enabled or legacy binary workbooks). Save as .xlsx and retry.`
+    : null;
+}
+
+/**
+ * Read the first worksheet of a `.xlsx` file as rows of plain strings, in the
+ * same shape `parseCsv` produces, so both feed the identical import pipeline.
+ */
+export async function readWorkbookRows(bytes: ArrayBuffer): Promise<string[][]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(bytes);
+  const ws = wb.worksheets[0];
+  if (!ws) return [];
+  const rows: string[][] = [];
+  ws.eachRow((row) => {
+    const cells: string[] = [];
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cells.push(cellText(cell.value));
+    });
+    if (cells.some((c) => c.trim() !== "")) rows.push(cells);
+  });
+  return rows;
+}
+
+/**
+ * Build an `.xlsx` workbook from headers + rows — used for both the blank
+ * import template and a data export.
+ *
+ * Every string cell goes through the same formula-injection neutralisation as
+ * the CSV path (`sanitizeCell`), even though ExcelJS writes plain string
+ * cells that Excel would not evaluate as formulas on their own: defense in
+ * depth, and it keeps a round-trip through CSV byte-identical in meaning.
+ */
+export async function buildXlsxBuffer(
+  headers: string[],
+  rows: Record<string, unknown>[],
+  sheetName = "Sheet1",
+): Promise<ArrayBuffer> {
+  const { sanitizeCell } = await import("@ai4s/shared");
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(sheetName);
+  ws.addRow(headers);
+  for (const row of rows) {
+    ws.addRow(headers.map((h) => sanitizeCell(row[h])));
+  }
+  return (await wb.xlsx.writeBuffer()) as ArrayBuffer;
+}
+
+/** {@link buildXlsxBuffer}, wrapped for a browser download link. */
+export async function buildXlsxBlob(
+  headers: string[],
+  rows: Record<string, unknown>[],
+  sheetName = "Sheet1",
+): Promise<Blob> {
+  const buf = await buildXlsxBuffer(headers, rows, sheetName);
+  return new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}

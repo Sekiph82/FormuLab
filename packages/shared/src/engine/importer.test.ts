@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   MATERIAL_FIELDS,
+  PACKAGING_BOM_LINE_FIELDS,
   PRICE_FIELDS,
+  aggregateBomRows,
   desanitizeCell,
   parseCsv,
   previewImport,
+  previewImportRows,
   sanitizeCell,
   sniffDelimiter,
   templateCsv,
@@ -178,6 +181,52 @@ describe("price import", () => {
     const p = previewImport("price code,material code\nPR-1,M-1", PRICE_FIELDS);
     const missing = p.issues.filter((i) => i.message.includes("is missing")).map((i) => i.column);
     expect(missing).toEqual(expect.arrayContaining(["price", "currency", "effectiveFrom"]));
+  });
+});
+
+describe("previewImportRows (the .xlsx entry point)", () => {
+  it("validates identically to previewImport, given the same rows", () => {
+    const csv = "code,displayName,activeMatterPercent\nM-1,SLES 70,70";
+    const fromCsv = previewImport(csv, MATERIAL_FIELDS);
+    const fromRows = previewImportRows(parseCsv(csv), MATERIAL_FIELDS);
+    expect(fromRows.valid).toEqual(fromCsv.valid);
+    expect(fromRows.issues).toEqual(fromCsv.issues);
+  });
+
+  it("reports the same row-level errors a workbook reader would produce", () => {
+    // A workbook reader hands over rows exactly like this: no CSV quoting or
+    // delimiter to get wrong, just cell text, including a blank required cell.
+    const rows = [
+      ["code", "displayName", "activeMatterPercent"],
+      ["M-1", "SLES 70", "70"],
+      ["", "No code", "50"],
+    ];
+    const p = previewImportRows(rows, MATERIAL_FIELDS);
+    expect(p.valid).toHaveLength(1);
+    expect(p.invalidRows).toEqual([3]);
+  });
+});
+
+describe("aggregateBomRows", () => {
+  it("groups rows sharing a bomCode into one packaging BOM", () => {
+    const p = previewImportRows<Record<string, unknown>>(
+      [
+        ["bomCode", "skuCode", "componentCode", "quantityPerUnit", "fillQuantity", "fillUnit"],
+        ["BOM-1", "SKU-1", "BOTTLE-500", "1", "500", "ml"],
+        ["BOM-1", "SKU-1", "TRIGGER-1", "1", "", ""],
+        ["BOM-1", "SKU-1", "LABEL-1", "1", "", ""],
+      ],
+      PACKAGING_BOM_LINE_FIELDS,
+      [],
+      { codeField: "bomCode", allowRepeatedCode: true },
+    );
+    expect(p.invalidRows).toEqual([]);
+
+    const boms = aggregateBomRows(p.valid);
+    expect(boms).toHaveLength(1);
+    expect(boms[0]).toMatchObject({ code: "BOM-1", skuCode: "SKU-1", fillQuantity: "500", fillUnit: "ml" });
+    expect(boms[0].lines).toHaveLength(3);
+    expect(boms[0].lines.map((l) => l.componentCode)).toEqual(["BOTTLE-500", "TRIGGER-1", "LABEL-1"]);
   });
 });
 

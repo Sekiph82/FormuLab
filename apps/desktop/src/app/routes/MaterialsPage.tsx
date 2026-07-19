@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Plus, Search, Upload } from "lucide-react";
+import { Download, FileSpreadsheet, Plus, Search, Upload } from "lucide-react";
 import {
   INVENTORY_FIELDS,
   MATERIAL_FIELDS,
@@ -19,6 +19,7 @@ import {
 } from "@ai4s/shared";
 import { ImportDialog } from "@/components/formula/ImportDialog";
 import { MaterialEditor } from "@/components/formula/MaterialEditor";
+import { buildXlsxBlob } from "@/lib/xlsx";
 import {
   listRecords,
   newMaterial,
@@ -117,24 +118,37 @@ export function MaterialsPage() {
 
   const config = TAB_CONFIG[tab];
 
+  const currentRows = (): Record<string, unknown>[] =>
+    tab === "materials"
+      ? filteredMaterials
+      : tab === "suppliers"
+        ? suppliers
+        : tab === "prices"
+          ? prices
+          : tab === "inventory"
+            ? inventory
+            : rates;
+
   const exportCurrent = () => {
-    const rows: Record<string, unknown>[] =
-      tab === "materials"
-        ? filteredMaterials
-        : tab === "suppliers"
-          ? suppliers
-          : tab === "prices"
-            ? prices
-            : tab === "inventory"
-              ? inventory
-              : rates;
+    const rows = currentRows();
     const headers = config.fields.length > 0 ? config.fields.map((f) => f.field) : Object.keys(rows[0] ?? {});
     download(`${tab}.csv`, toCsv(headers, rows));
+  };
+
+  const exportCurrentXlsx = async () => {
+    const rows = currentRows();
+    const headers = config.fields.length > 0 ? config.fields.map((f) => f.field) : Object.keys(rows[0] ?? {});
+    downloadBlob(`${tab}.xlsx`, await buildXlsxBlob(headers, rows, tab));
   };
 
   const downloadTemplate = () => {
     if (config.fields.length === 0) return;
     download(`${tab}-template.csv`, templateCsv(config.fields));
+  };
+
+  const downloadTemplateXlsx = async () => {
+    if (config.fields.length === 0) return;
+    downloadBlob(`${tab}-template.xlsx`, await buildXlsxBlob(config.fields.map((f) => f.field), [], tab));
   };
 
   const onImported = async (records: Record<string, unknown>[]) => {
@@ -210,6 +224,13 @@ export function MaterialsPage() {
               <Download size={13} /> {t("materials.template")}
             </button>
             <button
+              onClick={() => void downloadTemplateXlsx()}
+              title={t("materials.templateXlsx")}
+              className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-xs text-muted hover:bg-surface-2 hover:text-text"
+            >
+              <FileSpreadsheet size={13} /> {t("materials.templateXlsx")}
+            </button>
+            <button
               onClick={() => setImporting(true)}
               className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-xs text-muted hover:bg-surface-2 hover:text-text"
             >
@@ -222,6 +243,13 @@ export function MaterialsPage() {
           className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-xs text-muted hover:bg-surface-2 hover:text-text"
         >
           <Download size={13} /> {t("materials.export")}
+        </button>
+        <button
+          onClick={() => void exportCurrentXlsx()}
+          title={t("materials.exportXlsx")}
+          className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-xs text-muted hover:bg-surface-2 hover:text-text"
+        >
+          <FileSpreadsheet size={13} /> {t("materials.exportXlsx")}
         </button>
       </header>
 
@@ -647,6 +675,10 @@ function existingCodesFor(
 function download(filename: string, content: string) {
   // A BOM so Excel opens the file as UTF-8 instead of mangling accented names.
   const blob = new Blob(["﻿", content], { type: "text/csv;charset=utf-8" });
+  downloadBlob(filename, blob);
+}
+
+function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

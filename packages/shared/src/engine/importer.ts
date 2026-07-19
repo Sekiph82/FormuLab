@@ -174,8 +174,33 @@ export function previewImport<T extends Record<string, unknown>>(
   existingCodes: string[] = [],
   opts: { codeField?: string } = {},
 ): ImportPreview<T> {
+  return previewImportRows<T>(parseCsv(text), specs, existingCodes, opts);
+}
+
+/**
+ * Same validation as {@link previewImport}, starting from already-split rows.
+ *
+ * The shared entry point for CSV (via `parseCsv`) and `.xlsx` (via a workbook
+ * reader that has no reason to live in this package, since it needs a real
+ * spreadsheet engine) — both end up as `string[][]` and are validated by
+ * exactly the same rules, so an import behaves identically whichever format a
+ * supplier happened to send.
+ */
+export function previewImportRows<T extends Record<string, unknown>>(
+  rows: string[][],
+  specs: FieldSpec[],
+  existingCodes: string[] = [],
+  opts: {
+    codeField?: string;
+    /**
+     * A denormalized one-row-per-child-line format (packaging BOM lines: many
+     * rows legitimately share one `bomCode`) is not a code collision — it is
+     * the format. Set this to skip the repeated-code check for that file.
+     */
+    allowRepeatedCode?: boolean;
+  } = {},
+): ImportPreview<T> {
   const codeField = opts.codeField ?? "code";
-  const rows = parseCsv(text);
   const issues: RowIssue[] = [];
 
   if (rows.length === 0) {
@@ -296,7 +321,7 @@ export function previewImport<T extends Record<string, unknown>>(
         message: `No ${codeField}: rows are matched on it, so a row without one cannot be imported safely.`,
       });
       rowFailed = true;
-    } else if (seenInFile.has(code)) {
+    } else if (seenInFile.has(code) && !opts.allowRepeatedCode) {
       issues.push({
         row: rowNumber,
         column: codeField,
@@ -435,6 +460,99 @@ export const MATERIAL_FUNCTION_FIELDS: FieldSpec[] = [
   { field: "materialCode", aliases: ["material code", "material"], required: true },
   { field: "function", aliases: ["function", "role"], required: true },
 ];
+
+export const PACKAGING_COMPONENT_FIELDS: FieldSpec[] = [
+  { field: "code", aliases: ["component code", "kod"], required: true },
+  { field: "description", aliases: ["description", "name", "aciklama"], required: true },
+  { field: "componentType", aliases: ["type", "component type", "tur"], required: true },
+  { field: "supplierCode", aliases: ["supplier code", "supplier", "tedarikci"] },
+  { field: "unit", aliases: ["unit", "birim"] },
+  { field: "unitPrice", aliases: ["unit price", "price", "fiyat"], kind: "decimal" },
+  { field: "currency", aliases: ["currency", "para birimi"] },
+  { field: "moq", aliases: ["moq", "minimum order"], kind: "decimal" },
+  { field: "effectiveFrom", aliases: ["effective from", "date", "tarih"] },
+  { field: "weightG", aliases: ["weight", "weight g", "agirlik"], kind: "decimal" },
+  { field: "materialType", aliases: ["material type", "malzeme turu"] },
+  { field: "wasteFactorPercent", aliases: ["waste factor", "waste %", "fire"], kind: "decimal" },
+  { field: "notes", aliases: ["notes", "not"] },
+  { field: "active", aliases: ["active", "aktif"], kind: "boolean" },
+];
+
+export const FACTORY_PROFILE_FIELDS: FieldSpec[] = [
+  { field: "code", aliases: ["profile code", "kod"], required: true },
+  { field: "name", aliases: ["name", "ad"], required: true },
+  { field: "currency", aliases: ["currency", "para birimi"] },
+  { field: "electricityPerKwh", aliases: ["electricity", "electricity per kwh"], kind: "decimal" },
+  { field: "waterPerM3", aliases: ["water", "water per m3"], kind: "decimal" },
+  { field: "steamPerKg", aliases: ["steam", "steam per kg"], kind: "decimal" },
+  { field: "compressedAirPerBatch", aliases: ["compressed air", "air per batch"], kind: "decimal" },
+  { field: "directLabourPerHour", aliases: ["labour rate", "labor rate", "direct labour per hour"], kind: "decimal" },
+  { field: "labourHoursPerBatch", aliases: ["labour hours per batch", "labor hours"], kind: "decimal" },
+  { field: "kwhPerBatch", aliases: ["kwh per batch"], kind: "decimal" },
+  { field: "waterM3PerBatch", aliases: ["water m3 per batch"], kind: "decimal" },
+  { field: "steamKgPerBatch", aliases: ["steam kg per batch"], kind: "decimal" },
+  { field: "qcCostPerBatch", aliases: ["qc cost per batch"], kind: "decimal" },
+  { field: "qcPercentOfBatch", aliases: ["qc percent"], kind: "decimal" },
+  { field: "processLossPercent", aliases: ["process loss", "process loss %"], kind: "decimal" },
+  { field: "wasteDisposalPerBatch", aliases: ["waste disposal"], kind: "decimal" },
+  { field: "overheadPercent", aliases: ["overhead %", "overhead percent"], kind: "decimal" },
+  { field: "overheadPerBatch", aliases: ["overhead per batch"], kind: "decimal" },
+  { field: "effectiveFrom", aliases: ["effective from", "date", "tarih"], required: true },
+  { field: "verification", aliases: ["verification", "verification status"] },
+  { field: "notes", aliases: ["notes", "not"] },
+];
+
+/**
+ * One row per (BOM, component) pair — a packaging BOM is a nested structure,
+ * so rows sharing a `bomCode` are aggregated into a single BOM record with
+ * `aggregateBomRows` after validation, rather than validated as a flat table.
+ */
+export const PACKAGING_BOM_LINE_FIELDS: FieldSpec[] = [
+  { field: "bomCode", aliases: ["bom code", "bom"], required: true },
+  { field: "skuCode", aliases: ["sku code", "sku"], required: true },
+  { field: "componentCode", aliases: ["component code", "component"], required: true },
+  { field: "quantityPerUnit", aliases: ["quantity per unit", "qty per unit", "quantity"], kind: "decimal" },
+  // Not required per-row: a BOM's fill quantity is a header fact that only
+  // needs to appear on one row of the group (see `aggregateBomRows`).
+  { field: "fillQuantity", aliases: ["fill quantity", "fill"], kind: "decimal" },
+  { field: "fillUnit", aliases: ["fill unit"] },
+  { field: "fillLossPercent", aliases: ["fill loss", "fill loss %"], kind: "decimal" },
+  { field: "unitsPerCase", aliases: ["units per case", "case pack"], kind: "integer" },
+  { field: "notes", aliases: ["notes", "not"] },
+];
+
+/**
+ * Group validated BOM-line rows into packaging BOM records, one per
+ * `bomCode`. The header fields (fill quantity, fill unit, ...) are read from
+ * each row so any row may carry them; the first non-empty value for the BOM
+ * wins, keeping a spreadsheet where only the first line repeats them valid.
+ */
+export function aggregateBomRows(
+  rows: Record<string, unknown>[],
+): { code: string; skuCode: string; fillQuantity: string; fillUnit: string; fillLossPercent: string; unitsPerCase?: number; lines: { componentCode: string; quantityPerUnit: string; notes?: string }[] }[] {
+  const byCode = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const code = String(row.bomCode ?? "");
+    if (!byCode.has(code)) byCode.set(code, []);
+    byCode.get(code)!.push(row);
+  }
+  return [...byCode.entries()].map(([code, group]) => {
+    const first = group.find((r) => r.fillQuantity) ?? group[0];
+    return {
+      code,
+      skuCode: String(first.skuCode ?? ""),
+      fillQuantity: String(first.fillQuantity ?? "0"),
+      fillUnit: String(first.fillUnit ?? "ml"),
+      fillLossPercent: String(first.fillLossPercent ?? "0"),
+      unitsPerCase: typeof first.unitsPerCase === "number" ? first.unitsPerCase : undefined,
+      lines: group.map((r) => ({
+        componentCode: String(r.componentCode ?? ""),
+        quantityPerUnit: String(r.quantityPerUnit ?? "1"),
+        notes: r.notes ? String(r.notes) : undefined,
+      })),
+    };
+  });
+}
 
 /** Header row for a blank template file. */
 export function templateCsv(specs: FieldSpec[]): string {

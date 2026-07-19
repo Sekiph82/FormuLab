@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Upload } from "lucide-react";
-import { previewImport, type FieldSpec, type ImportPreview } from "@ai4s/shared";
+import { parseCsv, previewImportRows, type FieldSpec, type ImportPreview } from "@ai4s/shared";
+import { readWorkbookRows, rejectUnsupportedWorkbook } from "@/lib/xlsx";
 import { cn } from "@/lib/cn";
 
 /**
@@ -30,11 +31,27 @@ export function ImportDialog({
   const [filename, setFilename] = useState("");
   const [allowPartial, setAllowPartial] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const onFile = async (file: File) => {
-    const text = await file.text();
+    setFileError(null);
     setFilename(file.name);
-    setPreview(previewImport(text, fields, existingCodes));
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    const rejected = rejectUnsupportedWorkbook(file.name);
+    if (rejected) {
+      setFileError(rejected);
+      setPreview(null);
+      return;
+    }
+    try {
+      const rows = isXlsx
+        ? await readWorkbookRows(await file.arrayBuffer())
+        : parseCsv(await file.text());
+      setPreview(previewImportRows(rows, fields, existingCodes));
+    } catch {
+      setFileError(t("materials.fileUnreadable"));
+      setPreview(null);
+    }
     setAllowPartial(false);
   };
 
@@ -78,7 +95,7 @@ export function ImportDialog({
             {filename || t("materials.chooseFile")}
             <input
               type="file"
-              accept=".csv,text/csv,text/plain"
+              accept=".csv,text/csv,text/plain,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -86,6 +103,16 @@ export function ImportDialog({
               }}
             />
           </label>
+
+          {fileError && (
+            <div
+              role="alert"
+              className="flex items-center gap-1.5 rounded-input border border-error/40 bg-error/5 px-3 py-2 text-[12px] text-error"
+            >
+              <AlertTriangle size={13} aria-hidden />
+              {fileError}
+            </div>
+          )}
 
           {preview && (
             <>
