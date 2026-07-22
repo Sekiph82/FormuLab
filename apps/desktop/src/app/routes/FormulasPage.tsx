@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, FlaskConical, GitCompare, Plus, ShieldAlert, Sparkles, Wallet } from "lucide-react";
+import { Beaker, ClipboardList, FileText, FlaskConical, FlaskRound, GitCompare, Plus, ShieldAlert, Sparkles, Wallet } from "lucide-react";
 import {
   attemptLifecycleTransition,
   buildKenyaCatalog,
@@ -29,6 +29,10 @@ import { CompatibilityPanel } from "@/components/formula/CompatibilityPanel";
 import { SafetyPanel } from "@/components/formula/SafetyPanel";
 import { AdvancedOptimizerPanel } from "@/components/formula/AdvancedOptimizerPanel";
 import { SubstitutionDialog } from "@/components/formula/SubstitutionPanel";
+import { TrialsPanel } from "@/components/formula/TrialsPanel";
+import { TestDefinitionsPanel } from "@/components/formula/TestDefinitionsPanel";
+import { StabilityPanel } from "@/components/formula/StabilityPanel";
+import { CorrectiveActionsPanel } from "@/components/formula/CorrectiveActionsPanel";
 import { ExportMenu } from "@/components/formula/ExportMenu";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
 import { SaveVersionDialog } from "@/components/formula/SaveVersionDialog";
@@ -48,7 +52,7 @@ import {
 import { listRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 
-type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety" | "optimizer";
+type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety" | "optimizer" | "trials" | "tests" | "stability" | "correctiveActions";
 
 /**
  * The Formula Builder workspace — FormuLab's primary working surface.
@@ -90,6 +94,10 @@ export function FormulasPage() {
     compatibility: () => setTab("compatibility"),
     safety: () => setTab("safety"),
     optimizer: () => setTab("optimizer"),
+    trials: () => setTab("trials"),
+    tests: () => setTab("tests"),
+    stability: () => setTab("stability"),
+    correctiveActions: () => setTab("correctiveActions"),
   };
   /** Jump to the builder and select/scroll a specific line — used by the
    *  Compatibility/Safety tabs' "go to line" links. */
@@ -99,6 +107,7 @@ export function FormulasPage() {
   };
   const active = projects.find((p) => p.id === activeId) ?? null;
   const baseVersion = versions.find((v) => v.id === draft.value?.baseVersionId);
+  const baseVersionApprovalStatus = baseVersion ? effectiveStatus(baseVersion, auditLog) : "concept";
 
   const template = active ? templateForFamily(active.productFamilyCode) : undefined;
 
@@ -315,6 +324,24 @@ export function FormulasPage() {
     setSubstitutingLineId(null);
   };
 
+  /** A corrective action (from a trial deviation or a stability failure)
+   *  produced a new formula draft — same never-overwrite-the-saved-version
+   *  rule, and the draft carries no approval status to inherit. */
+  const onApplyCorrectiveActionDraft = (lines: FormulationLine[], newBasisBatchKg: string, note: string) => {
+    if (!active) return;
+    draft.reset({
+      schemaVersion: "1.0",
+      formulationId: active.id,
+      baseVersionId: baseVersion?.id,
+      lines,
+      basisBatchKg: newBasisBatchKg,
+      updatedAt: new Date().toISOString(),
+      dirty: true,
+    });
+    setTab("builder");
+    void appendAudit(auditEvent(active.id, "version.restored_to_draft", { detail: note }));
+  };
+
   // ------------------------------------------------------------------- view ---
 
   if (!active) {
@@ -373,6 +400,18 @@ export function FormulasPage() {
           </TabButton>
           <TabButton active={tab === "optimizer"} onClick={goTo.optimizer} icon={<Sparkles size={13} />}>
             {t("builder.tabOptimizer")}
+          </TabButton>
+          <TabButton active={tab === "trials"} onClick={goTo.trials} icon={<Beaker size={13} />}>
+            {t("builder.tabTrials")}
+          </TabButton>
+          <TabButton active={tab === "tests"} onClick={goTo.tests} icon={<ClipboardList size={13} />}>
+            {t("builder.tabTests")}
+          </TabButton>
+          <TabButton active={tab === "stability"} onClick={goTo.stability} icon={<FlaskRound size={13} />}>
+            {t("builder.tabStability")}
+          </TabButton>
+          <TabButton active={tab === "correctiveActions"} onClick={goTo.correctiveActions} icon={<ClipboardList size={13} />}>
+            {t("builder.tabCorrectiveActions")}
           </TabButton>
         </nav>
       </header>
@@ -454,6 +493,40 @@ export function FormulasPage() {
             batchKg={draft.value.basisBatchKg}
             currentLines={draft.value.lines}
             onApplyResult={onApplyOptimizationResult}
+          />
+        )}
+
+        {tab === "trials" && draft.value && (
+          <TrialsPanel
+            formulation={active}
+            currentLines={draft.value.lines}
+            basisBatchKg={draft.value.basisBatchKg}
+            baseVersion={baseVersion}
+            approvalStatus={baseVersionApprovalStatus}
+            onApplyDraft={onApplyCorrectiveActionDraft}
+          />
+        )}
+
+        {tab === "tests" && <TestDefinitionsPanel />}
+
+        {tab === "stability" && draft.value && (
+          <StabilityPanel
+            formulation={active}
+            currentLines={draft.value.lines}
+            basisBatchKg={draft.value.basisBatchKg}
+            baseVersion={baseVersion}
+            approvalStatus={baseVersionApprovalStatus}
+            packagingBoms={packagingBoms}
+            onApplyDraft={onApplyCorrectiveActionDraft}
+          />
+        )}
+
+        {tab === "correctiveActions" && (
+          <CorrectiveActionsPanel
+            formulation={active}
+            baseVersion={baseVersion}
+            approvalStatus={baseVersionApprovalStatus}
+            onApplyDraft={(note) => baseVersion && onApplyCorrectiveActionDraft(baseVersion.lines.map((l) => ({ ...l })), baseVersion.basisBatchKg, note)}
           />
         )}
       </div>

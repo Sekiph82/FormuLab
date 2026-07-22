@@ -1,10 +1,10 @@
 import { saveTextFile } from "./tauri";
 import { toast } from "./toast";
 
-/** Save text as a file via a Blob download. No-op outside the browser. */
-export function downloadText(filename: string, text: string, mime = "text/plain"): void {
+/** Save a Blob as a file via a browser download. No-op outside the browser. */
+export function downloadBlob(filename: string, blob: Blob): void {
   if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return;
-  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
@@ -12,6 +12,11 @@ export function downloadText(filename: string, text: string, mime = "text/plain"
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Save text as a file via a Blob download. No-op outside the browser. */
+export function downloadText(filename: string, text: string, mime = "text/plain"): void {
+  downloadBlob(filename, new Blob([text], { type: mime }));
 }
 
 /**

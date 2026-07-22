@@ -9,10 +9,12 @@
 import type {
   CompatibilityRule,
   CompatibilitySnapshot,
+  CorrectiveAction,
   CostSnapshot,
   ExchangeRate,
   FactoryCostProfile,
   InventoryRecord,
+  LaboratoryTrial,
   MaterialHazardRecord,
   MaterialPrice,
   MaterialSupplier,
@@ -25,8 +27,16 @@ import type {
   SafetyResolution,
   SafetyRule,
   SafetySnapshot,
+  StabilityFailure,
+  StabilityResult,
+  StabilitySample,
+  StabilityStudy,
   SubstitutionRun,
   Supplier,
+  TestDefinition,
+  TestResult,
+  TrialComparison,
+  TrialDeviation,
 } from "@ai4s/shared";
 import { isTauri } from "./tauri";
 
@@ -50,7 +60,17 @@ export type Collection =
   | "optimization_profiles"
   | "optimization_runs"
   | "optimization_scenarios"
-  | "substitution_runs";
+  | "substitution_runs"
+  | "laboratory_trials"
+  | "test_definitions"
+  | "test_results"
+  | "trial_comparisons"
+  | "trial_deviations"
+  | "corrective_actions"
+  | "stability_studies"
+  | "stability_samples"
+  | "stability_results"
+  | "stability_failures";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -73,6 +93,16 @@ interface CollectionTypes {
   optimization_runs: OptimizationRun;
   optimization_scenarios: OptimizationScenario;
   substitution_runs: SubstitutionRun;
+  laboratory_trials: LaboratoryTrial;
+  test_definitions: TestDefinition;
+  test_results: TestResult;
+  trial_comparisons: TrialComparison;
+  trial_deviations: TrialDeviation;
+  corrective_actions: CorrectiveAction;
+  stability_studies: StabilityStudy;
+  stability_samples: StabilitySample;
+  stability_results: StabilityResult;
+  stability_failures: StabilityFailure;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

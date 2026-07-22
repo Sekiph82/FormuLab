@@ -16,6 +16,16 @@
 //   data/master/optimization_runs.json
 //   data/master/optimization_scenarios.json
 //   data/master/substitution_runs.json
+//   data/master/laboratory_trials.json
+//   data/master/test_definitions.json
+//   data/master/test_results.json
+//   data/master/trial_comparisons.json
+//   data/master/trial_deviations.json
+//   data/master/corrective_actions.json
+//   data/master/stability_studies.json
+//   data/master/stability_samples.json
+//   data/master/stability_results.json
+//   data/master/stability_failures.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // One JSON array per collection rather than a database: the whole point of
@@ -38,7 +48,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 20] = [
+const COLLECTIONS: [(&str, bool); 30] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -70,6 +80,29 @@ const COLLECTIONS: [(&str, bool); 20] = [
     // Substitution engine: a run (the request + its scored candidates, and
     // which one was applied) is immutable for the same reason.
     ("substitution_runs", true),
+    // Laboratory Trials: a trial, its deviations and its corrective actions
+    // evolve through their own status lifecycle (planned -> ... -> archived,
+    // open -> resolved, ...), so they are editable master data like
+    // `materials`/`inventory` — the application layer (engine/laboratory.ts)
+    // refuses further edits to a trial's execution data once it reaches a
+    // terminal status, rather than the storage layer forcing a new record
+    // per status change. A test RESULT is different: recording one is an
+    // event, and editing a recorded measurement must never silently
+    // overwrite what was actually observed, so results and comparisons are
+    // append-only, the same as a cost or compatibility snapshot.
+    ("laboratory_trials", false),
+    ("test_definitions", false),
+    ("test_results", true),
+    ("trial_comparisons", true),
+    ("trial_deviations", false),
+    ("corrective_actions", false),
+    // Stability Studies: same split — the study/sample/failure records
+    // themselves evolve through a status lifecycle, but a recorded result
+    // is append-only for the same reason a test result is.
+    ("stability_studies", false),
+    ("stability_samples", false),
+    ("stability_results", true),
+    ("stability_failures", false),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
