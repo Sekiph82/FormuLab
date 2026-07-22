@@ -275,3 +275,160 @@ describe("canTransitionWithReadiness — bypass attempts", () => {
     expect(r.code).toBe("NOT_READY_FOR_APPROVAL");
   });
 });
+
+describe("assessApprovalReadiness — laboratory readiness (spec §16)", () => {
+  it("is unaffected when labReadiness is omitted", () => {
+    const r = assessApprovalReadiness({ validationFindings: [], compatibilityFindings: [], safetyFindings: [] });
+    expect(r.ready).toBe(true);
+  });
+
+  it("blocks on missing_required_trial when configured and no trial is complete", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      labReadiness: {
+        policy: { requireCompletedTrial: true },
+        hasCompletedTrial: false, allRequiredTestsCompleted: true, allCriticalTestsPassed: true,
+        hasUnresolvedCriticalDeviation: false, hasUnresolvedCriticalCorrectiveAction: false,
+      },
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers[0].code).toBe("missing_required_trial");
+  });
+
+  it("blocks on critical_test_failed", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      labReadiness: {
+        policy: { requireAllCriticalTestsPassed: true },
+        hasCompletedTrial: true, allRequiredTestsCompleted: true, allCriticalTestsPassed: false,
+        hasUnresolvedCriticalDeviation: false, hasUnresolvedCriticalCorrectiveAction: false,
+      },
+    });
+    expect(r.blockers.map((b) => b.code)).toContain("critical_test_failed");
+  });
+
+  it("blocks on critical_deviation_open", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      labReadiness: {
+        policy: { requireNoUnresolvedCriticalDeviation: true },
+        hasCompletedTrial: true, allRequiredTestsCompleted: true, allCriticalTestsPassed: true,
+        hasUnresolvedCriticalDeviation: true, hasUnresolvedCriticalCorrectiveAction: false,
+      },
+    });
+    expect(r.blockers.map((b) => b.code)).toContain("critical_deviation_open");
+  });
+
+  it("is ready once every configured lab requirement is satisfied", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      labReadiness: {
+        policy: { requireCompletedTrial: true, requireAllCriticalTestsPassed: true, requireNoUnresolvedCriticalDeviation: true },
+        hasCompletedTrial: true, allRequiredTestsCompleted: true, allCriticalTestsPassed: true,
+        hasUnresolvedCriticalDeviation: false, hasUnresolvedCriticalCorrectiveAction: false,
+      },
+    });
+    expect(r.ready).toBe(true);
+  });
+});
+
+describe("assessApprovalReadiness — stability readiness (spec §16)", () => {
+  it("is unaffected when stabilityReadiness is omitted", () => {
+    const r = assessApprovalReadiness({ validationFindings: [], compatibilityFindings: [], safetyFindings: [] });
+    expect(r.ready).toBe(true);
+  });
+
+  it("blocks on stability_study_missing", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      stabilityReadiness: {
+        policy: { requireActiveStudy: true },
+        hasActiveOrCompletedStudy: false, initialTestsPassed: true, completedTimePointCount: 0,
+        hasUnresolvedCriticalFailure: false, packagingCompatibilityPassed: true,
+      },
+    });
+    expect(r.blockers[0].code).toBe("stability_study_missing");
+  });
+
+  it("blocks on required_time_point_missing using the organization's own configured count, never a hardcoded 3/6/12 months", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      stabilityReadiness: {
+        policy: { minimumRequiredTimePoints: 5 },
+        hasActiveOrCompletedStudy: true, initialTestsPassed: true, completedTimePointCount: 2,
+        hasUnresolvedCriticalFailure: false, packagingCompatibilityPassed: true,
+      },
+    });
+    expect(r.blockers[0].code).toBe("required_time_point_missing");
+    expect(r.blockers[0].message).toContain("5");
+  });
+
+  it("blocks on stability_failure_open", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      stabilityReadiness: {
+        policy: { requireNoUnresolvedCriticalFailure: true },
+        hasActiveOrCompletedStudy: true, initialTestsPassed: true, completedTimePointCount: 0,
+        hasUnresolvedCriticalFailure: true, packagingCompatibilityPassed: true,
+      },
+    });
+    expect(r.blockers.map((b) => b.code)).toContain("stability_failure_open");
+  });
+
+  it("blocks on packaging_test_failed", () => {
+    const r = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      stabilityReadiness: {
+        policy: { requirePackagingCompatibilityPassed: true },
+        hasActiveOrCompletedStudy: true, initialTestsPassed: true, completedTimePointCount: 0,
+        hasUnresolvedCriticalFailure: false, packagingCompatibilityPassed: false,
+      },
+    });
+    expect(r.blockers.map((b) => b.code)).toContain("packaging_test_failed");
+  });
+
+  it("human resolution (caller flips hasUnresolvedCriticalFailure to false) removes the blocker", () => {
+    const blocked = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      stabilityReadiness: {
+        policy: { requireNoUnresolvedCriticalFailure: true },
+        hasActiveOrCompletedStudy: true, initialTestsPassed: true, completedTimePointCount: 0,
+        hasUnresolvedCriticalFailure: true, packagingCompatibilityPassed: true,
+      },
+    });
+    expect(blocked.ready).toBe(false);
+    const resolved = assessApprovalReadiness({
+      validationFindings: [], compatibilityFindings: [], safetyFindings: [],
+      stabilityReadiness: {
+        policy: { requireNoUnresolvedCriticalFailure: true },
+        hasActiveOrCompletedStudy: true, initialTestsPassed: true, completedTimePointCount: 0,
+        hasUnresolvedCriticalFailure: false, packagingCompatibilityPassed: true,
+      },
+    });
+    expect(resolved.ready).toBe(true);
+  });
+});
+
+describe("assessApprovalReadiness — lab/stability bypass attempts", () => {
+  const BLOCKED_BY_LAB: ApprovalReadiness = {
+    ready: false,
+    blockers: [{ id: "lab:missing_required_trial", source: "laboratory", code: "missing_required_trial", message: "No completed trial." }],
+    warnings: [],
+  };
+
+  it("an agent event cannot bypass a laboratory blocker", () => {
+    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", AGENT, BLOCKED_BY_LAB, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+  });
+
+  it("an import actor cannot bypass a laboratory blocker", () => {
+    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", IMPORT, BLOCKED_BY_LAB, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+  });
+
+  it("a human is still blocked until the underlying lab state actually changes", () => {
+    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", CHEMIST, BLOCKED_BY_LAB, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("NOT_READY_FOR_APPROVAL");
+  });
+});

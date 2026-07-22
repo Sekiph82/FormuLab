@@ -37,7 +37,9 @@ export type ApprovalBlockerSource =
   | "safety"
   | "human_review"
   | "optimization"
-  | "substitution";
+  | "substitution"
+  | "laboratory"
+  | "stability";
 
 export interface ApprovalBlocker {
   id: string;
@@ -93,6 +95,56 @@ export interface ApprovalReadinessInput {
     selectedCandidateId?: string;
     selectedCandidateBlocked?: boolean;
   };
+
+  labReadiness?: LabReadinessInput;
+  stabilityReadiness?: StabilityReadinessInput;
+}
+
+/** Every requirement is optional and off by default — an organization
+ *  configures its own policy (spec §16: "Do not hardcode"). Omitting
+ *  `labReadiness` entirely from `ApprovalReadinessInput` means laboratory
+ *  state is not checked at all, same as today. */
+export interface LabApprovalPolicy {
+  requireCompletedTrial?: boolean;
+  requireAllRequiredTestsCompleted?: boolean;
+  requireAllCriticalTestsPassed?: boolean;
+  requireNoUnresolvedCriticalDeviation?: boolean;
+  requireNoUnresolvedCriticalCorrectiveAction?: boolean;
+}
+
+/**
+ * The caller (not this module) resolves trials/test results/deviations/
+ * corrective actions into these plain facts — the same "this module
+ * consumes findings, it does not compute them" boundary the compatibility/
+ * safety checks already keep. Which trial(s) and which tests count as
+ * "required"/"critical" for a given product family is caller policy, not
+ * something this module infers.
+ */
+export interface LabReadinessInput {
+  policy: LabApprovalPolicy;
+  hasCompletedTrial: boolean;
+  allRequiredTestsCompleted: boolean;
+  allCriticalTestsPassed: boolean;
+  hasUnresolvedCriticalDeviation: boolean;
+  hasUnresolvedCriticalCorrectiveAction: boolean;
+}
+
+export interface StabilityApprovalPolicy {
+  requireActiveStudy?: boolean;
+  requireInitialTestsPassed?: boolean;
+  /** Organization-configured count — never a hardcoded "3/6/12 months". */
+  minimumRequiredTimePoints?: number;
+  requireNoUnresolvedCriticalFailure?: boolean;
+  requirePackagingCompatibilityPassed?: boolean;
+}
+
+export interface StabilityReadinessInput {
+  policy: StabilityApprovalPolicy;
+  hasActiveOrCompletedStudy: boolean;
+  initialTestsPassed: boolean;
+  completedTimePointCount: number;
+  hasUnresolvedCriticalFailure: boolean;
+  packagingCompatibilityPassed: boolean;
 }
 
 /**
@@ -185,6 +237,93 @@ export function assessApprovalReadiness(input: ApprovalReadinessInput): Approval
         id: `substitution-run:${code}:blocked-selection`,
         source: "substitution",
         message: `This version applied substitution run "${code}", but its selected candidate carries a blocking compatibility or safety finding.`,
+      });
+    }
+  }
+
+  if (input.labReadiness) {
+    const { policy, hasCompletedTrial, allRequiredTestsCompleted, allCriticalTestsPassed, hasUnresolvedCriticalDeviation, hasUnresolvedCriticalCorrectiveAction } = input.labReadiness;
+    if (policy.requireCompletedTrial && !hasCompletedTrial) {
+      blockers.push({
+        id: "lab:missing_required_trial",
+        source: "laboratory",
+        code: "missing_required_trial",
+        message: "This formula has no completed laboratory trial, and the configured policy requires at least one.",
+      });
+    } else if (policy.requireAllRequiredTestsCompleted && !allRequiredTestsCompleted) {
+      blockers.push({
+        id: "lab:trial_not_completed",
+        source: "laboratory",
+        code: "trial_not_completed",
+        message: "Not every required test has a recorded result yet.",
+      });
+    }
+    if (policy.requireAllCriticalTestsPassed && !allCriticalTestsPassed) {
+      blockers.push({
+        id: "lab:critical_test_failed",
+        source: "laboratory",
+        code: "critical_test_failed",
+        message: "At least one test flagged critical has not passed.",
+      });
+    }
+    if (policy.requireNoUnresolvedCriticalDeviation && hasUnresolvedCriticalDeviation) {
+      blockers.push({
+        id: "lab:critical_deviation_open",
+        source: "laboratory",
+        code: "critical_deviation_open",
+        message: "A critical trial deviation is still open or under review.",
+      });
+    }
+    if (policy.requireNoUnresolvedCriticalCorrectiveAction && hasUnresolvedCriticalCorrectiveAction) {
+      blockers.push({
+        id: "lab:critical_corrective_action_open",
+        source: "laboratory",
+        code: "critical_corrective_action_open",
+        message: "A corrective action tied to a critical laboratory issue is not yet effective.",
+      });
+    }
+  }
+
+  if (input.stabilityReadiness) {
+    const { policy, hasActiveOrCompletedStudy, initialTestsPassed, completedTimePointCount, hasUnresolvedCriticalFailure, packagingCompatibilityPassed } = input.stabilityReadiness;
+    if (policy.requireActiveStudy && !hasActiveOrCompletedStudy) {
+      blockers.push({
+        id: "stability:stability_study_missing",
+        source: "stability",
+        code: "stability_study_missing",
+        message: "No active or completed stability study exists, and the configured policy requires one.",
+      });
+    }
+    if (policy.requireInitialTestsPassed && !initialTestsPassed) {
+      blockers.push({
+        id: "stability:initial_stability_tests_failed",
+        source: "stability",
+        code: "initial_stability_tests_failed",
+        message: "The stability study's initial time-point tests have not all passed.",
+      });
+    }
+    if (policy.minimumRequiredTimePoints !== undefined && completedTimePointCount < policy.minimumRequiredTimePoints) {
+      blockers.push({
+        id: "stability:required_time_point_missing",
+        source: "stability",
+        code: "required_time_point_missing",
+        message: `The configured policy requires ${policy.minimumRequiredTimePoints} completed time point(s); only ${completedTimePointCount} are recorded.`,
+      });
+    }
+    if (policy.requireNoUnresolvedCriticalFailure && hasUnresolvedCriticalFailure) {
+      blockers.push({
+        id: "stability:stability_failure_open",
+        source: "stability",
+        code: "stability_failure_open",
+        message: "A critical stability failure is still open.",
+      });
+    }
+    if (policy.requirePackagingCompatibilityPassed && !packagingCompatibilityPassed) {
+      blockers.push({
+        id: "stability:packaging_test_failed",
+        source: "stability",
+        code: "packaging_test_failed",
+        message: "Packaging compatibility testing has not passed.",
       });
     }
   }
