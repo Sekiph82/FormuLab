@@ -33,6 +33,13 @@ export const PRECISION = {
   money: 2,
   density: 4,
   ratio: 6,
+  /** Computed laboratory/stability statistics (mean, standard deviation,
+   *  deviation-from-target) — generous precision because a raw measurement's
+   *  own natural precision varies wildly by test (pH ~2dp, viscosity can be
+   *  a large integer, a trace-active weight needs more places than a bulk
+   *  one). Entered replicate VALUES are stored exactly as typed
+   *  (`decimalString` has no fixed dp); only derived aggregates round here. */
+  measurement: 6,
 } as const;
 
 export type PrecisionKind = keyof typeof PRECISION;
