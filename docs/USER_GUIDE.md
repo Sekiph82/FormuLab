@@ -264,13 +264,100 @@ new working draft. Full model:
 [MATERIAL_SUBSTITUTION.md](MATERIAL_SUBSTITUTION.md),
 [SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md).
 
+## 16. Laboratory trials
+
+Open the **Trials** tab. Create a trial from the current working draft (or
+a saved version, if one is selected) — it freezes its own formula snapshot,
+so later formula edits never change what the trial recorded. Move it
+through its lifecycle (**planned → materials prepared → in progress →
+awaiting results → completed/failed → archived**) with the status buttons;
+an invalid move is refused, and only a human can mark a trial `completed`.
+
+- **Material weighing**: enter each material's actual weight; the computed
+  deviation and batch-level variance appear immediately. A material with no
+  actual weight yet shows "not entered," never a zero.
+- **Process execution**: add process steps, record actual temperature/pH/
+  duration against the planned range.
+- **Observations & deviations**: log an observation, file a deviation
+  (minor/major/critical), resolve it or accept it with a written
+  justification, and open a [corrective action](#18-corrective-actions)
+  directly from an unresolved one. A critical open deviation blocks the
+  trial from being marked complete.
+- **Test results**: enter replicate values for any active numeric
+  [test definition](#17-test-definitions); mean, standard deviation and
+  pass/fail compute automatically from the test's own logic.
+
+Select two or more trials (checkbox in the list) and **Compare selected**
+to see material-usage, deviation and pass/fail counts side by side — a
+deterministic comparison, never an inferred "why."
+
+**Export** (per trial): JSON package, batch sheet (CSV), weighing sheet
+(CSV), process sheet (Excel), test-results report (Excel), corrective-
+actions report (CSV), and a draft ERP lab-result CSV — every export
+watermarked `R&D DRAFT — NOT PRODUCTION APPROVED` unless the source formula
+is genuinely `production_approved`. Full model:
+[LABORATORY_TRIALS.md](LABORATORY_TRIALS.md),
+[TRIAL_EXECUTION.md](TRIAL_EXECUTION.md),
+[TRIAL_COMPARISON.md](TRIAL_COMPARISON.md).
+
+## 17. Test definitions
+
+Open the **Tests** tab to manage the reusable test-definition catalog
+shared by trials and stability studies — 27 structural templates ship
+seeded (pH, viscosity, density, foam, microbiology, preservative
+challenge, and more), all explicitly `not_verified` until a chemist attaches
+their own method reference and marks one `verified`. Edit result type,
+unit, min/max, pass/fail rule, critical flag and active status inline. Full
+model: [TEST_DEFINITIONS.md](TEST_DEFINITIONS.md).
+
+## 18. Stability studies
+
+Open the **Stability** tab. Create a study against the current working
+draft or a saved version (frozen formula + packaging snapshot), pick which
+seeded storage conditions, time points and test definitions apply — these
+are configurable starting examples, never a claim of what any regulator
+requires — and move it to `active` (this sets its start date). **Generate
+samples** creates one pull-point sample per condition × time point ×
+replicate, each with a deterministically computed due date.
+
+Record a result for a due sample; an out-of-range numeric result
+automatically opens a [stability failure](STABILITY_TRENDS.md#failures) —
+critical when the test is flagged critical. **Trends** shows one small
+chart per condition × test metric (change from initial, rate per day, min/
+max/mean); a projection toward a limit only ever appears once enough real
+data exists, and is always labelled "experimental estimate — not validated
+— human review required," never a shelf-life claim. Resolve a failure, open
+a corrective action from it, or create a draft formula from that action —
+same as the Trials workspace.
+
+**Export**: protocol (JSON), sample plan (CSV), time-point report (Excel),
+summary report (Excel), test-results report (Excel), corrective-actions
+report (CSV), and a draft ERP lab-result CSV. Full model:
+[STABILITY_STUDIES.md](STABILITY_STUDIES.md),
+[STABILITY_TRENDS.md](STABILITY_TRENDS.md).
+
+## 19. Corrective actions
+
+Open the **Corrective actions** tab for the cross-cutting list of every
+action opened against a trial deviation or stability failure for this
+project (a trial/study's own workspace also shows its actions inline). Move
+one through **start progress → mark complete → verify effective/
+ineffective**; `effective`/`ineffective` only exist after that verification
+step, never set directly. **Create draft** branches a new working draft
+from the action's source formula version — never inheriting approval, and
+never mutating the version it branched from. **Export** the whole list as
+CSV. Full model: [CORRECTIVE_ACTIONS.md](CORRECTIVE_ACTIONS.md).
+
 ## Known limitations
 
 See [IMPLEMENTATION_STATUS.md](architecture/IMPLEMENTATION_STATUS.md) for the
 authoritative list of what is built versus not yet started. In short: the
-regulatory engine, DOE, lab-trial, stability-study and reverse-formulation
-modules described in the full specification are designed but not
-implemented. The Advanced Optimizer's screen has no builder for composition,
+regulatory engine, DOE, and reverse-formulation modules described in the
+full specification are designed but not implemented; laboratory trials and
+stability studies (§16–19 above) are implemented, but automatic shelf-life
+prediction is deliberately not — see
+[STABILITY_TRENDS.md](STABILITY_TRENDS.md#no-validated-shelf-life-claims).
+The Advanced Optimizer's screen has no builder for composition,
 ratio or conditional constraints (only functional-group constraints,
 property targets, a cost ceiling, and the automatic compatibility/safety
 exclusion are user-facing) and no lexicographic-priority selector; the
@@ -281,6 +368,8 @@ safety risk into a system's score (real hard exclusions still apply) — see
 Compatibility and safety are deterministic rule engines against a
 hand-maintained, explicitly non-exhaustive seed rule set — they are not a
 regulatory engine and do not establish legal compliance. Approval readiness
-is fully implemented and tested but not yet called from any approval screen
-in the desktop UI. Nothing in this guide describes an unimplemented module
-as available.
+(including the lab/stability policies in
+[LAB_STABILITY_APPROVAL.md](LAB_STABILITY_APPROVAL.md)) is fully
+implemented and tested but not yet called from any approval screen in the
+desktop UI — there is no "approve this version" action anywhere in the app
+yet. Nothing in this guide describes an unimplemented module as available.

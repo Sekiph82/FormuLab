@@ -3,17 +3,24 @@
 Honest state of the Kenya R&D platform transformation. "Done" here means
 implemented, wired in and covered by a passing test — not scaffolded.
 
-Last updated: end of the Advanced Optimizer / Substitution Engine
-gap-closure phase (soft constraints, property targets, graded risk
-objectives, expanded infeasibility diagnostics, optimization scenarios with
-product-family profile application, and multi-material system
-substitution). Before that: Excel import, supplier/packaging/factory-
-profile editors, formula lifecycle controls, structured version exports,
-the Compatibility Engine, the Safety Engine, cross-cutting Approval
-Readiness, the Turkish locale, the mixed-integer Advanced Formulation
-Constraint Optimizer's core solve, one-to-one material substitution, the
-optimization/substitution approval-readiness checks, and the platform's
-first migration runner.
+Last updated: end of the Laboratory Trials / Stability Studies phase (trial
+domain model + human-gated lifecycle + execution; shared test-definition/
+result system with replicate stats, outlier flagging and revision history;
+trial comparison; stability studies with configurable conditions/time
+points, pull-point sample generation, deterministic trend analysis and
+auto-created failures; a shared corrective-action model; lab/stability
+approval-readiness policies; persistence/migrations for the ten new
+collections; desktop UI for all of it; lab/stability exports). Before that:
+the Advanced Optimizer / Substitution Engine gap-closure phase (soft
+constraints, property targets, graded risk objectives, expanded
+infeasibility diagnostics, optimization scenarios with product-family
+profile application, and multi-material system substitution). Before that:
+Excel import, supplier/packaging/factory-profile editors, formula lifecycle
+controls, structured version exports, the Compatibility Engine, the Safety
+Engine, cross-cutting Approval Readiness, the Turkish locale, the
+mixed-integer Advanced Formulation Constraint Optimizer's core solve,
+one-to-one material substitution, the optimization/substitution
+approval-readiness checks, and the platform's first migration runner.
 
 ## Scale note
 
@@ -321,8 +328,81 @@ reference, distinct from the solver's/scorer's own correctness — and now
 also blocks when a substitution run has no `selectedCandidateId` recorded,
 or when the selected candidate itself carries a blocking finding. Not yet
 called from any desktop UI screen (a pre-existing gap — see
-APPROVAL_READINESS.md's "What this does not do"). 24 tests total in
-`approvalReadiness.test.ts`.
+APPROVAL_READINESS.md's "What this does not do"). 38 tests total in
+`approvalReadiness.test.ts` (including the lab/stability policies below).
+
+### Laboratory Trials + Stability Studies (spec §9)
+See [LABORATORY_TRIALS.md](../LABORATORY_TRIALS.md),
+[TRIAL_EXECUTION.md](../TRIAL_EXECUTION.md),
+[TEST_DEFINITIONS.md](../TEST_DEFINITIONS.md),
+[TEST_RESULTS.md](../TEST_RESULTS.md),
+[TRIAL_COMPARISON.md](../TRIAL_COMPARISON.md),
+[STABILITY_STUDIES.md](../STABILITY_STUDIES.md),
+[STABILITY_TRENDS.md](../STABILITY_TRENDS.md),
+[CORRECTIVE_ACTIONS.md](../CORRECTIVE_ACTIONS.md),
+[LAB_STABILITY_APPROVAL.md](../LAB_STABILITY_APPROVAL.md). Explicitly
+excludes the regulatory engine, DOE, reverse formulation, and automatic
+shelf-life prediction — none of those are implemented here either.
+- `LaboratoryTrial` — human-gated lifecycle (`canTransitionTrial`, agent/
+  system/import actors refused `completed`), a frozen `formulaSnapshot`
+  immune to later draft/version edits, embedded material-usage/process-
+  step/observation arrays (matching `FormulationVersion.lines[]`'s own
+  embedding convention), and a separate `TrialDeviation` collection
+  cross-referenced by corrective actions and approval readiness
+- Material weighing (target/actual/deviation, configurable tolerance,
+  batch-level variance with an honest lower bound while any line is
+  unweighed) and process-step execution (planned vs. actual, deterministic
+  deviation only, unplanned-step flag)
+- Shared `TestDefinition`/`TestResult` system (also used by stability):
+  numeric/text/boolean/pass_fail/categorical/visual_rating result types,
+  configurable pass/fail rules, replicate statistics (sample std-dev),
+  1.5×IQR outlier flagging (≥4 replicates), human-only override, append-
+  only revision history (`revisesResultId`, never mutated in place); 27
+  seeded structural test templates, all `not_verified`
+  (`catalog/testDefinitions.ts`)
+- `compareTrials` — deterministic per-trial and per-test-metric comparison,
+  no automatic causation inference; any AI interpretation is a labelled,
+  additive field, never a replacement for the numbers
+- `StabilityStudy` — same snapshot-immutability and human-gated lifecycle
+  discipline as trials, one fixed packaging system per study, 9 seeded
+  storage conditions + 9 seeded time points (configurable examples, never
+  presented as regulatory requirements), deterministic pull-point sample
+  generation (condition × time point × replicate) with computed due dates,
+  deterministic trend analysis (`computeStabilityTrend`) with limit
+  crossing and a strictly gated, always-labelled experimental projection
+  (`MIN_PROJECTION_POINTS = 3`, `MIN_PROJECTION_SPAN_DAYS = 14`) —
+  never a validated shelf-life claim
+- Shared `CorrectiveAction` model (`sourceType: trial_deviation |
+  trial_failure | stability_failure | manual`) used by both domains;
+  `effective`/`ineffective` only reachable through a recorded
+  effectiveness check; `createDraftFromCorrectiveAction` reuses
+  `draftFromVersion` directly, never inherits approval
+- Approval readiness extended with `LabApprovalPolicy`/
+  `StabilityApprovalPolicy` (ten new blocker codes, every requirement
+  optional and off by default, no hardcoded duration requirement) — engine-
+  level only; like the rest of approval readiness, not yet called from any
+  desktop approval screen (see [LAB_STABILITY_APPROVAL.md](../LAB_STABILITY_APPROVAL.md))
+- Ten new master-data collections (`laboratory_trials`, `test_definitions`,
+  `test_results`, `trial_comparisons`, `trial_deviations`,
+  `corrective_actions`, `stability_studies`, `stability_samples`,
+  `stability_results`, `stability_failures`) added to the Rust allow-list,
+  three marked append-only (`test_results`, `trial_comparisons`,
+  `stability_results`)
+- Desktop UI: Trials, Tests, Stability and Corrective Actions tabs in the
+  Formula Builder, each wired to the real engine/persistence code (see
+  [USER_GUIDE.md §16–19](../USER_GUIDE.md))
+- Exports: trial JSON/batch-sheet/weighing-sheet/process-sheet/test-
+  results/comparison/corrective-actions/ERP-draft-CSV, and stability
+  protocol/sample-plan/time-point/summary/test-results/corrective-actions/
+  ERP-draft-CSV (`engine/labExports.ts`, `engine/stabilityExports.ts`)
+- 437 shared-package tests total, including
+  15 (`testResults.test.ts`), 24 (`laboratory.test.ts`), 18
+  (`stability.test.ts`), 9 (`correctiveActions.test.ts`), 12
+  (`labExports.test.ts`), 7 (`stabilityExports.test.ts`), and the 14
+  lab/stability additions inside `approvalReadiness.test.ts`; 11
+  UI-integration tests (`TrialsPanel.test.tsx`, `StabilityPanel.test.tsx`,
+  same real-component/mocked-masterdata-boundary discipline as
+  `AdvancedOptimizerPanel.test.tsx`/`SubstitutionPanel.test.tsx`)
 
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).
@@ -345,7 +425,6 @@ plainly so nothing here reads as available.
 | Evidence origin classification wired into the pipeline | 4 |
 | Regulatory engine + rule import | 13 |
 | Manufacturing methods + batch records | 8 |
-| Lab trials + stability studies | 9 |
 | DOE | 10 |
 | Reverse formulation | 11 |
 | PDF/Word exports (JSON/CSV/Excel/ERP-draft-CSV exports exist — see gap-closure UI, Done) | 20, 21 |

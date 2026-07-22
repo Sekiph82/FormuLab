@@ -50,6 +50,15 @@ FormuLab is a desktop workbench that pairs a general AI research environment
   [docs/SAFETY_ENGINE.md](docs/SAFETY_ENGINE.md).
 - **Raw materials and costing** — material master, suppliers, append-only price
   history, inventory, landed cost, packaging BOMs and per-SKU cost snapshots.
+- **Laboratory Trials and Stability Studies** — bench-execution records
+  (material weighing, process steps, deviations) with a human-gated
+  lifecycle, a shared test-definition/result system with replicate
+  statistics and outlier flagging, trial comparison, configurable stability
+  conditions/time points with pull-point sample tracking, deterministic
+  trend analysis (no automated shelf-life claims), and corrective actions —
+  all wired into approval readiness. See
+  [docs/LABORATORY_TRIALS.md](docs/LABORATORY_TRIALS.md) and
+  [docs/STABILITY_STUDIES.md](docs/STABILITY_STUDIES.md).
 
 Everything runs locally by default; your data, runs, and provenance stay on your
 machine.
@@ -93,6 +102,15 @@ accepting responsibility, with a signed record and an audit entry.
 | [COST_ENGINE.md](docs/COST_ENGINE.md) | Cost layers, landed cost, SKU costing, snapshots |
 | [IMPORT_EXPORT.md](docs/IMPORT_EXPORT.md) | CSV formats, validation, injection handling |
 | [PRECISION_POLICY.md](docs/PRECISION_POLICY.md) | Decimal handling and rounding |
+| [LABORATORY_TRIALS.md](docs/LABORATORY_TRIALS.md) | Trial domain model, lifecycle, human gating |
+| [TRIAL_EXECUTION.md](docs/TRIAL_EXECUTION.md) | Weighing, process steps, observations, deviations |
+| [TEST_DEFINITIONS.md](docs/TEST_DEFINITIONS.md) | Shared test-definition schema and seed catalog |
+| [TEST_RESULTS.md](docs/TEST_RESULTS.md) | Replicate stats, outliers, override, revision history |
+| [TRIAL_COMPARISON.md](docs/TRIAL_COMPARISON.md) | Comparing two or more trials |
+| [STABILITY_STUDIES.md](docs/STABILITY_STUDIES.md) | Study/condition/time-point/sample domain and lifecycle |
+| [STABILITY_TRENDS.md](docs/STABILITY_TRENDS.md) | Trend calculation, limit crossing, projection gating, failures |
+| [CORRECTIVE_ACTIONS.md](docs/CORRECTIVE_ACTIONS.md) | Shared corrective-action model and draft-from-action flow |
+| [LAB_STABILITY_APPROVAL.md](docs/LAB_STABILITY_APPROVAL.md) | Configurable lab/stability approval-readiness gates |
 | [IMPLEMENTATION_STATUS.md](docs/architecture/IMPLEMENTATION_STATUS.md) | What is actually built, and what is not |
 
 ## Formulation quick start

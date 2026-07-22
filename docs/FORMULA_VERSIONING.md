@@ -115,6 +115,21 @@ usable, a defensive re-check independent of the solver's/scorer's own
 correctness. Neither field grants or implies approval; both are additive,
 optional, and absent on every version authored directly.
 
+## Relationship to laboratory trials and stability studies
+
+A [Laboratory Trial](LABORATORY_TRIALS.md) or [Stability Study](STABILITY_STUDIES.md)
+records `sourceFormulaVersionId` when it started from a saved version, or
+`sourceDraftId` when it started from the (mutable) working draft — but
+either way it embeds its own frozen `formulaSnapshot`, captured once at
+creation, using the exact same "snapshot rather than recompute on read"
+principle this document's version snapshots already follow. A trial or
+study is therefore immune to a later formula edit even when it started from
+the working draft, which a saved version alone would not be (the working
+draft keeps changing after a trial branches off it). Applying a
+[corrective action](CORRECTIVE_ACTIONS.md)'s draft reuses `draftFromVersion`
+directly — the same function any other "start a variant" action uses — and
+never inherits approval, exactly like every other draft described above.
+
 ## Known limitations
 
 - Variant comparison covers two versions at a time; there is no whole-tree

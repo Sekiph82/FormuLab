@@ -41,7 +41,7 @@ interface ApprovalReadiness {
 
 ## What blocks readiness
 
-`assessApprovalReadiness(input)` walks six sources and is deterministic —
+`assessApprovalReadiness(input)` walks nine sources and is deterministic —
 the same inputs always produce the same blockers, in the same order, so it
 can be re-run on every save, before showing an approval dialog, or in a test
 without surprise:
@@ -84,6 +84,18 @@ without surprise:
    to be the blocked one, blocks readiness the same as a missing run would
    — this closes the gap where "a run exists and found *some* candidates"
    was being read as "a valid candidate was actually chosen and applied."
+
+8. **Laboratory readiness** (opt-in via `LabReadinessInput.policy`) — five
+   blocker codes covering a completed trial, required tests, critical
+   trial deviations, and critical lab corrective actions.
+9. **Stability readiness** (opt-in via `StabilityReadinessInput.policy`) —
+   five more blocker codes covering an active/completed study, initial
+   test results, a configurable minimum time-point count, critical
+   stability failures, and packaging compatibility.
+
+See [LAB_STABILITY_APPROVAL.md](LAB_STABILITY_APPROVAL.md) for the full
+policy shape and blocker-code table — never a hardcoded duration
+requirement, and (like 5–7 above) off entirely unless the caller opts in.
 
 Optimization and substitution runs are opt-in checks: a version with neither
 `appliedOptimizationRunCode` nor `appliedSubstitutionRunCode` set (the
@@ -130,10 +142,11 @@ entry point wherever readiness has already been computed.
 This applies identically regardless of how the transition is attempted: a UI
 button, a domain-service call, an import, a version restore, a clone, or an
 agent event. None of those paths grant an exemption — see
-`packages/shared/src/engine/approvalReadiness.test.ts` (24 tests, including
-the 7 optimization/substitution stored-status checks above) and
-`versioning.test.ts` for the bypass-attempt coverage, including agent/system/
-import actors and legacy-data migration paths.
+`packages/shared/src/engine/approvalReadiness.test.ts` (38 tests, including
+the 7 optimization/substitution stored-status checks and the lab/stability
+readiness checks above) and `versioning.test.ts` for the bypass-attempt
+coverage, including agent/system/import actors and legacy-data migration
+paths.
 
 ## What this does not do
 
