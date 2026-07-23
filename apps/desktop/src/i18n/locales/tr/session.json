@@ -495,7 +495,8 @@
     "tabTrials": "Denemeler",
     "tabTests": "Testler",
     "tabStability": "Stabilite",
-    "tabCorrectiveActions": "Düzeltici faaliyetler"
+    "tabCorrectiveActions": "Düzeltici faaliyetler",
+    "tabApproval": "Onay"
   },
   "compare": {
     "needTwo": "Karşılaştırmak için en az iki sürüm kaydedin.",
@@ -1009,7 +1010,10 @@
     "weighingSheet": "Tartım fişi",
     "processSheet": "Proses fişi",
     "testResultsReport": "Test sonuçları raporu",
-    "erpDraftExport": "ERP taslak laboratuvar sonuçları (CSV)"
+    "erpDraftExport": "ERP taslak laboratuvar sonuçları (CSV)",
+    "testRequirements": "Test gereksinimleri (oluşturulduğunda çözümlendi)",
+    "required": "Zorunlu",
+    "optional": "İsteğe bağlı"
   },
   "tests": {
     "heading": "Test Tanımları",
@@ -1072,5 +1076,80 @@
     "defaultCancelReason": "Artık gerekli değil.",
     "cancel": "İptal",
     "reassign": "Yeniden ata"
+  },
+  "approval": {
+    "heading": "Onay Hazırlığı",
+    "noVersion": "Onaylanabilmesi için önce bir sürüm kaydedin.",
+    "currentStatus": "Mevcut durum",
+    "requestedStatus": "Talep edilen durum",
+    "policy": "Onay Politikası",
+    "noPolicy": "Politika yok (yalnızca doğrulama/uyumluluk/güvenlik)",
+    "readiness": "Hazırlık",
+    "ready": "Hazır",
+    "notReady": "Hazır Değil",
+    "status": {
+      "concept": "Konsept",
+      "literature_candidate": "Literatür adayı",
+      "chemist_review": "Kimyager incelemesi",
+      "lab_candidate": "Laboratuvar adayı",
+      "stability_testing": "Stabilite testi",
+      "pilot_candidate": "Pilot aday",
+      "pilot_approved": "Pilot Üretim İçin Onaylandı",
+      "production_approved": "Üretim İçin Onaylandı",
+      "retired": "Emekliye ayrıldı",
+      "rejected": "Reddedildi"
+    },
+    "blockersHeading": "Onay Engelleri ({{count}})",
+    "noBlockers": "Engel yok.",
+    "blockers": {
+      "missingCostSnapshot": "Yapılandırılan politika bu sürüm için bir maliyet anlık görüntüsü gerektiriyor ve henüz oluşturulmadı."
+    },
+    "goTo": "Git",
+    "warningsHeading": "Uyarılar ({{count}})",
+    "noWarnings": "Uyarı yok.",
+    "laboratorySummary": "Laboratuvar",
+    "hasCompletedTrial": "Tamamlanmış bir deneme var",
+    "allRequiredTestsCompleted": "Tüm zorunlu testler tamamlandı",
+    "allCriticalTestsPassed": "Tüm kritik testler geçti",
+    "noOpenCriticalDeviation": "Açık kritik sapma yok",
+    "noOpenCriticalCorrectiveAction": "Açık kritik düzeltici faaliyet yok",
+    "stabilitySummary": "Stabilite",
+    "hasActiveOrCompletedStudy": "Aktif veya tamamlanmış bir çalışma var",
+    "initialTestsPassed": "Başlangıç testleri geçti",
+    "completedTimePointCount": "Tamamlanan zaman noktaları",
+    "noOpenCriticalStabilityFailure": "Açık kritik stabilite hatası yok",
+    "packagingCompatibility": "Ambalaj Uyumluluğu",
+    "packagingStatus": {
+      "passed": "Geçti",
+      "failed": "Başarısız",
+      "incomplete": "Eksik",
+      "not_required": "Gerekli değil",
+      "unknown": "Bilinmiyor"
+    },
+    "validationCompatibilitySafetySummary": "Doğrulama, uyumluluk ve güvenlik",
+    "compatibilityFindings": "Uyumluluk bulguları",
+    "safetyFindings": "Güvenlik bulguları",
+    "classification": "Güvenlik sınıflandırması",
+    "costSummary": "Maliyet",
+    "costSnapshotPresent": "Maliyet anlık görüntüsü kaydedildi",
+    "decisionHeading": "Karar",
+    "reviewerRole": "İnceleyen rolü",
+    "reviewerDisplayName": "İnceleyen adı",
+    "reviewerUserId": "İnceleyen kullanıcı kimliği",
+    "reason": "Gerekçe",
+    "roleNotAuthorized": "Bu rol, talep edilen durumu onaylayamaz.",
+    "approveButton": "Sürümü Onayla → {{status}}",
+    "rejectButton": "Reddet",
+    "cancelButton": "Girişimi iptal et",
+    "blockedGeneric": "Bu onay girişimi engellendi.",
+    "historyHeading": "Onay geçmişi",
+    "noHistory": "Henüz kaydedilmiş bir onay girişimi yok.",
+    "managePolicies": "Politikaları yönet",
+    "activatePolicy": "Etkinleştir",
+    "deactivatePolicy": "Devre dışı bırak"
+  },
+  "attachments": {
+    "add": "Ek ekle",
+    "remove": "Eki kaldır"
   }
 }
