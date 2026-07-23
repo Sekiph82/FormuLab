@@ -27,8 +27,9 @@ import {
   APPROVAL_AUTHORITY,
   APPROVAL_ROLES,
   activeEquivalencesFor,
+  activeEvidenceConfirmations,
   assessApprovalReadiness,
-  assessRegulatoryReadiness,
+  assessMultiJurisdictionRegulatoryReadiness,
   attemptApprovalTransition,
   buildKenyaCatalog,
   classifyProductRegulatory,
@@ -44,10 +45,13 @@ import {
   equivalentVersionIdsFor,
   evaluateCompatibility,
   evaluateSafety,
+  explainRegulatoryReviewStatus,
+  findApplicableRegulatoryReview,
   initialPolicyRevision,
   newId,
   policyApplies,
   resolvePolicyPrecedence,
+  resolveRegulatoryJurisdictions,
   restorePolicyRevision,
   retirePolicy,
   revokeEquivalence,
@@ -81,7 +85,12 @@ import {
   type LaboratoryTrial,
   type OptimizationRun,
   type RawMaterial,
+  type RegulatoryApprovalSnapshot,
+  type RegulatoryEvidenceConfirmation,
+  type RegulatoryEvidenceConfirmationRevocation,
   type RegulatoryReview,
+  type RegulatoryReviewEquivalence,
+  type RegulatoryReviewRevocation,
   type RegulatoryRule,
   type SafetyResolution,
   type StabilityFailure,
@@ -184,9 +193,13 @@ export function ApprovalPanel({
   const [approvalRecords, setApprovalRecords] = useState<ApprovalRecord[]>([]);
   const [regulatoryRules, setRegulatoryRules] = useState<RegulatoryRule[]>(SEED_REGULATORY_RULES);
   const [regulatoryReviews, setRegulatoryReviews] = useState<RegulatoryReview[]>([]);
+  const [regulatoryReviewRevocations, setRegulatoryReviewRevocations] = useState<RegulatoryReviewRevocation[]>([]);
+  const [regulatoryReviewEquivalences, setRegulatoryReviewEquivalences] = useState<RegulatoryReviewEquivalence[]>([]);
+  const [regulatoryConfirmations, setRegulatoryConfirmations] = useState<RegulatoryEvidenceConfirmation[]>([]);
+  const [regulatoryConfirmationRevocations, setRegulatoryConfirmationRevocations] = useState<RegulatoryEvidenceConfirmationRevocation[]>([]);
 
   const load = useCallback(async () => {
-    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec, regr, regrev] = await Promise.all([
+    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec, regr, regrev, regrevrev, regequiv, regconf, regconfrev] = await Promise.all([
       listRecords("materials"),
       listRecordsSeeded("compatibility_rules", SEED_COMPATIBILITY_RULES),
       listRecordsSeeded("safety_rules", SEED_SAFETY_RULES),
@@ -209,6 +222,10 @@ export function ApprovalPanel({
       listApprovalRecords(formulation.id),
       listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES),
       listRecords("regulatory_reviews"),
+      listRecords("regulatory_review_revocations"),
+      listRecords("regulatory_review_equivalences"),
+      listRecords("regulatory_evidence_confirmations"),
+      listRecords("regulatory_evidence_confirmation_revocations"),
     ]);
     setMaterials(m);
     setCompatibilityRules(cr);
@@ -232,6 +249,10 @@ export function ApprovalPanel({
     setApprovalRecords(rec);
     setRegulatoryRules(regr);
     setRegulatoryReviews(regrev.filter((r) => r.formulationId === formulation.id));
+    setRegulatoryReviewRevocations(regrevrev);
+    setRegulatoryReviewEquivalences(regequiv.filter((e) => e.formulationId === formulation.id));
+    setRegulatoryConfirmations(regconf.filter((c) => c.formulationId === formulation.id));
+    setRegulatoryConfirmationRevocations(regconfrev);
   }, [formulation.id]);
 
   useEffect(() => {
@@ -404,38 +425,96 @@ export function ApprovalPanel({
   // Regulatory readiness — same one-layer-up pattern as the cost-snapshot
   // gate above: `assessApprovalReadiness` doesn't know about regulatory
   // rules, so this panel derives the facts from real persisted
-  // rules/findings/reviews and folds the result into the same blocker
-  // list. Scoped to the formulation's primary target market (first entry
-  // in `targetMarkets`, defaulting to Kenya) — a multi-market product's
-  // other jurisdictions are reviewed via the dedicated Regulatory tab,
-  // which lets picking any of the seven.
-  const primaryJurisdiction = (formulation.targetMarkets[0] as "KE" | "UG" | "TZ" | "RW" | "BI" | "SS" | "EAC" | undefined) ?? "KE";
-  const regulatoryClassification = family ? classifyProductRegulatory({ family, claims: formulation.targetClaims, market: primaryJurisdiction }) : undefined;
+  // rules/findings/reviews/confirmations and folds the result into the
+  // same blocker list. Multi-jurisdiction (spec §3.3):
+  // `resolveRegulatoryJurisdictions` decides which market(s) the six
+  // gates evaluate against — an explicit policy list, every target
+  // market, or the primary market only, defaulting to primary-only so a
+  // policy that never touches those three fields behaves exactly as
+  // before. `formulaVersionId` is the REAL selected, saved version — a
+  // review only ever satisfies the exact version it was recorded
+  // against, never a working draft.
+  const regulatoryPolicy = activePolicy ? toRegulatoryApprovalPolicy(activePolicy) : {};
+  const regulatoryJurisdictions = resolveRegulatoryJurisdictions(regulatoryPolicy, formulation.targetMarkets);
+  const regulatoryClassificationsByJurisdiction = useMemo(
+    () =>
+      new Map(
+        regulatoryJurisdictions.map((jurisdiction) => [
+          jurisdiction,
+          family ? classifyProductRegulatory({ family, claims: formulation.targetClaims, market: jurisdiction }) : undefined,
+        ]),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [family, formulation.targetClaims, regulatoryJurisdictions.join(",")],
+  );
   const regulatoryFindings = useMemo(
     () =>
-      regulatoryClassification
-        ? evaluateRegulatory(lines, regulatoryRules, { jurisdiction: primaryJurisdiction, category: regulatoryClassification.category, materials, claims: formulation.targetClaims })
-        : [],
-    [lines, regulatoryRules, primaryJurisdiction, regulatoryClassification, materials, formulation.targetClaims],
+      regulatoryJurisdictions.flatMap((jurisdiction) => {
+        const classification = regulatoryClassificationsByJurisdiction.get(jurisdiction);
+        return classification
+          ? evaluateRegulatory(lines, regulatoryRules, { jurisdiction, category: classification.category, materials, claims: formulation.targetClaims })
+          : [];
+      }),
+    [lines, regulatoryRules, regulatoryJurisdictions, regulatoryClassificationsByJurisdiction, materials, formulation.targetClaims],
   );
-  // The Regulatory tab (RegulatoryPanel.tsx) records a review against
-  // "working_draft" always — it has no concept of which specific saved
-  // formula version is being approved, only "the current formulation, in
-  // this jurisdiction." So this gate matches by jurisdiction alone, not
-  // by version id; a recorded review is treated as covering whichever
-  // version is currently up for approval. Known simplification — see
-  // docs/REGULATORY_ENGINE.md.
-  const regulatoryReadinessInput = deriveRegulatoryReadiness({
-    policy: activePolicy ? toRegulatoryApprovalPolicy(activePolicy) : {},
-    classified: !!regulatoryClassification && !regulatoryClassification.uncertain,
-    findings: regulatoryFindings,
-    rules: regulatoryRules,
-    reviews: regulatoryReviews,
-    versionId: "working_draft",
-    jurisdiction: primaryJurisdiction,
-  });
-  const regulatoryAssessment = assessRegulatoryReadiness(regulatoryReadinessInput);
+  const regulatoryReadinessPerJurisdiction = selectedVersion
+    ? regulatoryJurisdictions.map((jurisdiction) =>
+        deriveRegulatoryReadiness({
+          policy: regulatoryPolicy,
+          classified: !!regulatoryClassificationsByJurisdiction.get(jurisdiction) && !regulatoryClassificationsByJurisdiction.get(jurisdiction)?.uncertain,
+          findings: regulatoryFindings,
+          rules: regulatoryRules,
+          reviews: regulatoryReviews,
+          reviewRevocations: regulatoryReviewRevocations,
+          reviewEquivalences: regulatoryReviewEquivalences,
+          confirmations: regulatoryConfirmations,
+          confirmationRevocations: regulatoryConfirmationRevocations,
+          formulaVersionId: selectedVersion.id,
+          jurisdiction,
+          packagingSkuCode,
+        }),
+      )
+    : [];
+  const regulatoryAssessment = assessMultiJurisdictionRegulatoryReadiness(regulatoryReadinessPerJurisdiction);
   const regulatoryBlockers: DisplayFinding[] = regulatoryAssessment.blockers.map((b) => ({ id: b.id, source: "regulatory", code: b.code, message: b.message }));
+
+  // Frozen at the moment of decision (spec §3.9): later rule edits, later
+  // reviews, or later confirmation revocations must not retroactively
+  // rewrite what this historical approval record says was true. Recomputes
+  // the same per-jurisdiction facts `deriveRegulatoryReadiness` already
+  // used, plus the ids that actually satisfied each gate, rather than a
+  // second independent readiness pass.
+  const buildRegulatorySnapshot = (): RegulatoryApprovalSnapshot | undefined => {
+    if (!selectedVersion || regulatoryJurisdictions.length === 0) return undefined;
+    const perJurisdiction = regulatoryJurisdictions.map((jurisdiction, index) => {
+      const jurisdictionRules = regulatoryRules.filter((r) => r.jurisdiction === jurisdiction || r.jurisdiction === "EAC");
+      const ruleVersionSnapshot = jurisdictionRules.map((r) => ({ ruleId: r.id, ruleCode: r.code, version: r.version, verificationStatus: r.verificationStatus }));
+      const findingSnapshot = regulatoryFindings.filter((f) => f.jurisdiction === jurisdiction);
+      const activeConfirmations = activeEvidenceConfirmations(selectedVersion.id, jurisdiction, packagingSkuCode, regulatoryConfirmations, regulatoryConfirmationRevocations);
+      const reviewCtx = { formulaVersionId: selectedVersion.id, jurisdiction, packagingSkuCode };
+      const applicableReview = findApplicableRegulatoryReview(reviewCtx, regulatoryReviews, regulatoryReviewRevocations, regulatoryReviewEquivalences, regulatoryRules);
+      const humanReviewCurrentness = applicableReview ? "current" : explainRegulatoryReviewStatus(reviewCtx, regulatoryReviews, regulatoryReviewRevocations, regulatoryRules);
+      const perJur = regulatoryAssessment.perJurisdiction[index];
+      return {
+        jurisdiction,
+        classificationSnapshot: regulatoryClassificationsByJurisdiction.get(jurisdiction),
+        findingSnapshot,
+        ruleVersionSnapshot,
+        evidenceConfirmationIds: activeConfirmations.map((c) => c.id),
+        humanReviewId: applicableReview?.review.id,
+        humanReviewCurrentness,
+        ready: perJur?.ready ?? false,
+        blockers: (perJur?.blockers ?? []).map((b) => ({ id: b.id, source: "regulatory", message: b.message, code: b.code })),
+        warnings: [],
+      };
+    });
+    return {
+      ready: regulatoryAssessment.ready,
+      jurisdictionsEvaluated: regulatoryAssessment.jurisdictionsEvaluated,
+      perJurisdiction,
+      packagingSkuCode,
+    };
+  };
 
   const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : []), ...regulatoryBlockers];
   const allWarnings: (ApprovalWarning | DisplayFinding)[] = readiness.warnings;
@@ -517,6 +596,7 @@ export function ApprovalPanel({
     try {
       const actor: Actor = { kind: "human", role: reviewerRole, userId: reviewerUserId.trim() || "local" };
       const snapshot = buildReadinessSnapshot();
+      const regulatorySnapshot = buildRegulatorySnapshot();
       const approvalId = newId("approval");
       const now = new Date().toISOString();
 
@@ -530,20 +610,20 @@ export function ApprovalPanel({
         );
         if (!result.allowed || !result.action) {
           await saveApprovalRecord(
-            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason || result.message || "blocked", snapshot, now),
+            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason || result.message || "blocked", snapshot, now, regulatorySnapshot),
           );
           await appendAudit(auditEvent(formulation.id, "approval.blocked", { versionId: selectedVersion.id, detail: result.message }));
           setError(result.message ?? t("approval.blockedGeneric"));
           return;
         }
         await saveApprovalRecord(
-          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now),
+          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot),
         );
         await appendAudit(auditEvent(formulation.id, result.action, { versionId: selectedVersion.id, detail: reason }));
         await appendAudit(auditEvent(formulation.id, "approval.granted", { versionId: selectedVersion.id, detail: approvalId }));
       } else {
         await saveApprovalRecord(
-          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now),
+          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot),
         );
         await appendAudit(auditEvent(formulation.id, `approval.${decision}`, { versionId: selectedVersion.id, detail: reason }));
       }
@@ -760,28 +840,27 @@ export function ApprovalPanel({
         <SummaryCard title={t("regulatory.approvalSummaryHeading")}>
           <div className="flex justify-between text-[11px]">
             <span className="text-muted">{t("regulatory.approvalSummaryJurisdiction")}</span>
-            <span className="text-text">{t(`regulatory.jurisdiction.${primaryJurisdiction}`)}</span>
+            <span className="text-text">{regulatoryJurisdictions.map((j) => t(`regulatory.jurisdiction.${j}`)).join(", ")}</span>
           </div>
-          {regulatoryClassification && (
-            <div className="flex justify-between text-[11px]">
-              <span className="text-muted">{t("regulatory.approvalSummaryCategory")}</span>
-              <span className="text-text">{t(`regulatory.category.${regulatoryClassification.category}`)}</span>
-            </div>
-          )}
           <div className="flex justify-between text-[11px]">
             <span className="text-muted">{t("regulatory.approvalSummaryFindings")}</span>
             <span className="text-text">{regulatoryFindings.length}</span>
           </div>
-          <SummaryRow
-            label={t("regulatory.approvalSummaryNoBlockingFinding")}
-            ok={!regulatoryReadinessInput.hasBlockingFinding}
-            muted={!activePolicy?.requireNoBlockingRegulatoryFinding}
-          />
-          <SummaryRow
-            label={t("regulatory.approvalSummaryHumanReview")}
-            ok={regulatoryReadinessInput.humanReviewCompleted}
-            muted={!activePolicy?.requireHumanRegulatoryReviewCompleted}
-          />
+          {regulatoryReadinessPerJurisdiction.map((input) => (
+            <div key={input.jurisdiction} className="mt-1.5 border-t border-border-faint pt-1.5 first:mt-0 first:border-0 first:pt-0">
+              {regulatoryJurisdictions.length > 1 && <p className="mb-0.5 text-[10px] font-medium text-muted">{t(`regulatory.jurisdiction.${input.jurisdiction}`)}</p>}
+              <SummaryRow
+                label={t("regulatory.approvalSummaryNoBlockingFinding")}
+                ok={!input.hasBlockingFinding}
+                muted={!activePolicy?.requireNoBlockingRegulatoryFinding}
+              />
+              <SummaryRow
+                label={t("regulatory.approvalSummaryHumanReview")}
+                ok={input.humanReviewCompleted}
+                muted={!activePolicy?.requireHumanRegulatoryReviewCompleted}
+              />
+            </div>
+          ))}
         </SummaryCard>
       </div>
 
@@ -892,6 +971,8 @@ const DISABLED_EXAMPLE_POLICY: ApprovalPolicy = {
   requireAllMandatoryEvidencePresent: false,
   requireAllRequiredClaimsReviewed: false,
   requireHumanRegulatoryReviewCompleted: false,
+  requireAllTargetMarketsReviewed: false,
+  allowPrimaryMarketOnly: false,
   createdBy: "local",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -909,6 +990,7 @@ function buildApprovalRecord(
   justification: string,
   snapshot: { ready: boolean; blockers: DisplayFinding[]; warnings: ApprovalWarning[] },
   now: string,
+  regulatorySnapshot?: RegulatoryApprovalSnapshot,
 ): ApprovalRecord {
   return {
     schemaVersion: "1.0",
@@ -926,6 +1008,7 @@ function buildApprovalRecord(
     reviewerRole: actor.role,
     justification: justification.trim() || `${decision} without a stated reason`,
     readinessSnapshot: snapshot,
+    regulatorySnapshot,
     createdAt: now,
   };
 }

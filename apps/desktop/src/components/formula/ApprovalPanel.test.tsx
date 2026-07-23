@@ -378,7 +378,21 @@ describe("ApprovalPanel — regulatory readiness integration", () => {
     masterdataBridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "regulatory_reviews") {
         return Promise.resolve([
-          { schemaVersion: "1.0", id: "regreview-1", formulationId: "proj-1", versionId: "working_draft", jurisdiction: "KE", reviewedBy: "Jane", reviewedAt: "2026-01-01T00:00:00.000Z", outcome: "compliant", notes: "Looks fine." },
+          {
+            schemaVersion: "1.0",
+            id: "regreview-1",
+            formulationId: "proj-1",
+            formulaVersionId: v.id,
+            jurisdiction: "KE",
+            classificationSnapshot: { category: "laundry_detergent", confidence: 0.7, reasoning: ["test"], uncertain: false },
+            findingSnapshot: [],
+            ruleVersionSnapshot: [],
+            reviewedBy: "Jane",
+            reviewerRole: "regulatory",
+            reviewedAt: "2026-01-01T00:00:00.000Z",
+            outcome: "compliant",
+            notes: "Looks fine.",
+          },
         ]);
       }
       if (collection === "safety_resolutions") {
