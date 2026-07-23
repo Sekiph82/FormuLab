@@ -138,6 +138,7 @@ export function auditEvent(
     actor?: string;
     actorKind?: AuditEvent["actorKind"];
     detail?: string;
+    metadata?: Record<string, string>;
   } = {},
 ): AuditEvent {
   return {
@@ -149,6 +150,7 @@ export function auditEvent(
     actorKind: opts.actorKind ?? "human",
     action,
     detail: opts.detail,
+    metadata: opts.metadata,
   };
 }
 

@@ -45,6 +45,7 @@ import {
   type TestDefinition,
 } from "@ai4s/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
+import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
 import { AttachmentField } from "./AttachmentField";
 import { downloadBlob, downloadText } from "@/lib/download";
@@ -323,6 +324,31 @@ export function StabilityPanel({
     }
   };
 
+  /** `stability_results` is append-only — same new-revision-on-replace
+   *  rule as `TrialsPanel.tsx`'s `replaceTestResultAttachment`. */
+  const replaceStabilityResultAttachment = async (result: StabilityResult, oldAttachment: AttachmentReference, newAttachment: AttachmentReference) => {
+    const now = new Date().toISOString();
+    const revised: StabilityResult = { ...result, id: newId("stabresult"), attachments: [...result.attachments, newAttachment], revisesResultId: result.id, createdAt: now, updatedAt: now };
+    await upsertRecords("stability_results", [revised]);
+    setResults((prev) => [...prev, revised]);
+    await appendAudit(
+      auditEvent(formulation.id, "attachment.replaced", {
+        detail: `Stability result attachment replaced on ${result.testDefinitionId}`,
+        metadata: {
+          oldAttachmentId: oldAttachment.id,
+          newAttachmentId: newAttachment.id,
+          parentRecordType: "stability_result",
+          parentRecordId: result.id,
+          reason: t("attachments.replaceReason"),
+          replacedBy: "local",
+          replacedAt: now,
+          oldChecksum: oldAttachment.checksumSha256 ?? "",
+          newChecksum: newAttachment.checksumSha256 ?? "",
+        },
+      }),
+    );
+  };
+
   const updateFailureAttachments = async (failure: StabilityFailure, attachments: AttachmentReference[]) => {
     const updated = { ...failure, attachments, updatedAt: new Date().toISOString() };
     await upsertRecords("stability_failures", [updated]);
@@ -474,7 +500,7 @@ export function StabilityPanel({
                 {t("stability.generateSamples")}
               </button>
             ) : (
-              <SampleDashboard formulationId={formulation.id} samples={allStudySamples} results={results.filter((r) => r.studyId === selectedStudy.id)} testDefinitions={testDefinitions.filter((d) => selectedStudy.requiredTestDefinitionIds.includes(d.code))} onRecord={recordResult} t={t} />
+              <SampleDashboard formulationId={formulation.id} samples={allStudySamples} results={results.filter((r) => r.studyId === selectedStudy.id)} testDefinitions={testDefinitions.filter((d) => selectedStudy.requiredTestDefinitionIds.includes(d.code))} onRecord={recordResult} onReplaceAttachment={replaceStabilityResultAttachment} t={t} />
             )}
 
             <TrendCharts study={selectedStudy} results={results.filter((r) => r.studyId === selectedStudy.id)} testDefinitions={testDefinitions.filter((d) => selectedStudy.requiredTestDefinitionIds.includes(d.code))} t={t} />
@@ -502,6 +528,7 @@ function SampleDashboard({
   results,
   testDefinitions,
   onRecord,
+  onReplaceAttachment,
   t,
 }: {
   formulationId: string;
@@ -509,6 +536,7 @@ function SampleDashboard({
   results: StabilityResult[];
   testDefinitions: TestDefinition[];
   onRecord: (sample: StabilitySample, definition: TestDefinition, values: string[], attachments?: AttachmentReference[]) => void;
+  onReplaceAttachment: (result: StabilityResult, oldAttachment: AttachmentReference, newAttachment: AttachmentReference) => void | Promise<void>;
   t: SimpleT;
 }) {
   const [openSampleId, setOpenSampleId] = useState<string | null>(null);
@@ -558,6 +586,7 @@ function SampleDashboard({
                         .filter((d) => d.resultType === "numeric")
                         .map((def) => {
                           const key = `${sample.id}:${def.code}`;
+                          const existing = results.filter((r) => r.sampleId === sample.id && r.testDefinitionId === def.code);
                           return (
                             <div key={def.code} className="flex flex-col gap-1">
                               <div className="flex items-center gap-1.5">
@@ -584,6 +613,22 @@ function SampleDashboard({
                                 onChange={(attachments) => setPendingAttachments((prev) => ({ ...prev, [key]: attachments }))}
                                 t={t}
                               />
+                              {existing.map((r) => {
+                                const supersededByAnotherResult = existing.some((other) => other.revisesResultId === r.id);
+                                return (
+                                  <div key={r.id} className="text-[10px] text-muted">
+                                    {t("trials.resultSummary", { mean: r.stats?.mean ?? "—", count: r.stats?.count ?? 0, passFail: r.passFail })}
+                                    <AttachmentField
+                                      formulationId={formulationId}
+                                      attachments={r.attachments}
+                                      onChange={() => {}}
+                                      disabled
+                                      onReplace={supersededByAnotherResult ? undefined : (old, next) => onReplaceAttachment(r, old, next)}
+                                      t={t}
+                                    />
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
                         })}

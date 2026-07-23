@@ -1013,7 +1013,8 @@
     "erpDraftExport": "ERP draft lab results (CSV)",
     "testRequirements": "Test requirements (resolved at creation)",
     "required": "Required",
-    "optional": "Optional"
+    "optional": "Optional",
+    "revisionOf": "revises {{id}}"
   },
   "tests": {
     "heading": "Test Definitions",
@@ -1146,10 +1147,74 @@
     "noHistory": "No approval attempts recorded yet.",
     "managePolicies": "Manage policies",
     "activatePolicy": "Activate",
-    "deactivatePolicy": "Deactivate"
+    "deactivatePolicy": "Deactivate",
+    "scopeAll": "All",
+    "scopeSelected": "Selected",
+    "scopeSearch": "Search…",
+    "scopeNoMatches": "No matches.",
+    "scopeNoneSelected": "Nothing selected — this policy will not match any version until you select at least one.",
+    "scopeSummary": "{{count}} selected",
+    "scopeProductFamilies": "Product families",
+    "scopePackagingSkus": "Packaging SKUs",
+    "policyRetired": "Retired",
+    "policyRevision": "rev {{n}}",
+    "policyHistory": "History",
+    "editPolicy": "Edit",
+    "clonePolicy": "Clone",
+    "clonePromptName": "Name for the cloned policy",
+    "retirePolicy": "Retire",
+    "retirePromptReason": "Reason for retiring this policy",
+    "restoreRevision": "Restore",
+    "newPolicy": "New policy",
+    "policyName": "Name",
+    "policyDescription": "Description",
+    "effectiveDate": "Effective date",
+    "minimumTimePoints": "Minimum completed time points",
+    "priority": "Priority (tie-break)",
+    "changeReason": "Reason for this change",
+    "changeReasonRequired": "A reason is required to save this change.",
+    "equivalenceHeading": "Equivalent versions",
+    "equivalentTo": "Evidence reused from {{id}}",
+    "evidenceScope": {
+      "laboratory_only": "Laboratory only",
+      "stability_only": "Stability only",
+      "laboratory_and_stability": "Laboratory and stability"
+    },
+    "revokeEquivalence": "Revoke",
+    "revokePromptReason": "Reason for revoking this equivalence",
+    "equivalenceCandidate": "Equivalent version",
+    "evidenceReuseScope": "Evidence reuse scope",
+    "comparisonHeading": "Comparison",
+    "comparisonLinesChanged": "{{count}} line(s) changed",
+    "comparisonActiveMatter": "Active matter Δ {{delta}}",
+    "comparisonSkus": "SKUs +{{added}}/-{{removed}}",
+    "comparisonCompatibility": "Compatibility: {{candidate}} vs {{source}}",
+    "comparisonSafety": "Safety: {{candidate}} vs {{source}}",
+    "comparisonNoProcess": "Process instructions are recorded on trials/studies, not on the formula version itself, so they are not part of this comparison.",
+    "justification": "Justification",
+    "declareEquivalence": "Declare equivalence",
+    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}"
   },
   "attachments": {
     "add": "Add attachment",
-    "remove": "Remove attachment"
+    "remove": "Remove attachment",
+    "replace": "Replace",
+    "superseded": "Superseded",
+    "replaceReason": "Replaced via the finalized-record replacement workflow."
+  },
+  "applicability": {
+    "heading": "Test applicability",
+    "included": "Included ({{count}})",
+    "excluded": "Excluded ({{count}})",
+    "allReasons": "All reasons",
+    "noMatches": "No matches.",
+    "reason": {
+      "inactive_definition": "Inactive definition",
+      "wrong_product_family": "Wrong product family",
+      "wrong_packaging_sku": "Wrong packaging SKU",
+      "wrong_context": "Wrong context",
+      "wrong_storage_condition": "Wrong storage condition",
+      "wrong_time_point": "Wrong time point"
+    }
   }
 }

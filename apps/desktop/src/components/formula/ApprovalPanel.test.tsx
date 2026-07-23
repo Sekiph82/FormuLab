@@ -16,11 +16,13 @@ import { ApprovalPanel } from "./ApprovalPanel";
 const masterdataBridge = {
   listRecords: vi.fn(),
   listRecordsSeeded: vi.fn(),
+  upsertRecords: vi.fn(),
 };
 
 vi.mock("@/lib/masterdata", () => ({
   listRecords: (...a: [string]) => masterdataBridge.listRecords(...a),
   listRecordsSeeded: (...a: [string, unknown[]]) => masterdataBridge.listRecordsSeeded(...a),
+  upsertRecords: (...a: [string, unknown[]]) => masterdataBridge.upsertRecords(...a),
 }));
 
 const formulationsBridge = {
@@ -116,6 +118,7 @@ beforeEach(() => {
     return Promise.resolve([]);
   });
   masterdataBridge.listRecordsSeeded.mockImplementation((_collection: string, seed: unknown[]) => Promise.resolve(seed));
+  masterdataBridge.upsertRecords.mockImplementation((_collection: string, records: unknown[]) => Promise.resolve({ inserted: records.length, updated: 0, total: records.length }));
   formulationsBridge.saveApprovalRecord.mockImplementation((r: unknown) => Promise.resolve(r));
   formulationsBridge.listApprovalRecords.mockResolvedValue([]);
   formulationsBridge.appendAudit.mockResolvedValue(undefined);
@@ -220,5 +223,101 @@ describe("ApprovalPanel — approval flow", () => {
     const actions = formulationsBridge.appendAudit.mock.calls.map((c) => c[0].action);
     expect(actions).toContain("approval.rejected");
     expect(actions.some((a: string) => a.startsWith("version.approved"))).toBe(false);
+  });
+});
+
+const CONFLICTING_POLICY_A = {
+  schemaVersion: "1.0" as const,
+  id: "policy-a",
+  name: "Policy A",
+  productFamilyCodes: [],
+  packagingSkuCodes: [],
+  targetStatus: "pilot_approved" as const,
+  verificationStatus: "not_verified" as const,
+  active: true,
+  retired: false,
+  revisionNumber: 1,
+  requireCompletedTrial: true,
+  requireAllRequiredTestsCompleted: false,
+  requireAllCriticalTestsPassed: false,
+  requireNoUnresolvedCriticalDeviation: false,
+  requireNoUnresolvedCriticalCorrectiveAction: false,
+  requireActiveStudy: false,
+  requireInitialTestsPassed: false,
+  requireNoUnresolvedCriticalFailure: false,
+  requirePackagingCompatibilityPassed: false,
+  requireCostSnapshot: false,
+  createdBy: "local",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+const CONFLICTING_POLICY_B = { ...CONFLICTING_POLICY_A, id: "policy-b", name: "Policy B", requireCompletedTrial: false, requireCostSnapshot: true };
+
+describe("ApprovalPanel — policy conflict", () => {
+  it("shows a structured conflict blocker and disables Approve when two equally-scoped active policies match", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies" ? Promise.resolve([CONFLICTING_POLICY_A, CONFLICTING_POLICY_B]) : Promise.resolve(seed),
+    );
+    const v = version();
+    renderPanel([v], v);
+    await screen.findByText(/active polic(y matches|ies match)/);
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
+  });
+
+  it("an explicit policy selection overrides the conflict", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies" ? Promise.resolve([CONFLICTING_POLICY_A, CONFLICTING_POLICY_B]) : Promise.resolve(seed),
+    );
+    const v = version();
+    renderPanel([v], v);
+    await screen.findByText(/active polic(y matches|ies match)/);
+
+    const policySelect = screen.getByLabelText("Approval policy") as HTMLSelectElement;
+    await userEvent.setup().selectOptions(policySelect, "policy-b");
+
+    expect(screen.queryByText(/active polic(y matches|ies match)/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ApprovalPanel — policy management", () => {
+  it("creates a new policy through the manage-policies editor", async () => {
+    const v = version();
+    renderPanel([v], v);
+    const user = userEvent.setup();
+    await screen.findByText(/Blockers \(/);
+
+    await user.click(screen.getByRole("button", { name: "Manage policies" }));
+    await user.click(screen.getByRole("button", { name: "New policy" }));
+    await user.type(screen.getByLabelText("Name"), "Kenya pilot gate");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() => expect(masterdataBridge.upsertRecords).toHaveBeenCalledWith("approval_policies", expect.any(Array)));
+    const [, savedPolicies] = masterdataBridge.upsertRecords.mock.calls.find((c) => c[0] === "approval_policies")!;
+    expect(savedPolicies[0].name).toBe("Kenya pilot gate");
+    expect(savedPolicies[0].active).toBe(false);
+    expect(masterdataBridge.upsertRecords).toHaveBeenCalledWith("approval_policy_revisions", expect.any(Array));
+  });
+});
+
+describe("ApprovalPanel — equivalent versions", () => {
+  it("declares an equivalence and shows it in the laboratory summary as evidence reuse", async () => {
+    const sourceVersion = version({ id: "version-source", status: "pilot_candidate" });
+    const equivalentVersion = version({ id: "version-equivalent" });
+    renderPanel([sourceVersion, equivalentVersion], sourceVersion);
+    const user = userEvent.setup();
+    await screen.findByText(/Blockers \(/);
+
+    await user.click(screen.getByRole("button", { name: /Equivalent versions/ }));
+    await user.type(screen.getByLabelText("Justification"), "Same core system, only fragrance changed.");
+    await user.click(screen.getByRole("button", { name: "Declare equivalence" }));
+
+    await vi.waitFor(() => expect(masterdataBridge.upsertRecords).toHaveBeenCalledWith("formula_version_equivalences", expect.any(Array)));
+    const [, savedEquivalences] = masterdataBridge.upsertRecords.mock.calls.find((c) => c[0] === "formula_version_equivalences")!;
+    expect(savedEquivalences[0].sourceVersionId).toBe("version-source");
+    expect(savedEquivalences[0].equivalentVersionId).toBe("version-equivalent");
+    expect(savedEquivalences[0].declaredBy).toBeTruthy();
+
+    const badges = await screen.findAllByText(/Includes evidence from equivalent version/);
+    expect(badges.length).toBeGreaterThan(0);
   });
 });

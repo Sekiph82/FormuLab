@@ -1013,7 +1013,8 @@
     "erpDraftExport": "ERP taslak laboratuvar sonuçları (CSV)",
     "testRequirements": "Test gereksinimleri (oluşturulduğunda çözümlendi)",
     "required": "Zorunlu",
-    "optional": "İsteğe bağlı"
+    "optional": "İsteğe bağlı",
+    "revisionOf": "{{id}} sürümünü revize eder"
   },
   "tests": {
     "heading": "Test Tanımları",
@@ -1146,10 +1147,74 @@
     "noHistory": "Henüz kaydedilmiş bir onay girişimi yok.",
     "managePolicies": "Politikaları yönet",
     "activatePolicy": "Etkinleştir",
-    "deactivatePolicy": "Devre dışı bırak"
+    "deactivatePolicy": "Devre dışı bırak",
+    "scopeAll": "Tümü",
+    "scopeSelected": "Seçili",
+    "scopeSearch": "Ara…",
+    "scopeNoMatches": "Eşleşme yok.",
+    "scopeNoneSelected": "Hiçbir şey seçilmedi — en az bir tane seçene kadar bu politika hiçbir sürümle eşleşmeyecek.",
+    "scopeSummary": "{{count}} seçildi",
+    "scopeProductFamilies": "Ürün aileleri",
+    "scopePackagingSkus": "Ambalaj SKU'ları",
+    "policyRetired": "Emekliye ayrıldı",
+    "policyRevision": "sürüm {{n}}",
+    "policyHistory": "Geçmiş",
+    "editPolicy": "Düzenle",
+    "clonePolicy": "Kopyala",
+    "clonePromptName": "Kopyalanan politika için ad",
+    "retirePolicy": "Emekliye ayır",
+    "retirePromptReason": "Bu politikayı emekliye ayırma nedeni",
+    "restoreRevision": "Geri yükle",
+    "newPolicy": "Yeni politika",
+    "policyName": "Ad",
+    "policyDescription": "Açıklama",
+    "effectiveDate": "Yürürlük tarihi",
+    "minimumTimePoints": "Minimum tamamlanan zaman noktası",
+    "priority": "Öncelik (eşitlik bozucu)",
+    "changeReason": "Bu değişikliğin nedeni",
+    "changeReasonRequired": "Bu değişikliği kaydetmek için bir neden gerekli.",
+    "equivalenceHeading": "Eşdeğer sürümler",
+    "equivalentTo": "{{id}} sürümünden kanıt yeniden kullanıldı",
+    "evidenceScope": {
+      "laboratory_only": "Yalnızca laboratuvar",
+      "stability_only": "Yalnızca stabilite",
+      "laboratory_and_stability": "Laboratuvar ve stabilite"
+    },
+    "revokeEquivalence": "İptal et",
+    "revokePromptReason": "Bu eşdeğerliği iptal etme nedeni",
+    "equivalenceCandidate": "Eşdeğer sürüm",
+    "evidenceReuseScope": "Kanıt yeniden kullanım kapsamı",
+    "comparisonHeading": "Karşılaştırma",
+    "comparisonLinesChanged": "{{count}} satır değişti",
+    "comparisonActiveMatter": "Aktif madde Δ {{delta}}",
+    "comparisonSkus": "SKU +{{added}}/-{{removed}}",
+    "comparisonCompatibility": "Uyumluluk: {{candidate}} / {{source}}",
+    "comparisonSafety": "Güvenlik: {{candidate}} / {{source}}",
+    "comparisonNoProcess": "Süreç talimatları formül sürümünde değil, denemelerde/çalışmalarda kaydedilir, bu nedenle bu karşılaştırmanın parçası değildir.",
+    "justification": "Gerekçe",
+    "declareEquivalence": "Eşdeğerlik bildir",
+    "evidenceFromEquivalent": "Eşdeğer sürüm(ler)den kanıt içerir: {{versions}}"
   },
   "attachments": {
     "add": "Ek ekle",
-    "remove": "Eki kaldır"
+    "remove": "Eki kaldır",
+    "replace": "Değiştir",
+    "superseded": "Yerini aldı",
+    "replaceReason": "Sonlandırılmış kayıt değiştirme iş akışı üzerinden değiştirildi."
+  },
+  "applicability": {
+    "heading": "Test uygunluğu",
+    "included": "Dahil ({{count}})",
+    "excluded": "Hariç ({{count}})",
+    "allReasons": "Tüm nedenler",
+    "noMatches": "Eşleşme yok.",
+    "reason": {
+      "inactive_definition": "Etkin olmayan tanım",
+      "wrong_product_family": "Yanlış ürün ailesi",
+      "wrong_packaging_sku": "Yanlış ambalaj SKU'su",
+      "wrong_context": "Yanlış bağlam",
+      "wrong_storage_condition": "Yanlış depolama koşulu",
+      "wrong_time_point": "Yanlış zaman noktası"
+    }
   }
 }

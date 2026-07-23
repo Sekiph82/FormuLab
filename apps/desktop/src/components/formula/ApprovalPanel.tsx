@@ -26,17 +26,28 @@ import { CheckCircle2, ExternalLink, Shield, XCircle } from "lucide-react";
 import {
   APPROVAL_AUTHORITY,
   APPROVAL_ROLES,
+  activeEquivalencesFor,
   assessApprovalReadiness,
   attemptApprovalTransition,
   buildKenyaCatalog,
   classifyProductSafety,
+  clonePolicy,
+  declareEquivalence,
   deriveLabReadiness,
   deriveStabilityReadiness,
+  editPolicy,
   effectiveStatus,
+  equivalentVersionIdsFor,
   evaluateCompatibility,
   evaluateSafety,
+  initialPolicyRevision,
   newId,
   policyApplies,
+  resolvePolicyPrecedence,
+  restorePolicyRevision,
+  retirePolicy,
+  revokeEquivalence,
+  setPolicyActive,
   templateForFamily,
   toLabApprovalPolicy,
   toStabilityApprovalPolicy,
@@ -48,6 +59,7 @@ import {
   type Actor,
   type ApprovalBlocker,
   type ApprovalPolicy,
+  type ApprovalPolicyRevision,
   type ApprovalReadiness,
   type ApprovalRecord,
   type ApprovalRole,
@@ -55,9 +67,11 @@ import {
   type AuditEvent,
   type CorrectiveAction,
   type CostSnapshot,
+  type EvidenceReuseScope,
   type Formulation,
   type FormulationVersion,
   type FormulaStatus,
+  type FormulaVersionEquivalence,
   type LaboratoryTrial,
   type OptimizationRun,
   type RawMaterial,
@@ -74,6 +88,8 @@ import {
 import { appendAudit, auditEvent, listApprovalRecords, saveApprovalRecord } from "@/lib/formulations";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { PolicyEditor } from "./PolicyEditor";
+import { EquivalenceWorkflow } from "./EquivalenceWorkflow";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 
@@ -154,10 +170,12 @@ export function ApprovalPanel({
   const [optimizationRuns, setOptimizationRuns] = useState<OptimizationRun[]>([]);
   const [substitutionRuns, setSubstitutionRuns] = useState<SubstitutionRun[]>([]);
   const [policies, setPolicies] = useState<ApprovalPolicy[]>([]);
+  const [policyRevisions, setPolicyRevisions] = useState<ApprovalPolicyRevision[]>([]);
+  const [equivalences, setEquivalences] = useState<FormulaVersionEquivalence[]>([]);
   const [approvalRecords, setApprovalRecords] = useState<ApprovalRecord[]>([]);
 
   const load = useCallback(async () => {
-    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, rec] = await Promise.all([
+    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec] = await Promise.all([
       listRecords("materials"),
       listRecordsSeeded("compatibility_rules", SEED_COMPATIBILITY_RULES),
       listRecordsSeeded("safety_rules", SEED_SAFETY_RULES),
@@ -175,6 +193,8 @@ export function ApprovalPanel({
       listRecords("optimization_runs"),
       listRecords("substitution_runs"),
       listRecordsSeeded("approval_policies", [DISABLED_EXAMPLE_POLICY]),
+      listRecords("approval_policy_revisions"),
+      listRecords("formula_version_equivalences"),
       listApprovalRecords(formulation.id),
     ]);
     setMaterials(m);
@@ -190,6 +210,8 @@ export function ApprovalPanel({
     setSamples(sam);
     setStabilityResults(stres);
     setFailures(fail);
+    setPolicyRevisions(polrev);
+    setEquivalences(equiv.filter((e) => e.formulationId === formulation.id));
     setCostSnapshots(cs);
     setOptimizationRuns(opt);
     setSubstitutionRuns(sub);
@@ -221,11 +243,22 @@ export function ApprovalPanel({
   }, [targetOptions, targetStatus]);
 
   const applicablePolicies = policies.filter(
-    (p) => p.active && p.targetStatus === targetStatus && policyApplies(p, formulation.productFamilyCode, packagingSkuCode),
+    (p) => p.active && !p.retired && p.targetStatus === targetStatus && policyApplies(p, formulation.productFamilyCode, packagingSkuCode),
   );
   const [policyId, setPolicyId] = useState<string>("");
-  const activePolicy = applicablePolicies.find((p) => p.id === policyId) ?? applicablePolicies[0];
+  const explicitPolicy = policies.find((p) => p.id === policyId && applicablePolicies.some((ap) => ap.id === p.id));
+  const policyResolution = useMemo(
+    () => resolvePolicyPrecedence(policies, targetStatus as "pilot_approved" | "production_approved", formulation.productFamilyCode, packagingSkuCode),
+    [policies, targetStatus, formulation.productFamilyCode, packagingSkuCode],
+  );
+  // An explicit selector choice always wins; absent one, deterministic
+  // precedence resolves it, or — when resolution is genuinely ambiguous —
+  // no policy is applied and a structured conflict blocker is shown
+  // instead of silently merging or guessing (spec §1.2).
+  const activePolicy = explicitPolicy ?? policyResolution.resolved;
+  const policyConflict = !explicitPolicy ? policyResolution.conflict : undefined;
   const [managingPolicies, setManagingPolicies] = useState(false);
+  const [managingEquivalence, setManagingEquivalence] = useState(false);
 
   const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("chemist");
   const [reviewerDisplayName, setReviewerDisplayName] = useState("");
@@ -261,6 +294,14 @@ export function ApprovalPanel({
   );
   const safetyFindings = useMemo(() => evaluateSafety(lines, safetyRules, { materials }), [lines, safetyRules, materials]);
   const classification = family ? classifyProductSafety(family, formulation.targetClaims) : "human_review_required";
+
+  /** For the equivalence workflow's comparison view — the same live
+   *  evaluation used for the selected version, run against an arbitrary
+   *  candidate version's own lines. */
+  const findingCountsForVersion = (version: FormulationVersion) => ({
+    compatibility: evaluateCompatibility(version.lines, compatibilityRules, { materials, productDomain: family?.domain }).length,
+    safety: evaluateSafety(version.lines, safetyRules, { materials }).length,
+  });
   const humanReviewAcknowledged = safetyResolutions.some((r) => r.findingId === `classification:${classification}`);
   const resolvedFindingIds = safetyResolutions.map((r) => r.findingId);
 
@@ -285,6 +326,10 @@ export function ApprovalPanel({
     };
   }, [appliedSubstitutionRunCode, substitutionRuns]);
 
+  const labEquivalentVersionIds = selectedVersion ? equivalentVersionIdsFor(selectedVersion.id, "laboratory", equivalences) : [];
+  const stabilityEquivalentVersionIds = selectedVersion ? equivalentVersionIdsFor(selectedVersion.id, "stability", equivalences) : [];
+  const activeEquivalences = selectedVersion ? activeEquivalencesFor(selectedVersion.id, equivalences) : [];
+
   const labReadiness = selectedVersion
     ? deriveLabReadiness({
         policy: activePolicy ? toLabApprovalPolicy(activePolicy) : {},
@@ -294,6 +339,7 @@ export function ApprovalPanel({
         testResults,
         deviations,
         correctiveActions,
+        equivalentVersionIds: labEquivalentVersionIds,
       })
     : undefined;
 
@@ -309,6 +355,7 @@ export function ApprovalPanel({
         failures,
         timePoints: SEED_STABILITY_TIME_POINTS,
         testDefinitions,
+        equivalentVersionIds: stabilityEquivalentVersionIds,
       })
     : undefined;
 
@@ -335,26 +382,81 @@ export function ApprovalPanel({
     costRequired && !hasCostSnapshot
       ? { id: "cost:missing_snapshot", source: "cost", code: "missing_cost_snapshot", message: t("approval.blockers.missingCostSnapshot") }
       : undefined;
+  const conflictBlocker: DisplayFinding | undefined = policyConflict
+    ? { id: "policy:conflict", source: "policy", code: "policy_conflict", message: policyConflict.reason }
+    : undefined;
 
-  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : [])];
+  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : [])];
   const allWarnings: (ApprovalWarning | DisplayFinding)[] = readiness.warnings;
-  const effectiveReady = readiness.ready && !costBlocker;
+  const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker;
 
   const canApprove = !!selectedVersion && targetOptions.includes(targetStatus) && APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole);
 
   const buildReadinessSnapshot = () => ({ ready: effectiveReady, blockers: allBlockers, warnings: readiness.warnings });
 
   const navigate = (finding: DisplayFinding) => {
+    if (finding.source === "policy") {
+      setManagingPolicies(true);
+      return;
+    }
     if (finding.lineId) onFocusLine(finding.lineId);
     const target = (finding.code && CODE_NAV_OVERRIDE[finding.code]) || SOURCE_NAV[finding.source] || "builder";
     onNavigate(target);
   };
 
-  const savePolicy = async (policy: ApprovalPolicy, isNew: boolean) => {
+  const policyActor: Actor = { kind: "human", role: reviewerRole, userId: reviewerUserId.trim() || "local" };
+
+  const persistPolicyChange = async ({ policy, revision }: { policy: ApprovalPolicy; revision: ApprovalPolicyRevision }) => {
     await upsertRecords("approval_policies", [policy]);
+    await upsertRecords("approval_policy_revisions", [revision]);
     setPolicies((prev) => (prev.some((p) => p.id === policy.id) ? prev.map((p) => (p.id === policy.id ? policy : p)) : [...prev, policy]));
+    setPolicyRevisions((prev) => [...prev, revision]);
     setPolicyId(policy.id);
-    await appendAudit(auditEvent(formulation.id, "approval.policy_changed", { detail: isNew ? `created ${policy.name}` : `updated ${policy.name}` }));
+    await appendAudit(
+      auditEvent(formulation.id, "approval.policy_changed", {
+        detail: `${revision.changeType} "${policy.name}" (revision ${revision.revisionNumber})`,
+        metadata: { policyId: policy.id, revisionId: revision.id, changeType: revision.changeType, changedBy: revision.changedBy },
+      }),
+    );
+  };
+
+  const handleCreatePolicy = (policy: ApprovalPolicy) => persistPolicyChange({ policy, revision: initialPolicyRevision(policy, policyActor) });
+  const handleEditPolicy = (current: ApprovalPolicy, updates: Partial<ApprovalPolicy>, reason: string) =>
+    persistPolicyChange(editPolicy(current, updates, policyActor, reason));
+  const handleToggleActive = (current: ApprovalPolicy, active: boolean) => persistPolicyChange(setPolicyActive(current, active, policyActor));
+  const handleRetirePolicy = (current: ApprovalPolicy, reason: string) => persistPolicyChange(retirePolicy(current, policyActor, reason));
+  const handleClonePolicy = (source: ApprovalPolicy, newName: string) => persistPolicyChange(clonePolicy(source, policyActor, newName));
+  const handleRestoreRevision = (current: ApprovalPolicy, revision: ApprovalPolicyRevision) =>
+    persistPolicyChange(restorePolicyRevision(current, revision, policyActor));
+
+  const handleDeclareEquivalence = async (equivalentVersionId: string, scope: EvidenceReuseScope, justification: string) => {
+    if (!selectedVersion) return;
+    const eq = declareEquivalence(
+      { formulationId: formulation.id, sourceVersionId: selectedVersion.id, equivalentVersionId, evidenceReuseScope: scope, justification },
+      policyActor,
+    );
+    await upsertRecords("formula_version_equivalences", [eq]);
+    setEquivalences((prev) => [...prev, eq]);
+    await appendAudit(
+      auditEvent(formulation.id, "equivalence.declared", {
+        versionId: eq.sourceVersionId,
+        detail: `${eq.equivalentVersionId} (${eq.evidenceReuseScope})`,
+        metadata: { equivalenceId: eq.id, equivalentVersionId: eq.equivalentVersionId, scope: eq.evidenceReuseScope },
+      }),
+    );
+  };
+
+  const handleRevokeEquivalence = async (eq: FormulaVersionEquivalence, reason: string) => {
+    const revocation = revokeEquivalence(eq, policyActor, reason);
+    await upsertRecords("formula_version_equivalences", [revocation]);
+    setEquivalences((prev) => [...prev, revocation]);
+    await appendAudit(
+      auditEvent(formulation.id, "equivalence.revoked", {
+        versionId: eq.sourceVersionId,
+        detail: reason,
+        metadata: { equivalenceId: eq.id, revocationId: revocation.id },
+      }),
+    );
   };
 
   const record = async (decision: ApprovalRecord["decision"]) => {
@@ -454,6 +556,7 @@ export function ApprovalPanel({
         <div>
           <div className="mb-1 text-[10px] text-muted">{t("approval.policy")}</div>
           <select
+            aria-label={t("approval.policy")}
             value={activePolicy?.id ?? ""}
             onChange={(e) => setPolicyId(e.target.value)}
             className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text"
@@ -465,9 +568,15 @@ export function ApprovalPanel({
               </option>
             ))}
           </select>
-          <button onClick={() => setManagingPolicies((v) => !v)} className="mt-1 text-[10px] text-accent hover:underline">
-            {t("approval.managePolicies")}
-          </button>
+          <div className="mt-1 flex gap-2">
+            <button onClick={() => setManagingPolicies((v) => !v)} className="text-[10px] text-accent hover:underline">
+              {t("approval.managePolicies")}
+            </button>
+            <button onClick={() => setManagingEquivalence((v) => !v)} className="text-[10px] text-accent hover:underline">
+              {t("approval.equivalenceHeading")}
+              {activeEquivalences.length > 0 && ` (${activeEquivalences.length})`}
+            </button>
+          </div>
         </div>
         <div>
           <div className="mb-1 text-[10px] text-muted">{t("approval.readiness")}</div>
@@ -486,9 +595,30 @@ export function ApprovalPanel({
       {managingPolicies && (
         <Section title={t("approval.managePolicies")}>
           <PolicyEditor
-            targetStatus={targetStatus}
-            existing={applicablePolicies}
-            onSave={savePolicy}
+            policies={policies}
+            revisions={policyRevisions}
+            productFamilyOptions={catalog.families.map((f) => f.code)}
+            packagingSkuOptions={formulation.targetSkuCodes}
+            onCreate={handleCreatePolicy}
+            onEdit={handleEditPolicy}
+            onToggleActive={handleToggleActive}
+            onRetire={handleRetirePolicy}
+            onClone={handleClonePolicy}
+            onRestoreRevision={handleRestoreRevision}
+            t={t}
+          />
+        </Section>
+      )}
+
+      {managingEquivalence && selectedVersion && (
+        <Section title={t("approval.equivalenceHeading")}>
+          <EquivalenceWorkflow
+            versions={versions}
+            sourceVersion={selectedVersion}
+            activeEquivalences={activeEquivalences}
+            findingCounts={findingCountsForVersion}
+            onDeclare={handleDeclareEquivalence}
+            onRevoke={handleRevokeEquivalence}
             t={t}
           />
         </Section>
@@ -529,6 +659,9 @@ export function ApprovalPanel({
       <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {labReadiness && (
           <SummaryCard title={t("approval.laboratorySummary")}>
+            {labEquivalentVersionIds.length > 0 && (
+              <p className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">{t("approval.evidenceFromEquivalent", { versions: labEquivalentVersionIds.join(", ") })}</p>
+            )}
             <SummaryRow label={t("approval.hasCompletedTrial")} ok={labReadiness.hasCompletedTrial} />
             <SummaryRow label={t("approval.allRequiredTestsCompleted")} ok={labReadiness.allRequiredTestsCompleted} />
             <SummaryRow label={t("approval.allCriticalTestsPassed")} ok={labReadiness.allCriticalTestsPassed} />
@@ -538,6 +671,9 @@ export function ApprovalPanel({
         )}
         {stabilityDerivation && (
           <SummaryCard title={t("approval.stabilitySummary")}>
+            {stabilityEquivalentVersionIds.length > 0 && (
+              <p className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">{t("approval.evidenceFromEquivalent", { versions: stabilityEquivalentVersionIds.join(", ") })}</p>
+            )}
             <SummaryRow label={t("approval.hasActiveOrCompletedStudy")} ok={stabilityDerivation.hasActiveOrCompletedStudy} />
             <SummaryRow label={t("approval.initialTestsPassed")} ok={stabilityDerivation.initialTestsPassed} />
             <div className="flex justify-between text-[11px]">
@@ -661,6 +797,8 @@ const DISABLED_EXAMPLE_POLICY: ApprovalPolicy = {
   targetStatus: "pilot_approved",
   verificationStatus: "not_verified",
   active: false,
+  retired: false,
+  revisionNumber: 1,
   requireCompletedTrial: true,
   requireAllRequiredTestsCompleted: true,
   requireAllCriticalTestsPassed: true,
@@ -707,112 +845,6 @@ function buildApprovalRecord(
     readinessSnapshot: snapshot,
     createdAt: now,
   };
-}
-
-const POLICY_TOGGLES: { key: keyof ApprovalPolicy; labelKey: string }[] = [
-  { key: "requireCompletedTrial", labelKey: "approval.hasCompletedTrial" },
-  { key: "requireAllRequiredTestsCompleted", labelKey: "approval.allRequiredTestsCompleted" },
-  { key: "requireAllCriticalTestsPassed", labelKey: "approval.allCriticalTestsPassed" },
-  { key: "requireNoUnresolvedCriticalDeviation", labelKey: "approval.noOpenCriticalDeviation" },
-  { key: "requireNoUnresolvedCriticalCorrectiveAction", labelKey: "approval.noOpenCriticalCorrectiveAction" },
-  { key: "requireActiveStudy", labelKey: "approval.hasActiveOrCompletedStudy" },
-  { key: "requireInitialTestsPassed", labelKey: "approval.initialTestsPassed" },
-  { key: "requireNoUnresolvedCriticalFailure", labelKey: "approval.noOpenCriticalStabilityFailure" },
-  { key: "requirePackagingCompatibilityPassed", labelKey: "approval.packagingCompatibility" },
-  { key: "requireCostSnapshot", labelKey: "approval.costSnapshotPresent" },
-];
-
-function PolicyEditor({
-  targetStatus,
-  existing,
-  onSave,
-  t,
-}: {
-  targetStatus: FormulaStatus;
-  existing: ApprovalPolicy[];
-  onSave: (policy: ApprovalPolicy, isNew: boolean) => Promise<void>;
-  t: SimpleT;
-}) {
-  const [name, setName] = useState("");
-  const [toggles, setToggles] = useState<Partial<Record<keyof ApprovalPolicy, boolean>>>({});
-  const [active, setActive] = useState(false);
-
-  const create = async () => {
-    if (!name.trim()) return;
-    const now = new Date().toISOString();
-    const policy: ApprovalPolicy = {
-      schemaVersion: "1.0",
-      id: newId("policy"),
-      name: name.trim(),
-      productFamilyCodes: [],
-      packagingSkuCodes: [],
-      targetStatus: targetStatus as "pilot_approved" | "production_approved",
-      verificationStatus: "not_verified",
-      active,
-      requireCompletedTrial: !!toggles.requireCompletedTrial,
-      requireAllRequiredTestsCompleted: !!toggles.requireAllRequiredTestsCompleted,
-      requireAllCriticalTestsPassed: !!toggles.requireAllCriticalTestsPassed,
-      requireNoUnresolvedCriticalDeviation: !!toggles.requireNoUnresolvedCriticalDeviation,
-      requireNoUnresolvedCriticalCorrectiveAction: !!toggles.requireNoUnresolvedCriticalCorrectiveAction,
-      requireActiveStudy: !!toggles.requireActiveStudy,
-      requireInitialTestsPassed: !!toggles.requireInitialTestsPassed,
-      requireNoUnresolvedCriticalFailure: !!toggles.requireNoUnresolvedCriticalFailure,
-      requirePackagingCompatibilityPassed: !!toggles.requirePackagingCompatibilityPassed,
-      requireCostSnapshot: !!toggles.requireCostSnapshot,
-      createdBy: "local",
-      createdAt: now,
-      updatedAt: now,
-    };
-    await onSave(policy, true);
-    setName("");
-    setToggles({});
-    setActive(false);
-  };
-
-  return (
-    <div>
-      {existing.length > 0 && (
-        <ul className="mb-2 space-y-1">
-          {existing.map((p) => (
-            <li key={p.id} className="flex items-center gap-2 rounded-input border border-border-faint px-2 py-1 text-[11px]">
-              <span className="text-text">{p.name}</span>
-              <span className={cn("rounded px-1 py-0.5 text-[10px]", p.active ? "bg-success/10 text-success" : "bg-surface-2 text-muted")}>
-                {p.active ? t("approval.ready") : t("approval.notReady")}
-              </span>
-              <button
-                onClick={() => void onSave({ ...p, active: !p.active, updatedBy: "local", updatedAt: new Date().toISOString() }, false)}
-                className="ml-auto text-accent hover:underline"
-              >
-                {t(p.active ? "approval.deactivatePolicy" : "approval.activatePolicy")}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("approval.policy")} className="min-w-0 flex-1 rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]" />
-        <label className="flex items-center gap-1 text-[10px] text-muted">
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          {t("approval.ready")}
-        </label>
-        <button onClick={() => void create()} disabled={!name.trim()} className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10 disabled:opacity-40">
-          {t("common:actions.add")}
-        </button>
-      </div>
-      <div className="mt-1.5 grid grid-cols-2 gap-1 sm:grid-cols-3">
-        {POLICY_TOGGLES.map(({ key, labelKey }) => (
-          <label key={key} className="flex items-center gap-1 text-[10px] text-muted">
-            <input
-              type="checkbox"
-              checked={!!toggles[key]}
-              onChange={(e) => setToggles((prev) => ({ ...prev, [key]: e.target.checked }))}
-            />
-            {t(labelKey)}
-          </label>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function Field({ label, value }: { label: string; value: string }) {

@@ -18,6 +18,7 @@ import {
   computeReplicateStats,
   evaluateWeightTolerance,
   hasOpenCriticalDeviation,
+  isTestDefinitionApplicable,
   newId,
   resolveTrialDeviation,
   snapshotFormulaForTrial,
@@ -46,13 +47,16 @@ import {
   type TrialDeviationSeverity,
   type TrialObservationType,
   type TrialProcessStep,
+  type TestApplicabilityContext,
   type TrialStatus,
 } from "@ai4s/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
+import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
 import { downloadBlob, downloadText } from "@/lib/download";
 import { buildXlsxBlob } from "@/lib/xlsx";
 import { AttachmentField } from "./AttachmentField";
+import { ExclusionExplorer } from "./ExclusionExplorer";
 
 const LOCAL_HUMAN: Actor = { kind: "human", role: "chemist", userId: "local" };
 
@@ -349,6 +353,34 @@ export function TrialsPanel({
     setTestResults((prev) => (prev.some((r) => r.id === result.id) ? prev : [...prev, result]));
   };
 
+  /** `test_results` is append-only, so replacing a finalized attachment
+   *  creates a new revision (spec §1.4: "Replacement creates a new record
+   *  revision where the parent collection is append-only") — same
+   *  `revisesResultId` mechanism `reviseTestResult` already uses for a
+   *  corrected value, applied here to a corrected attachment instead. */
+  const replaceTestResultAttachment = async (result: TestResult, oldAttachment: AttachmentReference, newAttachment: AttachmentReference) => {
+    const now = new Date().toISOString();
+    const revised: TestResult = { ...result, id: newId("testresult"), attachments: [...result.attachments, newAttachment], revisesResultId: result.id, createdAt: now, updatedAt: now };
+    await upsertRecords("test_results", [revised]);
+    setTestResults((prev) => [...prev, revised]);
+    await appendAudit(
+      auditEvent(formulation.id, "attachment.replaced", {
+        detail: `Test result attachment replaced on ${result.testDefinitionId}`,
+        metadata: {
+          oldAttachmentId: oldAttachment.id,
+          newAttachmentId: newAttachment.id,
+          parentRecordType: "test_result",
+          parentRecordId: result.id,
+          reason: t("attachments.replaceReason"),
+          replacedBy: "local",
+          replacedAt: now,
+          oldChecksum: oldAttachment.checksumSha256 ?? "",
+          newChecksum: newAttachment.checksumSha256 ?? "",
+        },
+      }),
+    );
+  };
+
   const toggleCompare = (id: string) => {
     setCompareIds((prev) => {
       const next = new Set(prev);
@@ -617,6 +649,7 @@ export function TrialsPanel({
                 testDefinitions={testDefinitions}
                 results={trialResults}
                 onRecord={recordTestResult}
+                onReplaceAttachment={replaceTestResultAttachment}
                 t={t}
               />
             )}
@@ -916,10 +949,11 @@ function ObservationsSection({
 
 function TestsSection({
   formulationId,
-  trial: _trial,
+  trial,
   testDefinitions,
   results,
   onRecord,
+  onReplaceAttachment,
   t,
 }: {
   formulationId: string;
@@ -927,16 +961,27 @@ function TestsSection({
   testDefinitions: TestDefinition[];
   results: TestResult[];
   onRecord: (definition: TestDefinition, values: string[], attachments?: AttachmentReference[]) => void;
+  onReplaceAttachment: (result: TestResult, oldAttachment: AttachmentReference, newAttachment: AttachmentReference) => void | Promise<void>;
   t: SimpleT;
 }) {
   const [inputsByTest, setInputsByTest] = useState<Record<string, string[]>>({});
   const [pendingAttachmentsByTest, setPendingAttachmentsByTest] = useState<Record<string, AttachmentReference[]>>({});
+  const [exploringApplicability, setExploringApplicability] = useState(false);
+  const applicabilityCtx: TestApplicabilityContext = { productFamilyId: trial.productFamilyId, context: "trial", packagingSkuCodes: trial.targetPackagingSkuIds };
 
   return (
     <div>
+      <div className="mb-2 flex justify-end">
+        <button onClick={() => setExploringApplicability(true)} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
+          {t("applicability.heading")}
+        </button>
+      </div>
+      {exploringApplicability && (
+        <ExclusionExplorer definitions={testDefinitions} ctx={applicabilityCtx} onClose={() => setExploringApplicability(false)} t={t} />
+      )}
       <ul className="space-y-2">
         {testDefinitions
-          .filter((d) => d.active && d.resultType === "numeric")
+          .filter((d) => d.active && d.resultType === "numeric" && isTestDefinitionApplicable(d, applicabilityCtx))
           .map((def) => {
             const existing = results.filter((r) => r.testDefinitionId === def.code);
             const inputs = inputsByTest[def.code] ?? Array.from({ length: def.replicatesRequired }, () => "");
@@ -979,12 +1024,23 @@ function TestsSection({
                 />
                 {existing.length > 0 && (
                   <ul className="mt-1.5 space-y-0.5 text-[11px] text-muted">
-                    {existing.map((r) => (
-                      <li key={r.id}>
-                        {t("trials.resultSummary", { mean: r.stats?.mean ?? "—", count: r.stats?.count ?? 0, passFail: r.passFail })}
-                        <AttachmentField formulationId={formulationId} attachments={r.attachments} onChange={() => {}} disabled t={t} />
-                      </li>
-                    ))}
+                    {existing.map((r) => {
+                      const supersededByAnotherResult = existing.some((other) => other.revisesResultId === r.id);
+                      return (
+                        <li key={r.id}>
+                          {t("trials.resultSummary", { mean: r.stats?.mean ?? "—", count: r.stats?.count ?? 0, passFail: r.passFail })}
+                          {r.revisesResultId && <span className="ml-1 text-[10px]">{t("trials.revisionOf", { id: r.revisesResultId })}</span>}
+                          <AttachmentField
+                            formulationId={formulationId}
+                            attachments={r.attachments}
+                            onChange={() => {}}
+                            disabled
+                            onReplace={supersededByAnotherResult ? undefined : (old, next) => onReplaceAttachment(r, old, next)}
+                            t={t}
+                          />
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </li>
