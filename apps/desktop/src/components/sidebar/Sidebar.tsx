@@ -5,12 +5,19 @@ import {
   ArrowLeft,
   Beaker,
   Boxes,
+  CheckCircle2,
+  FileBarChart2,
   FlaskConical,
+  FlaskRound,
+  FolderKanban,
   FolderTree,
+  Home,
   NotebookPen,
   PanelLeft,
   Plus,
+  Scale,
   Settings,
+  Sparkles,
   Table2,
   Trash2,
 } from "lucide-react";
@@ -202,21 +209,24 @@ export function Sidebar() {
                 label={t("items.new")}
                 onClick={() => navigate("/live")}
               />
-              <NavRow
-                icon={<Table2 size={16} />}
-                label={t("items.formulas")}
-                onClick={() => navigate("/formulas")}
-              />
-              <NavRow
-                icon={<Boxes size={16} />}
-                label={t("items.materials")}
-                onClick={() => navigate("/materials")}
-              />
-              <NavRow
-                icon={<Beaker size={16} />}
-                label={t("items.optimizer")}
-                onClick={() => navigate("/optimizer")}
-              />
+
+              <div className="px-2 pb-0.5 pt-3 text-xs font-medium uppercase tracking-wider text-muted">
+                {t("sections.workspaces")}
+              </div>
+              <NavRow icon={<Home size={16} />} label={t("workspacesNav.home")} onClick={() => navigate("/home")} />
+              <NavRow icon={<FolderKanban size={16} />} label={t("workspacesNav.projects")} onClick={() => navigate("/projects")} />
+              <NavRow icon={<Table2 size={16} />} label={t("workspacesNav.formulation")} onClick={() => navigate("/formulation")} />
+              <NavRow icon={<Beaker size={16} />} label={t("workspacesNav.laboratory")} onClick={() => navigate("/laboratory")} />
+              <NavRow icon={<FlaskRound size={16} />} label={t("workspacesNav.stability")} onClick={() => navigate("/stability")} />
+              <NavRow icon={<Sparkles size={16} />} label={t("workspacesNav.optimization")} onClick={() => navigate("/optimization")} />
+              <NavRow icon={<Scale size={16} />} label={t("workspacesNav.regulatory")} onClick={() => navigate("/regulatory")} />
+              <NavRow icon={<CheckCircle2 size={16} />} label={t("workspacesNav.approval")} onClick={() => navigate("/approval")} />
+              <NavRow icon={<FileBarChart2 size={16} />} label={t("workspacesNav.reports")} onClick={() => navigate("/reports")} />
+              <NavRow icon={<Boxes size={16} />} label={t("workspacesNav.administration")} onClick={() => navigate("/administration")} />
+
+              <div className="px-2 pb-0.5 pt-3 text-xs font-medium uppercase tracking-wider text-muted">
+                {t("sections.tools")}
+              </div>
               <NavRow
                 icon={<NotebookPen size={16} />}
                 label={t("items.notebooks")}

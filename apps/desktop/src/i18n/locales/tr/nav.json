@@ -16,6 +16,30 @@
     "formulas": "Formüller",
     "materials": "Hammaddeler"
   },
+  "sections": {
+    "workspaces": "Çalışma alanları",
+    "tools": "Araçlar"
+  },
+  "workspacesNav": {
+    "home": "Ana sayfa",
+    "projects": "Projeler",
+    "formulation": "Formülasyon",
+    "laboratory": "Laboratuvar",
+    "stability": "Stabilite",
+    "optimization": "Optimizasyon",
+    "regulatory": "Mevzuat",
+    "approval": "Onay",
+    "reports": "Raporlar",
+    "administration": "Yönetim"
+  },
+  "workspace": {
+    "noProjectsYet": "Henüz proje yok — başlamak için Projeler'den bir tane oluşturun.",
+    "pickProject": "Bir proje seçin",
+    "changeProject": "Projeyi değiştir",
+    "versionLabel": "Sürüm",
+    "currentDraft": "Geçerli taslak",
+    "openInFormulation": "Formülasyon'da aç"
+  },
   "history": {
     "heading": "Oturumlar",
     "empty": "Henüz konuşma yok.",

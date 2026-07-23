@@ -16,6 +16,30 @@
     "formulas": "Formulas",
     "materials": "Materials"
   },
+  "sections": {
+    "workspaces": "Workspaces",
+    "tools": "Tools"
+  },
+  "workspacesNav": {
+    "home": "Home",
+    "projects": "Projects",
+    "formulation": "Formulation",
+    "laboratory": "Laboratory",
+    "stability": "Stability",
+    "optimization": "Optimization",
+    "regulatory": "Regulatory",
+    "approval": "Approval",
+    "reports": "Reports",
+    "administration": "Administration"
+  },
+  "workspace": {
+    "noProjectsYet": "No projects yet — create one from Projects to get started.",
+    "pickProject": "Choose a project",
+    "changeProject": "Change project",
+    "versionLabel": "Version",
+    "currentDraft": "Current draft",
+    "openInFormulation": "Open in Formulation"
+  },
   "history": {
     "heading": "세션",
     "empty": "아직 대화가 없습니다.",
