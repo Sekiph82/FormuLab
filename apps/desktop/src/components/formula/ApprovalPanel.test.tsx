@@ -124,13 +124,13 @@ beforeEach(() => {
   formulationsBridge.appendAudit.mockResolvedValue(undefined);
 });
 
-function renderPanel(versions: FormulationVersion[], baseVersion?: FormulationVersion, auditLog: AuditEvent[] = []) {
+function renderPanel(versions: FormulationVersion[], baseVersion?: FormulationVersion, auditLog: AuditEvent[] = [], formulation: Formulation = FORMULATION) {
   const onNavigate = vi.fn();
   const onFocusLine = vi.fn();
   const onAuditChanged = vi.fn().mockResolvedValue(undefined);
-  render(
+  const { unmount } = render(
     <ApprovalPanel
-      formulation={FORMULATION}
+      formulation={formulation}
       versions={versions}
       baseVersion={baseVersion}
       auditLog={auditLog}
@@ -139,7 +139,7 @@ function renderPanel(versions: FormulationVersion[], baseVersion?: FormulationVe
       onAuditChanged={onAuditChanged}
     />,
   );
-  return { onNavigate, onFocusLine, onAuditChanged };
+  return { onNavigate, onFocusLine, onAuditChanged, unmount };
 }
 
 describe("ApprovalPanel — no version", () => {
@@ -319,5 +319,75 @@ describe("ApprovalPanel — equivalent versions", () => {
 
     const badges = await screen.findAllByText(/Includes evidence from equivalent version/);
     expect(badges.length).toBeGreaterThan(0);
+  });
+});
+
+const REGULATORY_POLICY_BASE = {
+  ...CONFLICTING_POLICY_A,
+  id: "policy-regulatory",
+  name: "Regulatory-gated policy",
+  requireCompletedTrial: false,
+  requireRegulatoryClassificationCompleted: false,
+  requireNoBlockingRegulatoryFinding: false,
+  requireAllMandatoryDocumentsPresent: false,
+  requireAllMandatoryEvidencePresent: false,
+  requireAllRequiredClaimsReviewed: false,
+  requireHumanRegulatoryReviewCompleted: false,
+};
+
+const MATCHED_FAMILY_FORMULATION: Formulation = { ...FORMULATION, productFamilyCode: "LP-HANDWASH" };
+
+describe("ApprovalPanel — regulatory readiness integration", () => {
+  it("blocks approval when classification is required but the product family can't be resolved", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies"
+        ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireRegulatoryClassificationCompleted: true }])
+        : Promise.resolve(seed),
+    );
+    const v = version();
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(await screen.findByText(/regulatory classification/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
+  });
+
+  it("does not block on classification once the product family resolves to a real category", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies"
+        ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireRegulatoryClassificationCompleted: true }])
+        : Promise.resolve(seed),
+    );
+    const v = version({ formulationId: MATCHED_FAMILY_FORMULATION.id });
+    renderPanel([v], v, [], MATCHED_FAMILY_FORMULATION);
+    await screen.findByText(/Blockers \(/);
+    expect(screen.queryByText(/regulatory classification/i)).not.toBeInTheDocument();
+  });
+
+  it("blocks approval when a human regulatory review is required but none has been recorded, and clears once one exists", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies"
+        ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireHumanRegulatoryReviewCompleted: true }])
+        : Promise.resolve(seed),
+    );
+    const v = version();
+    const { unmount } = renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(await screen.findByText(/no human regulatory review has been recorded/i)).toBeInTheDocument();
+    unmount();
+
+    masterdataBridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "regulatory_reviews") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "regreview-1", formulationId: "proj-1", versionId: "working_draft", jurisdiction: "KE", reviewedBy: "Jane", reviewedAt: "2026-01-01T00:00:00.000Z", outcome: "compliant", notes: "Looks fine." },
+        ]);
+      }
+      if (collection === "safety_resolutions") {
+        return Promise.resolve([{ formulationId: "proj-1", findingId: "classification:human_review_required" }]);
+      }
+      return Promise.resolve([]);
+    });
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(screen.queryByText(/no human regulatory review has been recorded/i)).not.toBeInTheDocument();
   });
 });
