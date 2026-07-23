@@ -4,8 +4,11 @@ import {
   editRule,
   evaluateRegulatory,
   initialRuleRevision,
+  rejectRuleVerification,
   setRuleActive,
   summarizeRegulatoryFindings,
+  supersedeRule,
+  verifyRule,
 } from "./regulatoryRules";
 import type { Actor } from "../schemas/status";
 import type { RawMaterial } from "../schemas/materials";
@@ -287,5 +290,65 @@ describe("regulatory rule lifecycle — human-only, append-only revisions", () =
   it("editing and deprecating both require a non-empty reason", () => {
     expect(() => editRule(rule(), { severity: "info" }, HUMAN, "  ")).toThrow();
     expect(() => deprecateRule(rule(), HUMAN, "")).toThrow();
+  });
+});
+
+const REGULATORY_HUMAN: Actor = { kind: "human", role: "regulatory", userId: "carol" };
+const CHEMIST_HUMAN: Actor = { kind: "human", role: "chemist", userId: "dave" };
+
+describe("regulatory rule source-verification workflow", () => {
+  it("refuses to verify a rule with no source authority or reference", () => {
+    expect(() => verifyRule(rule(), REGULATORY_HUMAN)).toThrow();
+  });
+
+  it("refuses to verify a rule with only one of authority/reference set", () => {
+    expect(() => verifyRule(rule({ sourceAuthority: "KEBS" }), REGULATORY_HUMAN)).toThrow();
+    expect(() => verifyRule(rule({ sourceReference: "Gazette Notice 123" }), REGULATORY_HUMAN)).toThrow();
+  });
+
+  it("verifies a rule once both source authority and reference are present, recording who and when", () => {
+    const sourced = rule({ sourceAuthority: "Kenya Bureau of Standards (KEBS)", sourceReference: "Gazette Notice 123/2026" });
+    const { rule: verified, revision } = verifyRule(sourced, REGULATORY_HUMAN, "Confirmed against the published gazette notice.");
+    expect(verified.verificationStatus).toBe("verified");
+    expect(verified.verifiedBy).toBe("carol");
+    expect(verified.verifiedByRole).toBe("regulatory");
+    expect(verified.verifiedAt).toBeTruthy();
+    expect(revision.changeType).toBe("verified");
+  });
+
+  it("only a regulatory/quality/administrator role may verify — not a chemist, not AI, not import", () => {
+    const sourced = rule({ sourceAuthority: "KEBS", sourceReference: "Gazette 1" });
+    expect(() => verifyRule(sourced, CHEMIST_HUMAN)).toThrow();
+    expect(() => verifyRule(sourced, AGENT)).toThrow();
+    expect(() => verifyRule(sourced, IMPORT)).toThrow();
+    expect(() => verifyRule(sourced, SYSTEM)).toThrow();
+  });
+
+  it("rejects a rule's verification with a required reason, distinct from not_verified", () => {
+    expect(() => rejectRuleVerification(rule(), REGULATORY_HUMAN, "")).toThrow();
+    const { rule: rejected, revision } = rejectRuleVerification(rule(), REGULATORY_HUMAN, "Source document could not be located.");
+    expect(rejected.verificationStatus).toBe("rejected");
+    expect(revision.changeType).toBe("verification_rejected");
+  });
+
+  it("only a regulatory/quality/administrator role may reject a verification", () => {
+    expect(() => rejectRuleVerification(rule(), CHEMIST_HUMAN, "reason")).toThrow();
+  });
+
+  it("supersedes a previously verified rule, deactivating it — neither expired nor superseded satisfies a current-verified-rules gate", () => {
+    const verified = rule({ verificationStatus: "verified", sourceAuthority: "KEBS", sourceReference: "Gazette 1" });
+    const { rule: superseded, revision } = supersedeRule(verified, REGULATORY_HUMAN, "Replaced by KE-REG-010, a newer standard.");
+    expect(superseded.verificationStatus).toBe("superseded");
+    expect(superseded.active).toBe(false);
+    expect(revision.changeType).toBe("superseded");
+  });
+
+  it("supersedeRule requires a reason and an authorized role", () => {
+    expect(() => supersedeRule(rule(), REGULATORY_HUMAN, "")).toThrow();
+    expect(() => supersedeRule(rule(), CHEMIST_HUMAN, "reason")).toThrow();
+  });
+
+  it("seed rules remain not_verified until explicitly verified", () => {
+    expect(rule().verificationStatus).toBe("not_verified");
   });
 });

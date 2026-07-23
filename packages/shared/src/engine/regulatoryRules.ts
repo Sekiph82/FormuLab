@@ -256,3 +256,82 @@ export function deprecateRule(current: RegulatoryRule, actor: Actor, reason: str
   const rule: RegulatoryRule = { ...current, status: "deprecated", active: false, version: current.version + 1, updatedBy: actor.userId, updatedAt: now };
   return { rule, revision: buildRevision(rule, "deprecated", trimmed, actor.userId, now) };
 }
+
+function requireRegulatoryReviewer(actor: Actor, action: string): asserts actor is Extract<Actor, { kind: "human" }> {
+  if (actor.kind !== "human") throw new Error(`Only a human may ${action}.`);
+  if (actor.role !== "regulatory" && actor.role !== "quality" && actor.role !== "administrator") {
+    throw new Error(`Only an authorized regulatory/quality/administrator role may ${action}.`);
+  }
+}
+
+/**
+ * Marks a rule `verified` — spec §3.7. Only an authorized human
+ * regulatory/quality/administrator role may do this; an AI, system or
+ * import actor can never verify a rule (an import forces
+ * `imported_unverified` and stops there — see
+ * `catalog/regulatoryRules.ts`/the desktop import path). Refuses unless
+ * both `sourceAuthority` and `sourceReference` are already present on the
+ * rule — a "verified" rule with no stated source would be exactly the
+ * invented-legislation risk this whole engine exists to avoid.
+ */
+export function verifyRule(current: RegulatoryRule, actor: Actor, notes?: string): RuleChangeResult {
+  requireRegulatoryReviewer(actor, "verify a regulatory rule");
+  if (!current.sourceAuthority?.trim() || !current.sourceReference?.trim()) {
+    throw new Error("A rule must have both a source authority and a source reference before it can be marked verified.");
+  }
+  const now = new Date().toISOString();
+  const rule: RegulatoryRule = {
+    ...current,
+    verificationStatus: "verified",
+    verifiedBy: actor.userId,
+    verifiedByRole: actor.role,
+    verifiedAt: now,
+    verificationNotes: notes,
+    version: current.version + 1,
+    updatedBy: actor.userId,
+    updatedAt: now,
+  };
+  return { rule, revision: buildRevision(rule, "verified", notes?.trim() || "Verified.", actor.userId, now) };
+}
+
+/** A reviewer looked and declined to verify — distinct from
+ *  `not_verified` (nobody has looked yet). Requires a reason. */
+export function rejectRuleVerification(current: RegulatoryRule, actor: Actor, reason: string): RuleChangeResult {
+  requireRegulatoryReviewer(actor, "reject a regulatory rule's verification");
+  const trimmed = reason.trim();
+  if (!trimmed) throw new Error("A reason is required to reject a regulatory rule's verification.");
+  const now = new Date().toISOString();
+  const rule: RegulatoryRule = {
+    ...current,
+    verificationStatus: "rejected",
+    verifiedBy: actor.userId,
+    verifiedByRole: actor.role,
+    verifiedAt: now,
+    verificationNotes: trimmed,
+    version: current.version + 1,
+    updatedBy: actor.userId,
+    updatedAt: now,
+  };
+  return { rule, revision: buildRevision(rule, "verification_rejected", trimmed, actor.userId, now) };
+}
+
+/** A previously verified rule that no longer reflects current
+ *  law/standard (replaced by a newer rule, or the underlying regulation
+ *  changed) — distinct from `expired` (its own effective window lapsed,
+ *  handled by `expiryDate`/`ruleApplies` already). Neither `expired` nor
+ *  `superseded` satisfies a "current verified rules" policy gate. */
+export function supersedeRule(current: RegulatoryRule, actor: Actor, reason: string): RuleChangeResult {
+  requireRegulatoryReviewer(actor, "mark a regulatory rule superseded");
+  const trimmed = reason.trim();
+  if (!trimmed) throw new Error("A reason is required to mark a regulatory rule superseded.");
+  const now = new Date().toISOString();
+  const rule: RegulatoryRule = {
+    ...current,
+    verificationStatus: "superseded",
+    active: false,
+    version: current.version + 1,
+    updatedBy: actor.userId,
+    updatedAt: now,
+  };
+  return { rule, revision: buildRevision(rule, "superseded", trimmed, actor.userId, now) };
+}
