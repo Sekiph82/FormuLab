@@ -285,7 +285,13 @@ an invalid move is refused, and only a human can mark a trial `completed`.
   trial from being marked complete.
 - **Test results**: enter replicate values for any active numeric
   [test definition](#17-test-definitions); mean, standard deviation and
-  pass/fail compute automatically from the test's own logic.
+  pass/fail compute automatically from the test's own logic. Click **View
+  history** on any result to open the dedicated
+  [result history browser](RESULT_HISTORY_BROWSER.md) — every revision,
+  retest, override and attachment replacement, plus a side-by-side
+  comparison of any two revisions. Click **Test applicability** to see
+  which test definitions are included/excluded for this trial's product
+  family and packaging, and exactly why.
 
 Select two or more trials (checkbox in the list) and **Compare selected**
 to see material-usage, deviation and pass/fail counts side by side — a
@@ -316,11 +322,18 @@ Open the **Stability** tab. Create a study against the current working
 draft or a saved version (frozen formula + packaging snapshot), pick which
 seeded storage conditions, time points and test definitions apply — these
 are configurable starting examples, never a claim of what any regulator
-requires — and move it to `active` (this sets its start date). **Generate
-samples** creates one pull-point sample per condition × time point ×
-replicate, each with a deterministically computed due date.
+requires — and move it to `active` (this sets its start date). Click
+**Test applicability** before creating the study to see the same
+Included/Excluded explorer Trials uses, scoped to this study's product
+family, packaging, conditions and time points; selecting a test the
+explorer marks excluded prompts for a reviewer and reason, both recorded
+permanently in the study's requirement snapshot. **Generate samples**
+creates one pull-point sample per condition × time point × replicate,
+each with a deterministically computed due date.
 
-Record a result for a due sample; an out-of-range numeric result
+Record a result for a due sample — click **View history** on it for the
+same [result history browser](RESULT_HISTORY_BROWSER.md) Trials uses. An
+out-of-range numeric result
 automatically opens a [stability failure](STABILITY_TRENDS.md#failures) —
 critical when the test is flagged critical. **Trends** shows one small
 chart per condition × test metric (change from initial, rate per day, min/

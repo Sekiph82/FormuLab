@@ -67,12 +67,38 @@ form that captures the replicate values — since `test_results` is
 append-only, there is no "add an attachment afterward" path for an already
 -recorded result. See [ATTACHMENTS.md](ATTACHMENTS.md#immutability-after-finalization).
 
+## Result history browser
+
+`packages/shared/src/engine/resultHistory.ts` and
+`apps/desktop/src/components/formula/ResultHistoryBrowser.tsx` (spec §2)
+give a result's full revision chain a dedicated UI, reached via a "View
+history" action next to any result in `TrialsPanel.tsx`'s Tests tab or
+`StabilityPanel.tsx`'s sample dashboard:
+
+- `buildResultRevisionChain` walks `revisesResultId` both backward (to the
+  root) and forward (through every later revision), oldest-first, and
+  returns an honest warning instead of crashing for a missing parent, a
+  detected cycle, or a duplicate id in the input pool.
+- `resolveEffectiveResultRevision` is just the chain's last entry — the
+  currently-effective result, marked "Current" in the browser.
+- `groupRetestLineage` separates `retestOf` lineages (fresh samples) from
+  `revisesResultId` chains (corrections to the same measurement); an
+  orphan retest becomes its own single-result lineage with a warning
+  rather than being silently dropped.
+- `compareResultRevisions` is a deterministic, factual diff between any
+  two revisions — mean/min/max/stddev/CV, pass/fail, reviewer, override
+  reason, attachments added/removed — and never infers *why* a value
+  changed. The browser lets a user pick any two revisions from the chain
+  and highlights only the fields that actually differ.
+- `resolveAttachmentReplacementChain` groups a chain's attachments into
+  original -> replacement sequences via `replacesAttachmentId`; a
+  superseded attachment always remains openable through the browser, per
+  [ATTACHMENTS.md](ATTACHMENTS.md).
+
+See `docs/RESULT_HISTORY_BROWSER.md` for the full UI walkthrough.
+
 ## Known limitations
 
-- No UI surface yet for browsing a result's full revision chain — only the
-  latest revision is shown in `TrialsPanel.tsx`/`StabilityPanel.tsx`;
-  reconstructing history means querying `test_results`/`stability_results`
-  directly for records sharing a `revisesResultId` chain.
 - Text/categorical/boolean/visual_rating results do not currently compute
   replicate statistics (`computeReplicateStats` is numeric-only) — only
   `numeric` results get a full `stats` object.

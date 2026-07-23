@@ -152,8 +152,17 @@ unit tests (`attachments::tests` in `src-tauri/src/attachments.rs`) —
   there is no camera capture in this codebase at all, by design.
 - No thumbnail preview for image attachments in the list view; opening
   hands off to the OS default viewer.
-- No dedicated historical-attachment **browser modal** yet — revision
-  chains are visible inline (`revises <id>`, superseded-attachment
-  labelling) in the Trials/Stability panels themselves, but there is no
-  single cross-record view for browsing every past result/attachment for
-  a given test across a trial's or study's whole history.
+
+## Result history browser
+
+The dedicated historical-attachment browsing this document used to list
+as a gap is closed by `ResultHistoryBrowser.tsx` (spec §2) — see
+[RESULT_HISTORY_BROWSER.md](RESULT_HISTORY_BROWSER.md) and
+[TEST_RESULTS.md](TEST_RESULTS.md#result-history-browser). It uses
+`resolveAttachmentReplacementChain` (`packages/shared/src/engine/resultHistory.ts`)
+to group a result chain's attachments into original -> replacement
+sequences, flags a pure replacement cycle (every attachment replaces
+another, no root) with an honest warning instead of silently dropping any
+of them, and every entry in a chain — including a superseded one —
+remains individually openable through the browser via the same safe
+`openAttachment` resolver `AttachmentField` already uses.

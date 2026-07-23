@@ -80,6 +80,28 @@ failures support safe file attachments — see
 approval is now derived from real results against a `testCapability`-
 tagged definition, not a manually supplied boolean — see
 [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md#packaging-compatibility-for-real).
+Each time-point result also has a "View history" action opening the
+dedicated [result history browser](RESULT_HISTORY_BROWSER.md).
+
+## Test applicability at study creation
+
+`StabilityPanel.tsx` wires the same applicability engine
+`TrialsPanel.tsx` uses — `isTestDefinitionApplicable`,
+`evaluateApplicability`, `buildTestRequirementSnapshot` from
+`testApplicability.ts` — into study creation via a "Test applicability"
+button next to the tests picker, opening the same `ExclusionExplorer`
+component with `context: "stability"` and the in-progress
+packaging/condition/time-point selections. See
+[TEST_APPLICABILITY.md](TEST_APPLICABILITY.md) for the shared engine and
+[TEST_APPLICABILITY.md#manual-inclusion](TEST_APPLICABILITY.md) for the
+manual-inclusion reviewer/reason capture this panel requires before a
+manually-included test can be added.
+
+For an existing study, the captured `testRequirementSnapshot` is always
+shown; if the current `TestDefinition` set would now resolve differently
+(a definition's applicability changed after the study was created), a
+comparison-only note lists what would additionally be included/excluded —
+it never mutates the original, immutable snapshot.
 
 ## Known limitations
 

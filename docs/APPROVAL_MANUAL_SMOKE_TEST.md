@@ -3,10 +3,20 @@
 ## Why this document exists
 
 Spec §1.7 asked for a real, interactive click-through of the packaged
-Tauri app — not React component tests. This environment cannot do that:
-there is no attached display, no `tauri-driver`/WebDriver bridge, and no
-accessibility-automation tool installed for a Windows GUI app in this
-sandboxed, headless session. Claiming "live-verified" here would be false.
+Tauri app — not React component tests.
+
+**Correction (this phase):** an earlier version of this document claimed
+"there is no attached display... this environment cannot do that." That
+claim was not re-verified before being written down, and this phase found
+it to be false — see `docs/TAURI_LIVE_VERIFICATION.md`. A real display and
+real native mouse/keyboard automation via `user32.dll` do work here. What
+is still true is narrower: no accessible (DOM-level) element tree is
+exposed for the WebView2 content, and the virtual display is shorter than
+FormuLab's designed window height, so coordinate-based automation could
+not reach every tab in the spec's interaction checklist in the time
+available. Read `docs/TAURI_LIVE_VERIFICATION.md` for the full, current
+investigation and its honest status label before relying on this
+document's older framing.
 
 What this phase actually verified, and how:
 
@@ -61,14 +71,25 @@ only once you have actually done the action and seen the described result
 | 17 | Reach a formula version's readiness to fully "Ready", fill reviewer fields, click **Approve** | Version's effective status changes; the record appears in Approval history | ☐ |
 | 18 | With a not-ready version, confirm **Approve** is disabled and clicking Reject/Cancel does not change status | Status unchanged; a `blocked`/`rejected`/`cancelled` record still appears in history | ☐ |
 | 19 | Restart the app (`Ctrl+C` the dev server, run it again) | Every policy, revision, equivalence, and attachment created above is still present | ☐ |
+| 20 | Open a test result's **View history** action (Trials or Stability) | The dedicated Result History Browser opens, showing the revision chain oldest-first with the current revision marked | ☐ |
+| 21 | Select two revisions in the browser's compare selectors | A comparison table appears; changed fields (mean/pass-fail/reviewer/override) are highlighted, unchanged fields are not | ☐ |
+| 22 | Open an attachment from within the history browser, including a superseded one | The file opens via the safe resolver; the superseded attachment is still openable, not hidden | ☐ |
+| 23 | Open **Test applicability** from a Stability study's creation form | Included/Excluded lists render using the same engine as Trials — same reason chips | ☐ |
+| 24 | Select a test outside the study's applicability scope | The reviewer/reason fields appear; submitting without both blocks creation with an error | ☐ |
+| 25 | Fill reviewer + reason, create the study | The manually-included test appears in the captured requirement snapshot with its reviewer, reason, and timestamp recorded | ☐ |
+| 26 | Edit a Test Definition referenced by an existing study's snapshot, then reopen that study | The snapshot's original entries are unchanged; if the edit changes what would now be included/excluded, a comparison-only "current definitions differ" note appears without altering the study | ☐ |
 
 Report any row that fails, with the exact error text and the step number,
 rather than re-running the whole checklist blind.
 
 ## Known gap
 
-No automated end-to-end run of this checklist exists yet. If GUI
-automation becomes available in a future session (e.g. `tauri-driver` +
-WebDriver, or a Windows box with a real display CI can drive), replace
-this manual table with a scripted equivalent and update this document to
-say so — do not just delete the caveat.
+No automated end-to-end run of this checklist exists yet. Real native
+launch and real native mouse/keyboard interaction ARE available in this
+environment (see `docs/TAURI_LIVE_VERIFICATION.md`), but reaching every
+row above still requires either `tauri-driver`/WebDriver for reliable
+accessible-element targeting, or a taller display than the 1280×800
+virtual desktop available during this phase. Until one of those is in
+place, run this table by hand; `scripts\windows\verify-formulab-phase1.ps1`
+automates only launch/window verification (rows unrelated to 1), not the
+interior clicks.

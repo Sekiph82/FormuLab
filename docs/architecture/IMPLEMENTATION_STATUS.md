@@ -508,13 +508,55 @@ Closes every gap the previous entry's "Known limitations" disclosed. See
   from the current formulation only, not a global SKU catalog;
   `verificationStatus` has no UI control; attachment replacement covers
   the two append-only result collections only, not the mutable
-  deviation/failure/corrective-action/observation/process-step records;
-  no dedicated historical-attachment browser modal (revision chains are
-  shown inline instead); the Stability panel has no "Test applicability"
-  entry point yet (Trials does); no real GUI/WebDriver click-through of
-  the packaged app was performed — no attached display or `tauri-driver`
-  in this environment — automated React Testing Library coverage plus a
-  documented manual checklist stand in instead.
+  deviation/failure/corrective-action/observation/process-step records.
+
+### Phase 1 closure — result history browser, stability applicability, native verification
+See [RESULT_HISTORY_BROWSER.md](../RESULT_HISTORY_BROWSER.md),
+[TEST_APPLICABILITY.md](../TEST_APPLICABILITY.md),
+[TAURI_LIVE_VERIFICATION.md](../TAURI_LIVE_VERIFICATION.md). Closes the
+three items the previous phase's report disclosed as incomplete.
+- **Dedicated result history browser** (`ResultHistoryBrowser.tsx`,
+  `engine/resultHistory.ts`, new): replaces the inline-only "revises
+  `<id>`" text with a full revision chain, retest lineage, two-revision
+  comparison and attachment-replacement history, opened via a "View
+  history" action from Trials' Tests tab and Stability's sample dashboard.
+  Both result types share one component via a common `HistoricalResult`
+  shape.
+- **Stability applicability explorer**: `ExclusionExplorer.tsx` is now
+  wired into `StabilityPanel.tsx`'s study creation (previously Trials
+  only), reusing the same `evaluateApplicability` call rather than a
+  parallel engine. Manual inclusion of an otherwise-excluded test now
+  requires a reviewer and reason, both recorded in the immutable
+  `testRequirementSnapshot`; an existing study's snapshot is compared
+  (read-only) against what current `TestDefinition`s would now resolve.
+- **Native Tauri verification**: investigated `tauri-driver`, WebDriver,
+  WinAppDriver, UI Automation, pywinauto, Appium, and Playwright — none
+  installed, and UI Automation confirmed Chromium's accessibility tree
+  isn't exposed here. Real native launch (process/window/title/PID) and
+  real native mouse/keyboard-driven UI interaction (nav clicks, text
+  input) were both demonstrated and screenshotted directly against the
+  packaged app — correcting a prior assumption ("no attached display")
+  that turned out to be false. The full Trials/Stability/Approval
+  click-through checklist was not completed live, blocked by a virtual
+  display shorter than the app's designed layout. Status: **PARTIALLY
+  LIVE VERIFIED** — see `TAURI_LIVE_VERIFICATION.md` for the full
+  evidence and exact scope.
+- 22 new/changed shared-package tests (20 new `resultHistory.test.ts`, 2
+  new `testApplicability.test.ts` cases) — 558 (before Phase 2's separate,
+  stashed work) shared tests total. 12 new desktop tests
+  (`ResultHistoryBrowser.test.tsx`, plus one integration test each in
+  `TrialsPanel.test.tsx`/`StabilityPanel.test.tsx` for result history, and
+  two in `StabilityPanel.test.tsx` for the applicability explorer/manual
+  inclusion) — 369 desktop tests total.
+- `scripts/windows/verify-formulab-phase1.ps1` — launch/window-only native
+  verification script; deliberately does not claim to verify anything
+  inside the app.
+- Known limitations: `TrialsPanel.tsx` has no symmetric manual-inclusion
+  reviewer/reason UI (Stability does); the result comparison view supports
+  exactly two revisions at a time; no full automated click-through of
+  Trials/Stability/Approval in the packaged app yet — see
+  `TAURI_LIVE_VERIFICATION.md`'s recommendation for a future pass
+  (`tauri-driver` + a taller virtual display).
 
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).
