@@ -385,5 +385,10 @@ export const auditEventSchema = z.object({
   actorKind: z.enum(["human", "ai", "system", "import"]).default("human"),
   action: z.string().min(1),
   detail: z.string().optional(),
+  /** Additive, structured payload for events whose facts don't fit one
+   *  display string — e.g. `attachment.replaced`'s old/new attachment id,
+   *  parent record type/id, and old/new checksum. Absent on every event
+   *  recorded before this field existed. */
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 export type AuditEvent = z.infer<typeof auditEventSchema>;

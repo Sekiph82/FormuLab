@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTestRequirementSnapshot, isTestDefinitionApplicable, resolveApplicableTestDefinitions } from "./testApplicability";
+import { buildTestRequirementSnapshot, evaluateApplicability, explainExclusion, isTestDefinitionApplicable, resolveApplicableTestDefinitions } from "./testApplicability";
 import type { TestDefinition } from "../schemas/testDefinitions";
 
 function def(over: Partial<TestDefinition> = {}): TestDefinition {
@@ -122,5 +122,56 @@ describe("buildTestRequirementSnapshot", () => {
     ]);
     expect(snapshot.entries).toHaveLength(1);
     expect(snapshot.entries[0].addedManuallyBy).toBeUndefined();
+  });
+});
+
+describe("explainExclusion", () => {
+  it("reports the specific reason a definition is excluded", () => {
+    const d = def({ applicableProductFamilies: ["fam-2"] });
+    expect(explainExclusion(d, { productFamilyId: "fam-1", context: "trial" })).toEqual(["wrong_product_family"]);
+  });
+
+  it("reports every failing dimension at once, not just the first", () => {
+    const d = def({ active: false, applicableProductFamilies: ["fam-2"] });
+    const reasons = explainExclusion(d, { productFamilyId: "fam-1", context: "trial" });
+    expect(reasons).toContain("inactive_definition");
+    expect(reasons).toContain("wrong_product_family");
+  });
+
+  it("is empty for an applicable definition", () => {
+    const d = def();
+    expect(explainExclusion(d, { productFamilyId: "fam-1", context: "trial" })).toEqual([]);
+  });
+
+  it("reports wrong_context, wrong_packaging_sku, wrong_storage_condition and wrong_time_point distinctly", () => {
+    expect(explainExclusion(def({ applicableContexts: ["stability"] }), { productFamilyId: "fam-1", context: "trial" })).toEqual(["wrong_context"]);
+    expect(
+      explainExclusion(def({ applicablePackagingSkuCodes: ["sku-1"] }), { productFamilyId: "fam-1", context: "trial", packagingSkuCodes: ["sku-2"] }),
+    ).toEqual(["wrong_packaging_sku"]);
+    expect(
+      explainExclusion(def({ applicableConditionCodes: ["25C"] }), { productFamilyId: "fam-1", context: "stability", conditionCodes: ["40C"] }),
+    ).toContain("wrong_storage_condition");
+    expect(
+      explainExclusion(def({ applicableTimePointCodes: ["1MO"] }), { productFamilyId: "fam-1", context: "stability", timePointCodes: ["3MO"] }),
+    ).toContain("wrong_time_point");
+  });
+});
+
+describe("evaluateApplicability", () => {
+  it("splits definitions into included and excluded, with reasons only on the excluded side", () => {
+    const included = def({ code: "IN", applicableProductFamilies: ["fam-1"] });
+    const excluded = def({ code: "OUT", applicableProductFamilies: ["fam-2"] });
+    const result = evaluateApplicability([included, excluded], { productFamilyId: "fam-1", context: "trial" });
+    expect(result.included.map((r) => r.definition.code)).toEqual(["IN"]);
+    expect(result.excluded).toHaveLength(1);
+    expect(result.excluded[0].definition.code).toBe("OUT");
+    expect(result.excluded[0].reasons).toEqual(["wrong_product_family"]);
+  });
+
+  it("an excluded definition never appears among the included ones, so it can never satisfy a mandatory requirement", () => {
+    const excluded = def({ code: "OUT", applicableProductFamilies: ["fam-2"], requiredByDefault: true });
+    const result = evaluateApplicability([excluded], { productFamilyId: "fam-1", context: "trial" });
+    expect(result.included).toHaveLength(0);
+    expect(result.excluded).toHaveLength(1);
   });
 });

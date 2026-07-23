@@ -532,6 +532,9 @@ export * from "./engine/stabilityExports";
 export * from "./engine/testApplicability";
 export * from "./engine/approvalDerivation";
 export * from "./schemas/approvalPolicy";
+export * from "./engine/approvalPolicy";
+export * from "./schemas/equivalence";
+export * from "./engine/equivalence";
 export {
   PRECISION,
   CURRENCY_DP,

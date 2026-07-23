@@ -64,6 +64,62 @@ export function resolveApplicableTestDefinitions(
     }));
 }
 
+/** Deterministic reasons a definition failed applicability — spec §1.6.
+ *  `manually_excluded`/`superseded_definition` are not included: this
+ *  codebase does not model an explicit human exclusion action or a
+ *  definition-supersession link, so neither reason is ever computable
+ *  here; see docs/TEST_APPLICABILITY.md's known limitations. */
+export const EXCLUSION_REASONS = [
+  "inactive_definition",
+  "wrong_product_family",
+  "wrong_packaging_sku",
+  "wrong_context",
+  "wrong_storage_condition",
+  "wrong_time_point",
+] as const;
+export type ExclusionReason = (typeof EXCLUSION_REASONS)[number];
+
+/** Every reason `definition` fails `ctx` — plural, because more than one
+ *  dimension can disqualify a test at once, and hiding the others behind
+ *  the first match would make "why isn't this test showing up" harder to
+ *  answer than it needs to be. */
+export function explainExclusion(definition: TestDefinition, ctx: TestApplicabilityContext): ExclusionReason[] {
+  const reasons: ExclusionReason[] = [];
+  if (!definition.active) reasons.push("inactive_definition");
+  if (!(definition.applicableContexts ?? ["trial", "stability"]).includes(ctx.context)) reasons.push("wrong_context");
+  if (definition.applicableProductFamilies.length && !definition.applicableProductFamilies.includes(ctx.productFamilyId)) {
+    reasons.push("wrong_product_family");
+  }
+  if (!matchesAny(definition.applicablePackagingSkuCodes ?? [], ctx.packagingSkuCodes)) reasons.push("wrong_packaging_sku");
+  if (ctx.context === "stability") {
+    if (!matchesAny(definition.applicableConditionCodes ?? [], ctx.conditionCodes)) reasons.push("wrong_storage_condition");
+    if (!matchesAny(definition.applicableTimePointCodes ?? [], ctx.timePointCodes)) reasons.push("wrong_time_point");
+  }
+  return reasons;
+}
+
+export interface ExcludedTestDefinition {
+  definition: TestDefinition;
+  reasons: ExclusionReason[];
+}
+
+/** The full applicability picture for a context — both what was included
+ *  and, for the exclusion explorer, everything that was NOT and exactly
+ *  why. An excluded definition never satisfies a mandatory requirement:
+ *  it simply never appears in `included`, so nothing downstream (readiness
+ *  derivation, the requirement snapshot) can select it by accident. */
+export function evaluateApplicability(
+  definitions: TestDefinition[],
+  ctx: TestApplicabilityContext,
+): { included: ResolvedTestRequirement[]; excluded: ExcludedTestDefinition[] } {
+  const included = resolveApplicableTestDefinitions(definitions, ctx);
+  const includedIds = new Set(included.map((r) => r.definition.code));
+  const excluded = definitions
+    .filter((d) => !includedIds.has(d.code))
+    .map((definition) => ({ definition, reasons: explainExclusion(definition, ctx) }));
+  return { included, excluded };
+}
+
 /**
  * Build the immutable snapshot recorded once, at trial/study creation. A
  * later edit to any `TestDefinition` referenced here — its applicability,
