@@ -8,7 +8,13 @@
 import { z } from "zod";
 import { decimalString } from "./formulation";
 import { trialFormulaSnapshotSchema, TRIAL_DEVIATION_SEVERITIES } from "./laboratory";
-import { attachmentReferenceSchema, testReplicateSchema, replicateStatsSchema, testResultOverrideSchema } from "./testDefinitions";
+import {
+  attachmentReferenceSchema,
+  testReplicateSchema,
+  replicateStatsSchema,
+  testResultOverrideSchema,
+  testRequirementSnapshotSchema,
+} from "./testDefinitions";
 
 // ---------------------------------------------------------------------------
 // Conditions and time points — configurable, not hardcoded requirements
@@ -126,6 +132,10 @@ export const stabilityStudySchema = z.object({
   timePointIds: z.array(z.string()).default([]),
   requiredTestDefinitionIds: z.array(z.string()).default([]),
   replicatesPerPullPoint: z.number().int().positive().default(1),
+
+  /** Captured once at creation — see docs/TEST_APPLICABILITY.md and
+   *  `LaboratoryTrial.testRequirementSnapshot`. */
+  testRequirementSnapshot: testRequirementSnapshotSchema.optional(),
 
   hasOpenCriticalFailure: z.boolean().default(false),
   failureReason: z.string().optional(),
@@ -249,6 +259,8 @@ export const stabilityFailureSchema = z.object({
   investigationStatus: z.enum(STABILITY_INVESTIGATION_STATUSES).default("open"),
   rootCauseNotes: z.string().optional(),
   correctiveActionIds: z.array(z.string()).default([]),
+  /** Additive — absent on a failure recorded before this phase. */
+  attachments: z.array(attachmentReferenceSchema).optional(),
 
   /** Only ever set by a named human via `engine/stability.ts`'s
    *  `resolveStabilityFailure` — never by an agent/system/import actor. */

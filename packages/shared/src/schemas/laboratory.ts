@@ -21,7 +21,7 @@
  */
 import { z } from "zod";
 import { decimalString, formulationLineSchema } from "./formulation";
-import { attachmentReferenceSchema } from "./testDefinitions";
+import { attachmentReferenceSchema, testRequirementSnapshotSchema } from "./testDefinitions";
 
 // ---------------------------------------------------------------------------
 // Material execution
@@ -218,6 +218,12 @@ export const laboratoryTrialSchema = z.object({
   processSteps: z.array(trialProcessStepSchema).default([]),
   observations: z.array(trialObservationSchema).default([]),
 
+  /** Captured once at creation from the then-applicable `TestDefinition`s —
+   *  see docs/TEST_APPLICABILITY.md. Absent on trials created before this
+   *  phase; resolution for those falls back to a live (non-snapshotted)
+   *  read, same as always. */
+  testRequirementSnapshot: testRequirementSnapshotSchema.optional(),
+
   /** Set once, the moment a `TrialDeviation`/failure blocks acceptance and
    *  is later cleared — kept here for a quick "is this trial currently
    *  blocked" read without re-scanning every deviation. Authoritative state
@@ -269,6 +275,8 @@ export const trialDeviationSchema = z.object({
   justification: z.string().optional(),
 
   correctiveActionIds: z.array(z.string()).default([]),
+  /** Additive — absent on a deviation recorded before this phase. */
+  attachments: z.array(attachmentReferenceSchema).optional(),
 
   createdAt: z.string(),
   updatedAt: z.string(),
