@@ -540,6 +540,7 @@ export * from "./schemas/regulatory";
 export * from "./engine/regulatoryClassification";
 export * from "./engine/regulatoryRules";
 export * from "./engine/regulatoryApproval";
+export * from "./engine/regulatoryReviews";
 export * from "./catalog/regulatoryRules";
 export {
   PRECISION,
