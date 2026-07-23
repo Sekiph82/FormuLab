@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Beaker, CheckCircle2, ClipboardList, FileText, FlaskConical, FlaskRound, GitCompare, Plus, ShieldAlert, Sparkles, Wallet } from "lucide-react";
+import { Beaker, CheckCircle2, ClipboardList, FileText, FlaskConical, FlaskRound, GitCompare, Plus, Scale, ShieldAlert, Sparkles, Wallet } from "lucide-react";
 import {
   attemptLifecycleTransition,
   buildKenyaCatalog,
@@ -33,6 +33,7 @@ import { TrialsPanel } from "@/components/formula/TrialsPanel";
 import { TestDefinitionsPanel } from "@/components/formula/TestDefinitionsPanel";
 import { StabilityPanel } from "@/components/formula/StabilityPanel";
 import { CorrectiveActionsPanel } from "@/components/formula/CorrectiveActionsPanel";
+import { RegulatoryPanel } from "@/components/formula/RegulatoryPanel";
 import { ApprovalPanel } from "@/components/formula/ApprovalPanel";
 import { ExportMenu } from "@/components/formula/ExportMenu";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
@@ -53,7 +54,7 @@ import {
 import { listRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 
-type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety" | "optimizer" | "trials" | "tests" | "stability" | "correctiveActions" | "approval";
+type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety" | "optimizer" | "trials" | "tests" | "stability" | "correctiveActions" | "regulatory" | "approval";
 
 /**
  * The Formula Builder workspace — FormuLab's primary working surface.
@@ -99,6 +100,7 @@ export function FormulasPage() {
     tests: () => setTab("tests"),
     stability: () => setTab("stability"),
     correctiveActions: () => setTab("correctiveActions"),
+    regulatory: () => setTab("regulatory"),
     approval: () => setTab("approval"),
   };
   /** Jump to the builder and select/scroll a specific line — used by the
@@ -415,6 +417,9 @@ export function FormulasPage() {
           <TabButton active={tab === "correctiveActions"} onClick={goTo.correctiveActions} icon={<ClipboardList size={13} />}>
             {t("builder.tabCorrectiveActions")}
           </TabButton>
+          <TabButton active={tab === "regulatory"} onClick={goTo.regulatory} icon={<Scale size={13} />}>
+            {t("regulatory.tabLabel")}
+          </TabButton>
           <TabButton active={tab === "approval"} onClick={goTo.approval} icon={<CheckCircle2 size={13} />}>
             {t("builder.tabApproval")}
           </TabButton>
@@ -533,6 +538,10 @@ export function FormulasPage() {
             approvalStatus={baseVersionApprovalStatus}
             onApplyDraft={(note) => baseVersion && onApplyCorrectiveActionDraft(baseVersion.lines.map((l) => ({ ...l })), baseVersion.basisBatchKg, note)}
           />
+        )}
+
+        {tab === "regulatory" && draft.value && (
+          <RegulatoryPanel formulation={active} currentLines={draft.value.lines} materials={materials} />
         )}
 
         {tab === "approval" && (
