@@ -545,6 +545,7 @@ export * from "./engine/regulatoryApproval";
 export * from "./engine/regulatoryReviews";
 export * from "./engine/regulatoryDossier";
 export * from "./engine/regulatoryDossierApproval";
+export * from "./engine/dossierRecordDiscovery";
 export * from "./catalog/regulatoryRules";
 export {
   PRECISION,
