@@ -361,11 +361,44 @@ from the action's source formula version — never inheriting approval, and
 never mutating the version it branched from. **Export** the whole list as
 CSV. Full model: [CORRECTIVE_ACTIONS.md](CORRECTIVE_ACTIONS.md).
 
+## 20. Regulatory (Kenya/EAC)
+
+Open the **Regulatory** tab. Pick a jurisdiction (Kenya, Uganda,
+Tanzania, Rwanda, Burundi, South Sudan, or the EAC regional bloc) — the
+classification card shows this project's deterministic regulatory
+category with its reasoning, never a model's guess. Click **Evaluate**
+to run every applicable rule (the jurisdiction's own plus any active EAC
+rule) against the current formula and see the resulting findings —
+compliant, non-compliant, missing data, or human review required, each
+with its reason and, where relevant, checkboxes to confirm a
+requirement is satisfied or evidence has been provided.
+
+The **Rules** section lists every rule for the selected jurisdiction —
+17 seed placeholders ship across all seven jurisdictions, every one
+explicitly `not_verified` pending a qualified regulatory reviewer's
+confirmation. Create, edit, activate/deactivate, or deprecate a rule
+(edits and deprecations require a reason, recorded in the rule's own
+revision history); import/export the rule set as JSON.
+
+The **Reviews** section records a human's regulatory sign-off (reviewer
+name, outcome, notes) for the current jurisdiction. Turning on any of
+the Approval tab's regulatory-gate toggles (classification completed, no
+blocking finding, mandatory documents/evidence/claims reviewed, human
+review completed) folds these facts into that formula's readiness
+check, the same way the cost-snapshot gate already works. Full model:
+[REGULATORY_ENGINE.md](REGULATORY_ENGINE.md),
+[REGULATORY_CLASSIFICATION.md](REGULATORY_CLASSIFICATION.md),
+[REGULATORY_RULES.md](REGULATORY_RULES.md),
+[EAC_MARKET_PROFILES.md](EAC_MARKET_PROFILES.md).
+
 ## Known limitations
 
 See [IMPLEMENTATION_STATUS.md](architecture/IMPLEMENTATION_STATUS.md) for the
 authoritative list of what is built versus not yet started. In short: the
-regulatory engine, DOE, and reverse-formulation modules described in the
+Kenya/EAC regulatory engine (§20 above) is implemented, but has no
+dossier/evidence-tracking system yet — see
+[REGULATORY_ENGINE.md#known-limitations](REGULATORY_ENGINE.md#known-limitations);
+the DOE and reverse-formulation modules described in the
 full specification are designed but not implemented; laboratory trials and
 stability studies (§16–19 above) are implemented, but automatic shelf-life
 prediction is deliberately not — see

@@ -3,7 +3,13 @@
 Honest state of the Kenya R&D platform transformation. "Done" here means
 implemented, wired in and covered by a passing test — not scaffolded.
 
-Last updated: end of the Laboratory Trials / Stability Studies phase (trial
+Last updated: end of the Kenya/EAC Regulatory Engine phase (seven
+jurisdictions, deterministic classification, versioned rule model and
+evaluation, human-review workflow, Approval Readiness integration, rule
+import/export, desktop Regulatory workspace). Before that: the
+Laboratory Trials / Stability Studies phase's own closure (dedicated
+result history browser, stability applicability explorer, native launch
+verification). Before that: the Laboratory Trials / Stability Studies phase (trial
 domain model + human-gated lifecycle + execution; shared test-definition/
 result system with replicate stats, outlier flagging and revision history;
 trial comparison; stability studies with configurable conditions/time
@@ -558,6 +564,59 @@ three items the previous phase's report disclosed as incomplete.
   `TAURI_LIVE_VERIFICATION.md`'s recommendation for a future pass
   (`tauri-driver` + a taller virtual display).
 
+### Kenya/EAC Regulatory Engine (spec §13)
+See [REGULATORY_ENGINE.md](../REGULATORY_ENGINE.md),
+[REGULATORY_CLASSIFICATION.md](../REGULATORY_CLASSIFICATION.md),
+[REGULATORY_RULES.md](../REGULATORY_RULES.md),
+[EAC_MARKET_PROFILES.md](../EAC_MARKET_PROFILES.md). Phase 2 — recovered
+from a paused work-in-progress stash (the foundation) and completed with
+persistence, desktop UI, Approval Readiness integration, and i18n.
+- Seven jurisdictions (`REGULATORY_JURISDICTIONS`: KE/UG/TZ/RW/BI/SS plus
+  the `EAC` regional-bloc overlay), deterministic product classification
+  (`classifyProductRegulatory`), a versioned `RegulatoryRule` +
+  append-only `RegulatoryRuleRevision` model mirroring
+  `ApprovalPolicy`/`ApprovalPolicyRevision`'s human-gated
+  create/edit/activate/deprecate lifecycle, rule evaluation
+  (`evaluateRegulatory`) across three shapes (ingredient-based,
+  claim-based, product-level requirement) with honest
+  `missing_data`/`human_review_required` defaults for anything not
+  automatically confirmable, a six-status `RegulatoryFinding`, and an
+  append-only `RegulatoryReview` human sign-off record.
+- Approval Readiness integration (`assessRegulatoryReadiness`/
+  `deriveRegulatoryReadiness`, `engine/regulatoryApproval.ts`): a
+  same-one-layer-up pattern as the cost-snapshot gate, six new opt-in
+  `ApprovalPolicy` fields, wired into `ApprovalPanel.tsx` scoped to the
+  formulation's primary target market.
+- Rule import/export (JSON, same shape-check-then-upsert convention
+  `RuleManager.tsx` already uses; imports always forced to
+  `imported_unverified`).
+- Desktop Regulatory workspace (`RegulatoryPanel.tsx`): jurisdiction
+  picker, classification card, findings evaluation with manual
+  confirmation, rule browser/editor with revision history, human review
+  recording.
+- 17 seed rules across all seven jurisdictions
+  (`catalog/regulatoryRules.ts`), every one an explicit `not_verified`
+  structural placeholder.
+- Three new master-data collections (`regulatory_rules`,
+  `regulatory_rule_revisions`, `regulatory_reviews`) added to the Rust
+  allow-list; no migration registered (all start at `schemaVersion: "1.0"`,
+  nothing yet to migrate from).
+- English and Turkish i18n (real translations); the other six shipped
+  locales carry the same keys as English placeholders pending native
+  review, per this project's existing i18n convention.
+- 53 new shared-package tests (13 `regulatoryClassification.test.ts`, 25
+  `regulatoryRules.test.ts`, 15 `regulatoryApproval.test.ts`) — 613 shared
+  tests total. 11 new desktop tests (8 `RegulatoryPanel.test.tsx`, 3 new
+  `ApprovalPanel.test.tsx` cases) — 380 desktop tests total.
+- Known limitations: no dossier/evidence-tracking system (product-level
+  requirement confirmations are session-local, not persisted separately
+  from a review); human review is matched by jurisdiction only, not by
+  specific formula version; the Approval tab's automatic gate checks
+  exactly one (primary) jurisdiction per formulation; every seed rule is
+  a structural placeholder pending a qualified regulatory reviewer's
+  confirmation. See `REGULATORY_ENGINE.md`'s "Known limitations" for the
+  full list.
+
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).
 - A generic `registerMigration`/`migrateRecord`/`migrateCollection` runner
@@ -577,7 +636,6 @@ plainly so nothing here reads as available.
 | Area | Spec § |
 |---|---|
 | Evidence origin classification wired into the pipeline | 4 |
-| Regulatory engine + rule import | 13 |
 | Manufacturing methods + batch records | 8 |
 | DOE | 10 |
 | Reverse formulation | 11 |
