@@ -374,3 +374,84 @@ fn backup_collection(app: &AppHandle, name: &str) -> Result<String, String> {
     std::fs::copy(&src, &dest).map_err(|e| e.to_string())?;
     Ok(dest.to_string_lossy().to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DOSSIER_COLLECTIONS: [(&str, bool); 8] = [
+        ("regulatory_dossiers", false),
+        ("regulatory_dossier_requirements", true),
+        ("regulatory_evidence_items", false),
+        ("regulatory_requirement_evidence_links", true),
+        ("regulatory_dossier_reviews", true),
+        ("regulatory_dossier_review_revocations", true),
+        ("regulatory_dossier_submissions", false),
+        ("regulatory_dossier_manual_requirement_actions", true),
+    ];
+
+    #[test]
+    fn all_eight_dossier_collections_are_allow_listed_with_the_designed_mutability() {
+        for (name, append_only) in DOSSIER_COLLECTIONS {
+            assert_eq!(
+                collection_spec(name),
+                Ok((name, append_only)),
+                "{name} should be allow-listed as append_only={append_only}"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_collection_name_is_rejected() {
+        assert!(collection_spec("regulatory_dossier_typo").is_err());
+        assert!(collection_spec("../../etc/passwd").is_err());
+    }
+
+    /// `read_array`/`write_array` hold no in-memory state between calls — each
+    /// call re-reads/rewrites the file on disk. Dropping the value and reading
+    /// it back through a fresh call is exactly what a real app restart does,
+    /// so this is a genuine (AppHandle-free) persistence-survives-restart test
+    /// for the write-then-rename path the new dossier collections share with
+    /// every other master-data collection.
+    #[test]
+    fn write_then_read_survives_a_simulated_restart() {
+        let dir = std::env::temp_dir().join(format!(
+            "formulab-masterdata-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("regulatory_dossiers.json");
+
+        let rows = vec![serde_json::json!({
+            "id": "dossier-1",
+            "dossierCode": "DOS-1",
+            "status": "draft",
+        })];
+        write_array(&path, &rows).unwrap();
+
+        // Simulate restart: nothing in memory carries over, only the file.
+        let reloaded = read_array(&path);
+        assert_eq!(reloaded, rows);
+
+        // A second write-then-read (as an upsert would do) still round-trips.
+        let mut rows2 = reloaded.clone();
+        rows2.push(serde_json::json!({
+            "id": "dossier-2",
+            "dossierCode": "DOS-2",
+            "status": "in_preparation",
+        }));
+        write_array(&path, &rows2).unwrap();
+        assert_eq!(read_array(&path), rows2);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn missing_file_reads_as_an_empty_collection_rather_than_erroring() {
+        let path = std::env::temp_dir().join("formulab-masterdata-test-does-not-exist.json");
+        assert_eq!(read_array(&path), Vec::<serde_json::Value>::new());
+    }
+}
