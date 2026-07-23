@@ -367,9 +367,13 @@ safety risk into a system's score (real hard exclusions still apply) — see
 [SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md#known-limitations).
 Compatibility and safety are deterministic rule engines against a
 hand-maintained, explicitly non-exhaustive seed rule set — they are not a
-regulatory engine and do not establish legal compliance. Approval readiness
-(including the lab/stability policies in
-[LAB_STABILITY_APPROVAL.md](LAB_STABILITY_APPROVAL.md)) is fully
-implemented and tested but not yet called from any approval screen in the
-desktop UI — there is no "approve this version" action anywhere in the app
-yet. Nothing in this guide describes an unimplemented module as available.
+regulatory engine and do not establish legal compliance. The Formula
+Builder's Approval tab now calls approval readiness (including the
+lab/stability policies in
+[LAB_STABILITY_APPROVAL.md](LAB_STABILITY_APPROVAL.md)) for real —
+see [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md). Its approval-policy
+editor can create and activate/deactivate a policy but not yet edit one's
+individual requirement toggles after creation, and it cannot yet scope a
+policy to specific product families/packaging SKUs from the UI — see
+[APPROVAL_POLICIES.md](APPROVAL_POLICIES.md#known-limitations). Nothing in
+this guide describes an unimplemented module as available.

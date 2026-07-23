@@ -62,6 +62,11 @@ forever queryable, and a report generated before a revision remains
 reproducible. `retestOf` is the separate, deliberate "this is a fresh
 sample, re-tested" pointer, distinct from a same-sample correction.
 
+A result's `attachments` can only be set at recording time, in the same
+form that captures the replicate values — since `test_results` is
+append-only, there is no "add an attachment afterward" path for an already
+-recorded result. See [ATTACHMENTS.md](ATTACHMENTS.md#immutability-after-finalization).
+
 ## Known limitations
 
 - No UI surface yet for browsing a result's full revision chain — only the

@@ -75,6 +75,13 @@ See [TRIAL_EXECUTION.md](TRIAL_EXECUTION.md) for material weighing, process
 steps, and deviations; [TEST_DEFINITIONS.md](TEST_DEFINITIONS.md) and
 [TEST_RESULTS.md](TEST_RESULTS.md) for the shared test system; and
 [TRIAL_COMPARISON.md](TRIAL_COMPARISON.md) for comparing two or more trials.
+A trial created today also captures an immutable
+`testRequirementSnapshot` of which test definitions applied and why — see
+[TEST_APPLICABILITY.md](TEST_APPLICABILITY.md) — and observations/
+deviations/process steps support safe file attachments — see
+[ATTACHMENTS.md](ATTACHMENTS.md). Only a trial linked to the exact formula
+version being approved satisfies laboratory approval readiness by default
+— see [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md#laboratory-and-stability-derivation).
 
 ## Known limitations
 

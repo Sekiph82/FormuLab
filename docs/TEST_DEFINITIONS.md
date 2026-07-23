@@ -61,14 +61,29 @@ verification status, active flag. Changes save on demand (dirty-state
 detected via a JSON diff against the loaded record), not on every
 keystroke.
 
+## Applicability, enforced
+
+See [TEST_APPLICABILITY.md](TEST_APPLICABILITY.md) for the full model.
+`applicableProductFamilies`/`applicableProductSkus`, plus the newer
+`applicablePackagingSkuCodes`/`applicableContexts`/
+`applicableConditionCodes`/`applicableTimePointCodes`/`testCapability`/
+`requiredByDefault` fields, are now read by
+`engine/testApplicability.ts`'s `isTestDefinitionApplicable` and actually
+enforced at trial/study creation — a trial or study captures an immutable
+`testRequirementSnapshot` of which definitions applied and why, so a later
+edit to a definition (including deleting it) cannot retroactively change
+what an existing trial/study's protocol already required.
+
 ## Known limitations
 
-- Applicability (`applicableProductFamilies`/`applicableProductSkus`) is
-  stored on the definition but not yet enforced anywhere — the Trials/
-  Stability panels currently show every active numeric definition
-  regardless of the selected trial's/study's product family.
 - No versioning of a definition's own history — editing a definition's
   limits changes it going forward; past results keep whatever pass/fail
   verdict was computed at the time (see
   [TEST_RESULTS.md](TEST_RESULTS.md#revision-history)), but the definition
-  itself has no "as of" snapshot.
+  itself has no "as of" snapshot outside a trial/study's own
+  `testRequirementSnapshot`.
+- The Trials/Stability panels resolve applicability automatically at
+  creation time, but there is no dedicated UI yet to show a rejected
+  (inapplicable) definition alongside the accepted ones — only what was
+  actually selected is displayed, not the full "considered and excluded"
+  list.

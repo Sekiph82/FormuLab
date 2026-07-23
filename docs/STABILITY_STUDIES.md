@@ -73,6 +73,14 @@ never re-derived differently later. `sampleCode` is
 — deterministic, never a guess, and only samples whose status actually
 changed are written back.
 
+A study created today also captures an immutable `testRequirementSnapshot`
+— see [TEST_APPLICABILITY.md](TEST_APPLICABILITY.md) — and its results/
+failures support safe file attachments — see
+[ATTACHMENTS.md](ATTACHMENTS.md). Packaging-compatibility readiness for
+approval is now derived from real results against a `testCapability`-
+tagged definition, not a manually supplied boolean — see
+[APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md#packaging-compatibility-for-real).
+
 ## Known limitations
 
 - A study is locked to one packaging SKU for its whole duration; testing

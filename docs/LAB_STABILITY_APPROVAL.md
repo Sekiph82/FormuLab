@@ -63,26 +63,20 @@ message string):
 Every blocker is returned even when several apply simultaneously — the
 approval screen shows the whole list, not just the first failure.
 
-## Engine-level integration, not yet a desktop approval screen
+## Wired into the desktop Approval tab
 
 `assessApprovalReadiness` accepts `labReadiness`/`stabilityReadiness` and
-produces the ten blocker codes above — this half of the work is complete
-and fully tested (`approvalReadiness.test.ts`, 38 tests including the
-lab/stability additions). But — consistent with
-[APPROVAL_READINESS.md](APPROVAL_READINESS.md#what-this-does-not-do)'s own
-disclosure — **no screen in `apps/desktop/src` currently calls
-`assessApprovalReadiness` at all**, for any source (validation,
-compatibility, safety, or lab/stability). There is no "approve this
-version" UI action anywhere in the desktop app yet; the only version-status
-transitions wired into `FormulasPage.tsx` today are retire/reject/reopen
-(`onLifecycleAction`), never a transition *into* `pilot_approved`/
-`production_approved`. Building that approval action is a pre-existing gap
-that predates this phase and is not specific to laboratory/stability — it
-applies equally to the validation/compatibility/safety sources this module
-already supported before this phase's work. An organization integrating
-this module today would call `assessApprovalReadiness` from its own
-approval-action code path, supplying `labReadiness`/`stabilityReadiness`
-alongside the other five sources, exactly as documented above.
+produces the ten blocker codes above (`approvalReadiness.test.ts`, 38
+tests). The desktop Approval tab
+(`apps/desktop/src/components/formula/ApprovalPanel.tsx`) now calls it for
+every source, lab/stability included — see
+[APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md). `labReadiness`/
+`stabilityReadiness` are no longer manually supplied booleans: they are
+derived from the real `laboratory_trials`/`test_results`/
+`trial_deviations`/`corrective_actions`/`stability_studies`/
+`stability_samples`/`stability_results`/`stability_failures` collections by
+`deriveLabReadiness`/`deriveStabilityReadiness`
+(`engine/approvalDerivation.ts`).
 
 ## Human-only, always
 
@@ -102,14 +96,16 @@ does not replace them.
 
 ## Known limitations
 
-- **No desktop approval-action screen exists yet** (see above) — this is
-  the most significant limitation in this area, and it is a pre-existing
-  gap across all five approval-readiness sources, not something introduced
-  by or specific to this phase's lab/stability work.
-- `packaging_test_failed` reads a single boolean (`packagingCompatibilityPassed`)
-  the caller supplies — there is no dedicated packaging-compatibility test
-  type distinct from an ordinary numeric/pass-fail test definition tagged
-  for that purpose.
-- Policies are per-call parameters, not yet a persisted per-organization
-  settings record — a real deployment would need its own settings UI/storage
-  to make a chosen policy durable across sessions.
+- `packaging_test_failed` still reads the boolean
+  `packagingCompatibilityPassed` — but that boolean is now itself derived
+  from real test results via `derivePackagingCompatibilityReadiness`, keyed
+  off a dedicated `testCapability` field
+  (`packaging_compatibility`/`seal_integrity`/`leak_test`), not a
+  display-name text match. See
+  [TEST_APPLICABILITY.md](TEST_APPLICABILITY.md#testcapability) and
+  [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md#packaging-compatibility-for-real).
+- Policies are now a persisted, per-organization `ApprovalPolicy` record
+  (`approval_policies`) with a UI to create and activate/deactivate them —
+  see [APPROVAL_POLICIES.md](APPROVAL_POLICIES.md). Editing an existing
+  policy's individual requirement toggles after creation is not yet
+  supported from the UI.

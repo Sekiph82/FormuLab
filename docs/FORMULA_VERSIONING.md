@@ -107,6 +107,14 @@ Additional guarantees:
 Tests covering each bypass attempt are in
 `packages/shared/src/engine/versioning.test.ts`.
 
+The desktop screen that actually grants `pilot_approved`/
+`production_approved` — the Approval tab in the Formula Builder — is
+documented in [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md). It reuses this
+exact mechanism: granting approval is an audit event
+(`version.approved.pilot_approved`/`version.approved.production_approved`)
+read back by `effectiveStatus`, the same as retire/reject/reopen above —
+never a rewrite of the immutable version file.
+
 A version created from an applied Advanced Optimizer or substitution result
 carries `appliedOptimizationRunCode` / `appliedSubstitutionRunCode` —
 [APPROVAL_READINESS.md](APPROVAL_READINESS.md) looks up the real, persisted

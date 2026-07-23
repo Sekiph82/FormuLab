@@ -326,10 +326,11 @@ result status against `FormulationVersion.appliedOptimizationRunCode`/
 `appliedSubstitutionRunCode` — a defensive check against a forged or stale
 reference, distinct from the solver's/scorer's own correctness — and now
 also blocks when a substitution run has no `selectedCandidateId` recorded,
-or when the selected candidate itself carries a blocking finding. Not yet
-called from any desktop UI screen (a pre-existing gap — see
-APPROVAL_READINESS.md's "What this does not do"). 38 tests total in
-`approvalReadiness.test.ts` (including the lab/stability policies below).
+or when the selected candidate itself carries a blocking finding. Now
+called from the desktop Approval tab — see
+[APPROVAL_WORKFLOW.md](../APPROVAL_WORKFLOW.md) and the closure entry
+below. 38 tests total in `approvalReadiness.test.ts` (including the
+lab/stability policies below).
 
 ### Laboratory Trials + Stability Studies (spec §9)
 See [LABORATORY_TRIALS.md](../LABORATORY_TRIALS.md),
@@ -379,9 +380,11 @@ shelf-life prediction — none of those are implemented here either.
   `draftFromVersion` directly, never inherits approval
 - Approval readiness extended with `LabApprovalPolicy`/
   `StabilityApprovalPolicy` (ten new blocker codes, every requirement
-  optional and off by default, no hardcoded duration requirement) — engine-
-  level only; like the rest of approval readiness, not yet called from any
-  desktop approval screen (see [LAB_STABILITY_APPROVAL.md](../LAB_STABILITY_APPROVAL.md))
+  optional and off by default, no hardcoded duration requirement) — now
+  called from the desktop Approval tab, with `labReadiness`/
+  `stabilityReadiness` derived from real persisted records rather than
+  supplied booleans (see [LAB_STABILITY_APPROVAL.md](../LAB_STABILITY_APPROVAL.md)
+  and the closure entry below)
 - Ten new master-data collections (`laboratory_trials`, `test_definitions`,
   `test_results`, `trial_comparisons`, `trial_deviations`,
   `corrective_actions`, `stability_studies`, `stability_samples`,
@@ -403,6 +406,73 @@ shelf-life prediction — none of those are implemented here either.
   UI-integration tests (`TrialsPanel.test.tsx`, `StabilityPanel.test.tsx`,
   same real-component/mocked-masterdata-boundary discipline as
   `AdvancedOptimizerPanel.test.tsx`/`SubstitutionPanel.test.tsx`)
+
+### Approval workflow closure
+See [APPROVAL_WORKFLOW.md](../APPROVAL_WORKFLOW.md),
+[APPROVAL_POLICIES.md](../APPROVAL_POLICIES.md),
+[TEST_APPLICABILITY.md](../TEST_APPLICABILITY.md),
+[ATTACHMENTS.md](../ATTACHMENTS.md). Closes the gap disclosed above and in
+[APPROVAL_READINESS.md](../APPROVAL_READINESS.md)/
+[LAB_STABILITY_APPROVAL.md](../LAB_STABILITY_APPROVAL.md): a real desktop
+approval action now exists and calls `assessApprovalReadiness` with every
+source populated from persisted records.
+- Desktop Approval tab (`ApprovalPanel.tsx`) — version/target-status/policy
+  selection, full blocker/warning list with per-blocker navigation, human
+  reviewer role/name/user-id/reason, Approve/Reject/Cancel, approval
+  history. Reuses the pre-existing `version.retired`/`version.rejected`/
+  `version.reopened` audit-event/`effectiveStatus` mechanism — two new
+  `LIFECYCLE_ACTIONS` entries (`version.approved.pilot_approved`/
+  `version.approved.production_approved`) rather than a parallel status
+  mechanism; `attemptApprovalTransition` (`engine/lifecycle.ts`) wraps the
+  pre-existing `canTransitionWithReadiness`.
+- `ApprovalRecord` extended additively (all new fields optional):
+  `decision` (approved/rejected/cancelled/blocked), `previousStatus`/
+  `requestedStatus`, `reviewerUserId`/`reviewerRole`, frozen
+  `readinessSnapshot`/`laboratoryReadinessSnapshot`/
+  `stabilityReadinessSnapshot`. `save_approval_record` (Rust) needed no
+  change — it already operates on untyped JSON.
+- `deriveLabReadiness`/`deriveStabilityReadiness`/
+  `derivePackagingCompatibilityReadiness`
+  (`engine/approvalDerivation.ts`, new) — turn persisted
+  `laboratory_trials`/`test_results`/`trial_deviations`/
+  `corrective_actions`/`stability_studies`/`stability_samples`/
+  `stability_results`/`stability_failures` into the plain facts
+  `LabReadinessInput`/`StabilityReadinessInput` already expected. Packaging
+  compatibility is a real five-state read
+  (`passed`/`failed`/`incomplete`/`not_required`/`unknown`) keyed off a new
+  `TestDefinition.testCapability` field, never a display-name match; the
+  boolean that feeds `assessApprovalReadiness` maps `passed`/`not_required`
+  to `true` — `unknown` never silently reads as passed.
+- Test-definition applicability, enforced (`engine/testApplicability.ts`,
+  new): `isTestDefinitionApplicable`/`resolveApplicableTestDefinitions`/
+  `buildTestRequirementSnapshot`. A trial/study now captures an immutable
+  `testRequirementSnapshot` at creation — a later edit to a `TestDefinition`
+  cannot retroactively change what an existing trial/study's protocol
+  required.
+- Safe attachment references (`src-tauri/src/attachments.rs`, new): a
+  picked file is copied into `data/formulations/<id>/attachments/` under a
+  generated name with a computed SHA-256 checksum, allow-listed to
+  image/PDF/spreadsheet/text-document extensions — never a raw absolute
+  path from the renderer. Wired into trial observations/deviations/process
+  steps/test results, stability results/failures, and corrective actions
+  via a shared `AttachmentField` component.
+- `ApprovalPolicy` (new, `approval_policies` master-data collection,
+  mutable) — persisted per-organization gates, replacing the previous
+  "per-call parameter only" limitation; one seeded example ships inactive.
+- 49 new shared-package tests (24 `approvalDerivation.test.ts`, 14
+  `testApplicability.test.ts`, 11 new `lifecycle.test.ts` cases) — 486
+  total. 12 new desktop tests (6 `ApprovalPanel.test.tsx`, 6
+  `AttachmentField.test.tsx`) — 353 total. 3 new Rust unit tests
+  (`attachments::tests`) — 68 total.
+- Known limitations: no UI to scope a policy to specific product
+  families/packaging SKUs or edit an existing policy's toggles after
+  creation; `equivalentVersionIds` (accepting lab/stability evidence from a
+  named equivalent version) is engine-only, no UI; attachment editing after
+  the fact is only offered on mutable parent records (deviations, stability
+  failures, corrective actions, observations, process steps) — an
+  append-only `TestResult`/`StabilityResult`'s attachments are fixed at
+  recording time, by design, but there is no UI to browse an older result's
+  attachments outside the recording form.
 
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).

@@ -158,11 +158,10 @@ paths.
 - Does not auto-resolve anything. A blocker clears only when a listed source
   condition genuinely changes — a resolution record is created, a line is
   fixed, a validation severity drops.
-- **Not yet called from any desktop UI screen.** `assessApprovalReadiness`/
-  `canTransitionWithReadiness` are complete and fully tested, but no
-  component in `apps/desktop/src` invokes them yet — there is no approval
-  dialog in the UI that actually gates `pilot_approved`/`production_approved`
-  on this module's output today. This is a pre-existing gap, not something
-  the Advanced Optimizer scenario/system-substitution work introduced or
-  closed; wiring an approval screen to this module is separate, not-yet-done
-  work.
+- Is now called from the desktop Approval tab
+  (`apps/desktop/src/components/formula/ApprovalPanel.tsx`) — see
+  [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md) for the full flow: every
+  source above is populated from real, persisted records, not a placeholder,
+  and `pilot_approved`/`production_approved` are gated on this module's
+  output via `attemptApprovalTransition`
+  (`engine/lifecycle.ts`, which wraps `canTransitionWithReadiness`).

@@ -64,7 +64,11 @@ codebase, not a parallel implementation:
 project (every action regardless of source), with the full lifecycle button
 set. `TrialsPanel.tsx`/`StabilityPanel.tsx` additionally show actions inline
 against their originating deviation/failure, with a **Create draft** button
-wired to the same handler.
+wired to the same handler. A corrective action now also supports safe file
+attachments (evidence of the fix) — see [ATTACHMENTS.md](ATTACHMENTS.md).
+Only a corrective action tied to a *critical*-severity deviation/failure
+counts as an unresolved-critical-corrective-action approval blocker — see
+[APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md#laboratory-and-stability-derivation).
 
 ## Known limitations
 
