@@ -276,24 +276,102 @@ export const formulationDraftSchema = z.object({
 });
 export type FormulationDraft = z.infer<typeof formulationDraftSchema>;
 
+/** The outcome of one approval attempt. `approved` is the only decision that
+ *  ever moves a version's effective status — see `engine/lifecycle.ts`'s
+ *  `attemptApprovalTransition`. The other three are recorded for audit but
+ *  never change status: a `blocked` attempt is exactly the case where
+ *  readiness or role authority refused the transition. */
+export const APPROVAL_DECISIONS = ["approved", "rejected", "cancelled", "blocked"] as const;
+export type ApprovalDecision = (typeof APPROVAL_DECISIONS)[number];
+
+const approvalBlockerSnapshotSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  message: z.string(),
+  lineId: z.string().optional(),
+  code: z.string().optional(),
+});
+
+/** A frozen copy of `ApprovalReadiness` (`engine/approvalReadiness.ts`) as it
+ *  stood the moment a decision was made — never recomputed on read, same
+ *  convention as `totalsSnapshot`/`validationSnapshot` above. A later change
+ *  to a trial, a study or a policy must not retroactively alter what this
+ *  historical record says was true at decision time. */
+export const approvalReadinessSnapshotSchema = z.object({
+  ready: z.boolean(),
+  blockers: z.array(approvalBlockerSnapshotSchema),
+  warnings: z.array(approvalBlockerSnapshotSchema),
+});
+export type ApprovalReadinessSnapshot = z.infer<typeof approvalReadinessSnapshotSchema>;
+
+export const laboratoryReadinessSnapshotSchema = z.object({
+  hasCompletedTrial: z.boolean(),
+  allRequiredTestsCompleted: z.boolean(),
+  allCriticalTestsPassed: z.boolean(),
+  hasUnresolvedCriticalDeviation: z.boolean(),
+  hasUnresolvedCriticalCorrectiveAction: z.boolean(),
+});
+export type LaboratoryReadinessSnapshot = z.infer<typeof laboratoryReadinessSnapshotSchema>;
+
+export const stabilityReadinessSnapshotSchema = z.object({
+  hasActiveOrCompletedStudy: z.boolean(),
+  initialTestsPassed: z.boolean(),
+  completedTimePointCount: z.number().int().nonnegative(),
+  hasUnresolvedCriticalFailure: z.boolean(),
+  packagingCompatibilityPassed: z.boolean(),
+  /** The full five-state read (spec: "unknown must not silently equal
+   *  passed") — `packagingCompatibilityPassed` above is the boolean that
+   *  actually feeds `assessApprovalReadiness`; this is kept alongside it so
+   *  a UI can show why, not just pass/fail. */
+  packagingCompatibilityStatus: z.enum(["passed", "failed", "incomplete", "not_required", "unknown"]),
+});
+export type StabilityReadinessSnapshot = z.infer<typeof stabilityReadinessSnapshotSchema>;
+
 /**
- * A signed human decision. Required to reach `pilot_approved` or
- * `production_approved`; see `canTransitionTo` in status.ts, and the mirrored
- * check in the Rust save command.
+ * A signed human decision. An `approved` record is required to reach
+ * `pilot_approved` or `production_approved`; see `canTransitionTo` in
+ * status.ts, and the mirrored check in the Rust save command. Append-only —
+ * a decision is never edited after the fact; a changed mind creates a new
+ * record.
  */
 export const approvalRecordSchema = z.object({
   schemaVersion: z.literal("1.0"),
   id: z.string().min(1),
   formulationId: z.string().min(1),
   versionId: z.string().min(1),
+  /** The status this record concerns — the one requested (and, for an
+   *  `approved` decision, granted). Kept as the pre-existing field name for
+   *  backward compatibility with records written before `decision` existed. */
   status: z.enum(FORMULA_STATUSES),
+  decision: z.enum(APPROVAL_DECISIONS).default("approved"),
+  previousStatus: z.enum(FORMULA_STATUSES).optional(),
+  requestedStatus: z.enum(FORMULA_STATUSES).optional(),
   /** Who signed. A person's name — never "system", "ai" or an agent id. */
   approvedBy: z.string().min(1),
   approvedByRole: z.string().optional(),
   approvedAt: z.string(),
-  /** Why this formula was considered fit for the status granted. */
+  /** Distinct from `approvedBy`'s free-text name: the actor's stable user id
+   *  and role, so a record can be traced to an account, not just a label. */
+  reviewerUserId: z.string().optional(),
+  reviewerRole: z.string().optional(),
+  /** Why this formula was considered fit for the status granted (or, for a
+   *  `rejected`/`cancelled`/`blocked` decision, why it was not). */
   justification: z.string().min(1),
   notes: z.string().optional(),
+
+  /** Everything below is the readiness picture at the moment of decision —
+   *  frozen, never recomputed. Optional because a record written before
+   *  this phase has none of it. */
+  readinessSnapshot: approvalReadinessSnapshotSchema.optional(),
+  laboratoryReadinessSnapshot: laboratoryReadinessSnapshotSchema.optional(),
+  stabilityReadinessSnapshot: stabilityReadinessSnapshotSchema.optional(),
+  validationSnapshot: validationSnapshotSchema.optional(),
+  appliedOptimizationRunCode: z.string().optional(),
+  appliedSubstitutionRunCode: z.string().optional(),
+  costSnapshotId: z.string().optional(),
+  /** When the approval attempt/dialog was opened — distinct from
+   *  `approvedAt`, which is when the decision was actually made. */
+  createdAt: z.string().optional(),
 });
 export type ApprovalRecord = z.infer<typeof approvalRecordSchema>;
 

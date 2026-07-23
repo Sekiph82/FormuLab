@@ -19,7 +19,7 @@ fn formulations_root(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// Reject anything that could escape the formulations directory. Ids come from
 /// the webview, so they are untrusted input.
-fn safe_id(id: &str) -> Result<&str, String> {
+pub(crate) fn safe_id(id: &str) -> Result<&str, String> {
     let ok = !id.is_empty()
         && id.len() <= 128
         && id

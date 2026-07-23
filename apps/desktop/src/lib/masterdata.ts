@@ -7,6 +7,7 @@
  * a typo is a compile error rather than a runtime "unknown collection".
  */
 import type {
+  ApprovalPolicy,
   CompatibilityRule,
   CompatibilitySnapshot,
   CorrectiveAction,
@@ -70,7 +71,8 @@ export type Collection =
   | "stability_studies"
   | "stability_samples"
   | "stability_results"
-  | "stability_failures";
+  | "stability_failures"
+  | "approval_policies";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -103,6 +105,7 @@ interface CollectionTypes {
   stability_samples: StabilitySample;
   stability_results: StabilityResult;
   stability_failures: StabilityFailure;
+  approval_policies: ApprovalPolicy;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

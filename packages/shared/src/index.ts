@@ -529,6 +529,9 @@ export * from "./catalog/testDefinitions";
 export * from "./catalog/stabilityConditions";
 export * from "./engine/labExports";
 export * from "./engine/stabilityExports";
+export * from "./engine/testApplicability";
+export * from "./engine/approvalDerivation";
+export * from "./schemas/approvalPolicy";
 export {
   PRECISION,
   CURRENCY_DP,

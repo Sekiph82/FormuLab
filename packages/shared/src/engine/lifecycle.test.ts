@@ -1,10 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { attemptLifecycleTransition, effectiveStatus } from "./lifecycle";
+import { attemptApprovalTransition, attemptLifecycleTransition, effectiveStatus } from "./lifecycle";
+import type { ApprovalReadiness } from "./approvalReadiness";
 import type { Actor } from "../schemas/status";
 import type { AuditEvent, FormulationVersion } from "../schemas/formulation";
 
 const CHEMIST: Actor = { kind: "human", role: "chemist", userId: "u1" };
+const QUALITY: Actor = { kind: "human", role: "quality", userId: "u2" };
+const RESEARCHER: Actor = { kind: "human", role: "researcher", userId: "u3" };
 const AGENT: Actor = { kind: "agent", runId: "run-1" };
+const SYSTEM: Actor = { kind: "system", reason: "migration" };
+const IMPORT: Actor = { kind: "import", source: "legacy.xlsx" };
+
+const READY: ApprovalReadiness = { ready: true, blockers: [], warnings: [] };
+const NOT_READY: ApprovalReadiness = {
+  ready: false,
+  blockers: [{ id: "b1", source: "validation", message: "Total is not 100%." }],
+  warnings: [],
+};
 
 function version(status: FormulationVersion["status"]): FormulationVersion {
   return {
@@ -85,5 +97,76 @@ describe("attemptLifecycleTransition", () => {
   it("still evaluates the same for an agent actor (retire/reject are not human-only in the status graph)", () => {
     const r = attemptLifecycleTransition("pilot_approved", "retired", AGENT);
     expect(r.allowed).toBe(true);
+  });
+});
+
+describe("attemptApprovalTransition", () => {
+  it("grants pilot_approved to an authorized, ready human with an approval record", () => {
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", CHEMIST, READY, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(true);
+    expect(r.action).toBe("version.approved.pilot_approved");
+  });
+
+  it("grants production_approved to an authorized, ready human with an approval record", () => {
+    const r = attemptApprovalTransition("pilot_approved", "production_approved", QUALITY, READY, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(true);
+    expect(r.action).toBe("version.approved.production_approved");
+  });
+
+  it("blocks when readiness is not ready, even for an authorized human with a record", () => {
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", CHEMIST, NOT_READY, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("NOT_READY_FOR_APPROVAL");
+  });
+
+  it("blocks a role not authorized for the target status, even when ready", () => {
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", RESEARCHER, READY, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("ROLE_NOT_AUTHORIZED");
+  });
+
+  it("blocks without an approval record even when ready and authorized", () => {
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", CHEMIST, READY, { hasApprovalRecord: false });
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("APPROVAL_RECORD_REQUIRED");
+  });
+
+  it("refuses an agent actor regardless of readiness", () => {
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", AGENT, READY, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("APPROVAL_REQUIRES_HUMAN");
+  });
+
+  it("refuses a system actor regardless of readiness", () => {
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", SYSTEM, READY, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("APPROVAL_REQUIRES_HUMAN");
+  });
+
+  it("refuses an import actor regardless of readiness", () => {
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", IMPORT, READY, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("APPROVAL_REQUIRES_HUMAN");
+  });
+
+  it("rejects an invalid status graph edge before readiness is even considered", () => {
+    const r = attemptApprovalTransition("concept", "production_approved", QUALITY, READY, { hasApprovalRecord: true });
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("NOT_A_VALID_TRANSITION");
+  });
+});
+
+describe("effectiveStatus with an approval event", () => {
+  it("reflects a granted pilot approval", () => {
+    const events = [event("version.approved.pilot_approved", "2026-02-01T00:00:00.000Z")];
+    expect(effectiveStatus(version("pilot_candidate"), events)).toBe("pilot_approved");
+  });
+
+  it("reflects the most recent of an approval followed by a retirement", () => {
+    const events = [
+      event("version.approved.pilot_approved", "2026-02-01T00:00:00.000Z"),
+      event("version.retired", "2026-03-01T00:00:00.000Z"),
+    ];
+    expect(effectiveStatus(version("pilot_candidate"), events)).toBe("retired");
   });
 });

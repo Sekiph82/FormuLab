@@ -26,7 +26,21 @@
 //   data/master/stability_samples.json
 //   data/master/stability_results.json
 //   data/master/stability_failures.json
+//   data/master/approval_policies.json
 //   data/master/backups/<collection>-<timestamp>.json
+//
+// `approval_records` and `approval_audit_events` are deliberately NOT master
+// collections here: an `ApprovalRecord` already has its own dedicated,
+// per-formulation storage and commands (`save_approval_record`/
+// `list_approval_records` in formulations.rs, under
+// `data/formulations/<id>/approvals/`), and an approval audit event is just
+// another line in that same formulation's existing append-only
+// `audit.jsonl` — adding either as a second, generic collection here would
+// create a competing storage path for the same facts. `attachment_references`
+// is likewise not a collection: an attachment is embedded directly on the
+// trial observation / deviation / process step / test result / stability
+// result / stability failure / corrective action it belongs to, the same
+// way it always has been (see docs/ATTACHMENTS.md).
 //
 // One JSON array per collection rather than a database: the whole point of
 // keeping FormuLab's data in the project folder is that a chemist can open it,
@@ -48,7 +62,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 30] = [
+const COLLECTIONS: [(&str, bool); 31] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -103,6 +117,12 @@ const COLLECTIONS: [(&str, bool); 30] = [
     ("stability_samples", false),
     ("stability_results", true),
     ("stability_failures", false),
+    // Approval policies: a durable, per-organization configuration record —
+    // mutable like `materials`, not append-only. Each edit is still visible
+    // in the formulation's own audit log via an `approval.policy_changed`
+    // event, which is what gives a policy change its own history, not the
+    // storage layer.
+    ("approval_policies", false),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {

@@ -11,16 +11,23 @@
  * version id, if any. This reuses the existing audit-log mechanism rather
  * than inventing a second, parallel status-history file.
  */
-import { canTransitionTo, type Actor } from "../schemas/status";
+import { canTransitionTo, type Actor, type TransitionResult } from "../schemas/status";
+import { canTransitionWithReadiness, type ApprovalReadiness } from "./approvalReadiness";
 import type { AuditEvent } from "../schemas/formulation";
 import type { FormulaStatus, FormulationVersion } from "../schemas/formulation";
 
 /** Audit `action` values that represent a lifecycle status change, mapped to
- *  the status they move the version to. */
+ *  the status they move the version to. `version.approved.*` reuses exactly
+ *  this same mechanism for `pilot_approved`/`production_approved` — an
+ *  approval is a status change like any other, recorded as an audit event
+ *  rather than by editing the immutable version file. See
+ *  `attemptApprovalTransition` below and docs/APPROVAL_WORKFLOW.md. */
 const LIFECYCLE_ACTIONS: Record<string, FormulaStatus> = {
   "version.retired": "retired",
   "version.rejected": "rejected",
   "version.reopened": "concept",
+  "version.approved.pilot_approved": "pilot_approved",
+  "version.approved.production_approved": "production_approved",
 };
 
 /**
@@ -37,8 +44,9 @@ export function effectiveStatus(version: FormulationVersion, auditEvents: AuditE
 
 export interface LifecycleTransitionResult {
   allowed: boolean;
-  action?: "version.retired" | "version.rejected" | "version.reopened";
+  action?: "version.retired" | "version.rejected" | "version.reopened" | "version.approved.pilot_approved" | "version.approved.production_approved";
   message?: string;
+  code?: TransitionResult["code"];
 }
 
 /**
@@ -58,5 +66,28 @@ export function attemptLifecycleTransition(
     return { allowed: false, message: check.message };
   }
   const action = to === "retired" ? "version.retired" : to === "rejected" ? "version.rejected" : "version.reopened";
+  return { allowed: true, action };
+}
+
+/**
+ * Attempt to grant `pilot_approved`/`production_approved`. The single call
+ * site the desktop approval action goes through: actor/role authority AND
+ * content readiness together (`canTransitionWithReadiness`), never
+ * `canTransitionTo` alone. Returns an `action` that plugs into the same
+ * `LIFECYCLE_ACTIONS`/`effectiveStatus` mechanism as retire/reject/reopen —
+ * there is no separate, parallel approval-status mechanism.
+ */
+export function attemptApprovalTransition(
+  currentStatus: FormulaStatus,
+  to: "pilot_approved" | "production_approved",
+  actor: Actor,
+  readiness: ApprovalReadiness,
+  opts: { hasApprovalRecord?: boolean } = {},
+): LifecycleTransitionResult {
+  const check = canTransitionWithReadiness(currentStatus, to, actor, readiness, opts);
+  if (!check.allowed) {
+    return { allowed: false, message: check.message, code: check.code };
+  }
+  const action = to === "pilot_approved" ? "version.approved.pilot_approved" : "version.approved.production_approved";
   return { allowed: true, action };
 }
