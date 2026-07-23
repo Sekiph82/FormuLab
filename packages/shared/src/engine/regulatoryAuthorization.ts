@@ -34,3 +34,19 @@ export function requireAuthorizedRegulatoryActor(
     throw new Error(`Only an authorized regulatory, quality or administrator role may ${action}.`);
   }
 }
+
+/**
+ * The lighter gate for preparation work any human role may do (uploading
+ * draft evidence, proposing/accepting an evidence-requirement link,
+ * creating or revising a dossier) — still never an AI, system or import
+ * actor, but not narrowed to regulatory/quality/administrator the way
+ * formal verification/review/submission is. See spec Phase 3 §12: "A
+ * chemist or researcher may be allowed to upload draft evidence, propose
+ * evidence links... but may not perform formal verification or final
+ * regulatory review."
+ */
+export function requireHumanActor(actor: Actor, action: string): asserts actor is Extract<Actor, { kind: "human" }> {
+  if (actor.kind !== "human") {
+    throw new Error(`Only a human may ${action}.`);
+  }
+}
