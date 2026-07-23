@@ -123,6 +123,25 @@ describe("buildTestRequirementSnapshot", () => {
     expect(snapshot.entries).toHaveLength(1);
     expect(snapshot.entries[0].addedManuallyBy).toBeUndefined();
   });
+
+  it("records the reviewer's reason and timestamp for a manual stability inclusion", () => {
+    const excludedByCondition = def({ code: "MANUAL-STABILITY", applicableConditionCodes: ["40C"] });
+    const ctx = { productFamilyId: "fam-1", context: "stability" as const, conditionCodes: ["25C"] };
+    const snapshot = buildTestRequirementSnapshot([excludedByCondition], ctx, [
+      { definition: excludedByCondition, addedBy: "qa-lead", reason: "Regulatory request for this SKU.", at: "2026-02-01T00:00:00.000Z" },
+    ]);
+    expect(snapshot.entries).toHaveLength(1);
+    expect(snapshot.entries[0].addedManuallyBy).toBe("qa-lead");
+    expect(snapshot.entries[0].reason).toContain("qa-lead");
+    expect(snapshot.entries[0].reason).toContain("Regulatory request for this SKU.");
+    expect(snapshot.entries[0].reason).toContain("2026-02-01T00:00:00.000Z");
+  });
+
+  it("an excluded stability test cannot satisfy the requirement unless manually included", () => {
+    const excluded = def({ code: "EXCLUDED", applicableConditionCodes: ["40C"] });
+    const snapshot = buildTestRequirementSnapshot([excluded], { productFamilyId: "fam-1", context: "stability", conditionCodes: ["25C"] });
+    expect(snapshot.entries.find((e) => e.testDefinitionId === "EXCLUDED")).toBeUndefined();
+  });
 });
 
 describe("explainExclusion", () => {

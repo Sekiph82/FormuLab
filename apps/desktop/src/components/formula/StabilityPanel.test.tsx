@@ -6,7 +6,7 @@
  * TrialsPanel.test.tsx — only `@/lib/masterdata` is mocked; sample
  * generation, due-date math and failure creation are the real engine code.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -101,6 +101,24 @@ const VISCOSITY_TEST: TestDefinition = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+const OUT_OF_SCOPE_TEST: TestDefinition = {
+  schemaVersion: "1.0",
+  code: "OUT-OF-SCOPE",
+  name: "Out of scope test",
+  category: "physical",
+  resultType: "numeric",
+  replicatesRequired: 1,
+  requiredEquipment: [],
+  requiredAttachment: false,
+  applicableProductFamilies: ["fam-9"],
+  applicableProductSkus: [],
+  criticalTestFlag: false,
+  verificationStatus: "not_verified",
+  active: true,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
 let studiesStore: StabilityStudy[];
 let samplesStore: StabilitySample[];
 let resultsStore: StabilityResult[];
@@ -141,7 +159,7 @@ beforeEach(() => {
     }
   });
   bridge.listRecordsSeeded.mockImplementation((collection: string) => {
-    if (collection === "test_definitions") return Promise.resolve([VISCOSITY_TEST]);
+    if (collection === "test_definitions") return Promise.resolve([VISCOSITY_TEST, OUT_OF_SCOPE_TEST]);
     return Promise.resolve([]);
   });
   bridge.upsertRecords.mockImplementation((collection: string, records: { id: string }[]) => {
@@ -299,5 +317,63 @@ describe("StabilityPanel — result entry and automatic failure", () => {
 
     await user.click(await screen.findByRole("button", { name: "Create draft" }));
     expect(onApplyDraft).toHaveBeenCalledWith([LINE_A], "100", expect.stringContaining(correctiveActionsStore[0].code));
+  });
+
+  it("opens the dedicated history browser from a recorded time-point result's View history action", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await createAndActivateStudy(user);
+    await generateAndAwaitSample(user);
+    await openRecordResultAndSubmit(user, "150");
+    await waitFor(() => expect(resultsStore).toHaveLength(1));
+
+    await user.click(screen.getByRole("button", { name: "View history" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Result history" });
+    expect(within(dialog).getByText("Revision 1")).toBeInTheDocument();
+  });
+});
+
+describe("StabilityPanel — applicability explorer", () => {
+  it("wires the same applicability engine into Stability's Included/Excluded explorer", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByText("No stability studies yet.");
+    await user.type(screen.getByPlaceholderText("New study title"), "Shampoo stability");
+    await user.type(screen.getByPlaceholderText("Packaging SKU code"), "sku-1");
+    await user.selectOptions(screen.getByText("Conditions").nextElementSibling as HTMLSelectElement, ["cond-25c"]);
+    await user.selectOptions(screen.getByText("Time points").nextElementSibling as HTMLSelectElement, ["tp-initial"]);
+
+    await user.click(screen.getByRole("button", { name: "Test applicability" }));
+    const dialog = await screen.findByRole("dialog", { name: "Test applicability" });
+    expect(within(dialog).getByText(/Included/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Excluded/)).toBeInTheDocument();
+  });
+});
+
+describe("StabilityPanel — manual test inclusion", () => {
+  it("requires a reviewer and reason before manually including an out-of-scope test, and records both in the snapshot", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByText("No stability studies yet.");
+    await user.type(screen.getByPlaceholderText("New study title"), "Shampoo stability");
+    await user.type(screen.getByPlaceholderText("Packaging SKU code"), "sku-1");
+    await user.selectOptions(screen.getByText("Conditions").nextElementSibling as HTMLSelectElement, ["cond-25c"]);
+    await user.selectOptions(screen.getByText("Time points").nextElementSibling as HTMLSelectElement, ["tp-initial"]);
+    await user.selectOptions(screen.getByText("Required tests").nextElementSibling as HTMLSelectElement, ["OUT-OF-SCOPE"]);
+
+    await user.click(screen.getByRole("button", { name: "New study" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/reviewer identity and reason/);
+    expect(studiesStore).toHaveLength(0);
+
+    await user.clear(screen.getByPlaceholderText("Reviewer"));
+    await user.type(screen.getByPlaceholderText("Reviewer"), "qa-lead");
+    await user.type(screen.getByPlaceholderText("Reason"), "Regulatory request for this market.");
+    await user.click(screen.getByRole("button", { name: "New study" }));
+
+    await screen.findByRole("heading", { name: "Shampoo stability" });
+    const entry = studiesStore[0].testRequirementSnapshot?.entries.find((e) => e.testDefinitionId === "OUT-OF-SCOPE");
+    expect(entry?.addedManuallyBy).toBe("qa-lead");
+    expect(entry?.reason).toContain("Regulatory request for this market.");
   });
 });

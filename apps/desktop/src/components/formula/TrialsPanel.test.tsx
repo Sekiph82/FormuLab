@@ -183,6 +183,27 @@ describe("TrialsPanel — test results", () => {
   });
 });
 
+describe("TrialsPanel — result history browser", () => {
+  it("opens the dedicated history browser from a recorded result's View history action", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByText("No trials yet.");
+    await createTrial(user, "History trial");
+
+    await user.click(screen.getByRole("button", { name: "Test results" }));
+    const phInput = await screen.findByPlaceholderText("Rep 1");
+    await user.type(phInput, "7.0");
+    await user.click(screen.getByRole("button", { name: "Record result" }));
+    await screen.findByText(/pass/);
+
+    await user.click(screen.getByRole("button", { name: "View history" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Result history" });
+    expect(within(dialog).getByText("Revision 1")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Current").length).toBeGreaterThan(0);
+  });
+});
+
 describe("TrialsPanel — trial comparison", () => {
   it("compares two selected trials and renders one row per trial", async () => {
     const user = userEvent.setup();
