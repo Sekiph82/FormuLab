@@ -13,6 +13,7 @@
  */
 import { z } from "zod";
 import type { LabApprovalPolicy, StabilityApprovalPolicy } from "../engine/approvalReadiness";
+import { REGULATORY_JURISDICTIONS } from "./regulatory";
 
 export const APPROVAL_POLICY_TARGET_STATUSES = ["pilot_approved", "production_approved"] as const;
 export type ApprovalPolicyTargetStatus = (typeof APPROVAL_POLICY_TARGET_STATUSES)[number];
@@ -71,6 +72,21 @@ export const approvalPolicySchema = z.object({
   requireAllMandatoryEvidencePresent: z.boolean().default(false),
   requireAllRequiredClaimsReviewed: z.boolean().default(false),
   requireHumanRegulatoryReviewCompleted: z.boolean().default(false),
+
+  /** Multi-jurisdiction scope for the six regulatory gates above (spec
+   *  §3.3) — none of this changes whether the gates are on, only WHICH
+   *  jurisdiction(s) they're evaluated against once they are. Every field
+   *  defaults to empty/false, which preserves the original
+   *  primary-market-only behavior exactly: nothing here turns a new gate
+   *  on by itself. Precedence when more than one is set:
+   *  `requiredRegulatoryJurisdictions` (explicit list) >
+   *  `requireAllTargetMarketsReviewed` (every one of the formulation's own
+   *  `targetMarkets`) > `allowPrimaryMarketOnly` / nothing set (the
+   *  formulation's first target market only). See
+   *  `engine/regulatoryApproval.ts`'s `resolveRegulatoryJurisdictions`. */
+  requiredRegulatoryJurisdictions: z.array(z.enum(REGULATORY_JURISDICTIONS)).optional(),
+  requireAllTargetMarketsReviewed: z.boolean().default(false),
+  allowPrimaryMarketOnly: z.boolean().default(false),
 
   createdBy: z.string().min(1),
   createdAt: z.string(),

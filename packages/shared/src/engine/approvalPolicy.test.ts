@@ -41,6 +41,8 @@ function policy(over: Partial<ApprovalPolicy> = {}): ApprovalPolicy {
     requireAllMandatoryEvidencePresent: false,
     requireAllRequiredClaimsReviewed: false,
     requireHumanRegulatoryReviewCompleted: false,
+    requireAllTargetMarketsReviewed: false,
+    allowPrimaryMarketOnly: false,
     createdBy: "alice",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
