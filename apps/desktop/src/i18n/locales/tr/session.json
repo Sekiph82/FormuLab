@@ -1396,6 +1396,7 @@
       "unknown": "Kayıtlı değil"
     },
     "reusedViaEquivalence": "(bildirilen bir eşdeğerlik yoluyla yeniden kullanıldı)",
+    "unauthorizedRoleHint": "Bu işlemi yalnızca regulatory, quality veya administrator rolü gerçekleştirebilir.",
     "reviewerRoleLabel": "İnceleyen rolü",
     "revokeAction": "İptal et",
     "revokeReviewReasonPrompt": "Bu incelemeyi iptal etme nedeni:",

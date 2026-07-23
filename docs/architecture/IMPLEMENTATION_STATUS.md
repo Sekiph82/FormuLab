@@ -601,10 +601,11 @@ source verification, CSV/Excel import, and review-equivalence reuse.
   `unknown`) via `deriveRegulatoryReviewStatus`/`findApplicableRegulatoryReview`
   (`engine/regulatoryReviews.ts`).
 - Persisted `RegulatoryEvidenceConfirmation`/
-  `RegulatoryEvidenceConfirmationRevocation` (human-only, append-only,
-  version/jurisdiction/SKU-scoped) replace the earlier session-local
-  confirmation checkboxes; `deriveRegulatoryReadiness`'s document/
-  evidence/claims gates now read these real records.
+  `RegulatoryEvidenceConfirmationRevocation` (regulatory/quality/
+  administrator role only — see "Regulatory authorization closure"
+  below — append-only, version/jurisdiction/SKU-scoped) replace the
+  earlier session-local confirmation checkboxes; `deriveRegulatoryReadiness`'s
+  document/evidence/claims gates now read these real records.
 - Multi-jurisdiction Approval Readiness: `resolveRegulatoryJurisdictions`/
   `assessMultiJurisdictionRegulatoryReadiness`
   (`engine/regulatoryApproval.ts`) plus three new opt-in `ApprovalPolicy`
@@ -626,7 +627,8 @@ source verification, CSV/Excel import, and review-equivalence reuse.
   (`engine/regulatoryReviews.ts`), a separate record from the
   laboratory/stability `FormulaVersionEquivalence` (regulatory reuse
   needs jurisdiction + packaging-SKU scoping dimensions the other never
-  had) — human-only, revocable, never assumed automatically.
+  had) — regulatory/quality/administrator role only, revocable, never
+  assumed automatically.
 - `ApprovalRecord.regulatorySnapshot` — the complete multi-jurisdiction
   regulatory picture (classification/finding/rule-version snapshots,
   active evidence confirmation ids, applicable review id + currentness,
@@ -680,10 +682,75 @@ reflects real Kenyan/EAC law.
 document-upload-and-attachment matrix keyed to every
 `RegulatoryDocumentType`, automatic evidence-expiry tracking, and a
 cross-formulation evidence library. `RegulatoryEvidenceConfirmation` is
-a real, persisted, human-only, append-only requirement/evidence layer
-(spec's explicit ask for this closure) but is deliberately minimal next
-to that — see `REGULATORY_ENGINE.md`'s "Known limitations" for the
-current, full list.
+a real, persisted, authorized-role-only, append-only requirement/
+evidence layer (spec's explicit ask for this closure) but is
+deliberately minimal next to that — see `REGULATORY_ENGINE.md`'s
+"Known limitations" for the current, full list.
+
+### Regulatory authorization closure — final Phase 2 gap
+See [REGULATORY_REVIEWS.md](../REGULATORY_REVIEWS.md#authorization),
+[REGULATORY_EVIDENCE_CONFIRMATIONS.md](../REGULATORY_EVIDENCE_CONFIRMATIONS.md#authorized-role-only-append-only-exactly-scoped),
+[REGULATORY_RULE_VERIFICATION.md](../REGULATORY_RULE_VERIFICATION.md#role-gated-lifecycle).
+Closes the one remaining Phase 2 limitation the previous entry
+disclosed: evidence confirmation and review-equivalence reuse were
+human-only but not role-restricted, so any authenticated human role
+(not just `regulatory`/`quality`/`administrator`) could confirm
+evidence or declare a reuse.
+
+**Implemented**:
+- One shared `requireAuthorizedRegulatoryActor`/`isAuthorizedRegulatoryActor`
+  (new `engine/regulatoryAuthorization.ts`), replacing three near-duplicate
+  role-check functions (`regulatoryReviews.ts`'s `requireHuman`/
+  `requireRegulatoryRole`, `regulatoryRules.ts`'s
+  `requireRegulatoryReviewer`). Every one of the nine restricted actions
+  — record/revoke a regulatory review, confirm/revoke an evidence
+  confirmation, declare/revoke a review equivalence, verify/reject/
+  supersede a rule's verification — now calls this single function.
+- `recordEvidenceConfirmation`/`revokeEvidenceConfirmation` and
+  `declareRegulatoryReviewEquivalence`/`revokeRegulatoryReviewEquivalence`
+  upgraded from "any human role" to `regulatory`/`quality`/
+  `administrator` only. `recordRegulatoryReview`/`revokeRegulatoryReview`
+  and `verifyRule`/`rejectRuleVerification`/`supersedeRule` were already
+  gated this way and now share the same helper instead of a duplicate.
+- Every function throws before constructing any record — an
+  unauthorized attempt can never leave a partial write, and (since the
+  desktop caller never reaches its own `appendAudit` call when the
+  engine call throws first) never appends an audit event either.
+- `RegulatoryPanel.tsx` hides or disables every one of the six
+  UI-reachable actions (confirm/revoke evidence, save/revoke review,
+  declare/revoke equivalence; rule verify/reject/supersede were already
+  conditionally rendered) whenever the selected reviewer role is not
+  `regulatory`/`quality`/`administrator` — a convenience only; the
+  engine call is the actual enforcement regardless of what the UI shows.
+- Historical records are unaffected: this closure only changes who may
+  create a *new* review/confirmation/equivalence/verification record
+  going forward. No existing `RegulatoryReview`,
+  `RegulatoryEvidenceConfirmation` or `RegulatoryReviewEquivalence`
+  was rewritten, re-validated, or invalidated by this change.
+
+**Verified by tests**: 10 new tests in `regulatoryReviews.test.ts` (42
+total, up from 32) covering regulatory/quality/administrator acceptance
+and chemist/researcher/system/agent/import rejection for every
+restricted evidence-confirmation and review-equivalence action. New
+`regulatoryAuthorization.test.ts` (6 tests) exercises the shared helper
+directly. 3 new `RegulatoryPanel.test.tsx` cases (17 total, up from 14)
+cover the UI hiding/disabling behavior and confirm the backend still
+refuses an unauthorized actor even when a caller bypasses the disabled
+button. 690 shared-package tests total, 389 desktop tests total.
+
+**Known nuance, not a gap**: the task's rejected-roles list named
+`viewer` and `operator`. This codebase's `ApprovalRole` enum
+(`schemas/status.ts`) has never had those roles — the six that exist are
+`researcher`, `chemist`, `quality`, `regulatory`, `production`,
+`administrator`. Tests use `chemist`/`researcher`/`production` as the
+"other unauthorized human role" cases instead, since the intent (only
+`regulatory`/`quality`/`administrator` passes) is fully covered without
+inventing roles the schema doesn't have.
+
+After this closure, Phase 2 has no unresolved authorization limitation
+other than real regulatory content still requiring qualified human
+verification (unchanged — see "Requires qualified regulatory content"
+above).
 
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).

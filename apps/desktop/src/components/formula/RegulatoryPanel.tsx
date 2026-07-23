@@ -29,6 +29,7 @@ import {
   evaluateRegulatory,
   explainRegulatoryReviewStatus,
   findApplicableRegulatoryReview,
+  isAuthorizedRegulatoryActor,
   initialRuleRevision,
   newId,
   parseCsv,
@@ -134,6 +135,11 @@ export function RegulatoryPanel({
   const [error, setError] = useState<string | null>(null);
 
   const actor: Actor = useMemo(() => ({ kind: "human", role: reviewerRole, userId: "local" }), [reviewerRole]);
+  // The backend throws regardless (`requireAuthorizedRegulatoryActor`) —
+  // this only hides/disables the buttons so an unauthorized reviewer role
+  // doesn't see actions it can never actually perform. Never the only
+  // enforcement: never trust this alone for authorization.
+  const canActRegulatory = isAuthorizedRegulatoryActor(actor);
 
   const load = async () => {
     const [ru, rv, rev, revrev, revequiv, conf, confrev] = await Promise.all([
@@ -767,16 +773,31 @@ export function RegulatoryPanel({
                       {providedEvidenceRuleIds.has(f.ruleId) ? (
                         <>
                           <span className="rounded bg-success/10 px-1.5 py-0.5 text-success">{t("regulatory.confirmedForThisVersion")}</span>
-                          <button onClick={() => void revokeConfirmationFor(f.ruleId)} className="text-error hover:underline">
+                          <button
+                            onClick={() => void revokeConfirmationFor(f.ruleId)}
+                            disabled={!canActRegulatory}
+                            title={canActRegulatory ? undefined : t("regulatory.unauthorizedRoleHint")}
+                            className="text-error hover:underline disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:no-underline"
+                          >
                             {t("regulatory.revokeAction")}
                           </button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => void confirmRequirement(f, "confirmed")} className="rounded bg-surface-2 px-1.5 py-0.5 text-muted hover:text-text">
+                          <button
+                            onClick={() => void confirmRequirement(f, "confirmed")}
+                            disabled={!canActRegulatory}
+                            title={canActRegulatory ? undefined : t("regulatory.unauthorizedRoleHint")}
+                            className="rounded bg-surface-2 px-1.5 py-0.5 text-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                          >
                             {t("regulatory.confirmSatisfied")}
                           </button>
-                          <button onClick={() => void confirmRequirement(f, "not_applicable")} className="rounded bg-surface-2 px-1.5 py-0.5 text-muted hover:text-text">
+                          <button
+                            onClick={() => void confirmRequirement(f, "not_applicable")}
+                            disabled={!canActRegulatory}
+                            title={canActRegulatory ? undefined : t("regulatory.unauthorizedRoleHint")}
+                            className="rounded bg-surface-2 px-1.5 py-0.5 text-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                          >
                             {t("regulatory.confirmNotApplicable")}
                           </button>
                         </>
@@ -837,17 +858,17 @@ export function RegulatoryPanel({
                     <button onClick={() => void toggleActive(r)} className="text-[10px] text-accent hover:underline">
                       {r.active ? t("regulatory.deactivate") : t("regulatory.activate")}
                     </button>
-                    {r.verificationStatus !== "verified" && (
+                    {r.verificationStatus !== "verified" && canActRegulatory && (
                       <button onClick={() => void verify(r)} className="flex items-center gap-1 text-[10px] text-success hover:underline">
                         <ShieldCheck size={10} /> {t("regulatory.verifyAction")}
                       </button>
                     )}
-                    {r.verificationStatus !== "rejected" && (
+                    {r.verificationStatus !== "rejected" && canActRegulatory && (
                       <button onClick={() => void rejectVerification(r)} className="text-[10px] text-error hover:underline">
                         {t("regulatory.rejectVerificationAction")}
                       </button>
                     )}
-                    {r.verificationStatus === "verified" && (
+                    {r.verificationStatus === "verified" && canActRegulatory && (
                       <button onClick={() => void supersede(r)} className="text-[10px] text-error hover:underline">
                         {t("regulatory.supersedeAction")}
                       </button>
@@ -928,12 +949,13 @@ export function RegulatoryPanel({
             </div>
             <button
               onClick={() => void recordReview()}
-              disabled={reviewBusy || !selectedVersionId}
-              className="mt-2 rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10 disabled:opacity-40"
+              disabled={reviewBusy || !selectedVersionId || !canActRegulatory}
+              className="mt-2 rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {t("regulatory.saveReview")}
             </button>
             {!selectedVersionId && <p className="mt-1 text-[10px] text-muted">{t("regulatory.needVersionForReview")}</p>}
+            {!canActRegulatory && <p className="mt-1 text-[10px] text-warn">{t("regulatory.unauthorizedRoleHint")}</p>}
           </div>
 
           <ul className="space-y-1">
@@ -956,7 +978,7 @@ export function RegulatoryPanel({
                       <span className="text-text">{r.reviewedBy}</span>
                       <span className="text-[10px] text-muted">({r.reviewerRole})</span>
                       <span className="text-[10px] text-muted">{new Date(r.reviewedAt).toLocaleString()}</span>
-                      {status !== "revoked" && (
+                      {status !== "revoked" && canActRegulatory && (
                         <button onClick={() => void revokeReview(r)} className="ml-auto text-[10px] text-error hover:underline">
                           {t("regulatory.revokeAction")}
                         </button>
@@ -990,11 +1012,12 @@ export function RegulatoryPanel({
             </div>
             <button
               onClick={() => void declareEquivalence()}
-              disabled={!selectedVersionId || !equivSourceVersionId || !equivJustification.trim()}
-              className="mt-2 rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10 disabled:opacity-40"
+              disabled={!selectedVersionId || !equivSourceVersionId || !equivJustification.trim() || !canActRegulatory}
+              className="mt-2 rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {t("regulatory.declareEquivalenceAction")}
             </button>
+            {!canActRegulatory && <p className="mt-1 text-[10px] text-warn">{t("regulatory.unauthorizedRoleHint")}</p>}
             <ul className="mt-2 space-y-1">
               {reviewEquivalences.filter((e) => !e.revokesEquivalenceId).map((e) => {
                 const revoked = reviewEquivalences.some((other) => other.revokesEquivalenceId === e.id);
@@ -1004,9 +1027,11 @@ export function RegulatoryPanel({
                     {revoked ? (
                       <span className="rounded bg-surface-2 px-1 py-0.5 text-[9px]">{t("regulatory.reviewStatus.revoked")}</span>
                     ) : (
-                      <button onClick={() => void revokeEquivalence(e)} className="ml-auto text-error hover:underline">
-                        {t("regulatory.revokeAction")}
-                      </button>
+                      canActRegulatory && (
+                        <button onClick={() => void revokeEquivalence(e)} className="ml-auto text-error hover:underline">
+                          {t("regulatory.revokeAction")}
+                        </button>
+                      )
                     )}
                   </li>
                 );

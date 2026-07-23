@@ -367,3 +367,54 @@ describe("RegulatoryPanel — human review", () => {
     await vi.waitFor(async () => expect((await screen.findAllByText("Revoked")).length).toBeGreaterThan(0));
   });
 });
+
+describe("RegulatoryPanel — authorization", () => {
+  it("disables Save review and shows the unauthorized-role hint once the reviewer role is switched to chemist", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByText("Laundry detergent");
+    await selectVersion(user);
+    await user.click(screen.getByRole("button", { name: "Reviews" }));
+    expect(screen.getByRole("button", { name: "Save review" })).not.toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Reviewer role"), "chemist");
+
+    expect(screen.getByRole("button", { name: "Save review" })).toBeDisabled();
+    expect(screen.getAllByText("Only a regulatory, quality or administrator role may perform this action.").length).toBeGreaterThan(0);
+  });
+
+  it("re-enables Save review once the reviewer role is switched back to an authorized one", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByText("Laundry detergent");
+    await selectVersion(user);
+    await user.click(screen.getByRole("button", { name: "Reviews" }));
+    await user.selectOptions(screen.getByLabelText("Reviewer role"), "chemist");
+    expect(screen.getByRole("button", { name: "Save review" })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Reviewer role"), "quality");
+    expect(screen.getByRole("button", { name: "Save review" })).not.toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Reviewer role"), "administrator");
+    expect(screen.getByRole("button", { name: "Save review" })).not.toBeDisabled();
+  });
+
+  it("the backend still refuses an unauthorized actor even if a caller ignored the disabled UI", async () => {
+    const { recordRegulatoryReview } = await import("@ai4s/shared");
+    expect(() =>
+      recordRegulatoryReview(
+        {
+          formulationId: "proj-1",
+          formulaVersionId: "version-1",
+          jurisdiction: "KE",
+          classificationSnapshot: { category: "laundry_detergent", confidence: 0.8, reasoning: ["x"], uncertain: false },
+          findingSnapshot: [],
+          ruleVersionSnapshot: [],
+          outcome: "compliant",
+          notes: "Notes.",
+        },
+        { kind: "human", role: "chemist", userId: "bob" },
+      ),
+    ).toThrow(/authorized regulatory, quality or administrator/);
+  });
+});

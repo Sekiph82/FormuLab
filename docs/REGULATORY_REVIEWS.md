@@ -130,8 +130,22 @@ role-gated, empty-formulaVersionId/notes refusals), revocation, all
 eight `deriveRegulatoryReviewStatus` branches, `isRegulatoryReviewCurrent`,
 `findApplicableRegulatoryReview` (direct match, no match, equivalence
 reuse, revoked equivalence not reused), evidence confirmation
-record/revoke (human-only), and review equivalence declare/revoke
-(self-equivalence refusal, revocation-of-revocation refusal).
+record/revoke (regulatory/quality/administrator role only), and review
+equivalence declare/revoke (self-equivalence refusal,
+revocation-of-revocation refusal, unauthorized-role refusal).
+
+## Authorization
+
+Recording or revoking a review, and declaring or revoking a review
+equivalence, all require a human actor whose role is `regulatory`,
+`quality` or `administrator` — enforced by the single shared
+`requireAuthorizedRegulatoryActor` (`engine/regulatoryAuthorization.ts`).
+Every other role (`researcher`, `chemist`, `production`) is rejected
+exactly like a non-human (`agent`/`system`/`import`) actor, before any
+record is built — see REGULATORY_EVIDENCE_CONFIRMATIONS.md's
+"Authorization" section for the full closure history. This closes the
+"any human role" gap the previous revision of this document disclosed
+here.
 
 ## Known limitations
 
@@ -141,7 +155,3 @@ record/revoke (human-only), and review equivalence declare/revoke
   is populated by the engine but the panel's per-review status badges
   read `deriveRegulatoryReviewStatus` directly rather than surfacing that
   id inline on every row.
-- Equivalence declaration is human-only but not role-restricted the way
-  recording the review itself is — any authenticated human role can
-  declare a reuse. This mirrors `declareEquivalence`'s own gating for
-  laboratory/stability equivalence.

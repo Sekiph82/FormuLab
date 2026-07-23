@@ -10,6 +10,7 @@
  */
 import { newId } from "./versioning";
 import type { Actor } from "../schemas/status";
+import { requireAuthorizedRegulatoryActor } from "./regulatoryAuthorization";
 import {
   activeReviewEquivalencesFor,
   type RegulatoryEvidenceConfirmation,
@@ -40,17 +41,6 @@ export interface RegulatoryReviewContext {
   formulaVersionId: string;
   jurisdiction: RegulatoryJurisdiction;
   packagingSkuCode?: string;
-}
-
-function requireHuman(actor: Actor, action: string): asserts actor is Extract<Actor, { kind: "human" }> {
-  if (actor.kind !== "human") throw new Error(`Only a human may ${action}.`);
-}
-
-function requireRegulatoryRole(actor: Actor, action: string): asserts actor is Extract<Actor, { kind: "human" }> {
-  requireHuman(actor, action);
-  if (actor.role !== "regulatory" && actor.role !== "quality" && actor.role !== "administrator") {
-    throw new Error(`Only an authorized regulatory/quality/administrator role may ${action}.`);
-  }
 }
 
 /**
@@ -208,7 +198,7 @@ export interface RecordRegulatoryReviewInput {
 /** Builds and returns a new `RegulatoryReview` — never mutates or reuses
  *  an existing one. */
 export function recordRegulatoryReview(input: RecordRegulatoryReviewInput, actor: Actor): RegulatoryReview {
-  requireRegulatoryRole(actor, "record a regulatory review");
+  requireAuthorizedRegulatoryActor(actor, "record a regulatory review");
   if (!input.formulaVersionId.trim()) throw new Error("A regulatory review must be recorded against a real, saved formula version id.");
   if (!input.notes.trim()) throw new Error("Regulatory review notes are required.");
   return {
@@ -230,7 +220,7 @@ export function recordRegulatoryReview(input: RecordRegulatoryReviewInput, actor
 }
 
 export function revokeRegulatoryReview(reviewId: string, actor: Actor, reason: string): RegulatoryReviewRevocation {
-  requireRegulatoryRole(actor, "revoke a regulatory review");
+  requireAuthorizedRegulatoryActor(actor, "revoke a regulatory review");
   const trimmed = reason.trim();
   if (!trimmed) throw new Error("A reason is required to revoke a regulatory review.");
   return {
@@ -245,8 +235,9 @@ export function revokeRegulatoryReview(reviewId: string, actor: Actor, reason: s
 }
 
 // ---------------------------------------------------------------------------
-// Evidence confirmations — human-gated, append-only, version/jurisdiction/
-// packaging-SKU-specific.
+// Evidence confirmations — restricted to an authorized regulatory/
+// quality/administrator human actor (spec Phase 2 closure Part 3),
+// append-only, version/jurisdiction/packaging-SKU-specific.
 // ---------------------------------------------------------------------------
 
 export interface RecordEvidenceConfirmationInput {
@@ -266,7 +257,7 @@ export interface RecordEvidenceConfirmationInput {
 }
 
 export function recordEvidenceConfirmation(input: RecordEvidenceConfirmationInput, actor: Actor): RegulatoryEvidenceConfirmation {
-  requireHuman(actor, "confirm regulatory evidence");
+  requireAuthorizedRegulatoryActor(actor, "confirm regulatory evidence");
   if (!input.formulaVersionId.trim()) throw new Error("An evidence confirmation must be recorded against a real, saved formula version id.");
   if (!input.requirementCode.trim()) throw new Error("A requirement code is required.");
   return {
@@ -290,7 +281,7 @@ export function recordEvidenceConfirmation(input: RecordEvidenceConfirmationInpu
 }
 
 export function revokeEvidenceConfirmation(confirmationId: string, actor: Actor, reason: string): RegulatoryEvidenceConfirmationRevocation {
-  requireHuman(actor, "revoke an evidence confirmation");
+  requireAuthorizedRegulatoryActor(actor, "revoke an evidence confirmation");
   const trimmed = reason.trim();
   if (!trimmed) throw new Error("A reason is required to revoke an evidence confirmation.");
   return {
@@ -318,7 +309,7 @@ export interface DeclareRegulatoryReviewEquivalenceInput {
 }
 
 export function declareRegulatoryReviewEquivalence(input: DeclareRegulatoryReviewEquivalenceInput, actor: Actor): RegulatoryReviewEquivalence {
-  requireHuman(actor, "declare a regulatory review equivalence");
+  requireAuthorizedRegulatoryActor(actor, "declare a regulatory review equivalence");
   const trimmed = input.justification.trim();
   if (!trimmed) throw new Error("A justification is required to declare a regulatory review equivalence.");
   if (input.sourceVersionId === input.targetVersionId) throw new Error("A version cannot be declared equivalent to itself.");
@@ -344,7 +335,7 @@ export function revokeRegulatoryReviewEquivalence(
   actor: Actor,
   reason: string,
 ): RegulatoryReviewEquivalence {
-  requireHuman(actor, "revoke a regulatory review equivalence");
+  requireAuthorizedRegulatoryActor(actor, "revoke a regulatory review equivalence");
   const trimmed = reason.trim();
   if (!trimmed) throw new Error("A reason is required to revoke a regulatory review equivalence.");
   if (equivalence.revokesEquivalenceId) throw new Error("A revocation record cannot itself be revoked.");

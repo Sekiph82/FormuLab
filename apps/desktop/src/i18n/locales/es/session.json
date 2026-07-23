@@ -1396,6 +1396,7 @@
       "unknown": "None recorded"
     },
     "reusedViaEquivalence": "(reused via a declared equivalence)",
+    "unauthorizedRoleHint": "Only a regulatory, quality or administrator role may perform this action.",
     "reviewerRoleLabel": "Reviewer role",
     "revokeAction": "Revoke",
     "revokeReviewReasonPrompt": "Reason for revoking this review:",

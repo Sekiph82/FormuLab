@@ -58,12 +58,27 @@ certificate, external legal opinion) for when `requirementType ===
 confirmation's own five-status field — neither is itself stored on the
 confirmation record; they are display vocabularies.
 
-## Human-only, append-only, exactly scoped
+## Authorized-role-only, append-only, exactly scoped
 
-`recordEvidenceConfirmation(input, actor)` requires a human actor (any
-role — not gated to regulatory/quality/administrator) and a non-empty
-`formulaVersionId`/`requirementCode`. A confirmation is never edited in
-place: correcting one means recording a fresh confirmation with
+`recordEvidenceConfirmation(input, actor)` requires a human actor whose
+role is `regulatory`, `quality` or `administrator` — enforced by the
+shared `requireAuthorizedRegulatoryActor`
+(`engine/regulatoryAuthorization.ts`), the same gate every other final
+regulatory action (recording/revoking a review, verifying a rule,
+declaring a review equivalence) now shares. A `chemist`, `researcher`
+or `production` human role is rejected exactly like a non-human
+(`agent`/`system`/`import`) actor — before any record is built, so a
+rejected attempt can never leave a partial write. This closes a prior
+gap where any human role could confirm evidence; see
+[REGULATORY_RULE_VERIFICATION.md](REGULATORY_RULE_VERIFICATION.md) for
+the full authorization-closure writeup. `RegulatoryPanel.tsx` also
+disables the confirm/revoke buttons when the selected reviewer role
+isn't authorized, but that is a convenience only — the engine call
+throws regardless of what the UI shows.
+
+Also requires a non-empty `formulaVersionId`/`requirementCode`. A
+confirmation is never edited in place: correcting one means recording a
+fresh confirmation with
 `revokesConfirmationId` set to the one it supersedes, or calling
 `revokeEvidenceConfirmation(confirmationId, actor, reason)` which appends
 a separate `RegulatoryEvidenceConfirmationRevocation` — never a delete,
@@ -100,8 +115,10 @@ an explicit `not_available` confirmation.
 ## Tests
 
 Confirmation record/revoke behavior is covered in
-`regulatoryReviews.test.ts` (human-only gating, revocation requiring a
-reason). Gate derivation from confirmations is covered in
+`regulatoryReviews.test.ts` (authorized-role-only gating — regulatory/
+quality/administrator accepted, chemist/researcher/non-human rejected —
+and revocation requiring a reason). Gate derivation from confirmations
+is covered in
 `regulatoryApproval.test.ts` (35 tests total), including: a confirmed
 document/evidence/claim finding satisfying its gate, a revoked
 confirmation no longer satisfying it, and an absent confirmation never

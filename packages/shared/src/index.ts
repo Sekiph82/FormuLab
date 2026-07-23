@@ -538,6 +538,7 @@ export * from "./engine/equivalence";
 export * from "./engine/resultHistory";
 export * from "./schemas/regulatory";
 export * from "./engine/regulatoryClassification";
+export * from "./engine/regulatoryAuthorization";
 export * from "./engine/regulatoryRules";
 export * from "./engine/regulatoryApproval";
 export * from "./engine/regulatoryReviews";

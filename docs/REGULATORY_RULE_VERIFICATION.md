@@ -3,11 +3,16 @@
 `packages/shared/src/schemas/regulatory.ts` (source fields,
 `REGULATORY_VERIFICATION_STATUSES`),
 `packages/shared/src/engine/regulatoryRules.ts`
-(`verifyRule`/`rejectRuleVerification`/`supersedeRule`,
-`requireRegulatoryReviewer`). See
-[REGULATORY_RULES.md](REGULATORY_RULES.md) and
-[REGULATORY_ENGINE.md](REGULATORY_ENGINE.md) for how a rule fits into
-the wider engine.
+(`verifyRule`/`rejectRuleVerification`/`supersedeRule`),
+`packages/shared/src/engine/regulatoryAuthorization.ts`
+(`requireAuthorizedRegulatoryActor`, the single authorization gate
+these three functions share with every other final regulatory action —
+recording/revoking a review, confirming/revoking evidence, declaring/
+revoking a review equivalence). See [REGULATORY_RULES.md](REGULATORY_RULES.md),
+[REGULATORY_REVIEWS.md](REGULATORY_REVIEWS.md),
+[REGULATORY_EVIDENCE_CONFIRMATIONS.md](REGULATORY_EVIDENCE_CONFIRMATIONS.md)
+and [REGULATORY_ENGINE.md](REGULATORY_ENGINE.md) for how a rule fits
+into the wider engine.
 
 ## What this closes
 
@@ -50,10 +55,15 @@ rule has ever actually been verified.
 
 ## Role-gated lifecycle
 
-`requireRegulatoryReviewer(actor, action)` — human actor, and one of
-`regulatory`/`quality`/`administrator`. Every one of the three functions
-below throws for anything else, including an AI, system, or import
-actor:
+`requireAuthorizedRegulatoryActor(actor, action)` — human actor, and one
+of `regulatory`/`quality`/`administrator`; every other human role
+(`researcher`, `chemist`, `production`) is rejected exactly like a
+non-human (`agent`/`system`/`import`) actor. One shared function, not a
+per-file duplicate — the same gate also protects recording/revoking a
+regulatory review, confirming/revoking evidence, and declaring/revoking
+a review equivalence (spec Phase 2 closure Part 3). Every one of the
+three functions below throws before touching the rule, including for an
+AI, system, or import actor:
 
 - **`verifyRule(current, actor, notes?)`** — sets `verificationStatus:
   "verified"`, `verifiedBy`/`verifiedByRole`/`verifiedAt`/
