@@ -537,11 +537,14 @@ export * from "./schemas/equivalence";
 export * from "./engine/equivalence";
 export * from "./engine/resultHistory";
 export * from "./schemas/regulatory";
+export * from "./schemas/dossier";
 export * from "./engine/regulatoryClassification";
 export * from "./engine/regulatoryAuthorization";
 export * from "./engine/regulatoryRules";
 export * from "./engine/regulatoryApproval";
 export * from "./engine/regulatoryReviews";
+export * from "./engine/regulatoryDossier";
+export * from "./engine/regulatoryDossierApproval";
 export * from "./catalog/regulatoryRules";
 export {
   PRECISION,

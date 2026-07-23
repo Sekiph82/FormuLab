@@ -88,6 +88,17 @@ export const approvalPolicySchema = z.object({
   requireAllTargetMarketsReviewed: z.boolean().default(false),
   allowPrimaryMarketOnly: z.boolean().default(false),
 
+  /** Regulatory dossier gates (Phase 3 spec §10) — off by default, exactly
+   *  like every gate above; installing Phase 3 must never block an
+   *  existing project that never opts in. See
+   *  `engine/regulatoryDossierApproval.ts`'s `deriveDossierReadinessForApproval`. */
+  requireRegulatoryDossier: z.boolean().default(false),
+  requireDossierReadyForReview: z.boolean().default(false),
+  requireDossierReviewComplete: z.boolean().default(false),
+  requireNoMissingMandatoryDossierEvidence: z.boolean().default(false),
+  requireNoExpiredMandatoryDossierEvidence: z.boolean().default(false),
+  requireAllRequiredJurisdictionDossiers: z.boolean().default(false),
+
   createdBy: z.string().min(1),
   createdAt: z.string(),
   updatedBy: z.string().optional(),

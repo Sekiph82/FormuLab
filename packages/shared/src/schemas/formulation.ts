@@ -12,6 +12,7 @@
  */
 import { z } from "zod";
 import { REGULATORY_JURISDICTIONS, regulatoryClassificationResultSchema, regulatoryFindingSchema, regulatoryRuleVersionSnapshotSchema } from "./regulatory";
+import { dossierApprovalSnapshotSchema } from "./dossier";
 import { decimalString, MATERIAL_FUNCTIONS, type MaterialFunction } from "./primitives";
 
 export { decimalString, MATERIAL_FUNCTIONS, type MaterialFunction };
@@ -381,6 +382,14 @@ export const approvalRecordSchema = z.object({
   laboratoryReadinessSnapshot: laboratoryReadinessSnapshotSchema.optional(),
   stabilityReadinessSnapshot: stabilityReadinessSnapshotSchema.optional(),
   regulatorySnapshot: regulatoryApprovalSnapshotSchema.optional(),
+  /** The complete dossier-readiness picture frozen at the moment of
+   *  decision (Phase 3 spec §10) — dossier ids/revisions, requirement
+   *  counts, missing/expired evidence, review/submission ids, blockers,
+   *  warnings, readiness state. A later dossier change must never
+   *  rewrite this historical record. Optional because a record written
+   *  before Phase 3, or for a formulation with no dossier gates
+   *  configured, has none of it. */
+  dossierSnapshot: dossierApprovalSnapshotSchema.optional(),
   validationSnapshot: validationSnapshotSchema.optional(),
   appliedOptimizationRunCode: z.string().optional(),
   appliedSubstitutionRunCode: z.string().optional(),
