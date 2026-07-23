@@ -8,6 +8,7 @@
  */
 import type {
   ApprovalRecord,
+  AttachmentReference,
   AuditEvent,
   Formulation,
   FormulationDraft,
@@ -95,6 +96,38 @@ export async function appendAudit(event: AuditEvent): Promise<void> {
 export async function readAuditLog(formulationId: string): Promise<AuditEvent[]> {
   if (!isTauri) return [];
   return call<AuditEvent[]>("read_audit_log", { formulationId });
+}
+
+// ----------------------------------------------------------- attachments ---
+
+/** The Rust command always populates every field — unlike `AttachmentReference`
+ *  itself, whose corresponding fields are optional only because they are
+ *  absent on attachments recorded before this phase. */
+interface AttachmentCopyResult {
+  location: string;
+  originalFileName: string;
+  fileCategory: NonNullable<AttachmentReference["fileCategory"]>;
+  mimeType: string;
+  sizeBytes: number;
+  checksumSha256: string;
+}
+
+/**
+ * Copy a user-picked file (from `pickFile()` in `./tauri`) into the
+ * formulation's own attachments folder, returning the metadata an
+ * `AttachmentReference` needs. Rejects any file outside the allow-listed
+ * categories (image/PDF/spreadsheet/text document) — see
+ * `src-tauri/src/attachments.rs`.
+ */
+export async function copyAttachmentIntoProject(
+  formulationId: string,
+  sourcePath: string,
+): Promise<AttachmentCopyResult> {
+  return call<AttachmentCopyResult>("copy_attachment_into_project", { formulationId, sourcePath });
+}
+
+export async function openAttachment(formulationId: string, location: string): Promise<void> {
+  return call<void>("open_attachment", { formulationId, location });
 }
 
 export function auditEvent(

@@ -1,6 +1,7 @@
 // AI4S Workbench — Tauri 2 entry. Hosts the React frontend and supervises the
 // bundled OpenCode sidecar (isolated config/data + dedicated port; killed on exit).
 mod artifact_file;
+mod attachments;
 mod debug_log;
 mod formulation;
 mod formulation_advanced;
@@ -103,6 +104,8 @@ pub fn run() {
             formulations::list_approval_records,
             formulations::append_audit_event,
             formulations::read_audit_log,
+            attachments::copy_attachment_into_project,
+            attachments::open_attachment,
             masterdata::list_master_records,
             masterdata::upsert_master_records,
             masterdata::delete_master_record,

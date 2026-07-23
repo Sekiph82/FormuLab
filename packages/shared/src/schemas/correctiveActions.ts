@@ -7,6 +7,7 @@
  * a human to actually verify the fix worked, not just mark it done.
  */
 import { z } from "zod";
+import { attachmentReferenceSchema } from "./testDefinitions";
 
 export const CORRECTIVE_ACTION_SOURCE_TYPES = ["trial_deviation", "trial_failure", "stability_failure", "manual"] as const;
 export type CorrectiveActionSourceType = (typeof CORRECTIVE_ACTION_SOURCE_TYPES)[number];
@@ -91,6 +92,9 @@ export const correctiveActionSchema = z.object({
    *  set until that draft actually exists, and never implies the action
    *  itself approved anything. */
   createdDraftId: z.string().optional(),
+
+  /** Additive — absent on an action recorded before this phase. */
+  attachments: z.array(attachmentReferenceSchema).optional(),
 
   auditHistory: z.array(correctiveActionAuditEventSchema).default([]),
 

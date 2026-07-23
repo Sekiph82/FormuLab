@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next";
 import { FlaskRound, Plus } from "lucide-react";
 import {
   buildStabilityExportMeta,
+  buildTestRequirementSnapshot,
   canTransitionStability,
   computeStabilityTrend,
   correctiveActionReportRows,
   createCorrectiveAction,
+  isTestDefinitionApplicable,
   computeReplicateStats,
   erpLabResultDraftCsv,
   evaluateNumericResultPassFail,
@@ -27,6 +29,7 @@ import {
   STABILITY_FAILURE_TYPES,
   STABILITY_STUDY_STATUSES,
   type Actor,
+  type AttachmentReference,
   type CorrectiveAction,
   type Formulation,
   type FormulationLine,
@@ -43,6 +46,7 @@ import {
 } from "@ai4s/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { AttachmentField } from "./AttachmentField";
 import { downloadBlob, downloadText } from "@/lib/download";
 import { buildXlsxBlob } from "@/lib/xlsx";
 
@@ -137,6 +141,16 @@ export function StabilityPanel({
     setError(null);
     const now = new Date().toISOString();
     const bom = packagingBoms.find((b) => b.skuCode === packagingSkuCode);
+    const applicabilityCtx = {
+      productFamilyId: formulation.productFamilyCode,
+      context: "stability" as const,
+      packagingSkuCodes: [packagingSkuCode],
+      conditionCodes: SEED_STABILITY_CONDITIONS.filter((c) => selectedConditionIds.has(c.id)).map((c) => c.code),
+      timePointCodes: SEED_STABILITY_TIME_POINTS.filter((tp) => selectedTimePointIds.has(tp.id)).map((tp) => tp.code),
+    };
+    const manualTestAdditions = testDefinitions
+      .filter((d) => selectedTestIds.has(d.code) && !isTestDefinitionApplicable(d, applicabilityCtx))
+      .map((d) => ({ definition: d, addedBy: "local" }));
     const study: StabilityStudy = {
       schemaVersion: "1.0",
       id: newId("study"),
@@ -163,6 +177,7 @@ export function StabilityPanel({
       conditionIds: [...selectedConditionIds],
       timePointIds: [...selectedTimePointIds],
       requiredTestDefinitionIds: [...selectedTestIds],
+      testRequirementSnapshot: buildTestRequirementSnapshot(testDefinitions, applicabilityCtx, manualTestAdditions),
       replicatesPerPullPoint: 1,
       hasOpenCriticalFailure: false,
       createdAt: now,
@@ -251,7 +266,7 @@ export function StabilityPanel({
     downloadText(`${study.code}-erp-draft-lab-results.csv`, erpLabResultDraftCsv(mine, testDefinitions, { recordLabel: study.code, approvalStatus }), "text/csv;charset=utf-8");
   };
 
-  const recordResult = async (sample: StabilitySample, definition: TestDefinition, values: string[]) => {
+  const recordResult = async (sample: StabilitySample, definition: TestDefinition, values: string[], attachments: AttachmentReference[] = []) => {
     const numericValues = values.filter((v) => v.trim() !== "");
     if (numericValues.length === 0 || !selectedStudy) return;
     const replicates = numericValues.map((v, i) => ({ replicateNumber: i + 1, numericValue: v, isOutlier: false }));
@@ -268,7 +283,7 @@ export function StabilityPanel({
       testDefinitionId: definition.code,
       resultType: "numeric",
       replicates,
-      attachments: [],
+      attachments,
       stats,
       passFail,
       unit: definition.unit,
@@ -306,6 +321,12 @@ export function StabilityPanel({
         await persistStudy({ ...selectedStudy, hasOpenCriticalFailure: true, updatedAt: now });
       }
     }
+  };
+
+  const updateFailureAttachments = async (failure: StabilityFailure, attachments: AttachmentReference[]) => {
+    const updated = { ...failure, attachments, updatedAt: new Date().toISOString() };
+    await upsertRecords("stability_failures", [updated]);
+    setFailures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
   };
 
   const resolveFailure = async (failure: StabilityFailure, notes: string) => {
@@ -431,20 +452,39 @@ export function StabilityPanel({
               ))}
             </div>
 
+            {selectedStudy.testRequirementSnapshot && (
+              <div className="mb-3">
+                <p className="text-[11px] font-medium text-muted">{t("trials.testRequirements")}</p>
+                <ul className="mt-1 space-y-0.5 text-[11px]">
+                  {selectedStudy.testRequirementSnapshot.entries.map((e) => (
+                    <li key={e.testDefinitionId} className="flex items-center gap-1.5 text-muted">
+                      <span className={cn("rounded px-1 py-0.5 text-[10px]", e.required ? "bg-accent/10 text-accent" : "bg-surface-2")}>
+                        {e.required ? t("trials.required") : t("trials.optional")}
+                      </span>
+                      <span className="text-text">{e.name}</span>
+                      <span className="text-[10px]">{e.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {allStudySamples.length === 0 ? (
               <button onClick={() => void generateSamples()} disabled={!selectedStudy.startDate} className="rounded-input border border-accent px-3 py-1.5 text-[12px] text-accent hover:bg-accent/10 disabled:opacity-40">
                 {t("stability.generateSamples")}
               </button>
             ) : (
-              <SampleDashboard samples={allStudySamples} results={results.filter((r) => r.studyId === selectedStudy.id)} testDefinitions={testDefinitions.filter((d) => selectedStudy.requiredTestDefinitionIds.includes(d.code))} onRecord={recordResult} t={t} />
+              <SampleDashboard formulationId={formulation.id} samples={allStudySamples} results={results.filter((r) => r.studyId === selectedStudy.id)} testDefinitions={testDefinitions.filter((d) => selectedStudy.requiredTestDefinitionIds.includes(d.code))} onRecord={recordResult} t={t} />
             )}
 
             <TrendCharts study={selectedStudy} results={results.filter((r) => r.studyId === selectedStudy.id)} testDefinitions={testDefinitions.filter((d) => selectedStudy.requiredTestDefinitionIds.includes(d.code))} t={t} />
 
             <FailuresSection
+              formulationId={formulation.id}
               failures={studyFailures}
               correctiveActions={correctiveActions.filter((a) => a.sourceRecordId === selectedStudy.id)}
               onResolve={resolveFailure}
+              onUpdateAttachments={updateFailureAttachments}
               onCreateCorrectiveAction={createFailureCorrectiveAction}
               onApplyDraft={applyDraftFromFailure}
               t={t}
@@ -457,20 +497,23 @@ export function StabilityPanel({
 }
 
 function SampleDashboard({
+  formulationId,
   samples,
   results,
   testDefinitions,
   onRecord,
   t,
 }: {
+  formulationId: string;
   samples: StabilitySample[];
   results: StabilityResult[];
   testDefinitions: TestDefinition[];
-  onRecord: (sample: StabilitySample, definition: TestDefinition, values: string[]) => void;
+  onRecord: (sample: StabilitySample, definition: TestDefinition, values: string[], attachments?: AttachmentReference[]) => void;
   t: SimpleT;
 }) {
   const [openSampleId, setOpenSampleId] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [pendingAttachments, setPendingAttachments] = useState<Record<string, AttachmentReference[]>>({});
 
   return (
     <section className="mb-4">
@@ -513,23 +556,37 @@ function SampleDashboard({
                     <div className="space-y-1.5">
                       {testDefinitions
                         .filter((d) => d.resultType === "numeric")
-                        .map((def) => (
-                          <div key={def.code} className="flex items-center gap-1.5">
-                            <span className="w-32 truncate text-[11px] text-text">{def.name}</span>
-                            <input
-                              value={inputs[`${sample.id}:${def.code}`] ?? ""}
-                              onChange={(e) => setInputs((prev) => ({ ...prev, [`${sample.id}:${def.code}`]: e.target.value }))}
-                              inputMode="decimal"
-                              className="w-20 rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
-                            />
-                            <button
-                              onClick={() => onRecord(sample, def, [inputs[`${sample.id}:${def.code}`] ?? ""])}
-                              className="rounded-input border border-accent px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
-                            >
-                              {t("trials.recordResult")}
-                            </button>
-                          </div>
-                        ))}
+                        .map((def) => {
+                          const key = `${sample.id}:${def.code}`;
+                          return (
+                            <div key={def.code} className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-32 truncate text-[11px] text-text">{def.name}</span>
+                                <input
+                                  value={inputs[key] ?? ""}
+                                  onChange={(e) => setInputs((prev) => ({ ...prev, [key]: e.target.value }))}
+                                  inputMode="decimal"
+                                  className="w-20 rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
+                                />
+                                <button
+                                  onClick={() => {
+                                    onRecord(sample, def, [inputs[key] ?? ""], pendingAttachments[key] ?? []);
+                                    setPendingAttachments((prev) => ({ ...prev, [key]: [] }));
+                                  }}
+                                  className="rounded-input border border-accent px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
+                                >
+                                  {t("trials.recordResult")}
+                                </button>
+                              </div>
+                              <AttachmentField
+                                formulationId={formulationId}
+                                attachments={pendingAttachments[key] ?? []}
+                                onChange={(attachments) => setPendingAttachments((prev) => ({ ...prev, [key]: attachments }))}
+                                t={t}
+                              />
+                            </div>
+                          );
+                        })}
                     </div>
                   </td>
                 </tr>
@@ -624,16 +681,20 @@ function TrendSparkline({ points, t }: { points: { daysFromStart: number; mean?:
 }
 
 function FailuresSection({
+  formulationId,
   failures,
   correctiveActions,
   onResolve,
+  onUpdateAttachments,
   onCreateCorrectiveAction,
   onApplyDraft,
   t,
 }: {
+  formulationId: string;
   failures: StabilityFailure[];
   correctiveActions: CorrectiveAction[];
   onResolve: (failure: StabilityFailure, notes: string) => void;
+  onUpdateAttachments: (failure: StabilityFailure, attachments: AttachmentReference[]) => void;
   onCreateCorrectiveAction: (failure: StabilityFailure, title: string, problemStatement: string) => void;
   onApplyDraft: (action: CorrectiveAction) => void;
   t: SimpleT;
@@ -668,6 +729,12 @@ function FailuresSection({
                 </button>
               </div>
             )}
+            <AttachmentField
+              formulationId={formulationId}
+              attachments={f.attachments}
+              onChange={(attachments) => onUpdateAttachments(f, attachments)}
+              t={t}
+            />
           </li>
         ))}
       </ul>

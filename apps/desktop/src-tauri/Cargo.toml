@@ -29,6 +29,10 @@ getrandom = "0.4.3"
 opener = { version = "0.8.5", features = ["reveal"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "native-tls"] }
+# Attachment checksums (spec: "checksum retained") — copied-in laboratory /
+# stability evidence files are hashed at copy time, not trusted from the
+# renderer.
+sha2 = "0.10"
 
 # Already in the tree via tao — used to re-pin the traffic lights (src/macos.rs).
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Beaker, CheckCircle2, Plus, XCircle } from "lucide-react";
 import {
   acceptDeviationWithJustification,
+  buildTestRequirementSnapshot,
   buildTrialExportMeta,
   canTransitionTrial,
   compareTrials,
@@ -32,6 +33,7 @@ import {
   TRIAL_OBSERVATION_TYPES,
   TRIAL_STATUSES,
   type Actor,
+  type AttachmentReference,
   type CorrectiveAction,
   type Formulation,
   type FormulationLine,
@@ -50,6 +52,7 @@ import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata"
 import { cn } from "@/lib/cn";
 import { downloadBlob, downloadText } from "@/lib/download";
 import { buildXlsxBlob } from "@/lib/xlsx";
+import { AttachmentField } from "./AttachmentField";
 
 const LOCAL_HUMAN: Actor = { kind: "human", role: "chemist", userId: "local" };
 
@@ -162,6 +165,11 @@ export function TrialsPanel({
           })),
         processSteps: [],
         observations: [],
+        testRequirementSnapshot: buildTestRequirementSnapshot(testDefinitions, {
+          productFamilyId: formulation.productFamilyCode,
+          context: "trial",
+          packagingSkuCodes: formulation.targetSkuCodes,
+        }),
         hasOpenCriticalDeviation: false,
         createdAt: now,
         createdBy: "local",
@@ -244,6 +252,21 @@ export function TrialsPanel({
     });
   };
 
+  const updateObservationAttachments = async (observationId: string, attachments: AttachmentReference[]) => {
+    if (!selectedTrial) return;
+    await persistTrial({
+      ...selectedTrial,
+      observations: selectedTrial.observations.map((o) => (o.id === observationId ? { ...o, attachments } : o)),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const updateDeviationAttachments = async (deviation: TrialDeviation, attachments: AttachmentReference[]) => {
+    const updated = { ...deviation, attachments, updatedAt: new Date().toISOString() };
+    await upsertRecords("trial_deviations", [updated]);
+    setDeviations((prev) => prev.map((d) => (d.id === deviation.id ? updated : d)));
+  };
+
   const addDeviation = async (severity: TrialDeviationSeverity, description: string) => {
     if (!selectedTrial || !description.trim()) return;
     const now = new Date().toISOString();
@@ -298,7 +321,7 @@ export function TrialsPanel({
     setDeviations((prev) => prev.map((d) => (d.id === updatedDeviation.id ? updatedDeviation : d)));
   };
 
-  const recordTestResult = async (definition: TestDefinition, values: string[]) => {
+  const recordTestResult = async (definition: TestDefinition, values: string[], attachments: AttachmentReference[] = []) => {
     if (!selectedTrial) return;
     const numericValues = values.filter((v) => v.trim() !== "");
     if (numericValues.length === 0) return;
@@ -313,7 +336,7 @@ export function TrialsPanel({
       testDefinitionId: definition.code,
       resultType: "numeric",
       replicates,
-      attachments: [],
+      attachments,
       stats,
       passFail,
       unit: definition.unit,
@@ -541,26 +564,62 @@ export function TrialsPanel({
                 </p>
                 {selectedTrial.sourceOptimizationRunCode && <p>{t("trials.sourceOptimizationRun")}: {selectedTrial.sourceOptimizationRunCode}</p>}
                 {selectedTrial.sourceSubstitutionRunCode && <p>{t("trials.sourceSubstitutionRun")}: {selectedTrial.sourceSubstitutionRunCode}</p>}
+                {selectedTrial.testRequirementSnapshot && (
+                  <div>
+                    <p className="font-medium text-muted">{t("trials.testRequirements")}</p>
+                    <ul className="mt-1 space-y-0.5 text-[11px]">
+                      {selectedTrial.testRequirementSnapshot.entries.map((e) => (
+                        <li key={e.testDefinitionId} className="flex items-center gap-1.5 text-muted">
+                          <span className={cn("rounded px-1 py-0.5 text-[10px]", e.required ? "bg-accent/10 text-accent" : "bg-surface-2")}>
+                            {e.required ? t("trials.required") : t("trials.optional")}
+                          </span>
+                          <span className="text-text">{e.name}</span>
+                          <span className="text-[10px]">{e.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
 
             {detailTab === "weighing" && <WeighingSection trial={selectedTrial} onWeigh={updateMaterialUsage} t={t} />}
-            {detailTab === "process" && <ProcessSection trial={selectedTrial} onAddStep={addProcessStep} onUpdateStep={updateProcessStep} t={t} />}
+            {detailTab === "process" && (
+              <ProcessSection
+                formulationId={formulation.id}
+                trial={selectedTrial}
+                onAddStep={addProcessStep}
+                onUpdateStep={updateProcessStep}
+                t={t}
+              />
+            )}
             {detailTab === "observations" && (
               <ObservationsSection
+                formulationId={formulation.id}
                 trial={selectedTrial}
                 deviations={trialDeviations}
                 correctiveActions={correctiveActions.filter((a) => a.sourceRecordId === selectedTrial.id)}
                 onAddObservation={addObservation}
+                onUpdateObservationAttachments={updateObservationAttachments}
                 onAddDeviation={addDeviation}
                 onResolveDeviation={resolveDeviation}
                 onAcceptDeviation={acceptDeviation}
+                onUpdateDeviationAttachments={updateDeviationAttachments}
                 onCreateCorrectiveAction={createCorrectiveActionForDeviation}
                 onApplyDraft={applyDraftFromCorrectiveAction}
                 t={t}
               />
             )}
-            {detailTab === "tests" && <TestsSection trial={selectedTrial} testDefinitions={testDefinitions} results={trialResults} onRecord={recordTestResult} t={t} />}
+            {detailTab === "tests" && (
+              <TestsSection
+                formulationId={formulation.id}
+                trial={selectedTrial}
+                testDefinitions={testDefinitions}
+                results={trialResults}
+                onRecord={recordTestResult}
+                t={t}
+              />
+            )}
           </div>
         )}
       </div>
@@ -621,11 +680,13 @@ function WeighingSection({ trial, onWeigh, t }: { trial: LaboratoryTrial; onWeig
 }
 
 function ProcessSection({
+  formulationId,
   trial,
   onAddStep,
   onUpdateStep,
   t,
 }: {
+  formulationId: string;
   trial: LaboratoryTrial;
   onAddStep: () => void;
   onUpdateStep: (id: string, updates: Partial<TrialProcessStep>) => void;
@@ -682,6 +743,12 @@ function ProcessSection({
                 </label>
                 {deviation.temperatureDeviationC && <span className="text-warn">{t("trials.tempDeviation", { value: deviation.temperatureDeviationC })}</span>}
               </div>
+              <AttachmentField
+                formulationId={formulationId}
+                attachments={step.attachments}
+                onChange={(attachments) => onUpdateStep(step.id, { attachments })}
+                t={t}
+              />
             </li>
           );
         })}
@@ -692,24 +759,30 @@ function ProcessSection({
 }
 
 function ObservationsSection({
+  formulationId,
   trial,
   deviations,
   correctiveActions,
   onAddObservation,
+  onUpdateObservationAttachments,
   onAddDeviation,
   onResolveDeviation,
   onAcceptDeviation,
+  onUpdateDeviationAttachments,
   onCreateCorrectiveAction,
   onApplyDraft,
   t,
 }: {
+  formulationId: string;
   trial: LaboratoryTrial;
   deviations: TrialDeviation[];
   correctiveActions: CorrectiveAction[];
   onAddObservation: (type: TrialObservationType, description: string) => void;
+  onUpdateObservationAttachments: (observationId: string, attachments: AttachmentReference[]) => void;
   onAddDeviation: (severity: TrialDeviationSeverity, description: string) => void;
   onResolveDeviation: (deviation: TrialDeviation, resolution: string) => void;
   onAcceptDeviation: (deviation: TrialDeviation, justification: string) => void;
+  onUpdateDeviationAttachments: (deviation: TrialDeviation, attachments: AttachmentReference[]) => void;
   onCreateCorrectiveAction: (deviation: TrialDeviation, title: string, problemStatement: string) => void;
   onApplyDraft: (action: CorrectiveAction) => void;
   t: SimpleT;
@@ -747,6 +820,12 @@ function ObservationsSection({
           {trial.observations.map((o) => (
             <li key={o.id} className="rounded-input border border-border-faint px-2 py-1 text-[11px] text-text">
               <span className="font-medium">{o.type}</span>: {o.description}
+              <AttachmentField
+                formulationId={formulationId}
+                attachments={o.attachments}
+                onChange={(attachments) => onUpdateObservationAttachments(o.id, attachments)}
+                t={t}
+              />
             </li>
           ))}
         </ul>
@@ -804,6 +883,12 @@ function ObservationsSection({
                   </button>
                 </div>
               ) : null}
+              <AttachmentField
+                formulationId={formulationId}
+                attachments={d.attachments}
+                onChange={(attachments) => onUpdateDeviationAttachments(d, attachments)}
+                t={t}
+              />
             </li>
           ))}
         </ul>
@@ -830,19 +915,22 @@ function ObservationsSection({
 }
 
 function TestsSection({
+  formulationId,
   trial: _trial,
   testDefinitions,
   results,
   onRecord,
   t,
 }: {
+  formulationId: string;
   trial: LaboratoryTrial;
   testDefinitions: TestDefinition[];
   results: TestResult[];
-  onRecord: (definition: TestDefinition, values: string[]) => void;
+  onRecord: (definition: TestDefinition, values: string[], attachments?: AttachmentReference[]) => void;
   t: SimpleT;
 }) {
   const [inputsByTest, setInputsByTest] = useState<Record<string, string[]>>({});
+  const [pendingAttachmentsByTest, setPendingAttachmentsByTest] = useState<Record<string, AttachmentReference[]>>({});
 
   return (
     <div>
@@ -873,15 +961,28 @@ function TestsSection({
                       placeholder={t("trials.replicate", { n: i + 1 })}
                     />
                   ))}
-                  <button onClick={() => onRecord(def, inputs)} className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
+                  <button
+                    onClick={() => {
+                      onRecord(def, inputs, pendingAttachmentsByTest[def.code] ?? []);
+                      setPendingAttachmentsByTest((prev) => ({ ...prev, [def.code]: [] }));
+                    }}
+                    className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10"
+                  >
                     {t("trials.recordResult")}
                   </button>
                 </div>
+                <AttachmentField
+                  formulationId={formulationId}
+                  attachments={pendingAttachmentsByTest[def.code] ?? []}
+                  onChange={(attachments) => setPendingAttachmentsByTest((prev) => ({ ...prev, [def.code]: attachments }))}
+                  t={t}
+                />
                 {existing.length > 0 && (
                   <ul className="mt-1.5 space-y-0.5 text-[11px] text-muted">
                     {existing.map((r) => (
                       <li key={r.id}>
                         {t("trials.resultSummary", { mean: r.stats?.mean ?? "—", count: r.stats?.count ?? 0, passFail: r.passFail })}
+                        <AttachmentField formulationId={formulationId} attachments={r.attachments} onChange={() => {}} disabled t={t} />
                       </li>
                     ))}
                   </ul>

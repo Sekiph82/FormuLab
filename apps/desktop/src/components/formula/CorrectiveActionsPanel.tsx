@@ -11,6 +11,7 @@ import {
   toCsv,
   verifyEffectiveness,
   type Actor,
+  type AttachmentReference,
   type CorrectiveAction,
   type Formulation,
   type FormulationVersion,
@@ -19,6 +20,7 @@ import {
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 import { downloadText } from "@/lib/download";
+import { AttachmentField } from "./AttachmentField";
 
 const LOCAL_HUMAN: Actor = { kind: "human", role: "chemist", userId: "local" };
 
@@ -53,6 +55,9 @@ export function CorrectiveActionsPanel({
       setError(String(e));
     }
   };
+
+  const updateAttachments = (action: CorrectiveAction, attachments: AttachmentReference[]) =>
+    void persist({ ...action, attachments, updatedAt: new Date().toISOString() });
 
   const exportCsv = () => {
     const { headers, rows } = correctiveActionReportRows(actions);
@@ -90,6 +95,12 @@ export function CorrectiveActionsPanel({
               />
             </div>
             <p className="mt-1 text-[11px] text-muted">{action.problemStatement}</p>
+            <AttachmentField
+              formulationId={formulation.id}
+              attachments={action.attachments}
+              onChange={(attachments) => updateAttachments(action, attachments)}
+              t={t}
+            />
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {action.status === "open" && (
                 <button onClick={() => void persist(markInProgress(action, LOCAL_HUMAN))} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
