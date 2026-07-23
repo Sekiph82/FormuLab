@@ -541,7 +541,7 @@ export function FormulasPage() {
         )}
 
         {tab === "regulatory" && draft.value && (
-          <RegulatoryPanel formulation={active} currentLines={draft.value.lines} materials={materials} />
+          <RegulatoryPanel formulation={active} currentLines={draft.value.lines} materials={materials} versions={versions} />
         )}
 
         {tab === "approval" && (
