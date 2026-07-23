@@ -28,14 +28,18 @@ import {
   APPROVAL_ROLES,
   activeEquivalencesFor,
   assessApprovalReadiness,
+  assessRegulatoryReadiness,
   attemptApprovalTransition,
   buildKenyaCatalog,
+  classifyProductRegulatory,
   classifyProductSafety,
   clonePolicy,
   declareEquivalence,
   deriveLabReadiness,
+  deriveRegulatoryReadiness,
   deriveStabilityReadiness,
   editPolicy,
+  evaluateRegulatory,
   effectiveStatus,
   equivalentVersionIdsFor,
   evaluateCompatibility,
@@ -50,9 +54,11 @@ import {
   setPolicyActive,
   templateForFamily,
   toLabApprovalPolicy,
+  toRegulatoryApprovalPolicy,
   toStabilityApprovalPolicy,
   validateFormula,
   SEED_COMPATIBILITY_RULES,
+  SEED_REGULATORY_RULES,
   SEED_SAFETY_RULES,
   SEED_STABILITY_TIME_POINTS,
   SEED_TEST_DEFINITIONS,
@@ -75,6 +81,8 @@ import {
   type LaboratoryTrial,
   type OptimizationRun,
   type RawMaterial,
+  type RegulatoryReview,
+  type RegulatoryRule,
   type SafetyResolution,
   type StabilityFailure,
   type StabilityResult,
@@ -93,7 +101,7 @@ import { EquivalenceWorkflow } from "./EquivalenceWorkflow";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 
-type NavTarget = "builder" | "compatibility" | "safety" | "optimizer" | "trials" | "tests" | "stability" | "correctiveActions" | "cost";
+type NavTarget = "builder" | "compatibility" | "safety" | "optimizer" | "trials" | "tests" | "stability" | "correctiveActions" | "cost" | "regulatory";
 
 /** A blocker/warning as the panel renders it — a superset of the engine's
  *  own `ApprovalBlockerSource`, because the cost-snapshot gate (below) is a
@@ -117,6 +125,7 @@ const SOURCE_NAV: Record<string, NavTarget> = {
   laboratory: "trials",
   stability: "stability",
   cost: "cost",
+  regulatory: "regulatory",
 };
 
 const CODE_NAV_OVERRIDE: Record<string, NavTarget> = {
@@ -173,9 +182,11 @@ export function ApprovalPanel({
   const [policyRevisions, setPolicyRevisions] = useState<ApprovalPolicyRevision[]>([]);
   const [equivalences, setEquivalences] = useState<FormulaVersionEquivalence[]>([]);
   const [approvalRecords, setApprovalRecords] = useState<ApprovalRecord[]>([]);
+  const [regulatoryRules, setRegulatoryRules] = useState<RegulatoryRule[]>(SEED_REGULATORY_RULES);
+  const [regulatoryReviews, setRegulatoryReviews] = useState<RegulatoryReview[]>([]);
 
   const load = useCallback(async () => {
-    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec] = await Promise.all([
+    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec, regr, regrev] = await Promise.all([
       listRecords("materials"),
       listRecordsSeeded("compatibility_rules", SEED_COMPATIBILITY_RULES),
       listRecordsSeeded("safety_rules", SEED_SAFETY_RULES),
@@ -196,6 +207,8 @@ export function ApprovalPanel({
       listRecords("approval_policy_revisions"),
       listRecords("formula_version_equivalences"),
       listApprovalRecords(formulation.id),
+      listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES),
+      listRecords("regulatory_reviews"),
     ]);
     setMaterials(m);
     setCompatibilityRules(cr);
@@ -217,6 +230,8 @@ export function ApprovalPanel({
     setSubstitutionRuns(sub);
     setPolicies(pol);
     setApprovalRecords(rec);
+    setRegulatoryRules(regr);
+    setRegulatoryReviews(regrev.filter((r) => r.formulationId === formulation.id));
   }, [formulation.id]);
 
   useEffect(() => {
@@ -386,9 +401,45 @@ export function ApprovalPanel({
     ? { id: "policy:conflict", source: "policy", code: "policy_conflict", message: policyConflict.reason }
     : undefined;
 
-  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : [])];
+  // Regulatory readiness — same one-layer-up pattern as the cost-snapshot
+  // gate above: `assessApprovalReadiness` doesn't know about regulatory
+  // rules, so this panel derives the facts from real persisted
+  // rules/findings/reviews and folds the result into the same blocker
+  // list. Scoped to the formulation's primary target market (first entry
+  // in `targetMarkets`, defaulting to Kenya) — a multi-market product's
+  // other jurisdictions are reviewed via the dedicated Regulatory tab,
+  // which lets picking any of the seven.
+  const primaryJurisdiction = (formulation.targetMarkets[0] as "KE" | "UG" | "TZ" | "RW" | "BI" | "SS" | "EAC" | undefined) ?? "KE";
+  const regulatoryClassification = family ? classifyProductRegulatory({ family, claims: formulation.targetClaims, market: primaryJurisdiction }) : undefined;
+  const regulatoryFindings = useMemo(
+    () =>
+      regulatoryClassification
+        ? evaluateRegulatory(lines, regulatoryRules, { jurisdiction: primaryJurisdiction, category: regulatoryClassification.category, materials, claims: formulation.targetClaims })
+        : [],
+    [lines, regulatoryRules, primaryJurisdiction, regulatoryClassification, materials, formulation.targetClaims],
+  );
+  // The Regulatory tab (RegulatoryPanel.tsx) records a review against
+  // "working_draft" always — it has no concept of which specific saved
+  // formula version is being approved, only "the current formulation, in
+  // this jurisdiction." So this gate matches by jurisdiction alone, not
+  // by version id; a recorded review is treated as covering whichever
+  // version is currently up for approval. Known simplification — see
+  // docs/REGULATORY_ENGINE.md.
+  const regulatoryReadinessInput = deriveRegulatoryReadiness({
+    policy: activePolicy ? toRegulatoryApprovalPolicy(activePolicy) : {},
+    classified: !!regulatoryClassification && !regulatoryClassification.uncertain,
+    findings: regulatoryFindings,
+    rules: regulatoryRules,
+    reviews: regulatoryReviews,
+    versionId: "working_draft",
+    jurisdiction: primaryJurisdiction,
+  });
+  const regulatoryAssessment = assessRegulatoryReadiness(regulatoryReadinessInput);
+  const regulatoryBlockers: DisplayFinding[] = regulatoryAssessment.blockers.map((b) => ({ id: b.id, source: "regulatory", code: b.code, message: b.message }));
+
+  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : []), ...regulatoryBlockers];
   const allWarnings: (ApprovalWarning | DisplayFinding)[] = readiness.warnings;
-  const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker;
+  const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker && regulatoryAssessment.ready;
 
   const canApprove = !!selectedVersion && targetOptions.includes(targetStatus) && APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole);
 
@@ -706,6 +757,32 @@ export function ApprovalPanel({
         <SummaryCard title={t("approval.costSummary")}>
           <SummaryRow label={t("approval.costSnapshotPresent")} ok={hasCostSnapshot} muted={!costRequired} />
         </SummaryCard>
+        <SummaryCard title={t("regulatory.approvalSummaryHeading")}>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted">{t("regulatory.approvalSummaryJurisdiction")}</span>
+            <span className="text-text">{t(`regulatory.jurisdiction.${primaryJurisdiction}`)}</span>
+          </div>
+          {regulatoryClassification && (
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted">{t("regulatory.approvalSummaryCategory")}</span>
+              <span className="text-text">{t(`regulatory.category.${regulatoryClassification.category}`)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted">{t("regulatory.approvalSummaryFindings")}</span>
+            <span className="text-text">{regulatoryFindings.length}</span>
+          </div>
+          <SummaryRow
+            label={t("regulatory.approvalSummaryNoBlockingFinding")}
+            ok={!regulatoryReadinessInput.hasBlockingFinding}
+            muted={!activePolicy?.requireNoBlockingRegulatoryFinding}
+          />
+          <SummaryRow
+            label={t("regulatory.approvalSummaryHumanReview")}
+            ok={regulatoryReadinessInput.humanReviewCompleted}
+            muted={!activePolicy?.requireHumanRegulatoryReviewCompleted}
+          />
+        </SummaryCard>
       </div>
 
       <Section title={t("approval.decisionHeading")}>
@@ -809,6 +886,12 @@ const DISABLED_EXAMPLE_POLICY: ApprovalPolicy = {
   requireNoUnresolvedCriticalFailure: false,
   requirePackagingCompatibilityPassed: false,
   requireCostSnapshot: false,
+  requireRegulatoryClassificationCompleted: false,
+  requireNoBlockingRegulatoryFinding: false,
+  requireAllMandatoryDocumentsPresent: false,
+  requireAllMandatoryEvidencePresent: false,
+  requireAllRequiredClaimsReviewed: false,
+  requireHumanRegulatoryReviewCompleted: false,
   createdBy: "local",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
