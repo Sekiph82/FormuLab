@@ -202,6 +202,35 @@ phase (see [FORMULA_VERSIONING.md](FORMULA_VERSIONING.md#approval)); this
 phase adds test coverage against the new `ApprovalRecord`/lifecycle
 mechanism specifically (`engine/lifecycle.test.ts`).
 
+## Equivalent versions
+
+An authorized human can declare that a **different** formula version's
+laboratory/stability evidence may count toward the version being
+approved — spec closure for `equivalentVersionIds`, which existed as an
+engine parameter with no UI. The "Equivalent versions" workflow inside the
+Approval tab (`EquivalenceWorkflow.tsx`, `engine/equivalence.ts`):
+
+- Shows a real field-level comparison (`compareVersions` — lines
+  added/removed/changed, active-matter delta, packaging-SKU
+  additions/removals) plus live compatibility/safety finding counts for
+  both versions, before a justification is even typed. Process
+  instructions are NOT part of this comparison — they live on trials/
+  studies, not on the formula version itself, and the panel says so
+  rather than silently omitting it.
+- Requires a justification and an `evidenceReuseScope`
+  (`laboratory_only`/`stability_only`/`laboratory_and_stability`).
+- Refuses a non-human actor (`declareEquivalence`).
+- Persists an append-only `FormulaVersionEquivalence`
+  (`formula_version_equivalences`) — revoking one appends a second record
+  with `revokesEquivalenceId` set rather than editing or deleting the
+  first; "is this currently active" is computed live by checking for a
+  revocation, the same overlay convention `effectiveStatus` already uses.
+- Feeds `deriveLabReadiness`/`deriveStabilityReadiness` via
+  `equivalentVersionIdsFor(sourceVersionId, scope, equivalences)`.
+- Surfaces in the Laboratory/Stability summary cards as "Includes evidence
+  from equivalent version(s): …" whenever an active declaration applies —
+  never silent.
+
 ## Known limitations
 
 - The Approval tab lets a chemist pick *any* saved version of the current
@@ -209,10 +238,7 @@ mechanism specifically (`engine/lifecycle.test.ts`).
   deliberate (spec: "select a saved immutable formula version"), but means
   the tab's own version selector is independent of the Builder's "current"
   version.
-- `equivalentVersionIds` (an organization accepting lab/stability evidence
-  from a named equivalent version instead of the exact one) has no UI to
-  configure it yet — it exists as an engine-level parameter only.
-- The approval-policy editor (below) can create and activate/deactivate a
-  policy, but not edit an existing policy's individual toggles after
-  creation — deactivate and recreate is the current workaround. See
-  [APPROVAL_POLICIES.md](APPROVAL_POLICIES.md#known-limitations).
+- No real GUI/WebDriver-driven end-to-end run of the Approval tab exists
+  in this environment (no attached display, no `tauri-driver`) — see
+  [APPROVAL_MANUAL_SMOKE_TEST.md](APPROVAL_MANUAL_SMOKE_TEST.md) for the
+  manual checklist and exactly what automated coverage exists instead.

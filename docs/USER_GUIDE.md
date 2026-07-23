@@ -368,12 +368,15 @@ safety risk into a system's score (real hard exclusions still apply) — see
 Compatibility and safety are deterministic rule engines against a
 hand-maintained, explicitly non-exhaustive seed rule set — they are not a
 regulatory engine and do not establish legal compliance. The Formula
-Builder's Approval tab now calls approval readiness (including the
+Builder's Approval tab calls approval readiness (including the
 lab/stability policies in
 [LAB_STABILITY_APPROVAL.md](LAB_STABILITY_APPROVAL.md)) for real —
 see [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md). Its approval-policy
-editor can create and activate/deactivate a policy but not yet edit one's
-individual requirement toggles after creation, and it cannot yet scope a
-policy to specific product families/packaging SKUs from the UI — see
-[APPROVAL_POLICIES.md](APPROVAL_POLICIES.md#known-limitations). Nothing in
+editor supports full field editing, product-family/packaging-SKU scoping,
+clone, retire and revision history/restore, plus deterministic
+conflict resolution when more than one active policy matches — see
+[APPROVAL_POLICIES.md](APPROVAL_POLICIES.md#known-limitations) for the
+narrower gaps that remain. No native GUI click-through of the packaged
+app exists yet in this environment — see
+[APPROVAL_MANUAL_SMOKE_TEST.md](APPROVAL_MANUAL_SMOKE_TEST.md). Nothing in
 this guide describes an unimplemented module as available.

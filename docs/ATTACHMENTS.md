@@ -84,12 +84,11 @@ not pass `disabled` — the finalized-record rule differs by collection:
 
 - **Append-only collections** (`test_results`, `stability_results`): the
   Rust storage layer itself refuses to overwrite an existing row, so an
-  attachment can only be set **at recording time**, in the same form that
-  captures the replicate values — `TestsSection`/`SampleDashboard` collect
-  pending attachments locally and include them in the `TestResult`/
+  attachment can only be **added** at recording time, in the same form
+  that captures the replicate values — `TestsSection`/`SampleDashboard`
+  collect pending attachments locally and include them in the `TestResult`/
   `StabilityResult` object on first save. Once recorded, `AttachmentField`
-  is rendered with `disabled` for that result — open-only, never
-  add/remove.
+  is rendered with `disabled` for that result.
 - **Mutable collections** (`trial_deviations`, `stability_failures`,
   `corrective_actions`) and embedded arrays on a still-editable
   `LaboratoryTrial` (`observations`, `processSteps`): attachments may be
@@ -97,10 +96,35 @@ not pass `disabled` — the finalized-record rule differs by collection:
   (`assertTrialEditable`/`assertStudyEditable` already enforce that a
   completed trial's/study's own execution record is immutable — the same
   guard covers its embedded attachments).
-- **Replacing** a finalized attachment is a new reference with
-  `replacesAttachmentId` set to the prior one's id, never an in-place edit
-  — the schema supports this; no UI currently offers a "replace" action
-  distinct from remove-then-add on a still-mutable record.
+
+## Replacing a finalized attachment
+
+A finalized (`disabled`) `AttachmentField` still offers **Replace** when
+its caller passes `onReplace` — spec §1.4. Clicking it picks and safely
+copies a new file exactly like Add, then hands both the superseded and
+new `AttachmentReference` to the caller instead of editing the array
+in place:
+
+- **`test_results`/`stability_results`** (append-only): the caller
+  (`TrialsPanel.tsx`'s `replaceTestResultAttachment`, `StabilityPanel.tsx`'s
+  `replaceStabilityResultAttachment`) creates a **new result revision** —
+  the same `revisesResultId` mechanism `reviseTestResult` already uses for
+  a corrected measurement, applied here to a corrected attachment. The
+  superseded result (and its original attachment) is never deleted; the UI
+  shows `revises <id>` on the new one and only offers Replace on the
+  latest, un-superseded revision in a chain.
+- Both replacement paths append a dedicated `attachment.replaced` audit
+  event (`AuditEvent.metadata`, additive/optional on the schema) carrying
+  `oldAttachmentId`, `newAttachmentId`, `parentRecordType`,
+  `parentRecordId`, `reason`, `replacedBy`, `replacedAt`,
+  `oldChecksum`, `newChecksum` — distinct from whatever generic event
+  already covers editing that record type, so a replacement is always
+  individually auditable.
+- The superseded attachment is **never removed** from the record's
+  `attachments` array — `AttachmentField`'s default view hides it (any
+  entry another entry's `replacesAttachmentId` points at), but passing
+  `showSuperseded` (the historical browser, above) reveals it labelled
+  "Superseded", still openable.
 
 ## Tests
 
@@ -117,12 +141,19 @@ unit tests (`attachments::tests` in `src-tauri/src/attachments.rs`) —
 
 ## Known limitations
 
-- No dedicated attachment-revision *audit event* — a replaced attachment on
-  a still-mutable record is just a normal `upsertRecords` write to that
-  parent record; there is no `attachment.replaced`-style entry in
-  `audit.jsonl` distinct from whatever event already covers editing that
-  record type.
+- Replacement (with its `attachment.replaced` audit event) is wired for
+  `test_results`/`stability_results` (the two append-only, evidence-heavy
+  collections). Mutable records (`trial_deviations`, `stability_failures`,
+  `corrective_actions`, observations/process steps) still use plain
+  add/remove regardless of whether their parent trial/study/action has
+  reached a terminal state — extending the same finalized-record Replace
+  gate to those is not yet done.
 - Tests do not (and per spec should not) require actual camera hardware —
   there is no camera capture in this codebase at all, by design.
 - No thumbnail preview for image attachments in the list view; opening
   hands off to the OS default viewer.
+- No dedicated historical-attachment **browser modal** yet — revision
+  chains are visible inline (`revises <id>`, superseded-attachment
+  labelling) in the Trials/Stability panels themselves, but there is no
+  single cross-record view for browsing every past result/attachment for
+  a given test across a trial's or study's whole history.

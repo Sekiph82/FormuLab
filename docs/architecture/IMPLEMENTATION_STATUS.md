@@ -464,15 +464,57 @@ source populated from persisted records.
   total. 12 new desktop tests (6 `ApprovalPanel.test.tsx`, 6
   `AttachmentField.test.tsx`) — 353 total. 3 new Rust unit tests
   (`attachments::tests`) — 68 total.
-- Known limitations: no UI to scope a policy to specific product
-  families/packaging SKUs or edit an existing policy's toggles after
-  creation; `equivalentVersionIds` (accepting lab/stability evidence from a
-  named equivalent version) is engine-only, no UI; attachment editing after
-  the fact is only offered on mutable parent records (deviations, stability
-  failures, corrective actions, observations, process steps) — an
-  append-only `TestResult`/`StabilityResult`'s attachments are fixed at
-  recording time, by design, but there is no UI to browse an older result's
-  attachments outside the recording form.
+
+### Approval workflow closure — remaining gaps (policy editing, equivalence, replacement, exclusion explorer)
+Closes every gap the previous entry's "Known limitations" disclosed. See
+[APPROVAL_POLICIES.md](../APPROVAL_POLICIES.md),
+[APPROVAL_WORKFLOW.md](../APPROVAL_WORKFLOW.md#equivalent-versions),
+[ATTACHMENTS.md](../ATTACHMENTS.md#replacing-a-finalized-attachment),
+[TEST_APPLICABILITY.md](../TEST_APPLICABILITY.md#exclusion-explorer),
+[APPROVAL_MANUAL_SMOKE_TEST.md](../APPROVAL_MANUAL_SMOKE_TEST.md).
+- Full approval-policy editor (`PolicyEditor.tsx`, `engine/approvalPolicy.ts`,
+  new): edit every field, clone, retire (terminal), and an append-only
+  `approval_policy_revisions` history with restore-as-new-revision — never
+  a silent overwrite of a historical revision. Product-family/packaging-SKU
+  scope editors (All/Selected, search, multi-select). Deterministic
+  precedence (`resolvePolicyPrecedence`) when more than one active policy
+  matches — exact family+SKU > exact family > exact SKU > global, tied by
+  explicit `priority` then most-recent `effectiveDate`; a genuine tie
+  returns a structured `PolicyConflict` blocker rather than merging or
+  guessing.
+- Equivalent-version declaration (`EquivalenceWorkflow.tsx`,
+  `engine/equivalence.ts`, new): a human-only, justified, append-only
+  `FormulaVersionEquivalence` record (revocation is a new record, never an
+  edit) feeding `deriveLabReadiness`/`deriveStabilityReadiness`'s
+  `equivalentVersionIds` — with a real field-level comparison
+  (`compareVersions` + live compatibility/safety counts) shown before a
+  reviewer can declare one, and an "Includes evidence from equivalent
+  version(s)" badge wherever that evidence is actually used.
+- Attachment replacement (`AttachmentField.tsx`'s `onReplace`, new): a
+  finalized `test_results`/`stability_results` attachment can be replaced
+  via a new result revision (`revisesResultId`), never a silent overwrite;
+  a dedicated `attachment.replaced` audit event (new `AuditEvent.metadata`
+  field) records the old/new attachment ids, parent record, reason,
+  actor and both checksums.
+- Applicability exclusion explorer (`ExclusionExplorer.tsx`,
+  `evaluateApplicability`/`explainExclusion` in `engine/testApplicability.ts`,
+  new): Included/Excluded tabs, each excluded definition tagged with every
+  deterministic reason it failed, wired into the Trials panel's Tests tab.
+- 60 new shared-package tests (19 `approvalPolicy.test.ts` (engine), 13
+  `approvalPolicy.test.ts` (schema/precedence), 14 `equivalence.test.ts`, 6
+  new `testApplicability.test.ts` cases) — 538 total. 4 new desktop tests
+  (`ApprovalPanel.test.tsx`) — 357 total.
+- Known limitations: the policy scope editor's packaging-SKU options come
+  from the current formulation only, not a global SKU catalog;
+  `verificationStatus` has no UI control; attachment replacement covers
+  the two append-only result collections only, not the mutable
+  deviation/failure/corrective-action/observation/process-step records;
+  no dedicated historical-attachment browser modal (revision chains are
+  shown inline instead); the Stability panel has no "Test applicability"
+  entry point yet (Trials does); no real GUI/WebDriver click-through of
+  the packaged app was performed — no attached display or `tauri-driver`
+  in this environment — automated React Testing Library coverage plus a
+  documented manual checklist stand in instead.
 
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).

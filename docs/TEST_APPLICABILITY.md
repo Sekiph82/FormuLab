@@ -117,11 +117,38 @@ correctly; `buildTestRequirementSnapshot` is immutable against a later
 definition mutation, includes a manual addition, and does not duplicate a
 test that is both applicable and manually added.
 
+## Exclusion explorer
+
+`evaluateApplicability(definitions, ctx)` returns both sides —
+`included` (same as `resolveApplicableTestDefinitions`) and `excluded`,
+each excluded definition paired with every deterministic reason it failed
+(`explainExclusion`, plural — more than one dimension can disqualify a
+test at once):
+
+```
+inactive_definition | wrong_product_family | wrong_packaging_sku |
+wrong_context | wrong_storage_condition | wrong_time_point
+```
+
+`manually_excluded`/`superseded_definition` are not among them — this
+codebase does not model an explicit human "exclude this test" action or a
+definition-supersession link, so neither reason is ever computable; only
+what the fields above actually encode is reported.
+
+The desktop "Test applicability" explorer
+(`apps/desktop/src/components/formula/ExclusionExplorer.tsx`, opened from
+the Trials panel's Tests tab) shows Included/Excluded tabs, each excluded
+definition tagged with its reason chips, search, and a reason filter. An
+excluded definition never appears in `included`, so nothing downstream
+(readiness derivation, the requirement snapshot) can select it by
+accident — exclusion is enforced by absence, not a flag to check.
+
 ## Known limitations
 
-- No UI shows the definitions that were *considered and excluded* — only
-  what was actually selected is visible, not the full applicability
-  evaluation.
 - `requiredByDefault` is a single global flag on the definition, not
   configurable per product family — a test cannot be "required for family
   A, optional for family B" without two separate definitions.
+- The Stability panel does not yet have its own "Test applicability"
+  explorer entry point — only the Trials panel's Tests tab does; the
+  underlying `evaluateApplicability` call works identically for a
+  stability context, but nothing in `StabilityPanel.tsx` opens it yet.

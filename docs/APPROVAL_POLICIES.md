@@ -1,7 +1,8 @@
 # Approval policies
 
-`packages/shared/src/schemas/approvalPolicy.ts`, the "Manage policies"
-section inside `apps/desktop/src/components/formula/ApprovalPanel.tsx`.
+`packages/shared/src/schemas/approvalPolicy.ts`, `engine/approvalPolicy.ts`,
+the "Manage policies" section inside
+`apps/desktop/src/components/formula/PolicyEditor.tsx`.
 
 ## What this is
 
@@ -22,12 +23,16 @@ interface ApprovalPolicy {
   schemaVersion: "1.0";
   id: string;
   name: string;
+  description?: string;
   productFamilyCodes: string[];   // empty = every family
   packagingSkuCodes: string[];    // empty = every SKU
   targetStatus: "pilot_approved" | "production_approved";
   effectiveDate?: string;
   verificationStatus: "verified" | "not_verified";
   active: boolean;                // seeded example ships `false`
+  retired: boolean;                // terminal — see "Lifecycle" below
+  revisionNumber: number;          // what ApprovalPolicyRevision.revisionNumber counts
+  priority?: number;                // explicit tie-break — see "Precedence"
 
   requireCompletedTrial?: boolean;
   requireAllRequiredTestsCompleted?: boolean;
@@ -53,15 +58,73 @@ Nothing in this schema hardcodes a duration or a count.
 and it is an organization-supplied integer, exactly like the underlying
 `StabilityApprovalPolicy` it converts to.
 
+## Lifecycle and revision history
+
+Every mutating action goes through `engine/approvalPolicy.ts`, which
+requires a human `Actor` and, for anything except activate/deactivate, a
+non-empty reason:
+
+| Action | What happens | Revision `changeType` |
+|---|---|---|
+| Create | New policy, revision 1 | `created` |
+| Edit | Any field except lifecycle flags; requires a change reason | `edited` |
+| Activate / Deactivate | Flips `active`; refused once `retired` | `activated` / `deactivated` |
+| Retire | Terminal — `retired: true`, `active: false`; cannot be reactivated | `retired` |
+| Clone | A brand-new, independent policy (its own id, revision 1, `active: false`) seeded from the source's current fields | `cloned_from` |
+| Restore | Applies an old revision's field values as a **new** revision on top of the current one | `restored` |
+
+`ApprovalPolicyRevision` is append-only (`approval_policy_revisions`,
+`masterdata.rs`) — a full snapshot of the policy at that point, never
+edited or deleted. **Editing, retiring or restoring a policy never
+rewrites its own or any other revision's history**; `approval_policies`
+itself stays a mutable "current state" row so existing scope-resolution
+and Approval-tab selection code keeps reading it the same way, while the
+append-only revisions are what actually let a reviewer answer "what did
+this policy require last quarter, and who changed it since." Every one of
+these actions also appends an `approval.policy_changed` audit event to the
+formulation's `audit.jsonl`, naming the change type, the revision number,
+and who made it.
+
+Retirement is deliberately one-way: `setPolicyActive`/`editPolicy` both
+refuse to touch a retired policy. Cloning or restoring an old revision are
+the only ways to get an equivalent policy active again, and both produce a
+demonstrably new record rather than resurrecting the old one in place.
+
+## Scope and precedence
+
+The policy editor's scope controls (product families, packaging SKUs) are
+each either **All** or **Selected** (with search and multi-select) —
+"All" stores an empty array, the same unrestricted-when-empty convention
+`TestDefinition` applicability already uses.
+
+When more than one active, non-retired policy matches a given
+version's target status/family/SKU, `resolvePolicyPrecedence`
+(`schemas/approvalPolicy.ts`) resolves it deterministically, in this
+order, never by silently merging their requirements:
+
+1. Exact product family **and** exact packaging SKU
+2. Exact product family alone
+3. Exact packaging SKU alone
+4. A global (fully unscoped) policy
+5. Tie-break: the higher explicit `priority`
+6. Tie-break: the most recent `effectiveDate`
+7. Still tied → a structured `PolicyConflict` is returned instead of a
+   guess: `{ targetStatus, productFamilyCode, packagingSkuCode,
+   matchingPolicyIds, reason }`
+
+The Approval panel renders an unresolved conflict as a blocker
+(`source: "policy"`) with a "Go to" link back into policy management, and
+disables Approve until either the ambiguity is fixed (retire/rescope one
+of the tied policies) or the reviewer picks one explicitly from the
+policy selector — an explicit selection always wins over automatic
+resolution.
+
 ## Persistence
 
-`approval_policies` is a `masterdata.rs` collection like `materials`/
-`inventory` — mutable (not append-only), identified by `id`, stored at
-`data/master/approval_policies.json`. Every create or `active` toggle also
-appends an `approval.policy_changed` audit event to the current
-formulation's audit log, so a policy's own history is visible from the
-angle of "what did the approver see at the time", even though the storage
-layer itself does not version the policy record.
+`approval_policies` (mutable, current state) and
+`approval_policy_revisions` (append-only history) are both `masterdata.rs`
+collections, stored at `data/master/approval_policies.json` and
+`data/master/approval_policy_revisions.json`.
 
 `approval_records` and `approval_audit_events` are deliberately **not**
 masterdata collections — see the comment at the top of `masterdata.rs` and
@@ -85,32 +148,31 @@ side effect of opening FormuLab for the first time.
 
 ## The panel
 
-Inside the Approval tab, "Manage policies" reveals:
+Inside the Approval tab, "Manage policies" reveals every policy
+(active, inactive and retired, each labelled), each with:
 
-- The list of policies applicable to the currently selected target status
-  and product family/SKU (via `policyApplies`), each with an
-  Activate/Deactivate toggle.
-- A creation form: a name, an `active` checkbox, and one checkbox per
-  requirement listed above. Saving calls `upsertRecords("approval_policies", …)`
-  and appends `approval.policy_changed`.
+- **Edit** (full field form: name, description, target status, effective
+  date, minimum time points, priority, scope, every requirement toggle;
+  requires a change reason) — hidden once retired.
+- **Activate/Deactivate** — hidden once retired.
+- **Clone** (prompts for the new policy's name).
+- **Retire** (prompts for a reason) — hidden once already retired.
+- **History**, expanding the full revision list (revision number, change
+  type, reason, who, when), each with a **Restore** button (disabled on
+  the current revision).
 
 The Approval panel's own policy selector then lets the reviewer pick among
 the applicable **active** policies for the readiness calculation (or "No
 policy", meaning only validation/compatibility/safety/human-review/
 optimization/substitution are checked — laboratory and stability are
 skipped entirely, same as omitting `labReadiness`/`stabilityReadiness` from
-`ApprovalReadinessInput` always did).
+`ApprovalReadinessInput` always did) — or resolves automatically via the
+precedence rules above.
 
 ## Known limitations
 
-- No edit-in-place for an existing policy's individual requirement
-  toggles — only its `active` flag can be flipped after creation.
-  Correcting a mistake means deactivating the wrong policy and creating a
-  new one.
-- `productFamilyCodes`/`packagingSkuCodes` scoping exists in the schema and
-  is enforced by `policyApplies`, but the creation form does not yet expose
-  fields to set them — every policy created through the UI today is
-  unrestricted (applies to every family/SKU) until edited directly in
-  `data/master/approval_policies.json`.
-- `effectiveDate` and `verificationStatus` are schema fields with no UI
-  control yet.
+- The scope editor's packaging-SKU options come from the current
+  formulation's own `targetSkuCodes`, not a global catalog of every SKU
+  in the project — scoping a policy to a SKU the current formulation
+  doesn't target requires editing the record directly.
+- `verificationStatus` is a schema field with no UI control yet.
