@@ -382,6 +382,7 @@
     "editTab": "Formülü düzenle",
     "cardTab": "Kart",
     "allProjects": "Tüm projeler",
+    "loadingProject": "Proje yükleniyor…",
     "projects": "Formül projeleri",
     "newProject": "Yeni proje",
     "noProjects": "Henüz formülasyon projesi yok. Bir formül oluşturmaya başlamak için bir tane oluşturun.",
@@ -412,6 +413,20 @@
     "tabCompatibility": "Uyumluluk",
     "tabSafety": "Güvenlik",
     "tabOptimizer": "Optimize Edici",
+    "tabPackaging": "Ambalaj",
+    "packaging": {
+      "description": "Bu projenin hedef SKU'larına bağlı ambalaj reçetesi/reçeteleri. Buradan değil, Yönetim'den düzenlenir.",
+      "noSkus": "Bu projenin henüz hedef ambalaj SKU'su yok.",
+      "fillSummary": "{{qty}} {{unit}} dolum · {{lines}} bileşen satırı",
+      "noBom": "Bu SKU için henüz kayıtlı bir ambalaj reçetesi yok.",
+      "manageLink": "Yönetim'de düzenle"
+    },
+    "openLaboratory": "Laboratuvar'da aç",
+    "openStability": "Stabilite'de aç",
+    "openRegulatory": "Mevzuat'ta aç",
+    "openApproval": "Onay'da aç",
+    "standaloneOptimizerHint": "Bir projeye bağlı olmayan bağımsız maliyet hesaplayıcısını mı arıyorsunuz?",
+    "standaloneOptimizerLink": "Bağımsız optimize ediciyi aç",
     "undo": "Geri al",
     "redo": "Yinele",
     "filter": "Satırları filtrele",
@@ -1411,5 +1426,75 @@
     "previewImport": "Önizleme",
     "previewValidCount": "{{count}} satır içe aktarılmaya hazır.",
     "importRowError": "Satır {{row}}: {{reason}}"
+  },
+  "home": {
+    "heading": "Ana sayfa",
+    "loading": "Yükleniyor…",
+    "recentProjects": "Son projeler",
+    "noProjects": "Henüz proje yok.",
+    "recentActivity": "Son etkinlik",
+    "noActivity": "Son etkinlik yok.",
+    "openLabWork": "Açık laboratuvar çalışması",
+    "noOpenLabWork": "Şu anda açık deneme yok.",
+    "upcomingStabilitySamples": "Yaklaşan stabilite numuneleri",
+    "noUpcomingSamples": "Yakında vadesi gelen stabilite numunesi yok.",
+    "pendingApprovals": "Bekleyen onaylar",
+    "noPendingApprovals": "Onay kararı bekleyen bir şey yok.",
+    "unknownProject": "Bilinmeyen proje"
+  },
+  "reports": {
+    "heading": "Raporlar",
+    "description": "Modüle göre düzenlenmiş, mevcut raporlanabilir bilgiler. Tam PDF/DOCX rapor üretimi sonraki bir aşamadır — henüz kullanılamaz.",
+    "openAction": "Aç",
+    "notYetImplemented": "Henüz uygulanmadı",
+    "futureExportNote": "Sonraki bir aşama için özel bir rapor üretim motoru (baskıya uygun PDF/DOCX) planlanmaktadır. Bugün, aşağıdaki her modül belirtildiği yerde kendi JSON/CSV/Excel dışa aktarımını sağlar.",
+    "formula": {
+      "title": "Formül raporları",
+      "description": "Formülasyon çalışma alanının Sürümler sekmesinden, sürüm başına JSON dışa aktarımı."
+    },
+    "trial": {
+      "title": "Deneme raporları",
+      "description": "Laboratuvar çalışma alanından, deneme başına JSON dışa aktarımı."
+    },
+    "stability": {
+      "title": "Stabilite raporları",
+      "description": "Stabilite çalışma alanından çalışma/eğilim dışa aktarımı."
+    },
+    "regulatory": {
+      "title": "Mevzuat özetleri",
+      "description": "Mevzuat çalışma alanından kural ve bulgu dışa aktarımı (JSON/CSV/Excel)."
+    },
+    "approval": {
+      "title": "Onay kayıtları",
+      "description": "Onay çalışma alanından karar geçmişi ve onay anlık görüntüleri."
+    },
+    "audit": {
+      "title": "Denetim raporları",
+      "description": "Henüz özel bir denetim günlüğü rapor görünümü yok — proje başına karar geçmişi Onay çalışma alanında görülebilir."
+    }
+  },
+  "administration": {
+    "heading": "Yönetim",
+    "overview": "Genel bakış",
+    "description": "Günlük Ar-Ge çalışmasını karmaşıklaştırmaması gereken yapılandırma. Aşağıdaki her bağlantı, o yapılandırmanın zaten bulunduğu mevcut ekranı açar.",
+    "noUserManagement": "Bu kod tabanında henüz bir kullanıcı yönetimi arka ucu yok, bu yüzden burada bir \"Kullanıcılar ve roller\" bölümü bulunmuyor — inceleyen rolleri Mevzuat ve Onay çalışma alanlarında işlem başına seçilir.",
+    "links": {
+      "materials": {
+        "title": "Hammaddeler, tedarikçiler, ambalaj ve fabrika profilleri",
+        "description": "Hammaddeler, tedarikçiler, ambalaj bileşenleri/reçeteleri ve fabrika maliyet profilleri."
+      },
+      "regulatoryRules": {
+        "title": "Mevzuat kuralları",
+        "description": "Kural kütüphanesi, kaynak doğrulama, CSV/Excel içe/dışa aktarım."
+      },
+      "approvalPolicies": {
+        "title": "Onay politikaları",
+        "description": "Politika düzenleyici, revizyonlar, çok-yargı alanlı geçitler."
+      },
+      "settings": {
+        "title": "Uygulama ayarları",
+        "description": "Tema, dil, güncellemeler ve diğer uygulama genelindeki tercihler."
+      }
+    }
   }
 }

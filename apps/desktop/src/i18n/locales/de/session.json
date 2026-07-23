@@ -496,7 +496,22 @@
     "tabTests": "Tests",
     "tabStability": "Stability",
     "tabCorrectiveActions": "Corrective actions",
-    "tabApproval": "Approval"
+    "tabApproval": "Approval",
+    "tabPackaging": "Packaging",
+    "packaging": {
+      "description": "The packaging BOM(s) linked to this project's target SKUs. Edited from Administration, not here.",
+      "noSkus": "This project has no target packaging SKUs yet.",
+      "fillSummary": "{{qty}} {{unit}} fill · {{lines}} component line(s)",
+      "noBom": "No packaging BOM recorded for this SKU yet.",
+      "manageLink": "Manage in Administration"
+    },
+    "openLaboratory": "Open in Laboratory",
+    "openStability": "Open in Stability",
+    "openRegulatory": "Open in Regulatory",
+    "openApproval": "Open in Approval",
+    "standaloneOptimizerHint": "Looking for the standalone what-if cost calculator (not tied to a project)?",
+    "standaloneOptimizerLink": "Open the standalone optimizer",
+    "loadingProject": "Loading project…"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",
@@ -1411,5 +1426,75 @@
     "previewImport": "Preview",
     "previewValidCount": "{{count}} row(s) ready to import.",
     "importRowError": "Row {{row}}: {{reason}}"
+  },
+  "home": {
+    "heading": "Home",
+    "loading": "Loading…",
+    "recentProjects": "Recent projects",
+    "noProjects": "No projects yet.",
+    "recentActivity": "Recent activity",
+    "noActivity": "No recent activity.",
+    "openLabWork": "Open laboratory work",
+    "noOpenLabWork": "No open trials right now.",
+    "upcomingStabilitySamples": "Upcoming stability samples",
+    "noUpcomingSamples": "No stability samples due soon.",
+    "pendingApprovals": "Pending approvals",
+    "noPendingApprovals": "Nothing awaiting an approval decision.",
+    "unknownProject": "Unknown project"
+  },
+  "reports": {
+    "heading": "Reports",
+    "description": "Current reportable information, organized by module. Full PDF/DOCX report generation is a later phase — not available yet.",
+    "openAction": "Open",
+    "notYetImplemented": "Not yet implemented",
+    "futureExportNote": "A dedicated report-generation engine (PDF/DOCX, formatted for print) is planned for a later phase. Today, each module below provides its own JSON/CSV/Excel export where noted.",
+    "formula": {
+      "title": "Formula reports",
+      "description": "Per-version JSON export, from the Formulation workspace's Versions tab."
+    },
+    "trial": {
+      "title": "Trial reports",
+      "description": "Per-trial JSON export, from the Laboratory workspace."
+    },
+    "stability": {
+      "title": "Stability reports",
+      "description": "Study/trend export, from the Stability workspace."
+    },
+    "regulatory": {
+      "title": "Regulatory summaries",
+      "description": "Rule and finding export (JSON/CSV/Excel), from the Regulatory workspace."
+    },
+    "approval": {
+      "title": "Approval records",
+      "description": "Decision history and approval snapshots, from the Approval workspace."
+    },
+    "audit": {
+      "title": "Audit reports",
+      "description": "No dedicated audit-log report view yet — per-project decision history is visible in the Approval workspace."
+    }
+  },
+  "administration": {
+    "heading": "Administration",
+    "overview": "Overview",
+    "description": "Configuration that shouldn't clutter daily R&D work. Each link below opens the existing screen where that configuration already lives.",
+    "noUserManagement": "This codebase has no user-management backend yet, so there is no \"Users and roles\" section here — reviewer roles are chosen per-action in the Regulatory and Approval workspaces.",
+    "links": {
+      "materials": {
+        "title": "Materials, suppliers, packaging & factory profiles",
+        "description": "Raw materials, suppliers, packaging components/BOMs and factory cost profiles."
+      },
+      "regulatoryRules": {
+        "title": "Regulatory rules",
+        "description": "Rule library, source verification, CSV/Excel import/export."
+      },
+      "approvalPolicies": {
+        "title": "Approval policies",
+        "description": "Policy editor, revisions, multi-jurisdiction gates."
+      },
+      "settings": {
+        "title": "Application settings",
+        "description": "Theme, locale, updates and other app-wide preferences."
+      }
+    }
   }
 }
