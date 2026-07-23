@@ -27,7 +27,11 @@ import type {
   PackagingBom,
   PackagingComponent,
   RawMaterial,
+  RegulatoryEvidenceConfirmation,
+  RegulatoryEvidenceConfirmationRevocation,
   RegulatoryReview,
+  RegulatoryReviewEquivalence,
+  RegulatoryReviewRevocation,
   RegulatoryRule,
   RegulatoryRuleRevision,
   SafetyResolution,
@@ -82,7 +86,11 @@ export type Collection =
   | "formula_version_equivalences"
   | "regulatory_rules"
   | "regulatory_rule_revisions"
-  | "regulatory_reviews";
+  | "regulatory_reviews"
+  | "regulatory_review_revocations"
+  | "regulatory_evidence_confirmations"
+  | "regulatory_evidence_confirmation_revocations"
+  | "regulatory_review_equivalences";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -121,6 +129,10 @@ interface CollectionTypes {
   regulatory_rules: RegulatoryRule;
   regulatory_rule_revisions: RegulatoryRuleRevision;
   regulatory_reviews: RegulatoryReview;
+  regulatory_review_revocations: RegulatoryReviewRevocation;
+  regulatory_evidence_confirmations: RegulatoryEvidenceConfirmation;
+  regulatory_evidence_confirmation_revocations: RegulatoryEvidenceConfirmationRevocation;
+  regulatory_review_equivalences: RegulatoryReviewEquivalence;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

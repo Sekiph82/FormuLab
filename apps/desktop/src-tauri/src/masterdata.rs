@@ -30,6 +30,10 @@
 //   data/master/regulatory_rules.json
 //   data/master/regulatory_rule_revisions.json
 //   data/master/regulatory_reviews.json
+//   data/master/regulatory_review_revocations.json
+//   data/master/regulatory_evidence_confirmations.json
+//   data/master/regulatory_evidence_confirmation_revocations.json
+//   data/master/regulatory_review_equivalences.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -65,7 +69,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 36] = [
+const COLLECTIONS: [(&str, bool); 40] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -151,6 +155,19 @@ const COLLECTIONS: [(&str, bool); 36] = [
     ("regulatory_rules", false),
     ("regulatory_rule_revisions", true),
     ("regulatory_reviews", true),
+    // Phase 2 closure: a review revocation is its own append-only record
+    // pointing at the review it revokes — the review itself is never
+    // edited or deleted (spec: "historical reviews are append-only and
+    // immutable"). Evidence confirmations are the persisted replacement
+    // for what used to be session-local UI checkboxes: also append-only,
+    // also revoked only via a separate pointer record. A regulatory
+    // review equivalence (reuse across formula versions) follows the
+    // exact same declare/revoke-by-new-record shape as
+    // `formula_version_equivalences`.
+    ("regulatory_review_revocations", true),
+    ("regulatory_evidence_confirmations", true),
+    ("regulatory_evidence_confirmation_revocations", true),
+    ("regulatory_review_equivalences", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
