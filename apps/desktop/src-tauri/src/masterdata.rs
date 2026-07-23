@@ -27,6 +27,9 @@
 //   data/master/stability_results.json
 //   data/master/stability_failures.json
 //   data/master/approval_policies.json
+//   data/master/regulatory_rules.json
+//   data/master/regulatory_rule_revisions.json
+//   data/master/regulatory_reviews.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -62,7 +65,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 33] = [
+const COLLECTIONS: [(&str, bool); 36] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -137,6 +140,17 @@ const COLLECTIONS: [(&str, bool); 33] = [
     // `engine/lifecycle.ts`'s `effectiveStatus` already uses for audit
     // events.
     ("formula_version_equivalences", true),
+    // Regulatory Engine (Kenya/EAC): a rule is durable, editable structural
+    // data like a test definition or safety rule — its own edit/activate/
+    // deactivate/deprecate lifecycle is what changes it, and every one of
+    // those changes appends to `regulatory_rule_revisions` rather than
+    // overwriting what the rule used to require, same split as
+    // `approval_policies`/`approval_policy_revisions`. A recorded human
+    // regulatory review is an append-only sign-off event — editing one in
+    // place would silently rewrite who reviewed what and when.
+    ("regulatory_rules", false),
+    ("regulatory_rule_revisions", true),
+    ("regulatory_reviews", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {

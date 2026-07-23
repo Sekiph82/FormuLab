@@ -27,6 +27,9 @@ import type {
   PackagingBom,
   PackagingComponent,
   RawMaterial,
+  RegulatoryReview,
+  RegulatoryRule,
+  RegulatoryRuleRevision,
   SafetyResolution,
   SafetyRule,
   SafetySnapshot,
@@ -76,7 +79,10 @@ export type Collection =
   | "stability_failures"
   | "approval_policies"
   | "approval_policy_revisions"
-  | "formula_version_equivalences";
+  | "formula_version_equivalences"
+  | "regulatory_rules"
+  | "regulatory_rule_revisions"
+  | "regulatory_reviews";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -112,6 +118,9 @@ interface CollectionTypes {
   approval_policies: ApprovalPolicy;
   approval_policy_revisions: ApprovalPolicyRevision;
   formula_version_equivalences: FormulaVersionEquivalence;
+  regulatory_rules: RegulatoryRule;
+  regulatory_rule_revisions: RegulatoryRuleRevision;
+  regulatory_reviews: RegulatoryReview;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
