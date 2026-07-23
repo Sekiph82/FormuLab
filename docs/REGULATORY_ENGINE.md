@@ -15,6 +15,11 @@ below for what genuinely remains, and
 Implemented/Verified-by-tests/Requires-regulatory-content/
 Deferred-to-Phase-3 breakdown.
 
+The desktop UI described below now lives at its own route, `/regulatory`
+— the **Regulatory workspace** — rather than a tab inside the Formula
+Builder. `RegulatoryPanel.tsx` itself is unchanged; only its place in the
+navigation moved. See [WORKSPACES.md](WORKSPACES.md#regulatory).
+
 ## Seven jurisdictions
 
 `REGULATORY_JURISDICTIONS` (`packages/shared/src/schemas/regulatory.ts`):
@@ -161,8 +166,9 @@ upsert in place rather than duplicating).
 
 ## Desktop workspace
 
-`apps/desktop/src/components/formula/RegulatoryPanel.tsx` — the
-"Regulatory" tab in the Formula Builder. Selectors for **saved formula
+`apps/desktop/src/components/formula/RegulatoryPanel.tsx` — rendered in
+the **Regulatory workspace** (`/regulatory`), not a Formula Builder tab
+(see the note at the top of this document). Selectors for **saved formula
 version**, **jurisdiction**, **packaging SKU**, and **reviewer role**
 sit above every section, since a review, a confirmation, and the
 readiness read all depend on this exact combination. Sections:

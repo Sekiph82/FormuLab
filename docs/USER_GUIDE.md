@@ -5,9 +5,35 @@ formula, save versions, price it against real materials, and compare. Each
 section links to the document that covers the topic in depth; this page is
 the map, not a replacement for those.
 
+## 0. Navigating FormuLab: ten workspaces
+
+The sidebar's **Workspaces** section is the primary navigation: **Home**
+(a real dashboard — recent projects, activity, open lab work, upcoming
+stability samples, pending approvals), **Projects** (every formulation
+project), **Formulation** (the grid, versions, cost, compatibility, safety,
+packaging — sections 2–13 below), **Laboratory** (trials, test
+definitions, corrective actions — sections 16–19), **Stability** (section
+18), **Optimization** (section 14), **Regulatory** (section 20),
+**Approval** (sections 5, 12), **Reports** (a navigation shell over each
+module's existing export), and **Administration** (materials/suppliers/
+packaging/factory profiles, plus links to regulatory rules, approval
+policies and app settings).
+
+Opening a project from **Projects** or **Home** carries it with you as a
+`?project=` link — Laboratory, Stability, Optimization, Regulatory and
+Approval all open already scoped to that project; a blocker inside
+Approval that names a specific module opens that module directly, on the
+right formula version. See [WORKSPACES.md](WORKSPACES.md) and
+[NAVIGATION_AND_CONTEXT.md](NAVIGATION_AND_CONTEXT.md) for the full model.
+This replaced a single crowded Formula Builder page that carried every one
+of these as a horizontal tab; nothing described in this guide was removed
+or rewritten — every section below still describes real, working
+functionality, just reached from its own workspace rather than a tab.
+
 ## 1. Create a formula project
 
-**Formulas → New project** in the sidebar.
+**Projects → New project** in the sidebar (or **Home → Recent projects**
+once you have one).
 
 1. Pick a **product family** from the Kenya catalog (55 families across 17
    domains). This determines which packaging SKUs are offered and which
@@ -69,6 +95,7 @@ inferred performance impact is explicitly labelled `estimated` /
 
 ## 5. Approval
 
+Open the **Approval workspace** (`/approval`) for the selected project.
 No automated actor — agent, system process, or import — can set
 `pilot_approved` or `production_approved`, regardless of what a model
 concluded or a spreadsheet claimed. Approval is a named human action with a
@@ -78,7 +105,8 @@ always start unapproved. Details and the bypass tests:
 
 ## 6. Raw materials and suppliers
 
-**Materials** in the sidebar. Create a material with whatever is known today
+**Administration → Materials, suppliers, packaging & factory profiles**
+in the sidebar. Create a material with whatever is known today
 — internal code and function are enough to start; every other field is
 explicitly `missing`, `unknown`, `not_applicable` or `not_verified` rather
 than blank-meaning-zero. Attach one or more **suppliers** to a material (one
@@ -123,7 +151,7 @@ Demonstration figures on a factory profile stay marked `example_only` /
 
 ## 8. Cost a formula
 
-Open the **Costing** tab on a formula. It calculates, as distinct layers —
+Open the **Cost** tab in the **Formulation workspace**. It calculates, as distinct layers —
 never merged into one number — raw-material cost, landed cost, packaging
 cost, labour, utilities, QC, waste and factory overhead, then rolls up to
 cost per kg, per litre (when density is known), per batch and per packaging
@@ -151,7 +179,7 @@ folding it into one of the others.
 
 ## 10. Compatibility
 
-Open the **Compatibility** tab on a formula. A deterministic rule engine —
+Open the **Compatibility** tab in the **Formulation workspace**. A deterministic rule engine —
 not the LLM — checks the formula's materials, functions, ionic character,
 concentrations, target pH, process temperature, addition order and
 packaging against a hand-maintained, versioned rule set (anionic/cationic,
@@ -165,7 +193,7 @@ JSON or Excel. Full model: [COMPATIBILITY_ENGINE.md](COMPATIBILITY_ENGINE.md).
 
 ## 11. Safety
 
-Open the **Safety** tab. The product is classified deterministically
+Open the **Safety** tab in the **Formulation workspace**. The product is classified deterministically
 (ordinary consumer / industrial / hazardous lawful / regulated disinfectant
 / medical / restricted / prohibited / human-review-required), and a
 versioned rule set checks for known hazard interactions, corrosivity, pH
@@ -202,7 +230,9 @@ PRODUCTION APPROVED` on every export format.
 
 ## 14. Advanced optimization
 
-Open the **Optimizer** tab. Unlike the plain cost-minimizing Formulation
+Open the **Optimization workspace** (`/optimization`) for the selected
+project — distinct from the standalone what-if calculator linked from it,
+which is not project-bound. Unlike the plain cost-minimizing Formulation
 Optimizer, this is a real constraint-solving workspace: pick candidate
 materials, add functional-group constraints (e.g. "at least 15% anionic
 surfactant") — soft or hard, with a penalty weight and allowed deviation for
@@ -266,7 +296,8 @@ new working draft. Full model:
 
 ## 16. Laboratory trials
 
-Open the **Trials** tab. Create a trial from the current working draft (or
+Open the **Laboratory workspace** (`/laboratory`)'s **Trials** section.
+Create a trial from the current working draft (or
 a saved version, if one is selected) — it freezes its own formula snapshot,
 so later formula edits never change what the trial recorded. Move it
 through its lifecycle (**planned → materials prepared → in progress →
@@ -308,7 +339,9 @@ is genuinely `production_approved`. Full model:
 
 ## 17. Test definitions
 
-Open the **Tests** tab to manage the reusable test-definition catalog
+Open the **Laboratory workspace**'s **Test Definitions** section (also
+reachable from **Administration**, since this catalog is global rather
+than per-project) to manage the reusable test-definition catalog
 shared by trials and stability studies — 27 structural templates ship
 seeded (pH, viscosity, density, foam, microbiology, preservative
 challenge, and more), all explicitly `not_verified` until a chemist attaches
@@ -318,7 +351,7 @@ model: [TEST_DEFINITIONS.md](TEST_DEFINITIONS.md).
 
 ## 18. Stability studies
 
-Open the **Stability** tab. Create a study against the current working
+Open the **Stability workspace** (`/stability`). Create a study against the current working
 draft or a saved version (frozen formula + packaging snapshot), pick which
 seeded storage conditions, time points and test definitions apply — these
 are configurable starting examples, never a claim of what any regulator
@@ -351,7 +384,8 @@ report (CSV), and a draft ERP lab-result CSV. Full model:
 
 ## 19. Corrective actions
 
-Open the **Corrective actions** tab for the cross-cutting list of every
+Open the **Laboratory workspace**'s **Corrective Actions** section for
+the cross-cutting list of every
 action opened against a trial deviation or stability failure for this
 project (a trial/study's own workspace also shows its actions inline). Move
 one through **start progress → mark complete → verify effective/
@@ -363,7 +397,7 @@ CSV. Full model: [CORRECTIVE_ACTIONS.md](CORRECTIVE_ACTIONS.md).
 
 ## 20. Regulatory (Kenya/EAC)
 
-Open the **Regulatory** tab. First pick a **saved formula version** —
+Open the **Regulatory workspace** (`/regulatory`). First pick a **saved formula version** —
 findings, confirmations, and reviews are all recorded against this exact
 version, never the working draft — then a **jurisdiction** (Kenya,
 Uganda, Tanzania, Rwanda, Burundi, South Sudan, or the EAC regional
@@ -395,7 +429,7 @@ selected above, and lets you revoke a review with a reason. A separate
 reusing one version's review for another version, scoped to jurisdiction
 and packaging SKU — never assumed automatically.
 
-Turning on any of the Approval tab's regulatory-gate toggles
+Turning on any of the Approval workspace's regulatory-gate toggles
 (classification completed, no blocking finding, mandatory documents/
 evidence/claims reviewed, human review completed) folds these facts
 into that formula's readiness check, the same way the cost-snapshot
@@ -412,6 +446,11 @@ just the first one. Full model:
 [REGULATORY_RULE_VERIFICATION.md](REGULATORY_RULE_VERIFICATION.md).
 
 ## Known limitations
+
+For how the ten workspaces are organized and why, see
+[INFORMATION_ARCHITECTURE.md](INFORMATION_ARCHITECTURE.md),
+[WORKSPACES.md](WORKSPACES.md) and
+[NAVIGATION_AND_CONTEXT.md](NAVIGATION_AND_CONTEXT.md).
 
 See [IMPLEMENTATION_STATUS.md](architecture/IMPLEMENTATION_STATUS.md) for the
 authoritative list of what is built versus not yet started. In short: the
@@ -435,8 +474,8 @@ safety risk into a system's score (real hard exclusions still apply) — see
 [SYSTEM_SUBSTITUTION.md](SYSTEM_SUBSTITUTION.md#known-limitations).
 Compatibility and safety are deterministic rule engines against a
 hand-maintained, explicitly non-exhaustive seed rule set — they are not a
-regulatory engine and do not establish legal compliance. The Formula
-Builder's Approval tab calls approval readiness (including the
+regulatory engine and do not establish legal compliance. The Approval
+workspace calls approval readiness (including the
 lab/stability policies in
 [LAB_STABILITY_APPROVAL.md](LAB_STABILITY_APPROVAL.md)) for real —
 see [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md). Its approval-policy

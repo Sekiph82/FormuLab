@@ -1,7 +1,11 @@
 # Approval workflow
 
-`apps/desktop/src/components/formula/ApprovalPanel.tsx` (the desktop
-"Approval" tab in the Formula Builder), `packages/shared/src/engine/lifecycle.ts`
+`apps/desktop/src/components/formula/ApprovalPanel.tsx` (rendered at its
+own route, `/approval` — the **Approval workspace** — rather than a tab
+inside the Formula Builder; the panel itself is unchanged, only its place
+in the navigation moved, see [WORKSPACES.md](WORKSPACES.md#approval) and
+[NAVIGATION_AND_CONTEXT.md](NAVIGATION_AND_CONTEXT.md)),
+`packages/shared/src/engine/lifecycle.ts`
 (`attemptApprovalTransition`), `packages/shared/src/engine/approvalDerivation.ts`.
 
 ## What this closes

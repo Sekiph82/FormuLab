@@ -96,6 +96,9 @@ accepting responsibility, with a signed record and an audit entry.
 | Document | Covers |
 | --- | --- |
 | [USER_GUIDE.md](docs/USER_GUIDE.md) | End-to-end walkthrough: project → grid → version → materials → cost |
+| [INFORMATION_ARCHITECTURE.md](docs/INFORMATION_ARCHITECTURE.md) | The ten-workspace navigation model and why it replaced the old single-page Formula Builder |
+| [WORKSPACES.md](docs/WORKSPACES.md) | Per-workspace reference: responsibility, reused components, route |
+| [NAVIGATION_AND_CONTEXT.md](docs/NAVIGATION_AND_CONTEXT.md) | Project/version/tab context preservation across workspaces |
 | [FORMULA_BUILDER.md](docs/FORMULA_BUILDER.md) | Project workflow, the grid, water q.s., validation, templates, declarations |
 | [FORMULA_VERSIONING.md](docs/FORMULA_VERSIONING.md) | Draft vs version, comparison, approval rules |
 | [RAW_MATERIALS.md](docs/RAW_MATERIALS.md) | Material master, suppliers, price history, inventory |

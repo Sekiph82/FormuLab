@@ -752,6 +752,91 @@ other than real regulatory content still requiring qualified human
 verification (unchanged — see "Requires qualified regulatory content"
 above).
 
+### Information architecture simplification — ten workspaces
+See [INFORMATION_ARCHITECTURE.md](../INFORMATION_ARCHITECTURE.md),
+[WORKSPACES.md](../WORKSPACES.md),
+[NAVIGATION_AND_CONTEXT.md](../NAVIGATION_AND_CONTEXT.md).
+The formulation side of the desktop app used to be one file,
+`FormulasPage.tsx` (987 lines): a project list, and — once a project was
+opened — a single page with a twelve-item horizontal tab strip (Builder,
+Versions, Cost, Compatibility, Safety, Optimizer, Trials, Test
+Definitions, Stability, Corrective Actions, Regulatory, Approval), no
+project/version context in the URL. Reorganized into ten real routes.
+
+**Implemented**:
+- Ten workspace pages (`apps/desktop/src/app/routes/`): `HomePage.tsx`
+  (`/home`, new — a real recent-projects/activity/open-lab-work/
+  upcoming-stability-samples/pending-approvals dashboard),
+  `ProjectsPage.tsx` (`/projects`, extracted from `FormulasPage.tsx`),
+  `FormulationPage.tsx` (`/formulation`, trimmed to Builder/Versions/
+  Cost/Compatibility/Safety/Packaging — Packaging is new, a read-only
+  `PackagingBom` summary), `LaboratoryPage.tsx` (`/laboratory`, Trials/
+  Test Definitions/Corrective Actions sections), `StabilityPage.tsx`
+  (`/stability`), `OptimizationPage.tsx` (`/optimization`, distinct from
+  the pre-existing standalone what-if calculator still at `/optimizer`),
+  `RegulatoryPage.tsx` (`/regulatory`), `ApprovalPage.tsx` (`/approval`),
+  `ReportsPage.tsx` (`/reports`, new — a navigation shell over existing
+  per-module exports, PDF/DOCX explicitly marked not yet implemented),
+  `AdministrationPage.tsx` (`/administration`, new — links to Materials/
+  Regulatory/Approval/Settings, hosts Test Definitions directly).
+- Every reused panel (`RegulatoryPanel.tsx`, `ApprovalPanel.tsx`,
+  `TrialsPanel.tsx`, `StabilityPanel.tsx`, `TestDefinitionsPanel.tsx`,
+  `CorrectiveActionsPanel.tsx`, `AdvancedOptimizerPanel.tsx`,
+  `CompatibilityPanel.tsx`, `SafetyPanel.tsx`, `CostPanel.tsx`,
+  `FormulaBuilder.tsx`) is unchanged — each new page is a thin wrapper
+  supplying project/version context, not a rewrite.
+- Shared infrastructure: `hooks/useFormulationWorkspace.ts` (project/
+  versions/draft-with-undo-redo-and-autosave/materials/cost-snapshots/
+  packaging-BOMs/audit-log loading plus save/lifecycle/apply actions,
+  extracted from `FormulasPage.tsx`), `hooks/useProjectParam.ts`
+  (`?project=`/`?version=` query-param read/write),
+  `components/workspace/ProjectContextBar.tsx` (`ProjectPicker` +
+  `ProjectContextBar`). `FormulationPage.tsx` reads `?tab=`/
+  `?focusLine=`; `LaboratoryPage.tsx` reads `?section=`.
+  `ApprovalPage.tsx` exports a pure `mapApprovalNavTargetToPath` mapping
+  every blocker source to a real route, replacing the old internal
+  tab-switch.
+- Sidebar (`Sidebar.tsx`) restructured into "New" (unchanged), a new
+  "Workspaces" section (the ten above), and a "Tools" section
+  (Notebooks/Files/Runs — unrelated, untouched); still one `<nav>`
+  landmark.
+- Backward compatibility: `/formulas` redirects to `/projects`
+  (`<Navigate to="/projects" replace />`); the unmodified
+  `FormulasPage.tsx` stays reachable at `/formulas/legacy`. No route
+  outside the formulation module (`/live`, `/notebooks`, `/files`,
+  `/runs`, `/settings`, `/materials`, `/optimizer`) was touched. No
+  persisted record shape, master-data collection, or Rust command
+  changed — presentation layer only.
+
+**Verified by tests**: 21 new desktop tests across 6 files —
+`ApprovalPage.test.tsx` (5, covering `mapApprovalNavTargetToPath`'s full
+mapping table), `FormulationPage.test.tsx` (4, confirming the simplified
+tab strip never shows the modules that moved out, and that `?tab=`
+context-preservation works), `HomePage.test.tsx` (2, honest empty states
+and real-data rendering), `LaboratoryPage.test.tsx` (3, `?section=`
+context preservation), `StabilityPage.test.tsx` (2, version-selector
+context), `Workspaces.test.tsx` (5, primary-navigation rendering,
+Administration's existing-module links, Reports' shell, `/formulas`
+route-compatibility). 410 desktop tests total (was 389). Shared-package
+tests unchanged at 690/690 (no shared-package code touched). Typecheck
+and lint clean.
+
+**Deferred / explicitly out of scope**: the full Phase 3 dossier/
+evidence-matrix system, the Phase 4 claims engine, DOE, reverse
+formulation, the Phase 7 PDF/DOCX report engine, the `ai4s`→`FormuLab`
+naming migration, desktop shortcut installation, any new ERP module, and
+a new user-management/auth system (Administration links to existing
+screens; it does not add user/role management, since none exists in
+this codebase to build on).
+
+**Known limitations**: Home's cross-project aggregation for recent
+activity and pending approvals is bounded to the 5 most-recently-updated
+projects (`RECENT_PROJECT_LIMIT` in `HomePage.tsx`) — a real, documented
+bound, not an unbounded rollup. Reports has no dedicated audit-log report
+view yet (only per-project decision history inside Approval).
+Formulation's new Packaging tab is a read-only summary, not a full
+packaging editor — editing still happens in Administration → Materials.
+
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).
 - A generic `registerMigration`/`migrateRecord`/`migrateCollection` runner
