@@ -41,6 +41,18 @@ and `EAC-REG-002` (testing requirement — an EAC-harmonized efficacy test
 for disinfectant/biocidal products), both `not_verified` structural
 placeholders. See [REGULATORY_RULES.md](REGULATORY_RULES.md).
 
+## Multi-jurisdiction approval readiness
+
+`resolveRegulatoryJurisdictions` (`engine/regulatoryApproval.ts`) can
+resolve to more than one of the seven jurisdictions above at once — an
+explicit `requiredRegulatoryJurisdictions` list, or every one of a
+formulation's `targetMarkets` when `requireAllTargetMarketsReviewed` is
+set. `EAC` itself can appear in that resolved list like any other
+jurisdiction (evaluating the regional-bloc requirements in isolation,
+same as selecting it directly in the Regulatory tab), or a formulation
+can require review in several member states plus `EAC` together. See
+[REGULATORY_MULTI_MARKET_APPROVAL.md](REGULATORY_MULTI_MARKET_APPROVAL.md).
+
 ## Known limitation
 
 No automatic conflict resolution exists between a national rule and an

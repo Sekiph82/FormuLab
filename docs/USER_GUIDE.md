@@ -363,40 +363,62 @@ CSV. Full model: [CORRECTIVE_ACTIONS.md](CORRECTIVE_ACTIONS.md).
 
 ## 20. Regulatory (Kenya/EAC)
 
-Open the **Regulatory** tab. Pick a jurisdiction (Kenya, Uganda,
-Tanzania, Rwanda, Burundi, South Sudan, or the EAC regional bloc) — the
-classification card shows this project's deterministic regulatory
-category with its reasoning, never a model's guess. Click **Evaluate**
-to run every applicable rule (the jurisdiction's own plus any active EAC
-rule) against the current formula and see the resulting findings —
-compliant, non-compliant, missing data, or human review required, each
-with its reason and, where relevant, checkboxes to confirm a
-requirement is satisfied or evidence has been provided.
+Open the **Regulatory** tab. First pick a **saved formula version** —
+findings, confirmations, and reviews are all recorded against this exact
+version, never the working draft — then a **jurisdiction** (Kenya,
+Uganda, Tanzania, Rwanda, Burundi, South Sudan, or the EAC regional
+bloc), a **packaging SKU** (where relevant), and the **reviewer role**
+you're acting as. The classification card shows this project's
+deterministic regulatory category with its reasoning, never a model's
+guess. Click **Evaluate** to run every applicable rule (the
+jurisdiction's own plus any active EAC rule) against the current formula
+and see the resulting findings — compliant, non-compliant, missing
+data, or human review required, each with its reason and, where
+relevant, controls to confirm a requirement is satisfied or evidence has
+been provided. These confirmations are now **persisted** (not a
+session-local checkbox) — they survive a reload and can be revoked with
+a reason.
 
 The **Rules** section lists every rule for the selected jurisdiction —
 17 seed placeholders ship across all seven jurisdictions, every one
 explicitly `not_verified` pending a qualified regulatory reviewer's
-confirmation. Create, edit, activate/deactivate, or deprecate a rule
-(edits and deprecations require a reason, recorded in the rule's own
-revision history); import/export the rule set as JSON.
+confirmation. Create, edit, activate/deactivate, deprecate, verify,
+reject a verification, or supersede a rule (edits, deprecations, and
+verification decisions require a reason, recorded in the rule's own
+revision history); import/export the rule set as **JSON, CSV, or
+Excel** — every import previews the parsed rows before you commit.
 
 The **Reviews** section records a human's regulatory sign-off (reviewer
-name, outcome, notes) for the current jurisdiction. Turning on any of
-the Approval tab's regulatory-gate toggles (classification completed, no
-blocking finding, mandatory documents/evidence/claims reviewed, human
-review completed) folds these facts into that formula's readiness
-check, the same way the cost-snapshot gate already works. Full model:
+name, outcome, notes) bound to the exact version/jurisdiction/SKU
+selected above, and lets you revoke a review with a reason. A separate
+"declare equivalence" control lets an authorized human explicitly permit
+reusing one version's review for another version, scoped to jurisdiction
+and packaging SKU — never assumed automatically.
+
+Turning on any of the Approval tab's regulatory-gate toggles
+(classification completed, no blocking finding, mandatory documents/
+evidence/claims reviewed, human review completed) folds these facts
+into that formula's readiness check, the same way the cost-snapshot
+gate already works — and, when a policy is configured to require more
+than the primary market, across every required jurisdiction at once, not
+just the first one. Full model:
 [REGULATORY_ENGINE.md](REGULATORY_ENGINE.md),
 [REGULATORY_CLASSIFICATION.md](REGULATORY_CLASSIFICATION.md),
 [REGULATORY_RULES.md](REGULATORY_RULES.md),
-[EAC_MARKET_PROFILES.md](EAC_MARKET_PROFILES.md).
+[EAC_MARKET_PROFILES.md](EAC_MARKET_PROFILES.md),
+[REGULATORY_REVIEWS.md](REGULATORY_REVIEWS.md),
+[REGULATORY_EVIDENCE_CONFIRMATIONS.md](REGULATORY_EVIDENCE_CONFIRMATIONS.md),
+[REGULATORY_MULTI_MARKET_APPROVAL.md](REGULATORY_MULTI_MARKET_APPROVAL.md),
+[REGULATORY_RULE_VERIFICATION.md](REGULATORY_RULE_VERIFICATION.md).
 
 ## Known limitations
 
 See [IMPLEMENTATION_STATUS.md](architecture/IMPLEMENTATION_STATUS.md) for the
 authoritative list of what is built versus not yet started. In short: the
-Kenya/EAC regulatory engine (§20 above) is implemented, but has no
-dossier/evidence-tracking system yet — see
+Kenya/EAC regulatory engine (§20 above) is implemented, including
+version-bound human review, persisted evidence confirmations,
+multi-jurisdiction approval readiness, and rule source verification —
+but still has no full Phase 3 dossier/evidence-matrix UI — see
 [REGULATORY_ENGINE.md#known-limitations](REGULATORY_ENGINE.md#known-limitations);
 the DOE and reverse-formulation modules described in the
 full specification are designed but not implemented; laboratory trials and

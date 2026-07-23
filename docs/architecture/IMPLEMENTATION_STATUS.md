@@ -568,9 +568,18 @@ three items the previous phase's report disclosed as incomplete.
 See [REGULATORY_ENGINE.md](../REGULATORY_ENGINE.md),
 [REGULATORY_CLASSIFICATION.md](../REGULATORY_CLASSIFICATION.md),
 [REGULATORY_RULES.md](../REGULATORY_RULES.md),
-[EAC_MARKET_PROFILES.md](../EAC_MARKET_PROFILES.md). Phase 2 — recovered
-from a paused work-in-progress stash (the foundation) and completed with
-persistence, desktop UI, Approval Readiness integration, and i18n.
+[EAC_MARKET_PROFILES.md](../EAC_MARKET_PROFILES.md),
+[REGULATORY_REVIEWS.md](../REGULATORY_REVIEWS.md),
+[REGULATORY_EVIDENCE_CONFIRMATIONS.md](../REGULATORY_EVIDENCE_CONFIRMATIONS.md),
+[REGULATORY_MULTI_MARKET_APPROVAL.md](../REGULATORY_MULTI_MARKET_APPROVAL.md),
+[REGULATORY_RULE_VERIFICATION.md](../REGULATORY_RULE_VERIFICATION.md).
+Phase 2 — recovered from a paused work-in-progress stash (the
+foundation), completed with persistence/desktop UI/Approval Readiness
+integration/i18n, then **closed**: version-bound reviews, persisted
+evidence confirmations, multi-jurisdiction approval readiness, rule
+source verification, CSV/Excel import, and review-equivalence reuse.
+
+**Implemented** (foundation, unchanged this closure):
 - Seven jurisdictions (`REGULATORY_JURISDICTIONS`: KE/UG/TZ/RW/BI/SS plus
   the `EAC` regional-bloc overlay), deterministic product classification
   (`classifyProductRegulatory`), a versioned `RegulatoryRule` +
@@ -580,42 +589,101 @@ persistence, desktop UI, Approval Readiness integration, and i18n.
   (`evaluateRegulatory`) across three shapes (ingredient-based,
   claim-based, product-level requirement) with honest
   `missing_data`/`human_review_required` defaults for anything not
-  automatically confirmable, a six-status `RegulatoryFinding`, and an
-  append-only `RegulatoryReview` human sign-off record.
-- Approval Readiness integration (`assessRegulatoryReadiness`/
-  `deriveRegulatoryReadiness`, `engine/regulatoryApproval.ts`): a
-  same-one-layer-up pattern as the cost-snapshot gate, six new opt-in
-  `ApprovalPolicy` fields, wired into `ApprovalPanel.tsx` scoped to the
-  formulation's primary target market.
-- Rule import/export (JSON, same shape-check-then-upsert convention
-  `RuleManager.tsx` already uses; imports always forced to
-  `imported_unverified`).
-- Desktop Regulatory workspace (`RegulatoryPanel.tsx`): jurisdiction
-  picker, classification card, findings evaluation with manual
-  confirmation, rule browser/editor with revision history, human review
-  recording.
+  automatically confirmable, a six-status `RegulatoryFinding`.
+
+**Implemented — Phase 2 closure**:
+- `RegulatoryReview` now binds to an exact `formulaVersionId` (never
+  `"working_draft"`) + `jurisdiction` + optional `packagingSkuCode`, with
+  frozen `classificationSnapshot`/`findingSnapshot`/`ruleVersionSnapshot`
+  and an eight-status `RegulatoryReviewStatus`
+  (`current`/`stale_formula_version`/`stale_rule_version`/
+  `wrong_jurisdiction`/`wrong_packaging_sku`/`revoked`/`superseded`/
+  `unknown`) via `deriveRegulatoryReviewStatus`/`findApplicableRegulatoryReview`
+  (`engine/regulatoryReviews.ts`).
+- Persisted `RegulatoryEvidenceConfirmation`/
+  `RegulatoryEvidenceConfirmationRevocation` (human-only, append-only,
+  version/jurisdiction/SKU-scoped) replace the earlier session-local
+  confirmation checkboxes; `deriveRegulatoryReadiness`'s document/
+  evidence/claims gates now read these real records.
+- Multi-jurisdiction Approval Readiness: `resolveRegulatoryJurisdictions`/
+  `assessMultiJurisdictionRegulatoryReadiness`
+  (`engine/regulatoryApproval.ts`) plus three new opt-in `ApprovalPolicy`
+  fields (`requiredRegulatoryJurisdictions`,
+  `requireAllTargetMarketsReviewed`, `allowPrimaryMarketOnly`) — a policy
+  touching none of them still checks the primary market only, unchanged.
+- Rule source/verification workflow: `sourceTitle`/`sourceAuthority`/
+  `sourceReference`/`sourcePublicationDate`/`sourceEffectiveDate`/
+  `sourceExpiryDate`/`sourceJurisdiction`/`sourceDocuments` fields, a
+  widened `verificationStatus` (adds `under_review`/`rejected`/
+  `expired`/`superseded`), and `verifyRule`/`rejectRuleVerification`/
+  `supersedeRule` (`engine/regulatoryRules.ts`), gated to an authorized
+  human regulatory/quality/administrator role; `verifyRule` refuses
+  without both `sourceAuthority` and `sourceReference` already set.
+- CSV and Excel rule import (JSON already existed) — preview before
+  commit, row-level errors, imports always forced
+  `imported_unverified`.
+- Regulatory review equivalence reuse: `RegulatoryReviewEquivalence`
+  (`engine/regulatoryReviews.ts`), a separate record from the
+  laboratory/stability `FormulaVersionEquivalence` (regulatory reuse
+  needs jurisdiction + packaging-SKU scoping dimensions the other never
+  had) — human-only, revocable, never assumed automatically.
+- `ApprovalRecord.regulatorySnapshot` — the complete multi-jurisdiction
+  regulatory picture (classification/finding/rule-version snapshots,
+  active evidence confirmation ids, applicable review id + currentness,
+  per-jurisdiction ready/blockers) frozen at approval time, same
+  "snapshot, never recomputed" convention as
+  `laboratoryReadinessSnapshot`/`stabilityReadinessSnapshot`.
+- Desktop Regulatory workspace (`RegulatoryPanel.tsx`): saved-version +
+  jurisdiction + packaging-SKU + reviewer-role selectors, findings
+  evaluation with persisted confirmation, rule browser/editor with
+  verify/reject/supersede controls and revision history, JSON/CSV/Excel
+  import with preview, human review recording/revocation, review
+  equivalence declare/revoke.
+- Eight regulatory audit events (`regulatory.review_recorded`,
+  `regulatory.review_revoked`, `regulatory.confirmation_recorded`,
+  `regulatory.confirmation_revoked`, `regulatory.rule_verified`,
+  `regulatory.rule_verification_rejected`, `regulatory.rule_superseded`,
+  `regulatory.review_reused`, plus `regulatory.review_reuse_revoked`)
+  appended via the existing `appendAudit`/`auditEvent` mechanism.
 - 17 seed rules across all seven jurisdictions
   (`catalog/regulatoryRules.ts`), every one an explicit `not_verified`
-  structural placeholder.
-- Three new master-data collections (`regulatory_rules`,
-  `regulatory_rule_revisions`, `regulatory_reviews`) added to the Rust
-  allow-list; no migration registered (all start at `schemaVersion: "1.0"`,
-  nothing yet to migrate from).
+  structural placeholder — unchanged; verifying one for real requires a
+  qualified human reviewer supplying a real source and calling
+  `verifyRule`.
+- Seven master-data collections (`regulatory_rules`,
+  `regulatory_rule_revisions`, `regulatory_reviews`,
+  `regulatory_review_revocations`, `regulatory_evidence_confirmations`,
+  `regulatory_evidence_confirmation_revocations`,
+  `regulatory_review_equivalences`) on the Rust allow-list; all start at
+  `schemaVersion: "1.0"` — this closure reshaped several regulatory
+  schemas additively before any release ever shipped on this data, so no
+  migration was registered.
 - English and Turkish i18n (real translations); the other six shipped
   locales carry the same keys as English placeholders pending native
   review, per this project's existing i18n convention.
-- 53 new shared-package tests (13 `regulatoryClassification.test.ts`, 25
-  `regulatoryRules.test.ts`, 15 `regulatoryApproval.test.ts`) — 613 shared
-  tests total. 11 new desktop tests (8 `RegulatoryPanel.test.tsx`, 3 new
-  `ApprovalPanel.test.tsx` cases) — 380 desktop tests total.
-- Known limitations: no dossier/evidence-tracking system (product-level
-  requirement confirmations are session-local, not persisted separately
-  from a review); human review is matched by jurisdiction only, not by
-  specific formula version; the Approval tab's automatic gate checks
-  exactly one (primary) jurisdiction per formulation; every seed rule is
-  a structural placeholder pending a qualified regulatory reviewer's
-  confirmation. See `REGULATORY_ENGINE.md`'s "Known limitations" for the
-  full list.
+
+**Verified by tests**: 674 shared-package tests total, including
+`regulatoryClassification.test.ts` (13), `regulatoryRules.test.ts` (34),
+`regulatoryApproval.test.ts` (35), `regulatoryReviews.test.ts` (32, new).
+386 desktop tests total, including `RegulatoryPanel.test.tsx` (14) and
+`ApprovalPanel.test.tsx` (13, including its regulatory readiness
+integration cases).
+
+**Requires qualified regulatory content**: every seed rule's
+concentration limit, required-document list, label-element list, and
+stated authority/source remain unconfirmed placeholders — Phase 2
+closure adds the *mechanism* to verify a rule (`verifyRule`), it does
+not and cannot itself confirm that any specific limit or requirement
+reflects real Kenyan/EAC law.
+
+**Deferred to Phase 3**: the full dossier/evidence-matrix UI — a
+document-upload-and-attachment matrix keyed to every
+`RegulatoryDocumentType`, automatic evidence-expiry tracking, and a
+cross-formulation evidence library. `RegulatoryEvidenceConfirmation` is
+a real, persisted, human-only, append-only requirement/evidence layer
+(spec's explicit ask for this closure) but is deliberately minimal next
+to that — see `REGULATORY_ENGINE.md`'s "Known limitations" for the
+current, full list.
 
 ### Migration runner (spec §23) — minimal, real
 See [MIGRATIONS.md](../MIGRATIONS.md).

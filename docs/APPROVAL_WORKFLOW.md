@@ -150,6 +150,7 @@ before this phase still parses:
   readinessSnapshot,             // { ready, blockers, warnings } — frozen
   laboratoryReadinessSnapshot,   // the five lab facts, frozen
   stabilityReadinessSnapshot,    // the five stability facts + packaging status, frozen
+  regulatorySnapshot,            // multi-jurisdiction regulatory picture, frozen — see below
   validationSnapshot,
   appliedOptimizationRunCode, appliedSubstitutionRunCode,
   costSnapshotId,
@@ -170,6 +171,33 @@ still requires a non-empty justification, exactly as documented in
 [FORMULA_VERSIONING.md](FORMULA_VERSIONING.md#approval). It operates on
 untyped JSON, so the new fields needed no Rust change at all.
 
+## Regulatory readiness (spec §3.3/§3.9)
+
+Folded into `allBlockers`/`effectiveReady` the same one-layer-up way cost
+is (`assessMultiJurisdictionRegulatoryReadiness`,
+`engine/regulatoryApproval.ts`) — every jurisdiction
+`resolveRegulatoryJurisdictions` resolves for the active policy must be
+ready, not just the first one. `formulaVersionId` passed into
+`deriveRegulatoryReadiness` is always the panel's real, selected,
+**saved** version — a `RegulatoryReview` only ever satisfies the exact
+version, jurisdiction, and packaging SKU it was recorded against; a
+review for a different version, a working draft, or a wrong
+jurisdiction/SKU is never silently treated as covering the version up
+for approval. See
+[REGULATORY_ENGINE.md](REGULATORY_ENGINE.md#approval-readiness-integration)
+and [REGULATORY_MULTI_MARKET_APPROVAL.md](REGULATORY_MULTI_MARKET_APPROVAL.md).
+
+At the moment of decision, `buildRegulatorySnapshot()` freezes the
+complete per-jurisdiction picture onto `ApprovalRecord.regulatorySnapshot`:
+classification snapshot, finding snapshot, rule-version snapshot, the
+ids of the evidence confirmations that were active, the applicable
+review's id (if any) and its currentness, plus that jurisdiction's own
+ready/blockers — the same "snapshot, don't recompute on read" convention
+as `readinessSnapshot`/`laboratoryReadinessSnapshot`/
+`stabilityReadinessSnapshot`. A later rule edit, a later review, or a
+later confirmation revocation never rewrites a historical approval
+record's regulatory picture.
+
 ## Audit and immutability (spec §9)
 
 Every step appends to the formulation's existing append-only
@@ -186,8 +214,9 @@ no new persistence mechanism:
 | A policy is created or its `active` flag is toggled | `approval.policy_changed` |
 
 `readinessSnapshot`/`laboratoryReadinessSnapshot`/
-`stabilityReadinessSnapshot` on an `ApprovalRecord` are frozen at decision
-time, the same "snapshot, don't recompute on read" convention
+`stabilityReadinessSnapshot`/`regulatorySnapshot` on an `ApprovalRecord`
+are frozen at decision time, the same "snapshot, don't recompute on
+read" convention
 `totalsSnapshot`/`validationSnapshot` on `FormulationVersion` already use
 (see [FORMULA_VERSIONING.md](FORMULA_VERSIONING.md#what-a-version-records)).
 A later edit to a trial, a study, or a policy never rewrites a historical

@@ -48,6 +48,19 @@ interface ApprovalPolicy {
 
   requireCostSnapshot?: boolean;
 
+  // Regulatory gates (spec §2.5/§3.3) — see REGULATORY_ENGINE.md.
+  requireRegulatoryClassificationCompleted?: boolean;
+  requireNoBlockingRegulatoryFinding?: boolean;
+  requireAllMandatoryDocumentsPresent?: boolean;
+  requireAllMandatoryEvidencePresent?: boolean;
+  requireAllRequiredClaimsReviewed?: boolean;
+  requireHumanRegulatoryReviewCompleted?: boolean;
+  // Which jurisdiction(s) the six gates above evaluate against —
+  // does not itself turn any gate on. See "Regulatory jurisdiction scope" below.
+  requiredRegulatoryJurisdictions?: RegulatoryJurisdiction[];
+  requireAllTargetMarketsReviewed?: boolean;
+  allowPrimaryMarketOnly?: boolean;
+
   createdBy: string; createdAt: string;
   updatedBy?: string; updatedAt: string;
 }
@@ -118,6 +131,25 @@ disables Approve until either the ambiguity is fixed (retire/rescope one
 of the tied policies) or the reviewer picks one explicitly from the
 policy selector — an explicit selection always wins over automatic
 resolution.
+
+## Regulatory jurisdiction scope (spec §3.3)
+
+The six regulatory gates (`requireRegulatoryClassificationCompleted`
+etc.) are off by default like everything else. Independently, three
+fields decide **which jurisdiction(s)** those gates are evaluated
+against once turned on — none of the three turns a gate on by itself:
+
+1. `requiredRegulatoryJurisdictions` (an explicit list) — always wins
+   when non-empty.
+2. Otherwise `requireAllTargetMarketsReviewed: true` — every one of the
+   formulation's own `targetMarkets`.
+3. Otherwise `allowPrimaryMarketOnly` or nothing set — the formulation's
+   first target market only, the exact behavior a policy had before
+   multi-jurisdiction support existed.
+
+See `resolveRegulatoryJurisdictions`
+(`engine/regulatoryApproval.ts`) and
+[REGULATORY_MULTI_MARKET_APPROVAL.md](REGULATORY_MULTI_MARKET_APPROVAL.md).
 
 ## Persistence
 

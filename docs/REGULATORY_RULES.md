@@ -41,6 +41,39 @@ Every one of these throws for a non-human `Actor` — the same
 human-gated discipline `engine/approvalPolicy.ts` already enforces for
 policy changes.
 
+## Source and verification workflow
+
+A rule additionally carries `sourceTitle`, `sourceAuthority`,
+`sourceReference`, `sourcePublicationDate`, `sourceEffectiveDate`,
+`sourceExpiryDate`, `sourceJurisdiction`, and `sourceDocuments`
+(attachments via the same embedded mechanism as
+[ATTACHMENTS.md](ATTACHMENTS.md)) — where the requirement actually comes
+from, never invented. `verificationStatus` is a six-state enum
+(`not_verified`, `imported_unverified`, `human_review_required`,
+`under_review`, `rejected`, `expired`, `superseded`) plus `verified`;
+only `verified` satisfies a "current verified rule" policy gate
+(`CURRENT_VERIFIED_RULE_STATUSES`).
+
+`engine/regulatoryRules.ts`, gated by `requireRegulatoryReviewer` (human,
+and one of `regulatory`/`quality`/`administrator` — an AI, system, or
+import actor is always refused):
+
+- **`verifyRule(current, actor, notes?)`** — sets `verificationStatus:
+  "verified"` plus `verifiedBy`/`verifiedByRole`/`verifiedAt`. Refuses
+  unless `sourceAuthority` and `sourceReference` are already set on the
+  rule — a "verified" rule with no stated source is exactly the
+  invented-legislation risk this engine exists to avoid.
+- **`rejectRuleVerification(current, actor, reason)`** — sets
+  `verificationStatus: "rejected"`, requires a reason. Distinct from
+  `not_verified` (nobody has looked yet): a reviewer looked and declined.
+- **`supersedeRule(current, actor, reason)`** — sets
+  `verificationStatus: "superseded"` and `active: false`, requires a
+  reason. For a previously verified rule that no longer reflects current
+  law (replaced or the underlying regulation changed) — distinct from
+  `expired` (the rule's own `expiryDate` window lapsed).
+
+See [REGULATORY_RULE_VERIFICATION.md](REGULATORY_RULE_VERIFICATION.md).
+
 ## Applicability and evaluation windowing
 
 `ruleApplies` (`engine/regulatoryRules.ts`, internal): a rule applies
@@ -78,14 +111,18 @@ seed rule has a distinct human-readable name yet.
 
 ## Import/export
 
-See [REGULATORY_ENGINE.md#rule-importexport](REGULATORY_ENGINE.md#rule-importexport).
+JSON, CSV, and Excel — see
+[REGULATORY_ENGINE.md#rule-importexport](REGULATORY_ENGINE.md#rule-importexport).
 
 ## Tests
 
-`regulatoryRules.test.ts` (25 tests) covers: applicability across
+`regulatoryRules.test.ts` (34 tests) covers: applicability across
 jurisdiction/category/active/effective-date-window/EAC-overlay
 combinations, all three evaluation shapes
 (ingredient/claim/product-level) including honest `missing_data`
-defaults, `summarizeRegulatoryFindings`'s counts, and the full
+defaults, `summarizeRegulatoryFindings`'s counts, the full
 create/edit/activate/deactivate/deprecate lifecycle including the
-non-human-actor and empty-reason rejections.
+non-human-actor and empty-reason rejections, and the
+verify/reject-verification/supersede lifecycle (refusal without a
+source, role-gating against chemist/AI/import/system actors,
+supersession deactivating the rule).

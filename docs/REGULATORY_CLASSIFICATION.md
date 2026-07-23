@@ -60,6 +60,18 @@ branches on a stated concentration value.
 classifier never fabricates an explanation, and every branch above
 appends at least one line describing the deciding factor.
 
+## Snapshot freezing
+
+Classification logic itself is unchanged by the Phase 2 closure work.
+What did change: a `RegulatoryClassificationResult` returned here is now
+frozen verbatim into `RegulatoryReview.classificationSnapshot` at the
+moment a human records a review, and into
+`ApprovalRecord.regulatorySnapshot.perJurisdiction[].classificationSnapshot`
+at the moment a version is approved — see
+[REGULATORY_REVIEWS.md](REGULATORY_REVIEWS.md) and
+[APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md). Neither snapshot is ever
+recomputed from a later call to `classifyProductRegulatory`.
+
 ## Tests
 
 `regulatoryClassification.test.ts` (13 tests) covers: family-domain base
