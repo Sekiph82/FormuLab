@@ -27,8 +27,16 @@ import type {
   PackagingBom,
   PackagingComponent,
   RawMaterial,
+  RegulatoryDossier,
+  RegulatoryDossierEvidenceItem,
+  RegulatoryDossierManualRequirementAction,
+  RegulatoryDossierRequirement,
+  RegulatoryDossierReview,
+  RegulatoryDossierReviewRevocation,
+  RegulatoryDossierSubmission,
   RegulatoryEvidenceConfirmation,
   RegulatoryEvidenceConfirmationRevocation,
+  RegulatoryRequirementEvidenceLink,
   RegulatoryReview,
   RegulatoryReviewEquivalence,
   RegulatoryReviewRevocation,
@@ -90,7 +98,15 @@ export type Collection =
   | "regulatory_review_revocations"
   | "regulatory_evidence_confirmations"
   | "regulatory_evidence_confirmation_revocations"
-  | "regulatory_review_equivalences";
+  | "regulatory_review_equivalences"
+  | "regulatory_dossiers"
+  | "regulatory_dossier_requirements"
+  | "regulatory_evidence_items"
+  | "regulatory_requirement_evidence_links"
+  | "regulatory_dossier_reviews"
+  | "regulatory_dossier_review_revocations"
+  | "regulatory_dossier_submissions"
+  | "regulatory_dossier_manual_requirement_actions";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -133,6 +149,14 @@ interface CollectionTypes {
   regulatory_evidence_confirmations: RegulatoryEvidenceConfirmation;
   regulatory_evidence_confirmation_revocations: RegulatoryEvidenceConfirmationRevocation;
   regulatory_review_equivalences: RegulatoryReviewEquivalence;
+  regulatory_dossiers: RegulatoryDossier;
+  regulatory_dossier_requirements: RegulatoryDossierRequirement;
+  regulatory_evidence_items: RegulatoryDossierEvidenceItem;
+  regulatory_requirement_evidence_links: RegulatoryRequirementEvidenceLink;
+  regulatory_dossier_reviews: RegulatoryDossierReview;
+  regulatory_dossier_review_revocations: RegulatoryDossierReviewRevocation;
+  regulatory_dossier_submissions: RegulatoryDossierSubmission;
+  regulatory_dossier_manual_requirement_actions: RegulatoryDossierManualRequirementAction;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

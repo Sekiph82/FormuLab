@@ -34,6 +34,14 @@
 //   data/master/regulatory_evidence_confirmations.json
 //   data/master/regulatory_evidence_confirmation_revocations.json
 //   data/master/regulatory_review_equivalences.json
+//   data/master/regulatory_dossiers.json
+//   data/master/regulatory_dossier_requirements.json
+//   data/master/regulatory_evidence_items.json
+//   data/master/regulatory_requirement_evidence_links.json
+//   data/master/regulatory_dossier_reviews.json
+//   data/master/regulatory_dossier_review_revocations.json
+//   data/master/regulatory_dossier_submissions.json
+//   data/master/regulatory_dossier_manual_requirement_actions.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -69,7 +77,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 40] = [
+const COLLECTIONS: [(&str, bool); 48] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -168,6 +176,35 @@ const COLLECTIONS: [(&str, bool); 40] = [
     ("regulatory_evidence_confirmations", true),
     ("regulatory_evidence_confirmation_revocations", true),
     ("regulatory_review_equivalences", true),
+    // Phase 3 — Regulatory Dossier and Evidence Matrix. A dossier is a
+    // mutable header row, same as `approval_policies`/`regulatory_rules` —
+    // its own status/revision lifecycle is what changes it, never a
+    // silent overwrite of a submitted/superseded/archived one (the
+    // application layer refuses that transition, see
+    // `engine/regulatoryDossier.ts`'s `isDossierImmutable`). Requirements
+    // are frozen per dossier revision and append-only: a manual exclusion
+    // appends a new row rather than editing the original. Evidence items
+    // are mutable like a rule (verify/reject/revoke change the same row
+    // in place), but a real file *replacement* creates a brand-new row
+    // linked via `supersedesEvidenceId` — deliberately no separate
+    // "evidence revisions" collection, since that chain already gives the
+    // same history a dedicated revisions table would. Requirement-
+    // evidence links are append-only, same overlay-computed-active
+    // pattern as `regulatory_evidence_confirmations`. Reviews and their
+    // revocations mirror `regulatory_reviews`/`regulatory_review_revocations`
+    // exactly. Submissions are a mutable internal tracking log only —
+    // never a real integration with a government/authority portal; its
+    // history lives in the audit log, not a second append-only table.
+    // Manual requirement add/exclude actions are append-only and always
+    // carry a justification.
+    ("regulatory_dossiers", false),
+    ("regulatory_dossier_requirements", true),
+    ("regulatory_evidence_items", false),
+    ("regulatory_requirement_evidence_links", true),
+    ("regulatory_dossier_reviews", true),
+    ("regulatory_dossier_review_revocations", true),
+    ("regulatory_dossier_submissions", false),
+    ("regulatory_dossier_manual_requirement_actions", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
