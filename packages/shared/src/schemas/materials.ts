@@ -16,7 +16,7 @@
  * production.
  */
 import { z } from "zod";
-import { decimalString, MATERIAL_FUNCTIONS } from "./formulation";
+import { decimalString, MATERIAL_FUNCTIONS } from "./primitives";
 
 /** Why a value is absent. Never collapse these into an empty string. */
 export const DATA_STATES = ["known", "missing", "unknown", "not_applicable", "not_verified"] as const;

@@ -7,7 +7,7 @@
  * rather than each growing a slightly different one.
  */
 import { z } from "zod";
-import { MATERIAL_FUNCTIONS } from "./formulation";
+import { MATERIAL_FUNCTIONS } from "./primitives";
 import { IONIC_CHARACTERS } from "./materials";
 import { PRODUCT_DOMAINS } from "./product";
 

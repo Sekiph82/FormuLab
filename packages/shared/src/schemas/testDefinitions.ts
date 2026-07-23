@@ -10,7 +10,7 @@
  * lab actually uses.
  */
 import { z } from "zod";
-import { decimalString } from "./formulation";
+import { decimalString } from "./primitives";
 
 export const TEST_RESULT_TYPES = ["numeric", "text", "boolean", "pass_fail", "categorical", "visual_rating"] as const;
 export type TestResultType = (typeof TEST_RESULT_TYPES)[number];

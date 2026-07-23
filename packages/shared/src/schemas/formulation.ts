@@ -11,11 +11,10 @@
  * is a defect. Parse with a decimal library at the point of arithmetic.
  */
 import { z } from "zod";
+import { REGULATORY_JURISDICTIONS, regulatoryClassificationResultSchema, regulatoryFindingSchema, regulatoryRuleVersionSnapshotSchema } from "./regulatory";
+import { decimalString, MATERIAL_FUNCTIONS, type MaterialFunction } from "./primitives";
 
-/** A decimal number as an exact string, e.g. "12.5000". */
-export const decimalString = z
-  .string()
-  .regex(/^-?\d+(\.\d+)?$/, "must be a plain decimal string");
+export { decimalString, MATERIAL_FUNCTIONS, type MaterialFunction };
 
 /**
  * Where a number came from. This is the difference between "a paper reported
@@ -50,41 +49,6 @@ export const SUPPORT_DIMENSIONS = [
   "regulatory_status",
 ] as const;
 export type SupportDimension = (typeof SUPPORT_DIMENSIONS)[number];
-
-/** Functional roles a material can play. Constraints are expressed over these. */
-export const MATERIAL_FUNCTIONS = [
-  "anionic_surfactant",
-  "nonionic_surfactant",
-  "amphoteric_surfactant",
-  "cationic_surfactant",
-  "builder",
-  "chelating_agent",
-  "preservative",
-  "fragrance",
-  "colorant",
-  "enzyme",
-  "bleaching_agent",
-  "oxygen_donor",
-  "abrasive",
-  "humectant",
-  "emollient",
-  "conditioning_agent",
-  "rheology_modifier",
-  "ph_adjuster",
-  "solvent",
-  "disinfectant_active",
-  "qac_active",
-  "chlorhexidine_active",
-  "fluoride_active",
-  "antioxidant",
-  "anti_redeposition_agent",
-  "optical_brightener",
-  "foam_controller",
-  "opacifier",
-  "filler",
-  "water",
-] as const;
-export type MaterialFunction = (typeof MATERIAL_FUNCTIONS)[number];
 
 /**
  * Workflow status. The two approved states are reachable only through an
@@ -327,6 +291,57 @@ export const stabilityReadinessSnapshotSchema = z.object({
 });
 export type StabilityReadinessSnapshot = z.infer<typeof stabilityReadinessSnapshotSchema>;
 
+/** Mirrors `RegulatoryReviewStatus` (`engine/regulatoryReviews.ts`) as a
+ *  plain string enum here, since a schema module must not import from the
+ *  engine layer — kept in sync by hand; the engine's own union is the
+ *  source of truth for behavior, this is only for snapshot storage. */
+const regulatoryReviewCurrentnessValues = [
+  "current",
+  "stale_formula_version",
+  "stale_rule_version",
+  "wrong_jurisdiction",
+  "wrong_packaging_sku",
+  "revoked",
+  "superseded",
+  "unknown",
+] as const;
+
+/** One resolved jurisdiction's regulatory picture at approval time — frozen,
+ *  never recomputed. A later rule edit, a later review, or a later
+ *  confirmation revocation must not retroactively alter what this
+ *  historical record says was true at decision time. */
+export const regulatoryJurisdictionSnapshotSchema = z.object({
+  jurisdiction: z.enum(REGULATORY_JURISDICTIONS),
+  classificationSnapshot: regulatoryClassificationResultSchema.optional(),
+  findingSnapshot: z.array(regulatoryFindingSchema),
+  ruleVersionSnapshot: z.array(regulatoryRuleVersionSnapshotSchema),
+  /** Active (non-revoked) evidence confirmation ids that satisfied this
+   *  jurisdiction's document/evidence/claims gates — ids, not full
+   *  records, since the confirmations themselves are already immutable
+   *  append-only rows; this just freezes which ones counted. */
+  evidenceConfirmationIds: z.array(z.string()),
+  /** The applicable review's id, if any was found current or reused via
+   *  equivalence at decision time — never a stale/wrong-scope review's id. */
+  humanReviewId: z.string().optional(),
+  humanReviewCurrentness: z.enum(regulatoryReviewCurrentnessValues),
+  ready: z.boolean(),
+  blockers: z.array(approvalBlockerSnapshotSchema),
+  warnings: z.array(approvalBlockerSnapshotSchema),
+});
+export type RegulatoryJurisdictionSnapshot = z.infer<typeof regulatoryJurisdictionSnapshotSchema>;
+
+/** The complete multi-jurisdiction regulatory readiness picture frozen at
+ *  the moment of an approval decision — spec §3.9. Optional because a
+ *  record written before this phase, or for a formulation with no
+ *  regulatory gates configured, has none of it. */
+export const regulatoryApprovalSnapshotSchema = z.object({
+  ready: z.boolean(),
+  jurisdictionsEvaluated: z.array(z.enum(REGULATORY_JURISDICTIONS)),
+  perJurisdiction: z.array(regulatoryJurisdictionSnapshotSchema),
+  packagingSkuCode: z.string().optional(),
+});
+export type RegulatoryApprovalSnapshot = z.infer<typeof regulatoryApprovalSnapshotSchema>;
+
 /**
  * A signed human decision. An `approved` record is required to reach
  * `pilot_approved` or `production_approved`; see `canTransitionTo` in
@@ -365,6 +380,7 @@ export const approvalRecordSchema = z.object({
   readinessSnapshot: approvalReadinessSnapshotSchema.optional(),
   laboratoryReadinessSnapshot: laboratoryReadinessSnapshotSchema.optional(),
   stabilityReadinessSnapshot: stabilityReadinessSnapshotSchema.optional(),
+  regulatorySnapshot: regulatoryApprovalSnapshotSchema.optional(),
   validationSnapshot: validationSnapshotSchema.optional(),
   appliedOptimizationRunCode: z.string().optional(),
   appliedSubstitutionRunCode: z.string().optional(),

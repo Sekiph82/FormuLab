@@ -9,7 +9,7 @@
  * rule that nobody has verified says so rather than looking authoritative.
  */
 import { z } from "zod";
-import { MATERIAL_FUNCTIONS } from "./formulation";
+import { MATERIAL_FUNCTIONS } from "./primitives";
 import { IONIC_CHARACTERS } from "./materials";
 import { PRODUCT_DOMAINS } from "./product";
 import { ruleConditionSchema, type RuleCondition } from "./ruleConditions";
