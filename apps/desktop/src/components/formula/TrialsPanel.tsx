@@ -57,6 +57,7 @@ import { downloadBlob, downloadText } from "@/lib/download";
 import { buildXlsxBlob } from "@/lib/xlsx";
 import { AttachmentField } from "./AttachmentField";
 import { ExclusionExplorer } from "./ExclusionExplorer";
+import { ResultHistoryBrowser } from "./ResultHistoryBrowser";
 
 const LOCAL_HUMAN: Actor = { kind: "human", role: "chemist", userId: "local" };
 
@@ -967,6 +968,7 @@ function TestsSection({
   const [inputsByTest, setInputsByTest] = useState<Record<string, string[]>>({});
   const [pendingAttachmentsByTest, setPendingAttachmentsByTest] = useState<Record<string, AttachmentReference[]>>({});
   const [exploringApplicability, setExploringApplicability] = useState(false);
+  const [historyTarget, setHistoryTarget] = useState<{ pool: TestResult[]; startId: string } | null>(null);
   const applicabilityCtx: TestApplicabilityContext = { productFamilyId: trial.productFamilyId, context: "trial", packagingSkuCodes: trial.targetPackagingSkuIds };
 
   return (
@@ -978,6 +980,9 @@ function TestsSection({
       </div>
       {exploringApplicability && (
         <ExclusionExplorer definitions={testDefinitions} ctx={applicabilityCtx} onClose={() => setExploringApplicability(false)} t={t} />
+      )}
+      {historyTarget && (
+        <ResultHistoryBrowser formulationId={formulationId} pool={historyTarget.pool} startResultId={historyTarget.startId} onClose={() => setHistoryTarget(null)} t={t} />
       )}
       <ul className="space-y-2">
         {testDefinitions
@@ -1030,6 +1035,12 @@ function TestsSection({
                         <li key={r.id}>
                           {t("trials.resultSummary", { mean: r.stats?.mean ?? "—", count: r.stats?.count ?? 0, passFail: r.passFail })}
                           {r.revisesResultId && <span className="ml-1 text-[10px]">{t("trials.revisionOf", { id: r.revisesResultId })}</span>}
+                          <button
+                            onClick={() => setHistoryTarget({ pool: existing, startId: r.id })}
+                            className="ml-1.5 text-[10px] text-accent hover:underline"
+                          >
+                            {t("resultHistory.viewHistory")}
+                          </button>
                           <AttachmentField
                             formulationId={formulationId}
                             attachments={r.attachments}

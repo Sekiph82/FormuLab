@@ -535,6 +535,7 @@ export * from "./schemas/approvalPolicy";
 export * from "./engine/approvalPolicy";
 export * from "./schemas/equivalence";
 export * from "./engine/equivalence";
+export * from "./engine/resultHistory";
 export {
   PRECISION,
   CURRENCY_DP,

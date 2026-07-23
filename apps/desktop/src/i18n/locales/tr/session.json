@@ -1214,7 +1214,55 @@
       "wrong_packaging_sku": "Yanlış ambalaj SKU'su",
       "wrong_context": "Yanlış bağlam",
       "wrong_storage_condition": "Yanlış depolama koşulu",
-      "wrong_time_point": "Yanlış zaman noktası"
+      "wrong_time_point": "Yanlış zaman noktası",
+      "manually_excluded": "Manually excluded",
+      "superseded_definition": "Superseded definition"
+    },
+    "manualInclusion": "Manually include",
+    "manualInclusionReviewer": "Reviewer",
+    "manualInclusionReason": "Reason",
+    "manualInclusionSubmit": "Include this test",
+    "manualInclusionNeedsReviewerAndReason": "A reviewer identity and reason are required to manually include an excluded test.",
+    "snapshotCapturedAt": "Requirements captured {{at}}",
+    "currentDefinitionsDiffer": "Current test definitions differ from what this study's protocol captured — comparison only, the original protocol is unchanged.",
+    "driftAdded": "Would now additionally include: {{names}}",
+    "driftRemoved": "Would no longer include: {{names}}"
+  },
+  "resultHistory": {
+    "heading": "Result history",
+    "viewHistory": "View history",
+    "filter": {
+      "all": "All history",
+      "current": "Current",
+      "retests": "Retests",
+      "overrides": "Overrides",
+      "attachments": "Attachment events"
+    },
+    "revision": "Revision {{n}}",
+    "current": "Current",
+    "overridden": "Overridden",
+    "retestOf": "retest of {{id}}",
+    "performedBy": "Performed by {{who}} at {{at}}",
+    "reviewedBy": "Reviewed by {{who}} at {{at}}",
+    "stats": "min {{min}}, max {{max}}, stddev {{stddev}}, CV {{cv}}%",
+    "replicateValues": "Replicates: {{values}}",
+    "overrideReason": "Overridden by {{who}}: {{reason}} ({{from}} → {{to}})",
+    "noRetests": "No retests recorded for this result.",
+    "attachmentHistoryHeading": "Attachment replacement history",
+    "compareHeading": "Compare revisions",
+    "compareSelectA": "Select revision A",
+    "compareSelectB": "Select revision B",
+    "attachmentsAdded": "Attachments added: {{names}}",
+    "attachmentsRemoved": "Attachments removed: {{names}}",
+    "field": {
+      "mean": "Mean",
+      "minimum": "Minimum",
+      "maximum": "Maximum",
+      "standardDeviation": "Std. deviation",
+      "coefficientOfVariationPercent": "CV %",
+      "passFail": "Pass/fail",
+      "reviewedBy": "Reviewed by",
+      "overrideReason": "Override reason"
     }
   }
 }
