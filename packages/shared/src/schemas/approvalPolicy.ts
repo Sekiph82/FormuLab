@@ -61,6 +61,17 @@ export const approvalPolicySchema = z.object({
 
   requireCostSnapshot: z.boolean().default(false),
 
+  /** Regulatory gates (spec §2.5) — off by default, exactly like every
+   *  other requirement above. See `engine/regulatoryApproval.ts`'s
+   *  `deriveRegulatoryReadiness`, which is what actually computes these
+   *  facts from persisted regulatory rules/findings/reviews. */
+  requireRegulatoryClassificationCompleted: z.boolean().default(false),
+  requireNoBlockingRegulatoryFinding: z.boolean().default(false),
+  requireAllMandatoryDocumentsPresent: z.boolean().default(false),
+  requireAllMandatoryEvidencePresent: z.boolean().default(false),
+  requireAllRequiredClaimsReviewed: z.boolean().default(false),
+  requireHumanRegulatoryReviewCompleted: z.boolean().default(false),
+
   createdBy: z.string().min(1),
   createdAt: z.string(),
   updatedBy: z.string().optional(),

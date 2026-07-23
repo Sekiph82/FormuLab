@@ -536,6 +536,11 @@ export * from "./engine/approvalPolicy";
 export * from "./schemas/equivalence";
 export * from "./engine/equivalence";
 export * from "./engine/resultHistory";
+export * from "./schemas/regulatory";
+export * from "./engine/regulatoryClassification";
+export * from "./engine/regulatoryRules";
+export * from "./engine/regulatoryApproval";
+export * from "./catalog/regulatoryRules";
 export {
   PRECISION,
   CURRENCY_DP,
