@@ -8,12 +8,14 @@
  */
 import type {
   ApprovalPolicy,
+  ApprovalPolicyRevision,
   CompatibilityRule,
   CompatibilitySnapshot,
   CorrectiveAction,
   CostSnapshot,
   ExchangeRate,
   FactoryCostProfile,
+  FormulaVersionEquivalence,
   InventoryRecord,
   LaboratoryTrial,
   MaterialHazardRecord,
@@ -72,7 +74,9 @@ export type Collection =
   | "stability_samples"
   | "stability_results"
   | "stability_failures"
-  | "approval_policies";
+  | "approval_policies"
+  | "approval_policy_revisions"
+  | "formula_version_equivalences";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -106,6 +110,8 @@ interface CollectionTypes {
   stability_results: StabilityResult;
   stability_failures: StabilityFailure;
   approval_policies: ApprovalPolicy;
+  approval_policy_revisions: ApprovalPolicyRevision;
+  formula_version_equivalences: FormulaVersionEquivalence;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

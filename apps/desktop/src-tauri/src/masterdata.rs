@@ -62,7 +62,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 31] = [
+const COLLECTIONS: [(&str, bool); 33] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -123,6 +123,20 @@ const COLLECTIONS: [(&str, bool); 31] = [
     // event, which is what gives a policy change its own history, not the
     // storage layer.
     ("approval_policies", false),
+    // Append-only history behind the mutable `approval_policies` row above
+    // — every edit/activate/deactivate/retire/clone/restore appends here
+    // rather than overwriting what a policy used to say (spec: "never
+    // silently overwrite historical policy revisions").
+    ("approval_policy_revisions", true),
+    // A declared equivalence between two formula versions for laboratory/
+    // stability evidence reuse. Append-only: revoking one never deletes or
+    // rewrites the original declaration — it appends a second record whose
+    // `revokesEquivalenceId` points at the one being revoked. "Current"
+    // status is derived by checking whether any revocation record exists
+    // for a given equivalence id, the same overlay pattern
+    // `engine/lifecycle.ts`'s `effectiveStatus` already uses for audit
+    // events.
+    ("formula_version_equivalences", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
