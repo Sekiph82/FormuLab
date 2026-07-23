@@ -130,7 +130,7 @@ export function evaluateApplicability(
 export function buildTestRequirementSnapshot(
   definitions: TestDefinition[],
   ctx: TestApplicabilityContext,
-  manualAdditions: { definition: TestDefinition; addedBy: string }[] = [],
+  manualAdditions: { definition: TestDefinition; addedBy: string; reason?: string; at?: string }[] = [],
 ): TestRequirementSnapshot {
   const resolved = resolveApplicableTestDefinitions(definitions, ctx);
   const resolvedIds = new Set(resolved.map((r) => r.definition.code));
@@ -154,7 +154,9 @@ export function buildTestRequirementSnapshot(
         testCapability: m.definition.testCapability ?? "general",
         criticalTestFlag: m.definition.criticalTestFlag,
         required: true,
-        reason: `Added manually by ${m.addedBy} — not selected by applicability resolution.`,
+        reason: m.reason
+          ? `Added manually by ${m.addedBy} on ${m.at ?? new Date().toISOString()}: ${m.reason}`
+          : `Added manually by ${m.addedBy} — not selected by applicability resolution.`,
         addedManuallyBy: m.addedBy,
       })),
   ];

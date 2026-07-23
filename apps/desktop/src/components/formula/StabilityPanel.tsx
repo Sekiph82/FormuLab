@@ -8,6 +8,7 @@ import {
   computeStabilityTrend,
   correctiveActionReportRows,
   createCorrectiveAction,
+  evaluateApplicability,
   isTestDefinitionApplicable,
   computeReplicateStats,
   erpLabResultDraftCsv,
@@ -42,18 +43,40 @@ import {
   type StabilitySample,
   type StabilityStudy,
   type StabilityStudyStatus,
+  type TestApplicabilityContext,
   type TestDefinition,
 } from "@ai4s/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
 import { AttachmentField } from "./AttachmentField";
+import { ExclusionExplorer } from "./ExclusionExplorer";
+import { ResultHistoryBrowser } from "./ResultHistoryBrowser";
 import { downloadBlob, downloadText } from "@/lib/download";
 import { buildXlsxBlob } from "@/lib/xlsx";
 
 const LOCAL_HUMAN: Actor = { kind: "human", role: "chemist", userId: "local" };
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
+
+/** Same applicability engine `TrialsPanel` uses (spec §3) — reused here
+ *  rather than a second, parallel resolution path. */
+function stabilityApplicabilityCtx(
+  productFamilyId: string,
+  packagingSkuCode: string,
+  conditionIds: Iterable<string>,
+  timePointIds: Iterable<string>,
+): TestApplicabilityContext {
+  const conditionIdSet = new Set(conditionIds);
+  const timePointIdSet = new Set(timePointIds);
+  return {
+    productFamilyId,
+    context: "stability",
+    packagingSkuCodes: packagingSkuCode ? [packagingSkuCode] : [],
+    conditionCodes: SEED_STABILITY_CONDITIONS.filter((c) => conditionIdSet.has(c.id)).map((c) => c.code),
+    timePointCodes: SEED_STABILITY_TIME_POINTS.filter((tp) => timePointIdSet.has(tp.id)).map((tp) => tp.code),
+  };
+}
 
 export function StabilityPanel({
   formulation,
@@ -87,6 +110,9 @@ export function StabilityPanel({
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set());
   const [packagingSkuCode, setPackagingSkuCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [exploringApplicability, setExploringApplicability] = useState(false);
+  const [manualInclusionReviewer, setManualInclusionReviewer] = useState("local");
+  const [manualInclusionReason, setManualInclusionReason] = useState("");
 
   const load = async () => {
     const [st, sm, rs, fl, td, ca] = await Promise.all([
@@ -142,16 +168,18 @@ export function StabilityPanel({
     setError(null);
     const now = new Date().toISOString();
     const bom = packagingBoms.find((b) => b.skuCode === packagingSkuCode);
-    const applicabilityCtx = {
-      productFamilyId: formulation.productFamilyCode,
-      context: "stability" as const,
-      packagingSkuCodes: [packagingSkuCode],
-      conditionCodes: SEED_STABILITY_CONDITIONS.filter((c) => selectedConditionIds.has(c.id)).map((c) => c.code),
-      timePointCodes: SEED_STABILITY_TIME_POINTS.filter((tp) => selectedTimePointIds.has(tp.id)).map((tp) => tp.code),
-    };
-    const manualTestAdditions = testDefinitions
-      .filter((d) => selectedTestIds.has(d.code) && !isTestDefinitionApplicable(d, applicabilityCtx))
-      .map((d) => ({ definition: d, addedBy: "local" }));
+    const applicabilityCtx = stabilityApplicabilityCtx(formulation.productFamilyCode, packagingSkuCode, selectedConditionIds, selectedTimePointIds);
+    const manuallyIncludedDefs = testDefinitions.filter((d) => selectedTestIds.has(d.code) && !isTestDefinitionApplicable(d, applicabilityCtx));
+    if (manuallyIncludedDefs.length > 0 && (!manualInclusionReviewer.trim() || !manualInclusionReason.trim())) {
+      setError(t("applicability.manualInclusionNeedsReviewerAndReason"));
+      return;
+    }
+    const manualTestAdditions = manuallyIncludedDefs.map((d) => ({
+      definition: d,
+      addedBy: manualInclusionReviewer.trim(),
+      reason: manualInclusionReason.trim(),
+      at: now,
+    }));
     const study: StabilityStudy = {
       schemaVersion: "1.0",
       id: newId("study"),
@@ -188,6 +216,7 @@ export function StabilityPanel({
     await persistStudy(study);
     setSelectedStudyId(study.id);
     setNewTitle("");
+    setManualInclusionReason("");
   };
 
   const transitionStudy = async (study: StabilityStudy, to: StabilityStudyStatus) => {
@@ -425,7 +454,40 @@ export function StabilityPanel({
                 </option>
               ))}
             </select>
+            <button onClick={() => setExploringApplicability(true)} className="mt-0.5 text-[10px] text-accent hover:underline">
+              {t("applicability.heading")}
+            </button>
           </div>
+          {exploringApplicability && (
+            <ExclusionExplorer
+              definitions={testDefinitions}
+              ctx={stabilityApplicabilityCtx(formulation.productFamilyCode, packagingSkuCode, selectedConditionIds, selectedTimePointIds)}
+              onClose={() => setExploringApplicability(false)}
+              t={t}
+            />
+          )}
+          {[...selectedTestIds].some(
+            (code) =>
+              !isTestDefinitionApplicable(
+                testDefinitions.find((d) => d.code === code) ?? ({} as TestDefinition),
+                stabilityApplicabilityCtx(formulation.productFamilyCode, packagingSkuCode, selectedConditionIds, selectedTimePointIds),
+              ),
+          ) && (
+            <div className="space-y-1 rounded-input border border-accent/40 bg-accent/5 px-1.5 py-1.5">
+              <input
+                value={manualInclusionReviewer}
+                onChange={(e) => setManualInclusionReviewer(e.target.value)}
+                placeholder={t("applicability.manualInclusionReviewer")}
+                className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
+              />
+              <input
+                value={manualInclusionReason}
+                onChange={(e) => setManualInclusionReason(e.target.value)}
+                placeholder={t("applicability.manualInclusionReason")}
+                className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
+              />
+            </div>
+          )}
           <button onClick={() => void createStudy()} className="flex w-full items-center justify-center gap-1 rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
             <Plus size={12} /> {t("stability.newStudy")}
           </button>
@@ -492,6 +554,8 @@ export function StabilityPanel({
                     </li>
                   ))}
                 </ul>
+                <p className="mt-1 text-[10px] text-muted">{t("applicability.snapshotCapturedAt", { at: new Date(selectedStudy.testRequirementSnapshot.capturedAt).toLocaleString() })}</p>
+                <StabilityDefinitionDrift study={selectedStudy} testDefinitions={testDefinitions} t={t} />
               </div>
             )}
 
@@ -522,6 +586,33 @@ export function StabilityPanel({
   );
 }
 
+/**
+ * Spec §3.4 — for an existing study, show whether the CURRENT test
+ * definitions would resolve differently than the immutable snapshot
+ * captured at creation. Comparison only: nothing here can mutate
+ * `study.testRequirementSnapshot`, and no capability of this component
+ * writes to the study record at all.
+ */
+function StabilityDefinitionDrift({ study, testDefinitions, t }: { study: StabilityStudy; testDefinitions: TestDefinition[]; t: SimpleT }) {
+  if (!study.testRequirementSnapshot) return null;
+  const ctx = stabilityApplicabilityCtx(study.productFamilyId, study.packagingSkuCode, study.conditionIds, study.timePointIds);
+  const { included } = evaluateApplicability(testDefinitions, ctx);
+  const snapshotIds = new Set(study.testRequirementSnapshot.entries.map((e) => e.testDefinitionId));
+  const currentIds = new Set(included.map((r) => r.definition.code));
+  const wouldAdd = included.filter((r) => !snapshotIds.has(r.definition.code));
+  const wouldRemove = study.testRequirementSnapshot.entries.filter((e) => !e.addedManuallyBy && !currentIds.has(e.testDefinitionId));
+
+  if (wouldAdd.length === 0 && wouldRemove.length === 0) return null;
+
+  return (
+    <div className="mt-1.5 rounded-input border border-border-faint bg-surface-2 px-2 py-1.5 text-[10px] text-muted">
+      <p>{t("applicability.currentDefinitionsDiffer")}</p>
+      {wouldAdd.length > 0 && <p>{t("applicability.driftAdded", { names: wouldAdd.map((r) => r.definition.name).join(", ") })}</p>}
+      {wouldRemove.length > 0 && <p>{t("applicability.driftRemoved", { names: wouldRemove.map((e) => e.name).join(", ") })}</p>}
+    </div>
+  );
+}
+
 function SampleDashboard({
   formulationId,
   samples,
@@ -542,9 +633,13 @@ function SampleDashboard({
   const [openSampleId, setOpenSampleId] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [pendingAttachments, setPendingAttachments] = useState<Record<string, AttachmentReference[]>>({});
+  const [historyTarget, setHistoryTarget] = useState<{ pool: StabilityResult[]; startId: string } | null>(null);
 
   return (
     <section className="mb-4">
+      {historyTarget && (
+        <ResultHistoryBrowser formulationId={formulationId} pool={historyTarget.pool} startResultId={historyTarget.startId} onClose={() => setHistoryTarget(null)} t={t} />
+      )}
       <h4 className="mb-1.5 text-[12px] font-medium text-text">{t("stability.samples")}</h4>
       <table className="w-full text-[11px]">
         <thead>
@@ -618,6 +713,12 @@ function SampleDashboard({
                                 return (
                                   <div key={r.id} className="text-[10px] text-muted">
                                     {t("trials.resultSummary", { mean: r.stats?.mean ?? "—", count: r.stats?.count ?? 0, passFail: r.passFail })}
+                                    <button
+                                      onClick={() => setHistoryTarget({ pool: existing, startId: r.id })}
+                                      className="ml-1.5 text-[10px] text-accent hover:underline"
+                                    >
+                                      {t("resultHistory.viewHistory")}
+                                    </button>
                                     <AttachmentField
                                       formulationId={formulationId}
                                       attachments={r.attachments}
