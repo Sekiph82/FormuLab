@@ -61,6 +61,16 @@ interface ApprovalPolicy {
   requireAllTargetMarketsReviewed?: boolean;
   allowPrimaryMarketOnly?: boolean;
 
+  // Phase 3 dossier gates — see REGULATORY_DOSSIERS.md and
+  // DOSSIER_READINESS.md. All default false: installing Phase 3 never
+  // blocks an existing project that has not opted in.
+  requireRegulatoryDossier?: boolean;
+  requireDossierReadyForReview?: boolean;
+  requireDossierReviewComplete?: boolean;
+  requireNoMissingMandatoryDossierEvidence?: boolean;
+  requireNoExpiredMandatoryDossierEvidence?: boolean;
+  requireAllRequiredJurisdictionDossiers?: boolean;
+
   createdBy: string; createdAt: string;
   updatedBy?: string; updatedAt: string;
 }

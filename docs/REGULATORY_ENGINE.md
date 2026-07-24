@@ -251,3 +251,13 @@ readiness integration cases).
   require them all.
 - **No automatic EAC/national rule conflict resolution** — see
   [EAC_MARKET_PROFILES.md](EAC_MARKET_PROFILES.md#known-limitation).
+
+## Phase 3: regulatory dossiers and the evidence matrix
+
+This engine's rules/classification/findings are the raw material Phase 3's
+dossier requirement generation freezes into a per-revision snapshot — see
+[REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md),
+[DOSSIER_REQUIREMENTS.md](DOSSIER_REQUIREMENTS.md), and
+[EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md). Phase 3 does not replace anything
+described above; a dossier is an additional, version/packaging/jurisdiction-
+specific persisted layer built on top of it.

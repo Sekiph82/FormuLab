@@ -75,6 +75,16 @@ Existing collections (`materials`, `formulations`, `compatibility_rules`,
 by its existence; opting one in is a deliberate future change, not
 something this module does implicitly.
 
+Phase 3's 8 new dossier collections (`regulatory_dossiers`,
+`regulatory_dossier_requirements`, `regulatory_evidence_items`,
+`regulatory_requirement_evidence_links`, `regulatory_dossier_reviews`,
+`regulatory_dossier_review_revocations`, `regulatory_dossier_submissions`,
+`regulatory_dossier_manual_requirement_actions`) launch at
+`schemaVersion: "1.0"` for the same reason — no migration entry was needed,
+since they are new collections rather than a changed shape of an existing
+one. See [REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md) for why 8
+collections rather than the 10 originally suggested by the phase spec.
+
 ## What this is not
 
 - Not a general schema-registry, ORM migration framework, or an

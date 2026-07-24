@@ -7,6 +7,7 @@ import {
   Boxes,
   CheckCircle2,
   FileBarChart2,
+  FileCheck2,
   FlaskConical,
   FlaskRound,
   FolderKanban,
@@ -220,6 +221,7 @@ export function Sidebar() {
               <NavRow icon={<FlaskRound size={16} />} label={t("workspacesNav.stability")} onClick={() => navigate("/stability")} />
               <NavRow icon={<Sparkles size={16} />} label={t("workspacesNav.optimization")} onClick={() => navigate("/optimization")} />
               <NavRow icon={<Scale size={16} />} label={t("workspacesNav.regulatory")} onClick={() => navigate("/regulatory")} />
+              <NavRow icon={<FileCheck2 size={16} />} label={t("workspacesNav.dossiers")} onClick={() => navigate("/dossiers")} />
               <NavRow icon={<CheckCircle2 size={16} />} label={t("workspacesNav.approval")} onClick={() => navigate("/approval")} />
               <NavRow icon={<FileBarChart2 size={16} />} label={t("workspacesNav.reports")} onClick={() => navigate("/reports")} />
               <NavRow icon={<Boxes size={16} />} label={t("workspacesNav.administration")} onClick={() => navigate("/administration")} />

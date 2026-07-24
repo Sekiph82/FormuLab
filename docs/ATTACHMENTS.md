@@ -166,3 +166,12 @@ another, no root) with an honest warning instead of silently dropping any
 of them, and every entry in a chain — including a superseded one —
 remains individually openable through the browser via the same safe
 `openAttachment` resolver `AttachmentField` already uses.
+
+## Phase 3: dossier evidence
+
+`RegulatoryDossierEvidenceItem.attachmentIds` reuses this exact mechanism —
+`AttachmentReference`, the same checksum/MIME/size/filename validation, the
+same safe resolver, no new upload path. Evidence replacement
+(`replaceEvidence`, see [DOSSIER_EVIDENCE.md](DOSSIER_EVIDENCE.md)) follows
+the same never-delete-the-superseded-file convention this document already
+establishes for test results.

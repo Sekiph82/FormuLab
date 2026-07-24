@@ -16,6 +16,7 @@ import { LaboratoryPage } from "./routes/LaboratoryPage";
 import { StabilityPage } from "./routes/StabilityPage";
 import { OptimizationPage } from "./routes/OptimizationPage";
 import { RegulatoryPage } from "./routes/RegulatoryPage";
+import { DossiersPage } from "./routes/DossiersPage";
 import { ApprovalPage } from "./routes/ApprovalPage";
 import { ReportsPage } from "./routes/ReportsPage";
 import { AdministrationPage } from "./routes/AdministrationPage";
@@ -43,6 +44,7 @@ export const routes: RouteObject[] = [
       { path: "stability", element: <StabilityPage /> },
       { path: "optimization", element: <OptimizationPage /> },
       { path: "regulatory", element: <RegulatoryPage /> },
+      { path: "dossiers", element: <DossiersPage /> },
       { path: "approval", element: <ApprovalPage /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "administration", element: <AdministrationPage /> },

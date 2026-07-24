@@ -165,3 +165,26 @@ paths.
   and `pilot_approved`/`production_approved` are gated on this module's
   output via `attemptApprovalTransition`
   (`engine/lifecycle.ts`, which wraps `canTransitionWithReadiness`).
+
+## Phase 3: dossier readiness as an independent, opt-in blocker source
+
+`packages/shared/src/engine/regulatoryDossierApproval.ts`'s
+`deriveDossierApprovalReadiness` is a **separate** module, not part of this
+one's fixed blocker-source union — it is entirely inert
+(`{ ready: true, blockers: [] }`) unless the policy's
+`requireRegulatoryDossier` field is set, so installing Phase 3 never blocks
+an existing project that has not opted in (see
+[REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md) and
+[DOSSIER_READINESS.md](DOSSIER_READINESS.md)). When opted in, it resolves the
+exact `RegulatoryDossier` for the formula version/packaging SKU/jurisdiction
+in scope via `findDossierForScope` — never a same-project-different-scope
+dossier treated as a match — and pushes one of ten structured blocker codes
+(`dossier_missing`, `dossier_wrong_formula_version`,
+`dossier_wrong_packaging_sku`, `dossier_jurisdiction_missing`,
+`dossier_not_ready`, `dossier_requirement_stale`,
+`dossier_review_incomplete`, `dossier_mandatory_evidence_missing`,
+`dossier_evidence_rejected`, `dossier_evidence_expired`) when the
+corresponding opt-in field requires it. At the moment an `ApprovalRecord` is
+actually created, the dossier readiness at that instant is frozen onto the
+record as `dossierSnapshot` — a later dossier change never rewrites an
+already-created approval record's snapshot.

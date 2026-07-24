@@ -155,3 +155,13 @@ here.
   is populated by the engine but the panel's per-review status badges
   read `deriveRegulatoryReviewStatus` directly rather than surfacing that
   id inline on every row.
+
+## Phase 3: dossier reviews are a separate record
+
+A `RegulatoryReview` (this document) classifies a formula version's
+compliance against the rule engine. A `RegulatoryDossierReview` (see
+[DOSSIER_REVIEWS.md](DOSSIER_REVIEWS.md)) is a distinct record: a human's
+sign-off on a specific dossier revision's requirement-and-evidence state.
+Phase 3's `discoverDossierEvidenceCandidates` can suggest an existing
+`RegulatoryReview` as dossier evidence, but the two records are never
+merged or treated as interchangeable.

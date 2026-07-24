@@ -136,3 +136,14 @@ silently passing.
 - Confirmations do not aggregate across formulations — there is no
   shared evidence library where confirming a document once for one
   product counts toward another.
+
+Phase 3's dossier evidence library (see
+[DOSSIER_EVIDENCE.md](DOSSIER_EVIDENCE.md), [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md))
+closes the first two of these for a formula version bound to a real
+dossier — a real attachment-matrix, and computed expiry via
+`evaluateEvidenceEligibility` — without replacing this lighter, still-valid
+confirmation record for products that have no dossier.
+`discoverDossierEvidenceCandidates` (see
+[dossierRecordDiscovery.ts](../packages/shared/src/engine/dossierRecordDiscovery.ts))
+suggests an existing `RegulatoryEvidenceConfirmation` as dossier evidence,
+but never auto-verifies it.
