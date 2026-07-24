@@ -6,6 +6,7 @@ const ROWS = [
   { key: "trial", titleKey: "reports.trial.title", descKey: "reports.trial.description", href: "/laboratory" },
   { key: "stability", titleKey: "reports.stability.title", descKey: "reports.stability.description", href: "/stability" },
   { key: "regulatory", titleKey: "reports.regulatory.title", descKey: "reports.regulatory.description", href: "/regulatory" },
+  { key: "dossier", titleKey: "reports.dossier.title", descKey: "reports.dossier.description", href: "/dossiers" },
   { key: "approval", titleKey: "reports.approval.title", descKey: "reports.approval.description", href: "/approval" },
   { key: "audit", titleKey: "reports.audit.title", descKey: "reports.audit.description", href: undefined },
 ] as const;

@@ -386,6 +386,8 @@
     "projects": "Formül projeleri",
     "newProject": "Yeni proje",
     "noProjects": "Henüz formülasyon projesi yok. Bir formül oluşturmaya başlamak için bir tane oluşturun.",
+    "projectDossiers": "Bu projenin mevzuat dosyalarını aç",
+    "projectDossierCount": "{{n}} dosya",
     "projectName": "Proje adı",
     "projectCode": "Proje kodu",
     "projectCodeHint": "Bir parti kaydının ve bir ERP satırının kullanacağı tutamaç.",
@@ -1587,6 +1589,15 @@
     "noUpcomingSamples": "Yakında vadesi gelen stabilite numunesi yok.",
     "pendingApprovals": "Bekleyen onaylar",
     "noPendingApprovals": "Onay kararı bekleyen bir şey yok.",
+    "dossiersHeading": "Mevzuat dosyaları",
+    "noDossiers": "Son projeleriniz arasında dosya yok.",
+    "dossiersInPreparation": "{{n}} hazırlanıyor",
+    "dossiersReadyForReview": "{{n}} incelemeye hazır",
+    "dossiersBlocked": "{{n}} engellendi",
+    "evidenceExpiringSoon": "Süresi yakında dolacak dosya kanıtı",
+    "noEvidenceExpiringSoon": "Süresi yakında dolacak dosya kanıtı yok.",
+    "reviewsPending": "Bekleyen dosya incelemeleri",
+    "noReviewsPending": "İnceleme bekleyen dosya yok.",
     "unknownProject": "Bilinmeyen proje"
   },
   "reports": {
@@ -1610,6 +1621,10 @@
     "regulatory": {
       "title": "Mevzuat özetleri",
       "description": "Mevzuat çalışma alanından kural ve bulgu dışa aktarımı (JSON/CSV/Excel)."
+    },
+    "dossier": {
+      "title": "Mevzuat dosyası raporları",
+      "description": "Bir dosyanın Kanıt Kitaplığı'ndan dosya JSON dışa aktarımı ve kanıt matrisi CSV/Excel dışa aktarımı. Son biçimlendirilmiş PDF/DOCX dosya dışa aktarımı: henüz uygulanmadı."
     },
     "approval": {
       "title": "Onay kayıtları",

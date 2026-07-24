@@ -1,14 +1,36 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import type { AuditEvent, Formulation, FormulationVersion, LaboratoryTrial, StabilitySample, StabilityStudy } from "@ai4s/shared";
-import { effectiveStatus } from "@ai4s/shared";
+import type {
+  AuditEvent,
+  Formulation,
+  FormulationVersion,
+  LaboratoryTrial,
+  RegulatoryDossier,
+  RegulatoryDossierEvidenceItem,
+  RegulatoryDossierRequirement,
+  RegulatoryDossierReview,
+  RegulatoryDossierReviewRevocation,
+  RegulatoryRequirementEvidenceLink,
+  StabilitySample,
+  StabilityStudy,
+} from "@ai4s/shared";
+import { activeLinksForDossier, buildEvidenceMatrix, calculateDossierReadiness, currentRequirementsForRevision, effectiveStatus, isDossierReviewActive } from "@ai4s/shared";
 import { listFormulations, readAuditLog, readFormulation } from "@/lib/formulations";
 import { listRecords } from "@/lib/masterdata";
 
 const OPEN_TRIAL_STATUSES = new Set(["planned", "materials_prepared", "in_progress", "awaiting_results"]);
 const PENDING_APPROVAL_STATUSES = new Set(["chemist_review", "lab_candidate", "stability_testing", "pilot_candidate"]);
 const RECENT_PROJECT_LIMIT = 5;
+// Evidence within this window is "expiring soon" — a defined threshold,
+// not a fabricated one, and the only place this number is invented.
+const EVIDENCE_EXPIRY_WARNING_DAYS = 30;
+
+interface DossierHomeRow {
+  project: Formulation;
+  dossier: RegulatoryDossier;
+  readinessState: string;
+}
 
 interface PendingApproval {
   project: Formulation;
@@ -31,16 +53,27 @@ export function HomePage() {
   const [openTrials, setOpenTrials] = useState<{ trial: LaboratoryTrial; projectName: string }[]>([]);
   const [upcomingSamples, setUpcomingSamples] = useState<{ sample: StabilitySample; projectName: string }[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
+  const [dossiersReadyForReview, setDossiersReadyForReview] = useState<DossierHomeRow[]>([]);
+  const [dossiersBlocked, setDossiersBlocked] = useState<DossierHomeRow[]>([]);
+  const [dossiersInPreparation, setDossiersInPreparation] = useState<DossierHomeRow[]>([]);
+  const [evidenceExpiringSoon, setEvidenceExpiringSoon] = useState<{ item: RegulatoryDossierEvidenceItem; projectName: string }[]>([]);
+  const [reviewsPending, setReviewsPending] = useState<DossierHomeRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [all, trials, studies, samples] = await Promise.all([
+      const [all, trials, studies, samples, dossiers, dossierRequirements, dossierLinks, dossierEvidence, dossierReviews, dossierReviewRevocations] = await Promise.all([
         listFormulations(),
         listRecords("laboratory_trials"),
         listRecords("stability_studies"),
         listRecords("stability_samples"),
+        listRecords("regulatory_dossiers"),
+        listRecords("regulatory_dossier_requirements"),
+        listRecords("regulatory_requirement_evidence_links"),
+        listRecords("regulatory_evidence_items"),
+        listRecords("regulatory_dossier_reviews"),
+        listRecords("regulatory_dossier_review_revocations"),
       ]);
       if (cancelled) return;
       const sorted = [...all].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -90,6 +123,56 @@ export function HomePage() {
         }
       }
       setPendingApprovals(pending.slice(0, 10));
+
+      // Dossiers-in-preparation/ready-for-review/blocked, evidence expiring
+      // soon and reviews pending — scoped to the same `recentProjects`
+      // (RECENT_PROJECT_LIMIT) the rest of this dashboard already uses, never
+      // the whole project history. Every count is a real, live-computed fact
+      // (calculateDossierReadiness on real requirement/evidence/link rows),
+      // never a placeholder or estimate.
+      const recentProjectIds = new Set(recentProjects.map((p) => p.id));
+      const recentDossiers = (dossiers as RegulatoryDossier[]).filter((d) => recentProjectIds.has(d.formulationId) && d.status !== "superseded" && d.status !== "archived");
+      const readyRows: DossierHomeRow[] = [];
+      const blockedRows: DossierHomeRow[] = [];
+      const preparationRows: DossierHomeRow[] = [];
+      const pendingReviewRows: DossierHomeRow[] = [];
+      for (const dossier of recentDossiers) {
+        const project = recentProjects.find((p) => p.id === dossier.formulationId);
+        if (!project) continue;
+        const reqs = currentRequirementsForRevision(dossierRequirements as RegulatoryDossierRequirement[], dossier.id, dossier.revision);
+        const activeLinks = activeLinksForDossier(dossierLinks as RegulatoryRequirementEvidenceLink[], dossier.id);
+        const evidenceForDossier = (dossierEvidence as RegulatoryDossierEvidenceItem[]).filter((e) => e.dossierId === dossier.id);
+        const matrix = buildEvidenceMatrix(reqs, activeLinks, evidenceForDossier, dossier.formulaVersionId, dossier.packagingSkuCode);
+        const readiness = calculateDossierReadiness(dossier, matrix);
+        const row: DossierHomeRow = { project, dossier, readinessState: readiness.overallReadiness };
+        if (readiness.overallReadiness === "ready_for_review") {
+          readyRows.push(row);
+          const hasActiveReview = (dossierReviews as RegulatoryDossierReview[]).some(
+            (r) => r.dossierId === dossier.id && isDossierReviewActive(r, dossierReviewRevocations as RegulatoryDossierReviewRevocation[], dossier.revision),
+          );
+          if (!hasActiveReview) pendingReviewRows.push(row);
+        } else if (readiness.overallReadiness === "blocked" || readiness.overallReadiness === "unknown") {
+          blockedRows.push(row);
+        } else {
+          preparationRows.push(row);
+        }
+      }
+      setDossiersReadyForReview(readyRows.slice(0, 10));
+      setDossiersBlocked(blockedRows.slice(0, 10));
+      setDossiersInPreparation(preparationRows.slice(0, 10));
+      setReviewsPending(pendingReviewRows.slice(0, 10));
+
+      const expiryThreshold = new Date();
+      expiryThreshold.setDate(expiryThreshold.getDate() + EVIDENCE_EXPIRY_WARNING_DAYS);
+      const recentDossierIds = new Set(recentDossiers.map((d) => d.id));
+      setEvidenceExpiringSoon(
+        (dossierEvidence as RegulatoryDossierEvidenceItem[])
+          .filter((e) => recentDossierIds.has(e.dossierId) && e.expiresAt && new Date(e.expiresAt) <= expiryThreshold && new Date(e.expiresAt) >= new Date() && e.status !== "expired" && e.status !== "revoked")
+          .sort((a, b) => (a.expiresAt ?? "").localeCompare(b.expiresAt ?? ""))
+          .slice(0, 10)
+          .map((item) => ({ item, projectName: nameById.get(item.formulationId) ?? item.formulationId })),
+      );
+
       setLoading(false);
     })();
     return () => {
@@ -166,6 +249,51 @@ export function HomePage() {
                   <span className="font-mono text-[10px] text-muted">{version.versionLabel ?? `0.${version.versionNumber}`}</span>
                   <span className="flex-1 truncate text-text">{project.name}</span>
                   <span className="text-[10px] text-muted">{status}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section title={t("home.dossiersHeading")} empty={dossiersReadyForReview.length === 0 && dossiersBlocked.length === 0 && dossiersInPreparation.length === 0} emptyText={t("home.noDossiers")}>
+          <div className="flex flex-wrap gap-2 px-3 py-2 text-[10px]">
+            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-muted">{t("home.dossiersInPreparation", { n: dossiersInPreparation.length })}</span>
+            <span className="rounded bg-success/10 px-1.5 py-0.5 text-success">{t("home.dossiersReadyForReview", { n: dossiersReadyForReview.length })}</span>
+            <span className="rounded bg-error/10 px-1.5 py-0.5 text-error">{t("home.dossiersBlocked", { n: dossiersBlocked.length })}</span>
+          </div>
+          <ul className="divide-y divide-border-faint">
+            {[...dossiersReadyForReview, ...dossiersBlocked].map(({ project, dossier, readinessState }) => (
+              <li key={dossier.id}>
+                <Link to={`/dossiers?project=${project.id}&dossier=${dossier.id}`} className="flex items-baseline gap-2 px-3 py-2 text-[12px] hover:bg-surface-2">
+                  <span className="font-mono text-[10px] text-muted">{dossier.dossierCode}</span>
+                  <span className="flex-1 truncate text-text">{project.name}</span>
+                  <span className="text-[10px] text-muted">{readinessState}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section title={t("home.evidenceExpiringSoon")} empty={evidenceExpiringSoon.length === 0} emptyText={t("home.noEvidenceExpiringSoon")}>
+          <ul className="divide-y divide-border-faint">
+            {evidenceExpiringSoon.map(({ item, projectName }) => (
+              <li key={item.id} className="flex items-baseline gap-2 px-3 py-2 text-[12px]">
+                <span className="flex-1 truncate text-text">{item.title}</span>
+                <span className="text-[10px] text-muted">
+                  {projectName} · {item.expiresAt ? new Date(item.expiresAt).toLocaleDateString() : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section title={t("home.reviewsPending")} empty={reviewsPending.length === 0} emptyText={t("home.noReviewsPending")}>
+          <ul className="divide-y divide-border-faint">
+            {reviewsPending.map(({ project, dossier }) => (
+              <li key={dossier.id}>
+                <Link to={`/dossiers?project=${project.id}&dossier=${dossier.id}`} className="flex items-baseline gap-2 px-3 py-2 text-[12px] hover:bg-surface-2">
+                  <span className="font-mono text-[10px] text-muted">{dossier.dossierCode}</span>
+                  <span className="flex-1 truncate text-text">{project.name}</span>
                 </Link>
               </li>
             ))}

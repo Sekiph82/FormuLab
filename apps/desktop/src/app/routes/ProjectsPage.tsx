@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
-import { buildKenyaCatalog, type Formulation } from "@ai4s/shared";
+import { FileCheck2, Plus } from "lucide-react";
+import { buildKenyaCatalog, type Formulation, type RegulatoryDossier } from "@ai4s/shared";
 import { appendAudit, auditEvent, listFormulations, saveFormulation } from "@/lib/formulations";
+import { listRecords } from "@/lib/masterdata";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
 
 /**
@@ -19,9 +20,19 @@ export function ProjectsPage() {
   const catalog = useMemo(() => buildKenyaCatalog(), []);
   const [projects, setProjects] = useState<Formulation[]>([]);
   const [creating, setCreating] = useState(false);
+  // Compact status only — a count and a deep link, never a computed
+  // readiness state (that belongs to the Dossiers workspace itself).
+  const [dossierCountByProject, setDossierCountByProject] = useState<Map<string, number>>(new Map());
 
   const refresh = useCallback(async () => {
-    setProjects(await listFormulations());
+    const [all, dossiers] = await Promise.all([listFormulations(), listRecords("regulatory_dossiers")]);
+    setProjects(all);
+    const counts = new Map<string, number>();
+    for (const d of dossiers as RegulatoryDossier[]) {
+      if (d.status === "superseded" || d.status === "archived") continue;
+      counts.set(d.formulationId, (counts.get(d.formulationId) ?? 0) + 1);
+    }
+    setDossierCountByProject(counts);
   }, []);
 
   useEffect(() => {
@@ -55,15 +66,25 @@ export function ProjectsPage() {
         ) : (
           <ul className="divide-y divide-border-faint">
             {projects.map((p) => (
-              <li key={p.id}>
+              <li key={p.id} className="flex items-center">
                 <button
                   onClick={() => navigate(`/formulation?project=${p.id}`)}
-                  className="flex w-full items-baseline gap-3 px-6 py-3 text-left hover:bg-surface-2"
+                  className="flex flex-1 items-baseline gap-3 px-6 py-3 text-left hover:bg-surface-2"
                 >
                   <span className="font-mono text-[11px] text-muted">{p.code}</span>
                   <span className="flex-1 text-[13px] text-text">{p.name}</span>
                   <span className="text-[11px] text-muted">{p.productFamilyCode}</span>
                   <span className="text-[11px] text-muted">{new Date(p.updatedAt).toLocaleDateString()}</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/dossiers?project=${p.id}`);
+                  }}
+                  title={t("builder.projectDossiers")}
+                  className="mr-4 flex items-center gap-1 rounded-input border border-border-faint px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
+                >
+                  <FileCheck2 size={11} /> {t("builder.projectDossierCount", { n: dossierCountByProject.get(p.id) ?? 0 })}
                 </button>
               </li>
             ))}

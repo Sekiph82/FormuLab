@@ -61,6 +61,9 @@ describe("HomePage — real data, honest empty states", () => {
     expect(screen.getByText("No open trials right now.")).toBeInTheDocument();
     expect(screen.getByText("No stability samples due soon.")).toBeInTheDocument();
     expect(screen.getByText("Nothing awaiting an approval decision.")).toBeInTheDocument();
+    expect(screen.getByText("No dossiers among your recent projects.")).toBeInTheDocument();
+    expect(screen.getByText("No dossier evidence expiring soon.")).toBeInTheDocument();
+    expect(screen.getByText("No dossiers waiting on a review.")).toBeInTheDocument();
     // No numeric metric is rendered when there is nothing to count.
     expect(screen.queryByText(/^\d+$/)).not.toBeInTheDocument();
   });
@@ -77,5 +80,42 @@ describe("HomePage — real data, honest empty states", () => {
 
     expect(await screen.findByText("Test Project")).toBeInTheDocument();
     expect(screen.getByText("PRJ-1")).toBeInTheDocument();
+  });
+
+  it("shows a dossier with no requirements as in-preparation, scoped to a real project", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([PROJECT]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: PROJECT, versions: [] });
+    formulationsBridge.readAuditLog.mockResolvedValue([]);
+    masterdataBridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "regulatory_dossiers") {
+        return Promise.resolve([
+          {
+            schemaVersion: "1.0",
+            id: "dossier-1",
+            dossierCode: "DOS-1",
+            title: "Test dossier",
+            formulationId: "proj-1",
+            formulaVersionId: "version-1",
+            jurisdictions: ["KE"],
+            productFamilyCode: "unmatched-family",
+            targetMarkets: ["KE"],
+            status: "draft",
+            revision: 1,
+            createdBy: "local",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("1 in preparation")).toBeInTheDocument();
+    expect(screen.getByText("0 ready for review")).toBeInTheDocument();
+    expect(screen.getByText("0 blocked")).toBeInTheDocument();
   });
 });

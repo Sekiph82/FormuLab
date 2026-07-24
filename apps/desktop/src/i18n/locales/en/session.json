@@ -386,6 +386,8 @@
     "projects": "Formula projects",
     "newProject": "New project",
     "noProjects": "No formulation projects yet. Create one to start building a formula.",
+    "projectDossiers": "Open this project's regulatory dossiers",
+    "projectDossierCount": "{{n}} dossier(s)",
     "projectName": "Project name",
     "projectCode": "Project code",
     "projectCodeHint": "The handle a batch record and an ERP row will use.",
@@ -1587,6 +1589,15 @@
     "noUpcomingSamples": "No stability samples due soon.",
     "pendingApprovals": "Pending approvals",
     "noPendingApprovals": "Nothing awaiting an approval decision.",
+    "dossiersHeading": "Regulatory dossiers",
+    "noDossiers": "No dossiers among your recent projects.",
+    "dossiersInPreparation": "{{n}} in preparation",
+    "dossiersReadyForReview": "{{n}} ready for review",
+    "dossiersBlocked": "{{n}} blocked",
+    "evidenceExpiringSoon": "Dossier evidence expiring soon",
+    "noEvidenceExpiringSoon": "No dossier evidence expiring soon.",
+    "reviewsPending": "Dossier reviews pending",
+    "noReviewsPending": "No dossiers waiting on a review.",
     "unknownProject": "Unknown project"
   },
   "reports": {
@@ -1610,6 +1621,10 @@
     "regulatory": {
       "title": "Regulatory summaries",
       "description": "Rule and finding export (JSON/CSV/Excel), from the Regulatory workspace."
+    },
+    "dossier": {
+      "title": "Regulatory dossier reports",
+      "description": "Dossier JSON export and evidence-matrix CSV/Excel export, from a dossier's Evidence Library. Final formatted PDF/DOCX dossier export: not yet implemented."
     },
     "approval": {
       "title": "Approval records",
