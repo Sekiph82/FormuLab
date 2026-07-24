@@ -1472,6 +1472,10 @@
       "audit": "Audit"
     },
     "driftBanner": "This dossier's frozen requirements have drifted from the currently active rule set — see History for details. Nothing here changes automatically.",
+    "statusHeading": "Status",
+    "immutableNotice": "Immutable — create a new revision to continue working on this dossier.",
+    "createRevision": "Create new revision",
+    "saveStatus": "Save status",
     "readinessSummary": "Readiness summary",
     "totalRequirements": "{{n}} requirement(s)",
     "mandatorySatisfied": "{{n}} of {{total}} mandatory satisfied",

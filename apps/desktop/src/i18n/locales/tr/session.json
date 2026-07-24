@@ -1472,6 +1472,10 @@
       "audit": "Denetim"
     },
     "driftBanner": "Bu dosyanın dondurulmuş gereksinimleri, şu anda etkin kural setinden sapmış — ayrıntılar için Geçmiş'e bakın. Burada hiçbir şey otomatik olarak değişmez.",
+    "statusHeading": "Durum",
+    "immutableNotice": "Değiştirilemez — bu dosya üzerinde çalışmaya devam etmek için yeni bir revizyon oluşturun.",
+    "createRevision": "Yeni revizyon oluştur",
+    "saveStatus": "Durumu kaydet",
     "readinessSummary": "Hazırlık özeti",
     "totalRequirements": "{{n}} gereksinim",
     "mandatorySatisfied": "{{total}} zorunludan {{n}} tanesi karşılandı",

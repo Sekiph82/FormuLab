@@ -38,6 +38,7 @@ import {
   deriveEvidenceStatus,
   excludeRequirement,
   isAuthorizedRegulatoryActor,
+  isDossierImmutable,
   mapEvidenceToRequirements,
   newId,
   proposeEvidenceLink,
@@ -47,9 +48,11 @@ import {
   rejectEvidenceLink,
   resolveDossierRevisionChain,
   resolveEvidenceRevisionChain,
+  reviseDossier,
   revokeDossierReview,
   revokeEvidence,
   revokeEvidenceLink,
+  updateDossierStatus,
   updateDossierSubmissionStatus,
   verifyEvidence,
   APPROVAL_ROLES,
@@ -262,6 +265,59 @@ export function DossierPanel({
       setError(String(e));
     } finally {
       setCreateBusy(false);
+    }
+  };
+
+  // --------------------------------------------------------- status/revision
+  const [statusDraft, setStatusDraft] = useState<RegulatoryDossier["status"]>("draft");
+  useEffect(() => {
+    if (selectedDossier) setStatusDraft(selectedDossier.status);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDossier?.id, selectedDossier?.status]);
+
+  const doChangeStatus = async () => {
+    if (!selectedDossier) return;
+    try {
+      const updated = updateDossierStatus(selectedDossier, statusDraft, actor);
+      await upsertRecords("regulatory_dossiers", [updated]);
+      setDossiers((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+      await appendAudit(
+        auditEvent(formulation.id, "dossier.status_changed", {
+          versionId: updated.formulaVersionId,
+          detail: statusDraft,
+          metadata: { dossierId: updated.id, dossierRevision: String(updated.revision) },
+        }),
+      );
+      await onAuditChanged();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const doRevise = async () => {
+    if (!selectedDossier) return;
+    try {
+      const { superseded, revised } = reviseDossier(selectedDossier, actor);
+      await upsertRecords("regulatory_dossiers", [superseded, revised]);
+      setDossiers((prev) => [...prev.map((d) => (d.id === superseded.id ? superseded : d)), revised]);
+      await appendAudit(
+        auditEvent(formulation.id, "dossier.revised", {
+          versionId: revised.formulaVersionId,
+          detail: revised.dossierCode,
+          metadata: { dossierId: revised.id, dossierRevision: String(revised.revision), supersedesDossierId: superseded.id },
+        }),
+      );
+      await appendAudit(
+        auditEvent(formulation.id, "dossier.superseded", {
+          versionId: superseded.formulaVersionId,
+          detail: superseded.dossierCode,
+          metadata: { dossierId: superseded.id },
+        }),
+      );
+      await onAuditChanged();
+      setSelectedDossierId(revised.id);
+    } catch (e) {
+      setError(String(e));
     }
   };
 
@@ -685,6 +741,30 @@ export function DossierPanel({
 
           {section === "overview" && (
             <div className="space-y-2">
+              <div className="rounded-card border border-border-faint px-3 py-2 text-[11px]">
+                <p className="mb-1 font-medium text-muted">{t("dossier.statusHeading")}</p>
+                {isDossierImmutable(selectedDossier) ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text">{selectedDossier.status}</span>
+                    <span className="text-[10px] text-muted">{t("dossier.immutableNotice")}</span>
+                    {/* Any human role may revise (requireHumanActor) — same authorization tier as creating a dossier. */}
+                    <button onClick={() => void doRevise()} className="rounded-input border border-accent px-2 py-1 text-[10px] text-accent hover:bg-accent/10">
+                      {t("dossier.createRevision")}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select value={statusDraft} onChange={(e) => setStatusDraft(e.target.value as RegulatoryDossier["status"])} className="rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]">
+                      {DOSSIER_STATUSES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => void doChangeStatus()} disabled={statusDraft === selectedDossier.status} className="rounded-input border border-accent px-2 py-1 text-[10px] text-accent hover:bg-accent/10 disabled:opacity-40">
+                      {t("dossier.saveStatus")}
+                    </button>
+                  </div>
+                )}
+              </div>
               {readiness && (
                 <div className="rounded-card border border-border-faint px-3 py-2 text-[11px]">
                   <p className="mb-1 font-medium text-muted">{t("dossier.readinessSummary")}</p>

@@ -161,3 +161,49 @@ describe("DossierPanel — authorization", () => {
     expect(screen.getByRole("button", { name: /Add manual requirement/i })).toBeInTheDocument();
   });
 });
+
+describe("DossierPanel — status and revision lifecycle", () => {
+  async function createAndOpenDossier(user: ReturnType<typeof userEvent.setup>) {
+    renderPanel();
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+  }
+
+  it("changes the dossier status and persists it", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+
+    await user.selectOptions(screen.getByDisplayValue("draft"), "in_preparation");
+    await user.click(screen.getByRole("button", { name: "Save status" }));
+
+    await vi.waitFor(() => {
+      const call = bridge.upsertRecords.mock.calls.find((c) => c[0] === "regulatory_dossiers" && c[1][0]?.status === "in_preparation");
+      expect(call).toBeTruthy();
+    });
+  });
+
+  it("creates a new revision once the dossier is immutable, superseding the original", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+
+    await user.selectOptions(screen.getByDisplayValue("draft"), "submitted");
+    await user.click(screen.getByRole("button", { name: "Save status" }));
+    await screen.findByText("Immutable — create a new revision to continue working on this dossier.");
+
+    await user.click(screen.getByRole("button", { name: "Create new revision" }));
+
+    await vi.waitFor(() => {
+      const call = bridge.upsertRecords.mock.calls.find((c) => c[0] === "regulatory_dossiers" && c[1].length === 2);
+      expect(call).toBeTruthy();
+    });
+    const [, records] = bridge.upsertRecords.mock.calls.find((c) => c[0] === "regulatory_dossiers" && c[1].length === 2)!;
+    const [superseded, revised] = records as { id: string; status: string; revision: number; supersedesDossierId?: string }[];
+    expect(superseded.status).toBe("superseded");
+    expect(revised.revision).toBe(2);
+    expect(revised.supersedesDossierId).toBe(superseded.id);
+  });
+});
