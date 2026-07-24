@@ -16,6 +16,16 @@ import type {
   CompatibilitySnapshot,
   CorrectiveAction,
   CostSnapshot,
+  DoeAnalysis,
+  DoeCandidate,
+  DoeConstraint,
+  DoeDesign,
+  DoeFactor,
+  DoeObservation,
+  DoeResponse,
+  DoeReviewAction,
+  DoeRun,
+  DoeStudy,
   ExchangeRate,
   FactoryCostProfile,
   FormulaVersionEquivalence,
@@ -124,7 +134,17 @@ export type Collection =
   | "label_content_blocks"
   | "label_artworks"
   | "label_reviews"
-  | "label_review_revocations";
+  | "label_review_revocations"
+  | "doe_studies"
+  | "doe_factors"
+  | "doe_constraints"
+  | "doe_responses"
+  | "doe_designs"
+  | "doe_runs"
+  | "doe_observations"
+  | "doe_analyses"
+  | "doe_candidates"
+  | "doe_review_actions";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -184,6 +204,16 @@ interface CollectionTypes {
   label_artworks: LabelArtwork;
   label_reviews: LabelReview;
   label_review_revocations: LabelReviewRevocation;
+  doe_studies: DoeStudy;
+  doe_factors: DoeFactor;
+  doe_constraints: DoeConstraint;
+  doe_responses: DoeResponse;
+  doe_designs: DoeDesign;
+  doe_runs: DoeRun;
+  doe_observations: DoeObservation;
+  doe_analyses: DoeAnalysis;
+  doe_candidates: DoeCandidate;
+  doe_review_actions: DoeReviewAction;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

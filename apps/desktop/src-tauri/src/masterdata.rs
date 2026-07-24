@@ -51,6 +51,16 @@
 //   data/master/label_artworks.json
 //   data/master/label_reviews.json
 //   data/master/label_review_revocations.json
+//   data/master/doe_studies.json
+//   data/master/doe_factors.json
+//   data/master/doe_constraints.json
+//   data/master/doe_responses.json
+//   data/master/doe_designs.json
+//   data/master/doe_runs.json
+//   data/master/doe_observations.json
+//   data/master/doe_analyses.json
+//   data/master/doe_candidates.json
+//   data/master/doe_review_actions.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -86,7 +96,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 57] = [
+const COLLECTIONS: [(&str, bool); 67] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -244,6 +254,45 @@ const COLLECTIONS: [(&str, bool); 57] = [
     ("label_artworks", false),
     ("label_reviews", true),
     ("label_review_revocations", true),
+    // Phase 5 — Design of Experiments. A study/factor/constraint/response/
+    // design/run is a mutable header-style row, same reasoning as
+    // `regulatory_dossiers`/`product_claims`: its own status/revision
+    // lifecycle is what changes it (a study's factors/constraints/responses
+    // are freely editable pre-generation; once a design is generated its
+    // `factorSnapshot`/`constraintSnapshot`/`responseSnapshot` freeze that
+    // moment, and a later meaningful change creates a brand-new study
+    // revision — `engine/doeDesign.ts`'s `DOE_STUDY_IMMUTABLE_STATUSES` and
+    // `reviseDoeStudy`, never a silent overwrite of an analyzed/completed
+    // study). A run's `factorSettings` become immutable once execution
+    // begins (`DOE_RUN_LOCKED_STATUSES`), enforced at the application layer,
+    // same convention as `regulatory_evidence_items`. An observation is
+    // also a mutable single row — validate/exclude/restore change its own
+    // `status`/`excludedAt`/`exclusionReason` fields in place, same as
+    // `regulatory_evidence_items`; the full history of who changed what and
+    // when lives in the audit log (`doe.observation_recorded` /
+    // `doe.observation_excluded` / `doe.observation_restored`), not in a
+    // second copy of the row. A candidate is the same: `status`/
+    // `appliedDraftId`/`appliedAt` change in place as it moves
+    // proposed -> shortlisted -> selected -> applied_to_draft, again with
+    // the audit log as the durable history. An ANALYSIS is different and
+    // stays append-only: re-running an analysis is not a status edit, it is
+    // a genuinely new fit over (possibly) different included/excluded runs,
+    // linked via `supersedesAnalysisId` — the original coefficients/ANOVA a
+    // completed study's candidates and lineage depend on must never be
+    // silently overwritten. Review actions (observation validation,
+    // exclusion confirmation, study-completion approval) are a lightweight
+    // append-only sign-off log, identical shape to
+    // `regulatory_dossier_manual_requirement_actions`.
+    ("doe_studies", false),
+    ("doe_factors", false),
+    ("doe_constraints", false),
+    ("doe_responses", false),
+    ("doe_designs", false),
+    ("doe_runs", false),
+    ("doe_observations", false),
+    ("doe_analyses", true),
+    ("doe_candidates", false),
+    ("doe_review_actions", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
@@ -455,6 +504,30 @@ mod tests {
     #[test]
     fn all_nine_claims_and_labels_collections_are_allow_listed_with_the_designed_mutability() {
         for (name, append_only) in CLAIMS_LABELS_COLLECTIONS {
+            assert_eq!(
+                collection_spec(name),
+                Ok((name, append_only)),
+                "{name} should be allow-listed as append_only={append_only}"
+            );
+        }
+    }
+
+    const DOE_COLLECTIONS: [(&str, bool); 10] = [
+        ("doe_studies", false),
+        ("doe_factors", false),
+        ("doe_constraints", false),
+        ("doe_responses", false),
+        ("doe_designs", false),
+        ("doe_runs", false),
+        ("doe_observations", false),
+        ("doe_analyses", true),
+        ("doe_candidates", false),
+        ("doe_review_actions", true),
+    ];
+
+    #[test]
+    fn all_ten_doe_collections_are_allow_listed_with_the_designed_mutability() {
+        for (name, append_only) in DOE_COLLECTIONS {
             assert_eq!(
                 collection_spec(name),
                 Ok((name, append_only)),
