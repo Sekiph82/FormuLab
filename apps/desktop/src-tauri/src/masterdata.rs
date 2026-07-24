@@ -42,6 +42,15 @@
 //   data/master/regulatory_dossier_review_revocations.json
 //   data/master/regulatory_dossier_submissions.json
 //   data/master/regulatory_dossier_manual_requirement_actions.json
+//   data/master/product_claims.json
+//   data/master/claim_evidence_links.json
+//   data/master/claim_reviews.json
+//   data/master/claim_review_revocations.json
+//   data/master/product_labels.json
+//   data/master/label_content_blocks.json
+//   data/master/label_artworks.json
+//   data/master/label_reviews.json
+//   data/master/label_review_revocations.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -77,7 +86,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 48] = [
+const COLLECTIONS: [(&str, bool); 57] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -205,6 +214,36 @@ const COLLECTIONS: [(&str, bool); 48] = [
     ("regulatory_dossier_review_revocations", true),
     ("regulatory_dossier_submissions", false),
     ("regulatory_dossier_manual_requirement_actions", true),
+    // Phase 4 — Claims and Label Review. A claim/label is a mutable header
+    // row, same reasoning as `regulatory_dossiers`: its own status/revision
+    // lifecycle changes it, never a silent overwrite of an immutable
+    // (reviewed/approved/superseded) one — the application layer refuses
+    // that transition (`engine/claims.ts`'s `isClaimImmutable`,
+    // `engine/labels.ts`'s `isLabelImmutable`). Claim evidence links are
+    // append-only, identical overlay-computed-active convention as
+    // `regulatory_requirement_evidence_links`. Claim/label reviews and
+    // their revocations are append-only, mirroring
+    // `regulatory_dossier_reviews`/`regulatory_dossier_review_revocations`
+    // exactly. Label content blocks are append-only per (labelId,
+    // labelRevision, blockType, language) — an edit appends a new row
+    // rather than overwriting frozen content, the same pattern
+    // `regulatory_dossier_requirements` already uses. Label artwork is a
+    // mutable current-state row; a real file replacement creates a NEW row
+    // via `supersedesArtworkId` — no separate "artwork revisions"
+    // collection, same reasoning as `regulatory_evidence_items`.
+    // `label_manual_actions` from the spec's suggested 10 was dropped: the
+    // spec never defines what fields it would hold, and an empty,
+    // purposeless collection would be exactly the "unnecessary
+    // duplication" earlier phases were told to avoid.
+    ("product_claims", false),
+    ("claim_evidence_links", true),
+    ("claim_reviews", true),
+    ("claim_review_revocations", true),
+    ("product_labels", false),
+    ("label_content_blocks", true),
+    ("label_artworks", false),
+    ("label_reviews", true),
+    ("label_review_revocations", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
@@ -393,6 +432,29 @@ mod tests {
     #[test]
     fn all_eight_dossier_collections_are_allow_listed_with_the_designed_mutability() {
         for (name, append_only) in DOSSIER_COLLECTIONS {
+            assert_eq!(
+                collection_spec(name),
+                Ok((name, append_only)),
+                "{name} should be allow-listed as append_only={append_only}"
+            );
+        }
+    }
+
+    const CLAIMS_LABELS_COLLECTIONS: [(&str, bool); 9] = [
+        ("product_claims", false),
+        ("claim_evidence_links", true),
+        ("claim_reviews", true),
+        ("claim_review_revocations", true),
+        ("product_labels", false),
+        ("label_content_blocks", true),
+        ("label_artworks", false),
+        ("label_reviews", true),
+        ("label_review_revocations", true),
+    ];
+
+    #[test]
+    fn all_nine_claims_and_labels_collections_are_allow_listed_with_the_designed_mutability() {
+        for (name, append_only) in CLAIMS_LABELS_COLLECTIONS {
             assert_eq!(
                 collection_spec(name),
                 Ok((name, append_only)),

@@ -9,6 +9,9 @@
 import type {
   ApprovalPolicy,
   ApprovalPolicyRevision,
+  ClaimEvidenceLink,
+  ClaimReview,
+  ClaimReviewRevocation,
   CompatibilityRule,
   CompatibilitySnapshot,
   CorrectiveAction,
@@ -17,6 +20,10 @@ import type {
   FactoryCostProfile,
   FormulaVersionEquivalence,
   InventoryRecord,
+  LabelArtwork,
+  LabelContentBlock,
+  LabelReview,
+  LabelReviewRevocation,
   LaboratoryTrial,
   MaterialHazardRecord,
   MaterialPrice,
@@ -26,6 +33,8 @@ import type {
   OptimizationScenario,
   PackagingBom,
   PackagingComponent,
+  ProductClaim,
+  ProductLabel,
   RawMaterial,
   RegulatoryDossier,
   RegulatoryDossierEvidenceItem,
@@ -106,7 +115,16 @@ export type Collection =
   | "regulatory_dossier_reviews"
   | "regulatory_dossier_review_revocations"
   | "regulatory_dossier_submissions"
-  | "regulatory_dossier_manual_requirement_actions";
+  | "regulatory_dossier_manual_requirement_actions"
+  | "product_claims"
+  | "claim_evidence_links"
+  | "claim_reviews"
+  | "claim_review_revocations"
+  | "product_labels"
+  | "label_content_blocks"
+  | "label_artworks"
+  | "label_reviews"
+  | "label_review_revocations";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -157,6 +175,15 @@ interface CollectionTypes {
   regulatory_dossier_review_revocations: RegulatoryDossierReviewRevocation;
   regulatory_dossier_submissions: RegulatoryDossierSubmission;
   regulatory_dossier_manual_requirement_actions: RegulatoryDossierManualRequirementAction;
+  product_claims: ProductClaim;
+  claim_evidence_links: ClaimEvidenceLink;
+  claim_reviews: ClaimReview;
+  claim_review_revocations: ClaimReviewRevocation;
+  product_labels: ProductLabel;
+  label_content_blocks: LabelContentBlock;
+  label_artworks: LabelArtwork;
+  label_reviews: LabelReview;
+  label_review_revocations: LabelReviewRevocation;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
