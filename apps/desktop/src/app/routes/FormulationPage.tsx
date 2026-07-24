@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, FileText, FlaskConical, GitCompare, Package, Scale, ShieldAlert, TestTube2, Wallet } from "lucide-react";
-import { effectiveStatus, type AuditEvent, type CostSnapshot, type Formulation, type FormulationVersion, type PackagingBom } from "@ai4s/shared";
+import { effectiveStatus, STAGE_ADVANCE_NEXT, type AuditEvent, type CostSnapshot, type Formulation, type FormulationVersion, type PackagingBom, type StageAdvanceStatus } from "@ai4s/shared";
 import { FormulaBuilder } from "@/components/formula/FormulaBuilder";
 import { VersionCompare } from "@/components/formula/VersionCompare";
 import { CostPanel } from "@/components/formula/CostPanel";
@@ -160,6 +160,7 @@ export function FormulationPage() {
             packagingBoms={ws.packagingBoms}
             onRestore={ws.onRestore}
             onLifecycleAction={ws.onLifecycleAction}
+            onStageAdvance={ws.onStageAdvance}
             onCreateVariant={ws.onCreateVariant}
           />
         )}
@@ -255,6 +256,7 @@ function FormulationVersionsTab({
   packagingBoms: PackagingBom[];
   onRestore: (v: FormulationVersion) => void;
   onLifecycleAction: (v: FormulationVersion, to: "retired" | "rejected" | "concept", reason: string) => Promise<void>;
+  onStageAdvance: (v: FormulationVersion, to: StageAdvanceStatus) => Promise<void>;
   onCreateVariant: (v: FormulationVersion, branchName: string) => Promise<void>;
 }) {
   const { t } = useTranslation("session");
@@ -296,6 +298,7 @@ function FormulationVersionsTab({
               const canRetire = status === "pilot_approved" || status === "production_approved";
               const canReject = status !== "rejected" && status !== "production_approved" && status !== "retired";
               const canReopen = status === "rejected";
+              const nextStage = STAGE_ADVANCE_NEXT[status];
               return (
                 <li key={v.id} className="flex items-start gap-3 px-4 py-3">
                   <span className="rounded bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-muted">{v.versionLabel ?? `0.${v.versionNumber}`}</span>
@@ -323,6 +326,14 @@ function FormulationVersionsTab({
                     <button onClick={() => setVariantSource(v)} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
                       {t("builder.variant.create")}
                     </button>
+                    {nextStage && (
+                      <button
+                        onClick={() => void rest.onStageAdvance(v, nextStage)}
+                        className="rounded-input border border-accent/40 px-2 py-1 text-[11px] text-accent hover:bg-accent/10"
+                      >
+                        {t("builder.lifecycle.advanceTo", { status: t(`approval.status.${nextStage}`) })}
+                      </button>
+                    )}
                     {canRetire && (
                       <button onClick={() => setPendingAction({ version: v, to: "retired" })} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
                         {t("builder.lifecycle.retire")}

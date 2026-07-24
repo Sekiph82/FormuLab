@@ -472,6 +472,7 @@
       "retire": "Retire",
       "reject": "Reject",
       "reopen": "Reopen",
+      "advanceTo": "Advance to {{status}}",
       "retireTitle": "Retire version",
       "rejectTitle": "Reject version",
       "reopenTitle": "Reopen rejected version",

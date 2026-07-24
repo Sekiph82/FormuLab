@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attemptApprovalTransition, attemptLifecycleTransition, effectiveStatus } from "./lifecycle";
+import { attemptApprovalTransition, attemptLifecycleTransition, attemptStageAdvance, effectiveStatus, STAGE_ADVANCE_NEXT, type StageAdvanceStatus } from "./lifecycle";
 import type { ApprovalReadiness } from "./approvalReadiness";
 import type { Actor } from "../schemas/status";
 import type { AuditEvent, FormulationVersion } from "../schemas/formulation";
@@ -153,6 +153,66 @@ describe("attemptApprovalTransition", () => {
     const r = attemptApprovalTransition("concept", "production_approved", QUALITY, READY, { hasApprovalRecord: true });
     expect(r.allowed).toBe(false);
     expect(r.code).toBe("NOT_A_VALID_TRANSITION");
+  });
+});
+
+describe("attemptStageAdvance", () => {
+  it("walks the full canonical pipeline from concept to pilot_candidate, one hop at a time", () => {
+    let status: FormulationVersion["status"] = "concept";
+    const path: string[] = [status];
+    for (let i = 0; i < 10; i++) {
+      const next: StageAdvanceStatus | undefined = STAGE_ADVANCE_NEXT[status];
+      if (!next) break;
+      const r = attemptStageAdvance(status, next, CHEMIST);
+      expect(r.allowed).toBe(true);
+      expect(r.action).toBe(`version.advanced.${next}`);
+      status = next;
+      path.push(status);
+    }
+    expect(path).toEqual(["concept", "chemist_review", "lab_candidate", "stability_testing", "pilot_candidate"]);
+    expect(STAGE_ADVANCE_NEXT["pilot_candidate"]).toBeUndefined();
+  });
+
+  it("refuses skipping a stage (concept cannot advance straight to lab_candidate)", () => {
+    const r = attemptStageAdvance("concept", "lab_candidate", CHEMIST);
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("NOT_A_VALID_TRANSITION");
+  });
+
+  it("refuses advancing a retired/rejected/approved version", () => {
+    expect(attemptStageAdvance("retired", "chemist_review", CHEMIST).allowed).toBe(false);
+    expect(attemptStageAdvance("rejected", "chemist_review", CHEMIST).allowed).toBe(false);
+    expect(attemptStageAdvance("pilot_approved", "chemist_review", CHEMIST).allowed).toBe(false);
+  });
+
+  it("allows an agent or system actor to advance a stage — none of these are HUMAN_ONLY_STATUSES", () => {
+    expect(attemptStageAdvance("concept", "chemist_review", AGENT).allowed).toBe(true);
+    expect(attemptStageAdvance("concept", "chemist_review", SYSTEM).allowed).toBe(true);
+  });
+
+  it("effectiveStatus reflects a stage-advance event", () => {
+    const events = [event("version.advanced.chemist_review", "2026-02-01T00:00:00.000Z")];
+    expect(effectiveStatus(version("concept"), events)).toBe("chemist_review");
+  });
+
+  it("effectiveStatus reflects the latest of several stage-advance events, not the first", () => {
+    const events = [
+      event("version.advanced.chemist_review", "2026-02-01T00:00:00.000Z"),
+      event("version.advanced.lab_candidate", "2026-02-02T00:00:00.000Z"),
+      event("version.advanced.stability_testing", "2026-02-03T00:00:00.000Z"),
+    ];
+    expect(effectiveStatus(version("concept"), events)).toBe("stability_testing");
+  });
+
+  it("effectiveStatus reflects a stage-advance chain followed by pilot approval", () => {
+    const events = [
+      event("version.advanced.chemist_review", "2026-02-01T00:00:00.000Z"),
+      event("version.advanced.lab_candidate", "2026-02-02T00:00:00.000Z"),
+      event("version.advanced.stability_testing", "2026-02-03T00:00:00.000Z"),
+      event("version.advanced.pilot_candidate", "2026-02-04T00:00:00.000Z"),
+      event("version.approved.pilot_approved", "2026-02-05T00:00:00.000Z"),
+    ];
+    expect(effectiveStatus(version("concept"), events)).toBe("pilot_approved");
   });
 });
 

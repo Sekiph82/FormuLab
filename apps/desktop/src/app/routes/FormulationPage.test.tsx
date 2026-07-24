@@ -5,7 +5,7 @@
  * arrives, opens the right tab). Same mocking discipline as
  * ApprovalPanel.test.tsx — only the Tauri-backed modules are mocked.
  */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Formulation, FormulationLine, FormulationVersion } from "@ai4s/shared";
@@ -26,6 +26,7 @@ const formulationsBridge = {
   readFormulation: vi.fn(),
   readDraft: vi.fn(),
   readAuditLog: vi.fn(),
+  appendAudit: vi.fn(),
 };
 vi.mock("@/lib/formulations", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/formulations")>();
@@ -34,6 +35,7 @@ vi.mock("@/lib/formulations", async (importOriginal) => {
     readFormulation: (...a: [string]) => formulationsBridge.readFormulation(...a),
     readDraft: (...a: [string]) => formulationsBridge.readDraft(...a),
     readAuditLog: (...a: [string]) => formulationsBridge.readAuditLog(...a),
+    appendAudit: (...a: [import("@ai4s/shared").AuditEvent]) => formulationsBridge.appendAudit(...a),
   };
 });
 
@@ -90,6 +92,7 @@ beforeEach(() => {
   formulationsBridge.readFormulation.mockResolvedValue({ formulation: FORMULATION, versions: [VERSION_1] });
   formulationsBridge.readDraft.mockResolvedValue(null);
   formulationsBridge.readAuditLog.mockResolvedValue([]);
+  formulationsBridge.appendAudit.mockResolvedValue(undefined);
 });
 
 function renderAtPath(path: string) {
@@ -141,5 +144,30 @@ describe("FormulationPage — simplified tab strip", () => {
   it("shows a project picker when no project is selected", async () => {
     renderAtPath("/formulation");
     expect(await screen.findByText(/no projects yet/i)).toBeInTheDocument();
+  });
+});
+
+describe("FormulationPage — Versions tab stage-advance action", () => {
+  it("offers the single canonical next stage for the version's current status, and emits the matching audit action on click", async () => {
+    renderAtPath("/formulation?project=proj-1&tab=versions");
+    await screen.findByText("Test Project");
+
+    // VERSION_1 is at "chemist_review"; the canonical next stage is "lab_candidate".
+    const button = await screen.findByRole("button", { name: "Advance to Lab candidate" });
+    fireEvent.click(button);
+
+    expect(formulationsBridge.appendAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "version.advanced.lab_candidate", versionId: "version-1" }),
+    );
+  });
+
+  it("never offers a stage-advance button for a version already at pilot_candidate or later", async () => {
+    formulationsBridge.readFormulation.mockResolvedValue({
+      formulation: FORMULATION,
+      versions: [{ ...VERSION_1, status: "pilot_candidate" }],
+    });
+    renderAtPath("/formulation?project=proj-1&tab=versions");
+    await screen.findByText("Test Project");
+    expect(screen.queryByRole("button", { name: /^Advance to/ })).not.toBeInTheDocument();
   });
 });

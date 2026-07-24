@@ -486,6 +486,7 @@
       "retire": "Kullanımdan kaldır",
       "reject": "Reddet",
       "reopen": "Yeniden aç",
+      "advanceTo": "{{status}} aşamasına ilerlet",
       "retireTitle": "Sürümü kullanımdan kaldır",
       "rejectTitle": "Sürümü reddet",
       "reopenTitle": "Reddedilen sürümü yeniden aç",

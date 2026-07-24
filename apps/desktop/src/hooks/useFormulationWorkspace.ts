@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   attemptLifecycleTransition,
+  attemptStageAdvance,
   cloneToDraft,
   createVersion,
   draftDiffersFrom,
@@ -18,6 +19,7 @@ import {
   type FormulationVersion,
   type PackagingBom,
   type RawMaterial,
+  type StageAdvanceStatus,
 } from "@ai4s/shared";
 import {
   appendAudit,
@@ -217,6 +219,23 @@ export function useFormulationWorkspace(formulationId: string | null) {
     [project, auditLog, refreshAuditLog],
   );
 
+  const onStageAdvance = useCallback(
+    async (version: FormulationVersion, to: StageAdvanceStatus) => {
+      if (!project) return;
+      const current = effectiveStatus(version, auditLog);
+      const actor: Actor = { kind: "human", role: "chemist", userId: "local" };
+      const result = attemptStageAdvance(current, to, actor);
+      if (!result.allowed || !result.action) {
+        setError(result.message ?? "That transition is not allowed.");
+        return;
+      }
+      await appendAudit(auditEvent(project.id, result.action, { versionId: version.id }));
+      await refreshAuditLog();
+      setError(null);
+    },
+    [project, auditLog, refreshAuditLog],
+  );
+
   const onLinesChange = useCallback(
     (lines: FormulationLine[], opts?: { checkpoint?: boolean }) => {
       draft.set((d) => (d ? { ...d, lines } : d), opts);
@@ -291,6 +310,7 @@ export function useFormulationWorkspace(formulationId: string | null) {
     onRestore,
     onCreateVariant,
     onLifecycleAction,
+    onStageAdvance,
     onLinesChange,
     onApplyOptimizationResult,
     onApplySubstitution,
