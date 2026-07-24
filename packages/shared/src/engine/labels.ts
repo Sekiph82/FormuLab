@@ -19,6 +19,8 @@ import {
   type LabelContentBlockType,
   type LabelReadiness,
   type LabelRequirementState,
+  type LabelReview,
+  type LabelReviewRevocation,
   type LabelStatus,
   type ProductClaim,
   type ProductLabel,
@@ -390,6 +392,76 @@ export function calculateLabelReadiness(label: Pick<ProductLabel, "id" | "revisi
     languagesMissing,
     overallReadiness,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Label reviews — append-only, exact label+artwork revision, human-
+// authorized only. Mirrors `recordClaimReview`/`revokeClaimReview` exactly.
+// ---------------------------------------------------------------------------
+
+export interface RecordLabelReviewInput {
+  labelId: string;
+  labelRevision: number;
+  artworkId?: string;
+  artworkRevision?: number;
+  formulaVersionId: string;
+  packagingSkuCode?: string;
+  jurisdiction: RegulatoryJurisdiction;
+  language: string;
+  outcome: LabelReview["outcome"];
+  notes: string;
+  findingsSnapshot?: LabelReview["findingsSnapshot"];
+  contentSnapshot?: LabelContentBlock[];
+  claimsSnapshot?: string[];
+}
+
+export function recordLabelReview(input: RecordLabelReviewInput, actor: Actor): LabelReview {
+  requireAuthorizedRegulatoryActor(actor, "record a label review");
+  if (!input.notes.trim()) throw new Error("Label review notes are required.");
+  return {
+    schemaVersion: "1.0",
+    id: newId("labelreview"),
+    labelId: input.labelId,
+    labelRevision: input.labelRevision,
+    artworkId: input.artworkId,
+    artworkRevision: input.artworkRevision,
+    formulaVersionId: input.formulaVersionId,
+    packagingSkuCode: input.packagingSkuCode,
+    jurisdiction: input.jurisdiction,
+    language: input.language,
+    reviewedBy: actor.userId,
+    reviewerRole: actor.role,
+    reviewedAt: new Date().toISOString(),
+    outcome: input.outcome,
+    findingsSnapshot: input.findingsSnapshot ?? [],
+    contentSnapshot: input.contentSnapshot ?? [],
+    claimsSnapshot: input.claimsSnapshot ?? [],
+    notes: input.notes,
+  };
+}
+
+export function revokeLabelReview(reviewId: string, actor: Actor, reason: string): LabelReviewRevocation {
+  requireAuthorizedRegulatoryActor(actor, "revoke a label review");
+  if (!reason.trim()) throw new Error("A reason is required to revoke a label review.");
+  return {
+    schemaVersion: "1.0",
+    id: newId("labelreviewrevocation"),
+    revokesReviewId: reviewId,
+    revokedBy: actor.userId,
+    revokedByRole: actor.role,
+    revokedAt: new Date().toISOString(),
+    reason,
+  };
+}
+
+/** A label review is only "active" for the exact label revision AND the
+ *  exact artwork revision it was recorded against — a new artwork upload
+ *  (even without a new label content revision) makes a prior review stale,
+ *  per spec §12. */
+export function isLabelReviewActive(review: LabelReview, revocations: LabelReviewRevocation[], currentLabelRevision: number, currentArtworkRevision?: number): boolean {
+  if (review.labelRevision !== currentLabelRevision) return false;
+  if (review.artworkRevision !== undefined && review.artworkRevision !== currentArtworkRevision) return false;
+  return !revocations.some((r) => r.revokesReviewId === review.id);
 }
 
 export interface LabelRequirementDrift {

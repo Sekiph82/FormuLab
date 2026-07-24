@@ -12,10 +12,13 @@ import {
   evaluateFormulaLabelConsistency,
   evaluateLabelContent,
   isLabelImmutable,
+  isLabelReviewActive,
+  recordLabelReview,
   rejectArtwork,
   replaceArtwork,
   resolveLabelRequirements,
   reviseLabel,
+  revokeLabelReview,
   setLabelContent,
   updateLabelStatus,
   uploadArtwork,
@@ -241,6 +244,34 @@ describe("calculateLabelReadiness", () => {
     const blocks: LabelContentBlock[] = reqs.map((r) => setLabelContent({ labelId: "label-1", labelRevision: 1, blockType: r.blockType, text: "x", language: "en" }, HUMAN));
     const rows = evaluateLabelContent(reqs, blocks, "en");
     expect(calculateLabelReadiness(label(), rows, ["en"], ["en"]).overallReadiness).toBe("ready_for_review");
+  });
+});
+
+describe("label reviews", () => {
+  it("only an authorized regulatory actor can record or revoke a review, and notes/reason are required", () => {
+    expect(() =>
+      recordLabelReview({ labelId: "label-1", labelRevision: 1, formulaVersionId: "version-1", jurisdiction: "KE", language: "en", outcome: "approved", notes: "looks good" }, HUMAN),
+    ).toThrow();
+    expect(() =>
+      recordLabelReview({ labelId: "label-1", labelRevision: 1, formulaVersionId: "version-1", jurisdiction: "KE", language: "en", outcome: "approved", notes: "" }, REGULATORY_ACTOR),
+    ).toThrow();
+    const review = recordLabelReview({ labelId: "label-1", labelRevision: 1, formulaVersionId: "version-1", jurisdiction: "KE", language: "en", outcome: "approved", notes: "looks good" }, REGULATORY_ACTOR);
+    expect(review.reviewedBy).toBe("bob");
+    expect(() => revokeLabelReview(review.id, HUMAN, "mistake")).toThrow();
+    expect(() => revokeLabelReview(review.id, REGULATORY_ACTOR, "")).toThrow();
+    const revocation = revokeLabelReview(review.id, REGULATORY_ACTOR, "mistake");
+    expect(revocation.revokesReviewId).toBe(review.id);
+  });
+  it("a review is only active for the exact label AND artwork revision it was recorded against", () => {
+    const review = recordLabelReview(
+      { labelId: "label-1", labelRevision: 1, artworkId: "art-1", artworkRevision: 1, formulaVersionId: "version-1", jurisdiction: "KE", language: "en", outcome: "approved", notes: "ok" },
+      REGULATORY_ACTOR,
+    );
+    expect(isLabelReviewActive(review, [], 1, 1)).toBe(true);
+    expect(isLabelReviewActive(review, [], 2, 1)).toBe(false);
+    expect(isLabelReviewActive(review, [], 1, 2)).toBe(false);
+    const revocation = revokeLabelReview(review.id, REGULATORY_ACTOR, "superseded by new review");
+    expect(isLabelReviewActive(review, [revocation], 1, 1)).toBe(false);
   });
 });
 
