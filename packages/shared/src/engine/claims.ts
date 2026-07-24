@@ -262,13 +262,13 @@ export function proposeClaimEvidenceLink(claimId: string, evidenceItemId: string
 
 export function acceptClaimEvidenceLink(link: ClaimEvidenceLink, actor: Actor): ClaimEvidenceLink {
   requireHumanActor(actor, "accept a claim evidence link");
-  return { ...link, linkStatus: "accepted", reviewedBy: actor.userId, reviewedAt: new Date().toISOString() };
+  return { ...link, id: newId("claimevidencelink"), linkStatus: "accepted", reviewedBy: actor.userId, reviewedAt: new Date().toISOString() };
 }
 
 export function rejectClaimEvidenceLink(link: ClaimEvidenceLink, actor: Actor, notes: string): ClaimEvidenceLink {
   requireHumanActor(actor, "reject a claim evidence link");
   if (!notes.trim()) throw new Error("A reason is required to reject a claim evidence link.");
-  return { ...link, linkStatus: "rejected", reviewedBy: actor.userId, reviewedAt: new Date().toISOString(), notes };
+  return { ...link, id: newId("claimevidencelink"), linkStatus: "rejected", reviewedBy: actor.userId, reviewedAt: new Date().toISOString(), notes };
 }
 
 export function revokeClaimEvidenceLink(link: ClaimEvidenceLink, actor: Actor, notes: string): ClaimEvidenceLink {
