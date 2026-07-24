@@ -20,6 +20,7 @@ import {
   Settings,
   Sparkles,
   Table2,
+  Tags,
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -222,6 +223,7 @@ export function Sidebar() {
               <NavRow icon={<Sparkles size={16} />} label={t("workspacesNav.optimization")} onClick={() => navigate("/optimization")} />
               <NavRow icon={<Scale size={16} />} label={t("workspacesNav.regulatory")} onClick={() => navigate("/regulatory")} />
               <NavRow icon={<FileCheck2 size={16} />} label={t("workspacesNav.dossiers")} onClick={() => navigate("/dossiers")} />
+              <NavRow icon={<Tags size={16} />} label={t("workspacesNav.claimsLabels")} onClick={() => navigate("/claims-labels")} />
               <NavRow icon={<CheckCircle2 size={16} />} label={t("workspacesNav.approval")} onClick={() => navigate("/approval")} />
               <NavRow icon={<FileBarChart2 size={16} />} label={t("workspacesNav.reports")} onClick={() => navigate("/reports")} />
               <NavRow icon={<Boxes size={16} />} label={t("workspacesNav.administration")} onClick={() => navigate("/administration")} />
