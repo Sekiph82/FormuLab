@@ -463,3 +463,60 @@ describe("ApprovalPanel — Phase 3 dossier readiness integration", () => {
     expect(screen.queryByText(/No regulatory dossier covers/i)).not.toBeInTheDocument();
   });
 });
+
+describe("ApprovalPanel — Phase 4 claims & label readiness integration", () => {
+  it("is off by default — no existing project becomes blocked merely because Phase 4 was installed", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies" ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireNoProhibitedClaims: false }]) : Promise.resolve(seed),
+    );
+    masterdataBridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "product_claims") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "claim-1", claimCode: "CLM-1", claimText: "Cures disease", normalizedClaim: "cures disease", claimCategory: "medical", formulationId: "proj-1", formulaVersionId: "version-1", jurisdictions: ["KE"], languages: ["en"], status: "prohibited", riskLevel: "critical", proposedBy: "local", proposedAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const v = version();
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(screen.queryByText(/is prohibited and still active/i)).not.toBeInTheDocument();
+  });
+
+  it("blocks approval when requireNoProhibitedClaims is on and a prohibited claim is active for this version", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies" ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireNoProhibitedClaims: true }]) : Promise.resolve(seed),
+    );
+    const v = version();
+    masterdataBridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "product_claims") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "claim-1", claimCode: "CLM-1", claimText: "Cures disease", normalizedClaim: "cures disease", claimCategory: "medical", formulationId: "proj-1", formulaVersionId: v.id, jurisdictions: ["KE"], languages: ["en"], status: "prohibited", riskLevel: "critical", proposedBy: "local", proposedAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(await screen.findByText(/is prohibited and still active/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
+  });
+
+  it("clears the claims blocker once the prohibited claim no longer applies to this formula version", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies" ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireNoProhibitedClaims: true }]) : Promise.resolve(seed),
+    );
+    const v = version();
+    masterdataBridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "product_claims") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "claim-1", claimCode: "CLM-1", claimText: "Cures disease", normalizedClaim: "cures disease", claimCategory: "medical", formulationId: "proj-1", formulaVersionId: "version-OTHER", jurisdictions: ["KE"], languages: ["en"], status: "prohibited", riskLevel: "critical", proposedBy: "local", proposedAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(screen.queryByText(/is prohibited and still active/i)).not.toBeInTheDocument();
+  });
+});

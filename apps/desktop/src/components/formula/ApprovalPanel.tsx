@@ -38,9 +38,21 @@ import {
   currentRequirementsForRevision,
   classifyProductRegulatory,
   classifyProductSafety,
+  calculateClaimsReadiness,
+  calculateLabelReadiness,
   clonePolicy,
+  currentContentForRevision,
   declareEquivalence,
+  deriveArtworkEffectiveStatus,
+  deriveClaimEffectiveStatus,
+  deriveClaimsLabelApprovalReadiness,
   deriveDossierApprovalReadiness,
+  deriveLabelEffectiveStatus,
+  evaluateClaimAgainstRules,
+  evaluateClaimEvidence,
+  evaluateLabelContent,
+  isClaimReviewActive,
+  isLabelReviewActive,
   deriveLabReadiness,
   deriveRegulatoryReadiness,
   deriveStabilityReadiness,
@@ -58,6 +70,7 @@ import {
   newId,
   policyApplies,
   resolveDossierJurisdictions,
+  resolveLabelRequirements,
   resolvePolicyPrecedence,
   resolveRegulatoryJurisdictions,
   restorePolicyRevision,
@@ -65,6 +78,7 @@ import {
   revokeEquivalence,
   setPolicyActive,
   templateForFamily,
+  toClaimsLabelApprovalPolicy,
   toDossierApprovalPolicy,
   toLabApprovalPolicy,
   toRegulatoryApprovalPolicy,
@@ -85,9 +99,17 @@ import {
   type ApprovalRole,
   type ApprovalWarning,
   type AuditEvent,
+  type ClaimEvidenceLink,
+  type ClaimReview,
+  type ClaimReviewRevocation,
+  type ClaimsLabelApprovalSnapshot,
   type CorrectiveAction,
   type CostSnapshot,
   type DossierApprovalSnapshot,
+  type LabelArtwork,
+  type LabelContentBlock,
+  type LabelReview,
+  type LabelReviewRevocation,
   type EvidenceReuseScope,
   type Formulation,
   type FormulationVersion,
@@ -95,6 +117,8 @@ import {
   type FormulaVersionEquivalence,
   type LaboratoryTrial,
   type OptimizationRun,
+  type ProductClaim,
+  type ProductLabel,
   type RawMaterial,
   type RegulatoryApprovalSnapshot,
   type RegulatoryDossier,
@@ -159,6 +183,10 @@ const SOURCE_NAV: Record<string, NavTarget> = {
   // routing here to Regulatory, the closest in-workflow section, rather
   // than inventing a second navigation mechanism just for this blocker source.
   dossier: "regulatory",
+  // Claims & Labels lives on its own separate /claims-labels route, same
+  // reasoning as the dossier entry above — route to the closest in-workflow
+  // section rather than inventing a second navigation mechanism.
+  claims_label: "regulatory",
 };
 
 const CODE_NAV_OVERRIDE: Record<string, NavTarget> = {
@@ -233,9 +261,22 @@ export function ApprovalPanel({
   const [dossierReviews, setDossierReviews] = useState<RegulatoryDossierReview[]>([]);
   const [dossierReviewRevocations, setDossierReviewRevocations] = useState<RegulatoryDossierReviewRevocation[]>([]);
   const [dossierSubmissions, setDossierSubmissions] = useState<RegulatoryDossierSubmission[]>([]);
+  // Phase 4 §17 — claims & label readiness gates. Off by default, exactly
+  // like the dossier gates above: loading these collections costs nothing
+  // when a policy never opts in, since deriveClaimsLabelApprovalReadiness
+  // short-circuits to { ready: true } before touching any of them.
+  const [claims, setClaims] = useState<ProductClaim[]>([]);
+  const [claimLinks, setClaimLinks] = useState<ClaimEvidenceLink[]>([]);
+  const [claimReviews, setClaimReviews] = useState<ClaimReview[]>([]);
+  const [claimReviewRevocations, setClaimReviewRevocations] = useState<ClaimReviewRevocation[]>([]);
+  const [productLabels, setProductLabels] = useState<ProductLabel[]>([]);
+  const [labelContent, setLabelContent] = useState<LabelContentBlock[]>([]);
+  const [labelArtworks, setLabelArtworks] = useState<LabelArtwork[]>([]);
+  const [labelReviews, setLabelReviews] = useState<LabelReview[]>([]);
+  const [labelReviewRevocations, setLabelReviewRevocations] = useState<LabelReviewRevocation[]>([]);
 
   const load = useCallback(async () => {
-    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec, regr, regrev, regrevrev, regequiv, regconf, regconfrev, doss, dreq, dlink, dev2, drev, drevrev, dsub] = await Promise.all([
+    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec, regr, regrev, regrevrev, regequiv, regconf, regconfrev, doss, dreq, dlink, dev2, drev, drevrev, dsub, cl, clk, crv, crvrv, plab, lcnt, lart, lrev, lrevrv] = await Promise.all([
       listRecords("materials"),
       listRecordsSeeded("compatibility_rules", SEED_COMPATIBILITY_RULES),
       listRecordsSeeded("safety_rules", SEED_SAFETY_RULES),
@@ -269,6 +310,15 @@ export function ApprovalPanel({
       listRecords("regulatory_dossier_reviews"),
       listRecords("regulatory_dossier_review_revocations"),
       listRecords("regulatory_dossier_submissions"),
+      listRecords("product_claims"),
+      listRecords("claim_evidence_links"),
+      listRecords("claim_reviews"),
+      listRecords("claim_review_revocations"),
+      listRecords("product_labels"),
+      listRecords("label_content_blocks"),
+      listRecords("label_artworks"),
+      listRecords("label_reviews"),
+      listRecords("label_review_revocations"),
     ]);
     setMaterials(m);
     setCompatibilityRules(cr);
@@ -305,6 +355,19 @@ export function ApprovalPanel({
     setDossierReviews(drev.filter((r) => ownDossierIds.has(r.dossierId)));
     setDossierReviewRevocations(drevrev);
     setDossierSubmissions(dsub.filter((s) => ownDossierIds.has(s.dossierId)));
+    const ownClaims = cl.filter((c: ProductClaim) => c.formulationId === formulation.id);
+    setClaims(ownClaims);
+    const ownClaimIds = new Set(ownClaims.map((c: ProductClaim) => c.id));
+    setClaimLinks(clk.filter((l: ClaimEvidenceLink) => ownClaimIds.has(l.claimId)));
+    setClaimReviews(crv.filter((r: ClaimReview) => ownClaimIds.has(r.claimId)));
+    setClaimReviewRevocations(crvrv);
+    const ownLabels = plab.filter((l: ProductLabel) => l.formulationId === formulation.id);
+    setProductLabels(ownLabels);
+    const ownLabelIds = new Set(ownLabels.map((l: ProductLabel) => l.id));
+    setLabelContent(lcnt.filter((b: LabelContentBlock) => ownLabelIds.has(b.labelId)));
+    setLabelArtworks(lart.filter((a: LabelArtwork) => ownLabelIds.has(a.labelId)));
+    setLabelReviews(lrev.filter((r: LabelReview) => ownLabelIds.has(r.labelId)));
+    setLabelReviewRevocations(lrevrv);
   }, [formulation.id]);
 
   useEffect(() => {
@@ -557,6 +620,41 @@ export function ApprovalPanel({
     : { ready: true, blockers: [] };
   const dossierBlockers: DisplayFinding[] = dossierReadinessResult.blockers.map((b) => ({ id: b.id, source: "dossier", code: b.code, message: b.message }));
 
+  // Phase 4 §17 — claims & label readiness, the same one-more-layer-up
+  // blocker source as the dossier gates above. `deriveClaimsLabelApprovalReadiness`
+  // itself short-circuits to `{ ready: true, blockers: [] }` whenever the
+  // policy never sets any of the 7 opt-in fields — installing Phase 4 never
+  // blocks an existing project that has not opted in. No persisted
+  // "required languages" concept exists on `Formulation` yet, so the
+  // required-language set is derived honestly from whichever languages this
+  // formula version's own labels actually cover, unioned with the
+  // documented English baseline (spec §13) — never a fabricated policy field.
+  const claimsLabelPolicy = activePolicy ? toClaimsLabelApprovalPolicy(activePolicy) : {};
+  const versionLabels = productLabels.filter((l) => l.formulaVersionId === selectedVersion?.id && (!packagingSkuCode || !l.packagingSkuCode || l.packagingSkuCode === packagingSkuCode));
+  const requiredLanguages = Array.from(new Set(["en", ...versionLabels.map((l) => l.language)]));
+  const claimsLabelReadinessResult = selectedVersion
+    ? deriveClaimsLabelApprovalReadiness({
+        policy: claimsLabelPolicy,
+        formulationName: formulation.name,
+        formulaVersion: selectedVersion,
+        packagingSkuCode,
+        jurisdictions: dossierJurisdictions.length > 0 ? dossierJurisdictions : dossierTargetMarkets,
+        requiredLanguages,
+        claims,
+        claimLinks,
+        claimReviews,
+        claimReviewRevocations,
+        dossierEvidence,
+        labels: productLabels,
+        labelContent,
+        labelArtworks,
+        labelReviews,
+        labelReviewRevocations,
+        rules: regulatoryRules,
+      })
+    : { ready: true, blockers: [] };
+  const claimsLabelBlockers: DisplayFinding[] = claimsLabelReadinessResult.blockers.map((b) => ({ id: b.id, source: "claims_label", code: b.code, message: b.message }));
+
   // Frozen at the moment of decision (spec §3.9): later rule edits, later
   // reviews, or later confirmation revocations must not retroactively
   // rewrite what this historical approval record says was true. Recomputes
@@ -662,9 +760,67 @@ export function ApprovalPanel({
     };
   };
 
-  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : []), ...regulatoryBlockers, ...dossierBlockers];
+  // Phase 4 §17 — frozen at the moment of decision, same reasoning as
+  // buildDossierSnapshot above: a later claim edit, label content change or
+  // review must never rewrite what a past ApprovalRecord's claimsLabelSnapshot
+  // says was true at approval time.
+  const buildClaimsLabelSnapshot = (): ClaimsLabelApprovalSnapshot | undefined => {
+    if (!selectedVersion) return undefined;
+    const activeClaims = claims.filter((c) => c.formulaVersionId === selectedVersion.id && deriveClaimEffectiveStatus(c, claims) !== "superseded");
+    const findingsByClaimId = new Map(
+      activeClaims.map((c) => [
+        c.id,
+        [
+          ...evaluateClaimAgainstRules(c, { jurisdictions: c.jurisdictions, rules: regulatoryRules }),
+          ...evaluateClaimEvidence(c, claimLinks, dossierEvidence, { formulaVersionId: c.formulaVersionId, packagingSkuCode: c.packagingSkuCode, jurisdictions: c.jurisdictions }).findings,
+        ],
+      ]),
+    );
+    const claimsReadiness = calculateClaimsReadiness(activeClaims, findingsByClaimId);
+    const claimReviewIds = claimReviews.filter((r) => activeClaims.some((c) => c.id === r.claimId) && isClaimReviewActive(r, claimReviewRevocations, 1)).map((r) => r.id);
+
+    const versionScopedLabels = productLabels.filter(
+      (l) => l.formulaVersionId === selectedVersion.id && deriveLabelEffectiveStatus(l, productLabels) !== "superseded" && (!packagingSkuCode || !l.packagingSkuCode || l.packagingSkuCode === packagingSkuCode),
+    );
+    const labelReviewIds: string[] = [];
+    const artworkIds: string[] = [];
+    const labelReadinessStates: string[] = [];
+    for (const label of versionScopedLabels) {
+      const blocks = currentContentForRevision(labelContent, label.id, label.revision);
+      const artworksForLabel = labelArtworks.filter((a) => a.labelId === label.id && a.labelRevision === label.revision);
+      const currentArtwork = artworksForLabel.find((a) => deriveArtworkEffectiveStatus(a, artworksForLabel) !== "superseded");
+      if (currentArtwork) artworkIds.push(currentArtwork.id);
+      const hasActiveClaims = activeClaims.some((c) => c.jurisdictions.includes(label.jurisdiction));
+      const requirements = resolveLabelRequirements({ jurisdiction: label.jurisdiction, language: label.language, rules: regulatoryRules, hasActiveClaims });
+      const contentRows = evaluateLabelContent(requirements, blocks, label.language);
+      const labelReadiness = calculateLabelReadiness(label, contentRows, [label.language], [label.language], currentArtwork);
+      labelReadinessStates.push(labelReadiness.overallReadiness);
+      for (const review of labelReviews.filter((r) => r.labelId === label.id)) {
+        if (isLabelReviewActive(review, labelReviewRevocations, label.revision, review.artworkRevision)) labelReviewIds.push(review.id);
+      }
+    }
+    const priority = ["unknown", "blocked", "not_ready", "partially_ready", "under_review", "review_complete", "ready_for_review"];
+    const worstLabel = labelReadinessStates.reduce((acc, s) => (priority.indexOf(s) < priority.indexOf(acc) ? s : acc), labelReadinessStates[0] ?? "unknown");
+    return {
+      claimIds: activeClaims.map((c) => c.id),
+      claimRevisions: Object.fromEntries(activeClaims.map((c) => [c.id, 1])),
+      labelIds: versionScopedLabels.map((l) => l.id),
+      labelRevisions: Object.fromEntries(versionScopedLabels.map((l) => [l.id, l.revision])),
+      artworkIds,
+      labelReviewIds,
+      claimReviewIds,
+      languages: requiredLanguages,
+      jurisdictions: dossierJurisdictions.length > 0 ? dossierJurisdictions : dossierTargetMarkets,
+      claimsReadinessState: claimsReadiness.overallReadiness,
+      labelReadinessState: (versionScopedLabels.length > 0 ? worstLabel : "unknown") as ClaimsLabelApprovalSnapshot["labelReadinessState"],
+      blockers: claimsLabelReadinessResult.blockers.map((b) => b.message),
+      warnings: [],
+    };
+  };
+
+  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : []), ...regulatoryBlockers, ...dossierBlockers, ...claimsLabelBlockers];
   const allWarnings: (ApprovalWarning | DisplayFinding)[] = readiness.warnings;
-  const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker && regulatoryAssessment.ready && dossierReadinessResult.ready;
+  const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker && regulatoryAssessment.ready && dossierReadinessResult.ready && claimsLabelReadinessResult.ready;
 
   const canApprove = !!selectedVersion && targetOptions.includes(targetStatus) && APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole);
 
@@ -744,6 +900,7 @@ export function ApprovalPanel({
       const snapshot = buildReadinessSnapshot();
       const regulatorySnapshot = buildRegulatorySnapshot();
       const dossierSnapshot = buildDossierSnapshot();
+      const claimsLabelSnapshot = buildClaimsLabelSnapshot();
       const approvalId = newId("approval");
       const now = new Date().toISOString();
 
@@ -757,20 +914,20 @@ export function ApprovalPanel({
         );
         if (!result.allowed || !result.action) {
           await saveApprovalRecord(
-            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason || result.message || "blocked", snapshot, now, regulatorySnapshot, dossierSnapshot),
+            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason || result.message || "blocked", snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
           );
           await appendAudit(auditEvent(formulation.id, "approval.blocked", { versionId: selectedVersion.id, detail: result.message }));
           setError(result.message ?? t("approval.blockedGeneric"));
           return;
         }
         await saveApprovalRecord(
-          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot),
+          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
         );
         await appendAudit(auditEvent(formulation.id, result.action, { versionId: selectedVersion.id, detail: reason }));
         await appendAudit(auditEvent(formulation.id, "approval.granted", { versionId: selectedVersion.id, detail: approvalId }));
       } else {
         await saveApprovalRecord(
-          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot),
+          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
         );
         await appendAudit(auditEvent(formulation.id, `approval.${decision}`, { versionId: selectedVersion.id, detail: reason }));
       }
@@ -1126,6 +1283,13 @@ const DISABLED_EXAMPLE_POLICY: ApprovalPolicy = {
   requireNoMissingMandatoryDossierEvidence: false,
   requireNoExpiredMandatoryDossierEvidence: false,
   requireAllRequiredJurisdictionDossiers: false,
+  requireAllClaimsReviewed: false,
+  requireNoProhibitedClaims: false,
+  requireNoUnsupportedClaims: false,
+  requireLabelReviewComplete: false,
+  requireArtworkApproved: false,
+  requireFormulaLabelConsistency: false,
+  requireAllRequiredLanguagesReviewed: false,
   createdBy: "local",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -1145,6 +1309,7 @@ function buildApprovalRecord(
   now: string,
   regulatorySnapshot?: RegulatoryApprovalSnapshot,
   dossierSnapshot?: DossierApprovalSnapshot,
+  claimsLabelSnapshot?: ClaimsLabelApprovalSnapshot,
 ): ApprovalRecord {
   return {
     schemaVersion: "1.0",
@@ -1164,6 +1329,7 @@ function buildApprovalRecord(
     readinessSnapshot: snapshot,
     regulatorySnapshot,
     dossierSnapshot,
+    claimsLabelSnapshot,
     createdAt: now,
   };
 }

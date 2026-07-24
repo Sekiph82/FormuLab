@@ -99,6 +99,18 @@ export const approvalPolicySchema = z.object({
   requireNoExpiredMandatoryDossierEvidence: z.boolean().default(false),
   requireAllRequiredJurisdictionDossiers: z.boolean().default(false),
 
+  /** Claims & Label gates (Phase 4 spec §17) — off by default, exactly like
+   *  every gate above; installing Phase 4 must never block an existing
+   *  project that never opts in. See
+   *  `engine/claimsLabelApproval.ts`'s `deriveClaimsLabelApprovalReadiness`. */
+  requireAllClaimsReviewed: z.boolean().default(false),
+  requireNoProhibitedClaims: z.boolean().default(false),
+  requireNoUnsupportedClaims: z.boolean().default(false),
+  requireLabelReviewComplete: z.boolean().default(false),
+  requireArtworkApproved: z.boolean().default(false),
+  requireFormulaLabelConsistency: z.boolean().default(false),
+  requireAllRequiredLanguagesReviewed: z.boolean().default(false),
+
   createdBy: z.string().min(1),
   createdAt: z.string(),
   updatedBy: z.string().optional(),

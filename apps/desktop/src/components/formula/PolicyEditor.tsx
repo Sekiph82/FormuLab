@@ -34,6 +34,14 @@ const POLICY_TOGGLES: { key: keyof ApprovalPolicy; labelKey: string }[] = [
   { key: "requireNoMissingMandatoryDossierEvidence", labelKey: "approval.requireNoMissingMandatoryDossierEvidence" },
   { key: "requireNoExpiredMandatoryDossierEvidence", labelKey: "approval.requireNoExpiredMandatoryDossierEvidence" },
   { key: "requireAllRequiredJurisdictionDossiers", labelKey: "approval.requireAllRequiredJurisdictionDossiers" },
+  // Phase 4 §17 claims & label gates — all default false, see PRODUCT_CLAIMS.md/PRODUCT_LABELS.md.
+  { key: "requireAllClaimsReviewed", labelKey: "approval.requireAllClaimsReviewed" },
+  { key: "requireNoProhibitedClaims", labelKey: "approval.requireNoProhibitedClaims" },
+  { key: "requireNoUnsupportedClaims", labelKey: "approval.requireNoUnsupportedClaims" },
+  { key: "requireLabelReviewComplete", labelKey: "approval.requireLabelReviewComplete" },
+  { key: "requireArtworkApproved", labelKey: "approval.requireArtworkApproved" },
+  { key: "requireFormulaLabelConsistency", labelKey: "approval.requireFormulaLabelConsistency" },
+  { key: "requireAllRequiredLanguagesReviewed", labelKey: "approval.requireAllRequiredLanguagesReviewed" },
 ];
 
 interface DraftFields {
