@@ -18,10 +18,14 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, History, Plus, RotateCcw, Scale, ShieldCheck, Upload } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Download, FileCheck2, History, Plus, RotateCcw, Scale, ShieldCheck, Upload } from "lucide-react";
 import {
+  buildEvidenceMatrix,
   buildKenyaCatalog,
+  calculateDossierReadiness,
   classifyProductRegulatory,
+  currentRequirementsForRevision,
   declareRegulatoryReviewEquivalence,
   deprecateRule,
   deriveRegulatoryReviewStatus,
@@ -29,6 +33,7 @@ import {
   evaluateRegulatory,
   explainRegulatoryReviewStatus,
   findApplicableRegulatoryReview,
+  findDossierForScope,
   isAuthorizedRegulatoryActor,
   initialRuleRevision,
   newId,
@@ -53,10 +58,14 @@ import {
   type FormulationLine,
   type FormulationVersion,
   type RawMaterial,
+  type RegulatoryDossier,
+  type RegulatoryDossierEvidenceItem,
+  type RegulatoryDossierRequirement,
   type RegulatoryEvidenceConfirmation,
   type RegulatoryEvidenceConfirmationRevocation,
   type RegulatoryFinding,
   type RegulatoryJurisdiction,
+  type RegulatoryRequirementEvidenceLink,
   type RegulatoryReview,
   type RegulatoryReviewEquivalence,
   type RegulatoryReviewRevocation,
@@ -125,6 +134,10 @@ export function RegulatoryPanel({
   const [reviewEquivalences, setReviewEquivalences] = useState<RegulatoryReviewEquivalence[]>([]);
   const [confirmations, setConfirmations] = useState<RegulatoryEvidenceConfirmation[]>([]);
   const [confirmationRevocations, setConfirmationRevocations] = useState<RegulatoryEvidenceConfirmationRevocation[]>([]);
+  const [dossiers, setDossiers] = useState<RegulatoryDossier[]>([]);
+  const [dossierRequirements, setDossierRequirements] = useState<RegulatoryDossierRequirement[]>([]);
+  const [dossierLinks, setDossierLinks] = useState<RegulatoryRequirementEvidenceLink[]>([]);
+  const [dossierEvidence, setDossierEvidence] = useState<RegulatoryDossierEvidenceItem[]>([]);
   const [jurisdiction, setJurisdiction] = useState<RegulatoryJurisdiction>(
     (formulation.targetMarkets[0] as RegulatoryJurisdiction) ?? "KE",
   );
@@ -142,7 +155,7 @@ export function RegulatoryPanel({
   const canActRegulatory = isAuthorizedRegulatoryActor(actor);
 
   const load = async () => {
-    const [ru, rv, rev, revrev, revequiv, conf, confrev] = await Promise.all([
+    const [ru, rv, rev, revrev, revequiv, conf, confrev, doss, dreq, dlink, dev] = await Promise.all([
       listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES),
       listRecords("regulatory_rule_revisions"),
       listRecords("regulatory_reviews"),
@@ -150,6 +163,10 @@ export function RegulatoryPanel({
       listRecords("regulatory_review_equivalences"),
       listRecords("regulatory_evidence_confirmations"),
       listRecords("regulatory_evidence_confirmation_revocations"),
+      listRecords("regulatory_dossiers"),
+      listRecords("regulatory_dossier_requirements"),
+      listRecords("regulatory_requirement_evidence_links"),
+      listRecords("regulatory_evidence_items"),
     ]);
     setRules(ru);
     setRevisions(rv);
@@ -158,6 +175,12 @@ export function RegulatoryPanel({
     setReviewEquivalences(revequiv.filter((e) => e.formulationId === formulation.id));
     setConfirmations(conf.filter((c) => c.formulationId === formulation.id));
     setConfirmationRevocations(confrev);
+    const ownDossiers = doss.filter((d) => d.formulationId === formulation.id);
+    setDossiers(ownDossiers);
+    const ownIds = new Set(ownDossiers.map((d) => d.id));
+    setDossierRequirements(dreq.filter((r) => ownIds.has(r.dossierId)));
+    setDossierLinks(dlink.filter((l) => ownIds.has(l.dossierId)));
+    setDossierEvidence(dev.filter((e) => e.formulationId === formulation.id));
   };
 
   useEffect(() => {
@@ -208,6 +231,25 @@ export function RegulatoryPanel({
   const reviewCtx = { formulaVersionId: selectedVersionId || "working_draft", jurisdiction, packagingSkuCode: packagingSkuCode || undefined };
   const applicableReview = findApplicableRegulatoryReview(reviewCtx, reviews, reviewRevocations, reviewEquivalences, rules);
   const reviewStatusForCtx = applicableReview ? "current" : explainRegulatoryReviewStatus(reviewCtx, reviews, reviewRevocations, rules);
+
+  // Phase 3 §9 — a link to the version/jurisdiction/packaging-SKU-scoped
+  // dossier, never merged into this panel's own findings/review model.
+  // Findings above may suggest requirements inside a dossier; they never
+  // silently create verified evidence there.
+  const dossierScope = { formulaVersionId: selectedVersionId, packagingSkuCode: packagingSkuCode || undefined, jurisdiction };
+  const dossierMatch = selectedVersionId ? findDossierForScope(dossiers, dossierScope) : { reason: "no_dossier" as const };
+  const dossierReadiness = dossierMatch.dossier
+    ? calculateDossierReadiness(
+        dossierMatch.dossier,
+        buildEvidenceMatrix(
+          currentRequirementsForRevision(dossierRequirements, dossierMatch.dossier.id, dossierMatch.dossier.revision),
+          dossierLinks,
+          dossierEvidence,
+          dossierMatch.dossier.formulaVersionId,
+          dossierMatch.dossier.packagingSkuCode,
+        ),
+      )
+    : undefined;
 
   // --- Evidence confirmations ------------------------------------------
   const confirmRequirement = async (f: RegulatoryFinding, status: "confirmed" | "not_available" | "not_applicable" | "rejected") => {
@@ -742,6 +784,40 @@ export function RegulatoryPanel({
             <li key={i}>{r}</li>
           ))}
         </ul>
+      </div>
+
+      <div className="mb-3 rounded-card border border-border-faint px-3 py-2 text-[11px]">
+        <p className="mb-1 flex items-center gap-1 font-medium text-muted">
+          <FileCheck2 size={12} /> {t("regulatory.dossierHeading")}
+        </p>
+        {!selectedVersionId ? (
+          <p className="text-[10px] text-muted">{t("dossier.needSavedVersion")}</p>
+        ) : dossierMatch.dossier ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-text">{dossierMatch.dossier.dossierCode}</span>
+            {dossierReadiness && (
+              <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[9px] text-accent">
+                {t(`dossier.readiness.${dossierReadiness.overallReadiness}`)}
+              </span>
+            )}
+            <Link
+              to={`/dossiers?project=${formulation.id}&dossier=${dossierMatch.dossier.id}`}
+              className="rounded-input border border-border px-2 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
+            >
+              {t("regulatory.openDossier")}
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-muted">{t(`regulatory.dossierMatch.${dossierMatch.reason}`)}</span>
+            <Link
+              to={`/dossiers?project=${formulation.id}&version=${selectedVersionId}&jurisdiction=${jurisdiction}${packagingSkuCode ? `&sku=${packagingSkuCode}` : ""}`}
+              className="rounded-input border border-border px-2 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
+            >
+              {t("regulatory.createDossier")}
+            </Link>
+          </div>
+        )}
       </div>
 
       {section === "findings" && (

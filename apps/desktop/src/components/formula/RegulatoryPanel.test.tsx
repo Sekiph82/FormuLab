@@ -10,6 +10,7 @@
  */
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Formulation, FormulationLine, FormulationVersion, RawMaterial, RegulatoryRule } from "@ai4s/shared";
 import { RegulatoryPanel } from "./RegulatoryPanel";
@@ -122,7 +123,11 @@ beforeEach(() => {
 });
 
 function renderPanel(versions: FormulationVersion[] = [VERSION_1]) {
-  return render(<RegulatoryPanel formulation={FORMULATION} currentLines={[LINE_A]} materials={MATERIALS} versions={versions} />);
+  return render(
+    <MemoryRouter>
+      <RegulatoryPanel formulation={FORMULATION} currentLines={[LINE_A]} materials={MATERIALS} versions={versions} />
+    </MemoryRouter>,
+  );
 }
 
 async function selectVersion(user: ReturnType<typeof userEvent.setup>) {
