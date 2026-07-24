@@ -7,6 +7,10 @@ const ROWS = [
   { key: "stability", titleKey: "reports.stability.title", descKey: "reports.stability.description", href: "/stability" },
   { key: "regulatory", titleKey: "reports.regulatory.title", descKey: "reports.regulatory.description", href: "/regulatory" },
   { key: "dossier", titleKey: "reports.dossier.title", descKey: "reports.dossier.description", href: "/dossiers" },
+  { key: "claimsReview", titleKey: "reports.claimsReview.title", descKey: "reports.claimsReview.description", href: "/claims-labels" },
+  { key: "labelReadiness", titleKey: "reports.labelReadiness.title", descKey: "reports.labelReadiness.description", href: "/claims-labels" },
+  { key: "formulaLabelConsistency", titleKey: "reports.formulaLabelConsistency.title", descKey: "reports.formulaLabelConsistency.description", href: "/claims-labels" },
+  { key: "artworkReview", titleKey: "reports.artworkReview.title", descKey: "reports.artworkReview.description", href: "/claims-labels" },
   { key: "approval", titleKey: "reports.approval.title", descKey: "reports.approval.description", href: "/approval" },
   { key: "audit", titleKey: "reports.audit.title", descKey: "reports.audit.description", href: undefined },
 ] as const;

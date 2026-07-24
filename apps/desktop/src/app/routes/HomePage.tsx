@@ -3,21 +3,44 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import type {
   AuditEvent,
+  ClaimReview,
+  ClaimReviewRevocation,
   Formulation,
   FormulationVersion,
+  LabelArtwork,
+  LabelReview,
+  LabelReviewRevocation,
   LaboratoryTrial,
+  ProductClaim,
+  ProductLabel,
   RegulatoryDossier,
   RegulatoryDossierEvidenceItem,
   RegulatoryDossierRequirement,
   RegulatoryDossierReview,
   RegulatoryDossierReviewRevocation,
   RegulatoryRequirementEvidenceLink,
+  RegulatoryRule,
   StabilitySample,
   StabilityStudy,
 } from "@ai4s/shared";
-import { activeLinksForDossier, buildEvidenceMatrix, calculateDossierReadiness, currentRequirementsForRevision, effectiveStatus, isDossierReviewActive } from "@ai4s/shared";
+import {
+  SEED_REGULATORY_RULES,
+  activeLinksForDossier,
+  buildEvidenceMatrix,
+  calculateDossierReadiness,
+  currentRequirementsForRevision,
+  deriveArtworkEffectiveStatus,
+  deriveClaimEffectiveStatus,
+  deriveClaimRisk,
+  deriveLabelEffectiveStatus,
+  effectiveStatus,
+  evaluateClaimAgainstRules,
+  isClaimReviewActive,
+  isDossierReviewActive,
+  isLabelReviewActive,
+} from "@ai4s/shared";
 import { listFormulations, readAuditLog, readFormulation } from "@/lib/formulations";
-import { listRecords } from "@/lib/masterdata";
+import { listRecords, listRecordsSeeded } from "@/lib/masterdata";
 
 const OPEN_TRIAL_STATUSES = new Set(["planned", "materials_prepared", "in_progress", "awaiting_results"]);
 const PENDING_APPROVAL_STATUSES = new Set(["chemist_review", "lab_candidate", "stability_testing", "pilot_candidate"]);
@@ -36,6 +59,16 @@ interface PendingApproval {
   project: Formulation;
   version: FormulationVersion;
   status: string;
+}
+
+interface ClaimHomeRow {
+  project: Formulation;
+  claim: ProductClaim;
+}
+
+interface LabelHomeRow {
+  project: Formulation;
+  label: ProductLabel;
 }
 
 /**
@@ -58,12 +91,17 @@ export function HomePage() {
   const [dossiersInPreparation, setDossiersInPreparation] = useState<DossierHomeRow[]>([]);
   const [evidenceExpiringSoon, setEvidenceExpiringSoon] = useState<{ item: RegulatoryDossierEvidenceItem; projectName: string }[]>([]);
   const [reviewsPending, setReviewsPending] = useState<DossierHomeRow[]>([]);
+  const [claimsAwaitingReview, setClaimsAwaitingReview] = useState<ClaimHomeRow[]>([]);
+  const [claimsProhibitedOrHighRisk, setClaimsProhibitedOrHighRisk] = useState<ClaimHomeRow[]>([]);
+  const [labelsAwaitingReview, setLabelsAwaitingReview] = useState<LabelHomeRow[]>([]);
+  const [artworkAwaitingApproval, setArtworkAwaitingApproval] = useState<LabelHomeRow[]>([]);
+  const [staleLabelReviews, setStaleLabelReviews] = useState<LabelHomeRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [all, trials, studies, samples, dossiers, dossierRequirements, dossierLinks, dossierEvidence, dossierReviews, dossierReviewRevocations] = await Promise.all([
+      const [all, trials, studies, samples, dossiers, dossierRequirements, dossierLinks, dossierEvidence, dossierReviews, dossierReviewRevocations, claims, claimReviews, claimReviewRevocations, productLabels, labelArtworks, labelReviews, labelReviewRevocations, regulatoryRules] = await Promise.all([
         listFormulations(),
         listRecords("laboratory_trials"),
         listRecords("stability_studies"),
@@ -74,6 +112,14 @@ export function HomePage() {
         listRecords("regulatory_evidence_items"),
         listRecords("regulatory_dossier_reviews"),
         listRecords("regulatory_dossier_review_revocations"),
+        listRecords("product_claims"),
+        listRecords("claim_reviews"),
+        listRecords("claim_review_revocations"),
+        listRecords("product_labels"),
+        listRecords("label_artworks"),
+        listRecords("label_reviews"),
+        listRecords("label_review_revocations"),
+        listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES),
       ]);
       if (cancelled) return;
       const sorted = [...all].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -172,6 +218,55 @@ export function HomePage() {
           .slice(0, 10)
           .map((item) => ({ item, projectName: nameById.get(item.formulationId) ?? item.formulationId })),
       );
+
+      // Phase 4 §22 — claims/labels awaiting attention, scoped to the same
+      // `recentProjects` window as every other section above. Every count
+      // is a real, live-computed fact (deriveClaimRisk/isClaimReviewActive/
+      // isLabelReviewActive against real persisted rows), never a
+      // fabricated number.
+      const recentClaims = (claims as ProductClaim[]).filter(
+        (c) => recentProjectIds.has(c.formulationId) && deriveClaimEffectiveStatus(c, claims as ProductClaim[]) !== "superseded" && c.status !== "withdrawn" && c.status !== "rejected",
+      );
+      const awaitingReviewRows: ClaimHomeRow[] = [];
+      const prohibitedOrHighRiskRows: ClaimHomeRow[] = [];
+      for (const claim of recentClaims) {
+        const project = recentProjects.find((p) => p.id === claim.formulationId);
+        if (!project) continue;
+        const hasActiveReview = (claimReviews as ClaimReview[]).some(
+          (r) => r.claimId === claim.id && isClaimReviewActive(r, claimReviewRevocations as ClaimReviewRevocation[], 1),
+        );
+        if (!hasActiveReview) awaitingReviewRows.push({ project, claim });
+        const findings = evaluateClaimAgainstRules(claim, { jurisdictions: claim.jurisdictions, rules: regulatoryRules as RegulatoryRule[] });
+        const risk = deriveClaimRisk(claim, findings);
+        if (claim.status === "prohibited" || ((risk === "high" || risk === "critical") && claim.status !== "supported" && claim.status !== "supported_with_conditions")) {
+          prohibitedOrHighRiskRows.push({ project, claim });
+        }
+      }
+      setClaimsAwaitingReview(awaitingReviewRows.slice(0, 10));
+      setClaimsProhibitedOrHighRisk(prohibitedOrHighRiskRows.slice(0, 10));
+
+      const recentLabels = (productLabels as ProductLabel[]).filter(
+        (l) => recentProjectIds.has(l.formulationId) && deriveLabelEffectiveStatus(l, productLabels as ProductLabel[]) !== "superseded",
+      );
+      const labelsAwaitingReviewRows: LabelHomeRow[] = [];
+      const artworkAwaitingApprovalRows: LabelHomeRow[] = [];
+      const staleReviewRows: LabelHomeRow[] = [];
+      for (const label of recentLabels) {
+        const project = recentProjects.find((p) => p.id === label.formulationId);
+        if (!project) continue;
+        const reviewsForLabel = (labelReviews as LabelReview[]).filter((r) => r.labelId === label.id);
+        const hasActiveApprovedReview = reviewsForLabel.some(
+          (r) => isLabelReviewActive(r, labelReviewRevocations as LabelReviewRevocation[], label.revision, r.artworkRevision) && r.outcome !== "rejected" && r.outcome !== "changes_requested",
+        );
+        if (!hasActiveApprovedReview) labelsAwaitingReviewRows.push({ project, label });
+        if (reviewsForLabel.length > 0 && !hasActiveApprovedReview) staleReviewRows.push({ project, label });
+        const artworksForLabel = (labelArtworks as LabelArtwork[]).filter((a) => a.labelId === label.id && a.labelRevision === label.revision);
+        const currentArtwork = artworksForLabel.find((a) => deriveArtworkEffectiveStatus(a, artworksForLabel) !== "superseded");
+        if (currentArtwork?.status === "uploaded") artworkAwaitingApprovalRows.push({ project, label });
+      }
+      setLabelsAwaitingReview(labelsAwaitingReviewRows.slice(0, 10));
+      setArtworkAwaitingApproval(artworkAwaitingApprovalRows.slice(0, 10));
+      setStaleLabelReviews(staleReviewRows.slice(0, 10));
 
       setLoading(false);
     })();
@@ -299,9 +394,70 @@ export function HomePage() {
             ))}
           </ul>
         </Section>
+
+        <Section
+          title={t("home.claimsHeading")}
+          empty={claimsAwaitingReview.length === 0 && claimsProhibitedOrHighRisk.length === 0}
+          emptyText={t("home.noClaimsAttention")}
+        >
+          <div className="flex flex-wrap gap-2 px-3 py-2 text-[10px]">
+            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-muted">{t("home.claimsAwaitingReview", { n: claimsAwaitingReview.length })}</span>
+            <span className="rounded bg-error/10 px-1.5 py-0.5 text-error">{t("home.claimsProhibitedOrHighRisk", { n: claimsProhibitedOrHighRisk.length })}</span>
+          </div>
+          <ul className="divide-y divide-border-faint">
+            {/* A claim can legitimately land in both counts above (a
+                prohibited claim also has no active review) — dedupe by id
+                for the combined list so React never sees a repeated key. */}
+            {dedupeById([...claimsProhibitedOrHighRisk, ...claimsAwaitingReview], (row) => row.claim.id).map(({ project, claim }) => (
+              <li key={claim.id}>
+                <Link to={`/claims-labels?project=${project.id}&version=${claim.formulaVersionId}&claim=${claim.id}`} className="flex items-baseline gap-2 px-3 py-2 text-[12px] hover:bg-surface-2">
+                  <span className="font-mono text-[10px] text-muted">{claim.claimCode}</span>
+                  <span className="flex-1 truncate text-text">{project.name}</span>
+                  <span className="text-[10px] text-muted">{claim.status}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section
+          title={t("home.labelsHeading")}
+          empty={labelsAwaitingReview.length === 0 && artworkAwaitingApproval.length === 0 && staleLabelReviews.length === 0}
+          emptyText={t("home.noLabelsAttention")}
+        >
+          <div className="flex flex-wrap gap-2 px-3 py-2 text-[10px]">
+            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-muted">{t("home.labelsAwaitingReview", { n: labelsAwaitingReview.length })}</span>
+            <span className="rounded bg-warn/10 px-1.5 py-0.5 text-warn">{t("home.artworkAwaitingApproval", { n: artworkAwaitingApproval.length })}</span>
+            <span className="rounded bg-error/10 px-1.5 py-0.5 text-error">{t("home.staleLabelReviews", { n: staleLabelReviews.length })}</span>
+          </div>
+          <ul className="divide-y divide-border-faint">
+            {dedupeById([...staleLabelReviews, ...artworkAwaitingApproval, ...labelsAwaitingReview], (row) => row.label.id).map(({ project, label }) => (
+              <li key={label.id}>
+                <Link to={`/claims-labels?project=${project.id}&version=${label.formulaVersionId}&label=${label.id}`} className="flex items-baseline gap-2 px-3 py-2 text-[12px] hover:bg-surface-2">
+                  <span className="font-mono text-[10px] text-muted">{label.labelCode}</span>
+                  <span className="flex-1 truncate text-text">{project.name}</span>
+                  <span className="text-[10px] text-muted">{label.status}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
       </div>
     </div>
   );
+}
+
+/** First-occurrence-wins dedupe for the priority-ordered combined lists
+ *  above — a row can legitimately satisfy more than one of the counted
+ *  categories at once. */
+function dedupeById<T>(rows: T[], keyOf: (row: T) => string): T[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = keyOf(row);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function Section({ title, empty, emptyText, children }: { title: string; empty?: boolean; emptyText: string; children: React.ReactNode }) {

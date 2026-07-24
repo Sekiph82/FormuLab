@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { FileCheck2, Plus } from "lucide-react";
-import { buildKenyaCatalog, type Formulation, type RegulatoryDossier } from "@ai4s/shared";
+import { FileCheck2, Plus, Tags } from "lucide-react";
+import { buildKenyaCatalog, type Formulation, type ProductClaim, type RegulatoryDossier } from "@ai4s/shared";
 import { appendAudit, auditEvent, listFormulations, saveFormulation } from "@/lib/formulations";
 import { listRecords } from "@/lib/masterdata";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
@@ -23,9 +23,10 @@ export function ProjectsPage() {
   // Compact status only — a count and a deep link, never a computed
   // readiness state (that belongs to the Dossiers workspace itself).
   const [dossierCountByProject, setDossierCountByProject] = useState<Map<string, number>>(new Map());
+  const [claimsCountByProject, setClaimsCountByProject] = useState<Map<string, number>>(new Map());
 
   const refresh = useCallback(async () => {
-    const [all, dossiers] = await Promise.all([listFormulations(), listRecords("regulatory_dossiers")]);
+    const [all, dossiers, claims] = await Promise.all([listFormulations(), listRecords("regulatory_dossiers"), listRecords("product_claims")]);
     setProjects(all);
     const counts = new Map<string, number>();
     for (const d of dossiers as RegulatoryDossier[]) {
@@ -33,6 +34,12 @@ export function ProjectsPage() {
       counts.set(d.formulationId, (counts.get(d.formulationId) ?? 0) + 1);
     }
     setDossierCountByProject(counts);
+    const claimCounts = new Map<string, number>();
+    for (const c of claims as ProductClaim[]) {
+      if (c.status === "superseded" || c.status === "withdrawn" || c.status === "rejected") continue;
+      claimCounts.set(c.formulationId, (claimCounts.get(c.formulationId) ?? 0) + 1);
+    }
+    setClaimsCountByProject(claimCounts);
   }, []);
 
   useEffect(() => {
@@ -85,6 +92,16 @@ export function ProjectsPage() {
                   className="mr-4 flex items-center gap-1 rounded-input border border-border-faint px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
                 >
                   <FileCheck2 size={11} /> {t("builder.projectDossierCount", { n: dossierCountByProject.get(p.id) ?? 0 })}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/claims-labels?project=${p.id}`);
+                  }}
+                  title={t("builder.projectClaims")}
+                  className="mr-4 flex items-center gap-1 rounded-input border border-border-faint px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
+                >
+                  <Tags size={11} /> {t("builder.projectClaimsCount", { n: claimsCountByProject.get(p.id) ?? 0 })}
                 </button>
               </li>
             ))}

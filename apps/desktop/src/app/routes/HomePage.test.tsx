@@ -10,10 +10,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Formulation } from "@ai4s/shared";
 import { HomePage } from "./HomePage";
 
-const masterdataBridge = { listRecords: vi.fn() };
+const masterdataBridge = { listRecords: vi.fn(), listRecordsSeeded: vi.fn() };
 vi.mock("@/lib/masterdata", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/masterdata")>();
-  return { ...actual, listRecords: (...a: [string]) => masterdataBridge.listRecords(...a) };
+  return {
+    ...actual,
+    listRecords: (...a: [string]) => masterdataBridge.listRecords(...a),
+    listRecordsSeeded: (...a: [string, unknown[]]) => masterdataBridge.listRecordsSeeded(...a),
+  };
 });
 
 const formulationsBridge = { listFormulations: vi.fn(), readFormulation: vi.fn(), readAuditLog: vi.fn() };
@@ -46,6 +50,7 @@ describe("HomePage — real data, honest empty states", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     masterdataBridge.listRecords.mockResolvedValue([]);
+    masterdataBridge.listRecordsSeeded.mockImplementation((_collection: string, seed: unknown[]) => Promise.resolve(seed));
   });
 
   it("shows honest empty states everywhere when nothing is persisted yet — never a fabricated metric", async () => {
@@ -64,6 +69,8 @@ describe("HomePage — real data, honest empty states", () => {
     expect(screen.getByText("No dossiers among your recent projects.")).toBeInTheDocument();
     expect(screen.getByText("No dossier evidence expiring soon.")).toBeInTheDocument();
     expect(screen.getByText("No dossiers waiting on a review.")).toBeInTheDocument();
+    expect(screen.getByText("No claims need attention right now.")).toBeInTheDocument();
+    expect(screen.getByText("No labels need attention right now.")).toBeInTheDocument();
     // No numeric metric is rendered when there is nothing to count.
     expect(screen.queryByText(/^\d+$/)).not.toBeInTheDocument();
   });
@@ -117,5 +124,37 @@ describe("HomePage — real data, honest empty states", () => {
     expect(await screen.findByText("1 in preparation")).toBeInTheDocument();
     expect(screen.getByText("0 ready for review")).toBeInTheDocument();
     expect(screen.getByText("0 blocked")).toBeInTheDocument();
+  });
+
+  it("counts a prohibited claim and an unapproved artwork among a real project's items needing attention", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([PROJECT]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: PROJECT, versions: [] });
+    formulationsBridge.readAuditLog.mockResolvedValue([]);
+    masterdataBridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "product_claims") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "claim-1", claimCode: "CLM-1", claimText: "Cures disease", normalizedClaim: "cures disease", claimCategory: "medical", formulationId: "proj-1", formulaVersionId: "version-1", jurisdictions: ["KE"], languages: ["en"], status: "prohibited", riskLevel: "critical", proposedBy: "local", proposedAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]);
+      }
+      if (collection === "product_labels") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "label-1", labelCode: "LBL-1", formulationId: "proj-1", formulaVersionId: "version-1", jurisdiction: "KE", language: "en", status: "draft", revision: 1, createdBy: "local", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]);
+      }
+      if (collection === "label_artworks") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "art-1", labelId: "label-1", labelRevision: 1, artworkCode: "ART-1", attachmentIds: [{ id: "a1", kind: "document", title: "art", location: "art.pdf" }], languageSet: [], createdBy: "local", createdAt: "2026-01-01T00:00:00.000Z", status: "uploaded" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("1 prohibited or high-risk")).toBeInTheDocument();
+    expect(screen.getByText("1 artwork awaiting approval")).toBeInTheDocument();
   });
 });

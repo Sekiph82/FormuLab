@@ -7,10 +7,24 @@
  */
 import { screen, within } from "@testing-library/react";
 import { isValidElement } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useUiStore } from "@/lib/store";
 import { renderAt } from "@/test/render";
 import { routes } from "@/app/router";
+
+// HomePage (rendered by the "renders all ten workspaces" test below) seeds
+// `regulatory_rules` via `listRecordsSeeded`, which — unmocked — would call
+// the real `upsertRecords` and throw "not-desktop" outside Tauri. Every
+// collection here resolves empty/seed, matching HomePage.test.tsx's own
+// mocking discipline.
+vi.mock("@/lib/masterdata", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/masterdata")>();
+  return {
+    ...actual,
+    listRecords: () => Promise.resolve([]),
+    listRecordsSeeded: (_collection: string, seed: unknown[]) => Promise.resolve(seed),
+  };
+});
 
 afterEach(() => useUiStore.getState().setLocale("en"));
 
@@ -40,7 +54,7 @@ describe("Reports workspace", () => {
   it("is a navigation shell over existing exports, marking the PDF/DOCX engine as not yet implemented", async () => {
     renderAt("/reports");
     await screen.findByRole("heading", { name: "Reports" });
-    expect(screen.getAllByRole("link", { name: "Open" }).length).toBe(6);
+    expect(screen.getAllByRole("link", { name: "Open" }).length).toBe(10);
     expect(screen.getByText("Not yet implemented")).toBeInTheDocument();
     expect(screen.getByText("Audit reports")).toBeInTheDocument();
   });
