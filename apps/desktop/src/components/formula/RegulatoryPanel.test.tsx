@@ -423,3 +423,23 @@ describe("RegulatoryPanel — authorization", () => {
     ).toThrow(/authorized regulatory, quality or administrator/);
   });
 });
+
+describe("RegulatoryPanel — Claims summary (Phase 4 integration)", () => {
+  it("shows a live claim count for the selected version/jurisdiction and deep-links to Claims & Labels", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "product_claims") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "claim-1", claimCode: "CLM-1", claimText: "Gentle formula", normalizedClaim: "gentle formula", claimCategory: "other", formulationId: "proj-1", formulaVersionId: "version-1", jurisdictions: ["KE"], languages: ["en"], status: "draft", riskLevel: "unknown", proposedBy: "local", proposedAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    renderPanel();
+    await selectVersion(user);
+
+    expect(await screen.findByText("1 claim(s) for this version/jurisdiction")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Open Claims & Labels" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("/claims-labels?project=proj-1&version=version-1&jurisdiction=KE"));
+  });
+});

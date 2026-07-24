@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { Download, FileCheck2, History, Plus, RotateCcw, Scale, ShieldCheck, Upload } from "lucide-react";
+import { Download, FileCheck2, History, Plus, RotateCcw, Scale, ShieldCheck, Tags, Upload } from "lucide-react";
 import {
   buildEvidenceMatrix,
   buildKenyaCatalog,
@@ -28,8 +28,10 @@ import {
   currentRequirementsForRevision,
   declareRegulatoryReviewEquivalence,
   deprecateRule,
+  deriveClaimEffectiveStatus,
   deriveRegulatoryReviewStatus,
   editRule,
+  evaluateClaimAgainstRules,
   evaluateRegulatory,
   explainRegulatoryReviewStatus,
   findApplicableRegulatoryReview,
@@ -57,6 +59,7 @@ import {
   type Formulation,
   type FormulationLine,
   type FormulationVersion,
+  type ProductClaim,
   type RawMaterial,
   type RegulatoryDossier,
   type RegulatoryDossierEvidenceItem,
@@ -138,6 +141,9 @@ export function RegulatoryPanel({
   const [dossierRequirements, setDossierRequirements] = useState<RegulatoryDossierRequirement[]>([]);
   const [dossierLinks, setDossierLinks] = useState<RegulatoryRequirementEvidenceLink[]>([]);
   const [dossierEvidence, setDossierEvidence] = useState<RegulatoryDossierEvidenceItem[]>([]);
+  // Phase 4 §16 — read-only claims summary, never edited here (that
+  // workflow lives on /claims-labels).
+  const [claims, setClaims] = useState<ProductClaim[]>([]);
   const [jurisdiction, setJurisdiction] = useState<RegulatoryJurisdiction>(
     (formulation.targetMarkets[0] as RegulatoryJurisdiction) ?? "KE",
   );
@@ -155,7 +161,7 @@ export function RegulatoryPanel({
   const canActRegulatory = isAuthorizedRegulatoryActor(actor);
 
   const load = async () => {
-    const [ru, rv, rev, revrev, revequiv, conf, confrev, doss, dreq, dlink, dev] = await Promise.all([
+    const [ru, rv, rev, revrev, revequiv, conf, confrev, doss, dreq, dlink, dev, cl] = await Promise.all([
       listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES),
       listRecords("regulatory_rule_revisions"),
       listRecords("regulatory_reviews"),
@@ -167,6 +173,7 @@ export function RegulatoryPanel({
       listRecords("regulatory_dossier_requirements"),
       listRecords("regulatory_requirement_evidence_links"),
       listRecords("regulatory_evidence_items"),
+      listRecords("product_claims"),
     ]);
     setRules(ru);
     setRevisions(rv);
@@ -181,6 +188,7 @@ export function RegulatoryPanel({
     setDossierRequirements(dreq.filter((r) => ownIds.has(r.dossierId)));
     setDossierLinks(dlink.filter((l) => ownIds.has(l.dossierId)));
     setDossierEvidence(dev.filter((e) => e.formulationId === formulation.id));
+    setClaims(cl.filter((c) => c.formulationId === formulation.id));
   };
 
   useEffect(() => {
@@ -238,6 +246,15 @@ export function RegulatoryPanel({
   // silently create verified evidence there.
   const dossierScope = { formulaVersionId: selectedVersionId, packagingSkuCode: packagingSkuCode || undefined, jurisdiction };
   const dossierMatch = selectedVersionId ? findDossierForScope(dossiers, dossierScope) : { reason: "no_dossier" as const };
+
+  // Phase 4 §16 — claims for this exact version/jurisdiction, and how many
+  // carry a blocking/restricted finding against the currently configured
+  // rules. Never a compliance verdict — only a live, advisory count, same
+  // as every other regulatory finding on this workspace.
+  const versionClaims = selectedVersionId
+    ? claims.filter((c) => c.formulaVersionId === selectedVersionId && c.jurisdictions.includes(jurisdiction) && deriveClaimEffectiveStatus(c, claims) !== "superseded")
+    : [];
+  const claimsWithFindings = versionClaims.filter((c) => evaluateClaimAgainstRules(c, { jurisdictions: [jurisdiction], rules }).length > 0).length;
   const dossierReadiness = dossierMatch.dossier
     ? calculateDossierReadiness(
         dossierMatch.dossier,
@@ -815,6 +832,26 @@ export function RegulatoryPanel({
               className="rounded-input border border-border px-2 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
             >
               {t("regulatory.createDossier")}
+            </Link>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-3 rounded-card border border-border-faint px-3 py-2 text-[11px]">
+        <p className="mb-1 flex items-center gap-1 font-medium text-muted">
+          <Tags size={12} /> {t("regulatory.claimsHeading")}
+        </p>
+        {!selectedVersionId ? (
+          <p className="text-[10px] text-muted">{t("dossier.needSavedVersion")}</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">{t("regulatory.claimsCountForVersion", { n: versionClaims.length })}</span>
+            {claimsWithFindings > 0 && <span className="rounded bg-warn/10 px-1.5 py-0.5 text-[9px] text-warn">{t("regulatory.claimsWithFindings", { n: claimsWithFindings })}</span>}
+            <Link
+              to={`/claims-labels?project=${formulation.id}&version=${selectedVersionId}&jurisdiction=${jurisdiction}${packagingSkuCode ? `&sku=${packagingSkuCode}` : ""}`}
+              className="rounded-input border border-border px-2 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
+            >
+              {t("regulatory.openClaimsLabels")}
             </Link>
           </div>
         )}

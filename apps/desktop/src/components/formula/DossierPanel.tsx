@@ -15,7 +15,8 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, FileCheck2, History, Plus, RotateCcw, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, FileCheck2, History, Plus, RotateCcw, ShieldCheck, Tags } from "lucide-react";
 import {
   DOSSIER_EVIDENCE_CANDIDATE_SOURCE_KINDS,
   DOSSIER_EVIDENCE_TYPES,
@@ -31,17 +32,23 @@ import {
   addManualRequirement,
   buildDossierRequirementSnapshot,
   buildEvidenceMatrix,
+  activeLinksForClaim,
   calculateDossierReadiness,
   candidateToDraftEvidenceInput,
   classifyDossierCandidateMatch,
   compareDossierRequirementsToCurrentRules,
   createDossier,
   currentRequirementsForRevision,
+  deriveArtworkEffectiveStatus,
+  deriveClaimEffectiveStatus,
   deriveDossierStatus,
   deriveEvidenceStatus,
+  deriveLabelEffectiveStatus,
   discoverDossierEvidenceCandidates,
+  evaluateClaimEvidence,
   excludeRequirement,
   isAuthorizedRegulatoryActor,
+  isClaimReviewActive,
   isDossierImmutable,
   mapEvidenceToRequirements,
   newId,
@@ -66,12 +73,17 @@ import {
   type Actor,
   type ApprovalRole,
   type AuditEvent,
+  type ClaimEvidenceLink,
+  type ClaimReview,
   type CompatibilitySnapshot,
   type DossierEvidenceCandidate,
   type DossierRequirementRow,
   type Formulation,
   type FormulationVersion,
+  type LabelArtwork,
   type LaboratoryTrial,
+  type ProductClaim,
+  type ProductLabel,
   type RawMaterial,
   type RegulatoryDossier,
   type RegulatoryDossierEvidenceItem,
@@ -187,6 +199,13 @@ export function DossierPanel({
   const [compatibilitySnapshots, setCompatibilitySnapshots] = useState<CompatibilitySnapshot[]>([]);
   const [regulatoryReviews, setRegulatoryReviews] = useState<RegulatoryReview[]>([]);
   const [regulatoryEvidenceConfirmations, setRegulatoryEvidenceConfirmations] = useState<RegulatoryEvidenceConfirmation[]>([]);
+  // Phase 4 §15 — read-only Claims & Labels summary on the dossier
+  // Overview: never edited from here, only linked out to /claims-labels.
+  const [claims, setClaims] = useState<ProductClaim[]>([]);
+  const [claimLinks, setClaimLinks] = useState<ClaimEvidenceLink[]>([]);
+  const [claimReviews, setClaimReviews] = useState<ClaimReview[]>([]);
+  const [productLabels, setProductLabels] = useState<ProductLabel[]>([]);
+  const [labelArtworks, setLabelArtworks] = useState<LabelArtwork[]>([]);
   const [suggestionFilter, setSuggestionFilter] = useState<{ exactOnly: boolean; sourceKind: string; evidenceType: string; hasAttachment: boolean }>({
     exactOnly: false,
     sourceKind: "",
@@ -208,7 +227,7 @@ export function DossierPanel({
   const canActRegulatory = isAuthorizedRegulatoryActor(actor);
 
   const load = async () => {
-    const [ds, reqs, ev, lk, rv, rvrv, sub, ma, ru, mats, trials, tresults, studies, sresults, compat, regReviews, regConfirmations] = await Promise.all([
+    const [ds, reqs, ev, lk, rv, rvrv, sub, ma, ru, mats, trials, tresults, studies, sresults, compat, regReviews, regConfirmations, cl, clk, crv, plab, lart] = await Promise.all([
       listRecords("regulatory_dossiers"),
       listRecords("regulatory_dossier_requirements"),
       listRecords("regulatory_evidence_items"),
@@ -226,6 +245,11 @@ export function DossierPanel({
       listRecords("compatibility_snapshots"),
       listRecords("regulatory_reviews"),
       listRecords("regulatory_evidence_confirmations"),
+      listRecords("product_claims"),
+      listRecords("claim_evidence_links"),
+      listRecords("claim_reviews"),
+      listRecords("product_labels"),
+      listRecords("label_artworks"),
     ]);
     const ownDossiers = ds.filter((d) => d.formulationId === formulation.id);
     const ownIds = new Set(ownDossiers.map((d) => d.id));
@@ -246,6 +270,15 @@ export function DossierPanel({
     setCompatibilitySnapshots(compat.filter((c) => c.formulationId === formulation.id));
     setRegulatoryReviews(regReviews.filter((r) => r.formulationId === formulation.id));
     setRegulatoryEvidenceConfirmations(regConfirmations.filter((c) => c.formulationId === formulation.id));
+    const ownClaims = cl.filter((c) => c.formulationId === formulation.id);
+    setClaims(ownClaims);
+    const ownClaimIds = new Set(ownClaims.map((c) => c.id));
+    setClaimLinks(clk.filter((l) => ownClaimIds.has(l.claimId)));
+    setClaimReviews(crv.filter((r) => ownClaimIds.has(r.claimId)));
+    const ownLabels = plab.filter((l) => l.formulationId === formulation.id);
+    setProductLabels(ownLabels);
+    const ownLabelIds = new Set(ownLabels.map((l) => l.id));
+    setLabelArtworks(lart.filter((a) => ownLabelIds.has(a.labelId)));
   };
 
   useEffect(() => {
@@ -458,6 +491,21 @@ export function DossierPanel({
   const hasDrift = !!drift && (drift.newRequirementCodes.length > 0 || drift.removedRequirementCodes.length > 0 || drift.changedRuleVersionCodes.length > 0 || drift.changedMandatoryStatusCodes.length > 0 || drift.changedAcceptedEvidenceTypesCodes.length > 0 || drift.changedJurisdictionApplicabilityCodes.length > 0);
   const revisionChain = selectedDossier ? resolveDossierRevisionChain(selectedDossier, dossiers) : [];
   const suggestions = selectedDossier ? mapEvidenceToRequirements(currentReqs, dossierEvidence, { formulaVersionId: selectedDossier.formulaVersionId, packagingSkuCode: selectedDossier.packagingSkuCode }) : new Map();
+
+  // Phase 4 §15 — read-only summary of this exact formula version's claims
+  // and labels, never editable here (that workflow lives on /claims-labels).
+  const versionClaims = selectedDossier ? claims.filter((c) => c.formulaVersionId === selectedDossier.formulaVersionId && deriveClaimEffectiveStatus(c, claims) !== "superseded") : [];
+  const claimsRequiringEvidence = versionClaims.filter(
+    (c) => evaluateClaimEvidence(c, claimLinks, dossierEvidence, { formulaVersionId: c.formulaVersionId, packagingSkuCode: c.packagingSkuCode, jurisdictions: c.jurisdictions }).missingEvidence,
+  ).length;
+  const claimsWithActiveEvidenceLinks = versionClaims.filter((c) => activeLinksForClaim(claimLinks, c.id).some((l) => l.linkStatus === "accepted")).length;
+  const claimsWithActiveReview = versionClaims.filter((c) => claimReviews.some((r) => r.claimId === c.id && isClaimReviewActive(r, [], 1))).length;
+  const versionLabels = selectedDossier ? productLabels.filter((l) => l.formulaVersionId === selectedDossier.formulaVersionId && deriveLabelEffectiveStatus(l, productLabels) !== "superseded") : [];
+  const versionLabelArtworkStatuses = versionLabels.map((l) => {
+    const artworksForLabel = labelArtworks.filter((a) => a.labelId === l.id && a.labelRevision === l.revision);
+    return artworksForLabel.find((a) => deriveArtworkEffectiveStatus(a, artworksForLabel) !== "superseded")?.status;
+  });
+  const labelsWithApprovedArtwork = versionLabelArtworkStatuses.filter((s) => s === "approved").length;
 
   // ----------------------------------------------------------- export/import
   // Phase 3 §15: JSON dossier export, CSV/Excel evidence-matrix export, and
@@ -1138,6 +1186,25 @@ export function DossierPanel({
                   })}
                 </ul>
                 <p className="mt-1 text-[9px] text-muted">{t("dossier.neverMergedNotice")}</p>
+              </div>
+              <div className="rounded-card border border-border-faint px-3 py-2 text-[11px]">
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="flex items-center gap-1 font-medium text-muted"><Tags size={12} /> {t("dossier.claimsLabelsSummaryHeading")}</p>
+                  <Link
+                    to={`/claims-labels?project=${formulation.id}&version=${selectedDossier.formulaVersionId}${selectedDossier.packagingSkuCode ? `&sku=${selectedDossier.packagingSkuCode}` : ""}`}
+                    className="text-[10px] text-accent hover:underline"
+                  >
+                    {t("dossier.openClaimsLabels")}
+                  </Link>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[10px]">
+                  <span className="rounded bg-surface-2 px-1.5 py-0.5">{t("dossier.claimsCount", { n: versionClaims.length })}</span>
+                  <span className="rounded bg-error/10 px-1.5 py-0.5 text-error">{t("dossier.claimsRequiringEvidence", { n: claimsRequiringEvidence })}</span>
+                  <span className="rounded bg-surface-2 px-1.5 py-0.5">{t("dossier.claimsWithEvidenceLinks", { n: claimsWithActiveEvidenceLinks })}</span>
+                  <span className="rounded bg-surface-2 px-1.5 py-0.5">{t("dossier.claimsReviewed", { n: claimsWithActiveReview, total: versionClaims.length })}</span>
+                  <span className="rounded bg-surface-2 px-1.5 py-0.5">{t("dossier.labelsCount", { n: versionLabels.length })}</span>
+                  <span className="rounded bg-surface-2 px-1.5 py-0.5">{t("dossier.artworkApproved", { n: labelsWithApprovedArtwork, total: versionLabels.length })}</span>
+                </div>
               </div>
             </div>
           )}

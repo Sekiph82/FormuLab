@@ -223,6 +223,37 @@ describe("DossierPanel — status and revision lifecycle", () => {
   });
 });
 
+describe("DossierPanel — Claims & Labels summary (Phase 4 integration)", () => {
+  it("shows a live claim count for this formula version and deep-links to Claims & Labels", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "regulatory_dossiers") return Promise.resolve(dossiersStore);
+      if (collection === "regulatory_dossier_requirements") return Promise.resolve(requirementsStore);
+      if (collection === "product_claims") {
+        return Promise.resolve([
+          { schemaVersion: "1.0", id: "claim-1", claimCode: "CLM-1", claimText: "Gentle formula", normalizedClaim: "gentle formula", claimCategory: "other", formulationId: "proj-1", formulaVersionId: "version-1", jurisdictions: ["KE"], languages: ["en"], status: "draft", riskLevel: "unknown", proposedBy: "local", proposedAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    await createAndOpenDossierForClaimsSummary(user);
+
+    expect(await screen.findByText("1 claim(s)")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Open in Claims & Labels" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("/claims-labels?project=proj-1&version=version-1"));
+  });
+
+  async function createAndOpenDossierForClaimsSummary(user: ReturnType<typeof userEvent.setup>) {
+    renderPanel();
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+  }
+});
+
 describe("DossierPanel — evidence import", () => {
   async function createAndOpenDossier(user: ReturnType<typeof userEvent.setup>) {
     renderPanel();
