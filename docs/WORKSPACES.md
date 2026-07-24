@@ -135,6 +135,36 @@ that happens to share the word "optimizer"; that page is untouched.
 **Does not**: change any optimization mathematics — this task only
 reorganized access and presentation, per its own explicit scope.
 
+## Design of Experiments
+
+`/doe` — `apps/desktop/src/app/routes/DoePage.tsx`, backed by
+`DoePanel.tsx`. Sidebar entry near Laboratory/Stability/Optimization — a
+first-class workspace, never a Formula Builder tab (see
+[DESIGN_OF_EXPERIMENTS.md](DESIGN_OF_EXPERIMENTS.md)).
+
+Top-level sections: Studies, Design, Runs, Responses, Analysis, Candidates,
+History, Audit. A 9-step study-creation wizard (baseline saved version,
+objective, factors, constraints, responses, design type, generation
+settings, diagnostics preview, generate) is gated on a real saved formula
+version — never the current working draft. The Analysis tab renders real
+inline-SVG charts computed from a study's own fitted model: main-effects/
+Pareto bars, predicted-vs-observed and residual-vs-predicted scatter,
+normal-probability plot, and a response-surface heatmap for a 2-factor
+quadratic model. Export buttons throughout (study JSON, design matrix/run
+sheet/observations CSV, analysis-results JSON, coefficients/ANOVA CSV,
+candidate-list CSV); factor/constraint/observation CSV import with the same
+preview-before-commit behavior every other import in this app uses. Runs
+tab: manual observation entry per (run, response), run-status transitions,
+exclusion with reason, and generating (or linking) a real Laboratory trial
+from a run. Candidates tab: generate/shortlist/select/apply-to-draft, plus
+lightweight cross-navigation links to Optimization and Stability.
+
+**Does not**: generate a final formatted PDF/DOCX report (Phase 7), display
+a specific DOE candidate inside the Optimization workspace, or re-import an
+analysis-results export as a native analysis — see
+[DESIGN_OF_EXPERIMENTS.md](DESIGN_OF_EXPERIMENTS.md) and
+[DOE_OPTIMIZATION_INTEGRATION.md](DOE_OPTIMIZATION_INTEGRATION.md).
+
 ## Regulatory
 
 `/regulatory` — `apps/desktop/src/app/routes/RegulatoryPage.tsx`. Reuses

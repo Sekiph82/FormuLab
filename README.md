@@ -72,6 +72,15 @@ FormuLab is a desktop workbench that pairs a general AI research environment
   [docs/REGULATORY_DOSSIERS.md](docs/REGULATORY_DOSSIERS.md),
   [docs/PRODUCT_CLAIMS.md](docs/PRODUCT_CLAIMS.md), and
   [docs/PRODUCT_LABELS.md](docs/PRODUCT_LABELS.md).
+- **Design of Experiments** — plan a statistically valid formulation/process
+  experiment against a real saved formula version, generate a randomized
+  set of runs (full/fractional/two-level factorial, Plackett-Burman,
+  central composite, Box-Behnken, Latin hypercube, mixture simplex-lattice,
+  or a custom design), record real responses, fit a deterministic OLS
+  model to what was actually observed (never AI-sourced, never
+  fabricated), and rank candidate factor settings by desirability —
+  applying one only ever updates a working draft, never a saved version.
+  See [docs/DESIGN_OF_EXPERIMENTS.md](docs/DESIGN_OF_EXPERIMENTS.md).
 
 Everything runs locally by default; your data, runs, and provenance stay on your
 machine.
@@ -131,6 +140,8 @@ accepting responsibility, with a signed record and an audit entry.
 | [PRODUCT_CLAIMS.md](docs/PRODUCT_CLAIMS.md) | Product claim domain model, classification, rule evaluation |
 | [PRODUCT_LABELS.md](docs/PRODUCT_LABELS.md) | Product label domain model, content, artwork, consistency |
 | [CLAIMS_LABEL_READINESS.md](docs/CLAIMS_LABEL_READINESS.md) | Claims/label readiness and Approval Readiness integration |
+| [DESIGN_OF_EXPERIMENTS.md](docs/DESIGN_OF_EXPERIMENTS.md) | DOE overview: studies, design generation, statistical analysis, candidates |
+| [DOE_STATISTICAL_ANALYSIS.md](docs/DOE_STATISTICAL_ANALYSIS.md) | The deterministic OLS/ANOVA analysis engine, what is and is not modeled |
 | [IMPLEMENTATION_STATUS.md](docs/architecture/IMPLEMENTATION_STATUS.md) | What is actually built, and what is not |
 
 ## Formulation quick start

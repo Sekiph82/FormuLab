@@ -161,6 +161,36 @@ See [PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md), [LABEL_CONTENT.md](LABEL_CONTENT.md)
 [CLAIMS_LABEL_READINESS.md](CLAIMS_LABEL_READINESS.md). No PDF/DOCX export
 for either (Phase 7).
 
+## Phase 5: DOE import/export is another separate pipeline
+
+`packages/shared/src/engine/doeExports.ts` — same discipline, same
+`parseCsv`/`toCsv`/`previewImport`/`FieldSpec` primitives:
+
+- **Study JSON**: the full protocol package — definition, factors,
+  constraints, responses, and (if generated) the design and its runs.
+- **Factors/constraints/responses**: CSV/Excel export; factor and
+  constraint CSV/Excel import with the standard preview/row-level-error/
+  duplicate-handling behavior, keyed on `factorCode`/constraint id.
+- **Design matrix**: CSV/Excel export of the *coded* values, one row per
+  run in standard order.
+- **Run sheet**: CSV/Excel export of the *actual engineering-unit* values,
+  one row per run in randomized order — the sheet a lab technician works
+  from.
+- **Observations**: CSV/Excel export (one row per run×response, an
+  unrecorded pair explicitly marked `missing`, never blank-as-zero);
+  CSV/Excel import keyed on the composite (`runId`, `responseCode`) pair.
+  An imported observation still goes through the same human-validation
+  step as a manually-typed one — import never bypasses it.
+- **Analysis results**: JSON export only. **Deliberately not importable**
+  — spec §17: an imported analysis result must never be accepted as a
+  native analysis; every analysis in the app is always recomputed from
+  stored observations.
+- **Coefficients / ANOVA**: CSV/Excel export per analysis.
+- **Candidate list**: CSV/Excel export, one row per ranked candidate.
+
+See [DESIGN_OF_EXPERIMENTS.md](DESIGN_OF_EXPERIMENTS.md). No PDF/DOCX
+export (Phase 7).
+
 ## Known limitations
 
 - `.xlsx` is read (`apps/desktop/src/lib/xlsx.ts`, `readWorkbookRows`) and fed

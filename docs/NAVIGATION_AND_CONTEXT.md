@@ -164,3 +164,18 @@ that record's detail view. Used by Home's claims/labels-attention deep
 links, Projects' claims-count badge, the Dossiers Overview summary card,
 and the Regulatory workspace's Claims card. As with Dossiers, none are
 required — omitting all of them shows the plain claims list.
+
+## Design of Experiments workspace query params — `DoePage`
+
+`DoePage.tsx` reads `?project=` via the same `useProjectParam` every other
+workspace uses. Home's DOE-attention deep links and Projects' DOE-study-
+count badge (see [DESIGN_OF_EXPERIMENTS.md](DESIGN_OF_EXPERIMENTS.md))
+navigate to `/doe?project=<id>` and land on the plain Studies list — a
+specific study is then selected inside the workspace itself (no
+`?study=`-style deep link into a study's detail view yet, unlike Dossiers'
+`?dossier=`/Claims & Labels' `?claim=`/`?label=`). The Candidates tab's
+"Open Optimization"/"Open Stability" buttons navigate to
+`/optimization?project=<id>`/`/stability?project=<id>` — project-context
+preservation only, not a candidate-specific deep link into either
+workspace; see
+[DOE_OPTIMIZATION_INTEGRATION.md](DOE_OPTIMIZATION_INTEGRATION.md).

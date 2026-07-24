@@ -1,4 +1,4 @@
-# Information architecture — ten workspaces (now twelve, Phase 3 + 4)
+# Information architecture — ten workspaces (now thirteen, Phase 3 + 4 + 5)
 
 Why the old Formula Builder became overcrowded, the ten-workspace model
 that replaced it, what moved where, what stayed exactly as it was, and
@@ -16,8 +16,13 @@ twelfth, Claims & Labels (`/claims-labels`), for the same reason — claims,
 claim evidence, claim reviews, labels, label content, artwork, label
 reviews and formula-label consistency together form a real internal
 structure of their own, placed between Dossiers and Approval, never a
-Formula Builder tab or a Dossiers sub-section. Everything below describing
-the original ten-workspace split is otherwise unchanged by Phase 3 or 4.
+Formula Builder tab or a Dossiers sub-section. Phase 5 adds a thirteenth,
+Design of Experiments (`/doe`), for the same reason again — studies,
+factors/constraints/responses, design generation, runs, statistical
+analysis and candidates together form a real internal structure of their
+own, placed near Laboratory/Stability/Optimization, never a Formula
+Builder tab. Everything below describing the original ten-workspace split
+is otherwise unchanged by Phase 3, 4 or 5.
 
 ## The problem: one page carrying twelve modules
 
@@ -61,6 +66,7 @@ than duplicating their logic:
 | Laboratory | `/laboratory` | Trials, Test Definitions, Corrective Actions tabs |
 | Stability | `/stability` | The Stability tab |
 | Optimization | `/optimization` | The Optimizer tab (project-bound `AdvancedOptimizerPanel`) |
+| Design of Experiments | `/doe` | New (Phase 5) — studies, factors/constraints/responses, design generation, runs, statistical analysis, candidates, see [DESIGN_OF_EXPERIMENTS.md](DESIGN_OF_EXPERIMENTS.md); placed near Laboratory/Stability/Optimization, never a Formula Builder tab |
 | Regulatory | `/regulatory` | The Regulatory tab |
 | Dossiers | `/dossiers` | New (Phase 3) — the regulatory dossier and evidence-matrix workspace, see [REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md); placed between Regulatory and Approval, never a Formula Builder tab |
 | Claims & Labels | `/claims-labels` | New (Phase 4) — claims, claim evidence, claim reviews, labels, label content, artwork, label reviews, formula-label consistency, see [PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md)/[PRODUCT_LABELS.md](PRODUCT_LABELS.md); placed between Dossiers and Approval, never a Formula Builder tab |

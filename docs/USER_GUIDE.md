@@ -483,6 +483,41 @@ the same way the dossier gates already do. Full model:
 [FORMULA_LABEL_CONSISTENCY.md](FORMULA_LABEL_CONSISTENCY.md),
 [CLAIMS_LABEL_READINESS.md](CLAIMS_LABEL_READINESS.md).
 
+## 22. Design of Experiments
+
+Open the **Design of Experiments workspace** (`/doe`) to plan and run a
+statistically valid formulation/process experiment. Create a study through
+the wizard: pick a real saved formula version as its baseline, define
+factors (formula materials, mixing speed/time, temperature, pH, or a
+custom process parameter — each with a low/center/high range or a
+categorical level list), add any hard/soft constraints, define responses
+and their objectives (maximize/minimize/target/within-range), pick a
+design type (full/fractional/two-level factorial, Plackett-Burman, central
+composite, Box-Behnken, Latin hypercube, mixture simplex-lattice, or a
+hand-built custom design), and generate — the app randomizes the run order
+and shows real diagnostics (duplicate/balance/orthogonality/condition-
+number checks) before you commit.
+
+Work through the generated **Runs**: record each response's observed value
+per run (or mark it missing/invalid/excluded with a reason — never
+silently treated as zero), and generate or link a real Laboratory trial
+directly from a run. Once enough data is in, run a **statistical
+analysis** — the app fits a real OLS model (main effects, factorial with
+interactions, quadratic response-surface, or a mixture blending model) to
+what was actually recorded, and shows the coefficients, ANOVA, fit
+quality, and residual charts. It will suggest — never auto-exclude — a run
+that looks like an outlier; you decide. Generate **candidates** from a
+finished analysis to see a ranked, desirability-scored list of promising
+factor settings, then apply the best one to your current working draft (it
+never overwrites a saved version) and save it as a new version through the
+normal Formulation workflow when you're satisfied.
+
+Full model: [DESIGN_OF_EXPERIMENTS.md](DESIGN_OF_EXPERIMENTS.md) and its
+companion documents (`DOE_STUDIES.md`, `DOE_FACTORS_AND_CONSTRAINTS.md`,
+`DOE_DESIGN_GENERATION.md`, `DOE_RESPONSES.md`,
+`DOE_RUNS_AND_LABORATORY.md`, `DOE_STATISTICAL_ANALYSIS.md`,
+`DOE_CANDIDATES.md`, `DOE_OPTIMIZATION_INTEGRATION.md`).
+
 ## Known limitations
 
 For how the ten workspaces are organized and why, see
@@ -500,9 +535,14 @@ claims, labels, artwork, formula-label consistency, `/claims-labels`) are
 both implemented, including their workspace UIs — see
 [REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md),
 [PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md), [PRODUCT_LABELS.md](PRODUCT_LABELS.md).
-Neither generates a final formatted PDF/DOCX document (Phase 7); the
-DOE and reverse-formulation modules described in the
-full specification are designed but not implemented; laboratory trials and
+Neither generates a final formatted PDF/DOCX document (Phase 7). Phase 5
+(Design of Experiments, `/doe`) is implemented, including its workspace
+UI — see [DESIGN_OF_EXPERIMENTS.md](DESIGN_OF_EXPERIMENTS.md); within it,
+`definitive_screening`/`mixture_simplex_centroid` designs, fractions beyond
+a half-fraction, and Plackett-Burman sizes beyond N=12 are refused rather
+than faked, and an analysis-results export can never be re-imported as a
+native analysis. The reverse-formulation module described in the full
+specification is designed but not implemented (Phase 6). Laboratory trials and
 stability studies (§16–19 above) are implemented, but automatic shelf-life
 prediction is deliberately not — see
 [STABILITY_TRENDS.md](STABILITY_TRENDS.md#no-validated-shelf-life-claims).

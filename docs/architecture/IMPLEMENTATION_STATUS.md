@@ -766,6 +766,72 @@ convention; Swahili is a first-class label language throughout.
 **Deferred to Phase 7**: a final formatted PDF/DOCX label or claims-report
 export.
 
+### Design of Experiments (Phase 5)
+See [DESIGN_OF_EXPERIMENTS.md](../DESIGN_OF_EXPERIMENTS.md),
+[DOE_STUDIES.md](../DOE_STUDIES.md),
+[DOE_FACTORS_AND_CONSTRAINTS.md](../DOE_FACTORS_AND_CONSTRAINTS.md),
+[DOE_DESIGN_GENERATION.md](../DOE_DESIGN_GENERATION.md),
+[DOE_RESPONSES.md](../DOE_RESPONSES.md),
+[DOE_RUNS_AND_LABORATORY.md](../DOE_RUNS_AND_LABORATORY.md),
+[DOE_STATISTICAL_ANALYSIS.md](../DOE_STATISTICAL_ANALYSIS.md),
+[DOE_CANDIDATES.md](../DOE_CANDIDATES.md),
+[DOE_OPTIMIZATION_INTEGRATION.md](../DOE_OPTIMIZATION_INTEGRATION.md).
+
+**Implemented, verified by tests and by UI-integration tests**: a
+`DoeStudy` (12-state lifecycle, revision chain via `supersedesStudyId`,
+immutable once analyzed) bound to an exact saved formula version, never a
+working draft; factors/constraints (safe hand-rolled expression parser,
+no `eval`/subprocess/host access, verified with an explicit
+never-executes-arbitrary-code test)/responses; a deterministic
+design-generation engine implementing 9 of 11 named design types (full/
+two-level/fractional — half-fraction only — factorial, Plackett-Burman —
+N=8/12 only, central composite, Box-Behnken, Latin hypercube, mixture
+simplex-lattice, custom manual), with real diagnostics (duplicates,
+balance, orthogonality, condition number) and seeded reproducible
+randomization; `definitive_screening`/`mixture_simplex_centroid` refused
+with an explicit error rather than faked. A deterministic statistical-
+analysis engine (hand-rolled Gauss-Jordan OLS, ANOVA incl. lack-of-fit,
+fit metrics, leverage/Cook's-distance/standardized-residual diagnostics,
+F/t-distribution p-values via a standard regularized-incomplete-beta
+implementation) fitting main-effects/factorial/quadratic-response-surface/
+mixture models to real recorded observations only — never AI-sourced,
+never fabricated; a categorical/binary/ordinal/pass-fail response is
+refused rather than forced through OLS; missing/excluded observations are
+dropped from a fit and listed explicitly, never treated as zero; an
+outlier is suggested, never auto-excluded. Derringer-Suich desirability
+and a seeded candidate search over the design's own space, ranked, with
+every prediction citing its source analysis and flagging extrapolation;
+applying a candidate only ever updates a working draft, never a saved
+version. Laboratory integration: `LaboratoryTrial` gained optional
+`sourceDoeStudyId`/`sourceDoeDesignId`/`sourceDoeRunId` lineage fields
+(no migration needed); a run's factor settings deterministically map onto
+the baseline formula's lines, fixed ingredients untouched. 10 collections
+(`doe_studies`/`_factors`/`_constraints`/`_responses`/`_designs`/`_runs`/
+`_observations`/`_candidates` mutable; `doe_analyses`/`_review_actions`
+append-only, since a re-run is a new fit and review actions are a
+sign-off log). JSON/CSV/Excel export for study/factors/constraints/
+responses/design-matrix/run-sheet/observations/coefficients/ANOVA/
+candidate-list; CSV import (preview, row-level errors, duplicate
+handling) for factors/constraints/observations; an analysis-results
+export is deliberately export-only — it can never be re-imported as a
+native analysis. Workspace: `/doe` (Studies/Design/Runs/Responses/
+Analysis/Candidates/History/Audit sections, a 9-step study wizard, real
+inline-SVG charts incl. a 2-factor response-surface heatmap), never a
+Formula Builder tab. Home/Projects/Reports integration (real counts —
+active studies, runs awaiting lab work, studies ready for analysis,
+candidates awaiting selection — computed from persisted rows, never
+fabricated). i18n: EN+TR real translations, 6 locales carry the
+established English-placeholder convention.
+
+**Deferred / explicitly out of scope for this phase**: a final formatted
+PDF/DOCX report (Phase 7); fractional-factorial fractions beyond a
+half-fraction and Plackett-Burman sizes beyond N=12 (refused with an
+explicit error, not silently unavailable); automatic stability-result
+import into DOE observations (a human enters the value manually instead —
+missing-is-never-zero still holds); displaying a specific DOE candidate
+inside the Optimization workspace or a side-by-side DOE-vs-optimizer
+comparison view (lightweight project-context cross-navigation only).
+
 ### Regulatory authorization closure — final Phase 2 gap
 See [REGULATORY_REVIEWS.md](../REGULATORY_REVIEWS.md#authorization),
 [REGULATORY_EVIDENCE_CONFIRMATIONS.md](../REGULATORY_EVIDENCE_CONFIRMATIONS.md#authorized-role-only-append-only-exactly-scoped),
@@ -900,14 +966,15 @@ route-compatibility). 410 desktop tests total (was 389). Shared-package
 tests unchanged at 690/690 (no shared-package code touched). Typecheck
 and lint clean.
 
-**Deferred / explicitly out of scope**: DOE, reverse formulation, the
+**Deferred / explicitly out of scope**: reverse formulation, the
 Phase 7 PDF/DOCX report engine (including formatted dossier/label/claims
 exports), the `ai4s`→`FormuLab` naming migration, desktop shortcut
 installation, any new ERP module, and a new user-management/auth system
 (Administration links to existing screens; it does not add user/role
 management, since none exists in this codebase to build on). The Phase 3
-dossier/evidence-matrix system and the Phase 4 claims/label engine are no
-longer deferred — see their dedicated sections above.
+dossier/evidence-matrix system, the Phase 4 claims/label engine, and the
+Phase 5 DOE system are no longer deferred — see their dedicated sections
+above.
 
 **Known limitations**: Home's cross-project aggregation for recent
 activity and pending approvals is bounded to the 5 most-recently-updated
@@ -937,7 +1004,6 @@ plainly so nothing here reads as available.
 |---|---|
 | Evidence origin classification wired into the pipeline | 4 |
 | Manufacturing methods + batch records | 8 |
-| DOE | 10 |
 | Reverse formulation | 11 |
 | PDF/Word exports (JSON/CSV/Excel/ERP-draft-CSV exports exist — see gap-closure UI, Done) | 20, 21 |
 | Security threat model docs | 24 |
@@ -951,6 +1017,7 @@ plainly so nothing here reads as available.
 | Localisation of screens outside the 8 shipped locales' major workflows | The parity test requires every locale to carry every key; a handful of generic-chrome strings (unrelated to the R&D workflows) may still read as an unreviewed literal translation rather than idiomatic phrasing pending a native-speaker pass. `scripts/i18n-fill-missing.py` fills gaps without overwriting real translations. |
 | Advanced constraint optimizer (spec §1) | Composition, functional-group, ratio and conditional constraints, soft-constraint penalty relaxation, property targets, a cost ceiling, and graded compatibility/safety risk objectives all solve for real (mixed-integer where needed). The Scenarios section now has a real, working lifecycle (create/save/clone/rename/retire/restore, append-only revisions), loads all 31 seeded product-family profiles (apply-missing/merge/replace), and compares two or more persisted runs with deterministic per-rule highlights. The remaining UI gap: no composition/ratio/conditional-constraint builder, no lexicographic priority selector, no per-material lock editor. See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md), [OPTIMIZATION_SCENARIOS.md](../OPTIMIZATION_SCENARIOS.md). |
 | Substitution engine (spec §12) | One-to-one substitution is fully scored and wired to the UI, re-running the real compatibility/safety engines per candidate. System (multi-material) substitution now generates real candidate combinations by function coverage, routes each through the actual Advanced Optimizer, and scores the result — selecting multiple formula lines in the Substitution dialog enters system mode. Graded compatibility/safety risk objectives are not yet wired into a system's base problem (real hard exclusions still are). See [MATERIAL_SUBSTITUTION.md](../MATERIAL_SUBSTITUTION.md), [SYSTEM_SUBSTITUTION.md](../SYSTEM_SUBSTITUTION.md). |
+| DOE (spec §10) | The core is fully implemented (see the dedicated section above) — 9 of 11 named design types, a real OLS/ANOVA analysis engine, desirability/candidate search, Laboratory integration, import/export, and the `/doe` workspace. `definitive_screening`/`mixture_simplex_centroid` designs, fractional-factorial fractions beyond a half-fraction, and Plackett-Burman sizes beyond N=12 are refused with an explicit "not implemented" error rather than faked. Deep cross-navigation into a specific candidate inside the Optimization workspace is a lightweight project-context link, not a data-merged view. See [DESIGN_OF_EXPERIMENTS.md](../DESIGN_OF_EXPERIMENTS.md). |
 
 ## Existing functionality preserved
 
