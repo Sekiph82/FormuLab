@@ -1,4 +1,4 @@
-# Information architecture — ten workspaces
+# Information architecture — ten workspaces (now eleven, Phase 3)
 
 Why the old Formula Builder became overcrowded, the ten-workspace model
 that replaced it, what moved where, what stayed exactly as it was, and
@@ -6,6 +6,14 @@ the backward-compatibility approach. See [WORKSPACES.md](WORKSPACES.md)
 for a per-workspace reference and
 [NAVIGATION_AND_CONTEXT.md](NAVIGATION_AND_CONTEXT.md) for the
 context-preservation mechanism.
+
+Phase 3 added an eleventh workspace, Dossiers (`/dossiers`), following
+the exact same reasoning this document lays out below: the regulatory
+dossier/evidence-matrix subsystem grew its own real internal structure
+(list, creation flow, an 8-section detail view) and needed a first-class
+route, not a tab bolted onto Regulatory or Formula Builder. Everything
+below describing the original ten-workspace split is otherwise unchanged
+by Phase 3.
 
 ## The problem: one page carrying twelve modules
 
@@ -35,7 +43,7 @@ Two concrete problems followed from that:
   rule verification, review equivalence) that a single tab label
   couldn't represent.
 
-## The model: ten workspaces, each a real route
+## The model: ten workspaces, each a real route (see note above for the eleventh)
 
 Every workspace is its own file under `apps/desktop/src/app/routes/`,
 reached via its own URL, and reuses the existing panel components rather
@@ -50,6 +58,7 @@ than duplicating their logic:
 | Stability | `/stability` | The Stability tab |
 | Optimization | `/optimization` | The Optimizer tab (project-bound `AdvancedOptimizerPanel`) |
 | Regulatory | `/regulatory` | The Regulatory tab |
+| Dossiers | `/dossiers` | New (Phase 3) — the regulatory dossier and evidence-matrix workspace, see [REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md); placed between Regulatory and Approval, never a Formula Builder tab |
 | Approval | `/approval` | The Approval tab |
 | Reports | `/reports` | New — a navigation shell over existing exports |
 | Administration | `/administration` | New — links to Materials, Regulatory rules, Approval policies, Settings; hosts Test Definitions directly |

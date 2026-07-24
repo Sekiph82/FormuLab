@@ -47,4 +47,6 @@ revocation before treating a review as current.
 
 Implemented, verified by tests (`regulatoryDossier.test.ts` — authorization,
 empty-notes refusal, revision binding, revocation, all five outcomes).
-Review workflow UI: see [WORKSPACES.md](WORKSPACES.md).
+Review workflow UI (record/revoke, outcome selector, unauthorized-role
+hint) is implemented in `DossierPanel.tsx`'s Reviews section — see
+[WORKSPACES.md](WORKSPACES.md#dossiers).

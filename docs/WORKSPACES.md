@@ -20,18 +20,23 @@ from those top 5 projects), open laboratory work (every
 `laboratory_trials` record not yet in a terminal status, joined to its
 project's name), upcoming stability samples (`stability_samples` with
 status `planned`/`due`/`overdue` and a `dueDate`, joined through
-`stability_studies` to the project name, sorted soonest-first), and
-pending approvals (formula versions across the 5 most recent projects
-whose `effectiveStatus` is `chemist_review`/`lab_candidate`/
-`stability_testing`/`pilot_candidate`).
+`stability_studies` to the project name, sorted soonest-first), pending
+approvals (formula versions across the 5 most recent projects whose
+`effectiveStatus` is `chemist_review`/`lab_candidate`/
+`stability_testing`/`pilot_candidate`), and — Phase 3 — regulatory
+dossiers scoped to the same 5 recent projects: counts of dossiers in
+preparation/ready-for-review/blocked (each `calculateDossierReadiness`,
+never a placeholder), dossier evidence expiring within 30 days, and
+dossiers whose readiness is `ready_for_review` with no active recorded
+review yet.
 
 **Does not**: aggregate across an unbounded number of projects — pending
-approvals and recent activity are only computed for the 5 most
-recently-updated projects (bounded to keep the per-project
-`readAuditLog`+`readFormulation` calls cheap); this is a real bound, not
-a silent cap presented as complete. Does not fabricate a metric — every
-section has its own honest empty-state string when there is nothing to
-show.
+approvals, recent activity and the dossier signals above are all only
+computed for the 5 most recently-updated projects (bounded to keep the
+per-project `readAuditLog`+`readFormulation` calls, and the dossier
+readiness computation, cheap); this is a real bound, not a silent cap
+presented as complete. Does not fabricate a metric — every section has
+its own honest empty-state string when there is nothing to show.
 
 ## Projects
 
@@ -41,11 +46,14 @@ view.
 
 Every formulation project, independent of which downstream workspace
 it's being worked in. Opening a project navigates to
-`/formulation?project=<id>`.
+`/formulation?project=<id>`. Each row also carries a compact dossier
+count badge (non-superseded/archived dossiers for that project) that
+deep-links to `/dossiers?project=<id>` — a count and a link only, never a
+computed readiness state (that lives in the Dossiers workspace itself).
 
 **Does not**: show anything about a project's laboratory/stability/
-regulatory/approval state — that's Home's job, or the project's own
-workspaces.
+regulatory/approval/dossier-readiness state beyond that count — that's
+Home's job, or the project's own workspaces.
 
 ## Formulation
 
@@ -145,6 +153,31 @@ confirmations, rule verification, or review equivalence work — see
 [REGULATORY_ENGINE.md](REGULATORY_ENGINE.md) and its companion documents
 for that.
 
+## Dossiers
+
+`/dossiers` — `apps/desktop/src/app/routes/DossiersPage.tsx`, backed by
+`DossierPanel.tsx`. Sidebar entry between Regulatory and Approval — a
+first-class workspace, never a Formula Builder tab (see
+[REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md)).
+
+Dossier list with status/jurisdiction filters and a create flow gated to
+real saved formula versions (never the current working draft); a detail
+view with eight sub-sections (Overview, Evidence Matrix, Requirements,
+Evidence Library, Reviews, Submissions, History, Audit); status-change and
+new-revision actions; JSON dossier export, CSV/Excel evidence-matrix
+export, and JSON/CSV/Excel evidence-metadata import with a preview step.
+Optional `version`/`jurisdiction`/`sku`/`dossier` query params let the
+Regulatory workspace deep-link into a prefilled create flow or an existing
+dossier's detail view; Home and Projects deep-link the same way for
+dossiers surfaced on their own dashboards.
+
+**Does not**: generate a final formatted PDF/DOCX dossier (Phase 7),
+integrate with any real government/regulatory-authority submission portal
+(submissions are an internal tracking record only), or claim legal
+compliance from an uploaded document or accepted link — see
+[REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md) and
+[DOSSIER_SUBMISSIONS.md](DOSSIER_SUBMISSIONS.md).
+
 ## Approval
 
 `/approval` — `apps/desktop/src/app/routes/ApprovalPage.tsx`. Reuses
@@ -168,13 +201,14 @@ snapshot behavior — see [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md).
 `/reports` — `apps/desktop/src/app/routes/ReportsPage.tsx`. New page; no
 panel to reuse.
 
-A navigation shell: six rows (Formula, Trial, Stability, Regulatory,
-Approval, Audit reports). Five link to the workspace that already
+A navigation shell: seven rows (Formula, Trial, Stability, Regulatory,
+Dossier, Approval, Audit reports). Six link to the workspace that already
 provides a real export (formula-version JSON from Formulation's Versions
-tab, trial JSON from Laboratory, study/trend export from Stability,
-rule JSON/CSV/Excel from Regulatory, decision history/snapshots from
-Approval). The sixth, Audit reports, has no dedicated view yet and is
-labeled "Not yet implemented."
+tab, trial JSON from Laboratory, study/trend export from Stability, rule
+JSON/CSV/Excel from Regulatory, dossier JSON + evidence-matrix CSV/Excel
+from Dossiers, decision history/snapshots from Approval). The seventh,
+Audit reports, has no dedicated view yet and is labeled "Not yet
+implemented" — same as the Dossier row's own final PDF/DOCX export.
 
 **Does not**: generate PDF or DOCX reports. That is the explicitly
 out-of-scope Phase 7 report engine — this page states that plainly

@@ -103,5 +103,11 @@ cost snapshots are not (yet) covered — see that file's header comment for why.
 ## Status
 
 Implemented, verified by tests (`regulatoryDossier.test.ts`,
-`dossierRecordDiscovery.test.ts`). Evidence Library / matrix UI: see
-[WORKSPACES.md](WORKSPACES.md) for current status.
+`dossierRecordDiscovery.test.ts`, `DossierPanel.test.tsx`). Evidence Library
+UI (add/verify/reject/revoke, link/unlink, JSON/CSV/Excel import with
+preview) is implemented in `DossierPanel.tsx` — see
+[WORKSPACES.md](WORKSPACES.md#dossiers). The automatic-discovery-from-other-
+records suggestion UI (surfacing `discoverDossierEvidenceCandidates`
+results inline) is not yet wired into the panel — the engine function is
+implemented and tested, but a human currently has to know what to look for
+rather than being shown a suggestion list.

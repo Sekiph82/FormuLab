@@ -80,5 +80,6 @@ automatically.
 Implemented, verified by tests (`regulatoryDossier.test.ts` — requirement
 generation, EAC overlay, frozen rule id/version, latest-wins overlay, manual
 add/exclude authorization, drift comparison). Requirement-generation UI
-(reviewing/excluding/adding manually from the Dossiers workspace): see
-[WORKSPACES.md](WORKSPACES.md) for current status.
+(reviewing/excluding/adding manually, drift banner) is implemented in
+`DossierPanel.tsx`'s Requirements section — see
+[WORKSPACES.md](WORKSPACES.md#dossiers).

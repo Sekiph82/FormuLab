@@ -102,7 +102,10 @@ recorded on an authorization failure (the thrown error is the signal).
 ## Status
 
 Domain model, lifecycle engine and authorization: **implemented, verified by
-tests** (`regulatoryDossier.test.ts`). Workspace UI: see
-[WORKSPACES.md](WORKSPACES.md) for the `/dossiers` route once Part 8 of this
-phase lands in the same branch — check that document for whether the UI has
-been built and live-verified yet before assuming it has.
+tests** (`regulatoryDossier.test.ts`). Workspace UI (`/dossiers`,
+`DossierPanel.tsx` — list, creation, 8-section detail view, status/revision
+lifecycle): **implemented, verified by UI-integration tests**
+(`DossierPanel.test.tsx`) and by typecheck/lint — see
+[WORKSPACES.md](WORKSPACES.md#dossiers). Not yet independently confirmed via
+live native-app click-through; see the Phase 3 execution log for that
+verification's status.

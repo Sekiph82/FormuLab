@@ -132,3 +132,25 @@ dashboard's load cost predictable, not a silent cap presented as a
 complete global view. A workspace with more than 5 active projects will
 not see every project's activity/pending-approval entries reflected on
 Home; open **Projects** for the complete list.
+
+Phase 3's dossier signals (in-preparation/ready-for-review/blocked
+counts, evidence expiring soon, reviews pending) read the genuinely
+global dossier collections but are then filtered down to the same 5
+recent projects before `calculateDossierReadiness` runs on each one — the
+identical bound, not a separate one, so a workspace with more than 5
+active projects will likewise not see every project's dossier there
+either; open the project's own **Dossiers** workspace for the complete
+picture.
+
+## Dossiers workspace query params — `DossiersPage`
+
+`DossiersPage.tsx` reads `?project=` (via the same `useProjectParam` as
+every other workspace) plus four dossier-specific params:
+`?version=<formulaVersionId>`, `?jurisdiction=<RegulatoryJurisdiction>`,
+`?sku=<packagingSkuCode>`, and `?dossier=<dossierId>`. The first three
+prefill the creation flow (used by `RegulatoryPanel.tsx`'s "create
+dossier" deep link, scoped to whatever version/jurisdiction/packaging SKU
+was selected in Regulatory at the time); `?dossier=` opens straight to an
+existing dossier's detail view (used by Home's and Projects' dossier
+links). None of the four are required — omitting all of them shows the
+plain dossier list for the current project.

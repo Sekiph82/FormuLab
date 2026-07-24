@@ -63,5 +63,9 @@ branches in this order:
 
 Implemented, verified by tests (`regulatoryDossier.test.ts` — missing vs.
 not-started, unverified ≠ verified, expired, excluded, unknown/human-review
-propagation, insufficient count). Matrix UI (table + filters): see
-[WORKSPACES.md](WORKSPACES.md) for current status.
+propagation, insufficient count). Matrix UI (table with requirement/
+jurisdiction/mandatory/applicability/linked-evidence/satisfaction/blocking-
+reason/last-activity columns, plus CSV/Excel export) is implemented in
+`DossierPanel.tsx`'s Evidence Matrix section — see
+[WORKSPACES.md](WORKSPACES.md#dossiers). No column-level filtering UI yet
+(the full matrix always renders); the underlying data supports it.

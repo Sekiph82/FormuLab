@@ -42,4 +42,6 @@ table.
 
 Implemented, verified by tests (`regulatoryDossierApproval.test.ts`/
 `regulatoryDossier.test.ts` — authorization, tracking-only semantics, status
-transitions). Submission tracking UI: see [WORKSPACES.md](WORKSPACES.md).
+transitions). Submission tracking UI (record/update status, the
+internal-tracking-only notice) is implemented in `DossierPanel.tsx`'s
+Submissions section — see [WORKSPACES.md](WORKSPACES.md#dossiers).

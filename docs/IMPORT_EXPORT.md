@@ -120,6 +120,21 @@ templates are downloadable from the same screen for every supported
 collection (raw materials, suppliers, prices, inventory, packaging components,
 packaging BOMs, factory cost profiles).
 
+## Phase 3: dossier evidence import/export is a separate pipeline
+
+The Dossiers workspace's JSON/CSV/Excel evidence import (see
+[DOSSIER_EVIDENCE.md](DOSSIER_EVIDENCE.md)) reuses the same underlying
+`parseCsv`/`toCsv`/`buildXlsxBlob` primitives (`packages/shared/src/engine/importer.ts`,
+`apps/desktop/src/lib/xlsx.ts`) and the same preview-before-commit
+discipline this document describes, but it is a distinct, smaller
+pipeline scoped to one dossier's evidence rows — not an instance of the
+generic master-data importer above, and not backed by this document's
+column-alias table. Imported evidence rows are always forced unverified/
+draft (`addDraftEvidence`), and a row whose title/evidence-type pair
+already exists on the dossier is skipped as a duplicate rather than
+re-imported, making re-import idempotent the same way this document's
+own code-keyed upsert is.
+
 ## Known limitations
 
 - `.xlsx` is read (`apps/desktop/src/lib/xlsx.ts`, `readWorkbookRows`) and fed

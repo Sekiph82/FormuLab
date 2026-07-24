@@ -48,5 +48,11 @@ answer (see [WORKSPACES.md](WORKSPACES.md) for the UI's current state).
 
 Implemented, verified by tests (`regulatoryDossier.test.ts` — no
 requirements, missing mandatory, unverified evidence, all verified,
-human-review-required always unknown, expiry warnings). Readiness badge/UI:
-see [WORKSPACES.md](WORKSPACES.md).
+human-review-required always unknown, expiry warnings). Readiness badge
+(list rows and dossier detail header), readiness-summary card, and the
+per-jurisdiction summary (never merged into one answer) are implemented in
+`DossierPanel.tsx` — see [WORKSPACES.md](WORKSPACES.md#dossiers). Also
+surfaced on the Home dashboard's dossier counts (scoped to the same
+recent-project bound as the rest of Home) and folded into Approval's
+blocker list via `deriveDossierApprovalReadiness` — see
+[APPROVAL_READINESS.md](APPROVAL_READINESS.md).
