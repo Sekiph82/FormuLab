@@ -207,3 +207,58 @@ describe("DossierPanel — status and revision lifecycle", () => {
     expect(revised.supersedesDossierId).toBe(superseded.id);
   });
 });
+
+describe("DossierPanel — evidence import", () => {
+  async function createAndOpenDossier(user: ReturnType<typeof userEvent.setup>) {
+    renderPanel();
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+  }
+
+  it("previews and imports JSON evidence rows as unverified draft evidence", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+
+    await user.click(screen.getByRole("button", { name: "Import evidence" }));
+    const dialog = await screen.findByRole("dialog", { name: "Import evidence" });
+    within(dialog).getByRole("textbox").focus();
+    await user.paste('[{"title": "SDS for surfactant", "evidenceType": "sds"}]');
+    await user.click(within(dialog).getByRole("button", { name: "Preview" }));
+    await within(dialog).findByText("1 row(s) ready to import.");
+
+    await user.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    await vi.waitFor(() => expect(bridge.upsertRecords).toHaveBeenCalledWith("regulatory_evidence_items", expect.any(Array)));
+    const [, items] = bridge.upsertRecords.mock.calls.find((c) => c[0] === "regulatory_evidence_items")!;
+    expect(items[0].title).toBe("SDS for surfactant");
+    expect(items[0].status).toBe("draft");
+    expect(items[0].sourceType).toBe("manual_entry");
+    expect((await screen.findAllByText("SDS for surfactant")).length).toBeGreaterThan(0);
+  });
+
+  it("skips a row as a duplicate when the same title/evidenceType already exists on this dossier", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+
+    await user.click(screen.getByRole("button", { name: "Import evidence" }));
+    let dialog = await screen.findByRole("dialog", { name: "Import evidence" });
+    within(dialog).getByRole("textbox").focus();
+    await user.paste('[{"title": "COA batch 1", "evidenceType": "coa"}]');
+    await user.click(within(dialog).getByRole("button", { name: "Preview" }));
+    await user.click(within(dialog).getByRole("button", { name: "Import" }));
+    await screen.findAllByText("COA batch 1");
+
+    await user.click(screen.getByRole("button", { name: "Import evidence" }));
+    dialog = await screen.findByRole("dialog", { name: "Import evidence" });
+    within(dialog).getByRole("textbox").focus();
+    await user.paste('[{"title": "COA batch 1", "evidenceType": "coa"}]');
+    await user.click(within(dialog).getByRole("button", { name: "Preview" }));
+    expect(await within(dialog).findByText("1 row(s) skipped as already-imported duplicates.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Import" })).toBeDisabled();
+  });
+});

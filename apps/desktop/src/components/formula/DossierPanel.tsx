@@ -41,6 +41,7 @@ import {
   isDossierImmutable,
   mapEvidenceToRequirements,
   newId,
+  parseCsv,
   proposeEvidenceLink,
   recordDossierReview,
   recordDossierSubmission,
@@ -52,6 +53,7 @@ import {
   revokeDossierReview,
   revokeEvidence,
   revokeEvidenceLink,
+  toCsv,
   updateDossierStatus,
   updateDossierSubmissionStatus,
   verifyEvidence,
@@ -76,6 +78,7 @@ import {
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
+import { buildXlsxBlob } from "@/lib/xlsx";
 import { AttachmentField } from "./AttachmentField";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
@@ -106,6 +109,19 @@ const SATISFACTION_STYLE: Record<string, string> = {
   blocked: "bg-error/10 text-error",
   unknown: "bg-error/10 text-error",
 };
+
+const IMPORT_FORMATS = ["json", "csv", "excel"] as const;
+const EVIDENCE_MATRIX_HEADERS = ["requirement", "jurisdiction", "mandatory", "applicability", "linkedEvidence", "satisfaction", "blockingReason", "lastActivity"];
+const EVIDENCE_IMPORT_HEADERS = ["title", "evidenceType", "documentType", "issuer", "documentNumber", "issuedAt", "expiresAt"];
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function DossierPanel({
   formulation,
@@ -340,6 +356,160 @@ export function DossierPanel({
   const hasDrift = !!drift && (drift.newRequirementCodes.length > 0 || drift.removedRequirementCodes.length > 0 || drift.changedRuleVersionCodes.length > 0 || drift.changedMandatoryStatusCodes.length > 0 || drift.changedAcceptedEvidenceTypesCodes.length > 0 || drift.changedJurisdictionApplicabilityCodes.length > 0);
   const revisionChain = selectedDossier ? resolveDossierRevisionChain(selectedDossier, dossiers) : [];
   const suggestions = selectedDossier ? mapEvidenceToRequirements(currentReqs, dossierEvidence, { formulaVersionId: selectedDossier.formulaVersionId, packagingSkuCode: selectedDossier.packagingSkuCode }) : new Map();
+
+  // ----------------------------------------------------------- export/import
+  // Phase 3 §15: JSON dossier export, CSV/Excel evidence-matrix export, and
+  // JSON/CSV/Excel evidence-metadata import — no PDF/DOCX here, that is
+  // Phase 7. Imported rows are always forced into addDraftEvidence's own
+  // unverified/draft path; the import actor can never verify what it just
+  // imported (verifyEvidence still requires requireAuthorizedRegulatoryActor).
+  const exportDossierJson = () => {
+    if (!selectedDossier) return;
+    const payload = {
+      dossier: selectedDossier,
+      requirements: currentReqs,
+      evidence: dossierEvidence,
+      links: activeLinks,
+      reviews: reviews.filter((r) => r.dossierId === selectedDossier.id),
+      submissions: submissions.filter((s) => s.dossierId === selectedDossier.id),
+    };
+    downloadBlob(`${selectedDossier.dossierCode}.json`, new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+  };
+  const matrixExportRows = () =>
+    matrix.map((row) => ({
+      requirement: row.requirement.title,
+      jurisdiction: row.requirement.jurisdiction,
+      mandatory: row.requirement.mandatory ? (row.requirement.critical ? "critical" : "mandatory") : "optional",
+      applicability: row.requirement.applicabilityStatus,
+      linkedEvidence: row.linkedEvidence.map((e) => e.title).join("; "),
+      satisfaction: row.satisfaction,
+      blockingReason: row.blockingReason ?? "",
+      lastActivity: row.lastActivityAt ?? "",
+    }));
+  const exportMatrixCsv = () => {
+    if (!selectedDossier) return;
+    downloadBlob(`${selectedDossier.dossierCode}-evidence-matrix.csv`, new Blob([toCsv(EVIDENCE_MATRIX_HEADERS, matrixExportRows())], { type: "text/csv;charset=utf-8" }));
+  };
+  const exportMatrixXlsx = async () => {
+    if (!selectedDossier) return;
+    downloadBlob(`${selectedDossier.dossierCode}-evidence-matrix.xlsx`, await buildXlsxBlob(EVIDENCE_MATRIX_HEADERS, matrixExportRows(), "evidence-matrix"));
+  };
+
+  const [importing, setImporting] = useState(false);
+  const [importFormat, setImportFormat] = useState<(typeof IMPORT_FORMATS)[number]>("json");
+  const [importText, setImportText] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<{ valid: Record<string, unknown>[]; errors: string[]; duplicates: number } | null>(null);
+
+  const buildImportPreview = (rows: Record<string, unknown>[]) => {
+    const valid: Record<string, unknown>[] = [];
+    const errors: string[] = [];
+    let duplicates = 0;
+    const existing = new Set(dossierEvidence.map((e) => `${e.title}::${e.evidenceType}`));
+    rows.forEach((row, i) => {
+      const title = row.title ? String(row.title) : "";
+      if (!title) {
+        errors.push(t("dossier.importRowError", { row: i + 1 }));
+        return;
+      }
+      const evidenceType = (DOSSIER_EVIDENCE_TYPES as readonly string[]).includes(String(row.evidenceType)) ? String(row.evidenceType) : "other";
+      // Idempotent re-import: a row whose (title, evidenceType) already
+      // exists on this dossier is skipped rather than duplicated — reimporting
+      // the same file twice must not create a second copy of the same
+      // evidence claim.
+      if (existing.has(`${title}::${evidenceType}`)) {
+        duplicates += 1;
+        return;
+      }
+      valid.push({ ...row, title, evidenceType });
+    });
+    setImportPreview({ valid, errors, duplicates });
+  };
+
+  const previewJsonOrCsv = () => {
+    setImportError(null);
+    if (importFormat === "json") {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(importText);
+      } catch {
+        setImportError(t("dossier.invalidJson"));
+        return;
+      }
+      buildImportPreview((Array.isArray(parsed) ? parsed : [parsed]) as Record<string, unknown>[]);
+    } else if (importFormat === "csv") {
+      const parsedRows = parseCsv(importText);
+      if (parsedRows.length < 2) {
+        setImportError(t("dossier.invalidShape"));
+        return;
+      }
+      const [header, ...dataRows] = parsedRows;
+      buildImportPreview(dataRows.map((cells) => Object.fromEntries(header.map((h, i) => [h, cells[i]]))));
+    }
+  };
+  const previewExcel = async () => {
+    setImportError(null);
+    if (!importFile) return;
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await importFile.arrayBuffer());
+    const sheet = wb.worksheets[0];
+    if (!sheet) {
+      setImportError(t("dossier.invalidShape"));
+      return;
+    }
+    const header = (sheet.getRow(1).values as unknown[]).slice(1).map((v) => String(v ?? ""));
+    const rows: Record<string, unknown>[] = [];
+    for (let r = 2; r <= sheet.rowCount; r++) {
+      const values = (sheet.getRow(r).values as unknown[]).slice(1);
+      if (values.every((v) => v === undefined || v === null || v === "")) continue;
+      rows.push(Object.fromEntries(header.map((h, i) => [h, values[i]])));
+    }
+    buildImportPreview(rows);
+  };
+
+  const commitImportEvidence = async () => {
+    if (!selectedDossier || !importPreview || importPreview.valid.length === 0) return;
+    try {
+      const items = importPreview.valid.map((row) =>
+        addDraftEvidence(
+          {
+            dossierId: selectedDossier.id,
+            formulationId: formulation.id,
+            formulaVersionId: selectedDossier.formulaVersionId,
+            packagingSkuCode: selectedDossier.packagingSkuCode,
+            jurisdictions: selectedDossier.jurisdictions,
+            evidenceType: row.evidenceType as RegulatoryDossierEvidenceItem["evidenceType"],
+            title: String(row.title),
+            documentType: row.documentType ? String(row.documentType) : undefined,
+            issuer: row.issuer ? String(row.issuer) : undefined,
+            documentNumber: row.documentNumber ? String(row.documentNumber) : undefined,
+            issuedAt: row.issuedAt ? String(row.issuedAt) : undefined,
+            expiresAt: row.expiresAt ? String(row.expiresAt) : undefined,
+            sourceType: "manual_entry",
+          },
+          actor,
+        ),
+      );
+      await upsertRecords("regulatory_evidence_items", items);
+      setEvidenceItems((prev) => [...prev, ...items]);
+      await appendAudit(
+        auditEvent(formulation.id, "dossier.evidence_added", {
+          versionId: selectedDossier.formulaVersionId,
+          detail: `imported ${items.length} evidence item(s), ${importPreview.duplicates} skipped as duplicates`,
+          metadata: { dossierId: selectedDossier.id },
+        }),
+      );
+      await onAuditChanged();
+      setImporting(false);
+      setImportText("");
+      setImportFile(null);
+      setImportPreview(null);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
 
   const filteredDossiers = dossiers.filter((d) => {
     const effective = deriveDossierStatus(d, dossiers);
@@ -916,7 +1086,19 @@ export function DossierPanel({
 
           {section === "evidence" && (
             <div>
-              <div className="mb-2 flex justify-end">
+              <div className="mb-2 flex flex-wrap justify-end gap-1.5">
+                <button onClick={exportDossierJson} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
+                  {t("dossier.exportJson")}
+                </button>
+                <button onClick={exportMatrixCsv} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
+                  {t("dossier.exportMatrixCsv")}
+                </button>
+                <button onClick={() => void exportMatrixXlsx()} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
+                  {t("dossier.exportMatrixXlsx")}
+                </button>
+                <button onClick={() => setImporting(true)} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
+                  {t("dossier.importEvidence")}
+                </button>
                 <button onClick={() => setEvidenceForm(true)} className="flex items-center gap-1 rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
                   <Plus size={12} /> {t("dossier.addEvidence")}
                 </button>
@@ -1249,6 +1431,72 @@ export function DossierPanel({
               </button>
               <button onClick={() => void submitCreate()} disabled={createBusy} className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40">
                 {t("common:actions.save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {importing && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6" role="dialog" aria-modal="true" aria-label={t("dossier.importEvidence")}>
+          <div className="my-auto w-[42rem] max-w-full rounded-card border border-border bg-surface shadow-xl">
+            <h2 className="border-b border-border px-5 py-3 text-[14px] font-medium text-text">{t("dossier.importEvidence")}</h2>
+            <div className="space-y-2 px-5 py-4">
+              <div className="flex gap-1">
+                {IMPORT_FORMATS.map((fmt) => (
+                  <button
+                    key={fmt}
+                    onClick={() => {
+                      setImportFormat(fmt);
+                      setImportPreview(null);
+                      setImportError(null);
+                    }}
+                    className={cn("rounded px-2 py-1 text-[11px]", importFormat === fmt ? "bg-accent/10 font-medium text-accent" : "text-muted hover:bg-surface-2")}
+                  >
+                    {fmt.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted">{t("dossier.importHint", { headers: EVIDENCE_IMPORT_HEADERS.join(", ") })}</p>
+              {importFormat !== "excel" ? (
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  rows={10}
+                  aria-label={t("dossier.importEvidence")}
+                  className="w-full rounded-input border border-border bg-surface px-2 py-1.5 font-mono text-[11px] text-text outline-none focus:border-accent"
+                />
+              ) : (
+                <input type="file" accept=".xlsx" aria-label={t("dossier.importExcelFile")} onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} className="text-[11px]" />
+              )}
+              <button
+                onClick={() => void (importFormat === "excel" ? previewExcel() : previewJsonOrCsv())}
+                className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2"
+              >
+                {t("dossier.previewImport")}
+              </button>
+              {importError && <p className="text-[12px] text-error">{importError}</p>}
+              {importPreview && (
+                <div className="rounded-input border border-border-faint px-2 py-1.5 text-[11px]">
+                  <p className="text-success">{t("dossier.previewValidCount", { count: importPreview.valid.length })}</p>
+                  {importPreview.duplicates > 0 && <p className="text-muted">{t("dossier.previewDuplicateCount", { count: importPreview.duplicates })}</p>}
+                  {importPreview.errors.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-error">
+                      {importPreview.errors.map((e, i) => (
+                        <li key={i}>{e}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              <p className="text-[10px] text-muted">{t("dossier.importUnverifiedNotice")}</p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+              <button onClick={() => setImporting(false)} className="rounded-input border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-text">
+                {t("common:actions.cancel")}
+              </button>
+              <button onClick={() => void commitImportEvidence()} disabled={!importPreview || importPreview.valid.length === 0} className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40">
+                {t("dossier.commitImport")}
               </button>
             </div>
           </div>
