@@ -28,6 +28,7 @@ const F_CACHE: &str = include_str!("../../../../runtime/pipeline/literature_cach
 const F_RULES: &str = include_str!("../../../../runtime/pipeline/rules.py");
 const F_REGION: &str = include_str!("../../../../runtime/pipeline/region_profiles.py");
 const F_CLI: &str = include_str!("../../../../runtime/pipeline/run_cli.py");
+const F_FULLTEXT: &str = include_str!("../../../../runtime/pipeline/fulltext.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -113,6 +114,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("rules.py", F_RULES),
         ("region_profiles.py", F_REGION),
         ("run_cli.py", F_CLI),
+        ("fulltext.py", F_FULLTEXT),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }
