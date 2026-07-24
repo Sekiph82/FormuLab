@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { FileCheck2, Plus, Tags } from "lucide-react";
-import { buildKenyaCatalog, type Formulation, type ProductClaim, type RegulatoryDossier } from "@ai4s/shared";
+import { FileCheck2, Grid3x3, Plus, Tags } from "lucide-react";
+import { buildKenyaCatalog, type DoeStudy, type Formulation, type ProductClaim, type RegulatoryDossier } from "@ai4s/shared";
 import { appendAudit, auditEvent, listFormulations, saveFormulation } from "@/lib/formulations";
 import { listRecords } from "@/lib/masterdata";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
@@ -24,9 +24,10 @@ export function ProjectsPage() {
   // readiness state (that belongs to the Dossiers workspace itself).
   const [dossierCountByProject, setDossierCountByProject] = useState<Map<string, number>>(new Map());
   const [claimsCountByProject, setClaimsCountByProject] = useState<Map<string, number>>(new Map());
+  const [doeStudyCountByProject, setDoeStudyCountByProject] = useState<Map<string, number>>(new Map());
 
   const refresh = useCallback(async () => {
-    const [all, dossiers, claims] = await Promise.all([listFormulations(), listRecords("regulatory_dossiers"), listRecords("product_claims")]);
+    const [all, dossiers, claims, doeStudies] = await Promise.all([listFormulations(), listRecords("regulatory_dossiers"), listRecords("product_claims"), listRecords("doe_studies")]);
     setProjects(all);
     const counts = new Map<string, number>();
     for (const d of dossiers as RegulatoryDossier[]) {
@@ -40,6 +41,12 @@ export function ProjectsPage() {
       claimCounts.set(c.formulationId, (claimCounts.get(c.formulationId) ?? 0) + 1);
     }
     setClaimsCountByProject(claimCounts);
+    const doeCounts = new Map<string, number>();
+    for (const s of doeStudies as DoeStudy[]) {
+      if (s.status === "superseded" || s.status === "archived" || s.status === "cancelled") continue;
+      doeCounts.set(s.formulationId, (doeCounts.get(s.formulationId) ?? 0) + 1);
+    }
+    setDoeStudyCountByProject(doeCounts);
   }, []);
 
   useEffect(() => {
@@ -102,6 +109,16 @@ export function ProjectsPage() {
                   className="mr-4 flex items-center gap-1 rounded-input border border-border-faint px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
                 >
                   <Tags size={11} /> {t("builder.projectClaimsCount", { n: claimsCountByProject.get(p.id) ?? 0 })}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/doe?project=${p.id}`);
+                  }}
+                  title={t("builder.projectDoeStudies")}
+                  className="mr-4 flex items-center gap-1 rounded-input border border-border-faint px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
+                >
+                  <Grid3x3 size={11} /> {t("builder.projectDoeStudyCount", { n: doeStudyCountByProject.get(p.id) ?? 0 })}
                 </button>
               </li>
             ))}

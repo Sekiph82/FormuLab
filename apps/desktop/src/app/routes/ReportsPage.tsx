@@ -11,6 +11,11 @@ const ROWS = [
   { key: "labelReadiness", titleKey: "reports.labelReadiness.title", descKey: "reports.labelReadiness.description", href: "/claims-labels" },
   { key: "formulaLabelConsistency", titleKey: "reports.formulaLabelConsistency.title", descKey: "reports.formulaLabelConsistency.description", href: "/claims-labels" },
   { key: "artworkReview", titleKey: "reports.artworkReview.title", descKey: "reports.artworkReview.description", href: "/claims-labels" },
+  { key: "doeDesignSummary", titleKey: "reports.doeDesignSummary.title", descKey: "reports.doeDesignSummary.description", href: "/doe" },
+  { key: "doeRunSheet", titleKey: "reports.doeRunSheet.title", descKey: "reports.doeRunSheet.description", href: "/doe" },
+  { key: "doeResponseMatrix", titleKey: "reports.doeResponseMatrix.title", descKey: "reports.doeResponseMatrix.description", href: "/doe" },
+  { key: "doeStatisticalAnalysis", titleKey: "reports.doeStatisticalAnalysis.title", descKey: "reports.doeStatisticalAnalysis.description", href: "/doe" },
+  { key: "doeCandidateRanking", titleKey: "reports.doeCandidateRanking.title", descKey: "reports.doeCandidateRanking.description", href: "/doe" },
   { key: "approval", titleKey: "reports.approval.title", descKey: "reports.approval.description", href: "/approval" },
   { key: "audit", titleKey: "reports.audit.title", descKey: "reports.audit.description", href: undefined },
 ] as const;

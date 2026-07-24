@@ -5,6 +5,10 @@ import type {
   AuditEvent,
   ClaimReview,
   ClaimReviewRevocation,
+  DoeAnalysis,
+  DoeCandidate,
+  DoeRun,
+  DoeStudy,
   Formulation,
   FormulationVersion,
   LabelArtwork,
@@ -71,6 +75,17 @@ interface LabelHomeRow {
   label: ProductLabel;
 }
 
+interface DoeStudyHomeRow {
+  project: Formulation;
+  study: DoeStudy;
+}
+
+interface DoeCandidateHomeRow {
+  project: Formulation;
+  study: DoeStudy;
+  candidate: DoeCandidate;
+}
+
 /**
  * The Home workspace — a real, honest dashboard: recent projects, recent
  * activity, open laboratory work, upcoming stability samples and pending
@@ -96,12 +111,16 @@ export function HomePage() {
   const [labelsAwaitingReview, setLabelsAwaitingReview] = useState<LabelHomeRow[]>([]);
   const [artworkAwaitingApproval, setArtworkAwaitingApproval] = useState<LabelHomeRow[]>([]);
   const [staleLabelReviews, setStaleLabelReviews] = useState<LabelHomeRow[]>([]);
+  const [doeActiveStudies, setDoeActiveStudies] = useState<DoeStudyHomeRow[]>([]);
+  const [doeStudiesReadyForAnalysis, setDoeStudiesReadyForAnalysis] = useState<DoeStudyHomeRow[]>([]);
+  const [doeCandidatesAwaitingSelection, setDoeCandidatesAwaitingSelection] = useState<DoeCandidateHomeRow[]>([]);
+  const [doeRunsAwaitingLabWorkCount, setDoeRunsAwaitingLabWorkCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [all, trials, studies, samples, dossiers, dossierRequirements, dossierLinks, dossierEvidence, dossierReviews, dossierReviewRevocations, claims, claimReviews, claimReviewRevocations, productLabels, labelArtworks, labelReviews, labelReviewRevocations, regulatoryRules] = await Promise.all([
+      const [all, trials, studies, samples, dossiers, dossierRequirements, dossierLinks, dossierEvidence, dossierReviews, dossierReviewRevocations, claims, claimReviews, claimReviewRevocations, productLabels, labelArtworks, labelReviews, labelReviewRevocations, regulatoryRules, doeStudies, doeRuns, doeAnalyses, doeCandidates] = await Promise.all([
         listFormulations(),
         listRecords("laboratory_trials"),
         listRecords("stability_studies"),
@@ -120,6 +139,10 @@ export function HomePage() {
         listRecords("label_reviews"),
         listRecords("label_review_revocations"),
         listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES),
+        listRecords("doe_studies"),
+        listRecords("doe_runs"),
+        listRecords("doe_analyses"),
+        listRecords("doe_candidates"),
       ]);
       if (cancelled) return;
       const sorted = [...all].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -267,6 +290,38 @@ export function HomePage() {
       setLabelsAwaitingReview(labelsAwaitingReviewRows.slice(0, 10));
       setArtworkAwaitingApproval(artworkAwaitingApprovalRows.slice(0, 10));
       setStaleLabelReviews(staleReviewRows.slice(0, 10));
+
+      // Phase 5 §18 — DOE studies/runs/candidates awaiting attention, scoped
+      // to the same `recentProjects` window. Every count is a real filter
+      // over persisted `doe_*` rows, never a fabricated metric.
+      const recentDoeStudies = (doeStudies as DoeStudy[]).filter(
+        (s) => recentProjectIds.has(s.formulationId) && !["cancelled", "superseded", "archived", "completed"].includes(s.status),
+      );
+      const activeRows: DoeStudyHomeRow[] = [];
+      const readyForAnalysisRows: DoeStudyHomeRow[] = [];
+      for (const study of recentDoeStudies) {
+        const project = recentProjects.find((p) => p.id === study.formulationId);
+        if (!project) continue;
+        activeRows.push({ project, study });
+        const hasAnalysis = (doeAnalyses as DoeAnalysis[]).some((a) => a.studyId === study.id);
+        if (study.status === "analysis_ready" && !hasAnalysis) readyForAnalysisRows.push({ project, study });
+      }
+      setDoeActiveStudies(activeRows.slice(0, 10));
+      setDoeStudiesReadyForAnalysis(readyForAnalysisRows.slice(0, 10));
+
+      const recentDoeStudyIds = new Set(recentDoeStudies.map((s) => s.id));
+      setDoeRunsAwaitingLabWorkCount((doeRuns as DoeRun[]).filter((r) => recentDoeStudyIds.has(r.studyId) && r.status === "planned").length);
+
+      const candidateRows: DoeCandidateHomeRow[] = [];
+      for (const candidate of doeCandidates as DoeCandidate[]) {
+        if (candidate.status !== "proposed" && candidate.status !== "shortlisted") continue;
+        const study = recentDoeStudies.find((s) => s.id === candidate.studyId);
+        if (!study) continue;
+        const project = recentProjects.find((p) => p.id === study.formulationId);
+        if (!project) continue;
+        candidateRows.push({ project, study, candidate });
+      }
+      setDoeCandidatesAwaitingSelection(candidateRows.slice(0, 10));
 
       setLoading(false);
     })();
@@ -437,6 +492,39 @@ export function HomePage() {
                   <span className="font-mono text-[10px] text-muted">{label.labelCode}</span>
                   <span className="flex-1 truncate text-text">{project.name}</span>
                   <span className="text-[10px] text-muted">{label.status}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section
+          title={t("home.doeHeading")}
+          empty={doeActiveStudies.length === 0 && doeRunsAwaitingLabWorkCount === 0 && doeStudiesReadyForAnalysis.length === 0 && doeCandidatesAwaitingSelection.length === 0}
+          emptyText={t("home.noDoeAttention")}
+        >
+          <div className="flex flex-wrap gap-2 px-3 py-2 text-[10px]">
+            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-muted">{t("home.doeActiveStudies", { n: doeActiveStudies.length })}</span>
+            <span className="rounded bg-accent/10 px-1.5 py-0.5 text-accent">{t("home.doeRunsAwaitingLabWork", { n: doeRunsAwaitingLabWorkCount })}</span>
+            <span className="rounded bg-warn/10 px-1.5 py-0.5 text-warn">{t("home.doeStudiesReadyForAnalysis", { n: doeStudiesReadyForAnalysis.length })}</span>
+            <span className="rounded bg-success/10 px-1.5 py-0.5 text-success">{t("home.doeCandidatesAwaitingSelection", { n: doeCandidatesAwaitingSelection.length })}</span>
+          </div>
+          <ul className="divide-y divide-border-faint">
+            {dedupeById(doeStudiesReadyForAnalysis, (row) => row.study.id).map(({ project, study }) => (
+              <li key={study.id}>
+                <Link to={`/doe?project=${project.id}`} className="flex items-baseline gap-2 px-3 py-2 text-[12px] hover:bg-surface-2">
+                  <span className="font-mono text-[10px] text-muted">{study.studyCode}</span>
+                  <span className="flex-1 truncate text-text">{project.name}</span>
+                  <span className="text-[10px] text-muted">{study.status}</span>
+                </Link>
+              </li>
+            ))}
+            {dedupeById(doeCandidatesAwaitingSelection, (row) => row.candidate.id).map(({ project, study, candidate }) => (
+              <li key={candidate.id}>
+                <Link to={`/doe?project=${project.id}`} className="flex items-baseline gap-2 px-3 py-2 text-[12px] hover:bg-surface-2">
+                  <span className="font-mono text-[10px] text-muted">{study.studyCode}</span>
+                  <span className="flex-1 truncate text-text">{project.name}</span>
+                  <span className="text-[10px] text-muted">{t("home.doeCandidateRank", { rank: candidate.rank })}</span>
                 </Link>
               </li>
             ))}

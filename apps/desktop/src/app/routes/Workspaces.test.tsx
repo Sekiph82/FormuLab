@@ -54,7 +54,7 @@ describe("Reports workspace", () => {
   it("is a navigation shell over existing exports, marking the PDF/DOCX engine as not yet implemented", async () => {
     renderAt("/reports");
     await screen.findByRole("heading", { name: "Reports" });
-    expect(screen.getAllByRole("link", { name: "Open" }).length).toBe(10);
+    expect(screen.getAllByRole("link", { name: "Open" }).length).toBe(15);
     expect(screen.getByText("Not yet implemented")).toBeInTheDocument();
     expect(screen.getByText("Audit reports")).toBeInTheDocument();
   });
