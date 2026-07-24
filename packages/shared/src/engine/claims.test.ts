@@ -219,10 +219,99 @@ describe("claim evidence links and eligibility", () => {
 
   it("activeLinksForClaim takes the latest row per evidence item and excludes revoked", () => {
     const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
-    const accepted = { ...acceptClaimEvidenceLink(proposed, HUMAN), id: proposed.id };
+    const accepted = acceptClaimEvidenceLink(proposed, HUMAN);
     const active = activeLinksForClaim([proposed, accepted], "claim-1");
     expect(active).toHaveLength(1);
     expect(active[0].linkStatus).toBe("accepted");
+  });
+
+  // Regression for the append-only-collision bug found during live verification:
+  // acceptClaimEvidenceLink/rejectClaimEvidenceLink used to spread the proposed
+  // link and keep its id, so writing the "accepted"/"rejected" row to the real
+  // (append-only) claim_evidence_links collection collided with the
+  // already-persisted "proposed" row and the write was refused outright —
+  // accept/reject silently never took effect against real desktop persistence,
+  // even though every unit test up to that point passed (see the artificially
+  // id-forced version of the test above, before this fix).
+  it("acceptClaimEvidenceLink mints a new id, distinct from the proposed row's id", () => {
+    const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
+    const accepted = acceptClaimEvidenceLink(proposed, HUMAN);
+    expect(accepted.id).not.toBe(proposed.id);
+    expect(accepted.linkStatus).toBe("accepted");
+  });
+
+  it("rejectClaimEvidenceLink mints a new id, distinct from the proposed row's id", () => {
+    const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
+    const rejected = rejectClaimEvidenceLink(proposed, HUMAN, "Wrong document");
+    expect(rejected.id).not.toBe(proposed.id);
+    expect(rejected.linkStatus).toBe("rejected");
+  });
+
+  it("every transition on the same proposed row (accept, reject, revoke) produces a unique id, as an append-only collection requires", () => {
+    const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
+    const accepted = acceptClaimEvidenceLink(proposed, HUMAN);
+    const rejected = rejectClaimEvidenceLink(proposed, HUMAN, "Wrong document");
+    const revoked = revokeClaimEvidenceLink(accepted, HUMAN, "Superseded");
+    const ids = [proposed.id, accepted.id, rejected.id, revoked.id];
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // Simulates the real desktop append-only guard (masterdata.rs: a write is
+  // refused if a row with the same id already exists) without depending on
+  // Tauri/Rust — proves every row this module produces for one propose→accept
+  // (or propose→reject) chain can be inserted into a fresh, append-only-style
+  // store with no id collision, exactly the transition that failed live before
+  // the fix.
+  function insertAppendOnly(store: Map<string, ClaimEvidenceLinkLike>, row: ClaimEvidenceLinkLike): void {
+    if (store.has(row.id)) throw new Error(`record ${row.id} already exists. This collection is append-only.`);
+    store.set(row.id, row);
+  }
+  type ClaimEvidenceLinkLike = ReturnType<typeof proposeClaimEvidenceLink>;
+
+  it("append-only persistence accepts the propose→accept transition with no collision", () => {
+    const store = new Map<string, ClaimEvidenceLinkLike>();
+    const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
+    expect(() => insertAppendOnly(store, proposed)).not.toThrow();
+    const accepted = acceptClaimEvidenceLink(proposed, HUMAN);
+    expect(() => insertAppendOnly(store, accepted)).not.toThrow();
+    expect(store.size).toBe(2);
+  });
+
+  it("append-only persistence accepts the propose→reject transition with no collision", () => {
+    const store = new Map<string, ClaimEvidenceLinkLike>();
+    const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
+    insertAppendOnly(store, proposed);
+    const rejected = rejectClaimEvidenceLink(proposed, HUMAN, "Wrong document");
+    expect(() => insertAppendOnly(store, rejected)).not.toThrow();
+    expect(store.size).toBe(2);
+  });
+
+  it("activeLinksForClaim resolves the latest accepted row (real, distinct ids) as active", () => {
+    const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
+    const accepted = acceptClaimEvidenceLink(proposed, HUMAN);
+    const active = activeLinksForClaim([proposed, accepted], "claim-1");
+    expect(active).toHaveLength(1);
+    expect(active[0].id).toBe(accepted.id);
+    expect(active[0].linkStatus).toBe("accepted");
+  });
+
+  it("activeLinksForClaim resolves the latest rejected row (real, distinct ids) as active", () => {
+    const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
+    const rejected = rejectClaimEvidenceLink(proposed, HUMAN, "Wrong document");
+    const active = activeLinksForClaim([proposed, rejected], "claim-1");
+    expect(active).toHaveLength(1);
+    expect(active[0].id).toBe(rejected.id);
+    expect(active[0].linkStatus).toBe("rejected");
+  });
+
+  it("activeLinksForClaim excludes a revoked row (real, distinct ids) even though revoke also mints a new id", () => {
+    const proposed = proposeClaimEvidenceLink("claim-1", "evidence-1", "dossier-1", 1, HUMAN);
+    const accepted = acceptClaimEvidenceLink(proposed, HUMAN);
+    const revoked = revokeClaimEvidenceLink(accepted, HUMAN, "Superseded");
+    expect(revoked.id).not.toBe(accepted.id);
+    expect(revoked.revokesLinkId).toBe(accepted.id);
+    const active = activeLinksForClaim([proposed, accepted, revoked], "claim-1");
+    expect(active).toHaveLength(0);
   });
 });
 
