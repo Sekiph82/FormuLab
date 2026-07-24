@@ -12,6 +12,7 @@ import {
   deriveObservedCodedRanges,
   fDistributionUpperTailPValue,
   fitFactorialModel,
+  fitMixtureModel,
   fitResponseSurfaceModel,
   predictDoeResponse,
   suggestOutliers,
@@ -211,6 +212,28 @@ describe("fitFactorialModel / fitResponseSurfaceModel — known-coefficient reco
     ];
     const fit = fitFactorialModel(runs, factors, [1, 2, 3]);
     expect(fit.ok).toBe(false);
+  });
+
+  it("recovers an exact Scheffé mixture-linear model (no intercept)", () => {
+    const factors = [factor({ factorCode: "A", isMixtureComponent: true }), factor({ factorCode: "B", isMixtureComponent: true }), factor({ factorCode: "C", isMixtureComponent: true })];
+    // A {3,2} simplex-lattice: vertices + edge midpoints, 6 points summing to 1.
+    const points: [number, number, number][] = [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1],
+      [0.5, 0.5, 0],
+      [0.5, 0, 0.5],
+      [0, 0.5, 0.5],
+    ];
+    const runs = points.map((p, i) => run(`r${i}`, i + 1, [{ factorCode: "A", codedValue: String(p[0]) }, { factorCode: "B", codedValue: String(p[1]) }, { factorCode: "C", codedValue: String(p[2]) }]));
+    const y = points.map(([a, b, c]) => 5 * a + 3 * b + 8 * c);
+    const fit = fitMixtureModel(runs, factors, y, "linear");
+    expect(fit.ok).toBe(true);
+    if (!fit.ok) return;
+    expect(fit.terms).toEqual(["A", "B", "C"]);
+    expect(fit.coefficients[0]).toBeCloseTo(5, 6);
+    expect(fit.coefficients[1]).toBeCloseTo(3, 6);
+    expect(fit.coefficients[2]).toBeCloseTo(8, 6);
   });
 });
 

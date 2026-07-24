@@ -1950,7 +1950,8 @@
       "randomize": "Deneme sırasını rastgele yap",
       "blocking": "Bloklamayı etkinleştir",
       "estimatedRuns": "Tahmini deneme sayısı",
-      "previewUnavailable": "Tanı önizlemesi kullanılamıyor — önce geçerli faktörler ekleyin."
+      "previewUnavailable": "Tanı önizlemesi kullanılamıyor — önce geçerli faktörler ekleyin.",
+      "responseName": "yanıt adı"
     }
   },
   "home": {

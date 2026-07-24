@@ -1950,7 +1950,8 @@
       "randomize": "Randomize run order",
       "blocking": "Enable blocking",
       "estimatedRuns": "Estimated run count",
-      "previewUnavailable": "Diagnostics preview unavailable — add valid factors first."
+      "previewUnavailable": "Diagnostics preview unavailable — add valid factors first.",
+      "responseName": "response name"
     }
   },
   "home": {

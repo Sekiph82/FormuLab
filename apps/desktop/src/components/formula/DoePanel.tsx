@@ -1409,7 +1409,7 @@ function StudyWizard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onCancel}>
-      <div className="max-h-[85vh] w-[min(760px,92vw)] overflow-y-auto rounded-card border border-border bg-surface p-5" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label={t("doe.wizard.title")} className="max-h-[85vh] w-[min(760px,92vw)] overflow-y-auto rounded-card border border-border bg-surface p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[14px] font-semibold text-text">{t("doe.wizard.title")}</h2>
           <span className="text-[11px] text-muted">
@@ -1511,7 +1511,7 @@ function StudyWizard({
           <div className="space-y-2">
             {wizard.responses.map((r, i) => (
               <div key={r.id} className="grid grid-cols-4 gap-1.5 rounded-input border border-border p-2 text-[11px]">
-                <input value={r.name} onChange={(e) => update("responses", wizard.responses.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))} className="rounded-input border border-border bg-surface px-1.5 py-0.5" />
+                <input value={r.name} onChange={(e) => update("responses", wizard.responses.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))} placeholder={t("doe.wizard.responseName")} className="rounded-input border border-border bg-surface px-1.5 py-0.5" />
                 <select value={r.responseType} onChange={(e) => update("responses", wizard.responses.map((x, xi) => (xi === i ? { ...x, responseType: e.target.value as DoeResponseType } : x)))} className="rounded-input border border-border bg-surface px-1.5 py-0.5">
                   {DOE_RESPONSE_TYPES.map((rt) => (
                     <option key={rt} value={rt}>
