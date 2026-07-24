@@ -194,6 +194,13 @@ export const laboratoryTrialSchema = z.object({
   targetPackagingSkuIds: z.array(z.string()).default([]),
   sourceOptimizationRunCode: z.string().optional(),
   sourceSubstitutionRunCode: z.string().optional(),
+  /** Set when this trial was generated from (or manually linked to) a DOE
+   *  run — see `engine/doeLabIntegration.ts`. Lets the trial and the DOE
+   *  run cross-navigate, and lets the DOE Runs view show real trial status
+   *  rather than a second, drifting copy of it. */
+  sourceDoeStudyId: z.string().optional(),
+  sourceDoeDesignId: z.string().optional(),
+  sourceDoeRunId: z.string().optional(),
 
   title: z.string().min(1),
   objective: z.string().optional(),
