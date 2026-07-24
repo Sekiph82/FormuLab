@@ -516,7 +516,9 @@
     "tabTests": "Tests",
     "tabStability": "Stability",
     "tabCorrectiveActions": "Corrective actions",
-    "tabApproval": "Approval"
+    "tabApproval": "Approval",
+    "projectDoeStudies": "Open this project's DOE studies",
+    "projectDoeStudyCount": "{{n}} study(ies)"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",
@@ -1815,6 +1817,134 @@
     "commitImport": "Import",
     "importRowError": "Row {{row}}: missing a required field."
   },
+  "doe": {
+    "sections": {
+      "studies": "Studies",
+      "design": "Design",
+      "runs": "Runs",
+      "responses": "Responses",
+      "analysis": "Analysis",
+      "candidates": "Candidates",
+      "history": "History",
+      "audit": "Audit"
+    },
+    "actorRole": "Acting as",
+    "selectStudyFirst": "Select a study from the Studies tab first.",
+    "studies": {
+      "heading": "DOE studies",
+      "new": "New study",
+      "empty": "No DOE studies yet. Create one to start designing an experiment.",
+      "codeAndRevision": "{{code}} · rev {{revision}}"
+    },
+    "design": {
+      "heading": "Design",
+      "revise": "Revise study",
+      "factors": "Factors",
+      "constraints": "Constraints",
+      "noConstraints": "No constraints",
+      "responses": "Responses",
+      "noDesignYet": "No design has been generated yet.",
+      "runs": "runs",
+      "centerPoints": "Center points",
+      "replicates": "Replicates",
+      "blocks": "Blocks",
+      "orthogonal": "Orthogonal",
+      "balanced": "Balanced",
+      "conditionNumber": "Condition number"
+    },
+    "runs": {
+      "heading": "Runs",
+      "empty": "No runs generated yet — generate a design first.",
+      "order": "Order",
+      "settings": "Factor settings",
+      "block": "Block",
+      "status": "Status",
+      "actions": "Actions",
+      "value": "value",
+      "save": "Save",
+      "excludeRun": "Exclude this run",
+      "excludedByUser": "Excluded by reviewer",
+      "baselineVersionMissing": "The study's baseline formula version could not be found.",
+      "trialObjective": "Generated from DOE study \"{{study}}\"",
+      "linkedTrial": "Linked trial",
+      "generateTrial": "Generate lab trial",
+      "linkExistingTrial": "Link existing trial"
+    },
+    "responses": {
+      "heading": "Responses",
+      "empty": "No responses defined for this study."
+    },
+    "analysis": {
+      "heading": "Statistical analysis",
+      "selectResponse": "Select a response…",
+      "run": "Run analysis",
+      "empty": "No analysis has been run yet for this response.",
+      "term": "Term",
+      "estimate": "Estimate",
+      "rSquared": "R²",
+      "adjR2": "Adj. R²",
+      "rmse": "RMSE",
+      "mae": "MAE",
+      "tStatistic": "t",
+      "pValue": "p",
+      "paretoChart": "Effect estimates (Pareto)",
+      "predictedVsObserved": "Predicted vs. observed",
+      "residualVsPredicted": "Residual vs. predicted",
+      "normalProbability": "Normal probability plot",
+      "responseSurface": "Response surface"
+    },
+    "candidates": {
+      "heading": "Candidates",
+      "generate": "Generate candidates",
+      "empty": "No candidates generated yet — run an analysis first.",
+      "desirability": "desirability",
+      "extrapolated": "extrapolated",
+      "shortlist": "Shortlist",
+      "select": "Select",
+      "applyToDraft": "Apply to draft",
+      "noAnalysesYet": "Run at least one analysis before generating candidates.",
+      "openInOptimization": "Open Optimization",
+      "openInStability": "Open Stability"
+    },
+    "history": {
+      "heading": "Revision history",
+      "revisionRow": "rev {{revision}} — {{title}} ({{status}})"
+    },
+    "audit": {
+      "heading": "DOE audit log"
+    },
+    "wizard": {
+      "title": "New DOE study",
+      "step": "Step",
+      "cancel": "Cancel",
+      "back": "Back",
+      "next": "Next",
+      "generate": "Generate design",
+      "baselineVersion": "Baseline formula version (saved, never a working draft)",
+      "versionOption": "v{{version}} ({{status}})",
+      "studyCode": "Study code",
+      "title2": "Title",
+      "description": "Description",
+      "factors": "factors",
+      "addFactor": "Add factor",
+      "factorCode": "code",
+      "factorName": "name",
+      "lowValue": "low",
+      "highValue": "high",
+      "constraints": "constraints",
+      "addConstraint": "Add constraint",
+      "responses": "responses",
+      "addResponse": "Add response",
+      "upperLimit": "upper limit",
+      "designType": "Design type",
+      "centerPointCount": "Center points",
+      "seed": "Random seed",
+      "randomize": "Randomize run order",
+      "blocking": "Enable blocking",
+      "estimatedRuns": "Estimated run count",
+      "previewUnavailable": "Diagnostics preview unavailable — add valid factors first."
+    }
+  },
   "home": {
     "heading": "Home",
     "loading": "Loading…",
@@ -1846,7 +1976,14 @@
     "labelsAwaitingReview": "{{n}} awaiting review",
     "artworkAwaitingApproval": "{{n}} artwork awaiting approval",
     "staleLabelReviews": "{{n}} stale review(s)",
-    "unknownProject": "Unknown project"
+    "unknownProject": "Unknown project",
+    "doeHeading": "Design of Experiments",
+    "noDoeAttention": "No DOE studies need attention right now.",
+    "doeActiveStudies": "{{n}} active studies",
+    "doeRunsAwaitingLabWork": "{{n}} runs awaiting lab work",
+    "doeStudiesReadyForAnalysis": "{{n}} ready for analysis",
+    "doeCandidatesAwaitingSelection": "{{n}} candidates awaiting selection",
+    "doeCandidateRank": "candidate #{{rank}}"
   },
   "reports": {
     "heading": "Reports",
@@ -1897,6 +2034,26 @@
     "audit": {
       "title": "Audit reports",
       "description": "No dedicated audit-log report view yet — per-project decision history is visible in the Approval workspace."
+    },
+    "doeDesignSummary": {
+      "title": "DOE design summary",
+      "description": "Factors, constraints, responses and design diagnostics for a study, from the Design of Experiments workspace."
+    },
+    "doeRunSheet": {
+      "title": "DOE run sheet",
+      "description": "Standard and randomized run order with factor settings, from the Design of Experiments workspace's Runs section."
+    },
+    "doeResponseMatrix": {
+      "title": "DOE response matrix",
+      "description": "Recorded, missing and excluded observations per run and response, from the Design of Experiments workspace's Runs section."
+    },
+    "doeStatisticalAnalysis": {
+      "title": "DOE statistical analysis",
+      "description": "Coefficients, ANOVA, fit metrics and residual diagnostics for a response, from the Design of Experiments workspace's Analysis section."
+    },
+    "doeCandidateRanking": {
+      "title": "DOE candidate ranking",
+      "description": "Desirability-ranked candidate factor settings and predicted responses, from the Design of Experiments workspace's Candidates section."
     }
   },
   "administration": {

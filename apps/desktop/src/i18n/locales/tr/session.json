@@ -516,7 +516,9 @@
     "tabTests": "Testler",
     "tabStability": "Stabilite",
     "tabCorrectiveActions": "Düzeltici faaliyetler",
-    "tabApproval": "Onay"
+    "tabApproval": "Onay",
+    "projectDoeStudies": "Bu projenin DOE çalışmalarını aç",
+    "projectDoeStudyCount": "{{n}} çalışma"
   },
   "compare": {
     "needTwo": "Karşılaştırmak için en az iki sürüm kaydedin.",
@@ -1815,6 +1817,134 @@
     "commitImport": "İçe aktar",
     "importRowError": "Satır {{row}}: gerekli bir alan eksik."
   },
+  "doe": {
+    "sections": {
+      "studies": "Çalışmalar",
+      "design": "Tasarım",
+      "runs": "Denemeler",
+      "responses": "Yanıtlar",
+      "analysis": "Analiz",
+      "candidates": "Adaylar",
+      "history": "Geçmiş",
+      "audit": "Denetim"
+    },
+    "actorRole": "Rol",
+    "selectStudyFirst": "Önce Çalışmalar sekmesinden bir çalışma seçin.",
+    "studies": {
+      "heading": "DOE çalışmaları",
+      "new": "Yeni çalışma",
+      "empty": "Henüz DOE çalışması yok. Bir deney tasarlamak için oluşturun.",
+      "codeAndRevision": "{{code}} · rev {{revision}}"
+    },
+    "design": {
+      "heading": "Tasarım",
+      "revise": "Çalışmayı revize et",
+      "factors": "Faktörler",
+      "constraints": "Kısıtlar",
+      "noConstraints": "Kısıt yok",
+      "responses": "Yanıtlar",
+      "noDesignYet": "Henüz bir tasarım oluşturulmadı.",
+      "runs": "deneme",
+      "centerPoints": "Merkez noktalar",
+      "replicates": "Tekrarlar",
+      "blocks": "Bloklar",
+      "orthogonal": "Ortogonal",
+      "balanced": "Dengeli",
+      "conditionNumber": "Koşul sayısı"
+    },
+    "runs": {
+      "heading": "Denemeler",
+      "empty": "Henüz deneme oluşturulmadı — önce bir tasarım oluşturun.",
+      "order": "Sıra",
+      "settings": "Faktör ayarları",
+      "block": "Blok",
+      "status": "Durum",
+      "actions": "İşlemler",
+      "value": "değer",
+      "save": "Kaydet",
+      "excludeRun": "Bu denemeyi hariç tut",
+      "excludedByUser": "İnceleyen tarafından hariç tutuldu",
+      "baselineVersionMissing": "Çalışmanın temel formül sürümü bulunamadı.",
+      "trialObjective": "\"{{study}}\" DOE çalışmasından oluşturuldu",
+      "linkedTrial": "Bağlı deneme",
+      "generateTrial": "Laboratuvar denemesi oluştur",
+      "linkExistingTrial": "Mevcut denemeyi bağla"
+    },
+    "responses": {
+      "heading": "Yanıtlar",
+      "empty": "Bu çalışma için tanımlı yanıt yok."
+    },
+    "analysis": {
+      "heading": "İstatistiksel analiz",
+      "selectResponse": "Bir yanıt seçin…",
+      "run": "Analizi çalıştır",
+      "empty": "Bu yanıt için henüz analiz çalıştırılmadı.",
+      "term": "Terim",
+      "estimate": "Tahmin",
+      "rSquared": "R²",
+      "adjR2": "Düz. R²",
+      "rmse": "RMSE",
+      "mae": "MAE",
+      "tStatistic": "t",
+      "pValue": "p",
+      "paretoChart": "Etki tahminleri (Pareto)",
+      "predictedVsObserved": "Tahmin edilen ve gözlenen",
+      "residualVsPredicted": "Kalıntı ve tahmin",
+      "normalProbability": "Normal olasılık grafiği",
+      "responseSurface": "Yanıt yüzeyi"
+    },
+    "candidates": {
+      "heading": "Adaylar",
+      "generate": "Aday oluştur",
+      "empty": "Henüz aday oluşturulmadı — önce bir analiz çalıştırın.",
+      "desirability": "arzu edilirlik",
+      "extrapolated": "dışa dönük tahmin",
+      "shortlist": "Kısa listeye al",
+      "select": "Seç",
+      "applyToDraft": "Taslağa uygula",
+      "noAnalysesYet": "Aday oluşturmadan önce en az bir analiz çalıştırın.",
+      "openInOptimization": "Optimizasyonu Aç",
+      "openInStability": "Stabiliteyi Aç"
+    },
+    "history": {
+      "heading": "Revizyon geçmişi",
+      "revisionRow": "rev {{revision}} — {{title}} ({{status}})"
+    },
+    "audit": {
+      "heading": "DOE denetim günlüğü"
+    },
+    "wizard": {
+      "title": "Yeni DOE çalışması",
+      "step": "Adım",
+      "cancel": "İptal",
+      "back": "Geri",
+      "next": "İleri",
+      "generate": "Tasarımı oluştur",
+      "baselineVersion": "Temel formül sürümü (kaydedilmiş, asla çalışma taslağı değil)",
+      "versionOption": "v{{version}} ({{status}})",
+      "studyCode": "Çalışma kodu",
+      "title2": "Başlık",
+      "description": "Açıklama",
+      "factors": "faktör",
+      "addFactor": "Faktör ekle",
+      "factorCode": "kod",
+      "factorName": "ad",
+      "lowValue": "düşük",
+      "highValue": "yüksek",
+      "constraints": "kısıt",
+      "addConstraint": "Kısıt ekle",
+      "responses": "yanıt",
+      "addResponse": "Yanıt ekle",
+      "upperLimit": "üst sınır",
+      "designType": "Tasarım türü",
+      "centerPointCount": "Merkez nokta sayısı",
+      "seed": "Rastgele tohum",
+      "randomize": "Deneme sırasını rastgele yap",
+      "blocking": "Bloklamayı etkinleştir",
+      "estimatedRuns": "Tahmini deneme sayısı",
+      "previewUnavailable": "Tanı önizlemesi kullanılamıyor — önce geçerli faktörler ekleyin."
+    }
+  },
   "home": {
     "heading": "Ana sayfa",
     "loading": "Yükleniyor…",
@@ -1846,7 +1976,14 @@
     "labelsAwaitingReview": "{{n}} inceleme bekliyor",
     "artworkAwaitingApproval": "{{n}} tasarım onay bekliyor",
     "staleLabelReviews": "{{n}} geçersiz inceleme",
-    "unknownProject": "Bilinmeyen proje"
+    "unknownProject": "Bilinmeyen proje",
+    "doeHeading": "Deney Tasarımı",
+    "noDoeAttention": "Şu anda dikkat gerektiren DOE çalışması yok.",
+    "doeActiveStudies": "{{n}} aktif çalışma",
+    "doeRunsAwaitingLabWork": "{{n}} deneme laboratuvar işini bekliyor",
+    "doeStudiesReadyForAnalysis": "{{n}} analiz için hazır",
+    "doeCandidatesAwaitingSelection": "{{n}} aday seçim bekliyor",
+    "doeCandidateRank": "aday #{{rank}}"
   },
   "reports": {
     "heading": "Raporlar",
@@ -1897,6 +2034,26 @@
     "audit": {
       "title": "Denetim raporları",
       "description": "Henüz özel bir denetim günlüğü rapor görünümü yok — proje başına karar geçmişi Onay çalışma alanında görülebilir."
+    },
+    "doeDesignSummary": {
+      "title": "DOE tasarım özeti",
+      "description": "Bir çalışma için faktörler, kısıtlar, yanıtlar ve tasarım tanıları, Deney Tasarımı çalışma alanından."
+    },
+    "doeRunSheet": {
+      "title": "DOE deneme listesi",
+      "description": "Faktör ayarlarıyla standart ve rastgele deneme sırası, Deney Tasarımı çalışma alanının Denemeler bölümünden."
+    },
+    "doeResponseMatrix": {
+      "title": "DOE yanıt matrisi",
+      "description": "Deneme ve yanıt başına kaydedilen, eksik ve hariç tutulan gözlemler, Deney Tasarımı çalışma alanının Denemeler bölümünden."
+    },
+    "doeStatisticalAnalysis": {
+      "title": "DOE istatistiksel analiz",
+      "description": "Bir yanıt için katsayılar, ANOVA, uyum metrikleri ve kalıntı tanıları, Deney Tasarımı çalışma alanının Analiz bölümünden."
+    },
+    "doeCandidateRanking": {
+      "title": "DOE aday sıralaması",
+      "description": "Arzu edilirliğe göre sıralanmış aday faktör ayarları ve tahmin edilen yanıtlar, Deney Tasarımı çalışma alanının Adaylar bölümünden."
     }
   },
   "administration": {

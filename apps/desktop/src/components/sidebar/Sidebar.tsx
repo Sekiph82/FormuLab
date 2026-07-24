@@ -12,6 +12,7 @@ import {
   FlaskRound,
   FolderKanban,
   FolderTree,
+  Grid3x3,
   Home,
   NotebookPen,
   PanelLeft,
@@ -221,6 +222,7 @@ export function Sidebar() {
               <NavRow icon={<Beaker size={16} />} label={t("workspacesNav.laboratory")} onClick={() => navigate("/laboratory")} />
               <NavRow icon={<FlaskRound size={16} />} label={t("workspacesNav.stability")} onClick={() => navigate("/stability")} />
               <NavRow icon={<Sparkles size={16} />} label={t("workspacesNav.optimization")} onClick={() => navigate("/optimization")} />
+              <NavRow icon={<Grid3x3 size={16} />} label={t("workspacesNav.doe")} onClick={() => navigate("/doe")} />
               <NavRow icon={<Scale size={16} />} label={t("workspacesNav.regulatory")} onClick={() => navigate("/regulatory")} />
               <NavRow icon={<FileCheck2 size={16} />} label={t("workspacesNav.dossiers")} onClick={() => navigate("/dossiers")} />
               <NavRow icon={<Tags size={16} />} label={t("workspacesNav.claimsLabels")} onClick={() => navigate("/claims-labels")} />

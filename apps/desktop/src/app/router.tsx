@@ -18,6 +18,7 @@ import { OptimizationPage } from "./routes/OptimizationPage";
 import { RegulatoryPage } from "./routes/RegulatoryPage";
 import { DossiersPage } from "./routes/DossiersPage";
 import { ClaimsLabelsPage } from "./routes/ClaimsLabelsPage";
+import { DoePage } from "./routes/DoePage";
 import { ApprovalPage } from "./routes/ApprovalPage";
 import { ReportsPage } from "./routes/ReportsPage";
 import { AdministrationPage } from "./routes/AdministrationPage";
@@ -47,6 +48,7 @@ export const routes: RouteObject[] = [
       { path: "regulatory", element: <RegulatoryPage /> },
       { path: "dossiers", element: <DossiersPage /> },
       { path: "claims-labels", element: <ClaimsLabelsPage /> },
+      { path: "doe", element: <DoePage /> },
       { path: "approval", element: <ApprovalPage /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "administration", element: <AdministrationPage /> },
