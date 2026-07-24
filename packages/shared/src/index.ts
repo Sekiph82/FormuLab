@@ -538,6 +538,7 @@ export * from "./engine/equivalence";
 export * from "./engine/resultHistory";
 export * from "./schemas/regulatory";
 export * from "./schemas/dossier";
+export * from "./schemas/claimsLabels";
 export * from "./engine/regulatoryClassification";
 export * from "./engine/regulatoryAuthorization";
 export * from "./engine/regulatoryRules";
@@ -546,6 +547,7 @@ export * from "./engine/regulatoryReviews";
 export * from "./engine/regulatoryDossier";
 export * from "./engine/regulatoryDossierApproval";
 export * from "./engine/dossierRecordDiscovery";
+export * from "./engine/claims";
 export * from "./catalog/regulatoryRules";
 export {
   PRECISION,

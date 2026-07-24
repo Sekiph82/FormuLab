@@ -13,6 +13,7 @@
 import { z } from "zod";
 import { REGULATORY_JURISDICTIONS, regulatoryClassificationResultSchema, regulatoryFindingSchema, regulatoryRuleVersionSnapshotSchema } from "./regulatory";
 import { dossierApprovalSnapshotSchema } from "./dossier";
+import { claimsLabelApprovalSnapshotSchema } from "./claimsLabels";
 import { decimalString, MATERIAL_FUNCTIONS, type MaterialFunction } from "./primitives";
 
 export { decimalString, MATERIAL_FUNCTIONS, type MaterialFunction };
@@ -390,6 +391,12 @@ export const approvalRecordSchema = z.object({
    *  before Phase 3, or for a formulation with no dossier gates
    *  configured, has none of it. */
   dossierSnapshot: dossierApprovalSnapshotSchema.optional(),
+  /** The complete Claims & Label readiness picture frozen at the moment of
+   *  decision (Phase 4 spec §17) — claim/label/artwork/review ids and
+   *  revisions, languages, jurisdictions, blockers, warnings, readiness
+   *  states. A later claim or label change must never rewrite this
+   *  historical record. Optional for the same reason `dossierSnapshot` is. */
+  claimsLabelSnapshot: claimsLabelApprovalSnapshotSchema.optional(),
   validationSnapshot: validationSnapshotSchema.optional(),
   appliedOptimizationRunCode: z.string().optional(),
   appliedSubstitutionRunCode: z.string().optional(),
