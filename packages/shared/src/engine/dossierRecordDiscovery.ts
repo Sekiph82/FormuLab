@@ -32,13 +32,15 @@ import type { DossierEvidenceType } from "../schemas/dossier";
 import type { AttachmentReference } from "../schemas/testDefinitions";
 import type { AddDraftEvidenceInput } from "./regulatoryDossier";
 
-export type DossierEvidenceCandidateSourceKind =
-  | "raw_material_document"
-  | "laboratory_trial_result"
-  | "stability_study_result"
-  | "compatibility_snapshot"
-  | "regulatory_review"
-  | "regulatory_evidence_confirmation";
+export const DOSSIER_EVIDENCE_CANDIDATE_SOURCE_KINDS = [
+  "raw_material_document",
+  "laboratory_trial_result",
+  "stability_study_result",
+  "compatibility_snapshot",
+  "regulatory_review",
+  "regulatory_evidence_confirmation",
+] as const;
+export type DossierEvidenceCandidateSourceKind = (typeof DOSSIER_EVIDENCE_CANDIDATE_SOURCE_KINDS)[number];
 
 export interface DossierEvidenceCandidate {
   sourceKind: DossierEvidenceCandidateSourceKind;
@@ -255,4 +257,25 @@ export function candidateToDraftEvidenceInput(
     issuedAt: candidate.issuedAt,
     expiresAt: candidate.expiresAt,
   };
+}
+
+export type DossierEvidenceCandidateMatchState =
+  | "exact_match"
+  | "version_mismatch"
+  | "packaging_mismatch"
+  | "jurisdiction_mismatch"
+  | "multiple_scope_mismatch";
+
+/** A single display label for a candidate's three independent match flags —
+ *  used by the Suggested Evidence UI so a reviewer sees one clear state
+ *  instead of three booleans. Never used to filter a candidate out of the
+ *  suggestion list itself; that stays the caller's decision (see the
+ *  `DossierEvidenceCandidate` doc comment — a mismatch must stay visible). */
+export function classifyDossierCandidateMatch(candidate: Pick<DossierEvidenceCandidate, "matchesFormulaVersion" | "matchesPackagingSku" | "matchesJurisdiction">): DossierEvidenceCandidateMatchState {
+  const mismatches = [!candidate.matchesFormulaVersion, !candidate.matchesPackagingSku, !candidate.matchesJurisdiction].filter(Boolean).length;
+  if (mismatches === 0) return "exact_match";
+  if (mismatches > 1) return "multiple_scope_mismatch";
+  if (!candidate.matchesFormulaVersion) return "version_mismatch";
+  if (!candidate.matchesPackagingSku) return "packaging_mismatch";
+  return "jurisdiction_mismatch";
 }

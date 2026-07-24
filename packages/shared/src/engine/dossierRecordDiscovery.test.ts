@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { candidateToDraftEvidenceInput, discoverDossierEvidenceCandidates } from "./dossierRecordDiscovery";
+import { candidateToDraftEvidenceInput, classifyDossierCandidateMatch, discoverDossierEvidenceCandidates } from "./dossierRecordDiscovery";
 import type { RawMaterial } from "../schemas/materials";
 import type { LaboratoryTrial } from "../schemas/laboratory";
 import type { TestResult } from "../schemas/testDefinitions";
@@ -256,5 +256,20 @@ describe("candidateToDraftEvidenceInput", () => {
     expect(input.sourceType).toBe("formulab_record");
     expect(input.sourceEntityId).toBe("MAT-1");
     expect(input.attachmentIds).toHaveLength(1);
+  });
+});
+
+describe("classifyDossierCandidateMatch", () => {
+  it("reports exact_match when all three scopes match", () => {
+    expect(classifyDossierCandidateMatch({ matchesFormulaVersion: true, matchesPackagingSku: true, matchesJurisdiction: true })).toBe("exact_match");
+  });
+  it("reports the single mismatched scope by name", () => {
+    expect(classifyDossierCandidateMatch({ matchesFormulaVersion: false, matchesPackagingSku: true, matchesJurisdiction: true })).toBe("version_mismatch");
+    expect(classifyDossierCandidateMatch({ matchesFormulaVersion: true, matchesPackagingSku: false, matchesJurisdiction: true })).toBe("packaging_mismatch");
+    expect(classifyDossierCandidateMatch({ matchesFormulaVersion: true, matchesPackagingSku: true, matchesJurisdiction: false })).toBe("jurisdiction_mismatch");
+  });
+  it("reports multiple_scope_mismatch when two or more scopes disagree", () => {
+    expect(classifyDossierCandidateMatch({ matchesFormulaVersion: false, matchesPackagingSku: false, matchesJurisdiction: true })).toBe("multiple_scope_mismatch");
+    expect(classifyDossierCandidateMatch({ matchesFormulaVersion: false, matchesPackagingSku: false, matchesJurisdiction: false })).toBe("multiple_scope_mismatch");
   });
 });
