@@ -178,6 +178,31 @@ compliance from an uploaded document or accepted link — see
 [REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md) and
 [DOSSIER_SUBMISSIONS.md](DOSSIER_SUBMISSIONS.md).
 
+## Claims & Labels
+
+`/claims-labels` — `apps/desktop/src/app/routes/ClaimsLabelsPage.tsx`,
+backed by `ClaimsLabelsPanel.tsx`. Sidebar entry between Dossiers and
+Approval — a first-class workspace, never a Formula Builder tab or a
+Dossiers sub-section (see [PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md)/
+[PRODUCT_LABELS.md](PRODUCT_LABELS.md)).
+
+Top-level sections: Claims, Labels, History, Audit. A claim's detail view
+has three sub-sections (Overview, Evidence, Reviews); a label's detail
+view has five (Overview, Content, Artwork, Reviews, Consistency). Claim
+evidence is reused from a Phase 3 dossier by reference, never duplicated
+— see [CLAIM_EVIDENCE.md](CLAIM_EVIDENCE.md). JSON/CSV/Excel export for
+claims and (per-label) label content, a claim-review-summary export, a
+label-readiness-summary export, and JSON/CSV/Excel import for both, with a
+preview step before commit — see [IMPORT_EXPORT.md](IMPORT_EXPORT.md).
+Optional `version`/`jurisdiction`/`sku`/`claim`/`label` query params let
+Dossiers, Regulatory, Home and Projects deep-link into a prefilled view.
+
+**Does not**: generate a final formatted PDF/DOCX label or claims report
+(Phase 7), implement a full graphic-design artwork editor (upload/preview/
+approve/reject/replace only), or claim legal compliance from a supported
+claim status, a satisfied label requirement, or an approved artwork — see
+[CLAIMS_LABEL_READINESS.md](CLAIMS_LABEL_READINESS.md).
+
 ## Approval
 
 `/approval` — `apps/desktop/src/app/routes/ApprovalPage.tsx`. Reuses

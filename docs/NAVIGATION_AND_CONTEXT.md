@@ -154,3 +154,13 @@ was selected in Regulatory at the time); `?dossier=` opens straight to an
 existing dossier's detail view (used by Home's and Projects' dossier
 links). None of the four are required — omitting all of them shows the
 plain dossier list for the current project.
+
+## Claims & Labels workspace query params — `ClaimsLabelsPage`
+
+`ClaimsLabelsPage.tsx` reads `?project=` plus `?version=`, `?jurisdiction=`,
+`?sku=` (same three prefill semantics as Dossiers, above), and two of its
+own: `?claim=<claimId>` and `?label=<labelId>`, each opening straight to
+that record's detail view. Used by Home's claims/labels-attention deep
+links, Projects' claims-count badge, the Dossiers Overview summary card,
+and the Regulatory workspace's Claims card. As with Dossiers, none are
+required — omitting all of them shows the plain claims list.

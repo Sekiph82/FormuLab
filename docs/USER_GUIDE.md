@@ -445,6 +445,44 @@ just the first one. Full model:
 [REGULATORY_MULTI_MARKET_APPROVAL.md](REGULATORY_MULTI_MARKET_APPROVAL.md),
 [REGULATORY_RULE_VERIFICATION.md](REGULATORY_RULE_VERIFICATION.md).
 
+## 21. Dossiers and Claims & Labels
+
+Open the **Dossiers workspace** (`/dossiers`) to build a per-version, per-
+jurisdiction regulatory dossier: create one against a real saved formula
+version, then work through Requirements, the Evidence Library (with
+suggested evidence pulled from your own raw-material documents, lab
+trials, stability results and regulatory reviews), the live Evidence
+Matrix (filterable, exportable), Reviews and Submissions. Evidence can be
+replaced (never edited in place) with a full revision chain kept visible.
+
+Open the **Claims & Labels workspace** (`/claims-labels`) to manage
+product claims and product labels for the same formula version. A
+**claim** starts as a draft with an auto-classified category (30
+categories, from performance to medical to eco); link it to evidence
+already in a dossier (never a duplicated file) and record a formal review
+once evidence is accepted — only that review, from an authorized
+regulatory/quality/administrator role, changes its true status. A
+**label** is one jurisdiction/language combination for one formula version
+— fill in its structured content sections (Front/Back/Side panel,
+Ingredients, Directions, Warnings, Claims, Manufacturer, Codes), upload
+artwork and get it approved, then run the Consistency check to catch a
+label pointing at the wrong formula version, an incomplete ingredient
+declaration, or a prohibited claim printed on the label. Both claims and
+labels support JSON/CSV/Excel import/export with a preview step; imported
+records always start as drafts, never auto-verified or auto-approved.
+
+Turning on any of the Approval workspace's claims/label-gate toggles
+(all claims reviewed, no prohibited/unsupported claims, label review
+complete, artwork approved, formula-label consistency, all required
+languages reviewed) folds these facts into that formula's readiness check
+the same way the dossier gates already do. Full model:
+[PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md), [CLAIM_EVIDENCE.md](CLAIM_EVIDENCE.md),
+[CLAIM_REVIEWS.md](CLAIM_REVIEWS.md), [PRODUCT_LABELS.md](PRODUCT_LABELS.md),
+[LABEL_CONTENT.md](LABEL_CONTENT.md), [LABEL_ARTWORK.md](LABEL_ARTWORK.md),
+[LABEL_REVIEWS.md](LABEL_REVIEWS.md),
+[FORMULA_LABEL_CONSISTENCY.md](FORMULA_LABEL_CONSISTENCY.md),
+[CLAIMS_LABEL_READINESS.md](CLAIMS_LABEL_READINESS.md).
+
 ## Known limitations
 
 For how the ten workspaces are organized and why, see
@@ -456,10 +494,14 @@ See [IMPLEMENTATION_STATUS.md](architecture/IMPLEMENTATION_STATUS.md) for the
 authoritative list of what is built versus not yet started. In short: the
 Kenya/EAC regulatory engine (§20 above) is implemented, including
 version-bound human review, persisted evidence confirmations,
-multi-jurisdiction approval readiness, and rule source verification —
-but still has no full Phase 3 dossier/evidence-matrix UI — see
-[REGULATORY_ENGINE.md#known-limitations](REGULATORY_ENGINE.md#known-limitations);
-the DOE and reverse-formulation modules described in the
+multi-jurisdiction approval readiness, and rule source verification. Phase
+3 (regulatory dossiers, evidence matrix, `/dossiers`) and Phase 4 (product
+claims, labels, artwork, formula-label consistency, `/claims-labels`) are
+both implemented, including their workspace UIs — see
+[REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md),
+[PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md), [PRODUCT_LABELS.md](PRODUCT_LABELS.md).
+Neither generates a final formatted PDF/DOCX document (Phase 7); the
+DOE and reverse-formulation modules described in the
 full specification are designed but not implemented; laboratory trials and
 stability studies (§16–19 above) are implemented, but automatic shelf-life
 prediction is deliberately not — see

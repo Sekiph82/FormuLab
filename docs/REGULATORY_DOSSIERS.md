@@ -109,3 +109,13 @@ lifecycle): **implemented, verified by UI-integration tests**
 [WORKSPACES.md](WORKSPACES.md#dossiers). Not yet independently confirmed via
 live native-app click-through; see the Phase 3 execution log for that
 verification's status.
+
+## Phase 4: Claims & Labels integration
+
+A dossier's evidence items are directly reusable as claim evidence — see
+[CLAIM_EVIDENCE.md](CLAIM_EVIDENCE.md) — referenced by id, never
+duplicated. The Dossier Overview section now also shows a read-only
+Claims & Labels summary card (claim count, claims requiring evidence,
+label count, artwork-approved count) with a deep link to
+`/claims-labels?project=...&version=...&sku=...`; the summary is never
+editable from this screen — see [PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md).

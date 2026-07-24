@@ -135,6 +135,32 @@ already exists on the dossier is skipped as a duplicate rather than
 re-imported, making re-import idempotent the same way this document's
 own code-keyed upsert is.
 
+## Phase 4: claims and label-content import/export are further separate pipelines
+
+Same discipline as the dossier-evidence pipeline above — distinct,
+smaller, purpose-scoped, reusing the same `parseCsv`/`toCsv`/
+`buildXlsxBlob` primitives:
+
+- **Claims**: JSON/CSV/Excel export of the currently filtered claim list;
+  a claim-review-summary CSV export; JSON/CSV/Excel import requiring an
+  explicit target formula version, previewed before commit (valid rows /
+  row-level errors / duplicate count keyed on `claimCode::formulaVersionId`).
+  Imported claims always go through `createClaim()`'s normal draft/
+  unreviewed path — the import actor can never verify or formally review
+  what it just imported.
+- **Label content**: JSON/CSV/Excel export/import scoped to ONE label's
+  current revision (content is revision-scoped, so this is per-label, not
+  list-wide, unlike claims). Import validates `blockType` against the real
+  `LABEL_CONTENT_BLOCK_TYPES` enum and commits via `setLabelContent()` with
+  `source: "imported"` — never auto-approved.
+- **Label readiness summary**: CSV export at the labels-list level, one
+  row per filtered label (code/jurisdiction/language/status/overall
+  readiness/missing-requirement count/artwork status).
+
+See [PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md), [LABEL_CONTENT.md](LABEL_CONTENT.md),
+[CLAIMS_LABEL_READINESS.md](CLAIMS_LABEL_READINESS.md). No PDF/DOCX export
+for either (Phase 7).
+
 ## Known limitations
 
 - `.xlsx` is read (`apps/desktop/src/lib/xlsx.ts`, `readWorkbookRows`) and fed

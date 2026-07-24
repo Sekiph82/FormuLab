@@ -59,6 +59,19 @@ FormuLab is a desktop workbench that pairs a general AI research environment
   all wired into approval readiness. See
   [docs/LABORATORY_TRIALS.md](docs/LABORATORY_TRIALS.md) and
   [docs/STABILITY_STUDIES.md](docs/STABILITY_STUDIES.md).
+- **Kenya/EAC Regulatory Engine, Dossiers, and Claims & Labels** — a
+  deterministic, version-bound regulatory classification/rule-evaluation
+  engine across seven East African jurisdictions; per-version, per-
+  jurisdiction regulatory dossiers with a live evidence matrix, evidence
+  discovery/replacement, and reviews/submissions; and product claims/
+  labels/artwork with evidence linking (reused from a dossier, never
+  duplicated), formal reviews, and formula-to-label consistency checking
+  — all folding into Approval Readiness as opt-in policy gates, never
+  claiming legal compliance on their own. See
+  [docs/REGULATORY_ENGINE.md](docs/REGULATORY_ENGINE.md),
+  [docs/REGULATORY_DOSSIERS.md](docs/REGULATORY_DOSSIERS.md),
+  [docs/PRODUCT_CLAIMS.md](docs/PRODUCT_CLAIMS.md), and
+  [docs/PRODUCT_LABELS.md](docs/PRODUCT_LABELS.md).
 
 Everything runs locally by default; your data, runs, and provenance stay on your
 machine.
@@ -114,6 +127,10 @@ accepting responsibility, with a signed record and an audit entry.
 | [STABILITY_TRENDS.md](docs/STABILITY_TRENDS.md) | Trend calculation, limit crossing, projection gating, failures |
 | [CORRECTIVE_ACTIONS.md](docs/CORRECTIVE_ACTIONS.md) | Shared corrective-action model and draft-from-action flow |
 | [LAB_STABILITY_APPROVAL.md](docs/LAB_STABILITY_APPROVAL.md) | Configurable lab/stability approval-readiness gates |
+| [REGULATORY_DOSSIERS.md](docs/REGULATORY_DOSSIERS.md) | Per-version regulatory dossiers, requirements, evidence matrix |
+| [PRODUCT_CLAIMS.md](docs/PRODUCT_CLAIMS.md) | Product claim domain model, classification, rule evaluation |
+| [PRODUCT_LABELS.md](docs/PRODUCT_LABELS.md) | Product label domain model, content, artwork, consistency |
+| [CLAIMS_LABEL_READINESS.md](docs/CLAIMS_LABEL_READINESS.md) | Claims/label readiness and Approval Readiness integration |
 | [IMPLEMENTATION_STATUS.md](docs/architecture/IMPLEMENTATION_STATUS.md) | What is actually built, and what is not |
 
 ## Formulation quick start

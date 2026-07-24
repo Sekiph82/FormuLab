@@ -211,6 +211,17 @@ skipped entirely, same as omitting `labReadiness`/`stabilityReadiness` from
 `ApprovalReadinessInput` always did) — or resolves automatically via the
 precedence rules above.
 
+## Phase 4 toggles
+
+7 new opt-in toggles were added to the same data-driven `POLICY_TOGGLES`
+table the editor already renders generically from — no bespoke UI code was
+needed, only new table entries: `requireAllClaimsReviewed`,
+`requireNoProhibitedClaims`, `requireNoUnsupportedClaims`,
+`requireLabelReviewComplete`, `requireArtworkApproved`,
+`requireFormulaLabelConsistency`, `requireAllRequiredLanguagesReviewed`.
+See [CLAIMS_LABEL_READINESS.md](CLAIMS_LABEL_READINESS.md#approval-integration-spec-17)
+for what each gates.
+
 ## Known limitations
 
 - The scope editor's packaging-SKU options come from the current

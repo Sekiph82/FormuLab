@@ -678,14 +678,93 @@ closure adds the *mechanism* to verify a rule (`verifyRule`), it does
 not and cannot itself confirm that any specific limit or requirement
 reflects real Kenyan/EAC law.
 
-**Deferred to Phase 3**: the full dossier/evidence-matrix UI — a
-document-upload-and-attachment matrix keyed to every
-`RegulatoryDocumentType`, automatic evidence-expiry tracking, and a
-cross-formulation evidence library. `RegulatoryEvidenceConfirmation` is
-a real, persisted, authorized-role-only, append-only requirement/
-evidence layer (spec's explicit ask for this closure) but is
-deliberately minimal next to that — see `REGULATORY_ENGINE.md`'s
-"Known limitations" for the current, full list.
+**Phase 3 (regulatory dossiers/evidence matrix) and Phase 4 (claims and
+label review) are now both implemented** — see the two dedicated sections
+below. `RegulatoryEvidenceConfirmation` above and the Phase 3/4 systems
+below are complementary, not overlapping: this section's confirmations
+remain a lightweight, non-versioned per-jurisdiction checkbox layer;
+Phase 3 added the persisted, version/packaging/jurisdiction-specific
+requirement-and-evidence layer; Phase 4 added claims and labels on top of
+that. See `REGULATORY_ENGINE.md`'s "Known limitations" for what remains
+genuinely unconfirmed (seed-rule content itself).
+
+### Regulatory dossiers and evidence matrix (Phase 3)
+See [REGULATORY_DOSSIERS.md](../REGULATORY_DOSSIERS.md),
+[DOSSIER_REQUIREMENTS.md](../DOSSIER_REQUIREMENTS.md),
+[DOSSIER_EVIDENCE.md](../DOSSIER_EVIDENCE.md),
+[EVIDENCE_MATRIX.md](../EVIDENCE_MATRIX.md),
+[DOSSIER_REVIEWS.md](../DOSSIER_REVIEWS.md),
+[DOSSIER_SUBMISSIONS.md](../DOSSIER_SUBMISSIONS.md).
+
+**Implemented, verified by tests and by UI-integration tests**: a
+`RegulatoryDossier` bound to an exact formula version/packaging SKU/
+jurisdiction set, with an 11-state lifecycle and append-only revisioning
+(`reviseDossier`); frozen per-revision requirement generation from real
+configured rules; a live evidence matrix (11-state satisfaction, eligibility
+filtering, unknown-is-contagious); evidence items with a full replace-and-
+supersede revision chain (never edited in place); automatic evidence-
+discovery suggestions from a project's own raw-material documents, lab
+trials, stability results and regulatory reviews (accept-only, never
+auto-verified); dossier reviews and submissions; JSON/CSV/Excel export and
+JSON/CSV/Excel import with preview; a filterable Evidence Matrix UI
+(jurisdiction/requirement-type/evidence-type/mandatory/critical/
+satisfaction-state/linked-evidence, with an active-filter-count badge and
+separate filtered-vs-full export). 8 collections
+(`regulatory_dossiers`/`_requirements`/`_reviews`/`_review_revocations`/
+`_submissions`/`_manual_requirement_actions`, `regulatory_evidence_items`,
+`regulatory_requirement_evidence_links`). Workspace: `/dossiers`, never a
+Formula Builder tab.
+
+**Deferred to Phase 7**: a final formatted PDF/DOCX dossier export.
+
+### Claims and label review (Phase 4)
+See [PRODUCT_CLAIMS.md](../PRODUCT_CLAIMS.md),
+[CLAIM_EVIDENCE.md](../CLAIM_EVIDENCE.md),
+[CLAIM_REVIEWS.md](../CLAIM_REVIEWS.md),
+[PRODUCT_LABELS.md](../PRODUCT_LABELS.md),
+[LABEL_CONTENT.md](../LABEL_CONTENT.md),
+[LABEL_ARTWORK.md](../LABEL_ARTWORK.md),
+[LABEL_REVIEWS.md](../LABEL_REVIEWS.md),
+[FORMULA_LABEL_CONSISTENCY.md](../FORMULA_LABEL_CONSISTENCY.md),
+[CLAIMS_LABEL_READINESS.md](../CLAIMS_LABEL_READINESS.md).
+
+**Implemented, verified by tests and by UI-integration tests**: a
+`ProductClaim` (30 categories, 11-state lifecycle, deterministic
+keyword classification, rule-based finding evaluation reusing
+`RegulatoryRule.claimKeywordsAny`, conflict detection) bound to an exact
+formula version/packaging SKU/jurisdiction(s)/language(s); claim evidence
+links that reuse Phase 3 dossier evidence by reference (never duplicated),
+with real eligibility/satisfaction checks (a real "proposed-link
+satisfies" bug was caught by tests and fixed before shipping); append-only
+claim reviews (regulatory/quality/administrator only); a `ProductLabel`
+(10-state lifecycle, one jurisdiction/language per row) with append-only
+content blocks (26 real block types, machine-suggested translations never
+treated as approved), artwork (upload/approve/reject/replace-with-
+supersession, never a full graphic-design editor), append-only label
+reviews bound to an exact label AND artwork revision (a genuine domain gap
+— these recording functions were entirely missing when first discovered —
+was found and closed with dedicated tests), and formula-to-label plus
+claim-to-label consistency checking (wrong-version/wrong-SKU always
+blocking, ingredient-omission and prohibited-claim detection). Claims/
+label readiness folded into Approval Readiness via 7 new opt-in policy
+fields (all default `false`) and 19 structured blocker codes (this
+session's own coherent design, since the exact originating list did not
+survive into this session's context); a real cross-formula-version
+scoping bug in that integration was caught by tests and fixed before
+shipping. 9 collections
+(`product_claims`/`claim_evidence_links`/`claim_reviews`/
+`claim_review_revocations`, `product_labels`/`label_content_blocks`/
+`label_artworks`/`label_reviews`/`label_review_revocations`). JSON/CSV/
+Excel import/export for claims and (per-label) label content, plus
+claim-review-summary and label-readiness-summary exports. Home/Projects/
+Reports/Dossiers/Regulatory integration (read-only summary cards and deep
+links, never editable outside the Claims & Labels workspace itself).
+Workspace: `/claims-labels`, never a Formula Builder tab. i18n: EN+TR real
+translations, 6 locales carry the established English-placeholder
+convention; Swahili is a first-class label language throughout.
+
+**Deferred to Phase 7**: a final formatted PDF/DOCX label or claims-report
+export.
 
 ### Regulatory authorization closure — final Phase 2 gap
 See [REGULATORY_REVIEWS.md](../REGULATORY_REVIEWS.md#authorization),
@@ -821,13 +900,14 @@ route-compatibility). 410 desktop tests total (was 389). Shared-package
 tests unchanged at 690/690 (no shared-package code touched). Typecheck
 and lint clean.
 
-**Deferred / explicitly out of scope**: the full Phase 3 dossier/
-evidence-matrix system, the Phase 4 claims engine, DOE, reverse
-formulation, the Phase 7 PDF/DOCX report engine, the `ai4s`→`FormuLab`
-naming migration, desktop shortcut installation, any new ERP module, and
-a new user-management/auth system (Administration links to existing
-screens; it does not add user/role management, since none exists in
-this codebase to build on).
+**Deferred / explicitly out of scope**: DOE, reverse formulation, the
+Phase 7 PDF/DOCX report engine (including formatted dossier/label/claims
+exports), the `ai4s`→`FormuLab` naming migration, desktop shortcut
+installation, any new ERP module, and a new user-management/auth system
+(Administration links to existing screens; it does not add user/role
+management, since none exists in this codebase to build on). The Phase 3
+dossier/evidence-matrix system and the Phase 4 claims/label engine are no
+longer deferred — see their dedicated sections above.
 
 **Known limitations**: Home's cross-project aggregation for recent
 activity and pending approvals is bounded to the 5 most-recently-updated

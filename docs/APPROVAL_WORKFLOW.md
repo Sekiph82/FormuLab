@@ -264,6 +264,17 @@ Approval tab (`EquivalenceWorkflow.tsx`, `engine/equivalence.ts`):
   from equivalent version(s): …" whenever an active declaration applies —
   never silent.
 
+## Phase 4: claims & label readiness gate
+
+The same one-layer-up pattern the dossier gate above uses now also folds in
+claims & label readiness (7 opt-in policy fields, 19 structured blocker
+codes, all off by default) — see
+[CLAIMS_LABEL_READINESS.md](CLAIMS_LABEL_READINESS.md#approval-integration-spec-17)
+for the full field list and blocker codes.
+`ApprovalRecord.claimsLabelSnapshot` freezes the claims/label picture at the
+moment of decision, following the same never-retroactively-rewritten
+convention as `dossierSnapshot`/`regulatorySnapshot` above.
+
 ## Known limitations
 
 - The Approval tab lets a chemist pick *any* saved version of the current

@@ -67,5 +67,18 @@ propagation, insufficient count). Matrix UI (table with requirement/
 jurisdiction/mandatory/applicability/linked-evidence/satisfaction/blocking-
 reason/last-activity columns, plus CSV/Excel export) is implemented in
 `DossierPanel.tsx`'s Evidence Matrix section — see
-[WORKSPACES.md](WORKSPACES.md#dossiers). No column-level filtering UI yet
-(the full matrix always renders); the underlying data supports it.
+[WORKSPACES.md](WORKSPACES.md#dossiers). Column-level filtering (jurisdiction/
+requirement type/evidence type/mandatory-only/critical-only/satisfaction
+state/has-or-no-linked-evidence, with an active-filter-count badge and
+separate filtered-vs-full CSV export) was closed as a Phase 3 gap and is
+implemented as a pure, local (non-engine) filter over the computed matrix —
+filtering logic itself was deliberately kept out of the engine since it is
+view state, not a reusable domain concept.
+
+## Phase 4: reuse for claims, never duplication
+
+A dossier evidence item counted in this matrix is the same item a
+`ClaimEvidenceLink` (see [CLAIM_EVIDENCE.md](CLAIM_EVIDENCE.md)) references
+by id — a claim never gets its own copy of a document, and an evidence
+item's satisfaction accounting here is unaffected by whether it also
+supports a claim elsewhere.

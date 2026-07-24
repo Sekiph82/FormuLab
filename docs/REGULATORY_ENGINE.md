@@ -261,3 +261,15 @@ dossier requirement generation freezes into a per-revision snapshot — see
 [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md). Phase 3 does not replace anything
 described above; a dossier is an additional, version/packaging/jurisdiction-
 specific persisted layer built on top of it.
+
+## Phase 4: claims and label review
+
+`RegulatoryRule.claimKeywordsAny` (already used for formula-level claim
+findings) and `requiredLabelElements`/`requiredWarnings` (already used for
+document/evidence requirements) are reused directly, unchanged, at the
+individual-claim and label-requirement level — see
+[PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md)'s "Rule evaluation" section and
+[PRODUCT_LABELS.md](PRODUCT_LABELS.md)'s "Requirement generation" section.
+No parallel rule concept was introduced; seed rules remain
+`verificationStatus: "not_verified"` at the claim/label level exactly as
+they are everywhere else in this engine.
