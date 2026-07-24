@@ -9,7 +9,7 @@ function line(overrides: Partial<FormulationLine> & Pick<FormulationLine, "id" |
     phase: "A",
     functions: [],
     isQsToHundred: false,
-    provenance: { source: "manual" },
+    provenance: { origin: "chemist_override", evidenceClaimIds: [] },
     ...overrides,
   };
 }

@@ -1850,7 +1850,8 @@
       "blocks": "Bloklar",
       "orthogonal": "Ortogonal",
       "balanced": "Dengeli",
-      "conditionNumber": "Koşul sayısı"
+      "conditionNumber": "Koşul sayısı",
+      "exportJson": "Çalışma JSON'ını dışa aktar"
     },
     "runs": {
       "heading": "Denemeler",
@@ -1868,7 +1869,10 @@
       "trialObjective": "\"{{study}}\" DOE çalışmasından oluşturuldu",
       "linkedTrial": "Bağlı deneme",
       "generateTrial": "Laboratuvar denemesi oluştur",
-      "linkExistingTrial": "Mevcut denemeyi bağla"
+      "linkExistingTrial": "Mevcut denemeyi bağla",
+      "exportDesignMatrix": "Tasarım matrisini dışa aktar",
+      "exportRunSheet": "Deneme listesini dışa aktar",
+      "exportObservations": "Gözlemleri dışa aktar"
     },
     "responses": {
       "heading": "Yanıtlar",
@@ -1891,7 +1895,10 @@
       "predictedVsObserved": "Tahmin edilen ve gözlenen",
       "residualVsPredicted": "Kalıntı ve tahmin",
       "normalProbability": "Normal olasılık grafiği",
-      "responseSurface": "Yanıt yüzeyi"
+      "responseSurface": "Yanıt yüzeyi",
+      "exportJson": "JSON dışa aktar",
+      "exportCoefficients": "Katsayıları dışa aktar",
+      "exportAnova": "ANOVA'yı dışa aktar"
     },
     "candidates": {
       "heading": "Adaylar",
@@ -1904,7 +1911,8 @@
       "applyToDraft": "Taslağa uygula",
       "noAnalysesYet": "Aday oluşturmadan önce en az bir analiz çalıştırın.",
       "openInOptimization": "Optimizasyonu Aç",
-      "openInStability": "Stabiliteyi Aç"
+      "openInStability": "Stabiliteyi Aç",
+      "exportCsv": "Aday listesini dışa aktar"
     },
     "history": {
       "heading": "Revizyon geçmişi",

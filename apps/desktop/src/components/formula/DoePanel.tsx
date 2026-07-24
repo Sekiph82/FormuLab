@@ -37,9 +37,19 @@ import {
   rankDoeCandidates,
   resolveDoeRevisionChain,
   reviseDoeStudy,
+  buildDoeStudyExportMeta,
+  doeAnalysisJsonPackage,
+  doeAnovaCsvRows,
+  doeCandidateListCsvRows,
+  doeCoefficientsCsvRows,
+  doeDesignMatrixCsvRows,
+  doeObservationsCsvRows,
+  doeRunSheetCsvRows,
+  doeStudyJsonPackage,
   searchDoeCandidateSpace,
   snapshotFormulaForTrial,
   suggestOutliers,
+  toCsv,
   validateDoeCandidate,
   validateDoeConstraints,
   validateDoeFactors,
@@ -106,6 +116,23 @@ const RUN_STATUS_STYLE: Record<DoeRunStatus, string> = {
   excluded: "bg-error/10 text-error",
   cancelled: "bg-error/10 text-error",
 };
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadJson(filename: string, data: unknown) {
+  downloadBlob(filename, new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+}
+
+function downloadCsv(filename: string, table: { headers: string[]; rows: Record<string, unknown>[] }) {
+  downloadBlob(filename, new Blob([toCsv(table.headers, table.rows)], { type: "text/csv;charset=utf-8" }));
+}
 
 function Badge({ className, children }: { className?: string; children: React.ReactNode }) {
   return <span className={cn("inline-block rounded px-1.5 py-0.5 text-[10px] font-medium", className)}>{children}</span>;
@@ -709,11 +736,33 @@ export function DoePanel({
             await load();
             setSelectedStudyId(revised.id);
           }}
+          onExportJson={() => {
+            const meta = buildDoeStudyExportMeta(selectedStudy);
+            const pkg = doeStudyJsonPackage(selectedStudy, meta, studyFactors, studyConstraints, studyResponses, studyDesign, studyRuns);
+            downloadJson(`${selectedStudy.studyCode}.json`, pkg);
+          }}
         />
       )}
 
       {topSection === "runs" && selectedStudy && (
-        <Section title={t("doe.runs.heading")}>
+        <Section
+          title={t("doe.runs.heading")}
+          action={
+            studyDesign && (
+              <div className="flex gap-2">
+                <button onClick={() => downloadCsv(`${selectedStudy.studyCode}-design-matrix.csv`, doeDesignMatrixCsvRows(studyDesign, studyRuns))} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface-2">
+                  {t("doe.runs.exportDesignMatrix")}
+                </button>
+                <button onClick={() => downloadCsv(`${selectedStudy.studyCode}-run-sheet.csv`, doeRunSheetCsvRows(studyDesign, studyRuns))} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface-2">
+                  {t("doe.runs.exportRunSheet")}
+                </button>
+                <button onClick={() => downloadCsv(`${selectedStudy.studyCode}-observations.csv`, doeObservationsCsvRows(studyRuns, studyResponses, observations))} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface-2">
+                  {t("doe.runs.exportObservations")}
+                </button>
+              </div>
+            )
+          }
+        >
           {studyRuns.length === 0 ? (
             <p className="text-[12px] text-muted">{t("doe.runs.empty")}</p>
           ) : (
@@ -806,7 +855,19 @@ export function DoePanel({
       )}
 
       {topSection === "candidates" && selectedStudy && (
-        <Section title={t("doe.candidates.heading")} action={<button onClick={() => void generateCandidates()} className="flex items-center gap-1 rounded-input bg-accent px-2.5 py-1 text-[12px] font-medium text-accent-foreground"><Sparkles size={13} /> {t("doe.candidates.generate")}</button>}>
+        <Section
+          title={t("doe.candidates.heading")}
+          action={
+            <div className="flex gap-2">
+              <button onClick={() => downloadCsv(`${selectedStudy.studyCode}-candidates.csv`, doeCandidateListCsvRows(studyCandidates, studyResponses))} className="rounded-input border border-border px-2 py-0.5 text-[11px] text-text hover:bg-surface-2">
+                {t("doe.candidates.exportCsv")}
+              </button>
+              <button onClick={() => void generateCandidates()} className="flex items-center gap-1 rounded-input bg-accent px-2.5 py-1 text-[12px] font-medium text-accent-foreground">
+                <Sparkles size={13} /> {t("doe.candidates.generate")}
+              </button>
+            </div>
+          }
+        >
           {studyCandidates.length === 0 ? (
             <p className="text-[12px] text-muted">{t("doe.candidates.empty")}</p>
           ) : (
@@ -920,6 +981,7 @@ function DesignSection({
   constraints,
   responses,
   onRevise,
+  onExportJson,
 }: {
   t: SimpleT;
   study: DoeStudy;
@@ -928,9 +990,24 @@ function DesignSection({
   constraints: DoeConstraint[];
   responses: DoeResponse[];
   onRevise: () => void;
+  onExportJson: () => void;
 }) {
   return (
-    <Section title={t("doe.design.heading")} action={!isDoeStudyImmutable(study.status) && <button onClick={onRevise} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">{t("doe.design.revise")}</button>}>
+    <Section
+      title={t("doe.design.heading")}
+      action={
+        <div className="flex gap-2">
+          <button onClick={onExportJson} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
+            {t("doe.design.exportJson")}
+          </button>
+          {!isDoeStudyImmutable(study.status) && (
+            <button onClick={onRevise} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
+              {t("doe.design.revise")}
+            </button>
+          )}
+        </div>
+      }
+    >
       <div className="mb-3 grid grid-cols-2 gap-3 text-[11.5px]">
         <div>
           <p className="text-muted">{t("doe.design.factors")}</p>
@@ -1145,7 +1222,22 @@ function AnalysisResults({ analyses, responses, factors, t }: { analyses: DoeAna
               <p className="text-[12.5px] font-semibold text-text">
                 {response?.name ?? a.responseId} — {a.analysisType}
               </p>
-              <span className="text-[10.5px] text-muted">{new Date(a.createdAt).toLocaleString()}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10.5px] text-muted">{new Date(a.createdAt).toLocaleString()}</span>
+                {response && (
+                  <>
+                    <button onClick={() => downloadJson(`${a.id}-analysis.json`, doeAnalysisJsonPackage(a, response))} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
+                      {t("doe.analysis.exportJson")}
+                    </button>
+                    <button onClick={() => downloadCsv(`${a.id}-coefficients.csv`, doeCoefficientsCsvRows(a))} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
+                      {t("doe.analysis.exportCoefficients")}
+                    </button>
+                    <button onClick={() => downloadCsv(`${a.id}-anova.csv`, doeAnovaCsvRows(a))} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
+                      {t("doe.analysis.exportAnova")}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             <div className="mb-2 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-muted sm:grid-cols-4">
               {a.fitMetrics.rSquared !== undefined && <span>{t("doe.analysis.rSquared")}: {a.fitMetrics.rSquared.toFixed(3)}</span>}

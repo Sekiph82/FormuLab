@@ -1850,7 +1850,8 @@
       "blocks": "Blocks",
       "orthogonal": "Orthogonal",
       "balanced": "Balanced",
-      "conditionNumber": "Condition number"
+      "conditionNumber": "Condition number",
+      "exportJson": "Export study JSON"
     },
     "runs": {
       "heading": "Runs",
@@ -1868,7 +1869,10 @@
       "trialObjective": "Generated from DOE study \"{{study}}\"",
       "linkedTrial": "Linked trial",
       "generateTrial": "Generate lab trial",
-      "linkExistingTrial": "Link existing trial"
+      "linkExistingTrial": "Link existing trial",
+      "exportDesignMatrix": "Export design matrix",
+      "exportRunSheet": "Export run sheet",
+      "exportObservations": "Export observations"
     },
     "responses": {
       "heading": "Responses",
@@ -1891,7 +1895,10 @@
       "predictedVsObserved": "Predicted vs. observed",
       "residualVsPredicted": "Residual vs. predicted",
       "normalProbability": "Normal probability plot",
-      "responseSurface": "Response surface"
+      "responseSurface": "Response surface",
+      "exportJson": "Export JSON",
+      "exportCoefficients": "Export coefficients",
+      "exportAnova": "Export ANOVA"
     },
     "candidates": {
       "heading": "Candidates",
@@ -1904,7 +1911,8 @@
       "applyToDraft": "Apply to draft",
       "noAnalysesYet": "Run at least one analysis before generating candidates.",
       "openInOptimization": "Open Optimization",
-      "openInStability": "Open Stability"
+      "openInStability": "Open Stability",
+      "exportCsv": "Export candidate list"
     },
     "history": {
       "heading": "Revision history",

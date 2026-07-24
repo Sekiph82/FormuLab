@@ -557,6 +557,7 @@ export * from "./engine/doeDesign";
 export * from "./engine/doeAnalysis";
 export * from "./engine/doeCandidates";
 export * from "./engine/doeLabIntegration";
+export * from "./engine/doeExports";
 export * from "./catalog/regulatoryRules";
 export {
   PRECISION,
