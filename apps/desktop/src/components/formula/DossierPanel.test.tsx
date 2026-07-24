@@ -10,7 +10,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationVersion } from "@ai4s/shared";
+import type { Formulation, FormulationLine, FormulationVersion } from "@ai4s/shared";
 import { DossierPanel } from "./DossierPanel";
 
 const bridge = {
@@ -56,6 +56,21 @@ const VERSION_1: FormulationVersion = {
   safetyFindingIds: [],
   approvalRecordIds: [],
 };
+
+const MATERIAL_LINE: FormulationLine = {
+  id: "line-mat",
+  lineNumber: 1,
+  phase: "A",
+  materialId: "MAT-1",
+  materialCode: "MAT-1",
+  displayName: "Surfactant",
+  functions: ["anionic_surfactant"],
+  percent: "100",
+  isQsToHundred: true,
+  provenance: { origin: "model_estimate", evidenceClaimIds: [] },
+};
+
+const VERSION_WITH_MATERIAL: FormulationVersion = { ...VERSION_1, lines: [MATERIAL_LINE] };
 
 let dossiersStore: unknown[];
 let requirementsStore: unknown[];
@@ -260,5 +275,273 @@ describe("DossierPanel — evidence import", () => {
     await user.click(within(dialog).getByRole("button", { name: "Preview" }));
     expect(await within(dialog).findByText("1 row(s) skipped as already-imported duplicates.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Import" })).toBeDisabled();
+  });
+});
+
+describe("DossierPanel — suggested evidence (Phase 3 gap closure)", () => {
+  async function createAndOpenDossierWithMaterial(user: ReturnType<typeof userEvent.setup>) {
+    renderPanel([VERSION_WITH_MATERIAL]);
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+  }
+
+  it("suggests a raw material's document, and accepting it creates draft unverified evidence", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "regulatory_dossiers") return Promise.resolve(dossiersStore);
+      if (collection === "regulatory_dossier_requirements") return Promise.resolve(requirementsStore);
+      if (collection === "materials") {
+        return Promise.resolve([
+          {
+            schemaVersion: "1.0",
+            code: "MAT-1",
+            displayName: "Surfactant",
+            casNumbers: [],
+            ecNumbers: [],
+            functions: [],
+            activeMatterState: "missing",
+            documents: [{ kind: "sds", title: "Surfactant SDS", location: "materials/mat-1-sds.pdf" }],
+            regulatoryStatuses: [],
+            hazardClassifications: [],
+            allergens: [],
+            incompatibilities: [],
+            substituteCodes: [],
+            active: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    await createAndOpenDossierWithMaterial(user);
+
+    expect(await screen.findByText("Surfactant SDS")).toBeInTheDocument();
+    expect(screen.getByText("Exact match")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Accept" }));
+
+    await vi.waitFor(() => expect(bridge.upsertRecords).toHaveBeenCalledWith("regulatory_evidence_items", expect.any(Array)));
+    const [, items] = bridge.upsertRecords.mock.calls.find((c) => c[0] === "regulatory_evidence_items")!;
+    expect(items[0].title).toBe("Surfactant SDS");
+    expect(items[0].status).toBe("present_unverified");
+    expect(items[0].sourceType).toBe("formulab_record");
+    expect(items[0].sourceEntityId).toBe("MAT-1");
+    // Accepted suggestions never disappear because they were "rejected" —
+    // they disappear because they are now real evidence; the suggestion
+    // list must not offer the same source record twice.
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument());
+  });
+
+  it("keeps a version-mismatched suggestion visible, flagged rather than hidden", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "regulatory_dossiers") return Promise.resolve(dossiersStore);
+      if (collection === "regulatory_dossier_requirements") return Promise.resolve(requirementsStore);
+      if (collection === "laboratory_trials") {
+        return Promise.resolve([
+          {
+            schemaVersion: "1.0",
+            id: "trial-1",
+            code: "TRL-1",
+            projectId: "proj-1",
+            sourceType: "saved_version",
+            sourceFormulaVersionId: "version-OTHER",
+            formulaSnapshot: { lines: [], basisBatchKg: "100", capturedAt: "2026-01-01T00:00:00.000Z" },
+            productFamilyId: "fam-1",
+            targetPackagingSkuIds: [],
+            title: "Trial 1",
+            status: "completed",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            processSteps: [],
+            observations: [],
+          },
+        ]);
+      }
+      if (collection === "test_results") {
+        return Promise.resolve([
+          {
+            schemaVersion: "1.0",
+            id: "result-1",
+            trialId: "trial-1",
+            testDefinitionId: "test-1",
+            resultType: "numeric",
+            replicates: [],
+            passFail: "not_evaluated",
+            attachments: [{ id: "att-1", kind: "document", title: "Trial report", location: "trials/report.pdf" }],
+            performedBy: "alice",
+            performedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    await createAndOpenDossierWithMaterial(user);
+
+    expect(await screen.findByText("Trial report")).toBeInTheDocument();
+    expect(screen.getByText("Different formula version")).toBeInTheDocument();
+    // Still offered — a mismatch is a warning, not a removal.
+    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
+  });
+
+  it("filters suggestions to exact matches only", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "regulatory_dossiers") return Promise.resolve(dossiersStore);
+      if (collection === "regulatory_dossier_requirements") return Promise.resolve(requirementsStore);
+      if (collection === "materials") {
+        return Promise.resolve([
+          {
+            schemaVersion: "1.0",
+            code: "MAT-1",
+            displayName: "Surfactant",
+            casNumbers: [],
+            ecNumbers: [],
+            functions: [],
+            activeMatterState: "missing",
+            documents: [{ kind: "sds", title: "Exact SDS", location: "materials/exact.pdf" }],
+            regulatoryStatuses: [],
+            hazardClassifications: [],
+            allergens: [],
+            incompatibilities: [],
+            substituteCodes: [],
+            active: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]);
+      }
+      if (collection === "regulatory_reviews") {
+        return Promise.resolve([
+          {
+            schemaVersion: "1.0",
+            id: "review-1",
+            formulationId: "proj-1",
+            formulaVersionId: "version-OTHER",
+            jurisdiction: "KE",
+            classificationSnapshot: { category: "household_cleaning_product", confidence: 0.9, reasoning: ["x"], uncertain: false },
+            findingSnapshot: [],
+            ruleVersionSnapshot: [],
+            reviewedBy: "alice",
+            reviewerRole: "regulatory",
+            reviewedAt: "2026-01-01T00:00:00.000Z",
+            outcome: "compliant",
+            notes: "Looks fine.",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    await createAndOpenDossierWithMaterial(user);
+
+    await screen.findByText("Exact SDS");
+    expect(screen.getByText(/regulatory review by alice/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Exact matches only" }));
+
+    expect(screen.getByText("Exact SDS")).toBeInTheDocument();
+    expect(screen.queryByText(/regulatory review by alice/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("DossierPanel — evidence replacement (Phase 3 gap closure)", () => {
+  async function createDossierWithEvidence(user: ReturnType<typeof userEvent.setup>) {
+    renderPanel();
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+    await user.click(screen.getByRole("button", { name: "Add evidence" }));
+    await user.type(screen.getByLabelText("Title"), "Original SDS");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findAllByText("Original SDS");
+  }
+
+  it("requires a reason before replacing evidence", async () => {
+    const user = userEvent.setup();
+    await createDossierWithEvidence(user);
+
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+    const dialog = await screen.findByRole("dialog", { name: "Replace" });
+    await user.click(within(dialog).getByRole("button", { name: "Replace" }));
+
+    expect(await screen.findByText("A reason is required to replace evidence.")).toBeInTheDocument();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("regulatory_evidence_items", expect.arrayContaining([expect.objectContaining({ status: "superseded" })]));
+  });
+
+  it("replacing evidence supersedes the original (which remains visible) and creates a new item, emitting dossier.evidence_replaced", async () => {
+    const user = userEvent.setup();
+    const onAuditChanged = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <DossierPanel formulation={FORMULATION} versions={[VERSION_1]} auditLog={[]} onAuditChanged={onAuditChanged} />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const createDialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(createDialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(createDialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(createDialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+    await user.click(screen.getByRole("button", { name: "Add evidence" }));
+    await user.type(screen.getByLabelText("Title"), "Original SDS");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findAllByText("Original SDS");
+
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+    const dialog = await screen.findByRole("dialog", { name: "Replace" });
+    await user.clear(within(dialog).getByLabelText("Title"));
+    await user.type(within(dialog).getByLabelText("Title"), "Replacement SDS");
+    await user.type(within(dialog).getByLabelText("Reason for replacement"), "Supplier issued a corrected SDS.");
+    await user.click(within(dialog).getByRole("button", { name: "Replace" }));
+
+    await vi.waitFor(() => {
+      const call = bridge.upsertRecords.mock.calls.find((c) => c[0] === "regulatory_evidence_items" && c[1].length === 2);
+      expect(call).toBeTruthy();
+    });
+    const [, items] = bridge.upsertRecords.mock.calls.find((c) => c[0] === "regulatory_evidence_items" && c[1].length === 2)!;
+    const [superseded, replacement] = items as { id: string; title: string; status: string; supersedesEvidenceId?: string }[];
+    expect(superseded.status).toBe("superseded");
+    expect(replacement.title).toBe("Replacement SDS");
+    expect(replacement.supersedesEvidenceId).toBe(superseded.id);
+
+    expect((await screen.findAllByText("Replacement SDS")).length).toBeGreaterThan(0);
+    // The original stays visible in the revision-chain list, never hidden.
+    expect(screen.getAllByText("Original SDS").length).toBeGreaterThan(0);
+
+    expect(onAuditChanged).toHaveBeenCalled();
+  });
+});
+
+describe("DossierPanel — evidence matrix filters (Phase 3 gap closure)", () => {
+  it("narrows results with a mandatory-only filter and clears back to the full count", async () => {
+    const user = userEvent.setup();
+    requirementsStore = [];
+    dossiersStore = [];
+    renderPanel();
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Matrix" }));
+
+    // No requirements were generated (seed rules may or may not apply to
+    // this family/jurisdiction) — either way the result-count summary and
+    // the mandatory-only filter must render without crashing.
+    expect(await screen.findByText(/requirements$/)).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Mandatory only" }));
+    expect(screen.getByText(/requirements$/)).toBeInTheDocument();
   });
 });

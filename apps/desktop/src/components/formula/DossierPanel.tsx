@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, FileCheck2, History, Plus, RotateCcw, ShieldCheck } from "lucide-react";
 import {
+  DOSSIER_EVIDENCE_CANDIDATE_SOURCE_KINDS,
   DOSSIER_EVIDENCE_TYPES,
   DOSSIER_REQUIREMENT_TYPES,
   DOSSIER_REVIEW_OUTCOMES,
@@ -31,11 +32,14 @@ import {
   buildDossierRequirementSnapshot,
   buildEvidenceMatrix,
   calculateDossierReadiness,
+  candidateToDraftEvidenceInput,
+  classifyDossierCandidateMatch,
   compareDossierRequirementsToCurrentRules,
   createDossier,
   currentRequirementsForRevision,
   deriveDossierStatus,
   deriveEvidenceStatus,
+  discoverDossierEvidenceCandidates,
   excludeRequirement,
   isAuthorizedRegulatoryActor,
   isDossierImmutable,
@@ -47,6 +51,7 @@ import {
   recordDossierSubmission,
   rejectEvidence,
   rejectEvidenceLink,
+  replaceEvidence,
   resolveDossierRevisionChain,
   resolveEvidenceRevisionChain,
   reviseDossier,
@@ -61,9 +66,13 @@ import {
   type Actor,
   type ApprovalRole,
   type AuditEvent,
+  type CompatibilitySnapshot,
+  type DossierEvidenceCandidate,
   type DossierRequirementRow,
   type Formulation,
   type FormulationVersion,
+  type LaboratoryTrial,
+  type RawMaterial,
   type RegulatoryDossier,
   type RegulatoryDossierEvidenceItem,
   type RegulatoryDossierManualRequirementAction,
@@ -71,9 +80,14 @@ import {
   type RegulatoryDossierReview,
   type RegulatoryDossierReviewRevocation,
   type RegulatoryDossierSubmission,
+  type RegulatoryEvidenceConfirmation,
   type RegulatoryJurisdiction,
   type RegulatoryRequirementEvidenceLink,
+  type RegulatoryReview,
   type RegulatoryRule,
+  type StabilityResult,
+  type StabilityStudy,
+  type TestResult,
 } from "@ai4s/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
@@ -113,6 +127,16 @@ const SATISFACTION_STYLE: Record<string, string> = {
 const IMPORT_FORMATS = ["json", "csv", "excel"] as const;
 const EVIDENCE_MATRIX_HEADERS = ["requirement", "jurisdiction", "mandatory", "applicability", "linkedEvidence", "satisfaction", "blockingReason", "lastActivity"];
 const EVIDENCE_IMPORT_HEADERS = ["title", "evidenceType", "documentType", "issuer", "documentNumber", "issuedAt", "expiresAt"];
+
+const DEFAULT_MATRIX_FILTER = {
+  jurisdiction: "",
+  requirementType: "",
+  evidenceType: "",
+  mandatoryOnly: false,
+  criticalOnly: false,
+  satisfaction: "",
+  linkedEvidence: "" as "" | "has" | "none",
+};
 
 function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -154,6 +178,21 @@ export function DossierPanel({
   const [reviewRevocations, setReviewRevocations] = useState<RegulatoryDossierReviewRevocation[]>([]);
   const [submissions, setSubmissions] = useState<RegulatoryDossierSubmission[]>([]);
   const [manualActions, setManualActions] = useState<RegulatoryDossierManualRequirementAction[]>([]);
+  // Phase 3 §7/gap-closure — automatic evidence-discovery sources.
+  const [materials, setMaterials] = useState<RawMaterial[]>([]);
+  const [laboratoryTrials, setLaboratoryTrials] = useState<LaboratoryTrial[]>([]);
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [stabilityStudies, setStabilityStudies] = useState<StabilityStudy[]>([]);
+  const [stabilityResults, setStabilityResults] = useState<StabilityResult[]>([]);
+  const [compatibilitySnapshots, setCompatibilitySnapshots] = useState<CompatibilitySnapshot[]>([]);
+  const [regulatoryReviews, setRegulatoryReviews] = useState<RegulatoryReview[]>([]);
+  const [regulatoryEvidenceConfirmations, setRegulatoryEvidenceConfirmations] = useState<RegulatoryEvidenceConfirmation[]>([]);
+  const [suggestionFilter, setSuggestionFilter] = useState<{ exactOnly: boolean; sourceKind: string; evidenceType: string; hasAttachment: boolean }>({
+    exactOnly: false,
+    sourceKind: "",
+    evidenceType: "",
+    hasAttachment: false,
+  });
 
   const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("regulatory");
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(initialDossierId ?? null);
@@ -161,6 +200,7 @@ export function DossierPanel({
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [jurisdictionFilter, setJurisdictionFilter] = useState<string>("");
+  const [matrixFilter, setMatrixFilter] = useState(DEFAULT_MATRIX_FILTER);
 
   const actor: Actor = useMemo(() => ({ kind: "human", role: reviewerRole, userId: "local" }), [reviewerRole]);
   // The backend throws regardless — this only hides/disables buttons so an
@@ -168,7 +208,7 @@ export function DossierPanel({
   const canActRegulatory = isAuthorizedRegulatoryActor(actor);
 
   const load = async () => {
-    const [ds, reqs, ev, lk, rv, rvrv, sub, ma, ru] = await Promise.all([
+    const [ds, reqs, ev, lk, rv, rvrv, sub, ma, ru, mats, trials, tresults, studies, sresults, compat, regReviews, regConfirmations] = await Promise.all([
       listRecords("regulatory_dossiers"),
       listRecords("regulatory_dossier_requirements"),
       listRecords("regulatory_evidence_items"),
@@ -178,6 +218,14 @@ export function DossierPanel({
       listRecords("regulatory_dossier_submissions"),
       listRecords("regulatory_dossier_manual_requirement_actions"),
       listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES),
+      listRecords("materials"),
+      listRecords("laboratory_trials"),
+      listRecords("test_results"),
+      listRecords("stability_studies"),
+      listRecords("stability_results"),
+      listRecords("compatibility_snapshots"),
+      listRecords("regulatory_reviews"),
+      listRecords("regulatory_evidence_confirmations"),
     ]);
     const ownDossiers = ds.filter((d) => d.formulationId === formulation.id);
     const ownIds = new Set(ownDossiers.map((d) => d.id));
@@ -190,6 +238,14 @@ export function DossierPanel({
     setSubmissions(sub.filter((s) => ownIds.has(s.dossierId)));
     setManualActions(ma.filter((m) => ownIds.has(m.dossierId)));
     setRules(ru);
+    setMaterials(mats);
+    setLaboratoryTrials(trials.filter((tr) => tr.projectId === formulation.id));
+    setTestResults(tresults);
+    setStabilityStudies(studies.filter((s) => s.projectId === formulation.id));
+    setStabilityResults(sresults);
+    setCompatibilitySnapshots(compat.filter((c) => c.formulationId === formulation.id));
+    setRegulatoryReviews(regReviews.filter((r) => r.formulationId === formulation.id));
+    setRegulatoryEvidenceConfirmations(regConfirmations.filter((c) => c.formulationId === formulation.id));
   };
 
   useEffect(() => {
@@ -341,10 +397,56 @@ export function DossierPanel({
   const currentReqs = selectedDossier ? currentRequirementsForRevision(requirements, selectedDossier.id, selectedDossier.revision) : [];
   const activeLinks = selectedDossier ? activeLinksForDossier(links, selectedDossier.id) : [];
   const dossierEvidence = selectedDossier ? evidenceItems.filter((e) => e.dossierId === selectedDossier.id) : [];
+  const selectedFormulaVersion = selectedDossier ? versions.find((v) => v.id === selectedDossier.formulaVersionId) : undefined;
+  // Every already-accepted suggestion is a real, persisted evidence item
+  // (`sourceType: "formulab_record"`) — deriving "already accepted" from
+  // that instead of transient component state means duplicate acceptance
+  // stays prevented across a remount/reload, not just within one session.
+  const acceptedSourceEntityIds = new Set(dossierEvidence.filter((e) => e.sourceType === "formulab_record").map((e) => e.sourceEntityId));
+  const discoveredCandidates: DossierEvidenceCandidate[] = selectedDossier
+    ? discoverDossierEvidenceCandidates({
+        formulationId: formulation.id,
+        formulaVersionId: selectedDossier.formulaVersionId,
+        packagingSkuCode: selectedDossier.packagingSkuCode,
+        jurisdictions: selectedDossier.jurisdictions,
+        formulaVersionMaterialCodes: (selectedFormulaVersion?.lines ?? []).map((l) => l.materialCode).filter((c): c is string => !!c),
+        materials,
+        laboratoryTrials,
+        testResults,
+        stabilityStudies,
+        stabilityResults,
+        compatibilitySnapshots,
+        regulatoryReviews,
+        regulatoryEvidenceConfirmations,
+      }).filter((c) => !acceptedSourceEntityIds.has(c.sourceEntityId))
+    : [];
+  const filteredCandidates = discoveredCandidates.filter((c) => {
+    const matchState = classifyDossierCandidateMatch(c);
+    if (suggestionFilter.exactOnly && matchState !== "exact_match") return false;
+    if (suggestionFilter.sourceKind && c.sourceKind !== suggestionFilter.sourceKind) return false;
+    if (suggestionFilter.evidenceType && c.evidenceType !== suggestionFilter.evidenceType) return false;
+    if (suggestionFilter.hasAttachment && !c.attachment) return false;
+    return true;
+  });
   const matrix: DossierRequirementRow[] = selectedDossier
     ? buildEvidenceMatrix(currentReqs, activeLinks, dossierEvidence, selectedDossier.formulaVersionId, selectedDossier.packagingSkuCode)
     : [];
   const readiness = selectedDossier ? calculateDossierReadiness(selectedDossier, matrix) : undefined;
+  // Phase 3 gap-closure — UI-only display filtering, never mutating the
+  // underlying matrix/engine output; a pure local function rather than an
+  // engine helper since this is view state, not a reusable domain concept.
+  const filteredMatrix = matrix.filter((row) => {
+    if (matrixFilter.jurisdiction && row.requirement.jurisdiction !== matrixFilter.jurisdiction) return false;
+    if (matrixFilter.requirementType && row.requirement.requirementType !== matrixFilter.requirementType) return false;
+    if (matrixFilter.evidenceType && !row.linkedEvidence.some((e) => e.evidenceType === matrixFilter.evidenceType)) return false;
+    if (matrixFilter.mandatoryOnly && !row.requirement.mandatory) return false;
+    if (matrixFilter.criticalOnly && !row.requirement.critical) return false;
+    if (matrixFilter.satisfaction && row.satisfaction !== matrixFilter.satisfaction) return false;
+    if (matrixFilter.linkedEvidence === "has" && row.linkedEvidence.length === 0) return false;
+    if (matrixFilter.linkedEvidence === "none" && row.linkedEvidence.length > 0) return false;
+    return true;
+  });
+  const matrixFilterActiveCount = Object.entries(matrixFilter).filter(([k, v]) => v !== DEFAULT_MATRIX_FILTER[k as keyof typeof DEFAULT_MATRIX_FILTER]).length;
   const drift = selectedDossier
     ? compareDossierRequirementsToCurrentRules(currentReqs, {
         jurisdictions: selectedDossier.jurisdictions,
@@ -375,8 +477,8 @@ export function DossierPanel({
     };
     downloadBlob(`${selectedDossier.dossierCode}.json`, new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
   };
-  const matrixExportRows = () =>
-    matrix.map((row) => ({
+  const matrixExportRows = (rows: DossierRequirementRow[]) =>
+    rows.map((row) => ({
       requirement: row.requirement.title,
       jurisdiction: row.requirement.jurisdiction,
       mandatory: row.requirement.mandatory ? (row.requirement.critical ? "critical" : "mandatory") : "optional",
@@ -386,13 +488,13 @@ export function DossierPanel({
       blockingReason: row.blockingReason ?? "",
       lastActivity: row.lastActivityAt ?? "",
     }));
-  const exportMatrixCsv = () => {
+  const exportMatrixCsv = (rows: DossierRequirementRow[], suffix: string) => {
     if (!selectedDossier) return;
-    downloadBlob(`${selectedDossier.dossierCode}-evidence-matrix.csv`, new Blob([toCsv(EVIDENCE_MATRIX_HEADERS, matrixExportRows())], { type: "text/csv;charset=utf-8" }));
+    downloadBlob(`${selectedDossier.dossierCode}-evidence-matrix-${suffix}.csv`, new Blob([toCsv(EVIDENCE_MATRIX_HEADERS, matrixExportRows(rows))], { type: "text/csv;charset=utf-8" }));
   };
-  const exportMatrixXlsx = async () => {
+  const exportMatrixXlsx = async (rows: DossierRequirementRow[], suffix: string) => {
     if (!selectedDossier) return;
-    downloadBlob(`${selectedDossier.dossierCode}-evidence-matrix.xlsx`, await buildXlsxBlob(EVIDENCE_MATRIX_HEADERS, matrixExportRows(), "evidence-matrix"));
+    downloadBlob(`${selectedDossier.dossierCode}-evidence-matrix-${suffix}.xlsx`, await buildXlsxBlob(EVIDENCE_MATRIX_HEADERS, matrixExportRows(rows), "evidence-matrix"));
   };
 
   const [importing, setImporting] = useState(false);
@@ -596,6 +698,76 @@ export function DossierPanel({
       await persistEvidence(updated);
       await appendAudit(auditEvent(formulation.id, "dossier.evidence_revoked", { detail: reason, metadata: { dossierId: item.dossierId, evidenceItemId: item.id } }));
       await onAuditChanged();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  // Accepting a suggestion creates draft, unverified evidence — it never
+  // verifies anything, and duplicate acceptance is prevented by the
+  // acceptedSourceEntityIds filter already excluding it from the list.
+  const doAcceptSuggestion = async (candidate: DossierEvidenceCandidate) => {
+    if (!selectedDossier) return;
+    try {
+      const item = addDraftEvidence(candidateToDraftEvidenceInput(candidate, selectedDossier), actor);
+      await upsertRecords("regulatory_evidence_items", [item]);
+      setEvidenceItems((prev) => [...prev, item]);
+      await appendAudit(
+        auditEvent(formulation.id, "dossier.evidence_added", {
+          versionId: selectedDossier.formulaVersionId,
+          detail: `suggested: ${candidate.sourceLabel}`,
+          metadata: { dossierId: selectedDossier.id, evidenceItemId: item.id, sourceKind: candidate.sourceKind, sourceEntityId: candidate.sourceEntityId },
+        }),
+      );
+      await onAuditChanged();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  // ------------------------------------------------------- evidence replace
+  const [replacingEvidence, setReplacingEvidence] = useState<RegulatoryDossierEvidenceItem | null>(null);
+  const [replaceTitle, setReplaceTitle] = useState("");
+  const [replaceReason, setReplaceReason] = useState("");
+  const [replaceAttachments, setReplaceAttachments] = useState<RegulatoryDossierEvidenceItem["attachmentIds"]>([]);
+
+  const openReplace = (item: RegulatoryDossierEvidenceItem) => {
+    setReplacingEvidence(item);
+    setReplaceTitle(item.title);
+    setReplaceReason("");
+    setReplaceAttachments([]);
+  };
+
+  const submitReplace = async () => {
+    if (!replacingEvidence || !selectedDossier) return;
+    if (!replaceReason.trim()) {
+      setError(t("dossier.needReplacementReason"));
+      return;
+    }
+    try {
+      const { superseded, replacement } = replaceEvidence(
+        replacingEvidence,
+        {
+          evidenceType: replacingEvidence.evidenceType,
+          title: replaceTitle.trim() || replacingEvidence.title,
+          attachmentIds: replaceAttachments,
+        },
+        actor,
+      );
+      await upsertRecords("regulatory_evidence_items", [superseded, replacement]);
+      setEvidenceItems((prev) => [...prev.map((e) => (e.id === superseded.id ? superseded : e)), replacement]);
+      await appendAudit(
+        auditEvent(formulation.id, "dossier.evidence_replaced", {
+          versionId: selectedDossier.formulaVersionId,
+          detail: replaceReason,
+          metadata: { dossierId: selectedDossier.id, oldEvidenceItemId: superseded.id, newEvidenceItemId: replacement.id },
+        }),
+      );
+      await onAuditChanged();
+      setReplacingEvidence(null);
+      setReplaceTitle("");
+      setReplaceReason("");
+      setReplaceAttachments([]);
     } catch (e) {
       setError(String(e));
     }
@@ -971,40 +1143,95 @@ export function DossierPanel({
           )}
 
           {section === "matrix" && (
-            <div className="overflow-auto">
-              <table className="w-full text-[10px]">
-                <thead>
-                  <tr className="border-b border-border-faint text-left text-muted">
-                    <th className="py-1 pr-2">{t("dossier.col.requirement")}</th>
-                    <th className="py-1 pr-2">{t("dossier.col.jurisdiction")}</th>
-                    <th className="py-1 pr-2">{t("dossier.col.mandatory")}</th>
-                    <th className="py-1 pr-2">{t("dossier.col.applicability")}</th>
-                    <th className="py-1 pr-2">{t("dossier.col.linkedEvidence")}</th>
-                    <th className="py-1 pr-2">{t("dossier.col.satisfaction")}</th>
-                    <th className="py-1 pr-2">{t("dossier.col.blockingReason")}</th>
-                    <th className="py-1 pr-2">{t("dossier.col.lastActivity")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {matrix.map((row) => (
-                    <tr key={row.requirement.id} className="border-b border-border-faint/50">
-                      <td className="py-1 pr-2 text-text">{row.requirement.title}{row.requirement.isManual && <span className="ml-1 rounded bg-surface-2 px-1 py-0.5 text-[9px] text-muted">{t("dossier.manualTag")}</span>}{row.requirement.status === "excluded" && <span className="ml-1 rounded bg-surface-2 px-1 py-0.5 text-[9px] text-muted">{t("dossier.excludedTag")}</span>}</td>
-                      <td className="py-1 pr-2">{row.requirement.jurisdiction}</td>
-                      <td className="py-1 pr-2">{row.requirement.mandatory ? (row.requirement.critical ? t("dossier.criticalYes") : t("dossier.mandatoryYes")) : t("dossier.mandatoryNo")}</td>
-                      <td className="py-1 pr-2">{row.requirement.applicabilityStatus}</td>
-                      <td className="py-1 pr-2">{row.linkedEvidence.map((e) => e.title).join(", ") || "—"}</td>
-                      <td className="py-1 pr-2"><span className={cn("rounded px-1 py-0.5 text-[9px]", SATISFACTION_STYLE[row.satisfaction])}>{row.satisfaction}</span></td>
-                      <td className="py-1 pr-2 text-muted">{row.blockingReason ?? "—"}</td>
-                      <td className="py-1 pr-2 text-muted">{row.lastActivityAt ? new Date(row.lastActivityAt).toLocaleDateString() : "—"}</td>
-                    </tr>
+            <div>
+              <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+                <select value={matrixFilter.jurisdiction} onChange={(e) => setMatrixFilter((f) => ({ ...f, jurisdiction: e.target.value }))} className="rounded-input border border-border bg-surface px-1.5 py-1">
+                  <option value="">{t("dossier.matrixFilter.allJurisdictions")}</option>
+                  {REGULATORY_JURISDICTIONS.map((j) => (
+                    <option key={j} value={j}>{j}</option>
                   ))}
-                  {matrix.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="py-3 text-center text-muted">{t("dossier.noRequirements")}</td>
+                </select>
+                <select value={matrixFilter.requirementType} onChange={(e) => setMatrixFilter((f) => ({ ...f, requirementType: e.target.value }))} className="rounded-input border border-border bg-surface px-1.5 py-1">
+                  <option value="">{t("dossier.matrixFilter.allRequirementTypes")}</option>
+                  {DOSSIER_REQUIREMENT_TYPES.map((rt) => (
+                    <option key={rt} value={rt}>{rt}</option>
+                  ))}
+                </select>
+                <select value={matrixFilter.evidenceType} onChange={(e) => setMatrixFilter((f) => ({ ...f, evidenceType: e.target.value }))} className="rounded-input border border-border bg-surface px-1.5 py-1">
+                  <option value="">{t("dossier.matrixFilter.allEvidenceTypes")}</option>
+                  {DOSSIER_EVIDENCE_TYPES.map((et) => (
+                    <option key={et} value={et}>{et}</option>
+                  ))}
+                </select>
+                <select value={matrixFilter.satisfaction} onChange={(e) => setMatrixFilter((f) => ({ ...f, satisfaction: e.target.value }))} className="rounded-input border border-border bg-surface px-1.5 py-1">
+                  <option value="">{t("dossier.matrixFilter.allSatisfactionStates")}</option>
+                  {Object.keys(SATISFACTION_STYLE).map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <select value={matrixFilter.linkedEvidence} onChange={(e) => setMatrixFilter((f) => ({ ...f, linkedEvidence: e.target.value as typeof f.linkedEvidence }))} className="rounded-input border border-border bg-surface px-1.5 py-1">
+                  <option value="">{t("dossier.matrixFilter.anyLinkedEvidence")}</option>
+                  <option value="has">{t("dossier.matrixFilter.hasLinkedEvidence")}</option>
+                  <option value="none">{t("dossier.matrixFilter.noLinkedEvidence")}</option>
+                </select>
+                <label className="flex items-center gap-1">
+                  <input type="checkbox" checked={matrixFilter.mandatoryOnly} onChange={(e) => setMatrixFilter((f) => ({ ...f, mandatoryOnly: e.target.checked }))} />
+                  {t("dossier.matrixFilter.mandatoryOnly")}
+                </label>
+                <label className="flex items-center gap-1">
+                  <input type="checkbox" checked={matrixFilter.criticalOnly} onChange={(e) => setMatrixFilter((f) => ({ ...f, criticalOnly: e.target.checked }))} />
+                  {t("dossier.matrixFilter.criticalOnly")}
+                </label>
+                {matrixFilterActiveCount > 0 && (
+                  <button onClick={() => setMatrixFilter(DEFAULT_MATRIX_FILTER)} className="rounded-input border border-border px-2 py-1 text-muted hover:bg-surface-2 hover:text-text">
+                    {t("dossier.matrixFilter.clear", { n: matrixFilterActiveCount })}
+                  </button>
+                )}
+                <span className="text-muted">{t("dossier.matrixFilter.resultCount", { n: filteredMatrix.length, total: matrix.length })}</span>
+                <div className="ml-auto flex gap-1.5">
+                  <button onClick={() => exportMatrixCsv(filteredMatrix, "filtered")} className="rounded-input border border-border px-2 py-1 text-muted hover:bg-surface-2 hover:text-text">
+                    {t("dossier.matrixFilter.exportFilteredCsv")}
+                  </button>
+                  <button onClick={() => exportMatrixCsv(matrix, "full")} className="rounded-input border border-border px-2 py-1 text-muted hover:bg-surface-2 hover:text-text">
+                    {t("dossier.matrixFilter.exportFullCsv")}
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="border-b border-border-faint text-left text-muted">
+                      <th className="py-1 pr-2">{t("dossier.col.requirement")}</th>
+                      <th className="py-1 pr-2">{t("dossier.col.jurisdiction")}</th>
+                      <th className="py-1 pr-2">{t("dossier.col.mandatory")}</th>
+                      <th className="py-1 pr-2">{t("dossier.col.applicability")}</th>
+                      <th className="py-1 pr-2">{t("dossier.col.linkedEvidence")}</th>
+                      <th className="py-1 pr-2">{t("dossier.col.satisfaction")}</th>
+                      <th className="py-1 pr-2">{t("dossier.col.blockingReason")}</th>
+                      <th className="py-1 pr-2">{t("dossier.col.lastActivity")}</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredMatrix.map((row) => (
+                      <tr key={row.requirement.id} className="border-b border-border-faint/50">
+                        <td className="py-1 pr-2 text-text">{row.requirement.title}{row.requirement.isManual && <span className="ml-1 rounded bg-surface-2 px-1 py-0.5 text-[9px] text-muted">{t("dossier.manualTag")}</span>}{row.requirement.status === "excluded" && <span className="ml-1 rounded bg-surface-2 px-1 py-0.5 text-[9px] text-muted">{t("dossier.excludedTag")}</span>}</td>
+                        <td className="py-1 pr-2">{row.requirement.jurisdiction}</td>
+                        <td className="py-1 pr-2">{row.requirement.mandatory ? (row.requirement.critical ? t("dossier.criticalYes") : t("dossier.mandatoryYes")) : t("dossier.mandatoryNo")}</td>
+                        <td className="py-1 pr-2">{row.requirement.applicabilityStatus}</td>
+                        <td className="py-1 pr-2">{row.linkedEvidence.map((e) => e.title).join(", ") || "—"}</td>
+                        <td className="py-1 pr-2"><span className={cn("rounded px-1 py-0.5 text-[9px]", SATISFACTION_STYLE[row.satisfaction])}>{row.satisfaction}</span></td>
+                        <td className="py-1 pr-2 text-muted">{row.blockingReason ?? "—"}</td>
+                        <td className="py-1 pr-2 text-muted">{row.lastActivityAt ? new Date(row.lastActivityAt).toLocaleDateString() : "—"}</td>
+                      </tr>
+                    ))}
+                    {filteredMatrix.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="py-3 text-center text-muted">{matrix.length === 0 ? t("dossier.noRequirements") : t("dossier.matrixFilter.noMatches")}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -1090,10 +1317,10 @@ export function DossierPanel({
                 <button onClick={exportDossierJson} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
                   {t("dossier.exportJson")}
                 </button>
-                <button onClick={exportMatrixCsv} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
+                <button onClick={() => exportMatrixCsv(matrix, "full")} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
                   {t("dossier.exportMatrixCsv")}
                 </button>
-                <button onClick={() => void exportMatrixXlsx()} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
+                <button onClick={() => void exportMatrixXlsx(matrix, "full")} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
                   {t("dossier.exportMatrixXlsx")}
                 </button>
                 <button onClick={() => setImporting(true)} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
@@ -1142,6 +1369,7 @@ export function DossierPanel({
                 {dossierEvidence.map((item) => {
                   const effective = deriveEvidenceStatus(item, dossierEvidence);
                   const chain = resolveEvidenceRevisionChain(item, dossierEvidence);
+                  const isSuperseded = effective === "superseded";
                   return (
                     <li key={item.id} className="rounded-input border border-border-faint px-2 py-1.5 text-[11px]">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -1151,28 +1379,107 @@ export function DossierPanel({
                         {item.expiresAt && <span className="text-[9px] text-muted">{t("dossier.expiresLabel", { date: new Date(item.expiresAt).toLocaleDateString() })}</span>}
                         {chain.length > 1 && <span className="flex items-center gap-0.5 text-[9px] text-muted"><History size={9} /> {t("dossier.revisionLabel", { n: chain.length })}</span>}
                         <div className="ml-auto flex gap-1.5">
-                          {effective !== "verified" && canActRegulatory && (
+                          {item.attachmentIds[0] && (
+                            <a href="#" onClick={(e) => e.preventDefault()} title={item.attachmentIds[0].location} className="text-[10px] text-muted hover:underline">
+                              {t("dossier.openAttachment")}
+                            </a>
+                          )}
+                          {!isSuperseded && effective !== "verified" && canActRegulatory && (
                             <button onClick={() => void doVerify(item)} className="flex items-center gap-1 text-[10px] text-success hover:underline">
                               <ShieldCheck size={10} /> {t("dossier.verifyAction")}
                             </button>
                           )}
-                          {effective !== "rejected" && canActRegulatory && (
+                          {!isSuperseded && effective !== "rejected" && canActRegulatory && (
                             <button onClick={() => void doReject(item)} className="text-[10px] text-error hover:underline">
                               {t("dossier.rejectAction")}
                             </button>
                           )}
-                          {effective !== "revoked" && canActRegulatory && (
+                          {!isSuperseded && effective !== "revoked" && canActRegulatory && (
                             <button onClick={() => void doRevoke(item)} className="text-[10px] text-error hover:underline">
                               {t("dossier.revokeAction")}
                             </button>
                           )}
+                          {!isSuperseded && (
+                            <button onClick={() => openReplace(item)} className="text-[10px] text-accent hover:underline">
+                              {t("dossier.replaceAction")}
+                            </button>
+                          )}
                         </div>
                       </div>
+                      {chain.length > 1 && (
+                        <ul className="mt-1.5 space-y-1 border-l border-border-faint pl-2">
+                          {chain.map((rev, i) => {
+                            const revEffective = deriveEvidenceStatus(rev, dossierEvidence);
+                            return (
+                              <li key={rev.id} className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
+                                <span>{i === chain.length - 1 ? t("dossier.currentRevision") : t("dossier.previousRevision")}</span>
+                                <span className="text-text">{rev.title}</span>
+                                <span className={cn("rounded px-1 py-0.5 text-[9px]", revEffective === "verified" ? "bg-success/10 text-success" : "bg-surface-2")}>{revEffective}</span>
+                                <span>{rev.createdBy} · {new Date(rev.createdAt).toLocaleDateString()}</span>
+                                {rev.attachmentIds[0] && (
+                                  <a href="#" onClick={(e) => e.preventDefault()} title={rev.attachmentIds[0].location} className="hover:underline">
+                                    {t("dossier.openAttachment")}
+                                  </a>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </li>
                   );
                 })}
                 {dossierEvidence.length === 0 && <p className="text-[11px] text-muted">{t("dossier.noEvidence")}</p>}
               </ul>
+
+              <div className="mt-3 rounded-card border border-border p-2.5">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[11px] font-medium text-muted">{t("dossier.suggestedEvidenceHeading")}</p>
+                  <span className="text-[10px] text-muted">{t("dossier.suggestedEvidenceCount", { n: filteredCandidates.length, total: discoveredCandidates.length })}</span>
+                </div>
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
+                  <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={suggestionFilter.exactOnly} onChange={(e) => setSuggestionFilter((f) => ({ ...f, exactOnly: e.target.checked }))} />
+                    {t("dossier.exactMatchesOnly")}
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={suggestionFilter.hasAttachment} onChange={(e) => setSuggestionFilter((f) => ({ ...f, hasAttachment: e.target.checked }))} />
+                    {t("dossier.hasAttachmentOnly")}
+                  </label>
+                  <select value={suggestionFilter.sourceKind} onChange={(e) => setSuggestionFilter((f) => ({ ...f, sourceKind: e.target.value }))} className="rounded-input border border-border bg-surface px-1.5 py-1 text-[10px]">
+                    <option value="">{t("dossier.allSourceTypes")}</option>
+                    {DOSSIER_EVIDENCE_CANDIDATE_SOURCE_KINDS.map((k) => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
+                  </select>
+                  <select value={suggestionFilter.evidenceType} onChange={(e) => setSuggestionFilter((f) => ({ ...f, evidenceType: e.target.value }))} className="rounded-input border border-border bg-surface px-1.5 py-1 text-[10px]">
+                    <option value="">{t("dossier.allEvidenceTypes")}</option>
+                    {DOSSIER_EVIDENCE_TYPES.map((et) => (
+                      <option key={et} value={et}>{et}</option>
+                    ))}
+                  </select>
+                </div>
+                <ul className="space-y-1">
+                  {filteredCandidates.map((c, i) => {
+                    const matchState = classifyDossierCandidateMatch(c);
+                    return (
+                      <li key={`${c.sourceKind}:${c.sourceEntityId}:${i}`} className="flex flex-wrap items-center gap-1.5 rounded-input border border-border-faint px-2 py-1 text-[10px]">
+                        <span className="rounded bg-surface-2 px-1 py-0.5 text-[9px] text-muted">{c.sourceKind}</span>
+                        <span className="text-text">{c.title}</span>
+                        <span className="text-muted">{c.sourceLabel}</span>
+                        <span className="text-muted">{c.sourceEntityId}</span>
+                        <span className="rounded bg-surface-2 px-1 py-0.5 text-[9px] text-muted">{c.evidenceType}</span>
+                        <span className={cn("rounded px-1 py-0.5 text-[9px]", matchState === "exact_match" ? "bg-success/10 text-success" : "bg-warn/10 text-warn")}>{t(`dossier.matchState.${matchState}`)}</span>
+                        <span className="text-muted">{t("dossier.attachmentCount", { n: c.attachment ? 1 : 0 })}</span>
+                        <button onClick={() => void doAcceptSuggestion(c)} className="ml-auto rounded-input border border-accent px-2 py-0.5 text-[10px] text-accent hover:bg-accent/10">
+                          {t("dossier.acceptSuggestion")}
+                        </button>
+                      </li>
+                    );
+                  })}
+                  {filteredCandidates.length === 0 && <p className="text-[11px] text-muted">{t("dossier.noSuggestions")}</p>}
+                </ul>
+              </div>
 
               <div className="mt-3 rounded-card border border-border p-2.5">
                 <p className="mb-2 text-[11px] font-medium text-muted">{t("dossier.linkEvidenceHeading")}</p>
@@ -1431,6 +1738,38 @@ export function DossierPanel({
               </button>
               <button onClick={() => void submitCreate()} disabled={createBusy} className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40">
                 {t("common:actions.save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {replacingEvidence && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6" role="dialog" aria-modal="true" aria-label={t("dossier.replaceAction")}>
+          <div className="my-auto w-[36rem] max-w-full rounded-card border border-border bg-surface shadow-xl">
+            <h2 className="border-b border-border px-5 py-3 text-[14px] font-medium text-text">{t("dossier.replaceEvidenceHeading", { title: replacingEvidence.title })}</h2>
+            <div className="space-y-2 px-5 py-4">
+              <p className="text-[10px] text-muted">{t("dossier.replaceImmutableNotice")}</p>
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-muted">{t("dossier.evidenceTitle")}</span>
+                <input value={replaceTitle} onChange={(e) => setReplaceTitle(e.target.value)} className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-muted">{t("dossier.replacementReason")}</span>
+                <textarea value={replaceReason} onChange={(e) => setReplaceReason(e.target.value)} rows={2} className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]" />
+              </label>
+              <div>
+                <span className="mb-1 block text-[10px] text-muted">{t("dossier.newAttachment")}</span>
+                <AttachmentField formulationId={formulation.id} attachments={replaceAttachments} onChange={setReplaceAttachments} t={t} />
+              </div>
+              <p className="text-[10px] text-warn">{t("dossier.replaceLinksNotice")}</p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+              <button onClick={() => setReplacingEvidence(null)} className="rounded-input border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-text">
+                {t("common:actions.cancel")}
+              </button>
+              <button onClick={() => void submitReplace()} className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90">
+                {t("dossier.confirmReplace")}
               </button>
             </div>
           </div>
