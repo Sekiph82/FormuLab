@@ -550,6 +550,13 @@ export * from "./engine/dossierRecordDiscovery";
 export * from "./engine/claims";
 export * from "./engine/labels";
 export * from "./engine/claimsLabelApproval";
+export * from "./schemas/doe";
+export * from "./engine/doeExpression";
+export * from "./engine/doeMath";
+export * from "./engine/doeDesign";
+export * from "./engine/doeAnalysis";
+export * from "./engine/doeCandidates";
+export * from "./engine/doeLabIntegration";
 export * from "./catalog/regulatoryRules";
 export {
   PRECISION,
