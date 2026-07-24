@@ -28,14 +28,19 @@ import {
   APPROVAL_ROLES,
   activeEquivalencesFor,
   activeEvidenceConfirmations,
+  activeLinksForDossier,
   assessApprovalReadiness,
   assessMultiJurisdictionRegulatoryReadiness,
   attemptApprovalTransition,
+  buildEvidenceMatrix,
   buildKenyaCatalog,
+  calculateDossierReadiness,
+  currentRequirementsForRevision,
   classifyProductRegulatory,
   classifyProductSafety,
   clonePolicy,
   declareEquivalence,
+  deriveDossierApprovalReadiness,
   deriveLabReadiness,
   deriveRegulatoryReadiness,
   deriveStabilityReadiness,
@@ -47,9 +52,12 @@ import {
   evaluateSafety,
   explainRegulatoryReviewStatus,
   findApplicableRegulatoryReview,
+  findDossierForScope,
   initialPolicyRevision,
+  isDossierReviewActive,
   newId,
   policyApplies,
+  resolveDossierJurisdictions,
   resolvePolicyPrecedence,
   resolveRegulatoryJurisdictions,
   restorePolicyRevision,
@@ -57,10 +65,12 @@ import {
   revokeEquivalence,
   setPolicyActive,
   templateForFamily,
+  toDossierApprovalPolicy,
   toLabApprovalPolicy,
   toRegulatoryApprovalPolicy,
   toStabilityApprovalPolicy,
   validateFormula,
+  REGULATORY_JURISDICTIONS,
   SEED_COMPATIBILITY_RULES,
   SEED_REGULATORY_RULES,
   SEED_SAFETY_RULES,
@@ -77,6 +87,7 @@ import {
   type AuditEvent,
   type CorrectiveAction,
   type CostSnapshot,
+  type DossierApprovalSnapshot,
   type EvidenceReuseScope,
   type Formulation,
   type FormulationVersion,
@@ -86,8 +97,16 @@ import {
   type OptimizationRun,
   type RawMaterial,
   type RegulatoryApprovalSnapshot,
+  type RegulatoryDossier,
+  type RegulatoryDossierEvidenceItem,
+  type RegulatoryDossierRequirement,
+  type RegulatoryDossierReview,
+  type RegulatoryDossierReviewRevocation,
+  type RegulatoryDossierSubmission,
   type RegulatoryEvidenceConfirmation,
   type RegulatoryEvidenceConfirmationRevocation,
+  type RegulatoryJurisdiction,
+  type RegulatoryRequirementEvidenceLink,
   type RegulatoryReview,
   type RegulatoryReviewEquivalence,
   type RegulatoryReviewRevocation,
@@ -135,6 +154,11 @@ const SOURCE_NAV: Record<string, NavTarget> = {
   stability: "stability",
   cost: "cost",
   regulatory: "regulatory",
+  // Dossier detail itself lives on the separate /dossiers route (see
+  // RegulatoryPanel's dossier-link section for the actual deep link) —
+  // routing here to Regulatory, the closest in-workflow section, rather
+  // than inventing a second navigation mechanism just for this blocker source.
+  dossier: "regulatory",
 };
 
 const CODE_NAV_OVERRIDE: Record<string, NavTarget> = {
@@ -197,9 +221,21 @@ export function ApprovalPanel({
   const [regulatoryReviewEquivalences, setRegulatoryReviewEquivalences] = useState<RegulatoryReviewEquivalence[]>([]);
   const [regulatoryConfirmations, setRegulatoryConfirmations] = useState<RegulatoryEvidenceConfirmation[]>([]);
   const [regulatoryConfirmationRevocations, setRegulatoryConfirmationRevocations] = useState<RegulatoryEvidenceConfirmationRevocation[]>([]);
+  // Phase 3 §10 — dossier readiness gates. Off by default (see
+  // DISABLED_EXAMPLE_POLICY / regulatoryDossierApproval.ts): loading these
+  // collections costs nothing when a policy never opts in, since
+  // deriveDossierApprovalReadiness short-circuits to { ready: true } before
+  // touching any of them.
+  const [dossiers, setDossiers] = useState<RegulatoryDossier[]>([]);
+  const [dossierRequirements, setDossierRequirements] = useState<RegulatoryDossierRequirement[]>([]);
+  const [dossierLinks, setDossierLinks] = useState<RegulatoryRequirementEvidenceLink[]>([]);
+  const [dossierEvidence, setDossierEvidence] = useState<RegulatoryDossierEvidenceItem[]>([]);
+  const [dossierReviews, setDossierReviews] = useState<RegulatoryDossierReview[]>([]);
+  const [dossierReviewRevocations, setDossierReviewRevocations] = useState<RegulatoryDossierReviewRevocation[]>([]);
+  const [dossierSubmissions, setDossierSubmissions] = useState<RegulatoryDossierSubmission[]>([]);
 
   const load = useCallback(async () => {
-    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec, regr, regrev, regrevrev, regequiv, regconf, regconfrev] = await Promise.all([
+    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec, regr, regrev, regrevrev, regequiv, regconf, regconfrev, doss, dreq, dlink, dev2, drev, drevrev, dsub] = await Promise.all([
       listRecords("materials"),
       listRecordsSeeded("compatibility_rules", SEED_COMPATIBILITY_RULES),
       listRecordsSeeded("safety_rules", SEED_SAFETY_RULES),
@@ -226,6 +262,13 @@ export function ApprovalPanel({
       listRecords("regulatory_review_equivalences"),
       listRecords("regulatory_evidence_confirmations"),
       listRecords("regulatory_evidence_confirmation_revocations"),
+      listRecords("regulatory_dossiers"),
+      listRecords("regulatory_dossier_requirements"),
+      listRecords("regulatory_requirement_evidence_links"),
+      listRecords("regulatory_evidence_items"),
+      listRecords("regulatory_dossier_reviews"),
+      listRecords("regulatory_dossier_review_revocations"),
+      listRecords("regulatory_dossier_submissions"),
     ]);
     setMaterials(m);
     setCompatibilityRules(cr);
@@ -253,6 +296,15 @@ export function ApprovalPanel({
     setRegulatoryReviewEquivalences(regequiv.filter((e) => e.formulationId === formulation.id));
     setRegulatoryConfirmations(regconf.filter((c) => c.formulationId === formulation.id));
     setRegulatoryConfirmationRevocations(regconfrev);
+    const ownDossiers = doss.filter((d) => d.formulationId === formulation.id);
+    setDossiers(ownDossiers);
+    const ownDossierIds = new Set(ownDossiers.map((d) => d.id));
+    setDossierRequirements(dreq.filter((r) => ownDossierIds.has(r.dossierId)));
+    setDossierLinks(dlink.filter((l) => ownDossierIds.has(l.dossierId)));
+    setDossierEvidence(dev2.filter((e) => e.formulationId === formulation.id));
+    setDossierReviews(drev.filter((r) => ownDossierIds.has(r.dossierId)));
+    setDossierReviewRevocations(drevrev);
+    setDossierSubmissions(dsub.filter((s) => ownDossierIds.has(s.dossierId)));
   }, [formulation.id]);
 
   useEffect(() => {
@@ -478,6 +530,33 @@ export function ApprovalPanel({
   const regulatoryAssessment = assessMultiJurisdictionRegulatoryReadiness(regulatoryReadinessPerJurisdiction);
   const regulatoryBlockers: DisplayFinding[] = regulatoryAssessment.blockers.map((b) => ({ id: b.id, source: "regulatory", code: b.code, message: b.message }));
 
+  // Phase 3 §10 — dossier readiness, one more layer-up blocker source,
+  // exactly the cost/regulatory pattern above. `deriveDossierApprovalReadiness`
+  // itself short-circuits to `{ ready: true, blockers: [] }` whenever the
+  // policy never sets `requireRegulatoryDossier` — installing Phase 3 never
+  // blocks an existing project that has not opted in.
+  const dossierPolicy = activePolicy ? toDossierApprovalPolicy(activePolicy) : {};
+  const dossierTargetMarkets = formulation.targetMarkets.filter((m): m is RegulatoryJurisdiction =>
+    (REGULATORY_JURISDICTIONS as readonly string[]).includes(m),
+  );
+  const dossierJurisdictions = resolveDossierJurisdictions(dossierPolicy, dossierTargetMarkets);
+  const dossierReadinessResult = selectedVersion
+    ? deriveDossierApprovalReadiness({
+        policy: dossierPolicy,
+        formulaVersionId: selectedVersion.id,
+        packagingSkuCode,
+        jurisdictions: dossierJurisdictions,
+        dossiers,
+        requirements: dossierRequirements,
+        links: dossierLinks,
+        evidenceItems: dossierEvidence,
+        reviews: dossierReviews,
+        reviewRevocations: dossierReviewRevocations,
+        currentRules: regulatoryRules,
+      })
+    : { ready: true, blockers: [] };
+  const dossierBlockers: DisplayFinding[] = dossierReadinessResult.blockers.map((b) => ({ id: b.id, source: "dossier", code: b.code, message: b.message }));
+
   // Frozen at the moment of decision (spec §3.9): later rule edits, later
   // reviews, or later confirmation revocations must not retroactively
   // rewrite what this historical approval record says was true. Recomputes
@@ -516,9 +595,76 @@ export function ApprovalPanel({
     };
   };
 
-  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : []), ...regulatoryBlockers];
+  // Phase 3 §10 — frozen at the moment of decision, same reasoning as
+  // buildRegulatorySnapshot above: a later dossier edit, evidence change or
+  // review must never rewrite what a past ApprovalRecord's dossierSnapshot
+  // says was true at approval time.
+  const buildDossierSnapshot = (): DossierApprovalSnapshot | undefined => {
+    if (!selectedVersion || dossierJurisdictions.length === 0) return undefined;
+    const matchedDossiers = dossierJurisdictions
+      .map((jurisdiction) => findDossierForScope(dossiers, { formulaVersionId: selectedVersion.id, packagingSkuCode, jurisdiction }).dossier)
+      .filter((d): d is RegulatoryDossier => !!d);
+    const uniqueDossiers = Array.from(new Map(matchedDossiers.map((d) => [d.id, d])).values());
+    if (uniqueDossiers.length === 0) {
+      return {
+        dossierIds: [],
+        dossierRevisionIds: [],
+        jurisdictions: dossierJurisdictions,
+        requirementCounts: {},
+        missingEvidenceCount: 0,
+        expiredEvidenceCount: 0,
+        reviewIds: [],
+        submissionIds: [],
+        blockers: dossierReadinessResult.blockers.map((b) => b.message),
+        warnings: [],
+        readinessState: "unknown",
+      };
+    }
+    const requirementCounts: Record<string, number> = {};
+    let missingEvidenceCount = 0;
+    let expiredEvidenceCount = 0;
+    const reviewIds: string[] = [];
+    const submissionIds: string[] = [];
+    const readinessStates: string[] = [];
+    for (const dossier of uniqueDossiers) {
+      const reqs = currentRequirementsForRevision(dossierRequirements, dossier.id, dossier.revision);
+      const links = activeLinksForDossier(dossierLinks, dossier.id);
+      const evidence = dossierEvidence.filter((e) => e.dossierId === dossier.id);
+      const matrix = buildEvidenceMatrix(reqs, links, evidence, dossier.formulaVersionId, dossier.packagingSkuCode);
+      const dossierReadiness = calculateDossierReadiness(dossier, matrix);
+      requirementCounts[dossier.dossierCode] = reqs.length;
+      missingEvidenceCount += dossierReadiness.missingMandatoryRequirements;
+      expiredEvidenceCount += dossierReadiness.expiredEvidenceCount;
+      readinessStates.push(dossierReadiness.overallReadiness);
+      for (const review of dossierReviews.filter((r) => r.dossierId === dossier.id)) {
+        if (isDossierReviewActive(review, dossierReviewRevocations, dossier.revision)) reviewIds.push(review.id);
+      }
+      for (const submission of dossierSubmissions.filter((s) => s.dossierId === dossier.id)) submissionIds.push(submission.id);
+    }
+    // "unknown" and "blocked" outrank a per-dossier "ready" when several
+    // jurisdictions' dossiers are folded into one snapshot — the same
+    // never-silently-hide-the-worse-answer principle calculateDossierReadiness
+    // itself uses for "unknown must never become ready".
+    const priority = ["unknown", "blocked", "not_ready", "partially_ready", "under_review", "review_complete", "ready_for_review"];
+    const worst = readinessStates.reduce((acc, s) => (priority.indexOf(s) < priority.indexOf(acc) ? s : acc), readinessStates[0] ?? "unknown");
+    return {
+      dossierIds: uniqueDossiers.map((d) => d.id),
+      dossierRevisionIds: uniqueDossiers.map((d) => `${d.id}:${d.revision}`),
+      jurisdictions: dossierJurisdictions,
+      requirementCounts,
+      missingEvidenceCount,
+      expiredEvidenceCount,
+      reviewIds,
+      submissionIds,
+      blockers: dossierReadinessResult.blockers.map((b) => b.message),
+      warnings: [],
+      readinessState: worst as DossierApprovalSnapshot["readinessState"],
+    };
+  };
+
+  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : []), ...regulatoryBlockers, ...dossierBlockers];
   const allWarnings: (ApprovalWarning | DisplayFinding)[] = readiness.warnings;
-  const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker && regulatoryAssessment.ready;
+  const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker && regulatoryAssessment.ready && dossierReadinessResult.ready;
 
   const canApprove = !!selectedVersion && targetOptions.includes(targetStatus) && APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole);
 
@@ -597,6 +743,7 @@ export function ApprovalPanel({
       const actor: Actor = { kind: "human", role: reviewerRole, userId: reviewerUserId.trim() || "local" };
       const snapshot = buildReadinessSnapshot();
       const regulatorySnapshot = buildRegulatorySnapshot();
+      const dossierSnapshot = buildDossierSnapshot();
       const approvalId = newId("approval");
       const now = new Date().toISOString();
 
@@ -610,20 +757,20 @@ export function ApprovalPanel({
         );
         if (!result.allowed || !result.action) {
           await saveApprovalRecord(
-            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason || result.message || "blocked", snapshot, now, regulatorySnapshot),
+            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason || result.message || "blocked", snapshot, now, regulatorySnapshot, dossierSnapshot),
           );
           await appendAudit(auditEvent(formulation.id, "approval.blocked", { versionId: selectedVersion.id, detail: result.message }));
           setError(result.message ?? t("approval.blockedGeneric"));
           return;
         }
         await saveApprovalRecord(
-          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot),
+          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot),
         );
         await appendAudit(auditEvent(formulation.id, result.action, { versionId: selectedVersion.id, detail: reason }));
         await appendAudit(auditEvent(formulation.id, "approval.granted", { versionId: selectedVersion.id, detail: approvalId }));
       } else {
         await saveApprovalRecord(
-          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot),
+          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot),
         );
         await appendAudit(auditEvent(formulation.id, `approval.${decision}`, { versionId: selectedVersion.id, detail: reason }));
       }
@@ -997,6 +1144,7 @@ function buildApprovalRecord(
   snapshot: { ready: boolean; blockers: DisplayFinding[]; warnings: ApprovalWarning[] },
   now: string,
   regulatorySnapshot?: RegulatoryApprovalSnapshot,
+  dossierSnapshot?: DossierApprovalSnapshot,
 ): ApprovalRecord {
   return {
     schemaVersion: "1.0",
@@ -1015,6 +1163,7 @@ function buildApprovalRecord(
     justification: justification.trim() || `${decision} without a stated reason`,
     readinessSnapshot: snapshot,
     regulatorySnapshot,
+    dossierSnapshot,
     createdAt: now,
   };
 }

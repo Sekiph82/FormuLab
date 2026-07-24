@@ -405,3 +405,61 @@ describe("ApprovalPanel — regulatory readiness integration", () => {
     expect(screen.queryByText(/no human regulatory review has been recorded/i)).not.toBeInTheDocument();
   });
 });
+
+describe("ApprovalPanel — Phase 3 dossier readiness integration", () => {
+  it("is off by default — no existing project becomes blocked merely because Phase 3 was installed", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies" ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireRegulatoryDossier: false }]) : Promise.resolve(seed),
+    );
+    const v = version();
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(screen.queryByText(/No regulatory dossier covers/i)).not.toBeInTheDocument();
+  });
+
+  it("blocks approval when requireRegulatoryDossier is on and no dossier matches this exact version/jurisdiction", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies" ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireRegulatoryDossier: true }]) : Promise.resolve(seed),
+    );
+    const v = version();
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(await screen.findByText(/No regulatory dossier covers/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
+  });
+
+  it("clears the dossier blocker once a matching dossier exists with no mandatory requirements", async () => {
+    masterdataBridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) =>
+      collection === "approval_policies" ? Promise.resolve([{ ...REGULATORY_POLICY_BASE, requireRegulatoryDossier: true }]) : Promise.resolve(seed),
+    );
+    const v = version();
+    masterdataBridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "regulatory_dossiers") {
+        return Promise.resolve([
+          {
+            schemaVersion: "1.0",
+            id: "dossier-1",
+            dossierCode: "DOS-1",
+            title: "Test dossier",
+            formulationId: "proj-1",
+            formulaVersionId: v.id,
+            jurisdictions: ["KE"],
+            productFamilyCode: "unmatched-family",
+            targetMarkets: ["KE"],
+            status: "draft",
+            revision: 1,
+            createdBy: "local",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]);
+      }
+      if (collection === "safety_resolutions") {
+        return Promise.resolve([{ formulationId: "proj-1", findingId: "classification:human_review_required" }]);
+      }
+      return Promise.resolve([]);
+    });
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    expect(screen.queryByText(/No regulatory dossier covers/i)).not.toBeInTheDocument();
+  });
+});

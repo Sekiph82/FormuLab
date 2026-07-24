@@ -27,6 +27,13 @@ const POLICY_TOGGLES: { key: keyof ApprovalPolicy; labelKey: string }[] = [
   { key: "requireNoUnresolvedCriticalFailure", labelKey: "approval.noOpenCriticalStabilityFailure" },
   { key: "requirePackagingCompatibilityPassed", labelKey: "approval.packagingCompatibility" },
   { key: "requireCostSnapshot", labelKey: "approval.costSnapshotPresent" },
+  // Phase 3 §10 dossier gates — all default false, see REGULATORY_DOSSIERS.md.
+  { key: "requireRegulatoryDossier", labelKey: "approval.requireRegulatoryDossier" },
+  { key: "requireDossierReadyForReview", labelKey: "approval.requireDossierReadyForReview" },
+  { key: "requireDossierReviewComplete", labelKey: "approval.requireDossierReviewComplete" },
+  { key: "requireNoMissingMandatoryDossierEvidence", labelKey: "approval.requireNoMissingMandatoryDossierEvidence" },
+  { key: "requireNoExpiredMandatoryDossierEvidence", labelKey: "approval.requireNoExpiredMandatoryDossierEvidence" },
+  { key: "requireAllRequiredJurisdictionDossiers", labelKey: "approval.requireAllRequiredJurisdictionDossiers" },
 ];
 
 interface DraftFields {
