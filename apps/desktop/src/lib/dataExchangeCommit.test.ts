@@ -1,0 +1,308 @@
+/**
+ * Behavior coverage for the Data Exchange commit layer, focused on the
+ * "critical deep coverage" templates named in the Phase 6 spec: raw
+ * materials, suppliers, material-supplier prices, formula/BOM, lab results,
+ * regulatory rules, dossier evidence, product claims, label content, DOE
+ * factors/responses and DOE observations — plus stability results, which is
+ * deliberately unwired (no commit handler), asserting that stays honest
+ * rather than silently accepting rows.
+ *
+ * `dataExchangeCommitShapes.test.ts` already verifies each handler's output
+ * record shape against the real Zod schemas; this file verifies the
+ * *behavior* around it — reference resolution failures, grouped-row
+ * commits, immutability refusals and enum validation — using the same
+ * `@/lib/masterdata` / `@/lib/formulations` mocking discipline as
+ * `DataExchangePage.test.tsx`.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getDataExchangeTemplate, type DataExchangeRowResult } from "@ai4s/shared";
+import { commitDataExchangeRows } from "./dataExchangeCommit";
+
+const bridge = {
+  listRecords: vi.fn(),
+  upsertRecords: vi.fn(),
+};
+vi.mock("@/lib/masterdata", () => ({
+  listRecords: (...a: [string]) => bridge.listRecords(...a),
+  upsertRecords: (...a: [string, unknown[]]) => bridge.upsertRecords(...a),
+  nowIso: () => "2026-01-01T00:00:00.000Z",
+}));
+
+const formulationsBridge = {
+  listFormulations: vi.fn(),
+  readFormulation: vi.fn(),
+  saveFormulation: vi.fn(),
+  saveFormulationVersion: vi.fn(),
+};
+vi.mock("@/lib/formulations", () => ({
+  listFormulations: (...a: []) => formulationsBridge.listFormulations(...a),
+  readFormulation: (...a: [string]) => formulationsBridge.readFormulation(...a),
+  saveFormulation: (...a: [unknown]) => formulationsBridge.saveFormulation(...a),
+  saveFormulationVersion: (...a: [unknown]) => formulationsBridge.saveFormulationVersion(...a),
+  newFormulation: (name: string, family: string, opts: { code?: string }) => ({
+    schemaVersion: "1.0",
+    id: "formulation-1",
+    code: opts.code ?? "GEN-1",
+    name,
+    productFamilyCode: family,
+    targetSkuCodes: [],
+    targetMarkets: ["KE"],
+    targetClaims: [],
+    targetBatchKg: "100",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    archived: false,
+  }),
+  newVersion: (formulationId: string, lines: unknown[], opts: { versionNumber: number }) => ({
+    schemaVersion: "1.0",
+    id: "version-1",
+    formulationId,
+    versionNumber: opts.versionNumber,
+    status: "concept",
+    author: "local",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lines,
+    basisBatchKg: "100",
+    sourceRunIds: [],
+    regulatoryFindingIds: [],
+    compatibilityFindingIds: [],
+    safetyFindingIds: [],
+    approvalRecordIds: [],
+  }),
+}));
+
+const ctx = { actorUserId: "local", actorRole: "administrator" as const };
+
+function row(record: Record<string, string>, overrides: Partial<DataExchangeRowResult> = {}): DataExchangeRowResult {
+  return { rowNumber: 2, naturalKey: "TEST-KEY", state: "valid_create", messages: [], record, ...overrides };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  bridge.listRecords.mockResolvedValue([]);
+  bridge.upsertRecords.mockResolvedValue({ inserted: 1, updated: 0, total: 1 });
+  formulationsBridge.listFormulations.mockResolvedValue([]);
+  formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [] });
+  formulationsBridge.saveFormulation.mockImplementation((f: unknown) => Promise.resolve(f));
+  formulationsBridge.saveFormulationVersion.mockImplementation((v: unknown) => Promise.resolve(v));
+});
+
+describe("commitDataExchangeRows — raw materials / suppliers / material prices", () => {
+  it("creates a raw material", async () => {
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("raw_materials")!, [row({ material_code: "TEST-MAT-001", material_name: "TEST Water" })], ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("materials", expect.arrayContaining([expect.objectContaining({ code: "TEST-MAT-001" })]));
+  });
+
+  it("creates a supplier", async () => {
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("suppliers")!, [row({ supplier_code: "TEST-SUP-001", supplier_name: "TEST Supplier" })], ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("suppliers", expect.arrayContaining([expect.objectContaining({ code: "TEST-SUP-001" })]));
+  });
+
+  it("creates a material-supplier price record", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("material_prices")!,
+      [row({ material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", unit_price: "10", currency: "KES", valid_from: "2026-01-01" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("material_prices", expect.arrayContaining([expect.objectContaining({ materialCode: "TEST-MAT-001" })]));
+  });
+});
+
+describe("commitDataExchangeRows — formula/BOM (grouped)", () => {
+  it("groups multiple lines into one saved version", async () => {
+    const rows = [
+      row({ formula_code: "TEST-FORM-001", formula_name: "TEST Formula", material_code: "TEST-MAT-001", percentage: "60", phase: "A", line_number: "1" }, { rowNumber: 2, naturalKey: "TEST-FORM-001::1" }),
+      row({ formula_code: "TEST-FORM-001", formula_name: "TEST Formula", material_code: "TEST-MAT-002", percentage: "40", phase: "A", line_number: "2" }, { rowNumber: 3, naturalKey: "TEST-FORM-001::2" }),
+    ];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, rows, ctx);
+    expect(outcomes).toHaveLength(2);
+    expect(outcomes.every((o) => o.outcome === "created")).toBe(true);
+    expect(formulationsBridge.saveFormulationVersion).toHaveBeenCalledTimes(1);
+    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: unknown[] };
+    expect(saved.lines).toHaveLength(2);
+  });
+
+  it("refuses to overwrite an existing, immutable formula version", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-001" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }] });
+    const rows = [row({ formula_code: "TEST-FORM-001", material_code: "TEST-MAT-001", percentage: "100", phase: "A", line_number: "1", formula_version: "1" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/already exists and is immutable/);
+    expect(formulationsBridge.saveFormulationVersion).not.toHaveBeenCalled();
+  });
+});
+
+describe("commitDataExchangeRows — lab results (grouped, reference resolution)", () => {
+  it("fails honestly when the referenced trial does not exist", async () => {
+    const rows = [row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No laboratory trial/);
+  });
+
+  it("fails honestly when the referenced test definition does not exist", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "laboratory_trials" ? [{ id: "trial-1", code: "TEST-TRIAL-001" }] : []));
+    const rows = [row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No test definition/);
+  });
+
+  it("groups replicate rows into one saved result once trial and test definition resolve", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-001" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ id: "testdef-1", code: "TEST-T-001", resultType: "numeric" }]);
+      return Promise.resolve([]);
+    });
+    const rows = [
+      row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0" }, { rowNumber: 2, naturalKey: "TEST-TRIAL-001::S1::TEST-T-001" }),
+      row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "2", numeric_value: "5.2" }, { rowNumber: 3, naturalKey: "TEST-TRIAL-001::S1::TEST-T-001" }),
+    ];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes.every((o) => o.outcome === "created")).toBe(true);
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "test_results",
+      expect.arrayContaining([expect.objectContaining({ trialId: "trial-1", testDefinitionId: "testdef-1", replicates: expect.arrayContaining([expect.objectContaining({ replicateNumber: 1 }), expect.objectContaining({ replicateNumber: 2 })]) })]),
+    );
+  });
+});
+
+describe("commitDataExchangeRows — regulatory rules", () => {
+  it("rejects an unrecognized rule_type rather than silently mis-filing it", async () => {
+    const rows = [row({ rule_code: "TEST-RULE-001", jurisdiction: "KE", requirement: "Must state X.", rule_type: "not_a_real_type" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("regulatory_rules")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/not a recognized rule_type/);
+  });
+
+  it("creates a rule with a valid rule_type, always unverified", async () => {
+    const rows = [row({ rule_code: "TEST-RULE-001", jurisdiction: "KE", requirement: "Must state X.", rule_type: "label_requirement" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("regulatory_rules")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("regulatory_rules", expect.arrayContaining([expect.objectContaining({ verificationStatus: "not_verified" })]));
+  });
+});
+
+describe("commitDataExchangeRows — dossier evidence", () => {
+  it("fails honestly when the referenced dossier does not exist", async () => {
+    const rows = [row({ dossier_code: "TEST-DOS-001", title: "TEST Evidence" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No dossier/);
+  });
+
+  it("inherits formulationId/formulaVersionId from the resolved dossier, never draft-approved", async () => {
+    bridge.listRecords.mockImplementation((collection: string) =>
+      Promise.resolve(collection === "regulatory_dossiers" ? [{ id: "dossier-1", dossierCode: "TEST-DOS-001", formulationId: "formulation-1", formulaVersionId: "version-1" }] : []),
+    );
+    const rows = [row({ dossier_code: "TEST-DOS-001", title: "TEST Evidence" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "regulatory_evidence_items",
+      expect.arrayContaining([expect.objectContaining({ formulationId: "formulation-1", formulaVersionId: "version-1", status: "draft" })]),
+    );
+  });
+});
+
+describe("commitDataExchangeRows — product claims", () => {
+  it("fails honestly when the referenced project does not exist", async () => {
+    const rows = [row({ project_code: "TEST-FORM-001", claim_code: "TEST-CLM-001", claim_text: "Softens skin." })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("product_claims")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No project\/formulation/);
+  });
+
+  it("falls back claim_category to \"other\" instead of throwing on an invalid category, and always starts as draft", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-001" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }] });
+    const rows = [row({ project_code: "TEST-FORM-001", claim_code: "TEST-CLM-001", claim_text: "Softens skin.", claim_category: "not_a_real_category" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("product_claims")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("product_claims", expect.arrayContaining([expect.objectContaining({ claimCategory: "other", status: "draft" })]));
+  });
+});
+
+describe("commitDataExchangeRows — label content", () => {
+  it("fails honestly when the referenced label does not exist", async () => {
+    const rows = [row({ label_code: "TEST-LBL-001", label_revision: "1", content_text: "Net 100 mL", language: "en" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("label_content")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No label/);
+  });
+
+  it("creates a draft content block once the label resolves", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "product_labels" ? [{ id: "label-1", labelCode: "TEST-LBL-001" }] : []));
+    const rows = [row({ label_code: "TEST-LBL-001", label_revision: "1", content_text: "Net 100 mL", language: "en" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("label_content")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("label_content_blocks", expect.arrayContaining([expect.objectContaining({ labelId: "label-1", status: "draft", source: "imported" })]));
+  });
+});
+
+describe("commitDataExchangeRows — DOE factors/responses and observations", () => {
+  it("fails honestly when the referenced study does not exist (factors/responses)", async () => {
+    const rows = [row({ study_code: "TEST-STUDY-001", record_type: "factor", factor_or_response_code: "TEST-F-001", name: "Temperature", factor_type: "continuous" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("doe_factors_responses")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No DOE study/);
+  });
+
+  it("dispatches record_type=factor and record_type=response to distinct collections", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "doe_studies" ? [{ id: "study-1", studyCode: "TEST-STUDY-001", revision: 1 }] : []));
+    const factorOutcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("doe_factors_responses")!,
+      [row({ study_code: "TEST-STUDY-001", record_type: "factor", factor_or_response_code: "TEST-F-001", name: "Temperature", factor_type: "continuous" })],
+      ctx,
+    );
+    expect(factorOutcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("doe_factors", expect.arrayContaining([expect.objectContaining({ factorCode: "TEST-F-001", studyRevision: 1 })]));
+
+    const responseOutcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("doe_factors_responses")!,
+      [row({ study_code: "TEST-STUDY-001", record_type: "response", factor_or_response_code: "TEST-R-001", name: "Viscosity", objective: "maximize" })],
+      ctx,
+    );
+    expect(responseOutcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("doe_responses", expect.arrayContaining([expect.objectContaining({ responseCode: "TEST-R-001" })]));
+  });
+
+  it("resolves study/run/response for an observation and stamps studyRevision", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "doe_studies") return Promise.resolve([{ id: "study-1", studyCode: "TEST-STUDY-001", revision: 2 }]);
+      if (collection === "doe_runs") return Promise.resolve([{ id: "run-1", studyId: "study-1", runNumber: 1 }]);
+      if (collection === "doe_responses") return Promise.resolve([{ id: "response-1", studyId: "study-1", responseCode: "TEST-R-001" }]);
+      return Promise.resolve([]);
+    });
+    const rows = [row({ study_code: "TEST-STUDY-001", run_number: "1", response_code: "TEST-R-001", numeric_value: "42" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("doe_observations")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "doe_observations",
+      expect.arrayContaining([expect.objectContaining({ runId: "run-1", responseId: "response-1", studyRevision: 2, status: "recorded" })]),
+    );
+  });
+
+  it("fails honestly when the run does not exist for an observation", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "doe_studies" ? [{ id: "study-1", studyCode: "TEST-STUDY-001", revision: 1 }] : []));
+    const rows = [row({ study_code: "TEST-STUDY-001", run_number: "1", response_code: "TEST-R-001", numeric_value: "42" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("doe_observations")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/does not exist for study/);
+  });
+});
+
+describe("commitDataExchangeRows — unwired templates stay honest", () => {
+  it("reports every row as skipped for stability_results, never silently accepting it", async () => {
+    const rows = [row({ study_code: "TEST-STUDY-001" }), row({ study_code: "TEST-STUDY-002" }, { rowNumber: 3 })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("stability_results")!, rows, ctx);
+    expect(outcomes).toHaveLength(2);
+    expect(outcomes.every((o) => o.outcome === "skipped")).toBe(true);
+    expect(outcomes[0].message).toMatch(/No commit handler is wired/);
+    expect(bridge.upsertRecords).not.toHaveBeenCalled();
+  });
+});

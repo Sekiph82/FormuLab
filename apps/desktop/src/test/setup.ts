@@ -14,6 +14,31 @@ if (typeof window !== "undefined") {
   if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = () => {};
   }
+
+  // jsdom's File/Blob lack `arrayBuffer()`/`text()` (standard Web APIs every
+  // real target — Chromium/WebView2, browsers — implements). Polyfilled via
+  // FileReader so upload-driven tests (Data Exchange import, etc.) work the
+  // same way the real app does.
+  if (typeof Blob !== "undefined" && !Blob.prototype.arrayBuffer) {
+    Blob.prototype.arrayBuffer = function arrayBuffer(this: Blob): Promise<ArrayBuffer> {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(this);
+      });
+    };
+  }
+  if (typeof Blob !== "undefined" && !Blob.prototype.text) {
+    Blob.prototype.text = function text(this: Blob): Promise<string> {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(this);
+      });
+    };
+  }
   if (!window.matchMedia) {
     window.matchMedia = ((query: string) => ({
       matches: false,
