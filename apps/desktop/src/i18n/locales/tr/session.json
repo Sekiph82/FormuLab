@@ -518,7 +518,8 @@
     "tabCorrectiveActions": "Düzeltici faaliyetler",
     "tabApproval": "Onay",
     "projectDoeStudies": "Bu projenin DOE çalışmalarını aç",
-    "projectDoeStudyCount": "{{n}} çalışma"
+    "projectDoeStudyCount": "{{n}} çalışma",
+    "projectDataExchange": "Bu projenin verilerini (Reçete/BOM, Laboratuvar Sonuçları, Stabilite Sonuçları, Dosya Kanıtı, İddialar, Etiket İçeriği, DOE) Veri Alışverişi Merkezi'nde içe/dışa aktar"
   },
   "compare": {
     "needTwo": "Karşılaştırmak için en az iki sürüm kaydedin.",
@@ -1993,7 +1994,13 @@
     "doeRunsAwaitingLabWork": "{{n}} deneme laboratuvar işini bekliyor",
     "doeStudiesReadyForAnalysis": "{{n}} analiz için hazır",
     "doeCandidatesAwaitingSelection": "{{n}} aday seçim bekliyor",
-    "doeCandidateRank": "aday #{{rank}}"
+    "doeCandidateRank": "aday #{{rank}}",
+    "dataExchangeHeading": "Veri Alışverişi",
+    "noDataExchangeAttention": "Dikkat gerektiren içe aktarma yok ve yakın zamanda dışa aktarma yapılmadı.",
+    "dataExchangeAwaitingConfirmation": "{{n}} onay bekliyor",
+    "dataExchangeFailed": "{{n}} başarısız",
+    "dataExchangeCompletedWithWarnings": "{{n}} uyarıyla tamamlandı",
+    "dataExchangeRecentExports": "{{n}} son dışa aktarma"
   },
   "reports": {
     "heading": "Raporlar",
@@ -2064,6 +2071,14 @@
     "doeCandidateRanking": {
       "title": "DOE aday sıralaması",
       "description": "Arzu edilirliğe göre sıralanmış aday faktör ayarları ve tahmin edilen yanıtlar, Deney Tasarımı çalışma alanının Adaylar bölümünden."
+    },
+    "dataExchangeImportHistory": {
+      "title": "Veri Alışverişi içe aktarma geçmişi",
+      "description": "24 şablonun tamamındaki her içe aktarma işi — durum, satır sayıları, işlemi yapan ve indirilebilir hata raporları, Veri Alışverişi Merkezi'nden."
+    },
+    "dataExchangeSchemaCatalog": {
+      "title": "Veri Alışverişi şablon ve şema kataloğu",
+      "description": "Her Veri Alışverişi şablonu için şema sürümleri, zorunlu sütunlar ve yinelenen/güncelleme politikası."
     }
   },
   "administration": {
@@ -2084,10 +2099,99 @@
         "title": "Onay politikaları",
         "description": "Politika düzenleyici, revizyonlar, çok-yargı alanlı geçitler."
       },
+      "dataExchange": {
+        "title": "Veri Alışverişi Merkezi",
+        "description": "Tüm ana ve yapısal veriler için şablon kütüphanesi, CSV/Excel içe ve dışa aktarım, doğrulama ve içe aktarma geçmişi."
+      },
       "settings": {
         "title": "Uygulama ayarları",
         "description": "Tema, dil, güncellemeler ve diğer uygulama genelindeki tercihler."
       }
+    }
+  },
+  "dataExchange": {
+    "heading": "Veri Alışverişi Merkezi",
+    "actorRole": "Rol",
+    "sections": {
+      "templates": "Şablon Kitaplığı",
+      "exports": "Dışa Aktarımlar",
+      "imports": "İçe Aktarımlar",
+      "validation": "Doğrulama Sonuçları",
+      "history": "İçe Aktarma Geçmişi",
+      "schemas": "Şema Sürümleri",
+      "help": "Yardım"
+    },
+    "card": {
+      "requiredFields": "{{count}} zorunlu alan",
+      "requiredFields_other": "{{count}} zorunlu alan",
+      "blankCsv": "Boş CSV",
+      "blankExcel": "Boş Excel",
+      "exampleCsv": "Örnek CSV",
+      "exampleExcel": "Örnek Excel",
+      "currentCsv": "CSV Dışa Aktar",
+      "currentExcel": "Excel Dışa Aktar",
+      "upload": "Yükle",
+      "fields": "Alanlar",
+      "requiredFieldFlag": "zorunlu"
+    },
+    "import": {
+      "title": "İçe Aktar — {{template}}",
+      "chooseFile": "Bir CSV veya Excel dosyası seçin",
+      "fileUnreadable": "Bu dosya okunamadı. Biçimi kontrol edip tekrar deneyin.",
+      "unmapped": "Tanınmayan sütun(lar), yok sayıldı: {{headers}}",
+      "rowIssues": "{{count}} satır sorunu",
+      "downloadErrorReport": "Hata raporunu indir",
+      "rowLabel": "Satır {{row}}",
+      "previewRows": "{{count}} satır içe aktarılmaya hazır",
+      "columnRow": "Satır",
+      "columnKey": "Anahtar",
+      "columnState": "Durum",
+      "partialImport": "Geçerli {{good}} satırı şimdi içe aktar, sorunlu {{bad}} satırı atla.",
+      "committed": "İçe aktarıldı — {{created}} oluşturuldu, {{updated}} güncellendi ({{status}}).",
+      "importing": "İçe aktarılıyor…",
+      "commit": "İçe aktarmayı onayla"
+    },
+    "preview": {
+      "create": "Oluştur",
+      "update": "Güncelle",
+      "unchanged": "Değişmedi",
+      "duplicate": "Yinelenen",
+      "warning": "Uyarı",
+      "invalid": "Geçersiz",
+      "referenceMissing": "Referans eksik"
+    },
+    "exports": {
+      "empty": "Bu oturumda henüz dışa aktarım yok.",
+      "kind": "Dışa aktarım türü"
+    },
+    "imports": {
+      "description": "Doldurulmuş bir dosya yüklemek için bir şablon seçin. Önizleyip onaylamadan hiçbir şey yazılmaz."
+    },
+    "validation": {
+      "empty": "Bir dosyanın doğrulama sonuçlarını görmek için bir şablonun Yükle iletişim kutusunu açın."
+    },
+    "history": {
+      "empty": "Henüz içe aktarım yok.",
+      "date": "Tarih",
+      "template": "Şablon",
+      "file": "Dosya",
+      "fileType": "Biçim",
+      "status": "Durum",
+      "created": "Oluşturulan",
+      "updated": "Güncellenen",
+      "errors": "Hatalar"
+    },
+    "schemas": {
+      "template": "Şablon",
+      "version": "Şema sürümü",
+      "naturalKey": "Doğal anahtar",
+      "duplicatePolicy": "Yineleme politikası"
+    },
+    "help": {
+      "intro": "Veri Alışverişi Merkezi, boş veya örnekle doldurulmuş şablonları indirmenizi, Excel veya bir e-tablo aracında doldurmanızı ve verileri güvenle FormuLab'a geri getirmenizi sağlar. Dosyayı önizleyip açıkça onaylamadan hiçbir şey yazılmaz.",
+      "rowStates": "Her satır, herhangi bir şey yazılmadan önce sınıflandırılır: yeni bir kayıt, mevcut birinin güncellenmesi, değişmemiş, dosya içinde yinelenen, bir uyarı, geçersiz bir satır veya eksik bir referans. Varsayılan olarak yalnızca geçerli satırlar içe aktarılır — sorunlu satırları içe aktarmak, kısmi içe aktarmayı açıkça seçmeyi gerektirir.",
+      "security": "Her dışa aktarım, Excel'de açıldığında bir dosyanın asla kod çalıştıramaması için e-tablo formüllerini etkisiz hale getirir; her içe aktarım aynı tetikleyicileri geri çıkarır. Dosyalar ayrıştırılmadan önce boyut ve satır sayısı sınırları kontrol edilir.",
+      "authorization": "Her şablon yalnızca belirli rollerden gelen içe aktarımları kabul eder ve bazı alanlar — doğrulama durumu, onaylar, incelemeci imzası — dosya nasıl doldurulursa doldurulsun bir içe aktarma tarafından asla ayarlanamaz. Bunlar her zaman FormuLab içindeki normal, yetkilendirilmiş iş akışını gerektirir."
     }
   }
 }

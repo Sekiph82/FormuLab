@@ -518,7 +518,8 @@
     "standaloneOptimizerLink": "Open the standalone optimizer",
     "loadingProject": "Loading project…",
     "projectDoeStudies": "Open this project's DOE studies",
-    "projectDoeStudyCount": "{{n}} study(ies)"
+    "projectDoeStudyCount": "{{n}} study(ies)",
+    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",
@@ -1993,7 +1994,13 @@
     "doeRunsAwaitingLabWork": "{{n}} runs awaiting lab work",
     "doeStudiesReadyForAnalysis": "{{n}} ready for analysis",
     "doeCandidatesAwaitingSelection": "{{n}} candidates awaiting selection",
-    "doeCandidateRank": "candidate #{{rank}}"
+    "doeCandidateRank": "candidate #{{rank}}",
+    "dataExchangeHeading": "Data Exchange",
+    "noDataExchangeAttention": "No imports need attention and no recent exports.",
+    "dataExchangeAwaitingConfirmation": "{{n}} awaiting confirmation",
+    "dataExchangeFailed": "{{n}} failed",
+    "dataExchangeCompletedWithWarnings": "{{n}} completed with warnings",
+    "dataExchangeRecentExports": "{{n}} recent exports"
   },
   "reports": {
     "heading": "Reports",
@@ -2064,6 +2071,14 @@
     "doeCandidateRanking": {
       "title": "DOE candidate ranking",
       "description": "Desirability-ranked candidate factor settings and predicted responses, from the Design of Experiments workspace's Candidates section."
+    },
+    "dataExchangeImportHistory": {
+      "title": "Data Exchange import history",
+      "description": "Every import job across all 24 templates — status, row counts, actor and downloadable error reports, from the Data Exchange Center."
+    },
+    "dataExchangeSchemaCatalog": {
+      "title": "Data Exchange template & schema catalog",
+      "description": "Schema versions, required columns and duplicate/update policy for every Data Exchange template."
     }
   },
   "administration": {
@@ -2084,10 +2099,99 @@
         "title": "Approval policies",
         "description": "Policy editor, revisions, multi-jurisdiction gates."
       },
+      "dataExchange": {
+        "title": "Data Exchange Center",
+        "description": "Template library, CSV/Excel import & export, validation and import history for all master and structural data."
+      },
       "settings": {
         "title": "Application settings",
         "description": "Theme, locale, updates and other app-wide preferences."
       }
+    }
+  },
+  "dataExchange": {
+    "heading": "Data Exchange Center",
+    "actorRole": "Acting as",
+    "sections": {
+      "templates": "Template Library",
+      "exports": "Exports",
+      "imports": "Imports",
+      "validation": "Validation Results",
+      "history": "Import History",
+      "schemas": "Schema Versions",
+      "help": "Help"
+    },
+    "card": {
+      "requiredFields": "{{count}} required field",
+      "requiredFields_other": "{{count}} required fields",
+      "blankCsv": "Blank CSV",
+      "blankExcel": "Blank Excel",
+      "exampleCsv": "Example CSV",
+      "exampleExcel": "Example Excel",
+      "currentCsv": "Export CSV",
+      "currentExcel": "Export Excel",
+      "upload": "Upload",
+      "fields": "Fields",
+      "requiredFieldFlag": "required"
+    },
+    "import": {
+      "title": "Import — {{template}}",
+      "chooseFile": "Choose a CSV or Excel file",
+      "fileUnreadable": "This file could not be read. Check the format and try again.",
+      "unmapped": "Unrecognized column(s), ignored: {{headers}}",
+      "rowIssues": "{{count}} row issue(s)",
+      "downloadErrorReport": "Download error report",
+      "rowLabel": "Row {{row}}",
+      "previewRows": "{{count}} row(s) ready to import",
+      "columnRow": "Row",
+      "columnKey": "Key",
+      "columnState": "State",
+      "partialImport": "Import the {{good}} valid row(s) now and skip the {{bad}} row(s) with issues.",
+      "committed": "Imported — {{created}} created, {{updated}} updated ({{status}}).",
+      "importing": "Importing…",
+      "commit": "Commit import"
+    },
+    "preview": {
+      "create": "Create",
+      "update": "Update",
+      "unchanged": "Unchanged",
+      "duplicate": "Duplicate",
+      "warning": "Warning",
+      "invalid": "Invalid",
+      "referenceMissing": "Reference missing"
+    },
+    "exports": {
+      "empty": "No exports yet this session.",
+      "kind": "Export type"
+    },
+    "imports": {
+      "description": "Choose a template to upload a completed file. Nothing is written until you preview and confirm."
+    },
+    "validation": {
+      "empty": "Open a template's Upload dialog to see validation results for a file."
+    },
+    "history": {
+      "empty": "No imports yet.",
+      "date": "Date",
+      "template": "Template",
+      "file": "File",
+      "fileType": "Format",
+      "status": "Status",
+      "created": "Created",
+      "updated": "Updated",
+      "errors": "Errors"
+    },
+    "schemas": {
+      "template": "Template",
+      "version": "Schema version",
+      "naturalKey": "Natural key",
+      "duplicatePolicy": "Duplicate policy"
+    },
+    "help": {
+      "intro": "The Data Exchange Center lets you download blank or example-filled templates, fill them in Excel or a spreadsheet tool, and safely bring the data back into FormuLab. Nothing is written until you have previewed the file and explicitly confirmed the import.",
+      "rowStates": "Each row is classified before anything is written: a new record, an update to an existing one, unchanged, a duplicate within the file, a warning, an invalid row, or a missing reference. Only valid rows are imported by default — importing rows with issues requires explicitly choosing a partial import.",
+      "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
+      "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
     }
   }
 }

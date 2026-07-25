@@ -33,7 +33,8 @@
     "claimsLabels": "Claims & Labels",
     "approval": "Approval",
     "reports": "Reports",
-    "administration": "Administration"
+    "administration": "Administration",
+    "dataExchange": "Data Exchange"
   },
   "workspace": {
     "noProjectsYet": "No projects yet — create one from Projects to get started.",

@@ -33,7 +33,8 @@
     "claimsLabels": "İddialar ve Etiketler",
     "approval": "Onay",
     "reports": "Raporlar",
-    "administration": "Yönetim"
+    "administration": "Yönetim",
+    "dataExchange": "Veri Alışverişi"
   },
   "workspace": {
     "noProjectsYet": "Henüz proje yok — başlamak için Projeler'den bir tane oluşturun.",
