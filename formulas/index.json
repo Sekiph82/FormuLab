@@ -286,5 +286,41 @@
     "session": "2026-07-19-0410-gum-health-protective-toothpaste",
     "ingredients": 9,
     "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-25-0521-a-gentle-sulfate-free-daily-shampoo-for-sensitiv_v1.md",
+    "name": "Colloidal Oat & Glucoside Gentle Cleanser",
+    "target": "a gentle sulfate-free daily shampoo for sensitive scalp",
+    "category": "auto-detect",
+    "market": "any",
+    "version": "v1",
+    "created": "2026-07-25 05:22:57",
+    "session": "2026-07-25-0521-a-gentle-sulfate-free-daily-shampoo-for-sensitiv",
+    "ingredients": 10,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-25-0521-a-gentle-sulfate-free-daily-shampoo-for-sensitiv_v2.md",
+    "name": "Isethionate-Based Mild Cleansing Formula",
+    "target": "a gentle sulfate-free daily shampoo for sensitive scalp",
+    "category": "auto-detect",
+    "market": "any",
+    "version": "v2",
+    "created": "2026-07-25 05:22:57",
+    "session": "2026-07-25-0521-a-gentle-sulfate-free-daily-shampoo-for-sensitiv",
+    "ingredients": 9,
+    "violations": []
+  },
+  {
+    "file": "Formulation_Card_2026-07-25-0521-a-gentle-sulfate-free-daily-shampoo-for-sensitiv_v3.md",
+    "name": "Glucoside-Betaine Minimalist Shampoo",
+    "target": "a gentle sulfate-free daily shampoo for sensitive scalp",
+    "category": "auto-detect",
+    "market": "any",
+    "version": "v3",
+    "created": "2026-07-25 05:22:57",
+    "session": "2026-07-25-0521-a-gentle-sulfate-free-daily-shampoo-for-sensitiv",
+    "ingredients": 9,
+    "violations": []
   }
 ]
