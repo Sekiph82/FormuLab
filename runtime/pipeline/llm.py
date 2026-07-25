@@ -91,10 +91,23 @@ def call(provider: str, model: str, api_key: str, system: str, user: str,
 
 
 def parse_json(text: str) -> dict:
-    """Parse the model's JSON, tolerating markdown code fences."""
+    """Parse the model's JSON, tolerating markdown code fences and stray
+    prose some providers emit around the JSON despite JSON mode being
+    requested (extra commentary before or after the object)."""
     t = text.strip()
     if t.startswith("```"):
         t = t.split("```", 2)[1]
         if t.lstrip().startswith("json"):
             t = t.lstrip()[4:]
-    return json.loads(t.strip())
+    t = t.strip()
+    try:
+        return json.loads(t)
+    except json.JSONDecodeError as e:
+        start = t.find("{")
+        if start == -1:
+            raise
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(t, start)
+        except json.JSONDecodeError:
+            raise e
+        return obj
