@@ -23,6 +23,12 @@ removes `?project=` entirely, returning the workspace to its
 "no project selected" state. `setVersion(id | null)` sets or clears
 `?version=` independently.
 
+Not every workspace participates in this — Administration, Reports and
+(as of Phase 6) the Data Exchange Center are all project-less, like
+Home and Projects; a link into `/data-exchange` never carries `?project=`
+forward, since the Data Exchange Center operates across every module's
+data at once rather than one project's.
+
 Because this lives in the URL, not component state: a browser/app
 refresh keeps the same project and version selected (the page remounts,
 `useFormulationWorkspace` reloads from persisted storage, and the query

@@ -28,7 +28,11 @@ dossiers scoped to the same 5 recent projects: counts of dossiers in
 preparation/ready-for-review/blocked (each `calculateDossierReadiness`,
 never a placeholder), dossier evidence expiring within 30 days, and
 dossiers whose readiness is `ready_for_review` with no active recorded
-review yet.
+review yet. As of Phase 6, a Data Exchange card too — imports awaiting
+confirmation/failed/completed-with-warnings and a count of exports in
+the last 7 days, computed from the real `data_exchange_import_jobs`/
+`data_exchange_export_jobs` collections, deliberately not scoped to the
+5 recent projects since Data Exchange is project-less.
 
 **Does not**: aggregate across an unbounded number of projects — pending
 approvals, recent activity and the dossier signals above are all only
@@ -50,6 +54,9 @@ it's being worked in. Opening a project navigates to
 count badge (non-superseded/archived dossiers for that project) that
 deep-links to `/dossiers?project=<id>` — a count and a link only, never a
 computed readiness state (that lives in the Dossiers workspace itself).
+As of Phase 6, a Data Exchange icon button too, linking to
+`/data-exchange` — Data Exchange is project-less, so this is a plain
+navigation shortcut, not a project-scoped filter.
 
 **Does not**: show anything about a project's laboratory/stability/
 regulatory/approval/dossier-readiness state beyond that count — that's
@@ -256,17 +263,19 @@ snapshot behavior — see [APPROVAL_WORKFLOW.md](APPROVAL_WORKFLOW.md).
 `/reports` — `apps/desktop/src/app/routes/ReportsPage.tsx`. New page; no
 panel to reuse.
 
-A navigation shell: seven rows (Formula, Trial, Stability, Regulatory,
-Dossier, Approval, Audit reports). Six link to the workspace that already
+A navigation shell of rows, each linking to the workspace that already
 provides a real export (formula-version JSON from Formulation's Versions
 tab, trial JSON from Laboratory, study/trend export from Stability, rule
 JSON/CSV/Excel from Regulatory, dossier JSON + evidence-matrix CSV/Excel
-from Dossiers, decision history/snapshots from Approval). The seventh,
-Audit reports, has no dedicated view yet and is labeled "Not yet
-implemented" — same as the Dossier row's own final PDF/DOCX export.
+from Dossiers, claims/label readiness from Claims & Labels, DOE exports
+from the DOE workspace, decision history/snapshots from Approval, and —
+as of Phase 6 — two Data Exchange rows linking to `/data-exchange`'s
+import history and template/schema catalog). Audit reports has no
+dedicated view yet and is labeled "Not yet implemented" — same as the
+Dossier row's own final PDF/DOCX export.
 
 **Does not**: generate PDF or DOCX reports. That is the explicitly
-out-of-scope Phase 7 report engine — this page states that plainly
+out-of-scope Phase 8 report engine — this page states that plainly
 rather than implying it exists.
 
 ## Administration
@@ -276,13 +285,33 @@ Links to the pre-existing `/materials` page (`MaterialsPage.tsx` —
 already self-contained, with its own internal tabs for materials,
 suppliers, packaging components/BOMs, and factory cost profiles),
 `/regulatory` (rule library/verification/import-export),
-`/approval` (policy editor), and `/settings`. Hosts
-`TestDefinitionsPanel.tsx` directly as its own section — the one
-genuinely global, prop-less editor, so it's the only panel actually
-embedded here rather than linked to.
+`/approval` (policy editor), `/data-exchange` (Data Exchange Center, as
+of Phase 6) and `/settings`. Hosts `TestDefinitionsPanel.tsx` directly as
+its own section — the one genuinely global, prop-less editor, so it's
+the only panel actually embedded here rather than linked to.
 
 **Does not**: implement user or role management. This codebase has no
 user-management backend — Administration says so explicitly rather than
 inventing a "Users and roles" section with nothing behind it. Does not
 re-implement the Materials page's editors (materials, suppliers,
 packaging, factory profiles) — those stay exactly where they were.
+
+## Data Exchange Center
+
+`/data-exchange` — `apps/desktop/src/app/routes/DataExchangePage.tsx`.
+New page; no panel to reuse. A standalone, project-less workspace like
+Administration — reached from the sidebar (between Reports and
+Administration), from Administration's own link, from two Reports rows,
+or from a compact per-project link on the Projects list. Seven sections
+(Template Library, Exports, Imports, Validation, History, Schema
+Versions, Help) covering all 24 mandated import/export templates. See
+[DATA_EXCHANGE_CENTER.md](DATA_EXCHANGE_CENTER.md) for the full detail —
+this page is deliberately not summarized further here to avoid the two
+documents drifting out of sync.
+
+**Does not**: verify or approve anything from imported data (see
+[DATA_EXCHANGE_SECURITY.md](DATA_EXCHANGE_SECURITY.md)); commit
+`stability_protocols`/`stability_results` imports (registered, previewed,
+but no commit handler — see
+[DATA_EXCHANGE_TEMPLATE_CATALOG.md](DATA_EXCHANGE_TEMPLATE_CATALOG.md#stability-protocols-and-stability-results-not-wired));
+generate a formatted PDF/DOCX report (Phase 8).

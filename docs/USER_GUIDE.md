@@ -5,7 +5,7 @@ formula, save versions, price it against real materials, and compare. Each
 section links to the document that covers the topic in depth; this page is
 the map, not a replacement for those.
 
-## 0. Navigating FormuLab: ten workspaces
+## 0. Navigating FormuLab: fourteen workspaces
 
 The sidebar's **Workspaces** section is the primary navigation: **Home**
 (a real dashboard — recent projects, activity, open lab work, upcoming
@@ -15,9 +15,10 @@ packaging — sections 2–13 below), **Laboratory** (trials, test
 definitions, corrective actions — sections 16–19), **Stability** (section
 18), **Optimization** (section 14), **Regulatory** (section 20),
 **Approval** (sections 5, 12), **Reports** (a navigation shell over each
-module's existing export), and **Administration** (materials/suppliers/
-packaging/factory profiles, plus links to regulatory rules, approval
-policies and app settings).
+module's existing export), **Data Exchange** (section 23 — bulk CSV/Excel
+import/export across every module), and **Administration** (materials/
+suppliers/packaging/factory profiles, plus links to regulatory rules,
+approval policies, the Data Exchange Center and app settings).
 
 Opening a project from **Projects** or **Home** carries it with you as a
 `?project=` link — Laboratory, Stability, Optimization, Regulatory and
@@ -518,9 +519,54 @@ companion documents (`DOE_STUDIES.md`, `DOE_FACTORS_AND_CONSTRAINTS.md`,
 `DOE_RUNS_AND_LABORATORY.md`, `DOE_STATISTICAL_ANALYSIS.md`,
 `DOE_CANDIDATES.md`, `DOE_OPTIMIZATION_INTEGRATION.md`).
 
+## 23. Data Exchange Center
+
+Open the **Data Exchange Center** (`/data-exchange`, sidebar between
+Reports and Administration) to bulk import or export structured data —
+materials, suppliers, prices, formulas, lab/stability results, regulatory
+rules, dossier evidence, claims, label content, DOE data, and more — as
+CSV or real Excel files, across 24 templates.
+
+For any template's card in the **Template Library**: download a **Blank**
+file (header row only) to fill in from scratch, an **Example** file (a
+few synthetic, clearly-`TEST-`-prefixed rows) to see the expected shape,
+or the **current data** already in that collection to review or hand off.
+Excel downloads include dropdown validation on every enum column and a
+Field Documentation sheet, so you don't need this guide open while
+filling one in.
+
+To import: click **Upload**, choose your CSV or Excel file. The app shows
+a **preview before anything is written** — how many rows are new,
+updates, unchanged, duplicates, warnings or errors, with the exact reason
+for every problem row and a downloadable error report. Fix your file and
+re-upload as many times as you need; nothing is written to FormuLab until
+you click **Commit import**. If some rows are wrong but others are clean,
+you can choose to import just the valid ones and skip the rest.
+
+The **Import History** section shows every attempt — including ones you
+cancelled or that failed validation — with counts, status, and a link
+back to the row-level detail. **Schema Versions** lists every template's
+current column requirements. An import can never mark something
+verified or approved on its own — a regulatory rule, a dossier's
+evidence, a claim, a label, an artwork, a costing override all come in
+as drafts/unverified, exactly as if you'd typed them in by hand; formal
+sign-off still happens through that module's own workspace.
+
+Two templates — Stability Protocols and Stability Results — preview and
+validate normally but cannot yet be committed (a stability study needs a
+frozen formula/packaging snapshot that a spreadsheet row can't safely
+provide); importing one reports every row honestly skipped rather than
+silently doing nothing or faking success.
+
+Full model: [DATA_EXCHANGE_CENTER.md](DATA_EXCHANGE_CENTER.md) and its
+companion documents (`DATA_EXCHANGE_TEMPLATE_REGISTRY.md`,
+`DATA_EXCHANGE_IMPORTS.md`, `DATA_EXCHANGE_EXPORTS.md`,
+`DATA_EXCHANGE_VALIDATION.md`, `DATA_EXCHANGE_SECURITY.md`,
+`DATA_EXCHANGE_HISTORY.md`, `DATA_EXCHANGE_TEMPLATE_CATALOG.md`).
+
 ## Known limitations
 
-For how the ten workspaces are organized and why, see
+For how the fourteen workspaces are organized and why, see
 [INFORMATION_ARCHITECTURE.md](INFORMATION_ARCHITECTURE.md),
 [WORKSPACES.md](WORKSPACES.md) and
 [NAVIGATION_AND_CONTEXT.md](NAVIGATION_AND_CONTEXT.md).

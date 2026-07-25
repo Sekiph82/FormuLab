@@ -3,7 +3,15 @@
 Honest state of the Kenya R&D platform transformation. "Done" here means
 implemented, wired in and covered by a passing test — not scaffolded.
 
-Last updated: end of the Kenya/EAC Regulatory Engine phase (seven
+Last updated: end of the Data Exchange Center phase (Phase 6 — one
+schema-driven template registry driving CSV/Excel/validation/commit for 24
+mandated import/export templates, the `/data-exchange` workspace, and
+Home/Administration/Reports/Projects integration). Before that: the
+information-architecture simplification (ten workspace routes replacing
+the old single-page tab strip) and the migration runner. Before that: the
+Design of Experiments phase (Phase 5). Before that: Phase 4 (claims and
+label review) and Phase 3 (regulatory dossiers/evidence matrix). Before
+that: the Kenya/EAC Regulatory Engine phase (seven
 jurisdictions, deterministic classification, versioned rule model and
 evaluation, human-review workflow, Approval Readiness integration, rule
 import/export, desktop Regulatory workspace). Before that: the
@@ -994,6 +1002,104 @@ See [MIGRATIONS.md](../MIGRATIONS.md).
   future change)
 - 10 tests against a synthetic schema proving chain-walking, duplicate-step
   detection, and non-advancing-migration protection
+
+### Data Exchange Center (Phase 6)
+See [DATA_EXCHANGE_CENTER.md](../DATA_EXCHANGE_CENTER.md),
+[DATA_EXCHANGE_TEMPLATE_REGISTRY.md](../DATA_EXCHANGE_TEMPLATE_REGISTRY.md),
+[DATA_EXCHANGE_IMPORTS.md](../DATA_EXCHANGE_IMPORTS.md),
+[DATA_EXCHANGE_EXPORTS.md](../DATA_EXCHANGE_EXPORTS.md),
+[DATA_EXCHANGE_VALIDATION.md](../DATA_EXCHANGE_VALIDATION.md),
+[DATA_EXCHANGE_SECURITY.md](../DATA_EXCHANGE_SECURITY.md),
+[DATA_EXCHANGE_HISTORY.md](../DATA_EXCHANGE_HISTORY.md),
+[DATA_EXCHANGE_TEMPLATE_CATALOG.md](../DATA_EXCHANGE_TEMPLATE_CATALOG.md).
+
+A first-class, schema-driven Data Exchange Center replaces the old idea of
+"a reports page with a download button": one shared template registry
+(`packages/shared/src/engine/dataExchangeRegistry.ts`) drives CSV and real
+multi-sheet `.xlsx` generation, deterministic validation/preview, and
+per-template commit for all 24 mandated templates, rather than 24
+unrelated importers.
+
+**Implemented, verified by tests and by UI-integration tests**:
+- `DataExchangeTemplateDefinition`/`DataExchangeColumnDefinition` registry
+  (15 column data types, 5 duplicate policies matching each target
+  collection's real Rust `append_only` flag, per-template `authorization`
+  role list) driving all 24 templates from one data structure.
+- Real CSV (UTF-8 BOM, RFC 4180 quoting, formula-injection neutralized)
+  and real multi-sheet `.xlsx` (frozen header, autofilter, required-column
+  highlighting, enum dropdown data-validation, Field Documentation sheet,
+  Schema Metadata sheet) — never a renamed CSV.
+- A deterministic validation/preview engine
+  (`engine/dataExchangeValidation.ts`) — 9-state row classification
+  (`valid_create`/`valid_update`/`unchanged`/`duplicate`/`warning`/
+  `invalid`/`reference_missing`/`authorization_required`/`unsupported`),
+  cross-template reference resolution (a required unresolved reference
+  blocks, an optional one warns), never an LLM as validation authority.
+  Whole-job authorization refusal before a single row is parsed, and
+  strictly **no persistence of any kind** for that case.
+- A desktop-only commit layer (`apps/desktop/src/lib/dataExchangeCommit.ts`)
+  writing 22 of the 24 templates through the real per-domain collections
+  (never a shadow store), with one rule enforced everywhere: a record
+  needing a real parent (a formulation, a DOE study, a dossier, a label)
+  is only ever attached to an **existing** parent resolved by code through
+  a live lookup — never fabricated. Verification/approval fields
+  (`verified`, `approved`, claim/label/artwork/dossier status) are always
+  forced to their unverified/draft value regardless of what the file said.
+  Grouped-row commits (`formula_bom`, `lab_results`) assemble several CSV
+  rows into one saved version/result, since those are written whole or not
+  at all.
+- Import job lifecycle actually persisted, not just committed imports: a
+  draft `DataExchangeImportJob` is written the moment a preview succeeds
+  or fails (`awaiting_confirmation`/`validation_failed`), updated in place
+  to `completed`/`completed_with_warnings`/`failed` on commit or
+  `cancelled` if the dialog is closed first — so Import History reflects
+  every real attempt, not only successful ones. No job record is ever
+  written for an authorization refusal.
+- `/data-exchange` workspace (`DataExchangePage.tsx`): a 24-card Template
+  Library (blank/example/current-data CSV+Excel downloads, upload, field
+  docs) plus Exports/Imports/Validation/History/Schema Versions/Help
+  sections, an actor-role selector, and an upload→preview→confirm dialog
+  (`DataExchangeImportDialog.tsx`) that never writes to a target collection
+  before an explicit "Commit import" click.
+- Sidebar nav entry, Administration link, two Reports rows (import
+  history, template/schema catalog), a real Home summary card (imports
+  awaiting confirmation/failed/completed-with-warnings, recent exports —
+  all computed from persisted `data_exchange_import_jobs`/
+  `data_exchange_export_jobs` rows, never fabricated), and a compact
+  per-project Data Exchange link on the Projects list.
+- 9 new master-data collections on the Rust allow-list (`product_families`,
+  `finished_products`, `material_documents`, `process_parameters`,
+  `formula_cost_overrides`, `data_exchange_import_jobs`,
+  `data_exchange_import_row_results`, `data_exchange_export_jobs`,
+  `data_exchange_schema_versions` — 76 collections total, up from 67).
+- 117 new tests: 61 shared-package (`dataExchangeRegistry.test.ts` 28,
+  `dataExchangeCsv.test.ts` 6, `dataExchangeValidation.test.ts` 27) and 56
+  desktop (`dataExchangeXlsx.test.ts` 12, `dataExchangeCommitShapes.test.ts`
+  13 — Zod `.safeParse()` smoke tests against the real target schemas for
+  every handler using an `as never` cast, which caught 5 real bugs before
+  any live import — `dataExchangeCommit.test.ts` 21 covering the spec's
+  named "critical deep coverage" templates' actual commit behavior
+  (reference-resolution failures, grouped commits, immutability refusal,
+  enum rejection), `DataExchangePage.test.tsx` 10 including an
+  unauthorized-role-refusal-writes-nothing case and a
+  commit-only-after-explicit-confirmation case). 1088 shared, 514 desktop,
+  75 Rust, 71 Python tests total, all green.
+- English and Turkish i18n (real translations); the other six shipped
+  locales carry the established English-placeholder convention.
+
+**Deliberately not wired — disclosed, not hidden**: `stability_protocols`
+and `stability_results` are fully registered (schema, CSV, Excel,
+validation — identical quality to every other template) but have **no
+commit handler**: `stabilityStudySchema` requires a frozen
+`formulaSnapshot`/`packagingSnapshot` that cannot be safely synthesized
+from a spreadsheet row without violating the platform's core "never
+fabricate" rule. Importing either template previews normally and then
+reports every row `skipped` with an honest "no commit handler is wired"
+message — never a silent or fake write. See
+[DATA_EXCHANGE_TEMPLATE_CATALOG.md](../DATA_EXCHANGE_TEMPLATE_CATALOG.md).
+
+**Deferred to Phase 8**: a final formatted PDF/DOCX dossier/report export
+sourced from Data Exchange data; the 24→32-33 template expansion.
 
 ## Not yet started
 

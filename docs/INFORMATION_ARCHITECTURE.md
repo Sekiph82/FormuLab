@@ -1,4 +1,4 @@
-# Information architecture — ten workspaces (now thirteen, Phase 3 + 4 + 5)
+# Information architecture — ten workspaces (now fourteen, Phase 3 + 4 + 5 + 6)
 
 Why the old Formula Builder became overcrowded, the ten-workspace model
 that replaced it, what moved where, what stayed exactly as it was, and
@@ -21,8 +21,15 @@ Design of Experiments (`/doe`), for the same reason again — studies,
 factors/constraints/responses, design generation, runs, statistical
 analysis and candidates together form a real internal structure of their
 own, placed near Laboratory/Stability/Optimization, never a Formula
-Builder tab. Everything below describing the original ten-workspace split
-is otherwise unchanged by Phase 3, 4 or 5.
+Builder tab. Phase 6 adds a fourteenth, the Data Exchange Center
+(`/data-exchange`), for a related but distinct reason: it is not a
+per-project workspace at all (like Home/Projects/Reports/Administration
+before it) but a standalone, schema-driven bulk import/export surface
+spanning every module's data at once — placed between Reports and
+Administration in the sidebar, see
+[DATA_EXCHANGE_CENTER.md](DATA_EXCHANGE_CENTER.md). Everything below
+describing the original ten-workspace split is otherwise unchanged by
+Phase 3, 4, 5 or 6.
 
 ## The problem: one page carrying twelve modules
 
@@ -72,7 +79,8 @@ than duplicating their logic:
 | Claims & Labels | `/claims-labels` | New (Phase 4) — claims, claim evidence, claim reviews, labels, label content, artwork, label reviews, formula-label consistency, see [PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md)/[PRODUCT_LABELS.md](PRODUCT_LABELS.md); placed between Dossiers and Approval, never a Formula Builder tab |
 | Approval | `/approval` | The Approval tab |
 | Reports | `/reports` | New — a navigation shell over existing exports |
-| Administration | `/administration` | New — links to Materials, Regulatory rules, Approval policies, Settings; hosts Test Definitions directly |
+| Administration | `/administration` | New — links to Materials, Regulatory rules, Approval policies, the Data Exchange Center, Settings; hosts Test Definitions directly |
+| Data Exchange Center | `/data-exchange` | New (Phase 6) — schema-driven CSV/Excel import/export for 24 templates spanning every module, see [DATA_EXCHANGE_CENTER.md](DATA_EXCHANGE_CENTER.md); project-less, placed between Reports and Administration |
 
 **Reasoning for the split**: Formulation keeps exactly the tabs that
 operate on the *current working draft* moment-to-moment (editing lines,
@@ -143,7 +151,7 @@ the new workspaces should be read as implying they were:
 - The Phase 4 claims engine
 - Design of Experiments (DOE)
 - Reverse formulation
-- The Phase 7 PDF/DOCX report-generation engine (Reports is a navigation
+- The Phase 8 PDF/DOCX report-generation engine (Reports is a navigation
   shell over the JSON/CSV/Excel exports that already exist — see
   [WORKSPACES.md](WORKSPACES.md#reports))
 - The `ai4s` → `FormuLab` package/identifier naming migration

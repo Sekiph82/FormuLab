@@ -3,6 +3,18 @@
 `packages/shared/src/engine/importer.ts`. In the app: **Materials → Template /
 Import / Export**.
 
+This document covers the materials/suppliers/packaging import mechanism
+that predates Phase 6. As of Phase 6, the same download-template →
+upload → preview → confirm discipline described below now also exists as
+a general, schema-driven framework covering 24 templates across every
+module (materials, formulas, lab, stability, regulatory, dossiers,
+claims, labels, DOE) — see
+[DATA_EXCHANGE_CENTER.md](DATA_EXCHANGE_CENTER.md). The two are not
+redundant: this page's `ImportDialog.tsx`/`importer.ts` path stays the
+one used inside the Materials workspace itself; the Data Exchange Center
+(`/data-exchange`) is the dedicated, standalone workspace for bulk
+import/export across every module at once, including materials.
+
 ## Flow
 
 1. **Template** downloads a header row for the collection.

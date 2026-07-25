@@ -100,6 +100,10 @@ machine.
 - **Materials & cost engine** — raw-material master data, suppliers, price
   history, inventory, exchange rates you control, landed cost, packaging BOMs,
   factory cost profiles and immutable cost snapshots.
+- **Data Exchange Center** — schema-driven CSV/Excel import/export across 24
+  templates spanning materials, formulas, lab, stability, regulatory,
+  dossiers, claims, labels and DOE data, with preview-before-commit, row-level
+  validation, and full import/export history.
 
 ### Two rules the formulation side is built around
 
