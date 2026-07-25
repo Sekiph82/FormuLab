@@ -274,13 +274,17 @@ describe("commit-handler record shapes conform to their real Zod schemas", () =>
     expect(parsed.success, parsed.success ? "" : JSON.stringify((parsed as { error: unknown }).error)).toBe(true);
   });
 
-  it("costing profile", () => {
+  it("costing profile, including the structured freight/duty/tax/target-margin fields", () => {
     const parsed = factoryCostProfileSchema.safeParse({
       schemaVersion: "1.0",
       code: "TEST-COST-001",
       name: "Imported costing profile TEST-COST-001",
       currency: "KES",
       processLossPercent: "2",
+      freightPercent: "3",
+      dutyPercent: "0",
+      taxPercent: "16",
+      targetMarginPercent: "30",
       effectiveFrom: "2026-01-01",
       verification: "not_verified",
       notes: "Imported via Data Exchange.",

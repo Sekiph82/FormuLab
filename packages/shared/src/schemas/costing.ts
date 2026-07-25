@@ -172,6 +172,29 @@ export const factoryCostProfileSchema = z.object({
   /** Overhead as a percentage of direct cost, or a flat rate per batch. */
   overheadPercent: decimalString.optional(),
   overheadPerBatch: decimalString.optional(),
+  /**
+   * Factory-wide DEFAULT landed-cost percentages — applied by
+   * `landedUnitCost` only as a fallback for a material price record that
+   * does not carry its own explicit `freight`/`duty`/`tax` figure. A price
+   * record's own values (from an actual invoice/quote) always take
+   * precedence and are never overridden by these; this exists so a rough,
+   * factory-wide rule of thumb ("assume 3% freight") can still produce a
+   * landed cost for a material whose shipment paperwork hasn't been
+   * entered yet, without ever double-applying on top of a real figure.
+   */
+  freightPercent: decimalString.optional(),
+  dutyPercent: decimalString.optional(),
+  taxPercent: decimalString.optional(),
+  /**
+   * The factory's target gross margin, as a percentage of selling price —
+   * purely informational: this platform has no selling-price/pricing
+   * module, so nothing here is fabricated as a real committed price. When
+   * set, `buildCostSnapshot` derives `impliedTargetSellingPricePerKg` (cost
+   * ÷ (1 − margin/100)) alongside the real computed cost, so the two
+   * numbers travel together on the same snapshot rather than requiring a
+   * separate spreadsheet calculation.
+   */
+  targetMarginPercent: decimalString.optional(),
   effectiveFrom: z.string(),
   /**
    * Unverified until a person confirms the figures against the factory's own
@@ -261,6 +284,12 @@ export const costSnapshotSchema = z.object({
 
   costPerKg: decimalString.optional(),
   costPerLitre: decimalString.optional(),
+  /** Purely informational, from the factory profile's `targetMarginPercent`
+   *  — cost ÷ (1 − margin/100). Absent whenever no target margin is set, or
+   *  the margin is 100% or more (division by zero/negative, refused rather
+   *  than producing a nonsensical figure). Never a committed selling price
+   *  — this platform has no pricing module. */
+  impliedTargetSellingPricePerKg: decimalString.optional(),
   skuCosts: z.array(skuCostSchema).default([]),
 
   /** Everything the calculation could not establish. Never silently omitted. */

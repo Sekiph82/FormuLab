@@ -167,6 +167,51 @@ describe("landed cost", () => {
     // 100 paid, 98% usable → the usable kilo costs 100/0.98.
     expect(l.landedUnitCost.toFixed(4)).toBe("102.0408");
   });
+
+  const factoryDefaultsProfile: FactoryCostProfile = {
+    schemaVersion: "1.0",
+    code: "fp-defaults",
+    name: "Factory with default landed-cost assumptions",
+    currency: "KES",
+    freightPercent: "3",
+    dutyPercent: "5",
+    taxPercent: "16",
+    processLossPercent: "0",
+    effectiveFrom: "2026-01-01",
+    verification: "not_verified",
+    active: true,
+    updatedAt: NOW,
+  };
+
+  it("falls back to the factory profile's default freight/duty/tax percentage when the price record has none", () => {
+    const l = landedUnitCost(
+      price({ code: "p6", materialCode: "M1", price: "100" }),
+      factoryDefaultsProfile,
+    );
+    // 3% + 5% + 16% of 100 = 24, on top of the 100 base.
+    expect(l.freight.toString()).toBe("3");
+    expect(l.duty.toString()).toBe("5");
+    expect(l.tax.toString()).toBe("16");
+    expect(l.landedUnitCost.toString()).toBe("124");
+  });
+
+  it("never applies the factory default on top of the price record's own explicit figure", () => {
+    const l = landedUnitCost(
+      price({ code: "p7", materialCode: "M1", price: "100", freight: "1", duty: "1", tax: "1", allocationBasis: "per_kg" }),
+      factoryDefaultsProfile,
+    );
+    // The price record's own real figures win — the factory-wide 3/5/16%
+    // defaults are never added on top of them.
+    expect(l.freight.toString()).toBe("1");
+    expect(l.duty.toString()).toBe("1");
+    expect(l.tax.toString()).toBe("1");
+    expect(l.landedUnitCost.toString()).toBe("103");
+  });
+
+  it("without a factory profile at all, an unset freight/duty/tax stays zero exactly as before", () => {
+    const l = landedUnitCost(price({ code: "p8", materialCode: "M1", price: "100" }));
+    expect(l.landedUnitCost.toString()).toBe("100");
+  });
 });
 
 describe("price selection", () => {
@@ -521,6 +566,48 @@ describe("cost snapshots", () => {
     const s = buildCostSnapshot("f1", "v1", input, { code: "cs-5" });
     expect(s.costPerKg).toBe("180.00");
     expect(s.costPerLitre).toBe("189.00");
+  });
+
+  it("never computes an implied target selling price without a factory profile's target margin", () => {
+    const s = buildCostSnapshot("f1", "v1", input, { code: "cs-6" });
+    expect(s.impliedTargetSellingPricePerKg).toBeUndefined();
+  });
+
+  it("derives a purely informational implied target selling price from the factory profile's target margin", () => {
+    const profile: FactoryCostProfile = {
+      schemaVersion: "1.0",
+      code: "fp-margin",
+      name: "Factory with a target margin",
+      currency: "KES",
+      targetMarginPercent: "25",
+      processLossPercent: "0",
+      effectiveFrom: "2026-01-01",
+      verification: "not_verified",
+      active: true,
+      updatedAt: NOW,
+    };
+    const s = buildCostSnapshot("f1", "v1", { ...input, profile }, { code: "cs-7" });
+    // Cost per kg is 180.00; at a 25% target margin the implied selling
+    // price is 180 / (1 - 0.25) = 240.
+    expect(s.costPerKg).toBe("180.00");
+    expect(s.impliedTargetSellingPricePerKg).toBe("240.00");
+  });
+
+  it("refuses to compute an implied selling price for a nonsensical (>= 100%) target margin", () => {
+    const profile: FactoryCostProfile = {
+      schemaVersion: "1.0",
+      code: "fp-bad-margin",
+      name: "Factory with an impossible target margin",
+      currency: "KES",
+      targetMarginPercent: "100",
+      processLossPercent: "0",
+      effectiveFrom: "2026-01-01",
+      verification: "not_verified",
+      active: true,
+      updatedAt: NOW,
+    };
+    const s = buildCostSnapshot("f1", "v1", { ...input, profile }, { code: "cs-8" });
+    expect(s.impliedTargetSellingPricePerKg).toBeUndefined();
   });
 });
 

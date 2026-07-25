@@ -96,8 +96,15 @@ export interface LandedCostBreakdown {
  * The allocation basis decides how a shipment-level charge becomes a per-kg
  * one, and it is recorded on the result: "freight 400,000" means nothing
  * without knowing whether that was per kilo or for the whole container.
+ *
+ * `profile` is optional and only ever fills a gap: when the price record
+ * itself has no `freight`/`duty`/`tax` figure, the factory profile's own
+ * `freightPercent`/`dutyPercent`/`taxPercent` (applied as a percentage of
+ * the base price) is used as a rough default instead — never on top of a
+ * real figure the price record already carries, so nothing is ever
+ * double-counted.
  */
-export function landedUnitCost(price: MaterialPrice): LandedCostBreakdown {
+export function landedUnitCost(price: MaterialPrice, profile?: FactoryCostProfile): LandedCostBreakdown {
   const base = dec(price.price);
   const shipment = dec(price.shipmentQuantity ?? "0");
   const basis = price.allocationBasis ?? "per_kg";
@@ -121,10 +128,16 @@ export function landedUnitCost(price: MaterialPrice): LandedCostBreakdown {
     }
   };
 
-  const freight = allocate(price.freight);
+  const defaultPercent = (amount: string | undefined, defaultPct: string | undefined): Decimal => {
+    if (amount !== undefined) return allocate(amount);
+    if (defaultPct === undefined) return ZERO;
+    return base.times(dec(defaultPct)).dividedBy(ONE_HUNDRED);
+  };
+
+  const freight = defaultPercent(price.freight, profile?.freightPercent);
   const insurance = allocate(price.insurance);
-  const duty = allocate(price.duty);
-  const tax = allocate(price.tax);
+  const duty = defaultPercent(price.duty, profile?.dutyPercent);
+  const tax = defaultPercent(price.tax, profile?.taxPercent);
   const portCharges = allocate(price.portCharges);
   const inlandTransport = allocate(price.inlandTransport);
   const bankCharges = allocate(price.bankCharges);
@@ -264,7 +277,7 @@ export function costFormula(input: CostInput): FormulaCost {
       const choice = priceFor(input.prices, line.materialCode, input.asOf, line.supplierCode);
       if (choice) {
         unitPrice = dec(choice.price.price);
-        landedUnit = landedUnitCost(choice.price).landedUnitCost;
+        landedUnit = landedUnitCost(choice.price, input.profile).landedUnitCost;
         sourceCurrency = choice.price.currency;
         priceCode = choice.price.code;
         expired = choice.expired;
@@ -622,6 +635,17 @@ export function buildCostSnapshot(
     ...skuCosts.flatMap((s) => s.warnings),
   ];
 
+  // Purely informational — never a committed selling price, and never
+  // computed at all unless a target margin is actually set and is a real
+  // (< 100%) margin; a margin at or above 100% would divide by zero or go
+  // negative, so it is left absent rather than producing a nonsensical
+  // number.
+  const marginPct = input.profile?.targetMarginPercent ? dec(input.profile.targetMarginPercent) : undefined;
+  const impliedTargetSellingPricePerKg =
+    marginPct && marginPct.lessThan(ONE_HUNDRED) && yieldKg.greaterThan(0)
+      ? fmtMoney(costPerKg.dividedBy(ONE_HUNDRED.minus(marginPct).dividedBy(ONE_HUNDRED)), input.currency)
+      : undefined;
+
   return {
     schemaVersion: "1.0",
     code: opts.code,
@@ -649,6 +673,7 @@ export function buildCostSnapshot(
     costPerLitre: input.densityKgPerL
       ? fmtMoney(costPerKg.times(dec(input.densityKgPerL)), input.currency)
       : undefined,
+    impliedTargetSellingPricePerKg,
     skuCosts,
     missingDataWarnings: warnings,
   };
