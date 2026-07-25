@@ -258,6 +258,7 @@ export function DataExchangePage() {
 
       {uploadTemplate && (
         <DataExchangeImportDialog
+          key={uploadTemplate.templateCode}
           template={uploadTemplate}
           actorRole={actorRole}
           // eslint-disable-next-line i18next/no-literal-string -- internal actor id, not display text
