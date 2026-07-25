@@ -9,11 +9,12 @@
  * own field names — but, like the commit layer, this stays one small
  * lookup table rather than 24 bespoke exporters.
  *
- * Not every template has a clean reverse mapping yet (grouped/nested
- * records — packaging BOM lines, DOE factors mixed with responses — need
- * more flattening than this pass had time for). Where a template is
- * missing here, the UI shows "not yet available for this template" rather
- * than a fabricated or silently empty export — see
+ * All 24 templates have a loader. A few can only flatten the fields their
+ * target schema actually persists — `packaging_bom` has no stored
+ * secondary/tertiary-packaging or cost fields, `label_content` has no
+ * stored `panel` (the block's parent `ProductLabel`/`LabelContentBlock`
+ * schemas never captured it) — those columns export blank rather than
+ * fabricated, same convention as every other partial column below. See
  * docs/DATA_EXCHANGE_EXPORTS.md.
  */
 import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "@ai4s/shared";
@@ -151,6 +152,34 @@ const LOADERS: Partial<Record<string, Loader>> = {
       material_type: s(r.materialType),
       notes: s(r.notes),
     })),
+  // `PackagingBom` stores one header row (`skuCode`/`description`/
+  // `fillQuantity`/`fillUnit`/`notes`) plus a `lines` array — every other
+  // template column (product_family_code, quantity_unit, primary/
+  // secondary/tertiary flags, fill_weight, line_code, unit_cost,
+  // currency, effective_from/until, tags) is never persisted on this
+  // schema, so those columns export blank rather than fabricated.
+  packaging_bom: async () => {
+    const boms = (await listRecords("packaging_boms")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const bom of boms) {
+      const skuCode = s(bom.skuCode);
+      const lines = (bom.lines as { componentCode?: string; quantityPerUnit?: string; notes?: string }[] | undefined) ?? [];
+      for (const line of lines) {
+        const componentCode = s(line.componentCode);
+        naturalKeys.add(`${skuCode}::${componentCode}`);
+        rows.push({
+          packaging_sku_code: skuCode,
+          packaging_sku_name: s(bom.description),
+          component_code: componentCode,
+          component_quantity: s(line.quantityPerUnit),
+          fill_volume: s(bom.fillQuantity),
+          notes: s(line.notes ?? bom.notes),
+        });
+      }
+    }
+    return { naturalKeys, rows };
+  },
   process_parameters: () =>
     flat("process_parameters", "code", (r) => ({
       formula_code: s(r.formulaCode),
@@ -212,6 +241,42 @@ const LOADERS: Partial<Record<string, Loader>> = {
       required_for_release: s(r.requiredByDefault),
       active: s(r.active),
     })),
+  // One row per (trial, sample, test, replicate) — matches the template's
+  // natural key exactly, same join-across-collections shape as the
+  // stability loaders below.
+  lab_results: async () => {
+    const results = (await listRecords("test_results")) as unknown as Record<string, unknown>[];
+    const trials = (await listRecords("laboratory_trials")) as unknown as Record<string, unknown>[];
+    const testDefs = (await listRecords("test_definitions")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const result of results) {
+      const trial = trials.find((t) => t.id === result.trialId);
+      const testDef = testDefs.find((td) => td.id === result.testDefinitionId);
+      if (!trial || !testDef) continue;
+      const trialCode = s(trial.code);
+      const testCode = s(testDef.code);
+      const sampleCode = s(result.sampleId);
+      const replicates = (result.replicates as { replicateNumber?: number; numericValue?: string; textValue?: string }[] | undefined) ?? [];
+      for (const rep of replicates) {
+        const replicateNumber = s(rep.replicateNumber);
+        naturalKeys.add(`${trialCode}::${sampleCode}::${testCode}::${replicateNumber}`);
+        rows.push({
+          trial_code: trialCode,
+          sample_code: sampleCode,
+          test_code: testCode,
+          replicate_number: replicateNumber,
+          numeric_value: s(rep.numericValue),
+          text_value: s(rep.textValue),
+          unit: s(result.unit),
+          result_date: s(result.performedAt),
+          analyst: s(result.performedBy),
+          notes: s(result.notes),
+        });
+      }
+    }
+    return { naturalKeys, rows };
+  },
   regulatory_rules: () =>
     flat("regulatory_rules", "code", (r) => ({
       rule_code: s(r.code),
@@ -298,6 +363,246 @@ const LOADERS: Partial<Record<string, Loader>> = {
         result_date: s(result.performedAt),
         analyst: s(result.performedBy),
         observation: s(result.notes),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  dossier_requirements: async () => {
+    const requirements = (await listRecords("regulatory_dossier_requirements")) as unknown as Record<string, unknown>[];
+    const dossiers = (await listRecords("regulatory_dossiers")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const req of requirements) {
+      const dossier = dossiers.find((d) => d.id === req.dossierId);
+      if (!dossier) continue;
+      const dossierCode = s(dossier.dossierCode);
+      const requirementCode = s(req.requirementCode);
+      naturalKeys.add(`${dossierCode}::${requirementCode}`);
+      rows.push({
+        dossier_code: dossierCode,
+        jurisdiction: s(req.jurisdiction),
+        requirement_code: requirementCode,
+        requirement_type: s(req.requirementType),
+        title: s(req.title),
+        description: s(req.description),
+        mandatory: s(req.mandatory),
+        critical: s(req.critical),
+        applicability_status: s(req.applicabilityStatus),
+        minimum_evidence_count: s(req.minimumEvidenceCount),
+        expiry_policy: s(req.expiryPolicy),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  // `requirement_code` is reconstructed from the current (non-revoked)
+  // proposed/accepted link for this evidence item, not a stored field on
+  // the evidence item itself — see `commitDossierEvidence`'s
+  // `regulatory_requirement_evidence_links` write. Evidence created
+  // outside Data Exchange (uploads, discovery) has no `evidenceCode` and
+  // is excluded — there is no natural key to export it against.
+  dossier_evidence: async () => {
+    const items = (await listRecords("regulatory_evidence_items")) as unknown as Record<string, unknown>[];
+    const dossiers = (await listRecords("regulatory_dossiers")) as unknown as Record<string, unknown>[];
+    const requirements = (await listRecords("regulatory_dossier_requirements")) as unknown as Record<string, unknown>[];
+    const links = (await listRecords("regulatory_requirement_evidence_links")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const item of items) {
+      const evidenceCode = s(item.evidenceCode);
+      if (!evidenceCode) continue;
+      const dossier = dossiers.find((d) => d.id === item.dossierId);
+      if (!dossier) continue;
+      const link = links.find((l) => l.evidenceItemId === item.id && l.linkStatus !== "revoked");
+      const requirement = link ? requirements.find((req) => req.id === link.requirementId) : undefined;
+      const dossierCode = s(dossier.dossierCode);
+      const requirementCode = s(requirement?.requirementCode);
+      naturalKeys.add(`${dossierCode}::${requirementCode}::${evidenceCode}`);
+      rows.push({
+        dossier_code: dossierCode,
+        requirement_code: requirementCode,
+        evidence_code: evidenceCode,
+        evidence_type: s(item.evidenceType),
+        document_type: s(item.documentType),
+        title: s(item.title),
+        document_number: s(item.documentNumber),
+        issuer: s(item.issuer),
+        issue_date: s(item.issuedAt),
+        expiry_date: s(item.expiresAt),
+        language: s(item.language),
+        status: s(item.status),
+        notes: s(item.description),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  product_claims: async () => {
+    const claims = (await listRecords("product_claims")) as unknown as Record<string, unknown>[];
+    const formulations = await listFormulations();
+    const codeById = new Map(formulations.map((f) => [f.id, f.code]));
+    const versionNumberById = new Map<string, string>();
+    for (const f of formulations) {
+      const { versions } = await readFormulation(f.id);
+      for (const v of versions) versionNumberById.set(v.id, String(v.versionNumber));
+    }
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const c of claims) {
+      const claimCode = s(c.claimCode);
+      naturalKeys.add(claimCode);
+      rows.push({
+        claim_code: claimCode,
+        project_code: s(codeById.get(c.formulationId as string)),
+        formula_version: s(versionNumberById.get(c.formulaVersionId as string)),
+        packaging_sku_code: s(c.packagingSkuCode),
+        claim_text: s(c.claimText),
+        claim_category: s(c.claimCategory),
+        jurisdictions: j(c.jurisdictions),
+        languages: j(c.languages),
+        risk_level: s(c.riskLevel),
+        status: s(c.status),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  // `panel` is not a field `labelContentBlockSchema` persists (see module
+  // doc at the top of this file) — exported blank, and left out of the
+  // natural key's joined string accordingly; every other natural-key
+  // column is real.
+  label_content: async () => {
+    const blocks = (await listRecords("label_content_blocks")) as unknown as Record<string, unknown>[];
+    const labels = (await listRecords("product_labels")) as unknown as Record<string, unknown>[];
+    const formulations = await listFormulations();
+    const versionNumberById = new Map<string, string>();
+    for (const f of formulations) {
+      const { versions } = await readFormulation(f.id);
+      for (const v of versions) versionNumberById.set(v.id, String(v.versionNumber));
+    }
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const b of blocks) {
+      const label = labels.find((l) => l.id === b.labelId);
+      if (!label) continue;
+      const labelCode = s(label.labelCode);
+      const labelRevision = s(b.labelRevision);
+      const blockType = s(b.blockType);
+      const language = s(b.language);
+      naturalKeys.add(`${labelCode}::${labelRevision}::${blockType}::${language}`);
+      rows.push({
+        label_code: labelCode,
+        formula_version: s(versionNumberById.get(label.formulaVersionId as string)),
+        packaging_sku_code: s(label.packagingSkuCode),
+        jurisdiction: s(label.jurisdiction),
+        language,
+        label_revision: labelRevision,
+        panel: "",
+        block_type: blockType,
+        content_text: s(b.text),
+        mandatory: s(b.mandatory),
+        source: s(b.source),
+        status: s(b.status),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  // `dimensions` is stored as one combined string ("WxH unit"), not
+  // separate width/height/dimension_unit fields — those three columns
+  // export blank rather than an unreliable parse-back.
+  artwork_register: async () => {
+    const artworks = (await listRecords("label_artworks")) as unknown as Record<string, unknown>[];
+    const labels = (await listRecords("product_labels")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const art of artworks) {
+      const label = labels.find((l) => l.id === art.labelId);
+      if (!label) continue;
+      const artworkCode = s(art.artworkCode);
+      naturalKeys.add(artworkCode);
+      rows.push({
+        artwork_code: artworkCode,
+        label_code: s(label.labelCode),
+        label_revision: s(art.labelRevision),
+        format: s(art.format),
+        color_mode: s(art.colorMode),
+        languages: j(art.languageSet),
+        status: s(art.status),
+        created_by: s(art.createdBy),
+        created_at: s(art.createdAt),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  doe_factors_responses: async () => {
+    const studies = (await listRecords("doe_studies")) as unknown as Record<string, unknown>[];
+    const factors = (await listRecords("doe_factors")) as unknown as Record<string, unknown>[];
+    const responses = (await listRecords("doe_responses")) as unknown as Record<string, unknown>[];
+    const studyCodeOf = (studyId: unknown) => s(studies.find((st) => st.id === studyId)?.studyCode);
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const f of factors) {
+      const studyCode = studyCodeOf(f.studyId);
+      if (!studyCode) continue;
+      const factorCode = s(f.factorCode);
+      naturalKeys.add(`${studyCode}::${factorCode}`);
+      rows.push({
+        study_code: studyCode,
+        record_type: "factor",
+        factor_or_response_code: factorCode,
+        name: s(f.name),
+        factor_type: s(f.factorType),
+        source_type: s(f.sourceType),
+        unit: s(f.unit),
+        low_value: s(f.lowValue),
+        center_value: s(f.centerValue),
+        high_value: s(f.highValue),
+        categorical_levels: j(f.categoricalLevels),
+      });
+    }
+    for (const resp of responses) {
+      const studyCode = studyCodeOf(resp.studyId);
+      if (!studyCode) continue;
+      const responseCode = s(resp.responseCode);
+      naturalKeys.add(`${studyCode}::${responseCode}`);
+      rows.push({
+        study_code: studyCode,
+        record_type: "response",
+        factor_or_response_code: responseCode,
+        name: s(resp.name),
+        unit: s(resp.unit),
+        objective: s(resp.objective),
+        target_value: s(resp.targetValue),
+        lower_limit: s(resp.lowerLimit),
+        upper_limit: s(resp.upperLimit),
+        weight: s(resp.weight),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  doe_observations: async () => {
+    const studies = (await listRecords("doe_studies")) as unknown as Record<string, unknown>[];
+    const runs = (await listRecords("doe_runs")) as unknown as Record<string, unknown>[];
+    const responses = (await listRecords("doe_responses")) as unknown as Record<string, unknown>[];
+    const observations = (await listRecords("doe_observations")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const obs of observations) {
+      const study = studies.find((st) => st.id === obs.studyId);
+      const run = runs.find((rn) => rn.id === obs.runId);
+      const response = responses.find((rp) => rp.id === obs.responseId);
+      if (!study || !run || !response) continue;
+      const studyCode = s(study.studyCode);
+      const runNumber = s(run.runNumber);
+      const responseCode = s(response.responseCode);
+      naturalKeys.add(`${studyCode}::${runNumber}::${responseCode}`);
+      rows.push({
+        study_code: studyCode,
+        run_number: runNumber,
+        response_code: responseCode,
+        numeric_value: s(obs.value),
+        text_value: s(obs.textValue),
+        unit: s(response.unit),
+        status: s(obs.status),
+        measured_at: s(obs.recordedAt),
+        analyst: s(obs.recordedBy),
       });
     }
     return { naturalKeys, rows };
