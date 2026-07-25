@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { Boxes, ClipboardList, ExternalLink, Scale, Settings, ShieldCheck } from "lucide-react";
+import { ArrowLeftRight, Boxes, ClipboardList, ExternalLink, Scale, Settings, ShieldCheck } from "lucide-react";
 import { TestDefinitionsPanel } from "@/components/formula/TestDefinitionsPanel";
 import { cn } from "@/lib/cn";
 
@@ -14,6 +14,7 @@ const LINKS = [
   { key: "materials", icon: Boxes, href: "/materials", titleKey: "administration.links.materials.title", descKey: "administration.links.materials.description" },
   { key: "regulatoryRules", icon: Scale, href: "/regulatory", titleKey: "administration.links.regulatoryRules.title", descKey: "administration.links.regulatoryRules.description" },
   { key: "approvalPolicies", icon: ShieldCheck, href: "/approval", titleKey: "administration.links.approvalPolicies.title", descKey: "administration.links.approvalPolicies.description" },
+  { key: "dataExchange", icon: ArrowLeftRight, href: "/data-exchange", titleKey: "administration.links.dataExchange.title", descKey: "administration.links.dataExchange.description" },
   { key: "settings", icon: Settings, href: "/settings", titleKey: "administration.links.settings.title", descKey: "administration.links.settings.description" },
 ] as const;
 

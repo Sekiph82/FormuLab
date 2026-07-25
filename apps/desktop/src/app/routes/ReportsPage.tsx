@@ -16,6 +16,8 @@ const ROWS = [
   { key: "doeResponseMatrix", titleKey: "reports.doeResponseMatrix.title", descKey: "reports.doeResponseMatrix.description", href: "/doe" },
   { key: "doeStatisticalAnalysis", titleKey: "reports.doeStatisticalAnalysis.title", descKey: "reports.doeStatisticalAnalysis.description", href: "/doe" },
   { key: "doeCandidateRanking", titleKey: "reports.doeCandidateRanking.title", descKey: "reports.doeCandidateRanking.description", href: "/doe" },
+  { key: "dataExchangeImportHistory", titleKey: "reports.dataExchangeImportHistory.title", descKey: "reports.dataExchangeImportHistory.description", href: "/data-exchange" },
+  { key: "dataExchangeSchemaCatalog", titleKey: "reports.dataExchangeSchemaCatalog.title", descKey: "reports.dataExchangeSchemaCatalog.description", href: "/data-exchange" },
   { key: "approval", titleKey: "reports.approval.title", descKey: "reports.approval.description", href: "/approval" },
   { key: "audit", titleKey: "reports.audit.title", descKey: "reports.audit.description", href: undefined },
 ] as const;

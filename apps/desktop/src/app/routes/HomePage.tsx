@@ -5,6 +5,8 @@ import type {
   AuditEvent,
   ClaimReview,
   ClaimReviewRevocation,
+  DataExchangeExportJob,
+  DataExchangeImportJob,
   DoeAnalysis,
   DoeCandidate,
   DoeRun,
@@ -52,6 +54,8 @@ const RECENT_PROJECT_LIMIT = 5;
 // Evidence within this window is "expiring soon" — a defined threshold,
 // not a fabricated one, and the only place this number is invented.
 const EVIDENCE_EXPIRY_WARNING_DAYS = 30;
+// Same kind of defined (not fabricated) threshold, for "recent exports".
+const DATA_EXCHANGE_RECENT_EXPORT_WINDOW_DAYS = 7;
 
 interface DossierHomeRow {
   project: Formulation;
@@ -115,12 +119,16 @@ export function HomePage() {
   const [doeStudiesReadyForAnalysis, setDoeStudiesReadyForAnalysis] = useState<DoeStudyHomeRow[]>([]);
   const [doeCandidatesAwaitingSelection, setDoeCandidatesAwaitingSelection] = useState<DoeCandidateHomeRow[]>([]);
   const [doeRunsAwaitingLabWorkCount, setDoeRunsAwaitingLabWorkCount] = useState(0);
+  const [dxAwaitingConfirmation, setDxAwaitingConfirmation] = useState<DataExchangeImportJob[]>([]);
+  const [dxFailed, setDxFailed] = useState<DataExchangeImportJob[]>([]);
+  const [dxCompletedWithWarnings, setDxCompletedWithWarnings] = useState<DataExchangeImportJob[]>([]);
+  const [dxRecentExportsCount, setDxRecentExportsCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [all, trials, studies, samples, dossiers, dossierRequirements, dossierLinks, dossierEvidence, dossierReviews, dossierReviewRevocations, claims, claimReviews, claimReviewRevocations, productLabels, labelArtworks, labelReviews, labelReviewRevocations, regulatoryRules, doeStudies, doeRuns, doeAnalyses, doeCandidates] = await Promise.all([
+      const [all, trials, studies, samples, dossiers, dossierRequirements, dossierLinks, dossierEvidence, dossierReviews, dossierReviewRevocations, claims, claimReviews, claimReviewRevocations, productLabels, labelArtworks, labelReviews, labelReviewRevocations, regulatoryRules, doeStudies, doeRuns, doeAnalyses, doeCandidates, dxImportJobs, dxExportJobs] = await Promise.all([
         listFormulations(),
         listRecords("laboratory_trials"),
         listRecords("stability_studies"),
@@ -143,6 +151,8 @@ export function HomePage() {
         listRecords("doe_runs"),
         listRecords("doe_analyses"),
         listRecords("doe_candidates"),
+        listRecords("data_exchange_import_jobs"),
+        listRecords("data_exchange_export_jobs"),
       ]);
       if (cancelled) return;
       const sorted = [...all].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -322,6 +332,18 @@ export function HomePage() {
         candidateRows.push({ project, study, candidate });
       }
       setDoeCandidatesAwaitingSelection(candidateRows.slice(0, 10));
+
+      // Data Exchange Center is project-less (like Administration) — its
+      // Home summary is not scoped to `recentProjects`, just the real,
+      // persisted `data_exchange_import_jobs`/`data_exchange_export_jobs`
+      // rows, exactly as they exist right now.
+      const importJobs = (dxImportJobs as DataExchangeImportJob[]).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+      setDxAwaitingConfirmation(importJobs.filter((j) => j.status === "awaiting_confirmation" || j.status === "preview_ready").slice(0, 10));
+      setDxFailed(importJobs.filter((j) => j.status === "failed" || j.status === "validation_failed").slice(0, 10));
+      setDxCompletedWithWarnings(importJobs.filter((j) => j.status === "completed_with_warnings").slice(0, 10));
+      const exportWindowStart = new Date();
+      exportWindowStart.setDate(exportWindowStart.getDate() - DATA_EXCHANGE_RECENT_EXPORT_WINDOW_DAYS);
+      setDxRecentExportsCount((dxExportJobs as DataExchangeExportJob[]).filter((j) => new Date(j.requestedAt) >= exportWindowStart).length);
 
       setLoading(false);
     })();
@@ -525,6 +547,30 @@ export function HomePage() {
                   <span className="font-mono text-[10px] text-muted">{study.studyCode}</span>
                   <span className="flex-1 truncate text-text">{project.name}</span>
                   <span className="text-[10px] text-muted">{t("home.doeCandidateRank", { rank: candidate.rank })}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section
+          title={t("home.dataExchangeHeading")}
+          empty={dxAwaitingConfirmation.length === 0 && dxFailed.length === 0 && dxCompletedWithWarnings.length === 0 && dxRecentExportsCount === 0}
+          emptyText={t("home.noDataExchangeAttention")}
+        >
+          <div className="flex flex-wrap gap-2 px-3 py-2 text-[10px]">
+            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-muted">{t("home.dataExchangeAwaitingConfirmation", { n: dxAwaitingConfirmation.length })}</span>
+            <span className="rounded bg-error/10 px-1.5 py-0.5 text-error">{t("home.dataExchangeFailed", { n: dxFailed.length })}</span>
+            <span className="rounded bg-warn/10 px-1.5 py-0.5 text-warn">{t("home.dataExchangeCompletedWithWarnings", { n: dxCompletedWithWarnings.length })}</span>
+            <span className="rounded bg-accent/10 px-1.5 py-0.5 text-accent">{t("home.dataExchangeRecentExports", { n: dxRecentExportsCount })}</span>
+          </div>
+          <ul className="divide-y divide-border-faint">
+            {dedupeById([...dxFailed, ...dxAwaitingConfirmation, ...dxCompletedWithWarnings], (row) => row.id).map((job) => (
+              <li key={job.id}>
+                <Link to="/data-exchange" className="flex items-baseline gap-2 px-3 py-2 text-[12px] hover:bg-surface-2">
+                  <span className="flex-1 truncate text-text">{job.templateCode}</span>
+                  <span className="truncate text-[11px] text-muted">{job.fileName}</span>
+                  <span className="text-[10px] text-muted">{job.status}</span>
                 </Link>
               </li>
             ))}

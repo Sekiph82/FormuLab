@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { FileCheck2, Grid3x3, Plus, Tags } from "lucide-react";
+import { ArrowLeftRight, FileCheck2, Grid3x3, Plus, Tags } from "lucide-react";
 import { buildKenyaCatalog, type DoeStudy, type Formulation, type ProductClaim, type RegulatoryDossier } from "@ai4s/shared";
 import { appendAudit, auditEvent, listFormulations, saveFormulation } from "@/lib/formulations";
 import { listRecords } from "@/lib/masterdata";
@@ -119,6 +119,16 @@ export function ProjectsPage() {
                   className="mr-4 flex items-center gap-1 rounded-input border border-border-faint px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
                 >
                   <Grid3x3 size={11} /> {t("builder.projectDoeStudyCount", { n: doeStudyCountByProject.get(p.id) ?? 0 })}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/data-exchange");
+                  }}
+                  title={t("builder.projectDataExchange")}
+                  className="mr-4 flex items-center gap-1 rounded-input border border-border-faint px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2 hover:text-text"
+                >
+                  <ArrowLeftRight size={11} />
                 </button>
               </li>
             ))}
