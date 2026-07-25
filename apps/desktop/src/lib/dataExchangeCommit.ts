@@ -48,6 +48,7 @@ import {
   type RegulatoryDossierEvidenceItem,
   type RegulatoryDossierRequirement,
   type RegulatoryJurisdiction,
+  type RegulatoryRequirementEvidenceLink,
   type RegulatoryRule,
   type StabilityResult,
   type StabilitySample,
@@ -861,10 +862,17 @@ const commitDossierRequirements: Handler = async (r) => {
 const commitDossierEvidence: Handler = async (r) => {
   const dossier = await findByCode<{ id: string; formulationId: string; formulaVersionId: string }>("regulatory_dossiers", "dossierCode", r.dossier_code);
   if (!dossier) throw new Error(`No dossier with code "${r.dossier_code}" exists yet — create it in the Dossiers workspace first.`);
+  const requirements = (await listRecords("regulatory_dossier_requirements")) as unknown as RegulatoryDossierRequirement[];
+  const requirement = requirements.find((req) => req.dossierId === dossier.id && req.requirementCode === r.requirement_code);
+  if (!requirement) throw new Error(`No requirement "${r.requirement_code}" exists on dossier "${r.dossier_code}" yet — import or create it first.`);
+
+  const evidenceItems = (await listRecords("regulatory_evidence_items")) as unknown as RegulatoryDossierEvidenceItem[];
+  const existing = evidenceItems.find((e) => e.dossierId === dossier.id && e.evidenceCode === r.evidence_code);
   const record: RegulatoryDossierEvidenceItem = {
     schemaVersion: "1.0",
-    id: newId("evidence"),
+    id: existing?.id ?? newId("evidence"),
     dossierId: dossier.id,
+    evidenceCode: r.evidence_code,
     formulationId: dossier.formulationId,
     formulaVersionId: dossier.formulaVersionId,
     jurisdictions: ["KE"],
@@ -876,19 +884,47 @@ const commitDossierEvidence: Handler = async (r) => {
     // Always draft/present_unverified from an import — see module doc.
     status: "draft",
     sourceType: "uploaded",
-    attachmentIds: [],
+    attachmentIds: existing?.attachmentIds ?? [],
     documentNumber: nn(r.document_number),
     issuer: nn(r.issuer),
     issuedAt: nn(r.issue_date),
     expiresAt: nn(r.expiry_date),
     language: nn(r.language),
     confidentiality: "normal",
-    createdBy: "data-exchange-import",
-    createdAt: nowIso(),
+    createdBy: existing?.createdBy ?? "data-exchange-import",
+    createdAt: existing?.createdAt ?? nowIso(),
     updatedAt: nowIso(),
   };
   await upsertRecords("regulatory_evidence_items", [record]);
-  return { outcome: "created", targetCollection: "regulatory_evidence_items", targetRecordId: record.id };
+
+  // Suggest, never accept, the requirement link this row names. A
+  // `linkStatus: "accepted"` link is the only kind `evaluateEvidenceEligibility`
+  // ever counts toward satisfying a requirement, and creating one requires
+  // a genuine human actor (`requireHumanActor`/`acceptEvidenceLink`) — an
+  // import can never satisfy that gate. `linkStatus: "proposed"` with
+  // `linkedBy: "data-exchange-import"` mirrors this schema's own
+  // documented `linkedBy: "system"` convention for an automatic-discovery
+  // suggestion (see `regulatoryRequirementEvidenceLinkSchema`): visible in
+  // the Dossiers workspace, but a human must still review and accept it.
+  if (!existing) {
+    const links = (await listRecords("regulatory_requirement_evidence_links")) as unknown as RegulatoryRequirementEvidenceLink[];
+    const alreadyLinked = links.some((l) => l.dossierId === dossier.id && l.requirementId === requirement.id && l.evidenceItemId === record.id && l.linkStatus !== "revoked");
+    if (!alreadyLinked) {
+      const link: RegulatoryRequirementEvidenceLink = {
+        schemaVersion: "1.0",
+        id: newId("dossierlink"),
+        dossierId: dossier.id,
+        requirementId: requirement.id,
+        evidenceItemId: record.id,
+        linkStatus: "proposed",
+        linkedBy: "data-exchange-import",
+        linkedAt: nowIso(),
+      };
+      await upsertRecords("regulatory_requirement_evidence_links", [link]);
+    }
+  }
+
+  return { outcome: existing ? "updated" : "created", targetCollection: "regulatory_evidence_items", targetRecordId: record.id };
 };
 
 // =================================================== claims / labels (20-22) ===

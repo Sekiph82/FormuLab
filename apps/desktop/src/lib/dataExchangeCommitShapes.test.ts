@@ -91,6 +91,7 @@ describe("commit-handler record shapes conform to their real Zod schemas", () =>
       schemaVersion: "1.0",
       id: "evid-1",
       dossierId: "dossier-1",
+      evidenceCode: "TEST-EVID-001",
       formulationId: "formulation-1",
       formulaVersionId: "version-1",
       jurisdictions: ["KE"],

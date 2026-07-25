@@ -217,24 +217,62 @@ describe("commitDataExchangeRows — regulatory rules", () => {
 });
 
 describe("commitDataExchangeRows — dossier evidence", () => {
+  const dossier = { id: "dossier-1", dossierCode: "TEST-DOS-001", formulationId: "formulation-1", formulaVersionId: "version-1" };
+  const requirement = { id: "req-1", dossierId: "dossier-1", requirementCode: "TEST-REQ-001" };
+
   it("fails honestly when the referenced dossier does not exist", async () => {
-    const rows = [row({ dossier_code: "TEST-DOS-001", title: "TEST Evidence" })];
+    const rows = [row({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001", title: "TEST Evidence" })];
     const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence")!, rows, ctx);
     expect(outcomes[0].outcome).toBe("failed");
     expect(outcomes[0].message).toMatch(/No dossier/);
   });
 
-  it("inherits formulationId/formulaVersionId from the resolved dossier, never draft-approved", async () => {
+  it("fails honestly when the referenced requirement does not exist on that dossier", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "regulatory_dossiers" ? [dossier] : []));
+    const rows = [row({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-999", evidence_code: "TEST-EVID-001", title: "TEST Evidence" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No requirement/);
+  });
+
+  it("inherits formulationId/formulaVersionId from the resolved dossier, never draft-approved, and proposes (never accepts) the requirement link", async () => {
     bridge.listRecords.mockImplementation((collection: string) =>
-      Promise.resolve(collection === "regulatory_dossiers" ? [{ id: "dossier-1", dossierCode: "TEST-DOS-001", formulationId: "formulation-1", formulaVersionId: "version-1" }] : []),
+      Promise.resolve(collection === "regulatory_dossiers" ? [dossier] : collection === "regulatory_dossier_requirements" ? [requirement] : []),
     );
-    const rows = [row({ dossier_code: "TEST-DOS-001", title: "TEST Evidence" })];
+    const rows = [row({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001", title: "TEST Evidence" })];
     const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence")!, rows, ctx);
     expect(outcomes[0].outcome).toBe("created");
     expect(bridge.upsertRecords).toHaveBeenCalledWith(
       "regulatory_evidence_items",
-      expect.arrayContaining([expect.objectContaining({ formulationId: "formulation-1", formulaVersionId: "version-1", status: "draft" })]),
+      expect.arrayContaining([expect.objectContaining({ evidenceCode: "TEST-EVID-001", formulationId: "formulation-1", formulaVersionId: "version-1", status: "draft" })]),
     );
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "regulatory_requirement_evidence_links",
+      expect.arrayContaining([expect.objectContaining({ dossierId: "dossier-1", requirementId: "req-1", linkStatus: "proposed", linkedBy: "data-exchange-import" })]),
+    );
+  });
+
+  it("re-importing the same evidence_code updates the existing evidence item instead of creating a duplicate, and does not propose a second link", async () => {
+    const existingEvidence = { id: "evid-1", dossierId: "dossier-1", evidenceCode: "TEST-EVID-001", createdBy: "data-exchange-import", createdAt: "2026-01-01T00:00:00.000Z", attachmentIds: [] };
+    const existingLink = { id: "link-1", dossierId: "dossier-1", requirementId: "req-1", evidenceItemId: "evid-1", linkStatus: "proposed" };
+    bridge.listRecords.mockImplementation((collection: string) =>
+      Promise.resolve(
+        collection === "regulatory_dossiers"
+          ? [dossier]
+          : collection === "regulatory_dossier_requirements"
+            ? [requirement]
+            : collection === "regulatory_evidence_items"
+              ? [existingEvidence]
+              : collection === "regulatory_requirement_evidence_links"
+                ? [existingLink]
+                : [],
+      ),
+    );
+    const rows = [row({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001", title: "TEST Evidence Updated" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("updated");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("regulatory_evidence_items", expect.arrayContaining([expect.objectContaining({ id: "evid-1", evidenceCode: "TEST-EVID-001" })]));
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("regulatory_requirement_evidence_links", expect.anything());
   });
 });
 

@@ -244,6 +244,11 @@ export const regulatoryDossierEvidenceItemSchema = z.object({
   schemaVersion: z.literal("1.0"),
   id: z.string().min(1),
   dossierId: z.string().min(1),
+  /** Stable natural key for Data Exchange import create-or-update
+   *  matching within a dossier — optional because evidence created
+   *  directly through the Dossiers workspace (uploads, discovery) has no
+   *  need for one. */
+  evidenceCode: z.string().optional(),
   formulationId: z.string().min(1),
   formulaVersionId: z.string().min(1),
   packagingSkuCode: z.string().optional(),
