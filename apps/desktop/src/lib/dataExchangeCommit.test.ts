@@ -113,6 +113,71 @@ describe("commitDataExchangeRows — raw materials / suppliers / material prices
   });
 });
 
+describe("commitDataExchangeRows — master/formulation templates without their own describe block", () => {
+  it("material_documents: creates then updates the same (material, document_type, document_number) record", async () => {
+    const rows = [row({ material_code: "TEST-MAT-001", document_type: "coa", document_number: "DOC-1", document_title: "TEST CoA" })];
+    const created = await commitDataExchangeRows(getDataExchangeTemplate("material_documents")!, rows, ctx);
+    expect(created[0].outcome).toBe("created");
+    const naturalCode = "TEST-MAT-001-coa-DOC-1";
+    bridge.listRecords.mockResolvedValue([{ code: naturalCode, createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const updated = await commitDataExchangeRows(getDataExchangeTemplate("material_documents")!, rows, ctx);
+    expect(updated[0].outcome).toBe("updated");
+    expect(bridge.upsertRecords).toHaveBeenLastCalledWith("material_documents", expect.arrayContaining([expect.objectContaining({ code: naturalCode })]));
+  });
+
+  it("product_families: creates then updates the same family_code", async () => {
+    const rows = [row({ family_code: "TEST-FAM-001", family_name: "TEST Family" })];
+    const created = await commitDataExchangeRows(getDataExchangeTemplate("product_families")!, rows, ctx);
+    expect(created[0].outcome).toBe("created");
+    bridge.listRecords.mockResolvedValue([{ code: "TEST-FAM-001", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const updated = await commitDataExchangeRows(getDataExchangeTemplate("product_families")!, rows, ctx);
+    expect(updated[0].outcome).toBe("updated");
+  });
+
+  it("finished_products: creates then updates the same sku_code", async () => {
+    const rows = [row({ sku_code: "TEST-SKU-001", sku_name: "TEST SKU" })];
+    const created = await commitDataExchangeRows(getDataExchangeTemplate("finished_products")!, rows, ctx);
+    expect(created[0].outcome).toBe("created");
+    bridge.listRecords.mockResolvedValue([{ code: "TEST-SKU-001", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const updated = await commitDataExchangeRows(getDataExchangeTemplate("finished_products")!, rows, ctx);
+    expect(updated[0].outcome).toBe("updated");
+  });
+
+  it("packaging_bom: a second line for the same SKU is added alongside the first, not overwriting it", async () => {
+    const rows1 = [row({ packaging_sku_code: "TEST-PKGBOM-001", component_code: "TEST-PKG-001", component_quantity: "1" })];
+    const created = await commitDataExchangeRows(getDataExchangeTemplate("packaging_bom")!, rows1, ctx);
+    expect(created[0].outcome).toBe("created");
+    const savedFirst = bridge.upsertRecords.mock.calls[0][1][0] as { code: string; lines: unknown[] };
+    bridge.listRecords.mockResolvedValue([{ code: savedFirst.code, skuCode: "TEST-PKGBOM-001", lines: savedFirst.lines }]);
+    const rows2 = [row({ packaging_sku_code: "TEST-PKGBOM-001", component_code: "TEST-PKG-002", component_quantity: "2" })];
+    const updated = await commitDataExchangeRows(getDataExchangeTemplate("packaging_bom")!, rows2, ctx);
+    expect(updated[0].outcome).toBe("updated");
+    const savedSecond = bridge.upsertRecords.mock.calls[1][1][0] as { lines: { componentCode: string }[] };
+    expect(savedSecond.lines.map((l) => l.componentCode)).toEqual(expect.arrayContaining(["TEST-PKG-001", "TEST-PKG-002"]));
+  });
+
+  it("process_parameters: creates then updates the same (formula, version, step)", async () => {
+    const rows = [row({ formula_code: "TEST-FORM-001", formula_version: "1", step_number: "1", step_name: "Heat" })];
+    const created = await commitDataExchangeRows(getDataExchangeTemplate("process_parameters")!, rows, ctx);
+    expect(created[0].outcome).toBe("created");
+    bridge.listRecords.mockResolvedValue([{ code: "TEST-FORM-001-v1-step1", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const updated = await commitDataExchangeRows(getDataExchangeTemplate("process_parameters")!, rows, ctx);
+    expect(updated[0].outcome).toBe("updated");
+  });
+
+  it("formula_cost_overrides: always appends a new history row, by design, never updates in place", async () => {
+    const rows = [row({ formula_code: "TEST-FORM-001", formula_version: "1", material_code: "TEST-MAT-001", override_price: "480.00", currency: "KES", effective_from: "2026-01-01" })];
+    const first = await commitDataExchangeRows(getDataExchangeTemplate("formula_cost_overrides")!, rows, ctx);
+    expect(first[0].outcome).toBe("created");
+    const second = await commitDataExchangeRows(getDataExchangeTemplate("formula_cost_overrides")!, rows, ctx);
+    expect(second[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledTimes(2);
+    const firstCode = (bridge.upsertRecords.mock.calls[0][1][0] as { code: string }).code;
+    const secondCode = (bridge.upsertRecords.mock.calls[1][1][0] as { code: string }).code;
+    expect(firstCode).not.toBe(secondCode);
+  });
+});
+
 describe("commitDataExchangeRows — Costing Assumptions (structured fields, not notes)", () => {
   it("stores freight/duty/tax/target-margin as real structured fields on the factory profile", async () => {
     const outcomes = await commitDataExchangeRows(
