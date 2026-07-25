@@ -22,6 +22,7 @@ import { DoePage } from "./routes/DoePage";
 import { ApprovalPage } from "./routes/ApprovalPage";
 import { ReportsPage } from "./routes/ReportsPage";
 import { AdministrationPage } from "./routes/AdministrationPage";
+import { DataExchangePage } from "./routes/DataExchangePage";
 import { NotFound } from "./routes/NotFound";
 
 export const routes: RouteObject[] = [
@@ -52,6 +53,7 @@ export const routes: RouteObject[] = [
       { path: "approval", element: <ApprovalPage /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "administration", element: <AdministrationPage /> },
+      { path: "data-exchange", element: <DataExchangePage /> },
       { path: "materials", element: <MaterialsPage /> },
       { path: "notebooks", element: <NotebooksPage /> },
       { path: "optimizer", element: <OptimizerPage /> },
