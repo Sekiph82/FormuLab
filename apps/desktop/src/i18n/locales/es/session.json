@@ -2149,7 +2149,9 @@
       "partialImport": "Import the {{good}} valid row(s) now and skip the {{bad}} row(s) with issues.",
       "committed": "Imported — {{created}} created, {{updated}} updated ({{status}}).",
       "importing": "Importing…",
-      "commit": "Commit import"
+      "commit": "Commit import",
+      "unsupported": "Import for \"{{template}}\" is not supported yet — no commit handler exists for this template. No records will be written; this file previews correctly, but cannot be committed.",
+      "notSupported": "Not supported"
     },
     "preview": {
       "create": "Create",

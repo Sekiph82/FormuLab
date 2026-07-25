@@ -13,7 +13,7 @@ import {
   type DataExchangeImportRowResult,
 } from "@ai4s/shared";
 import { readWorkbookRows, rejectUnsupportedWorkbook } from "@/lib/xlsx";
-import { commitDataExchangeRows, type DataExchangeRowCommitOutcome } from "@/lib/dataExchangeCommit";
+import { commitDataExchangeRows, isTemplateCommitSupported, type DataExchangeRowCommitOutcome } from "@/lib/dataExchangeCommit";
 import { loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
 import { upsertRecords, nowIso } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
@@ -97,6 +97,7 @@ export function DataExchangeImportDialog({
       });
       setPreview(p);
       if (!p.authorizationDenied) {
+        const supported = isTemplateCommitSupported(template.templateCode);
         const job: DataExchangeImportJob = {
           schemaVersion: "1.0",
           id: newId("dxjob"),
@@ -106,7 +107,7 @@ export function DataExchangeImportDialog({
           fileType: isXlsx ? "xlsx" : "csv",
           fileSize: bytes.byteLength,
           sha256: hash,
-          status: p.fatalError ? "validation_failed" : "awaiting_confirmation",
+          status: p.fatalError ? "validation_failed" : !supported ? "unsupported" : "awaiting_confirmation",
           mode: "atomic",
           totalRows: p.totalRows,
           validRows: p.validRows,
@@ -137,16 +138,17 @@ export function DataExchangeImportDialog({
     onCancel();
   };
 
+  const supported = isTemplateCommitSupported(template.templateCode);
   const rows = preview?.rows ?? [];
   const errorRows = rows.filter((r) => r.state === "invalid" || r.state === "reference_missing" || r.state === "duplicate");
   const warningRows = rows.filter((r) => r.state === "warning");
   const committableStates = new Set(["valid_create", "valid_update", "unchanged", "warning"]);
   const committableRows = rows.filter((r) => committableStates.has(r.state));
   const canCommit =
-    !!preview && !preview.fatalError && committableRows.length > 0 && (errorRows.length === 0 || allowPartial);
+    supported && !!preview && !preview.fatalError && committableRows.length > 0 && (errorRows.length === 0 || allowPartial);
 
   const commit = async () => {
-    if (!canCommit || !preview) return;
+    if (!canCommit || !preview || !supported) return;
     setBusy(true);
     try {
       const toCommit = allowPartial ? committableRows : rows.filter((r) => committableStates.has(r.state));
@@ -272,6 +274,13 @@ export function DataExchangeImportDialog({
             </div>
           )}
 
+          {preview && !preview.fatalError && !supported && (
+            <div role="alert" className="flex items-center gap-1.5 rounded-input border border-warn/40 bg-warn/5 px-3 py-2 text-[12px] text-warn">
+              <AlertTriangle size={13} aria-hidden />
+              {t("dataExchange.import.unsupported", { template: template.title })}
+            </div>
+          )}
+
           {preview && !preview.fatalError && (
             <>
               <div className="flex flex-wrap gap-2 text-[12px]">
@@ -354,7 +363,7 @@ export function DataExchangeImportDialog({
           </button>
           {!committed && (
             <button onClick={commit} disabled={!canCommit || busy} className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40">
-              {busy ? t("dataExchange.import.importing") : t("dataExchange.import.commit")}
+              {busy ? t("dataExchange.import.importing") : !supported && preview && !preview.fatalError ? t("dataExchange.import.notSupported") : t("dataExchange.import.commit")}
             </button>
           )}
         </div>

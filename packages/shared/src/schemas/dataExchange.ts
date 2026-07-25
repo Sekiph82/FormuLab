@@ -199,6 +199,12 @@ export const DATA_EXCHANGE_IMPORT_STATUSES = [
   "completed_with_warnings",
   "failed",
   "cancelled",
+  /** No commit handler exists for this template at all — never reachable
+   *  once every template is wired, but the mechanism stays available for
+   *  a future template that is registered before its commit handler
+   *  ships. Distinct from "completed": zero rows were ever attempted,
+   *  and the UI must say so rather than reporting a false success. */
+  "unsupported",
 ] as const;
 export type DataExchangeImportStatus = (typeof DATA_EXCHANGE_IMPORT_STATUSES)[number];
 

@@ -2149,7 +2149,9 @@
       "partialImport": "Geçerli {{good}} satırı şimdi içe aktar, sorunlu {{bad}} satırı atla.",
       "committed": "İçe aktarıldı — {{created}} oluşturuldu, {{updated}} güncellendi ({{status}}).",
       "importing": "İçe aktarılıyor…",
-      "commit": "İçe aktarmayı onayla"
+      "commit": "İçe aktarmayı onayla",
+      "unsupported": "\"{{template}}\" için içe aktarma henüz desteklenmiyor — bu şablon için bir işleyici yok. Hiçbir kayıt yazılmayacak; bu dosya doğru önizleniyor ama onaylanamaz.",
+      "notSupported": "Desteklenmiyor"
     },
     "preview": {
       "create": "Oluştur",
