@@ -16,6 +16,10 @@ import type {
   CompatibilitySnapshot,
   CorrectiveAction,
   CostSnapshot,
+  DataExchangeExportJob,
+  DataExchangeImportJob,
+  DataExchangeImportRowResult,
+  DataExchangeSchemaVersion,
   DoeAnalysis,
   DoeCandidate,
   DoeConstraint,
@@ -28,6 +32,8 @@ import type {
   DoeStudy,
   ExchangeRate,
   FactoryCostProfile,
+  FinishedProduct,
+  FormulaCostOverride,
   FormulaVersionEquivalence,
   InventoryRecord,
   LabelArtwork,
@@ -35,6 +41,8 @@ import type {
   LabelReview,
   LabelReviewRevocation,
   LaboratoryTrial,
+  MasterProductFamily,
+  MaterialDocument,
   MaterialHazardRecord,
   MaterialPrice,
   MaterialSupplier,
@@ -43,6 +51,7 @@ import type {
   OptimizationScenario,
   PackagingBom,
   PackagingComponent,
+  ProcessParameter,
   ProductClaim,
   ProductLabel,
   RawMaterial,
@@ -144,7 +153,16 @@ export type Collection =
   | "doe_observations"
   | "doe_analyses"
   | "doe_candidates"
-  | "doe_review_actions";
+  | "doe_review_actions"
+  | "product_families"
+  | "finished_products"
+  | "material_documents"
+  | "process_parameters"
+  | "formula_cost_overrides"
+  | "data_exchange_import_jobs"
+  | "data_exchange_import_row_results"
+  | "data_exchange_export_jobs"
+  | "data_exchange_schema_versions";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -214,6 +232,15 @@ interface CollectionTypes {
   doe_analyses: DoeAnalysis;
   doe_candidates: DoeCandidate;
   doe_review_actions: DoeReviewAction;
+  product_families: MasterProductFamily;
+  finished_products: FinishedProduct;
+  material_documents: MaterialDocument;
+  process_parameters: ProcessParameter;
+  formula_cost_overrides: FormulaCostOverride;
+  data_exchange_import_jobs: DataExchangeImportJob;
+  data_exchange_import_row_results: DataExchangeImportRowResult;
+  data_exchange_export_jobs: DataExchangeExportJob;
+  data_exchange_schema_versions: DataExchangeSchemaVersion;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

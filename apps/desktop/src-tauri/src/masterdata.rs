@@ -61,6 +61,15 @@
 //   data/master/doe_analyses.json
 //   data/master/doe_candidates.json
 //   data/master/doe_review_actions.json
+//   data/master/product_families.json
+//   data/master/finished_products.json
+//   data/master/material_documents.json
+//   data/master/process_parameters.json
+//   data/master/formula_cost_overrides.json
+//   data/master/data_exchange_import_jobs.json
+//   data/master/data_exchange_import_row_results.json
+//   data/master/data_exchange_export_jobs.json
+//   data/master/data_exchange_schema_versions.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -96,7 +105,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 67] = [
+const COLLECTIONS: [(&str, bool); 76] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -293,6 +302,29 @@ const COLLECTIONS: [(&str, bool); 67] = [
     ("doe_analyses", true),
     ("doe_candidates", false),
     ("doe_review_actions", true),
+
+    // Phase 6 — Data Exchange Center. Five net-new master-data collections
+    // the 24 mandated templates need but no earlier phase modeled as a
+    // live, mutable collection (`product_families`/`finished_products`
+    // deliberately distinct from the static Kenya reference catalog; the
+    // other 19 templates target collections that already existed and are
+    // reused as-is). `formula_cost_overrides` is append-only, matching
+    // `material_prices`'s "a new validity period is a new row" convention.
+    // The system's own bookkeeping — import jobs, per-row results, export
+    // jobs, schema versions — never stores an uploaded file's contents,
+    // only counts/hashes/pointers, so `data_exchange_import_jobs` stays
+    // small even after years of use. Row results and export/schema-version
+    // records are append-only: a job's history must not be rewritable
+    // after the fact.
+    ("product_families", false),
+    ("finished_products", false),
+    ("material_documents", false),
+    ("process_parameters", false),
+    ("formula_cost_overrides", true),
+    ("data_exchange_import_jobs", false),
+    ("data_exchange_import_row_results", true),
+    ("data_exchange_export_jobs", true),
+    ("data_exchange_schema_versions", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
@@ -528,6 +560,29 @@ mod tests {
     #[test]
     fn all_ten_doe_collections_are_allow_listed_with_the_designed_mutability() {
         for (name, append_only) in DOE_COLLECTIONS {
+            assert_eq!(
+                collection_spec(name),
+                Ok((name, append_only)),
+                "{name} should be allow-listed as append_only={append_only}"
+            );
+        }
+    }
+
+    const DATA_EXCHANGE_COLLECTIONS: [(&str, bool); 9] = [
+        ("product_families", false),
+        ("finished_products", false),
+        ("material_documents", false),
+        ("process_parameters", false),
+        ("formula_cost_overrides", true),
+        ("data_exchange_import_jobs", false),
+        ("data_exchange_import_row_results", true),
+        ("data_exchange_export_jobs", true),
+        ("data_exchange_schema_versions", true),
+    ];
+
+    #[test]
+    fn all_nine_data_exchange_collections_are_allow_listed_with_the_designed_mutability() {
+        for (name, append_only) in DATA_EXCHANGE_COLLECTIONS {
             assert_eq!(
                 collection_spec(name),
                 Ok((name, append_only)),
