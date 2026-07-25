@@ -28,19 +28,44 @@ import {
   type ApprovalRole,
   type DataExchangeRowResult,
   type DataExchangeTemplateDefinition,
+  type DoeFactor,
+  type DoeObservation,
+  type DoeResponse,
+  type FactoryCostProfile,
   type FinishedProduct,
   type FormulaCostOverride,
+  type LabelArtwork,
+  type LabelContentBlock,
   type MasterProductFamily,
   type MaterialDocument,
   type MaterialPrice,
   type PackagingBom,
+  type PackagingComponent,
+  type PackagingComponentType,
   type ProcessParameter,
+  type ProductClaim,
   type RawMaterial,
+  type RegulatoryDossierEvidenceItem,
+  type RegulatoryDossierRequirement,
+  type RegulatoryJurisdiction,
+  type RegulatoryRule,
+  type StabilityResult,
+  type StabilitySample,
+  type StabilityStudy,
   type Supplier,
+  assertStudyEditable,
+  PACKAGING_COMPONENT_TYPES,
+  SEED_STABILITY_CONDITIONS,
+  SEED_STABILITY_TIME_POINTS,
   DOE_FACTOR_SOURCE_TYPES,
   DOE_FACTOR_TYPES,
   DOE_RESPONSE_OBJECTIVES,
   DOE_RESPONSE_TYPES,
+  DOSSIER_APPLICABILITY_STATUSES,
+  DOSSIER_EVIDENCE_TYPES,
+  DOSSIER_REQUIREMENT_TYPES,
+  LABEL_CONTENT_BLOCK_TYPES,
+  REGULATORY_JURISDICTIONS,
   REGULATORY_RULE_TYPES,
   CLAIM_CATEGORIES,
 } from "@ai4s/shared";
@@ -66,6 +91,15 @@ interface CommitCtx {
 const nn = (v: string | undefined) => (v && v.trim() !== "" ? v.trim() : undefined);
 const multi = (v: string | undefined) => (v ? v.split(";").map((s) => s.trim()).filter(Boolean) : []);
 const bool = (v: string | undefined, fallback = false) => (v === undefined || v === "" ? fallback : v === "true");
+/** Filters a multi_value jurisdiction list down to real
+ *  `REGULATORY_JURISDICTIONS` members — an unrecognized code is dropped,
+ *  never fabricated as a real jurisdiction. Returns `undefined` (not `[]`)
+ *  when nothing recognized remains, so a caller can fall back to a real
+ *  default instead of persisting an empty jurisdiction list. */
+const validJurisdictions = (v: string | undefined): RegulatoryJurisdiction[] | undefined => {
+  const found = multi(v).filter((code): code is RegulatoryJurisdiction => (REGULATORY_JURISDICTIONS as readonly string[]).includes(code));
+  return found.length > 0 ? found : undefined;
+};
 
 async function findByCode<T extends Record<string, unknown>>(
   collection: Collection,
@@ -84,6 +118,12 @@ async function findByCode<T extends Record<string, unknown>>(
 const GROUPED_TEMPLATES: Partial<Record<string, (record: RowRecord) => string>> = {
   formula_bom: (r) => `${r.formula_code}::${r.formula_version || "__next__"}`,
   lab_results: (r) => `${r.trial_code}::${r.sample_code}::${r.test_code}`,
+  // One study's whole protocol (every condition/time-point/test combo the
+  // file names for it) is resolved and written in one atomic group — if
+  // any line names an unrecognized condition/time-point/test, the entire
+  // group fails together rather than leaving the study with half a
+  // protocol attached.
+  stability_protocols: (r) => r.protocol_code,
 };
 
 /** Builds the `__lines` payload a grouped template's handler reads back out
@@ -112,6 +152,12 @@ const GROUPED_LINE_BUILDERS: Partial<Record<string, (rows: DataExchangeRowResult
         numericValue: nn(row.record.numeric_value),
         textValue: nn(row.record.text_value),
       })),
+  stability_protocols: (rows) =>
+    rows.map((row) => ({
+      condition_code: row.record.condition_code,
+      time_point: row.record.time_point,
+      test_code: row.record.test_code,
+    })),
 };
 
 /** Commit every committable row (`valid_create`/`valid_update`/`unchanged`/
@@ -361,18 +407,22 @@ const commitFinishedProducts: Handler = async (r) => {
 };
 
 const commitPackagingComponents: Handler = async (r) => {
-  const existing = await findByCode<Record<string, unknown>>("packaging_components", "code", r.component_code);
-  const record = {
-    schemaVersion: "1.0" as const,
+  const existing = await findByCode<PackagingComponent>("packaging_components", "code", r.component_code);
+  // No fabricated component type — an unrecognized value falls back to the
+  // schema's own real "other" member, never silently miscategorized as one
+  // of the specific types.
+  const componentType = (PACKAGING_COMPONENT_TYPES.includes(r.component_type as PackagingComponentType) ? r.component_type : "other") as PackagingComponentType;
+  const record: PackagingComponent = {
+    schemaVersion: "1.0",
     code: r.component_code,
     description: r.component_name,
-    componentType: r.component_type,
+    componentType,
     supplierCode: nn(r.supplier_code),
     unit: "piece",
     unitPrice: nn(r.unit_price),
     currency: nn(r.currency) ?? "KES",
     moq: nn(r.minimum_order_quantity),
-    effectiveFrom: undefined as string | undefined,
+    effectiveFrom: undefined,
     weightG: nn(r.weight),
     materialType: nn(r.material_type),
     wasteFactorPercent: "0",
@@ -382,7 +432,7 @@ const commitPackagingComponents: Handler = async (r) => {
     active: true,
     updatedAt: nowIso(),
   };
-  await upsertRecords("packaging_components", [record as never]);
+  await upsertRecords("packaging_components", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "packaging_components", targetRecordId: record.code };
 };
 
@@ -477,19 +527,11 @@ const commitProcessParameters: Handler = async (r) => {
 
 const commitCostingAssumptions: Handler = async (r) => {
   const code = r.costing_profile_code;
-  const existing = await findByCode<Record<string, unknown>>("factory_profiles", "code", code);
-  const unmapped = [
-    r.freight_percent ? `freight_percent: ${r.freight_percent}` : undefined,
-    r.duty_percent ? `duty_percent: ${r.duty_percent}` : undefined,
-    r.tax_percent ? `tax_percent: ${r.tax_percent}` : undefined,
-    r.target_margin_percent ? `target_margin_percent: ${r.target_margin_percent}` : undefined,
-  ]
-    .filter(Boolean)
-    .join(" | ");
-  const record = {
-    schemaVersion: "1.0" as const,
+  const existing = await findByCode<FactoryCostProfile>("factory_profiles", "code", code);
+  const record: FactoryCostProfile = {
+    schemaVersion: "1.0",
     code,
-    name: `Imported costing profile ${code}`,
+    name: existing?.name ?? `Imported costing profile ${code}`,
     currency: nn(r.currency) ?? "KES",
     electricityPerKwh: nn(r.energy_cost_per_kwh),
     waterPerM3: nn(r.water_cost_per_m3),
@@ -498,13 +540,22 @@ const commitCostingAssumptions: Handler = async (r) => {
     processLossPercent: nn(r.manufacturing_loss_percent) ?? "0",
     wasteDisposalPerBatch: nn(r.waste_cost_per_kg),
     overheadPercent: nn(r.overhead_percent),
+    // Real structured costing inputs, not notes-text — see
+    // factoryCostProfileSchema and `landedUnitCost`'s fallback use of
+    // freight/duty/taxPercent, and `buildCostSnapshot`'s use of
+    // targetMarginPercent for the (purely informational)
+    // impliedTargetSellingPricePerKg.
+    freightPercent: nn(r.freight_percent),
+    dutyPercent: nn(r.duty_percent),
+    taxPercent: nn(r.tax_percent),
+    targetMarginPercent: nn(r.target_margin_percent),
     effectiveFrom: r.effective_date,
-    verification: "not_verified" as const,
-    notes: [nn(r.notes), unmapped || undefined, "Imported via Data Exchange — freight/duty/tax/target-margin percentages are kept as notes; this profile schema does not have dedicated fields for them yet."].filter(Boolean).join(" | "),
+    verification: "not_verified",
+    notes: nn(r.notes),
     active: true,
     updatedAt: nowIso(),
   };
-  await upsertRecords("factory_profiles", [record as never]);
+  await upsertRecords("factory_profiles", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "factory_profiles", targetRecordId: code };
 };
 
@@ -600,114 +651,243 @@ const commitLabResults: Handler = async (r) => {
   return { outcome: "created", targetCollection: "test_results", targetRecordId: record.id };
 };
 
+// ====================================================== stability (15-16) ===
+//
+// Neither handler ever creates a `stability_studies` record, and neither
+// ever fabricates a `formulaSnapshot`/`packagingSnapshot` — a study can
+// only be created by a human through the real Stability workspace, which
+// captures those frozen snapshots properly at the moment of creation. What
+// these handlers DO safely support: attaching real protocol elements
+// (existing seed storage conditions, existing seed time points, existing
+// test definitions) to an ALREADY-CREATED study, and recording results
+// against ALREADY-GENERATED pull-point samples. `assertStudyEditable`
+// (shared engine — the exact same guard the Stability workspace itself
+// calls) refuses any of this once a study is terminal, so a completed
+// historical study's protocol can never be silently rewritten by import.
+
+const STABILITY_CONDITION_CODES = SEED_STABILITY_CONDITIONS.map((c) => c.code).join(", ");
+const STABILITY_TIME_POINT_CODES = SEED_STABILITY_TIME_POINTS.map((t) => t.code).join(", ");
+
+const commitStabilityProtocols: Handler = async (r) => {
+  const study = await findByCode<StabilityStudy>("stability_studies", "code", r.protocol_code);
+  if (!study) throw new Error(`No stability study with code "${r.protocol_code}" exists yet — create it in the Stability workspace first.`);
+  assertStudyEditable(study);
+  if (r.packaging_sku_code && r.packaging_sku_code !== study.packagingSkuCode) {
+    throw new Error(`packaging_sku_code "${r.packaging_sku_code}" does not match study "${r.protocol_code}"'s actual packaging SKU "${study.packagingSkuCode}".`);
+  }
+
+  const lines = (r as unknown as { __lines: { condition_code: string; time_point: string; test_code: string }[] }).__lines;
+  const conditionIds = new Set(study.conditionIds ?? []);
+  const timePointIds = new Set(study.timePointIds ?? []);
+  const requiredTestDefinitionIds = new Set(study.requiredTestDefinitionIds ?? []);
+  const before = conditionIds.size + timePointIds.size + requiredTestDefinitionIds.size;
+
+  for (const line of lines) {
+    const condition = SEED_STABILITY_CONDITIONS.find((c) => c.code === line.condition_code);
+    if (!condition) throw new Error(`"${line.condition_code}" is not a recognized storage condition code. Expected one of: ${STABILITY_CONDITION_CODES}.`);
+    const timePoint = SEED_STABILITY_TIME_POINTS.find((tp) => tp.code === line.time_point);
+    if (!timePoint) throw new Error(`"${line.time_point}" is not a recognized time point code. Expected one of: ${STABILITY_TIME_POINT_CODES}.`);
+    const testDef = await findByCode<{ id: string }>("test_definitions", "code", line.test_code);
+    if (!testDef) throw new Error(`No test definition with code "${line.test_code}" exists yet — import or create it first.`);
+    conditionIds.add(condition.id);
+    timePointIds.add(timePoint.id);
+    requiredTestDefinitionIds.add(testDef.id);
+  }
+
+  const after = conditionIds.size + timePointIds.size + requiredTestDefinitionIds.size;
+  const updated: StabilityStudy = {
+    ...study,
+    conditionIds: [...conditionIds],
+    timePointIds: [...timePointIds],
+    requiredTestDefinitionIds: [...requiredTestDefinitionIds],
+    updatedAt: nowIso(),
+  };
+  await upsertRecords("stability_studies", [updated]);
+  return { outcome: after > before ? "updated" : "unchanged", targetCollection: "stability_studies", targetRecordId: study.code };
+};
+
+const commitStabilityResults: Handler = async (r) => {
+  const study = await findByCode<StabilityStudy>("stability_studies", "code", r.study_code);
+  if (!study) throw new Error(`No stability study with code "${r.study_code}" exists yet — create it in the Stability workspace first.`);
+  const samples = (await listRecords("stability_samples")) as unknown as StabilitySample[];
+  const sample = samples.find((s) => s.studyId === study.id && s.sampleCode === r.sample_code);
+  if (!sample) throw new Error(`No stability sample "${r.sample_code}" exists yet for study "${r.study_code}" — generate the pull-point samples in the Stability workspace first.`);
+  const testDef = await findByCode<{ id: string; resultType: string }>("test_definitions", "code", r.test_code);
+  if (!testDef) throw new Error(`No test definition with code "${r.test_code}" exists yet — import or create it first.`);
+  if (!sample.testDefinitionIds.includes(testDef.id)) {
+    throw new Error(`Test "${r.test_code}" is not required for sample "${r.sample_code}" under study "${r.study_code}"'s protocol.`);
+  }
+  const sampleCondition = SEED_STABILITY_CONDITIONS.find((c) => c.id === sample.conditionId);
+  if (r.condition_code && sampleCondition && r.condition_code !== sampleCondition.code) {
+    throw new Error(`condition_code "${r.condition_code}" does not match sample "${r.sample_code}"'s actual condition "${sampleCondition.code}".`);
+  }
+  const sampleTimePoint = SEED_STABILITY_TIME_POINTS.find((tp) => tp.id === sample.timePointId);
+  if (r.time_point && sampleTimePoint && r.time_point !== sampleTimePoint.code) {
+    throw new Error(`time_point "${r.time_point}" does not match sample "${r.sample_code}"'s actual time point "${sampleTimePoint.code}".`);
+  }
+
+  if (!nn(r.numeric_value) && !nn(r.text_value)) {
+    // A blank value for a not-yet-tested pull point stays missing — no
+    // result record is written at all, since any stored row here would
+    // misrepresent the sample as measured.
+    return { outcome: "skipped", targetCollection: "stability_results", message: "No value provided — left missing, no record written." };
+  }
+
+  const existingResults = (await listRecords("stability_results")) as unknown as StabilityResult[];
+  const priorResult = existingResults
+    .filter((res) => res.sampleId === sample.id && res.testDefinitionId === testDef.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+
+  const record: StabilityResult = {
+    schemaVersion: "1.0",
+    id: newId("stabresult"),
+    studyId: study.id,
+    sampleId: sample.id,
+    conditionId: sample.conditionId,
+    timePointId: sample.timePointId,
+    testDefinitionId: testDef.id,
+    resultType: (TEST_RESULT_TYPES.includes(testDef.resultType as (typeof TEST_RESULT_TYPES)[number]) ? testDef.resultType : "numeric") as (typeof TEST_RESULT_TYPES)[number],
+    replicates: nn(r.numeric_value) ? [{ replicateNumber: 1, numericValue: r.numeric_value, isOutlier: false }] : [],
+    textValue: nn(r.text_value),
+    passFail: "not_evaluated",
+    unit: nn(r.unit),
+    notes: [nn(r.observation), nn(r.notes)].filter(Boolean).join(" | ") || undefined,
+    attachments: [],
+    performedBy: nn(r.analyst) ?? "data-exchange-import",
+    performedAt: nn(r.result_date) ?? nowIso(),
+    // Append-only: a matching (sample, test) result is never overwritten —
+    // this always creates a new revision, chaining `revisesResultId` to
+    // whatever the most recent prior result for this sample/test was.
+    revisesResultId: priorResult?.id,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+  await upsertRecords("stability_results", [record]);
+  return { outcome: priorResult ? "updated" : "created", targetCollection: "stability_results", targetRecordId: record.id };
+};
+
 // ===================================================== regulatory (17-19) ===
 
 const commitRegulatoryRules: Handler = async (r) => {
-  const existing = await findByCode<Record<string, unknown>>("regulatory_rules", "code", r.rule_code);
+  const existing = await findByCode<RegulatoryRule>("regulatory_rules", "code", r.rule_code);
   // No catch-all "other" exists in this enum — an unrecognized rule_type is
   // reported rather than silently mis-filed under a wrong category.
   if (r.rule_type && !REGULATORY_RULE_TYPES.includes(r.rule_type as (typeof REGULATORY_RULE_TYPES)[number])) {
     throw new Error(`"${r.rule_type}" is not a recognized rule_type. Expected one of: ${REGULATORY_RULE_TYPES.join(", ")}.`);
   }
-  const record = {
-    schemaVersion: "1.0" as const,
-    id: (existing?.id as string) ?? newId("rule"),
+  const record: RegulatoryRule = {
+    schemaVersion: "1.0",
+    id: existing?.id ?? newId("rule"),
     code: r.rule_code,
     name: r.rule_code,
-    jurisdiction: r.jurisdiction,
+    // Safe: the registry's `jurisdiction` column is `dataType: "enum"`
+    // (REGULATORY_JURISDICTIONS) — previewDataExchangeImport already
+    // refused any row with an unrecognized jurisdiction before this
+    // handler ever runs.
+    jurisdiction: r.jurisdiction as RegulatoryJurisdiction,
     authority: nn(r.authority) ?? "Imported — authority not yet confirmed",
     ruleType: (nn(r.rule_type) ?? "document_requirement") as (typeof REGULATORY_RULE_TYPES)[number],
-    productCategories: [] as string[],
+    productCategories: [],
     requirement: r.requirement,
     severity: (nn(r.severity) as "info" | "warning" | "blocking") ?? "warning",
-    status: "draft" as const,
-    conditions: (existing?.conditions as unknown[]) ?? [],
+    status: "draft",
+    conditions: existing?.conditions ?? [],
     claimKeywordsAny: multi(r.claim_keyword),
-    requiredEvidenceTypes: [] as string[],
+    requiredEvidenceTypes: [],
     requiredLabelElements: multi(r.required_label_element),
     requiredWarnings: multi(r.required_warning),
     requiredDocumentTypes: multi(r.required_document_type),
-    requiredTestTypes: [] as string[],
-    requiredPackagingElements: [] as string[],
-    requiredLanguages: [] as string[],
+    requiredTestTypes: [],
+    requiredPackagingElements: [],
+    requiredLanguages: [],
     requiresRegistration: false,
     requiresNotification: false,
     requiresResponsiblePartyInMarket: false,
     requiresMarketSpecificIdentifier: false,
-    version: existing ? ((existing.version as number) ?? 1) + 1 : 1,
+    version: existing ? (existing.version ?? 1) + 1 : 1,
     effectiveDate: nn(r.effective_date),
     expiryDate: nn(r.expiry_date),
     sourceReference: nn(r.source_reference),
     // Never taken from the file — an import always resets verification.
-    verificationStatus: "not_verified" as const,
-    humanReviewStatus: "review_required" as const,
+    verificationStatus: "not_verified",
+    humanReviewStatus: "review_required",
     active: true,
     createdBy: "data-exchange-import",
-    createdAt: (existing?.createdAt as string) ?? nowIso(),
+    createdAt: existing?.createdAt ?? nowIso(),
     updatedAt: nowIso(),
   };
-  await upsertRecords("regulatory_rules", [record as never]);
+  await upsertRecords("regulatory_rules", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "regulatory_rules", targetRecordId: record.code };
 };
 
 const commitDossierRequirements: Handler = async (r) => {
   const dossier = await findByCode<{ id: string; revision: number }>("regulatory_dossiers", "dossierCode", r.dossier_code);
   if (!dossier) throw new Error(`No dossier with code "${r.dossier_code}" exists yet — create it in the Dossiers workspace first.`);
-  const record = {
-    schemaVersion: "1.0" as const,
+  const record: RegulatoryDossierRequirement = {
+    schemaVersion: "1.0",
     id: newId("dossierreq"),
     dossierId: dossier.id,
     dossierRevision: dossier.revision,
-    jurisdiction: r.jurisdiction,
+    // Safe: both columns are registry `enum` types
+    // (REGULATORY_JURISDICTIONS / DOSSIER_REQUIREMENT_TYPES) — an
+    // unrecognized value never reaches this handler; see
+    // `commitRegulatoryRules` above.
+    jurisdiction: r.jurisdiction as RegulatoryJurisdiction,
     requirementCode: r.requirement_code,
-    requirementType: nn(r.requirement_type) ?? "other",
+    requirementType: (nn(r.requirement_type) ?? "other") as (typeof DOSSIER_REQUIREMENT_TYPES)[number],
     title: r.title,
     description: nn(r.description),
     sourceReference: nn(r.source_rule_code),
     isManual: true,
     mandatory: bool(r.mandatory),
     critical: bool(r.critical),
-    applicabilityStatus: (nn(r.applicability_status) as "applicable" | "not_applicable" | "excluded") ?? "applicable",
+    // Safe: registry `enum` type (DOSSIER_APPLICABILITY_STATUSES).
+    applicabilityStatus: (nn(r.applicability_status) as (typeof DOSSIER_APPLICABILITY_STATUSES)[number]) ?? "applicable",
     applicabilityReason: "Set via Data Exchange import.",
     evidenceRequirement: true,
-    documentTypesAccepted: [] as string[],
+    documentTypesAccepted: [],
     minimumEvidenceCount: r.minimum_evidence_count ? Number.parseInt(r.minimum_evidence_count, 10) : 1,
+    // An imported requirement is always active — "excluded" is only ever
+    // reachable through a human's authorized manual-exclusion action, the
+    // same rule this field's own schema doc states.
+    status: "active",
     expiryPolicy: nn(r.expiry_policy),
     createdAt: nowIso(),
   };
-  await upsertRecords("regulatory_dossier_requirements", [record as never]);
+  await upsertRecords("regulatory_dossier_requirements", [record]);
   return { outcome: "created", targetCollection: "regulatory_dossier_requirements", targetRecordId: record.id };
 };
 
 const commitDossierEvidence: Handler = async (r) => {
   const dossier = await findByCode<{ id: string; formulationId: string; formulaVersionId: string }>("regulatory_dossiers", "dossierCode", r.dossier_code);
   if (!dossier) throw new Error(`No dossier with code "${r.dossier_code}" exists yet — create it in the Dossiers workspace first.`);
-  const record = {
-    schemaVersion: "1.0" as const,
+  const record: RegulatoryDossierEvidenceItem = {
+    schemaVersion: "1.0",
     id: newId("evidence"),
     dossierId: dossier.id,
     formulationId: dossier.formulationId,
     formulaVersionId: dossier.formulaVersionId,
-    jurisdictions: ["KE"] as string[],
-    evidenceType: nn(r.evidence_type) ?? "other",
+    jurisdictions: ["KE"],
+    // Safe: registry `enum` type (DOSSIER_EVIDENCE_TYPES).
+    evidenceType: (nn(r.evidence_type) ?? "other") as (typeof DOSSIER_EVIDENCE_TYPES)[number],
     documentType: nn(r.document_type),
     title: r.title,
     description: nn(r.notes),
     // Always draft/present_unverified from an import — see module doc.
-    status: "draft" as const,
-    sourceType: "uploaded" as const,
-    attachmentIds: [] as unknown[],
+    status: "draft",
+    sourceType: "uploaded",
+    attachmentIds: [],
     documentNumber: nn(r.document_number),
     issuer: nn(r.issuer),
     issuedAt: nn(r.issue_date),
     expiresAt: nn(r.expiry_date),
     language: nn(r.language),
-    confidentiality: "normal" as const,
+    confidentiality: "normal",
     createdBy: "data-exchange-import",
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
-  await upsertRecords("regulatory_evidence_items", [record as never]);
+  await upsertRecords("regulatory_evidence_items", [record]);
   return { outcome: "created", targetCollection: "regulatory_evidence_items", targetRecordId: record.id };
 };
 
@@ -720,8 +900,8 @@ const commitProductClaims: Handler = async (r) => {
   const { versions } = await readFormulation(formulation.id);
   const version = r.formula_version ? versions.find((v) => v.versionNumber === Number.parseInt(r.formula_version, 10)) : versions[versions.length - 1];
   if (!version) throw new Error(`Formula "${r.project_code}" has no saved version ${r.formula_version || ""}.`);
-  const record = {
-    schemaVersion: "1.0" as const,
+  const record: ProductClaim = {
+    schemaVersion: "1.0",
     id: newId("claim"),
     claimCode: r.claim_code,
     claimText: r.claim_text,
@@ -730,39 +910,44 @@ const commitProductClaims: Handler = async (r) => {
     formulationId: formulation.id,
     formulaVersionId: version.id,
     packagingSkuCode: nn(r.packaging_sku_code),
-    jurisdictions: multi(r.jurisdictions).length ? multi(r.jurisdictions) : ["KE"],
+    // `jurisdictions` is a multi_value column, not an enum one (a
+    // semicolon list can't be enum-validated column-wide) — an
+    // unrecognized code is dropped here rather than fabricated as a real
+    // jurisdiction; falls back to KE only if nothing recognized remains.
+    jurisdictions: validJurisdictions(r.jurisdictions) ?? ["KE"],
     languages: multi(r.languages).length ? multi(r.languages) : ["en"],
     // Always draft from an import — see module doc.
-    status: "draft" as const,
+    status: "draft",
     riskLevel: (nn(r.risk_level) as "low" | "medium" | "high") ?? "unknown",
     proposedBy: "data-exchange-import",
     proposedAt: nowIso(),
     updatedAt: nowIso(),
   };
-  await upsertRecords("product_claims", [record as never]);
+  await upsertRecords("product_claims", [record]);
   return { outcome: "created", targetCollection: "product_claims", targetRecordId: record.claimCode };
 };
 
 const commitLabelContent: Handler = async (r) => {
   const label = await findByCode<{ id: string }>("product_labels", "labelCode", r.label_code);
   if (!label) throw new Error(`No label with code "${r.label_code}" exists yet — create it in the Claims & Labels workspace first.`);
-  const record = {
-    schemaVersion: "1.0" as const,
+  const record: LabelContentBlock = {
+    schemaVersion: "1.0",
     id: newId("labelblock"),
     labelId: label.id,
     labelRevision: Number.parseInt(r.label_revision, 10) || 1,
-    blockType: nn(r.block_type) ?? "other",
+    // Safe: registry `enum` type (LABEL_CONTENT_BLOCK_TYPES).
+    blockType: (nn(r.block_type) ?? "other") as (typeof LABEL_CONTENT_BLOCK_TYPES)[number],
     text: r.content_text,
     language: r.language,
     position: 0,
     mandatory: bool(r.mandatory),
-    source: "imported" as const,
-    translationStatus: "draft" as const,
-    status: "draft" as const,
+    source: "imported",
+    translationStatus: "draft",
+    status: "draft",
     createdBy: "data-exchange-import",
     createdAt: nowIso(),
   };
-  await upsertRecords("label_content_blocks", [record as never]);
+  await upsertRecords("label_content_blocks", [record]);
   return { outcome: "created", targetCollection: "label_content_blocks", targetRecordId: record.id };
 };
 
@@ -771,13 +956,13 @@ const commitArtworkRegister: Handler = async (r) => {
   if (!label) throw new Error(`No label with code "${r.label_code}" exists yet — create it in the Claims & Labels workspace first.`);
   const existing = await findByCode<{ id: string }>("label_artworks", "artworkCode", r.artwork_code);
   if (existing) throw new Error(`Artwork "${r.artwork_code}" already exists — use supersedes_artwork_code with a new artwork_code to record a replacement.`);
-  const record = {
-    schemaVersion: "1.0" as const,
+  const record: LabelArtwork = {
+    schemaVersion: "1.0",
     id: newId("artwork"),
     labelId: label.id,
     labelRevision: Number.parseInt(r.label_revision || "1", 10),
     artworkCode: r.artwork_code,
-    attachmentIds: [] as unknown[],
+    attachmentIds: [],
     format: nn(r.format),
     dimensions: r.width && r.height ? `${r.width}x${r.height}${r.dimension_unit ? ` ${r.dimension_unit}` : ""}` : undefined,
     colorMode: nn(r.color_mode),
@@ -785,10 +970,10 @@ const commitArtworkRegister: Handler = async (r) => {
     createdBy: nn(r.created_by) ?? "data-exchange-import",
     createdAt: nn(r.created_at) ?? nowIso(),
     // Never "approved" from an import — see module doc.
-    status: "draft" as const,
-    supersedesArtworkId: undefined as string | undefined,
+    status: "draft",
+    supersedesArtworkId: undefined,
   };
-  await upsertRecords("label_artworks", [record as never]);
+  await upsertRecords("label_artworks", [record]);
   return { outcome: "created", targetCollection: "label_artworks", targetRecordId: record.artworkCode };
 };
 
@@ -798,50 +983,59 @@ const commitDoeFactorsResponses: Handler = async (r) => {
   const study = await findByCode<{ id: string; revision: number }>("doe_studies", "studyCode", r.study_code);
   if (!study) throw new Error(`No DOE study with code "${r.study_code}" exists yet — create it in the Design of Experiments workspace first.`);
   if (r.record_type === "response") {
-    const existing = await findByCode<{ id: string }>("doe_responses", "responseCode", r.factor_or_response_code);
-    const record = {
-      schemaVersion: "1.0" as const,
+    const existing = await findByCode<DoeResponse>("doe_responses", "responseCode", r.factor_or_response_code);
+    // `.includes()` on a `readonly Tuple[number][]` requires the queried
+    // value to already be that literal union — widening the array's own
+    // type to `readonly string[]` for the membership check (rather than
+    // casting the row's plain-string value) keeps this a real, sound
+    // check with no `as never` anywhere.
+    const responseType = ((DOE_RESPONSE_TYPES as readonly string[]).includes(r.name) ? r.name : "continuous") as (typeof DOE_RESPONSE_TYPES)[number];
+    const objective = ((DOE_RESPONSE_OBJECTIVES as readonly string[]).includes(r.objective) ? r.objective : "observe_only") as (typeof DOE_RESPONSE_OBJECTIVES)[number];
+    const record: DoeResponse = {
+      schemaVersion: "1.0",
       id: existing?.id ?? newId("doeresp"),
       studyId: study.id,
       studyRevision: study.revision,
       responseCode: r.factor_or_response_code,
       name: r.name,
-      responseType: (DOE_RESPONSE_TYPES.includes(r.name as never) ? r.name : "continuous") as (typeof DOE_RESPONSE_TYPES)[number],
+      responseType,
       unit: nn(r.unit),
-      objective: (DOE_RESPONSE_OBJECTIVES.includes(r.objective as never) ? r.objective : "observe_only") as (typeof DOE_RESPONSE_OBJECTIVES)[number],
+      objective,
       targetValue: nn(r.target_value),
       lowerLimit: nn(r.lower_limit),
       upperLimit: nn(r.upper_limit),
       weight: nn(r.weight) ?? "1",
-      desirabilityShape: "linear" as const,
+      desirabilityShape: "linear",
       createdAt: nowIso(),
     };
-    await upsertRecords("doe_responses", [record as never]);
+    await upsertRecords("doe_responses", [record]);
     return { outcome: existing ? "updated" : "created", targetCollection: "doe_responses", targetRecordId: record.responseCode };
   }
-  const existing = await findByCode<{ id: string }>("doe_factors", "factorCode", r.factor_or_response_code);
-  const record = {
-    schemaVersion: "1.0" as const,
+  const existing = await findByCode<DoeFactor>("doe_factors", "factorCode", r.factor_or_response_code);
+  const factorType = ((DOE_FACTOR_TYPES as readonly string[]).includes(r.factor_type) ? r.factor_type : "continuous") as (typeof DOE_FACTOR_TYPES)[number];
+  const sourceType = ((DOE_FACTOR_SOURCE_TYPES as readonly string[]).includes(r.source_type) ? r.source_type : "custom") as (typeof DOE_FACTOR_SOURCE_TYPES)[number];
+  const record: DoeFactor = {
+    schemaVersion: "1.0",
     id: existing?.id ?? newId("doefactor"),
     studyId: study.id,
     studyRevision: study.revision,
     factorCode: r.factor_or_response_code,
     name: r.name,
-    factorType: (DOE_FACTOR_TYPES.includes(r.factor_type as never) ? r.factor_type : "continuous") as (typeof DOE_FACTOR_TYPES)[number],
-    sourceType: (DOE_FACTOR_SOURCE_TYPES.includes(r.source_type as never) ? r.source_type : "custom") as (typeof DOE_FACTOR_SOURCE_TYPES)[number],
+    factorType,
+    sourceType,
     unit: nn(r.unit),
     lowValue: nn(r.low_value),
     centerValue: nn(r.center_value),
     highValue: nn(r.high_value),
     categoricalLevels: multi(r.categorical_levels),
-    transformation: "none" as const,
+    transformation: "none",
     precision: 2,
     isMixtureComponent: false,
     isProcessFactor: r.source_type === "process_parameter",
     isControlled: true,
     createdAt: nowIso(),
   };
-  await upsertRecords("doe_factors", [record as never]);
+  await upsertRecords("doe_factors", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "doe_factors", targetRecordId: record.factorCode };
 };
 
@@ -855,11 +1049,11 @@ const commitDoeObservations: Handler = async (r) => {
   const response = responses.find((res) => res.studyId === study.id && res.responseCode === r.response_code);
   if (!response) throw new Error(`Response "${r.response_code}" does not exist for study "${r.study_code}".`);
 
-  const observations = (await listRecords("doe_observations")) as unknown as { id: string; runId: string; responseId: string }[];
+  const observations = (await listRecords("doe_observations")) as unknown as DoeObservation[];
   const existing = observations.find((o) => o.runId === run.id && o.responseId === response.id);
-  const status = nn(r.numeric_value) || nn(r.text_value) ? "recorded" : "missing";
-  const record = {
-    schemaVersion: "1.0" as const,
+  const status: "recorded" | "missing" = nn(r.numeric_value) || nn(r.text_value) ? "recorded" : "missing";
+  const record: DoeObservation = {
+    schemaVersion: "1.0",
     id: existing?.id ?? newId("doeobs"),
     studyId: study.id,
     studyRevision: study.revision,
@@ -868,11 +1062,11 @@ const commitDoeObservations: Handler = async (r) => {
     value: nn(r.numeric_value),
     textValue: nn(r.text_value),
     // Import can only ever write recorded/missing — never excluded/outlier_confirmed.
-    status: status as "recorded" | "missing",
+    status,
     recordedBy: nn(r.analyst) ?? "data-exchange-import",
     recordedAt: nn(r.measured_at) ?? nowIso(),
   };
-  await upsertRecords("doe_observations", [record as never]);
+  await upsertRecords("doe_observations", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "doe_observations", targetRecordId: record.id };
 };
 
@@ -893,6 +1087,8 @@ export const COMMIT_HANDLERS: Partial<Record<string, Handler>> = {
   formula_cost_overrides: commitFormulaCostOverrides,
   test_definitions: commitTestDefinitions,
   lab_results: commitLabResults,
+  stability_protocols: commitStabilityProtocols,
+  stability_results: commitStabilityResults,
   regulatory_rules: commitRegulatoryRules,
   dossier_requirements: commitDossierRequirements,
   dossier_evidence: commitDossierEvidence,
@@ -906,3 +1102,14 @@ export const COMMIT_HANDLERS: Partial<Record<string, Handler>> = {
 /** DOE_FACTOR_TYPES etc. re-exported so the UI can build the wizard-free
  *  quick-entry helper without importing the schema module directly. */
 export { DOE_FACTOR_TYPES, DOE_FACTOR_SOURCE_TYPES, DOE_RESPONSE_TYPES, DOE_RESPONSE_OBJECTIVES };
+
+/** Whether a real commit handler exists for this template at all — checked
+ *  by the UI before ever offering "Commit import", so an unwired template
+ *  gets an honest, distinct "unsupported" job status instead of a
+ *  misleading "completed" with zero rows written. Every one of the 24
+ *  Phase 6 templates has a real handler as of this closure pass; this stays
+ *  exported for whatever future template ships registered before its
+ *  handler does. */
+export function isTemplateCommitSupported(templateCode: string): boolean {
+  return templateCode in COMMIT_HANDLERS;
+}

@@ -18,8 +18,9 @@
 import type { ApprovalRole } from "../schemas/status";
 import { DOE_FACTOR_SOURCE_TYPES, DOE_FACTOR_TYPES, DOE_RESPONSE_OBJECTIVES } from "../schemas/doe";
 import { MATERIAL_DOCUMENT_TYPES } from "../schemas/dataExchange";
-import { REGULATORY_RULE_TYPES } from "../schemas/regulatory";
-import { CLAIM_CATEGORIES } from "../schemas/claimsLabels";
+import { REGULATORY_JURISDICTIONS, REGULATORY_RULE_TYPES } from "../schemas/regulatory";
+import { DOSSIER_APPLICABILITY_STATUSES, DOSSIER_EVIDENCE_TYPES, DOSSIER_REQUIREMENT_TYPES } from "../schemas/dossier";
+import { CLAIM_CATEGORIES, LABEL_CONTENT_BLOCK_TYPES } from "../schemas/claimsLabels";
 
 // ------------------------------------------------------------------ types ---
 
@@ -494,7 +495,7 @@ const STABILITY_RESULT_COLUMNS: DataExchangeColumnDefinition[] = [
 
 const REGULATORY_RULE_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "rule_code", dataType: "code_reference", description: "Stable rule code — natural key.", ...REQ, example: "TEST-RULE-001" }),
-  col({ key: "jurisdiction", dataType: "string", description: "Jurisdiction code.", ...REQ, example: "KE" }),
+  col({ key: "jurisdiction", dataType: "enum", description: "Jurisdiction code.", ...REQ, enumValues: REGULATORY_JURISDICTIONS, example: "KE" }),
   col({ key: "authority", dataType: "string", description: "Issuing authority." }),
   col({ key: "rule_type", dataType: "enum", description: "Rule type.", enumValues: REGULATORY_RULE_TYPES, example: "label_requirement" }),
   col({ key: "product_family_code", dataType: "code_reference", referenceTemplate: "product_families", referenceField: "family_code", description: "Scoping product family, if any." }),
@@ -521,14 +522,14 @@ const REGULATORY_RULE_COLUMNS: DataExchangeColumnDefinition[] = [
 
 const DOSSIER_REQUIREMENT_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "dossier_code", dataType: "code_reference", description: "Dossier code.", ...REQ, example: "TEST-DOSS-001" }),
-  col({ key: "jurisdiction", dataType: "string", description: "Jurisdiction.", ...REQ, example: "KE" }),
+  col({ key: "jurisdiction", dataType: "enum", description: "Jurisdiction.", ...REQ, enumValues: REGULATORY_JURISDICTIONS, example: "KE" }),
   col({ key: "requirement_code", dataType: "code_reference", description: "Requirement code — natural key together with dossier_code.", ...REQ, example: "TEST-REQ-001" }),
-  col({ key: "requirement_type", dataType: "string", description: "Requirement type." }),
+  col({ key: "requirement_type", dataType: "enum", description: "Requirement type.", enumValues: DOSSIER_REQUIREMENT_TYPES, example: "label_content" }),
   col({ key: "title", dataType: "string", description: "Title.", ...REQ }),
   col({ key: "description", dataType: "string", description: "Description." }),
   col({ key: "mandatory", dataType: "boolean", defaultValue: "false", description: "Mandatory flag." }),
   col({ key: "critical", dataType: "boolean", defaultValue: "false", description: "Critical flag." }),
-  col({ key: "applicability_status", dataType: "enum", enumValues: ["applicable", "not_applicable", "excluded"], defaultValue: "applicable", description: "Applicability." }),
+  col({ key: "applicability_status", dataType: "enum", enumValues: DOSSIER_APPLICABILITY_STATUSES, defaultValue: "applicable", description: "Applicability." }),
   col({ key: "accepted_evidence_types", dataType: "multi_value", description: "Accepted evidence types, semicolon-separated." }),
   col({ key: "minimum_evidence_count", dataType: "integer", description: "Minimum evidence items required." }),
   col({ key: "expiry_policy", dataType: "string", description: "Evidence expiry policy text." }),
@@ -543,8 +544,8 @@ const DOSSIER_EVIDENCE_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "dossier_code", dataType: "code_reference", description: "Owning dossier.", ...REQ, example: "TEST-DOSS-001" }),
   col({ key: "requirement_code", dataType: "code_reference", description: "Requirement this evidence supports.", ...REQ, example: "TEST-REQ-001" }),
   col({ key: "evidence_code", dataType: "code_reference", description: "Evidence code — natural key.", ...REQ, example: "TEST-EVID-001" }),
-  col({ key: "evidence_type", dataType: "string", description: "Evidence type." }),
-  col({ key: "document_type", dataType: "enum", enumValues: MATERIAL_DOCUMENT_TYPES, description: "Document type, if document-based." }),
+  col({ key: "evidence_type", dataType: "enum", enumValues: DOSSIER_EVIDENCE_TYPES, description: "Evidence type." }),
+  col({ key: "document_type", dataType: "string", description: "Free-text document type/sub-type, if document-based (e.g. \"regulatory declaration\") — not validated against the Material Documents template's document-type list, since a dossier evidence document is not necessarily a material document." }),
   col({ key: "title", dataType: "string", description: "Title.", ...REQ }),
   col({ key: "document_number", dataType: "string", description: "Document number." }),
   col({ key: "issuer", dataType: "string", description: "Issuer." }),
@@ -586,7 +587,7 @@ const LABEL_CONTENT_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "language", dataType: "string", description: "Language.", ...REQ, example: "en" }),
   col({ key: "label_revision", dataType: "string", description: "Revision label.", ...REQ, example: "1" }),
   col({ key: "panel", dataType: "string", description: "Label panel, e.g. front, back.", ...REQ }),
-  col({ key: "block_type", dataType: "string", description: "Content block type, e.g. warning, ingredient_list.", ...REQ }),
+  col({ key: "block_type", dataType: "enum", description: "Content block type.", ...REQ, enumValues: LABEL_CONTENT_BLOCK_TYPES, example: "product_name" }),
   col({ key: "content_text", dataType: "string", description: "Block text.", ...REQ }),
   col({ key: "mandatory", dataType: "boolean", defaultValue: "false", description: "Mandatory flag." }),
   col({ key: "source", dataType: "enum", description: "Always recorded as \"imported\", matching this template — the schema was designed with this exact source value.", enumValues: ["imported"] }),
@@ -975,7 +976,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     authorization: REGULATORY_ROLES,
     targetCollection: "regulatory_dossier_requirements",
     exampleRows: [
-      { dossier_code: "TEST-DOSS-001", jurisdiction: "KE", requirement_code: "TEST-REQ-001", requirement_type: "label", title: "Net contents statement", description: "Label must declare net contents.", mandatory: "true", critical: "true", applicability_status: "applicable", accepted_evidence_types: "label_content;regulatory_declaration", minimum_evidence_count: "1", expiry_policy: "none", source_rule_code: "TEST-RULE-001", notes: "Synthetic test row." },
+      { dossier_code: "TEST-DOSS-001", jurisdiction: "KE", requirement_code: "TEST-REQ-001", requirement_type: "label_content", title: "Net contents statement", description: "Label must declare net contents.", mandatory: "true", critical: "true", applicability_status: "applicable", accepted_evidence_types: "label_content;regulatory_declaration", minimum_evidence_count: "1", expiry_policy: "none", source_rule_code: "TEST-RULE-001", notes: "Synthetic test row." },
     ],
   }),
   template({
@@ -990,7 +991,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     authorization: REGULATORY_ROLES,
     targetCollection: "regulatory_evidence_items",
     exampleRows: [
-      { dossier_code: "TEST-DOSS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001", evidence_type: "document", document_type: "regulatory_declaration", title: "TEST net-contents declaration", document_number: "DECL-001", issuer: "TEST QA", issue_date: "2026-01-10", expiry_date: "", language: "en", file_name: "test-declaration.pdf", source_entity_code: "", status: "draft", notes: "Synthetic test row." },
+      { dossier_code: "TEST-DOSS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001", evidence_type: "other", document_type: "regulatory_declaration", title: "TEST net-contents declaration", document_number: "DECL-001", issuer: "TEST QA", issue_date: "2026-01-10", expiry_date: "", language: "en", file_name: "test-declaration.pdf", source_entity_code: "", status: "draft", notes: "Synthetic test row." },
     ],
   }),
   template({

@@ -16,6 +16,7 @@
  * than a fabricated or silently empty export — see
  * docs/DATA_EXCHANGE_EXPORTS.md.
  */
+import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "@ai4s/shared";
 import { listRecords, type Collection } from "./masterdata";
 import { listFormulations, readFormulation } from "./formulations";
 
@@ -176,6 +177,10 @@ const LOADERS: Partial<Record<string, Loader>> = {
       steam_cost_per_kg: s(r.steamPerKg),
       overhead_percent: s(r.overheadPercent),
       manufacturing_loss_percent: s(r.processLossPercent),
+      freight_percent: s(r.freightPercent),
+      duty_percent: s(r.dutyPercent),
+      tax_percent: s(r.taxPercent),
+      target_margin_percent: s(r.targetMarginPercent),
       notes: s(r.notes),
     })),
   formula_cost_overrides: () =>
@@ -222,6 +227,81 @@ const LOADERS: Partial<Record<string, Loader>> = {
       verified_by: s(r.verifiedBy),
       verified_at: s(r.verifiedAt),
     })),
+  // Not a 1:1 record mapping — a study's protocol is three flat id arrays
+  // (conditionIds/timePointIds/requiredTestDefinitionIds), so "what protocol
+  // rows currently exist" is the real cross-product of those three arrays
+  // resolved back to codes. A study with 2 conditions x 3 time points x 2
+  // tests genuinely has 12 real (condition, time-point, test) combinations
+  // attached to it today — this is not fabricated, it is what
+  // `commitStabilityProtocols` itself would consider "already present" on
+  // re-import.
+  stability_protocols: async () => {
+    const studies = (await listRecords("stability_studies")) as unknown as Record<string, unknown>[];
+    const testDefs = (await listRecords("test_definitions")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const study of studies) {
+      const code = s(study.code);
+      const conditionIds = (study.conditionIds as string[] | undefined) ?? [];
+      const timePointIds = (study.timePointIds as string[] | undefined) ?? [];
+      const testIds = (study.requiredTestDefinitionIds as string[] | undefined) ?? [];
+      for (const cid of conditionIds) {
+        const condition = SEED_STABILITY_CONDITIONS.find((c) => c.id === cid);
+        if (!condition) continue;
+        for (const tid of timePointIds) {
+          const timePoint = SEED_STABILITY_TIME_POINTS.find((tp) => tp.id === tid);
+          if (!timePoint) continue;
+          for (const testId of testIds) {
+            const testDef = testDefs.find((td) => td.id === testId);
+            if (!testDef) continue;
+            naturalKeys.add(`${code}::${condition.code}::${timePoint.code}::${s(testDef.code)}`);
+            rows.push({
+              protocol_code: code,
+              condition_code: condition.code,
+              time_point: timePoint.code,
+              test_code: s(testDef.code),
+              packaging_sku_code: s(study.packagingSkuCode),
+            });
+          }
+        }
+      }
+    }
+    return { naturalKeys, rows };
+  },
+  stability_results: async () => {
+    const results = (await listRecords("stability_results")) as unknown as Record<string, unknown>[];
+    const studies = (await listRecords("stability_studies")) as unknown as Record<string, unknown>[];
+    const samples = (await listRecords("stability_samples")) as unknown as Record<string, unknown>[];
+    const testDefs = (await listRecords("test_definitions")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const result of results) {
+      const study = studies.find((st) => st.id === result.studyId);
+      const sample = samples.find((sm) => sm.id === result.sampleId);
+      const condition = SEED_STABILITY_CONDITIONS.find((c) => c.id === result.conditionId);
+      const timePoint = SEED_STABILITY_TIME_POINTS.find((tp) => tp.id === result.timePointId);
+      const testDef = testDefs.find((td) => td.id === result.testDefinitionId);
+      if (!study || !sample || !condition || !timePoint || !testDef) continue;
+      const studyCode = s(study.code);
+      const sampleCode = s(sample.sampleCode);
+      const testCode = s(testDef.code);
+      naturalKeys.add(`${studyCode}::${sampleCode}::${condition.code}::${timePoint.code}::${testCode}`);
+      rows.push({
+        study_code: studyCode,
+        sample_code: sampleCode,
+        condition_code: condition.code,
+        time_point: timePoint.code,
+        test_code: testCode,
+        numeric_value: (result.replicates as { numericValue?: string }[] | undefined)?.[0]?.numericValue ?? "",
+        text_value: s(result.textValue),
+        unit: s(result.unit),
+        result_date: s(result.performedAt),
+        analyst: s(result.performedBy),
+        observation: s(result.notes),
+      });
+    }
+    return { naturalKeys, rows };
+  },
 };
 
 export function hasExistingLookup(templateCode: string): boolean {
