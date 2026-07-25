@@ -299,6 +299,10 @@ export const labelContentBlockSchema = z.object({
   labelId: z.string().min(1),
   labelRevision: z.number().int().positive(),
   blockType: z.enum(LABEL_CONTENT_BLOCK_TYPES),
+  /** Physical/artwork panel this block sits on (e.g. "front", "back") —
+   *  optional because a block created directly in the workspace may not
+   *  need one yet; the Data Exchange template's natural key includes it. */
+  panel: z.string().optional(),
   text: z.string(),
   language: z.string().min(1),
   position: z.number().int().nonnegative().default(0),

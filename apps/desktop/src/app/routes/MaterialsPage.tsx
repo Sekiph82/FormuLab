@@ -262,6 +262,7 @@ export function MaterialsPage() {
       fillQuantity: "0",
       fillUnit: "ml",
       fillLossPercent: "0",
+      tags: [],
       updatedAt: nowIso(),
     });
   };

@@ -51,13 +51,19 @@ describe("all 24 templates have a loader", () => {
 });
 
 describe("packaging_bom loader", () => {
-  it("flattens one row per BOM line and keys by (sku, component)", async () => {
+  it("flattens one row per BOM line, keys by (sku, component), and round-trips product_family_code/tags", async () => {
     bridge.listRecords.mockImplementation(
-      byCollection({ packaging_boms: [{ skuCode: "TEST-PKGBOM-001", description: "TEST Bottle Pack", fillQuantity: "250", lines: [{ componentCode: "TEST-PKG-001", quantityPerUnit: "1", notes: "cap" }] }] }),
+      byCollection({
+        packaging_boms: [
+          { skuCode: "TEST-PKGBOM-001", description: "TEST Bottle Pack", fillQuantity: "250", productFamilyCode: "TEST-FAM-001", tags: ["bottle-pack"], lines: [{ componentCode: "TEST-PKG-001", quantityPerUnit: "1", notes: "cap" }] },
+        ],
+      }),
     );
     const { naturalKeys, rows } = await loadExisting("packaging_bom");
     expect(naturalKeys.has("TEST-PKGBOM-001::TEST-PKG-001")).toBe(true);
-    expect(rows).toEqual([{ packaging_sku_code: "TEST-PKGBOM-001", packaging_sku_name: "TEST Bottle Pack", component_code: "TEST-PKG-001", component_quantity: "1", fill_volume: "250", notes: "cap" }]);
+    expect(rows).toEqual([
+      { packaging_sku_code: "TEST-PKGBOM-001", packaging_sku_name: "TEST Bottle Pack", product_family_code: "TEST-FAM-001", component_code: "TEST-PKG-001", component_quantity: "1", fill_volume: "250", tags: "bottle-pack", notes: "cap" },
+    ]);
   });
 });
 
@@ -137,32 +143,43 @@ describe("product_claims loader", () => {
 });
 
 describe("label_content loader", () => {
-  it("joins through the parent label for formula_version/packaging_sku_code/jurisdiction, panel exported blank", async () => {
+  it("joins through the parent label for formula_version/packaging_sku_code/jurisdiction, panel round-trips for real", async () => {
     formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-PROJ-001" }]);
     formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }] });
     bridge.listRecords.mockImplementation(
       byCollection({
-        label_content_blocks: [{ labelId: "label-1", labelRevision: 1, blockType: "product_name", language: "en", text: "TEST Soap", mandatory: true, source: "imported", status: "draft" }],
+        label_content_blocks: [{ labelId: "label-1", labelRevision: 1, panel: "front", blockType: "product_name", language: "en", text: "TEST Soap", mandatory: true, source: "imported", status: "draft" }],
         product_labels: [{ id: "label-1", labelCode: "TEST-LBL-001", formulaVersionId: "version-1", packagingSkuCode: "TEST-PKGBOM-001", jurisdiction: "KE" }],
       }),
     );
     const { naturalKeys, rows } = await loadExisting("label_content");
-    expect(naturalKeys.has("TEST-LBL-001::1::product_name::en")).toBe(true);
-    expect(rows[0]).toMatchObject({ label_code: "TEST-LBL-001", formula_version: "1", packaging_sku_code: "TEST-PKGBOM-001", jurisdiction: "KE", panel: "" });
+    expect(naturalKeys.has("TEST-LBL-001::1::front::product_name::en")).toBe(true);
+    expect(rows[0]).toMatchObject({ label_code: "TEST-LBL-001", formula_version: "1", packaging_sku_code: "TEST-PKGBOM-001", jurisdiction: "KE", panel: "front" });
   });
 });
 
 describe("artwork_register loader", () => {
-  it("resolves labelId back to label_code and keys by artwork_code", async () => {
+  it("resolves labelId back to label_code, keys by artwork_code, and parses width/height/dimension_unit back out of the stored dimensions string", async () => {
     bridge.listRecords.mockImplementation(
       byCollection({
-        label_artworks: [{ labelId: "label-1", labelRevision: 1, artworkCode: "TEST-ART-001", format: "AI", status: "draft" }],
+        label_artworks: [{ labelId: "label-1", labelRevision: 1, artworkCode: "TEST-ART-001", format: "AI", dimensions: "100x200 mm", status: "draft" }],
         product_labels: [{ id: "label-1", labelCode: "TEST-LBL-001" }],
       }),
     );
     const { naturalKeys, rows } = await loadExisting("artwork_register");
     expect(naturalKeys.has("TEST-ART-001")).toBe(true);
-    expect(rows[0]).toMatchObject({ artwork_code: "TEST-ART-001", label_code: "TEST-LBL-001", format: "AI" });
+    expect(rows[0]).toMatchObject({ artwork_code: "TEST-ART-001", label_code: "TEST-LBL-001", format: "AI", width: "100", height: "200", dimension_unit: "mm" });
+  });
+
+  it("exports width/height blank when dimensions doesn't match the writer's format", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        label_artworks: [{ labelId: "label-1", labelRevision: 1, artworkCode: "TEST-ART-002", dimensions: "large poster", status: "draft" }],
+        product_labels: [{ id: "label-1", labelCode: "TEST-LBL-001" }],
+      }),
+    );
+    const { rows } = await loadExisting("artwork_register");
+    expect(rows[0]).toMatchObject({ width: "", height: "", dimension_unit: "" });
   });
 });
 

@@ -9,12 +9,13 @@
  * own field names — but, like the commit layer, this stays one small
  * lookup table rather than 24 bespoke exporters.
  *
- * All 24 templates have a loader. A few can only flatten the fields their
- * target schema actually persists — `packaging_bom` has no stored
- * secondary/tertiary-packaging or cost fields, `label_content` has no
- * stored `panel` (the block's parent `ProductLabel`/`LabelContentBlock`
- * schemas never captured it) — those columns export blank rather than
- * fabricated, same convention as every other partial column below. See
+ * All 24 templates have a loader, and every natural-key column round-trips
+ * for real. A few non-key columns still can't: `packaging_bom` dropped
+ * several columns from the template entirely (see its loader comment
+ * below) rather than present them as decorative, and
+ * `artwork_register`'s width/height/dimension_unit are parsed back out of
+ * the one combined `dimensions` string the real workspace editor writes —
+ * see its loader comment for the exact contract. See
  * docs/DATA_EXCHANGE_EXPORTS.md.
  */
 import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "@ai4s/shared";
@@ -153,11 +154,18 @@ const LOADERS: Partial<Record<string, Loader>> = {
       notes: s(r.notes),
     })),
   // `PackagingBom` stores one header row (`skuCode`/`description`/
-  // `fillQuantity`/`fillUnit`/`notes`) plus a `lines` array — every other
-  // template column (product_family_code, quantity_unit, primary/
-  // secondary/tertiary flags, fill_weight, line_code, unit_cost,
-  // currency, effective_from/until, tags) is never persisted on this
-  // schema, so those columns export blank rather than fabricated.
+  // `fillQuantity`/`fillUnit`/`productFamilyCode`/`tags`/`notes`) plus a
+  // `lines` array. `product_family_code` and `tags` round-trip for real.
+  // `quantity_unit`, `unit_cost`/`currency`, `primary`/`secondary`/
+  // `tertiary_packaging`, `fill_weight`, `line_code` and
+  // `effective_from`/`until` were removed from the template (see
+  // `PACKAGING_BOM_COLUMNS` in dataExchangeRegistry.ts) because they were
+  // never real, round-trippable data on this schema: unit/cost/currency
+  // are the referenced `packaging_components` record's own live values
+  // (PackagingBomEditor derives `currency` from the component, never
+  // stores its own copy — duplicating it here would silently go stale),
+  // and the packaging/fill-weight/line/date fields have no equivalent
+  // anywhere in this domain.
   packaging_bom: async () => {
     const boms = (await listRecords("packaging_boms")) as unknown as Record<string, unknown>[];
     const naturalKeys = new Set<string>();
@@ -171,9 +179,11 @@ const LOADERS: Partial<Record<string, Loader>> = {
         rows.push({
           packaging_sku_code: skuCode,
           packaging_sku_name: s(bom.description),
+          product_family_code: s(bom.productFamilyCode),
           component_code: componentCode,
           component_quantity: s(line.quantityPerUnit),
           fill_volume: s(bom.fillQuantity),
+          tags: j(bom.tags),
           notes: s(line.notes ?? bom.notes),
         });
       }
@@ -464,10 +474,9 @@ const LOADERS: Partial<Record<string, Loader>> = {
     }
     return { naturalKeys, rows };
   },
-  // `panel` is not a field `labelContentBlockSchema` persists (see module
-  // doc at the top of this file) — exported blank, and left out of the
-  // natural key's joined string accordingly; every other natural-key
-  // column is real.
+  // `panel` is now a real persisted field on `labelContentBlockSchema`
+  // (added to close this round-trip gap) — included in the natural key
+  // exactly as the template documents.
   label_content: async () => {
     const blocks = (await listRecords("label_content_blocks")) as unknown as Record<string, unknown>[];
     const labels = (await listRecords("product_labels")) as unknown as Record<string, unknown>[];
@@ -484,9 +493,10 @@ const LOADERS: Partial<Record<string, Loader>> = {
       if (!label) continue;
       const labelCode = s(label.labelCode);
       const labelRevision = s(b.labelRevision);
+      const panel = s(b.panel);
       const blockType = s(b.blockType);
       const language = s(b.language);
-      naturalKeys.add(`${labelCode}::${labelRevision}::${blockType}::${language}`);
+      naturalKeys.add(`${labelCode}::${labelRevision}::${panel}::${blockType}::${language}`);
       rows.push({
         label_code: labelCode,
         formula_version: s(versionNumberById.get(label.formulaVersionId as string)),
@@ -494,7 +504,7 @@ const LOADERS: Partial<Record<string, Loader>> = {
         jurisdiction: s(label.jurisdiction),
         language,
         label_revision: labelRevision,
-        panel: "",
+        panel,
         block_type: blockType,
         content_text: s(b.text),
         mandatory: s(b.mandatory),
@@ -504,24 +514,35 @@ const LOADERS: Partial<Record<string, Loader>> = {
     }
     return { naturalKeys, rows };
   },
-  // `dimensions` is stored as one combined string ("WxH unit"), not
-  // separate width/height/dimension_unit fields — those three columns
-  // export blank rather than an unreliable parse-back.
+  // `dimensions` is still stored as one combined string ("WxH unit" or
+  // "WxH", written by `commitArtworkRegister` in that exact shape) rather
+  // than separate width/height/dimension_unit fields on the schema — a
+  // bigger schema change than this closure needs, since `dimensions` is
+  // also read/written by the real Claims & Labels artwork editor
+  // (`engine/labels.ts`). Instead of leaving width/height permanently
+  // blank, parse the exact format the writer itself produces: anything
+  // that doesn't match that format (e.g. free text typed directly into
+  // the workspace) honestly exports blank rather than a guessed split.
   artwork_register: async () => {
     const artworks = (await listRecords("label_artworks")) as unknown as Record<string, unknown>[];
     const labels = (await listRecords("product_labels")) as unknown as Record<string, unknown>[];
     const naturalKeys = new Set<string>();
     const rows: Record<string, string>[] = [];
+    const dimensionPattern = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)(?:\s+(.+))?$/;
     for (const art of artworks) {
       const label = labels.find((l) => l.id === art.labelId);
       if (!label) continue;
       const artworkCode = s(art.artworkCode);
       naturalKeys.add(artworkCode);
+      const match = s(art.dimensions).match(dimensionPattern);
       rows.push({
         artwork_code: artworkCode,
         label_code: s(label.labelCode),
         label_revision: s(art.labelRevision),
         format: s(art.format),
+        width: match ? match[1] : "",
+        height: match ? match[2] : "",
+        dimension_unit: match ? (match[3] ?? "") : "",
         color_mode: s(art.colorMode),
         languages: j(art.languageSet),
         status: s(art.status),

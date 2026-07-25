@@ -156,6 +156,13 @@ describe("commitDataExchangeRows — master/formulation templates without their 
     expect(savedSecond.lines.map((l) => l.componentCode)).toEqual(expect.arrayContaining(["TEST-PKG-001", "TEST-PKG-002"]));
   });
 
+  it("packaging_bom: persists product_family_code and tags as real structured fields", async () => {
+    const rows = [row({ packaging_sku_code: "TEST-PKGBOM-002", component_code: "TEST-PKG-001", component_quantity: "1", product_family_code: "TEST-FAM-001", tags: "bottle-pack;hero" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("packaging_bom")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("packaging_boms", expect.arrayContaining([expect.objectContaining({ productFamilyCode: "TEST-FAM-001", tags: ["bottle-pack", "hero"] })]));
+  });
+
   it("process_parameters: creates then updates the same (formula, version, step)", async () => {
     const rows = [row({ formula_code: "TEST-FORM-001", formula_version: "1", step_number: "1", step_name: "Heat" })];
     const created = await commitDataExchangeRows(getDataExchangeTemplate("process_parameters")!, rows, ctx);
@@ -367,12 +374,12 @@ describe("commitDataExchangeRows — label content", () => {
     expect(outcomes[0].message).toMatch(/No label/);
   });
 
-  it("creates a draft content block once the label resolves", async () => {
+  it("creates a draft content block once the label resolves, persisting panel as a real field", async () => {
     bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "product_labels" ? [{ id: "label-1", labelCode: "TEST-LBL-001" }] : []));
-    const rows = [row({ label_code: "TEST-LBL-001", label_revision: "1", content_text: "Net 100 mL", language: "en" })];
+    const rows = [row({ label_code: "TEST-LBL-001", label_revision: "1", panel: "front", content_text: "Net 100 mL", language: "en" })];
     const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("label_content")!, rows, ctx);
     expect(outcomes[0].outcome).toBe("created");
-    expect(bridge.upsertRecords).toHaveBeenCalledWith("label_content_blocks", expect.arrayContaining([expect.objectContaining({ labelId: "label-1", status: "draft", source: "imported" })]));
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("label_content_blocks", expect.arrayContaining([expect.objectContaining({ labelId: "label-1", panel: "front", status: "draft", source: "imported" })]));
   });
 });
 

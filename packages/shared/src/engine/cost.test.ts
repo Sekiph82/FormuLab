@@ -424,6 +424,7 @@ describe("SKU costing", () => {
     fillUnit: "ml",
     fillLossPercent: "1",
     unitsPerCase: 12,
+    tags: [],
     updatedAt: NOW,
   };
 

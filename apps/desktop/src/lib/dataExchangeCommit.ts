@@ -449,6 +449,8 @@ const commitPackagingBom: Handler = async (r) => {
     fillQuantity: nn(r.fill_volume) ?? existing?.fillQuantity ?? "0",
     fillUnit: (nn(r.fill_volume) ? "ml" : existing?.fillUnit) ?? "ml",
     fillLossPercent: existing?.fillLossPercent ?? "0",
+    productFamilyCode: nn(r.product_family_code) ?? existing?.productFamilyCode,
+    tags: multi(r.tags).length ? multi(r.tags) : (existing?.tags ?? []),
     notes: nn(r.notes) ?? existing?.notes,
     updatedAt: nowIso(),
   };
@@ -973,6 +975,7 @@ const commitLabelContent: Handler = async (r) => {
     labelRevision: Number.parseInt(r.label_revision, 10) || 1,
     // Safe: registry `enum` type (LABEL_CONTENT_BLOCK_TYPES).
     blockType: (nn(r.block_type) ?? "other") as (typeof LABEL_CONTENT_BLOCK_TYPES)[number],
+    panel: nn(r.panel),
     text: r.content_text,
     language: r.language,
     position: 0,

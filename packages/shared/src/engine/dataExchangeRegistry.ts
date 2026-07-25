@@ -295,23 +295,23 @@ const PACKAGING_COMPONENT_COLUMNS: DataExchangeColumnDefinition[] = [
 // ============================================================ Template 8 ===
 // Packaging SKU / Packaging BOM — one row per (packaging_sku, component)
 
+// Deliberately does NOT include quantity_unit, primary/secondary/
+// tertiary_packaging, fill_weight, line_code, unit_cost, currency or
+// effective_from/until — `packagingBomSchema` never had anywhere real to
+// put them (unit/cost/currency are the referenced `packaging_components`
+// record's own live values; the real PackagingBomEditor derives currency
+// from the component rather than storing its own copy, so duplicating it
+// here would silently go stale; the packaging-level/fill-weight/line/date
+// concepts have no equivalent anywhere in this domain). Removed rather
+// than kept as decorative always-blank columns — see
+// `dataExchangeExisting.ts`'s `packaging_bom` loader comment.
 const PACKAGING_BOM_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "packaging_sku_code", dataType: "code_reference", description: "Packaging BOM code — several rows share one; the natural key together with component_code.", ...REQ, example: "TEST-PKGBOM-001" }),
   col({ key: "packaging_sku_name", dataType: "string", description: "Display name (only needs to appear on one row of the group).", example: "TEST 250ml Bottle Pack" }),
   col({ key: "product_family_code", dataType: "code_reference", referenceTemplate: "product_families", referenceField: "family_code", description: "Owning product family." }),
   col({ key: "component_code", dataType: "code_reference", description: "Component used in this line.", ...REQ, referenceTemplate: "packaging_components", referenceField: "component_code", example: "TEST-PKG-001" }),
   col({ key: "component_quantity", dataType: "decimal", description: "Quantity of this component per unit.", ...REQ, example: "1" }),
-  col({ key: "quantity_unit", dataType: "string", defaultValue: "pieces", description: "Unit for component_quantity." }),
-  col({ key: "primary_packaging", dataType: "boolean", description: "Primary packaging flag." }),
-  col({ key: "secondary_packaging", dataType: "boolean", description: "Secondary packaging flag." }),
-  col({ key: "tertiary_packaging", dataType: "boolean", description: "Tertiary packaging flag." }),
   col({ key: "fill_volume", dataType: "decimal", description: "Fill volume (header fact, first non-empty row wins)." }),
-  col({ key: "fill_weight", dataType: "decimal", description: "Fill weight (header fact, first non-empty row wins)." }),
-  col({ key: "line_code", dataType: "string", description: "Filling line code." }),
-  col({ key: "unit_cost", dataType: "currency", description: "Unit cost." }),
-  col({ key: "currency", dataType: "enum", enumValues: ["KES", "USD", "EUR", "GBP", "TZS", "UGX"], description: "Cost currency." }),
-  col({ key: "effective_from", dataType: "date", description: "Validity start." }),
-  col({ key: "effective_until", dataType: "date", description: "Validity end." }),
   col({ key: "tags", dataType: "multi_value", description: "Semicolon-separated tags." }),
   col({ key: "notes", dataType: "string", description: "Free text." }),
 ];
@@ -825,7 +825,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     authorization: MASTER_DATA_ROLES,
     targetCollection: "packaging_boms",
     exampleRows: [
-      { packaging_sku_code: "TEST-PKGBOM-001", packaging_sku_name: "TEST 250ml Bottle Pack", product_family_code: "TEST-FAM-001", component_code: "TEST-PKG-001", component_quantity: "1", quantity_unit: "pieces", primary_packaging: "true", secondary_packaging: "false", tertiary_packaging: "false", fill_volume: "250", fill_weight: "", line_code: "L1", unit_cost: "12.50", currency: "KES", effective_from: "2026-01-01", effective_until: "", tags: "bottle-pack", notes: "Synthetic test row." },
+      { packaging_sku_code: "TEST-PKGBOM-001", packaging_sku_name: "TEST 250ml Bottle Pack", product_family_code: "TEST-FAM-001", component_code: "TEST-PKG-001", component_quantity: "1", fill_volume: "250", tags: "bottle-pack", notes: "Synthetic test row." },
     ],
   }),
   template({

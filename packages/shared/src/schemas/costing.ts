@@ -135,6 +135,10 @@ export const packagingBomSchema = z.object({
   fillLossPercent: decimalString.default("0"),
   /** Units per case, for the carton-level view. */
   unitsPerCase: z.number().int().positive().optional(),
+  /** Owning product family, informational cross-reference only — a
+   *  packaging BOM is keyed by `skuCode`, not by family. */
+  productFamilyCode: z.string().optional(),
+  tags: z.array(z.string()).default([]),
   notes: z.string().optional(),
   updatedAt: z.string(),
 });

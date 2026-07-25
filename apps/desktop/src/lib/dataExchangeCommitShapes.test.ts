@@ -136,6 +136,7 @@ describe("commit-handler record shapes conform to their real Zod schemas", () =>
       labelId: "label-1",
       labelRevision: 1,
       blockType: "product_name",
+      panel: "front",
       text: "TEST Gentle Hand Soap",
       language: "en",
       position: 0,
