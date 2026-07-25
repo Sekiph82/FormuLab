@@ -1912,7 +1912,8 @@
       "noAnalysesYet": "Run at least one analysis before generating candidates.",
       "openInOptimization": "Open Optimization",
       "openInStability": "Open Stability",
-      "exportCsv": "Export candidate list"
+      "exportCsv": "Export candidate list",
+      "noMaterialFactors": "This candidate has no formula-material factors — its process-parameter setting(s) were not applied to any draft line. Apply manually: {{settings}}"
     },
     "history": {
       "heading": "Revision history",

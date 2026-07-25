@@ -336,6 +336,7 @@ export function DoePanel({
   const [selectedStudyId, setSelectedStudyId] = useState<string | null>(null);
   const [actorRole, setActorRole] = useState<ApprovalRole>("researcher");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<(typeof WIZARD_STEPS)[number]>(WIZARD_FIRST_STEP);
   const [wizard, setWizard] = useState<WizardState>(emptyWizard());
@@ -470,12 +471,16 @@ export function DoePanel({
   async function setRunStatus(run: DoeRun, status: DoeRunStatus) {
     const updated: DoeRun = { ...run, status, startedAt: status === "in_progress" ? new Date().toISOString() : run.startedAt, completedAt: status === "completed" ? new Date().toISOString() : run.completedAt };
     await upsertRecords("doe_runs", [updated]);
+    await record("doe.run_status_changed", { metadata: { studyId: run.studyId, runId: run.id, status } });
+    await onAuditChanged();
     await load();
   }
 
   async function excludeRun(run: DoeRun, reason: string) {
     const updated: DoeRun = { ...run, status: "excluded", excludedAt: new Date().toISOString(), exclusionReason: reason };
     await upsertRecords("doe_runs", [updated]);
+    await record("doe.run_excluded", { detail: reason, metadata: { studyId: run.studyId, runId: run.id } });
+    await onAuditChanged();
     await load();
   }
 
@@ -650,7 +655,17 @@ export function DoePanel({
       setError(validation.issues.join(" "));
       return;
     }
+    setError(null);
+    setInfo(null);
     const application = applyDoeCandidateToDraft(candidate, studyFactors, studyDesign);
+    if (application.materialQuantities.length === 0) {
+      // Process-parameter-only candidates have nothing to write to a formula
+      // line — applying them anyway would silently mark the candidate
+      // "applied" while the draft never changed. Tell the user instead.
+      const settings = application.processSettings.map((s) => `${s.key}=${s.value}${s.unit ?? ""}`).join(", ");
+      setInfo(t("doe.candidates.noMaterialFactors", { settings: settings || "—" }));
+      return;
+    }
     onApplyCandidateLines(application.materialQuantities, `DOE candidate #${candidate.rank} (${selectedStudy?.title ?? ""})`);
     void (async () => {
       const updated: DoeCandidate = { ...candidate, status: "applied_to_draft", appliedDraftId: formulation.id, appliedAt: new Date().toISOString() };
@@ -665,6 +680,11 @@ export function DoePanel({
       {error && (
         <div className="rounded-card border border-error/30 bg-error/10 px-3 py-2 text-[12px] text-error">
           {error}
+        </div>
+      )}
+      {info && (
+        <div className="rounded-card border border-border bg-surface-2 px-3 py-2 text-[12px] text-text">
+          {info}
         </div>
       )}
 

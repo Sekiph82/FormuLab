@@ -1912,7 +1912,8 @@
       "noAnalysesYet": "Aday oluşturmadan önce en az bir analiz çalıştırın.",
       "openInOptimization": "Optimizasyonu Aç",
       "openInStability": "Stabiliteyi Aç",
-      "exportCsv": "Aday listesini dışa aktar"
+      "exportCsv": "Aday listesini dışa aktar",
+      "noMaterialFactors": "Bu adayda formül-malzeme faktörü yok — süreç parametresi ayarları hiçbir taslak satırına uygulanmadı. Elle uygulayın: {{settings}}"
     },
     "history": {
       "heading": "Revizyon geçmişi",
