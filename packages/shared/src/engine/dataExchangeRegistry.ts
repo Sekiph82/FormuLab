@@ -21,6 +21,10 @@ import { MATERIAL_DOCUMENT_TYPES } from "../schemas/dataExchange";
 import { REGULATORY_JURISDICTIONS, REGULATORY_RULE_TYPES } from "../schemas/regulatory";
 import { DOSSIER_APPLICABILITY_STATUSES, DOSSIER_EVIDENCE_TYPES, DOSSIER_REQUIREMENT_TYPES } from "../schemas/dossier";
 import { CLAIM_CATEGORIES, LABEL_CONTENT_BLOCK_TYPES } from "../schemas/claimsLabels";
+import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "../catalog/stabilityConditions";
+
+const STABILITY_CONDITION_CODES = SEED_STABILITY_CONDITIONS.map((c) => c.code);
+const STABILITY_TIME_POINT_CODES = SEED_STABILITY_TIME_POINTS.map((tp) => tp.code);
 
 // ------------------------------------------------------------------ types ---
 
@@ -455,12 +459,12 @@ const STABILITY_PROTOCOL_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "protocol_name", dataType: "string", description: "Display name (header fact).", example: "TEST 6-Month Accelerated Stability" }),
   col({ key: "product_family_code", dataType: "code_reference", referenceTemplate: "product_families", referenceField: "family_code", description: "Product family (header fact)." }),
   col({ key: "packaging_sku_code", dataType: "code_reference", referenceTemplate: "packaging_bom", referenceField: "packaging_sku_code", description: "Packaging used (header fact)." }),
-  col({ key: "condition_code", dataType: "string", description: "Storage condition code.", ...REQ, example: "40C-75RH" }),
+  col({ key: "condition_code", dataType: "enum", enumValues: STABILITY_CONDITION_CODES, description: "Storage condition code — must match one of the seed storage conditions (see the Stability workspace).", ...REQ, example: "40C" }),
   col({ key: "temperature", dataType: "decimal", description: "Condition temperature." }),
   col({ key: "humidity", dataType: "decimal", description: "Condition humidity." }),
   col({ key: "light_condition", dataType: "string", description: "Light exposure condition." }),
   col({ key: "orientation", dataType: "string", description: "Sample orientation." }),
-  col({ key: "time_point", dataType: "string", description: "Time point label.", ...REQ, example: "M3" }),
+  col({ key: "time_point", dataType: "enum", enumValues: STABILITY_TIME_POINT_CODES, description: "Time point code — must match one of the seed time points (see the Stability workspace).", ...REQ, example: "3MO" }),
   col({ key: "time_unit", dataType: "string", defaultValue: "months", description: "Unit for the time point." }),
   col({ key: "test_code", dataType: "code_reference", description: "Test required at this time point.", ...REQ, referenceTemplate: "test_definitions", referenceField: "test_code", example: "TEST-TST-001" }),
   col({ key: "sample_quantity", dataType: "integer", description: "Samples required." }),
@@ -477,8 +481,8 @@ const STABILITY_RESULT_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "sample_code", dataType: "string", description: "Sample identifier.", ...REQ, example: "S1" }),
   col({ key: "formula_version", dataType: "integer", description: "Formula version." }),
   col({ key: "packaging_sku_code", dataType: "code_reference", referenceTemplate: "packaging_bom", referenceField: "packaging_sku_code", description: "Packaging used." }),
-  col({ key: "condition_code", dataType: "string", description: "Storage condition.", ...REQ, example: "40C-75RH" }),
-  col({ key: "time_point", dataType: "string", description: "Time point.", ...REQ, example: "M3" }),
+  col({ key: "condition_code", dataType: "enum", enumValues: STABILITY_CONDITION_CODES, description: "Storage condition — must match one of the seed storage conditions (see the Stability workspace).", ...REQ, example: "40C" }),
+  col({ key: "time_point", dataType: "enum", enumValues: STABILITY_TIME_POINT_CODES, description: "Time point — must match one of the seed time points (see the Stability workspace).", ...REQ, example: "3MO" }),
   col({ key: "test_code", dataType: "code_reference", description: "Test performed.", ...REQ, referenceTemplate: "test_definitions", referenceField: "test_code", example: "TEST-TST-001" }),
   col({ key: "numeric_value", dataType: "decimal", description: "Numeric result. A future time point that has not been tested yet is never converted to zero or to a failure — leave it out of the file." }),
   col({ key: "text_value", dataType: "string", description: "Text result." }),
@@ -931,7 +935,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     authorization: LAB_ROLES,
     targetCollection: "stability_studies",
     exampleRows: [
-      { protocol_code: "TEST-PROT-001", protocol_name: "TEST 6-Month Accelerated Stability", product_family_code: "TEST-FAM-001", packaging_sku_code: "TEST-PKGBOM-001", condition_code: "40C-75RH", temperature: "40", humidity: "75", light_condition: "dark", orientation: "upright", time_point: "M3", time_unit: "months", test_code: "TEST-TST-001", sample_quantity: "3", acceptance_criteria: "pH within 4.5-6.5", active: "true", notes: "Synthetic test row." },
+      { protocol_code: "TEST-PROT-001", protocol_name: "TEST 6-Month Accelerated Stability", product_family_code: "TEST-FAM-001", packaging_sku_code: "TEST-PKGBOM-001", condition_code: "40C", temperature: "40", humidity: "75", light_condition: "dark", orientation: "upright", time_point: "3MO", time_unit: "months", test_code: "TEST-TST-001", sample_quantity: "3", acceptance_criteria: "pH within 4.5-6.5", active: "true", notes: "Synthetic test row." },
     ],
   }),
   template({
@@ -946,7 +950,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     authorization: LAB_ROLES,
     targetCollection: "stability_results",
     exampleRows: [
-      { study_code: "TEST-STAB-001", sample_code: "S1", formula_version: "1", packaging_sku_code: "TEST-PKGBOM-001", condition_code: "40C-75RH", time_point: "M3", test_code: "TEST-TST-001", numeric_value: "5.3", text_value: "", unit: "pH", result_date: "2026-04-15", analyst: "Test Analyst", status: "recorded", observation: "No visible change.", notes: "Synthetic test row." },
+      { study_code: "TEST-STAB-001", sample_code: "S1", formula_version: "1", packaging_sku_code: "TEST-PKGBOM-001", condition_code: "40C", time_point: "3MO", test_code: "TEST-TST-001", numeric_value: "5.3", text_value: "", unit: "pH", result_date: "2026-04-15", analyst: "Test Analyst", status: "recorded", observation: "No visible change.", notes: "Synthetic test row." },
     ],
   }),
   template({

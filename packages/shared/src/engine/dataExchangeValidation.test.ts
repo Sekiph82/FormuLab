@@ -5,6 +5,8 @@ import { previewDataExchangeImport, previewDataExchangeImportCsv } from "./dataE
 
 const materials = getDataExchangeTemplate("raw_materials")!;
 const prices = getDataExchangeTemplate("material_prices")!;
+const stabilityProtocols = getDataExchangeTemplate("stability_protocols")!;
+const stabilityResults = getDataExchangeTemplate("stability_results")!;
 
 function csvFor(template: typeof materials, rows: string[][]): string {
   const headers = template.columns.map((c) => c.key);
@@ -204,5 +206,58 @@ describe("previewDataExchangeImportCsv", () => {
     const rows = parseCsv(csv);
     const p = previewDataExchangeImport(materials, rows);
     expect(p.rows[0].record.material_name).toBe("TEST, Water");
+  });
+});
+
+// Regression coverage for a live-verification finding: condition_code and
+// time_point were registered as plain `dataType: "string"` columns, so an
+// unrecognized seed-catalog code (e.g. a typo'd condition) sailed through
+// preview as `valid_create` and only failed once the commit handler itself
+// checked it against SEED_STABILITY_CONDITIONS/SEED_STABILITY_TIME_POINTS —
+// the exact opposite of "confirm preview shows the error" the import flow
+// is supposed to guarantee. Both columns are now real registry `enum`
+// columns sourced from the seed catalogs, so the generic preview engine
+// catches this itself, before commit is ever reachable.
+describe("previewDataExchangeImport — stability seed-catalog enums", () => {
+  it("rejects an unrecognized condition_code at preview time, not just at commit", () => {
+    const header = stabilityProtocols.columns.map((c) => c.key);
+    const row = header.map((k) => {
+      if (k === "protocol_code") return "TEST-PROT-001";
+      if (k === "condition_code") return "99C";
+      if (k === "time_point") return "3MO";
+      if (k === "test_code") return "TEST-TST-001";
+      return "";
+    });
+    const p = previewDataExchangeImport(stabilityProtocols, [header, row]);
+    expect(p.rows[0].state).toBe("invalid");
+    expect(p.rows[0].messages.join(" ")).toMatch(/condition_code/);
+  });
+
+  it("rejects an unrecognized time_point at preview time for stability_results", () => {
+    const header = stabilityResults.columns.map((c) => c.key);
+    const row = header.map((k) => {
+      if (k === "study_code") return "TEST-STAB-001";
+      if (k === "sample_code") return "S1";
+      if (k === "condition_code") return "40C";
+      if (k === "time_point") return "M3"; // not a real seed time-point code
+      if (k === "test_code") return "TEST-TST-001";
+      return "";
+    });
+    const p = previewDataExchangeImport(stabilityResults, [header, row]);
+    expect(p.rows[0].state).toBe("invalid");
+    expect(p.rows[0].messages.join(" ")).toMatch(/time_point/);
+  });
+
+  it("accepts a real seed condition_code/time_point pair", () => {
+    const header = stabilityProtocols.columns.map((c) => c.key);
+    const row = header.map((k) => {
+      if (k === "protocol_code") return "TEST-PROT-001";
+      if (k === "condition_code") return "40C";
+      if (k === "time_point") return "3MO";
+      if (k === "test_code") return "TEST-TST-001";
+      return "";
+    });
+    const p = previewDataExchangeImport(stabilityProtocols, [header, row]);
+    expect(p.rows[0].state).toBe("valid_create");
   });
 });
