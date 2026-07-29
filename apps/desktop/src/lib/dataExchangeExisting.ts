@@ -262,7 +262,9 @@ const LOADERS: Partial<Record<string, Loader>> = {
     const rows: Record<string, string>[] = [];
     for (const result of results) {
       const trial = trials.find((t) => t.id === result.trialId);
-      const testDef = testDefs.find((td) => td.id === result.testDefinitionId);
+      // `test_definitions` records have no separate `id` — `result.testDefinitionId`
+      // is already the code (see `commitLabResults`), so match on `code`.
+      const testDef = testDefs.find((td) => td.code === result.testDefinitionId);
       if (!trial || !testDef) continue;
       const trialCode = s(trial.code);
       const testCode = s(testDef.code);
@@ -327,7 +329,10 @@ const LOADERS: Partial<Record<string, Loader>> = {
           const timePoint = SEED_STABILITY_TIME_POINTS.find((tp) => tp.id === tid);
           if (!timePoint) continue;
           for (const testId of testIds) {
-            const testDef = testDefs.find((td) => td.id === testId);
+            // `study.requiredTestDefinitionIds` holds codes, not a separate
+            // `id` (`test_definitions` records have none) — see
+            // `commitStabilityProtocols`.
+            const testDef = testDefs.find((td) => td.code === testId);
             if (!testDef) continue;
             naturalKeys.add(`${code}::${condition.code}::${timePoint.code}::${s(testDef.code)}`);
             rows.push({
@@ -355,7 +360,8 @@ const LOADERS: Partial<Record<string, Loader>> = {
       const sample = samples.find((sm) => sm.id === result.sampleId);
       const condition = SEED_STABILITY_CONDITIONS.find((c) => c.id === result.conditionId);
       const timePoint = SEED_STABILITY_TIME_POINTS.find((tp) => tp.id === result.timePointId);
-      const testDef = testDefs.find((td) => td.id === result.testDefinitionId);
+      // `result.testDefinitionId` is already a code (see `commitStabilityResults`).
+      const testDef = testDefs.find((td) => td.code === result.testDefinitionId);
       if (!study || !sample || !condition || !timePoint || !testDef) continue;
       const studyCode = s(study.code);
       const sampleCode = s(sample.sampleCode);

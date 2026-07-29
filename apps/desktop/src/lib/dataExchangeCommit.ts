@@ -624,7 +624,7 @@ const commitTestDefinitions: Handler = async (r) => {
 const commitLabResults: Handler = async (r) => {
   const trial = await findByCode<{ id: string }>("laboratory_trials", "code", r.trial_code);
   if (!trial) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet — create it in the Laboratory workspace first.`);
-  const testDef = await findByCode<{ id: string; resultType: string }>("test_definitions", "code", r.test_code);
+  const testDef = await findByCode<{ code: string; resultType: string }>("test_definitions", "code", r.test_code);
   if (!testDef) throw new Error(`No test definition with code "${r.test_code}" exists yet — import or create it first.`);
 
   const replicates = (r as unknown as { __lines: { replicateNumber: number; numericValue?: string; textValue?: string }[] }).__lines;
@@ -632,7 +632,10 @@ const commitLabResults: Handler = async (r) => {
     schemaVersion: "1.0" as const,
     id: newId("testresult"),
     trialId: trial.id,
-    testDefinitionId: testDef.id,
+    // `test_definitions` records have no separate `id` field — their code
+    // is their identity, matching `TrialsPanel.tsx`'s
+    // `testDefinitionId: definition.code` for a human-recorded result.
+    testDefinitionId: testDef.code,
     sampleId: nn(r.sample_code),
     resultType: (TEST_RESULT_TYPES.includes(testDef.resultType as (typeof TEST_RESULT_TYPES)[number]) ? testDef.resultType : "numeric") as (typeof TEST_RESULT_TYPES)[number],
     replicates: replicates.map((rep) => ({
@@ -690,11 +693,17 @@ const commitStabilityProtocols: Handler = async (r) => {
     if (!condition) throw new Error(`"${line.condition_code}" is not a recognized storage condition code. Expected one of: ${STABILITY_CONDITION_CODES}.`);
     const timePoint = SEED_STABILITY_TIME_POINTS.find((tp) => tp.code === line.time_point);
     if (!timePoint) throw new Error(`"${line.time_point}" is not a recognized time point code. Expected one of: ${STABILITY_TIME_POINT_CODES}.`);
-    const testDef = await findByCode<{ id: string }>("test_definitions", "code", line.test_code);
+    const testDef = await findByCode<{ code: string }>("test_definitions", "code", line.test_code);
     if (!testDef) throw new Error(`No test definition with code "${line.test_code}" exists yet — import or create it first.`);
     conditionIds.add(condition.id);
     timePointIds.add(timePoint.id);
-    requiredTestDefinitionIds.add(testDef.id);
+    // `test_definitions` records carry no separate `id` field — their code
+    // IS their identity, exactly as `stability_samples.testDefinitionIds`
+    // and `StabilityStudy.testRequirementSnapshot` already store it. Using
+    // a nonexistent `.id` here silently wrote `null` into the array (found
+    // via live verification: re-importing the same file never converged to
+    // "unchanged").
+    requiredTestDefinitionIds.add(testDef.code);
   }
 
   const after = conditionIds.size + timePointIds.size + requiredTestDefinitionIds.size;
@@ -715,9 +724,13 @@ const commitStabilityResults: Handler = async (r) => {
   const samples = (await listRecords("stability_samples")) as unknown as StabilitySample[];
   const sample = samples.find((s) => s.studyId === study.id && s.sampleCode === r.sample_code);
   if (!sample) throw new Error(`No stability sample "${r.sample_code}" exists yet for study "${r.study_code}" — generate the pull-point samples in the Stability workspace first.`);
-  const testDef = await findByCode<{ id: string; resultType: string }>("test_definitions", "code", r.test_code);
+  const testDef = await findByCode<{ code: string; resultType: string }>("test_definitions", "code", r.test_code);
   if (!testDef) throw new Error(`No test definition with code "${r.test_code}" exists yet — import or create it first.`);
-  if (!sample.testDefinitionIds.includes(testDef.id)) {
+  // `test_definitions` records have no separate `id` — `sample.testDefinitionIds`
+  // (copied from `study.requiredTestDefinitionIds` at sample-generation time,
+  // see `generateStabilitySamples`) holds codes, same as `StabilityPanel.tsx`
+  // writes `testDefinitionId: definition.code` for a human-recorded result.
+  if (!sample.testDefinitionIds.includes(testDef.code)) {
     throw new Error(`Test "${r.test_code}" is not required for sample "${r.sample_code}" under study "${r.study_code}"'s protocol.`);
   }
   const sampleCondition = SEED_STABILITY_CONDITIONS.find((c) => c.id === sample.conditionId);
@@ -738,7 +751,7 @@ const commitStabilityResults: Handler = async (r) => {
 
   const existingResults = (await listRecords("stability_results")) as unknown as StabilityResult[];
   const priorResult = existingResults
-    .filter((res) => res.sampleId === sample.id && res.testDefinitionId === testDef.id)
+    .filter((res) => res.sampleId === sample.id && res.testDefinitionId === testDef.code)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 
   const record: StabilityResult = {
@@ -748,7 +761,7 @@ const commitStabilityResults: Handler = async (r) => {
     sampleId: sample.id,
     conditionId: sample.conditionId,
     timePointId: sample.timePointId,
-    testDefinitionId: testDef.id,
+    testDefinitionId: testDef.code,
     resultType: (TEST_RESULT_TYPES.includes(testDef.resultType as (typeof TEST_RESULT_TYPES)[number]) ? testDef.resultType : "numeric") as (typeof TEST_RESULT_TYPES)[number],
     replicates: nn(r.numeric_value) ? [{ replicateNumber: 1, numericValue: r.numeric_value, isOutlier: false }] : [],
     textValue: nn(r.text_value),

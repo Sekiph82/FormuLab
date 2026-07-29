@@ -71,14 +71,53 @@ describe("lab_results loader", () => {
   it("flattens one row per replicate and keys by (trial, sample, test, replicate)", async () => {
     bridge.listRecords.mockImplementation(
       byCollection({
-        test_results: [{ trialId: "trial-1", testDefinitionId: "testdef-1", sampleId: "S1", unit: "pH", performedAt: "2026-01-15", performedBy: "Analyst", replicates: [{ replicateNumber: 1, numericValue: "5.4" }] }],
+        // `testDefinitionId` is already the code — real `test_definitions`
+        // records carry no separate `id` (see `commitLabResults`).
+        test_results: [{ trialId: "trial-1", testDefinitionId: "TEST-TST-001", sampleId: "S1", unit: "pH", performedAt: "2026-01-15", performedBy: "Analyst", replicates: [{ replicateNumber: 1, numericValue: "5.4" }] }],
         laboratory_trials: [{ id: "trial-1", code: "TEST-TRIAL-001" }],
-        test_definitions: [{ id: "testdef-1", code: "TEST-TST-001" }],
+        test_definitions: [{ code: "TEST-TST-001" }],
       }),
     );
     const { naturalKeys, rows } = await loadExisting("lab_results");
     expect(naturalKeys.has("TEST-TRIAL-001::S1::TEST-TST-001::1")).toBe(true);
     expect(rows[0]).toMatchObject({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-TST-001", replicate_number: "1", numeric_value: "5.4" });
+  });
+});
+
+describe("stability_protocols loader", () => {
+  it("reconstructs the (protocol, condition, time-point, test) cross-product from a study's id arrays", async () => {
+    // No `id` on `test_definitions` on purpose — real records have none
+    // (their `code` is their identity). Regression coverage for a
+    // live-verification bug: the loader used to compare `td.id` (always
+    // `undefined`) against the code stored in `requiredTestDefinitionIds`,
+    // so it silently produced zero rows for every real study.
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        stability_studies: [{ code: "TEST-STAB-001", packagingSkuCode: "TEST-PKGBOM-001", conditionIds: ["cond-25c"], timePointIds: ["tp-2wk"], requiredTestDefinitionIds: ["TEST-VISCOSITY"] }],
+        test_definitions: [{ code: "TEST-VISCOSITY" }],
+      }),
+    );
+    const { naturalKeys, rows } = await loadExisting("stability_protocols");
+    expect(naturalKeys.has("TEST-STAB-001::25C::2WK::TEST-VISCOSITY")).toBe(true);
+    expect(rows).toEqual([{ protocol_code: "TEST-STAB-001", condition_code: "25C", time_point: "2WK", test_code: "TEST-VISCOSITY", packaging_sku_code: "TEST-PKGBOM-001" }]);
+  });
+});
+
+describe("stability_results loader", () => {
+  it("joins result/study/sample/test back to natural-key columns", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        stability_results: [{ studyId: "study-1", sampleId: "sample-1", conditionId: "cond-25c", timePointId: "tp-2wk", testDefinitionId: "TEST-VISCOSITY", replicates: [{ numericValue: "1200" }], performedAt: "2026-07-26", performedBy: "TEST Analyst" }],
+        stability_studies: [{ id: "study-1", code: "TEST-STAB-001" }],
+        stability_samples: [{ id: "sample-1", sampleCode: "TEST-STAB-001-25C-2WK-R1" }],
+        // No `id` on `test_definitions` on purpose — see the
+        // `stability_protocols loader` test above for why.
+        test_definitions: [{ code: "TEST-VISCOSITY" }],
+      }),
+    );
+    const { naturalKeys, rows } = await loadExisting("stability_results");
+    expect(naturalKeys.has("TEST-STAB-001::TEST-STAB-001-25C-2WK-R1::25C::2WK::TEST-VISCOSITY")).toBe(true);
+    expect(rows[0]).toMatchObject({ study_code: "TEST-STAB-001", sample_code: "TEST-STAB-001-25C-2WK-R1", condition_code: "25C", time_point: "2WK", test_code: "TEST-VISCOSITY", numeric_value: "1200" });
   });
 });
 

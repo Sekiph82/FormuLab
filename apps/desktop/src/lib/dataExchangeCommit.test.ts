@@ -256,7 +256,11 @@ describe("commitDataExchangeRows — lab results (grouped, reference resolution)
   it("groups replicate rows into one saved result once trial and test definition resolve", async () => {
     bridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-001" }]);
-      if (collection === "test_definitions") return Promise.resolve([{ id: "testdef-1", code: "TEST-T-001", resultType: "numeric" }]);
+      // Real `test_definitions` records carry no separate `id` field — their
+      // `code` is their identity (see `TrialsPanel.tsx`'s
+      // `testDefinitionId: definition.code`). No `id` here on purpose, to
+      // catch a regression back to `testDef.id` (which would be `undefined`).
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-T-001", resultType: "numeric" }]);
       return Promise.resolve([]);
     });
     const rows = [
@@ -267,7 +271,7 @@ describe("commitDataExchangeRows — lab results (grouped, reference resolution)
     expect(outcomes.every((o) => o.outcome === "created")).toBe(true);
     expect(bridge.upsertRecords).toHaveBeenCalledWith(
       "test_results",
-      expect.arrayContaining([expect.objectContaining({ trialId: "trial-1", testDefinitionId: "testdef-1", replicates: expect.arrayContaining([expect.objectContaining({ replicateNumber: 1 }), expect.objectContaining({ replicateNumber: 2 })]) })]),
+      expect.arrayContaining([expect.objectContaining({ trialId: "trial-1", testDefinitionId: "TEST-T-001", replicates: expect.arrayContaining([expect.objectContaining({ replicateNumber: 1 }), expect.objectContaining({ replicateNumber: 2 })]) })]),
     );
   });
 });
@@ -467,7 +471,13 @@ describe("commitDataExchangeRows — Stability Protocols (grouped, attaches to a
   it("groups every row for one protocol_code into a single atomic study update", async () => {
     bridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "stability_studies") return Promise.resolve([{ id: "study-1", code: "TEST-PROT-001", status: "planned", packagingSkuCode: "TEST-PKGBOM-001", conditionIds: [], timePointIds: [], requiredTestDefinitionIds: [] }]);
-      if (collection === "test_definitions") return Promise.resolve([{ id: "testdef-1", code: "TEST-TST-001" }]);
+      // No `id` field on purpose — real `test_definitions` records have
+      // none (their `code` is their identity). Regression coverage for a
+      // live-verification bug: `requiredTestDefinitionIds.add(testDef.id)`
+      // silently wrote `null` (JSON-serialized `undefined`) instead of the
+      // code, which made re-importing the same file never converge to
+      // "unchanged" — see `commitStabilityProtocols`.
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-TST-001" }]);
       return Promise.resolve([]);
     });
     const rows = [
@@ -480,7 +490,7 @@ describe("commitDataExchangeRows — Stability Protocols (grouped, attaches to a
     const saved = bridge.upsertRecords.mock.calls[0][1][0] as { conditionIds: string[]; timePointIds: string[]; requiredTestDefinitionIds: string[] };
     expect(saved.conditionIds).toHaveLength(2);
     expect(saved.timePointIds).toHaveLength(2);
-    expect(saved.requiredTestDefinitionIds).toHaveLength(1);
+    expect(saved.requiredTestDefinitionIds).toEqual(["TEST-TST-001"]);
   });
 });
 
@@ -503,8 +513,11 @@ describe("commitDataExchangeRows — Stability Results (append-only, attaches to
   it("leaves a blank future time point missing — writes nothing, never zero", async () => {
     bridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "stability_studies") return Promise.resolve([{ id: "study-1", code: "TEST-STAB-001" }]);
-      if (collection === "stability_samples") return Promise.resolve([{ id: "sample-1", studyId: "study-1", sampleCode: "S1", conditionId: "cond-40c", timePointId: "tp-3mo", testDefinitionIds: ["testdef-1"] }]);
-      if (collection === "test_definitions") return Promise.resolve([{ id: "testdef-1", code: "TEST-TST-001", resultType: "numeric" }]);
+      // No `id` on `test_definitions` on purpose — real records have none
+      // (see the "groups every row for one protocol_code" test above).
+      // `sample.testDefinitionIds` holds the code directly.
+      if (collection === "stability_samples") return Promise.resolve([{ id: "sample-1", studyId: "study-1", sampleCode: "S1", conditionId: "cond-40c", timePointId: "tp-3mo", testDefinitionIds: ["TEST-TST-001"] }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-TST-001", resultType: "numeric" }]);
       return Promise.resolve([]);
     });
     const rows = [row({ study_code: "TEST-STAB-001", sample_code: "S1", test_code: "TEST-TST-001", numeric_value: "", text_value: "" })];
@@ -516,17 +529,21 @@ describe("commitDataExchangeRows — Stability Results (append-only, attaches to
   it("creates a result once study/sample/test all resolve and the test is required for the sample", async () => {
     bridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "stability_studies") return Promise.resolve([{ id: "study-1", code: "TEST-STAB-001" }]);
-      if (collection === "stability_samples") return Promise.resolve([{ id: "sample-1", studyId: "study-1", sampleCode: "S1", conditionId: "cond-40c", timePointId: "tp-3mo", testDefinitionIds: ["testdef-1"] }]);
-      if (collection === "test_definitions") return Promise.resolve([{ id: "testdef-1", code: "TEST-TST-001", resultType: "numeric" }]);
+      if (collection === "stability_samples") return Promise.resolve([{ id: "sample-1", studyId: "study-1", sampleCode: "S1", conditionId: "cond-40c", timePointId: "tp-3mo", testDefinitionIds: ["TEST-TST-001"] }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-TST-001", resultType: "numeric" }]);
       if (collection === "stability_results") return Promise.resolve([]);
       return Promise.resolve([]);
     });
     const rows = [row({ study_code: "TEST-STAB-001", sample_code: "S1", test_code: "TEST-TST-001", numeric_value: "5.3" })];
     const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("stability_results")!, rows, ctx);
     expect(outcomes[0].outcome).toBe("created");
+    // Regression: `testDefinitionId` must be the real code ("TEST-TST-001"),
+    // not `testDef.id` (`undefined` on a real record — a live-verification
+    // bug that also broke `sample.testDefinitionIds.includes(...)` above,
+    // which would otherwise always report "not required for sample").
     expect(bridge.upsertRecords).toHaveBeenCalledWith(
       "stability_results",
-      expect.arrayContaining([expect.objectContaining({ sampleId: "sample-1", testDefinitionId: "testdef-1", conditionId: "cond-40c", timePointId: "tp-3mo" })]),
+      expect.arrayContaining([expect.objectContaining({ sampleId: "sample-1", testDefinitionId: "TEST-TST-001", conditionId: "cond-40c", timePointId: "tp-3mo" })]),
     );
   });
 
@@ -534,7 +551,7 @@ describe("commitDataExchangeRows — Stability Results (append-only, attaches to
     bridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "stability_studies") return Promise.resolve([{ id: "study-1", code: "TEST-STAB-001" }]);
       if (collection === "stability_samples") return Promise.resolve([{ id: "sample-1", studyId: "study-1", sampleCode: "S1", conditionId: "cond-40c", timePointId: "tp-3mo", testDefinitionIds: ["some-other-test"] }]);
-      if (collection === "test_definitions") return Promise.resolve([{ id: "testdef-1", code: "TEST-TST-001", resultType: "numeric" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-TST-001", resultType: "numeric" }]);
       return Promise.resolve([]);
     });
     const rows = [row({ study_code: "TEST-STAB-001", sample_code: "S1", test_code: "TEST-TST-001", numeric_value: "5.3" })];
@@ -546,9 +563,9 @@ describe("commitDataExchangeRows — Stability Results (append-only, attaches to
   it("creates a new append-only revision — never overwrites — when a prior result already exists for the same sample+test", async () => {
     bridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "stability_studies") return Promise.resolve([{ id: "study-1", code: "TEST-STAB-001" }]);
-      if (collection === "stability_samples") return Promise.resolve([{ id: "sample-1", studyId: "study-1", sampleCode: "S1", conditionId: "cond-40c", timePointId: "tp-3mo", testDefinitionIds: ["testdef-1"] }]);
-      if (collection === "test_definitions") return Promise.resolve([{ id: "testdef-1", code: "TEST-TST-001", resultType: "numeric" }]);
-      if (collection === "stability_results") return Promise.resolve([{ id: "old-result-1", sampleId: "sample-1", testDefinitionId: "testdef-1", createdAt: "2025-01-01T00:00:00.000Z" }]);
+      if (collection === "stability_samples") return Promise.resolve([{ id: "sample-1", studyId: "study-1", sampleCode: "S1", conditionId: "cond-40c", timePointId: "tp-3mo", testDefinitionIds: ["TEST-TST-001"] }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-TST-001", resultType: "numeric" }]);
+      if (collection === "stability_results") return Promise.resolve([{ id: "old-result-1", sampleId: "sample-1", testDefinitionId: "TEST-TST-001", createdAt: "2025-01-01T00:00:00.000Z" }]);
       return Promise.resolve([]);
     });
     const rows = [row({ study_code: "TEST-STAB-001", sample_code: "S1", test_code: "TEST-TST-001", numeric_value: "5.5" })];
