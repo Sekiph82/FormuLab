@@ -1,60 +1,71 @@
 # Phase 8 — Reports, Dossiers, Document Exports, Final Data Exchange Expansion
 
 ## Current status
-Session 1 complete: shared report/document-export domain schemas defined,
-tested, typechecked. No rendering, UI, Rust persistence, Data Exchange, or
-audit work done yet.
+Session 2 complete: pure, deterministic dossier export-snapshot assembly
+engine implemented, tested, typechecked. No rendering, UI, Rust
+persistence, Data Exchange, audit, or authorization work done yet.
 
-## Session 1 — schemas completed
-`packages/shared/src/schemas/documentExport.ts`: `ReportDefinition`,
-`DocumentSourceReference`, `DocumentExportRequest`,
-`GeneratedDocumentRecord`, `DossierExportSnapshotMeta`, plus
-`DOCUMENT_FORMATS`/`REPORT_TYPES`/`DOCUMENT_SOURCE_ENTITY_TYPES`/
-`DOCUMENT_CLASSIFICATIONS`/`EXPORT_STATUSES`/`WATERMARK_STATES`/
-`DOCUMENT_FORMAT_MIME_TYPES`. `REPORT_TYPES` mirrors `ReportsPage.tsx`'s
-18 existing row keys verbatim — no parallel taxonomy invented.
+## Session 2 — assembly engine completed
+`packages/shared/src/engine/dossierExportAssembly.ts`:
+`assembleDossierExportSnapshot(input)` — pure function, no I/O, no
+mutation, no `Date.now()`/`crypto.randomUUID()`. Reuses
+`regulatoryDossier.ts`'s own `currentRequirementsForRevision`,
+`buildEvidenceMatrix`, `calculateDossierReadiness`,
+`compareDossierRequirementsToCurrentRules`, `deriveEvidenceStatus`,
+`isDossierReviewActive`, `resolveEvidenceRevisionChain` — none of that
+logic reimplemented. Composes `DocumentSourceReference`/
+`DossierExportSnapshotMeta` from Session 1 rather than adding a new
+schema (none was strictly required this session).
 
-## Reuse decisions
-- `DocumentSourceReference.approvalStatusAtGeneration` reuses
-  `FormulaStatus` from `formulation.ts` — no new approval concept.
-- `dossierExportSnapshotMetaSchema` references `DOSSIER_READINESS_STATES`
-  and `REGULATORY_JURISDICTIONS` from `dossier.ts`/`regulatory.ts`; does
-  not recreate requirement/evidence/review/readiness models.
-- `DOCUMENT_CLASSIFICATIONS` reuses the exact 2-value convention
-  `regulatoryDossierEvidenceItemSchema.confidentiality` already uses.
-- No duplication of `VersionExportMeta`/`draftWatermark` from
-  `engine/exports.ts` — `WatermarkState` models the same rule
-  ("anything short of production-approved must not appear
-  production-approved") as data for a later render engine to apply.
+## Input/output decisions
+Input: one `RegulatoryDossier` + its exact `dossierRevision` (validated
+against `dossier.revision`) + every dossier-domain record array +
+optional `approvalSnapshot`/`currentRules`/`formulaApprovalStatusAtGeneration`
++ explicit `generationTimestamp`/`generatedBy`. Output: requirements,
+evidence matrix, evidence items (derived-status, supersession-chain
+inclusive), links (every status, full transparency), reviews (frozen
+snapshots preserved exactly), review revocations, submissions, manual
+actions, computed readiness, optional drift, passthrough approval
+snapshot, warnings, static assumptions.
 
-## Complete functionality (unchanged from Session 0)
-Dossiers (schema/engine/UI, Phase 3) remain complete and reusable.
+## Deterministic ordering rules
+Every array copied before sorting (`stableSortBy`, never in-place
+`.sort()`); every comparator ends in an `id` tie-breaker. Requirements by
+`requirementCode`; evidence by `evidenceType` then `title`; links by
+`requirementId`/`evidenceItemId`/`linkedAt`; reviews/submissions/manual
+actions/revocations by their own timestamp field.
 
-## Missing functionality (unchanged from Session 0)
-Reports is still a nav shell. No PDF/DOCX render engine exists yet —
-Session 3's job. No Data Exchange templates for the new schemas yet —
-Session 5's job.
-
-## Known limitations
-- `GeneratedDocumentRecord` never stores raw bytes or absolute paths, by
-  design — a render engine must return a relative fileName + checksum.
-- `mimeType` coherence is format-keyed 1:1 (`DOCUMENT_FORMAT_MIME_TYPES`);
-  extending formats later must update that map, not duplicate it.
-- No Rust persistence, no masterdata collection, no Data Exchange
-  template exists for these schemas yet.
+## Integrity safeguards
+Throws on: mismatched `dossierRevision`, any record referencing a
+different `dossierId`, duplicate requirement ids, a review revocation
+pointing at an unknown review, a missing `generationTimestamp`/
+`generatedBy`, a missing `formulaVersionId`. Silently EXCLUDES (not an
+error) records for a different revision of the *same* dossier — normal
+historical data. Revoked/proposed links never count toward the evidence
+matrix (reused, not reimplemented). Superseded evidence gets its
+DERIVED status via `deriveEvidenceStatus`, never the possibly-stale
+stored value. `approvalSnapshot`/`dossierStatus` are passthrough/readonly
+only — nothing here can grant or infer approval.
 
 ## Files changed this session
-`packages/shared/src/schemas/documentExport.ts` (new),
-`packages/shared/src/schemas/documentExport.test.ts` (new, 19 tests),
-`packages/shared/src/index.ts` (one export line).
+`packages/shared/src/engine/dossierExportAssembly.ts` (new),
+`packages/shared/src/engine/dossierExportAssembly.test.ts` (new, 19
+tests), `packages/shared/src/index.ts` (one export line).
+`documentExport.ts` untouched — no new schema was required.
 
 ## Focused tests passing
-`vitest run src/schemas/documentExport.test.ts` — 19/19. Shared
-typecheck — clean. Full shared suite not run this session (out of scope).
+`vitest run src/engine/dossierExportAssembly.test.ts` — 19/19. Shared
+typecheck — clean. `regulatoryDossier.ts` untouched (read-only reuse via
+import), so its own test suite was not rerun.
+
+## Known limitations
+No render engine (Session 3), no Rust persistence, no Data Exchange
+template, no UI wiring, no audit/authorization integration. This engine
+never loads records itself — the caller (a future Session 4 UI action)
+must load and pass in every array.
 
 ## Recommended sessions (unchanged plan, see external log for detail)
-2. Dossier export-snapshot assembly (next)
-3. PDF + DOCX render engines
+3. PDF + DOCX render engines (next)
 4. Reports + Dossiers desktop workspace wiring
 5. Data Exchange expansion
 6. Export history, audit, authorization integration
@@ -62,4 +73,4 @@ typecheck — clean. Full shared suite not run this session (out of scope).
 8. Closure: full regression, release, installers, shortcut, native verify
 
 ## Exact next session
-Phase 8 Session 2: Dossier Export Snapshot Assembly.
+Phase 8 Session 3: PDF and DOCX Render Engines.
