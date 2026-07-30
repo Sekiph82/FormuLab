@@ -41,10 +41,22 @@ describe("saveBinaryWithFeedback", () => {
     expect(toastMocks.success).toHaveBeenCalledWith(expect.stringContaining("Downloaded"));
   });
 
-  it("shows an error toast when the save throws", async () => {
+  it("shows an error toast and re-throws when the save fails, so a caller can record the outcome", async () => {
     tauriMocks.saveBinaryFile.mockRejectedValue(new Error("disk full"));
-    await saveBinaryWithFeedback("dossier.pdf", new Uint8Array([1, 2, 3]), "application/pdf");
+    await expect(saveBinaryWithFeedback("dossier.pdf", new Uint8Array([1, 2, 3]), "application/pdf")).rejects.toThrow("disk full");
     expect(toastMocks.error).toHaveBeenCalledWith(expect.stringContaining("disk full"));
+  });
+
+  it("resolves with the underlying SaveResult on success", async () => {
+    tauriMocks.saveBinaryFile.mockResolvedValue({ kind: "saved", path: "C:\\exports\\dossier.pdf" });
+    const result = await saveBinaryWithFeedback("dossier.pdf", new Uint8Array([1, 2, 3]), "application/pdf");
+    expect(result).toEqual({ kind: "saved", path: "C:\\exports\\dossier.pdf" });
+  });
+
+  it("resolves with the underlying SaveResult on cancellation", async () => {
+    tauriMocks.saveBinaryFile.mockResolvedValue({ kind: "canceled" });
+    const result = await saveBinaryWithFeedback("dossier.pdf", new Uint8Array([1, 2, 3]), "application/pdf");
+    expect(result).toEqual({ kind: "canceled" });
   });
 
   it("passes the exact byte array through to the save call, never a converted string", async () => {

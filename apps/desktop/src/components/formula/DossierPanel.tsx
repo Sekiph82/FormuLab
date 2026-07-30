@@ -49,6 +49,7 @@ import {
   evaluateClaimEvidence,
   excludeRequirement,
   isAuthorizedRegulatoryActor,
+  requireAuthorizedRegulatoryActor,
   isClaimReviewActive,
   isDossierImmutable,
   mapEvidenceToRequirements,
@@ -109,7 +110,15 @@ import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
 import { buildXlsxBlob } from "@/lib/xlsx";
 import { saveBinaryWithFeedback } from "@/lib/download";
-import { renderDossierDocument } from "@/lib/documentExports";
+import {
+  renderDossierDocument,
+  computeSnapshotWatermark,
+  sha256Hex,
+  startExportRecord,
+  finalizeExportSucceeded,
+  finalizeExportFailed,
+  finalizeExportCancelled,
+} from "@/lib/documentExports";
 import { AttachmentField } from "./AttachmentField";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
@@ -543,18 +552,28 @@ export function DossierPanel({
   // producing an incomplete or fabricated document. The formula version's
   // own real status drives the watermark — nothing here can imply approval
   // or authority submission, and nothing here mutates a dossier record.
+  //
+  // Session 6: gated on the same regulatory-actor authorization every other
+  // dossier action uses (checked before any generation work starts, so an
+  // unauthorized attempt never even creates a history record), and every
+  // attempt is persisted as a `GeneratedDocumentRecord` (`generating` ->
+  // `succeeded`/`failed`/`cancelled`, never skipped, never silently
+  // upgraded) plus an audit event on every terminal outcome.
   const dossierFormulaVersion = selectedDossier ? versions.find((v) => v.id === selectedDossier.formulaVersionId) : undefined;
   const exportDossierDocument = async (format: DocumentFormat) => {
     if (!selectedDossier || exportingFormat) return;
     setExportError(null);
     setExportingFormat(format);
+    const dossier = selectedDossier;
+    let historyRecord: Awaited<ReturnType<typeof startExportRecord>> | undefined;
     try {
-      const dossierId = selectedDossier.id;
+      requireAuthorizedRegulatoryActor(actor, "generate a dossier export document");
+      const dossierId = dossier.id;
       const scopedReviews = reviews.filter((r) => r.dossierId === dossierId);
       const scopedReviewIds = new Set(scopedReviews.map((r) => r.id));
       const input: DossierExportSnapshotInput = {
-        dossier: selectedDossier,
-        dossierRevision: selectedDossier.revision,
+        dossier,
+        dossierRevision: dossier.revision,
         requirements: requirements.filter((r) => r.dossierId === dossierId),
         evidenceItems: evidenceItems.filter((e) => e.dossierId === dossierId),
         links: links.filter((l) => l.dossierId === dossierId),
@@ -567,10 +586,66 @@ export function DossierPanel({
         generatedBy: actor.userId,
       };
       const snapshot = assembleDossierExportSnapshot(input);
+
+      historyRecord = await startExportRecord({
+        reportDefinitionCode: "dossier",
+        source: snapshot.source,
+        format,
+        generatedBy: actor.userId,
+      });
+
       const { bytes, mimeType } = await renderDossierDocument(snapshot, format);
-      await saveBinaryWithFeedback(`${selectedDossier.dossierCode}-rev${selectedDossier.revision}.${format}`, bytes, mimeType);
+      const checksum = await sha256Hex(bytes);
+      const fileName = `${dossier.dossierCode}-rev${dossier.revision}.${format}`;
+      const watermark = computeSnapshotWatermark(snapshot.source.approvalStatusAtGeneration);
+
+      const saveResult = await saveBinaryWithFeedback(fileName, bytes, mimeType);
+      if (saveResult.kind === "canceled") {
+        await finalizeExportCancelled(historyRecord);
+        await appendAudit(
+          auditEvent(formulation.id, "dossier.export_cancelled", {
+            versionId: dossier.formulaVersionId,
+            detail: `${format.toUpperCase()} export cancelled`,
+            metadata: { dossierId: dossier.id, dossierRevision: String(dossier.revision), format, recordId: historyRecord.id },
+            actor: actor.userId,
+          }),
+        );
+      } else {
+        // "saved" (native dialog) or "not-desktop" (browser Blob download) —
+        // both mean the file genuinely reached the user.
+        await finalizeExportSucceeded(historyRecord, {
+          fileName,
+          mimeType,
+          byteSize: bytes.byteLength,
+          checksum,
+          watermarkState: watermark.state,
+          watermarkText: watermark.text ?? undefined,
+        });
+        await appendAudit(
+          auditEvent(formulation.id, "dossier.export_succeeded", {
+            versionId: dossier.formulaVersionId,
+            detail: `${format.toUpperCase()} — ${fileName}`,
+            metadata: { dossierId: dossier.id, dossierRevision: String(dossier.revision), format, checksum, recordId: historyRecord.id },
+            actor: actor.userId,
+          }),
+        );
+      }
+      await onAuditChanged();
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setExportError(message);
+      if (historyRecord) {
+        await finalizeExportFailed(historyRecord, { errorCode: "EXPORT_FAILED", errorMessage: message });
+        await appendAudit(
+          auditEvent(formulation.id, "dossier.export_failed", {
+            versionId: dossier.formulaVersionId,
+            detail: message,
+            metadata: { dossierId: dossier.id, dossierRevision: String(dossier.revision), format, recordId: historyRecord.id },
+            actor: actor.userId,
+          }),
+        );
+        await onAuditChanged();
+      }
     } finally {
       setExportingFormat(null);
     }
@@ -1432,12 +1507,16 @@ export function DossierPanel({
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-end gap-1.5">
                 {exportError && <span className="mr-auto text-[10px] text-error">{t("dossier.exportError", { message: exportError })}</span>}
-                <button onClick={() => void exportDossierDocument("pdf")} disabled={!!exportingFormat} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40">
-                  {exportingFormat === "pdf" ? t("dossier.exportGenerating") : t("dossier.exportPdf")}
-                </button>
-                <button onClick={() => void exportDossierDocument("docx")} disabled={!!exportingFormat} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40">
-                  {exportingFormat === "docx" ? t("dossier.exportGenerating") : t("dossier.exportDocx")}
-                </button>
+                {canActRegulatory && (
+                  <>
+                    <button onClick={() => void exportDossierDocument("pdf")} disabled={!!exportingFormat} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40">
+                      {exportingFormat === "pdf" ? t("dossier.exportGenerating") : t("dossier.exportPdf")}
+                    </button>
+                    <button onClick={() => void exportDossierDocument("docx")} disabled={!!exportingFormat} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40">
+                      {exportingFormat === "docx" ? t("dossier.exportGenerating") : t("dossier.exportDocx")}
+                    </button>
+                  </>
+                )}
                 <button onClick={exportDossierJson} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
                   {t("dossier.exportJson")}
                 </button>

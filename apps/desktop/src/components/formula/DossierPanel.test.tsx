@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Formulation, FormulationLine, FormulationVersion } from "@ai4s/shared";
 import { DossierPanel } from "./DossierPanel";
 import { renderDossierDocument } from "@/lib/documentExports";
+import { saveBinaryWithFeedback } from "@/lib/download";
 
 const bridge = {
   listRecords: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/lib/masterdata", () => ({
   listRecords: (...a: [string]) => bridge.listRecords(...a),
   listRecordsSeeded: (...a: [string, unknown[]]) => bridge.listRecordsSeeded(...a),
   upsertRecords: (...a: [string, unknown[]]) => bridge.upsertRecords(...a),
+  nowIso: () => "2026-01-01T00:00:00.000Z",
 }));
 
 // Real PDF/DOCX rendering (pdf-lib/docx) runs for real in most tests, proving
@@ -32,6 +34,14 @@ vi.mock("@/lib/masterdata", () => ({
 vi.mock("@/lib/documentExports", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/documentExports")>();
   return { ...actual, renderDossierDocument: vi.fn(actual.renderDossierDocument) };
+});
+
+// Real save (falls back to a browser Blob download outside Tauri) runs by
+// default — only overridden per-test below to observe save-failure and
+// save-cancellation outcomes without a real dialog.
+vi.mock("@/lib/download", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/download")>();
+  return { ...actual, saveBinaryWithFeedback: vi.fn(actual.saveBinaryWithFeedback) };
 });
 
 const FORMULATION: Formulation = {
@@ -642,7 +652,162 @@ describe("DossierPanel — PDF/DOCX export (Phase 8)", () => {
     await user.click(screen.getByRole("button", { name: "Export PDF" }));
     await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Generating…" })).not.toBeInTheDocument());
 
-    expect(bridge.upsertRecords).not.toHaveBeenCalled();
+    const dossierCollections = ["regulatory_dossiers", "regulatory_dossier_requirements", "regulatory_evidence_items", "regulatory_requirement_evidence_links", "regulatory_dossier_reviews", "regulatory_dossier_review_revocations", "regulatory_dossier_submissions", "regulatory_dossier_manual_requirement_actions"];
+    for (const call of bridge.upsertRecords.mock.calls) {
+      expect(dossierCollections).not.toContain(call[0]);
+    }
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("generated_document_records", expect.any(Array));
+  });
+
+  it("persists a generating-then-succeeded export-history record and emits an audit event on success", async () => {
+    const user = userEvent.setup();
+    const onAuditChanged = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <DossierPanel formulation={FORMULATION} versions={[VERSION_1]} auditLog={[]} onAuditChanged={onAuditChanged} />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+    bridge.upsertRecords.mockClear();
+
+    vi.mocked(renderDossierDocument).mockResolvedValueOnce({ bytes: new Uint8Array([1, 2, 3]), mimeType: "application/pdf" });
+    await user.click(screen.getByRole("button", { name: "Export PDF" }));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Generating…" })).not.toBeInTheDocument());
+
+    const historyCalls = bridge.upsertRecords.mock.calls.filter((c) => c[0] === "generated_document_records");
+    expect(historyCalls).toHaveLength(2);
+    const [[, generatingRecords], [, succeededRecords]] = historyCalls as [string, { id: string; status: string }[]][];
+    expect(generatingRecords[0]!.status).toBe("generating");
+    expect(succeededRecords[0]!.status).toBe("succeeded");
+    expect(succeededRecords[0]!.id).toBe(generatingRecords[0]!.id);
+    expect(onAuditChanged).toHaveBeenCalled();
+  });
+
+  it("persists a failed export-history record (no success fields) and emits an audit event when rendering fails", async () => {
+    const user = userEvent.setup();
+    const onAuditChanged = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <DossierPanel formulation={FORMULATION} versions={[VERSION_1]} auditLog={[]} onAuditChanged={onAuditChanged} />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+    bridge.upsertRecords.mockClear();
+
+    vi.mocked(renderDossierDocument).mockRejectedValueOnce(new Error("render exploded"));
+    await user.click(screen.getByRole("button", { name: "Export DOCX" }));
+    expect(await screen.findByText(/render exploded/)).toBeInTheDocument();
+
+    const historyCalls = bridge.upsertRecords.mock.calls.filter((c) => c[0] === "generated_document_records");
+    const failedRecords = historyCalls[historyCalls.length - 1]![1] as { status: string; errorCode?: string; errorMessage?: string; fileName?: string; checksum?: string }[];
+    expect(failedRecords[0]!.status).toBe("failed");
+    expect(failedRecords[0]!.status).not.toBe("succeeded");
+    expect(failedRecords[0]!.errorCode).toBeTruthy();
+    expect(failedRecords[0]!.errorMessage).toContain("render exploded");
+    expect(failedRecords[0]!.fileName).toBeUndefined();
+    expect(failedRecords[0]!.checksum).toBeUndefined();
+    expect(onAuditChanged).toHaveBeenCalled();
+  });
+
+  it("persists a failed export-history record and emits an audit event when the save itself fails", async () => {
+    const user = userEvent.setup();
+    const onAuditChanged = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <DossierPanel formulation={FORMULATION} versions={[VERSION_1]} auditLog={[]} onAuditChanged={onAuditChanged} />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+    bridge.upsertRecords.mockClear();
+
+    vi.mocked(renderDossierDocument).mockResolvedValueOnce({ bytes: new Uint8Array([1, 2, 3]), mimeType: "application/pdf" });
+    vi.mocked(saveBinaryWithFeedback).mockRejectedValueOnce(new Error("disk full"));
+    await user.click(screen.getByRole("button", { name: "Export PDF" }));
+    expect(await screen.findByText(/disk full/)).toBeInTheDocument();
+
+    const historyCalls = bridge.upsertRecords.mock.calls.filter((c) => c[0] === "generated_document_records");
+    const failedRecords = historyCalls[historyCalls.length - 1]![1] as { status: string; errorMessage?: string; fileName?: string }[];
+    expect(failedRecords[0]!.status).toBe("failed");
+    expect(failedRecords[0]!.errorMessage).toContain("disk full");
+    expect(failedRecords[0]!.fileName).toBeUndefined();
+    expect(onAuditChanged).toHaveBeenCalled();
+  });
+
+  it("persists a cancelled export-history record (no success or error fields) when the save dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    const onAuditChanged = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <DossierPanel formulation={FORMULATION} versions={[VERSION_1]} auditLog={[]} onAuditChanged={onAuditChanged} />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+    bridge.upsertRecords.mockClear();
+
+    vi.mocked(renderDossierDocument).mockResolvedValueOnce({ bytes: new Uint8Array([1, 2, 3]), mimeType: "application/pdf" });
+    vi.mocked(saveBinaryWithFeedback).mockResolvedValueOnce({ kind: "canceled" });
+    await user.click(screen.getByRole("button", { name: "Export PDF" }));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Generating…" })).not.toBeInTheDocument());
+
+    const historyCalls = bridge.upsertRecords.mock.calls.filter((c) => c[0] === "generated_document_records");
+    const cancelledRecords = historyCalls[historyCalls.length - 1]![1] as { status: string; fileName?: string; errorCode?: string }[];
+    expect(cancelledRecords[0]!.status).toBe("cancelled");
+    expect(cancelledRecords[0]!.fileName).toBeUndefined();
+    expect(cancelledRecords[0]!.errorCode).toBeUndefined();
+    expect(onAuditChanged).toHaveBeenCalled();
+  });
+
+  it("blocks export before any generation for an unauthorized role, and never creates a history record", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+    await user.selectOptions(screen.getByLabelText("Acting as"), "chemist");
+
+    expect(screen.queryByRole("button", { name: "Export PDF" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export DOCX" })).not.toBeInTheDocument();
+    expect(bridge.upsertRecords.mock.calls.some((c) => c[0] === "generated_document_records")).toBe(false);
+    expect(renderDossierDocument).not.toHaveBeenCalled();
+  });
+
+  it("records the exact source dossier and formula version on the export-history record", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+    bridge.upsertRecords.mockClear();
+
+    vi.mocked(renderDossierDocument).mockResolvedValueOnce({ bytes: new Uint8Array([1, 2, 3]), mimeType: "application/pdf" });
+    await user.click(screen.getByRole("button", { name: "Export PDF" }));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Generating…" })).not.toBeInTheDocument());
+
+    const [, records] = bridge.upsertRecords.mock.calls.find((c) => c[0] === "generated_document_records")!;
+    const [record] = records as { source: { sourceEntityType: string; sourceRecordId: string; formulaVersionId: string; dossierRevision: number } }[];
+    expect(record.source.sourceEntityType).toBe("regulatory_dossier");
+    expect(record.source.formulaVersionId).toBe("version-1");
+    expect(record.source.dossierRevision).toBe(1);
+    const [dossierRecord] = dossiersStore as { id: string }[];
+    expect(record.source.sourceRecordId).toBe(dossierRecord.id);
   });
 
   it("renders a real PDF and a real DOCX end to end (no mock)", async () => {

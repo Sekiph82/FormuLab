@@ -11,6 +11,17 @@ export { renderDossierPdf } from "./dossierPdf";
 export { renderDossierDocx } from "./dossierDocx";
 export { computeSnapshotWatermark, type DocumentWatermark } from "./watermark";
 export { buildDossierDocumentContent, type DocumentContentBlock, type RenderOptions } from "./content";
+export {
+  sha256Hex,
+  startExportRecord,
+  finalizeExportSucceeded,
+  finalizeExportFailed,
+  finalizeExportCancelled,
+  listExportHistory,
+  type StartExportInput,
+  type FinalizeSuccessInput,
+  type FinalizeFailureInput,
+} from "./exportHistory";
 
 export interface RenderedDocument {
   bytes: Uint8Array;

@@ -81,6 +81,7 @@
 //   data/master/substitution_rules.json
 //   data/master/reverse_formula_candidates.json
 //   data/master/candidate_score_explanations.json
+//   data/master/generated_document_records.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -116,7 +117,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 87] = [
+const COLLECTIONS: [(&str, bool); 88] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -366,6 +367,18 @@ const COLLECTIONS: [(&str, bool); 87] = [
     ("substitution_rules", false),
     ("reverse_formula_candidates", false),
     ("candidate_score_explanations", true),
+    // Phase 8 — document export history. One record per PDF/DOCX
+    // generation attempt (Dossiers workspace), created as "generating"
+    // and updated in place to "succeeded"/"failed"/"cancelled" — a
+    // mutable single row keyed by `id` (it has no separate `code`), the
+    // same "status changes in place, full history lives in the audit
+    // log" pattern as `regulatory_evidence_items`/`doe_observations`,
+    // not a second append-only history of its own. Schema and every
+    // integrity rule (a failed/cancelled record can never carry success
+    // file metadata; a succeeded one always carries fileName/mimeType/
+    // byteSize/checksum) live in `GeneratedDocumentRecord`
+    // (`packages/shared/src/schemas/documentExport.ts`, Session 1).
+    ("generated_document_records", false),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
@@ -676,11 +689,22 @@ mod tests {
     }
 
     #[test]
+    fn generated_document_records_is_allow_listed_as_mutable() {
+        // Phase 8 — status changes in place (generating -> succeeded/
+        // failed/cancelled), keyed by `id` (no separate `code`), same as
+        // `regulatory_evidence_items`/`doe_observations`.
+        assert_eq!(
+            collection_spec("generated_document_records"),
+            Ok(("generated_document_records", false)),
+        );
+    }
+
+    #[test]
     fn collection_count_matches_the_fixed_array_length() {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 87);
+        assert_eq!(COLLECTIONS.len(), 88);
     }
 
     #[test]

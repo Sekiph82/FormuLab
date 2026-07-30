@@ -1,4 +1,4 @@
-import { saveBinaryFile, saveTextFile } from "./tauri";
+import { saveBinaryFile, saveTextFile, type SaveResult } from "./tauri";
 import { toast } from "./toast";
 
 /** Save a Blob as a file via a browser download. No-op outside the browser. */
@@ -45,10 +45,15 @@ export async function saveTextWithFeedback(
 /**
  * Save bytes with user feedback: native "Save As" dialog in the desktop app
  * (toast on success/failure, silent on cancel), Blob download in the
- * browser. Mirrors `saveTextWithFeedback` exactly, for binary payloads
- * (e.g. a generated PDF/DOCX) — never a second, parallel save mechanism.
+ * browser. Mirrors `saveTextWithFeedback`'s user-facing behavior, for
+ * binary payloads (e.g. a generated PDF/DOCX) — never a second, parallel
+ * save mechanism. Unlike `saveTextWithFeedback`, this returns the
+ * resolved `SaveResult` (so a caller can tell "saved"/"not-desktop" apart
+ * from "canceled") and re-throws a write failure after showing the error
+ * toast, so a caller that needs to record the outcome (e.g. export
+ * history) can still catch it.
  */
-export async function saveBinaryWithFeedback(filename: string, bytes: Uint8Array, mime: string): Promise<void> {
+export async function saveBinaryWithFeedback(filename: string, bytes: Uint8Array, mime: string): Promise<SaveResult> {
   try {
     const result = await saveBinaryFile(filename, bytes);
     if (result.kind === "saved") {
@@ -58,7 +63,9 @@ export async function saveBinaryWithFeedback(filename: string, bytes: Uint8Array
       toast.success(`Downloaded ${filename}`);
     }
     // "canceled": the user closed the dialog — no feedback needed.
+    return result;
   } catch (err) {
     toast.error(`Could not save ${filename}: ${err instanceof Error ? err.message : String(err)}`);
+    throw err;
   }
 }

@@ -1,68 +1,74 @@
 # Phase 8 — Reports, Dossiers, Document Exports, Final Data Exchange Expansion
 
 ## Current status
-Session 5 complete: Data Exchange registry expanded from 35 to 41
-templates, covering all 6 remaining dossier-domain collections. No
-export-history persistence, audit, or authorization redesign yet
-(Session 6). No Rust changes were needed — `masterdata.ts`/`masterdata.rs`
-already had all 6 collections registered from Phase 3.
+Session 6 complete: every PDF/DOCX export attempt (Dossiers workspace)
+now persists a `generated_document_records` row — created `generating`
+before render, updated in place to `succeeded`/`failed`/`cancelled` —
+plus a `dossier.export_succeeded`/`_failed`/`_cancelled` audit event.
+Export actions are gated on the existing regulatory/quality/administrator
+role model, checked before any record is created.
 
-## Templates added
-`dossier_headers` → `regulatory_dossiers`, `dossier_submissions` →
-`regulatory_dossier_submissions`, `dossier_evidence_links` →
-`regulatory_requirement_evidence_links`, `dossier_review_revocations` →
-`regulatory_dossier_review_revocations` — all 4 fully importable with
-commit handlers. `dossier_reviews` → `regulatory_dossier_reviews` and
-`dossier_manual_requirement_actions` →
-`regulatory_dossier_manual_requirement_actions` — export-only
-(`enabled: false` + an honest `disabledReason`), no commit handler wired.
-Existing `dossier_requirements`/`dossier_evidence` templates untouched.
+## Persistence model
+Reused the Session 1 `GeneratedDocumentRecord` schema unchanged (no
+second record shape). New collection `generated_document_records`,
+allow-listed in `masterdata.rs`/`masterdata.ts`, `append_only: false`
+(mutable — status changes in place, same pattern as
+`regulatory_evidence_items`/`doe_observations`; full history lives in
+the audit log, not a second append-only table). Keyed by `id` (row has
+no separate `code`), confirmed via `row_key()`. New
+`apps/desktop/src/lib/documentExports/exportHistory.ts`:
+`sha256Hex`, `startExportRecord`, `finalizeExportSucceeded`,
+`finalizeExportFailed`, `finalizeExportCancelled`, `listExportHistory`.
 
-## Import/export safety decisions
-`dossier_headers`: always draft/revision 1, requires an already-saved
-formula version (live lookup, never auto-created — deliberately
-diverging from `formula_bom`'s own auto-create precedent, since this
-session's rule is stricter). `dossier_submissions`: status always
-"prepared", an authority's response fields never taken from the file.
-`dossier_evidence_links`: linkStatus always "proposed" — accepting/
-rejecting/revoking stays a human-only action. `dossier_review_revocations`:
-resolves the exact review live via (dossier, revision, reviewed_at) and
-refuses if it doesn't exist. `dossier_reviews` excluded from import
-because a review's frozen requirement/evidence snapshot cannot be
-honestly reconstructed from a flat row (fabricating it empty or
-substituting today's live state would both misrepresent what was
-actually reviewed). `dossier_manual_requirement_actions` excluded
-because the real add/exclude engine functions always pair the audit row
-with an atomic requirement-row mutation a standalone import row can't
-reproduce. Both still have real export loaders — export/audit visibility
-is exactly what they're allowed to do.
+## Integrity rules enforced
+Succeeded requires fileName+mimeType+positive byteSize+checksum, forbids
+error fields. Failed requires errorCode+errorMessage, forbids all
+success file fields. Cancelled forbids both. `fileName` schema-refined
+to reject absolute/UNC/drive paths — export flow only ever builds
+`{dossierCode}-rev{revision}.{format}`, never an absolute path. Export
+flow never calls any dossier-mutating `upsertRecords` — only
+`generated_document_records`. Source dossier id/code/revision/formula
+version recorded from the live snapshot exactly, before any render
+happens.
+
+## Audit and authorization
+`requireAuthorizedRegulatoryActor` checked first, before
+`startExportRecord` — an unauthorized role gets no history row at all
+(buttons are also hidden via existing `canActRegulatory`). Every
+terminal state (succeeded/failed/cancelled) appends one audit event via
+the existing `appendAudit`/`auditEvent` helpers with the real acting
+human's `userId` — export never approves/verifies/submits/mutates the
+dossier itself.
 
 ## Files changed this session
-`packages/shared/src/engine/dataExchangeRegistry.ts` (+6 templates),
-`.test.ts` (+11 tests, 2 count assertions updated), `apps/desktop/src/lib/
-dataExchangeCommit.ts` (+4 handlers, registered), `.test.ts` (+21 tests
-incl. 4 export→import round trips), `apps/desktop/src/lib/
-dataExchangeExisting.ts` (+6 loaders), `.test.ts` (+5 tests).
-`masterdata.ts`/`masterdata.rs` untouched — already complete.
+`apps/desktop/src-tauri/src/masterdata.rs` (+1 collection, +1 test, 87→88),
+`apps/desktop/src/lib/masterdata.ts` (+1 collection type),
+`apps/desktop/src/lib/documentExports/exportHistory.ts` (new, +10 tests),
+`apps/desktop/src/lib/documentExports/index.ts` (barrel export),
+`apps/desktop/src/lib/download.ts` (`saveBinaryWithFeedback` now returns
+`SaveResult` and re-throws on failure so a caller can record the
+outcome), `.test.ts` (+2 tests, 1 renamed),
+`apps/desktop/src/components/formula/DossierPanel.tsx` (export flow
+rewritten: history record + audit at each terminal state, authorization
+gate), `.test.tsx` (+8 tests: success, render failure, save failure,
+cancellation, unauthorized-role block, source traceability, no-mutation
+rewritten to allow the new collection).
 
 ## Focused tests passing
-Shared: `dataExchangeRegistry.test.ts` 42/42, `dataExchangeValidation.test.ts`
-41/41 (unchanged, generic engine needed no edits). Desktop:
-`dataExchangeCommit.test.ts` 80/80, `dataExchangeExisting.test.ts` 46/46.
-Shared typecheck, desktop typecheck, desktop lint — all clean.
+Desktop: `exportHistory.test.ts` 10/10, `download.test.ts` 7/7,
+`DossierPanel.test.tsx` 26/26. Rust: `cargo test --lib masterdata::`
+12/12. Desktop typecheck clean, desktop lint clean. Shared package
+untouched this session — no shared typecheck needed.
 
 ## Known limitations
-No export-history/generated-document persistence record yet (Session 6).
-No new authorization tier beyond the existing `REGULATORY_ROLES` gate
-already used by every dossier template. `dossier_evidence_links` can only
-propose a link between already-existing requirement/evidence rows — it
-cannot bulk-create the evidence itself (use `dossier_evidence` for that,
-unchanged).
+No dedicated export-history viewer UI yet (`listExportHistory` exists,
+unused by any screen) — Reports/Dossiers still only show live
+generate/export actions, not past attempts. No retention/cleanup policy
+for `generated_document_records` rows.
 
 ## Recommended sessions (unchanged plan, see external log for detail)
-6. Export history, audit, authorization integration (next)
-7. Focused Phase 8 verification
+7. Focused Phase 8 verification (next)
 8. Closure: full regression, release, installers, shortcut, native verify
 
 ## Exact next session
-Phase 8 Session 6: Export History, Audit, Authorization, and Integration.
+Phase 8 Session 7: Focused Phase 8 Verification.

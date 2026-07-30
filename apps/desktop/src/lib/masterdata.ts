@@ -35,6 +35,7 @@ import type {
   FinishedProduct,
   FormulaCostOverride,
   FormulaVersionEquivalence,
+  GeneratedDocumentRecord,
   InventoryRecord,
   LabelArtwork,
   LabelContentBlock,
@@ -184,7 +185,8 @@ export type Collection =
   | "ingredient_mappings"
   | "substitution_rules"
   | "reverse_formula_candidates"
-  | "candidate_score_explanations";
+  | "candidate_score_explanations"
+  | "generated_document_records";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -274,6 +276,7 @@ interface CollectionTypes {
   substitution_rules: SubstitutionRule;
   reverse_formula_candidates: ReverseFormulaCandidate;
   candidate_score_explanations: CandidateScoreExplanation;
+  generated_document_records: GeneratedDocumentRecord;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
