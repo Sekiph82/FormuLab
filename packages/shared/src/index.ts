@@ -545,6 +545,7 @@ export * from "./schemas/regulatory";
 export * from "./schemas/dossier";
 export * from "./schemas/claimsLabels";
 export * from "./schemas/reverseFormulation";
+export * from "./schemas/documentExport";
 export * from "./engine/regulatoryClassification";
 export * from "./engine/regulatoryAuthorization";
 export * from "./engine/regulatoryRules";
