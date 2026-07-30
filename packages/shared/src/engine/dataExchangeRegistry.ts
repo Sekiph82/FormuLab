@@ -22,6 +22,7 @@ import { REGULATORY_JURISDICTIONS, REGULATORY_RULE_TYPES } from "../schemas/regu
 import { DOSSIER_APPLICABILITY_STATUSES, DOSSIER_EVIDENCE_TYPES, DOSSIER_REQUIREMENT_TYPES } from "../schemas/dossier";
 import { CLAIM_CATEGORIES, LABEL_CONTENT_BLOCK_TYPES } from "../schemas/claimsLabels";
 import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "../catalog/stabilityConditions";
+import { BENCHMARK_EVIDENCE_TYPES, INGREDIENT_MAPPING_METHODS, CANDIDATE_SCORE_TYPES } from "../schemas/reverseFormulation";
 
 const STABILITY_CONDITION_CODES = SEED_STABILITY_CONDITIONS.map((c) => c.code);
 const STABILITY_TIME_POINT_CODES = SEED_STABILITY_TIME_POINTS.map((tp) => tp.code);
@@ -662,6 +663,197 @@ const DOE_OBSERVATION_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "notes", dataType: "string", description: "Free text." }),
 ];
 
+// =========================================================== Template 25 ===
+// Reverse Formulation Studies
+
+const REVERSE_FORMULATION_STUDY_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "study_code", dataType: "code_reference", description: "Stable study code — natural key.", ...REQ, example: "TEST-RFS-001" }),
+  col({ key: "study_name", dataType: "string", description: "Display name.", ...REQ, example: "TEST Reverse-Engineer Competitor Soap" }),
+  col({ key: "description", dataType: "string", description: "Free-text description." }),
+  col({ key: "project_code", dataType: "string", description: "Owning project code.", ...REQ, example: "TEST-PROJ-001" }),
+  col({ key: "product_family_code", dataType: "code_reference", description: "Product family.", ...REQ, referenceTemplate: "product_families", referenceField: "family_code", example: "TEST-FAM-001" }),
+  col({ key: "status", dataType: "enum", description: "Every imported study starts as draft, regardless of this column — workflow progression happens only in the Reverse Formulation workspace.", enumValues: ["draft"], defaultValue: "draft" }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
+// =========================================================== Template 26 ===
+// Benchmark Products
+
+const BENCHMARK_PRODUCT_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "product_code", dataType: "code_reference", description: "Stable benchmark-product code — natural key.", ...REQ, example: "TEST-BMP-001" }),
+  col({ key: "product_name", dataType: "string", description: "Display name.", ...REQ, example: "TEST Competitor Hand Soap" }),
+  col({ key: "brand", dataType: "string", description: "Brand." }),
+  col({ key: "manufacturer_name", dataType: "string", description: "Manufacturer." }),
+  col({ key: "country", dataType: "string", example: "KE", description: "Country of sale." }),
+  col({ key: "market", dataType: "string", description: "Market segment." }),
+  col({ key: "product_category", dataType: "string", description: "Category." }),
+  col({ key: "product_subcategory", dataType: "string", description: "Subcategory." }),
+  col({ key: "packaging_type", dataType: "string", description: "Packaging type." }),
+  col({ key: "declared_net_content", dataType: "decimal", description: "Declared net content, in grams or ml." }),
+  col({ key: "purchase_date", dataType: "date", description: "Date purchased for benchmarking." }),
+  col({ key: "batch_code", dataType: "string", description: "Batch/lot code on the purchased unit." }),
+  col({ key: "manufacturing_date", dataType: "date", description: "Manufacturing date on the purchased unit." }),
+  col({ key: "expiry_date", dataType: "date", description: "Expiry date on the purchased unit." }),
+  col({ key: "price", dataType: "currency", description: "Purchase price." }),
+  col({ key: "currency", dataType: "enum", description: "Purchase price currency.", enumValues: ["KES", "USD", "EUR", "GBP", "TZS", "UGX"] }),
+  col({ key: "source", dataType: "string", description: "Where it was purchased/obtained." }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
+// =========================================================== Template 27 ===
+// Benchmark Evidence Items
+
+const BENCHMARK_EVIDENCE_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "product_code", dataType: "code_reference", description: "Benchmark product this evidence is about.", ...REQ, referenceTemplate: "benchmark_products", referenceField: "product_code", example: "TEST-BMP-001" }),
+  col({ key: "evidence_type", dataType: "enum", description: "Evidence type — natural key together with product_code/source_name.", ...REQ, enumValues: BENCHMARK_EVIDENCE_TYPES, example: "label" }),
+  col({ key: "source_name", dataType: "string", description: "Where this evidence came from — natural key together with product_code/evidence_type.", ...REQ, example: "TEST product label photo" }),
+  col({ key: "source_reference", dataType: "string", description: "Reference/citation for the source." }),
+  col({ key: "file_name", dataType: "file_name", description: "Name of a locally-selected file to match — importing metadata never attaches a file by itself." }),
+  col({ key: "evidence_sha256", dataType: "sha256", description: "Expected SHA-256 of the matched file, for integrity checking." }),
+  col({ key: "captured_at", dataType: "date", description: "Date the evidence was captured." }),
+  col({ key: "captured_by", dataType: "string", description: "Who captured it." }),
+  col({ key: "confidence", dataType: "decimal", description: "Confidence in this evidence (0-1). Left blank, confidence stays unknown, never 0.", minimum: 0, maximum: 1 }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
+// =========================================================== Template 28 ===
+// Ingredient Declaration Lines
+
+const INGREDIENT_DECLARATION_LINE_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "product_code", dataType: "code_reference", description: "Benchmark product this declaration line is from.", ...REQ, referenceTemplate: "benchmark_products", referenceField: "product_code", example: "TEST-BMP-001" }),
+  col({ key: "declared_order", dataType: "integer", description: "Position in the declared ingredient list — natural key together with product_code.", ...REQ, example: "1" }),
+  col({ key: "declared_name", dataType: "string", description: "Ingredient name as declared on the label.", ...REQ, example: "Aqua" }),
+  col({ key: "raw_text", dataType: "string", description: "Original text fragment for this line, if different from declared_name." }),
+  col({ key: "inci_name", dataType: "string", description: "INCI name, if known." }),
+  col({ key: "cas_number", dataType: "string", description: "CAS number, if known." }),
+  col({ key: "function_hint", dataType: "string", description: "Suspected function, if known." }),
+  col({ key: "concentration_hint", dataType: "string", description: "Concentration hint as declared/estimated (e.g. \"2-5%\"). Left blank, it stays unknown — never treated as 0%." }),
+  col({ key: "regulatory_notes", dataType: "string", description: "Free-text regulatory notes." }),
+  col({ key: "notes", dataType: "string", description: "Free text. Every imported line starts unmapped — mapping happens in the Reverse Formulation workspace, never from this file." }),
+];
+
+// =========================================================== Template 29 ===
+// Analytical Composition Results — append-only, one row per measurement
+
+const ANALYTICAL_COMPOSITION_RESULT_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "product_code", dataType: "code_reference", description: "Benchmark product analyzed.", ...REQ, referenceTemplate: "benchmark_products", referenceField: "product_code", example: "TEST-BMP-001" }),
+  col({ key: "analysis_type", dataType: "string", description: "Analysis type, e.g. proximate, elemental, chromatography.", ...REQ, example: "elemental" }),
+  col({ key: "analyte", dataType: "string", description: "Analyte measured.", ...REQ, example: "Na" }),
+  col({ key: "value", dataType: "decimal", description: "Measured value, preserved as an exact decimal — never coerced through floating point.", ...REQ, example: "1.20" }),
+  col({ key: "unit", dataType: "string", description: "Unit of measurement.", ...REQ, example: "%" }),
+  col({ key: "method", dataType: "string", description: "Analytical method used." }),
+  col({ key: "detection_limit", dataType: "decimal", description: "Detection limit, if applicable." }),
+  col({ key: "uncertainty", dataType: "decimal", description: "Measurement uncertainty, if known." }),
+  col({ key: "laboratory", dataType: "string", description: "Laboratory that performed the analysis." }),
+  col({ key: "sample_code", dataType: "string", description: "Sample identifier — natural key together with product_code/analysis_type/analyte." }),
+  col({ key: "test_date", dataType: "date", description: "Date measured." }),
+  col({ key: "notes", dataType: "string", description: "Free text. Every imported result starts unverified — verification is a separate, authorized human action." }),
+];
+
+// =========================================================== Template 30 ===
+// Target Product Profiles
+
+const TARGET_PRODUCT_PROFILE_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "profile_code", dataType: "code_reference", description: "Stable profile code — natural key.", ...REQ, example: "TEST-TPP-001" }),
+  col({ key: "profile_name", dataType: "string", description: "Display name.", ...REQ, example: "TEST Target Hand Soap Profile" }),
+  col({ key: "product_family_code", dataType: "code_reference", description: "Product family.", ...REQ, referenceTemplate: "product_families", referenceField: "family_code", example: "TEST-FAM-001" }),
+  col({ key: "form", dataType: "string", example: "liquid", description: "Physical form." }),
+  col({ key: "appearance", dataType: "string", description: "Target appearance." }),
+  col({ key: "color", dataType: "string", description: "Target color." }),
+  col({ key: "odor", dataType: "string", description: "Target odor." }),
+  col({ key: "ph_min", dataType: "decimal", description: "Minimum target pH." }),
+  col({ key: "ph_max", dataType: "decimal", description: "Maximum target pH." }),
+  col({ key: "viscosity_min", dataType: "decimal", description: "Minimum target viscosity." }),
+  col({ key: "viscosity_max", dataType: "decimal", description: "Maximum target viscosity." }),
+  col({ key: "density_min", dataType: "decimal", description: "Minimum target density." }),
+  col({ key: "density_max", dataType: "decimal", description: "Maximum target density." }),
+  col({ key: "active_matter_min", dataType: "percentage", description: "Minimum target active matter." }),
+  col({ key: "active_matter_max", dataType: "percentage", description: "Maximum target active matter." }),
+  col({ key: "cost_target_per_kg", dataType: "currency", description: "Target cost per kg." }),
+  col({ key: "currency", dataType: "enum", enumValues: ["KES", "USD", "EUR", "GBP", "TZS", "UGX"], description: "Currency for cost_target_per_kg." }),
+  col({ key: "packaging_constraints", dataType: "string", description: "Free-text packaging constraints." }),
+  col({ key: "market", dataType: "string", description: "Target market." }),
+  col({ key: "jurisdictions", dataType: "multi_value", description: "Target jurisdictions, semicolon-separated." }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
+// =========================================================== Template 31 ===
+// Reverse Constraint Sets
+
+const REVERSE_CONSTRAINT_SET_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "constraint_set_code", dataType: "code_reference", description: "Stable constraint-set code — natural key.", ...REQ, example: "TEST-RCS-001" }),
+  col({ key: "constraint_set_name", dataType: "string", description: "Display name.", ...REQ, example: "TEST Constraints" }),
+  col({ key: "study_code", dataType: "code_reference", description: "Owning study.", ...REQ, referenceTemplate: "reverse_formulation_studies", referenceField: "study_code", example: "TEST-RFS-001" }),
+  col({ key: "required_materials", dataType: "multi_value", description: "Material codes that must be present, semicolon-separated." }),
+  col({ key: "preferred_materials", dataType: "multi_value", description: "Preferred material codes, semicolon-separated." }),
+  col({ key: "excluded_materials", dataType: "multi_value", description: "Excluded material codes, semicolon-separated." }),
+  col({ key: "required_functions", dataType: "multi_value", description: "Required functional roles, semicolon-separated." }),
+  col({ key: "total_active_matter_min", dataType: "percentage", description: "Minimum total active matter." }),
+  col({ key: "total_active_matter_max", dataType: "percentage", description: "Maximum total active matter." }),
+  col({ key: "ph_min", dataType: "decimal", description: "Minimum pH." }),
+  col({ key: "ph_max", dataType: "decimal", description: "Maximum pH." }),
+  col({ key: "cost_min", dataType: "currency", description: "Minimum cost." }),
+  col({ key: "cost_max", dataType: "currency", description: "Maximum cost." }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
+// =========================================================== Template 32 ===
+// Ingredient Mappings
+
+const INGREDIENT_MAPPING_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "study_code", dataType: "code_reference", description: "Owning study.", ...REQ, referenceTemplate: "reverse_formulation_studies", referenceField: "study_code", example: "TEST-RFS-001" }),
+  col({ key: "product_code", dataType: "code_reference", description: "Benchmark product the declaration line belongs to.", ...REQ, referenceTemplate: "benchmark_products", referenceField: "product_code", example: "TEST-BMP-001" }),
+  col({ key: "declared_order", dataType: "integer", description: "Declaration line being mapped (product_code, declared_order).", ...REQ, example: "1" }),
+  col({ key: "candidate_material_code", dataType: "code_reference", description: "Material this line maps to — natural key together with product_code/declared_order.", ...REQ, referenceTemplate: "raw_materials", referenceField: "material_code", example: "TEST-MAT-001" }),
+  col({ key: "mapping_method", dataType: "enum", description: "How this mapping was determined.", ...REQ, enumValues: INGREDIENT_MAPPING_METHODS, example: "INCI" }),
+  col({ key: "confidence", dataType: "decimal", description: "Confidence in this mapping (0-1). Left blank, confidence stays unknown, never 0.", ...REQ, minimum: 0, maximum: 1, example: "0.8" }),
+  col({ key: "evidence", dataType: "string", description: "Evidence supporting this mapping." }),
+  col({ key: "assumptions", dataType: "string", description: "Assumptions made. Every imported mapping starts as proposed — confirm/reject require the mapping review workflow." }),
+];
+
+// =========================================================== Template 33 ===
+// Substitution Rules
+
+const SUBSTITUTION_RULE_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "source_material_code", dataType: "code_reference", description: "Material being substituted — natural key together with target_material_code/product_family_code.", ...REQ, referenceTemplate: "raw_materials", referenceField: "material_code", example: "TEST-MAT-001" }),
+  col({ key: "target_material_code", dataType: "code_reference", description: "Substitute material.", ...REQ, referenceTemplate: "raw_materials", referenceField: "material_code", example: "TEST-MAT-002" }),
+  col({ key: "product_family_code", dataType: "code_reference", description: "Product family this rule is scoped to, if any.", referenceTemplate: "product_families", referenceField: "family_code" }),
+  col({ key: "function", dataType: "string", description: "Functional role this substitution serves." }),
+  col({ key: "substitution_ratio_min", dataType: "decimal", description: "Minimum substitution ratio.", minimum: 0 }),
+  col({ key: "substitution_ratio_max", dataType: "decimal", description: "Maximum substitution ratio.", minimum: 0 }),
+  col({ key: "conditions", dataType: "string", description: "Conditions under which this substitution applies." }),
+  col({ key: "limitations", dataType: "string", description: "Known limitations." }),
+  col({ key: "confidence", dataType: "decimal", description: "Confidence (0-1). Left blank, confidence stays unknown, never 0.", minimum: 0, maximum: 1 }),
+  col({ key: "evidence", dataType: "string", description: "Supporting evidence. Every imported rule starts as proposed — validation requires the substitution review workflow." }),
+];
+
+// =========================================================== Template 34 ===
+// Reverse Formula Candidates — one row per (candidate, material) line
+
+const REVERSE_FORMULA_CANDIDATE_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "study_code", dataType: "code_reference", description: "Owning study (header fact).", ...REQ, referenceTemplate: "reverse_formulation_studies", referenceField: "study_code", example: "TEST-RFS-001" }),
+  col({ key: "candidate_code", dataType: "code_reference", description: "Candidate code — several rows share one; the natural key together with material_code.", ...REQ, example: "TEST-CAND-001" }),
+  col({ key: "candidate_name", dataType: "string", description: "Display name (header fact, first non-empty row wins).", example: "TEST Candidate 1" }),
+  col({ key: "generation_method", dataType: "string", description: "How this candidate was generated (header fact).", ...REQ, example: "declared_hints" }),
+  col({ key: "material_code", dataType: "code_reference", description: "Material for this line.", ...REQ, referenceTemplate: "raw_materials", referenceField: "material_code", example: "TEST-MAT-001" }),
+  col({ key: "percentage", dataType: "percentage", description: "As-supplied percent of the total formula.", ...REQ, example: "12.0" }),
+  col({ key: "line_function", dataType: "string", description: "Functional role of this line." }),
+  col({ key: "notes", dataType: "string", description: "Free text. Every imported candidate starts as generated — validated/selected/rejected require the candidate review workflow." }),
+];
+
+// =========================================================== Template 35 ===
+// Candidate Score Explanations — append-only, one row per (candidate, score type)
+
+const CANDIDATE_SCORE_EXPLANATION_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "candidate_code", dataType: "code_reference", description: "Candidate this score explains — natural key together with score_type.", ...REQ, referenceTemplate: "reverse_formula_candidates", referenceField: "candidate_code", example: "TEST-CAND-001" }),
+  col({ key: "score_type", dataType: "enum", description: "Which scoring dimension this row explains.", ...REQ, enumValues: CANDIDATE_SCORE_TYPES, example: "evidence" }),
+  col({ key: "score", dataType: "decimal", description: "Score for this dimension (0-1).", ...REQ, minimum: 0, maximum: 1, example: "0.7" }),
+  col({ key: "weight", dataType: "decimal", description: "Weight of this dimension in the overall score.", ...REQ, minimum: 0, example: "0.25" }),
+  col({ key: "reason", dataType: "string", description: "Explanation of the reasoning.", ...REQ, example: "Coverage 80%, avg mapping confidence 90%." }),
+  col({ key: "evidence_references", dataType: "multi_value", description: "Evidence references, semicolon-separated." }),
+  col({ key: "limitations", dataType: "multi_value", description: "Known limitations, semicolon-separated." }),
+];
+
 // ================================================================ registry ===
 
 function template(def: {
@@ -1072,6 +1264,172 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     targetCollection: "doe_observations",
     exampleRows: [
       { study_code: "TEST-DOE-001", design_code: "", run_number: "1", trial_code: "", response_code: "TEST-RESPONSE-1", numeric_value: "12500", text_value: "", unit: "cPs", status: "recorded", measured_at: "2026-01-20T09:00:00.000Z", analyst: "Test Analyst", exclusion_reason: "", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "reverse_formulation_studies",
+    title: "Reverse Formulation Studies",
+    description: "A reverse-engineering study container: benchmark products, evidence, mappings and generated candidates all attach to one of these.",
+    module: "reverse_formulation",
+    columns: REVERSE_FORMULATION_STUDY_COLUMNS,
+    naturalKey: ["study_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "study_code updates mutable header fields; status only ever imports as draft — workflow progression happens in the Reverse Formulation workspace.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "reverse_formulation_studies",
+    exampleRows: [
+      { study_code: "TEST-RFS-001", study_name: "TEST Reverse-Engineer Competitor Soap", description: "Synthetic test study.", project_code: "TEST-PROJ-001", product_family_code: "TEST-FAM-001", status: "draft", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "benchmark_products",
+    title: "Benchmark Products",
+    description: "Competitor/benchmark products being reverse-engineered.",
+    module: "reverse_formulation",
+    columns: BENCHMARK_PRODUCT_COLUMNS,
+    naturalKey: ["product_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "product_code updates mutable fields on the existing record.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "benchmark_products",
+    exampleRows: [
+      { product_code: "TEST-BMP-001", product_name: "TEST Competitor Hand Soap", brand: "TEST Rival Brand", manufacturer_name: "TEST Rival Ltd", country: "KE", market: "retail", product_category: "Personal Care", product_subcategory: "Hand Wash", packaging_type: "bottle", declared_net_content: "250", purchase_date: "2026-01-05", batch_code: "B12345", manufacturing_date: "2025-10-01", expiry_date: "2027-10-01", price: "350.00", currency: "KES", source: "Local supermarket", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "benchmark_evidence_items",
+    title: "Benchmark Evidence Items",
+    description: "Evidence captured about a benchmark product (label, TDS/SDS, photos, ...). Never fabricates a benchmark product it doesn't already reference.",
+    module: "reverse_formulation",
+    columns: BENCHMARK_EVIDENCE_COLUMNS,
+    naturalKey: ["product_code", "evidence_type", "source_name"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "Matching (product_code, evidence_type, source_name) updates that evidence item's metadata.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "benchmark_evidence_items",
+    exampleRows: [
+      { product_code: "TEST-BMP-001", evidence_type: "label", source_name: "TEST product label photo", source_reference: "", file_name: "test-label.jpg", evidence_sha256: "", captured_at: "2026-01-05", captured_by: "Test Analyst", confidence: "0.9", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "ingredient_declaration_lines",
+    title: "Ingredient Declaration Lines",
+    description: "Individual lines from a benchmark product's ingredient declaration, in declared order. Never fabricates the benchmark product it belongs to.",
+    module: "reverse_formulation",
+    columns: INGREDIENT_DECLARATION_LINE_COLUMNS,
+    naturalKey: ["product_code", "declared_order"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "Matching (product_code, declared_order) updates that line's text/hints; mapping status/confidence are never taken from this file.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "ingredient_declaration_lines",
+    exampleRows: [
+      { product_code: "TEST-BMP-001", declared_order: "1", declared_name: "Aqua", raw_text: "", inci_name: "Aqua", cas_number: "7732-18-5", function_hint: "solvent", concentration_hint: "", regulatory_notes: "", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "analytical_composition_results",
+    title: "Analytical Composition Results",
+    description: "Laboratory analysis results for a benchmark product. Append-only history — a repeated measurement is a new revision, never a silent overwrite, and every result starts unverified.",
+    module: "reverse_formulation",
+    columns: ANALYTICAL_COMPOSITION_RESULT_COLUMNS,
+    naturalKey: ["product_code", "analysis_type", "analyte", "sample_code"],
+    duplicatePolicy: "new_revision",
+    updatePolicy: "Every row is a new measurement record; re-importing an identical measurement is a duplicate, never a silent overwrite of a prior reading.",
+    authorization: LAB_ROLES,
+    targetCollection: "analytical_composition_results",
+    exampleRows: [
+      { product_code: "TEST-BMP-001", analysis_type: "elemental", analyte: "Na", value: "1.20", unit: "%", method: "ICP-OES", detection_limit: "0.01", uncertainty: "0.05", laboratory: "TEST Lab", sample_code: "S1", test_date: "2026-01-10", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "target_product_profiles",
+    title: "Target Product Profiles",
+    description: "Desired characteristics of the product to be reverse-formulated.",
+    module: "reverse_formulation",
+    columns: TARGET_PRODUCT_PROFILE_COLUMNS,
+    naturalKey: ["profile_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "profile_code updates mutable fields on the existing record.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "target_product_profiles",
+    exampleRows: [
+      { profile_code: "TEST-TPP-001", profile_name: "TEST Target Hand Soap Profile", product_family_code: "TEST-FAM-001", form: "liquid", appearance: "clear", color: "colorless", odor: "mild", ph_min: "5.0", ph_max: "6.5", viscosity_min: "", viscosity_max: "", density_min: "", density_max: "", active_matter_min: "10", active_matter_max: "15", cost_target_per_kg: "180.00", currency: "KES", packaging_constraints: "", market: "KE", jurisdictions: "KE;EAC", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "reverse_constraint_sets",
+    title: "Reverse Constraint Sets",
+    description: "Constraints derived from evidence, targets, regulations and resources for a study. Never fabricates the study it belongs to.",
+    module: "reverse_formulation",
+    columns: REVERSE_CONSTRAINT_SET_COLUMNS,
+    naturalKey: ["constraint_set_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "constraint_set_code updates mutable fields on the existing record.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "reverse_constraint_sets",
+    exampleRows: [
+      { constraint_set_code: "TEST-RCS-001", constraint_set_name: "TEST Constraints", study_code: "TEST-RFS-001", required_materials: "", preferred_materials: "", excluded_materials: "", required_functions: "anionic_surfactant", total_active_matter_min: "10", total_active_matter_max: "15", ph_min: "5.0", ph_max: "6.5", cost_min: "", cost_max: "200", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "ingredient_mappings",
+    title: "Ingredient Mappings",
+    description: "Mapping from a benchmark product's declaration line to a material in the FormuLab catalog. Never fabricates the study, product, declaration line or material it references.",
+    module: "reverse_formulation",
+    columns: INGREDIENT_MAPPING_COLUMNS,
+    naturalKey: ["product_code", "declared_order", "candidate_material_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "Matching (product_code, declared_order, candidate_material_code) updates the mapping's method/confidence/evidence; status always imports as proposed.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "ingredient_mappings",
+    exampleRows: [
+      { study_code: "TEST-RFS-001", product_code: "TEST-BMP-001", declared_order: "1", candidate_material_code: "TEST-MAT-001", mapping_method: "INCI", confidence: "0.8", evidence: "Exact INCI match.", assumptions: "" },
+    ],
+  }),
+  template({
+    templateCode: "substitution_rules",
+    title: "Substitution Rules",
+    description: "Known substitution rules between materials, used to explore reverse-formulation candidates. Never fabricates the materials it references.",
+    module: "reverse_formulation",
+    columns: SUBSTITUTION_RULE_COLUMNS,
+    naturalKey: ["source_material_code", "target_material_code", "product_family_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "Matching (source, target, product_family) updates the rule's ratio/conditions/evidence; status always imports as proposed.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "substitution_rules",
+    exampleRows: [
+      { source_material_code: "TEST-MAT-001", target_material_code: "TEST-MAT-002", product_family_code: "TEST-FAM-001", function: "anionic_surfactant", substitution_ratio_min: "0.8", substitution_ratio_max: "1.2", conditions: "", limitations: "", confidence: "0.6", evidence: "Literature precedent." },
+    ],
+  }),
+  template({
+    templateCode: "reverse_formula_candidates",
+    title: "Reverse Formula Candidates",
+    description: "Generated candidate formulas for a study, one row per (candidate, material) line, grouped into one candidate. Never fabricates the study or materials it references.",
+    module: "reverse_formulation",
+    columns: REVERSE_FORMULA_CANDIDATE_COLUMNS,
+    naturalKey: ["candidate_code", "material_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "A repeated candidate_code updates that candidate's line composition; status always imports as generated — validation/selection happen in the candidate review workflow.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "reverse_formula_candidates",
+    exampleRows: [
+      { study_code: "TEST-RFS-001", candidate_code: "TEST-CAND-001", candidate_name: "TEST Candidate 1", generation_method: "declared_hints", material_code: "TEST-MAT-WATER", percentage: "60.0", line_function: "solvent", notes: "Synthetic test row." },
+      { study_code: "TEST-RFS-001", candidate_code: "TEST-CAND-001", candidate_name: "TEST Candidate 1", generation_method: "declared_hints", material_code: "TEST-MAT-001", percentage: "12.0", line_function: "surfactant", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "candidate_score_explanations",
+    title: "Candidate Score Explanations",
+    description: "Scoring breakdown for a generated candidate. Append-only history — re-scoring never overwrites a prior explanation's rationale. Never fabricates the candidate it references.",
+    module: "reverse_formulation",
+    columns: CANDIDATE_SCORE_EXPLANATION_COLUMNS,
+    naturalKey: ["candidate_code", "score_type"],
+    duplicatePolicy: "new_revision",
+    updatePolicy: "Every row is a new score-explanation record; re-importing an identical (candidate, score_type) is a duplicate, never a silent overwrite of a prior rationale.",
+    authorization: FORMULATION_ROLES,
+    targetCollection: "candidate_score_explanations",
+    exampleRows: [
+      { candidate_code: "TEST-CAND-001", score_type: "evidence", score: "0.7", weight: "0.25", reason: "Coverage 80%, avg mapping confidence 90%.", evidence_references: "", limitations: "" },
     ],
   }),
 ];

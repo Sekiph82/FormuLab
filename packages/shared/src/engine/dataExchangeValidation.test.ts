@@ -7,6 +7,11 @@ const materials = getDataExchangeTemplate("raw_materials")!;
 const prices = getDataExchangeTemplate("material_prices")!;
 const stabilityProtocols = getDataExchangeTemplate("stability_protocols")!;
 const stabilityResults = getDataExchangeTemplate("stability_results")!;
+const benchmarkProducts = getDataExchangeTemplate("benchmark_products")!;
+const declarationLines = getDataExchangeTemplate("ingredient_declaration_lines")!;
+const analyticalResults = getDataExchangeTemplate("analytical_composition_results")!;
+const ingredientMappings = getDataExchangeTemplate("ingredient_mappings")!;
+const reverseFormulationStudies = getDataExchangeTemplate("reverse_formulation_studies")!;
 
 function csvFor(template: typeof materials, rows: string[][]): string {
   const headers = template.columns.map((c) => c.key);
@@ -191,6 +196,106 @@ describe("previewDataExchangeImport — row classification", () => {
     const rows = [["material_code", "material_name"], ["TEST-MAT-001", "=cmd|'/c calc'!A1"]];
     const p = previewDataExchangeImport(materials, rows);
     expect(p.rows[0].record.material_name).toBe("cmd|'/c calc'!A1");
+  });
+});
+
+describe("previewDataExchangeImport — Reverse Formulation templates", () => {
+  it("classifies a well-formed reverse_formulation_studies row as valid_create", () => {
+    const rows = [
+      ["study_code", "study_name", "project_code", "product_family_code"],
+      ["TEST-RFS-001", "TEST Study", "TEST-PROJ-001", "TEST-FAM-001"],
+    ];
+    const p = previewDataExchangeImport(reverseFormulationStudies, rows);
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("rejects reverse_formulation_studies status values other than the safe starting one — an import can never claim review/selection", () => {
+    const rows = [
+      ["study_code", "study_name", "project_code", "product_family_code", "status"],
+      ["TEST-RFS-001", "TEST Study", "TEST-PROJ-001", "TEST-FAM-001", "selected"],
+    ];
+    const p = previewDataExchangeImport(reverseFormulationStudies, rows);
+    expect(p.rows[0].state).toBe("invalid");
+    expect(p.rows[0].messages.join(" ")).toMatch(/status/);
+  });
+
+  it("classifies a missing required benchmark_products identifier as invalid", () => {
+    const rows = [["product_code", "product_name"], ["", "TEST Competitor Product"]];
+    const p = previewDataExchangeImport(benchmarkProducts, rows);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("leaves a blank optional benchmark_products value blank, never coerced to 0", () => {
+    const rows = [["product_code", "product_name", "declared_net_content"], ["TEST-BMP-001", "TEST Product", ""]];
+    const p = previewDataExchangeImport(benchmarkProducts, rows);
+    expect(p.rows[0].state).toBe("valid_create");
+    expect(p.rows[0].record.declared_net_content).toBeUndefined();
+  });
+
+  it("classifies a malformed declared_order as invalid, not silently truncated", () => {
+    const rows = [
+      ["product_code", "declared_order", "declared_name"],
+      ["TEST-BMP-001", "one", "Aqua"],
+    ];
+    const p = previewDataExchangeImport(declarationLines, rows);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("leaves a blank concentration_hint blank, never coerced to 0%", () => {
+    const rows = [
+      ["product_code", "declared_order", "declared_name", "concentration_hint"],
+      ["TEST-BMP-001", "1", "Aqua", ""],
+    ];
+    const p = previewDataExchangeImport(declarationLines, rows);
+    expect(p.rows[0].state).toBe("valid_create");
+    expect(p.rows[0].record.concentration_hint).toBeUndefined();
+  });
+
+  it("rejects a malformed analytical_composition_results decimal value", () => {
+    const rows = [
+      ["product_code", "analysis_type", "analyte", "value", "unit"],
+      ["TEST-BMP-001", "elemental", "Na", "not-a-number", "%"],
+    ];
+    const p = previewDataExchangeImport(analyticalResults, rows);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("preserves an analytical_composition_results decimal value exactly, never through a lossy float round trip", () => {
+    const rows = [
+      ["product_code", "analysis_type", "analyte", "value", "unit"],
+      ["TEST-BMP-001", "elemental", "Na", "123.456789", "%"],
+    ];
+    const p = previewDataExchangeImport(analyticalResults, rows);
+    expect(p.rows[0].state).toBe("valid_create");
+    expect(p.rows[0].record.value).toBe("123.456789");
+  });
+
+  it("rejects an ingredient_mappings confidence outside 0-1", () => {
+    const rows = [
+      ["study_code", "product_code", "declared_order", "candidate_material_code", "mapping_method", "confidence"],
+      ["TEST-RFS-001", "TEST-BMP-001", "1", "TEST-MAT-001", "INCI", "1.5"],
+    ];
+    const p = previewDataExchangeImport(ingredientMappings, rows);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("rejects an unrecognized ingredient_mappings mapping_method", () => {
+    const rows = [
+      ["study_code", "product_code", "declared_order", "candidate_material_code", "mapping_method", "confidence"],
+      ["TEST-RFS-001", "TEST-BMP-001", "1", "TEST-MAT-001", "guesswork", "0.5"],
+    ];
+    const p = previewDataExchangeImport(ingredientMappings, rows);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("accepts a well-formed ingredient_mappings row", () => {
+    const rows = [
+      ["study_code", "product_code", "declared_order", "candidate_material_code", "mapping_method", "confidence"],
+      ["TEST-RFS-001", "TEST-BMP-001", "1", "TEST-MAT-001", "INCI", "0.85"],
+    ];
+    const p = previewDataExchangeImport(ingredientMappings, rows);
+    expect(p.rows[0].state).toBe("valid_create");
+    expect(p.rows[0].record.confidence).toBe("0.85");
   });
 });
 

@@ -1,59 +1,69 @@
 # Phase 7 — Reverse Formulation — Current State
 
 ## Status
-Shared-domain foundation, candidate-generation/scoring engines, and the Rust
-master-data registration for Reverse Formulation are all repaired and
-compiling. Data Exchange integration (Session 4) has not started.
+Shared domain, candidate generation/scoring, Rust persistence, and Data
+Exchange integration for all 11 Reverse Formulation collections are done.
+Desktop workspace UI (Session 5) has not started.
 
-## Completed (Session 3: Rust Persistence)
-- Fixed a hard compile error: `COLLECTIONS: [(&str, bool); 76]` was declared
-  with 76 slots but the array literal actually had 87 entries (76 pre-Phase-7
-  plus the 11 Reverse Formulation rows added without updating the length) —
-  Rust's fixed-size array type requires an exact match, so the crate did not
-  build. Corrected the length to 87.
-- Fixed a mutability misclassification: `candidate_score_explanations` was
-  registered mutable (`false`), but it is a computed scoring snapshot tied to
-  one scoring pass — the same shape as `doe_analyses`/
-  `compatibility_snapshots`/`optimization_runs`, all append-only so a
-  re-score can't silently overwrite the rationale behind an earlier decision.
-  Changed to `true`.
-- Verified the remaining 10 Reverse Formulation collections' names (snake_case,
-  matching the file's established TS-camelCase → Rust-snake_case convention)
-  and mutability against their TS schema lifecycles — all correct, no change.
-- Added the 11 missing `data/master/*.json` paths to the file's header
-  documentation (every other phase lists its paths there; Phase 7 didn't).
+## Completed (Session 4: Data Exchange Integration)
+- Fixed a broken scaffold: `dataExchangeCommit.ts` already referenced 11
+  `commitReverseFormulation*` handlers in `COMMIT_HANDLERS` that were never
+  defined (a hard compile error) and zero matching registry templates
+  existed. Implemented all 11 registry templates (Templates 25-35, module
+  `reverse_formulation`) and all 11 commit handlers.
+- Registry: every workflow-status column (study/mapping/rule/candidate) is
+  restricted to its safe starting value only (`draft`/`proposed`/`generated`)
+  — an import can never claim review, selection, confirmation or validation.
+  `analytical_composition_results` and `candidate_score_explanations` are
+  `new_revision` (append-only); every parent reference is a real
+  `code_reference` column, resolved and refused (never fabricated) if missing.
+- Commit handlers: never create a missing parent (study/product/declaration
+  line/material); `analytical_composition_results` always writes a new,
+  `unverified` record; `reverse_formula_candidates` groups (candidate,
+  material) rows like `formula_bom`, always starting `status: "generated"`.
 
-## Persistence decisions
-- No collection here grants approval/verification/regulated-record authority
-  — same deliberate omission as `approval_records`/`approval_audit_events`
-  elsewhere in this file.
-- `reverse_formula_candidates` stays mutable (status transitions in place,
-  same as `doe_candidates`) — it is a proposal container, not a saved
-  `FormulaVersion`, so this does not bypass the "saved formula versions are
-  immutable" rule; promotion to a real formula version is a separate,
-  untouched system.
+## Persistence-key decision (Session 3 blocker)
+Added `id: z.string()` to `CandidateScoreExplanation` — the smallest
+coherent fix (every other Reverse Formulation collection already had one;
+nothing else in the codebase constructed this type, so zero blast radius).
+The commit handler always sets it via `newId(...)`, resolving the `row_key()`
+requirement flagged in Session 3.
+
+## Known scope gap
+`apps/desktop/src/lib/masterdata.ts`'s `Collection`/`CollectionTypes` union
+was NOT extended (out of this session's allowed-modify list). The 11 new
+handlers bridge through a narrow, locally-declared
+`ReverseFormulationCollection` type + `rfList`/`rfUpsert`/`rfFindByCode`
+helpers in `dataExchangeCommit.ts`, cast once at that single boundary. The
+Rust allow-list (`collection_spec`, fixed Session 3) is the real safety
+boundary and still rejects any unrecognized name — a typo fails loudly at
+that layer rather than silently succeeding — but full compile-time safety
+needs `masterdata.ts` updated with these 11 collections in a future session.
 
 ## Files changed
-- `apps/desktop/src-tauri/src/masterdata.rs`
+- `packages/shared/src/schemas/reverseFormulation.ts` (3 enums exported as named consts; `CandidateScoreExplanation.id` added)
+- `packages/shared/src/engine/dataExchangeRegistry.ts` (11 templates)
+- `apps/desktop/src/lib/dataExchangeCommit.ts` (11 handlers + bridge)
+- `packages/shared/src/engine/dataExchangeRegistry.test.ts`
+- `packages/shared/src/engine/dataExchangeValidation.test.ts`
+- `apps/desktop/src/lib/dataExchangeCommit.test.ts`
 
 ## Tests passing
-- `cargo test --lib masterdata::` in `apps/desktop/src-tauri` — 11/11 passing
-  (includes 4 new: allow-list + mutability for all 11 Reverse Formulation
-  collections, fixed-length regression guard, no-duplicate-name guard,
-  extended unknown/wrong-case name rejection).
-- Crate compiles (`cargo test` invocation itself is the compile check).
+- `pnpm --filter @ai4s/shared exec vitest run <registry, validation>` — 76/76.
+- `pnpm --filter @ai4s/desktop exec vitest run <commit, commitShapes>` — 74/74.
+- `pnpm --filter @ai4s/shared typecheck` — clean.
+- `pnpm --filter @ai4s/desktop typecheck` — 2 pre-existing errors, both in
+  Session 2 files (`candidateGenerator.ts`/`scoringModel.ts`, unused
+  params under this package's stricter `noUnusedParameters`), unrelated to
+  and untouched by this session; no errors in anything this session changed.
 
 ## Known limitations
-- `CandidateScoreExplanation` (schemas/reverseFormulation.ts) has no `code`
-  or `id` field, so the generic `upsert_master_records`/`row_key()` path
-  cannot actually write rows into `candidate_score_explanations` yet — every
-  upsert would fail with "record has no `code` or `id`". Out of this
-  session's scope (schema change); flagging for whoever wires up Reverse
-  Formulation persistence calls from the UI.
+- `masterdata.ts`'s `Collection` union gap above.
+- The 2 pre-existing desktop-typecheck errors above (out of this session's scope).
 
 ## Latest commit and sync status
-See commit `fix(reverse-formulation): repair rust persistence registration`
-on `feature/laboratory-stability`, pushed to its tracking branch.
+See commit `feat(reverse-formulation): add data exchange integration` on
+`feature/laboratory-stability`, pushed to its tracking branch.
 
 ## Next session
-Phase 7 Session 4: Data Exchange Integration
+Phase 7 Session 5: Desktop Reverse Formulation Workspace

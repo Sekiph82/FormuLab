@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DATA_EXCHANGE_TEMPLATES, getDataExchangeTemplate, isDataExchangeRoleAuthorized, listDataExchangeTemplates } from "./dataExchangeRegistry";
 
 describe("Data Exchange template registry", () => {
-  it("registers exactly the 24 mandated templates", () => {
-    expect(DATA_EXCHANGE_TEMPLATES).toHaveLength(24);
+  it("registers exactly the 24 mandated templates plus the 11 Reverse Formulation templates", () => {
+    expect(DATA_EXCHANGE_TEMPLATES).toHaveLength(35);
   });
 
   it("gives every template a unique templateCode", () => {
@@ -113,7 +113,7 @@ describe("Data Exchange template registry", () => {
   });
 
   it("lists all templates", () => {
-    expect(listDataExchangeTemplates().length).toBe(24);
+    expect(listDataExchangeTemplates().length).toBe(35);
   });
 
   it("checks role authorization", () => {
@@ -150,5 +150,79 @@ describe("Data Exchange template registry", () => {
         expect(t?.module).toBe(module_);
       });
     }
+  });
+
+  describe("Reverse Formulation templates (25-35)", () => {
+    const REVERSE_FORMULATION_TEMPLATE_CODES = [
+      "reverse_formulation_studies",
+      "benchmark_products",
+      "benchmark_evidence_items",
+      "ingredient_declaration_lines",
+      "analytical_composition_results",
+      "target_product_profiles",
+      "reverse_constraint_sets",
+      "ingredient_mappings",
+      "substitution_rules",
+      "reverse_formula_candidates",
+      "candidate_score_explanations",
+    ];
+
+    it("registers all 11 expected Reverse Formulation collections, each exactly once", () => {
+      for (const code of REVERSE_FORMULATION_TEMPLATE_CODES) {
+        const matches = DATA_EXCHANGE_TEMPLATES.filter((t) => t.templateCode === code);
+        expect(matches, `"${code}" should be registered exactly once`).toHaveLength(1);
+      }
+    });
+
+    it("targets a collection matching the template code, in module reverse_formulation", () => {
+      for (const code of REVERSE_FORMULATION_TEMPLATE_CODES) {
+        const t = getDataExchangeTemplate(code)!;
+        expect(t.targetCollection).toBe(code);
+        expect(t.module).toBe("reverse_formulation");
+      }
+    });
+
+    it("preserves analytical_composition_results.value as an exact decimal column, and defines it required", () => {
+      const t = getDataExchangeTemplate("analytical_composition_results")!;
+      const value = t.columns.find((c) => c.key === "value")!;
+      expect(value.dataType).toBe("decimal");
+      expect(value.required).toBe(true);
+    });
+
+    it("registers analytical_composition_results and candidate_score_explanations as append-only (new_revision) — never a silent overwrite", () => {
+      expect(getDataExchangeTemplate("analytical_composition_results")!.duplicatePolicy).toBe("new_revision");
+      expect(getDataExchangeTemplate("candidate_score_explanations")!.duplicatePolicy).toBe("new_revision");
+    });
+
+    it("requires a benchmark product reference before evidence/declaration/analytical rows can resolve", () => {
+      for (const code of ["benchmark_evidence_items", "ingredient_declaration_lines", "analytical_composition_results"]) {
+        const t = getDataExchangeTemplate(code)!;
+        const ref = t.columns.find((c) => c.key === "product_code")!;
+        expect(ref.dataType).toBe("code_reference");
+        expect(ref.referenceTemplate).toBe("benchmark_products");
+        expect(ref.required).toBe(true);
+      }
+    });
+
+    it("restricts every workflow-status column to its safe starting value only — an import can never claim review/selection/validation", () => {
+      const studyStatus = getDataExchangeTemplate("reverse_formulation_studies")!.columns.find((c) => c.key === "status")!;
+      expect(studyStatus.enumValues).toEqual(["draft"]);
+      // ingredient_mappings, substitution_rules and reverse_formula_candidates
+      // deliberately expose no importable status column at all — the commit
+      // handler always writes the safe starting value.
+      for (const code of ["ingredient_mappings", "substitution_rules", "reverse_formula_candidates"]) {
+        const t = getDataExchangeTemplate(code)!;
+        expect(t.columns.some((c) => c.key === "status")).toBe(false);
+      }
+    });
+
+    it("scopes ingredient_mappings/reverse_formula_candidates to an existing material via code_reference, never a free-text material id", () => {
+      const mappingMaterial = getDataExchangeTemplate("ingredient_mappings")!.columns.find((c) => c.key === "candidate_material_code")!;
+      expect(mappingMaterial.dataType).toBe("code_reference");
+      expect(mappingMaterial.referenceTemplate).toBe("raw_materials");
+      const candidateMaterial = getDataExchangeTemplate("reverse_formula_candidates")!.columns.find((c) => c.key === "material_code")!;
+      expect(candidateMaterial.dataType).toBe("code_reference");
+      expect(candidateMaterial.referenceTemplate).toBe("raw_materials");
+    });
   });
 });

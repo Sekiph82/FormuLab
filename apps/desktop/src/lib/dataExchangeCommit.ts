@@ -54,6 +54,17 @@ import {
   type StabilitySample,
   type StabilityStudy,
   type Supplier,
+  type ReverseFormulationStudy,
+  type BenchmarkProduct,
+  type BenchmarkEvidenceItem,
+  type IngredientDeclarationLine,
+  type AnalyticalCompositionResult,
+  type TargetProductProfile,
+  type ReverseConstraintSet,
+  type IngredientMapping,
+  type SubstitutionRule,
+  type ReverseFormulaCandidate,
+  type CandidateScoreExplanation,
   assertStudyEditable,
   PACKAGING_COMPONENT_TYPES,
   SEED_STABILITY_CONDITIONS,
@@ -125,6 +136,7 @@ const GROUPED_TEMPLATES: Partial<Record<string, (record: RowRecord) => string>> 
   // group fails together rather than leaving the study with half a
   // protocol attached.
   stability_protocols: (r) => r.protocol_code,
+  reverse_formula_candidates: (r) => r.candidate_code,
 };
 
 /** Builds the `__lines` payload a grouped template's handler reads back out
@@ -158,6 +170,13 @@ const GROUPED_LINE_BUILDERS: Partial<Record<string, (rows: DataExchangeRowResult
       condition_code: row.record.condition_code,
       time_point: row.record.time_point,
       test_code: row.record.test_code,
+    })),
+  reverse_formula_candidates: (rows) =>
+    rows.map((row) => ({
+      materialCode: row.record.material_code,
+      percentage: row.record.percentage,
+      function: nn(row.record.line_function),
+      notes: nn(row.record.notes),
     })),
 };
 
@@ -1122,6 +1141,393 @@ const commitDoeObservations: Handler = async (r) => {
   return { outcome: existing ? "updated" : "created", targetCollection: "doe_observations", targetRecordId: record.id };
 };
 
+// ============================================= reverse formulation (25-35) ===
+//
+// These 11 collections are not yet in `./masterdata`'s `Collection` union
+// (tracked as a known limitation in the Phase 7 Session 4 handoff —
+// `masterdata.ts` is outside this session's allowed-modify scope). The Rust
+// allow-list (`collection_spec` in `apps/desktop/src-tauri/src/masterdata.rs`,
+// fixed in Session 3) is the actual safety boundary and independently
+// rejects any collection name it does not recognize regardless of this
+// bridge, so a typo below still fails loudly at the Rust layer rather than
+// silently succeeding. Bridging through one narrow, documented type keeps
+// every call site below still type-checked against a fixed set of 11 names,
+// instead of scattering an untyped cast through each handler.
+type ReverseFormulationCollection =
+  | "reverse_formulation_studies"
+  | "benchmark_products"
+  | "benchmark_evidence_items"
+  | "ingredient_declaration_lines"
+  | "analytical_composition_results"
+  | "target_product_profiles"
+  | "reverse_constraint_sets"
+  | "ingredient_mappings"
+  | "substitution_rules"
+  | "reverse_formula_candidates"
+  | "candidate_score_explanations";
+
+async function rfList<T>(collection: ReverseFormulationCollection): Promise<T[]> {
+  return listRecords(collection as unknown as Collection) as unknown as Promise<T[]>;
+}
+
+async function rfUpsert<T extends Record<string, unknown>>(collection: ReverseFormulationCollection, records: T[]): Promise<void> {
+  await upsertRecords(collection as unknown as Collection, records as unknown as never[]);
+}
+
+async function rfFindByCode<T extends Record<string, unknown>>(
+  collection: ReverseFormulationCollection,
+  codeField: string,
+  code: string,
+): Promise<T | undefined> {
+  const rows = await rfList<T>(collection);
+  return rows.find((row) => row[codeField] === code);
+}
+
+const commitReverseFormulationStudies: Handler = async (r) => {
+  const existing = await rfFindByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
+  const record: ReverseFormulationStudy = {
+    id: existing?.id ?? newId("rfstudy"),
+    code: r.study_code,
+    name: r.study_name,
+    description: nn(r.description),
+    projectId: r.project_code,
+    productFamilyCode: r.product_family_code,
+    // Every import starts (or leaves) a study at draft — workflow
+    // progression happens only in the Reverse Formulation workspace.
+    status: existing?.status ?? "draft",
+    benchmarkProductIds: existing?.benchmarkProductIds ?? [],
+    targetProfileId: existing?.targetProfileId,
+    constraintSetId: existing?.constraintSetId,
+    selectedCandidateId: existing?.selectedCandidateId,
+    createdAt: existing?.createdAt ?? nowIso(),
+    createdBy: existing?.createdBy ?? "data-exchange-import",
+    updatedAt: nowIso(),
+    revision: existing ? existing.revision + 1 : 0,
+  };
+  await rfUpsert("reverse_formulation_studies", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "reverse_formulation_studies", targetRecordId: record.code };
+};
+
+const commitBenchmarkProducts: Handler = async (r) => {
+  const existing = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  const record: BenchmarkProduct = {
+    id: existing?.id ?? newId("bmprod"),
+    code: r.product_code,
+    name: r.product_name,
+    brand: nn(r.brand),
+    manufacturer: nn(r.manufacturer_name),
+    country: nn(r.country),
+    market: nn(r.market),
+    productCategory: nn(r.product_category),
+    productSubcategory: nn(r.product_subcategory),
+    packagingType: nn(r.packaging_type),
+    declaredNetContent: nn(r.declared_net_content) ? Number(r.declared_net_content) : undefined,
+    purchaseDate: nn(r.purchase_date),
+    batchCode: nn(r.batch_code),
+    manufacturingDate: nn(r.manufacturing_date),
+    expiryDate: nn(r.expiry_date),
+    price: nn(r.price) ? Number(r.price) : undefined,
+    currency: nn(r.currency),
+    source: nn(r.source),
+    notes: nn(r.notes),
+    createdAt: existing?.createdAt ?? nowIso(),
+    updatedAt: nowIso(),
+  };
+  await rfUpsert("benchmark_products", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "benchmark_products", targetRecordId: record.code };
+};
+
+const commitBenchmarkEvidenceItems: Handler = async (r) => {
+  const product = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  if (!product) throw new Error(`No benchmark product with code "${r.product_code}" exists yet — import or create it first.`);
+  const existingItems = await rfList<BenchmarkEvidenceItem>("benchmark_evidence_items");
+  const existing = existingItems.find(
+    (e) => e.benchmarkProductId === product.id && e.evidenceType === r.evidence_type && e.sourceName === r.source_name,
+  );
+  const record: BenchmarkEvidenceItem = {
+    id: existing?.id ?? newId("bmevid"),
+    benchmarkProductId: product.id,
+    evidenceType: r.evidence_type as BenchmarkEvidenceItem["evidenceType"],
+    sourceName: r.source_name,
+    sourceReference: nn(r.source_reference),
+    fileName: nn(r.file_name),
+    sha256: nn(r.evidence_sha256),
+    capturedAt: nn(r.captured_at) ?? nowIso(),
+    capturedBy: nn(r.captured_by) ?? "data-exchange-import",
+    confidence: nn(r.confidence) ? Number(r.confidence) : undefined,
+    notes: nn(r.notes),
+  };
+  await rfUpsert("benchmark_evidence_items", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "benchmark_evidence_items", targetRecordId: record.id };
+};
+
+const commitIngredientDeclarationLines: Handler = async (r) => {
+  const product = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  if (!product) throw new Error(`No benchmark product with code "${r.product_code}" exists yet — import or create it first.`);
+  const order = Number.parseInt(r.declared_order, 10);
+  const existingLines = await rfList<IngredientDeclarationLine>("ingredient_declaration_lines");
+  const existing = existingLines.find((l) => l.benchmarkProductId === product.id && l.declaredOrder === order);
+  const record: IngredientDeclarationLine = {
+    id: existing?.id ?? newId("declline"),
+    benchmarkProductId: product.id,
+    rawText: nn(r.raw_text) ?? r.declared_name,
+    normalizedText: r.declared_name.trim().toLowerCase(),
+    declaredOrder: order,
+    declaredName: r.declared_name,
+    INCI: nn(r.inci_name),
+    CAS: nn(r.cas_number),
+    functionHint: nn(r.function_hint),
+    concentrationHint: nn(r.concentration_hint),
+    regulatoryNotes: nn(r.regulatory_notes),
+    // Every imported line starts unmapped — mapping is a separate,
+    // deliberate step, never fabricated from this file.
+    mappingStatus: existing?.mappingStatus ?? "unmapped",
+    mappedMaterialIds: existing?.mappedMaterialIds ?? [],
+    confidence: existing?.confidence,
+    notes: nn(r.notes),
+  };
+  await rfUpsert("ingredient_declaration_lines", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "ingredient_declaration_lines", targetRecordId: record.id };
+};
+
+const commitAnalyticalCompositionResults: Handler = async (r) => {
+  const product = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  if (!product) throw new Error(`No benchmark product with code "${r.product_code}" exists yet — import or create it first.`);
+  const record: AnalyticalCompositionResult = {
+    id: newId("analresult"),
+    benchmarkProductId: product.id,
+    analysisType: r.analysis_type,
+    analyte: r.analyte,
+    // Preserved as the exact decimal string the validator already
+    // normalized — never coerced through a floating-point round trip.
+    value: r.value,
+    unit: r.unit,
+    method: nn(r.method),
+    detectionLimit: nn(r.detection_limit) ? Number(r.detection_limit) : undefined,
+    uncertainty: nn(r.uncertainty) ? Number(r.uncertainty) : undefined,
+    laboratory: nn(r.laboratory),
+    sampleCode: nn(r.sample_code),
+    testDate: nn(r.test_date),
+    sourceEvidenceId: undefined,
+    // Never "verified" from an import — see module doc.
+    verificationStatus: "unverified",
+    notes: nn(r.notes),
+  };
+  // Append-only: every import row is a new measurement, never an
+  // in-place edit of a previously recorded reading.
+  await rfUpsert("analytical_composition_results", [record]);
+  return { outcome: "created", targetCollection: "analytical_composition_results", targetRecordId: record.id };
+};
+
+const commitTargetProductProfiles: Handler = async (r) => {
+  const existing = await rfFindByCode<TargetProductProfile>("target_product_profiles", "code", r.profile_code);
+  const record: TargetProductProfile = {
+    id: existing?.id ?? newId("tpp"),
+    code: r.profile_code,
+    name: r.profile_name,
+    productFamilyCode: r.product_family_code,
+    form: nn(r.form),
+    appearance: nn(r.appearance),
+    color: nn(r.color),
+    odor: nn(r.odor),
+    pHMin: nn(r.ph_min) ? Number(r.ph_min) : undefined,
+    pHMax: nn(r.ph_max) ? Number(r.ph_max) : undefined,
+    viscosityMin: nn(r.viscosity_min) ? Number(r.viscosity_min) : undefined,
+    viscosityMax: nn(r.viscosity_max) ? Number(r.viscosity_max) : undefined,
+    densityMin: nn(r.density_min) ? Number(r.density_min) : undefined,
+    densityMax: nn(r.density_max) ? Number(r.density_max) : undefined,
+    activeMatterMin: nn(r.active_matter_min) ? Number(r.active_matter_min) : undefined,
+    activeMatterMax: nn(r.active_matter_max) ? Number(r.active_matter_max) : undefined,
+    performanceTargets: existing?.performanceTargets,
+    sensoryTargets: existing?.sensoryTargets,
+    costTargetPerKg: nn(r.cost_target_per_kg) ? Number(r.cost_target_per_kg) : undefined,
+    currency: nn(r.currency),
+    packagingConstraints: nn(r.packaging_constraints),
+    market: nn(r.market),
+    jurisdictions: multi(r.jurisdictions),
+    claimsTargets: existing?.claimsTargets,
+    excludedClaims: existing?.excludedClaims,
+    notes: nn(r.notes),
+  };
+  await rfUpsert("target_product_profiles", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "target_product_profiles", targetRecordId: record.code };
+};
+
+const commitReverseConstraintSets: Handler = async (r) => {
+  const study = await rfFindByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
+  if (!study) throw new Error(`No Reverse Formulation study with code "${r.study_code}" exists yet — import or create it first.`);
+  const existing = await rfFindByCode<ReverseConstraintSet>("reverse_constraint_sets", "code", r.constraint_set_code);
+  const record: ReverseConstraintSet = {
+    id: existing?.id ?? newId("rconstraint"),
+    code: r.constraint_set_code,
+    name: r.constraint_set_name,
+    studyId: study.id,
+    requiredMaterials: multi(r.required_materials),
+    preferredMaterials: multi(r.preferred_materials),
+    excludedMaterials: multi(r.excluded_materials),
+    requiredFunctions: multi(r.required_functions),
+    minimumPercentages: existing?.minimumPercentages ?? {},
+    maximumPercentages: existing?.maximumPercentages ?? {},
+    totalActiveMatterRange:
+      nn(r.total_active_matter_min) && nn(r.total_active_matter_max)
+        ? [Number(r.total_active_matter_min), Number(r.total_active_matter_max)]
+        : existing?.totalActiveMatterRange,
+    pHRange: nn(r.ph_min) && nn(r.ph_max) ? [Number(r.ph_min), Number(r.ph_max)] : existing?.pHRange,
+    viscosityRange: existing?.viscosityRange,
+    densityRange: existing?.densityRange,
+    costRange: nn(r.cost_min) && nn(r.cost_max) ? [Number(r.cost_min), Number(r.cost_max)] : existing?.costRange,
+    regulatoryRestrictions: existing?.regulatoryRestrictions,
+    allergenRestrictions: existing?.allergenRestrictions,
+    sustainabilityRequirements: existing?.sustainabilityRequirements,
+    supplierRestrictions: existing?.supplierRestrictions,
+    countryOfOriginRestrictions: existing?.countryOfOriginRestrictions,
+    notes: nn(r.notes),
+  };
+  await rfUpsert("reverse_constraint_sets", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "reverse_constraint_sets", targetRecordId: record.code };
+};
+
+const commitIngredientMappings: Handler = async (r) => {
+  const study = await rfFindByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
+  if (!study) throw new Error(`No Reverse Formulation study with code "${r.study_code}" exists yet — import or create it first.`);
+  const product = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  if (!product) throw new Error(`No benchmark product with code "${r.product_code}" exists yet — import or create it first.`);
+  const order = Number.parseInt(r.declared_order, 10);
+  const lines = await rfList<IngredientDeclarationLine>("ingredient_declaration_lines");
+  const line = lines.find((l) => l.benchmarkProductId === product.id && l.declaredOrder === order);
+  if (!line) throw new Error(`No declaration line at position ${order} exists yet for product "${r.product_code}" — import it first.`);
+  const material = await findByCode<RawMaterial>("materials", "code", r.candidate_material_code);
+  if (!material) throw new Error(`No material with code "${r.candidate_material_code}" exists yet.`);
+
+  const existingMappings = await rfList<IngredientMapping>("ingredient_mappings");
+  const existing = existingMappings.find((m) => m.declarationLineId === line.id && m.candidateMaterialId === material.code);
+  const record: IngredientMapping = {
+    id: existing?.id ?? newId("imapping"),
+    studyId: study.id,
+    benchmarkProductId: product.id,
+    declarationLineId: line.id,
+    candidateMaterialId: material.code,
+    mappingMethod: r.mapping_method as IngredientMapping["mappingMethod"],
+    confidence: Number(r.confidence),
+    evidence: nn(r.evidence),
+    assumptions: nn(r.assumptions),
+    // Every imported mapping starts as proposed — confirm/reject require
+    // the mapping review workflow.
+    status: existing?.status ?? "proposed",
+    createdAt: existing?.createdAt ?? nowIso(),
+    updatedAt: nowIso(),
+  };
+  await rfUpsert("ingredient_mappings", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "ingredient_mappings", targetRecordId: record.id };
+};
+
+const commitSubstitutionRules: Handler = async (r) => {
+  const source = await findByCode<RawMaterial>("materials", "code", r.source_material_code);
+  if (!source) throw new Error(`No material with code "${r.source_material_code}" exists yet.`);
+  const target = await findByCode<RawMaterial>("materials", "code", r.target_material_code);
+  if (!target) throw new Error(`No material with code "${r.target_material_code}" exists yet.`);
+
+  const existingRules = await rfList<SubstitutionRule>("substitution_rules");
+  const familyKey = nn(r.product_family_code);
+  const existing = existingRules.find(
+    (rule) => rule.sourceMaterialId === source.code && rule.targetMaterialId === target.code && (rule.productFamilyCode ?? undefined) === familyKey,
+  );
+  const record: SubstitutionRule = {
+    id: existing?.id ?? newId("subrule"),
+    sourceMaterialId: source.code,
+    targetMaterialId: target.code,
+    productFamilyCode: familyKey,
+    function: nn(r.function),
+    substitutionRatioMin: nn(r.substitution_ratio_min) ? Number(r.substitution_ratio_min) : undefined,
+    substitutionRatioMax: nn(r.substitution_ratio_max) ? Number(r.substitution_ratio_max) : undefined,
+    conditions: nn(r.conditions),
+    limitations: nn(r.limitations),
+    confidence: nn(r.confidence) ? Number(r.confidence) : undefined,
+    evidence: nn(r.evidence),
+    // Every imported rule starts as proposed — validation requires the
+    // substitution review workflow.
+    status: existing?.status ?? "proposed",
+  };
+  await rfUpsert("substitution_rules", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "substitution_rules", targetRecordId: record.id };
+};
+
+interface ReverseFormulaCandidateLine {
+  materialCode: string;
+  percentage: string;
+  function?: string;
+  notes?: string;
+}
+
+const commitReverseFormulaCandidates: Handler = async (r) => {
+  const study = await rfFindByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
+  if (!study) throw new Error(`No Reverse Formulation study with code "${r.study_code}" exists yet — import or create it first.`);
+
+  // All rows for this candidate_code were grouped by the caller before this
+  // handler runs (see GROUPED_TEMPLATES) — `r` here already carries every
+  // line under `__lines`.
+  const lines = (r as unknown as { __lines: ReverseFormulaCandidateLine[] }).__lines;
+  for (const line of lines) {
+    const material = await findByCode<RawMaterial>("materials", "code", line.materialCode);
+    if (!material) throw new Error(`No material with code "${line.materialCode}" exists yet.`);
+  }
+
+  const existing = await rfFindByCode<ReverseFormulaCandidate>("reverse_formula_candidates", "candidateCode", r.candidate_code);
+  const record: ReverseFormulaCandidate = {
+    id: existing?.id ?? newId("rfcand"),
+    studyId: study.id,
+    candidateCode: r.candidate_code,
+    name: nn(r.candidate_name) ?? r.candidate_code,
+    revision: existing ? existing.revision + 1 : 0,
+    generationMethod: r.generation_method,
+    // Every imported candidate starts as generated — validation/selection
+    // require the candidate review workflow, never this file.
+    status: existing?.status ?? "generated",
+    formulaLines: lines.map((l) => ({
+      materialId: l.materialCode,
+      percentage: Number(l.percentage),
+      function: l.function,
+      notes: l.notes,
+    })) as ReverseFormulaCandidate["formulaLines"],
+    processSteps: existing?.processSteps,
+    predictedProperties: existing?.predictedProperties,
+    estimatedCost: existing?.estimatedCost,
+    regulatoryAssessment: existing?.regulatoryAssessment,
+    evidenceCoverage: existing?.evidenceCoverage,
+    confidenceScore: existing?.confidenceScore,
+    similarityScore: existing?.similarityScore,
+    performanceScore: existing?.performanceScore,
+    costScore: existing?.costScore,
+    regulatoryScore: existing?.regulatoryScore,
+    manufacturabilityScore: existing?.manufacturabilityScore,
+    assumptions: existing?.assumptions,
+    warnings: existing?.warnings,
+    createdAt: existing?.createdAt ?? nowIso(),
+    createdBy: existing?.createdBy ?? "data-exchange-import",
+  };
+  await rfUpsert("reverse_formula_candidates", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "reverse_formula_candidates", targetRecordId: record.candidateCode };
+};
+
+const commitCandidateScoreExplanations: Handler = async (r) => {
+  const candidate = await rfFindByCode<ReverseFormulaCandidate>("reverse_formula_candidates", "candidateCode", r.candidate_code);
+  if (!candidate) throw new Error(`No candidate with code "${r.candidate_code}" exists yet — import or create it first.`);
+  const record: CandidateScoreExplanation = {
+    id: newId("scoreexpl"),
+    candidateId: candidate.id,
+    scoreType: r.score_type as CandidateScoreExplanation["scoreType"],
+    score: Number(r.score),
+    weight: Number(r.weight),
+    reason: r.reason,
+    evidenceReferences: multi(r.evidence_references).length ? multi(r.evidence_references) : undefined,
+    limitations: multi(r.limitations).length ? multi(r.limitations) : undefined,
+  };
+  // Append-only: every import row is a new score-explanation record, never
+  // an in-place edit of a previously recorded rationale.
+  await rfUpsert("candidate_score_explanations", [record]);
+  return { outcome: "created", targetCollection: "candidate_score_explanations", targetRecordId: record.id };
+};
+
 // =================================================== registry dispatch table ===
 
 export const COMMIT_HANDLERS: Partial<Record<string, Handler>> = {
@@ -1149,6 +1555,17 @@ export const COMMIT_HANDLERS: Partial<Record<string, Handler>> = {
   artwork_register: commitArtworkRegister,
   doe_factors_responses: commitDoeFactorsResponses,
   doe_observations: commitDoeObservations,
+  reverse_formulation_studies: commitReverseFormulationStudies,
+  benchmark_products: commitBenchmarkProducts,
+  benchmark_evidence_items: commitBenchmarkEvidenceItems,
+  ingredient_declaration_lines: commitIngredientDeclarationLines,
+  analytical_composition_results: commitAnalyticalCompositionResults,
+  target_product_profiles: commitTargetProductProfiles,
+  reverse_constraint_sets: commitReverseConstraintSets,
+  ingredient_mappings: commitIngredientMappings,
+  substitution_rules: commitSubstitutionRules,
+  reverse_formula_candidates: commitReverseFormulaCandidates,
+  candidate_score_explanations: commitCandidateScoreExplanations,
 };
 
 /** DOE_FACTOR_TYPES etc. re-exported so the UI can build the wizard-free

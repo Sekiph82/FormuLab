@@ -578,12 +578,271 @@ describe("commitDataExchangeRows — Stability Results (append-only, attaches to
   });
 });
 
+describe("commitDataExchangeRows — Reverse Formulation", () => {
+  const study = { id: "study-1", code: "TEST-RFS-001", revision: 0 };
+  const product = { id: "product-1", code: "TEST-BMP-001" };
+  const declLine = { id: "declline-1", benchmarkProductId: "product-1", declaredOrder: 1 };
+  const material = { code: "TEST-MAT-001" };
+  const candidate = { id: "candidate-1", candidateCode: "TEST-CAND-001", revision: 0 };
+
+  function byCollection(map: Record<string, unknown[]>) {
+    return (collection: string) => Promise.resolve(map[collection] ?? []);
+  }
+
+  it("reverse_formulation_studies: creates a study, always starting at status draft", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("reverse_formulation_studies")!,
+      [row({ study_code: "TEST-RFS-001", study_name: "TEST Study", project_code: "TEST-PROJ-001", product_family_code: "TEST-FAM-001" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("reverse_formulation_studies", expect.arrayContaining([expect.objectContaining({ code: "TEST-RFS-001", status: "draft" })]));
+  });
+
+  it("benchmark_products: creates a benchmark product", async () => {
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("benchmark_products")!, [row({ product_code: "TEST-BMP-001", product_name: "TEST Product" })], ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("benchmark_products", expect.arrayContaining([expect.objectContaining({ code: "TEST-BMP-001" })]));
+  });
+
+  it("benchmark_evidence_items: fails honestly when the referenced benchmark product does not exist, and never fabricates one", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("benchmark_evidence_items")!,
+      [row({ product_code: "TEST-BMP-001", evidence_type: "label", source_name: "TEST label photo" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No benchmark product/);
+    expect(bridge.upsertRecords).not.toHaveBeenCalled();
+  });
+
+  it("benchmark_evidence_items: creates evidence once the benchmark product resolves", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ benchmark_products: [product] }));
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("benchmark_evidence_items")!,
+      [row({ product_code: "TEST-BMP-001", evidence_type: "label", source_name: "TEST label photo" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("benchmark_evidence_items", expect.arrayContaining([expect.objectContaining({ benchmarkProductId: "product-1", evidenceType: "label" })]));
+  });
+
+  it("ingredient_declaration_lines: fails honestly when the referenced benchmark product does not exist", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("ingredient_declaration_lines")!,
+      [row({ product_code: "TEST-BMP-001", declared_order: "1", declared_name: "Aqua" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No benchmark product/);
+  });
+
+  it("ingredient_declaration_lines: creates a line that always starts unmapped, never fabricating a mapping", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ benchmark_products: [product] }));
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("ingredient_declaration_lines")!,
+      [row({ product_code: "TEST-BMP-001", declared_order: "1", declared_name: "Aqua" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "ingredient_declaration_lines",
+      expect.arrayContaining([expect.objectContaining({ benchmarkProductId: "product-1", declaredOrder: 1, mappingStatus: "unmapped", mappedMaterialIds: [] })]),
+    );
+  });
+
+  it("analytical_composition_results: is append-only — every import is a new record, the value preserved as an exact decimal string, always unverified", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ benchmark_products: [product] }));
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("analytical_composition_results")!,
+      [row({ product_code: "TEST-BMP-001", analysis_type: "elemental", analyte: "Na", value: "1.20", unit: "%" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "analytical_composition_results",
+      expect.arrayContaining([expect.objectContaining({ analyte: "Na", value: "1.20", verificationStatus: "unverified" })]),
+    );
+    // A second import of the same measurement is a second, independent
+    // record — never an in-place edit of the first.
+    await commitDataExchangeRows(
+      getDataExchangeTemplate("analytical_composition_results")!,
+      [row({ product_code: "TEST-BMP-001", analysis_type: "elemental", analyte: "Na", value: "1.30", unit: "%" })],
+      ctx,
+    );
+    const firstId = (bridge.upsertRecords.mock.calls[0][1][0] as { id: string }).id;
+    const secondId = (bridge.upsertRecords.mock.calls[1][1][0] as { id: string }).id;
+    expect(firstId).not.toBe(secondId);
+  });
+
+  it("target_product_profiles: creates a target profile", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("target_product_profiles")!,
+      [row({ profile_code: "TEST-TPP-001", profile_name: "TEST Profile", product_family_code: "TEST-FAM-001" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("target_product_profiles", expect.arrayContaining([expect.objectContaining({ code: "TEST-TPP-001" })]));
+  });
+
+  it("reverse_constraint_sets: fails honestly when the referenced study does not exist", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("reverse_constraint_sets")!,
+      [row({ constraint_set_code: "TEST-RCS-001", constraint_set_name: "TEST Constraints", study_code: "TEST-RFS-001" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No Reverse Formulation study/);
+  });
+
+  it("reverse_constraint_sets: creates a constraint set once the study resolves", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ reverse_formulation_studies: [study] }));
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("reverse_constraint_sets")!,
+      [row({ constraint_set_code: "TEST-RCS-001", constraint_set_name: "TEST Constraints", study_code: "TEST-RFS-001" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("reverse_constraint_sets", expect.arrayContaining([expect.objectContaining({ studyId: "study-1" })]));
+  });
+
+  it("ingredient_mappings: fails honestly at each missing-parent step rather than fabricating any of them", async () => {
+    const base = { study_code: "TEST-RFS-001", product_code: "TEST-BMP-001", declared_order: "1", candidate_material_code: "TEST-MAT-001", mapping_method: "INCI", confidence: "0.8" };
+
+    const noStudy = await commitDataExchangeRows(getDataExchangeTemplate("ingredient_mappings")!, [row(base)], ctx);
+    expect(noStudy[0].message).toMatch(/No Reverse Formulation study/);
+
+    bridge.listRecords.mockImplementation(byCollection({ reverse_formulation_studies: [study] }));
+    const noProduct = await commitDataExchangeRows(getDataExchangeTemplate("ingredient_mappings")!, [row(base)], ctx);
+    expect(noProduct[0].message).toMatch(/No benchmark product/);
+
+    bridge.listRecords.mockImplementation(byCollection({ reverse_formulation_studies: [study], benchmark_products: [product] }));
+    const noLine = await commitDataExchangeRows(getDataExchangeTemplate("ingredient_mappings")!, [row(base)], ctx);
+    expect(noLine[0].message).toMatch(/No declaration line/);
+
+    bridge.listRecords.mockImplementation(byCollection({ reverse_formulation_studies: [study], benchmark_products: [product], ingredient_declaration_lines: [declLine] }));
+    const noMaterial = await commitDataExchangeRows(getDataExchangeTemplate("ingredient_mappings")!, [row(base)], ctx);
+    expect(noMaterial[0].message).toMatch(/No material/);
+
+    expect(bridge.upsertRecords).not.toHaveBeenCalled();
+  });
+
+  it("ingredient_mappings: creates a mapping that always starts proposed once every parent resolves", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({ reverse_formulation_studies: [study], benchmark_products: [product], ingredient_declaration_lines: [declLine], materials: [material] }),
+    );
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("ingredient_mappings")!,
+      [row({ study_code: "TEST-RFS-001", product_code: "TEST-BMP-001", declared_order: "1", candidate_material_code: "TEST-MAT-001", mapping_method: "INCI", confidence: "0.8" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "ingredient_mappings",
+      expect.arrayContaining([expect.objectContaining({ declarationLineId: "declline-1", candidateMaterialId: "TEST-MAT-001", status: "proposed" })]),
+    );
+  });
+
+  it("substitution_rules: fails honestly when a referenced material does not exist, and never fabricates it", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("substitution_rules")!,
+      [row({ source_material_code: "TEST-MAT-001", target_material_code: "TEST-MAT-002" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No material/);
+  });
+
+  it("substitution_rules: creates a rule that always starts proposed once both materials resolve", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ materials: [{ code: "TEST-MAT-001" }, { code: "TEST-MAT-002" }] }));
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("substitution_rules")!,
+      [row({ source_material_code: "TEST-MAT-001", target_material_code: "TEST-MAT-002" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("substitution_rules", expect.arrayContaining([expect.objectContaining({ status: "proposed" })]));
+  });
+
+  it("reverse_formula_candidates (grouped): fails honestly when the study does not exist", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("reverse_formula_candidates")!,
+      [row({ study_code: "TEST-RFS-001", candidate_code: "TEST-CAND-001", generation_method: "declared_hints", material_code: "TEST-MAT-001", percentage: "100" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No Reverse Formulation study/);
+  });
+
+  it("reverse_formula_candidates (grouped): fails honestly when a line's material does not exist, and never fabricates it", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ reverse_formulation_studies: [study] }));
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("reverse_formula_candidates")!,
+      [row({ study_code: "TEST-RFS-001", candidate_code: "TEST-CAND-001", generation_method: "declared_hints", material_code: "TEST-MAT-001", percentage: "100" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No material/);
+  });
+
+  it("reverse_formula_candidates (grouped): groups multiple lines into one candidate that always starts as generated", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ reverse_formulation_studies: [study], materials: [{ code: "TEST-MAT-001" }, { code: "TEST-MAT-002" }] }));
+    const rows = [
+      row({ study_code: "TEST-RFS-001", candidate_code: "TEST-CAND-001", generation_method: "declared_hints", material_code: "TEST-MAT-001", percentage: "60" }, { rowNumber: 2, naturalKey: "TEST-CAND-001::TEST-MAT-001" }),
+      row({ study_code: "TEST-RFS-001", candidate_code: "TEST-CAND-001", generation_method: "declared_hints", material_code: "TEST-MAT-002", percentage: "40" }, { rowNumber: 3, naturalKey: "TEST-CAND-001::TEST-MAT-002" }),
+    ];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("reverse_formula_candidates")!, rows, ctx);
+    expect(outcomes).toHaveLength(2);
+    expect(outcomes.every((o) => o.outcome === "created")).toBe(true);
+    expect(bridge.upsertRecords).toHaveBeenCalledTimes(1);
+    const saved = bridge.upsertRecords.mock.calls[0][1][0] as { status: string; formulaLines: unknown[] };
+    expect(saved.status).toBe("generated");
+    expect(saved.formulaLines).toHaveLength(2);
+  });
+
+  it("candidate_score_explanations: fails honestly when the referenced candidate does not exist, and never fabricates it", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("candidate_score_explanations")!,
+      [row({ candidate_code: "TEST-CAND-001", score_type: "evidence", score: "0.7", weight: "0.25", reason: "Coverage 80%." })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No candidate/);
+  });
+
+  it("candidate_score_explanations: has a stable persistence key and is append-only — the Session 3 row_key() blocker is resolved", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ reverse_formula_candidates: [candidate] }));
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("candidate_score_explanations")!,
+      [row({ candidate_code: "TEST-CAND-001", score_type: "evidence", score: "0.7", weight: "0.25", reason: "Coverage 80%." })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    const written = bridge.upsertRecords.mock.calls[0][1][0] as { id?: string; candidateId: string };
+    expect(written.id).toBeTruthy();
+    expect(written.candidateId).toBe("candidate-1");
+
+    // A second import of the same (candidate, score_type) is a second,
+    // independent record with its own id — never an in-place overwrite.
+    await commitDataExchangeRows(
+      getDataExchangeTemplate("candidate_score_explanations")!,
+      [row({ candidate_code: "TEST-CAND-001", score_type: "evidence", score: "0.9", weight: "0.25", reason: "Re-scored." })],
+      ctx,
+    );
+    const secondWritten = bridge.upsertRecords.mock.calls[1][1][0] as { id?: string };
+    expect(secondWritten.id).toBeTruthy();
+    expect(secondWritten.id).not.toBe(written.id);
+  });
+});
+
 describe("commitDataExchangeRows — genuinely unsupported templates stay honest", () => {
   it("isTemplateCommitSupported reports false for a template code with no handler", () => {
     expect(isTemplateCommitSupported("not_a_real_template")).toBe(false);
     expect(isTemplateCommitSupported("raw_materials")).toBe(true);
     expect(isTemplateCommitSupported("stability_protocols")).toBe(true);
     expect(isTemplateCommitSupported("stability_results")).toBe(true);
+    expect(isTemplateCommitSupported("reverse_formulation_studies")).toBe(true);
+    expect(isTemplateCommitSupported("candidate_score_explanations")).toBe(true);
   });
 
   it("reports every row as skipped for a template with no commit handler, never silently accepting it", async () => {

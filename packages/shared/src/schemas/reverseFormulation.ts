@@ -68,22 +68,25 @@ export type BenchmarkProduct = z.infer<typeof BenchmarkProduct>;
  * Benchmark Evidence Item
  * Evidence collected about the benchmark product.
  */
+export const BENCHMARK_EVIDENCE_TYPES = [
+  'label',
+  'ingredient_declaration',
+  'technical_data_sheet',
+  'safety_data_sheet',
+  'certificate_of_analysis',
+  'laboratory_report',
+  'photograph',
+  'supplier_statement',
+  'marketplace_listing',
+  'manual_observation',
+  'other'
+] as const;
+export type BenchmarkEvidenceType = (typeof BENCHMARK_EVIDENCE_TYPES)[number];
+
 export const BenchmarkEvidenceItem = z.object({
   id: z.string(),
   benchmarkProductId: z.string(),
-  evidenceType: z.enum([
-    'label',
-    'ingredient_declaration',
-    'technical_data_sheet',
-    'safety_data_sheet',
-    'certificate_of_analysis',
-    'laboratory_report',
-    'photograph',
-    'supplier_statement',
-    'marketplace_listing',
-    'manual_observation',
-    'other'
-  ]),
+  evidenceType: z.enum(BENCHMARK_EVIDENCE_TYPES),
   sourceName: z.string(),
   sourceReference: z.string().optional(),
   fileName: z.string().optional(),
@@ -219,23 +222,26 @@ export type ReverseConstraintSet = z.infer<typeof ReverseConstraintSet>;
  * Ingredient Mapping
  * Mapping from an ingredient declaration line to a material in the FormuLab catalog.
  */
+export const INGREDIENT_MAPPING_METHODS = [
+  'exact_code',
+  'exact_name',
+  'INCI',
+  'CAS',
+  'synonym',
+  'supplier_trade_name',
+  'functional_equivalent',
+  'analytical_inference',
+  'manual'
+] as const;
+export type IngredientMappingMethod = (typeof INGREDIENT_MAPPING_METHODS)[number];
+
 export const IngredientMapping = z.object({
   id: z.string(),
   studyId: z.string(),
   benchmarkProductId: z.string(),
   declarationLineId: z.string(),
   candidateMaterialId: z.string(),
-  mappingMethod: z.enum([
-    'exact_code',
-    'exact_name',
-    'INCI',
-    'CAS',
-    'synonym',
-    'supplier_trade_name',
-    'functional_equivalent',
-    'analytical_inference',
-    'manual'
-  ]),
+  mappingMethod: z.enum(INGREDIENT_MAPPING_METHODS),
   confidence: z.number().min(0).max(1),
   evidence: z.string().optional(),
   assumptions: z.string().optional(),
@@ -317,20 +323,32 @@ export type ReverseFormulaCandidate = z.infer<typeof ReverseFormulaCandidate>;
  * Candidate Score Explanation
  * Breakdown of a candidate's score.
  */
+export const CANDIDATE_SCORE_TYPES = [
+  'evidence',
+  'order',
+  'analytical',
+  'properties',
+  'performance',
+  'cost',
+  'regulatory',
+  'availability',
+  'manufacturability',
+  'confidence'
+] as const;
+export type CandidateScoreType = (typeof CANDIDATE_SCORE_TYPES)[number];
+
+/**
+ * A stable persistence identity for this snapshot. Added so the Data
+ * Exchange / master-data upsert path (`row_key()` in
+ * `apps/desktop/src-tauri/src/masterdata.rs`, which requires a `code` or
+ * `id` field) can actually write rows into `candidate_score_explanations` —
+ * every other Reverse Formulation collection already has one; this was the
+ * one gap, flagged at the end of Phase 7 Session 3.
+ */
 export const CandidateScoreExplanation = z.object({
+  id: z.string(),
   candidateId: z.string(),
-  scoreType: z.enum([
-    'evidence',
-    'order',
-    'analytical',
-    'properties',
-    'performance',
-    'cost',
-    'regulatory',
-    'availability',
-    'manufacturability',
-    'confidence'
-  ]),
+  scoreType: z.enum(CANDIDATE_SCORE_TYPES),
   score: z.number().min(0).max(1),
   weight: z.number().positive(),
   reason: z.string(),
