@@ -8,7 +8,7 @@ import type {
   ArtifactVersion,
   FilePreviewInspector,
   NotebookFileInspector,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 
 const EXT_KIND: Record<string, ArtifactKind> = {
   png: "figure", jpg: "figure", jpeg: "figure", gif: "figure", webp: "figure", svg: "figure",

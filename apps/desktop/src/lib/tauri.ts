@@ -195,7 +195,7 @@ export async function runFormulationOptimize(
   return invoke<FormulationResult>("run_formulation_optimize", { input });
 }
 
-/** Solve an Advanced Optimizer `FormulationProblem` (`@ai4s/shared`'s
+/** Solve an Advanced Optimizer `FormulationProblem` (`@formulab/shared`'s
  *  `FormulationProblem`/`AdvancedOptimizationResult` types) — a separate
  *  command and script from the simple optimizer above. Returns null when not
  *  running in the desktop app. */

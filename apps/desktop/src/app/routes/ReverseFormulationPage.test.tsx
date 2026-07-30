@@ -16,7 +16,7 @@ import type {
   RawMaterial,
   ReverseFormulationStudy,
   TargetProductProfile,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { ReverseFormulationPage } from "./ReverseFormulationPage";
 import { renderAt } from "@/test/render";
 import { routes } from "@/app/router";

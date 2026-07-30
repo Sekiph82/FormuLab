@@ -11,7 +11,7 @@ import {
   type DataExchangePreview,
   type DataExchangeImportJob,
   type DataExchangeImportRowResult,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { readWorkbookRows, rejectUnsupportedWorkbook } from "@/lib/xlsx";
 import { commitDataExchangeRows, isTemplateCommitSupported, type DataExchangeRowCommitOutcome } from "@/lib/dataExchangeCommit";
 import { loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";

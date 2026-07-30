@@ -23,7 +23,7 @@ import {
   testResultSchema,
   packagingComponentSchema,
   factoryCostProfileSchema,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 
 describe("commit-handler record shapes conform to their real Zod schemas", () => {
   it("regulatory rule", () => {

@@ -21,7 +21,7 @@ import {
   type FormulationVersion,
   type PackagingBom,
   type RawMaterial,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { FormulaBuilder } from "@/components/formula/FormulaBuilder";
 import { VersionCompare } from "@/components/formula/VersionCompare";
 import { CostPanel } from "@/components/formula/CostPanel";

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import type { Formulation, FormulationVersion } from "@ai4s/shared";
+import type { Formulation, FormulationVersion } from "@formulab/shared";
 import { listFormulations } from "@/lib/formulations";
 
 /**

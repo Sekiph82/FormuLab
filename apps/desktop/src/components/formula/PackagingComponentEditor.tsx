@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { PACKAGING_COMPONENT_TYPES, type PackagingComponent } from "@ai4s/shared";
+import { PACKAGING_COMPONENT_TYPES, type PackagingComponent } from "@formulab/shared";
 import { nowIso } from "@/lib/masterdata";
 
 const inputCls =

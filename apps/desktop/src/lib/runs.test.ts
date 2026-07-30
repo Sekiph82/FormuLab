@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RunRecord } from "@ai4s/shared";
+import type { RunRecord } from "@formulab/shared";
 import { looksLikeExecution, reproduceRunPrompt, surfaceForCommand } from "./runs";
 
 

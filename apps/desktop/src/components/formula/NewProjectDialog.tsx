@@ -5,7 +5,7 @@ import {
   templateForFamily,
   type Formulation,
   type ProductCatalog,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { newFormulation } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
 

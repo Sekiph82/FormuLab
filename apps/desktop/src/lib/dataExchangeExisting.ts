@@ -18,7 +18,7 @@
  * see its loader comment for the exact contract. See
  * docs/DATA_EXCHANGE_EXPORTS.md.
  */
-import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "@ai4s/shared";
+import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "@formulab/shared";
 import { listRecords, type Collection } from "./masterdata";
 import { listFormulations, readFormulation } from "./formulations";
 

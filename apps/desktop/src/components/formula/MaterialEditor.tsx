@@ -7,7 +7,7 @@ import {
   type MaterialFunction,
   type RawMaterial,
   type Supplier,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { cn } from "@/lib/cn";
 
 /**

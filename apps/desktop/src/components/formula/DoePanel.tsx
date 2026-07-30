@@ -78,7 +78,7 @@ import {
   type Formulation,
   type FormulationVersion,
   type LaboratoryTrial,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";

@@ -11,7 +11,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getDataExchangeTemplate } from "@ai4s/shared";
+import { getDataExchangeTemplate } from "@formulab/shared";
 import { DataExchangeImportDialog } from "./DataExchangeImportDialog";
 
 const bridge = { listRecords: vi.fn(), upsertRecords: vi.fn() };

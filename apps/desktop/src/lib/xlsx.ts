@@ -201,7 +201,7 @@ export async function buildXlsxBuffer(
   rows: Record<string, unknown>[],
   sheetName = "Sheet1",
 ): Promise<ArrayBuffer> {
-  const { sanitizeCell } = await import("@ai4s/shared");
+  const { sanitizeCell } = await import("@formulab/shared");
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(sheetName);
   ws.addRow(headers);

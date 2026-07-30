@@ -17,7 +17,7 @@
  * `DataExchangePage.test.tsx`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getDataExchangeTemplate, type DataExchangeRowResult } from "@ai4s/shared";
+import { getDataExchangeTemplate, type DataExchangeRowResult } from "@formulab/shared";
 import { commitDataExchangeRows, isTemplateCommitSupported } from "./dataExchangeCommit";
 import { loadExisting } from "./dataExchangeExisting";
 

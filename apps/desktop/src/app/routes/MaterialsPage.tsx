@@ -23,7 +23,7 @@ import {
   type PackagingComponent,
   type RawMaterial,
   type Supplier,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { ImportDialog } from "@/components/formula/ImportDialog";
 import { MaterialEditor } from "@/components/formula/MaterialEditor";
 import { SupplierEditor } from "@/components/formula/SupplierEditor";

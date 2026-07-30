@@ -15,8 +15,8 @@ import type {
   FormulationLine,
   FormulationVersion,
   MaterialFunction,
-} from "@ai4s/shared";
-import { newId } from "@ai4s/shared";
+} from "@formulab/shared";
+import { newId } from "@formulab/shared";
 import { isTauri } from "./tauri";
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

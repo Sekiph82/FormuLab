@@ -1,6 +1,40 @@
 # Phase 9 — `ai4s`/`AI4S` → FormuLab Naming Migration
 
-## Status: Session 0 (assessment) complete. No code renamed yet.
+## Status: Session 1 (package/import namespace) complete.
+
+## Session 1 summary
+Renamed the npm workspace scope `@ai4s/*` → `@formulab/*` and the root
+workspace label `ai4s-workbench` → `formulab`. Mechanical, uniform
+rename across 125 files: `packages/shared/package.json`,
+`apps/desktop/package.json` (name + the `@ai4s/shared` dependency
+entry), root `package.json` (name + 4 `--filter` script lines),
+`apps/desktop/tsconfig.json`'s path alias, `apps/desktop/vite.config.ts`'s
+resolve alias, `apps/desktop/src-tauri/tauri.conf.json`'s
+`beforeDevCommand`/`beforeBuildCommand` (workspace-filter strings only —
+`identifier`/`productName` untouched, confirmed still
+`com.formulab.app`/"FormuLab"), `scripts/windows/verify-formulab-phase1.ps1`'s
+two `--filter @ai4s/desktop` example-command lines (its `-ExePath`
+default, which names `ai4s-workbench.exe`, is Session 2 scope and was
+left untouched), and 118 first-party source files under
+`apps/desktop/src` importing `from "@ai4s/shared"` (including one CSS
+comment in `index.css`). `pnpm-lock.yaml` regenerated via `pnpm install`
+(never hand-edited) and reverified with `pnpm install --frozen-lockfile`.
+
+Zero first-party `@ai4s/` matches remain anywhere in the repo. Rust
+crate/binary names, Tauri `identifier`/`productName`, executable/
+installer names, `localStorage` keys, historical logs/handoffs, and the
+external `ai4s-research/ai4s-skills` dependency were all confirmed
+untouched, per scope.
+
+One pre-existing, unrelated test failure
+(`src/lib/download.test.ts` — "shows an error toast and re-throws when
+the save fails…") was found during the full desktop run. Confirmed via
+`git stash` (reverting to the pre-Session-1 tree) that it fails
+identically against unmodified code — neither `download.ts`,
+`download.test.ts`, `tauri.ts`'s real implementation, nor `toast.ts` (the
+test fully mocks both `./tauri` and `./toast`) were touched by this
+session's changes. Not fixed — out of Session 1's bounded scope; flagged
+for Session 5 (focused verification) or separate triage.
 
 ## Key finding: most user-facing branding is already done
 `tauri.conf.json`'s `productName` ("FormuLab") and `identifier`
@@ -344,4 +378,4 @@ rename gets its first full real-user-path verification.
   plan touches them.
 
 ## Exact next session
-Phase 9 Session 1: Package/Import Namespace Migration.
+Phase 9 Session 2: Rust, Tauri, Product, and Binary Naming.

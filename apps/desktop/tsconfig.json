@@ -20,7 +20,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@ai4s/shared": ["../../packages/shared/src/index.ts"],
+      "@formulab/shared": ["../../packages/shared/src/index.ts"],
     }
   },
   "include": ["src", "vite.config.ts"]

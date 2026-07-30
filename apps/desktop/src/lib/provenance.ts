@@ -2,7 +2,7 @@
 // calls into version records in `.FormuLab/provenance.jsonl`, and read them
 // back for the artifact History view. Pure derivation is separated from the
 // Tauri bridge so it can be unit-tested without a desktop shell.
-import type { ProvenanceRecord } from "@ai4s/shared";
+import type { ProvenanceRecord } from "@formulab/shared";
 import { isTauri, logDebug } from "./tauri";
 
 export interface ProvenanceInput {

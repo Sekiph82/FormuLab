@@ -7,7 +7,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation } from "@ai4s/shared";
+import type { Formulation } from "@formulab/shared";
 import { HomePage } from "./HomePage";
 
 const masterdataBridge = { listRecords: vi.fn(), listRecordsSeeded: vi.fn() };

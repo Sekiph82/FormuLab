@@ -18,7 +18,7 @@ import {
   type ReverseFormulationStudy,
   type ScoringModelOutput,
   type TargetProductProfile,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { cn } from "@/lib/cn";
 
 /** Where the converted formula goes: a brand-new formulation, or a new
@@ -131,7 +131,7 @@ export interface CandidateComparisonPanelProps {
 /**
  * Generates and compares Reverse Formulation candidates using the real
  * shared engine (`generateCandidates`/`scoreReverseFormulaCandidate` from
- * `@ai4s/shared`) — this component only assembles their inputs from already
+ * `@formulab/shared`) — this component only assembles their inputs from already
  * -loaded records and renders their (unmodified) output. No candidate
  * generation, scoring, or validation logic is reimplemented here.
  */

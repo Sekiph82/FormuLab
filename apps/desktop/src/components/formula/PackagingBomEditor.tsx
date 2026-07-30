@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
-import { displayMoney, type PackagingBom, type PackagingBomLine, type PackagingComponent } from "@ai4s/shared";
+import { displayMoney, type PackagingBom, type PackagingBomLine, type PackagingComponent } from "@formulab/shared";
 import { nowIso } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 

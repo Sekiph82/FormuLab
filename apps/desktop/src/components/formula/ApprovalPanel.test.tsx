@@ -5,12 +5,12 @@
  * attempt never changes the version's status. Same mocking discipline as
  * TrialsPanel.test.tsx — only the Tauri-backed modules (`@/lib/masterdata`,
  * `@/lib/formulations`) are mocked; readiness derivation and the
- * status-transition logic are the real `@ai4s/shared` engine code.
+ * status-transition logic are the real `@formulab/shared` engine code.
  */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AuditEvent, Formulation, FormulationLine, FormulationVersion } from "@ai4s/shared";
+import type { AuditEvent, Formulation, FormulationLine, FormulationVersion } from "@formulab/shared";
 import { ApprovalPanel } from "./ApprovalPanel";
 
 const masterdataBridge = {

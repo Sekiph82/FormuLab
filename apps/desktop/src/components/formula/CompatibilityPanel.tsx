@@ -16,7 +16,7 @@ import {
   type PackagingComponent,
   type RawMaterial,
   type RuleSeverity,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { RuleManager } from "./RuleManager";
 import { cn } from "@/lib/cn";

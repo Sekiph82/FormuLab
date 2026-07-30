@@ -11,8 +11,8 @@ import {
   type ApprovalRole,
   type DataExchangeImportJob,
   type DataExchangeTemplateDefinition,
-} from "@ai4s/shared";
-import { APPROVAL_ROLES } from "@ai4s/shared";
+} from "@formulab/shared";
+import { APPROVAL_ROLES } from "@formulab/shared";
 import { buildDataExchangeWorkbookBlob, dataExchangeXlsxFileName } from "@/lib/dataExchangeXlsx";
 import { loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
 import { listRecords, upsertRecords, nowIso } from "@/lib/masterdata";

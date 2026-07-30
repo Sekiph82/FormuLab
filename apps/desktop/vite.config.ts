@@ -14,7 +14,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": r("./src"),
-      "@ai4s/shared": r("../../packages/shared/src/index.ts"),
+      "@formulab/shared": r("../../packages/shared/src/index.ts"),
     },
   },
   test: {

@@ -1,6 +1,6 @@
 /**
  * Phase 8 — persists one `GeneratedDocumentRecord` (the Session 1 schema,
- * `@ai4s/shared`) per PDF/DOCX generation attempt, in the
+ * `@formulab/shared`) per PDF/DOCX generation attempt, in the
  * `generated_document_records` masterdata collection. Never a second,
  * parallel record shape — every field this file writes goes straight
  * through `generatedDocumentRecordSchema.parse()`, so the exact same
@@ -21,7 +21,7 @@ import {
   type DocumentSourceReference,
   type GeneratedDocumentRecord,
   type WatermarkState,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, upsertRecords, nowIso } from "@/lib/masterdata";
 
 /** SHA-256 of the exact rendered bytes, hex-encoded — computed client-side

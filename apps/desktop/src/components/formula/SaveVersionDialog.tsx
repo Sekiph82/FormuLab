@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { versionLabel } from "@ai4s/shared";
+import { versionLabel } from "@formulab/shared";
 
 /**
  * Confirm saving a new immutable version.

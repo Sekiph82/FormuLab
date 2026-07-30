@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { newId, type FactoryCostProfile } from "@ai4s/shared";
+import { newId, type FactoryCostProfile } from "@formulab/shared";
 import { nowIso } from "@/lib/masterdata";
 
 const inputCls =

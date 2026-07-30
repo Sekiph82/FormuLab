@@ -6,7 +6,7 @@
  * nothing here calls `Date.now()`/`new Date()` with no arguments.
  */
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "pdf-lib";
-import type { DossierExportSnapshot } from "@ai4s/shared";
+import type { DossierExportSnapshot } from "@formulab/shared";
 import { buildDossierDocumentContent, type RenderOptions } from "./content";
 
 const PAGE_WIDTH = 595.28; // A4, points

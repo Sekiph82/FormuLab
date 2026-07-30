@@ -14,7 +14,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationLine, OptimizationScenario, RawMaterial } from "@ai4s/shared";
+import type { Formulation, FormulationLine, OptimizationScenario, RawMaterial } from "@formulab/shared";
 import { AdvancedOptimizerPanel } from "./AdvancedOptimizerPanel";
 
 const bridge = {

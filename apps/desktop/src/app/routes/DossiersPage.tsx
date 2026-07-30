@@ -4,7 +4,7 @@ import { DossierPanel } from "@/components/formula/DossierPanel";
 import { useFormulationWorkspace } from "@/hooks/useFormulationWorkspace";
 import { useProjectParam } from "@/hooks/useProjectParam";
 import { ProjectPicker } from "@/components/workspace/ProjectContextBar";
-import type { RegulatoryJurisdiction } from "@ai4s/shared";
+import type { RegulatoryJurisdiction } from "@formulab/shared";
 
 /**
  * The Dossiers workspace — a first-class route (never a Formula Builder

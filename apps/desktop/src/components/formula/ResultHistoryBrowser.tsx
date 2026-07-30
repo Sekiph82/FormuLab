@@ -2,7 +2,7 @@
  * Dedicated result-history browser — spec §2. Replaces the inline-only
  * "revision of X" text that `TrialsPanel`/`StabilityPanel` used to show
  * next to each result: this dialog walks the full revision chain, retest
- * lineage, and attachment-replacement history via `@ai4s/shared`'s
+ * lineage, and attachment-replacement history via `@formulab/shared`'s
  * `resultHistory.ts` helpers, and lets a user compare any two revisions.
  *
  * Works for both `TestResult` and `StabilityResult` — both structurally
@@ -17,8 +17,8 @@ import {
   groupRetestLineage,
   resolveAttachmentReplacementChain,
   resolveEffectiveResultRevision,
-} from "@ai4s/shared";
-import type { HistoricalResult } from "@ai4s/shared";
+} from "@formulab/shared";
+import type { HistoricalResult } from "@formulab/shared";
 import { cn } from "@/lib/cn";
 import { AttachmentField } from "./AttachmentField";
 

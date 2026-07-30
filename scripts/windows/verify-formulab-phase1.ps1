@@ -54,8 +54,8 @@ Write-Log "Executable: $ExePath"
 
 if (-not (Test-Path $ExePath)) {
   Write-Log "FAIL: executable not found. Build it first:"
-  Write-Log "  pnpm --filter @ai4s/desktop build"
-  Write-Log "  pnpm --filter @ai4s/desktop exec tauri build --debug --no-bundle"
+  Write-Log "  pnpm --filter @formulab/desktop build"
+  Write-Log "  pnpm --filter @formulab/desktop exec tauri build --debug --no-bundle"
   exit 1
 }
 Write-Log "Level 1 - Launch verified: PENDING (executable located, not yet started)"

@@ -22,8 +22,8 @@
  */
 import { useState } from "react";
 import { File, FileSpreadsheet, FileText, Image as ImageIcon, Paperclip, Repeat, Trash2 } from "lucide-react";
-import type { AttachmentReference } from "@ai4s/shared";
-import { newId } from "@ai4s/shared";
+import type { AttachmentReference } from "@formulab/shared";
+import { newId } from "@formulab/shared";
 import { copyAttachmentIntoProject, openAttachment } from "@/lib/formulations";
 import { pickFile } from "@/lib/tauri";
 

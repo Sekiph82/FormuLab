@@ -8,7 +8,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationLine, FormulationVersion } from "@ai4s/shared";
+import type { Formulation, FormulationLine, FormulationVersion } from "@formulab/shared";
 import { FormulationPage } from "./FormulationPage";
 
 const masterdataBridge = { listRecords: vi.fn(), listRecordsSeeded: vi.fn(), upsertRecords: vi.fn() };
@@ -35,7 +35,7 @@ vi.mock("@/lib/formulations", async (importOriginal) => {
     readFormulation: (...a: [string]) => formulationsBridge.readFormulation(...a),
     readDraft: (...a: [string]) => formulationsBridge.readDraft(...a),
     readAuditLog: (...a: [string]) => formulationsBridge.readAuditLog(...a),
-    appendAudit: (...a: [import("@ai4s/shared").AuditEvent]) => formulationsBridge.appendAudit(...a),
+    appendAudit: (...a: [import("@formulab/shared").AuditEvent]) => formulationsBridge.appendAudit(...a),
   };
 });
 

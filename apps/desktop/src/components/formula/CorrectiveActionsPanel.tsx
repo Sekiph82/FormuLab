@@ -16,7 +16,7 @@ import {
   type Formulation,
   type FormulationVersion,
   type FormulaStatus,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 import { downloadText } from "@/lib/download";

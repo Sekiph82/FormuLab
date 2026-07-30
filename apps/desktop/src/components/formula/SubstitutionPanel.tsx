@@ -34,7 +34,7 @@ import {
   type SubstitutionRequest,
   type SystemCandidateLimits,
   type SystemCandidateProposal,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { runAdvancedFormulationOptimize } from "@/lib/tauri";
 import { cn } from "@/lib/cn";

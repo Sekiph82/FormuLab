@@ -49,7 +49,7 @@ import {
   type TrialProcessStep,
   type TestApplicabilityContext,
   type TrialStatus,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";

@@ -84,7 +84,7 @@ import {
   REGULATORY_JURISDICTIONS,
   REGULATORY_RULE_TYPES,
   CLAIM_CATEGORIES,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, upsertRecords, nowIso, type Collection } from "./masterdata";
 
 const PHYSICAL_FORMS = ["liquid", "powder", "granule", "paste", "flake", "pellet", "gas", "solid", "gel"] as const;

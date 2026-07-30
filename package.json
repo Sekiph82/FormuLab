@@ -1,15 +1,15 @@
 {
-  "name": "ai4s-workbench",
+  "name": "formulab",
   "version": "0.4.0",
   "private": true,
   "description": "FormuLab — local-first AI research workbench with literature-driven chemical formulation discovery and cost optimization.",
   "license": "MIT",
   "scripts": {
-    "dev": "pnpm --filter @ai4s/desktop dev",
-    "build": "pnpm --filter @ai4s/desktop build",
-    "test": "pnpm --filter @ai4s/shared test && pnpm --filter @ai4s/desktop test",
-    "typecheck": "pnpm --filter @ai4s/desktop typecheck",
-    "lint": "pnpm --filter @ai4s/desktop lint"
+    "dev": "pnpm --filter @formulab/desktop dev",
+    "build": "pnpm --filter @formulab/desktop build",
+    "test": "pnpm --filter @formulab/shared test && pnpm --filter @formulab/desktop test",
+    "typecheck": "pnpm --filter @formulab/desktop typecheck",
+    "lint": "pnpm --filter @formulab/desktop lint"
   },
   "engines": {
     "node": ">=20"

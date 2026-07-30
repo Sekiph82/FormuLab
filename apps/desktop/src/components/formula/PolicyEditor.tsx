@@ -10,8 +10,8 @@
  */
 import { useState } from "react";
 import { History, RotateCcw } from "lucide-react";
-import type { ApprovalPolicy, ApprovalPolicyRevision, FormulaStatus } from "@ai4s/shared";
-import { newId } from "@ai4s/shared";
+import type { ApprovalPolicy, ApprovalPolicyRevision, FormulaStatus } from "@formulab/shared";
+import { newId } from "@formulab/shared";
 import { cn } from "@/lib/cn";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;

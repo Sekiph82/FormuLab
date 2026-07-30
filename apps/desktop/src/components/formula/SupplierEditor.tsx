@@ -6,7 +6,7 @@ import {
   type MaterialSupplier,
   type RawMaterial,
   type Supplier,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { nowIso, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 

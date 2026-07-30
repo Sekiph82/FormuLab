@@ -16,7 +16,7 @@
  * like any other `.xlsx` import — one reader, not two.
  */
 import ExcelJS from "exceljs";
-import { sanitizeCell, type DataExchangeTemplateDefinition } from "@ai4s/shared";
+import { sanitizeCell, type DataExchangeTemplateDefinition } from "@formulab/shared";
 
 const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE5E7EB" } };
 const REQUIRED_HEADER_FONT: Partial<ExcelJS.Font> = { bold: true, color: { argb: "FFB91C1C" } };

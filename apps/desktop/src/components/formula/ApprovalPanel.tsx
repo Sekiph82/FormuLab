@@ -144,7 +144,7 @@ import {
   type TestDefinition,
   type TestResult,
   type TrialDeviation,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { appendAudit, auditEvent, listApprovalRecords, saveApprovalRecord } from "@/lib/formulations";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";

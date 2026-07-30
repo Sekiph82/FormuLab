@@ -10,7 +10,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationLine, FormulationVersion } from "@ai4s/shared";
+import type { Formulation, FormulationLine, FormulationVersion } from "@formulab/shared";
 import { DossierPanel } from "./DossierPanel";
 import { renderDossierDocument } from "@/lib/documentExports";
 import { saveBinaryWithFeedback } from "@/lib/download";

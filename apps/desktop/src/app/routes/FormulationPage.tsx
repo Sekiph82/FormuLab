@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, FileText, FlaskConical, GitCompare, Package, Scale, ShieldAlert, TestTube2, Wallet } from "lucide-react";
-import { effectiveStatus, STAGE_ADVANCE_NEXT, type AuditEvent, type CostSnapshot, type Formulation, type FormulationVersion, type PackagingBom, type StageAdvanceStatus } from "@ai4s/shared";
+import { effectiveStatus, STAGE_ADVANCE_NEXT, type AuditEvent, type CostSnapshot, type Formulation, type FormulationVersion, type PackagingBom, type StageAdvanceStatus } from "@formulab/shared";
 import { FormulaBuilder } from "@/components/formula/FormulaBuilder";
 import { VersionCompare } from "@/components/formula/VersionCompare";
 import { CostPanel } from "@/components/formula/CostPanel";

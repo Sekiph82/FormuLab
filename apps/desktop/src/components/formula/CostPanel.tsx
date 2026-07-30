@@ -14,7 +14,7 @@ import {
   type PackagingBom,
   type PackagingComponent,
   type RawMaterial,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 

@@ -1,11 +1,11 @@
 /**
  * Phase 8 — the one place a document export decides whether it needs a
  * draft/unapproved warning. Reuses `draftWatermark()` from
- * `@ai4s/shared` (`engine/exports.ts`) for the exact warning text every
+ * `@formulab/shared` (`engine/exports.ts`) for the exact warning text every
  * other export in this app already uses — never a second, parallel
  * watermark string.
  */
-import { draftWatermark, type FormulaStatus, type WatermarkState } from "@ai4s/shared";
+import { draftWatermark, type FormulaStatus, type WatermarkState } from "@formulab/shared";
 
 export interface DocumentWatermark {
   state: WatermarkState;

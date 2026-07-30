@@ -6,13 +6,13 @@
  * revocation, and JSON/CSV import. Same mocking discipline as
  * TrialsPanel.test.tsx — only `@/lib/masterdata` is mocked;
  * classification, evaluation and every lifecycle function are the real
- * `@ai4s/shared` engine code.
+ * `@formulab/shared` engine code.
  */
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationLine, FormulationVersion, RawMaterial, RegulatoryRule } from "@ai4s/shared";
+import type { Formulation, FormulationLine, FormulationVersion, RawMaterial, RegulatoryRule } from "@formulab/shared";
 import { RegulatoryPanel } from "./RegulatoryPanel";
 
 const bridge = {
@@ -405,7 +405,7 @@ describe("RegulatoryPanel — authorization", () => {
   });
 
   it("the backend still refuses an unauthorized actor even if a caller ignored the disabled UI", async () => {
-    const { recordRegulatoryReview } = await import("@ai4s/shared");
+    const { recordRegulatoryReview } = await import("@formulab/shared");
     expect(() =>
       recordRegulatoryReview(
         {

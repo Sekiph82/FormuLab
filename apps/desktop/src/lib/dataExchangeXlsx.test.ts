@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { getDataExchangeTemplate } from "@ai4s/shared";
+import { getDataExchangeTemplate } from "@formulab/shared";
 import { readWorkbookRows, rejectUnsupportedWorkbook } from "./xlsx";
 import { buildDataExchangeWorkbook, dataExchangeXlsxFileName } from "./dataExchangeXlsx";
 

@@ -32,7 +32,7 @@ import {
   type RawMaterial,
   type ValidationFinding,
   type ValidationOptions,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import Decimal from "decimal.js";
 import { cn } from "@/lib/cn";
 import { emptyLine, newId } from "@/lib/formulations";

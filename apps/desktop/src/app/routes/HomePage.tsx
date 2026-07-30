@@ -28,7 +28,7 @@ import type {
   RegulatoryRule,
   StabilitySample,
   StabilityStudy,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import {
   SEED_REGULATORY_RULES,
   activeLinksForDossier,
@@ -44,7 +44,7 @@ import {
   isClaimReviewActive,
   isDossierReviewActive,
   isLabelReviewActive,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listFormulations, readAuditLog, readFormulation } from "@/lib/formulations";
 import { listRecords, listRecordsSeeded } from "@/lib/masterdata";
 

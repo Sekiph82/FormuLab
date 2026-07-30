@@ -11,7 +11,7 @@
  * for the structural-equality comparison this uses instead.
  */
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
-import type { DossierExportSnapshot } from "@ai4s/shared";
+import type { DossierExportSnapshot } from "@formulab/shared";
 import { buildDossierDocumentContent, type RenderOptions } from "./content";
 
 export async function renderDossierDocx(snapshot: DossierExportSnapshot, options: RenderOptions = {}): Promise<Uint8Array> {

@@ -17,7 +17,7 @@ import { FormulationStudio } from "./FormulationStudio";
 import { CostingPanel } from "./CostingPanel";
 import { FormulaBuilder } from "@/components/formula/FormulaBuilder";
 import { linesFromGeneratedFormula } from "@/lib/formulations";
-import type { FormulationLine } from "@ai4s/shared";
+import type { FormulationLine } from "@formulab/shared";
 
 /**
  * FormuLab v2 workspace — the direct-pipeline surface, no OpenCode. Two regions:

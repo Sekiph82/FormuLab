@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ArtifactInspector } from "@ai4s/shared";
+import type { ArtifactInspector } from "@formulab/shared";
 import {
   artifactBlockToInspector,
   extractArtifactRefs,

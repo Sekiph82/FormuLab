@@ -4,7 +4,7 @@
 // command, code version, environment, hardware, inputs, and outputs of an
 // execution. Pure derivation lives here; the Tauri bridge is separate so this
 // can be unit-tested without a desktop shell.
-import type { RunArtifact, RunRecord } from "@ai4s/shared";
+import type { RunArtifact, RunRecord } from "@formulab/shared";
 import { isTauri, logDebug } from "./tauri";
 
 /** The compute surface a run targeted. Only "local" runs produce workspace

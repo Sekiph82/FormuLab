@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Upload } from "lucide-react";
-import { parseCsv, previewImportRows, type FieldSpec, type ImportPreview } from "@ai4s/shared";
+import { parseCsv, previewImportRows, type FieldSpec, type ImportPreview } from "@formulab/shared";
 import { readWorkbookRows, rejectUnsupportedWorkbook } from "@/lib/xlsx";
 import { cn } from "@/lib/cn";
 

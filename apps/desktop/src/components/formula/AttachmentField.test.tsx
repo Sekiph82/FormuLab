@@ -9,7 +9,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AttachmentReference } from "@ai4s/shared";
+import type { AttachmentReference } from "@formulab/shared";
 import { AttachmentField } from "./AttachmentField";
 
 const bridge = {

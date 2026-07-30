@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DocumentSourceReference } from "@ai4s/shared";
+import type { DocumentSourceReference } from "@formulab/shared";
 
 const bridge = { listRecords: vi.fn(), upsertRecords: vi.fn() };
 vi.mock("@/lib/masterdata", () => ({

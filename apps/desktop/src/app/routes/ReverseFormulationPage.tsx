@@ -18,7 +18,7 @@ import {
   type TargetProductProfile,
   INGREDIENT_MAPPING_METHODS,
   CANDIDATE_SCORE_TYPES,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, upsertRecords, nowIso } from "@/lib/masterdata";
 import { listFormulations, readFormulation, saveFormulation, saveFormulationVersion, newFormulation, newVersion, appendAudit, auditEvent } from "@/lib/formulations";
 import {

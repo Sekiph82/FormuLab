@@ -11,7 +11,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationVersion, RegulatoryDossier, RegulatoryDossierEvidenceItem } from "@ai4s/shared";
+import type { Formulation, FormulationVersion, RegulatoryDossier, RegulatoryDossierEvidenceItem } from "@formulab/shared";
 import { ClaimsLabelsPanel } from "./ClaimsLabelsPanel";
 
 const bridge = {

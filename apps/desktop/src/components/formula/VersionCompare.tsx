@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { compareVersions, type FormulationVersion } from "@ai4s/shared";
+import { compareVersions, type FormulationVersion } from "@formulab/shared";
 import { cn } from "@/lib/cn";
 
 /**

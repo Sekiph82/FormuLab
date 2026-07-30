@@ -20,7 +20,7 @@ import {
   type PackagingBom,
   type RawMaterial,
   type StageAdvanceStatus,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import {
   appendAudit,
   auditEvent,

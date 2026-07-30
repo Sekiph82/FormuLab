@@ -8,9 +8,9 @@
  */
 import { useMemo, useState } from "react";
 import { CheckCircle2, Search, XCircle } from "lucide-react";
-import { evaluateApplicability } from "@ai4s/shared";
-import type { ExclusionReason, TestApplicabilityContext } from "@ai4s/shared";
-import type { TestDefinition } from "@ai4s/shared";
+import { evaluateApplicability } from "@formulab/shared";
+import type { ExclusionReason, TestApplicabilityContext } from "@formulab/shared";
+import type { TestDefinition } from "@formulab/shared";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 

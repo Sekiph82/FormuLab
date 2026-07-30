@@ -1,5 +1,5 @@
 {
-  "name": "@ai4s/desktop",
+  "name": "@formulab/desktop",
   "version": "0.4.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "3dmol": "^2.5.5",
-    "@ai4s/shared": "workspace:*",
+    "@formulab/shared": "workspace:*",
     "@fontsource/inter": "^5.0.18",
     "@fontsource/jetbrains-mono": "^5.0.20",
     "@fontsource/source-serif-4": "^5.0.19",

@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm --filter @ai4s/desktop exec vite --port 5173 --strictPort",
-    "beforeBuildCommand": "pnpm --filter @ai4s/desktop build"
+    "beforeDevCommand": "pnpm --filter @formulab/desktop exec vite --port 5173 --strictPort",
+    "beforeBuildCommand": "pnpm --filter @formulab/desktop build"
   },
   "app": {
     "windows": [

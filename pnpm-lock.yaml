@@ -20,9 +20,6 @@ importers:
       3dmol:
         specifier: ^2.5.5
         version: 2.5.5
-      '@ai4s/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@fontsource/inter':
         specifier: ^5.0.18
         version: 5.2.8
@@ -32,6 +29,9 @@ importers:
       '@fontsource/source-serif-4':
         specifier: ^5.0.19
         version: 5.2.9
+      '@formulab/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@radix-ui/react-collapsible':
         specifier: ^1.1.1
         version: 1.1.15(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

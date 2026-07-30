@@ -9,7 +9,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationLine, RawMaterial } from "@ai4s/shared";
+import type { Formulation, FormulationLine, RawMaterial } from "@formulab/shared";
 import { SubstitutionDialog } from "./SubstitutionPanel";
 
 const bridge = {

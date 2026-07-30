@@ -37,7 +37,7 @@ import {
   type RatioConstraint,
   type RawMaterial,
   type ScenarioComparison,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { runAdvancedFormulationOptimize, cancelAdvancedFormulationOptimize } from "@/lib/tauri";
 import { cn } from "@/lib/cn";
@@ -84,7 +84,7 @@ interface PropertyTargetRow {
 }
 
 // Loosely typed — the real shape is `AdvancedOptimizationResult`
-// (@ai4s/shared), but the Rust command returns `serde_json::Value` and we
+// (@formulab/shared), but the Rust command returns `serde_json::Value` and we
 // don't want a hard runtime dependency on Zod-parsing an IPC payload here.
 interface OptimizeResult {
   status: string;

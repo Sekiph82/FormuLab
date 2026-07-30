@@ -4,12 +4,12 @@
  * execute a process step, enter a test result, and compare two trials.
  * Same mocking discipline as SubstitutionPanel.test.tsx — only
  * `@/lib/masterdata` is mocked; trial lifecycle, deviation and comparison
- * math are the real engine code from `@ai4s/shared`.
+ * math are the real engine code from `@formulab/shared`.
  */
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationLine, LaboratoryTrial, TestDefinition } from "@ai4s/shared";
+import type { Formulation, FormulationLine, LaboratoryTrial, TestDefinition } from "@formulab/shared";
 import { TrialsPanel } from "./TrialsPanel";
 
 const bridge = {

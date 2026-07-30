@@ -10,7 +10,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { HistoricalResult } from "@ai4s/shared";
+import type { HistoricalResult } from "@formulab/shared";
 import i18n from "@/i18n";
 import { ResultHistoryBrowser } from "./ResultHistoryBrowser";
 

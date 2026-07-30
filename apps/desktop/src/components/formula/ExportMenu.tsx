@@ -11,7 +11,7 @@ import {
   type Formulation,
   type FormulationVersion,
   type PackagingBom,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { buildXlsxBlob } from "@/lib/xlsx";
 
 function downloadBlob(filename: string, blob: Blob) {

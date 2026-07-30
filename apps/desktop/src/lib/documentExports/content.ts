@@ -1,12 +1,12 @@
 /**
  * Phase 8 — one deterministic intermediate content model built from a
- * `DossierExportSnapshot` (`@ai4s/shared`, Session 2), consumed by BOTH
+ * `DossierExportSnapshot` (`@formulab/shared`, Session 2), consumed by BOTH
  * `dossierPdf.ts` and `dossierDocx.ts` so the two renderers can never
  * silently diverge on what they include. Building this array is a pure
  * map over already-deterministic snapshot data — no `Date.now()`, no
  * randomness, no DOM/HTML involved.
  */
-import type { DossierExportSnapshot } from "@ai4s/shared";
+import type { DossierExportSnapshot } from "@formulab/shared";
 import { computeSnapshotWatermark } from "./watermark";
 
 export type DocumentContentBlock =

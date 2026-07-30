@@ -8,7 +8,7 @@ import {
   TEST_RESULT_TYPES,
   TEST_VERIFICATION_STATUSES,
   type TestDefinition,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 

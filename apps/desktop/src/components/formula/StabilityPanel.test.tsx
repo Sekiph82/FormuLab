@@ -19,7 +19,7 @@ import type {
   StabilitySample,
   StabilityStudy,
   TestDefinition,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { StabilityPanel } from "./StabilityPanel";
 
 const bridge = {

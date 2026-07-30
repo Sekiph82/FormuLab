@@ -9,7 +9,7 @@ import {
   type RegulatoryDossierEvidenceItem,
   type RegulatoryDossierRequirement,
   type RegulatoryRequirementEvidenceLink,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { renderDossierDocx } from "./dossierDocx";
 import { renderDossierPdf } from "./dossierPdf";
 import { renderDossierDocument } from "./index";

@@ -11,9 +11,9 @@
  * non-human actor.
  */
 import { useState } from "react";
-import { compareVersions } from "@ai4s/shared";
-import type { EvidenceReuseScope, FormulaVersionEquivalence, FormulationVersion } from "@ai4s/shared";
-import { EVIDENCE_REUSE_SCOPES } from "@ai4s/shared";
+import { compareVersions } from "@formulab/shared";
+import type { EvidenceReuseScope, FormulaVersionEquivalence, FormulationVersion } from "@formulab/shared";
+import { EVIDENCE_REUSE_SCOPES } from "@formulab/shared";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 

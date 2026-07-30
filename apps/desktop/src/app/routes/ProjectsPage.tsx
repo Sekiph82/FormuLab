@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeftRight, FileCheck2, Grid3x3, Plus, Tags } from "lucide-react";
-import { buildKenyaCatalog, type DoeStudy, type Formulation, type ProductClaim, type RegulatoryDossier } from "@ai4s/shared";
+import { buildKenyaCatalog, type DoeStudy, type Formulation, type ProductClaim, type RegulatoryDossier } from "@formulab/shared";
 import { appendAudit, auditEvent, listFormulations, saveFormulation } from "@/lib/formulations";
 import { listRecords } from "@/lib/masterdata";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";

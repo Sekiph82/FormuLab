@@ -95,7 +95,7 @@ import type {
   TestResult,
   TrialComparison,
   TrialDeviation,
-} from "@ai4s/shared";
+} from "@formulab/shared";
 import { isTauri } from "./tauri";
 
 export type Collection =
