@@ -451,6 +451,177 @@ const LOADERS: Partial<Record<string, Loader>> = {
     }
     return { naturalKeys, rows };
   },
+  // Phase 8 final Data Exchange expansion — current-data export for all 6
+  // new dossier-domain templates. `dossier_reviews` and
+  // `dossier_manual_requirement_actions` still get a real loader here even
+  // though their template is import-disabled (`enabled: false` in
+  // dataExchangeRegistry.ts) — export/audit visibility is exactly what
+  // they're allowed to do.
+  dossier_headers: async () => {
+    const dossiers = (await listRecords("regulatory_dossiers")) as unknown as Record<string, unknown>[];
+    const formulations = await listFormulations();
+    const codeById = new Map(formulations.map((f) => [f.id, f.code]));
+    const versionNumberById = new Map<string, string>();
+    for (const f of formulations) {
+      const { versions } = await readFormulation(f.id);
+      for (const v of versions) versionNumberById.set(v.id, String(v.versionNumber));
+    }
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const d of dossiers) {
+      const dossierCode = s(d.dossierCode);
+      naturalKeys.add(dossierCode);
+      rows.push({
+        dossier_code: dossierCode,
+        title: s(d.title),
+        formula_code: s(codeById.get(d.formulationId as string)),
+        formula_version: s(versionNumberById.get(d.formulaVersionId as string)),
+        packaging_sku_code: s(d.packagingSkuCode),
+        jurisdictions: j(d.jurisdictions),
+        product_family_code: s(d.productFamilyCode),
+        status: s(d.status),
+        notes: "",
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  dossier_reviews: async () => {
+    const reviews = (await listRecords("regulatory_dossier_reviews")) as unknown as Record<string, unknown>[];
+    const dossiers = (await listRecords("regulatory_dossiers")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const rv of reviews) {
+      const dossier = dossiers.find((d) => d.id === rv.dossierId);
+      if (!dossier) continue;
+      const dossierCode = s(dossier.dossierCode);
+      const revision = s(rv.dossierRevision);
+      const reviewedAt = s(rv.reviewedAt);
+      naturalKeys.add(`${dossierCode}::${revision}::${reviewedAt}`);
+      rows.push({
+        dossier_code: dossierCode,
+        dossier_revision: revision,
+        reviewed_by: s(rv.reviewedBy),
+        reviewer_role: s(rv.reviewerRole),
+        reviewed_at: reviewedAt,
+        outcome: s(rv.outcome),
+        notes: s(rv.notes),
+        blocking_issues: j(rv.blockingIssues),
+        warnings: j(rv.warnings),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  dossier_submissions: async () => {
+    const submissions = (await listRecords("regulatory_dossier_submissions")) as unknown as Record<string, unknown>[];
+    const dossiers = (await listRecords("regulatory_dossiers")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const sub of submissions) {
+      const dossier = dossiers.find((d) => d.id === sub.dossierId);
+      if (!dossier) continue;
+      const dossierCode = s(dossier.dossierCode);
+      const revision = s(sub.dossierRevision);
+      const jurisdiction = s(sub.jurisdiction);
+      const submittedAt = s(sub.submittedAt);
+      naturalKeys.add(`${dossierCode}::${revision}::${jurisdiction}::${submittedAt}`);
+      rows.push({
+        dossier_code: dossierCode,
+        dossier_revision: revision,
+        jurisdiction,
+        submission_reference: s(sub.submissionReference),
+        submitted_by: s(sub.submittedBy),
+        submitted_at: submittedAt,
+        submission_channel: s(sub.submissionChannel),
+        status: s(sub.status),
+        notes: s(sub.notes),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  dossier_evidence_links: async () => {
+    const links = (await listRecords("regulatory_requirement_evidence_links")) as unknown as Record<string, unknown>[];
+    const dossiers = (await listRecords("regulatory_dossiers")) as unknown as Record<string, unknown>[];
+    const requirements = (await listRecords("regulatory_dossier_requirements")) as unknown as Record<string, unknown>[];
+    const evidenceItems = (await listRecords("regulatory_evidence_items")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const link of links) {
+      const dossier = dossiers.find((d) => d.id === link.dossierId);
+      const requirement = requirements.find((req) => req.id === link.requirementId);
+      const evidence = evidenceItems.find((e) => e.id === link.evidenceItemId);
+      if (!dossier || !requirement || !evidence) continue;
+      // No natural key without one, same convention as the `dossier_evidence` loader above.
+      const evidenceCode = s(evidence.evidenceCode);
+      if (!evidenceCode) continue;
+      const dossierCode = s(dossier.dossierCode);
+      const requirementCode = s(requirement.requirementCode);
+      const linkedAt = s(link.linkedAt);
+      naturalKeys.add(`${dossierCode}::${requirementCode}::${evidenceCode}::${linkedAt}`);
+      rows.push({
+        dossier_code: dossierCode,
+        requirement_code: requirementCode,
+        evidence_code: evidenceCode,
+        linked_by: s(link.linkedBy),
+        linked_at: linkedAt,
+        link_status: s(link.linkStatus),
+        notes: s(link.notes),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  dossier_manual_requirement_actions: async () => {
+    const actions = (await listRecords("regulatory_dossier_manual_requirement_actions")) as unknown as Record<string, unknown>[];
+    const dossiers = (await listRecords("regulatory_dossiers")) as unknown as Record<string, unknown>[];
+    const requirements = (await listRecords("regulatory_dossier_requirements")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const action of actions) {
+      const dossier = dossiers.find((d) => d.id === action.dossierId);
+      const requirement = requirements.find((req) => req.id === action.requirementId);
+      if (!dossier || !requirement) continue;
+      const dossierCode = s(dossier.dossierCode);
+      const requirementCode = s(requirement.requirementCode);
+      const performedAt = s(action.performedAt);
+      naturalKeys.add(`${dossierCode}::${requirementCode}::${performedAt}`);
+      rows.push({
+        dossier_code: dossierCode,
+        dossier_revision: s(action.dossierRevision),
+        action: s(action.action),
+        requirement_code: requirementCode,
+        performed_by: s(action.performedBy),
+        performed_by_role: s(action.performedByRole),
+        performed_at: performedAt,
+        justification: s(action.justification),
+      });
+    }
+    return { naturalKeys, rows };
+  },
+  dossier_review_revocations: async () => {
+    const revocations = (await listRecords("regulatory_dossier_review_revocations")) as unknown as Record<string, unknown>[];
+    const reviews = (await listRecords("regulatory_dossier_reviews")) as unknown as Record<string, unknown>[];
+    const dossiers = (await listRecords("regulatory_dossiers")) as unknown as Record<string, unknown>[];
+    const naturalKeys = new Set<string>();
+    const rows: Record<string, string>[] = [];
+    for (const rv of revocations) {
+      const review = reviews.find((rev) => rev.id === rv.revokesReviewId);
+      if (!review) continue;
+      const dossier = dossiers.find((d) => d.id === review.dossierId);
+      if (!dossier) continue;
+      const dossierCode = s(dossier.dossierCode);
+      const revision = s(review.dossierRevision);
+      const reviewedAt = s(review.reviewedAt);
+      naturalKeys.add(`${dossierCode}::${revision}::${reviewedAt}`);
+      rows.push({
+        dossier_code: dossierCode,
+        dossier_revision: revision,
+        reviewed_at: reviewedAt,
+        revoked_by: s(rv.revokedBy),
+        revoked_by_role: s(rv.revokedByRole),
+        reason: s(rv.reason),
+      });
+    }
+    return { naturalKeys, rows };
+  },
   product_claims: async () => {
     const claims = (await listRecords("product_claims")) as unknown as Record<string, unknown>[];
     const formulations = await listFormulations();

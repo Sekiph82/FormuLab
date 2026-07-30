@@ -1,79 +1,68 @@
 # Phase 8 — Reports, Dossiers, Document Exports, Final Data Exchange Expansion
 
 ## Current status
-Session 4 complete: real PDF/DOCX export wired into the Dossier
-workspace, backed by a new binary-safe Tauri save command. Reports
-description text updated for the one report type that's genuinely
-implemented. No Data Exchange, export-history persistence, or
-authorization redesign done yet.
+Session 5 complete: Data Exchange registry expanded from 35 to 41
+templates, covering all 6 remaining dossier-domain collections. No
+export-history persistence, audit, or authorization redesign yet
+(Session 6). No Rust changes were needed — `masterdata.ts`/`masterdata.rs`
+already had all 6 collections registered from Phase 3.
 
-## Binary save implementation
-`save_binary_file(app, filename, bytes: Vec<u8>)` in `artifact_file.rs` —
-same native "Save As" dialog `save_text_file` already uses, same cancel/
-error shape (`Result<Option<String>, String>`). `bytes` travels as a
-plain JSON number array (`Array.from(bytes)` on the JS side), never
-coerced through a Rust `String`/UTF-8 step. The write itself is a small
-extracted `write_binary_file(path, bytes)` helper, tested directly
-(round-trips arbitrary bytes including `0x00`/invalid UTF-8; a missing
-parent directory fails with a clear "write failed" error) since the
-dialog-driving command itself can't be unit tested headlessly — same
-convention `save_text_file`'s own (untested) shape already follows.
-Registered in `lib.rs` next to `save_text_file`. `tauri.ts` gained
-`saveBinaryFile`; `download.ts` gained `saveBinaryWithFeedback` (toast +
-browser-Blob fallback, mirrors `saveTextWithFeedback` exactly).
+## Templates added
+`dossier_headers` → `regulatory_dossiers`, `dossier_submissions` →
+`regulatory_dossier_submissions`, `dossier_evidence_links` →
+`regulatory_requirement_evidence_links`, `dossier_review_revocations` →
+`regulatory_dossier_review_revocations` — all 4 fully importable with
+commit handlers. `dossier_reviews` → `regulatory_dossier_reviews` and
+`dossier_manual_requirement_actions` →
+`regulatory_dossier_manual_requirement_actions` — export-only
+(`enabled: false` + an honest `disabledReason`), no commit handler wired.
+Existing `dossier_requirements`/`dossier_evidence` templates untouched.
 
-## Dossier export UI
-`DossierPanel.tsx`'s Evidence Library toolbar gained "Export PDF"/
-"Export DOCX" buttons. Each: pre-filters the panel's already-loaded
-dossier-domain state to the selected dossier (never a second query),
-calls `assembleDossierExportSnapshot` (Session 2) — any integrity
-failure there (mismatched revision, missing formulaVersionId) surfaces
-as a visible error, blocking the export rather than producing an
-incomplete document — then `renderDossierDocument` (Session 3) and
-`saveBinaryWithFeedback`. Loading ("Generating…", other export button
-disabled), success (toast via `saveBinaryWithFeedback`), cancellation
-(silent, matching the existing JSON/CSV export convention), and failure
-(inline error text) states are all covered. The formula version's real
-`status` (via the `versions` prop) drives the watermark — nothing
-persists, nothing sets approval/verification fields.
-
-## Reports workspace
-Only the `dossier` row's description was updated (it already linked to
-`/dossiers`, so no code change was needed) — every other row's "not yet
-implemented" text is untouched.
+## Import/export safety decisions
+`dossier_headers`: always draft/revision 1, requires an already-saved
+formula version (live lookup, never auto-created — deliberately
+diverging from `formula_bom`'s own auto-create precedent, since this
+session's rule is stricter). `dossier_submissions`: status always
+"prepared", an authority's response fields never taken from the file.
+`dossier_evidence_links`: linkStatus always "proposed" — accepting/
+rejecting/revoking stays a human-only action. `dossier_review_revocations`:
+resolves the exact review live via (dossier, revision, reviewed_at) and
+refuses if it doesn't exist. `dossier_reviews` excluded from import
+because a review's frozen requirement/evidence snapshot cannot be
+honestly reconstructed from a flat row (fabricating it empty or
+substituting today's live state would both misrepresent what was
+actually reviewed). `dossier_manual_requirement_actions` excluded
+because the real add/exclude engine functions always pair the audit row
+with an atomic requirement-row mutation a standalone import row can't
+reproduce. Both still have real export loaders — export/audit visibility
+is exactly what they're allowed to do.
 
 ## Files changed this session
-`apps/desktop/src-tauri/src/artifact_file.rs` (+`save_binary_file`,
-+`write_binary_file`, +2 tests), `apps/desktop/src-tauri/src/lib.rs`
-(+1 registration), `apps/desktop/src/lib/tauri.ts` (+`saveBinaryFile`),
-`apps/desktop/src/lib/download.ts` (+`saveBinaryWithFeedback`),
-`apps/desktop/src/lib/download.test.ts` (new, 5 tests),
-`apps/desktop/src/components/formula/DossierPanel.tsx` (export wiring),
-`apps/desktop/src/components/formula/DossierPanel.test.tsx` (+4 tests),
-`apps/desktop/src/i18n/locales/en/session.json` (+4 keys, 1 description
-update) + the other 7 locales (English placeholder, via
-`scripts/i18n-fill-missing.py`).
+`packages/shared/src/engine/dataExchangeRegistry.ts` (+6 templates),
+`.test.ts` (+11 tests, 2 count assertions updated), `apps/desktop/src/lib/
+dataExchangeCommit.ts` (+4 handlers, registered), `.test.ts` (+21 tests
+incl. 4 export→import round trips), `apps/desktop/src/lib/
+dataExchangeExisting.ts` (+6 loaders), `.test.ts` (+5 tests).
+`masterdata.ts`/`masterdata.rs` untouched — already complete.
 
 ## Focused tests passing
-`cargo test --lib artifact_file::` — 12/12. `vitest run
-src/lib/download.test.ts src/components/formula/DossierPanel.test.tsx
-src/i18n/parity.test.ts` — 40/40 (includes a real, unmocked end-to-end
-PDF+DOCX render inside the actual UI component). Desktop typecheck —
-clean. Desktop lint — clean.
+Shared: `dataExchangeRegistry.test.ts` 42/42, `dataExchangeValidation.test.ts`
+41/41 (unchanged, generic engine needed no edits). Desktop:
+`dataExchangeCommit.test.ts` 80/80, `dataExchangeExisting.test.ts` 46/46.
+Shared typecheck, desktop typecheck, desktop lint — all clean.
 
 ## Known limitations
-Non-Latin PDF font embedding still out of scope (unchanged from Session
-3 — documented there, not attempted here). No Data Exchange template, no
-export-history persistence record, no authorization gating beyond the
-existing reviewer-role selector. Export always targets the dossier's
-current `revision` (no revision picker yet — matches the rest of this
-panel's "current revision only" scope).
+No export-history/generated-document persistence record yet (Session 6).
+No new authorization tier beyond the existing `REGULATORY_ROLES` gate
+already used by every dossier template. `dossier_evidence_links` can only
+propose a link between already-existing requirement/evidence rows — it
+cannot bulk-create the evidence itself (use `dossier_evidence` for that,
+unchanged).
 
 ## Recommended sessions (unchanged plan, see external log for detail)
-5. Final Data Exchange expansion (next)
-6. Export history, audit, authorization integration
+6. Export history, audit, authorization integration (next)
 7. Focused Phase 8 verification
 8. Closure: full regression, release, installers, shortcut, native verify
 
 ## Exact next session
-Phase 8 Session 5: Final Data Exchange Expansion.
+Phase 8 Session 6: Export History, Audit, Authorization, and Integration.

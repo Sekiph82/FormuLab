@@ -45,8 +45,12 @@ import {
   type ProcessParameter,
   type ProductClaim,
   type RawMaterial,
+  type RegulatoryDossier,
   type RegulatoryDossierEvidenceItem,
   type RegulatoryDossierRequirement,
+  type RegulatoryDossierReview,
+  type RegulatoryDossierReviewRevocation,
+  type RegulatoryDossierSubmission,
   type RegulatoryJurisdiction,
   type RegulatoryRequirementEvidenceLink,
   type RegulatoryRule,
@@ -961,6 +965,121 @@ const commitDossierEvidence: Handler = async (r) => {
   return { outcome: existing ? "updated" : "created", targetCollection: "regulatory_evidence_items", targetRecordId: record.id };
 };
 
+// ============================================ dossier expansion (30-35) ===
+// Phase 8 final Data Exchange expansion. `dossier_reviews` and
+// `dossier_manual_requirement_actions` have no handler here at all — see
+// their `disabledReason` in dataExchangeRegistry.ts; `enabled: false`
+// already refuses them at preview time, so no row from those templates
+// can ever reach this file.
+
+const commitDossierHeaders: Handler = async (r, ctx) => {
+  const existing = await findByCode<{ id: string }>("regulatory_dossiers", "dossierCode", r.dossier_code);
+  if (existing) throw new Error(`A dossier with code "${r.dossier_code}" already exists — dossiers are revised through the Dossiers workspace (a new revision), never overwritten by import.`);
+  const formulations = await listFormulations();
+  const formulation = formulations.find((f) => f.code === r.formula_code);
+  if (!formulation) throw new Error(`No formula with code "${r.formula_code}" exists yet — create it first; import never fabricates a formulation.`);
+  const { versions } = await readFormulation(formulation.id);
+  const version = r.formula_version ? versions.find((v) => v.versionNumber === Number.parseInt(r.formula_version, 10)) : versions[versions.length - 1];
+  if (!version) throw new Error(`Formula "${r.formula_code}" has no saved version ${r.formula_version || ""} — a dossier must bind to a real, saved formula version.`);
+  const jurisdictions = validJurisdictions(r.jurisdictions);
+  if (!jurisdictions) throw new Error(`"${r.jurisdictions}" contains no recognized jurisdiction — a dossier must name at least one.`);
+  const record: RegulatoryDossier = {
+    schemaVersion: "1.0",
+    id: newId("dossier"),
+    dossierCode: r.dossier_code,
+    title: r.title || r.dossier_code,
+    formulationId: formulation.id,
+    formulaVersionId: version.id,
+    packagingSkuCode: nn(r.packaging_sku_code),
+    jurisdictions,
+    productFamilyCode: nn(r.product_family_code) ?? formulation.productFamilyCode,
+    targetMarkets: jurisdictions,
+    // Always draft/revision 1 from an import — status/revision, and every
+    // lifecycle field below them, only ever advance through a real human
+    // action in the Dossiers workspace.
+    status: "draft",
+    revision: 1,
+    createdBy: `data-exchange-import:${ctx.actorUserId}`,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+  await upsertRecords("regulatory_dossiers", [record]);
+  return { outcome: "created", targetCollection: "regulatory_dossiers", targetRecordId: record.id };
+};
+
+const commitDossierSubmissions: Handler = async (r, ctx) => {
+  const dossier = await findByCode<{ id: string; revision: number }>("regulatory_dossiers", "dossierCode", r.dossier_code);
+  if (!dossier) throw new Error(`No dossier with code "${r.dossier_code}" exists yet — create it in the Dossiers workspace first.`);
+  const jurisdiction = (REGULATORY_JURISDICTIONS as readonly string[]).includes(r.jurisdiction) ? (r.jurisdiction as RegulatoryJurisdiction) : undefined;
+  if (!jurisdiction) throw new Error(`"${r.jurisdiction}" is not a recognized jurisdiction.`);
+  const record: RegulatoryDossierSubmission = {
+    schemaVersion: "1.0",
+    id: newId("dossiersubmission"),
+    dossierId: dossier.id,
+    dossierRevision: r.dossier_revision ? Number.parseInt(r.dossier_revision, 10) : dossier.revision,
+    jurisdiction,
+    submissionReference: nn(r.submission_reference),
+    submittedBy: r.submitted_by || ctx.actorUserId,
+    submittedAt: nn(r.submitted_at) ?? nowIso(),
+    submissionChannel: nn(r.submission_channel),
+    // Always "prepared" from an import — an authority's actual response is
+    // never taken from a file; see module doc.
+    status: "prepared",
+    notes: nn(r.notes),
+    attachmentIds: [],
+    updatedAt: nowIso(),
+  };
+  await upsertRecords("regulatory_dossier_submissions", [record]);
+  return { outcome: "created", targetCollection: "regulatory_dossier_submissions", targetRecordId: record.id };
+};
+
+const commitDossierEvidenceLinks: Handler = async (r) => {
+  const dossier = await findByCode<{ id: string }>("regulatory_dossiers", "dossierCode", r.dossier_code);
+  if (!dossier) throw new Error(`No dossier with code "${r.dossier_code}" exists yet — create it in the Dossiers workspace first.`);
+  const requirements = (await listRecords("regulatory_dossier_requirements")) as unknown as RegulatoryDossierRequirement[];
+  const requirement = requirements.find((req) => req.dossierId === dossier.id && req.requirementCode === r.requirement_code);
+  if (!requirement) throw new Error(`No requirement "${r.requirement_code}" exists on dossier "${r.dossier_code}" yet.`);
+  const evidenceItems = (await listRecords("regulatory_evidence_items")) as unknown as RegulatoryDossierEvidenceItem[];
+  const evidence = evidenceItems.find((e) => e.dossierId === dossier.id && e.evidenceCode === r.evidence_code);
+  if (!evidence) throw new Error(`No evidence "${r.evidence_code}" exists on dossier "${r.dossier_code}" yet — import or create it first.`);
+  const record: RegulatoryRequirementEvidenceLink = {
+    schemaVersion: "1.0",
+    id: newId("dossierlink"),
+    dossierId: dossier.id,
+    requirementId: requirement.id,
+    evidenceItemId: evidence.id,
+    // Always "proposed" from an import — accepting, rejecting, or
+    // revoking a mapping is a human review action; see module doc.
+    linkStatus: "proposed",
+    linkedBy: r.linked_by || "data-exchange-import",
+    linkedAt: nn(r.linked_at) ?? nowIso(),
+    notes: nn(r.notes),
+  };
+  await upsertRecords("regulatory_requirement_evidence_links", [record]);
+  return { outcome: "created", targetCollection: "regulatory_requirement_evidence_links", targetRecordId: record.id };
+};
+
+const commitDossierReviewRevocations: Handler = async (r, ctx) => {
+  const dossier = await findByCode<{ id: string }>("regulatory_dossiers", "dossierCode", r.dossier_code);
+  if (!dossier) throw new Error(`No dossier with code "${r.dossier_code}" exists yet.`);
+  const reviews = (await listRecords("regulatory_dossier_reviews")) as unknown as RegulatoryDossierReview[];
+  const review = reviews.find(
+    (rv) => rv.dossierId === dossier.id && rv.dossierRevision === Number.parseInt(r.dossier_revision, 10) && rv.reviewedAt === r.reviewed_at,
+  );
+  if (!review) throw new Error(`No review found for dossier "${r.dossier_code}" revision ${r.dossier_revision} at ${r.reviewed_at} — a revocation must reference a real, existing review.`);
+  const record: RegulatoryDossierReviewRevocation = {
+    schemaVersion: "1.0",
+    id: newId("dossierreviewrevoke"),
+    revokesReviewId: review.id,
+    revokedBy: r.revoked_by || ctx.actorUserId,
+    revokedByRole: (nn(r.revoked_by_role) as ApprovalRole) ?? ctx.actorRole,
+    revokedAt: nowIso(),
+    reason: r.reason,
+  };
+  await upsertRecords("regulatory_dossier_review_revocations", [record]);
+  return { outcome: "created", targetCollection: "regulatory_dossier_review_revocations", targetRecordId: record.id };
+};
+
 // =================================================== claims / labels (20-22) ===
 
 const commitProductClaims: Handler = async (r) => {
@@ -1516,6 +1635,10 @@ export const COMMIT_HANDLERS: Partial<Record<string, Handler>> = {
   regulatory_rules: commitRegulatoryRules,
   dossier_requirements: commitDossierRequirements,
   dossier_evidence: commitDossierEvidence,
+  dossier_headers: commitDossierHeaders,
+  dossier_submissions: commitDossierSubmissions,
+  dossier_evidence_links: commitDossierEvidenceLinks,
+  dossier_review_revocations: commitDossierReviewRevocations,
   product_claims: commitProductClaims,
   label_content: commitLabelContent,
   artwork_register: commitArtworkRegister,

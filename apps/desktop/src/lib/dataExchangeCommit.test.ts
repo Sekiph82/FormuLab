@@ -19,6 +19,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDataExchangeTemplate, type DataExchangeRowResult } from "@ai4s/shared";
 import { commitDataExchangeRows, isTemplateCommitSupported } from "./dataExchangeCommit";
+import { loadExisting } from "./dataExchangeExisting";
 
 const bridge = {
   listRecords: vi.fn(),
@@ -349,6 +350,241 @@ describe("commitDataExchangeRows — dossier evidence", () => {
     expect(outcomes[0].outcome).toBe("updated");
     expect(bridge.upsertRecords).toHaveBeenCalledWith("regulatory_evidence_items", expect.arrayContaining([expect.objectContaining({ id: "evid-1", evidenceCode: "TEST-EVID-001" })]));
     expect(bridge.upsertRecords).not.toHaveBeenCalledWith("regulatory_requirement_evidence_links", expect.anything());
+  });
+});
+
+describe("commitDataExchangeRows — Phase 8 dossier expansion: dossier headers", () => {
+  it("fails honestly when the dossier_code already exists", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "regulatory_dossiers" ? [{ id: "dossier-1", dossierCode: "TEST-DOS-100" }] : []));
+    const rows = [row({ dossier_code: "TEST-DOS-100", title: "TEST Dossier", formula_code: "TEST-FORM-001", jurisdictions: "KE" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_headers")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/already exists/);
+  });
+
+  it("fails honestly and never auto-creates a formula when the named formula does not exist", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([]);
+    const rows = [row({ dossier_code: "TEST-DOS-100", title: "TEST Dossier", formula_code: "TEST-FORM-999", jurisdictions: "KE" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_headers")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No formula/);
+    expect(formulationsBridge.saveFormulation).not.toHaveBeenCalled();
+  });
+
+  it("fails honestly when the formula has no saved version", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-001", productFamilyCode: "TEST-FAM" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [] });
+    const rows = [row({ dossier_code: "TEST-DOS-100", title: "TEST Dossier", formula_code: "TEST-FORM-001", jurisdictions: "KE" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_headers")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/no saved version/);
+  });
+
+  it("creates a dossier always as draft/revision 1, regardless of any status the file might have implied", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-001", productFamilyCode: "TEST-FAM" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }, { id: "version-2", versionNumber: 2 }] });
+    const rows = [row({ dossier_code: "TEST-DOS-100", title: "TEST Dossier", formula_code: "TEST-FORM-001", jurisdictions: "KE" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_headers")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "regulatory_dossiers",
+      expect.arrayContaining([expect.objectContaining({ dossierCode: "TEST-DOS-100", status: "draft", revision: 1, formulaVersionId: "version-2" })]),
+    );
+    const [, records] = bridge.upsertRecords.mock.calls.find((c: unknown[]) => c[0] === "regulatory_dossiers")!;
+    const created = (records as Record<string, unknown>[])[0];
+    expect(created.submittedBy).toBeUndefined();
+    expect(created.approvedBy).toBeUndefined();
+    expect(created.supersedesDossierId).toBeUndefined();
+  });
+
+  it("binds to the exact requested formula_version rather than always the latest", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-001", productFamilyCode: "TEST-FAM" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }, { id: "version-2", versionNumber: 2 }] });
+    const rows = [row({ dossier_code: "TEST-DOS-100", title: "TEST Dossier", formula_code: "TEST-FORM-001", formula_version: "1", jurisdictions: "KE" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_headers")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("regulatory_dossiers", expect.arrayContaining([expect.objectContaining({ formulaVersionId: "version-1" })]));
+  });
+});
+
+describe("commitDataExchangeRows — Phase 8 dossier expansion: submissions", () => {
+  const dossier = { id: "dossier-1", dossierCode: "TEST-DOS-001", revision: 1 };
+
+  it("fails honestly when the referenced dossier does not exist", async () => {
+    const rows = [row({ dossier_code: "TEST-DOS-001", jurisdiction: "KE", submitted_by: "TEST User", submitted_at: "2026-01-15T00:00:00.000Z" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_submissions")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No dossier/);
+  });
+
+  it("always records status as prepared, never an authority's response", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "regulatory_dossiers" ? [dossier] : []));
+    const rows = [row({ dossier_code: "TEST-DOS-001", jurisdiction: "KE", submitted_by: "TEST User", submitted_at: "2026-01-15T00:00:00.000Z" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_submissions")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "regulatory_dossier_submissions",
+      expect.arrayContaining([expect.objectContaining({ dossierId: "dossier-1", jurisdiction: "KE", status: "prepared" })]),
+    );
+    const [, records] = bridge.upsertRecords.mock.calls.find((c: unknown[]) => c[0] === "regulatory_dossier_submissions")!;
+    expect((records as Record<string, unknown>[])[0]).not.toHaveProperty("responseStatus");
+  });
+});
+
+describe("commitDataExchangeRows — Phase 8 dossier expansion: evidence links", () => {
+  const dossier = { id: "dossier-1", dossierCode: "TEST-DOS-001" };
+  const requirement = { id: "req-1", dossierId: "dossier-1", requirementCode: "TEST-REQ-001" };
+  const evidence = { id: "evid-1", dossierId: "dossier-1", evidenceCode: "TEST-EVID-001" };
+
+  it("fails honestly when the referenced dossier does not exist", async () => {
+    const rows = [row({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence_links")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No dossier/);
+  });
+
+  it("fails honestly when the referenced requirement does not exist on that dossier", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "regulatory_dossiers" ? [dossier] : []));
+    const rows = [row({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-999", evidence_code: "TEST-EVID-001" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence_links")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No requirement/);
+  });
+
+  it("fails honestly when the referenced evidence does not exist on that dossier", async () => {
+    bridge.listRecords.mockImplementation((collection: string) =>
+      Promise.resolve(collection === "regulatory_dossiers" ? [dossier] : collection === "regulatory_dossier_requirements" ? [requirement] : []),
+    );
+    const rows = [row({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-999" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence_links")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No evidence/);
+  });
+
+  it("always creates the link as proposed, never accepted/rejected/revoked", async () => {
+    bridge.listRecords.mockImplementation((collection: string) =>
+      Promise.resolve(
+        collection === "regulatory_dossiers" ? [dossier] : collection === "regulatory_dossier_requirements" ? [requirement] : collection === "regulatory_evidence_items" ? [evidence] : [],
+      ),
+    );
+    const rows = [row({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001", link_status: "accepted" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_evidence_links")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "regulatory_requirement_evidence_links",
+      expect.arrayContaining([expect.objectContaining({ dossierId: "dossier-1", requirementId: "req-1", evidenceItemId: "evid-1", linkStatus: "proposed" })]),
+    );
+  });
+});
+
+describe("commitDataExchangeRows — Phase 8 dossier expansion: review revocations", () => {
+  const dossier = { id: "dossier-1", dossierCode: "TEST-DOS-001" };
+  const review = { id: "review-1", dossierId: "dossier-1", dossierRevision: 1, reviewedAt: "2026-01-10T00:00:00.000Z" };
+
+  it("fails honestly when the referenced dossier does not exist", async () => {
+    const rows = [row({ dossier_code: "TEST-DOS-001", dossier_revision: "1", reviewed_at: "2026-01-10T00:00:00.000Z", revoked_by: "TEST Admin", reason: "TEST reason" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_review_revocations")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No dossier/);
+  });
+
+  it("fails honestly when no matching review exists — a revocation must reference a real, existing review", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "regulatory_dossiers" ? [dossier] : []));
+    const rows = [row({ dossier_code: "TEST-DOS-001", dossier_revision: "1", reviewed_at: "2026-01-10T00:00:00.000Z", revoked_by: "TEST Admin", reason: "TEST reason" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_review_revocations")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/No review found/);
+  });
+
+  it("creates a revocation referencing the resolved review's real id", async () => {
+    bridge.listRecords.mockImplementation((collection: string) =>
+      Promise.resolve(collection === "regulatory_dossiers" ? [dossier] : collection === "regulatory_dossier_reviews" ? [review] : []),
+    );
+    const rows = [row({ dossier_code: "TEST-DOS-001", dossier_revision: "1", reviewed_at: "2026-01-10T00:00:00.000Z", revoked_by: "TEST Admin", reason: "TEST reason" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("dossier_review_revocations")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "regulatory_dossier_review_revocations",
+      expect.arrayContaining([expect.objectContaining({ revokesReviewId: "review-1", revokedBy: "TEST Admin", reason: "TEST reason" })]),
+    );
+  });
+});
+
+describe("commitDataExchangeRows — Phase 8 dossier expansion: unsafe-to-import templates stay honestly unsupported", () => {
+  it("has no wired commit handler for dossier_reviews or dossier_manual_requirement_actions", () => {
+    expect(isTemplateCommitSupported("dossier_reviews")).toBe(false);
+    expect(isTemplateCommitSupported("dossier_manual_requirement_actions")).toBe(false);
+  });
+});
+
+describe("Phase 8 dossier expansion — export -> import round trip", () => {
+  /** A tiny in-memory store so a committed row is genuinely readable back
+   *  out through the real export loader, not just re-asserted against the
+   *  same mock call. */
+  function stubStore() {
+    const store: Record<string, Record<string, unknown>[]> = {};
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(store[collection] ?? []));
+    bridge.upsertRecords.mockImplementation((collection: string, records: Record<string, unknown>[]) => {
+      store[collection] = [...(store[collection] ?? []), ...records];
+      return Promise.resolve({ inserted: records.length, updated: 0, total: records.length });
+    });
+    return store;
+  }
+
+  it("dossier_headers: importing the template's own example row round-trips through the export loader with the same natural key", async () => {
+    stubStore();
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-001", productFamilyCode: "TEST-FAM-001" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }] });
+    const template = getDataExchangeTemplate("dossier_headers")!;
+    const exampleRow = template.exampleRows[0]!;
+    const commitOutcomes = await commitDataExchangeRows(template, [row(exampleRow)], ctx);
+    expect(commitOutcomes[0]!.outcome).toBe("created");
+
+    const { naturalKeys, rows } = await loadExisting("dossier_headers");
+    expect(naturalKeys.has(exampleRow.dossier_code)).toBe(true);
+    expect(rows[0]).toMatchObject({ dossier_code: exampleRow.dossier_code, formula_code: "TEST-FORM-001", formula_version: "1" });
+  });
+
+  it("dossier_submissions: importing the template's own example row round-trips through the export loader with the same natural key", async () => {
+    const store = stubStore();
+    store.regulatory_dossiers = [{ id: "dossier-1", dossierCode: "TEST-DOS-001", revision: 1 }];
+    const template = getDataExchangeTemplate("dossier_submissions")!;
+    const exampleRow: Record<string, string> = { ...template.exampleRows[0]!, dossier_code: "TEST-DOS-001" };
+    const commitOutcomes = await commitDataExchangeRows(template, [row(exampleRow)], ctx);
+    expect(commitOutcomes[0]!.outcome).toBe("created");
+
+    const { naturalKeys, rows } = await loadExisting("dossier_submissions");
+    expect(naturalKeys.has(`TEST-DOS-001::1::${exampleRow.jurisdiction}::${exampleRow.submitted_at}`)).toBe(true);
+    expect(rows[0]).toMatchObject({ dossier_code: "TEST-DOS-001", status: "prepared" });
+  });
+
+  it("dossier_evidence_links: importing the template's own example row round-trips through the export loader with the same natural key", async () => {
+    const store = stubStore();
+    store.regulatory_dossiers = [{ id: "dossier-1", dossierCode: "TEST-DOS-001" }];
+    store.regulatory_dossier_requirements = [{ id: "req-1", dossierId: "dossier-1", requirementCode: "TEST-REQ-001" }];
+    store.regulatory_evidence_items = [{ id: "evid-1", dossierId: "dossier-1", evidenceCode: "TEST-EVID-001" }];
+    const template = getDataExchangeTemplate("dossier_evidence_links")!;
+    const exampleRow: Record<string, string> = { ...template.exampleRows[0]!, dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001" };
+    const commitOutcomes = await commitDataExchangeRows(template, [row(exampleRow)], ctx);
+    expect(commitOutcomes[0]!.outcome).toBe("created");
+
+    const { naturalKeys, rows } = await loadExisting("dossier_evidence_links");
+    expect(naturalKeys.has(`TEST-DOS-001::TEST-REQ-001::TEST-EVID-001::${exampleRow.linked_at}`)).toBe(true);
+    expect(rows[0]).toMatchObject({ link_status: "proposed" });
+  });
+
+  it("dossier_review_revocations: importing the template's own example row round-trips through the export loader with the same natural key", async () => {
+    const store = stubStore();
+    store.regulatory_dossiers = [{ id: "dossier-1", dossierCode: "TEST-DOS-001" }];
+    store.regulatory_dossier_reviews = [{ id: "review-1", dossierId: "dossier-1", dossierRevision: 1, reviewedAt: "2026-01-10T00:00:00.000Z" }];
+    const template = getDataExchangeTemplate("dossier_review_revocations")!;
+    const exampleRow: Record<string, string> = { ...template.exampleRows[0]!, dossier_code: "TEST-DOS-001", dossier_revision: "1", reviewed_at: "2026-01-10T00:00:00.000Z" };
+    const commitOutcomes = await commitDataExchangeRows(template, [row(exampleRow)], ctx);
+    expect(commitOutcomes[0]!.outcome).toBe("created");
+
+    const { naturalKeys, rows } = await loadExisting("dossier_review_revocations");
+    expect(naturalKeys.has("TEST-DOS-001::1::2026-01-10T00:00:00.000Z")).toBe(true);
+    expect(rows[0]).toMatchObject({ dossier_code: "TEST-DOS-001", revoked_by: exampleRow.revoked_by });
   });
 });
 

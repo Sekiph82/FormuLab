@@ -35,13 +35,19 @@ beforeEach(() => {
   formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [] });
 });
 
-describe("all 24 templates have a loader", () => {
+describe("all 24 Phase 6 templates plus the 6 Phase 8 dossier-expansion templates have a loader", () => {
   const templates = [
     "raw_materials", "suppliers", "material_prices", "material_documents", "product_families", "finished_products",
     "packaging_components", "packaging_bom", "process_parameters", "costing_assumptions", "formula_cost_overrides",
     "test_definitions", "lab_results", "stability_protocols", "stability_results", "regulatory_rules",
     "dossier_requirements", "dossier_evidence", "product_claims", "label_content", "artwork_register",
     "doe_factors_responses", "doe_observations",
+    // Phase 8: dossier_reviews and dossier_manual_requirement_actions are
+    // import-disabled (see dataExchangeRegistry.ts) but still get a real
+    // export loader — export/audit visibility is exactly what they're
+    // allowed to do.
+    "dossier_headers", "dossier_reviews", "dossier_submissions", "dossier_evidence_links",
+    "dossier_manual_requirement_actions", "dossier_review_revocations",
   ];
   it.each(templates)("%s has a current-data-export loader", (code) => {
     expect(hasExistingLookup(code)).toBe(true);
@@ -165,6 +171,75 @@ describe("dossier_evidence loader", () => {
     );
     const { rows } = await loadExisting("dossier_evidence");
     expect(rows[0].requirement_code).toBe("");
+  });
+});
+
+describe("dossier_headers loader", () => {
+  it("resolves formulationId/formulaVersionId back to formula_code/formula_version and keys by dossier_code alone", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-001" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }] });
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        regulatory_dossiers: [
+          { dossierCode: "TEST-DOS-001", title: "TEST Dossier", formulationId: "formulation-1", formulaVersionId: "version-1", jurisdictions: ["KE"], productFamilyCode: "TEST-FAM-001", status: "draft" },
+        ],
+      }),
+    );
+    const { naturalKeys, rows } = await loadExisting("dossier_headers");
+    expect(naturalKeys.has("TEST-DOS-001")).toBe(true);
+    expect(rows[0]).toMatchObject({ dossier_code: "TEST-DOS-001", formula_code: "TEST-FORM-001", formula_version: "1", jurisdictions: "KE", status: "draft" });
+  });
+});
+
+describe("dossier_submissions loader", () => {
+  it("resolves dossierId back to dossier_code and keys by (dossier, revision, jurisdiction, timestamp)", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        regulatory_dossier_submissions: [{ dossierId: "dossier-1", dossierRevision: 1, jurisdiction: "KE", submittedBy: "TEST User", submittedAt: "2026-01-15T00:00:00.000Z", status: "prepared" }],
+        regulatory_dossiers: [{ id: "dossier-1", dossierCode: "TEST-DOS-001" }],
+      }),
+    );
+    const { naturalKeys, rows } = await loadExisting("dossier_submissions");
+    expect(naturalKeys.has("TEST-DOS-001::1::KE::2026-01-15T00:00:00.000Z")).toBe(true);
+    expect(rows[0]).toMatchObject({ dossier_code: "TEST-DOS-001", status: "prepared" });
+  });
+});
+
+describe("dossier_evidence_links loader", () => {
+  it("resolves dossier/requirement/evidence ids back to their codes and excludes evidence without an evidenceCode", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        regulatory_requirement_evidence_links: [
+          { dossierId: "dossier-1", requirementId: "req-1", evidenceItemId: "evid-1", linkedBy: "TEST Importer", linkedAt: "2026-01-08T00:00:00.000Z", linkStatus: "proposed" },
+          { dossierId: "dossier-1", requirementId: "req-1", evidenceItemId: "evid-2", linkedBy: "TEST Importer", linkedAt: "2026-01-08T00:00:00.000Z", linkStatus: "proposed" },
+        ],
+        regulatory_dossiers: [{ id: "dossier-1", dossierCode: "TEST-DOS-001" }],
+        regulatory_dossier_requirements: [{ id: "req-1", requirementCode: "TEST-REQ-001" }],
+        regulatory_evidence_items: [
+          { id: "evid-1", evidenceCode: "TEST-EVID-001" },
+          { id: "evid-2", title: "No code — not from Data Exchange" },
+        ],
+      }),
+    );
+    const { naturalKeys, rows } = await loadExisting("dossier_evidence_links");
+    expect(rows).toHaveLength(1);
+    expect(naturalKeys.has("TEST-DOS-001::TEST-REQ-001::TEST-EVID-001::2026-01-08T00:00:00.000Z")).toBe(true);
+    expect(rows[0]).toMatchObject({ dossier_code: "TEST-DOS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001", link_status: "proposed" });
+  });
+});
+
+describe("dossier_review_revocations loader", () => {
+  it("resolves revokesReviewId to its review, then to the review's dossier_code/revision/reviewed_at", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        regulatory_dossier_review_revocations: [{ revokesReviewId: "review-1", revokedBy: "TEST Admin", revokedByRole: "administrator", reason: "TEST reason" }],
+        regulatory_dossier_reviews: [{ id: "review-1", dossierId: "dossier-1", dossierRevision: 1, reviewedAt: "2026-01-10T00:00:00.000Z" }],
+        regulatory_dossiers: [{ id: "dossier-1", dossierCode: "TEST-DOS-001" }],
+      }),
+    );
+    const { naturalKeys, rows } = await loadExisting("dossier_review_revocations");
+    expect(naturalKeys.has("TEST-DOS-001::1::2026-01-10T00:00:00.000Z")).toBe(true);
+    expect(rows[0]).toMatchObject({ dossier_code: "TEST-DOS-001", dossier_revision: "1", reviewed_at: "2026-01-10T00:00:00.000Z", revoked_by: "TEST Admin" });
   });
 });
 

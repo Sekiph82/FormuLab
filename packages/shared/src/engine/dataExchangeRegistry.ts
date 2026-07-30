@@ -19,7 +19,7 @@ import type { ApprovalRole } from "../schemas/status";
 import { DOE_FACTOR_SOURCE_TYPES, DOE_FACTOR_TYPES, DOE_RESPONSE_OBJECTIVES } from "../schemas/doe";
 import { MATERIAL_DOCUMENT_TYPES } from "../schemas/dataExchange";
 import { REGULATORY_JURISDICTIONS, REGULATORY_RULE_TYPES } from "../schemas/regulatory";
-import { DOSSIER_APPLICABILITY_STATUSES, DOSSIER_EVIDENCE_TYPES, DOSSIER_REQUIREMENT_TYPES } from "../schemas/dossier";
+import { DOSSIER_APPLICABILITY_STATUSES, DOSSIER_EVIDENCE_TYPES, DOSSIER_MANUAL_REQUIREMENT_ACTIONS, DOSSIER_REQUIREMENT_TYPES, DOSSIER_REVIEW_OUTCOMES } from "../schemas/dossier";
 import { CLAIM_CATEGORIES, LABEL_CONTENT_BLOCK_TYPES } from "../schemas/claimsLabels";
 import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "../catalog/stabilityConditions";
 import { BENCHMARK_EVIDENCE_TYPES, INGREDIENT_MAPPING_METHODS, CANDIDATE_SCORE_TYPES } from "../schemas/reverseFormulation";
@@ -1430,6 +1430,203 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     targetCollection: "candidate_score_explanations",
     exampleRows: [
       { candidate_code: "TEST-CAND-001", score_type: "evidence", score: "0.7", weight: "0.25", reason: "Coverage 80%, avg mapping confidence 90%.", evidence_references: "", limitations: "" },
+    ],
+  }),
+
+  // ======================================================= Template 30 ===
+  // Dossier Headers — Phase 8 final Data Exchange expansion. Bulk-create
+  // real dossier headers, always draft/revision 1, bound only to a formula
+  // version that already exists. Every lifecycle field (status beyond
+  // draft, revision beyond 1, submitted/reviewed/approved by-whom-when,
+  // supersedesDossierId) can only ever be set by a real human action in
+  // the Dossiers workspace — never by import.
+  template({
+    templateCode: "dossier_headers",
+    title: "Dossier Headers",
+    description: "New regulatory dossier headers. Always created as draft, revision 1, bound to an already-saved formula version — no lifecycle field (submission, review, approval, revision) is ever taken from the file.",
+    module: "dossier",
+    columns: [
+      col({ key: "dossier_code", dataType: "code_reference", description: "Stable dossier code — the natural key.", ...REQ, example: "TEST-DOSS-100" }),
+      col({ key: "title", dataType: "string", description: "Dossier title.", ...REQ, example: "TEST Handwash KE Registration" }),
+      col({ key: "formula_code", dataType: "code_reference", description: "The formula this dossier is bound to — must already exist as a saved formulation.", ...REQ, example: "TEST-FORM-001" }),
+      col({ key: "formula_version", dataType: "integer", description: "The exact saved formula version to bind to. Blank uses the latest saved version." }),
+      col({ key: "packaging_sku_code", dataType: "code_reference", referenceTemplate: "packaging_bom", referenceField: "packaging_sku_code", description: "Packaging SKU scope, if any." }),
+      col({ key: "jurisdictions", dataType: "multi_value", description: "Jurisdiction(s), semicolon-separated.", ...REQ, example: "KE" }),
+      col({ key: "product_family_code", dataType: "code_reference", referenceTemplate: "product_families", referenceField: "family_code", description: "Owning product family." }),
+      col({ key: "status", dataType: "enum", description: "Import always creates the dossier as draft, revision 1, regardless of this column.", enumValues: ["draft"] }),
+      col({ key: "notes", dataType: "string", description: "Free text." }),
+    ],
+    naturalKey: ["dossier_code"],
+    duplicatePolicy: "reject_conflict",
+    updatePolicy: "A dossier_code that already exists is refused — a dossier is revised through the Dossiers workspace (a new revision row), never overwritten by import.",
+    authorization: REGULATORY_ROLES,
+    targetCollection: "regulatory_dossiers",
+    exampleRows: [
+      { dossier_code: "TEST-DOSS-100", title: "TEST Handwash KE Registration", formula_code: "TEST-FORM-001", formula_version: "1", packaging_sku_code: "", jurisdictions: "KE", product_family_code: "TEST-FAM-001", status: "draft", notes: "Synthetic test row." },
+    ],
+  }),
+
+  // ======================================================= Template 31 ===
+  // Dossier Reviews — export-only. A review's requirementSnapshot/
+  // evidenceSnapshot are frozen copies of the ACTUAL requirement/evidence
+  // rows at the moment a real human reviewed the dossier — a flat import
+  // row cannot supply those arrays without either fabricating them empty
+  // (dishonestly claiming nothing was reviewed) or substituting today's
+  // live state for what the reviewer actually saw at the time (silently
+  // rewriting history). Neither is safe, so this template is export/
+  // audit-visibility only; no commit handler is wired.
+  template({
+    templateCode: "dossier_reviews",
+    title: "Dossier Reviews",
+    description: "Recorded dossier reviews, for audit visibility only. Export-only: a review's frozen requirement/evidence snapshot cannot be honestly reconstructed from a flat import row, so no import path is offered.",
+    module: "dossier",
+    columns: [
+      col({ key: "dossier_code", dataType: "code_reference", description: "Owning dossier.", ...REQ, example: "TEST-DOSS-001" }),
+      col({ key: "dossier_revision", dataType: "integer", description: "Dossier revision this review assessed.", ...REQ, example: "1" }),
+      col({ key: "reviewed_by", dataType: "string", description: "Reviewer.", ...REQ }),
+      col({ key: "reviewer_role", dataType: "string", description: "Reviewer's role." }),
+      col({ key: "reviewed_at", dataType: "datetime", description: "Review timestamp — identifies the review together with dossier_code/dossier_revision.", ...REQ }),
+      col({ key: "outcome", dataType: "enum", enumValues: DOSSIER_REVIEW_OUTCOMES, description: "Review outcome." }),
+      col({ key: "notes", dataType: "string", description: "Review notes." }),
+      col({ key: "blocking_issues", dataType: "multi_value", description: "Blocking issues, semicolon-separated." }),
+      col({ key: "warnings", dataType: "multi_value", description: "Warnings, semicolon-separated." }),
+    ],
+    naturalKey: ["dossier_code", "dossier_revision", "reviewed_at"],
+    duplicatePolicy: "append_history",
+    updatePolicy: "Export only — no import is offered for this template.",
+    authorization: REGULATORY_ROLES,
+    targetCollection: "regulatory_dossier_reviews",
+    enabled: false,
+    disabledReason: "A dossier review's frozen requirement/evidence snapshot cannot be honestly reconstructed from a spreadsheet row — reviews are only ever recorded through the real Dossiers workspace review action, which snapshots live data at the moment of review. This template exists for export/audit visibility only.",
+    exampleRows: [
+      { dossier_code: "TEST-DOSS-001", dossier_revision: "1", reviewed_by: "TEST Reviewer", reviewer_role: "regulatory", reviewed_at: "2026-01-10T00:00:00.000Z", outcome: "changes_requested", notes: "Synthetic test row.", blocking_issues: "", warnings: "" },
+    ],
+  }),
+
+  // ======================================================= Template 32 ===
+  // Dossier Submissions — internal tracking log only, never a real
+  // authority-portal integration (see schemas/dossier.ts). Safe to import
+  // as a record of "we submitted this" — status always forced to
+  // "prepared" and an authority's actual response fields are never taken
+  // from the file, since import cannot honestly know what a real
+  // regulator later decided.
+  template({
+    templateCode: "dossier_submissions",
+    title: "Dossier Submissions",
+    description: "Internal submission tracking records — never a real authority-portal integration. Import always records status as prepared; an authority's actual response is never taken from the file.",
+    module: "dossier",
+    columns: [
+      col({ key: "dossier_code", dataType: "code_reference", description: "Owning dossier.", ...REQ, example: "TEST-DOSS-001" }),
+      col({ key: "dossier_revision", dataType: "integer", description: "Dossier revision at time of submission.", ...REQ, example: "1" }),
+      col({ key: "jurisdiction", dataType: "enum", enumValues: REGULATORY_JURISDICTIONS, description: "Submission jurisdiction.", ...REQ, example: "KE" }),
+      col({ key: "submission_reference", dataType: "string", description: "External reference number, if any." }),
+      col({ key: "submitted_by", dataType: "string", description: "Who submitted.", ...REQ }),
+      col({ key: "submitted_at", dataType: "datetime", description: "Submission timestamp.", ...REQ }),
+      col({ key: "submission_channel", dataType: "string", description: "Channel, e.g. portal name." }),
+      col({ key: "status", dataType: "enum", description: "Import always records status as prepared, regardless of this column — an authority's actual response is never taken from a file.", enumValues: ["prepared"] }),
+      col({ key: "notes", dataType: "string", description: "Free text." }),
+    ],
+    naturalKey: ["dossier_code", "dossier_revision", "jurisdiction", "submitted_at"],
+    duplicatePolicy: "append_history",
+    updatePolicy: "Every row is a new submission record for that (dossier, revision, jurisdiction, timestamp) — never a silent overwrite of a prior submission's response.",
+    authorization: REGULATORY_ROLES,
+    targetCollection: "regulatory_dossier_submissions",
+    exampleRows: [
+      { dossier_code: "TEST-DOSS-001", dossier_revision: "1", jurisdiction: "KE", submission_reference: "", submitted_by: "TEST Submitter", submitted_at: "2026-01-15T00:00:00.000Z", submission_channel: "email", status: "prepared", notes: "Synthetic test row." },
+    ],
+  }),
+
+  // ======================================================= Template 33 ===
+  // Dossier Evidence Links — proposed only. Accepting/rejecting a
+  // requirement-evidence mapping is the human judgment call spec §4.4
+  // requires; import can safely SUGGEST a link (linkStatus forced to
+  // "proposed") but never accept, reject, or revoke one.
+  template({
+    templateCode: "dossier_evidence_links",
+    title: "Dossier Evidence Links",
+    description: "Proposed requirement-evidence links. Import always creates the link as proposed — accepting, rejecting, or revoking a mapping is a human review action in the Dossiers workspace, never taken from a file.",
+    module: "dossier",
+    columns: [
+      col({ key: "dossier_code", dataType: "code_reference", description: "Owning dossier.", ...REQ, example: "TEST-DOSS-001" }),
+      col({ key: "requirement_code", dataType: "code_reference", description: "Requirement to link.", ...REQ, example: "TEST-REQ-001" }),
+      col({ key: "evidence_code", dataType: "code_reference", description: "Evidence to link.", ...REQ, example: "TEST-EVID-001" }),
+      col({ key: "linked_by", dataType: "string", description: "Who proposed the link.", ...REQ }),
+      col({ key: "linked_at", dataType: "datetime", description: "Link timestamp — part of the natural key, since a pair can legitimately be re-proposed after a prior rejection/revocation.", ...REQ }),
+      col({ key: "link_status", dataType: "enum", description: "Import always creates the link as proposed, regardless of this column.", enumValues: ["proposed"] }),
+      col({ key: "notes", dataType: "string", description: "Free text." }),
+    ],
+    naturalKey: ["dossier_code", "requirement_code", "evidence_code", "linked_at"],
+    duplicatePolicy: "append_history",
+    updatePolicy: "Links are append-only — a repeated (dossier, requirement, evidence, timestamp) is a duplicate, never a silent status change.",
+    authorization: REGULATORY_ROLES,
+    targetCollection: "regulatory_requirement_evidence_links",
+    exampleRows: [
+      { dossier_code: "TEST-DOSS-001", requirement_code: "TEST-REQ-001", evidence_code: "TEST-EVID-001", linked_by: "TEST Importer", linked_at: "2026-01-08T00:00:00.000Z", link_status: "proposed", notes: "Synthetic test row." },
+    ],
+  }),
+
+  // ======================================================= Template 34 ===
+  // Dossier Manual Requirement Actions — export-only. The real
+  // add/exclude engine functions (`addManualRequirement`/
+  // `excludeRequirement`) always write this audit row together with a
+  // real, atomic mutation of the requirement row itself; a standalone
+  // imported action row could reference a requirement that was never
+  // actually mutated to match, corrupting that two-record invariant. See
+  // the `dossier_requirements` template for the safe, already-supported
+  // way to add a requirement via import (always `isManual: true`).
+  template({
+    templateCode: "dossier_manual_requirement_actions",
+    title: "Dossier Manual Requirement Actions",
+    description: "Recorded manual add/exclude actions on dossier requirements, for audit visibility only. Export-only: the real action always pairs atomically with a requirement-row mutation that a standalone import row cannot honestly reproduce.",
+    module: "dossier",
+    columns: [
+      col({ key: "dossier_code", dataType: "code_reference", description: "Owning dossier.", ...REQ, example: "TEST-DOSS-001" }),
+      col({ key: "dossier_revision", dataType: "integer", description: "Dossier revision.", ...REQ, example: "1" }),
+      col({ key: "action", dataType: "enum", enumValues: DOSSIER_MANUAL_REQUIREMENT_ACTIONS, description: "add or exclude.", ...REQ }),
+      col({ key: "requirement_code", dataType: "code_reference", description: "Requirement affected.", ...REQ, example: "TEST-REQ-001" }),
+      col({ key: "performed_by", dataType: "string", description: "Who performed the action.", ...REQ }),
+      col({ key: "performed_by_role", dataType: "string", description: "Actor's role." }),
+      col({ key: "performed_at", dataType: "datetime", description: "Timestamp.", ...REQ }),
+      col({ key: "justification", dataType: "string", description: "Required justification.", ...REQ }),
+    ],
+    naturalKey: ["dossier_code", "requirement_code", "performed_at"],
+    duplicatePolicy: "append_history",
+    updatePolicy: "Export only — no import is offered for this template.",
+    authorization: REGULATORY_ROLES,
+    targetCollection: "regulatory_dossier_manual_requirement_actions",
+    enabled: false,
+    disabledReason: "A manual requirement action always pairs atomically with a real mutation of the requirement row itself (see addManualRequirement/excludeRequirement) — a standalone imported action row cannot honestly reproduce that pairing. This template exists for export/audit visibility only.",
+    exampleRows: [
+      { dossier_code: "TEST-DOSS-001", dossier_revision: "1", action: "exclude", requirement_code: "TEST-REQ-002", performed_by: "TEST Reviewer", performed_by_role: "regulatory", performed_at: "2026-01-09T00:00:00.000Z", justification: "Synthetic test row — not applicable to this market." },
+    ],
+  }),
+
+  // ======================================================= Template 35 ===
+  // Dossier Review Revocations — safe to import: only ever references an
+  // already-real, already-existing review (resolved live by dossier +
+  // revision + timestamp), and only ever adds "this is no longer active"
+  // — a strictly narrower, lower-stakes claim than fabricating what was
+  // reviewed.
+  template({
+    templateCode: "dossier_review_revocations",
+    title: "Dossier Review Revocations",
+    description: "Revocations of a real, already-recorded dossier review. Import refuses any row that cannot be resolved to an existing review by dossier code, revision, and review timestamp.",
+    module: "dossier",
+    columns: [
+      col({ key: "dossier_code", dataType: "code_reference", description: "Owning dossier of the review being revoked.", ...REQ, example: "TEST-DOSS-001" }),
+      col({ key: "dossier_revision", dataType: "integer", description: "Dossier revision the review assessed.", ...REQ, example: "1" }),
+      col({ key: "reviewed_at", dataType: "datetime", description: "Timestamp of the exact review being revoked — identifies it together with dossier_code/dossier_revision.", ...REQ }),
+      col({ key: "revoked_by", dataType: "string", description: "Who revoked it.", ...REQ }),
+      col({ key: "revoked_by_role", dataType: "string", description: "Revoker's role." }),
+      col({ key: "reason", dataType: "string", description: "Reason.", ...REQ }),
+    ],
+    naturalKey: ["dossier_code", "dossier_revision", "reviewed_at"],
+    duplicatePolicy: "append_history",
+    updatePolicy: "A repeated (dossier, revision, reviewed_at) is a duplicate revocation of the same review — harmless but never required twice.",
+    authorization: REGULATORY_ROLES,
+    targetCollection: "regulatory_dossier_review_revocations",
+    exampleRows: [
+      { dossier_code: "TEST-DOSS-001", dossier_revision: "1", reviewed_at: "2026-01-10T00:00:00.000Z", revoked_by: "TEST Administrator", revoked_by_role: "administrator", reason: "Synthetic test row — filed against the wrong revision." },
     ],
   }),
 ];

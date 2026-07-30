@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DATA_EXCHANGE_TEMPLATES, getDataExchangeTemplate, isDataExchangeRoleAuthorized, listDataExchangeTemplates } from "./dataExchangeRegistry";
 
 describe("Data Exchange template registry", () => {
-  it("registers exactly the 24 mandated templates plus the 11 Reverse Formulation templates", () => {
-    expect(DATA_EXCHANGE_TEMPLATES).toHaveLength(35);
+  it("registers exactly the 24 mandated templates plus the 11 Reverse Formulation templates plus the 6 Phase 8 dossier-expansion templates", () => {
+    expect(DATA_EXCHANGE_TEMPLATES).toHaveLength(41);
   });
 
   it("gives every template a unique templateCode", () => {
@@ -113,7 +113,7 @@ describe("Data Exchange template registry", () => {
   });
 
   it("lists all templates", () => {
-    expect(listDataExchangeTemplates().length).toBe(35);
+    expect(listDataExchangeTemplates().length).toBe(41);
   });
 
   it("checks role authorization", () => {
@@ -122,9 +122,26 @@ describe("Data Exchange template registry", () => {
     expect(isDataExchangeRoleAuthorized(t, "researcher")).toBe(false);
   });
 
+  // Every template is enabled except the two Phase 8 dossier-expansion
+  // templates that are deliberately import-disabled — see their
+  // `disabledReason` in the registry: a review's frozen requirement/
+  // evidence snapshot, and a manual-requirement-action's atomic pairing
+  // with a real requirement mutation, cannot be honestly reconstructed
+  // from a flat import row. Both still ship a real export loader.
+  const KNOWN_DISABLED_TEMPLATES = ["dossier_reviews", "dossier_manual_requirement_actions"];
+
   it("marks every template enabled — DOE templates are only registered because Phase 5 is complete", () => {
     for (const t of DATA_EXCHANGE_TEMPLATES) {
+      if (KNOWN_DISABLED_TEMPLATES.includes(t.templateCode)) continue;
       expect(t.enabled, `${t.templateCode} unexpectedly disabled`).toBe(true);
+    }
+  });
+
+  it("gives each known-disabled template an honest, non-empty disabledReason", () => {
+    for (const code of KNOWN_DISABLED_TEMPLATES) {
+      const t = getDataExchangeTemplate(code)!;
+      expect(t.enabled).toBe(false);
+      expect(t.disabledReason?.length).toBeGreaterThan(0);
     }
   });
 
@@ -223,6 +240,59 @@ describe("Data Exchange template registry", () => {
       const candidateMaterial = getDataExchangeTemplate("reverse_formula_candidates")!.columns.find((c) => c.key === "material_code")!;
       expect(candidateMaterial.dataType).toBe("code_reference");
       expect(candidateMaterial.referenceTemplate).toBe("raw_materials");
+    });
+  });
+
+  describe("Phase 8 dossier-expansion templates (30-35)", () => {
+    const expectedCodes = [
+      "dossier_headers",
+      "dossier_reviews",
+      "dossier_submissions",
+      "dossier_evidence_links",
+      "dossier_manual_requirement_actions",
+      "dossier_review_revocations",
+    ];
+
+    it("registers all 6 expected dossier-expansion templates, each exactly once, in module 'dossier'", () => {
+      for (const code of expectedCodes) {
+        const matches = DATA_EXCHANGE_TEMPLATES.filter((t) => t.templateCode === code);
+        expect(matches, `"${code}" should be registered exactly once`).toHaveLength(1);
+        expect(matches[0]!.module).toBe("dossier");
+      }
+    });
+
+    it("restricts every workflow-status column to its safe starting value only — an import can never approve, verify, submit, or accept", () => {
+      expect(getDataExchangeTemplate("dossier_headers")!.columns.find((c) => c.key === "status")!.enumValues).toEqual(["draft"]);
+      expect(getDataExchangeTemplate("dossier_submissions")!.columns.find((c) => c.key === "status")!.enumValues).toEqual(["prepared"]);
+      expect(getDataExchangeTemplate("dossier_evidence_links")!.columns.find((c) => c.key === "link_status")!.enumValues).toEqual(["proposed"]);
+    });
+
+    it("leaves dossier_headers, dossier_submissions, dossier_evidence_links, and dossier_review_revocations enabled for import", () => {
+      for (const code of ["dossier_headers", "dossier_submissions", "dossier_evidence_links", "dossier_review_revocations"]) {
+        expect(getDataExchangeTemplate(code)!.enabled).toBe(true);
+      }
+    });
+
+    it("disables import for dossier_reviews and dossier_manual_requirement_actions, each with an honest reason", () => {
+      for (const code of ["dossier_reviews", "dossier_manual_requirement_actions"]) {
+        const t = getDataExchangeTemplate(code)!;
+        expect(t.enabled).toBe(false);
+        expect(t.disabledReason?.length).toBeGreaterThan(0);
+      }
+    });
+
+    it("requires dossier_headers to bind to an already-existing formula via code_reference, never a free-text formula id", () => {
+      const formulaCode = getDataExchangeTemplate("dossier_headers")!.columns.find((c) => c.key === "formula_code")!;
+      expect(formulaCode.dataType).toBe("code_reference");
+      expect(formulaCode.required).toBe(true);
+    });
+
+    it("requires dossier_review_revocations to identify the exact review being revoked (dossier, revision, reviewed_at)", () => {
+      const t = getDataExchangeTemplate("dossier_review_revocations")!;
+      expect(t.naturalKey).toEqual(["dossier_code", "dossier_revision", "reviewed_at"]);
+      for (const key of t.naturalKey) {
+        expect(t.columns.find((c) => c.key === key)!.required).toBe(true);
+      }
     });
   });
 });
