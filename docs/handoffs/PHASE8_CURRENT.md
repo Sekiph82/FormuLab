@@ -1,76 +1,71 @@
 # Phase 8 — Reports, Dossiers, Document Exports, Final Data Exchange Expansion
 
 ## Current status
-Session 2 complete: pure, deterministic dossier export-snapshot assembly
-engine implemented, tested, typechecked. No rendering, UI, Rust
-persistence, Data Exchange, audit, or authorization work done yet.
+Session 3 complete: deterministic PDF and DOCX render engines implemented
+for a dossier export snapshot, tested, typechecked, lint-clean. No UI,
+Rust persistence, Data Exchange, audit, or authorization work done yet.
 
-## Session 2 — assembly engine completed
-`packages/shared/src/engine/dossierExportAssembly.ts`:
-`assembleDossierExportSnapshot(input)` — pure function, no I/O, no
-mutation, no `Date.now()`/`crypto.randomUUID()`. Reuses
-`regulatoryDossier.ts`'s own `currentRequirementsForRevision`,
-`buildEvidenceMatrix`, `calculateDossierReadiness`,
-`compareDossierRequirementsToCurrentRules`, `deriveEvidenceStatus`,
-`isDossierReviewActive`, `resolveEvidenceRevisionChain` — none of that
-logic reimplemented. Composes `DocumentSourceReference`/
-`DossierExportSnapshotMeta` from Session 1 rather than adding a new
-schema (none was strictly required this session).
+## Session 3 — render engines completed
+`apps/desktop/src/lib/documentExports/`: `renderDossierPdf` (`pdf-lib`),
+`renderDossierDocx` (`docx` npm package), both consuming one shared
+`buildDossierDocumentContent` intermediate model (`content.ts`) so the
+two formats can never silently diverge on what they include.
+`renderDossierDocument(snapshot, format)` is the single entry point,
+returning `{ bytes, mimeType }` with `mimeType` always read from
+`@ai4s/shared`'s `DOCUMENT_FORMAT_MIME_TYPES`.
 
-## Input/output decisions
-Input: one `RegulatoryDossier` + its exact `dossierRevision` (validated
-against `dossier.revision`) + every dossier-domain record array +
-optional `approvalSnapshot`/`currentRules`/`formulaApprovalStatusAtGeneration`
-+ explicit `generationTimestamp`/`generatedBy`. Output: requirements,
-evidence matrix, evidence items (derived-status, supersession-chain
-inclusive), links (every status, full transparency), reviews (frozen
-snapshots preserved exactly), review revocations, submissions, manual
-actions, computed readiness, optional drift, passthrough approval
-snapshot, warnings, static assumptions.
+## Libraries chosen
+- PDF: `pdf-lib` (pure TS, no native/Rust dependency, browser+Node).
+  Low-level text drawing only — never an HTML/DOM-to-PDF path.
+- DOCX: `docx` npm package (pure TS, `Packer.toArrayBuffer`).
+Both added to `apps/desktop/package.json`; lockfile updated via
+`pnpm install`.
 
-## Deterministic ordering rules
-Every array copied before sorting (`stableSortBy`, never in-place
-`.sort()`); every comparator ends in an `id` tie-breaker. Requirements by
-`requirementCode`; evidence by `evidenceType` then `title`; links by
-`requirementId`/`evidenceItemId`/`linkedAt`; reviews/submissions/manual
-actions/revocations by their own timestamp field.
+## Watermark
+`watermark.ts`'s `computeSnapshotWatermark` reuses `draftWatermark()`
+from `@ai4s/shared` (`engine/exports.ts`) for the exact warning text —
+never a second, parallel string. An undefined source approval status
+gets its own distinct "APPROVAL STATUS UNKNOWN" text rather than being
+folded into "draft" (that would fabricate certainty this app doesn't
+have).
 
-## Integrity safeguards
-Throws on: mismatched `dossierRevision`, any record referencing a
-different `dossierId`, duplicate requirement ids, a review revocation
-pointing at an unknown review, a missing `generationTimestamp`/
-`generatedBy`, a missing `formulaVersionId`. Silently EXCLUDES (not an
-error) records for a different revision of the *same* dossier — normal
-historical data. Revoked/proposed links never count toward the evidence
-matrix (reused, not reimplemented). Superseded evidence gets its
-DERIVED status via `deriveEvidenceStatus`, never the possibly-stale
-stored value. `approvalSnapshot`/`dossierStatus` are passthrough/readonly
-only — nothing here can grant or infer approval.
+## Determinism decision
+PDF: creation/modification dates are set explicitly from
+`snapshot.generationTimestamp` (never `new Date()` with no args); no
+other library randomness observed — the test suite asserts full
+byte-for-byte equality across two renders and it holds. DOCX: the `docx`
+package's public API exposes no way to override its zip/core-properties
+timestamps (confirmed against its own type definitions), so byte
+equality is not guaranteed — the test suite instead extracts and
+compares `word/document.xml`'s actual text content (the explicitly
+permitted structural-equality fallback), which IS stable.
 
 ## Files changed this session
-`packages/shared/src/engine/dossierExportAssembly.ts` (new),
-`packages/shared/src/engine/dossierExportAssembly.test.ts` (new, 19
-tests), `packages/shared/src/index.ts` (one export line).
-`documentExport.ts` untouched — no new schema was required.
+`apps/desktop/package.json` (+`docx`, +`pdf-lib`), `pnpm-lock.yaml`,
+`apps/desktop/src/lib/documentExports/{content,watermark,dossierPdf,
+dossierDocx,index}.ts` (new), `.../dossierExports.test.ts` (new, 18
+tests).
 
 ## Focused tests passing
-`vitest run src/engine/dossierExportAssembly.test.ts` — 19/19. Shared
-typecheck — clean. `regulatoryDossier.ts` untouched (read-only reuse via
-import), so its own test suite was not rerun.
+`vitest run src/lib/documentExports/dossierExports.test.ts` — 18/18.
+Desktop typecheck — clean. Desktop lint — clean.
 
 ## Known limitations
-No render engine (Session 3), no Rust persistence, no Data Exchange
-template, no UI wiring, no audit/authorization integration. This engine
-never loads records itself — the caller (a future Session 4 UI action)
-must load and pass in every array.
+No Unicode font embedding — `pdf-lib`'s StandardFonts/WinAnsiEncoding
+cannot render non-Latin script content (dossier codes/titles in this
+domain are Latin-script today; a future non-Latin dossier would need an
+embedded TTF, out of this session's scope). No binary file-save wiring
+yet — `apps/desktop/src/lib/tauri.ts`'s `saveTextFile` is text-only;
+Session 4 needs a `saveBinaryFile` Rust command addition (documented
+here, not implemented, per this session's scope boundary). No UI action
+calls these renderers yet.
 
 ## Recommended sessions (unchanged plan, see external log for detail)
-3. PDF + DOCX render engines (next)
-4. Reports + Dossiers desktop workspace wiring
+4. Reports + Dossiers desktop workspace wiring (next)
 5. Data Exchange expansion
 6. Export history, audit, authorization integration
 7. Focused Phase 8 verification
 8. Closure: full regression, release, installers, shortcut, native verify
 
 ## Exact next session
-Phase 8 Session 3: PDF and DOCX Render Engines.
+Phase 8 Session 4: Reports and Dossiers Desktop Export Wiring.
