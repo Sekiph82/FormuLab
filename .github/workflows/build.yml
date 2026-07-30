@@ -123,7 +123,7 @@ jobs:
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: ai4s-workbench-${{ matrix.target }}
+          name: formulab-${{ matrix.target }}
           path: |
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe

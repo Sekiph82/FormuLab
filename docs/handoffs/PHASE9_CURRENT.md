@@ -1,6 +1,48 @@
 # Phase 9 — `ai4s`/`AI4S` → FormuLab Naming Migration
 
-## Status: Session 1 (package/import namespace) complete.
+## Status: Session 2 (Rust/Tauri/product/binary naming) complete.
+
+## Session 2 summary
+Renamed the Rust package/binary `ai4s-workbench` → `formulab` and the
+lib crate `ai4s_workbench_lib` → `formulab_lib` in
+`apps/desktop/src-tauri/Cargo.toml` (also `authors`: "AI4S Workbench
+contributors" → "FormuLab contributors"). Updated `main.rs`'s
+`formulab_lib::run()` call site, `lib.rs`'s header comment and
+`.expect("error while building FormuLab")` panic string, and a
+first-party comment in `tools.rs`. `tauri.conf.json`'s `identifier`
+(`com.formulab.app`) and `productName` (`FormuLab`) confirmed
+**unchanged** — no `mainBinaryName` override was ever needed; Tauri
+now derives `formulab.exe` directly from the renamed Cargo package.
+Updated `.github/workflows/build.yml`'s artifact-upload name
+(`ai4s-workbench-${target}` → `formulab-${target}`) and
+`scripts/windows/verify-formulab-phase1.ps1`'s default `-ExePath`
+(now points at `formulab.exe`).
+
+Built a real release: `cargo build --release`, full Rust test suite
+(82/82) against the renamed `formulab_lib`, `cargo clippy --all-targets
+--all-features -- -D warnings` (clean), desktop typecheck (clean,
+confirms no TS code depended on the old Rust name), then a full
+`tauri build` producing `formulab.exe` + the already-correctly-named
+`FormuLab_0.4.0_x64_en-US.msi`/`FormuLab_0.4.0_x64-setup.exe`.
+
+Backed up `FormuLab.lnk` to `FormuLab.lnk.bak-phase9session2` before
+touching it, then repointed it at the new `formulab.exe` only after
+that binary existed. Launched **through the actual shortcut file**
+(not just the exe path) and confirmed: real process named `formulab`,
+`MainWindowTitle` == `FormuLab`, `Path` resolves to the new
+`formulab.exe`. Closed cleanly. Re-verified `%APPDATA%\com.formulab.app`
+file count unchanged (19,677 before and after) — nothing in real user
+data was read, written, or touched.
+
+Final grep sweep: zero stale first-party `ai4s-workbench`/
+`ai4s_workbench_lib` references remain in any `.rs`/`.toml`/`.ps1`/
+`.sh`/`.yml`/`.json` file. Remaining matches are all historical/
+deferred-to-Session-4 documentation (`docs/architecture/
+CURRENT_STATE_AUDIT.md`, `docs/handoffs/PHASE8_CURRENT.md` — a dated
+closure record, correctly never rewritten, `docs/TAURI_LIVE_VERIFICATION.md`,
+`docs/TECHNICAL_DESIGN.md`, `runtime/manager/README.md`) plus the one
+correctly-untouched external-dependency reference in
+`build.yml:69` ("Fetch bundled ai4s-skills pack").
 
 ## Session 1 summary
 Renamed the npm workspace scope `@ai4s/*` → `@formulab/*` and the root
@@ -378,4 +420,5 @@ rename gets its first full real-user-path verification.
   plan touches them.
 
 ## Exact next session
-Phase 9 Session 2: Rust, Tauri, Product, and Binary Naming.
+Phase 9 Session 3: Persisted Identifier and localStorage Compatibility
+Migration.

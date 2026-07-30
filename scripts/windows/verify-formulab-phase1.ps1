@@ -18,7 +18,7 @@
   this script prints at the end.
 
 .PARAMETER ExePath
-  Path to ai4s-workbench.exe. Defaults to the debug build location.
+  Path to formulab.exe. Defaults to the debug build location.
 
 .PARAMETER TimeoutSeconds
   How long to wait for the window to appear before failing.
@@ -30,7 +30,7 @@
   powershell -ExecutionPolicy Bypass -File scripts\windows\verify-formulab-phase1.ps1
 #>
 param(
-  [string]$ExePath = "$PSScriptRoot\..\..\apps\desktop\src-tauri\target\debug\ai4s-workbench.exe",
+  [string]$ExePath = "$PSScriptRoot\..\..\apps\desktop\src-tauri\target\debug\formulab.exe",
   [int]$TimeoutSeconds = 15,
   [switch]$KeepOpen
 )

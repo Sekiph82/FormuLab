@@ -30,28 +30,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ai4s-workbench"
-version = "0.4.0"
-dependencies = [
- "getrandom 0.4.3",
- "objc2-app-kit",
- "opener",
- "reqwest",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-dialog",
- "tauri-plugin-notification",
- "tauri-plugin-shell",
- "tauri-plugin-single-instance",
- "tokio",
-]
-
-[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1169,6 +1147,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "formulab"
+version = "0.4.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "objc2-app-kit",
+ "opener",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-dialog",
+ "tauri-plugin-notification",
+ "tauri-plugin-shell",
+ "tauri-plugin-single-instance",
+ "tokio",
 ]
 
 [[package]]
