@@ -1168,6 +1168,16 @@ auto-approved formula.
   evidence tier this document already accepts elsewhere when full native
   click-through is environment-blocked.
 
+## In progress
+
+| Area | Spec § |
+|---|---|
+| Reports, Dossiers, document exports (Phase 8) | 20, 21 |
+
+Session 0 (assessment + implementation plan) complete — see
+[PHASE8_CURRENT.md](../handoffs/PHASE8_CURRENT.md). No Phase 8 feature
+code written yet.
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it
