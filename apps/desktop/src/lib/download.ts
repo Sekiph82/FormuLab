@@ -1,4 +1,4 @@
-import { saveTextFile } from "./tauri";
+import { saveBinaryFile, saveTextFile } from "./tauri";
 import { toast } from "./toast";
 
 /** Save a Blob as a file via a browser download. No-op outside the browser. */
@@ -34,6 +34,27 @@ export async function saveTextWithFeedback(
       toast.success(`Saved to ${result.path}`);
     } else if (result.kind === "not-desktop") {
       downloadText(filename, text, mime);
+      toast.success(`Downloaded ${filename}`);
+    }
+    // "canceled": the user closed the dialog — no feedback needed.
+  } catch (err) {
+    toast.error(`Could not save ${filename}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Save bytes with user feedback: native "Save As" dialog in the desktop app
+ * (toast on success/failure, silent on cancel), Blob download in the
+ * browser. Mirrors `saveTextWithFeedback` exactly, for binary payloads
+ * (e.g. a generated PDF/DOCX) — never a second, parallel save mechanism.
+ */
+export async function saveBinaryWithFeedback(filename: string, bytes: Uint8Array, mime: string): Promise<void> {
+  try {
+    const result = await saveBinaryFile(filename, bytes);
+    if (result.kind === "saved") {
+      toast.success(`Saved to ${result.path}`);
+    } else if (result.kind === "not-desktop") {
+      downloadBlob(filename, new Blob([new Uint8Array(bytes)], { type: mime }));
       toast.success(`Downloaded ${filename}`);
     }
     // "canceled": the user closed the dialog — no feedback needed.

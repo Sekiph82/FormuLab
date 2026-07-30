@@ -116,6 +116,7 @@ pub fn run() {
             artifact_file::absolute_path,
             artifact_file::resolve_artifact,
             artifact_file::save_text_file,
+            artifact_file::save_binary_file,
             artifact_file::open_url,
             artifact_file::add_text_to_workspace,
             artifact_file::list_notebooks,

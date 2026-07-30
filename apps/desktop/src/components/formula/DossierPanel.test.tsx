@@ -12,6 +12,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Formulation, FormulationLine, FormulationVersion } from "@ai4s/shared";
 import { DossierPanel } from "./DossierPanel";
+import { renderDossierDocument } from "@/lib/documentExports";
 
 const bridge = {
   listRecords: vi.fn(),
@@ -24,6 +25,14 @@ vi.mock("@/lib/masterdata", () => ({
   listRecordsSeeded: (...a: [string, unknown[]]) => bridge.listRecordsSeeded(...a),
   upsertRecords: (...a: [string, unknown[]]) => bridge.upsertRecords(...a),
 }));
+
+// Real PDF/DOCX rendering (pdf-lib/docx) runs for real in most tests, proving
+// genuine end-to-end integration — only overridden per-test below to observe
+// the loading/failure states without waiting on real render timing.
+vi.mock("@/lib/documentExports", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/documentExports")>();
+  return { ...actual, renderDossierDocument: vi.fn(actual.renderDossierDocument) };
+});
 
 const FORMULATION: Formulation = {
   schemaVersion: "1.0",
@@ -574,5 +583,85 @@ describe("DossierPanel — evidence matrix filters (Phase 3 gap closure)", () =>
     expect(await screen.findByText(/requirements$/)).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: "Mandatory only" }));
     expect(screen.getByText(/requirements$/)).toBeInTheDocument();
+  });
+});
+
+describe("DossierPanel — PDF/DOCX export (Phase 8)", () => {
+  async function createAndOpenDossier(user: ReturnType<typeof userEvent.setup>) {
+    renderPanel();
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+  }
+
+  it("shows a generating state while rendering, then saves via a browser download", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+
+    let resolveRender!: (v: { bytes: Uint8Array; mimeType: string }) => void;
+    vi.mocked(renderDossierDocument).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRender = resolve; }),
+    );
+    const createObjectURLSpy = vi.fn(() => "blob:mock");
+    URL.createObjectURL = createObjectURLSpy;
+    URL.revokeObjectURL = vi.fn();
+
+    await user.click(screen.getByRole("button", { name: "Export PDF" }));
+    expect(await screen.findByRole("button", { name: "Generating…" })).toBeInTheDocument();
+    // The other export action is disabled while one is generating.
+    expect(screen.getByRole("button", { name: "Export DOCX" })).toBeDisabled();
+
+    resolveRender({ bytes: new Uint8Array([1, 2, 3]), mimeType: "application/pdf" });
+
+    await screen.findByRole("button", { name: "Export PDF" }); // back to normal label
+    expect(createObjectURLSpy).toHaveBeenCalled();
+  });
+
+  it("surfaces a visible error and does not crash when rendering fails", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+
+    vi.mocked(renderDossierDocument).mockRejectedValueOnce(new Error("render exploded"));
+
+    await user.click(screen.getByRole("button", { name: "Export DOCX" }));
+    expect(await screen.findByText(/render exploded/)).toBeInTheDocument();
+    // The button recovers — a failed export must not leave the UI stuck.
+    expect(screen.getByRole("button", { name: "Export DOCX" })).toBeEnabled();
+  });
+
+  it("never persists or mutates any dossier record as part of exporting", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+    bridge.upsertRecords.mockClear();
+
+    vi.mocked(renderDossierDocument).mockResolvedValueOnce({ bytes: new Uint8Array([1]), mimeType: "application/pdf" });
+    await user.click(screen.getByRole("button", { name: "Export PDF" }));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Generating…" })).not.toBeInTheDocument());
+
+    expect(bridge.upsertRecords).not.toHaveBeenCalled();
+  });
+
+  it("renders a real PDF and a real DOCX end to end (no mock)", async () => {
+    // `mockImplementationOnce`/`mockRejectedValueOnce`/`mockResolvedValueOnce`
+    // in the earlier tests each affect only one call — by default this mock
+    // already delegates to the real renderDossierDocument (see the
+    // vi.mock("@/lib/documentExports", ...) setup above), so no restore is
+    // needed here.
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+    URL.createObjectURL = vi.fn(() => "blob:mock");
+    URL.revokeObjectURL = vi.fn();
+
+    await user.click(screen.getByRole("button", { name: "Export PDF" }));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Generating…" })).not.toBeInTheDocument(), { timeout: 5000 });
+    expect(screen.queryByText(/Export failed/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Export DOCX" }));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Generating…" })).not.toBeInTheDocument(), { timeout: 5000 });
+    expect(screen.queryByText(/Export failed/)).not.toBeInTheDocument();
   });
 });

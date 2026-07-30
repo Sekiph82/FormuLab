@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ArrowLeft, FileCheck2, History, Plus, RotateCcw, ShieldCheck, Tags } from "lucide-react";
 import {
+  assembleDossierExportSnapshot,
   DOSSIER_EVIDENCE_CANDIDATE_SOURCE_KINDS,
   DOSSIER_EVIDENCE_TYPES,
   DOSSIER_REQUIREMENT_TYPES,
@@ -76,7 +77,9 @@ import {
   type ClaimEvidenceLink,
   type ClaimReview,
   type CompatibilitySnapshot,
+  type DocumentFormat,
   type DossierEvidenceCandidate,
+  type DossierExportSnapshotInput,
   type DossierRequirementRow,
   type Formulation,
   type FormulationVersion,
@@ -105,6 +108,8 @@ import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata"
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
 import { buildXlsxBlob } from "@/lib/xlsx";
+import { saveBinaryWithFeedback } from "@/lib/download";
+import { renderDossierDocument } from "@/lib/documentExports";
 import { AttachmentField } from "./AttachmentField";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
@@ -214,6 +219,10 @@ export function DossierPanel({
   });
 
   const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("regulatory");
+  // Phase 8 — PDF/DOCX document export. Never more than one format
+  // generating at a time; a failure is surfaced, never silently dropped.
+  const [exportingFormat, setExportingFormat] = useState<DocumentFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(initialDossierId ?? null);
   const [section, setSection] = useState<DetailSection>("overview");
   const [error, setError] = useState<string | null>(null);
@@ -509,10 +518,10 @@ export function DossierPanel({
 
   // ----------------------------------------------------------- export/import
   // Phase 3 §15: JSON dossier export, CSV/Excel evidence-matrix export, and
-  // JSON/CSV/Excel evidence-metadata import — no PDF/DOCX here, that is
-  // Phase 7. Imported rows are always forced into addDraftEvidence's own
-  // unverified/draft path; the import actor can never verify what it just
-  // imported (verifyEvidence still requires requireAuthorizedRegulatoryActor).
+  // JSON/CSV/Excel evidence-metadata import. Imported rows are always
+  // forced into addDraftEvidence's own unverified/draft path; the import
+  // actor can never verify what it just imported (verifyEvidence still
+  // requires requireAuthorizedRegulatoryActor).
   const exportDossierJson = () => {
     if (!selectedDossier) return;
     const payload = {
@@ -524,6 +533,47 @@ export function DossierPanel({
       submissions: submissions.filter((s) => s.dossierId === selectedDossier.id),
     };
     downloadBlob(`${selectedDossier.dossierCode}.json`, new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+  };
+
+  // Phase 8 — real PDF/DOCX document export, for the selected dossier's
+  // exact current revision. Builds a fresh, frozen assembleDossierExportSnapshot
+  // from the records already loaded above (never a second query path), so
+  // any assembly-level integrity check (mismatched revision, cross-dossier
+  // record, missing formulaVersionId) fails the export cleanly instead of
+  // producing an incomplete or fabricated document. The formula version's
+  // own real status drives the watermark — nothing here can imply approval
+  // or authority submission, and nothing here mutates a dossier record.
+  const dossierFormulaVersion = selectedDossier ? versions.find((v) => v.id === selectedDossier.formulaVersionId) : undefined;
+  const exportDossierDocument = async (format: DocumentFormat) => {
+    if (!selectedDossier || exportingFormat) return;
+    setExportError(null);
+    setExportingFormat(format);
+    try {
+      const dossierId = selectedDossier.id;
+      const scopedReviews = reviews.filter((r) => r.dossierId === dossierId);
+      const scopedReviewIds = new Set(scopedReviews.map((r) => r.id));
+      const input: DossierExportSnapshotInput = {
+        dossier: selectedDossier,
+        dossierRevision: selectedDossier.revision,
+        requirements: requirements.filter((r) => r.dossierId === dossierId),
+        evidenceItems: evidenceItems.filter((e) => e.dossierId === dossierId),
+        links: links.filter((l) => l.dossierId === dossierId),
+        reviews: scopedReviews,
+        reviewRevocations: reviewRevocations.filter((rv) => scopedReviewIds.has(rv.revokesReviewId)),
+        submissions: submissions.filter((s) => s.dossierId === dossierId),
+        manualRequirementActions: manualActions.filter((a) => a.dossierId === dossierId),
+        formulaApprovalStatusAtGeneration: dossierFormulaVersion?.status,
+        generationTimestamp: new Date().toISOString(),
+        generatedBy: actor.userId,
+      };
+      const snapshot = assembleDossierExportSnapshot(input);
+      const { bytes, mimeType } = await renderDossierDocument(snapshot, format);
+      await saveBinaryWithFeedback(`${selectedDossier.dossierCode}-rev${selectedDossier.revision}.${format}`, bytes, mimeType);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExportingFormat(null);
+    }
   };
   const matrixExportRows = (rows: DossierRequirementRow[]) =>
     rows.map((row) => ({
@@ -1380,7 +1430,14 @@ export function DossierPanel({
 
           {section === "evidence" && (
             <div>
-              <div className="mb-2 flex flex-wrap justify-end gap-1.5">
+              <div className="mb-2 flex flex-wrap items-center justify-end gap-1.5">
+                {exportError && <span className="mr-auto text-[10px] text-error">{t("dossier.exportError", { message: exportError })}</span>}
+                <button onClick={() => void exportDossierDocument("pdf")} disabled={!!exportingFormat} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40">
+                  {exportingFormat === "pdf" ? t("dossier.exportGenerating") : t("dossier.exportPdf")}
+                </button>
+                <button onClick={() => void exportDossierDocument("docx")} disabled={!!exportingFormat} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40">
+                  {exportingFormat === "docx" ? t("dossier.exportGenerating") : t("dossier.exportDocx")}
+                </button>
                 <button onClick={exportDossierJson} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
                   {t("dossier.exportJson")}
                 </button>

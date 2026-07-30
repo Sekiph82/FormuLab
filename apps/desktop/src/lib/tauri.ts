@@ -267,6 +267,17 @@ export async function saveTextFile(filename: string, content: string): Promise<S
   return path ? { kind: "saved", path } : { kind: "canceled" };
 }
 
+/** Save arbitrary bytes (e.g. a generated PDF/DOCX) via the same native
+ *  "Save As" dialog `saveTextFile` uses (desktop only). `bytes` is sent as a
+ *  plain number array — never coerced through a UTF-8 string — so the Rust
+ *  side writes the exact bytes given. Throws on write failure. */
+export async function saveBinaryFile(filename: string, bytes: Uint8Array): Promise<SaveResult> {
+  if (!isTauri) return { kind: "not-desktop" };
+  const { invoke } = await import("@tauri-apps/api/core");
+  const path = await invoke<string | null>("save_binary_file", { filename, bytes: Array.from(bytes) });
+  return path ? { kind: "saved", path } : { kind: "canceled" };
+}
+
 /** The active workspace directory (desktop only; null in browser). */
 export async function workspacePath(): Promise<string | null> {
   if (!isTauri) return null;

@@ -540,6 +540,35 @@ pub async fn save_text_file(
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
+/// Writes raw bytes to `path` — never routed through a Rust `String`/UTF-8
+/// step, so an arbitrary byte sequence (e.g. a generated PDF/DOCX) round-trips
+/// exactly. Split out from `save_binary_file` so it's testable without a live
+/// dialog/AppHandle (mirrors `unique_name`/`dir_entries` below).
+fn write_binary_file(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    std::fs::write(path, bytes).map_err(|e| format!("write failed: {e}"))
+}
+
+/// Save arbitrary bytes (e.g. a generated PDF/DOCX) through the same native
+/// "Save As" dialog `save_text_file` uses — same reuse-the-dialog convention,
+/// same cancel/error shape, just a `Vec<u8>` payload instead of a `String` so
+/// the bytes are never coerced through UTF-8 text at any point. The save path
+/// always comes from the OS file picker, never a caller-supplied string, so
+/// there is no path-traversal surface to validate.
+#[tauri::command]
+pub async fn save_binary_file(
+    app: AppHandle,
+    filename: String,
+    bytes: Vec<u8>,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let Some(choice) = app.dialog().file().set_file_name(&filename).blocking_save_file() else {
+        return Ok(None); // user cancelled
+    };
+    let path = choice.into_path().map_err(|e| e.to_string())?;
+    write_binary_file(&path, &bytes)?;
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
 /// Minimal std-only base64 (avoids adding a dependency).
 fn base64_encode(input: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -559,7 +588,7 @@ fn base64_encode(input: &[u8]) -> String {
 mod tests {
     use super::{
         base64_encode, dir_entries, encode_for_preview, exceeds_preview_cap, locate_under,
-        mime_for, open_url, unique_name,
+        mime_for, open_url, unique_name, write_binary_file,
     };
 
     #[test]
@@ -663,6 +692,31 @@ mod tests {
         assert_eq!(unique_name(&dir, ".env"), ".env-1");
 
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn write_binary_file_round_trips_arbitrary_bytes_including_invalid_utf8() {
+        // 0x00 and the lone continuation/overlong bytes below are not valid
+        // UTF-8 — a text-based write path would corrupt or reject them.
+        let path = std::env::temp_dir().join(format!("ai4s-binary-write-test-{}.bin", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let bytes: Vec<u8> = vec![0x00, 0xFF, 0xC0, 0x80, b'h', b'i', 0x00];
+
+        write_binary_file(&path, &bytes).unwrap();
+        let read_back = std::fs::read(&path).unwrap();
+        assert_eq!(read_back, bytes);
+
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn write_binary_file_reports_a_clear_error_for_an_unwritable_path() {
+        let bogus = std::env::temp_dir()
+            .join(format!("ai4s-nonexistent-dir-{}", std::process::id()))
+            .join("f.bin");
+        let result = write_binary_file(&bogus, b"data");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("write failed"));
     }
 
     #[test]

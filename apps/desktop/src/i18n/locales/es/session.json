@@ -1642,7 +1642,11 @@
     "invalidJson": "That isn't valid JSON.",
     "invalidShape": "Each row needs at least a title.",
     "importRowError": "Row {{row}}: missing a title.",
-    "notLegalAdvice": "Compliance-assistance only — this is not a claim of legal compliance, and no document upload or checkbox alone ever makes a product compliant."
+    "notLegalAdvice": "Compliance-assistance only — this is not a claim of legal compliance, and no document upload or checkbox alone ever makes a product compliant.",
+    "exportPdf": "Export PDF",
+    "exportDocx": "Export DOCX",
+    "exportGenerating": "Generating…",
+    "exportError": "Export failed: {{message}}"
   },
   "claimsLabels": {
     "heading": "Claims & Labels",

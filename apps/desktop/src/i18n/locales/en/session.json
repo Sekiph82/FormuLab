@@ -1631,6 +1631,10 @@
     "exportJson": "Export dossier JSON",
     "exportMatrixCsv": "Export matrix CSV",
     "exportMatrixXlsx": "Export matrix Excel",
+    "exportPdf": "Export PDF",
+    "exportDocx": "Export DOCX",
+    "exportGenerating": "Generating…",
+    "exportError": "Export failed: {{message}}",
     "importEvidence": "Import evidence",
     "importHint": "Paste a JSON array or CSV of evidence metadata ({{headers}}), or upload an Excel file. Imported rows are always added as draft, unverified evidence — never silently promoted to verified.",
     "importExcelFile": "Excel file",
@@ -2026,7 +2030,7 @@
     },
     "dossier": {
       "title": "Regulatory dossier reports",
-      "description": "Dossier JSON export and evidence-matrix CSV/Excel export, from a dossier's Evidence Library. Final formatted PDF/DOCX dossier export: not yet implemented."
+      "description": "Dossier JSON export, evidence-matrix CSV/Excel export, and a formatted PDF/DOCX dossier export for the exact current revision, from a dossier's Evidence Library."
     },
     "claimsReview": {
       "title": "Claims review summary",

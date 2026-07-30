@@ -1,71 +1,79 @@
 # Phase 8 — Reports, Dossiers, Document Exports, Final Data Exchange Expansion
 
 ## Current status
-Session 3 complete: deterministic PDF and DOCX render engines implemented
-for a dossier export snapshot, tested, typechecked, lint-clean. No UI,
-Rust persistence, Data Exchange, audit, or authorization work done yet.
+Session 4 complete: real PDF/DOCX export wired into the Dossier
+workspace, backed by a new binary-safe Tauri save command. Reports
+description text updated for the one report type that's genuinely
+implemented. No Data Exchange, export-history persistence, or
+authorization redesign done yet.
 
-## Session 3 — render engines completed
-`apps/desktop/src/lib/documentExports/`: `renderDossierPdf` (`pdf-lib`),
-`renderDossierDocx` (`docx` npm package), both consuming one shared
-`buildDossierDocumentContent` intermediate model (`content.ts`) so the
-two formats can never silently diverge on what they include.
-`renderDossierDocument(snapshot, format)` is the single entry point,
-returning `{ bytes, mimeType }` with `mimeType` always read from
-`@ai4s/shared`'s `DOCUMENT_FORMAT_MIME_TYPES`.
+## Binary save implementation
+`save_binary_file(app, filename, bytes: Vec<u8>)` in `artifact_file.rs` —
+same native "Save As" dialog `save_text_file` already uses, same cancel/
+error shape (`Result<Option<String>, String>`). `bytes` travels as a
+plain JSON number array (`Array.from(bytes)` on the JS side), never
+coerced through a Rust `String`/UTF-8 step. The write itself is a small
+extracted `write_binary_file(path, bytes)` helper, tested directly
+(round-trips arbitrary bytes including `0x00`/invalid UTF-8; a missing
+parent directory fails with a clear "write failed" error) since the
+dialog-driving command itself can't be unit tested headlessly — same
+convention `save_text_file`'s own (untested) shape already follows.
+Registered in `lib.rs` next to `save_text_file`. `tauri.ts` gained
+`saveBinaryFile`; `download.ts` gained `saveBinaryWithFeedback` (toast +
+browser-Blob fallback, mirrors `saveTextWithFeedback` exactly).
 
-## Libraries chosen
-- PDF: `pdf-lib` (pure TS, no native/Rust dependency, browser+Node).
-  Low-level text drawing only — never an HTML/DOM-to-PDF path.
-- DOCX: `docx` npm package (pure TS, `Packer.toArrayBuffer`).
-Both added to `apps/desktop/package.json`; lockfile updated via
-`pnpm install`.
+## Dossier export UI
+`DossierPanel.tsx`'s Evidence Library toolbar gained "Export PDF"/
+"Export DOCX" buttons. Each: pre-filters the panel's already-loaded
+dossier-domain state to the selected dossier (never a second query),
+calls `assembleDossierExportSnapshot` (Session 2) — any integrity
+failure there (mismatched revision, missing formulaVersionId) surfaces
+as a visible error, blocking the export rather than producing an
+incomplete document — then `renderDossierDocument` (Session 3) and
+`saveBinaryWithFeedback`. Loading ("Generating…", other export button
+disabled), success (toast via `saveBinaryWithFeedback`), cancellation
+(silent, matching the existing JSON/CSV export convention), and failure
+(inline error text) states are all covered. The formula version's real
+`status` (via the `versions` prop) drives the watermark — nothing
+persists, nothing sets approval/verification fields.
 
-## Watermark
-`watermark.ts`'s `computeSnapshotWatermark` reuses `draftWatermark()`
-from `@ai4s/shared` (`engine/exports.ts`) for the exact warning text —
-never a second, parallel string. An undefined source approval status
-gets its own distinct "APPROVAL STATUS UNKNOWN" text rather than being
-folded into "draft" (that would fabricate certainty this app doesn't
-have).
-
-## Determinism decision
-PDF: creation/modification dates are set explicitly from
-`snapshot.generationTimestamp` (never `new Date()` with no args); no
-other library randomness observed — the test suite asserts full
-byte-for-byte equality across two renders and it holds. DOCX: the `docx`
-package's public API exposes no way to override its zip/core-properties
-timestamps (confirmed against its own type definitions), so byte
-equality is not guaranteed — the test suite instead extracts and
-compares `word/document.xml`'s actual text content (the explicitly
-permitted structural-equality fallback), which IS stable.
+## Reports workspace
+Only the `dossier` row's description was updated (it already linked to
+`/dossiers`, so no code change was needed) — every other row's "not yet
+implemented" text is untouched.
 
 ## Files changed this session
-`apps/desktop/package.json` (+`docx`, +`pdf-lib`), `pnpm-lock.yaml`,
-`apps/desktop/src/lib/documentExports/{content,watermark,dossierPdf,
-dossierDocx,index}.ts` (new), `.../dossierExports.test.ts` (new, 18
-tests).
+`apps/desktop/src-tauri/src/artifact_file.rs` (+`save_binary_file`,
++`write_binary_file`, +2 tests), `apps/desktop/src-tauri/src/lib.rs`
+(+1 registration), `apps/desktop/src/lib/tauri.ts` (+`saveBinaryFile`),
+`apps/desktop/src/lib/download.ts` (+`saveBinaryWithFeedback`),
+`apps/desktop/src/lib/download.test.ts` (new, 5 tests),
+`apps/desktop/src/components/formula/DossierPanel.tsx` (export wiring),
+`apps/desktop/src/components/formula/DossierPanel.test.tsx` (+4 tests),
+`apps/desktop/src/i18n/locales/en/session.json` (+4 keys, 1 description
+update) + the other 7 locales (English placeholder, via
+`scripts/i18n-fill-missing.py`).
 
 ## Focused tests passing
-`vitest run src/lib/documentExports/dossierExports.test.ts` — 18/18.
-Desktop typecheck — clean. Desktop lint — clean.
+`cargo test --lib artifact_file::` — 12/12. `vitest run
+src/lib/download.test.ts src/components/formula/DossierPanel.test.tsx
+src/i18n/parity.test.ts` — 40/40 (includes a real, unmocked end-to-end
+PDF+DOCX render inside the actual UI component). Desktop typecheck —
+clean. Desktop lint — clean.
 
 ## Known limitations
-No Unicode font embedding — `pdf-lib`'s StandardFonts/WinAnsiEncoding
-cannot render non-Latin script content (dossier codes/titles in this
-domain are Latin-script today; a future non-Latin dossier would need an
-embedded TTF, out of this session's scope). No binary file-save wiring
-yet — `apps/desktop/src/lib/tauri.ts`'s `saveTextFile` is text-only;
-Session 4 needs a `saveBinaryFile` Rust command addition (documented
-here, not implemented, per this session's scope boundary). No UI action
-calls these renderers yet.
+Non-Latin PDF font embedding still out of scope (unchanged from Session
+3 — documented there, not attempted here). No Data Exchange template, no
+export-history persistence record, no authorization gating beyond the
+existing reviewer-role selector. Export always targets the dossier's
+current `revision` (no revision picker yet — matches the rest of this
+panel's "current revision only" scope).
 
 ## Recommended sessions (unchanged plan, see external log for detail)
-4. Reports + Dossiers desktop workspace wiring (next)
-5. Data Exchange expansion
+5. Final Data Exchange expansion (next)
 6. Export history, audit, authorization integration
 7. Focused Phase 8 verification
 8. Closure: full regression, release, installers, shortcut, native verify
 
 ## Exact next session
-Phase 8 Session 4: Reports and Dossiers Desktop Export Wiring.
+Phase 8 Session 5: Final Data Exchange Expansion.

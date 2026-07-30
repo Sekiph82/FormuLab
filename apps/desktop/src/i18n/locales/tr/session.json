@@ -1642,7 +1642,11 @@
     "invalidJson": "Bu geçerli bir JSON değil.",
     "invalidShape": "Her satırın en azından bir başlığı olmalı.",
     "importRowError": "Satır {{row}}: başlık eksik.",
-    "notLegalAdvice": "Yalnızca uyum yardımcısıdır — bu, yasal uyumluluk iddiası değildir ve tek başına hiçbir belge yüklemesi veya onay kutusu bir ürünü uyumlu hale getirmez."
+    "notLegalAdvice": "Yalnızca uyum yardımcısıdır — bu, yasal uyumluluk iddiası değildir ve tek başına hiçbir belge yüklemesi veya onay kutusu bir ürünü uyumlu hale getirmez.",
+    "exportPdf": "Export PDF",
+    "exportDocx": "Export DOCX",
+    "exportGenerating": "Generating…",
+    "exportError": "Export failed: {{message}}"
   },
   "claimsLabels": {
     "heading": "İddialar ve Etiketler",
