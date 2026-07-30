@@ -63,3 +63,28 @@ local workspace + SQLite + JSONL provenance.
 - Do not write inferences as verified facts; tie conclusions to code or data.
 - New session workspaces are local git repos: the app initializes them and makes
   best-effort local commits after workspace file changes. Never set a remote or push.
+
+## Phase handoffs
+
+- Use `docs/handoffs/PHASE7_CURRENT.md` for active Phase 7 state.
+- Keep implementation sessions bounded to one related subsystem and one logical commit.
+- Use a fresh Claude context after each completed session.
+- Update the active handoff once at session end.
+- Reserve full regression, release builds, installers, and native verification for closure sessions.
+
+## Data integrity
+
+- Preserve `.FormuLab/runs.db`.
+- Saved formula versions are immutable.
+- Blank import or analytical values remain blank or unknown — never zero.
+- Missing evidence must not be fabricated or treated as certainty.
+- Imports, agents, and system actors cannot approve or verify regulated records.
+- Approval and verification require a named authorized human.
+
+## Git and testing
+
+- Do not overwrite unrelated working-tree changes.
+- Stage only current-task files.
+- Use targeted tests during implementation sessions.
+- Run full-project regression only in closure sessions.
+- Do not force-push.
