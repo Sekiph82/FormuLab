@@ -1,6 +1,6 @@
 /**
  * UI-integration coverage for the Data Exchange Center workspace: the
- * Template Library shows all 24 cards, module filtering works, sections
+ * Template Library shows all 35 cards, module filtering works, sections
  * switch, blank/example downloads don't throw, and the upload dialog
  * previews a file (never committing without an explicit confirm). Same
  * mocking discipline as DoePanel.test.tsx — only `@/lib/masterdata` and
@@ -75,12 +75,12 @@ function renderPage() {
 }
 
 describe("DataExchangePage — Template Library", () => {
-  it("shows all 24 template cards by default", async () => {
+  it("shows all 35 template cards by default", async () => {
     renderPage();
     expect(await screen.findByText("Raw Materials Master")).toBeInTheDocument();
     expect(screen.getByText("DOE Observations")).toBeInTheDocument();
-    // 24 upload buttons, one per card — the most reliable proxy for card count.
-    expect(screen.getAllByRole("button", { name: "Upload" })).toHaveLength(24);
+    // 35 upload buttons, one per card — the most reliable proxy for card count.
+    expect(screen.getAllByRole("button", { name: "Upload" })).toHaveLength(35);
   });
 
   it("filters cards by module", async () => {

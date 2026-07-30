@@ -312,7 +312,7 @@ function CandidateCard({
             </span>
           </div>
         </div>
-        {selected && <CheckCircle2 size={15} className="shrink-0 text-accent" aria-hidden="true" />}
+        {selected && <CheckCircle2 size={15} className="shrink-0 text-accent" aria-hidden />}
       </div>
 
       {candidate.formula.length === 0 ? (

@@ -1,71 +1,59 @@
-# Phase 7 — Reverse Formulation — Current State
+# Phase 7 — Reverse Formulation — CLOSED
 
 ## Status
-All Phase 7 subsystems complete: shared domain, candidate generation/
-scoring, Rust persistence, Data Exchange integration, the desktop
-workspace, and candidate-to-formula integration. Ready for closure.
+Closed. All subsystems complete: shared domain (declaration parsing,
+ingredient mapping, analytical inference, candidate generation, scoring/
+evidence confidence), Rust persistence (11 collections), Data Exchange
+integration (11 templates, 24→35 total), the `/reverse-formulation`
+workspace, and candidate-to-formula conversion.
 
-## Completed (Session 6: Candidate-to-Formula Integration)
-- Added an explicit, two-step conversion flow to `CandidateComparisonPanel`:
-  once a candidate is both saved (persisted to `reverse_formula_candidates`)
-  and explicitly selected, a "Create formulation draft" / "Create new
-  version" action appears. Both paths reuse the existing formulation engine
-  (`newFormulation`/`newVersion`/`saveFormulation`/`saveFormulationVersion`
-  from `@/lib/formulations` — the same functions `dataExchangeCommit.ts`'s
-  `commitFormulaBom` already uses) — no second persistence path created.
-- "New draft" (no target formulation) always available; "new version" on an
-  explicitly chosen existing formulation requires picking one from a select
-  populated by `listFormulations()`. Never decided silently.
-- Validates before writing: refuses an empty-formula candidate, and refuses
-  (with a visible error, no placeholder material) if any line's material
-  code has left the catalog — checked again at conversion time, not just at
-  generation time.
-- Low `evidenceConfidence` (< 0.5) shows a visible warning; a permanent
-  "decision support, not approval" notice sits beside every conversion
-  action. Traceability (study code + candidate code) is recorded in the new
-  version's `changeReason` and an `appendAudit` event's structured
-  `metadata` — no schema change needed.
-- The action disappears after one success (button replaced by a success
-  message), preventing accidental duplicate creation from repeated clicks.
+## Final capabilities
+Given a benchmark product's declared ingredients (+ optional analytical
+results), generates evidence-scored candidates against a target/constraints.
+Score and evidence-confidence show as two distinct numbers — unevaluated
+dimensions read "not evaluated", never defaulted to passing. Candidates
+convert into a new formulation draft or a new version on an existing one via
+the real formulation engine (no second persistence path); no approval/
+verification is ever inherited; missing catalog materials block conversion
+visibly. Full detail: IMPLEMENTATION_STATUS.md's "Reverse Formulation
+(Phase 7)" section.
 
-## Versioning and approval safeguards
-- Every created `FormulationVersion` starts at `status: "concept"` with
-  empty `approvalRecordIds`/`regulatoryFindingIds`/`safetyFindingIds` —
-  never inherited from anywhere, since nothing here reads an approval
-  record at all. `saveFormulationVersion` only ever appends a new,
-  freshly-`newId()`'d version; an existing version is never targeted for
-  overwrite. Formula lines preserve exact order (declared-line index →
-  `lineNumber`), exact `materialId`/`percentage`, and leave unsupplied
-  fields (e.g. `inciName`) `undefined` rather than fabricated.
+## Tests passing (closure regression, 2026-07-30)
+Shared 1154/1154, desktop 614/614, Rust 79/79; shared/desktop typecheck,
+desktop lint, Rust clippy clean. Closure fixed 2 pre-existing regressions
+surfaced by full regression (not new Phase 7 defects): a stale
+`DataExchangePage.test.tsx` template-count assertion (24→35, never updated
+for the Phase 7 additions), and an i18next-lint literal-string violation on
+`CandidateComparisonPanel` (`aria-hidden="true"` → bare `aria-hidden`,
+matching this codebase's icon-component convention).
 
-## Cleanup
-Removed the Session 4 `dataExchangeCommit.ts` collection-bridge
-(`ReverseFormulationCollection` type + `rfList`/`rfUpsert`/`rfFindByCode`) —
-now redundant since `masterdata.ts`'s real `Collection` union (added
-Session 5) already covers all 11 collections; every handler now calls
-`listRecords`/`upsertRecords`/`findByCode` directly.
+## Release artifacts
+`apps/desktop/src-tauri/target/release/bundle/`:
+- `msi/FormuLab_0.4.0_x64_en-US.msi` (35,356,672 B) —
+  sha256 `A21908257565EE982FAB72E35621A94974726A8A7B6CC1DA6FACDE67B86385AC`
+- `nsis/FormuLab_0.4.0_x64-setup.exe` (24,693,477 B) —
+  sha256 `AF936CEFF3338714D772BA5D7D03DDF47E375DC26D842E03A3AE02C75EC0BAAB`
+  (no prior repo hashing convention existed; used `Get-FileHash -Algorithm SHA256`)
 
-## Files changed
-- `apps/desktop/src/app/routes/ReverseFormulationPage.tsx`
-- `apps/desktop/src/components/reverseFormulation/CandidateComparisonPanel.tsx`
-- `apps/desktop/src/app/routes/ReverseFormulationPage.test.tsx`
-- `apps/desktop/src/lib/dataExchangeCommit.ts` (bridge removal only)
-- `apps/desktop/src/i18n/locales/*/session.json` (12 new `conversion.*` keys, all 8 locales)
+## Native verification result
+PARTIALLY LIVE VERIFIED — same honest label `TAURI_LIVE_VERIFICATION.md`
+already uses. Real launch/window/Sidebar presence confirmed against the
+packaged release exe. Deep interior click-through hit the same wheel-scroll/
+DPI-coordinate environment limitation already disclosed there (reproduced,
+not new). Interior behavior verified instead via
+`ReverseFormulationPage.test.tsx`'s 23 real-component-tree integration
+tests (real render + `userEvent`, only the Tauri IPC boundary mocked).
 
-## Tests passing
-- `pnpm --filter @ai4s/desktop exec vitest run ReverseFormulationPage.test.tsx dataExchangeCommit.test.ts parity.test.ts` — 99/99.
-- `pnpm --filter @ai4s/desktop typecheck` — clean. No shared code touched this session.
+## Known non-blocking limitations
+- Conversion forms are intentionally minimal; no cost/regulatory/lab
+  pre-check before conversion (decision support, not a gate, by design).
+- Full native interior click-through stays environment-blocked pending
+  `tauri-driver`/WebDriver (same recommendation as Phase 1).
 
-## Remaining limitations
-- Conversion forms are minimal (target-formulation select + one button),
-  matching the rest of the workspace's intentionally lean entry forms.
-- No cost/regulatory/laboratory pre-check before conversion — out of scope
-  by design (decision support only, not a gate).
+## Final commit and sync status
+`chore(reverse-formulation): close phase 7` on `feature/laboratory-stability`,
+pushed to its tracking branch.
 
-## Latest commit and sync status
-See commit `feat(reverse-formulation): integrate candidates with
-formulations` on `feature/laboratory-stability`, pushed to its tracking
-branch.
-
-## Next session
-Phase 7 Closure: Full Verification and Release
+## Next recommended project phase
+Evidence origin classification, manufacturing methods + batch records, or
+PDF/DOCX dossier export — see IMPLEMENTATION_STATUS.md's "Not yet started".

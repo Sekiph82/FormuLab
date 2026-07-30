@@ -1101,6 +1101,73 @@ message — never a silent or fake write. See
 **Deferred to Phase 8**: a final formatted PDF/DOCX dossier/report export
 sourced from Data Exchange data; the 24→32-33 template expansion.
 
+### Reverse Formulation (Phase 7)
+Given a competitor/benchmark product (declared ingredient list, optional
+analytical results), proposes evidence-scored candidate formulas against a
+target and constraints — decision support for the formulator, never an
+auto-approved formula.
+
+**Implemented, verified by tests and by UI-integration tests**:
+- Shared domain (`packages/shared/src/schemas/reverseFormulation.ts` +
+  `src/engine/{declarationParser,ingredientMapper,analyticalInference,
+  candidateGenerator,scoringModel}.ts`): parses an INCI/declared-ingredient
+  list into ranked bands, maps declared names to real catalog materials
+  (never a fabricated match), infers composition ranges from analytical
+  results where present, generates candidate formulas against a target and
+  constraint set, and scores each candidate with a formula-fit component
+  plus a separate, honestly-labeled evidence-confidence component —
+  dimensions with no supporting evidence are marked "not evaluated" rather
+  than defaulted to a passing score.
+- Rust persistence: 11 new collections on the master-data allow-list
+  (`reverse_formulation_studies`, `reverse_formulation_benchmark_products`,
+  `reverse_formulation_benchmark_evidence`,
+  `reverse_formulation_declared_ingredients`,
+  `analytical_composition_results`, `reverse_ingredient_mappings`,
+  `reverse_formulation_targets`, `reverse_constraint_sets`,
+  `reverse_formula_candidates`, `candidate_score_explanations`,
+  `reverse_formulation_runs`), with `analytical_composition_results` and
+  `candidate_score_explanations` registered append-only — never silently
+  overwritten.
+- Data Exchange integration: all 11 collections above are full
+  `DataExchangeTemplateDefinition` templates (registry, CSV/Excel,
+  validation, commit handlers) — `DATA_EXCHANGE_TEMPLATES` grew from 24 to
+  35 — so reverse-formulation data can be bulk-imported/exported through
+  the same Data Exchange Center as every other domain, not a bespoke path.
+- `/reverse-formulation` desktop workspace (`ReverseFormulationPage.tsx`):
+  study creation/selection, benchmark product + declaration + analytical
+  sections, ingredient-mapping review, target/constraint entry, candidate
+  generation and comparison (`CandidateComparisonPanel.tsx`) with score and
+  evidence-confidence shown as two distinct numbers, never merged into one
+  "looks-approved" figure.
+- Candidate-to-formula conversion: an explicit, two-step flow reusing the
+  existing formulation engine (`newFormulation`/`newVersion`/
+  `saveFormulation`/`saveFormulationVersion` — no second persistence path).
+  Refuses conversion with a visible error (no placeholder material) if a
+  candidate's material has left the catalog, re-checked at conversion time.
+  Every created version starts `status: "concept"` with empty
+  `approvalRecordIds`/`regulatoryFindingIds`/`safetyFindingIds` — no
+  approval or verification is ever inherited from a candidate, a benchmark,
+  or an import. Formula lines preserve exact order/materialId/percentage
+  and leave unsupplied fields blank rather than fabricated. The action
+  disappears after one success, preventing duplicate creation from repeated
+  clicks.
+- Sidebar nav entry, i18n (12 `conversion.*` keys across all 8 shipped
+  locales).
+- Closure regression (2026-07-30): 1154 shared, 614 desktop, 79 Rust tests
+  green; shared/desktop typecheck, desktop lint, Rust clippy clean. Release
+  build produced signed-unsigned MSI + NSIS installers; the packaged
+  executable launches to a real native window with "Reverse Formulation" in
+  the Sidebar (screenshot-confirmed against the actual release build, not
+  the dev server). Deep interior click-through automation hit the same
+  wheel-scroll/DPI-coordinate environment limitation already disclosed in
+  [TAURI_LIVE_VERIFICATION.md](../TAURI_LIVE_VERIFICATION.md) for Phase 1 —
+  reproduced, not new — so interior candidate-generation/scoring/save/
+  conversion behavior is verified via `ReverseFormulationPage.test.tsx`'s
+  23 real-component-tree integration tests (real render, real
+  `userEvent` interactions, only the Tauri IPC boundary mocked), the same
+  evidence tier this document already accepts elsewhere when full native
+  click-through is environment-blocked.
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it
@@ -1110,7 +1177,6 @@ plainly so nothing here reads as available.
 |---|---|
 | Evidence origin classification wired into the pipeline | 4 |
 | Manufacturing methods + batch records | 8 |
-| Reverse formulation | 11 |
 | PDF/Word exports (JSON/CSV/Excel/ERP-draft-CSV exports exist — see gap-closure UI, Done) | 20, 21 |
 | Security threat model docs | 24 |
 | CI matrix, SBOM, secret scanning | 26 |
