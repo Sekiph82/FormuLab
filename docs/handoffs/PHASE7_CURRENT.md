@@ -1,64 +1,59 @@
 # Phase 7 — Reverse Formulation — Current State
 
 ## Status
-Shared-domain foundation and the candidate-generation/scoring engines are
-repaired, deterministic, and honest about missing evidence. Rust persistence
-(Session 3) has not started.
+Shared-domain foundation, candidate-generation/scoring engines, and the Rust
+master-data registration for Reverse Formulation are all repaired and
+compiling. Data Exchange integration (Session 4) has not started.
 
-## Completed (Session 2: Candidate Generation and Scoring Quality)
-- Deduplicated the near-identical `computeMatchScore` helpers: one
-  `computeTargetMatchScore` now lives in `scoringModel.ts` and is imported by
-  `candidateGenerator.ts`. Unified the pH/active-matter formulas (both now
-  use the same "1.0 in range, linear falloff outside, 0.5 neutral if
-  nothing comparable" rule) and guarded zero-width/inverted target ranges
-  against division by zero.
-- `candidateGenerator.ts`: candidates are now deterministically deduplicated
-  by formula signature (same materials at the same rounded percentages);
-  each candidate/rejection carries an honest reason; percentages are
-  rounded and residual-normalized to match their declared total exactly
-  (`normalizeToTotal`); every percentage is guarded to stay finite and
-  non-negative (`roundTo2`); `constraints.excludedMaterials`,
-  `minimumPercentages`, `maximumPercentages`, and `requiredMaterials` are
-  now actually enforced — a candidate that can't satisfy them is rejected
-  (`validateAgainstConstraints`) rather than silently produced.
-- `generateFromAnalytical` no longer manufactures a disguised duplicate of
-  the declared-hints candidate when there's no analytical data: it declines
-  (returns null with a reason) when `analysis.totalAnalytes === 0`.
-- `scoringModel.ts`: added `evaluatedDimensions` and `evidenceConfidence` to
-  `ScoringModelOutput`, separating "how much of this score is backed by real
-  evidence" from the score value itself. The weighted overall score now
-  normalizes by the actual valid weight total instead of assuming the
-  weights sum to 1. All per-dimension scores and inputs are guarded against
-  NaN/Infinity (`clamp01`, `Number.isFinite` checks throughout).
+## Completed (Session 3: Rust Persistence)
+- Fixed a hard compile error: `COLLECTIONS: [(&str, bool); 76]` was declared
+  with 76 slots but the array literal actually had 87 entries (76 pre-Phase-7
+  plus the 11 Reverse Formulation rows added without updating the length) —
+  Rust's fixed-size array type requires an exact match, so the crate did not
+  build. Corrected the length to 87.
+- Fixed a mutability misclassification: `candidate_score_explanations` was
+  registered mutable (`false`), but it is a computed scoring snapshot tied to
+  one scoring pass — the same shape as `doe_analyses`/
+  `compatibility_snapshots`/`optimization_runs`, all append-only so a
+  re-score can't silently overwrite the rationale behind an earlier decision.
+  Changed to `true`.
+- Verified the remaining 10 Reverse Formulation collections' names (snake_case,
+  matching the file's established TS-camelCase → Rust-snake_case convention)
+  and mutability against their TS schema lifecycles — all correct, no change.
+- Added the 11 missing `data/master/*.json` paths to the file's header
+  documentation (every other phase lists its paths there; Phase 7 didn't).
 
-## Architectural decisions
-- No optimization engine, DOE solver, or regulatory checker was built —
-  constraint handling is a reject-if-impossible gate, not a reflow/solver.
-- `evidenceConfidence` is derived mechanically (evaluated dimensions ÷ total
-  dimensions), not a separate model — kept intentionally simple.
+## Persistence decisions
+- No collection here grants approval/verification/regulated-record authority
+  — same deliberate omission as `approval_records`/`approval_audit_events`
+  elsewhere in this file.
+- `reverse_formula_candidates` stays mutable (status transitions in place,
+  same as `doe_candidates`) — it is a proposal container, not a saved
+  `FormulaVersion`, so this does not bypass the "saved formula versions are
+  immutable" rule; promotion to a real formula version is a separate,
+  untouched system.
 
 ## Files changed
-- `packages/shared/src/engine/candidateGenerator.ts`
-- `packages/shared/src/engine/scoringModel.ts`
-- `packages/shared/src/engine/candidateGenerator.test.ts`
-- `packages/shared/src/engine/scoringModel.test.ts`
+- `apps/desktop/src-tauri/src/masterdata.rs`
 
 ## Tests passing
-- `pnpm --filter @ai4s/shared exec vitest run <candidateGenerator.test.ts, scoringModel.test.ts>` — 23/23 passing.
-- `pnpm --filter @ai4s/shared typecheck` — clean.
+- `cargo test --lib masterdata::` in `apps/desktop/src-tauri` — 11/11 passing
+  (includes 4 new: allow-list + mutability for all 11 Reverse Formulation
+  collections, fixed-length regression guard, no-duplicate-name guard,
+  extended unknown/wrong-case name rejection).
+- Crate compiles (`cargo test` invocation itself is the compile check).
 
 ## Known limitations
-- `generateFromAnalytical` still has no real analyte-to-material
-  quantification model; it only ever mirrors the declared-hints candidate
-  (deduplicated when identical).
-- Constraint enforcement rejects violations; it does not attempt to reflow
-  percentages to satisfy them (that would require a real optimizer).
-- `scoreReverseFormulaCandidate`'s `availableMaterials: Map<string, any>`
-  param remains accepted but unused.
+- `CandidateScoreExplanation` (schemas/reverseFormulation.ts) has no `code`
+  or `id` field, so the generic `upsert_master_records`/`row_key()` path
+  cannot actually write rows into `candidate_score_explanations` yet — every
+  upsert would fail with "record has no `code` or `id`". Out of this
+  session's scope (schema change); flagging for whoever wires up Reverse
+  Formulation persistence calls from the UI.
 
 ## Latest commit and sync status
-See commit `feat(reverse-formulation): improve candidate generation and
-scoring` on `feature/laboratory-stability`, pushed to its tracking branch.
+See commit `fix(reverse-formulation): repair rust persistence registration`
+on `feature/laboratory-stability`, pushed to its tracking branch.
 
 ## Next session
-Phase 7 Session 3: Rust Persistence
+Phase 7 Session 4: Data Exchange Integration

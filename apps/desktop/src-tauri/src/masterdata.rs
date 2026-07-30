@@ -70,6 +70,17 @@
 //   data/master/data_exchange_import_row_results.json
 //   data/master/data_exchange_export_jobs.json
 //   data/master/data_exchange_schema_versions.json
+//   data/master/reverse_formulation_studies.json
+//   data/master/benchmark_products.json
+//   data/master/benchmark_evidence_items.json
+//   data/master/ingredient_declaration_lines.json
+//   data/master/analytical_composition_results.json
+//   data/master/target_product_profiles.json
+//   data/master/reverse_constraint_sets.json
+//   data/master/ingredient_mappings.json
+//   data/master/substitution_rules.json
+//   data/master/reverse_formula_candidates.json
+//   data/master/candidate_score_explanations.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -105,7 +116,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 76] = [
+const COLLECTIONS: [(&str, bool); 87] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -325,6 +336,36 @@ const COLLECTIONS: [(&str, bool); 76] = [
     ("data_exchange_import_row_results", true),
     ("data_exchange_export_jobs", true),
     ("data_exchange_schema_versions", true),
+    // Phase 7 — Reverse Formulation. Collections for benchmark products,
+    // evidence, declarations, mappings, constraints, and candidates. A
+    // study/benchmark product/target profile/constraint set is a mutable
+    // header row with its own status lifecycle, same reasoning as
+    // `regulatory_dossiers`/`optimization_profiles`. Declaration lines,
+    // ingredient mappings, and substitution rules each carry their own
+    // in-place status field (unmapped/mapped/conflicted/rejected,
+    // proposed/confirmed/rejected, proposed/validated/deprecated) — mutable
+    // single rows, same as `regulatory_evidence_items`/`doe_observations`.
+    // A generated candidate is likewise mutable: its `status` moves
+    // generated -> validated/rejected/selected in place, the same
+    // proposed -> shortlisted -> selected lifecycle `doe_candidates` uses.
+    // Analytical composition results are lab measurements and stay
+    // append-only for the same reason as `test_results`/`stability_results`:
+    // a recorded reading must never be silently overwritten. Candidate score
+    // explanations are a computed snapshot tied to one scoring pass, the
+    // same shape as `doe_analyses`/`compatibility_snapshots`/
+    // `optimization_runs` — re-scoring must not silently overwrite the
+    // rationale behind an earlier decision, so this is append-only too.
+    ("reverse_formulation_studies", false),
+    ("benchmark_products", false),
+    ("benchmark_evidence_items", false),
+    ("ingredient_declaration_lines", false),
+    ("analytical_composition_results", true),
+    ("target_product_profiles", false),
+    ("reverse_constraint_sets", false),
+    ("ingredient_mappings", false),
+    ("substitution_rules", false),
+    ("reverse_formula_candidates", false),
+    ("candidate_score_explanations", true),
 ];
 
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
@@ -591,10 +632,75 @@ mod tests {
         }
     }
 
+    // Phase 7 — Reverse Formulation. Studies/benchmark products/target
+    // profiles/constraint sets/declaration lines/mappings/substitution
+    // rules/candidates are mutable status-lifecycle rows (matching
+    // `regulatory_evidence_items`/`doe_observations`/`doe_candidates`).
+    // Analytical composition results are lab measurements, append-only like
+    // `test_results`/`stability_results`. Candidate score explanations are a
+    // computed snapshot of one scoring pass, append-only like
+    // `doe_analyses`/`compatibility_snapshots`/`optimization_runs`.
+    const REVERSE_FORMULATION_COLLECTIONS: [(&str, bool); 11] = [
+        ("reverse_formulation_studies", false),
+        ("benchmark_products", false),
+        ("benchmark_evidence_items", false),
+        ("ingredient_declaration_lines", false),
+        ("analytical_composition_results", true),
+        ("target_product_profiles", false),
+        ("reverse_constraint_sets", false),
+        ("ingredient_mappings", false),
+        ("substitution_rules", false),
+        ("reverse_formula_candidates", false),
+        ("candidate_score_explanations", true),
+    ];
+
+    #[test]
+    fn all_eleven_reverse_formulation_collections_are_allow_listed_with_the_designed_mutability() {
+        for (name, append_only) in REVERSE_FORMULATION_COLLECTIONS {
+            assert_eq!(
+                collection_spec(name),
+                Ok((name, append_only)),
+                "{name} should be allow-listed as append_only={append_only}"
+            );
+        }
+    }
+
+    #[test]
+    fn reverse_formulation_append_only_collections_cannot_be_treated_as_mutable() {
+        for (name, append_only) in REVERSE_FORMULATION_COLLECTIONS {
+            if append_only {
+                let (_, actual) = collection_spec(name).unwrap();
+                assert!(actual, "{name} must stay append_only=true, not be treated as mutable");
+            }
+        }
+    }
+
+    #[test]
+    fn collection_count_matches_the_fixed_array_length() {
+        // Regression guard for the array-length/entry-count mismatch this
+        // session repaired: COLLECTIONS must declare exactly as many slots
+        // as it has entries.
+        assert_eq!(COLLECTIONS.len(), 87);
+    }
+
+    #[test]
+    fn no_collection_name_is_registered_twice() {
+        let mut names: Vec<&str> = COLLECTIONS.iter().map(|(n, _)| *n).collect();
+        let total = names.len();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), total, "COLLECTIONS contains a duplicate name");
+    }
+
     #[test]
     fn unknown_collection_name_is_rejected() {
         assert!(collection_spec("regulatory_dossier_typo").is_err());
         assert!(collection_spec("../../etc/passwd").is_err());
+        // Reverse Formulation names are snake_case on this side of the
+        // boundary; the TypeScript-side camelCase spelling must not be
+        // silently accepted as an alias.
+        assert!(collection_spec("reverseFormulationStudies").is_err());
+        assert!(collection_spec("reverse_formulation_studies_typo").is_err());
     }
 
     /// `read_array`/`write_array` hold no in-memory state between calls — each
