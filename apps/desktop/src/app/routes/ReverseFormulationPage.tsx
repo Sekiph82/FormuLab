@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Beaker, FlaskConical, ListChecks, Sparkles } from "lucide-react";
 import {
   newId,
+  nextVersionNumber,
   type AnalyticalCompositionResult,
   type BenchmarkProduct,
+  type Formulation,
+  type FormulationLine,
   type IngredientDeclarationLine,
   type IngredientMapping,
   type IngredientMappingMethod,
@@ -17,7 +20,13 @@ import {
   CANDIDATE_SCORE_TYPES,
 } from "@ai4s/shared";
 import { listRecords, upsertRecords, nowIso } from "@/lib/masterdata";
-import { CandidateComparisonPanel, type ScoredCandidate } from "@/components/reverseFormulation/CandidateComparisonPanel";
+import { listFormulations, readFormulation, saveFormulation, saveFormulationVersion, newFormulation, newVersion, appendAudit, auditEvent } from "@/lib/formulations";
+import {
+  CandidateComparisonPanel,
+  type ScoredCandidate,
+  type CreateFormulationParams,
+  type CreateFormulationResult,
+} from "@/components/reverseFormulation/CandidateComparisonPanel";
 import { cn } from "@/lib/cn";
 
 type Section = "studies" | "products" | "target" | "candidates";
@@ -68,6 +77,7 @@ export function ReverseFormulationPage() {
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [targetProfiles, setTargetProfiles] = useState<TargetProductProfile[]>([]);
   const [constraintSets, setConstraintSets] = useState<ReverseConstraintSet[]>([]);
+  const [formulations, setFormulations] = useState<Formulation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +89,7 @@ export function ReverseFormulationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [s, p, d, a, m, mat, tp, cs] = await Promise.all([
+      const [s, p, d, a, m, mat, tp, cs, forms] = await Promise.all([
         listRecords("reverse_formulation_studies"),
         listRecords("benchmark_products"),
         listRecords("ingredient_declaration_lines"),
@@ -88,6 +98,7 @@ export function ReverseFormulationPage() {
         listRecords("materials"),
         listRecords("target_product_profiles"),
         listRecords("reverse_constraint_sets"),
+        listFormulations(),
       ]);
       setStudies(s);
       setProducts(p);
@@ -97,6 +108,7 @@ export function ReverseFormulationPage() {
       setMaterials(mat);
       setTargetProfiles(tp);
       setConstraintSets(cs);
+      setFormulations(forms);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -148,7 +160,7 @@ export function ReverseFormulationPage() {
   };
 
   const saveCandidate = async ({ candidate, score }: ScoredCandidate) => {
-    if (!selectedStudy || candidate.formula.length === 0) return;
+    if (!selectedStudy || candidate.formula.length === 0) return undefined;
     const candidateId = newId("rfcand");
     const candidateCode = `${selectedStudy.code}-${newId("c")}`;
     const record: ReverseFormulaCandidate = {
@@ -178,6 +190,76 @@ export function ReverseFormulationPage() {
       }));
     if (explanations.length > 0) await upsertRecords("candidate_score_explanations", explanations);
     await refresh();
+    return { candidateId, candidateCode };
+  };
+
+  /**
+   * Converts a saved candidate's formula into a real Formulation through the
+   * existing formulation/versioning workflow (`newFormulation`/`newVersion`/
+   * `saveFormulation`/`saveFormulationVersion` from `@/lib/formulations` —
+   * the same functions `dataExchangeCommit.ts`'s `commitFormulaBom` uses).
+   * No second formulation-persistence path is created here. Every created
+   * version starts at `status: "concept"` (never inherits approval) and is
+   * appended, never overwriting an existing saved version.
+   */
+  const createFormulationFromCandidate = async ({ candidate, candidateCode, target }: CreateFormulationParams): Promise<CreateFormulationResult> => {
+    if (!selectedStudy) throw new Error(t("reverseFormulation.candidates.conversion.noStudy"));
+    if (candidate.formula.length === 0) {
+      throw new Error(t("reverseFormulation.candidates.conversion.emptyFormula"));
+    }
+    const missing = candidate.formula.map((l) => l.materialId).filter((id) => !materials.some((m) => m.code === id));
+    if (missing.length > 0) {
+      throw new Error(t("reverseFormulation.candidates.conversion.missingMaterials", { codes: missing.join(", ") }));
+    }
+
+    const lines: FormulationLine[] = candidate.formula.map((l, i) => {
+      const mat = materials.find((m) => m.code === l.materialId)!;
+      return {
+        id: newId("line"),
+        lineNumber: i + 1,
+        phase: "A",
+        materialCode: mat.code,
+        displayName: mat.displayName,
+        inciName: mat.inciName,
+        functions: mat.functions,
+        // Preserved exactly as the candidate proposed it — no reformatting
+        // beyond the number-to-decimal-string boundary conversion.
+        percent: String(l.percentage),
+        isQsToHundred: false,
+        activeMatterPercent: mat.activeMatterPercent,
+        // Honestly attributed: this line came from the candidate generator,
+        // not a chemist's own judgment.
+        provenance: { origin: "model_estimate", evidenceClaimIds: [] },
+        notes: l.function ? `Reverse Formulation candidate role: ${l.function}` : undefined,
+      };
+    });
+
+    const changeReason = `Created from Reverse Formulation candidate ${candidateCode} (study ${selectedStudy.code}).`;
+    const traceMetadata = { studyCode: selectedStudy.code, candidateCode };
+
+    if (target === "new") {
+      const formulation = newFormulation(`${selectedStudy.name} — ${candidateCode}`, selectedStudy.productFamilyCode, {});
+      await saveFormulation(formulation);
+      const version = newVersion(formulation.id, lines, { versionNumber: 1, changeReason });
+      await saveFormulationVersion(version);
+      await saveFormulation({ ...formulation, currentVersionId: version.id, updatedAt: nowIso() });
+      await appendAudit(auditEvent(formulation.id, "reverse_formulation.candidate_converted", { versionId: version.id, detail: candidateCode, metadata: traceMetadata }));
+      await refresh();
+      return { formulationCode: formulation.code, versionLabel: version.versionLabel ?? `0.${version.versionNumber}` };
+    }
+
+    const { formulation, versions } = await readFormulation(target.formulationId);
+    if (!formulation) throw new Error(t("reverseFormulation.candidates.conversion.targetNotFound"));
+    const version = newVersion(formulation.id, lines, {
+      versionNumber: nextVersionNumber(versions),
+      parentVersionId: versions[0]?.id,
+      changeReason,
+    });
+    await saveFormulationVersion(version);
+    await saveFormulation({ ...formulation, currentVersionId: version.id, updatedAt: nowIso() });
+    await appendAudit(auditEvent(formulation.id, "reverse_formulation.candidate_converted", { versionId: version.id, detail: candidateCode, metadata: traceMetadata }));
+    await refresh();
+    return { formulationCode: formulation.code, versionLabel: version.versionLabel ?? `0.${version.versionNumber}` };
   };
 
   if (loading && studies.length === 0) {
@@ -248,6 +330,8 @@ export function ReverseFormulationPage() {
             target={linkedTarget}
             constraints={linkedConstraints}
             onSaveCandidate={saveCandidate}
+            existingFormulations={formulations.filter((f) => !f.archived)}
+            onCreateFormulation={createFormulationFromCandidate}
           />
         )}
       </div>

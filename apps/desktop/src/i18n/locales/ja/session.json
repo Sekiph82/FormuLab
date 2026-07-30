@@ -2309,6 +2309,20 @@
         "performance": "性能",
         "cost": "コスト",
         "regulatory": "規制"
+      },
+      "conversion": {
+        "noStudy": "スタディが選択されていません。",
+        "emptyFormula": "配合行のない候補から配合を作成することはできません。",
+        "missingMaterials": "配合を作成できません — カタログにない原料: {{codes}}。",
+        "targetNotFound": "選択されたターゲット配合が見つかりませんでした。",
+        "lowConfidenceWarning": "エビデンス信頼度が低いです — この配合を使用する前に慎重に確認してください。",
+        "decisionSupportNotice": "候補のスコアは意思決定支援であり、承認ではありません — 新しいレコードは未承認・未検証の状態で開始します。",
+        "success": "この候補から {{code}} {{version}} を作成しました。",
+        "targetLabel": "ターゲット配合",
+        "newFormulationOption": "新規配合",
+        "creating": "作成中…",
+        "createDraft": "配合ドラフトを作成",
+        "createVersion": "新しいバージョンを作成"
       }
     }
   }

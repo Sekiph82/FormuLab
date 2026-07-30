@@ -2309,6 +2309,20 @@
         "performance": "성능",
         "cost": "비용",
         "regulatory": "규제"
+      },
+      "conversion": {
+        "noStudy": "선택된 스터디가 없습니다.",
+        "emptyFormula": "배합 항목이 없는 후보로는 배합을 생성할 수 없습니다.",
+        "missingMaterials": "배합을 생성할 수 없습니다 — 카탈로그에 없는 원료: {{codes}}.",
+        "targetNotFound": "선택한 대상 배합을 찾을 수 없습니다.",
+        "lowConfidenceWarning": "증거 신뢰도가 낮습니다 — 이 배합을 사용하기 전에 신중히 검토하세요.",
+        "decisionSupportNotice": "후보 점수는 의사결정 지원용이며 승인이 아닙니다 — 새 레코드는 미승인·미검증 상태로 시작합니다.",
+        "success": "이 후보로부터 {{code}} {{version}}을(를) 생성했습니다.",
+        "targetLabel": "대상 배합",
+        "newFormulationOption": "새 배합",
+        "creating": "생성 중…",
+        "createDraft": "배합 초안 생성",
+        "createVersion": "새 버전 생성"
       }
     }
   }

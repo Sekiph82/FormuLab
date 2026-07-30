@@ -28,6 +28,72 @@ vi.mock("@/lib/masterdata", () => ({
   nowIso: () => "2026-01-01T00:00:00.000Z",
 }));
 
+// Same mocking discipline as DataExchangePage.test.tsx's commitFormulaBom
+// coverage: only the persistence boundary is mocked, so `newFormulation`/
+// `newVersion` shape and the "always concept, empty approvalRecordIds"
+// invariant are real, asserted against the actual mock call arguments.
+let versionCounter = 0;
+const formulationsBridge = {
+  listFormulations: vi.fn(),
+  readFormulation: vi.fn(),
+  saveFormulation: vi.fn(),
+  saveFormulationVersion: vi.fn(),
+  appendAudit: vi.fn(),
+};
+vi.mock("@/lib/formulations", () => ({
+  listFormulations: (...a: []) => formulationsBridge.listFormulations(...a),
+  readFormulation: (...a: [string]) => formulationsBridge.readFormulation(...a),
+  saveFormulation: (...a: [unknown]) => formulationsBridge.saveFormulation(...a),
+  saveFormulationVersion: (...a: [unknown]) => formulationsBridge.saveFormulationVersion(...a),
+  appendAudit: (...a: [unknown]) => formulationsBridge.appendAudit(...a),
+  auditEvent: (formulationId: string, action: string, opts: Record<string, unknown> = {}) => ({
+    id: "audit-1",
+    formulationId,
+    at: "2026-01-01T00:00:00.000Z",
+    actor: "local",
+    actorKind: "human",
+    action,
+    ...opts,
+  }),
+  newFormulation: (name: string, family: string, opts: { code?: string } = {}) => ({
+    schemaVersion: "1.0",
+    id: "formulation-new-1",
+    code: opts.code ?? "RF-GEN-1",
+    name,
+    productFamilyCode: family,
+    targetSkuCodes: [],
+    targetMarkets: ["KE"],
+    targetClaims: [],
+    targetBatchKg: "100",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    archived: false,
+  }),
+  newVersion: (
+    formulationId: string,
+    lines: unknown[],
+    opts: { versionNumber: number; parentVersionId?: string; changeReason?: string },
+  ) => ({
+    schemaVersion: "1.0",
+    id: `version-${++versionCounter}`,
+    formulationId,
+    versionNumber: opts.versionNumber,
+    parentVersionId: opts.parentVersionId,
+    versionLabel: `0.${opts.versionNumber}`,
+    status: "concept",
+    author: "local",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    changeReason: opts.changeReason,
+    lines,
+    basisBatchKg: "100",
+    sourceRunIds: [],
+    regulatoryFindingIds: [],
+    compatibilityFindingIds: [],
+    safetyFindingIds: [],
+    approvalRecordIds: [],
+  }),
+}));
+
 function byCollection(map: Record<string, unknown[]>) {
   return (collection: string) => Promise.resolve(map[collection] ?? []);
 }
@@ -104,8 +170,14 @@ const FULL_FIXTURE = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  versionCounter = 0;
   bridge.listRecords.mockResolvedValue([]);
   bridge.upsertRecords.mockResolvedValue({ inserted: 1, updated: 0, total: 1 });
+  formulationsBridge.listFormulations.mockResolvedValue([]);
+  formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [] });
+  formulationsBridge.saveFormulation.mockImplementation((f: unknown) => Promise.resolve(f));
+  formulationsBridge.saveFormulationVersion.mockImplementation((v: unknown) => Promise.resolve(v));
+  formulationsBridge.appendAudit.mockResolvedValue(undefined);
 });
 
 function renderPage() {
@@ -114,6 +186,14 @@ function renderPage() {
       <ReverseFormulationPage />
     </MemoryRouter>,
   );
+}
+
+async function selectStudyAndGoToCandidates() {
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(await screen.findByRole("button", { name: "Select" }));
+  await user.click(screen.getByRole("button", { name: "Candidates" }));
+  return user;
 }
 
 describe("ReverseFormulationPage — route and navigation", () => {
@@ -190,14 +270,6 @@ describe("ReverseFormulationPage — declarations", () => {
 });
 
 describe("ReverseFormulationPage — candidate generation and scoring (real shared engine)", () => {
-  async function selectStudyAndGoToCandidates() {
-    const user = userEvent.setup();
-    renderPage();
-    await user.click(await screen.findByRole("button", { name: "Select" }));
-    await user.click(screen.getByRole("button", { name: "Candidates" }));
-    return user;
-  }
-
   it("generates a real candidate via the shared engine, not a fabricated one", async () => {
     bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
     const user = await selectStudyAndGoToCandidates();
@@ -247,6 +319,139 @@ describe("ReverseFormulationPage — candidate generation and scoring (real shar
     );
     expect(bridge.upsertRecords).toHaveBeenCalledWith("candidate_score_explanations", expect.any(Array));
     expect(bridge.upsertRecords).not.toHaveBeenCalledWith("formulations", expect.anything());
+  });
+});
+
+describe("ReverseFormulationPage — candidate-to-formula conversion", () => {
+  async function generateSaveAndSelect(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: "Generate candidates" }));
+    await screen.findByText("Test Water");
+    await user.click(screen.getByRole("button", { name: "Save as candidate record" }));
+    await user.click(await screen.findByRole("button", { name: "Select for review" }));
+  }
+
+  it("shows no conversion action for an unselected candidate, even once saved", async () => {
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await user.click(screen.getByRole("button", { name: "Generate candidates" }));
+    await screen.findByText("Test Water");
+    await user.click(screen.getByRole("button", { name: "Save as candidate record" }));
+    // Saved, but never explicitly selected for review.
+    expect(screen.queryByRole("button", { name: "Create formulation draft" })).not.toBeInTheDocument();
+  });
+
+  it("blocks creation and shows a clear error when a candidate's material has left the catalog, without fabricating a placeholder material", async () => {
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await user.click(screen.getByRole("button", { name: "Generate candidates" }));
+    await screen.findByText("Test Water");
+    // The material disappears from the catalog by the time the page
+    // refreshes after saving the candidate.
+    bridge.listRecords.mockImplementation(byCollection({ ...FULL_FIXTURE, materials: [] }));
+    await user.click(screen.getByRole("button", { name: "Save as candidate record" }));
+    await user.click(await screen.findByRole("button", { name: "Select for review" }));
+    expect(await screen.findByText(/material\(s\) not in the catalog/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create formulation draft" })).not.toBeInTheDocument();
+    expect(formulationsBridge.saveFormulationVersion).not.toHaveBeenCalled();
+  });
+
+  it("creates a new draft formulation through the existing formulation workflow, starting unapproved/unverified with no inherited approval metadata", async () => {
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await generateSaveAndSelect(user);
+    await user.click(screen.getByRole("button", { name: "Create formulation draft" }));
+    expect(await screen.findByText(/Created RF-GEN-1/)).toBeInTheDocument();
+    expect(formulationsBridge.saveFormulation).toHaveBeenCalledWith(expect.objectContaining({ code: "RF-GEN-1" }));
+    expect(formulationsBridge.saveFormulationVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "concept", versionNumber: 1, approvalRecordIds: [], regulatoryFindingIds: [], safetyFindingIds: [] }),
+    );
+  });
+
+  it("preserves formula-line order, exact material identifiers and percentages, and leaves unsupplied fields blank rather than fabricated", async () => {
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await generateSaveAndSelect(user);
+    await user.click(screen.getByRole("button", { name: "Create formulation draft" }));
+    await screen.findByText(/Created RF-GEN-1/);
+    const version = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: { materialCode: string; percent: string; lineNumber: number; inciName?: string }[] };
+    expect(version.lines).toHaveLength(1);
+    expect(version.lines[0]).toMatchObject({ materialCode: "TEST-MAT-001", percent: "100", lineNumber: 1 });
+    // The fixture material has no inciName — must stay undefined, never "".
+    expect(version.lines[0].inciName).toBeUndefined();
+  });
+
+  it("prevents duplicate creation from repeated clicks: the action disappears after one success", async () => {
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await generateSaveAndSelect(user);
+    await user.click(screen.getByRole("button", { name: "Create formulation draft" }));
+    await screen.findByText(/Created RF-GEN-1/);
+    expect(formulationsBridge.saveFormulationVersion).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Create formulation draft" })).not.toBeInTheDocument();
+  });
+
+  it("creates a new version on an explicitly chosen existing formulation, appending rather than overwriting its prior version", async () => {
+    const existingFormulation = { schemaVersion: "1.0", id: "form-existing-1", code: "EXIST-1", name: "Existing Formulation", productFamilyCode: "TEST-FAM-001", targetSkuCodes: [], targetMarkets: ["KE"], targetClaims: [], targetBatchKg: "100", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", archived: false };
+    const priorVersion = { id: "version-old-1", versionNumber: 1 };
+    formulationsBridge.listFormulations.mockResolvedValue([existingFormulation]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: existingFormulation, versions: [priorVersion] });
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await generateSaveAndSelect(user);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Target formulation" }), "form-existing-1");
+    await user.click(screen.getByRole("button", { name: "Create new version" }));
+    await screen.findByText(/Created EXIST-1/);
+    const version = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { id: string; versionNumber: number; parentVersionId?: string };
+    expect(version.id).not.toBe(priorVersion.id);
+    expect(version.versionNumber).toBe(2);
+    expect(version.parentVersionId).toBe(priorVersion.id);
+  });
+
+  it("surfaces a visible error when the persistence layer rejects the creation", async () => {
+    formulationsBridge.saveFormulation.mockRejectedValue(new Error("disk unavailable"));
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await generateSaveAndSelect(user);
+    await user.click(screen.getByRole("button", { name: "Create formulation draft" }));
+    expect(await screen.findByText(/disk unavailable/)).toBeInTheDocument();
+  });
+
+  it("shows a low-evidence-confidence warning alongside a decision-support notice, never an approval claim", async () => {
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await generateSaveAndSelect(user);
+    expect(screen.getByText(/Low evidence confidence/)).toBeInTheDocument();
+    expect(screen.getByText(/decision support, not approval/)).toBeInTheDocument();
+    // Honest disclaimer text ("unapproved") is fine; a fabricated success
+    // claim ("Approved"/"Created ...") must not appear before any creation
+    // action was taken.
+    expect(screen.queryByText(/^Approved$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Created/)).not.toBeInTheDocument();
+  });
+
+  it("keeps candidate save and formulation creation as distinct actions", async () => {
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await user.click(screen.getByRole("button", { name: "Generate candidates" }));
+    await screen.findByText("Test Water");
+    await user.click(screen.getByRole("button", { name: "Save as candidate record" }));
+    // Saving never touches the formulation persistence layer.
+    expect(formulationsBridge.saveFormulationVersion).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Select for review" }));
+    // The save action is now disabled and relabeled "Saved" — a genuinely
+    // separate control from the newly-revealed creation action.
+    expect(screen.getByRole("button", { name: "Saved" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create formulation draft" })).toBeInTheDocument();
+  });
+
+  it("never mutates the source saved candidate record while converting it", async () => {
+    bridge.listRecords.mockImplementation(byCollection(FULL_FIXTURE));
+    const user = await selectStudyAndGoToCandidates();
+    await generateSaveAndSelect(user);
+    await user.click(screen.getByRole("button", { name: "Create formulation draft" }));
+    await screen.findByText(/Created RF-GEN-1/);
+    const candidateWrites = bridge.upsertRecords.mock.calls.filter((c) => c[0] === "reverse_formula_candidates");
+    expect(candidateWrites).toHaveLength(1); // only the original save, never touched again
   });
 });
 

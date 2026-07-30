@@ -2309,6 +2309,20 @@
         "performance": "Performans",
         "cost": "Maliyet",
         "regulatory": "Regülasyon"
+      },
+      "conversion": {
+        "noStudy": "Seçili çalışma yok.",
+        "emptyFormula": "Formül satırı olmayan bir adaydan formülasyon oluşturulamaz.",
+        "missingMaterials": "Formülasyon oluşturulamıyor — katalogda olmayan malzeme(ler): {{codes}}.",
+        "targetNotFound": "Seçilen hedef formülasyon bulunamadı.",
+        "lowConfidenceWarning": "Düşük kanıt güveni — bu formülü kullanmadan önce dikkatlice inceleyin.",
+        "decisionSupportNotice": "Aday puanları karar desteğidir, onay değildir — yeni kayıt onaysız ve doğrulanmamış olarak başlar.",
+        "success": "Bu adaydan {{code}} {{version}} oluşturuldu.",
+        "targetLabel": "Hedef formülasyon",
+        "newFormulationOption": "Yeni formülasyon",
+        "creating": "Oluşturuluyor…",
+        "createDraft": "Formülasyon taslağı oluştur",
+        "createVersion": "Yeni sürüm oluştur"
       }
     }
   }

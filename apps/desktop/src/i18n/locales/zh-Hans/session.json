@@ -2309,6 +2309,20 @@
         "performance": "性能",
         "cost": "成本",
         "regulatory": "法规"
+      },
+      "conversion": {
+        "noStudy": "未选择研究。",
+        "emptyFormula": "无法从没有配方行的候选配方创建配方。",
+        "missingMaterials": "无法创建配方 — 目录中缺少以下原料：{{codes}}。",
+        "targetNotFound": "找不到所选的目标配方。",
+        "lowConfidenceWarning": "证据置信度低 — 使用此配方前请仔细核查。",
+        "decisionSupportNotice": "候选配方评分仅为决策参考，并非批准 — 新记录以未批准、未验证状态开始。",
+        "success": "已根据此候选配方创建 {{code}} {{version}}。",
+        "targetLabel": "目标配方",
+        "newFormulationOption": "新建配方",
+        "creating": "正在创建…",
+        "createDraft": "创建配方草稿",
+        "createVersion": "创建新版本"
       }
     }
   }

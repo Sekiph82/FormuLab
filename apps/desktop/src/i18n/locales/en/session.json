@@ -2309,6 +2309,20 @@
         "performance": "Performance",
         "cost": "Cost",
         "regulatory": "Regulatory"
+      },
+      "conversion": {
+        "noStudy": "No study selected.",
+        "emptyFormula": "Cannot create a formulation from a candidate with no formula lines.",
+        "missingMaterials": "Cannot create a formulation — material(s) not in the catalog: {{codes}}.",
+        "targetNotFound": "The selected target formulation could not be found.",
+        "lowConfidenceWarning": "Low evidence confidence — review carefully before using this formula.",
+        "decisionSupportNotice": "Candidate scores are decision support, not approval — the new record starts unapproved and unverified.",
+        "success": "Created {{code}} {{version}} from this candidate.",
+        "targetLabel": "Target formulation",
+        "newFormulationOption": "New formulation",
+        "creating": "Creating…",
+        "createDraft": "Create formulation draft",
+        "createVersion": "Create new version"
       }
     }
   }

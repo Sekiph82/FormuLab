@@ -1143,48 +1143,14 @@ const commitDoeObservations: Handler = async (r) => {
 
 // ============================================= reverse formulation (25-35) ===
 //
-// These 11 collections are not yet in `./masterdata`'s `Collection` union
-// (tracked as a known limitation in the Phase 7 Session 4 handoff —
-// `masterdata.ts` is outside this session's allowed-modify scope). The Rust
-// allow-list (`collection_spec` in `apps/desktop/src-tauri/src/masterdata.rs`,
-// fixed in Session 3) is the actual safety boundary and independently
-// rejects any collection name it does not recognize regardless of this
-// bridge, so a typo below still fails loudly at the Rust layer rather than
-// silently succeeding. Bridging through one narrow, documented type keeps
-// every call site below still type-checked against a fixed set of 11 names,
-// instead of scattering an untyped cast through each handler.
-type ReverseFormulationCollection =
-  | "reverse_formulation_studies"
-  | "benchmark_products"
-  | "benchmark_evidence_items"
-  | "ingredient_declaration_lines"
-  | "analytical_composition_results"
-  | "target_product_profiles"
-  | "reverse_constraint_sets"
-  | "ingredient_mappings"
-  | "substitution_rules"
-  | "reverse_formula_candidates"
-  | "candidate_score_explanations";
-
-async function rfList<T>(collection: ReverseFormulationCollection): Promise<T[]> {
-  return listRecords(collection as unknown as Collection) as unknown as Promise<T[]>;
-}
-
-async function rfUpsert<T extends Record<string, unknown>>(collection: ReverseFormulationCollection, records: T[]): Promise<void> {
-  await upsertRecords(collection as unknown as Collection, records as unknown as never[]);
-}
-
-async function rfFindByCode<T extends Record<string, unknown>>(
-  collection: ReverseFormulationCollection,
-  codeField: string,
-  code: string,
-): Promise<T | undefined> {
-  const rows = await rfList<T>(collection);
-  return rows.find((row) => row[codeField] === code);
-}
+// These 11 collections are real members of `./masterdata`'s `Collection`
+// union (added in Phase 7 Session 6, closing the Session 4/5 known gap), so
+// every handler below calls `listRecords`/`upsertRecords`/`findByCode`
+// directly — the local `ReverseFormulationCollection` bridge type and its
+// `rfList`/`rfUpsert`/`rfFindByCode` wrappers are gone.
 
 const commitReverseFormulationStudies: Handler = async (r) => {
-  const existing = await rfFindByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
+  const existing = await findByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
   const record: ReverseFormulationStudy = {
     id: existing?.id ?? newId("rfstudy"),
     code: r.study_code,
@@ -1204,12 +1170,12 @@ const commitReverseFormulationStudies: Handler = async (r) => {
     updatedAt: nowIso(),
     revision: existing ? existing.revision + 1 : 0,
   };
-  await rfUpsert("reverse_formulation_studies", [record]);
+  await upsertRecords("reverse_formulation_studies", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "reverse_formulation_studies", targetRecordId: record.code };
 };
 
 const commitBenchmarkProducts: Handler = async (r) => {
-  const existing = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  const existing = await findByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
   const record: BenchmarkProduct = {
     id: existing?.id ?? newId("bmprod"),
     code: r.product_code,
@@ -1233,14 +1199,14 @@ const commitBenchmarkProducts: Handler = async (r) => {
     createdAt: existing?.createdAt ?? nowIso(),
     updatedAt: nowIso(),
   };
-  await rfUpsert("benchmark_products", [record]);
+  await upsertRecords("benchmark_products", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "benchmark_products", targetRecordId: record.code };
 };
 
 const commitBenchmarkEvidenceItems: Handler = async (r) => {
-  const product = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  const product = await findByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
   if (!product) throw new Error(`No benchmark product with code "${r.product_code}" exists yet — import or create it first.`);
-  const existingItems = await rfList<BenchmarkEvidenceItem>("benchmark_evidence_items");
+  const existingItems = await listRecords("benchmark_evidence_items");
   const existing = existingItems.find(
     (e) => e.benchmarkProductId === product.id && e.evidenceType === r.evidence_type && e.sourceName === r.source_name,
   );
@@ -1257,15 +1223,15 @@ const commitBenchmarkEvidenceItems: Handler = async (r) => {
     confidence: nn(r.confidence) ? Number(r.confidence) : undefined,
     notes: nn(r.notes),
   };
-  await rfUpsert("benchmark_evidence_items", [record]);
+  await upsertRecords("benchmark_evidence_items", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "benchmark_evidence_items", targetRecordId: record.id };
 };
 
 const commitIngredientDeclarationLines: Handler = async (r) => {
-  const product = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  const product = await findByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
   if (!product) throw new Error(`No benchmark product with code "${r.product_code}" exists yet — import or create it first.`);
   const order = Number.parseInt(r.declared_order, 10);
-  const existingLines = await rfList<IngredientDeclarationLine>("ingredient_declaration_lines");
+  const existingLines = await listRecords("ingredient_declaration_lines");
   const existing = existingLines.find((l) => l.benchmarkProductId === product.id && l.declaredOrder === order);
   const record: IngredientDeclarationLine = {
     id: existing?.id ?? newId("declline"),
@@ -1286,12 +1252,12 @@ const commitIngredientDeclarationLines: Handler = async (r) => {
     confidence: existing?.confidence,
     notes: nn(r.notes),
   };
-  await rfUpsert("ingredient_declaration_lines", [record]);
+  await upsertRecords("ingredient_declaration_lines", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "ingredient_declaration_lines", targetRecordId: record.id };
 };
 
 const commitAnalyticalCompositionResults: Handler = async (r) => {
-  const product = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  const product = await findByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
   if (!product) throw new Error(`No benchmark product with code "${r.product_code}" exists yet — import or create it first.`);
   const record: AnalyticalCompositionResult = {
     id: newId("analresult"),
@@ -1315,12 +1281,12 @@ const commitAnalyticalCompositionResults: Handler = async (r) => {
   };
   // Append-only: every import row is a new measurement, never an
   // in-place edit of a previously recorded reading.
-  await rfUpsert("analytical_composition_results", [record]);
+  await upsertRecords("analytical_composition_results", [record]);
   return { outcome: "created", targetCollection: "analytical_composition_results", targetRecordId: record.id };
 };
 
 const commitTargetProductProfiles: Handler = async (r) => {
-  const existing = await rfFindByCode<TargetProductProfile>("target_product_profiles", "code", r.profile_code);
+  const existing = await findByCode<TargetProductProfile>("target_product_profiles", "code", r.profile_code);
   const record: TargetProductProfile = {
     id: existing?.id ?? newId("tpp"),
     code: r.profile_code,
@@ -1349,14 +1315,14 @@ const commitTargetProductProfiles: Handler = async (r) => {
     excludedClaims: existing?.excludedClaims,
     notes: nn(r.notes),
   };
-  await rfUpsert("target_product_profiles", [record]);
+  await upsertRecords("target_product_profiles", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "target_product_profiles", targetRecordId: record.code };
 };
 
 const commitReverseConstraintSets: Handler = async (r) => {
-  const study = await rfFindByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
+  const study = await findByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
   if (!study) throw new Error(`No Reverse Formulation study with code "${r.study_code}" exists yet — import or create it first.`);
-  const existing = await rfFindByCode<ReverseConstraintSet>("reverse_constraint_sets", "code", r.constraint_set_code);
+  const existing = await findByCode<ReverseConstraintSet>("reverse_constraint_sets", "code", r.constraint_set_code);
   const record: ReverseConstraintSet = {
     id: existing?.id ?? newId("rconstraint"),
     code: r.constraint_set_code,
@@ -1383,23 +1349,23 @@ const commitReverseConstraintSets: Handler = async (r) => {
     countryOfOriginRestrictions: existing?.countryOfOriginRestrictions,
     notes: nn(r.notes),
   };
-  await rfUpsert("reverse_constraint_sets", [record]);
+  await upsertRecords("reverse_constraint_sets", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "reverse_constraint_sets", targetRecordId: record.code };
 };
 
 const commitIngredientMappings: Handler = async (r) => {
-  const study = await rfFindByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
+  const study = await findByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
   if (!study) throw new Error(`No Reverse Formulation study with code "${r.study_code}" exists yet — import or create it first.`);
-  const product = await rfFindByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
+  const product = await findByCode<BenchmarkProduct>("benchmark_products", "code", r.product_code);
   if (!product) throw new Error(`No benchmark product with code "${r.product_code}" exists yet — import or create it first.`);
   const order = Number.parseInt(r.declared_order, 10);
-  const lines = await rfList<IngredientDeclarationLine>("ingredient_declaration_lines");
+  const lines = await listRecords("ingredient_declaration_lines");
   const line = lines.find((l) => l.benchmarkProductId === product.id && l.declaredOrder === order);
   if (!line) throw new Error(`No declaration line at position ${order} exists yet for product "${r.product_code}" — import it first.`);
   const material = await findByCode<RawMaterial>("materials", "code", r.candidate_material_code);
   if (!material) throw new Error(`No material with code "${r.candidate_material_code}" exists yet.`);
 
-  const existingMappings = await rfList<IngredientMapping>("ingredient_mappings");
+  const existingMappings = await listRecords("ingredient_mappings");
   const existing = existingMappings.find((m) => m.declarationLineId === line.id && m.candidateMaterialId === material.code);
   const record: IngredientMapping = {
     id: existing?.id ?? newId("imapping"),
@@ -1417,7 +1383,7 @@ const commitIngredientMappings: Handler = async (r) => {
     createdAt: existing?.createdAt ?? nowIso(),
     updatedAt: nowIso(),
   };
-  await rfUpsert("ingredient_mappings", [record]);
+  await upsertRecords("ingredient_mappings", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "ingredient_mappings", targetRecordId: record.id };
 };
 
@@ -1427,7 +1393,7 @@ const commitSubstitutionRules: Handler = async (r) => {
   const target = await findByCode<RawMaterial>("materials", "code", r.target_material_code);
   if (!target) throw new Error(`No material with code "${r.target_material_code}" exists yet.`);
 
-  const existingRules = await rfList<SubstitutionRule>("substitution_rules");
+  const existingRules = await listRecords("substitution_rules");
   const familyKey = nn(r.product_family_code);
   const existing = existingRules.find(
     (rule) => rule.sourceMaterialId === source.code && rule.targetMaterialId === target.code && (rule.productFamilyCode ?? undefined) === familyKey,
@@ -1448,7 +1414,7 @@ const commitSubstitutionRules: Handler = async (r) => {
     // substitution review workflow.
     status: existing?.status ?? "proposed",
   };
-  await rfUpsert("substitution_rules", [record]);
+  await upsertRecords("substitution_rules", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "substitution_rules", targetRecordId: record.id };
 };
 
@@ -1460,7 +1426,7 @@ interface ReverseFormulaCandidateLine {
 }
 
 const commitReverseFormulaCandidates: Handler = async (r) => {
-  const study = await rfFindByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
+  const study = await findByCode<ReverseFormulationStudy>("reverse_formulation_studies", "code", r.study_code);
   if (!study) throw new Error(`No Reverse Formulation study with code "${r.study_code}" exists yet — import or create it first.`);
 
   // All rows for this candidate_code were grouped by the caller before this
@@ -1472,7 +1438,7 @@ const commitReverseFormulaCandidates: Handler = async (r) => {
     if (!material) throw new Error(`No material with code "${line.materialCode}" exists yet.`);
   }
 
-  const existing = await rfFindByCode<ReverseFormulaCandidate>("reverse_formula_candidates", "candidateCode", r.candidate_code);
+  const existing = await findByCode<ReverseFormulaCandidate>("reverse_formula_candidates", "candidateCode", r.candidate_code);
   const record: ReverseFormulaCandidate = {
     id: existing?.id ?? newId("rfcand"),
     studyId: study.id,
@@ -1505,12 +1471,12 @@ const commitReverseFormulaCandidates: Handler = async (r) => {
     createdAt: existing?.createdAt ?? nowIso(),
     createdBy: existing?.createdBy ?? "data-exchange-import",
   };
-  await rfUpsert("reverse_formula_candidates", [record]);
+  await upsertRecords("reverse_formula_candidates", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "reverse_formula_candidates", targetRecordId: record.candidateCode };
 };
 
 const commitCandidateScoreExplanations: Handler = async (r) => {
-  const candidate = await rfFindByCode<ReverseFormulaCandidate>("reverse_formula_candidates", "candidateCode", r.candidate_code);
+  const candidate = await findByCode<ReverseFormulaCandidate>("reverse_formula_candidates", "candidateCode", r.candidate_code);
   if (!candidate) throw new Error(`No candidate with code "${r.candidate_code}" exists yet — import or create it first.`);
   const record: CandidateScoreExplanation = {
     id: newId("scoreexpl"),
@@ -1524,7 +1490,7 @@ const commitCandidateScoreExplanations: Handler = async (r) => {
   };
   // Append-only: every import row is a new score-explanation record, never
   // an in-place edit of a previously recorded rationale.
-  await rfUpsert("candidate_score_explanations", [record]);
+  await upsertRecords("candidate_score_explanations", [record]);
   return { outcome: "created", targetCollection: "candidate_score_explanations", targetRecordId: record.id };
 };
 

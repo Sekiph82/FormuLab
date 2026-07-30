@@ -2309,6 +2309,20 @@
         "performance": "Performance",
         "cost": "Coût",
         "regulatory": "Réglementaire"
+      },
+      "conversion": {
+        "noStudy": "Aucune étude sélectionnée.",
+        "emptyFormula": "Impossible de créer une formulation à partir d'un candidat sans ligne de formule.",
+        "missingMaterials": "Impossible de créer la formulation — matériau(x) absent(s) du catalogue : {{codes}}.",
+        "targetNotFound": "La formulation cible sélectionnée est introuvable.",
+        "lowConfidenceWarning": "Confiance des preuves faible — examinez attentivement avant d'utiliser cette formule.",
+        "decisionSupportNotice": "Les scores du candidat sont une aide à la décision, pas une approbation — le nouvel enregistrement démarre non approuvé et non vérifié.",
+        "success": "{{code}} {{version}} créé à partir de ce candidat.",
+        "targetLabel": "Formulation cible",
+        "newFormulationOption": "Nouvelle formulation",
+        "creating": "Création…",
+        "createDraft": "Créer un brouillon de formulation",
+        "createVersion": "Créer une nouvelle version"
       }
     }
   }

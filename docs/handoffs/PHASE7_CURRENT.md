@@ -1,68 +1,71 @@
 # Phase 7 — Reverse Formulation — Current State
 
 ## Status
-Shared domain, candidate generation/scoring, Rust persistence, Data
-Exchange integration, and a real desktop workspace are all done. No
-candidate-to-formula integration yet (Session 6).
+All Phase 7 subsystems complete: shared domain, candidate generation/
+scoring, Rust persistence, Data Exchange integration, the desktop
+workspace, and candidate-to-formula integration. Ready for closure.
 
-## Completed (Session 5: Desktop Reverse Formulation Workspace)
-- New workspace at `/reverse-formulation`: studies (list/create/select),
-  benchmark products (attach existing/create new), ingredient declarations,
-  analytical evidence, ingredient mappings (propose/confirm/reject), target
-  profile + reverse constraints (link existing/create new), and candidate
-  generation/comparison — all through `@/lib/masterdata`'s typed
-  `listRecords`/`upsertRecords` against the 11 Reverse Formulation
-  collections. No candidate is ever written to `formulations`.
-- Candidate generation/scoring reuses the real shared engine
-  (`generateCandidates`/`scoreReverseFormulaCandidate` from
-  `packages/shared/src/engine/`) directly — the new
-  `CandidateComparisonPanel` component only assembles inputs from loaded
-  records and renders the engine's own output; nothing is reimplemented.
-  Each candidate card shows overall score and evidence confidence as two
-  distinct numbers, a per-dimension breakdown explicitly labeled Evaluated/
-  Not evaluated (from `ScoringModelOutput.evaluatedDimensions`), and the
-  engine's own notes (assumptions/rejection reasons). A "Save as candidate
-  record" action persists to `reverse_formula_candidates` +
-  `candidate_score_explanations` only.
+## Completed (Session 6: Candidate-to-Formula Integration)
+- Added an explicit, two-step conversion flow to `CandidateComparisonPanel`:
+  once a candidate is both saved (persisted to `reverse_formula_candidates`)
+  and explicitly selected, a "Create formulation draft" / "Create new
+  version" action appears. Both paths reuse the existing formulation engine
+  (`newFormulation`/`newVersion`/`saveFormulation`/`saveFormulationVersion`
+  from `@/lib/formulations` — the same functions `dataExchangeCommit.ts`'s
+  `commitFormulaBom` already uses) — no second persistence path created.
+- "New draft" (no target formulation) always available; "new version" on an
+  explicitly chosen existing formulation requires picking one from a select
+  populated by `listFormulations()`. Never decided silently.
+- Validates before writing: refuses an empty-formula candidate, and refuses
+  (with a visible error, no placeholder material) if any line's material
+  code has left the catalog — checked again at conversion time, not just at
+  generation time.
+- Low `evidenceConfidence` (< 0.5) shows a visible warning; a permanent
+  "decision support, not approval" notice sits beside every conversion
+  action. Traceability (study code + candidate code) is recorded in the new
+  version's `changeReason` and an `appendAudit` event's structured
+  `metadata` — no schema change needed.
+- The action disappears after one success (button replaced by a success
+  message), preventing accidental duplicate creation from repeated clicks.
 
-## Desktop typing repairs
-- Extended `apps/desktop/src/lib/masterdata.ts`'s `Collection`/
-  `CollectionTypes` with the 11 Reverse Formulation collections (the
-  Session 4 known gap) — the `dataExchangeCommit.ts` cast-bridge from that
-  session is now redundant but was left in place, since that file is
-  outside this session's allowed-modify scope.
-- Fixed both known desktop-typecheck errors (`noUnusedParameters`) in
-  `candidateGenerator.ts`/`scoringModel.ts` by prefixing the two
-  intentionally-unused, API-compatibility parameters with `_`, the
-  repository's existing convention (`argsIgnorePattern: "^_"`) — no engine
-  redesign, no call sites changed.
-- `pnpm --filter @ai4s/desktop typecheck` is now fully clean.
+## Versioning and approval safeguards
+- Every created `FormulationVersion` starts at `status: "concept"` with
+  empty `approvalRecordIds`/`regulatoryFindingIds`/`safetyFindingIds` —
+  never inherited from anywhere, since nothing here reads an approval
+  record at all. `saveFormulationVersion` only ever appends a new,
+  freshly-`newId()`'d version; an existing version is never targeted for
+  overwrite. Formula lines preserve exact order (declared-line index →
+  `lineNumber`), exact `materialId`/`percentage`, and leave unsupplied
+  fields (e.g. `inciName`) `undefined` rather than fabricated.
+
+## Cleanup
+Removed the Session 4 `dataExchangeCommit.ts` collection-bridge
+(`ReverseFormulationCollection` type + `rfList`/`rfUpsert`/`rfFindByCode`) —
+now redundant since `masterdata.ts`'s real `Collection` union (added
+Session 5) already covers all 11 collections; every handler now calls
+`listRecords`/`upsertRecords`/`findByCode` directly.
 
 ## Files changed
-- `apps/desktop/src/lib/masterdata.ts`
-- `packages/shared/src/engine/candidateGenerator.ts`, `scoringModel.ts` (param rename only)
-- `apps/desktop/src/app/router.tsx`, `src/components/sidebar/Sidebar.tsx`
-- `apps/desktop/src/app/routes/ReverseFormulationPage.tsx` (new)
-- `apps/desktop/src/components/reverseFormulation/CandidateComparisonPanel.tsx` (new)
-- `apps/desktop/src/app/routes/ReverseFormulationPage.test.tsx` (new)
-- `apps/desktop/src/i18n/locales/*/nav.json`, `*/session.json` (all 8 locales)
+- `apps/desktop/src/app/routes/ReverseFormulationPage.tsx`
+- `apps/desktop/src/components/reverseFormulation/CandidateComparisonPanel.tsx`
+- `apps/desktop/src/app/routes/ReverseFormulationPage.test.tsx`
+- `apps/desktop/src/lib/dataExchangeCommit.ts` (bridge removal only)
+- `apps/desktop/src/i18n/locales/*/session.json` (12 new `conversion.*` keys, all 8 locales)
 
 ## Tests passing
-- `pnpm --filter @ai4s/desktop exec vitest run ReverseFormulationPage.test.tsx parity.test.ts Sidebar.i18n.test.tsx Workspaces.test.tsx Pages.i18n.test.tsx` — 36/36.
-- `pnpm --filter @ai4s/desktop typecheck` and `pnpm --filter @ai4s/shared typecheck` — both clean.
+- `pnpm --filter @ai4s/desktop exec vitest run ReverseFormulationPage.test.tsx dataExchangeCommit.test.ts parity.test.ts` — 99/99.
+- `pnpm --filter @ai4s/desktop typecheck` — clean. No shared code touched this session.
 
-## Known limitations
-- `apps/desktop/src/lib/dataExchangeCommit.ts` still bridges through its own
-  local `ReverseFormulationCollection` type instead of the now-real
-  `Collection` union — harmless (same 11 names) but a small follow-up.
-- No candidate-to-formula creation (by design — Session 6).
-- Declarations/analytical/mappings forms are intentionally minimal (basic
-  non-empty + decimal-shape guards only), not the full Data Exchange
-  validation engine.
+## Remaining limitations
+- Conversion forms are minimal (target-formulation select + one button),
+  matching the rest of the workspace's intentionally lean entry forms.
+- No cost/regulatory/laboratory pre-check before conversion — out of scope
+  by design (decision support only, not a gate).
 
 ## Latest commit and sync status
-See commit `feat(reverse-formulation): add desktop workspace` on
-`feature/laboratory-stability`, pushed to its tracking branch.
+See commit `feat(reverse-formulation): integrate candidates with
+formulations` on `feature/laboratory-stability`, pushed to its tracking
+branch.
 
 ## Next session
-Phase 7 Session 6: Candidate-to-Formula Integration
+Phase 7 Closure: Full Verification and Release

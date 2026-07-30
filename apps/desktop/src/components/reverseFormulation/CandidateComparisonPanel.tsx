@@ -7,6 +7,7 @@ import {
   scoreReverseFormulaCandidate,
   type AnalyticalCompositionResult,
   type BenchmarkProduct,
+  type Formulation,
   type GeneratedCandidate,
   type IngredientDeclarationLine,
   type IngredientMapping,
@@ -19,6 +20,23 @@ import {
   type TargetProductProfile,
 } from "@ai4s/shared";
 import { cn } from "@/lib/cn";
+
+/** Where the converted formula goes: a brand-new formulation, or a new
+ *  version on an explicitly chosen existing one. Never decided silently —
+ *  the user picks one via the target select. */
+export type ConversionTarget = "new" | { formulationId: string };
+
+export interface CreateFormulationParams {
+  candidate: GeneratedCandidate;
+  /** The already-saved candidate's own code — the traceability anchor. */
+  candidateCode: string;
+  target: ConversionTarget;
+}
+
+export interface CreateFormulationResult {
+  formulationCode: string;
+  versionLabel: string;
+}
 
 const SCORE_DIMENSIONS = ["evidence", "order", "analytical", "properties", "performance", "cost", "regulatory"] as const;
 
@@ -90,6 +108,10 @@ export interface ScoredCandidate {
   score: ScoringModelOutput;
 }
 
+/** Undefined means the save was refused (e.g. an empty candidate) — the
+ *  caller never fabricates a candidate id/code for that case. */
+export type SavedCandidateInfo = { candidateId: string; candidateCode: string } | undefined;
+
 export interface CandidateComparisonPanelProps {
   study: ReverseFormulationStudy;
   primaryProduct: BenchmarkProduct | null;
@@ -99,7 +121,11 @@ export interface CandidateComparisonPanelProps {
   materials: RawMaterial[];
   target: TargetProductProfile | null;
   constraints: ReverseConstraintSet | null;
-  onSaveCandidate: (result: ScoredCandidate) => Promise<void>;
+  onSaveCandidate: (result: ScoredCandidate) => Promise<SavedCandidateInfo>;
+  /** Non-archived formulations the user may target for a new version — the
+   *  brand-new-draft path is always offered alongside these. */
+  existingFormulations: Formulation[];
+  onCreateFormulation: (params: CreateFormulationParams) => Promise<CreateFormulationResult>;
 }
 
 /**
@@ -119,13 +145,15 @@ export function CandidateComparisonPanel({
   target,
   constraints,
   onSaveCandidate,
+  existingFormulations,
+  onCreateFormulation,
 }: CandidateComparisonPanelProps) {
   const { t } = useTranslation("session");
   const [results, setResults] = useState<ScoredCandidate[] | null>(null);
   const [generating, setGenerating] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
-  const [savedIndexes, setSavedIndexes] = useState<Set<number>>(new Set());
+  const [savedCandidates, setSavedCandidates] = useState<Map<number, { candidateId: string; candidateCode: string }>>(new Map());
 
   const canGenerate = Boolean(primaryProduct) && declarationLines.length > 0 && Boolean(target);
 
@@ -135,7 +163,7 @@ export function CandidateComparisonPanel({
     if (!primaryProduct || !target) return;
     setGenerating(true);
     setSelectedIndex(null);
-    setSavedIndexes(new Set());
+    setSavedCandidates(new Map());
     try {
       const mappedIngredients = declarationLines
         .slice()
@@ -197,18 +225,20 @@ export function CandidateComparisonPanel({
               score={score}
               materialsByCode={materialsByCode}
               selected={selectedIndex === i}
-              saved={savedIndexes.has(i)}
+              savedInfo={savedCandidates.get(i)}
               saving={savingIndex === i}
+              existingFormulations={existingFormulations}
               onSelect={() => setSelectedIndex(i)}
               onSave={async () => {
                 setSavingIndex(i);
                 try {
-                  await onSaveCandidate({ candidate, score });
-                  setSavedIndexes((s) => new Set(s).add(i));
+                  const saved = await onSaveCandidate({ candidate, score });
+                  if (saved) setSavedCandidates((m) => new Map(m).set(i, saved));
                 } finally {
                   setSavingIndex(null);
                 }
               }}
+              onCreateFormulation={onCreateFormulation}
             />
           ))}
         </div>
@@ -223,22 +253,50 @@ function CandidateCard({
   score,
   materialsByCode,
   selected,
-  saved,
+  savedInfo,
   saving,
+  existingFormulations,
   onSelect,
   onSave,
+  onCreateFormulation,
 }: {
   index: number;
   candidate: GeneratedCandidate;
   score: ScoringModelOutput;
   materialsByCode: Map<string, RawMaterial>;
   selected: boolean;
-  saved: boolean;
+  savedInfo: { candidateId: string; candidateCode: string } | undefined;
   saving: boolean;
+  existingFormulations: Formulation[];
   onSelect: () => void;
   onSave: () => void;
+  onCreateFormulation: (params: CreateFormulationParams) => Promise<CreateFormulationResult>;
 }) {
   const { t } = useTranslation("session");
+  const [conversionTarget, setConversionTarget] = useState<string>("new");
+  const [converting, setConverting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createdResult, setCreatedResult] = useState<CreateFormulationResult | null>(null);
+
+  const saved = Boolean(savedInfo);
+  const missingMaterials = candidate.formula.map((l) => l.materialId).filter((id) => !materialsByCode.has(id));
+  const eligible = candidate.formula.length > 0 && missingMaterials.length === 0;
+
+  const confirmCreate = async () => {
+    if (!savedInfo || converting || createdResult) return;
+    setConverting(true);
+    setCreateError(null);
+    try {
+      const target: ConversionTarget = conversionTarget === "new" ? "new" : { formulationId: conversionTarget };
+      const result = await onCreateFormulation({ candidate, candidateCode: savedInfo.candidateCode, target });
+      setCreatedResult(result);
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setConverting(false);
+    }
+  };
+
   return (
     <div className={cn("flex flex-col gap-2.5 rounded-card border p-3", selected ? "border-accent bg-accent/5" : "border-border bg-surface")}>
       <div className="flex items-start justify-between gap-2">
@@ -324,6 +382,62 @@ function CandidateCard({
           {saved ? t("reverseFormulation.candidates.saved") : t("reverseFormulation.candidates.save")}
         </button>
       </div>
+
+      {/* Conversion requires both an explicit selection and a saved
+       *  (persisted) candidate — this is the only path that ever writes to
+       *  `formulations`, and it is always a deliberate, distinct action
+       *  from "Save as candidate record" above. */}
+      {saved && selected && (
+        <div className="border-t border-border-faint pt-2">
+          {score.evidenceConfidence < 0.5 && (
+            <p role="alert" className="mb-1.5 text-[10.5px] text-warn">
+              {t("reverseFormulation.candidates.conversion.lowConfidenceWarning")}
+            </p>
+          )}
+          <p className="mb-1.5 text-[10px] text-muted">{t("reverseFormulation.candidates.conversion.decisionSupportNotice")}</p>
+          {!eligible ? (
+            <p role="alert" className="text-[11px] text-error">
+              {t("reverseFormulation.candidates.conversion.missingMaterials", { codes: missingMaterials.join(", ") })}
+            </p>
+          ) : createdResult ? (
+            <p className="text-[11px] text-ok">
+              {t("reverseFormulation.candidates.conversion.success", { code: createdResult.formulationCode, version: createdResult.versionLabel })}
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <select
+                value={conversionTarget}
+                onChange={(e) => setConversionTarget(e.target.value)}
+                aria-label={t("reverseFormulation.candidates.conversion.targetLabel")}
+                className="rounded-input border border-border bg-surface px-1.5 py-0.5 text-[11px] text-text"
+              >
+                <option value="new">{t("reverseFormulation.candidates.conversion.newFormulationOption")}</option>
+                {existingFormulations.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.code} — {f.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => void confirmCreate()}
+                disabled={converting}
+                className="rounded-input bg-accent px-2 py-1 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
+              >
+                {converting
+                  ? t("reverseFormulation.candidates.conversion.creating")
+                  : conversionTarget === "new"
+                    ? t("reverseFormulation.candidates.conversion.createDraft")
+                    : t("reverseFormulation.candidates.conversion.createVersion")}
+              </button>
+            </div>
+          )}
+          {createError && (
+            <p role="alert" className="mt-1 text-[11px] text-error">
+              {createError}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -2309,6 +2309,20 @@
         "performance": "Leistung",
         "cost": "Kosten",
         "regulatory": "Regulatorisch"
+      },
+      "conversion": {
+        "noStudy": "Keine Studie ausgewählt.",
+        "emptyFormula": "Es kann keine Formulierung aus einem Kandidaten ohne Formelzeilen erstellt werden.",
+        "missingMaterials": "Formulierung kann nicht erstellt werden — Material(ien) nicht im Katalog: {{codes}}.",
+        "targetNotFound": "Die ausgewählte Zielformulierung wurde nicht gefunden.",
+        "lowConfidenceWarning": "Geringe Beleg-Konfidenz — vor Verwendung dieser Formel sorgfältig prüfen.",
+        "decisionSupportNotice": "Kandidatenbewertungen sind Entscheidungshilfe, keine Genehmigung — der neue Datensatz startet ungenehmigt und unbestätigt.",
+        "success": "{{code}} {{version}} aus diesem Kandidaten erstellt.",
+        "targetLabel": "Zielformulierung",
+        "newFormulationOption": "Neue Formulierung",
+        "creating": "Wird erstellt…",
+        "createDraft": "Formulierungsentwurf erstellen",
+        "createVersion": "Neue Version erstellen"
       }
     }
   }
