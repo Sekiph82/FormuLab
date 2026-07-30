@@ -2195,5 +2195,121 @@
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
     }
+  },
+  "reverseFormulation": {
+    "heading": "Reverse Formulation",
+    "sections": {
+      "studies": "Studies",
+      "products": "Benchmark Products",
+      "target": "Target & Constraints",
+      "candidates": "Candidates"
+    },
+    "errors": {
+      "load": "Could not load Reverse Formulation data: {{message}}"
+    },
+    "studies": {
+      "loading": "Loading studies…",
+      "empty": "No Reverse Formulation studies yet.",
+      "newDraft": "New draft study",
+      "codeLabel": "Study code",
+      "nameLabel": "Study name",
+      "projectLabel": "Project code",
+      "familyLabel": "Product family code",
+      "create": "Create study",
+      "required": "Study code, name, project code and product family code are all required.",
+      "select": "Select",
+      "selected": "Selected",
+      "statusLabel": "Status"
+    },
+    "products": {
+      "empty": "No benchmark products attached to this study yet.",
+      "newProduct": "New benchmark product",
+      "codeLabel": "Product code",
+      "nameLabel": "Product name",
+      "attach": "Attach existing product",
+      "add": "Add & attach"
+    },
+    "declarations": {
+      "heading": "Ingredient Declaration",
+      "empty": "No ingredient declaration lines yet.",
+      "unknown": "unknown",
+      "orderLabel": "Order",
+      "nameLabel": "Declared name",
+      "hintLabel": "Concentration hint",
+      "add": "Add line",
+      "status": {
+        "unmapped": "Unmapped",
+        "mapped": "Mapped",
+        "conflicted": "Conflicted",
+        "rejected": "Rejected"
+      }
+    },
+    "analytical": {
+      "heading": "Analytical Evidence",
+      "empty": "No analytical composition results yet.",
+      "unverified": "Unverified",
+      "invalidValue": "Value must be a plain decimal number, e.g. 12.5.",
+      "typeLabel": "Analysis type",
+      "analyteLabel": "Analyte",
+      "valueLabel": "Value",
+      "unitLabel": "Unit",
+      "add": "Add measurement"
+    },
+    "mappings": {
+      "heading": "Ingredient Mappings",
+      "empty": "No ingredient mappings yet.",
+      "materialLabel": "Material",
+      "methodLabel": "Method",
+      "confidenceLabel": "Confidence",
+      "add": "Add mapping",
+      "confirm": "Confirm",
+      "reject": "Reject",
+      "status": {
+        "proposed": "Proposed",
+        "confirmed": "Confirmed",
+        "rejected": "Rejected"
+      }
+    },
+    "target": {
+      "profileHeading": "Target Product Profile",
+      "empty": "No target product profile linked yet.",
+      "phRangeLabel": "pH range",
+      "phMinLabel": "pH min",
+      "phMaxLabel": "pH max",
+      "createProfile": "Create & link profile",
+      "linkExisting": "Link existing",
+      "constraintsHeading": "Reverse Constraints",
+      "constraintsEmpty": "No constraint set linked yet.",
+      "excludedMaterials": "Excluded materials",
+      "createConstraints": "Create & link constraints"
+    },
+    "candidates": {
+      "generate": "Generate candidates",
+      "generating": "Generating…",
+      "noProduct": "Attach a benchmark product with ingredient declaration lines first.",
+      "noTarget": "Link a target product profile first.",
+      "empty": "Generate candidates to compare formulas here.",
+      "cardTitle": "Candidate {{index}}",
+      "overallScore": "Overall score",
+      "evidenceConfidence": "Evidence confidence",
+      "noFormula": "No formula lines — evidence was insufficient to generate one.",
+      "evaluated": "Evaluated",
+      "unevaluated": "Not evaluated",
+      "notes": "Notes",
+      "select": "Select for review",
+      "selected": "Selected",
+      "save": "Save as candidate record",
+      "saveHint": "Saves a candidate record — does not create or overwrite a formula.",
+      "saved": "Saved",
+      "dimension": {
+        "evidence": "Evidence",
+        "order": "Order",
+        "analytical": "Analytical",
+        "properties": "Properties",
+        "performance": "Performance",
+        "cost": "Cost",
+        "regulatory": "Regulatory"
+      }
+    }
   }
 }

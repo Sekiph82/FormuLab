@@ -34,7 +34,8 @@
     "approval": "Onay",
     "reports": "Raporlar",
     "administration": "Yönetim",
-    "dataExchange": "Veri Alışverişi"
+    "dataExchange": "Veri Alışverişi",
+    "reverseFormulation": "Ters Formülasyon"
   },
   "workspace": {
     "noProjectsYet": "Henüz proje yok — başlamak için Projeler'den bir tane oluşturun.",

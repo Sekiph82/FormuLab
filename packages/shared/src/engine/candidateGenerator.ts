@@ -313,7 +313,11 @@ function generateFromDeclaredHints(
  * Generate a baseline formula: water, surfactant, thickener, preservative.
  */
 function generateBaselineFormula(
-  mappedIngredients: Array<{
+  // Reserved: the baseline method deliberately ignores declared ingredients
+  // (it builds a generic water/surfactant/thickener/preservative skeleton),
+  // but keeps the same parameter shape as the other generation methods so
+  // `generateCandidates` can call all three uniformly.
+  _mappedIngredients: Array<{
     line: IngredientDeclarationLine;
     mapping: IngredientMappingResult;
   }>,

@@ -2195,5 +2195,121 @@
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
     }
+  },
+  "reverseFormulation": {
+    "heading": "Reformulation Inverse",
+    "sections": {
+      "studies": "Études",
+      "products": "Produits de Référence",
+      "target": "Cible et Contraintes",
+      "candidates": "Candidats"
+    },
+    "errors": {
+      "load": "Impossible de charger les données de Reformulation Inverse : {{message}}"
+    },
+    "studies": {
+      "loading": "Chargement des études…",
+      "empty": "Aucune étude de Reformulation Inverse pour le moment.",
+      "newDraft": "Nouvelle étude brouillon",
+      "codeLabel": "Code de l'étude",
+      "nameLabel": "Nom de l'étude",
+      "projectLabel": "Code du projet",
+      "familyLabel": "Code de famille de produit",
+      "create": "Créer l'étude",
+      "required": "Le code, le nom, le code de projet et le code de famille de produit sont requis.",
+      "select": "Sélectionner",
+      "selected": "Sélectionné",
+      "statusLabel": "Statut"
+    },
+    "products": {
+      "empty": "Aucun produit de référence associé à cette étude pour le moment.",
+      "newProduct": "Nouveau produit de référence",
+      "codeLabel": "Code du produit",
+      "nameLabel": "Nom du produit",
+      "attach": "Associer un produit existant",
+      "add": "Ajouter et associer"
+    },
+    "declarations": {
+      "heading": "Déclaration d'Ingrédients",
+      "empty": "Aucune ligne de déclaration pour le moment.",
+      "unknown": "inconnu",
+      "orderLabel": "Ordre",
+      "nameLabel": "Nom déclaré",
+      "hintLabel": "Indice de concentration",
+      "add": "Ajouter une ligne",
+      "status": {
+        "unmapped": "Non mappé",
+        "mapped": "Mappé",
+        "conflicted": "En conflit",
+        "rejected": "Rejeté"
+      }
+    },
+    "analytical": {
+      "heading": "Preuves Analytiques",
+      "empty": "Aucun résultat de composition analytique pour le moment.",
+      "unverified": "Non vérifié",
+      "invalidValue": "La valeur doit être un nombre décimal simple, ex. 12.5.",
+      "typeLabel": "Type d'analyse",
+      "analyteLabel": "Analyte",
+      "valueLabel": "Valeur",
+      "unitLabel": "Unité",
+      "add": "Ajouter une mesure"
+    },
+    "mappings": {
+      "heading": "Correspondances d'Ingrédients",
+      "empty": "Aucune correspondance d'ingrédient pour le moment.",
+      "materialLabel": "Matériau",
+      "methodLabel": "Méthode",
+      "confidenceLabel": "Confiance",
+      "add": "Ajouter une correspondance",
+      "confirm": "Confirmer",
+      "reject": "Rejeter",
+      "status": {
+        "proposed": "Proposé",
+        "confirmed": "Confirmé",
+        "rejected": "Rejeté"
+      }
+    },
+    "target": {
+      "profileHeading": "Profil du Produit Cible",
+      "empty": "Aucun profil de produit cible lié pour le moment.",
+      "phRangeLabel": "Plage de pH",
+      "phMinLabel": "pH min",
+      "phMaxLabel": "pH max",
+      "createProfile": "Créer et lier le profil",
+      "linkExisting": "Lier un existant",
+      "constraintsHeading": "Contraintes Inverses",
+      "constraintsEmpty": "Aucun ensemble de contraintes lié pour le moment.",
+      "excludedMaterials": "Matériaux exclus",
+      "createConstraints": "Créer et lier les contraintes"
+    },
+    "candidates": {
+      "generate": "Générer des candidats",
+      "generating": "Génération…",
+      "noProduct": "Associez d'abord un produit de référence avec des lignes de déclaration.",
+      "noTarget": "Liez d'abord un profil de produit cible.",
+      "empty": "Générez des candidats pour comparer des formules ici.",
+      "cardTitle": "Candidat {{index}}",
+      "overallScore": "Score global",
+      "evidenceConfidence": "Confiance des preuves",
+      "noFormula": "Aucune ligne de formule — preuves insuffisantes pour en générer une.",
+      "evaluated": "Évalué",
+      "unevaluated": "Non évalué",
+      "notes": "Notes",
+      "select": "Sélectionner pour examen",
+      "selected": "Sélectionné",
+      "save": "Enregistrer comme candidat",
+      "saveHint": "Enregistre un enregistrement candidat — ne crée ni n'écrase de formule.",
+      "saved": "Enregistré",
+      "dimension": {
+        "evidence": "Preuves",
+        "order": "Ordre",
+        "analytical": "Analytique",
+        "properties": "Propriétés",
+        "performance": "Performance",
+        "cost": "Coût",
+        "regulatory": "Réglementaire"
+      }
+    }
   }
 }

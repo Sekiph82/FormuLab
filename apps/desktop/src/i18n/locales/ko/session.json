@@ -2195,5 +2195,121 @@
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
     }
+  },
+  "reverseFormulation": {
+    "heading": "역제형 분석",
+    "sections": {
+      "studies": "스터디",
+      "products": "벤치마크 제품",
+      "target": "목표 및 제약",
+      "candidates": "후보"
+    },
+    "errors": {
+      "load": "역제형 분석 데이터를 불러올 수 없습니다: {{message}}"
+    },
+    "studies": {
+      "loading": "스터디 불러오는 중…",
+      "empty": "아직 역제형 분석 스터디가 없습니다.",
+      "newDraft": "새 초안 스터디",
+      "codeLabel": "스터디 코드",
+      "nameLabel": "스터디 이름",
+      "projectLabel": "프로젝트 코드",
+      "familyLabel": "제품군 코드",
+      "create": "스터디 생성",
+      "required": "스터디 코드, 이름, 프로젝트 코드, 제품군 코드는 모두 필수입니다.",
+      "select": "선택",
+      "selected": "선택됨",
+      "statusLabel": "상태"
+    },
+    "products": {
+      "empty": "이 스터디에 연결된 벤치마크 제품이 아직 없습니다.",
+      "newProduct": "새 벤치마크 제품",
+      "codeLabel": "제품 코드",
+      "nameLabel": "제품 이름",
+      "attach": "기존 제품 연결",
+      "add": "추가 및 연결"
+    },
+    "declarations": {
+      "heading": "성분 표시",
+      "empty": "아직 성분 표시 항목이 없습니다.",
+      "unknown": "알 수 없음",
+      "orderLabel": "순서",
+      "nameLabel": "표시된 이름",
+      "hintLabel": "농도 힌트",
+      "add": "항목 추가",
+      "status": {
+        "unmapped": "미매핑",
+        "mapped": "매핑됨",
+        "conflicted": "충돌",
+        "rejected": "거부됨"
+      }
+    },
+    "analytical": {
+      "heading": "분석 증거",
+      "empty": "아직 분석 조성 결과가 없습니다.",
+      "unverified": "미검증",
+      "invalidValue": "값은 12.5와 같은 단순 십진수여야 합니다.",
+      "typeLabel": "분석 유형",
+      "analyteLabel": "분석 물질",
+      "valueLabel": "값",
+      "unitLabel": "단위",
+      "add": "측정값 추가"
+    },
+    "mappings": {
+      "heading": "성분 매핑",
+      "empty": "아직 성분 매핑이 없습니다.",
+      "materialLabel": "원료",
+      "methodLabel": "방법",
+      "confidenceLabel": "신뢰도",
+      "add": "매핑 추가",
+      "confirm": "확인",
+      "reject": "거부",
+      "status": {
+        "proposed": "제안됨",
+        "confirmed": "확인됨",
+        "rejected": "거부됨"
+      }
+    },
+    "target": {
+      "profileHeading": "목표 제품 프로파일",
+      "empty": "아직 연결된 목표 제품 프로파일이 없습니다.",
+      "phRangeLabel": "pH 범위",
+      "phMinLabel": "pH 최소",
+      "phMaxLabel": "pH 최대",
+      "createProfile": "프로파일 생성 및 연결",
+      "linkExisting": "기존 항목 연결",
+      "constraintsHeading": "역제형 제약",
+      "constraintsEmpty": "아직 연결된 제약 세트가 없습니다.",
+      "excludedMaterials": "제외 원료",
+      "createConstraints": "제약 생성 및 연결"
+    },
+    "candidates": {
+      "generate": "후보 생성",
+      "generating": "생성 중…",
+      "noProduct": "먼저 성분 표시 항목이 있는 벤치마크 제품을 연결하세요.",
+      "noTarget": "먼저 목표 제품 프로파일을 연결하세요.",
+      "empty": "여기서 배합을 비교하려면 후보를 생성하세요.",
+      "cardTitle": "후보 {{index}}",
+      "overallScore": "종합 점수",
+      "evidenceConfidence": "증거 신뢰도",
+      "noFormula": "배합 항목 없음 — 생성하기에 증거가 부족합니다.",
+      "evaluated": "평가됨",
+      "unevaluated": "미평가",
+      "notes": "메모",
+      "select": "검토용 선택",
+      "selected": "선택됨",
+      "save": "후보 레코드로 저장",
+      "saveHint": "후보 레코드를 저장합니다 — 배합을 생성하거나 덮어쓰지 않습니다.",
+      "saved": "저장됨",
+      "dimension": {
+        "evidence": "증거",
+        "order": "순서",
+        "analytical": "분석",
+        "properties": "물성",
+        "performance": "성능",
+        "cost": "비용",
+        "regulatory": "규제"
+      }
+    }
   }
 }

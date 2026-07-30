@@ -2195,5 +2195,121 @@
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
     }
+  },
+  "reverseFormulation": {
+    "heading": "Rückformulierung",
+    "sections": {
+      "studies": "Studien",
+      "products": "Vergleichsprodukte",
+      "target": "Ziel & Beschränkungen",
+      "candidates": "Kandidaten"
+    },
+    "errors": {
+      "load": "Rückformulierungsdaten konnten nicht geladen werden: {{message}}"
+    },
+    "studies": {
+      "loading": "Studien werden geladen…",
+      "empty": "Noch keine Rückformulierungs-Studien.",
+      "newDraft": "Neue Entwurfsstudie",
+      "codeLabel": "Studiencode",
+      "nameLabel": "Studienname",
+      "projectLabel": "Projektcode",
+      "familyLabel": "Produktfamiliencode",
+      "create": "Studie erstellen",
+      "required": "Studiencode, Name, Projektcode und Produktfamiliencode sind erforderlich.",
+      "select": "Auswählen",
+      "selected": "Ausgewählt",
+      "statusLabel": "Status"
+    },
+    "products": {
+      "empty": "Dieser Studie sind noch keine Vergleichsprodukte zugeordnet.",
+      "newProduct": "Neues Vergleichsprodukt",
+      "codeLabel": "Produktcode",
+      "nameLabel": "Produktname",
+      "attach": "Vorhandenes Produkt zuordnen",
+      "add": "Hinzufügen & zuordnen"
+    },
+    "declarations": {
+      "heading": "Zutatendeklaration",
+      "empty": "Noch keine Deklarationszeilen.",
+      "unknown": "unbekannt",
+      "orderLabel": "Reihenfolge",
+      "nameLabel": "Deklarierter Name",
+      "hintLabel": "Konzentrationshinweis",
+      "add": "Zeile hinzufügen",
+      "status": {
+        "unmapped": "Nicht zugeordnet",
+        "mapped": "Zugeordnet",
+        "conflicted": "Widersprüchlich",
+        "rejected": "Abgelehnt"
+      }
+    },
+    "analytical": {
+      "heading": "Analytische Nachweise",
+      "empty": "Noch keine analytischen Zusammensetzungsergebnisse.",
+      "unverified": "Unbestätigt",
+      "invalidValue": "Wert muss eine einfache Dezimalzahl sein, z. B. 12.5.",
+      "typeLabel": "Analysetyp",
+      "analyteLabel": "Analyt",
+      "valueLabel": "Wert",
+      "unitLabel": "Einheit",
+      "add": "Messung hinzufügen"
+    },
+    "mappings": {
+      "heading": "Zutatenzuordnungen",
+      "empty": "Noch keine Zutatenzuordnungen.",
+      "materialLabel": "Material",
+      "methodLabel": "Methode",
+      "confidenceLabel": "Konfidenz",
+      "add": "Zuordnung hinzufügen",
+      "confirm": "Bestätigen",
+      "reject": "Ablehnen",
+      "status": {
+        "proposed": "Vorgeschlagen",
+        "confirmed": "Bestätigt",
+        "rejected": "Abgelehnt"
+      }
+    },
+    "target": {
+      "profileHeading": "Zielproduktprofil",
+      "empty": "Noch kein Zielproduktprofil verknüpft.",
+      "phRangeLabel": "pH-Bereich",
+      "phMinLabel": "pH min",
+      "phMaxLabel": "pH max",
+      "createProfile": "Profil erstellen & verknüpfen",
+      "linkExisting": "Vorhandenes verknüpfen",
+      "constraintsHeading": "Rückformulierungs-Beschränkungen",
+      "constraintsEmpty": "Noch kein Beschränkungssatz verknüpft.",
+      "excludedMaterials": "Ausgeschlossene Materialien",
+      "createConstraints": "Beschränkungen erstellen & verknüpfen"
+    },
+    "candidates": {
+      "generate": "Kandidaten generieren",
+      "generating": "Wird generiert…",
+      "noProduct": "Zuerst ein Vergleichsprodukt mit Deklarationszeilen zuordnen.",
+      "noTarget": "Zuerst ein Zielproduktprofil verknüpfen.",
+      "empty": "Kandidaten generieren, um Formeln hier zu vergleichen.",
+      "cardTitle": "Kandidat {{index}}",
+      "overallScore": "Gesamtwertung",
+      "evidenceConfidence": "Beleg-Konfidenz",
+      "noFormula": "Keine Formelzeilen — unzureichende Beweise zur Generierung.",
+      "evaluated": "Bewertet",
+      "unevaluated": "Nicht bewertet",
+      "notes": "Notizen",
+      "select": "Zur Prüfung auswählen",
+      "selected": "Ausgewählt",
+      "save": "Als Kandidatendatensatz speichern",
+      "saveHint": "Speichert einen Kandidatendatensatz — erstellt oder überschreibt keine Formel.",
+      "saved": "Gespeichert",
+      "dimension": {
+        "evidence": "Beleg",
+        "order": "Reihenfolge",
+        "analytical": "Analytisch",
+        "properties": "Eigenschaften",
+        "performance": "Leistung",
+        "cost": "Kosten",
+        "regulatory": "Regulatorisch"
+      }
+    }
   }
 }

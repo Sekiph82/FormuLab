@@ -2195,5 +2195,121 @@
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
     }
+  },
+  "reverseFormulation": {
+    "heading": "Reformulación Inversa",
+    "sections": {
+      "studies": "Estudios",
+      "products": "Productos de Referencia",
+      "target": "Objetivo y Restricciones",
+      "candidates": "Candidatos"
+    },
+    "errors": {
+      "load": "No se pudieron cargar los datos de Reformulación Inversa: {{message}}"
+    },
+    "studies": {
+      "loading": "Cargando estudios…",
+      "empty": "Aún no hay estudios de Reformulación Inversa.",
+      "newDraft": "Nuevo estudio borrador",
+      "codeLabel": "Código del estudio",
+      "nameLabel": "Nombre del estudio",
+      "projectLabel": "Código del proyecto",
+      "familyLabel": "Código de familia de producto",
+      "create": "Crear estudio",
+      "required": "Se requieren código, nombre, código de proyecto y código de familia de producto.",
+      "select": "Seleccionar",
+      "selected": "Seleccionado",
+      "statusLabel": "Estado"
+    },
+    "products": {
+      "empty": "Aún no hay productos de referencia asociados a este estudio.",
+      "newProduct": "Nuevo producto de referencia",
+      "codeLabel": "Código del producto",
+      "nameLabel": "Nombre del producto",
+      "attach": "Asociar producto existente",
+      "add": "Añadir y asociar"
+    },
+    "declarations": {
+      "heading": "Declaración de Ingredientes",
+      "empty": "Aún no hay líneas de declaración.",
+      "unknown": "desconocido",
+      "orderLabel": "Orden",
+      "nameLabel": "Nombre declarado",
+      "hintLabel": "Indicio de concentración",
+      "add": "Añadir línea",
+      "status": {
+        "unmapped": "Sin asignar",
+        "mapped": "Asignado",
+        "conflicted": "En conflicto",
+        "rejected": "Rechazado"
+      }
+    },
+    "analytical": {
+      "heading": "Evidencia Analítica",
+      "empty": "Aún no hay resultados de composición analítica.",
+      "unverified": "No verificado",
+      "invalidValue": "El valor debe ser un número decimal simple, p. ej. 12.5.",
+      "typeLabel": "Tipo de análisis",
+      "analyteLabel": "Analito",
+      "valueLabel": "Valor",
+      "unitLabel": "Unidad",
+      "add": "Añadir medición"
+    },
+    "mappings": {
+      "heading": "Asignaciones de Ingredientes",
+      "empty": "Aún no hay asignaciones de ingredientes.",
+      "materialLabel": "Material",
+      "methodLabel": "Método",
+      "confidenceLabel": "Confianza",
+      "add": "Añadir asignación",
+      "confirm": "Confirmar",
+      "reject": "Rechazar",
+      "status": {
+        "proposed": "Propuesto",
+        "confirmed": "Confirmado",
+        "rejected": "Rechazado"
+      }
+    },
+    "target": {
+      "profileHeading": "Perfil del Producto Objetivo",
+      "empty": "Aún no hay un perfil de producto objetivo vinculado.",
+      "phRangeLabel": "Rango de pH",
+      "phMinLabel": "pH mín.",
+      "phMaxLabel": "pH máx.",
+      "createProfile": "Crear y vincular perfil",
+      "linkExisting": "Vincular existente",
+      "constraintsHeading": "Restricciones Inversas",
+      "constraintsEmpty": "Aún no hay un conjunto de restricciones vinculado.",
+      "excludedMaterials": "Materiales excluidos",
+      "createConstraints": "Crear y vincular restricciones"
+    },
+    "candidates": {
+      "generate": "Generar candidatos",
+      "generating": "Generando…",
+      "noProduct": "Asocie primero un producto de referencia con líneas de declaración.",
+      "noTarget": "Vincule primero un perfil de producto objetivo.",
+      "empty": "Genere candidatos para comparar fórmulas aquí.",
+      "cardTitle": "Candidato {{index}}",
+      "overallScore": "Puntuación general",
+      "evidenceConfidence": "Confianza de la evidencia",
+      "noFormula": "Sin líneas de fórmula — evidencia insuficiente para generar una.",
+      "evaluated": "Evaluado",
+      "unevaluated": "No evaluado",
+      "notes": "Notas",
+      "select": "Seleccionar para revisión",
+      "selected": "Seleccionado",
+      "save": "Guardar como registro de candidato",
+      "saveHint": "Guarda un registro de candidato — no crea ni sobrescribe una fórmula.",
+      "saved": "Guardado",
+      "dimension": {
+        "evidence": "Evidencia",
+        "order": "Orden",
+        "analytical": "Analítico",
+        "properties": "Propiedades",
+        "performance": "Rendimiento",
+        "cost": "Costo",
+        "regulatory": "Regulatorio"
+      }
+    }
   }
 }

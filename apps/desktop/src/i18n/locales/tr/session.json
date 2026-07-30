@@ -2195,5 +2195,121 @@
       "security": "Her dışa aktarım, Excel'de açıldığında bir dosyanın asla kod çalıştıramaması için e-tablo formüllerini etkisiz hale getirir; her içe aktarım aynı tetikleyicileri geri çıkarır. Dosyalar ayrıştırılmadan önce boyut ve satır sayısı sınırları kontrol edilir.",
       "authorization": "Her şablon yalnızca belirli rollerden gelen içe aktarımları kabul eder ve bazı alanlar — doğrulama durumu, onaylar, incelemeci imzası — dosya nasıl doldurulursa doldurulsun bir içe aktarma tarafından asla ayarlanamaz. Bunlar her zaman FormuLab içindeki normal, yetkilendirilmiş iş akışını gerektirir."
     }
+  },
+  "reverseFormulation": {
+    "heading": "Ters Formülasyon",
+    "sections": {
+      "studies": "Çalışmalar",
+      "products": "Kıyaslama Ürünleri",
+      "target": "Hedef ve Kısıtlar",
+      "candidates": "Adaylar"
+    },
+    "errors": {
+      "load": "Ters Formülasyon verileri yüklenemedi: {{message}}"
+    },
+    "studies": {
+      "loading": "Çalışmalar yükleniyor…",
+      "empty": "Henüz Ters Formülasyon çalışması yok.",
+      "newDraft": "Yeni taslak çalışma",
+      "codeLabel": "Çalışma kodu",
+      "nameLabel": "Çalışma adı",
+      "projectLabel": "Proje kodu",
+      "familyLabel": "Ürün ailesi kodu",
+      "create": "Çalışma oluştur",
+      "required": "Çalışma kodu, adı, proje kodu ve ürün ailesi kodu zorunludur.",
+      "select": "Seç",
+      "selected": "Seçildi",
+      "statusLabel": "Durum"
+    },
+    "products": {
+      "empty": "Bu çalışmaya henüz kıyaslama ürünü eklenmedi.",
+      "newProduct": "Yeni kıyaslama ürünü",
+      "codeLabel": "Ürün kodu",
+      "nameLabel": "Ürün adı",
+      "attach": "Mevcut ürünü ekle",
+      "add": "Ekle ve bağla"
+    },
+    "declarations": {
+      "heading": "İçerik Beyanı",
+      "empty": "Henüz beyan satırı yok.",
+      "unknown": "bilinmiyor",
+      "orderLabel": "Sıra",
+      "nameLabel": "Beyan edilen ad",
+      "hintLabel": "Konsantrasyon ipucu",
+      "add": "Satır ekle",
+      "status": {
+        "unmapped": "Eşlenmedi",
+        "mapped": "Eşlendi",
+        "conflicted": "Çelişkili",
+        "rejected": "Reddedildi"
+      }
+    },
+    "analytical": {
+      "heading": "Analitik Kanıt",
+      "empty": "Henüz analitik bileşim sonucu yok.",
+      "unverified": "Doğrulanmadı",
+      "invalidValue": "Değer 12.5 gibi basit bir ondalık sayı olmalıdır.",
+      "typeLabel": "Analiz türü",
+      "analyteLabel": "Analit",
+      "valueLabel": "Değer",
+      "unitLabel": "Birim",
+      "add": "Ölçüm ekle"
+    },
+    "mappings": {
+      "heading": "İçerik Eşlemeleri",
+      "empty": "Henüz içerik eşlemesi yok.",
+      "materialLabel": "Malzeme",
+      "methodLabel": "Yöntem",
+      "confidenceLabel": "Güven",
+      "add": "Eşleme ekle",
+      "confirm": "Onayla",
+      "reject": "Reddet",
+      "status": {
+        "proposed": "Önerildi",
+        "confirmed": "Onaylandı",
+        "rejected": "Reddedildi"
+      }
+    },
+    "target": {
+      "profileHeading": "Hedef Ürün Profili",
+      "empty": "Henüz bağlı bir hedef ürün profili yok.",
+      "phRangeLabel": "pH aralığı",
+      "phMinLabel": "pH min",
+      "phMaxLabel": "pH maks",
+      "createProfile": "Profil oluştur ve bağla",
+      "linkExisting": "Mevcut olanı bağla",
+      "constraintsHeading": "Ters Kısıtlar",
+      "constraintsEmpty": "Henüz bağlı bir kısıt kümesi yok.",
+      "excludedMaterials": "Hariç tutulan malzemeler",
+      "createConstraints": "Kısıt oluştur ve bağla"
+    },
+    "candidates": {
+      "generate": "Aday oluştur",
+      "generating": "Oluşturuluyor…",
+      "noProduct": "Önce beyan satırları olan bir kıyaslama ürünü ekleyin.",
+      "noTarget": "Önce bir hedef ürün profili bağlayın.",
+      "empty": "Formülleri burada karşılaştırmak için aday oluşturun.",
+      "cardTitle": "Aday {{index}}",
+      "overallScore": "Genel puan",
+      "evidenceConfidence": "Kanıt güveni",
+      "noFormula": "Formül satırı yok — oluşturmak için kanıt yetersiz.",
+      "evaluated": "Değerlendirildi",
+      "unevaluated": "Değerlendirilmedi",
+      "notes": "Notlar",
+      "select": "İnceleme için seç",
+      "selected": "Seçildi",
+      "save": "Aday kaydı olarak kaydet",
+      "saveHint": "Bir aday kaydı kaydeder — bir formül oluşturmaz veya üzerine yazmaz.",
+      "saved": "Kaydedildi",
+      "dimension": {
+        "evidence": "Kanıt",
+        "order": "Sıra",
+        "analytical": "Analitik",
+        "properties": "Özellikler",
+        "performance": "Performans",
+        "cost": "Maliyet",
+        "regulatory": "Regülasyon"
+      }
+    }
   }
 }

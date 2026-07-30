@@ -34,7 +34,8 @@
     "approval": "Approval",
     "reports": "Reports",
     "administration": "Administration",
-    "dataExchange": "Data Exchange"
+    "dataExchange": "Data Exchange",
+    "reverseFormulation": "Reverse Formulation"
   },
   "workspace": {
     "noProjectsYet": "No projects yet — create one from Projects to get started.",

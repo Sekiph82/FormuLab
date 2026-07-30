@@ -70,6 +70,17 @@ import type {
   RegulatoryReviewRevocation,
   RegulatoryRule,
   RegulatoryRuleRevision,
+  ReverseFormulationStudy,
+  BenchmarkProduct,
+  BenchmarkEvidenceItem,
+  IngredientDeclarationLine,
+  AnalyticalCompositionResult,
+  TargetProductProfile,
+  ReverseConstraintSet,
+  IngredientMapping,
+  SubstitutionRule,
+  ReverseFormulaCandidate,
+  CandidateScoreExplanation,
   SafetyResolution,
   SafetyRule,
   SafetySnapshot,
@@ -162,7 +173,18 @@ export type Collection =
   | "data_exchange_import_jobs"
   | "data_exchange_import_row_results"
   | "data_exchange_export_jobs"
-  | "data_exchange_schema_versions";
+  | "data_exchange_schema_versions"
+  | "reverse_formulation_studies"
+  | "benchmark_products"
+  | "benchmark_evidence_items"
+  | "ingredient_declaration_lines"
+  | "analytical_composition_results"
+  | "target_product_profiles"
+  | "reverse_constraint_sets"
+  | "ingredient_mappings"
+  | "substitution_rules"
+  | "reverse_formula_candidates"
+  | "candidate_score_explanations";
 
 interface CollectionTypes {
   materials: RawMaterial;
@@ -241,6 +263,17 @@ interface CollectionTypes {
   data_exchange_import_row_results: DataExchangeImportRowResult;
   data_exchange_export_jobs: DataExchangeExportJob;
   data_exchange_schema_versions: DataExchangeSchemaVersion;
+  reverse_formulation_studies: ReverseFormulationStudy;
+  benchmark_products: BenchmarkProduct;
+  benchmark_evidence_items: BenchmarkEvidenceItem;
+  ingredient_declaration_lines: IngredientDeclarationLine;
+  analytical_composition_results: AnalyticalCompositionResult;
+  target_product_profiles: TargetProductProfile;
+  reverse_constraint_sets: ReverseConstraintSet;
+  ingredient_mappings: IngredientMapping;
+  substitution_rules: SubstitutionRule;
+  reverse_formula_candidates: ReverseFormulaCandidate;
+  candidate_score_explanations: CandidateScoreExplanation;
 }
 
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {

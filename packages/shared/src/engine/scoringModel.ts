@@ -120,7 +120,11 @@ export function scoreReverseFormulaCandidate(
   }>,
   analysis: AnalyticalAnalysis,
   target: TargetProductProfile,
-  availableMaterials: Map<string, any> // We'll use any for simplicity; in reality would be Material[]
+  // Reserved for a future cost/availability dimension that looks materials
+  // up directly (see the "cost" dimension below, currently scored from
+  // `candidate.estimatedCost` alone) — kept in the signature so callers
+  // don't need to change when that lands.
+  _availableMaterials: Map<string, any>
 ): ScoringModelOutput {
   const scores: Record<string, number> = {};
   const explanations: Record<string, string> = {};

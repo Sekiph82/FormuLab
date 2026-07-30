@@ -2195,5 +2195,121 @@
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
     }
+  },
+  "reverseFormulation": {
+    "heading": "逆向配方",
+    "sections": {
+      "studies": "研究",
+      "products": "基准产品",
+      "target": "目标与约束",
+      "candidates": "候选配方"
+    },
+    "errors": {
+      "load": "无法加载逆向配方数据：{{message}}"
+    },
+    "studies": {
+      "loading": "正在加载研究…",
+      "empty": "尚无逆向配方研究。",
+      "newDraft": "新建草稿研究",
+      "codeLabel": "研究编码",
+      "nameLabel": "研究名称",
+      "projectLabel": "项目编码",
+      "familyLabel": "产品系列编码",
+      "create": "创建研究",
+      "required": "研究编码、名称、项目编码和产品系列编码均为必填项。",
+      "select": "选择",
+      "selected": "已选择",
+      "statusLabel": "状态"
+    },
+    "products": {
+      "empty": "该研究尚未关联任何基准产品。",
+      "newProduct": "新建基准产品",
+      "codeLabel": "产品编码",
+      "nameLabel": "产品名称",
+      "attach": "关联现有产品",
+      "add": "添加并关联"
+    },
+    "declarations": {
+      "heading": "成分声明",
+      "empty": "尚无成分声明行。",
+      "unknown": "未知",
+      "orderLabel": "顺序",
+      "nameLabel": "声明名称",
+      "hintLabel": "浓度提示",
+      "add": "添加行",
+      "status": {
+        "unmapped": "未映射",
+        "mapped": "已映射",
+        "conflicted": "存在冲突",
+        "rejected": "已拒绝"
+      }
+    },
+    "analytical": {
+      "heading": "分析证据",
+      "empty": "尚无分析成分结果。",
+      "unverified": "未验证",
+      "invalidValue": "数值必须是简单的十进制数，例如 12.5。",
+      "typeLabel": "分析类型",
+      "analyteLabel": "分析物",
+      "valueLabel": "数值",
+      "unitLabel": "单位",
+      "add": "添加测量值"
+    },
+    "mappings": {
+      "heading": "成分映射",
+      "empty": "尚无成分映射。",
+      "materialLabel": "原料",
+      "methodLabel": "方法",
+      "confidenceLabel": "置信度",
+      "add": "添加映射",
+      "confirm": "确认",
+      "reject": "拒绝",
+      "status": {
+        "proposed": "已提议",
+        "confirmed": "已确认",
+        "rejected": "已拒绝"
+      }
+    },
+    "target": {
+      "profileHeading": "目标产品档案",
+      "empty": "尚未关联目标产品档案。",
+      "phRangeLabel": "pH 范围",
+      "phMinLabel": "pH 最小值",
+      "phMaxLabel": "pH 最大值",
+      "createProfile": "创建并关联档案",
+      "linkExisting": "关联现有项",
+      "constraintsHeading": "逆向约束",
+      "constraintsEmpty": "尚未关联约束集。",
+      "excludedMaterials": "排除的原料",
+      "createConstraints": "创建并关联约束"
+    },
+    "candidates": {
+      "generate": "生成候选配方",
+      "generating": "生成中…",
+      "noProduct": "请先关联一个含有成分声明行的基准产品。",
+      "noTarget": "请先关联目标产品档案。",
+      "empty": "生成候选配方以在此比较。",
+      "cardTitle": "候选配方 {{index}}",
+      "overallScore": "总体评分",
+      "evidenceConfidence": "证据置信度",
+      "noFormula": "无配方行 — 证据不足，无法生成。",
+      "evaluated": "已评估",
+      "unevaluated": "未评估",
+      "notes": "备注",
+      "select": "选择以供审查",
+      "selected": "已选择",
+      "save": "另存为候选配方记录",
+      "saveHint": "保存候选配方记录 — 不会创建或覆盖配方。",
+      "saved": "已保存",
+      "dimension": {
+        "evidence": "证据",
+        "order": "顺序",
+        "analytical": "分析",
+        "properties": "性质",
+        "performance": "性能",
+        "cost": "成本",
+        "regulatory": "法规"
+      }
+    }
   }
 }

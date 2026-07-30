@@ -15,6 +15,7 @@ import {
   FolderTree,
   Grid3x3,
   Home,
+  Microscope,
   NotebookPen,
   PanelLeft,
   Plus,
@@ -230,6 +231,7 @@ export function Sidebar() {
               <NavRow icon={<CheckCircle2 size={16} />} label={t("workspacesNav.approval")} onClick={() => navigate("/approval")} />
               <NavRow icon={<FileBarChart2 size={16} />} label={t("workspacesNav.reports")} onClick={() => navigate("/reports")} />
               <NavRow icon={<ArrowLeftRight size={16} />} label={t("workspacesNav.dataExchange")} onClick={() => navigate("/data-exchange")} />
+              <NavRow icon={<Microscope size={16} />} label={t("workspacesNav.reverseFormulation")} onClick={() => navigate("/reverse-formulation")} />
               <NavRow icon={<Boxes size={16} />} label={t("workspacesNav.administration")} onClick={() => navigate("/administration")} />
 
               <div className="px-2 pb-0.5 pt-3 text-xs font-medium uppercase tracking-wider text-muted">
