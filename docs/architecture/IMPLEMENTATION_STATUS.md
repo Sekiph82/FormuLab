@@ -1098,8 +1098,11 @@ reports every row `skipped` with an honest "no commit handler is wired"
 message — never a silent or fake write. See
 [DATA_EXCHANGE_TEMPLATE_CATALOG.md](../DATA_EXCHANGE_TEMPLATE_CATALOG.md).
 
-**Deferred to Phase 8**: a final formatted PDF/DOCX dossier/report export
-sourced from Data Exchange data; the 24→32-33 template expansion.
+**Completed in Phase 8**: a final formatted PDF/DOCX dossier/report
+export sourced from Data Exchange data; the registry grew to 41
+templates (not the originally estimated 32-33 — 6 more dossier-domain
+collections were closed than first scoped). See the Phase 8 section
+below.
 
 ### Reverse Formulation (Phase 7)
 Given a competitor/benchmark product (declared ingredient list, optional
@@ -1168,15 +1171,82 @@ auto-approved formula.
   evidence tier this document already accepts elsewhere when full native
   click-through is environment-blocked.
 
-## In progress
+### Reports, Dossiers, Document Exports (Phase 8) — CLOSED
+Formatted PDF/DOCX document generation for the Dossiers workspace, a
+full export-history/audit/authorization layer for every generation
+attempt, and the final Data Exchange expansion covering every remaining
+dossier-domain collection.
 
-| Area | Spec § |
-|---|---|
-| Reports, Dossiers, document exports (Phase 8) | 20, 21 |
+**Implemented, verified by tests**:
+- `packages/shared/src/schemas/documentExport.ts`: report/document-export
+  domain schemas — `ReportDefinition`, `DocumentSourceReference`,
+  `DocumentExportRequest`, `GeneratedDocumentRecord`,
+  `DossierExportSnapshotMeta` — the single record shape reused
+  everywhere, never a second one invented downstream.
+- `packages/shared/src/engine/dossierExportAssembly.ts`: pure,
+  deterministic assembly of a frozen dossier export snapshot, reusing
+  `regulatoryDossier.ts`'s own satisfaction/readiness/supersession
+  functions rather than reimplementing them.
+- `apps/desktop/src/lib/documentExports/{content,watermark,dossierPdf,
+  dossierDocx,exportHistory,index}.ts`: real PDF/DOCX rendering
+  (`pdf-lib`/`docx`), an honest draft/unapproved watermark reused from
+  `engine/exports.ts`'s `draftWatermark()` (never a second watermark
+  string), and export-history persistence
+  (`startExportRecord`/`finalizeExportSucceeded`/`finalizeExportFailed`/
+  `finalizeExportCancelled`/`listExportHistory`).
+- Rust/TS masterdata: `generated_document_records` (88th collection),
+  `append_only: false` — one row per export attempt, updated in place
+  `generating` → `succeeded`/`failed`/`cancelled`, keyed by `id`, full
+  history lives in the audit log rather than a second append-only
+  table.
+- `DossierPanel.tsx` Evidence Library toolbar: real "Export PDF"/"Export
+  DOCX" buttons, gated on the existing `regulatory`/`quality`/
+  `administrator` role model (checked before any history record is
+  created — an unauthorized role creates no row at all), a native
+  "Save As" dialog via a new `save_binary_file` Tauri command, and a
+  `dossier.export_succeeded`/`_failed`/`_cancelled` audit event on every
+  terminal state. Export never mutates the dossier itself — checksummed
+  via client-side `crypto.subtle.digest("SHA-256", …)`, `fileName` is
+  schema-refined to reject any absolute/UNC/drive path (the flow only
+  ever builds `{dossierCode}-rev{revision}.{format}`).
+- Data Exchange: registry grew from 35 to 41 templates, closing the
+  final dossier-domain gap — 4 new fully importable templates
+  (`dossier_headers`, `dossier_submissions`, `dossier_evidence_links`,
+  `dossier_review_revocations`) and 2 deliberately export-only templates
+  with an honest `disabledReason` each (`dossier_reviews` — a review's
+  frozen requirement/evidence snapshot cannot be reconstructed from a
+  flat row; `dossier_manual_requirement_actions` — its atomic pairing
+  with a requirement-row mutation can't be reproduced by a standalone
+  import row).
+- Closure regression (2026-07-30): 1199 shared, 688 desktop, 82 Rust
+  tests green; shared/desktop typecheck, desktop lint, Rust clippy all
+  clean. Release build produced MSI + NSIS installers. Native launch
+  reconfirmed against the real packaged executable — real process, real
+  window, `FormuLab` title, real rendered sidebar/landing content — but
+  deep interior click-through (Dossiers, export buttons, role-gating,
+  save-dialog/cancellation) was deliberately not driven live this
+  session to avoid any risk to real project history (19,677 files),
+  per explicit user direction after moving that data aside was blocked
+  by the environment's safety classifier. That interior behavior — role
+  gating, generating/succeeded/failed/cancelled history records, audit
+  events, no-dossier-mutation, exact source traceability, watermark
+  honesty, byte-exact binary saves — is instead verified by
+  `DossierPanel.test.tsx`'s 26 real-component-tree integration tests
+  (real render, real `userEvent` interactions, only the Tauri IPC
+  boundary mocked) plus `exportHistory.test.ts`/`dossierExports.test.ts`/
+  `download.test.ts`, the same evidence tier this document already
+  accepts elsewhere when full native click-through is environment- or
+  data-safety-blocked (see Reverse Formulation above,
+  [TAURI_LIVE_VERIFICATION.md](../TAURI_LIVE_VERIFICATION.md)).
+- Status: **PARTIALLY LIVE VERIFIED** (native launch confirmed; interior
+  flows confirmed via automated integration tests, not live clicks).
 
-Session 0 (assessment + implementation plan) complete — see
-[PHASE8_CURRENT.md](../handoffs/PHASE8_CURRENT.md). No Phase 8 feature
-code written yet.
+**Accepted limitations** (not release blockers): non-Latin (e.g. CJK,
+Arabic) glyphs are not embedded in generated PDFs — `pdf-lib`'s built-in
+fonts are Latin-only; no dedicated export-history viewer UI
+(`listExportHistory` exists and is tested, no screen surfaces it yet);
+no retention/cleanup policy for `generated_document_records` rows; no UI
+to export an older (superseded) dossier revision — only the current one.
 
 ## Not yet started
 
