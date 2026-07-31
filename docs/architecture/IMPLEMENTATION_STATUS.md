@@ -1248,6 +1248,69 @@ fonts are Latin-only; no dedicated export-history viewer UI
 no retention/cleanup policy for `generated_document_records` rows; no UI
 to export an older (superseded) dossier revision — only the current one.
 
+### Identity Rename: `ai4s` → FormuLab (Phase 9) — CLOSED
+Migrated every first-party `ai4s`/`AI4S` identifier to `FormuLab`
+naming, in bounded sessions, with compatibility preserved throughout —
+see `docs/handoffs/PHASE9_CURRENT.md` for full session-by-session
+detail.
+
+**Implemented, verified by tests**:
+- npm workspace scope `@ai4s/*` → `@formulab/*` (root `formulab`,
+  `@formulab/shared`, `@formulab/desktop`) across 125 files; lockfile
+  regenerated, never hand-edited.
+- Rust package/binary `ai4s-workbench` → `formulab`, lib crate
+  `ai4s_workbench_lib` → `formulab_lib`; the shipped executable is now
+  `formulab.exe`. `tauri.conf.json`'s `identifier` (`com.formulab.app`)
+  and `productName` (`FormuLab`) were **already correct** before this
+  phase and remain unchanged — no app-data migration was ever needed.
+- 8 first-party `localStorage` keys (theme, sidebar width/collapsed,
+  inspector width, zoom, locale, model favorites/recent) migrated
+  `ai4s.*` → `formulab.*`, each with a one-time, write-once legacy-read
+  fallback that never deletes the old key — every existing user's saved
+  preference carries forward exactly, with zero silent reset.
+- Remaining first-party naming in active scripts, docs, comments, and
+  Rust test-only identifiers cleaned up, including a genuinely false
+  claim in `AGENTS.md` (a stale bundle identifier) that predated this
+  phase.
+- Out-of-band during this phase: the desktop sidebar was consolidated
+  from 15 flat top-level items to exactly 10 (grouped accordion
+  navigation) — unrelated to the naming migration itself, tracked in
+  the same handoff for continuity.
+- The real external `ai4s-research/ai4s-skills` dependency (its fetch
+  script, env var, local directory, and every UI/doc string naming it)
+  was identified early and deliberately left untouched throughout —
+  it is someone else's project name, not this app's branding.
+- Closure regression: 1199 shared tests, 736 desktop tests, 82 Rust
+  tests, all green; shared/desktop typecheck, desktop lint, `cargo
+  clippy --all-targets --all-features -- -D warnings` all clean. Release
+  build produced `formulab.exe` + FormuLab-branded MSI/NSIS installers.
+  Native launch reconfirmed against the real packaged executable via
+  the actual desktop shortcut — real process `formulab`, window title
+  `FormuLab`, real keyboard-driven accordion expand/collapse and
+  active-route highlighting observed live, real existing project data
+  read successfully with zero writes to `%APPDATA%\com.formulab.app`
+  (file count reconfirmed identical before/after). Deep interior
+  click-through was constrained by this environment's 1280×800 virtual
+  display being shorter than the app's own window — the same disclosed
+  limitation as every prior native-verification session in this
+  project (see `TAURI_LIVE_VERIFICATION.md`) — so Sessions/Settings
+  pinning specifically relies on its dedicated automated test
+  (`Sidebar.test.tsx`) rather than a single live screenshot.
+- Status: **PARTIALLY LIVE VERIFIED** (native launch and substantial
+  live interaction confirmed; the one specific layout claim blocked by
+  display height is covered by automated tests instead).
+
+**Accepted compatibility decisions**: `%APPDATA%\com.formulab.app` was
+never touched — it was already correctly named before this phase.
+Legacy `ai4s.*` `localStorage` keys remain readable (one-time migration
+source) but are never written to again. Historical logs, hashes, paths,
+and closed handoffs (Phases 0–8, and this phase's own prior sessions)
+were never rewritten retroactively. `ai4s-research/ai4s-skills` naming
+is completely unchanged. No binary alias/shim for the renamed
+`ai4s-workbench.exe` was created — any out-of-repo script or shortcut
+that still hardcodes that filename must be updated manually; this repo
+does not carry a compatibility shim it never needed internally.
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it
@@ -1260,7 +1323,6 @@ plainly so nothing here reads as available.
 | PDF/Word exports (JSON/CSV/Excel/ERP-draft-CSV exports exist — see gap-closure UI, Done) | 20, 21 |
 | Security threat model docs | 24 |
 | CI matrix, SBOM, secret scanning | 26 |
-| Identity rename (`ai4s` → `formulab`) | 22 |
 
 ## Partially done
 
