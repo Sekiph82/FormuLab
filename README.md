@@ -186,8 +186,8 @@ bash scripts/dev/fetch-skills.sh
 bash scripts/dev/fetch-goal-plugin.sh
 
 # Run in development or build installers.
-pnpm --filter @ai4s/desktop tauri dev
-pnpm --filter @ai4s/desktop tauri build
+pnpm --filter @formulab/desktop tauri dev
+pnpm --filter @formulab/desktop tauri build
 ```
 
 Checks: `pnpm test` - `pnpm typecheck` - `pnpm lint`.

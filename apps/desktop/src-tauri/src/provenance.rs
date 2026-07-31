@@ -651,7 +651,7 @@ mod tests {
     use super::{append_record, cap_content, normalize_rel, versions_for, CONTENT_CAP};
 
     fn temp_root(tag: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("ai4s-prov-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("formulab-prov-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

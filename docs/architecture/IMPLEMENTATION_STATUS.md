@@ -73,7 +73,7 @@ phase order. This document tracks exactly where that stands.
   percentages are decimal **strings**, not JS numbers
 - `status.ts` — the transition graph and approval authority
 - `events.ts` — 30 typed agent events, connection state machine, sequencer
-- All validated with Zod; exported from `@ai4s/shared`
+- All validated with Zod; exported from `@formulab/shared`
 
 ### Approval safety (spec §"AI must never automatically approve")
 - `canTransitionTo()` refuses `pilot_approved` / `production_approved` to any
@@ -252,7 +252,7 @@ See [APPROVAL_READINESS.md](../APPROVAL_READINESS.md).
   workflows (Formula Builder, Versions, Materials, Suppliers, Costing,
   Packaging, Factory profiles, Compatibility, Safety) fully translated.
   Chemical identifiers (CAS, INCI) are left untouched by design.
-- Desktop lint is clean (`pnpm --filter @ai4s/desktop lint` exits 0).
+- Desktop lint is clean (`pnpm --filter @formulab/desktop lint` exits 0).
 
 ### Advanced Formulation Constraint Optimizer (spec §1) — core solving
 See [ADVANCED_OPTIMIZER.md](../ADVANCED_OPTIMIZER.md),

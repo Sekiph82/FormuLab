@@ -37,7 +37,63 @@ match the grouped structure. Focused: 22/22
 Session 1 via `git stash` against a pristine tree) `saveBinaryWithFeedback`
 failure; untouched by this change. Typecheck and lint both clean.
 
-## Status: Session 3 (persisted localStorage keys) complete.
+## Status: Session 4 (scripts, CI, documentation, test naming) complete.
+
+## Session 4 summary
+Cleaned up remaining first-party `ai4s`/`AI4S` naming in active
+scripts, docs, comments, and Rust test-only identifiers. Full
+case-insensitive repo sweep (excluding `node_modules`/`target`/`dist`/
+`.git`) found 49 matching files; classified every one before editing —
+no blind global replacement.
+
+**Fixed (mandatory corrections + other stale first-party naming)**:
+- `AGENTS.md` — was stating a **false** bundle identifier
+  (`com.ai4s.workbench`, garbled "Formerly FormuLab" self-reference)
+  and stale unchanged package names; now states the real
+  `com.formulab.app` identifier and `@formulab/shared`/
+  `@formulab/desktop` package names.
+- `LICENSE` — copyright holder "AI4S Workbench contributors" →
+  "FormuLab contributors".
+- `README.md`, `docs/APPROVAL_MANUAL_SMOKE_TEST.md` — active,
+  copy-pasteable `pnpm --filter @ai4s/desktop …` command examples →
+  `@formulab/desktop` (the smoke-test doc's own "Correction (this
+  phase)" narrative prose, which correctly recounts what an earlier
+  investigation found, was left untouched — only its stale runnable
+  command was fixed).
+- `apps/desktop/README.md` — "the AI4S Workbench shell" →
+  "the FormuLab shell".
+- `docs/REQUIREMENTS.md`, `docs/architecture/IMPLEMENTATION_STATUS.md`
+  (2 spots, both in live "## Done" narrative, not dated closure
+  paragraphs) — stale `@ai4s/shared`/`@ai4s/desktop` references →
+  `@formulab/*`.
+- `packages/shared/src/index.ts`, `runtime/kernel/kernel_bridge.py` —
+  first-party source comments/docstrings naming "AI4S Workbench" →
+  "FormuLab".
+- `runtime/manager/README.md` — the documented runtime-directory paths
+  named a folder ("AI4S Workbench") that was never real; Tauri's
+  `app_data_dir()` actually resolves from the `identifier` field
+  (confirmed against `formulation_v2.rs`'s `app_dir()`), so this now
+  states the real `com.formulab.app`-keyed paths for macOS/Windows/
+  Linux instead of a fictional display-name folder.
+- `runtime/opencode-profile/README.md` — "AI4S Workbench" →
+  "FormuLab"; a first-party (not the external pack's) `skills/`
+  subdirectory comment reworded from "AI4S scientific skills" to
+  "First-party scientific skills" to remove ambiguity with the
+  genuinely-external `ai4s-skills` pack described two lines below it.
+- `.gitignore` — `.ai4s-workbench/` renamed to `.formulab-workbench/`;
+  confirmed via grep that no current Rust code ever creates a literal
+  `.ai4s-workbench/` directory (real app data uses Tauri's
+  identifier-keyed `app_data_dir()`), so this was already a dead
+  pattern — the rename is cosmetic/future-proofing, zero functional
+  risk either way.
+- 16 Rust test-only `std::env::temp_dir()` prefixes across
+  `artifact_file.rs`/`preview_server.rs`/`provenance.rs`/`runs.rs`/
+  `runs_index.rs` (e.g. `"ai4s-listdir-"` → `"formulab-listdir-"`) —
+  ephemeral, zero production-code impact, all inside `#[cfg(test)]`
+  blocks.
+
+**Preserved (checked, deliberately left unchanged)** — see the Final
+grep report below for the complete accounting.
 
 ## Session 3 summary
 Migrated all 8 first-party `ai4s.*` `localStorage` keys to `formulab.*`,
@@ -500,5 +556,62 @@ rename gets its first full real-user-path verification.
   retroactively — confirmed as category 4 above, no session in this
   plan touches them.
 
+## Session 4 final grep report
+Every remaining `ai4s`/`AI4S` match after this session's fixes,
+categorized:
+
+1. **Historical, intentionally preserved**: `PROGRESS.md` (a dated,
+   timestamped dev journal — every entry describes what was literally
+   true on that date, including the original `com.ai4s.workbench`
+   identifier and `@ai4s/*` packages before any of Phase 9's renames);
+   `docs/TAURI_LIVE_VERIFICATION.md` (records exact PIDs/exe-names from
+   a specific past verification run — editing it would misrepresent
+   what was actually observed then); `docs/architecture/
+   CURRENT_STATE_AUDIT.md` (explicitly framed as "the repository as it
+   exists at the start of the Kenya R&D platform transformation" — a
+   point-in-time baseline, not a living doc); `docs/handoffs/
+   PHASE8_CURRENT.md` (a closed phase's closure record, including its
+   own accurate `ai4s-workbench.exe` SHA-256 from that build);
+   `docs/handoffs/PHASE9_CURRENT.md` (this file — inherently discusses
+   `ai4s` throughout as the subject of the migration itself);
+   `scripts/windows/verification-logs/verify-20260730-145741.log` (a
+   dated log file); `docs/PRD.md`/`docs/TECHNICAL_DESIGN.md` (founding
+   specs — Session 0 already flagged these as an open question rather
+   than force-rewriting; no passage has since been marked active and
+   misleading, so left untouched per this session's explicit
+   instruction); `docs/architecture/IMPLEMENTATION_STATUS.md`'s line
+   ~979 (an older phase's closure paragraph, correctly dated).
+2. **External dependency, intentionally preserved**: the entire
+   `runtime/skills/external/ai4s-skills/` tree (verbatim upstream
+   content from `ai4s-research/ai4s-skills`); `scripts/dev/
+   fetch-skills.sh` and its `AI4S_SKILLS_COMMIT` env var;
+   `.github/workflows/build.yml`'s "Fetch bundled ai4s-skills pack"
+   step name; `runtime/skills/README.md` (entirely about naming/
+   documenting that real external pack correctly); `runtime/
+   opencode-profile/README.md`'s "the bundled ai4s-skills pack" line;
+   `docs/CONNECT_YOUR_TOOLS.md`'s "the `ai4s-skills` pack" line; all 8
+   locales' `i18n/pages.json` "bundled ai4s-skills pack" UI string.
+3. **Legacy compatibility identifier, intentionally preserved**: the
+   `LEGACY_*` `localStorage` key constants and their tests in
+   `apps/desktop/src/lib/store.ts`/`.test.ts`,
+   `components/settings/modelPreferences.ts`/`.test.ts`,
+   `i18n/config.ts`/`.test.ts` (Session 3's migration keys — reading
+   `ai4s.*` once, never rewritten).
+4. **Generated artifact, ignored**: `.aider.tags.cache.v4/cache.db`
+   (a third-party dev-tool cache); `apps/desktop/src-tauri/binaries/
+   opencode-x86_64-pc-windows-msvc.exe` (a bundled third-party binary,
+   not ours); the two `__pycache__/*.pyc` files inside the external
+   `ai4s-skills` tree (compiled bytecode of that external pack).
+5. **Unexpected first-party stale match**: none. Empty — completion
+   criterion met.
+6. `docs/INFORMATION_ARCHITECTURE.md:157` — not force-classified above
+   since it needs its own note: "The `ai4s` → `FormuLab` package/
+   identifier naming migration" appears in a list of topics this
+   particular doc does not cover. That statement is still accurate
+   today (the doc still doesn't cover the migration's mechanics) — it
+   is a scope disclaimer, not a claim about migration progress, so it
+   was left as-is; it will naturally read as historical once Phase 9
+   fully closes.
+
 ## Exact next session
-Phase 9 Session 4: Scripts, CI, Documentation, and Test Naming Cleanup.
+Phase 9 Session 5: Focused Verification and Final Naming Sweep.

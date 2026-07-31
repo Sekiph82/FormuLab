@@ -640,7 +640,7 @@ mod tests {
 
     #[test]
     fn list_dir_sorts_dirs_first_and_skips_hidden() {
-        let root = std::env::temp_dir().join(format!("ai4s-listdir-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("formulab-listdir-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("sub")).unwrap();
         std::fs::create_dir_all(root.join(".hidden")).unwrap();
@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn unique_name_dedupes_with_numeric_suffix() {
-        let dir = std::env::temp_dir().join(format!("ai4s-unique-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("formulab-unique-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
@@ -698,7 +698,7 @@ mod tests {
     fn write_binary_file_round_trips_arbitrary_bytes_including_invalid_utf8() {
         // 0x00 and the lone continuation/overlong bytes below are not valid
         // UTF-8 — a text-based write path would corrupt or reject them.
-        let path = std::env::temp_dir().join(format!("ai4s-binary-write-test-{}.bin", std::process::id()));
+        let path = std::env::temp_dir().join(format!("formulab-binary-write-test-{}.bin", std::process::id()));
         let _ = std::fs::remove_file(&path);
         let bytes: Vec<u8> = vec![0x00, 0xFF, 0xC0, 0x80, b'h', b'i', 0x00];
 
@@ -712,7 +712,7 @@ mod tests {
     #[test]
     fn write_binary_file_reports_a_clear_error_for_an_unwritable_path() {
         let bogus = std::env::temp_dir()
-            .join(format!("ai4s-nonexistent-dir-{}", std::process::id()))
+            .join(format!("formulab-nonexistent-dir-{}", std::process::id()))
             .join("f.bin");
         let result = write_binary_file(&bogus, b"data");
         assert!(result.is_err());
@@ -730,7 +730,7 @@ mod tests {
 
     #[test]
     fn locate_finds_literal_bare_and_missing_paths() {
-        let root = std::env::temp_dir().join(format!("ai4s-locate-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("formulab-locate-test-{}", std::process::id()));
         std::fs::create_dir_all(root.join("proj")).unwrap();
         std::fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
         std::fs::write(root.join("root.pdf"), b"x").unwrap();
@@ -767,7 +767,7 @@ mod tests {
 
     #[test]
     fn locate_prefers_the_newest_of_duplicate_basenames() {
-        let root = std::env::temp_dir().join(format!("ai4s-locate-dup-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("formulab-locate-dup-test-{}", std::process::id()));
         std::fs::create_dir_all(root.join("old")).unwrap();
         std::fs::create_dir_all(root.join("new")).unwrap();
         std::fs::write(root.join("old/report.pdf"), b"x").unwrap();

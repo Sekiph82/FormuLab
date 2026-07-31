@@ -386,7 +386,7 @@ mod tests {
     use super::*;
 
     fn temp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("ai4s-runidx-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("formulab-runidx-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join(".FormuLab")).unwrap();
         dir

@@ -15,10 +15,10 @@ Responsibilities:
 ## Runtime directory (per OS)
 
 ```text
-macOS:   ~/Library/Application Support/AI4S Workbench/
-Windows: %APPDATA%/AI4S Workbench/
-generic: ~/.ai4s-workbench/
-  config/  runtime/{opencode,python,node}/  profiles/ai4s-workbench/
+macOS:   ~/Library/Application Support/com.formulab.app/
+Windows: %APPDATA%/com.formulab.app/
+Linux:   ~/.local/share/com.formulab.app/
+  config/  runtime/{opencode,python,node}/  profiles/formulab/
   workspaces/  logs/  cache/  secrets/
 ```
 

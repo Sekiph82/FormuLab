@@ -1,4 +1,4 @@
-// Stable domain types for AI4S Workbench.
+// Stable domain types for FormuLab.
 // Imported by the desktop app now, and by the SDK / runtime in later slices.
 
 export type RuntimeStatus = "connecting" | "ready" | "error" | "offline";

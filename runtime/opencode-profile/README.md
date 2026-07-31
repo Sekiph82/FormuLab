@@ -1,6 +1,6 @@
 # runtime/opencode-profile
 
-The AI4S Workbench **OpenCode profile** — the config + skills the app ships and applies
+The FormuLab **OpenCode profile** — the config + skills the app ships and applies
 to the bundled OpenCode runtime (not a user's global OpenCode).
 
 The desktop app runs OpenCode with an app-private config/data dir (isolated via
@@ -10,7 +10,7 @@ The desktop app runs OpenCode with an app-private config/data dir (isolated via
 
 ```text
 opencode.json      # base config applied to the bundled runtime (providers, defaults)
-skills/            # AI4S scientific skills (Markdown, agentskills.io format)
+skills/            # First-party scientific skills (Markdown, agentskills.io format)
 agents/            # optional custom agents
 ```
 

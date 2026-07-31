@@ -24,7 +24,7 @@ What this phase actually verified, and how:
   Rust side (including the new `attachments.rs` commands and the
   `masterdata.rs` collection additions) compiles, lints clean, and its own
   unit tests pass.
-- **`pnpm --filter @ai4s/desktop build`** — the full Vite production
+- **`pnpm --filter @formulab/desktop build`** — the full Vite production
   bundle builds without error.
 - **React Testing Library integration tests** (`ApprovalPanel.test.tsx`,
   `AttachmentField.test.tsx`, `TrialsPanel.test.tsx`,
@@ -43,7 +43,7 @@ in it are **not verified**, live or otherwise.
 
 ```powershell
 cd C:\Users\sekip\Desktop\FormuLab
-pnpm --filter @ai4s/desktop tauri dev
+pnpm --filter @formulab/desktop tauri dev
 ```
 
 Wait for the window to open, then work through every row. Check the box
