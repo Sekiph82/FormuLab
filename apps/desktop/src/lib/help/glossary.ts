@@ -27,4 +27,5 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
   { id: "watermark", termKey: "glossary.watermark.term", definitionKey: "glossary.watermark.definition" },
   { id: "readinessBlocker", termKey: "glossary.readinessBlocker.term", definitionKey: "glossary.readinessBlocker.definition" },
   { id: "jurisdiction", termKey: "glossary.jurisdiction.term", definitionKey: "glossary.jurisdiction.definition" },
+  { id: "testMethodSnapshot", termKey: "glossary.testMethodSnapshot.term", definitionKey: "glossary.testMethodSnapshot.definition" },
 ];

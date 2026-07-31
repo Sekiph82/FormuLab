@@ -41,6 +41,8 @@ import type {
   LabelContentBlock,
   LabelReview,
   LabelReviewRevocation,
+  LaboratoryStandard,
+  LaboratoryTestMethod,
   LaboratoryTrial,
   MasterProductFamily,
   MaterialDocument,
@@ -125,6 +127,8 @@ export type Collection =
   | "trial_comparisons"
   | "trial_deviations"
   | "corrective_actions"
+  | "laboratory_standards"
+  | "laboratory_test_methods"
   | "stability_studies"
   | "stability_samples"
   | "stability_results"
@@ -215,6 +219,8 @@ interface CollectionTypes {
   trial_comparisons: TrialComparison;
   trial_deviations: TrialDeviation;
   corrective_actions: CorrectiveAction;
+  laboratory_standards: LaboratoryStandard;
+  laboratory_test_methods: LaboratoryTestMethod;
   stability_studies: StabilityStudy;
   stability_samples: StabilitySample;
   stability_results: StabilityResult;

@@ -202,11 +202,12 @@ yet the full guide prose planned for Session 6.
 - **Approval requirements**: a critical open deviation blocks marking a trial complete.
 - **States**: "not entered" (never a fabricated zero) for unweighed materials; pass/fail computed from the test's own logic.
 - **Related**: Test Definitions (global catalog, also reachable from Administration), Corrective Actions, Stability (shared result-history browser and applicability explorer).
-- **Doc status**: `current` (`USER_GUIDE.md` §16–17, `LABORATORY_TRIALS.md`, `TRIAL_EXECUTION.md`, `TRIAL_COMPARISON.md`, `TEST_DEFINITIONS.md`).
+- **Doc status**: `current` (`USER_GUIDE.md` §16–17, §17a, `LABORATORY_TRIALS.md`, `TRIAL_EXECUTION.md`, `TRIAL_COMPARISON.md`, `TEST_DEFINITIONS.md`).
 - **Help level**: `panel+fields`.
 - **Screenshot**: yes — trial lifecycle, weighing, result-history browser.
 - **Tour suitability**: good secondary tour.
 - **Limitations**: none beyond the general "never a fabricated value" principle.
+- **Session 1A addition**: per-test configurable laboratory standards and methods (`LaboratoryStandard`/`LaboratoryTestMethod`, `TestDefinitionsPanel.tsx`'s per-row Method drawer) — primary/alternative assignment, internal methods, superseded-acknowledgement, immutable historical `TestResult.methodSnapshot`. See `docs/handoffs/PHASE10_CURRENT.md`'s Session 1A summary and `USER_GUIDE.md` §17a. The `laboratory` help topic (registry coverage table above) was extended in place — no new topic id.
 
 ### Stability — `/stability`
 - **Purpose**: stability studies, samples, results, trends, failures.

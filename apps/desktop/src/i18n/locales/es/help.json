@@ -3,198 +3,470 @@
     "title": "Inicio",
     "summary": "Su panel — proyectos recientes, actividad, trabajo de laboratorio abierto, muestras de estabilidad próximas y aprobaciones pendientes.",
     "purpose": "Un panel real y honesto, no una maqueta: cada cifra proviene de sus propios datos guardados, y cada sección muestra un estado vacío honesto cuando aún no hay nada que mostrar.",
-    "quickStart": ["Abra un proyecto reciente para entrar directamente.", "Revise Aprobaciones pendientes para ver qué espera por usted."],
-    "sections": ["Proyectos recientes", "Actividad reciente", "Trabajo de laboratorio abierto", "Muestras de estabilidad próximas", "Aprobaciones pendientes"],
-    "limitations": ["Limitado a sus 5 proyectos actualizados más recientemente — un límite real, no un tope silencioso."]
+    "quickStart": [
+      "Abra un proyecto reciente para entrar directamente.",
+      "Revise Aprobaciones pendientes para ver qué espera por usted."
+    ],
+    "sections": [
+      "Proyectos recientes",
+      "Actividad reciente",
+      "Trabajo de laboratorio abierto",
+      "Muestras de estabilidad próximas",
+      "Aprobaciones pendientes"
+    ],
+    "limitations": [
+      "Limitado a sus 5 proyectos actualizados más recientemente — un límite real, no un tope silencioso."
+    ]
   },
   "projects": {
     "title": "Proyectos",
     "summary": "Cada proyecto de formulación que ha creado, independientemente del espacio de trabajo en uso.",
     "purpose": "El hogar de la lista completa de proyectos — abrir, crear y ver el estado del dosier de cada proyecto de un vistazo.",
-    "quickStart": ["Haga clic en Nuevo proyecto.", "Elija una familia de producto y un SKU de envase.", "Complete nombre, mercado y tamaño de lote objetivo."],
-    "sections": ["Lista de proyectos con insignias de recuento de dosier"]
+    "quickStart": [
+      "Haga clic en Nuevo proyecto.",
+      "Elija una familia de producto y un SKU de envase.",
+      "Complete nombre, mercado y tamaño de lote objetivo."
+    ],
+    "sections": [
+      "Lista de proyectos con insignias de recuento de dosier"
+    ]
   },
   "formulation": {
     "title": "Formulación",
     "summary": "La cuadrícula de fórmula, versiones, costo, compatibilidad, seguridad y envase — su superficie de trabajo diaria.",
     "purpose": "Construir y refinar una fórmula, guardar versiones numeradas e inmutables, y ver cómo se actualizan los hallazgos de costo/compatibilidad/seguridad al editar.",
-    "prerequisites": ["Un proyecto abierto (desde Proyectos o Inicio)."],
-    "quickStart": ["Agregue una línea: elija material, fase y porcentaje.", "Marque una línea como q.s. para rellenar automáticamente el resto al 100 %.", "Guarde versión cuando esté conforme — esto requiere un motivo de cambio."],
-    "sections": ["Constructor", "Versiones", "Costo", "Compatibilidad", "Seguridad", "Envase"],
-    "warnings": ["Una versión guardada es inmutable — editarla de nuevo crea una nueva versión, nunca una edición en el lugar."],
-    "roleNotes": ["Aprobar una versión a estado piloto o de producción requiere un rol humano autorizado — ningún actor automatizado puede aprobar jamás."]
+    "prerequisites": [
+      "Un proyecto abierto (desde Proyectos o Inicio)."
+    ],
+    "quickStart": [
+      "Agregue una línea: elija material, fase y porcentaje.",
+      "Marque una línea como q.s. para rellenar automáticamente el resto al 100 %.",
+      "Guarde versión cuando esté conforme — esto requiere un motivo de cambio."
+    ],
+    "sections": [
+      "Constructor",
+      "Versiones",
+      "Costo",
+      "Compatibilidad",
+      "Seguridad",
+      "Envase"
+    ],
+    "warnings": [
+      "Una versión guardada es inmutable — editarla de nuevo crea una nueva versión, nunca una edición en el lugar."
+    ],
+    "roleNotes": [
+      "Aprobar una versión a estado piloto o de producción requiere un rol humano autorizado — ningún actor automatizado puede aprobar jamás."
+    ]
   },
   "optimization": {
     "title": "Optimización",
     "summary": "Un optimizador real de resolución de restricciones vinculado al borrador de trabajo actual de este proyecto.",
     "purpose": "Elegir materiales candidatos, fijar restricciones de grupo funcional y objetivos, y dejar que el solucionador proponga una fórmula — sin sobrescribir nunca su versión guardada.",
-    "prerequisites": ["Un proyecto abierto con un borrador de trabajo."],
-    "quickStart": ["Agregue materiales candidatos y restricciones.", "Ejecutar — revise el resultado, luego Aplicar al borrador si le gusta."],
-    "sections": ["Ejecución", "Escenarios"],
-    "limitations": ["Aún no hay un constructor para restricciones de composición/proporción/condicionales — solo restricciones de grupo funcional, objetivos de propiedad y un tope de costo."]
+    "prerequisites": [
+      "Un proyecto abierto con un borrador de trabajo."
+    ],
+    "quickStart": [
+      "Agregue materiales candidatos y restricciones.",
+      "Ejecutar — revise el resultado, luego Aplicar al borrador si le gusta."
+    ],
+    "sections": [
+      "Ejecución",
+      "Escenarios"
+    ],
+    "limitations": [
+      "Aún no hay un constructor para restricciones de composición/proporción/condicionales — solo restricciones de grupo funcional, objetivos de propiedad y un tope de costo."
+    ]
   },
   "optimizer": {
     "title": "Optimizador (independiente)",
     "summary": "Una calculadora de costos hipotéticos independiente — no vinculada a ningún proyecto.",
     "purpose": "Exploración rápida de costos sin proyecto, claramente distinta del espacio de trabajo de Optimización vinculado a un proyecto.",
-    "quickStart": ["Ingrese materiales y porcentajes directamente para ver una estimación de costo."]
+    "quickStart": [
+      "Ingrese materiales y porcentajes directamente para ver una estimación de costo."
+    ]
   },
   "doe": {
     "title": "Diseño de Experimentos",
     "summary": "Planifique y analice un experimento de formulación o proceso estadísticamente válido.",
     "purpose": "Convertir una versión de fórmula guardada real en un experimento estructurado: factores, respuestas, una hoja de corridas generada y un modelo estadístico ajustado.",
-    "prerequisites": ["Una versión de fórmula guardada real como línea base del estudio — nunca el borrador de trabajo."],
-    "quickStart": ["Cree un estudio mediante el asistente de 9 pasos.", "Registre las respuestas observadas de cada corrida.", "Ejecute el análisis cuando haya suficientes datos."],
-    "sections": ["Estudios", "Diseño", "Corridas", "Respuestas", "Análisis", "Candidatos", "Historial", "Auditoría"],
-    "limitations": ["Algunos tipos de diseño y tamaños de fracción se rechazan deliberadamente en lugar de simularse — vea el capítulo de Diseño de Experimentos para los límites exactos.", "Una exportación de resultados de análisis no se puede reimportar como un análisis nativo."]
+    "prerequisites": [
+      "Una versión de fórmula guardada real como línea base del estudio — nunca el borrador de trabajo."
+    ],
+    "quickStart": [
+      "Cree un estudio mediante el asistente de 9 pasos.",
+      "Registre las respuestas observadas de cada corrida.",
+      "Ejecute el análisis cuando haya suficientes datos."
+    ],
+    "sections": [
+      "Estudios",
+      "Diseño",
+      "Corridas",
+      "Respuestas",
+      "Análisis",
+      "Candidatos",
+      "Historial",
+      "Auditoría"
+    ],
+    "limitations": [
+      "Algunos tipos de diseño y tamaños de fracción se rechazan deliberadamente en lugar de simularse — vea el capítulo de Diseño de Experimentos para los límites exactos.",
+      "Una exportación de resultados de análisis no se puede reimportar como un análisis nativo."
+    ]
   },
   "reverseFormulation": {
     "title": "Formulación Inversa",
     "summary": "A partir de un producto competidor o de referencia, propone fórmulas candidatas puntuadas por evidencia — apoyo a la decisión, nunca una fórmula aprobada automáticamente.",
     "purpose": "Partir de una lista de ingredientes declarados (y análisis de laboratorio opcional) y obtener candidatos clasificados con una puntuación de ajuste de fórmula y una puntuación de confianza de evidencia etiquetada por separado.",
-    "quickStart": ["Cree un estudio e ingrese los ingredientes declarados del producto de referencia.", "Defina su objetivo y restricciones.", "Genere candidatos, luego guarde o convierta el que desee."],
-    "sections": ["Estudios", "Declaración y análisis", "Generación y comparación de candidatos"],
-    "warnings": ["Una formulación convertida siempre comienza sin aprobar, sin aprobación heredada — incluso de un candidato bien puntuado."],
-    "limitations": ["La conversión de candidatos se rechaza visiblemente si el material de un candidato ha salido del catálogo desde que se generó."]
+    "quickStart": [
+      "Cree un estudio e ingrese los ingredientes declarados del producto de referencia.",
+      "Defina su objetivo y restricciones.",
+      "Genere candidatos, luego guarde o convierta el que desee."
+    ],
+    "sections": [
+      "Estudios",
+      "Declaración y análisis",
+      "Generación y comparación de candidatos"
+    ],
+    "warnings": [
+      "Una formulación convertida siempre comienza sin aprobar, sin aprobación heredada — incluso de un candidato bien puntuado."
+    ],
+    "limitations": [
+      "La conversión de candidatos se rechaza visiblemente si el material de un candidato ha salido del catálogo desde que se generó."
+    ]
   },
   "laboratory": {
     "title": "Laboratorio",
     "summary": "Ensayos, definiciones de prueba y acciones correctivas para el proyecto y versión seleccionados.",
     "purpose": "Ejecutar ensayos de laboratorio reales contra una instantánea de fórmula congelada, registrar datos de pesaje/proceso/prueba y gestionar desviaciones.",
-    "prerequisites": ["Un proyecto abierto; un selector de versión permite elegir qué versión guardada ver."],
-    "quickStart": ["Cree un ensayo desde el borrador de trabajo o una versión guardada.", "Muévalo a través de planificado → en progreso → completado a medida que avanza el trabajo."],
-    "sections": ["Ensayos", "Definiciones de prueba", "Acciones correctivas"],
-    "roleNotes": ["Solo un humano puede marcar un ensayo como completado."]
+    "prerequisites": [
+      "Un proyecto abierto; un selector de versión permite elegir qué versión guardada ver."
+    ],
+    "quickStart": [
+      "Cree un ensayo desde el borrador de trabajo o una versión guardada.",
+      "Muévalo a través de planificado → en progreso → completado a medida que avanza el trabajo.",
+      "Abra la entrada de Método propia de un ensayo para elegir su norma principal, consultar alternativas o ver el procedimiento completo."
+    ],
+    "sections": [
+      "Ensayos",
+      "Definiciones de prueba",
+      "Acciones correctivas",
+      "Normas y métodos de ensayo"
+    ],
+    "roleNotes": [
+      "Solo un humano puede marcar un ensayo como completado."
+    ],
+    "warnings": [
+      "Una norma sustituida debe reconocerse explícitamente antes de poder seleccionarse."
+    ],
+    "limitations": [
+      "Las referencias de método en texto libre existentes no se convierten automáticamente en normas: permanecen visibles como referencia heredada sin resolver hasta que un químico crea la norma/método estructurado."
+    ]
   },
   "stability": {
     "title": "Estabilidad",
     "summary": "Estudios de estabilidad, muestras, resultados y tendencias para el proyecto y versión seleccionados.",
     "purpose": "Seguir la estabilidad de una fórmula en el tiempo frente a condiciones de almacenamiento y definiciones de prueba reales, con detección automática de fallos.",
-    "prerequisites": ["Un proyecto abierto; un selector de versión."],
-    "quickStart": ["Cree un estudio, luego Generar muestras.", "Registre un resultado cuando una muestra esté vencida."],
-    "warnings": ["Las proyecciones de tendencia siempre se etiquetan como \"estimación experimental — requiere revisión humana\", nunca como una afirmación de vida útil."],
-    "limitations": ["Sin predicción automática de vida útil — deliberadamente no implementada."]
+    "prerequisites": [
+      "Un proyecto abierto; un selector de versión."
+    ],
+    "quickStart": [
+      "Cree un estudio, luego Generar muestras.",
+      "Registre un resultado cuando una muestra esté vencida."
+    ],
+    "warnings": [
+      "Las proyecciones de tendencia siempre se etiquetan como \"estimación experimental — requiere revisión humana\", nunca como una afirmación de vida útil."
+    ],
+    "limitations": [
+      "Sin predicción automática de vida útil — deliberadamente no implementada."
+    ]
   },
   "regulatory": {
     "title": "Regulatorio",
     "summary": "Clasificación regulatoria de Kenia/EAC, evaluación de reglas, confirmaciones de evidencia y revisión humana.",
     "purpose": "Ver la clasificación regulatoria determinista de su fórmula y evaluarla contra las reglas de la jurisdicción, luego registrar una revisión humana real.",
-    "prerequisites": ["Una versión de fórmula guardada, una jurisdicción y (donde sea relevante) un SKU de envase."],
-    "quickStart": ["Elija su versión, jurisdicción y rol actuante.", "Haga clic en Evaluar para ver los hallazgos."],
-    "sections": ["Clasificación", "Reglas", "Revisiones"],
-    "roleNotes": ["Verificar una regla o registrar una revisión formal requiere un rol autorizado (regulatorio/calidad/administrador)."],
-    "limitations": ["Las reglas semilla se publican como not_verified hasta que un revisor calificado las confirme."]
+    "prerequisites": [
+      "Una versión de fórmula guardada, una jurisdicción y (donde sea relevante) un SKU de envase."
+    ],
+    "quickStart": [
+      "Elija su versión, jurisdicción y rol actuante.",
+      "Haga clic en Evaluar para ver los hallazgos."
+    ],
+    "sections": [
+      "Clasificación",
+      "Reglas",
+      "Revisiones"
+    ],
+    "roleNotes": [
+      "Verificar una regla o registrar una revisión formal requiere un rol autorizado (regulatorio/calidad/administrador)."
+    ],
+    "limitations": [
+      "Las reglas semilla se publican como not_verified hasta que un revisor calificado las confirme."
+    ]
   },
   "dossiers": {
     "title": "Dosieres",
     "summary": "Construya un dosier regulatorio por versión y jurisdicción, incluyendo una exportación real en PDF/DOCX.",
     "purpose": "Reunir requisitos, evidencia y revisiones en un dosier por versión de fórmula y jurisdicción, luego exportarlo.",
-    "prerequisites": ["Una versión de fórmula guardada real — nunca un borrador de trabajo."],
-    "quickStart": ["Cree un dosier contra una versión guardada y una jurisdicción.", "Trabaje en Requisitos y la Biblioteca de evidencia."],
-    "sections": ["Resumen", "Matriz de evidencia", "Requisitos", "Biblioteca de evidencia", "Revisiones", "Envíos", "Historial", "Auditoría"],
-    "roleNotes": ["Exportar un PDF/DOCX requiere un rol autorizado (regulatorio/calidad/administrador) — los botones se ocultan de lo contrario, y no se crea registro de historial para un intento bloqueado."],
-    "limitations": ["Aún no hay una pantalla dedicada al historial de exportación, aunque cada intento se registra."]
+    "prerequisites": [
+      "Una versión de fórmula guardada real — nunca un borrador de trabajo."
+    ],
+    "quickStart": [
+      "Cree un dosier contra una versión guardada y una jurisdicción.",
+      "Trabaje en Requisitos y la Biblioteca de evidencia."
+    ],
+    "sections": [
+      "Resumen",
+      "Matriz de evidencia",
+      "Requisitos",
+      "Biblioteca de evidencia",
+      "Revisiones",
+      "Envíos",
+      "Historial",
+      "Auditoría"
+    ],
+    "roleNotes": [
+      "Exportar un PDF/DOCX requiere un rol autorizado (regulatorio/calidad/administrador) — los botones se ocultan de lo contrario, y no se crea registro de historial para un intento bloqueado."
+    ],
+    "limitations": [
+      "Aún no hay una pantalla dedicada al historial de exportación, aunque cada intento se registra."
+    ]
   },
   "claimsLabels": {
     "title": "Declaraciones y Etiquetas",
     "summary": "Gestione declaraciones de producto y etiquetas de producto para una versión de fórmula, incluyendo un flujo de arte y consistencia.",
     "purpose": "Redactar declaraciones vinculadas a evidencia real de dosier, construir el contenido de la etiqueta y verificar la consistencia fórmula-etiqueta antes de imprimir.",
-    "prerequisites": ["Una versión de fórmula guardada real."],
-    "quickStart": ["Cree una declaración o etiqueta.", "Vincule evidencia y registre una revisión formal."],
-    "sections": ["Declaraciones", "Etiquetas", "Historial", "Auditoría"],
-    "roleNotes": ["Solo una revisión formal de un rol autorizado cambia el estado real de una declaración."],
-    "limitations": ["Sin editor completo de diseño gráfico de arte — solo cargar/previsualizar/aprobar/rechazar/reemplazar."]
+    "prerequisites": [
+      "Una versión de fórmula guardada real."
+    ],
+    "quickStart": [
+      "Cree una declaración o etiqueta.",
+      "Vincule evidencia y registre una revisión formal."
+    ],
+    "sections": [
+      "Declaraciones",
+      "Etiquetas",
+      "Historial",
+      "Auditoría"
+    ],
+    "roleNotes": [
+      "Solo una revisión formal de un rol autorizado cambia el estado real de una declaración."
+    ],
+    "limitations": [
+      "Sin editor completo de diseño gráfico de arte — solo cargar/previsualizar/aprobar/rechazar/reemplazar."
+    ]
   },
   "approval": {
     "title": "Aprobación",
     "summary": "Resumen de preparación, bloqueadores, políticas de aprobación e historial de decisiones para el proyecto seleccionado.",
     "purpose": "Ver exactamente qué bloquea la aprobación de una fórmula, y registrar una decisión de aprobación humana real y nominal.",
-    "quickStart": ["Revise la lista de bloqueadores.", "Apruebe o rechace con motivo una vez resueltos todos los bloqueadores."],
-    "sections": ["Preparación y bloqueadores", "Políticas", "Historial de decisiones"],
-    "warnings": ["Ningún actor automatizado — agente, proceso del sistema o importación — puede jamás establecer pilot_approved o production_approved, sin importar lo que un modelo haya concluido."],
-    "roleNotes": ["La aprobación piloto requiere químico/calidad/administrador; la aprobación de producción requiere calidad/regulatorio/producción/administrador."]
+    "quickStart": [
+      "Revise la lista de bloqueadores.",
+      "Apruebe o rechace con motivo una vez resueltos todos los bloqueadores."
+    ],
+    "sections": [
+      "Preparación y bloqueadores",
+      "Políticas",
+      "Historial de decisiones"
+    ],
+    "warnings": [
+      "Ningún actor automatizado — agente, proceso del sistema o importación — puede jamás establecer pilot_approved o production_approved, sin importar lo que un modelo haya concluido."
+    ],
+    "roleNotes": [
+      "La aprobación piloto requiere químico/calidad/administrador; la aprobación de producción requiere calidad/regulatorio/producción/administrador."
+    ]
   },
   "reports": {
     "title": "Informes",
     "summary": "Una vista de navegación que enumera cada exportación real ya disponible en su módulo de origen.",
     "purpose": "Un solo lugar para encontrar cada exportación de la app — cada fila enlaza al espacio de trabajo que realmente la produce.",
-    "quickStart": ["Haga clic en Abrir en cualquier fila para exportar desde su módulo de origen real."],
-    "limitations": ["Los informes de auditoría aún no tienen una vista dedicada, señalado honestamente en lugar de dar a entender que existe."]
+    "quickStart": [
+      "Haga clic en Abrir en cualquier fila para exportar desde su módulo de origen real."
+    ],
+    "limitations": [
+      "Los informes de auditoría aún no tienen una vista dedicada, señalado honestamente en lugar de dar a entender que existe."
+    ]
   },
   "dataExchange": {
     "title": "Intercambio de Datos",
     "summary": "Importación y exportación masiva de CSV/Excel en todos los módulos — 41 plantillas, con un paso de vista previa antes de confirmar por seguridad.",
     "purpose": "Mover datos hacia o desde FormuLab en bloque sin ingresar cada fila a mano, manteniendo cada escritura revisable antes de que ocurra.",
-    "quickStart": ["Descargue un archivo en blanco o de ejemplo para la plantilla que necesite.", "Complételo, luego Cargar.", "Revise la vista previa, luego Confirmar importación."],
-    "sections": ["Biblioteca de plantillas", "Exportaciones", "Importaciones", "Validación", "Historial", "Versiones de esquema", "Ayuda"],
-    "roleNotes": ["Una importación nunca puede marcar algo como verificado o aprobado por sí sola — todo entra como borrador, exactamente como si lo escribiera a mano."],
-    "limitations": ["2 plantillas (Protocolos de estabilidad y Resultados de estabilidad) se previsualizan y validan pero aún no se pueden confirmar — reportado honestamente por fila."]
+    "quickStart": [
+      "Descargue un archivo en blanco o de ejemplo para la plantilla que necesite.",
+      "Complételo, luego Cargar.",
+      "Revise la vista previa, luego Confirmar importación."
+    ],
+    "sections": [
+      "Biblioteca de plantillas",
+      "Exportaciones",
+      "Importaciones",
+      "Validación",
+      "Historial",
+      "Versiones de esquema",
+      "Ayuda"
+    ],
+    "roleNotes": [
+      "Una importación nunca puede marcar algo como verificado o aprobado por sí sola — todo entra como borrador, exactamente como si lo escribiera a mano."
+    ],
+    "limitations": [
+      "2 plantillas (Protocolos de estabilidad y Resultados de estabilidad) se previsualizan y validan pero aún no se pueden confirmar — reportado honestamente por fila."
+    ]
   },
   "administration": {
     "title": "Administración",
     "summary": "Enlaces a Materiales, Reglas regulatorias, Políticas de aprobación, Intercambio de datos y Configuración, además del editor global de Definiciones de prueba.",
     "purpose": "Un centro único para pantallas de configuración que ya existen en otra parte de la app.",
-    "quickStart": ["Vaya a Materiales, Regulatorio, Aprobación, Intercambio de datos o Configuración."],
-    "limitations": ["Sin gestión de usuarios o roles — este código no tiene un backend de gestión de usuarios, y Administración lo dice claramente en lugar de dar a entender que existe uno."]
+    "quickStart": [
+      "Vaya a Materiales, Regulatorio, Aprobación, Intercambio de datos o Configuración."
+    ],
+    "limitations": [
+      "Sin gestión de usuarios o roles — este código no tiene un backend de gestión de usuarios, y Administración lo dice claramente en lugar de dar a entender que existe uno."
+    ]
   },
   "materials": {
     "title": "Materiales",
     "summary": "Materiales, proveedores, componentes de envase/listas de materiales y perfiles de costo de fábrica.",
     "purpose": "El catálogo del que se construye cada línea de fórmula, cálculo de costo y resumen de envase.",
-    "quickStart": ["Cree un material con lo que se sepa hoy.", "Adjunte uno o más proveedores."],
-    "sections": ["Materiales", "Proveedores", "Envase", "Perfiles de fábrica"]
+    "quickStart": [
+      "Cree un material con lo que se sepa hoy.",
+      "Adjunte uno o más proveedores."
+    ],
+    "sections": [
+      "Materiales",
+      "Proveedores",
+      "Envase",
+      "Perfiles de fábrica"
+    ]
   },
   "notebooks": {
     "title": "Cuadernos",
     "summary": "Un editor de cuadernos ejecutable para análisis exploratorio.",
     "purpose": "Escribir y ejecutar celdas de cuaderno contra el entorno Python/R integrado de la app.",
-    "quickStart": ["Abra un cuaderno y ejecute una celda con Cmd/Ctrl+Enter."],
-    "limitations": ["Solo disponible en escritorio — muestra un estado vacío honesto en una sesión de desarrollo de navegador."]
+    "quickStart": [
+      "Abra un cuaderno y ejecute una celda con Cmd/Ctrl+Enter."
+    ],
+    "limitations": [
+      "Solo disponible en escritorio — muestra un estado vacío honesto en una sesión de desarrollo de navegador."
+    ]
   },
   "files": {
     "title": "Archivos",
     "summary": "Un explorador y visor de archivos a través de sus carpetas de sesión.",
     "purpose": "Explorar, previsualizar y abrir archivos producidos por sus sesiones y ejecuciones.",
-    "quickStart": ["Navegue a una carpeta; haga clic en un archivo para previsualizarlo."]
+    "quickStart": [
+      "Navegue a una carpeta; haga clic en un archivo para previsualizarlo."
+    ]
   },
   "runs": {
     "title": "Ejecuciones",
     "summary": "Historial de cada comando o cálculo ejecutado, con acceso a reproducción y registro.",
     "purpose": "Ver qué se ejecutó, cuándo y con qué resultado — y volver a ejecutarlo o inspeccionarlo.",
-    "quickStart": ["Filtre por búsqueda o estado; expanda una ejecución para ver su receta."]
+    "quickStart": [
+      "Filtre por búsqueda o estado; expanda una ejecución para ver su receta."
+    ]
   },
   "sessions": {
     "title": "Sesiones",
     "summary": "Su lista de sesiones de investigación asistidas por IA — fijada sobre Configuración, se muestran las últimas 8 por defecto.",
     "purpose": "El punto de entrada al flujo de trabajo de investigación impulsado por agente/chat: iniciar una nueva sesión o reabrir una pasada.",
-    "quickStart": ["Haga clic en Nuevo para iniciar una sesión.", "Haga clic en una sesión pasada para reabrirla."],
-    "warnings": ["Eliminar una sesión se confirma primero — no se elimina silenciosamente."]
+    "quickStart": [
+      "Haga clic en Nuevo para iniciar una sesión.",
+      "Haga clic en una sesión pasada para reabrirla."
+    ],
+    "warnings": [
+      "Eliminar una sesión se confirma primero — no se elimina silenciosamente."
+    ]
   },
   "settings": {
     "title": "Configuración",
     "summary": "Configuración de General, Apariencia, Modelos, entorno de Python, Cómputo y Privacidad.",
     "purpose": "Configurar la app en sí — tema, idioma, proveedor de modelo, entorno de ejecución, objetivos de cómputo y opciones de privacidad.",
-    "quickStart": ["Elija una sección de la lista a la izquierda."],
-    "sections": ["General", "Apariencia", "Modelos", "Python (entorno)", "Cómputo", "Privacidad"]
+    "quickStart": [
+      "Elija una sección de la lista a la izquierda."
+    ],
+    "sections": [
+      "General",
+      "Apariencia",
+      "Modelos",
+      "Python (entorno)",
+      "Cómputo",
+      "Privacidad"
+    ]
   },
   "glossary": {
-    "workingDraft": { "term": "Borrador de trabajo", "definition": "El estado actual, editable y no guardado de una fórmula — nunca aprobado, nunca exportado como final." },
-    "savedVersion": { "term": "Versión guardada", "definition": "Una instantánea numerada e inmutable de una fórmula, creada por Guardar versión. Editarla de nuevo crea una nueva versión." },
-    "approvalRole": { "term": "Rol de aprobación", "definition": "Uno de investigador, químico, calidad, regulatorio, producción o administrador — los únicos roles que pueden aprobar una versión, y solo algunos para cada puerta de aprobación." },
-    "blockingFinding": { "term": "Hallazgo bloqueante", "definition": "Un resultado de validación, compatibilidad o seguridad lo bastante grave para impedir la aprobación hasta que un humano nominal lo resuelva." },
-    "dossier": { "term": "Dosier", "definition": "Una colección de requisitos regulatorios, evidencia y revisiones por versión y jurisdicción para una fórmula." },
-    "evidenceConfirmation": { "term": "Confirmación de evidencia", "definition": "Un registro persistido de que se ha proporcionado la evidencia de un requisito regulatorio, revocable con motivo." },
-    "qsToHundred": { "term": "q.s. (quantum satis)", "definition": "Una línea de fórmula marcada para rellenar automáticamente hasta el 100 % de lo que dejan las demás líneas, sin volverse nunca negativa." },
-    "landedCost": { "term": "Costo desembarcado", "definition": "El precio de un material más flete, seguro, aranceles, impuestos y otros costos para llevarlo a su fábrica." },
-    "costSnapshot": { "term": "Instantánea de costo", "definition": "Un registro congelado de los precios exactos, tipos de cambio y costos de fábrica usados para costear una versión de fórmula en un momento dado." },
-    "compatibilityFinding": { "term": "Hallazgo de compatibilidad", "definition": "Un resultado del motor de reglas determinista de interacción de ingredientes — info/advertencia/error/bloqueante." },
-    "safetyClassification": { "term": "Clasificación de seguridad", "definition": "La categoría de peligro determinista en la que se coloca una fórmula — desde consumo ordinario hasta prohibido." },
-    "doeStudy": { "term": "Estudio DOE", "definition": "Un plan de Diseño de Experimentos: factores, restricciones, respuestas, una hoja de corridas generada y (una vez ejecutado) un modelo estadístico ajustado." },
-    "reverseFormulationCandidate": { "term": "Candidato de formulación inversa", "definition": "Una fórmula candidata generada a partir de los ingredientes declarados de un producto de referencia, puntuada por ajuste de fórmula y confianza de evidencia por separado." },
-    "dataExchangeTemplate": { "term": "Plantilla de Intercambio de Datos", "definition": "El esquema CSV/Excel de una colección importable/exportable, con su propia validación de vista previa antes de confirmar." },
-    "auditEvent": { "term": "Evento de auditoría", "definition": "Un registro inmutable y con marca de tiempo de una acción real de un actor real — la base de cada pestaña de historial/auditoría en la app." },
-    "watermark": { "term": "Marca de agua", "definition": "El sello \"R&D DRAFT — NOT PRODUCTION APPROVED\" aplicado a cualquier exportación cuya fórmula de origen no esté realmente production_approved." },
-    "readinessBlocker": { "term": "Bloqueador de preparación", "definition": "Una razón específica y nombrada por la que una fórmula aún no puede aprobarse, mostrada en el espacio de trabajo de Aprobación." },
-    "jurisdiction": { "term": "Jurisdicción", "definition": "El mercado al que se aplica una evaluación regulatoria — Kenia, Uganda, Tanzania, Ruanda, Burundi, Sudán del Sur o el bloque regional EAC." }
+    "workingDraft": {
+      "term": "Borrador de trabajo",
+      "definition": "El estado actual, editable y no guardado de una fórmula — nunca aprobado, nunca exportado como final."
+    },
+    "savedVersion": {
+      "term": "Versión guardada",
+      "definition": "Una instantánea numerada e inmutable de una fórmula, creada por Guardar versión. Editarla de nuevo crea una nueva versión."
+    },
+    "approvalRole": {
+      "term": "Rol de aprobación",
+      "definition": "Uno de investigador, químico, calidad, regulatorio, producción o administrador — los únicos roles que pueden aprobar una versión, y solo algunos para cada puerta de aprobación."
+    },
+    "blockingFinding": {
+      "term": "Hallazgo bloqueante",
+      "definition": "Un resultado de validación, compatibilidad o seguridad lo bastante grave para impedir la aprobación hasta que un humano nominal lo resuelva."
+    },
+    "dossier": {
+      "term": "Dosier",
+      "definition": "Una colección de requisitos regulatorios, evidencia y revisiones por versión y jurisdicción para una fórmula."
+    },
+    "evidenceConfirmation": {
+      "term": "Confirmación de evidencia",
+      "definition": "Un registro persistido de que se ha proporcionado la evidencia de un requisito regulatorio, revocable con motivo."
+    },
+    "qsToHundred": {
+      "term": "q.s. (quantum satis)",
+      "definition": "Una línea de fórmula marcada para rellenar automáticamente hasta el 100 % de lo que dejan las demás líneas, sin volverse nunca negativa."
+    },
+    "landedCost": {
+      "term": "Costo desembarcado",
+      "definition": "El precio de un material más flete, seguro, aranceles, impuestos y otros costos para llevarlo a su fábrica."
+    },
+    "costSnapshot": {
+      "term": "Instantánea de costo",
+      "definition": "Un registro congelado de los precios exactos, tipos de cambio y costos de fábrica usados para costear una versión de fórmula en un momento dado."
+    },
+    "compatibilityFinding": {
+      "term": "Hallazgo de compatibilidad",
+      "definition": "Un resultado del motor de reglas determinista de interacción de ingredientes — info/advertencia/error/bloqueante."
+    },
+    "safetyClassification": {
+      "term": "Clasificación de seguridad",
+      "definition": "La categoría de peligro determinista en la que se coloca una fórmula — desde consumo ordinario hasta prohibido."
+    },
+    "doeStudy": {
+      "term": "Estudio DOE",
+      "definition": "Un plan de Diseño de Experimentos: factores, restricciones, respuestas, una hoja de corridas generada y (una vez ejecutado) un modelo estadístico ajustado."
+    },
+    "reverseFormulationCandidate": {
+      "term": "Candidato de formulación inversa",
+      "definition": "Una fórmula candidata generada a partir de los ingredientes declarados de un producto de referencia, puntuada por ajuste de fórmula y confianza de evidencia por separado."
+    },
+    "dataExchangeTemplate": {
+      "term": "Plantilla de Intercambio de Datos",
+      "definition": "El esquema CSV/Excel de una colección importable/exportable, con su propia validación de vista previa antes de confirmar."
+    },
+    "auditEvent": {
+      "term": "Evento de auditoría",
+      "definition": "Un registro inmutable y con marca de tiempo de una acción real de un actor real — la base de cada pestaña de historial/auditoría en la app."
+    },
+    "watermark": {
+      "term": "Marca de agua",
+      "definition": "El sello \"R&D DRAFT — NOT PRODUCTION APPROVED\" aplicado a cualquier exportación cuya fórmula de origen no esté realmente production_approved."
+    },
+    "readinessBlocker": {
+      "term": "Bloqueador de preparación",
+      "definition": "Una razón específica y nombrada por la que una fórmula aún no puede aprobarse, mostrada en el espacio de trabajo de Aprobación."
+    },
+    "jurisdiction": {
+      "term": "Jurisdicción",
+      "definition": "El mercado al que se aplica una evaluación regulatoria — Kenia, Uganda, Tanzania, Ruanda, Burundi, Sudán del Sur o el bloque regional EAC."
+    },
+    "testMethodSnapshot": {
+      "term": "Instantánea del método de ensayo",
+      "definition": "Una copia inmutable de la norma/método realmente utilizado, capturada al registrar un resultado de ensayo. Las ediciones posteriores de la norma o el método nunca la modifican."
+    }
   }
 }

@@ -349,5 +349,77 @@ artifact needed.
 - **Out of scope this session (unchanged from plan)**: Help panel, Help
   Center, tooltips, tours, screenshots, guide exports — all deferred.
 
+## Session 1A summary — configurable laboratory test standards and methods (complete)
+
+Inserted scope-expansion session — does not renumber or replace the
+completed Session 1 (help registry) above.
+
+- **Before-state finding**: standards were free text only. A
+  `TestDefinition.methodReference` (schemas/testDefinitions.ts) accepts an
+  arbitrary string ("in-house SOP-014", "ISO 4316") with no edition,
+  revision, active/superseded status, or per-test primary/alternative
+  concept — and the seed catalog (`catalog/testDefinitions.ts`, 27
+  templates) sets it on **zero** of them (`grep -c methodReference` = 0).
+  No structured standard/method entity, no historical method snapshot on
+  `TestResult`, existed before this session.
+- **New domain model**: `LaboratoryStandard` + `LaboratoryTestMethod`
+  (`packages/shared/src/schemas/laboratoryStandards.ts`), row-keyed by
+  `id` with a separate `standardCode`/human field — the same
+  `dossierCode`-not-`code` convention `RegulatoryDossier` already uses, so
+  multiple editions of one standard code can coexist as distinct rows. An
+  "internal method" is simply a method linked to a standard with
+  `status: "internal"` — no second entity. Two new master-data
+  collections (`laboratory_standards`, `laboratory_test_methods`,
+  `apps/desktop/src-tauri/src/masterdata.rs`, allow-list now 90 entries).
+- **Per-test assignment**: `engine/laboratoryStandards.ts`'s
+  `assignMethodToTest` only ever touches rows sharing the target's own
+  `testDefinitionCode`; promoting one to primary demotes that same test's
+  previous primary, other tests are provably untouched (object-identity
+  asserted in tests). `assertNoDuplicateAssignment` blocks a duplicate
+  (test, standard) pair. `assertSupersededAcknowledged` blocks selecting a
+  superseded standard without explicit acknowledgement.
+- **Historical traceability**: `TestResult.methodSnapshot` (new, optional,
+  additive field on the existing append-only `test_results` collection) —
+  built once via `buildTestMethodSnapshot`, never recomputed; a later edit
+  to the standard/method cannot change an already-recorded result.
+- **Authorization**: reuses the existing `Actor`/`ApprovalRole` model —
+  `LABORATORY_METHOD_MANAGER_ROLES` (chemist/quality/administrator) gate
+  assigning/activating/superseding, mirroring `pilot_approved`'s own
+  authority set; any human may view and may create/edit a `draft` method
+  (`requireHumanActor`, reused from `regulatoryAuthorization.ts`) — no
+  second role system.
+- **UI**: `TestDefinitionsPanel.tsx` gained a per-row **Method** button
+  opening `TestMethodDrawer.tsx` — a scoped side drawer (not a new route,
+  not a second inspector) showing primary/alternative badges, edition/
+  revision, active/superseded/internal status, a superseded-acknowledgement
+  checkbox, an internal-method creation form, and the full 18-section
+  method surface (structured fields, honest "not yet documented" empty
+  states) plus a persistent copyright/licensing notice.
+- **Migration**: `findLegacyMethodReferences` reports every non-empty
+  `methodReference` as an unresolved legacy reference — **never**
+  auto-converted into a `LaboratoryStandard` (no edition/org guessing).
+  Idempotent; a human resolves each entry manually.
+- **Help integration**: extended the existing `laboratory` help topic
+  (Session 1's registry) — a new quick-start step, a new "Test Standards
+  and Methods" section, a warning, a known limitation — plus one new
+  glossary term (`testMethodSnapshot`). No second help system; full
+  8-locale parity maintained.
+- **Tests**: `engine/laboratoryStandards.test.ts` (25),
+  `schemas/laboratoryStandards.test.ts` (12),
+  `catalog/laboratoryStandards.test.ts` (4),
+  `components/laboratory/TestMethodDrawer.test.tsx` (11),
+  `components/formula/TestDefinitionsPanel.test.tsx` (2) — all new, all
+  passing. Rust `masterdata.rs`: 90-collection regression guard +
+  dedicated allow-list test, 13/13 passing. Full shared suite 1240/1240;
+  full desktop suite 786/786 (98 files); i18n parity unaffected (no
+  namespace change, `help`/`session` namespace content extended in
+  place). Desktop typecheck/lint clean.
+- **Limitations**: no bulk/import path for standards/methods yet (manual
+  entry and the small internal demo fixtures only); no dedicated
+  standalone route (drawer only, deliberately, per scope); the Method
+  drawer's "acting role" control is a manual role-select, matching every
+  other approval-style panel in this app (no login/session-identity
+  system exists to infer it automatically).
+
 ## Exact next session
 Phase 10 Session 2: Page Help Panel and Searchable Help Center.

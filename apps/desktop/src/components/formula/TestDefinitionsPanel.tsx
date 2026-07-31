@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus } from "lucide-react";
+import { Plus, FlaskConical } from "lucide-react";
 import {
   newId,
   PASS_FAIL_RULES,
@@ -11,6 +11,7 @@ import {
 } from "@formulab/shared";
 import { listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { TestMethodDrawer } from "@/components/laboratory/TestMethodDrawer";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 
@@ -19,6 +20,7 @@ export function TestDefinitionsPanel() {
   const t = tRaw as SimpleT;
   const [definitions, setDefinitions] = useState<TestDefinition[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [methodDrawerFor, setMethodDrawerFor] = useState<TestDefinition | null>(null);
 
   useEffect(() => {
     void listRecordsSeeded("test_definitions", SEED_TEST_DEFINITIONS).then(setDefinitions);
@@ -70,14 +72,25 @@ export function TestDefinitionsPanel() {
       )}
       <div className="space-y-2">
         {definitions.map((def) => (
-          <DefinitionRow key={def.code} definition={def} onSave={save} t={t} />
+          <DefinitionRow key={def.code} definition={def} onSave={save} onOpenMethod={() => setMethodDrawerFor(def)} t={t} />
         ))}
       </div>
+      {methodDrawerFor && <TestMethodDrawer definition={methodDrawerFor} onClose={() => setMethodDrawerFor(null)} />}
     </div>
   );
 }
 
-function DefinitionRow({ definition, onSave, t }: { definition: TestDefinition; onSave: (d: TestDefinition) => void; t: SimpleT }) {
+function DefinitionRow({
+  definition,
+  onSave,
+  onOpenMethod,
+  t,
+}: {
+  definition: TestDefinition;
+  onSave: (d: TestDefinition) => void;
+  onOpenMethod: () => void;
+  t: SimpleT;
+}) {
   const [local, setLocal] = useState(definition);
   const dirty = JSON.stringify(local) !== JSON.stringify(definition);
 
@@ -123,6 +136,9 @@ function DefinitionRow({ definition, onSave, t }: { definition: TestDefinition; 
           <input type="checkbox" checked={local.active} onChange={(e) => setLocal({ ...local, active: e.target.checked })} />
           {t("tests.active")}
         </label>
+        <button onClick={onOpenMethod} className="flex items-center gap-1 rounded-input border border-border px-1.5 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
+          <FlaskConical size={12} /> {t("tests.method.button")}
+        </button>
         {dirty && (
           <button onClick={() => onSave({ ...local, updatedAt: new Date().toISOString() })} className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
             {t("common:actions.save")}

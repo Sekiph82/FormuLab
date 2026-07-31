@@ -19,6 +19,8 @@
 //   data/master/laboratory_trials.json
 //   data/master/test_definitions.json
 //   data/master/test_results.json
+//   data/master/laboratory_standards.json
+//   data/master/laboratory_test_methods.json
 //   data/master/trial_comparisons.json
 //   data/master/trial_deviations.json
 //   data/master/corrective_actions.json
@@ -117,7 +119,7 @@ use tauri::AppHandle;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 88] = [
+const COLLECTIONS: [(&str, bool); 90] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -165,6 +167,19 @@ const COLLECTIONS: [(&str, bool); 88] = [
     ("trial_comparisons", true),
     ("trial_deviations", false),
     ("corrective_actions", false),
+    // Phase 10 Session 1A — configurable per-test laboratory standards and
+    // methods. A standard/method row is a mutable header, same reasoning as
+    // `regulatory_rules`/`approval_policies`: its own draft/active/
+    // superseded lifecycle is what changes it, and the application layer
+    // (`engine/laboratoryStandards.ts`) refuses editing an active row or
+    // hard-deleting one a historical `test_results` snapshot references,
+    // rather than the storage layer forcing a new record per edit. The
+    // snapshot itself is not a separate collection — it is embedded
+    // directly on the `test_results` row it belongs to (same
+    // "attachment_references is not a collection" reasoning above), and
+    // `test_results` is already append-only.
+    ("laboratory_standards", false),
+    ("laboratory_test_methods", false),
     // Stability Studies: same split — the study/sample/failure records
     // themselves evolve through a status lifecycle, but a recorded result
     // is append-only for the same reason a test result is.
@@ -704,7 +719,16 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 88);
+        assert_eq!(COLLECTIONS.len(), 90);
+    }
+
+    #[test]
+    fn laboratory_standards_and_methods_are_allow_listed_as_mutable() {
+        // Phase 10 Session 1A — status changes in place
+        // (draft -> active -> superseded), historical results reference a
+        // row via an embedded snapshot rather than a second collection.
+        assert_eq!(collection_spec("laboratory_standards"), Ok(("laboratory_standards", false)));
+        assert_eq!(collection_spec("laboratory_test_methods"), Ok(("laboratory_test_methods", false)));
     }
 
     #[test]

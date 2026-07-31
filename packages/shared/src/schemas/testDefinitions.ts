@@ -11,6 +11,7 @@
  */
 import { z } from "zod";
 import { decimalString } from "./primitives";
+import { testMethodSnapshotSchema } from "./laboratoryStandards";
 
 export const TEST_RESULT_TYPES = ["numeric", "text", "boolean", "pass_fail", "categorical", "visual_rating"] as const;
 export type TestResultType = (typeof TEST_RESULT_TYPES)[number];
@@ -255,6 +256,14 @@ export const testResultSchema = z.object({
    *  place; a new `TestResult` record with `revisesResultId` set is created
    *  instead, and this array names every prior revision's id. */
   revisesResultId: z.string().optional(),
+
+  /** Immutable snapshot of the standard/method actually used, captured at
+   *  creation (see `engine/laboratoryStandards.ts`'s
+   *  `buildTestMethodSnapshot`). Optional and additive: a result recorded
+   *  before Session 1A, or for a test with no assigned method yet, has none
+   *  — never backfilled or inferred after the fact. A later edit to the
+   *  standard/method must never change this. */
+  methodSnapshot: testMethodSnapshotSchema.optional(),
 
   createdAt: z.string(),
   updatedAt: z.string(),

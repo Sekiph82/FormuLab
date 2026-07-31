@@ -350,6 +350,56 @@ their own method reference and marks one `verified`. Edit result type,
 unit, min/max, pass/fail rule, critical flag and active status inline. Full
 model: [TEST_DEFINITIONS.md](TEST_DEFINITIONS.md).
 
+## 17a. Test standards and methods
+
+Each test definition can now carry its own configurable standard(s) and
+method, independent of every other test — changing pH's standard never
+touches viscosity's. Open a definition's **Method** button (next to it in
+Test Definitions) to manage this.
+
+- **Selecting a method**: a test may have one **primary** method and any
+  number of **alternative** methods, each linking a `LaboratoryStandard`
+  (code, title, issuing organization, edition/revision, status) to
+  procedural detail (equipment, reagents, sample prep, instrument
+  settings, steps, calculations, acceptance criteria, safety, waste
+  disposal, and more — see the Method drawer's own sections).
+- **Primary vs. alternative**: only chemist/quality/administrator roles may
+  promote an alternative to primary or create a new method; any role may
+  view. Promoting a method demotes the previous primary to alternative —
+  a test is never left with two primaries.
+- **Internal methods**: an authorized user may create a FormuLab-internal
+  method (no external standard body) directly from the drawer; it is
+  marked `internal` and behaves like any other standard for assignment
+  purposes.
+- **Status and revision**: a standard is `draft`, `active`, `superseded`,
+  or `internal`. Selecting a `superseded` standard as primary requires
+  explicitly checking an acknowledgement box first — it is never silently
+  selectable.
+- **Detailed instructions**: the Method drawer's sections (overview,
+  scope, equipment, reagents, sample prep, instrument setup, conditioning,
+  procedure, calculations, acceptance criteria, result interpretation,
+  troubleshooting, repeat-test conditions, safety, waste disposal, related
+  tests, alternative standards, revision/source) render whatever has
+  actually been entered; an unfilled section says so honestly rather than
+  inventing content.
+- **Historical snapshots**: recording a test result can capture an
+  immutable copy of the method actually used (standard code/edition/
+  revision, method id/version, instrument settings, unit, acceptance
+  criteria). A later edit to the standard or method never changes an
+  already-recorded result's snapshot.
+- **Legacy references**: a test definition's older free-text
+  `methodReference` field (e.g. "ISO 4316") is never auto-converted into a
+  structured standard — it stays visible as an unresolved legacy reference
+  until a chemist creates the real structured standard/method themselves.
+- **Copyright notice**: FormuLab never reproduces or invents the full text
+  of a copyrighted standard (ISO/ASTM/EN/DIN/AOAC/USP/EP/BS/...). The
+  drawer always shows a notice that its summaries and internal procedures
+  do not replace the official licensed standard — consult the current
+  official publication before regulated testing.
+
+Full model: `packages/shared/src/schemas/laboratoryStandards.ts`,
+`packages/shared/src/engine/laboratoryStandards.ts`.
+
 ## 18. Stability studies
 
 Open the **Stability workspace** (`/stability`). Create a study against the current working
