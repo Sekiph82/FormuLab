@@ -1,0 +1,3 @@
+family_code,family_name,category,subcategory,default_unit,default_batch_size,target_market,default_jurisdictions,default_packaging_type,active,tags,notes
+,TEST bad row - missing required family_code,Personal Care,Hand Wash,kg,100,KE,KE,bottle,true,handwash,Synthetic test row - missing required field.
+TEST-FAMILY-VERIFY,TEST Hand Soaps (resume verify),Personal Care,Hand Wash,kg,100,KE,KE;EAC,bottle,true,handwash,Synthetic test row.

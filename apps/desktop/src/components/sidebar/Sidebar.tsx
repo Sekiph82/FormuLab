@@ -53,7 +53,7 @@ import logo from "@/assets/logo.webp";
 const COLLAPSE_BELOW = 140;
 
 /** How many recent sessions show before "View all sessions" is needed. */
-const SESSIONS_PREVIEW_COUNT = 8;
+const SESSIONS_PREVIEW_COUNT = 5;
 
 interface NavChild {
   key: string;
@@ -390,7 +390,7 @@ export function Sidebar() {
 
             {/* Sessions: the 10th top-level entry, pinned above Settings so
                 it never scrolls out of view with the groups above. Shows at
-                most the latest 8, newest first, always in its own bounded
+                most the latest 5, newest first, always in its own bounded
                 scroll area (not just once expanded) so Settings can never be
                 pushed out of the viewport regardless of row count. */}
             <div className="shrink-0 border-t border-border px-3 pb-2 pt-2">

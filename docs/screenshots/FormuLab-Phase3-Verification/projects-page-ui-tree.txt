@@ -1,0 +1,33 @@
+﻿FormuLab
+FormuLab - Web content
+BETA
+Collapse sidebar
+New
+WORKSPACES
+Home
+Projects
+Formulation
+Laboratory
+Stability
+Optimization
+Regulatory
+Dossiers
+Approval
+Reports
+Administration
+TOOLS
+Notebooks
+Files
+Runs
+SESSIONS
+gum health protective toothpaste 3
+anti-dandruff shampoo for sensitive scalp 3
+Delete anti-dandruff shampoo for sensitive scalp
+sensitive skin body wash 3
+anti-dandruff shampoo 3
+gentle baby shampoo 2
+laundry detergent for white clothes 3
+Settings
+Formula projects
+New project
+No formulation projects yet. Create one to start building a formula.

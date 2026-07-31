@@ -1,0 +1,4 @@
+study_code,record_type,factor_or_response_code,name,factor_type,source_type,unit,low_value,center_value,high_value,categorical_levels,objective,target_value,lower_limit,upper_limit,weight,notes
+TEST DOE-HANDSOAP-SCREEN,not_a_real_type,TEST-FACTOR-BAD,TEST bad record_type row,continuous,process_parameter,%,8,11.5,15,,,,,,,Synthetic test row - bad record_type.
+TEST DOE-HANDSOAP-SCREEN,factor,TEST-FACTOR-RESUME-A,TEST Surfactant Level (resume),continuous,process_parameter,%,8,11.5,15,,,,,,,Synthetic test row.
+TEST DOE-HANDSOAP-SCREEN,response,TEST-RESPONSE-RESUME-1,TEST Viscosity Response (resume),,,cPs,,,,,within_range,12000,9000,15000,1,Synthetic test row.

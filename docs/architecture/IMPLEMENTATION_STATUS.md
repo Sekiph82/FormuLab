@@ -1311,6 +1311,102 @@ is completely unchanged. No binary alias/shim for the renamed
 that still hardcodes that filename must be updated manually; this repo
 does not carry a compatibility shim it never needed internally.
 
+### User Guide and In-App Help (Phase 10) — CLOSED
+Illustrated user guide (in-app/PDF/DOCX), a full in-app help system
+(registry, page Help panel, searchable Help Center, field tooltips,
+disabled-action explanations, guided tours, first-launch onboarding),
+and a documentation fixture/screenshot pipeline — built across 8
+sessions plus an inserted laboratory-standards scope expansion. Full
+session-by-session detail in `docs/handoffs/PHASE10_CURRENT.md`.
+
+**Implemented, verified by tests**:
+- `HELP_TOPICS` registry (`apps/desktop/src/lib/help/registry.ts`) covers
+  every real `router.tsx` route or a documented `HELP_EXCLUSIONS` entry;
+  a page Help panel and full-text Help Center (`cmdk`-based, matching
+  the existing command palette); `InfoTooltip`/`DisabledActionButton`
+  wired to real, existing authorization guards (never a second
+  permission model); 3 guided tours (Formulation, Design of Experiments,
+  Dossiers) plus first-launch onboarding.
+- Configurable laboratory test standards/methods (`LaboratoryStandard`/
+  `LaboratoryTestMethod`), per-test primary/alternative assignment,
+  immutable historical method snapshots on `TestResult`, superseded-
+  method acknowledgement gating — an inserted scope expansion (Session
+  1A), not originally planned, folded in without renumbering.
+- An illustrated user guide (`docs/USER_GUIDE.md`, 31 sections) covering
+  every module including two that had zero prior guide coverage
+  (Reverse Formulation, the `/live` session composer) and correcting two
+  confirmed-stale claims (Dossier PDF/DOCX export; Data Exchange's
+  template count, 24 → 41). Real PDF/DOCX exporters
+  (`apps/desktop/src/lib/userGuideExport/`) reusing `pdf-lib`/`docx`
+  (the same libraries Phase 8's Dossier export already uses) with a
+  purpose-built guide content model, not the Dossier one. An in-app
+  `/guide` route rendering the identical Markdown via the existing
+  `MarkdownViewer`. Zero screenshots were captured (no safe native
+  window automation existed at the time — later sessions found a
+  working technique, see below) — every manifest entry and guide
+  reference honestly discloses this rather than fabricating capture
+  state.
+- Full coverage verification (Session 7) found and fixed two genuine
+  defects (a stale "24 templates" claim in shipped in-app content,
+  distinct from the guide-body fix; a missing regression test for
+  `DisabledReason.relatedTopicId` resolution) and closed one coverage
+  gap (an orphan-topic check) — everything else re-verified accurate,
+  zero drift from Sessions 1–6.
+- Two Session 8 navigation corrections: the Sessions sidebar preview
+  count (single source of truth, `SESSIONS_PREVIEW_COUNT`) changed 8 →
+  5; a real, previously-undetected defect fixed — collapsing the
+  sidebar on `/live` (the app's actual default landing route) left no
+  UI way to reopen it, fixed with a floating restore button reusing the
+  existing `sidebarCollapsed` state (no second sidebar state).
+- File consolidation: 349 external FormuLab-related files (historical
+  logs, phase-verification screenshots) moved into the repository under
+  `docs/external-logs/`/`docs/screenshots/`; two real application/
+  project-data locations correctly identified and left in place as
+  documented technical exceptions rather than risked via a raw
+  filesystem move. Full report:
+  `docs/FORMULAB_FILE_CONSOLIDATION_REPORT.md`.
+- Closure regression: 1248 shared tests, 1019 desktop tests (122 files,
+  6 pre-existing unrelated unhandled-rejection log lines confirmed via
+  `git stash` to predate Phase 10's own changes — not a regression), 83
+  Rust tests, all green; shared/desktop typecheck, desktop lint,
+  `cargo clippy -- -D warnings` all clean. Release build produced a
+  fresh `formulab.exe` + MSI/NSIS installers; PDF guide byte-identical
+  across regenerations, DOCX structurally deterministic (same documented
+  zip-timestamp limitation `dossierDocx.ts` already has).
+- Native verification found a working technique this environment did
+  not previously confirm reliably: `SetForegroundWindow` alone silently
+  fails to bring a background-launched window to the foreground here
+  (a background automation process cannot steal OS input focus by
+  default) — the standard `AttachThreadInput` workaround fixes it.
+  With real OS focus confirmed, the fresh release exe was launched
+  directly and verified: real process (`formulab`), real window title
+  (`FormuLab`), real path matching the fresh build, responsive, real
+  rendered content (sidebar, an existing real project loaded correctly
+  with its real materials) captured via a real screen-region
+  screenshot. Deep interactive items (Help button and beyond) were
+  blocked by the same virtual-display-height constraint
+  `docs/TAURI_LIVE_VERIFICATION.md` already documented from the Phase 9
+  closure (the app's configured window is taller than this
+  environment's virtual display) — not a new limitation, a confirmed
+  recurrence of the known one. Real user data verified untouched:
+  `%APPDATA%\com.formulab.app` file count identical before and after
+  (17,520 files both times).
+- Status: **PARTIALLY LIVE VERIFIED** — matches the Phase 9 closure's
+  own precedent and label (native launch and real rendered content
+  confirmed; the deeper interaction checklist blocked by a pre-existing,
+  now twice-confirmed environment constraint, not a product defect).
+
+**Accepted compatibility decisions**: the Phase 10 screenshot capture
+sweep for the user guide itself remains deferred — the native-window
+technique confirmed working in Session 8 proves single-shot screenshots
+are possible, but the guide's own capture requirements (many precise
+UI states, both themes, careful framing) were out of this closure
+session's scope. Two real application/project-data locations
+(`%APPDATA%\com.formulab.app`, an alternate `OneDrive\Documents\FormuLab`
+root) were deliberately left untouched during file consolidation — no
+supported raw-filesystem relocation mechanism exists; recorded as
+technical exceptions, not silently ignored.
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it

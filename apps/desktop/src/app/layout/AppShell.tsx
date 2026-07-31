@@ -92,7 +92,7 @@ export function AppShell() {
     // the area behind the (translucent) sidebar must stay transparent.
     <div className="flex h-screen w-screen overflow-hidden text-text">
       <Sidebar />
-      <main className="flex min-w-0 flex-1 flex-col bg-bg">
+      <main className="relative flex min-w-0 flex-1 flex-col bg-bg">
         {/* Titlebar strip for pages that don't own one: keeps the whole top
             of the content area draggable under the macOS overlay titlebar,
             and hosts the expand button while the sidebar is collapsed. */}
@@ -110,6 +110,7 @@ export function AppShell() {
               <button
                 onClick={() => setSidebarCollapsed(false)}
                 aria-label={t("sidebar.expand")}
+                aria-expanded={false}
                 title={t("sidebar.expandTitle", { shortcut: isMac ? "⌘B" : "Ctrl+B" })}
                 className="fade-in rounded p-1 text-text hover:bg-surface-2"
               >
@@ -117,6 +118,22 @@ export function AppShell() {
               </button>
             )}
           </div>
+        )}
+        {/* Pages that own their own titlebar (currently just /live) render no
+            strip above, so they'd otherwise have zero way to reopen a
+            collapsed sidebar — a floating restore button over the content's
+            upper-left corner covers them without touching that page's own
+            header layout. */}
+        {pageOwnsTitlebar && sidebarCollapsed && (
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            aria-label={t("sidebar.expand")}
+            aria-expanded={false}
+            title={t("sidebar.expandTitle", { shortcut: isMac ? "⌘B" : "Ctrl+B" })}
+            className="fade-in absolute left-2 top-2 z-20 rounded bg-bg/80 p-1 text-text backdrop-blur hover:bg-surface-2"
+          >
+            <PanelLeft size={14} strokeWidth={1.5} />
+          </button>
         )}
         <div className="min-h-0 flex-1">
           <Outlet />

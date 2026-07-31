@@ -1,6 +1,6 @@
 # Phase 10 — User Guide and In-App Help
 
-## Status: Session 7 (full coverage verification) complete.
+## Status: PHASE 10 CLOSED (Session 8 complete).
 
 ## Key finding: build on what already exists, don't start from zero
 This repository already has (a) a rich, technically accurate but
@@ -1071,5 +1071,149 @@ here per instruction, without renumbering any Phase 10 session.
   the still-deferred screenshot capture sweep (unchanged from Session
   6 — no native automation driver exists in this environment).
 
+## Session 8 UI corrections — sessions preview count and collapsed-navigation restore
+
+Two small, focused corrections folded into Session 8 (not a separate
+session or commit) per their own instructions.
+
+- **Sessions preview count, 8 → 5**: traced to a single source of truth,
+  `SESSIONS_PREVIEW_COUNT` in `components/sidebar/Sidebar.tsx` (not
+  hardcoded in JSX, not a store/query limit) — changed `8` to `5`. The
+  existing "View all sessions" / "Show fewer" toggle (in-place expand,
+  not a separate route — there is no dedicated Sessions page; `topicForRoute`
+  covers `/live` and `/example/:sessionId` for the "sessions" help topic)
+  is unchanged. Updated the 5 existing count-dependent `Sidebar.test.tsx`
+  cases to the new boundary and added a new empty-state test (6 tests
+  total in that describe block, up from 5).
+- **Restore collapsed navigation — real defect found and fixed**: on
+  `/live` (the app's actual default landing route, per the `/` redirect),
+  collapsing the sidebar left genuinely **no** UI way to reopen it.
+  `AppShell.tsx`'s pre-existing expand-button strip was gated behind
+  `!pageOwnsTitlebar`, and neither `FormulationStudio` nor
+  `FormulationWorkspaceV2` render any restore control of their own —
+  confirmed by grep, not assumed. `Ctrl/Cmd+B` still worked, but a
+  mouse-only user on `/live` had no way back short of the shortcut. Fixed
+  with a small floating restore button (`AppShell.tsx`, positioned over
+  the content's upper-left corner) that reuses the exact same
+  `sidebarCollapsed`/`setSidebarCollapsed` state `Sidebar.tsx`'s own
+  collapse button already writes to — no second sidebar state. Both
+  restore buttons (the pre-existing strip one and the new floating one)
+  now carry `aria-expanded={false}` (neither had it before). New
+  `AppShell.test.tsx` (8 tests): restore button appears only once
+  collapsed, reopens on click and on Enter, `Ctrl/Cmd+B` still works,
+  route is unchanged across collapse/reopen, the Sessions preview and
+  Settings entry still render after reopening, the Help panel still
+  opens correctly while collapsed, and the pre-existing non-`/live`
+  behavior is unchanged.
+- **Tests run**: `Sidebar.test.tsx` (19/19), `AppShell.test.tsx` (8/8,
+  new file) — both focused runs per the lean-test-strategy. Full desktop
+  suite re-run once afterward (required — global navigation shell
+  changed): 1019/1019 across 122 files (the same 6 pre-existing
+  unrelated `HelpPanel.test.tsx` unhandled-rejection log lines as
+  Session 7, not a regression). Desktop typecheck and lint clean.
+
+## Session 8 summary — closure, release build, and native verification (complete)
+
+- **Regression** (per the lean-test-strategy End-of-Session-8 scope —
+  diff since Session 7 touches only `apps/desktop/src`, so shared/Rust
+  were not re-run, carried over from Session 7's own run): full desktop
+  suite 1019/1019 across 122 files (6 pre-existing unrelated
+  `HelpPanel.test.tsx` unhandled-rejection log lines, confirmed via
+  `git stash` against clean Session-6 HEAD — not a regression); shared
+  suite 1248/1248 (carried over, untouched); Rust suite 83/83 (carried
+  over, untouched); desktop typecheck clean; shared typecheck clean
+  (carried over); desktop lint clean; `cargo clippy -- -D warnings`
+  clean (new for this session's regression scope, zero warnings).
+- **Release build**: `npx tauri build` from `apps/desktop`, fresh
+  artifacts (Aug 1, 01:06–01:07, superseding a Jul 31 16:17 build that
+  predated all of today's Session 6–8 changes):
+
+  | Artifact | Path | Size | SHA256 |
+  |---|---|---|---|
+  | `formulab.exe` | `apps/desktop/src-tauri/target/release/formulab.exe` | 21,995,520 B | `87c6ebe1158e3699c30844051cfedddab799b3c1ca0705ce93684c2e75ec0838` |
+  | MSI | `apps/desktop/src-tauri/target/release/bundle/msi/FormuLab_0.4.0_x64_en-US.msi` | 36,642,816 B | `345b93dd69c4fef3aa3950e17478564ee89dc3c224fe56a7c1af4fbc8bc81f7e` |
+  | NSIS | `apps/desktop/src-tauri/target/release/bundle/nsis/FormuLab_0.4.0_x64-setup.exe` | 25,060,099 B | `9c423bd1607c79a33b7356bdfd236b6109cac0c759cf6796541999be41779db1` |
+  | User Guide PDF | `docs/generated/FormuLab-User-Guide.pdf` | 52,014 B | `c361c62c01aba9f01ab451bc7eb04652962441759811d4eaf107d20600c58f36` (byte-identical to the Session 6 commit — regenerated and reconfirmed) |
+  | User Guide DOCX | `docs/generated/FormuLab-User-Guide.docx` | 31,349 B | `c75e3d9f54488d28b73901d18cb30f8ad63644d671fe89f727273cfb484f245b` (regenerating produces a different, same-size binary — the documented zip-timestamp non-determinism; the committed bytes were restored via `git checkout --` after hashing, matching the Session 6 precedent) |
+
+- **UI corrections** (Sessions preview 8→5; collapsed-sidebar restore
+  button — a real defect found and fixed): see the dedicated section
+  above this one for full detail. Tests, typecheck, lint all clean;
+  full desktop suite re-run once (required — global navigation shell
+  changed), included in the regression totals above.
+- **File consolidation**: complete, see
+  `docs/FORMULAB_FILE_CONSOLIDATION_REPORT.md` for the full inventory,
+  moves, and the two documented technical exceptions (real application/
+  project data left in place, no safe raw-filesystem migration path
+  exists).
+- **Native verification**: performed against the fresh release exe
+  directly (pre-commit), then again through the actual Desktop shortcut
+  as the final, separate, post-commit step (see the shortcut-update
+  section of the external log for that second pass's specific result).
+  Discovered and worked around a real environment quirk:
+  `SetForegroundWindow` alone silently fails to bring a background-
+  launched window to the OS foreground here; the standard
+  `AttachThreadInput` technique fixes it. With real focus confirmed:
+  real process `formulab`, real window title `FormuLab`, real path
+  matching the fresh build, `Responding: True`, a real captured
+  screenshot showing the real sidebar and a real existing project
+  ("Shampoo V.001") with its real materials loading correctly. Deep
+  interactive checklist items (Help button and beyond) were blocked by
+  the same virtual-display-height constraint
+  `docs/TAURI_LIVE_VERIFICATION.md` already documented at the Phase 9
+  closure — a confirmed recurrence of a pre-existing, disclosed
+  limitation, not a new product defect and not fabricated success.
+  `%APPDATA%\com.formulab.app` file count confirmed identical before
+  and after (17,520 files both times) — real user data untouched.
+  **Status: PARTIALLY LIVE VERIFIED**, matching the Phase 9 closure's
+  own precedent and label.
+- **Documentation**: this section; `docs/architecture/IMPLEMENTATION_STATUS.md`
+  (new Phase 10 CLOSED entry, matching the Phase 8/9 closure pattern);
+  `docs/PHASE10_COVERAGE_MATRIX.md`; `docs/FORMULAB_FILE_CONSOLIDATION_REPORT.md`;
+  external log. `docs/USER_GUIDE.md` and
+  `docs/PHASE10_SCREENSHOT_MANIFEST.json` required no further content
+  changes this session (the screenshot sweep remains deferred, honestly,
+  as it has been since Session 5).
+- **Out of scope this session (unchanged from plan)**: any new product
+  feature; the still-deferred user-guide screenshot capture sweep (the
+  native-window technique proven in this session's verification step
+  makes a future sweep more tractable, but actually running it — many
+  precise UI states, both themes — was not this closure session's job).
+
+## Phase 10 closure
+
+**PHASE 10 CLOSED.** Scope completed: full in-app help system (registry,
+page Help panel, searchable Help Center, field tooltips, disabled-action
+explanations, 3 guided tours, first-launch onboarding), an illustrated
+user guide shipped three ways (in-app, PDF, DOCX) from one Markdown
+source, a documentation fixture and screenshot-manifest pipeline, full
+coverage verification with two genuine defects found and fixed, two
+navigation corrections (one of which was a real, previously-undetected
+defect), a full external-file consolidation, and a fresh, hash-verified
+Windows release build with native verification. Final coverage: every
+real route resolves to a help topic or a documented exclusion; every
+`relatedTopicIds`/`glossaryTermIds`/`DisabledReason.relatedTopicId`
+reference resolves; the guide covers all 31 real sections with zero
+known-stale claims remaining. Screenshots captured: 0 of 26 manifest
+entries (honestly disclosed throughout, every guide/manifest reference
+degrades gracefully). Accessibility: keyboard/ARIA covered for every new
+interactive control added across Phase 10 (Help panel/Center, tooltips,
+disabled-action explanations, tours, the collapsed-nav restore button).
+Final regression: shared 1248/1248, desktop 1019/1019 (122 files),
+Rust 83/83, both typechecks clean, lint clean, clippy clean. Release
+hashes: see the table above. Shortcut target: see the external log's
+final shortcut-update entry (performed as the absolute last step, after
+this session's final commit). Native verification status: **PARTIALLY
+LIVE VERIFIED**. Remaining limitations: the guide screenshot sweep
+(deferred since Session 5, now more tractable but still not done); two
+real application/project-data locations outside the repo left in place
+as documented technical exceptions; deep native UI interaction beyond
+launch/top-level-render remains constrained by this environment's
+virtual display height (pre-existing, documented at the Phase 9
+closure, not new). Intentional exclusions: non-English guide body
+content; dark-theme screenshot captures; tours for modules beyond
+Formulation/DoE/Dossiers. No Phase 11 plan is proposed — none exists yet
+and this closure does not invent one.
+
 ## Exact next session
-Phase 10 Session 8: Closure, Release Build, and Native Verification.
+None — Phase 10 is closed. A future phase (if any) is not yet planned.

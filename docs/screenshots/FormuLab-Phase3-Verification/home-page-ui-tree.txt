@@ -1,0 +1,46 @@
+﻿FormuLab
+FormuLab - Web content
+BETA
+Collapse sidebar
+New
+WORKSPACES
+Home
+Projects
+Formulation
+Laboratory
+Stability
+Optimization
+Regulatory
+Dossiers
+Approval
+Reports
+Administration
+TOOLS
+Notebooks
+Files
+Runs
+SESSIONS
+gum health protective toothpaste 3
+anti-dandruff shampoo for sensitive scalp 3
+Delete anti-dandruff shampoo for sensitive scalp
+sensitive skin body wash 3
+anti-dandruff shampoo 3
+gentle baby shampoo 2
+laundry detergent for white clothes 3
+Settings
+RECENT PROJECTS
+No projects yet.
+RECENT ACTIVITY
+No recent activity.
+OPEN LABORATORY WORK
+No open trials right now.
+UPCOMING STABILITY SAMPLES
+No stability samples due soon.
+PENDING APPROVALS
+Nothing awaiting an approval decision.
+REGULATORY DOSSIERS
+No dossiers among your recent projects.
+DOSSIER EVIDENCE EXPIRING SOON
+No dossier evidence expiring soon.
+DOSSIER REVIEWS PENDING
+No dossiers waiting on a review.

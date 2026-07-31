@@ -1,0 +1,2 @@
+project_code,formula_version,trial_code,sample_code,test_code,replicate_number,numeric_value,text_value,unit,result_date,analyst,instrument,status,deviation_code,notes
+TEST-PROJ-001,1,TEST-TRIAL-001,S1,TEST-TST-001,1,5.4,,pH,2026-01-15,Test Analyst,TEST pH meter,recorded,,Native verification row (expects reference_missing - no trial exists yet)

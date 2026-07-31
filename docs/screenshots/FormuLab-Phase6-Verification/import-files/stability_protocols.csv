@@ -1,0 +1,2 @@
+protocol_code,protocol_name,product_family_code,packaging_sku_code,condition_code,temperature,humidity,light_condition,orientation,time_point,time_unit,test_code,sample_quantity,acceptance_criteria,active,notes
+TEST-PROT-001,TEST 6-Month Accelerated Stability,,,40C-75RH,40,75,dark,upright,M3,months,TEST-TST-001,3,pH within 4.5-6.5,true,Native verification row (expects preview OK, commit skipped - no handler wired)

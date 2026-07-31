@@ -572,3 +572,15 @@ regression: shared 1248/1248, desktop 1010/1010 (121 files, 6
 pre-existing unrelated unhandled-rejection log lines confirmed via
 `git stash` to predate this session), Rust 83/83, both typechecks and
 lint clean.
+
+## Session 8 navigation correction — collapsed-sidebar restore control
+
+A real, previously-undetected help/navigation interaction gap: on
+`/live`, collapsing the sidebar left no UI control to reopen it, which
+would also have blocked reaching the Help button/Help Center/command
+palette by mouse from that state (all three live inside the sidebar-
+adjacent chrome, unaffected in content, but unreachable without a
+working restore control). Fixed in `AppShell.tsx` (see the Session 8
+summary in the handoff for detail); a new test confirms the Help panel
+still opens correctly from `/reports` while the sidebar is collapsed,
+using the same restore control.

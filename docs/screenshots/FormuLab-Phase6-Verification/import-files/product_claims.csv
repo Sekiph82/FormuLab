@@ -1,0 +1,2 @@
+claim_code,project_code,formula_version,packaging_sku_code,claim_text,claim_category,jurisdictions,languages,risk_level,status,evidence_code,notes
+TEST-CLAIM-001,TEST-FORM-001,1,,TEST gentle on sensitive skin,sensitive,KE,en,low,draft,,Native verification row

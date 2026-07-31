@@ -1,0 +1,2 @@
+rule_code,jurisdiction,authority,rule_type,product_family_code,material_code,claim_keyword,requirement,severity,mandatory,required_document_type,required_label_element,required_warning,source_reference,source_url,effective_date,expiry_date,verification_status,verified_by,verified_at,notes
+TEST-RULE-001,KE,TEST Authority,label_requirement,,,,Label must state net contents in metric units.,blocking,true,,net_contents,,Test Reg 12(3),,2026-01-01,,,,,Native verification row
