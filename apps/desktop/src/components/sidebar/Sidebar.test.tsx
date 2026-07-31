@@ -146,18 +146,38 @@ describe("Sidebar — accordion behavior", () => {
 });
 
 describe("Sidebar — Sessions", () => {
-  it("shows only the latest 3 sessions plus a 'View all sessions' control when there are more", async () => {
-    sessionsMock.listSessions.mockResolvedValue([
-      session("s5"), session("s4"), session("s3"), session("s2"), session("s1"),
-    ]);
+  it("shows exactly the latest 8 sessions, newest first, plus a 'View all sessions' control when there are more", async () => {
+    sessionsMock.listSessions.mockResolvedValue(
+      // listSessions() always resolves newest-first (see formulation_v2.rs); s9 is newest.
+      Array.from({ length: 9 }, (_, i) => session(`s${9 - i}`)),
+    );
     renderAt("/files");
 
-    await waitFor(() => expect(screen.getByText("s5")).toBeInTheDocument());
-    expect(screen.getByText("s4")).toBeInTheDocument();
-    expect(screen.getByText("s3")).toBeInTheDocument();
-    expect(screen.queryByText("s2")).not.toBeInTheDocument();
+    for (let n = 9; n >= 2; n--) {
+      await waitFor(() => expect(screen.getByText(`s${n}`)).toBeInTheDocument());
+    }
     expect(screen.queryByText("s1")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "View all sessions" })).toBeInTheDocument();
+
+    // Newest-first order is preserved in the DOM, not just "which 8 show".
+    const rows = screen.getAllByText(/^s[2-9]$/).map((el) => el.textContent);
+    expect(rows).toEqual(["s9", "s8", "s7", "s6", "s5", "s4", "s3", "s2"]);
+  });
+
+  it("shows all available sessions with no 'View all' control when there are fewer than 8", async () => {
+    sessionsMock.listSessions.mockResolvedValue([session("a"), session("b"), session("c")]);
+    renderAt("/files");
+    await waitFor(() => expect(screen.getByText("a")).toBeInTheDocument());
+    expect(screen.getByText("b")).toBeInTheDocument();
+    expect(screen.getByText("c")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View all sessions" })).not.toBeInTheDocument();
+  });
+
+  it("shows no 'View all sessions' control when there are exactly 8 sessions", async () => {
+    sessionsMock.listSessions.mockResolvedValue(Array.from({ length: 8 }, (_, i) => session(`s${i}`)));
+    renderAt("/files");
+    await waitFor(() => expect(screen.getByText("s0")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "View all sessions" })).not.toBeInTheDocument();
   });
 
   it("expands to show every session, in its own bounded scroll area, after 'View all sessions'", async () => {
@@ -174,11 +194,20 @@ describe("Sidebar — Sessions", () => {
     expect(screen.getByRole("button", { name: "Show fewer" })).toBeInTheDocument();
   });
 
-  it("shows no 'View all sessions' control when there are 3 or fewer sessions", async () => {
-    sessionsMock.listSessions.mockResolvedValue([session("a"), session("b")]);
+  it("returns to the latest 8 after 'Show fewer'", async () => {
+    // listSessions() resolves newest-first, so array position 0 is newest — s11 here.
+    sessionsMock.listSessions.mockResolvedValue(
+      Array.from({ length: 12 }, (_, i) => session(`s${11 - i}`)),
+    );
     renderAt("/files");
-    await waitFor(() => expect(screen.getByText("a")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "View all sessions" })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "View all sessions" }));
+    expect(screen.getByText("s0")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show fewer" }));
+    for (let i = 4; i <= 11; i++) expect(screen.getByText(`s${i}`)).toBeInTheDocument();
+    expect(screen.queryByText("s3")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View all sessions" })).toBeInTheDocument();
   });
 
   it("keeps Sessions and Settings visible alongside a long navigation and session list", async () => {

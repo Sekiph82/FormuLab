@@ -53,7 +53,7 @@ import logo from "@/assets/logo.webp";
 const COLLAPSE_BELOW = 140;
 
 /** How many recent sessions show before "View all sessions" is needed. */
-const SESSIONS_PREVIEW_COUNT = 3;
+const SESSIONS_PREVIEW_COUNT = 8;
 
 interface NavChild {
   key: string;
@@ -390,7 +390,9 @@ export function Sidebar() {
 
             {/* Sessions: the 10th top-level entry, pinned above Settings so
                 it never scrolls out of view with the groups above. Shows at
-                most the latest 3, with its own bounded scroll if expanded. */}
+                most the latest 8, newest first, always in its own bounded
+                scroll area (not just once expanded) so Settings can never be
+                pushed out of the viewport regardless of row count. */}
             <div className="shrink-0 border-t border-border px-3 pb-2 pt-2">
               <div className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted">
                 {t("history.heading")}
@@ -399,7 +401,7 @@ export function Sidebar() {
                 <div className="px-2 py-2 text-xs text-muted">{t("history.empty")}</div>
               ) : (
                 <>
-                  <div className={cn("flex flex-col", showAllSessions && "max-h-48 overflow-y-auto")}>
+                  <div className="flex max-h-64 flex-col overflow-y-auto">
                     {(showAllSessions ? formulations : formulations.slice(0, SESSIONS_PREVIEW_COUNT)).map((s) => {
                       const to = `/live/${s.id}`;
                       const title = s.brief?.target ?? s.id;
