@@ -527,7 +527,9 @@
     "unclassifiedTitle": "Formula percentage carried by lines with no function assigned.",
     "candidateTabsLabel": "Candidate versions",
     "candidateHasViolations": "Has validation warnings",
-    "candidateUnsavedTitle": "Has unsaved edits"
+    "candidateUnsavedTitle": "Has unsaved edits",
+    "totalInfoTitle": "Total and q.s.",
+    "totalInfoBody": "A q.s. line auto-fills the remainder to 100% — its percentage is calculated, not typed. Total should read exactly 100%; anything else means an authored percentage plus the q.s. remainder does not add up."
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",
@@ -597,7 +599,13 @@
     "incomplete": "This cost is incomplete",
     "snapshots": "Saved snapshots",
     "noSnapshots": "No cost snapshots saved for this project.",
-    "warningCount": "{{count}} warning(s)"
+    "warningCount": "{{count}} warning(s)",
+    "snapshotInfoTitle": "Cost snapshot",
+    "snapshotInfoBody": "The live cost recalculates as the formula changes. A snapshot is written only when you ask for one, and once written it does not move — it is what the cost actually was at that moment.",
+    "reasons": {
+      "busy": "Saving — please wait.",
+      "needVersion": "Select a saved version before saving a cost snapshot."
+    }
   },
   "materials": {
     "sections": "Master data sections",
@@ -1103,7 +1111,15 @@
         "relatedTests": "Related tests",
         "alternativeStandards": "Standards and methods",
         "revisionSource": "Revision and source information"
-      }
+      },
+      "primaryVsAlternativeTitle": "Primary vs. alternative",
+      "primaryVsAlternativeBody": "A test has one primary method used by default, and any number of alternatives. Promoting an alternative demotes the previous primary — a test is never left with two.",
+      "statusExplainerTitle": "Standard status",
+      "statusExplainerBody": "Draft is not yet finalized. Active is the current, usable standard. Internal means FormuLab/company-authored, not an external body. Superseded means a newer edition/revision replaced it — selecting it requires explicit acknowledgement.",
+      "snapshotInfoTitle": "Historical snapshots",
+      "snapshotInfoBody": "Recording a test result can capture an immutable copy of the method actually used. Editing a standard or method later never changes an already-recorded result's snapshot.",
+      "supersededBlockReason": "This standard is superseded. Acknowledge it below before making it primary.",
+      "createInternalHiddenReason": "Only chemist, quality or administrator roles may create an internal method."
     }
   },
   "stability": {
@@ -1140,7 +1156,11 @@
     "protocolExport": "Protocol",
     "samplePlanExport": "Sample plan",
     "timePointsExport": "Time-point report",
-    "summaryExport": "Summary report"
+    "summaryExport": "Summary report",
+    "conditionInfoTitle": "Conditions",
+    "conditionInfoBody": "A stability condition (e.g. 40°C/75%RH) plus the time points below define the study's protocol — the combinations a sample is pulled and tested at.",
+    "timePointInfoTitle": "Time points",
+    "timePointInfoBody": "A time point (e.g. initial, 1mo, 3mo) is when a sample is pulled under a given condition. Together, conditions × time points define the full protocol."
   },
   "correctiveActions": {
     "heading": "Corrective Actions",
@@ -1285,7 +1305,15 @@
     "comparisonNoProcess": "Process instructions are recorded on trials/studies, not on the formula version itself, so they are not part of this comparison.",
     "justification": "Justification",
     "declareEquivalence": "Declare equivalence",
-    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}"
+    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}",
+    "reasons": {
+      "busy": "Working — please wait.",
+      "notReady": "Not all readiness blockers are resolved yet ({{count}} remaining).",
+      "roleNotAuthorized": "Your acting role cannot approve this status transition.",
+      "missingFields": "Enter your name and a reason before approving.",
+      "stateInfoTitle": "Approval state",
+      "stateInfoBody": "pilot_approved and production_approved each require a named, authorized human role — no automated actor (agent, system, or import) can ever approve a formula version."
+    }
   },
   "attachments": {
     "add": "Add attachment",
@@ -1702,7 +1730,11 @@
     "invalidJson": "That isn't valid JSON.",
     "invalidShape": "Each row needs at least a title.",
     "importRowError": "Row {{row}}: missing a title.",
-    "notLegalAdvice": "Compliance-assistance only — this is not a claim of legal compliance, and no document upload or checkbox alone ever makes a product compliant."
+    "notLegalAdvice": "Compliance-assistance only — this is not a claim of legal compliance, and no document upload or checkbox alone ever makes a product compliant.",
+    "reasons": {
+      "exportBusy": "Generating — please wait.",
+      "exportNotAuthorized": "Only an authorized regulatory role may export the dossier document."
+    }
   },
   "claimsLabels": {
     "heading": "Claims & Labels",
@@ -1937,7 +1969,9 @@
     },
     "responses": {
       "heading": "Responses",
-      "empty": "No responses defined for this study."
+      "empty": "No responses defined for this study.",
+      "infoTitle": "Responses",
+      "infoBody": "A response is the measured outcome a study analyzes (e.g. viscosity, foam height) — recorded per run as an observation, then fitted by Analysis."
     },
     "analysis": {
       "heading": "Statistical analysis",
@@ -2013,7 +2047,10 @@
       "blocking": "Enable blocking",
       "estimatedRuns": "Estimated run count",
       "previewUnavailable": "Diagnostics preview unavailable — add valid factors first.",
-      "responseName": "response name"
+      "responseName": "response name",
+      "factorsAndLevelsHeading": "Factors and levels",
+      "factorsAndLevelsInfoTitle": "Factors and levels",
+      "factorsAndLevelsInfoBody": "A factor is a variable the study deliberately varies (e.g. temperature). Its low/high values are the levels tested — the design generates runs across combinations of these levels."
     }
   },
   "home": {
@@ -2254,6 +2291,14 @@
       "rowStates": "Each row is classified before anything is written: a new record, an update to an existing one, unchanged, a duplicate within the file, a warning, an invalid row, or a missing reference. Only valid rows are imported by default — importing rows with issues requires explicitly choosing a partial import.",
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
+    },
+    "reasons": {
+      "commitBusy": "Importing — please wait.",
+      "templateUnsupported": "This template does not support committing yet — preview only.",
+      "noValidPreview": "Upload and preview a file before importing.",
+      "nothingCommittable": "No rows are ready to import.",
+      "hasErrors": "{{count}} row(s) have errors and would be skipped.",
+      "allowPartialPrerequisite": "Enable \"allow partial import\", or fix the error rows."
     }
   },
   "reverseFormulation": {

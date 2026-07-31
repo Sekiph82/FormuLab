@@ -527,7 +527,9 @@
     "unclassifiedTitle": "Pourcentage de formule porté par des lignes sans fonction assignée.",
     "candidateTabsLabel": "Versions candidates",
     "candidateHasViolations": "Comporte des avertissements de validation",
-    "candidateUnsavedTitle": "Comporte des modifications non enregistrées"
+    "candidateUnsavedTitle": "Comporte des modifications non enregistrées",
+    "totalInfoTitle": "Total et q.s.",
+    "totalInfoBody": "Une ligne q.s. complète automatiquement le reste jusqu'à 100% — son pourcentage est calculé, pas saisi. Le total doit être exactement 100% ; toute autre valeur signifie qu'un pourcentage saisi plus le reste q.s. ne s'additionne pas correctement."
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",
@@ -597,7 +599,13 @@
     "incomplete": "This cost is incomplete",
     "snapshots": "Saved snapshots",
     "noSnapshots": "No cost snapshots saved for this project.",
-    "warningCount": "{{count}} warning(s)"
+    "warningCount": "{{count}} warning(s)",
+    "snapshotInfoTitle": "Instantané de coût",
+    "snapshotInfoBody": "Le coût en direct est recalculé à chaque modification de la formule. Un instantané n'est enregistré que sur demande et ne change plus ensuite — il reflète le coût réel à ce moment-là.",
+    "reasons": {
+      "busy": "Enregistrement en cours — veuillez patienter.",
+      "needVersion": "Sélectionnez une version enregistrée avant d'enregistrer un instantané de coût."
+    }
   },
   "materials": {
     "sections": "Master data sections",
@@ -1103,7 +1111,15 @@
         "relatedTests": "Essais liés",
         "alternativeStandards": "Normes et méthodes",
         "revisionSource": "Informations de révision et de source"
-      }
+      },
+      "primaryVsAlternativeTitle": "Principale vs alternative",
+      "primaryVsAlternativeBody": "Un essai a une méthode principale utilisée par défaut, et un nombre quelconque d'alternatives. Promouvoir une alternative rétrograde l'ancienne principale — un essai n'a jamais deux méthodes principales.",
+      "statusExplainerTitle": "Statut de la norme",
+      "statusExplainerBody": "Brouillon n'est pas encore finalisé. Active est la norme actuellement utilisable. Interne signifie rédigée par FormuLab/l'entreprise, pas par un organisme externe. Remplacée signifie qu'une édition/révision plus récente l'a remplacée — la sélectionner nécessite une confirmation explicite.",
+      "snapshotInfoTitle": "Instantanés historiques",
+      "snapshotInfoBody": "L'enregistrement d'un résultat d'essai peut capturer une copie immuable de la méthode réellement utilisée. Modifier une norme ou une méthode plus tard ne change jamais l'instantané d'un résultat déjà enregistré.",
+      "supersededBlockReason": "Cette norme est remplacée. Confirmez-le ci-dessous avant de la définir comme principale.",
+      "createInternalHiddenReason": "Seuls les rôles chimiste, qualité ou administrateur peuvent créer une méthode interne."
     }
   },
   "stability": {
@@ -1140,7 +1156,11 @@
     "protocolExport": "Protocol",
     "samplePlanExport": "Sample plan",
     "timePointsExport": "Time-point report",
-    "summaryExport": "Summary report"
+    "summaryExport": "Summary report",
+    "conditionInfoTitle": "Conditions",
+    "conditionInfoBody": "Une condition de stabilité (par ex. 40 °C/75 % HR) associée aux points temporels ci-dessous définit le protocole de l'étude — les combinaisons auxquelles un échantillon est prélevé et testé.",
+    "timePointInfoTitle": "Points temporels",
+    "timePointInfoBody": "Un point temporel (par ex. initial, 1 mois, 3 mois) est le moment où un échantillon est prélevé sous une condition donnée. Ensemble, conditions × points temporels définissent le protocole complet."
   },
   "correctiveActions": {
     "heading": "Corrective Actions",
@@ -1285,7 +1305,15 @@
     "comparisonNoProcess": "Process instructions are recorded on trials/studies, not on the formula version itself, so they are not part of this comparison.",
     "justification": "Justification",
     "declareEquivalence": "Declare equivalence",
-    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}"
+    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}",
+    "reasons": {
+      "busy": "Traitement en cours — veuillez patienter.",
+      "notReady": "Tous les blocages de préparation ne sont pas encore résolus ({{count}} restants).",
+      "roleNotAuthorized": "Votre rôle actuel ne peut pas approuver cette transition de statut.",
+      "missingFields": "Saisissez votre nom et un motif avant d'approuver.",
+      "stateInfoTitle": "État d'approbation",
+      "stateInfoBody": "pilot_approved et production_approved nécessitent chacun un rôle humain nommé et autorisé — aucun acteur automatisé (agent, système ou import) ne peut jamais approuver une version de formule."
+    }
   },
   "attachments": {
     "add": "Add attachment",
@@ -1702,7 +1730,11 @@
     "exportPdf": "Export PDF",
     "exportDocx": "Export DOCX",
     "exportGenerating": "Generating…",
-    "exportError": "Export failed: {{message}}"
+    "exportError": "Export failed: {{message}}",
+    "reasons": {
+      "exportBusy": "Génération en cours — veuillez patienter.",
+      "exportNotAuthorized": "Seul un rôle réglementaire autorisé peut exporter le document de dossier."
+    }
   },
   "claimsLabels": {
     "heading": "Claims & Labels",
@@ -1937,7 +1969,9 @@
     },
     "responses": {
       "heading": "Responses",
-      "empty": "No responses defined for this study."
+      "empty": "No responses defined for this study.",
+      "infoTitle": "Réponses",
+      "infoBody": "Une réponse est le résultat mesuré qu'une étude analyse (par ex. viscosité, hauteur de mousse) — enregistrée par essai comme observation, puis ajustée par l'analyse."
     },
     "analysis": {
       "heading": "Statistical analysis",
@@ -2013,7 +2047,10 @@
       "blocking": "Enable blocking",
       "estimatedRuns": "Estimated run count",
       "previewUnavailable": "Diagnostics preview unavailable — add valid factors first.",
-      "responseName": "response name"
+      "responseName": "response name",
+      "factorsAndLevelsHeading": "Facteurs et niveaux",
+      "factorsAndLevelsInfoTitle": "Facteurs et niveaux",
+      "factorsAndLevelsInfoBody": "Un facteur est une variable que l'étude fait délibérément varier (par ex. température). Ses valeurs basse/haute sont les niveaux testés — le plan génère des essais sur des combinaisons de ces niveaux."
     }
   },
   "home": {
@@ -2254,6 +2291,14 @@
       "rowStates": "Each row is classified before anything is written: a new record, an update to an existing one, unchanged, a duplicate within the file, a warning, an invalid row, or a missing reference. Only valid rows are imported by default — importing rows with issues requires explicitly choosing a partial import.",
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
+    },
+    "reasons": {
+      "commitBusy": "Importation en cours — veuillez patienter.",
+      "templateUnsupported": "Ce modèle ne prend pas encore en charge la validation — aperçu uniquement.",
+      "noValidPreview": "Téléversez et prévisualisez un fichier avant d'importer.",
+      "nothingCommittable": "Aucune ligne n'est prête à être importée.",
+      "hasErrors": "{{count}} ligne(s) contiennent des erreurs et seraient ignorées.",
+      "allowPartialPrerequisite": "Activez « autoriser l'importation partielle » ou corrigez les lignes en erreur."
     }
   },
   "reverseFormulation": {

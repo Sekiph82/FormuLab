@@ -17,6 +17,8 @@ import { commitDataExchangeRows, isTemplateCommitSupported, type DataExchangeRow
 import { loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
 import { upsertRecords, nowIso } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { DisabledActionButton } from "@/components/help/DisabledActionButton";
+import type { DisabledReason } from "@/lib/help/disabledReason";
 
 async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -146,6 +148,27 @@ export function DataExchangeImportDialog({
   const committableRows = rows.filter((r) => committableStates.has(r.state));
   const canCommit =
     supported && !!preview && !preview.fatalError && committableRows.length > 0 && (errorRows.length === 0 || allowPartial);
+
+  // Built from the exact conditions `canCommit` already checks — never a
+  // separately invented reason.
+  const commitDisabledReason: DisabledReason | null = busy
+    ? { code: "data_exchange_commit_busy", messageKey: "dataExchange.reasons.commitBusy", resolvable: true }
+    : !supported
+      ? { code: "data_exchange_template_unsupported", messageKey: "dataExchange.reasons.templateUnsupported", relatedTopicId: "dataExchange", resolvable: false }
+      : !preview || preview.fatalError
+        ? { code: "data_exchange_no_preview", messageKey: "dataExchange.reasons.noValidPreview", relatedTopicId: "dataExchange", resolvable: true }
+        : committableRows.length === 0
+          ? { code: "data_exchange_nothing_committable", messageKey: "dataExchange.reasons.nothingCommittable", relatedTopicId: "dataExchange", resolvable: true }
+          : errorRows.length > 0 && !allowPartial
+            ? {
+                code: "data_exchange_has_errors",
+                messageKey: "dataExchange.reasons.hasErrors",
+                messageValues: { count: errorRows.length },
+                prerequisite: t("dataExchange.reasons.allowPartialPrerequisite"),
+                relatedTopicId: "dataExchange",
+                resolvable: true,
+              }
+            : null;
 
   const commit = async () => {
     if (!canCommit || !preview || !supported) return;
@@ -362,9 +385,14 @@ export function DataExchangeImportDialog({
             {t("common:actions.cancel")}
           </button>
           {!committed && (
-            <button onClick={commit} disabled={!canCommit || busy} className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40">
+            <DisabledActionButton
+              reason={commitDisabledReason}
+              onClick={() => void commit()}
+              ns="session"
+              className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
+            >
               {busy ? t("dataExchange.import.importing") : !supported && preview && !preview.fatalError ? t("dataExchange.import.notSupported") : t("dataExchange.import.commit")}
-            </button>
+            </DisabledActionButton>
           )}
         </div>
       </div>

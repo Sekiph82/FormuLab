@@ -37,6 +37,7 @@ import {
 import Decimal from "decimal.js";
 import { cn } from "@/lib/cn";
 import { emptyLine, newId } from "@/lib/formulations";
+import { InfoTooltip } from "@/components/help/InfoTooltip";
 
 /**
  * The formula editor — the surface a formulator actually works on.
@@ -455,6 +456,7 @@ export function FormulaBuilder({
           value={`${toDecimalString(totals.totalPercent, 4)}%`}
           tone={totals.totalPercent.equals(100) ? "ok" : blocked ? "error" : "warn"}
         />
+        <InfoTooltip title={t("builder.totalInfoTitle")} body={t("builder.totalInfoBody")} learnMoreTopicId="formulation" />
         <TotalsBadge
           label={t("builder.activeMatter")}
           value={`${toDecimalString(totals.totalActiveMatterPercent, 2)}%`}

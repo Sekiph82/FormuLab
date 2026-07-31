@@ -489,6 +489,11 @@
     "searchPlaceholder": "Search help…",
     "noResults": "No results.",
     "topicsGroup": "Topics",
-    "glossaryGroup": "Glossary"
+    "glossaryGroup": "Glossary",
+    "learnMore": "Learn more",
+    "requiredRole": "Requires: {{role}}",
+    "prerequisiteLabel": "Needed: {{prerequisite}}",
+    "resolvableYes": "You can resolve this yourself.",
+    "resolvableNo": "Someone with the required role must resolve this."
   }
 }

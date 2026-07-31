@@ -489,6 +489,11 @@
     "searchPlaceholder": "ヘルプを検索…",
     "noResults": "結果がありません。",
     "topicsGroup": "トピック",
-    "glossaryGroup": "用語集"
+    "glossaryGroup": "用語集",
+    "learnMore": "詳細を見る",
+    "requiredRole": "必要な役割: {{role}}",
+    "prerequisiteLabel": "必要な条件: {{prerequisite}}",
+    "resolvableYes": "これはご自身で解決できます。",
+    "resolvableNo": "必要な役割を持つ担当者が解決する必要があります。"
   }
 }

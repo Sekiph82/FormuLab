@@ -1,6 +1,6 @@
 # Phase 10 — User Guide and In-App Help
 
-## Status: Session 2 (page Help panel and searchable Help Center) complete.
+## Status: Session 3 (contextual field help and disabled-action explanations) complete.
 
 ## Key finding: build on what already exists, don't start from zero
 This repository already has (a) a rich, technically accurate but
@@ -568,5 +568,93 @@ here per instruction, without renumbering any Phase 10 session.
   class of bug beyond the negative-percent check that was actually
   reached by the crash test.
 
+## Session 3 summary — contextual field help and disabled-action explanations (complete)
+
+- **New reusable components**: `components/help/InfoTooltip.tsx` (a
+  small "i" trigger — hover/focus open, Escape close, localized
+  title/body, optional "Learn more" into an existing `HELP_TOPICS`
+  entry) and `components/help/DisabledActionButton.tsx` (a real
+  `<button disabled>` plus an always-visible structured explanation:
+  message, required role, prerequisite, resolvable/not, "Learn more").
+  `lib/help/disabledReason.ts` defines the shared `DisabledReason` shape
+  (`code`/`messageKey`/`messageValues`/`requiredRole`/`prerequisite`/
+  `relatedTopicId`/`resolvable`) every module builds directly from its
+  own existing guard — no new permission engine, no invented reasons.
+- **InfoTooltip built on `@radix-ui/react-popover`** (already a repo
+  dependency, already used by `FigureBlock.tsx`), not
+  `@radix-ui/react-tooltip`: a true ARIA tooltip must not contain
+  interactive content, and the optional "Learn more" button is
+  interactive.
+- **Two real bugs caught and fixed while testing `InfoTooltip`**: (1)
+  an `onClick={() => setOpen((o) => !o)}` toggle handler fought with
+  Radix's own composed click-to-toggle on `Popover.Trigger`, and with
+  hover-then-click's synthesized sequence in tests — removed in favor
+  of Radix's own default click behavior. (2) Radix's
+  `Popover.Content` returns focus to the trigger on close by default;
+  since the trigger opens `onFocus`, that created an infinite
+  close-then-reopen loop (every close refocused the trigger, which
+  reopened it) — fixed with `onCloseAutoFocus={(e) => e.preventDefault()}`.
+  Both would have made the tooltip effectively un-closeable in the real
+  app, not just in tests.
+- **A third real bug caught while wiring `ApprovalPanel`**: an early
+  `approveDisabledReason` reused `allBlockers[0]?.message` verbatim as
+  `prerequisite`, duplicating the exact same blocker text already shown
+  in the readiness summary above the button — removed; the explanation
+  states the blocker *count* only, since the full list is already
+  visible.
+- **Coverage — InfoTooltip** (contextual field help): Formulation
+  (Total/q.s. badge, approval-state heading, cost-snapshot heading),
+  Laboratory (`TestMethodDrawer`: primary-vs-alternative, standard
+  status, historical snapshots), Design of Experiments (responses
+  heading, factors-and-levels wizard step), Stability (conditions,
+  time points).
+- **Coverage — DisabledActionButton** (disabled-action explanations,
+  each built from the exact pre-existing guard the plain `disabled`
+  prop already used): Laboratory method assignment/promotion
+  (`isAuthorizedLaboratoryMethodActor` + `assertSupersededAcknowledged`),
+  Approval's Approve button (`effectiveReady`/`canApprove`/
+  `APPROVAL_AUTHORITY`), Dossier PDF/DOCX export
+  (`canActRegulatory`/`AUTHORIZED_REGULATORY_ROLES` — changed from
+  hide-when-unauthorized to shown-disabled-and-explained, a deliberate,
+  documented behavior change consistent with this session's whole
+  purpose), Data Exchange import commit (`canCommit`'s own
+  supported/preview/committable/error-row conditions), Formulation's
+  cost-snapshot save (`saving`/`versionId`).
+- **Accessibility**: `DisabledActionButton` wires `aria-describedby`
+  from the button to its own explanation (`role="note"`), and the
+  native `disabled` attribute — not a styled-to-look-disabled enabled
+  control — blocks click/keyboard/programmatic activation with no
+  residual `onClick` path when a reason is present.
+- **i18n**: new `help:ui.*` keys (learnMore/requiredRole/
+  prerequisiteLabel/resolvableYes/resolvableNo) plus module-specific
+  `*.reasons.*`/`*.InfoTitle`/`*.InfoBody` keys across
+  `approval`/`dossier`/`dataExchange`/`cost`/`doe`/`stability`/
+  `tests.method` sections of `session.json`, full genuine translation
+  across all 8 locales. A real gap was caught here too:
+  `DisabledActionButton`'s fixed UI chrome strings (`ui.requiredRole`
+  etc.) always live in the `help` namespace, but `useTranslation` with
+  an array of namespaces only searches the *first* one for an
+  unprefixed key — it does not fall back through the array. Fixed with
+  an explicit `help:` prefix (`tHelp`) for those four/five fixed
+  strings, independent of whichever `ns` a caller passes for its own
+  `reason.messageKey`.
+- **Tests**: `InfoTooltip.test.tsx` (10), `DisabledActionButton.test.tsx`
+  (9) — both new. Plus one new targeted test each in
+  `ApprovalPanel.test.tsx`, `DossierPanel.test.tsx`,
+  `DataExchangeImportDialog.test.tsx` (a new "validation blocker"
+  describe block), and three new tests in `TestMethodDrawer.test.tsx`
+  covering the InfoTooltips. Two pre-existing `DossierPanel.test.tsx`/
+  `TestMethodDrawer.test.tsx` tests were updated (not deleted) to match
+  the deliberate hide-to-disabled-and-explained behavior change.
+  Full desktop suite re-run (shared UI components, multiple workflows
+  changed): 850/850 across 104 files. Desktop typecheck/lint clean.
+  i18n parity 18/18. Shared and Rust untouched this session — not
+  re-run.
+- **Out of scope this session (unchanged from plan)**: guided tours —
+  deferred to Session 4. Regulatory-panel-specific disabled-action
+  coverage was not added as a separate item beyond what Approval's own
+  readiness reason and Dossier's export reason already surface (both
+  already fold in `regulatoryAssessment`/`AUTHORIZED_REGULATORY_ROLES`).
+
 ## Exact next session
-Phase 10 Session 3: Field Help and Disabled-Action Explanations.
+Phase 10 Session 4: Guided Tours and Onboarding.

@@ -489,6 +489,11 @@
     "searchPlaceholder": "Yardımda ara…",
     "noResults": "Sonuç yok.",
     "topicsGroup": "Konular",
-    "glossaryGroup": "Sözlük"
+    "glossaryGroup": "Sözlük",
+    "learnMore": "Daha fazla bilgi",
+    "requiredRole": "Gerekli: {{role}}",
+    "prerequisiteLabel": "Gereken: {{prerequisite}}",
+    "resolvableYes": "Bunu kendiniz çözebilirsiniz.",
+    "resolvableNo": "Bunu gerekli role sahip biri çözmelidir."
   }
 }

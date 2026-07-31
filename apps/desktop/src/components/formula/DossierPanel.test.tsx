@@ -631,6 +631,20 @@ describe("DossierPanel — PDF/DOCX export (Phase 8)", () => {
     expect(createObjectURLSpy).toHaveBeenCalled();
   });
 
+  it("shows the export buttons disabled with a structured reason for an unauthorized role, instead of hiding them (Phase 10 Session 3)", async () => {
+    const user = userEvent.setup();
+    await createAndOpenDossier(user);
+    await user.selectOptions(screen.getByLabelText("Acting as"), "chemist");
+
+    const exportPdf = screen.getByRole("button", { name: "Export PDF" });
+    expect(exportPdf).toBeDisabled();
+    const describedById = exportPdf.getAttribute("aria-describedby");
+    expect(describedById).toBeTruthy();
+    const explanation = document.getElementById(describedById!);
+    expect(explanation).toHaveTextContent(/authorized regulatory role/i);
+    expect(explanation).toHaveTextContent(/regulatory, quality, administrator/);
+  });
+
   it("surfaces a visible error and does not crash when rendering fails", async () => {
     const user = userEvent.setup();
     await createAndOpenDossier(user);
@@ -781,13 +795,16 @@ describe("DossierPanel — PDF/DOCX export (Phase 8)", () => {
     expect(onAuditChanged).toHaveBeenCalled();
   });
 
-  it("blocks export before any generation for an unauthorized role, and never creates a history record", async () => {
+  it("shows the export buttons disabled (not hidden) for an unauthorized role, and never creates a history record (Phase 10 Session 3: was hide-only before)", async () => {
     const user = userEvent.setup();
     await createAndOpenDossier(user);
     await user.selectOptions(screen.getByLabelText("Acting as"), "chemist");
 
-    expect(screen.queryByRole("button", { name: "Export PDF" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Export DOCX" })).not.toBeInTheDocument();
+    const exportPdf = screen.getByRole("button", { name: "Export PDF" });
+    const exportDocx = screen.getByRole("button", { name: "Export DOCX" });
+    expect(exportPdf).toBeDisabled();
+    expect(exportDocx).toBeDisabled();
+    await user.click(exportPdf);
     expect(bridge.upsertRecords.mock.calls.some((c) => c[0] === "generated_document_records")).toBe(false);
     expect(renderDossierDocument).not.toHaveBeenCalled();
   });

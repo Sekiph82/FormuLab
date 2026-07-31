@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { X, ShieldAlert } from "lucide-react";
 import {
   APPROVAL_ROLES,
+  LABORATORY_METHOD_MANAGER_ROLES,
   SEED_LABORATORY_STANDARDS,
   SEED_LABORATORY_TEST_METHODS,
   assignMethodToTest,
@@ -20,10 +21,43 @@ import {
 } from "@formulab/shared";
 import { listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { InfoTooltip } from "@/components/help/InfoTooltip";
+import { DisabledActionButton } from "@/components/help/DisabledActionButton";
+import type { DisabledReason } from "@/lib/help/disabledReason";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 
 const DEFAULT_STANDARD_STATUS: LaboratoryStandard["status"] = "draft";
+
+/** Built directly from the same guards `engine/laboratoryStandards.ts`
+ *  itself enforces (`isAuthorizedLaboratoryMethodActor`,
+ *  `assertSupersededAcknowledged`) — never a separately-invented reason. */
+function makePrimaryDisabledReason(
+  t: SimpleT,
+  authorized: boolean,
+  standard: LaboratoryStandard | undefined,
+  acknowledgedSupersededId: string | null,
+): DisabledReason | null {
+  if (!authorized) {
+    return {
+      code: "laboratory_method_not_authorized",
+      messageKey: "tests.method.disabledReason",
+      requiredRole: LABORATORY_METHOD_MANAGER_ROLES.join(", "),
+      relatedTopicId: "laboratory",
+      resolvable: false,
+    };
+  }
+  if (standard?.status === "superseded" && acknowledgedSupersededId !== standard.id) {
+    return {
+      code: "laboratory_method_superseded_unacknowledged",
+      messageKey: "tests.method.supersededBlockReason",
+      prerequisite: t("tests.method.acknowledgeSuperseded"),
+      relatedTopicId: "laboratory",
+      resolvable: true,
+    };
+  }
+  return null;
+}
 
 /**
  * Per-test standard/method inspector — opened from `TestDefinitionsPanel`'s
@@ -153,9 +187,21 @@ export function TestMethodDrawer({ definition, onClose }: { definition: TestDefi
               <input value={actingUserId} onChange={(e) => setActingUserId(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
             </label>
           </div>
-          {!authorized && <p className="mb-3 text-[11px] text-muted">{t("tests.method.disabledReason")}</p>}
+          {/* Per-action disabled reasons (e.g. "Make primary") are shown next
+              to their own button via DisabledActionButton below — this note
+              only covers the "Create internal method" action, which is
+              hidden rather than shown-disabled since it is a create action,
+              not a transition on an existing row. */}
+          {!authorized && <p className="mb-3 text-[11px] text-muted">{t("tests.method.createInternalHiddenReason")}</p>}
 
-          <h3 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">{t("tests.method.sections.alternativeStandards")}</h3>
+          <h3 className="mb-1.5 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted">
+            {t("tests.method.sections.alternativeStandards")}
+            <InfoTooltip
+              title={t("tests.method.snapshotInfoTitle")}
+              body={t("tests.method.snapshotInfoBody")}
+              learnMoreTopicId="laboratory"
+            />
+          </h3>
           {testMethods.length === 0 && <p className="mb-3 text-[12px] text-muted">{t("tests.method.noneAssigned")}</p>}
           <div className="mb-3 space-y-1.5">
             {[...(primary ? [primary] : []), ...alternatives].map((m) => {
@@ -170,20 +216,30 @@ export function TestMethodDrawer({ definition, onClose }: { definition: TestDefi
                 >
                   <div className="flex flex-wrap items-center gap-1.5">
                     <StatusBadge status={m.assignmentType} label={t(`tests.method.${m.assignmentType}`)} />
+                    <InfoTooltip
+                      title={t("tests.method.primaryVsAlternativeTitle")}
+                      body={t("tests.method.primaryVsAlternativeBody")}
+                      learnMoreTopicId="laboratory"
+                    />
                     <span className="font-medium text-text">{standard?.standardCode ?? m.standardId}</span>
                     {standard?.edition && <span className="text-muted">{t("tests.method.editionLabel")}: {standard.edition}</span>}
                     {standard?.revision && <span className="text-muted">{t("tests.method.revisionLabel")}: {standard.revision}</span>}
                     <StatusBadge status={standardStatus} label={t(`tests.method.status${capitalize(standardStatus)}`)} />
-                    {m.assignmentType !== "primary" && authorized && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void makePrimary(m.id);
-                        }}
-                        className="ml-auto rounded-input border border-accent px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
+                    <InfoTooltip
+                      title={t("tests.method.statusExplainerTitle")}
+                      body={t("tests.method.statusExplainerBody")}
+                      learnMoreTopicId="laboratory"
+                    />
+                    {m.assignmentType !== "primary" && (
+                      <DisabledActionButton
+                        reason={makePrimaryDisabledReason(t, authorized, standard, acknowledgedSupersededId)}
+                        onClick={() => void makePrimary(m.id)}
+                        wrapperClassName="ml-auto"
+                        ns="session"
+                        className="rounded-input border border-accent px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10 disabled:cursor-not-allowed disabled:border-border disabled:text-muted disabled:hover:bg-transparent"
                       >
                         {t("tests.method.makePrimary")}
-                      </button>
+                      </DisabledActionButton>
                     )}
                   </div>
                   {standard?.status === "superseded" && (

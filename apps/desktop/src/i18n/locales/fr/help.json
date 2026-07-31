@@ -489,6 +489,11 @@
     "searchPlaceholder": "Rechercher dans l'aide…",
     "noResults": "Aucun résultat.",
     "topicsGroup": "Sujets",
-    "glossaryGroup": "Glossaire"
+    "glossaryGroup": "Glossaire",
+    "learnMore": "En savoir plus",
+    "requiredRole": "Nécessite : {{role}}",
+    "prerequisiteLabel": "Requis : {{prerequisite}}",
+    "resolvableYes": "Vous pouvez résoudre cela vous-même.",
+    "resolvableNo": "Une personne ayant le rôle requis doit résoudre cela."
   }
 }

@@ -527,7 +527,9 @@
     "unclassifiedTitle": "未分配功能的行所占的配方百分比。",
     "candidateTabsLabel": "候选版本",
     "candidateHasViolations": "存在验证警告",
-    "candidateUnsavedTitle": "存在未保存的更改"
+    "candidateUnsavedTitle": "存在未保存的更改",
+    "totalInfoTitle": "总计与 q.s.",
+    "totalInfoBody": "q.s. 行会自动补足剩余部分至 100%——其百分比是计算得出的，而非手动输入。总计应恰好为 100%；否则说明已填写的百分比与 q.s. 剩余部分之和不正确。"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",
@@ -597,7 +599,13 @@
     "incomplete": "This cost is incomplete",
     "snapshots": "Saved snapshots",
     "noSnapshots": "No cost snapshots saved for this project.",
-    "warningCount": "{{count}} warning(s)"
+    "warningCount": "{{count}} warning(s)",
+    "snapshotInfoTitle": "成本快照",
+    "snapshotInfoBody": "实时成本会随配方变化而重新计算。快照仅在您要求时写入，写入后不再变化——它反映的是当时的实际成本。",
+    "reasons": {
+      "busy": "正在保存——请稍候。",
+      "needVersion": "保存成本快照前，请先选择一个已保存的版本。"
+    }
   },
   "materials": {
     "sections": "Master data sections",
@@ -1103,7 +1111,15 @@
         "relatedTests": "相关测试",
         "alternativeStandards": "标准与方法",
         "revisionSource": "修订与来源信息"
-      }
+      },
+      "primaryVsAlternativeTitle": "主要与备选",
+      "primaryVsAlternativeBody": "每个测试默认使用一个主要方法，可以有任意数量的备选方法。将备选方法设为主要会将原主要方法降级为备选——测试永远不会同时有两个主要方法。",
+      "statusExplainerTitle": "标准状态",
+      "statusExplainerBody": "草稿尚未定稿。有效是当前可用的标准。内部表示由 FormuLab/公司自行编写，而非外部机构发布。已作废表示已被更新的版本/修订取代——选择它需要明确确认。",
+      "snapshotInfoTitle": "历史快照",
+      "snapshotInfoBody": "记录测试结果时，可以捕获实际使用的方法的不可变副本。之后对标准或方法的编辑永远不会改变已记录结果的快照。",
+      "supersededBlockReason": "该标准已作废。请在下方确认后再将其设为主要。",
+      "createInternalHiddenReason": "只有化学师、质量或管理员角色可以创建内部方法。"
     }
   },
   "stability": {
@@ -1140,7 +1156,11 @@
     "protocolExport": "Protocol",
     "samplePlanExport": "Sample plan",
     "timePointsExport": "Time-point report",
-    "summaryExport": "Summary report"
+    "summaryExport": "Summary report",
+    "conditionInfoTitle": "条件",
+    "conditionInfoBody": "稳定性条件（例如 40°C/75%RH）与下方的时间点共同定义研究方案——即取样和检测的组合。",
+    "timePointInfoTitle": "时间点",
+    "timePointInfoBody": "时间点（例如初始、1个月、3个月）是指在特定条件下取样的时刻。条件 × 时间点共同构成完整方案。"
   },
   "correctiveActions": {
     "heading": "Corrective Actions",
@@ -1285,7 +1305,15 @@
     "comparisonNoProcess": "Process instructions are recorded on trials/studies, not on the formula version itself, so they are not part of this comparison.",
     "justification": "Justification",
     "declareEquivalence": "Declare equivalence",
-    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}"
+    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}",
+    "reasons": {
+      "busy": "处理中——请稍候。",
+      "notReady": "尚有就绪阻塞项未解决（剩余 {{count}} 项）。",
+      "roleNotAuthorized": "您当前的角色无法批准此状态转换。",
+      "missingFields": "批准前请输入姓名和理由。",
+      "stateInfoTitle": "批准状态",
+      "stateInfoBody": "pilot_approved 和 production_approved 均需要指定的、经授权的人工角色——任何自动化行为者（代理、系统或导入）都不能批准配方版本。"
+    }
   },
   "attachments": {
     "add": "Add attachment",
@@ -1702,7 +1730,11 @@
     "exportPdf": "Export PDF",
     "exportDocx": "Export DOCX",
     "exportGenerating": "Generating…",
-    "exportError": "Export failed: {{message}}"
+    "exportError": "Export failed: {{message}}",
+    "reasons": {
+      "exportBusy": "正在生成——请稍候。",
+      "exportNotAuthorized": "只有获得授权的法规角色才能导出档案文件。"
+    }
   },
   "claimsLabels": {
     "heading": "Claims & Labels",
@@ -1937,7 +1969,9 @@
     },
     "responses": {
       "heading": "Responses",
-      "empty": "No responses defined for this study."
+      "empty": "No responses defined for this study.",
+      "infoTitle": "响应变量",
+      "infoBody": "响应变量是研究所分析的测得结果（例如粘度、泡沫高度）——按运行记录为观测值，然后由分析进行拟合。"
     },
     "analysis": {
       "heading": "Statistical analysis",
@@ -2013,7 +2047,10 @@
       "blocking": "Enable blocking",
       "estimatedRuns": "Estimated run count",
       "previewUnavailable": "Diagnostics preview unavailable — add valid factors first.",
-      "responseName": "response name"
+      "responseName": "response name",
+      "factorsAndLevelsHeading": "因素与水平",
+      "factorsAndLevelsInfoTitle": "因素与水平",
+      "factorsAndLevelsInfoBody": "因素是研究刻意变化的变量（例如温度）。其低/高值即为测试的水平——设计会在这些水平的组合中生成运行。"
     }
   },
   "home": {
@@ -2254,6 +2291,14 @@
       "rowStates": "Each row is classified before anything is written: a new record, an update to an existing one, unchanged, a duplicate within the file, a warning, an invalid row, or a missing reference. Only valid rows are imported by default — importing rows with issues requires explicitly choosing a partial import.",
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
+    },
+    "reasons": {
+      "commitBusy": "正在导入——请稍候。",
+      "templateUnsupported": "此模板尚不支持提交——仅支持预览。",
+      "noValidPreview": "导入前请先上传并预览文件。",
+      "nothingCommittable": "没有可导入的行。",
+      "hasErrors": "{{count}} 行存在错误，将被跳过。",
+      "allowPartialPrerequisite": "启用“允许部分导入”，或修复错误行。"
     }
   },
   "reverseFormulation": {

@@ -48,6 +48,7 @@ import {
   discoverDossierEvidenceCandidates,
   evaluateClaimEvidence,
   excludeRequirement,
+  AUTHORIZED_REGULATORY_ROLES,
   isAuthorizedRegulatoryActor,
   requireAuthorizedRegulatoryActor,
   isClaimReviewActive,
@@ -108,6 +109,8 @@ import {
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
+import { DisabledActionButton } from "@/components/help/DisabledActionButton";
+import type { DisabledReason } from "@/lib/help/disabledReason";
 import { buildXlsxBlob } from "@/lib/xlsx";
 import { saveBinaryWithFeedback } from "@/lib/download";
 import {
@@ -1507,16 +1510,44 @@ export function DossierPanel({
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-end gap-1.5">
                 {exportError && <span className="mr-auto text-[10px] text-error">{t("dossier.exportError", { message: exportError })}</span>}
-                {canActRegulatory && (
-                  <>
-                    <button onClick={() => void exportDossierDocument("pdf")} disabled={!!exportingFormat} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40">
-                      {exportingFormat === "pdf" ? t("dossier.exportGenerating") : t("dossier.exportPdf")}
-                    </button>
-                    <button onClick={() => void exportDossierDocument("docx")} disabled={!!exportingFormat} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40">
-                      {exportingFormat === "docx" ? t("dossier.exportGenerating") : t("dossier.exportDocx")}
-                    </button>
-                  </>
-                )}
+                {(() => {
+                  // Built from the exact `canActRegulatory` boolean the export
+                  // buttons were already gated on — previously hidden entirely
+                  // for an unauthorized actor; now shown disabled with why, the
+                  // same "explain, never guess" discipline this session applies
+                  // everywhere else.
+                  const exportReason: DisabledReason | null = exportingFormat
+                    ? { code: "dossier_export_busy", messageKey: "dossier.reasons.exportBusy", resolvable: true }
+                    : !canActRegulatory
+                      ? {
+                          code: "dossier_export_not_authorized",
+                          messageKey: "dossier.reasons.exportNotAuthorized",
+                          requiredRole: AUTHORIZED_REGULATORY_ROLES.join(", "),
+                          relatedTopicId: "dossiers",
+                          resolvable: false,
+                        }
+                      : null;
+                  return (
+                    <>
+                      <DisabledActionButton
+                        reason={exportReason}
+                        onClick={() => void exportDossierDocument("pdf")}
+                        ns="session"
+                        className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
+                      >
+                        {exportingFormat === "pdf" ? t("dossier.exportGenerating") : t("dossier.exportPdf")}
+                      </DisabledActionButton>
+                      <DisabledActionButton
+                        reason={exportReason}
+                        onClick={() => void exportDossierDocument("docx")}
+                        ns="session"
+                        className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
+                      >
+                        {exportingFormat === "docx" ? t("dossier.exportGenerating") : t("dossier.exportDocx")}
+                      </DisabledActionButton>
+                    </>
+                  );
+                })()}
                 <button onClick={exportDossierJson} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">
                   {t("dossier.exportJson")}
                 </button>

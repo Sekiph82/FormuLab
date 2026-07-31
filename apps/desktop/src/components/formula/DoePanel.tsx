@@ -82,6 +82,7 @@ import {
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
+import { InfoTooltip } from "@/components/help/InfoTooltip";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 
@@ -821,7 +822,10 @@ export function DoePanel({
       )}
 
       {topSection === "responses" && selectedStudy && (
-        <Section title={t("doe.responses.heading")}>
+        <Section
+          title={t("doe.responses.heading")}
+          action={<InfoTooltip title={t("doe.responses.infoTitle")} body={t("doe.responses.infoBody")} learnMoreTopicId="doe" />}
+        >
           <ul className="divide-y divide-border">
             {studyResponses.map((r) => (
               <li key={r.id} className="flex items-center justify-between py-2 text-[12px]">
@@ -1472,6 +1476,10 @@ function StudyWizard({
 
         {step === "factors" && (
           <div className="space-y-2">
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-medium text-muted">{t("doe.wizard.factorsAndLevelsHeading")}</span>
+              <InfoTooltip title={t("doe.wizard.factorsAndLevelsInfoTitle")} body={t("doe.wizard.factorsAndLevelsInfoBody")} learnMoreTopicId="doe" />
+            </div>
             {wizard.factors.map((f, i) => (
               <div key={f.id} className="grid grid-cols-6 gap-1.5 rounded-input border border-border p-2 text-[11px]">
                 <input value={f.factorCode} onChange={(e) => update("factors", wizard.factors.map((x, xi) => (xi === i ? { ...x, factorCode: e.target.value } : x)))} placeholder={t("doe.wizard.factorCode")} className="rounded-input border border-border bg-surface px-1.5 py-0.5" />

@@ -64,9 +64,31 @@ summary, purpose, prerequisites, quick start, sections, warnings, role
 notes, limitations, related topics, and glossary term chips. A global
 Help Center (`Ctrl/Cmd+/` or the command palette's "Search help" action)
 full-text-searches every topic and glossary term regardless of route,
-including link-only topics (Materials, Optimizer). Field-level tooltips
-(the `panel+fields` tier) and guided tours (`panel+fields+tour`) remain
-Session 3/4 work — not yet implemented.
+including link-only topics (Materials, Optimizer).
+
+## Field-level help and disabled-action explanations (Session 3 — `components/help/{InfoTooltip,DisabledActionButton}.tsx`)
+
+The `panel+fields` tier now has real coverage on the rows flagged for it,
+via two reusable primitives rather than per-field ad hoc text:
+`InfoTooltip` (a hover/focus-opened "i" disclosure, localized title/body,
+optional "Learn more" into the page's own help topic) and
+`DisabledActionButton` (a real disabled `<button>` plus an always-visible
+structured reason — message/required role/prerequisite/resolvable/"Learn
+more" — built directly from the module's own existing guard, never a
+second permission model).
+
+| Module | InfoTooltip fields | DisabledActionButton actions |
+|---|---|---|
+| Formulation | Total/q.s., approval state, cost snapshot | Save cost snapshot |
+| Laboratory | Primary vs. alternative, standard status, historical snapshots | Make primary (assignment/superseded-acknowledgement) |
+| Design of Experiments | Responses, factors and levels | — |
+| Stability | Conditions, time points | — |
+| Approval | — | Approve (readiness/role/missing-fields) |
+| Dossiers | — | Export PDF/DOCX (authorization — now shown disabled+explained, not hidden) |
+| Data Exchange | — | Commit import (support/preview/committable-rows/error-rows) |
+
+Guided tours (`panel+fields+tour`) remain Session 4 work — not yet
+implemented.
 
 ## Module map (confirmed against `router.tsx` + `Sidebar.tsx`)
 

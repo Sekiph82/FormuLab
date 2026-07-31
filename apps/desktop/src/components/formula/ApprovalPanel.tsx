@@ -148,6 +148,9 @@ import {
 import { appendAudit, auditEvent, listApprovalRecords, saveApprovalRecord } from "@/lib/formulations";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { DisabledActionButton } from "@/components/help/DisabledActionButton";
+import { InfoTooltip } from "@/components/help/InfoTooltip";
+import type { DisabledReason } from "@/lib/help/disabledReason";
 import { PolicyEditor } from "./PolicyEditor";
 import { EquivalenceWorkflow } from "./EquivalenceWorkflow";
 
@@ -824,6 +827,41 @@ export function ApprovalPanel({
 
   const canApprove = !!selectedVersion && targetOptions.includes(targetStatus) && APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole);
 
+  // Built from the exact booleans the Approve button's own `disabled` prop
+  // already used — never a separately invented reason.
+  const approveDisabledReason: DisabledReason | null = busy
+    ? { code: "approval_busy", messageKey: "approval.reasons.busy", resolvable: true }
+    : !effectiveReady
+      ? {
+          // Deliberately no `prerequisite` field here: the full blocker list
+          // is already shown above this button, in the readiness summary —
+          // repeating one blocker's exact text here would duplicate it on
+          // screen (and, e.g., break a test asserting one occurrence).
+          code: "approval_not_ready",
+          messageKey: "approval.reasons.notReady",
+          messageValues: { count: allBlockers.length },
+          relatedTopicId: "approval",
+          resolvable: true,
+        }
+      : !APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole)
+        ? {
+            code: "approval_role_not_authorized",
+            messageKey: "approval.reasons.roleNotAuthorized",
+            requiredRole: APPROVAL_AUTHORITY[targetStatus].join(", "),
+            relatedTopicId: "approval",
+            resolvable: false,
+          }
+        : !reviewerDisplayName.trim() || !reason.trim()
+          ? {
+              code: "approval_missing_fields",
+              messageKey: "approval.reasons.missingFields",
+              relatedTopicId: "approval",
+              resolvable: true,
+            }
+          : !canApprove
+            ? { code: "approval_cannot_approve", messageKey: "approval.reasons.notReady", relatedTopicId: "approval", resolvable: true }
+            : null;
+
   const buildReadinessSnapshot = () => ({ ready: effectiveReady, blockers: allBlockers, warnings: readiness.warnings });
 
   const navigate = (finding: DisplayFinding) => {
@@ -951,6 +989,7 @@ export function ApprovalPanel({
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Shield size={15} className="text-accent" />
         <h3 className="text-[13px] font-medium text-text">{t("approval.heading")}</h3>
+        <InfoTooltip title={t("approval.reasons.stateInfoTitle")} body={t("approval.reasons.stateInfoBody")} learnMoreTopicId="approval" />
         <div className="flex-1" />
         <select
           value={selectedVersionId}
@@ -1197,13 +1236,14 @@ export function ApprovalPanel({
           <p className="mt-1 text-[10px] text-error">{t("approval.roleNotAuthorized")}</p>
         )}
         <div className="mt-2 flex flex-wrap gap-2">
-          <button
+          <DisabledActionButton
+            reason={approveDisabledReason}
             onClick={() => void record("approved")}
-            disabled={busy || !effectiveReady || !reviewerDisplayName.trim() || !reason.trim() || !canApprove}
+            ns="session"
             className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
           >
             {t("approval.approveButton", { status: t(`approval.status.${targetStatus}`) })}
-          </button>
+          </DisabledActionButton>
           <button
             onClick={() => void record("rejected")}
             disabled={busy || !reviewerDisplayName.trim() || !reason.trim()}

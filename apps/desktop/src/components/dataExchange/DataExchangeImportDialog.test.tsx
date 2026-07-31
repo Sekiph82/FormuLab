@@ -62,3 +62,42 @@ describe("DataExchangeImportDialog — genuinely unsupported template", () => {
     expect(bridge.upsertRecords).not.toHaveBeenCalledWith("data_exchange_import_row_results", expect.anything());
   });
 });
+
+describe("DataExchangeImportDialog — validation blocker (Phase 10 Session 3)", () => {
+  it("shows a structured disabled-action explanation naming the error-row count when errors exist and partial import isn't enabled", async () => {
+    const template = getDataExchangeTemplate("raw_materials")!;
+    const user = userEvent.setup();
+    render(
+      <DataExchangeImportDialog
+        template={template}
+        actorRole="administrator"
+        actorUserId="local"
+        onCancel={() => {}}
+        onCommitted={() => {}}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    // Two rows sharing the same material_code — the second previews as a
+    // duplicate, a real `errorRows` state, not a synthetic/invented one.
+    const file = new File(
+      ["material_code,material_name\nTEST-MAT-001,TEST Water\nTEST-MAT-001,TEST Water Duplicate"],
+      "materials.csv",
+      { type: "text/csv" },
+    );
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+
+    const commitBtn = await within(dialog).findByRole("button", { name: "Commit import" });
+    expect(commitBtn).toBeDisabled();
+    const describedById = commitBtn.getAttribute("aria-describedby");
+    expect(describedById).toBeTruthy();
+    const explanation = document.getElementById(describedById!);
+    expect(explanation).toHaveTextContent(/1 row\(s\) have errors/);
+    expect(explanation).toHaveTextContent(/allow partial import/i);
+
+    // Enabling partial import clears the block for the same preview.
+    await user.click(within(dialog).getByRole("checkbox", { name: /valid row\(s\) now and skip/i }));
+    expect(within(dialog).getByRole("button", { name: "Commit import" })).not.toBeDisabled();
+  });
+});

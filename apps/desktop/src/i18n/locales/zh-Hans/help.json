@@ -489,6 +489,11 @@
     "searchPlaceholder": "搜索帮助…",
     "noResults": "没有结果。",
     "topicsGroup": "主题",
-    "glossaryGroup": "术语表"
+    "glossaryGroup": "术语表",
+    "learnMore": "了解更多",
+    "requiredRole": "需要角色：{{role}}",
+    "prerequisiteLabel": "所需条件：{{prerequisite}}",
+    "resolvableYes": "您可以自行解决此问题。",
+    "resolvableNo": "需要具有相应角色的人员来解决此问题。"
   }
 }

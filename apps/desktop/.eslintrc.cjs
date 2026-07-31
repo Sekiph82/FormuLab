@@ -72,6 +72,16 @@ module.exports = {
             "options",
             "fill",
             "align",
+            // "ns" (react-i18next namespace override, e.g. on DisabledActionButton)
+            // and "learnMoreTopicId"/"relatedTopicId" (an existing HELP_TOPICS id,
+            // never free text) are technical identifiers, the same kind as "root"/
+            // "variant" above. "wrapperClassName" is a second className-shaped prop
+            // (DisabledActionButton's outer wrapper), excluded for the same reason
+            // "className" already is.
+            "ns",
+            "learnMoreTopicId",
+            "relatedTopicId",
+            "wrapperClassName",
           ],
         },
         "object-properties": {
@@ -80,14 +90,27 @@ module.exports = {
           // object literal instead of passed directly as a JSX attribute — same technical,
           // non-translatable value, so excluded the same way. Keeps the plugin's own default
           // (`[A-Z_-]+`, e.g. SCREAMING_CASE constants) alongside it.
-          exclude: ["[A-Z_-]+", "variant"],
+          // `code`/`messageKey`/`relatedTopicId` are DisabledReason's own technical fields:
+          // `code` is an internal identifier (never shown), `messageKey` is an i18n KEY
+          // resolved by the consuming component's own `t()` (not the message itself), and
+          // `relatedTopicId` is an existing HELP_TOPICS id, same as the JSX attribute above.
+          exclude: ["[A-Z_-]+", "variant", "code", "messageKey", "relatedTopicId"],
         },
         callees: {
           // `navigate` (react-router's useNavigate()) always takes a technical route path,
           // never user-facing text; verified against every call site in the codebase.
+          // `record` (this file's own audit/approval-transition recorder, e.g.
+          // ApprovalPanel's `record("approved"|"rejected"|"cancelled")`,
+          // DoePanel's `record("doe.study_created", ...)`) always takes a technical
+          // status/event code, never user-facing text — verified against every call
+          // site. `exportDossierDocument` always takes the technical format
+          // discriminator "pdf" | "docx".
           exclude: [
             "i18n(ext)?",
             "t",
+            // `tHelp` (DisabledActionButton's own explicit-namespace `t`
+            // wrapper) — same technical i18n-key-resolving callee as `t`.
+            "tHelp",
             "require",
             "addEventListener",
             "removeEventListener",
@@ -100,6 +123,8 @@ module.exports = {
             "endsWith",
             "startsWith",
             "navigate",
+            "record",
+            "exportDossierDocument",
           ],
         },
       },

@@ -55,8 +55,21 @@ Laboratory's help topic covers the Session 1A test-standards/methods
 feature — selecting a standard, primary vs. alternative methods, internal
 methods, and the official-standard copyright notice — reachable from
 Laboratory's own Help button or by searching "standard" or "method" in
-the Help Center. Field-level tooltips and guided tours are planned for a
-later session and do not exist yet.
+the Help Center. Guided tours are planned for a later session and do not
+exist yet.
+
+A small **i** icon next to some fields (Formulation's total/q.s. badge
+and cost snapshot, Laboratory's method status badges, Design of
+Experiments' factors/responses, Stability's conditions/time points)
+opens a short explanation on hover or keyboard focus, with a "Learn more"
+link into that page's own Help panel where relevant.
+
+When a button is greyed out (Laboratory's Make primary, Approval's
+Approve, a Dossier's Export PDF/DOCX, Data Exchange's Commit import,
+Formulation's Save cost snapshot), the reason is written directly beneath
+it — what's blocking it, which role can act if it's a permission issue,
+and whether you can resolve it yourself. A disabled button never reacts
+to a click; the explanation is not a hint to try anyway.
 
 ## 1. Create a formula project
 

@@ -527,7 +527,9 @@
     "unclassifiedTitle": "İşlev atanmamış satırların taşıdığı formül yüzdesi.",
     "candidateTabsLabel": "Aday sürümler",
     "candidateHasViolations": "Doğrulama uyarıları var",
-    "candidateUnsavedTitle": "Kaydedilmemiş değişiklikler var"
+    "candidateUnsavedTitle": "Kaydedilmemiş değişiklikler var",
+    "totalInfoTitle": "Toplam ve q.s.",
+    "totalInfoBody": "Bir q.s. satırı kalanı otomatik olarak %100'e tamamlar — yüzdesi yazılmaz, hesaplanır. Toplam tam olarak %100 olmalıdır; başka bir değer, girilen bir yüzde artı q.s. kalanının tutmadığı anlamına gelir."
   },
   "compare": {
     "needTwo": "Karşılaştırmak için en az iki sürüm kaydedin.",
@@ -597,7 +599,13 @@
     "incomplete": "Bu maliyet eksik",
     "snapshots": "Kaydedilmiş anlık görüntüler",
     "noSnapshots": "Bu proje için kaydedilmiş maliyet anlık görüntüsü yok.",
-    "warningCount": "{{count}} uyarı"
+    "warningCount": "{{count}} uyarı",
+    "snapshotInfoTitle": "Maliyet anlık görüntüsü",
+    "snapshotInfoBody": "Canlı maliyet, formül değiştikçe yeniden hesaplanır. Anlık görüntü yalnızca talep edildiğinde yazılır ve yazıldıktan sonra değişmez — o andaki gerçek maliyeti gösterir.",
+    "reasons": {
+      "busy": "Kaydediliyor — lütfen bekleyin.",
+      "needVersion": "Maliyet anlık görüntüsünü kaydetmeden önce kaydedilmiş bir sürüm seçin."
+    }
   },
   "materials": {
     "sections": "Ana veri bölümleri",
@@ -1103,7 +1111,15 @@
         "relatedTests": "İlgili testler",
         "alternativeStandards": "Standartlar ve yöntemler",
         "revisionSource": "Revizyon ve kaynak bilgisi"
-      }
+      },
+      "primaryVsAlternativeTitle": "Birincil ile alternatif",
+      "primaryVsAlternativeBody": "Bir testin varsayılan olarak kullanılan bir birincil yöntemi ve istediğiniz sayıda alternatifi olabilir. Bir alternatifi yükseltmek önceki birincili alternatife düşürür — bir testte asla iki birincil olmaz.",
+      "statusExplainerTitle": "Standart durumu",
+      "statusExplainerBody": "Taslak henüz sonlandırılmamıştır. Aktif, şu anda kullanılabilir standarttır. Dahili, harici bir kuruluş değil FormuLab/şirket tarafından hazırlandığı anlamına gelir. Yerini aldı, daha yeni bir baskı/revizyonun onun yerini aldığı anlamına gelir — seçmek açık onay gerektirir.",
+      "snapshotInfoTitle": "Geçmiş anlık görüntüler",
+      "snapshotInfoBody": "Bir test sonucu kaydetmek, gerçekte kullanılan yöntemin değiştirilemez bir kopyasını alabilir. Bir standardı veya yöntemi daha sonra düzenlemek, zaten kaydedilmiş bir sonucun anlık görüntüsünü asla değiştirmez.",
+      "supersededBlockReason": "Bu standart yerini almış. Birincil yapmadan önce aşağıda onaylayın.",
+      "createInternalHiddenReason": "Dahili bir yöntemi yalnızca kimyager, kalite veya yönetici rolleri oluşturabilir."
     }
   },
   "stability": {
@@ -1140,7 +1156,11 @@
     "protocolExport": "Protokol",
     "samplePlanExport": "Numune planı",
     "timePointsExport": "Zaman noktası raporu",
-    "summaryExport": "Özet rapor"
+    "summaryExport": "Özet rapor",
+    "conditionInfoTitle": "Koşullar",
+    "conditionInfoBody": "Bir stabilite koşulu (ör. 40°C/%75 BN) ile aşağıdaki zaman noktaları çalışmanın protokolünü tanımlar — bir numunenin alınıp test edildiği kombinasyonlar.",
+    "timePointInfoTitle": "Zaman noktaları",
+    "timePointInfoBody": "Bir zaman noktası (ör. başlangıç, 1 ay, 3 ay), belirli bir koşul altında numunenin alındığı andır. Koşullar × zaman noktaları birlikte tam protokolü tanımlar."
   },
   "correctiveActions": {
     "heading": "Düzeltici Faaliyetler",
@@ -1285,7 +1305,15 @@
     "comparisonNoProcess": "Süreç talimatları formül sürümünde değil, denemelerde/çalışmalarda kaydedilir, bu nedenle bu karşılaştırmanın parçası değildir.",
     "justification": "Gerekçe",
     "declareEquivalence": "Eşdeğerlik bildir",
-    "evidenceFromEquivalent": "Eşdeğer sürüm(ler)den kanıt içerir: {{versions}}"
+    "evidenceFromEquivalent": "Eşdeğer sürüm(ler)den kanıt içerir: {{versions}}",
+    "reasons": {
+      "busy": "İşleniyor — lütfen bekleyin.",
+      "notReady": "Tüm hazırlık engelleri henüz çözülmedi ({{count}} kaldı).",
+      "roleNotAuthorized": "Mevcut rolünüz bu durum geçişini onaylayamaz.",
+      "missingFields": "Onaylamadan önce adınızı ve bir gerekçe girin.",
+      "stateInfoTitle": "Onay durumu",
+      "stateInfoBody": "pilot_approved ve production_approved, her biri adı belirtilmiş, yetkili bir insan rolü gerektirir — hiçbir otomatik aktör (ajan, sistem veya içe aktarma) bir formül sürümünü onaylayamaz."
+    }
   },
   "attachments": {
     "add": "Ek ekle",
@@ -1702,7 +1730,11 @@
     "exportPdf": "Export PDF",
     "exportDocx": "Export DOCX",
     "exportGenerating": "Generating…",
-    "exportError": "Export failed: {{message}}"
+    "exportError": "Export failed: {{message}}",
+    "reasons": {
+      "exportBusy": "Oluşturuluyor — lütfen bekleyin.",
+      "exportNotAuthorized": "Dosya belgesini yalnızca yetkili bir düzenleyici rol dışa aktarabilir."
+    }
   },
   "claimsLabels": {
     "heading": "İddialar ve Etiketler",
@@ -1937,7 +1969,9 @@
     },
     "responses": {
       "heading": "Yanıtlar",
-      "empty": "Bu çalışma için tanımlı yanıt yok."
+      "empty": "Bu çalışma için tanımlı yanıt yok.",
+      "infoTitle": "Yanıtlar",
+      "infoBody": "Bir yanıt, bir çalışmanın analiz ettiği ölçülen sonuçtur (ör. viskozite, köpük yüksekliği) — her koşu için bir gözlem olarak kaydedilir, ardından Analiz tarafından uydurulur."
     },
     "analysis": {
       "heading": "İstatistiksel analiz",
@@ -2013,7 +2047,10 @@
       "blocking": "Bloklamayı etkinleştir",
       "estimatedRuns": "Tahmini deneme sayısı",
       "previewUnavailable": "Tanı önizlemesi kullanılamıyor — önce geçerli faktörler ekleyin.",
-      "responseName": "yanıt adı"
+      "responseName": "yanıt adı",
+      "factorsAndLevelsHeading": "Faktörler ve seviyeler",
+      "factorsAndLevelsInfoTitle": "Faktörler ve seviyeler",
+      "factorsAndLevelsInfoBody": "Bir faktör, çalışmanın kasıtlı olarak değiştirdiği bir değişkendir (ör. sıcaklık). Düşük/yüksek değerleri test edilen seviyelerdir — tasarım, bu seviyelerin kombinasyonları üzerinden koşular üretir."
     }
   },
   "home": {
@@ -2254,6 +2291,14 @@
       "rowStates": "Her satır, herhangi bir şey yazılmadan önce sınıflandırılır: yeni bir kayıt, mevcut birinin güncellenmesi, değişmemiş, dosya içinde yinelenen, bir uyarı, geçersiz bir satır veya eksik bir referans. Varsayılan olarak yalnızca geçerli satırlar içe aktarılır — sorunlu satırları içe aktarmak, kısmi içe aktarmayı açıkça seçmeyi gerektirir.",
       "security": "Her dışa aktarım, Excel'de açıldığında bir dosyanın asla kod çalıştıramaması için e-tablo formüllerini etkisiz hale getirir; her içe aktarım aynı tetikleyicileri geri çıkarır. Dosyalar ayrıştırılmadan önce boyut ve satır sayısı sınırları kontrol edilir.",
       "authorization": "Her şablon yalnızca belirli rollerden gelen içe aktarımları kabul eder ve bazı alanlar — doğrulama durumu, onaylar, incelemeci imzası — dosya nasıl doldurulursa doldurulsun bir içe aktarma tarafından asla ayarlanamaz. Bunlar her zaman FormuLab içindeki normal, yetkilendirilmiş iş akışını gerektirir."
+    },
+    "reasons": {
+      "commitBusy": "İçe aktarılıyor — lütfen bekleyin.",
+      "templateUnsupported": "Bu şablon henüz onaylamayı desteklemiyor — yalnızca önizleme.",
+      "noValidPreview": "İçe aktarmadan önce bir dosya yükleyip önizleyin.",
+      "nothingCommittable": "İçe aktarılmaya hazır satır yok.",
+      "hasErrors": "{{count}} satırda hata var ve atlanacak.",
+      "allowPartialPrerequisite": "\"kısmi içe aktarmaya izin ver\" seçeneğini etkinleştirin veya hatalı satırları düzeltin."
     }
   },
   "reverseFormulation": {

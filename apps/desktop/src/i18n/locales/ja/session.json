@@ -527,7 +527,9 @@
     "unclassifiedTitle": "機能が割り当てられていない行の配合割合。",
     "candidateTabsLabel": "候補バージョン",
     "candidateHasViolations": "検証の警告があります",
-    "candidateUnsavedTitle": "未保存の変更があります"
+    "candidateUnsavedTitle": "未保存の変更があります",
+    "totalInfoTitle": "合計とq.s.",
+    "totalInfoBody": "q.s.行は残りを自動的に100%まで満たします — その割合は入力ではなく計算されます。合計は正確に100%になるはずです。それ以外の場合、入力された割合とq.s.の残りが一致していないことを意味します。"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",
@@ -597,7 +599,13 @@
     "incomplete": "This cost is incomplete",
     "snapshots": "Saved snapshots",
     "noSnapshots": "No cost snapshots saved for this project.",
-    "warningCount": "{{count}} warning(s)"
+    "warningCount": "{{count}} warning(s)",
+    "snapshotInfoTitle": "コストスナップショット",
+    "snapshotInfoBody": "ライブコストは配合が変わるたびに再計算されます。スナップショットは要求されたときのみ記録され、記録後は変わりません — その時点で実際にかかったコストを表します。",
+    "reasons": {
+      "busy": "保存中です — お待ちください。",
+      "needVersion": "コストスナップショットを保存する前に、保存済みバージョンを選択してください。"
+    }
   },
   "materials": {
     "sections": "Master data sections",
@@ -1103,7 +1111,15 @@
         "relatedTests": "関連試験",
         "alternativeStandards": "規格とメソッド",
         "revisionSource": "改訂および出典情報"
-      }
+      },
+      "primaryVsAlternativeTitle": "主要 対 代替",
+      "primaryVsAlternativeBody": "各試験には既定で使用される主要メソッドが1つあり、代替メソッドは任意数持てます。代替を昇格すると以前の主要メソッドは代替に降格されます — 試験に主要メソッドが2つ存在することはありません。",
+      "statusExplainerTitle": "規格のステータス",
+      "statusExplainerBody": "下書きはまだ確定していません。有効は現在使用可能な規格です。社内はFormuLab/自社作成を意味し、外部団体によるものではありません。廃止は新しい版・改訂により置き換えられたことを意味し、選択には明示的な確認が必要です。",
+      "snapshotInfoTitle": "履歴スナップショット",
+      "snapshotInfoBody": "試験結果を記録する際、実際に使用されたメソッドの不変コピーを取得できます。後で規格やメソッドを編集しても、既に記録された結果のスナップショットは変わりません。",
+      "supersededBlockReason": "この規格は廃止されています。主要に設定する前に、下記で確認してください。",
+      "createInternalHiddenReason": "内部メソッドの作成は、化学者・品質・管理者の役割のみ行えます。"
     }
   },
   "stability": {
@@ -1140,7 +1156,11 @@
     "protocolExport": "Protocol",
     "samplePlanExport": "Sample plan",
     "timePointsExport": "Time-point report",
-    "summaryExport": "Summary report"
+    "summaryExport": "Summary report",
+    "conditionInfoTitle": "条件",
+    "conditionInfoBody": "安定性条件（例：40°C/75%RH）と下記の時点を組み合わせて、研究のプロトコル — サンプルを採取・試験する組み合わせを定義します。",
+    "timePointInfoTitle": "時点",
+    "timePointInfoBody": "時点（例：初期、1か月、3か月）は、特定の条件下でサンプルが採取されるタイミングです。条件×時点の組み合わせが完全なプロトコルを定義します。"
   },
   "correctiveActions": {
     "heading": "Corrective Actions",
@@ -1285,7 +1305,15 @@
     "comparisonNoProcess": "Process instructions are recorded on trials/studies, not on the formula version itself, so they are not part of this comparison.",
     "justification": "Justification",
     "declareEquivalence": "Declare equivalence",
-    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}"
+    "evidenceFromEquivalent": "Includes evidence from equivalent version(s): {{versions}}",
+    "reasons": {
+      "busy": "処理中です — お待ちください。",
+      "notReady": "まだすべての準備ブロッカーが解決されていません（残り{{count}}件）。",
+      "roleNotAuthorized": "現在の役割ではこのステータス遷移を承認できません。",
+      "missingFields": "承認する前に氏名と理由を入力してください。",
+      "stateInfoTitle": "承認状態",
+      "stateInfoBody": "pilot_approvedとproduction_approvedはそれぞれ、指名された認可済みの人間の役割を必要とします — 自動化されたアクター（エージェント、システム、インポート）が配合バージョンを承認することはできません。"
+    }
   },
   "attachments": {
     "add": "Add attachment",
@@ -1702,7 +1730,11 @@
     "exportPdf": "Export PDF",
     "exportDocx": "Export DOCX",
     "exportGenerating": "Generating…",
-    "exportError": "Export failed: {{message}}"
+    "exportError": "Export failed: {{message}}",
+    "reasons": {
+      "exportBusy": "生成中です — お待ちください。",
+      "exportNotAuthorized": "認可された規制関連の役割のみがドシエ文書をエクスポートできます。"
+    }
   },
   "claimsLabels": {
     "heading": "Claims & Labels",
@@ -1937,7 +1969,9 @@
     },
     "responses": {
       "heading": "Responses",
-      "empty": "No responses defined for this study."
+      "empty": "No responses defined for this study.",
+      "infoTitle": "応答変数",
+      "infoBody": "応答変数とは、研究が分析する測定結果（例：粘度、泡の高さ）です — 各ランごとに観測値として記録され、その後解析で当てはめられます。"
     },
     "analysis": {
       "heading": "Statistical analysis",
@@ -2013,7 +2047,10 @@
       "blocking": "Enable blocking",
       "estimatedRuns": "Estimated run count",
       "previewUnavailable": "Diagnostics preview unavailable — add valid factors first.",
-      "responseName": "response name"
+      "responseName": "response name",
+      "factorsAndLevelsHeading": "要因と水準",
+      "factorsAndLevelsInfoTitle": "要因と水準",
+      "factorsAndLevelsInfoBody": "要因とは、研究が意図的に変化させる変数です（例：温度）。低・高の値がテストされる水準です — デザインはこれらの水準の組み合わせにわたってランを生成します。"
     }
   },
   "home": {
@@ -2254,6 +2291,14 @@
       "rowStates": "Each row is classified before anything is written: a new record, an update to an existing one, unchanged, a duplicate within the file, a warning, an invalid row, or a missing reference. Only valid rows are imported by default — importing rows with issues requires explicitly choosing a partial import.",
       "security": "Every export neutralizes spreadsheet formulas so a file can never run code when opened in Excel; every import strips the same triggers back out. Files are checked for size and row-count limits before parsing.",
       "authorization": "Each template only accepts imports from specific roles, and some fields — verification status, approvals, reviewer sign-off — can never be set by an import, however the file is filled in. Those always require the normal, authorized workflow inside FormuLab."
+    },
+    "reasons": {
+      "commitBusy": "インポート中です — お待ちください。",
+      "templateUnsupported": "このテンプレートはまだコミットに対応していません — プレビューのみです。",
+      "noValidPreview": "インポートする前にファイルをアップロードしてプレビューしてください。",
+      "nothingCommittable": "インポート可能な行がありません。",
+      "hasErrors": "{{count}}行にエラーがあり、スキップされます。",
+      "allowPartialPrerequisite": "「部分インポートを許可」を有効にするか、エラー行を修正してください。"
     }
   },
   "reverseFormulation": {

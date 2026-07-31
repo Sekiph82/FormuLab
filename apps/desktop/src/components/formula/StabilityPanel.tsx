@@ -49,6 +49,7 @@ import {
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
+import { InfoTooltip } from "@/components/help/InfoTooltip";
 import { AttachmentField } from "./AttachmentField";
 import { ExclusionExplorer } from "./ExclusionExplorer";
 import { ResultHistoryBrowser } from "./ResultHistoryBrowser";
@@ -426,7 +427,10 @@ export function StabilityPanel({
           <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder={t("stability.newTitlePlaceholder")} className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]" />
           <input value={packagingSkuCode} onChange={(e) => setPackagingSkuCode(e.target.value)} placeholder={t("stability.skuPlaceholder")} className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]" />
           <div>
-            <span className="text-[10px] text-muted">{t("stability.conditions")}</span>
+            <span className="mb-1 flex items-center gap-1 text-[10px] text-muted">
+              {t("stability.conditions")}
+              <InfoTooltip title={t("stability.conditionInfoTitle")} body={t("stability.conditionInfoBody")} learnMoreTopicId="stability" />
+            </span>
             <select multiple value={[...selectedConditionIds]} onChange={(e) => setSelectedConditionIds(new Set(Array.from(e.target.selectedOptions, (o) => o.value)))} className="h-16 w-full rounded-input border border-border bg-surface text-[11px]">
               {SEED_STABILITY_CONDITIONS.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -436,7 +440,10 @@ export function StabilityPanel({
             </select>
           </div>
           <div>
-            <span className="text-[10px] text-muted">{t("stability.timePoints")}</span>
+            <span className="mb-1 flex items-center gap-1 text-[10px] text-muted">
+              {t("stability.timePoints")}
+              <InfoTooltip title={t("stability.timePointInfoTitle")} body={t("stability.timePointInfoBody")} learnMoreTopicId="stability" />
+            </span>
             <select multiple value={[...selectedTimePointIds]} onChange={(e) => setSelectedTimePointIds(new Set(Array.from(e.target.selectedOptions, (o) => o.value)))} className="h-16 w-full rounded-input border border-border bg-surface text-[11px]">
               {SEED_STABILITY_TIME_POINTS.map((tp) => (
                 <option key={tp.id} value={tp.id}>

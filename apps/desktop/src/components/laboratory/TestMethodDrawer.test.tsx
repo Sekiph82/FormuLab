@@ -140,13 +140,17 @@ describe("TestMethodDrawer — close behavior", () => {
 });
 
 describe("TestMethodDrawer — authorization", () => {
-  it("shows the disabled-action reason for an unauthorized role and hides makePrimary", async () => {
+  it("shows Make primary disabled with a structured, role-naming reason for an unauthorized role (Phase 10 Session 3: was hide-only before)", async () => {
     mockRecords([ACTIVE_STANDARD, SUPERSEDED_STANDARD], [PRIMARY_METHOD, ALTERNATIVE_SUPERSEDED_METHOD]);
     render(<TestMethodDrawer definition={DEFINITION} onClose={() => {}} />);
     await screen.findByText("ISO-4316");
     await userEvent.selectOptions(screen.getByLabelText("Acting role"), "researcher");
-    expect(await screen.findByText(/Only chemist, quality or administrator roles/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Make primary" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Only chemist, quality or administrator roles may create an internal method/)).toBeInTheDocument();
+    const makePrimary = screen.getByRole("button", { name: "Make primary" });
+    expect(makePrimary).toBeDisabled();
+    const describedById = makePrimary.getAttribute("aria-describedby");
+    const explanation = document.getElementById(describedById!);
+    expect(explanation).toHaveTextContent("chemist, quality, administrator");
   });
 
   it("an authorized chemist sees Make primary on the alternative", async () => {
@@ -158,12 +162,19 @@ describe("TestMethodDrawer — authorization", () => {
 });
 
 describe("TestMethodDrawer — superseded acknowledgement", () => {
-  it("refuses to promote a superseded alternative to primary without acknowledgement", async () => {
+  it("disables Make primary with a structured reason until the superseded standard is acknowledged (Phase 10 Session 3)", async () => {
     mockRecords([ACTIVE_STANDARD, SUPERSEDED_STANDARD], [PRIMARY_METHOD, ALTERNATIVE_SUPERSEDED_METHOD]);
     render(<TestMethodDrawer definition={DEFINITION} onClose={() => {}} />);
     await screen.findByText("ISO-4316");
-    await userEvent.click(screen.getByRole("button", { name: "Make primary" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/superseded/i);
+    const makePrimary = screen.getByRole("button", { name: "Make primary" });
+    expect(makePrimary).toBeDisabled();
+    const describedById = makePrimary.getAttribute("aria-describedby");
+    const explanation = document.getElementById(describedById!);
+    expect(explanation).toHaveTextContent(/superseded/i);
+    expect(explanation).toHaveTextContent(/I understand this standard is superseded/);
+
+    // A disabled control cannot execute — clicking it does nothing.
+    await userEvent.click(makePrimary);
     expect(bridge.upsertRecords).not.toHaveBeenCalled();
   });
 
@@ -174,6 +185,35 @@ describe("TestMethodDrawer — superseded acknowledgement", () => {
     await userEvent.click(screen.getByLabelText(/I understand this standard is superseded/));
     await userEvent.click(screen.getByRole("button", { name: "Make primary" }));
     await waitFor(() => expect(bridge.upsertRecords).toHaveBeenCalledWith("laboratory_test_methods", expect.any(Array)));
+  });
+});
+
+describe("TestMethodDrawer — contextual field help (Phase 10 Session 3)", () => {
+  it("shows an InfoTooltip explaining primary vs. alternative", async () => {
+    const user = userEvent.setup();
+    mockRecords([ACTIVE_STANDARD], [PRIMARY_METHOD]);
+    render(<TestMethodDrawer definition={DEFINITION} onClose={() => {}} />);
+    await screen.findByText("ISO-4316");
+    await user.hover(screen.getByRole("button", { name: "Primary vs. alternative" }));
+    expect(await screen.findByText(/A test has one primary method used by default/)).toBeInTheDocument();
+  });
+
+  it("shows an InfoTooltip explaining standard status (draft/active/internal/superseded)", async () => {
+    const user = userEvent.setup();
+    mockRecords([ACTIVE_STANDARD], [PRIMARY_METHOD]);
+    render(<TestMethodDrawer definition={DEFINITION} onClose={() => {}} />);
+    await screen.findByText("ISO-4316");
+    await user.hover(screen.getByRole("button", { name: "Standard status" }));
+    expect(await screen.findByText(/Superseded means a newer edition\/revision replaced it/)).toBeInTheDocument();
+  });
+
+  it("shows an InfoTooltip explaining immutable historical snapshots", async () => {
+    const user = userEvent.setup();
+    mockRecords([ACTIVE_STANDARD], [PRIMARY_METHOD]);
+    render(<TestMethodDrawer definition={DEFINITION} onClose={() => {}} />);
+    await screen.findByText("ISO-4316");
+    await user.hover(screen.getByRole("button", { name: "Historical snapshots" }));
+    expect(await screen.findByText(/Editing a standard or method later never changes an already-recorded result's snapshot/)).toBeInTheDocument();
   });
 });
 

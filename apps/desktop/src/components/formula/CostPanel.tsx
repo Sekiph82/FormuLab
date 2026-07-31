@@ -17,6 +17,8 @@ import {
 } from "@formulab/shared";
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { DisabledActionButton } from "@/components/help/DisabledActionButton";
+import { InfoTooltip } from "@/components/help/InfoTooltip";
 
 /**
  * Cost of the formula currently in the builder, plus its saved snapshots.
@@ -172,14 +174,21 @@ export function CostPanel({
           />
         </label>
         <div className="flex-1" />
-        <button
-          onClick={saveSnapshot}
-          disabled={saving || !versionId}
-          title={versionId ? t("cost.snapshotTitle") : t("cost.needVersion")}
+        <InfoTooltip title={t("cost.snapshotInfoTitle")} body={t("cost.snapshotInfoBody")} learnMoreTopicId="formulation" />
+        <DisabledActionButton
+          reason={
+            saving
+              ? { code: "cost_snapshot_busy", messageKey: "cost.reasons.busy", resolvable: true }
+              : !versionId
+                ? { code: "cost_snapshot_no_version", messageKey: "cost.reasons.needVersion", relatedTopicId: "formulation", resolvable: true }
+                : null
+          }
+          onClick={() => void saveSnapshot()}
+          ns="session"
           className="flex items-center gap-1.5 rounded-input border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-2 disabled:opacity-40"
         >
           <RefreshCw size={13} /> {t("cost.saveSnapshot")}
-        </button>
+        </DisabledActionButton>
       </div>
 
       {error && (

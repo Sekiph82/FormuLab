@@ -168,6 +168,17 @@ describe("ApprovalPanel — blockers", () => {
     expect(onNavigate).toHaveBeenCalledWith("builder");
     expect(onFocusLine).toHaveBeenCalledWith("line-empty");
   });
+
+  it("shows a structured disabled-action explanation naming the readiness blocker (Phase 10 Session 3)", async () => {
+    const v = version({ lines: [EMPTY_LINE] });
+    renderPanel([v], v);
+    await screen.findByText(/Blockers \(/);
+    const approveButton = screen.getByRole("button", { name: /Approve/ });
+    expect(approveButton).toBeDisabled();
+    const explanation = screen.getByRole("note");
+    expect(explanation).toHaveTextContent(/readiness blocker/i);
+    expect(approveButton).toHaveAttribute("aria-describedby", explanation.id);
+  });
 });
 
 describe("ApprovalPanel — approval flow", () => {
