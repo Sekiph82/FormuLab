@@ -494,6 +494,106 @@
     "requiredRole": "Erfordert: {{role}}",
     "prerequisiteLabel": "Erforderlich: {{prerequisite}}",
     "resolvableYes": "Sie können dies selbst beheben.",
-    "resolvableNo": "Jemand mit der erforderlichen Rolle muss dies beheben."
+    "resolvableNo": "Jemand mit der erforderlichen Rolle muss dies beheben.",
+    "startTour": "Tour starten",
+    "tourNext": "Weiter",
+    "tourBack": "Zurück",
+    "tourSkip": "Überspringen",
+    "tourFinish": "Fertig",
+    "tourProgress": "Schritt {{current}} von {{total}}",
+    "onboarding": {
+      "title": "Neu bei FormuLab?",
+      "body": "Nehmen Sie an einer kurzen geführten Tour zu Formulierung, Versuchsplanung oder Dossiers teil.",
+      "skip": "Vielleicht später"
+    }
+  },
+  "tours": {
+    "formulation": {
+      "title": "Formulierungs-Tour",
+      "steps": {
+        "target": {
+          "title": "Produkt beschreiben",
+          "body": "Beschreiben Sie das Zielprodukt zunächst in einfachen Worten — das steuert alles, was die Pipeline erzeugt."
+        },
+        "categoryMarket": {
+          "title": "Kategorie und Markt",
+          "body": "Eine engere Kategorie und ein Zielmarkt verbessern, welche Rohstoffe und Regeln die Pipeline berücksichtigt."
+        },
+        "generate": {
+          "title": "Generieren",
+          "body": "Generieren startet die Discovery-Pipeline und liefert eine oder mehrere Startformulierungen zurück."
+        },
+        "candidates": {
+          "title": "Kandidatenversionen",
+          "body": "Jede erzeugte Formulierung erscheint als V1/V2/V3-Reiter — wechseln Sie zwischen Kandidaten, um sie zu vergleichen."
+        },
+        "cardEdit": {
+          "title": "Karte und Bearbeiten",
+          "body": "Karte zeigt den erzeugten Text; Bearbeiten öffnet denselben Kandidaten im Formelraster zur Anpassung."
+        },
+        "functionTotals": {
+          "title": "Funktionssummen",
+          "body": "Diese Badges summieren jede Inhaltsstofffunktion nach dem echten Formelprozentsatz, nie nach einer Annahme."
+        },
+        "warnings": {
+          "title": "Warnungen",
+          "body": "Validierungsbefunde und unvollständige Aktivstoffdaten erscheinen hier — prüfen Sie sie vor dem Speichern einer Version."
+        }
+      }
+    },
+    "doe": {
+      "title": "Versuchsplanungs-Tour",
+      "steps": {
+        "factors": {
+          "title": "Faktoren",
+          "body": "Eine Studie beginnt mit der Definition der zu variierenden Faktoren, angelegt über Neue Studie."
+        },
+        "levels": {
+          "title": "Stufen",
+          "body": "Jeder Faktor erhält eine niedrige und eine hohe Stufe — den Bereich, den das Design untersucht."
+        },
+        "responses": {
+          "title": "Zielgrößen",
+          "body": "Zielgrößen sind die gemessenen Ergebnisse, die Sie optimieren oder einschränken."
+        },
+        "runGeneration": {
+          "title": "Lauferzeugung",
+          "body": "Das Erzeugen eines Designs liefert einen Laufplan — die genaue Menge an durchzuführenden Versuchen."
+        },
+        "interpretation": {
+          "title": "Interpretationsgrenzen",
+          "body": "Analyse und Kandidaten-Ranking stammen ausschließlich aus Ihren eigenen erfassten Beobachtungen — lesen Sie die bekannten Einschränkungen der Studie, bevor Sie auf ein Ergebnis reagieren."
+        }
+      }
+    },
+    "dossiers": {
+      "title": "Dossier-Tour",
+      "steps": {
+        "requirements": {
+          "title": "Anforderungen",
+          "body": "Jedes Dossier verfolgt die Anforderungen, die die Regeln einer Jurisdiktion für dieses Produkt erzeugen."
+        },
+        "evidence": {
+          "title": "Nachweiszuordnung",
+          "body": "Verknüpfen Sie hier Nachweise mit einer Anforderung — nur verifizierte Nachweise zählen zur Bereitschaft."
+        },
+        "readiness": {
+          "title": "Bereitschaft",
+          "body": "Diese Übersicht zeigt, wie viele Pflichtanforderungen erfüllt sind und was noch fehlt."
+        },
+        "review": {
+          "title": "Prüfung",
+          "body": "Eine formale Prüfung erfasst das Ergebnis eines namentlich genannten Prüfers — nie eine automatisierte oder abgeleitete Genehmigung."
+        },
+        "export": {
+          "title": "Export",
+          "body": "Export erzeugt einen echten PDF- oder DOCX-Schnappschuss der aktuellen Nachweismatrix."
+        },
+        "notApproval": {
+          "title": "Export ist keine Genehmigung",
+          "body": "Der Export eines Dossierdokuments genehmigt es nie — die Genehmigung erfolgt ausschließlich im Genehmigungs-Arbeitsbereich."
+        }
+      }
+    }
   }
 }

@@ -54,6 +54,13 @@ export const HELP_TOPICS: HelpTopic[] = [
     contentStatus: "current",
   },
   {
+    // The "formulation" tour (lib/help/tours.ts) targets real elements on
+    // /live (FormulationStudio's target/category/market/Generate, and
+    // CardsView's V1/V2/V3/Card/Edit/function-totals/warnings), not this
+    // topic's own /formulation route — /formulation is the saved-version
+    // editing workspace, while /live is where a formulation is actually
+    // generated. `Tour.route` handles the navigation; this topic just
+    // offers the "Start tour" entry point under its thematic name.
     schemaVersion: HELP_SCHEMA_VERSION,
     id: "formulation",
     module: "formulation",
@@ -73,6 +80,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     relatedTopicIds: ["laboratory", "stability", "regulatory", "approval", "optimization"],
     glossaryTermIds: ["workingDraft", "savedVersion", "qsToHundred", "blockingFinding"],
     screenshotIds: [],
+    tourId: "formulation",
     keywords: ["formula", "grid", "builder", "versions", "cost", "compatibility", "safety", "packaging"],
     contentStatus: "current",
   },
@@ -137,6 +145,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     relatedTopicIds: ["formulation", "laboratory", "optimization"],
     glossaryTermIds: ["doeStudy", "savedVersion"],
     screenshotIds: [],
+    tourId: "doe",
     keywords: ["design of experiments", "factors", "responses", "analysis", "candidates"],
     contentStatus: "current",
   },
@@ -240,6 +249,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     relatedTopicIds: ["regulatory", "claimsLabels", "reports"],
     glossaryTermIds: ["dossier", "watermark", "auditEvent"],
     screenshotIds: [],
+    tourId: "dossiers",
     keywords: ["dossier", "evidence matrix", "pdf export", "docx export", "submission"],
     contentStatus: "current",
   },

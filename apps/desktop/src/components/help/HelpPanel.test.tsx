@@ -9,10 +9,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useHelpStore } from "@/lib/help/store";
+import { useTourStore } from "@/lib/help/tourStore";
 import { renderAt } from "@/test/render";
 
 beforeEach(() => {
   useHelpStore.setState({ panelOpen: false, centerOpen: false, target: null });
+  useTourStore.setState({ activeTourId: null, stepIndex: 0, openerElement: null });
 });
 
 describe("HelpButton — route coverage", () => {
@@ -96,5 +98,26 @@ describe("HelpPanel — related topics and glossary", () => {
     dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveAttribute("aria-label", "Working draft");
     expect(within(dialog).getByRole("button", { name: "Back" })).toBeInTheDocument();
+  });
+});
+
+describe("HelpPanel — starting a tour (Phase 10 Session 4)", () => {
+  it("Start tour on the Formulation topic closes the panel and launches the formulation tour", async () => {
+    const user = userEvent.setup();
+    renderAt("/formulation");
+    await user.click(await screen.findByRole("button", { name: "Help" }));
+    const dialog = await screen.findByRole("dialog", { name: "Formulation" });
+    await user.click(within(dialog).getByRole("button", { name: "Start tour" }));
+
+    expect(screen.queryByRole("dialog", { name: "Formulation" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Describe the product" })).toBeInTheDocument();
+  });
+
+  it("a topic with no tour offers no Start tour button", async () => {
+    const user = userEvent.setup();
+    renderAt("/home");
+    await user.click(await screen.findByRole("button", { name: "Help" }));
+    await screen.findByRole("dialog", { name: "Home" });
+    expect(screen.queryByRole("button", { name: "Start tour" })).not.toBeInTheDocument();
   });
 });

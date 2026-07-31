@@ -494,6 +494,106 @@
     "requiredRole": "Nécessite : {{role}}",
     "prerequisiteLabel": "Requis : {{prerequisite}}",
     "resolvableYes": "Vous pouvez résoudre cela vous-même.",
-    "resolvableNo": "Une personne ayant le rôle requis doit résoudre cela."
+    "resolvableNo": "Une personne ayant le rôle requis doit résoudre cela.",
+    "startTour": "Démarrer la visite",
+    "tourNext": "Suivant",
+    "tourBack": "Précédent",
+    "tourSkip": "Ignorer",
+    "tourFinish": "Terminer",
+    "tourProgress": "Étape {{current}} sur {{total}}",
+    "onboarding": {
+      "title": "Nouveau sur FormuLab ?",
+      "body": "Suivez une courte visite guidée de Formulation, Plan d'expériences ou Dossiers.",
+      "skip": "Plus tard"
+    }
+  },
+  "tours": {
+    "formulation": {
+      "title": "Visite Formulation",
+      "steps": {
+        "target": {
+          "title": "Décrire le produit",
+          "body": "Commencez par décrire le produit cible en langage simple — cela pilote tout ce que le pipeline génère."
+        },
+        "categoryMarket": {
+          "title": "Catégorie et marché",
+          "body": "Préciser la catégorie et le marché cible améliore les matières et règles que le pipeline prend en compte."
+        },
+        "generate": {
+          "title": "Générer",
+          "body": "Générer exécute le pipeline de découverte et renvoie une ou plusieurs formulations de départ."
+        },
+        "candidates": {
+          "title": "Versions candidates",
+          "body": "Chaque formulation générée apparaît comme un onglet V1/V2/V3 — passez d'une candidate à l'autre pour les comparer."
+        },
+        "cardEdit": {
+          "title": "Fiche et Modifier",
+          "body": "Fiche affiche le texte généré ; Modifier ouvre la même candidate dans la grille de formule pour l'ajuster."
+        },
+        "functionTotals": {
+          "title": "Totaux par fonction",
+          "body": "Ces badges totalisent chaque fonction d'ingrédient selon le pourcentage réel de la formule, jamais une hypothèse."
+        },
+        "warnings": {
+          "title": "Avertissements",
+          "body": "Les constats de validation et les données de matière active incomplètes apparaissent ici — vérifiez-les avant d'enregistrer une version."
+        }
+      }
+    },
+    "doe": {
+      "title": "Visite Plan d'expériences",
+      "steps": {
+        "factors": {
+          "title": "Facteurs",
+          "body": "Une étude commence par définir les facteurs à faire varier, configurés depuis Nouvelle étude."
+        },
+        "levels": {
+          "title": "Niveaux",
+          "body": "Chaque facteur reçoit un niveau bas et un niveau haut — la plage que le plan explorera."
+        },
+        "responses": {
+          "title": "Réponses",
+          "body": "Les réponses sont les résultats mesurés que vous optimisez ou contraignez."
+        },
+        "runGeneration": {
+          "title": "Génération des essais",
+          "body": "Générer un plan produit une feuille d'essais — l'ensemble exact des essais à exécuter."
+        },
+        "interpretation": {
+          "title": "Limites d'interprétation",
+          "body": "L'analyse et le classement des candidates proviennent uniquement de vos propres observations enregistrées — lisez les limites connues de l'étude avant d'agir sur un résultat."
+        }
+      }
+    },
+    "dossiers": {
+      "title": "Visite Dossiers",
+      "steps": {
+        "requirements": {
+          "title": "Exigences",
+          "body": "Chaque dossier suit les exigences que les règles d'une juridiction génèrent pour ce produit."
+        },
+        "evidence": {
+          "title": "Correspondance des preuves",
+          "body": "Associez ici une preuve à une exigence — seules les preuves vérifiées comptent pour l'état de préparation."
+        },
+        "readiness": {
+          "title": "État de préparation",
+          "body": "Ce résumé montre combien d'exigences obligatoires sont satisfaites et ce qu'il manque encore."
+        },
+        "review": {
+          "title": "Revue",
+          "body": "Une revue formelle enregistre le résultat d'un relecteur nommé — jamais une approbation automatisée ou déduite."
+        },
+        "export": {
+          "title": "Exporter",
+          "body": "Exporter produit un véritable instantané PDF ou DOCX de la matrice de preuves actuelle."
+        },
+        "notApproval": {
+          "title": "Exporter n'est pas approuver",
+          "body": "Exporter un document de dossier ne l'approuve jamais — l'approbation n'a lieu que dans l'espace Approbation."
+        }
+      }
+    }
   }
 }

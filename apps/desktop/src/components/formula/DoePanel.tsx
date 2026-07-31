@@ -694,6 +694,7 @@ export function DoePanel({
           {TOP_SECTIONS.map((s) => (
             <button
               key={s}
+              data-tour={`doe.tab.${s}`}
               onClick={() => setTopSection(s)}
               className={cn("rounded px-2.5 py-1 text-[12px] font-medium", topSection === s ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text")}
             >

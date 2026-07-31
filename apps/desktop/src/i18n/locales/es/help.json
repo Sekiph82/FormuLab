@@ -494,6 +494,106 @@
     "requiredRole": "Requiere: {{role}}",
     "prerequisiteLabel": "Necesario: {{prerequisite}}",
     "resolvableYes": "Puede resolver esto usted mismo.",
-    "resolvableNo": "Alguien con el rol requerido debe resolver esto."
+    "resolvableNo": "Alguien con el rol requerido debe resolver esto.",
+    "startTour": "Iniciar recorrido",
+    "tourNext": "Siguiente",
+    "tourBack": "Atrás",
+    "tourSkip": "Omitir",
+    "tourFinish": "Finalizar",
+    "tourProgress": "Paso {{current}} de {{total}}",
+    "onboarding": {
+      "title": "¿Nuevo en FormuLab?",
+      "body": "Haz un breve recorrido guiado por Formulación, Diseño de Experimentos o Dosieres.",
+      "skip": "Quizás más tarde"
+    }
+  },
+  "tours": {
+    "formulation": {
+      "title": "Recorrido de Formulación",
+      "steps": {
+        "target": {
+          "title": "Describe el producto",
+          "body": "Empieza describiendo el producto objetivo en lenguaje sencillo — esto guía todo lo que genera el proceso."
+        },
+        "categoryMarket": {
+          "title": "Categoría y mercado",
+          "body": "Acotar la categoría y el mercado objetivo mejora qué materiales y reglas considera el proceso."
+        },
+        "generate": {
+          "title": "Generar",
+          "body": "Generar ejecuta el proceso de descubrimiento y devuelve una o varias formulaciones iniciales."
+        },
+        "candidates": {
+          "title": "Versiones candidatas",
+          "body": "Cada formulación generada aparece como una pestaña V1/V2/V3 — cambia entre candidatas para compararlas."
+        },
+        "cardEdit": {
+          "title": "Tarjeta y Editar",
+          "body": "Tarjeta muestra el texto generado; Editar abre la misma candidata en la cuadrícula de fórmula para ajustarla."
+        },
+        "functionTotals": {
+          "title": "Totales por función",
+          "body": "Estas insignias suman cada función de ingrediente por el porcentaje real de la fórmula, nunca por una suposición."
+        },
+        "warnings": {
+          "title": "Advertencias",
+          "body": "Aquí aparecen los hallazgos de validación y los datos incompletos de materia activa — revísalos antes de guardar una versión."
+        }
+      }
+    },
+    "doe": {
+      "title": "Recorrido de Diseño de Experimentos",
+      "steps": {
+        "factors": {
+          "title": "Factores",
+          "body": "Un estudio empieza definiendo los factores que quieres variar, configurados desde Nuevo estudio."
+        },
+        "levels": {
+          "title": "Niveles",
+          "body": "Cada factor recibe un nivel bajo y uno alto — el rango que explorará el diseño."
+        },
+        "responses": {
+          "title": "Respuestas",
+          "body": "Las respuestas son los resultados medidos que estás optimizando o restringiendo."
+        },
+        "runGeneration": {
+          "title": "Generación de corridas",
+          "body": "Generar un diseño produce una hoja de corridas — el conjunto exacto de ensayos a ejecutar."
+        },
+        "interpretation": {
+          "title": "Límites de interpretación",
+          "body": "El análisis y la clasificación de candidatas provienen solo de tus propias observaciones registradas — lee las limitaciones conocidas del estudio antes de actuar sobre un resultado."
+        }
+      }
+    },
+    "dossiers": {
+      "title": "Recorrido de Dosieres",
+      "steps": {
+        "requirements": {
+          "title": "Requisitos",
+          "body": "Cada dosier rastrea los requisitos que las reglas de una jurisdicción generan para este producto."
+        },
+        "evidence": {
+          "title": "Mapeo de evidencia",
+          "body": "Vincula aquí la evidencia a un requisito — solo la evidencia verificada cuenta para la preparación."
+        },
+        "readiness": {
+          "title": "Preparación",
+          "body": "Este resumen muestra cuántos requisitos obligatorios están satisfechos y qué falta aún."
+        },
+        "review": {
+          "title": "Revisión",
+          "body": "Una revisión formal registra el resultado de un revisor con nombre — nunca una aprobación automatizada o inferida."
+        },
+        "export": {
+          "title": "Exportar",
+          "body": "Exportar produce una instantánea real en PDF o DOCX de la matriz de evidencia actual."
+        },
+        "notApproval": {
+          "title": "Exportar no es aprobar",
+          "body": "Exportar un documento del dosier nunca lo aprueba — la aprobación solo ocurre en el espacio de Aprobación."
+        }
+      }
+    }
   }
 }

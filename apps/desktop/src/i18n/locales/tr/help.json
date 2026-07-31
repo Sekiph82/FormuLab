@@ -494,6 +494,106 @@
     "requiredRole": "Gerekli: {{role}}",
     "prerequisiteLabel": "Gereken: {{prerequisite}}",
     "resolvableYes": "Bunu kendiniz çözebilirsiniz.",
-    "resolvableNo": "Bunu gerekli role sahip biri çözmelidir."
+    "resolvableNo": "Bunu gerekli role sahip biri çözmelidir.",
+    "startTour": "Turu başlat",
+    "tourNext": "İleri",
+    "tourBack": "Geri",
+    "tourSkip": "Atla",
+    "tourFinish": "Bitir",
+    "tourProgress": "{{total}} adımdan {{current}}.",
+    "onboarding": {
+      "title": "FormuLab'da yeni misiniz?",
+      "body": "Formülasyon, Deney Tasarımı veya Dosyalar hakkında kısa bir rehberli tur yapın.",
+      "skip": "Belki sonra"
+    }
+  },
+  "tours": {
+    "formulation": {
+      "title": "Formülasyon turu",
+      "steps": {
+        "target": {
+          "title": "Ürünü tanımlayın",
+          "body": "Hedef ürünü sade bir dille tanımlayarak başlayın — bu, hattın ürettiği her şeyi yönlendirir."
+        },
+        "categoryMarket": {
+          "title": "Kategori ve pazar",
+          "body": "Kategoriyi ve hedef pazarı daraltmak, hattın hangi malzemeleri ve kuralları dikkate aldığını iyileştirir."
+        },
+        "generate": {
+          "title": "Oluştur",
+          "body": "Oluştur, keşif hattını çalıştırır ve bir veya daha fazla başlangıç formülasyonunu geri akıtır."
+        },
+        "candidates": {
+          "title": "Aday sürümler",
+          "body": "Oluşturulan her formülasyon bir V1/V2/V3 sekmesi olarak görünür — karşılaştırmak için adaylar arasında geçiş yapın."
+        },
+        "cardEdit": {
+          "title": "Kart ve Düzenle",
+          "body": "Kart, oluşturulan metni gösterir; Düzenle aynı adayı ayarlamak için formül ızgarasında açar."
+        },
+        "functionTotals": {
+          "title": "İşlev toplamları",
+          "body": "Bu rozetler her bileşen işlevini bir varsayımla değil, gerçek formül yüzdesiyle toplar."
+        },
+        "warnings": {
+          "title": "Uyarılar",
+          "body": "Doğrulama bulguları ve eksik aktif madde verileri burada görünür — bir sürümü kaydetmeden önce bunları gözden geçirin."
+        }
+      }
+    },
+    "doe": {
+      "title": "Deney Tasarımı turu",
+      "steps": {
+        "factors": {
+          "title": "Faktörler",
+          "body": "Bir çalışma, Yeni çalışma'dan kurulan, değiştirmek istediğiniz faktörleri tanımlayarak başlar."
+        },
+        "levels": {
+          "title": "Seviyeler",
+          "body": "Her faktöre düşük ve yüksek bir seviye atanır — tasarımın keşfedeceği aralık budur."
+        },
+        "responses": {
+          "title": "Yanıtlar",
+          "body": "Yanıtlar, optimize ettiğiniz veya kısıtladığınız ölçülen sonuçlardır."
+        },
+        "runGeneration": {
+          "title": "Deneme oluşturma",
+          "body": "Bir tasarım oluşturmak, yürütülecek denemelerin tam kümesi olan bir çalışma listesi üretir."
+        },
+        "interpretation": {
+          "title": "Yorumlama sınırları",
+          "body": "Analiz ve aday sıralaması yalnızca kendi kaydettiğiniz gözlemlerden gelir — bir sonuca göre hareket etmeden önce çalışmanın bilinen sınırlamalarını okuyun."
+        }
+      }
+    },
+    "dossiers": {
+      "title": "Dosyalar turu",
+      "steps": {
+        "requirements": {
+          "title": "Gereksinimler",
+          "body": "Her dosya, bir yargı alanının kurallarının bu ürün için oluşturduğu gereksinimleri izler."
+        },
+        "evidence": {
+          "title": "Kanıt eşleme",
+          "body": "Kanıtı burada bir gereksinime bağlayın — yalnızca doğrulanmış kanıt hazır olma durumuna sayılır."
+        },
+        "readiness": {
+          "title": "Hazır olma durumu",
+          "body": "Bu özet, kaç zorunlu gereksinimin karşılandığını ve neyin hâlâ eksik olduğunu gösterir."
+        },
+        "review": {
+          "title": "İnceleme",
+          "body": "Resmi bir inceleme, adı belirtilen bir incelemecinin sonucunu kaydeder — asla otomatik veya çıkarımsal bir onay değildir."
+        },
+        "export": {
+          "title": "Dışa aktar",
+          "body": "Dışa aktarma, mevcut kanıt matrisinin gerçek bir PDF veya DOCX anlık görüntüsünü üretir."
+        },
+        "notApproval": {
+          "title": "Dışa aktarma onay değildir",
+          "body": "Bir dosya belgesini dışa aktarmak onu asla onaylamaz — onay yalnızca Onay çalışma alanında gerçekleşir."
+        }
+      }
+    }
   }
 }

@@ -847,3 +847,25 @@ describe("DossierPanel — PDF/DOCX export (Phase 8)", () => {
     expect(screen.queryByText(/Export failed/)).not.toBeInTheDocument();
   });
 });
+
+describe("DossierPanel — guided-tour target resolution (Phase 10 Session 4)", () => {
+  it("resolves every real element the dossiers tour points at", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(screen.getAllByRole("button", { name: "New dossier" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New dossier" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: /Formula version/i }), "version-1");
+    await user.click(within(dialog).getByRole("checkbox", { name: "KE" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await screen.findAllByText(/DOS-/);
+
+    expect(document.querySelector('[data-tour="dossiers.tab.requirements"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-tour="dossiers.tab.evidence"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-tour="dossiers.tab.reviews"]')).toBeInTheDocument();
+    // Overview is the section shown by default after creation.
+    expect(document.querySelector('[data-tour="dossiers.readinessSummary"]')).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Evidence Library" }));
+    expect(document.querySelector('[data-tour="dossiers.exportButtons"]')).toBeInTheDocument();
+  });
+});

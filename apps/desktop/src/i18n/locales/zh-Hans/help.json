@@ -494,6 +494,106 @@
     "requiredRole": "需要角色：{{role}}",
     "prerequisiteLabel": "所需条件：{{prerequisite}}",
     "resolvableYes": "您可以自行解决此问题。",
-    "resolvableNo": "需要具有相应角色的人员来解决此问题。"
+    "resolvableNo": "需要具有相应角色的人员来解决此问题。",
+    "startTour": "开始导览",
+    "tourNext": "下一步",
+    "tourBack": "上一步",
+    "tourSkip": "跳过",
+    "tourFinish": "完成",
+    "tourProgress": "第 {{current}} 步，共 {{total}} 步",
+    "onboarding": {
+      "title": "初次使用 FormuLab？",
+      "body": "来一段关于配方、实验设计或档案的简短导览。",
+      "skip": "以后再说"
+    }
+  },
+  "tours": {
+    "formulation": {
+      "title": "配方导览",
+      "steps": {
+        "target": {
+          "title": "描述产品",
+          "body": "首先用简单的语言描述目标产品——这决定了流水线生成的一切内容。"
+        },
+        "categoryMarket": {
+          "title": "品类与市场",
+          "body": "缩小品类和目标市场范围，可以提高流水线所考虑的原料和规则的准确性。"
+        },
+        "generate": {
+          "title": "生成",
+          "body": "生成会运行发现流水线，并流式返回一个或多个初始配方。"
+        },
+        "candidates": {
+          "title": "候选版本",
+          "body": "每个生成的配方都会显示为 V1/V2/V3 标签页——切换候选版本以进行比较。"
+        },
+        "cardEdit": {
+          "title": "卡片与编辑",
+          "body": "卡片显示生成的说明文字；编辑会在配方表格中打开同一候选版本以便调整。"
+        },
+        "functionTotals": {
+          "title": "功能占比合计",
+          "body": "这些徽章按真实的配方百分比合计每个成分功能，而不是按假设。"
+        },
+        "warnings": {
+          "title": "警告",
+          "body": "验证结果和未完成的活性物质数据会显示在这里——保存版本前请先查看。"
+        }
+      }
+    },
+    "doe": {
+      "title": "实验设计导览",
+      "steps": {
+        "factors": {
+          "title": "因子",
+          "body": "研究首先要定义想要变化的因子，可在“新建研究”中设置。"
+        },
+        "levels": {
+          "title": "水平",
+          "body": "每个因子都有一个低水平和一个高水平——即设计将探索的范围。"
+        },
+        "responses": {
+          "title": "响应",
+          "body": "响应是您要优化或约束的测量结果。"
+        },
+        "runGeneration": {
+          "title": "生成运行",
+          "body": "生成设计会产生一份运行表——即需要执行的确切试验集合。"
+        },
+        "interpretation": {
+          "title": "解读局限",
+          "body": "分析和候选排名仅来自您自己记录的观测数据——在依据结果采取行动前，请先阅读该研究的已知局限。"
+        }
+      }
+    },
+    "dossiers": {
+      "title": "档案导览",
+      "steps": {
+        "requirements": {
+          "title": "要求",
+          "body": "每份档案都会跟踪某司法辖区规则针对该产品生成的各项要求。"
+        },
+        "evidence": {
+          "title": "证据映射",
+          "body": "在此将证据关联到某项要求——只有经核实的证据才计入就绪度。"
+        },
+        "readiness": {
+          "title": "就绪度",
+          "body": "此摘要显示有多少必需要求已满足，以及还缺少什么。"
+        },
+        "review": {
+          "title": "评审",
+          "body": "正式评审会记录具名评审人的结论——绝不是自动或推断出的批准。"
+        },
+        "export": {
+          "title": "导出",
+          "body": "导出会生成当前证据矩阵的真实 PDF 或 DOCX 快照。"
+        },
+        "notApproval": {
+          "title": "导出不等于批准",
+          "body": "导出档案文档从不代表批准——批准只会在“审批”工作区中发生。"
+        }
+      }
+    }
   }
 }

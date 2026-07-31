@@ -290,7 +290,7 @@ export function CardsView({
 
     return (
       <div className="flex h-full flex-col">
-        <div className="print-hide flex shrink-0 items-center gap-1 border-b border-border-faint px-6 pt-3">
+        <div data-tour="formulation.cardEditTabs" className="print-hide flex shrink-0 items-center gap-1 border-b border-border-faint px-6 pt-3">
           <button
             onClick={() => setEditing(false)}
             className={cn(
@@ -314,6 +314,7 @@ export function CardsView({
         </div>
         {view.cards.length > 1 && (
           <div
+            data-tour="formulation.candidateTabs"
             role="tablist"
             aria-label={t("builder.candidateTabsLabel", "Candidate versions")}
             className="print-hide flex shrink-0 gap-1 border-b border-border-faint px-6 pt-3"

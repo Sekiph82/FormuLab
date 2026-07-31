@@ -494,6 +494,106 @@
     "requiredRole": "Requires: {{role}}",
     "prerequisiteLabel": "Needed: {{prerequisite}}",
     "resolvableYes": "You can resolve this yourself.",
-    "resolvableNo": "Someone with the required role must resolve this."
+    "resolvableNo": "Someone with the required role must resolve this.",
+    "startTour": "Start tour",
+    "tourNext": "Next",
+    "tourBack": "Back",
+    "tourSkip": "Skip",
+    "tourFinish": "Finish",
+    "tourProgress": "Step {{current}} of {{total}}",
+    "onboarding": {
+      "title": "New to FormuLab?",
+      "body": "Take a short guided tour of Formulation, Design of Experiments, or Dossiers.",
+      "skip": "Maybe later"
+    }
+  },
+  "tours": {
+    "formulation": {
+      "title": "Formulation tour",
+      "steps": {
+        "target": {
+          "title": "Describe the product",
+          "body": "Start by describing the target product in plain language — this drives everything the pipeline generates."
+        },
+        "categoryMarket": {
+          "title": "Category and market",
+          "body": "Narrowing the category and target market improves which materials and rules the pipeline considers."
+        },
+        "generate": {
+          "title": "Generate",
+          "body": "Generate runs the discovery pipeline and streams back one or more starting formulations."
+        },
+        "candidates": {
+          "title": "Candidate versions",
+          "body": "Each generated formulation appears as a V1/V2/V3 tab — switch between candidates to compare them."
+        },
+        "cardEdit": {
+          "title": "Card and Edit",
+          "body": "Card shows the generated write-up; Edit opens the same candidate in the formula grid so you can adjust it."
+        },
+        "functionTotals": {
+          "title": "Function totals",
+          "body": "These badges total each ingredient function by real formula percentage, never by an assumption."
+        },
+        "warnings": {
+          "title": "Warnings",
+          "body": "Validation findings and any incomplete active-matter data appear here — review them before saving a version."
+        }
+      }
+    },
+    "doe": {
+      "title": "Design of Experiments tour",
+      "steps": {
+        "factors": {
+          "title": "Factors",
+          "body": "A study starts by defining the factors you want to vary, set up from New study."
+        },
+        "levels": {
+          "title": "Levels",
+          "body": "Each factor gets a low and high level — the range the design will explore."
+        },
+        "responses": {
+          "title": "Responses",
+          "body": "Responses are the measured outcomes you're optimizing for or constraining."
+        },
+        "runGeneration": {
+          "title": "Run generation",
+          "body": "Generating a design produces a run sheet — the exact set of trials to execute."
+        },
+        "interpretation": {
+          "title": "Interpretation limits",
+          "body": "Analysis and candidate ranking come from your own recorded observations only — read the study's known limitations before acting on a result."
+        }
+      }
+    },
+    "dossiers": {
+      "title": "Dossiers tour",
+      "steps": {
+        "requirements": {
+          "title": "Requirements",
+          "body": "Every dossier tracks the requirements a jurisdiction's rules generate for this product."
+        },
+        "evidence": {
+          "title": "Evidence mapping",
+          "body": "Link evidence to a requirement here — only verified evidence counts toward readiness."
+        },
+        "readiness": {
+          "title": "Readiness",
+          "body": "This summary shows how many mandatory requirements are satisfied and what's still missing."
+        },
+        "review": {
+          "title": "Review",
+          "body": "A formal review records a named reviewer's outcome — never an automated or inferred approval."
+        },
+        "export": {
+          "title": "Export",
+          "body": "Export produces a real PDF or DOCX snapshot of the current evidence matrix."
+        },
+        "notApproval": {
+          "title": "Export is not approval",
+          "body": "Exporting a dossier document never approves it — approval only happens in the Approval workspace."
+        }
+      }
+    }
   }
 }

@@ -83,4 +83,15 @@ if (typeof window !== "undefined") {
       writable: true,
     });
   }
+
+  // The guided-tour onboarding prompt (Phase 10 Session 4) is globally
+  // mounted in AppShell and shows on a genuinely fresh profile. Defaulting
+  // it to "already dismissed" here keeps every unrelated `renderAt()`-based
+  // test from suddenly growing a second `role="dialog"` element that has
+  // nothing to do with what that test is checking. Tests that specifically
+  // cover onboarding (`OnboardingPrompt.test.tsx`, `onboardingStore.test.ts`)
+  // clear localStorage themselves before exercising the real first-use case.
+  if (window.localStorage.getItem("formulab.onboarding.dismissed.v1") === null) {
+    window.localStorage.setItem("formulab.onboarding.dismissed.v1", "1");
+  }
 }

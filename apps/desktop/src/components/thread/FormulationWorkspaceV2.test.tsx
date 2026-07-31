@@ -167,3 +167,25 @@ describe("FormulationWorkspaceV2 CardsView — candidate version isolation", () 
     expect(within(screen.getByRole("tab", { name: /V2/ })).queryByTitle("Has unsaved edits")).not.toBeInTheDocument();
   });
 });
+
+describe("CardsView — guided-tour target resolution (Phase 10 Session 4)", () => {
+  it("resolves the candidate-tabs and Card/Edit targets when multiple candidates exist", () => {
+    render(<Harness cards={[V1, V2, V3]} />);
+    expect(document.querySelector('[data-tour="formulation.candidateTabs"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-tour="formulation.cardEditTabs"]')).toBeInTheDocument();
+  });
+
+  it("does not render the candidate-tabs target for a single candidate (a real, intentional gap the tour must wait out and skip)", () => {
+    render(<Harness cards={[V1]} />);
+    expect(document.querySelector('[data-tour="formulation.candidateTabs"]')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-tour="formulation.cardEditTabs"]')).toBeInTheDocument();
+  });
+
+  it("resolves function-totals and warnings targets once Edit formula is open", async () => {
+    const user = userEvent.setup();
+    render(<Harness cards={[V1, V2, V3]} />);
+    await openEditTab(user);
+    expect(document.querySelector('[data-tour="formulation.functionTotals"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-tour="formulation.warnings"]')).toBeInTheDocument();
+  });
+});

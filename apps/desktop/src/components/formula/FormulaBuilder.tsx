@@ -778,7 +778,7 @@ export function FormulaBuilder({
       {/* Findings + group totals */}
       <div className="print-hide max-h-52 shrink-0 overflow-y-auto border-t border-border px-4 py-2">
         {(groups.length > 0 || !new Decimal(unclassified.percent).isZero()) && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
+          <div data-tour="formulation.functionTotals" className="mb-2 flex flex-wrap gap-1.5">
             {groups.map((g) => {
               const hasMalformed = g.malformedPercentLineIds.length > 0;
               const hasActiveData = !new Decimal(g.activePercent).isZero();
@@ -820,29 +820,31 @@ export function FormulaBuilder({
             )}
           </div>
         )}
-        {findings.length === 0 ? (
-          <p className="text-[12px] text-muted">{t("builder.noFindings")}</p>
-        ) : (
-          <>
-            <p className="mb-1 text-[11px] text-muted">
-              {t("builder.findingSummary", {
-                errors: findings.filter((f) => f.severity === "error" || f.severity === "blocking")
-                  .length,
-                warnings: findings.filter((f) => f.severity === "warning").length,
-              })}
-            </p>
-            <ul className="space-y-1">
-              {findings.map((f) => (
-                <FindingRow
-                  key={f.id}
-                  finding={f}
-                  onGoToLine={f.lineId ? () => focusLine(f.lineId!) : undefined}
-                  goToLabel={t("builder.goToLine")}
-                />
-              ))}
-            </ul>
-          </>
-        )}
+        <div data-tour="formulation.warnings">
+          {findings.length === 0 ? (
+            <p className="text-[12px] text-muted">{t("builder.noFindings")}</p>
+          ) : (
+            <>
+              <p className="mb-1 text-[11px] text-muted">
+                {t("builder.findingSummary", {
+                  errors: findings.filter((f) => f.severity === "error" || f.severity === "blocking")
+                    .length,
+                  warnings: findings.filter((f) => f.severity === "warning").length,
+                })}
+              </p>
+              <ul className="space-y-1">
+                {findings.map((f) => (
+                  <FindingRow
+                    key={f.id}
+                    finding={f}
+                    onGoToLine={f.lineId ? () => focusLine(f.lineId!) : undefined}
+                    goToLabel={t("builder.goToLine")}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       </div>
 
       {pickerFor && (

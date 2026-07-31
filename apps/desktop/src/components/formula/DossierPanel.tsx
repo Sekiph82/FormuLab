@@ -1244,6 +1244,7 @@ export function DossierPanel({
               {DETAIL_SECTIONS.map((s) => (
                 <button
                   key={s}
+                  data-tour={`dossiers.tab.${s}`}
                   onClick={() => setSection(s)}
                   className={cn("rounded px-2 py-1 text-[11px]", section === s ? "bg-accent/10 font-medium text-accent" : "text-muted hover:bg-surface-2")}
                 >
@@ -1284,7 +1285,7 @@ export function DossierPanel({
                 )}
               </div>
               {readiness && (
-                <div className="rounded-card border border-border-faint px-3 py-2 text-[11px]">
+                <div data-tour="dossiers.readinessSummary" className="rounded-card border border-border-faint px-3 py-2 text-[11px]">
                   <p className="mb-1 font-medium text-muted">{t("dossier.readinessSummary")}</p>
                   <div className="flex flex-wrap gap-2 text-[10px]">
                     <span className="rounded bg-surface-2 px-1.5 py-0.5">{t("dossier.totalRequirements", { n: readiness.totalRequirements })}</span>
@@ -1528,7 +1529,7 @@ export function DossierPanel({
                         }
                       : null;
                   return (
-                    <>
+                    <div data-tour="dossiers.exportButtons" className="flex gap-1.5">
                       <DisabledActionButton
                         reason={exportReason}
                         onClick={() => void exportDossierDocument("pdf")}
@@ -1545,7 +1546,7 @@ export function DossierPanel({
                       >
                         {exportingFormat === "docx" ? t("dossier.exportGenerating") : t("dossier.exportDocx")}
                       </DisabledActionButton>
-                    </>
+                    </div>
                   );
                 })()}
                 <button onClick={exportDossierJson} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-text">

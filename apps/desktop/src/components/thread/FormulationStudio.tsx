@@ -104,6 +104,7 @@ export function FormulationStudio({
               {t("studio.target.label")}
             </span>
             <textarea
+              data-tour="formulation.target"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
               onKeyDown={(e) => {
@@ -116,7 +117,7 @@ export function FormulationStudio({
           </label>
 
           {/* Category + market */}
-          <div className="grid grid-cols-2 gap-3">
+          <div data-tour="formulation.categoryMarket" className="grid grid-cols-2 gap-3">
             <Field label={t("studio.category.label")}>
               <Select value={category} onChange={(v) => setCategory(v as Category)}>
                 {CATEGORIES.map((c) => (
@@ -194,6 +195,7 @@ export function FormulationStudio({
           )}
 
           <button
+            data-tour="formulation.generate"
             onClick={generate}
             disabled={!canGenerate}
             className="flex w-full items-center justify-center gap-2 rounded-input bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"

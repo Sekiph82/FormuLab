@@ -5,6 +5,7 @@ import { X, ArrowLeft } from "lucide-react";
 import { GLOSSARY_TERMS } from "@/lib/help/glossary";
 import { getTopic, relatedTopics, HELP_TOPICS } from "@/lib/help/registry";
 import { useHelpStore } from "@/lib/help/store";
+import { useTourStore } from "@/lib/help/tourStore";
 import type { HelpTopic } from "@/lib/help/types";
 
 /** Help content keys (`topic.titleKey`, `sectionKeys[i]`, ...) are dynamic
@@ -29,6 +30,7 @@ export function HelpPanel() {
   const closePanel = useHelpStore((s) => s.closePanel);
   const openTopic = useHelpStore((s) => s.openTopic);
   const openGlossaryTerm = useHelpStore((s) => s.openGlossaryTerm);
+  const startTour = useTourStore((s) => s.startTour);
   const panelRef = useRef<HTMLDivElement>(null);
   const openerFocusRef = useRef<Element | null>(null);
 
@@ -84,7 +86,16 @@ export function HelpPanel() {
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-[12px] text-text">
-          {topic && <TopicContent topic={topic} t={t} onOpenGlossaryTerm={openGlossaryTerm} onOpenTopic={openTopic} onOpenPage={(route) => { navigate(route); closePanel(); }} />}
+          {topic && (
+            <TopicContent
+              topic={topic}
+              t={t}
+              onOpenGlossaryTerm={openGlossaryTerm}
+              onOpenTopic={openTopic}
+              onOpenPage={(route) => { navigate(route); closePanel(); }}
+              onStartTour={(tourId) => { startTour(tourId); closePanel(); }}
+            />
+          )}
           {glossaryTerm && (
             <div className="space-y-3">
               <p className="text-muted">{t(glossaryTerm.definitionKey)}</p>
@@ -112,12 +123,14 @@ function TopicContent({
   onOpenGlossaryTerm,
   onOpenTopic,
   onOpenPage,
+  onStartTour,
 }: {
   topic: HelpTopic;
   t: (key: string, opts?: Record<string, unknown>) => string;
   onOpenGlossaryTerm: (id: string) => void;
   onOpenTopic: (id: string) => void;
   onOpenPage: (route: string) => void;
+  onStartTour: (tourId: string) => void;
 }) {
   const related = relatedTopics(topic);
   const primaryRoute = topic.routes[0]?.path;
@@ -203,11 +216,18 @@ function TopicContent({
           </div>
         </Section>
       )}
-      {primaryRoute && !primaryRoute.includes(":") && (
-        <button onClick={() => onOpenPage(primaryRoute)} className="mt-1 rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
-          {t("ui.openPage")}
-        </button>
-      )}
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {primaryRoute && !primaryRoute.includes(":") && (
+          <button onClick={() => onOpenPage(primaryRoute)} className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
+            {t("ui.openPage")}
+          </button>
+        )}
+        {topic.tourId && (
+          <button onClick={() => onStartTour(topic.tourId!)} className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
+            {t("ui.startTour")}
+          </button>
+        )}
+      </div>
     </>
   );
 }

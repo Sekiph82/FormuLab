@@ -1,6 +1,6 @@
 # Phase 10 — User Guide and In-App Help
 
-## Status: Session 3 (contextual field help and disabled-action explanations) complete.
+## Status: Session 4 (guided tours and onboarding) complete.
 
 ## Key finding: build on what already exists, don't start from zero
 This repository already has (a) a rich, technically accurate but
@@ -656,5 +656,108 @@ here per instruction, without renumbering any Phase 10 session.
   readiness reason and Dossier's export reason already surface (both
   already fold in `regulatoryAssessment`/`AUTHORIZED_REGULATORY_ROLES`).
 
+## Session 4 summary — guided tours and onboarding (complete)
+
+- **New files**: `lib/help/tours.ts` (the `TOURS` registry — metadata only,
+  same discipline as `HELP_TOPICS`), `lib/help/tourStore.ts` (ephemeral
+  zustand store: `activeTourId`/`stepIndex`/`openerElement`,
+  `startTour`/`next`/`back`/`skip`/`finish`/`goToStep`),
+  `lib/help/onboardingStore.ts` (persisted `formulab.onboarding.dismissed.v1`
+  flag), `components/help/TourOverlay.tsx` (the single global spotlight
+  overlay), `components/help/OnboardingPrompt.tsx` (the first-use card) —
+  each with a `.test.ts`/`.test.tsx` file.
+- **No new dependency**: a hand-built spotlight overlay (a
+  `box-shadow: 0 0 0 9999px` cutout around the target's
+  `getBoundingClientRect()`), exactly as the Session 1 architecture plan
+  proposed — Radix's own popover/dialog primitives don't fit a
+  "highlight a rect anywhere on the page" pattern, and no dedicated tour
+  library was already a dependency.
+- **Three tours, real targets only**: every step's `target` is a
+  `data-tour="<id>"` attribute added to a real, already-existing element —
+  never an invented selector. `TourOverlay` resolves it via
+  `document.querySelector`, polling on a short interval and auto-advancing
+  if it never appears within `TARGET_WAIT_TIMEOUT_MS` (800ms) — this isn't
+  a hypothetical: `DoePanel`'s "design"/"responses"/"runs"/"analysis"
+  sections and `DossierPanel`'s per-dossier detail sections both only
+  render once a study/dossier is selected, and `FormulationWorkspaceV2`'s
+  candidate-tabs/Card-Edit-tabs targets don't exist until a generation
+  produces cards — real, everyday "not rendered yet" cases, not contrived
+  ones. `TOURS.dossiers`' final step (`notApproval`) deliberately has no
+  `target` at all — an informational step, never a fallback for a target
+  that should exist but doesn't.
+- **Formulation tour lives on `/live`, not `/formulation`**: the described
+  tour content (target product, category/market, Generate, V1/V2/V3,
+  Card/Edit, function totals, warnings) is the session/thread composer
+  (`FormulationStudio` + `FormulationWorkspaceV2`'s `CardsView`) at `/live`
+  — the version-management workspace at `/formulation` doesn't contain any
+  of it. `Tour.route` records this; `TourOverlay`'s own effect navigates
+  there if "Start tour" was triggered from elsewhere (Help on `/formulation`,
+  or the onboarding prompt from any route). Documented in `registry.ts`
+  next to the `formulation` topic's `tourId`.
+- **DoE/Dossiers tours target the real, always-rendered tab bars**
+  (`doe.tab.<section>` / `dossiers.tab.<section>`) rather than deep wizard-
+  modal fields — those tab buttons exist unconditionally the moment the
+  panel mounts, regardless of whether a study/dossier is selected yet, so
+  the tour never depends on the overlay driving multi-step form
+  interactions on the user's behalf (out of scope — a tour explains, it
+  doesn't operate the app for you).
+- **Onboarding**: `OnboardingPrompt` — a small dismissible, non-modal card
+  (mounted globally in `AppShell`, same placement as `HelpButton`),
+  offering one button per real tour plus "Maybe later"/close. Shows once
+  per local profile via `formulab.onboarding.dismissed.v1` (new key only —
+  genuinely new state, nothing to migrate, per the Session 1 plan). Picking
+  a tour or dismissing both count as "seen."
+- **Restart from Help**: `HELP_TOPICS`' pre-existing (Session 1) `tourId?`
+  field is now populated on the `formulation`/`doe`/`dossiers` topics;
+  `HelpPanel`'s topic view renders a "Start tour" button whenever it's set,
+  calling the same `useTourStore.startTour` the onboarding prompt uses —
+  one entry point, not two.
+- **Accessibility**: the tour card is `role="dialog"` with `aria-label`
+  (the step title) and `aria-describedby` (the step body); Next/Back/
+  Skip/Finish are real `<button>`s; Escape closes (calls the same `skip`
+  the Skip button does) and returns focus to whatever was focused when the
+  tour started (`openerElement`, captured synchronously at the `startTour`
+  call site — the same discipline `useHelpStore.openCenter` already
+  established, for the same reason: capturing focus inside a `useEffect`
+  risks recording focus the overlay itself already moved).
+- **Never touches project data**: `TourOverlay`/`OnboardingPrompt` read
+  only the DOM (`querySelector`, `getBoundingClientRect`) and their own
+  ephemeral/localStorage state — neither imports `lib/masterdata` at all;
+  guarded by a dedicated test asserting zero calls across a full tour walk.
+- **Test-environment fix (not a regression)**: `OnboardingPrompt` being
+  globally mounted meant a genuinely first-use profile would render a
+  second `role="dialog"` on every `renderAt()`-based test across the whole
+  suite, colliding with unrelated `role="dialog"` queries. Fixed by
+  defaulting `formulab.onboarding.dismissed.v1` to `"1"` in
+  `src/test/setup.ts` (the two files that specifically test onboarding
+  clear `localStorage` themselves first, so the real first-use case is
+  still genuinely exercised).
+- **New, harmless unhandled-rejection artifact**: `TourOverlay`'s
+  navigate-to-the-tour's-route effect, when exercised through a real
+  `RouterProvider`/`createMemoryRouter` test (`HelpPanel.test.tsx`'s
+  "Start tour" tests), trips a pre-existing Node/jsdom/undici
+  cross-realm `AbortSignal` incompatibility inside React Router's own
+  data-router internals (`TypeError: RequestInit: Expected signal ... to
+  be an instance of AbortSignal`) — confirmed test-environment-only (a
+  real single-realm browser/webview never hits this), does not fail any
+  assertion, and joins the same pre-existing "not-desktop" class of
+  logged-but-harmless async noise this suite already carries (was 4
+  instances, is now 5 files' worth including this one). Not chased further
+  — out of scope for this session and orthogonal to tour/onboarding logic.
+- **Tests**: `tours.test.ts` (9), `tourStore.test.ts` (7),
+  `onboardingStore.test.ts` (4), `TourOverlay.test.tsx` (13),
+  `OnboardingPrompt.test.tsx` (6), plus 2 new tests in `HelpPanel.test.tsx`
+  ("Start tour" launches the right tour; a topic with no tour offers no
+  button) and target-resolution tests added to `DoePanel.test.tsx` (1),
+  `DossierPanel.test.tsx` (1), `FormulationWorkspaceV2.test.tsx` (3), and
+  a new `FormulationStudio.test.tsx` (2) — 48 new tests total. Full desktop
+  suite: 898/898 across 110 files. Desktop typecheck/lint clean. i18n
+  parity 18/18 (new `help:ui.tour*`/`help:ui.onboarding.*`/`help:tours.*`
+  keys, full genuine translation across all 8 locales). Shared and Rust
+  untouched this session — not re-run.
+- **Out of scope this session (unchanged from plan)**: tours for any
+  module beyond Formulation/DoE/Dossiers — deferred indefinitely, not
+  planned for a future session per the original Session 1 scoping.
+
 ## Exact next session
-Phase 10 Session 4: Guided Tours and Onboarding.
+Phase 10 Session 5: Documentation Fixture Data and Screenshot Capture System.

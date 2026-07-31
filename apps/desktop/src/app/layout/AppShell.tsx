@@ -8,6 +8,8 @@ import { CommandPalette } from "@/components/command-palette/CommandPalette";
 import { HelpButton } from "@/components/help/HelpButton";
 import { HelpPanel } from "@/components/help/HelpPanel";
 import { HelpCenter } from "@/components/help/HelpCenter";
+import { TourOverlay } from "@/components/help/TourOverlay";
+import { OnboardingPrompt } from "@/components/help/OnboardingPrompt";
 import { Toaster } from "@/components/ui/Toaster";
 import { ensureSetupProgressListener } from "@/lib/setup";
 import { useOverlayTitlebar, useUiStore } from "@/lib/store";
@@ -124,6 +126,8 @@ export function AppShell() {
       <HelpButton />
       <HelpPanel />
       <HelpCenter />
+      <TourOverlay />
+      <OnboardingPrompt />
       <Toaster />
     </div>
   );

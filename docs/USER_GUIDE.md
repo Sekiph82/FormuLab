@@ -55,8 +55,7 @@ Laboratory's help topic covers the Session 1A test-standards/methods
 feature — selecting a standard, primary vs. alternative methods, internal
 methods, and the official-standard copyright notice — reachable from
 Laboratory's own Help button or by searching "standard" or "method" in
-the Help Center. Guided tours are planned for a later session and do not
-exist yet.
+the Help Center.
 
 A small **i** icon next to some fields (Formulation's total/q.s. badge
 and cost snapshot, Laboratory's method status badges, Design of
@@ -70,6 +69,17 @@ Formulation's Save cost snapshot), the reason is written directly beneath
 it — what's blocking it, which role can act if it's a permission issue,
 and whether you can resolve it yourself. A disabled button never reacts
 to a click; the explanation is not a hint to try anyway.
+
+Three short **guided tours** — Formulation (the session composer where a
+formulation is generated), Design of Experiments, and Dossiers — walk
+through each workspace's real controls with a spotlight and a small
+step card. Every tour is optional and skippable at any point, supports
+**Next/Back/Skip/Finish**, closes on **Escape**, and returns keyboard
+focus to wherever you were when you started it. Start one from that
+page's Help panel ("Start tour"), or from the one-time **onboarding
+prompt** shown the first time you open the app (dismiss it with the ✕ or
+"Maybe later" — it never reappears once dismissed or once you've picked a
+tour). A tour never edits any project data; it only highlights.
 
 ## 1. Create a formula project
 

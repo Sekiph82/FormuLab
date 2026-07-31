@@ -173,3 +173,13 @@ describe("DoePanel — study wizard", () => {
     expect(options).toEqual(["—"]);
   });
 });
+
+describe("DoePanel — guided-tour target resolution (Phase 10 Session 4)", () => {
+  it("resolves every real element the doe tour points at, even with no study selected", async () => {
+    renderPanel();
+    await screen.findByText(/No DOE studies yet/i);
+    for (const tab of ["design", "responses", "runs", "analysis"]) {
+      expect(document.querySelector(`[data-tour="doe.tab.${tab}"]`)).toBeInTheDocument();
+    }
+  });
+});

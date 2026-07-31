@@ -90,6 +90,27 @@ second permission model).
 Guided tours (`panel+fields+tour`) remain Session 4 work — not yet
 implemented.
 
+## Guided tours and onboarding (Session 4 — `lib/help/tours.ts`, `components/help/{TourOverlay,OnboardingPrompt}.tsx`)
+
+The `panel+fields+tour` tier now has real coverage for the three modules
+this phase ever scoped for a tour. Each step's target is a real,
+already-existing element (`data-tour="…"` attribute) — a step is skipped
+automatically (never a crash) if its target doesn't render within a short
+timeout, which happens routinely for the DoE/Dossiers steps below since
+those elements are gated behind "a study/dossier is selected."
+
+| Module | Tour route | Steps (target element) |
+|---|---|---|
+| Formulation | `/live` (the session composer — not `/formulation`, see handoff) | Target product input, category/market, Generate, V1/V2/V3 candidate tabs, Card/Edit tabs, function totals, warnings |
+| Design of Experiments | `/doe` | Factors, levels (both point at the Design tab), Responses, Run generation (Runs tab), Interpretation limits (Analysis tab) |
+| Dossiers | `/dossiers` | Requirements, Evidence mapping, Readiness (Overview summary), Review, PDF/DOCX export, "Export is not approval" (informational, no target) |
+
+Restartable from Help: the `formulation`/`doe`/`dossiers` `HELP_TOPICS`
+entries each carry a `tourId`; their Help panel view shows a "Start tour"
+button. A first-use `OnboardingPrompt` (shown once per local profile,
+`formulab.onboarding.dismissed.v1`) offers the same three tours from any
+route.
+
 ## Module map (confirmed against `router.tsx` + `Sidebar.tsx`)
 
 | # | Top-level entry | Route | Children (accordion group) |
