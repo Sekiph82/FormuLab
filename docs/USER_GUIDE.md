@@ -715,3 +715,11 @@ narrower gaps that remain. No native GUI click-through of the packaged
 app exists yet in this environment — see
 [APPROVAL_MANUAL_SMOKE_TEST.md](APPROVAL_MANUAL_SMOKE_TEST.md). Nothing in
 this guide describes an unimplemented module as available.
+
+This guide does not yet embed screenshots. A safe, deterministic
+documentation fixture and a screenshot manifest exist
+(`docs/PHASE10_SCREENSHOT_MANIFEST.json`) so illustrations can be added
+without ever capturing from a real project — every fixture record is
+synthetic and clearly marked `DEMO-`, seeded into an isolated profile
+that is never the app's real data folder. The actual capture pass and
+embedding the images into this guide are later-phase work.

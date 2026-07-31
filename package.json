@@ -9,7 +9,9 @@
     "build": "pnpm --filter @formulab/desktop build",
     "test": "pnpm --filter @formulab/shared test && pnpm --filter @formulab/desktop test",
     "typecheck": "pnpm --filter @formulab/desktop typecheck",
-    "lint": "pnpm --filter @formulab/desktop lint"
+    "lint": "pnpm --filter @formulab/desktop lint",
+    "docs:fixture:seed": "tsx scripts/dev/seed-docs-fixture.ts",
+    "docs:fixture:reset": "tsx scripts/dev/seed-docs-fixture.ts --reset"
   },
   "engines": {
     "node": ">=20"
@@ -18,5 +20,8 @@
   "dependencies": {
     "decimal.js": "^10.6.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.1"
   }
 }

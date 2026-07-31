@@ -1,6 +1,6 @@
 # Phase 10 — User Guide and In-App Help
 
-## Status: Session 4 (guided tours and onboarding) complete.
+## Status: Session 5 (documentation fixture data and screenshot capture system) complete.
 
 ## Key finding: build on what already exists, don't start from zero
 This repository already has (a) a rich, technically accurate but
@@ -759,5 +759,106 @@ here per instruction, without renumbering any Phase 10 session.
   module beyond Formulation/DoE/Dossiers — deferred indefinitely, not
   planned for a future session per the original Session 1 scoping.
 
+## Session 5 summary — documentation fixture data and screenshot capture system (complete)
+
+- **New files**: `apps/desktop/src/lib/docsFixture/{build,fixtureWriter,
+  screenshotManifest}.ts` + a `.test.ts` per file; `scripts/dev/
+  seed-docs-fixture.ts` (CLI entry point, run via `pnpm docs:fixture:seed` /
+  `pnpm docs:fixture:reset`); `docs/PHASE10_SCREENSHOT_MANIFEST.json` (26
+  entries). No final guide chapters written this session, per the objective.
+- **Fixture architecture**: `build.ts` is a pure, deterministic function
+  (`buildDocsFixturePlan()`) — no `Date.now()`, no `Math.random()`, a single
+  fixed `2026-01-01T00:00:00.000Z` timestamp throughout — that returns a
+  flat `relative path -> content` map mirroring exactly what
+  `masterdata.rs`/`formulation_v2.rs` already read: one JSON array per
+  `data/master/<collection>.json`, one `data/formulations/<id>/` folder
+  (formulation.json/versions/approvals/audit.jsonl), one
+  `data/sessions/<id>/` folder (brief.json + 3 candidate markdown cards).
+  Every record is built as a literal and validated with `.parse()` against
+  the REAL Zod schema from `@formulab/shared` — a schema mismatch fails the
+  build immediately, not silently. Real catalog values are reused, never
+  invented (`HC-SHAMPOO-REG` from `catalog/kenya.ts`, `raw_materials` from
+  `dataExchangeRegistry.ts`'s real template list). Every id/code/name this
+  fixture mints carries a `DEMO-` prefix — the same synthetic-data
+  discipline Data Exchange's own `TEST-`-prefixed fixture rows already use.
+- **Why not copy the dev checkout's own `data/`/`formulas/`**: this repo
+  checkout IS the developer's real, live FormuLab project (confirmed:
+  `data/`/`formulas/` are gitignored "generated workspace data", and
+  `.FormuLab/runs.db` is real, tracked, never-touch state) — the fixture is
+  built from scratch against the real schemas, never derived from or
+  copying that real data.
+- **Fixture writer + safety guards** (`fixtureWriter.ts`): `assertSafeFixtureRoot`
+  fails closed on a relative path, a path containing `com.formulab.app` or
+  `Documents/FormuLab` (the real profile locations), or a folder whose own
+  name doesn't contain `docs-fixture` — a typo'd path can never silently
+  target something real. A marker file
+  (`.formulab-docs-fixture-profile`) is written into the root once seeded;
+  `seedDocsFixture`/`resetDocsFixture` both refuse an existing, non-empty
+  directory that lacks it — "fail closed if the isolated profile is not
+  active" is enforced structurally, not just documented. `resetDocsFixture`
+  requires the marker to already exist (never adopts an arbitrary folder),
+  fully wipes the directory, then reseeds — idempotent by construction
+  since `buildDocsFixturePlan()` is deterministic.
+- **Default location**: `.docs-fixture/` at the repo root (new `.gitignore`
+  entry) — sibling to, never inside, the real `data`/`formulas`/`.FormuLab`.
+  Never depends on or touches `%APPDATA%\com.formulab.app`; pointing the
+  real app's `formulab-root.txt` override at it (to actually browse it in
+  the app) is a manual, human, opt-in step this tooling never performs
+  itself.
+- **Screenshot manifest** (`screenshotManifest.ts` + `docs/
+  PHASE10_SCREENSHOT_MANIFEST.json`): 26 entries covering every module the
+  session objective listed (Home, Projects, Formulation
+  generation/candidate-tabs/edit-formula/function-totals-warning,
+  Laboratory test methods, Stability, Regulatory, Dossiers, Claims &
+  Labels, Approval, Reports, Data Exchange, Administration, Notebooks,
+  Files, Runs, Sessions, Settings, Help panel/Center/InfoTooltip/
+  disabled-action/guided-tour/onboarding). Filename convention
+  `<module>-<page>-<state>-<theme>-<locale>.png` is never hand-typed twice:
+  each entry's `id` is asserted equal to `screenshotIdFor(entry)`,
+  reconstructed purely from its own `module`/`page`/`state`/`theme`/
+  `locale` fields — drift between the id and its components is a test
+  failure, not a manual-review concern. Every `route` is cross-checked
+  against the real `topicForRoute()`; every non-null `helpTopic` against
+  the real `HELP_TOPICS` registry — never a second, hand-copied list. The
+  Formulation tour's manifest entry deliberately sets `helpTopic:
+  "formulation"` while `route: "/live"` — the same intentional route/topic
+  split `lib/help/tours.ts` documents for that tour. Every entry ships
+  `lastCapturedCommit: null` — no image has actually been captured yet;
+  that sweep is Session 6+ content work, not this session's.
+- **Capture workflow (documented, not executed this session)**: light
+  theme, English locale, 1440x900 at 2x DPR, uniformly, for every v1 entry
+  — enforced by a manifest-shape test, not just written down. High-DPI +
+  deterministic window size + numbered-callout overlays are the stated
+  requirements for Session 6's actual capture pass; this session ships the
+  manifest schema and naming convention those captures must follow, plus
+  `detectStaleOrMissing`/`detectOrphanScreenshots` (pure functions, tested
+  against a synthetic file list — no real captured PNGs exist yet to test
+  against) so a later capture run can tell "missing" from "stale" from
+  "orphaned" automatically once real files exist.
+- **Tests**: `build.test.ts` (9 — determinism, content shape, DEMO- prefix,
+  no forbidden real-data substrings), `fixtureWriter.test.ts` (13 — guard
+  rejects real-looking paths, fail-closed on an unknown non-empty
+  directory, idempotent reset, never touches anything outside its own
+  root), `screenshotManifest.test.ts` (17 — id uniqueness, filename
+  convention, id/component reconstruction, route/help-topic cross-checks
+  against the real app, required-module coverage, dimension/theme/locale
+  validity, stale/missing/orphan detection). 39 new tests total. Full
+  desktop suite re-run (new module, cross-checks against real
+  `lib/help/registry.ts`): 937/937 across 113 files. Desktop typecheck/lint
+  clean. Shared and Rust untouched this session (the fixture builder
+  IMPORTS `@formulab/shared`'s existing schemas but adds nothing to that
+  package) — not re-run.
+- **New devDependency**: `tsx` (root `devDependencies`) — the only way to
+  run a real `.ts` script against `@formulab/shared`'s TypeScript source
+  without a build step, since neither `ts-node` nor a compiled `dist/`
+  existed in this repo before this session.
+- **Out of scope this session (unchanged from plan)**: the actual
+  screenshot capture sweep (Session 6+), final `USER_GUIDE.md` chapter
+  content, richer fixture rows beyond one-or-two per collection (enough to
+  render each required screen non-empty, not an exhaustive dataset),
+  non-English locale screenshots (v1 is English-only by design), dark-theme
+  captures (light is primary per plan; dark is optional/secondary future
+  work for the in-app Help Center only).
+
 ## Exact next session
-Phase 10 Session 5: Documentation Fixture Data and Screenshot Capture System.
+Phase 10 Session 6: Illustrated User Guide Content and PDF/DOCX Generation.

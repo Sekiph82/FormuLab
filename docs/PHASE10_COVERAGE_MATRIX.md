@@ -497,3 +497,27 @@ route.
   low-effort staleness-detection mechanism (see the handoff's
   "screenshot/content update detection" section) — it has already
   happened three times independently in this repository's real history.
+
+## Documentation fixture and screenshot manifest (Session 5 — `apps/desktop/src/lib/docsFixture/*`, `docs/PHASE10_SCREENSHOT_MANIFEST.json`)
+
+The staleness-detection mechanism the paragraph above calls for now
+exists as real, tested code rather than a plan: `screenshotManifest.ts`'s
+`detectStaleOrMissing`/`detectOrphanScreenshots` compare the manifest
+against whatever is actually on disk (and, once wired to real commit
+data, against which modules changed since a screenshot's
+`lastCapturedCommit`) — the exact same "compare declared state to real
+HEAD" pattern `registry.test.ts`'s full-route-coverage check and
+`masterdata.rs`'s 90-collection allow-list regression guard already use
+elsewhere in this codebase, applied to documentation images instead of
+code or a route table.
+
+| Piece | What it is | Real-data guarantee |
+|---|---|---|
+| `build.ts` | Deterministic fixture data (project, version, session, 18 master-data collections) | Every record validated against its real `@formulab/shared` Zod schema; real catalog codes reused (`HC-SHAMPOO-REG`, `raw_materials`); `DEMO-` prefixed throughout |
+| `fixtureWriter.ts` | Seed/reset to a real, isolated directory (`.docs-fixture/` by default) | Fails closed on a real-profile-looking path or an unknown non-empty directory; idempotent reset |
+| `screenshotManifest.ts` | Types + the naming convention + drift detection | `id` cross-checked against its own component fields; `route`/`helpTopic` cross-checked against the real `topicForRoute()`/`HELP_TOPICS` |
+| `docs/PHASE10_SCREENSHOT_MANIFEST.json` | 26 entries, one per required coverage item | `lastCapturedCommit: null` on every entry — no image captured yet; Session 6 does the capture sweep |
+
+No screenshot binary exists yet. Every module row's "Screenshot" answer
+above (`yes`/`no`/planned) is unaffected by this session — the manifest
+records WHICH shot each module needs, not that it has been taken.
