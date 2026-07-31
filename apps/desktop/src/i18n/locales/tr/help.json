@@ -505,7 +505,9 @@
       "title": "FormuLab'da yeni misiniz?",
       "body": "Formülasyon, Deney Tasarımı veya Dosyalar hakkında kısa bir rehberli tur yapın.",
       "skip": "Belki sonra"
-    }
+    },
+    "guideGroup": "Kılavuz",
+    "openFullGuide": "Tam kullanıcı kılavuzunu aç"
   },
   "tours": {
     "formulation": {

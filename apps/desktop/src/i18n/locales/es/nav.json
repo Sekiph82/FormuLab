@@ -82,7 +82,8 @@
       "openSettings": "Abrir configuración",
       "toggleTheme": "Cambiar tema (claro / cálido / oscuro)",
       "openFiles": "Abrir archivos",
-      "searchHelp": "Buscar ayuda"
+      "searchHelp": "Buscar ayuda",
+      "openGuide": "Abrir guía del usuario"
     }
   }
 }

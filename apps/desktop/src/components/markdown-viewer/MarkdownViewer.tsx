@@ -1,6 +1,62 @@
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { useTranslation } from "react-i18next";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/cn";
+
+/** GitHub-slug-compatible heading anchor. Mirrors
+ *  `lib/userGuideExport/markdown.ts`'s `slugifyHeading` (the guide export
+ *  pipeline's own heading-id logic) so a `docs/USER_GUIDE.md` cross-reference
+ *  like `[§18](#18-corrective-actions)` resolves to a real in-DOM anchor
+ *  here too, not just in GitHub's own rendering. Kept as a small local
+ *  copy rather than an import: this component has no dependency today on
+ *  `apps/desktop/src/lib/userGuideExport/` (a Node-fs-using, doc-generation
+ *  module) and must not gain one just for a slug function used by every
+ *  document this viewer renders, not only the user guide. */
+function slugifyHeadingText(node: React.ReactNode): string {
+  return extractText(node)
+    .toLowerCase()
+    .replace(/`/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+function extractText(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (node && typeof node === "object" && "props" in node) {
+    return extractText((node as { props: { children?: React.ReactNode } }).props.children);
+  }
+  return "";
+}
+
+/** A Markdown image that hasn't been captured yet (every
+ *  `docs/USER_GUIDE.md` screenshot reference, as of Phase 10 Session 6 —
+ *  see `docs/PHASE10_SCREENSHOT_MANIFEST.json`) must not render as a
+ *  broken-image icon. Same "not yet captured" wording as the PDF/DOCX
+ *  exporters' own placeholder (`lib/userGuideExport/{pdf,docx}.ts`) — one
+ *  honest message across all three render paths. `title` (the optional
+ *  Markdown image title, `![alt](src "title")`) is preferred as the
+ *  caption when present, since the guide uses it for real captions. */
+function MarkdownImage({ src, alt, title }: { src?: string; alt?: string; title?: string }) {
+  const { t } = useTranslation("session");
+  const [failed, setFailed] = useState(false);
+  const caption = title || alt || t("guide.screenshotFallbackCaption");
+  if (!src || failed) {
+    return (
+      <span className="my-3 block rounded-input border border-dashed border-border bg-surface-2 px-3 py-2.5 text-[12px] italic text-muted">
+        {t("guide.screenshotNotCaptured", { caption })}
+      </span>
+    );
+  }
+  return (
+    <span className="my-3 block">
+      <img src={src} alt={alt ?? ""} title={title} onError={() => setFailed(true)} className="max-w-full rounded-input border border-border" />
+      {title && <span className="mt-1 block text-[12px] italic text-muted">{title}</span>}
+    </span>
+  );
+}
 
 /** Two contexts render markdown: chat bubbles (theme colors, compact) and the
  *  file-preview "paper" (document-neutral black-on-white, editorial scale —
@@ -86,10 +142,10 @@ export function MarkdownViewer({
           li: ({ children }) => <li>{children}</li>,
           // Document elements (headings, quotes, tables, rules) — Tailwind's
           // preflight strips the browser defaults, so each needs explicit style.
-          h1: ({ children }) => <h1 className={s.h1}>{children}</h1>,
-          h2: ({ children }) => <h2 className={s.h2}>{children}</h2>,
-          h3: ({ children }) => <h3 className={s.h3}>{children}</h3>,
-          h4: ({ children }) => <h4 className={s.h4}>{children}</h4>,
+          h1: ({ children }) => <h1 id={slugifyHeadingText(children)} className={s.h1}>{children}</h1>,
+          h2: ({ children }) => <h2 id={slugifyHeadingText(children)} className={s.h2}>{children}</h2>,
+          h3: ({ children }) => <h3 id={slugifyHeadingText(children)} className={s.h3}>{children}</h3>,
+          h4: ({ children }) => <h4 id={slugifyHeadingText(children)} className={s.h4}>{children}</h4>,
           blockquote: ({ children }) => <blockquote className={s.blockquote}>{children}</blockquote>,
           hr: () => <hr className={s.hr} />,
           table: ({ children }) => (
@@ -99,6 +155,7 @@ export function MarkdownViewer({
           ),
           th: ({ children }) => <th className={s.th}>{children}</th>,
           td: ({ children }) => <td className={s.td}>{children}</td>,
+          img: ({ src, alt, title }) => <MarkdownImage src={typeof src === "string" ? src : undefined} alt={alt} title={title} />,
         }}
       >
         {children}

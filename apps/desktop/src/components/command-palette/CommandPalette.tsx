@@ -4,6 +4,7 @@ import { Command } from "cmdk";
 import { useNavigate } from "react-router-dom";
 import {
   FileSearch,
+  FileText,
   HelpCircle,
   Moon,
   NotebookPen,
@@ -55,6 +56,7 @@ export function CommandPalette() {
     { id: "settings", label: t("commandPalette.actions.openSettings"), icon: <Settings size={16} />, run: () => { navigate("/settings"); close(); } },
     { id: "theme", label: t("commandPalette.actions.toggleTheme"), icon: <Moon size={16} />, run: () => { toggleTheme(); close(); } },
     { id: "help", label: t("commandPalette.actions.searchHelp"), icon: <HelpCircle size={16} />, run: () => { close(); openHelpCenter(); } },
+    { id: "guide", label: t("commandPalette.actions.openGuide"), icon: <FileText size={16} />, run: () => { navigate("/guide"); close(); } },
   ];
 
   if (!open) return null;

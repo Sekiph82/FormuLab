@@ -82,7 +82,8 @@
       "openSettings": "Einstellungen öffnen",
       "toggleTheme": "Design wechseln (Hell / Warm / Dunkel)",
       "openFiles": "Dateien öffnen",
-      "searchHelp": "Hilfe durchsuchen"
+      "searchHelp": "Hilfe durchsuchen",
+      "openGuide": "Benutzerhandbuch öffnen"
     }
   }
 }

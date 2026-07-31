@@ -2430,5 +2430,11 @@
         "createVersion": "Créer une nouvelle version"
       }
     }
+  },
+  "guide": {
+    "title": "Guide utilisateur",
+    "englishOnlyNotice": "Ce guide est actuellement disponible uniquement en anglais.",
+    "screenshotNotCaptured": "[Capture d'écran pas encore disponible : {{caption}}]",
+    "screenshotFallbackCaption": "Capture d'écran"
   }
 }

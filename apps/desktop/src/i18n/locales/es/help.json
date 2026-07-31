@@ -505,7 +505,9 @@
       "title": "¿Nuevo en FormuLab?",
       "body": "Haz un breve recorrido guiado por Formulación, Diseño de Experimentos o Dosieres.",
       "skip": "Quizás más tarde"
-    }
+    },
+    "guideGroup": "Guía",
+    "openFullGuide": "Abrir guía completa del usuario"
   },
   "tours": {
     "formulation": {

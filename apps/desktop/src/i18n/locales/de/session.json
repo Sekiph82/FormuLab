@@ -2430,5 +2430,11 @@
         "createVersion": "Neue Version erstellen"
       }
     }
+  },
+  "guide": {
+    "title": "Benutzerhandbuch",
+    "englishOnlyNotice": "Dieses Handbuch ist derzeit nur auf Englisch verfügbar.",
+    "screenshotNotCaptured": "[Screenshot noch nicht aufgenommen: {{caption}}]",
+    "screenshotFallbackCaption": "Screenshot"
   }
 }

@@ -24,6 +24,7 @@ import { ReportsPage } from "./routes/ReportsPage";
 import { AdministrationPage } from "./routes/AdministrationPage";
 import { DataExchangePage } from "./routes/DataExchangePage";
 import { ReverseFormulationPage } from "./routes/ReverseFormulationPage";
+import { UserGuidePage } from "./routes/UserGuidePage";
 import { NotFound } from "./routes/NotFound";
 
 export const routes: RouteObject[] = [
@@ -63,6 +64,7 @@ export const routes: RouteObject[] = [
       { path: "runs", element: <RunsPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "settings/:section", element: <SettingsPage /> },
+      { path: "guide", element: <UserGuidePage /> },
       { path: "*", element: <NotFound /> },
     ],
   },

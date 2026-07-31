@@ -507,6 +507,12 @@ export const HELP_EXCLUSIONS: HelpExclusion[] = [
       "Formulation/Laboratory/Stability/Regulatory/Approval topics instead.",
   },
   { route: "*", reason: "The 404 catch-all — has nothing to explain." },
+  {
+    route: "/guide",
+    reason:
+      "The in-app illustrated user guide (Phase 10 Session 6) — its own content already explains the whole app; " +
+      "a Help panel about the Help guide would be redundant. Reachable from the Help Center and command palette.",
+  },
 ];
 
 /**

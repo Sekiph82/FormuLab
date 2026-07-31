@@ -82,7 +82,8 @@
       "openSettings": "설정 열기",
       "toggleTheme": "테마 전환 (라이트 / 웜 / 다크)",
       "openFiles": "파일 열기",
-      "searchHelp": "도움말 검색"
+      "searchHelp": "도움말 검색",
+      "openGuide": "사용자 가이드 열기"
     }
   }
 }

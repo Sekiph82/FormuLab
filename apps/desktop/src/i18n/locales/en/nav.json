@@ -82,7 +82,8 @@
       "openSettings": "Open settings",
       "toggleTheme": "Switch theme (light / warm / dark)",
       "openFiles": "Open files",
-      "searchHelp": "Search help"
+      "searchHelp": "Search help",
+      "openGuide": "Open user guide"
     }
   }
 }

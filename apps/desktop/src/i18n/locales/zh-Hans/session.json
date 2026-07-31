@@ -2430,5 +2430,11 @@
         "createVersion": "创建新版本"
       }
     }
+  },
+  "guide": {
+    "title": "用户指南",
+    "englishOnlyNotice": "本指南目前仅提供英文版本。",
+    "screenshotNotCaptured": "[截图尚未采集：{{caption}}]",
+    "screenshotFallbackCaption": "截图"
   }
 }

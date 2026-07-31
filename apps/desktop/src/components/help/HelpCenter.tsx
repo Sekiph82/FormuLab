@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Command } from "cmdk";
-import { BookOpen } from "lucide-react";
+import { BookOpen, FileText } from "lucide-react";
 import { GLOSSARY_TERMS } from "@/lib/help/glossary";
 import { HELP_TOPICS } from "@/lib/help/registry";
 import { useHelpStore } from "@/lib/help/store";
@@ -24,6 +25,7 @@ export function HelpCenter() {
   const closeCenter = useHelpStore((s) => s.closeCenter);
   const openTopic = useHelpStore((s) => s.openTopic);
   const openGlossaryTerm = useHelpStore((s) => s.openGlossaryTerm);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -103,6 +105,19 @@ export function HelpCenter() {
                   {t(term.termKey)}
                 </Command.Item>
               ))}
+            </Command.Group>
+            <Command.Group heading={t("ui.guideGroup")} className="text-[11px] text-muted [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5">
+              <Command.Item
+                value={t("ui.openFullGuide")}
+                onSelect={() => {
+                  navigate("/guide");
+                  close();
+                }}
+                className="flex cursor-pointer items-center gap-2 rounded-input px-3 py-2 text-sm text-text data-[selected=true]:bg-surface-2"
+              >
+                <FileText size={13} className="shrink-0 text-muted" />
+                {t("ui.openFullGuide")}
+              </Command.Item>
             </Command.Group>
           </Command.List>
         </Command>

@@ -505,7 +505,9 @@
       "title": "FormuLab이 처음이신가요?",
       "body": "제형, 실험 계획법, 도시어에 대한 짧은 가이드 투어를 확인해 보세요.",
       "skip": "나중에"
-    }
+    },
+    "guideGroup": "가이드",
+    "openFullGuide": "전체 사용자 가이드 열기"
   },
   "tours": {
     "formulation": {

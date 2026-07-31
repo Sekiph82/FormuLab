@@ -1,11 +1,27 @@
-# User guide — Formula Builder, versioning, materials and costing
+# FormuLab User Guide
 
-This is the walkthrough for the R&D workflow: create a project, build a
-formula, save versions, price it against real materials, and compare. Each
-section links to the document that covers the topic in depth; this page is
-the map, not a replacement for those.
+*FormuLab — literature-driven chemical formulation discovery, laboratory
+and stability tracking, regulatory dossiers, and cost optimization, for
+Kenya/EAC R&D teams. Local-first: your projects live on your own machine,
+never on a server you don't control.*
 
-## 0. Navigating FormuLab: fourteen workspaces
+This is the walkthrough for the full R&D workflow: generate a starting
+idea, build a formula, save versions, test it in the lab and on the
+shelf, clear it for the markets you sell into, price it against real
+materials, and compare. Each section links to the document that covers
+the topic in depth; this page is the map, not a replacement for those.
+
+> **Copyright and standards notice.** This guide is FormuLab's own
+> documentation. It does not reproduce, summarize in full, or replace any
+> copyrighted standard (ISO, ASTM, EN, DIN, AOAC, USP, EP, BS, or any
+> other issuing body's publication) — see
+> [§17a](#17a-test-standards-and-methods) for exactly how FormuLab
+> handles standards. Consult the current official publication before any
+> regulated test, review, or submission.
+
+## 0. Navigating FormuLab
+
+![Home](screenshots/home-home-default-light-en.png "Recent projects, activity, open lab work, upcoming stability samples, pending approvals")
 
 The sidebar's **Workspaces** section is the primary navigation: **Home**
 (a real dashboard — recent projects, activity, open lab work, upcoming
@@ -42,6 +58,8 @@ losing your work). A page reached through a nested URL (e.g. a Settings
 section, or a live session) shows its parent page's help when it has no
 dedicated topic of its own.
 
+![The page Help panel](screenshots/help-panel-default-light-en.png "Summary, purpose, quick start, sections, related topics")
+
 Press **Ctrl/Cmd+/** (or run **Search help** from the command palette,
 **Ctrl/Cmd+K**) to open the global **Help Center** — a full-text search
 across every topic's title, summary, keywords, and quick-start text, plus
@@ -50,6 +68,8 @@ result opens the same Help panel; searching help never navigates you
 away from what you're doing. A handful of pages (an old redirect, the
 retained legacy Formula Builder, the 404 page) intentionally have no
 help topic — the Help button simply doesn't appear there.
+
+![The Help Center](screenshots/help-center-default-light-en.png "Full-text search across every topic and glossary term")
 
 Laboratory's help topic covers the Session 1A test-standards/methods
 feature — selecting a standard, primary vs. alternative methods, internal
@@ -63,12 +83,16 @@ Experiments' factors/responses, Stability's conditions/time points)
 opens a short explanation on hover or keyboard focus, with a "Learn more"
 link into that page's own Help panel where relevant.
 
+![An InfoTooltip open](screenshots/help-tooltip-default-light-en.png "Hover or keyboard-focus a field's \"i\" icon for a short explanation")
+
 When a button is greyed out (Laboratory's Make primary, Approval's
 Approve, a Dossier's Export PDF/DOCX, Data Exchange's Commit import,
 Formulation's Save cost snapshot), the reason is written directly beneath
 it — what's blocking it, which role can act if it's a permission issue,
 and whether you can resolve it yourself. A disabled button never reacts
 to a click; the explanation is not a hint to try anyway.
+
+![A disabled-action explanation](screenshots/help-disabled-action-default-light-en.png "What's blocking the action, and whether you can resolve it yourself")
 
 Three short **guided tours** — Formulation (the session composer where a
 formulation is generated), Design of Experiments, and Dossiers — walk
@@ -81,7 +105,73 @@ prompt** shown the first time you open the app (dismiss it with the ✕ or
 "Maybe later" — it never reappears once dismissed or once you've picked a
 tour). A tour never edits any project data; it only highlights.
 
+![The first-use onboarding prompt](screenshots/help-onboarding-default-light-en.png "Shown once per profile; pick a tour or dismiss it")
+
+![A guided tour step](screenshots/help-guided-tour-formulation-step-light-en.png "A spotlight and step card walk through the workspace's real controls")
+
+This guide itself is one Markdown source, rendered three ways: **in-app**
+(Help Center → **Open the full guide**, or the command palette), as a
+**PDF** (`docs/generated/FormuLab-User-Guide.pdf`), and as a **DOCX**
+(`docs/generated/FormuLab-User-Guide.docx`) — see
+[§29](#29-in-app-guide-and-pdfdocx-generation). English-only for v1, the
+same locale policy every screenshot in this guide follows.
+
+## 0b. Generate a starting formulation (the composer)
+
+![Formulation generation](screenshots/formulation-live-generation-light-en.png "The composer: target product, category, market, and Generate")
+
+**Sessions** (the sidebar's pinned bottom section, or `Ctrl/Cmd+B`'s
+default landing page) opens the composer at `/live` — FormuLab's front
+door for a brand-new idea, distinct from the **Formulation** project
+workspace described from [§1](#1-create-a-formula-project) onward.
+
+1. Describe the **target product** in plain language (e.g. "a
+   sulfate-free gentle shampoo"), optionally narrow the **category** and
+   **market**, then click **Generate**. This runs the real
+   discovery pipeline — retrieve open-access literature, extract cited
+   compositions, synthesize a brief, optimize, and report — never a
+   single unchecked model guess. A target FormuLab's safety classifier
+   flags as hazardous/regulated/medical asks for a named human's
+   acknowledgement before it proceeds; a prohibited target is refused
+   outright. See [§11](#11-safety).
+2. The result streams back as one or more numbered **candidates**
+   (V1, V2, V3, …), each a citable, printable formulation card.
+
+   ![Candidate versions](screenshots/formulation-live-candidate-tabs-light-en.png "V1/V2/V3 candidate tabs")
+
+3. **Card** shows the generated write-up and a cost estimate; **Edit
+   formula** opens that exact candidate in the same grid
+   [§2](#2-build-the-formula) uses, so you can adjust it immediately —
+   each candidate keeps its own independent, unsaved edits; editing V2
+   never touches V1 or V3.
+
+   ![Edit formula, function totals and warnings](screenshots/formulation-live-function-totals-warning-light-en.png "Function totals and an active-matter warning")
+
+4. The same **function totals** and validation findings from
+   [§2](#2-build-the-formula) apply here — a badge like "anionic
+   surfactant: 18%" is always the real formula percentage, never zeroed
+   just because a material's active-matter content is unrecorded; an
+   incomplete active-matter figure is reported as its own honest
+   `(active data incomplete)` note, not folded into the percentage.
+
+> **A generated candidate is not automatically a project.** The composer
+> and the Formulation project workspace do not currently bridge
+> automatically — there is no "save this candidate as a project version"
+> button. If a candidate looks promising, start a real project
+> ([§1](#1-create-a-formula-project)) and rebuild it there, using the
+> candidate as your reference; only a project version gets save-history,
+> approval, laboratory/stability/regulatory tracking, and dossiers.
+
+Every past run appears in the sidebar's **Sessions** list (newest first,
+up to 8 shown, **View all** for the rest) — click one to reopen it
+**read-only** (no new model call); delete one with the trash icon next
+to it. A session never appears there unless it actually produced at
+least one card — a refused or failed run is never listed as if it
+succeeded.
+
 ## 1. Create a formula project
+
+![Projects](screenshots/projects-projects-default-light-en.png "Every formulation project")
 
 **Projects → New project** in the sidebar (or **Home → Recent projects**
 once you have one).
@@ -362,7 +452,7 @@ an invalid move is refused, and only a human can mark a trial `completed`.
   duration against the planned range.
 - **Observations & deviations**: log an observation, file a deviation
   (minor/major/critical), resolve it or accept it with a written
-  justification, and open a [corrective action](#18-corrective-actions)
+  justification, and open a [corrective action](#19-corrective-actions)
   directly from an unresolved one. A critical open deviation blocks the
   trial from being marked complete.
 - **Test results**: enter replicate values for any active numeric
@@ -406,6 +496,8 @@ Each test definition can now carry its own configurable standard(s) and
 method, independent of every other test — changing pH's standard never
 touches viscosity's. Open a definition's **Method** button (next to it in
 Test Definitions) to manage this.
+
+![Laboratory test method drawer](screenshots/laboratory-laboratory-test-methods-light-en.png "The Method drawer: primary vs. alternative, standard status, historical snapshots")
 
 - **Selecting a method**: a test may have one **primary** method and any
   number of **alternative** methods, each linking a `LaboratoryStandard`
@@ -556,6 +648,29 @@ trials, stability results and regulatory reviews), the live Evidence
 Matrix (filterable, exportable), Reviews and Submissions. Evidence can be
 replaced (never edited in place) with a full revision chain kept visible.
 
+![Dossier readiness and export](screenshots/dossiers-dossiers-default-light-en.png "Readiness summary and PDF/DOCX export")
+
+Once enough evidence is accepted, the readiness summary shows exactly how
+many mandatory requirements are satisfied and what's still missing —
+never a single pass/fail flag standing in for the real detail. **Export
+PDF** / **Export DOCX** (Evidence Library section) render a real,
+watermarked document from the current evidence matrix — see
+[§21a](#21a-dossier-pdfdocx-export). Exporting never approves anything by
+itself: approval only happens in the Approval workspace
+([§5](#5-approval)/[§12](#12-approval-readiness)).
+
+### 21a. Dossier PDF/DOCX export
+
+A Dossier's **Export PDF**/**Export DOCX** buttons (authorized
+regulatory/quality/administrator roles only — shown disabled with the
+exact reason for anyone else, never hidden) generate a real, deterministic
+document straight from `pdf-lib`/`docx` — the same two libraries this
+guide's own PDF/DOCX exports use ([§0a](#0a-getting-help-in-the-app)) —
+never an HTML/DOM screenshot. Every export is persisted as a dated
+export-history record and an audit event, whether it succeeded or
+failed, and is watermarked `R&D DRAFT — NOT PRODUCTION APPROVED` unless
+the source formula version is genuinely `production_approved`.
+
 Open the **Claims & Labels workspace** (`/claims-labels`) to manage
 product claims and product labels for the same formula version. A
 **claim** starts as a draft with an auto-classified category (30
@@ -624,8 +739,10 @@ companion documents (`DOE_STUDIES.md`, `DOE_FACTORS_AND_CONSTRAINTS.md`,
 Open the **Data Exchange Center** (`/data-exchange`, sidebar between
 Reports and Administration) to bulk import or export structured data —
 materials, suppliers, prices, formulas, lab/stability results, regulatory
-rules, dossier evidence, claims, label content, DOE data, and more — as
-CSV or real Excel files, across 24 templates.
+rules, dossier evidence, claims, label content, DOE data, Reverse
+Formulation studies, and more — as CSV or real Excel files, across **41
+templates** (the exact, test-enforced count — see
+`packages/shared/src/engine/dataExchangeRegistry.ts`).
 
 For any template's card in the **Template Library**: download a **Blank**
 file (header row only) to fill in from scratch, an **Example** file (a
@@ -642,6 +759,8 @@ for every problem row and a downloadable error report. Fix your file and
 re-upload as many times as you need; nothing is written to FormuLab until
 you click **Commit import**. If some rows are wrong but others are clean,
 you can choose to import just the valid ones and skip the rest.
+
+![Data Exchange validation preview](screenshots/data-exchange-data-exchange-default-light-en.png "Row-level preview before commit — new/updated/duplicate/warning/error counts")
 
 The **Import History** section shows every attempt — including ones you
 cancelled or that failed validation — with counts, status, and a link
@@ -664,9 +783,181 @@ companion documents (`DATA_EXCHANGE_TEMPLATE_REGISTRY.md`,
 `DATA_EXCHANGE_VALIDATION.md`, `DATA_EXCHANGE_SECURITY.md`,
 `DATA_EXCHANGE_HISTORY.md`, `DATA_EXCHANGE_TEMPLATE_CATALOG.md`).
 
+## 24. Reverse Formulation
+
+Open the **Reverse Formulation workspace** (`/reverse-formulation`,
+Formulation group) to benchmark a competitor's product and generate
+candidate formulas that could plausibly recreate it — a research aid,
+never a claim of an exact recreation.
+
+1. **Studies** — create a study (code, name, project, product family).
+2. **Products** — attach one or more benchmark products to the study;
+   for each, record its **ingredient declaration** (the label's INCI
+   list, in order — order matters, since INCI order is itself evidence
+   of relative concentration) and any real **analytical composition
+   results** you have (lab-measured values), each explicitly
+   `unverified` until a human checks it.
+3. **Mapping** — map each declared ingredient to a real material in your
+   own catalog (manual, or a suggested match), then **confirm** or
+   **reject** the proposal — a mapping is never auto-accepted.
+4. **Target & constraints** — attach a target product profile (pH range,
+   jurisdictions, and more) and a constraint set (required/preferred/
+   excluded materials, required functions, min/max percentages per
+   material).
+5. **Candidates** — generate candidate formulas from the declaration,
+   mappings, target, and constraints (`engine/candidateGenerator.ts`),
+   each scored (`engine/scoringModel.ts`) and ranked, with its scoring
+   broken down and explained per dimension, never a single unexplained
+   number. Save a candidate you like, or convert it straight into a real
+   Formulation project version through the normal versioning path — the
+   only module in this guide with that direct bridge (see the composer's
+   own limitation in [§0b](#0b-generate-a-starting-formulation-the-composer)).
+   A converted version always starts at `concept` status and is
+   traceable back to its source study/candidate in the audit log; it
+   never inherits approval.
+
+Every line a candidate proposes is attributed `model_estimate`
+provenance, the same honest-origin convention every other estimated
+number in FormuLab uses ([§2](#2-build-the-formula)) — never presented
+as a measured or confirmed fact.
+
+## 25. Reports
+
+Open **Reports** (sidebar, between Approval and Data Exchange) for a
+single navigation shell over every module's own real export — it does
+not generate a new document type of its own. From here you can jump
+straight to a project's Formulation exports, a trial's or study's lab/
+stability reports, a dossier's PDF/DOCX, or the Data Exchange Center's
+current-data downloads, without hunting through each workspace
+individually.
+
+## 26. Administration
+
+Open **Administration** (sidebar, near the bottom) for the
+organization-wide configuration screens that sit above any one project:
+
+- **Materials, suppliers, packaging & factory profiles** — the same
+  screens described in [§6](#6-raw-materials-and-suppliers) and
+  [§7](#7-prices-landed-cost-and-inventory), reachable here since they're
+  shared across every project, not owned by one.
+- **Test definitions** — the same catalog described in
+  [§17](#17-test-definitions), reachable here for the same reason.
+- Links out to **Regulatory rules** ([§20](#20-regulatory-kenyaeac)),
+  **Approval policies** ([§5](#5-approval)/[§12](#12-approval-readiness)),
+  the **Data Exchange Center** ([§23](#23-data-exchange-center)), and
+  **Settings** ([§28](#28-settings)) — Administration is the map between
+  them, not a duplicate of any one.
+
+![Administration](screenshots/administration-administration-default-light-en.png "Materials, test definitions, and links to every other configuration screen")
+
+## 27. Notebooks, Files, and Runs
+
+Three **Tools** workspaces, useful once your project grows beyond the
+formula grid itself:
+
+- **Notebooks** (`/notebooks`) lists every real `.ipynb` notebook across
+  every session/project folder, newest first. Create one, or open an
+  existing one, and run cells on the app's local Python kernel — the
+  same file the app itself edits, so there's exactly one copy to keep in
+  sync, never a second "generated" mirror. **Open JupyterLab** is
+  available once the app-managed Python environment is set up.
+- **Files** (`/files`) is a real file browser and previewer (image,
+  notebook, spreadsheet, and more, by extension) for your project
+  folder — right-click for the usual file actions.
+- **Runs** (`/runs`) is the reproducibility log: every command FormuLab
+  itself executed on your behalf (what ran, when, its environment,
+  its inputs/outputs), searchable and filterable, with a **Reproduce**
+  action that hands the exact original prompt back to you rather than
+  silently re-running something that may no longer be safe to repeat
+  unattended.
+
+![Notebooks, Files, and Runs](screenshots/tools-notebooks-default-light-en.png "Tools: real .ipynb notebooks, a file browser, and the reproducibility log")
+
+## 28. Settings
+
+Open **Settings** (bottom of the sidebar) for six sections:
+
+- **General** — the raw-materials/pricing screen ([§6](#6-raw-materials-and-suppliers)),
+  your **workspace folder** (where projects/sessions/formulas live on
+  disk — change or reveal it in Explorer/Finder), and **app updates**
+  (manual check, auto-check toggle, update-badge visibility).
+- **Models** — the provider, model, and API key the composer
+  ([§0b](#0b-generate-a-starting-formulation-the-composer)) uses to
+  generate a formulation. Never used for anything approval-related —
+  see [§30](#30-roles-safety-and-auditability).
+- **Runtime** *(desktop app only)* — the local Python interpreter
+  notebooks and the pipeline run on; auto-detected, with a manual
+  override if you need a specific one.
+- **Compute** — optional remote compute (a remote cluster, or Modal) for
+  work heavier than your own machine.
+- **Privacy** — a data-flow summary: what leaves your machine, to where,
+  and under which model/workspace configuration.
+- **Appearance** — theme (light/warm/dark), UI **language** (any of the
+  8 shipped locales), and, in the desktop app, page **zoom**.
+
+![Settings](screenshots/settings-settings-default-light-en.png "General, Models, Runtime, Compute, Privacy, and Appearance")
+
+## 29. In-app guide and PDF/DOCX generation
+
+This guide is one Markdown source
+(`docs/USER_GUIDE.md`) rendered three ways, never duplicated into a
+second copy:
+
+- **In-app**: Help Center → **Open the full guide** (or the command
+  palette) renders this exact file through the same `MarkdownViewer`
+  every other in-app document uses — no separate in-app content model.
+- **PDF**: `docs/generated/FormuLab-User-Guide.pdf` — a real,
+  paginated document with a cover page, a table of contents with real
+  page numbers, page numbers on every page, embedded screenshots with
+  captions, callout boxes, and readable tables, built with `pdf-lib`
+  (the same library Dossier PDF export uses, with a guide-specific
+  layout — never the dossier's own content model).
+- **DOCX**: `docs/generated/FormuLab-User-Guide.docx` — the same
+  content via `docx` (the same library Dossier DOCX export uses), with a
+  native, Word-refreshable table of contents.
+
+Regenerate both with `pnpm docs:guide:generate` after editing this file.
+A screenshot referenced in the Markdown that hasn't been captured yet is
+skipped with a small "image not yet available" placeholder rather than
+breaking the build — see `docs/PHASE10_SCREENSHOT_MANIFEST.json` for
+which screenshots exist and which are still pending.
+
+## 30. Roles, safety, and auditability
+
+FormuLab's real role model
+(`ApprovalRole`): **researcher**, **chemist**, **quality**,
+**regulatory**, **production**, **administrator**. There is no login or
+session-identity system — every workspace that needs a role asks you to
+select which one you're acting as (an honest limitation, not a security
+boundary; see [§0a](#0a-getting-help-in-the-app)'s disabled-action
+explanations for exactly which role each gated action needs).
+
+| Gate | Who can act | Enforced |
+|---|---|---|
+| `pilot_approved` | chemist, quality, administrator | engine-side, not just the UI |
+| `production_approved` | quality, regulatory, production, administrator | engine-side, not just the UI |
+| Dossier/Claims formal review or export | regulatory, quality, administrator | engine-side, not just the UI |
+| Laboratory method assignment/promotion | chemist, quality, administrator | engine-side, not just the UI |
+
+> **No automated actor can ever approve.** An AI-generated candidate, an
+> imported spreadsheet row, or a system process can never set
+> `pilot_approved`/`production_approved`, record a regulatory review,
+> or verify evidence — only a named human, through that module's own
+> workspace. This is checked in the engine layer itself
+> (`packages/shared/src/engine/`), not merely hidden in the interface —
+> see [FORMULA_VERSIONING.md](FORMULA_VERSIONING.md#approval).
+
+Every meaningful change — a saved version, an approval, a status change,
+an evidence upload, a review, an export — appends to that project's own
+audit log; nothing in FormuLab silently rewrites history. A number this
+guide cannot honestly compute stays labelled `missing` / `unknown` /
+`not_applicable` / `not_verified` / `estimated` rather than defaulting to
+zero or an invented value — the same discipline every module above
+follows, not a one-off caveat.
+
 ## Known limitations
 
-For how the fourteen workspaces are organized and why, see
+For how the sidebar's workspaces are organized and why, see
 [INFORMATION_ARCHITECTURE.md](INFORMATION_ARCHITECTURE.md),
 [WORKSPACES.md](WORKSPACES.md) and
 [NAVIGATION_AND_CONTEXT.md](NAVIGATION_AND_CONTEXT.md).
@@ -681,14 +972,17 @@ claims, labels, artwork, formula-label consistency, `/claims-labels`) are
 both implemented, including their workspace UIs — see
 [REGULATORY_DOSSIERS.md](REGULATORY_DOSSIERS.md),
 [PRODUCT_CLAIMS.md](PRODUCT_CLAIMS.md), [PRODUCT_LABELS.md](PRODUCT_LABELS.md).
-Neither generates a final formatted PDF/DOCX document (Phase 7). Phase 5
+Dossiers generates a real, watermarked final PDF/DOCX (Phase 7 — see
+[§21a](#21a-dossier-pdfdocx-export)); Claims & Labels does not have its
+own equivalent document export yet. Phase 5
 (Design of Experiments, `/doe`) is implemented, including its workspace
 UI — see [DESIGN_OF_EXPERIMENTS.md](DESIGN_OF_EXPERIMENTS.md); within it,
 `definitive_screening`/`mixture_simplex_centroid` designs, fractions beyond
 a half-fraction, and Plackett-Burman sizes beyond N=12 are refused rather
 than faked, and an analysis-results export can never be re-imported as a
-native analysis. The reverse-formulation module described in the full
-specification is designed but not implemented (Phase 6). Laboratory trials and
+native analysis. Reverse Formulation ([§24](#24-reverse-formulation)) is
+implemented, including candidate generation, scoring, and a direct
+conversion path into a real Formulation project version. Laboratory trials and
 stability studies (§16–19 above) are implemented, but automatic shelf-life
 prediction is deliberately not — see
 [STABILITY_TRENDS.md](STABILITY_TRENDS.md#no-validated-shelf-life-claims).
@@ -716,10 +1010,21 @@ app exists yet in this environment — see
 [APPROVAL_MANUAL_SMOKE_TEST.md](APPROVAL_MANUAL_SMOKE_TEST.md). Nothing in
 this guide describes an unimplemented module as available.
 
-This guide does not yet embed screenshots. A safe, deterministic
-documentation fixture and a screenshot manifest exist
-(`docs/PHASE10_SCREENSHOT_MANIFEST.json`) so illustrations can be added
-without ever capturing from a real project — every fixture record is
-synthetic and clearly marked `DEMO-`, seeded into an isolated profile
-that is never the app's real data folder. The actual capture pass and
-embedding the images into this guide are later-phase work.
+This guide now references real screenshot filenames throughout (the
+`<module>-<page>-<state>-<theme>-<locale>.png` convention from
+`docs/PHASE10_SCREENSHOT_MANIFEST.json`), but **no screenshot has
+actually been captured yet** — every reference currently resolves to a
+missing image, rendered as a small, honest placeholder in the PDF/DOCX
+rather than a broken image or a silently-dropped one. This is a genuine,
+disclosed gap, not an oversight: capturing a real screenshot requires
+driving the actual Tauri desktop window (launching it against the
+Session 5 documentation fixture, navigating it, and taking a pixel
+capture), and no reliable, safe automation driver for that native
+window was available in this session's environment — attempting it
+with fragile timing-based input injection risked capturing and shipping
+a wrong or half-loaded state, which would be worse than no image. The
+safe, deterministic documentation fixture and screenshot manifest exist
+and are fully wired up (every fixture record is synthetic and clearly
+marked `DEMO-`, seeded into an isolated profile that is never the app's
+real data folder); only the actual capture pass remains, for a future
+session with a proper window-automation harness.

@@ -505,7 +505,9 @@
       "title": "Nouveau sur FormuLab ?",
       "body": "Suivez une courte visite guidée de Formulation, Plan d'expériences ou Dossiers.",
       "skip": "Plus tard"
-    }
+    },
+    "guideGroup": "Guide",
+    "openFullGuide": "Ouvrir le guide utilisateur complet"
   },
   "tours": {
     "formulation": {

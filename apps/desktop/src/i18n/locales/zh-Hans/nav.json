@@ -82,7 +82,8 @@
       "openSettings": "打开设置",
       "toggleTheme": "切换主题（浅色 / 暖色 / 深色）",
       "openFiles": "打开文件",
-      "searchHelp": "搜索帮助"
+      "searchHelp": "搜索帮助",
+      "openGuide": "打开用户指南"
     }
   }
 }

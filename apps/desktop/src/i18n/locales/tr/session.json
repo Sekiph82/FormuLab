@@ -2430,5 +2430,11 @@
         "createVersion": "Yeni sürüm oluştur"
       }
     }
+  },
+  "guide": {
+    "title": "Kullanıcı Kılavuzu",
+    "englishOnlyNotice": "Bu kılavuz şu anda yalnızca İngilizce olarak mevcuttur.",
+    "screenshotNotCaptured": "[Ekran görüntüsü henüz alınmadı: {{caption}}]",
+    "screenshotFallbackCaption": "Ekran görüntüsü"
   }
 }

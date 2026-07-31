@@ -82,7 +82,8 @@
       "openSettings": "Ayarları aç",
       "toggleTheme": "Temayı değiştir (açık / sıcak / koyu)",
       "openFiles": "Dosyaları aç",
-      "searchHelp": "Yardımda ara"
+      "searchHelp": "Yardımda ara",
+      "openGuide": "Kullanıcı kılavuzunu aç"
     }
   }
 }

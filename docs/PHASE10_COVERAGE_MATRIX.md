@@ -516,8 +516,36 @@ code or a route table.
 | `build.ts` | Deterministic fixture data (project, version, session, 18 master-data collections) | Every record validated against its real `@formulab/shared` Zod schema; real catalog codes reused (`HC-SHAMPOO-REG`, `raw_materials`); `DEMO-` prefixed throughout |
 | `fixtureWriter.ts` | Seed/reset to a real, isolated directory (`.docs-fixture/` by default) | Fails closed on a real-profile-looking path or an unknown non-empty directory; idempotent reset |
 | `screenshotManifest.ts` | Types + the naming convention + drift detection | `id` cross-checked against its own component fields; `route`/`helpTopic` cross-checked against the real `topicForRoute()`/`HELP_TOPICS` |
-| `docs/PHASE10_SCREENSHOT_MANIFEST.json` | 26 entries, one per required coverage item | `lastCapturedCommit: null` on every entry — no image captured yet; Session 6 does the capture sweep |
+| `docs/PHASE10_SCREENSHOT_MANIFEST.json` | 26 entries, one per required coverage item | `lastCapturedCommit: null` on every entry — no image captured yet |
 
 No screenshot binary exists yet. Every module row's "Screenshot" answer
 above (`yes`/`no`/planned) is unaffected by this session — the manifest
-records WHICH shot each module needs, not that it has been taken.
+records WHICH shot each module needs, not that it has been taken. Session
+6 (illustrated guide content) also did not capture any — see below; the
+capture sweep remains deferred to a future session with a real
+window-automation harness.
+
+## Illustrated user guide and PDF/DOCX generation (Session 6 — `docs/USER_GUIDE.md`, `apps/desktop/src/lib/userGuideExport/*`)
+
+`docs/USER_GUIDE.md` now covers every module in this matrix (31 real
+sections, see the handoff's Session 6 summary for the full list) and
+embeds a reference to all 17 highest-value screenshots from the manifest
+above — but, matching this session's own honest-disclosure discipline,
+**zero screenshots were captured**: no reliable, safe automation driver
+exists in this environment for the native Tauri window, and every
+manifest entry's `lastCapturedCommit` correctly stays `null`. Both the
+PDF/DOCX exporters and the in-app guide (`MarkdownViewer`'s new
+`MarkdownImage`) render the same real "not yet captured" placeholder
+rather than a broken image or a silent omission.
+
+| Output | Real, tested, and where |
+|---|---|
+| In-app (`/guide`) | `UserGuidePage.tsx`, reachable from the Help Center and command palette; renders the exact `docs/USER_GUIDE.md` bytes via a Vite `?raw` import — no second copy |
+| PDF | `docs/generated/FormuLab-User-Guide.pdf` — cover page, real table of contents with real page numbers, page numbers on every page, embedded screenshots (once captured) with captions, callouts, tables; byte-deterministic across regenerations |
+| DOCX | `docs/generated/FormuLab-User-Guide.docx` — native Word heading styles + a real, Word-refreshable `TableOfContents` field; structurally deterministic (same known zip-timestamp limitation `dossierDocx.ts` already has) |
+
+One genuine pre-existing defect this session's own tooling found and
+fixed: an internal guide cross-reference (`#18-corrective-actions`)
+pointed at the wrong section (the real Corrective Actions heading is
+§19) — caught by `generate.test.ts`'s anchor-resolution check, not
+something Session 6 introduced.

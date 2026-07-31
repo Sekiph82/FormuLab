@@ -505,7 +505,9 @@
       "title": "FormuLabは初めてですか？",
       "body": "配合、実験計画法、ドシエの簡単なガイドツアーをご覧ください。",
       "skip": "後で"
-    }
+    },
+    "guideGroup": "ガイド",
+    "openFullGuide": "完全なユーザーガイドを開く"
   },
   "tours": {
     "formulation": {

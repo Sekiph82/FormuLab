@@ -11,7 +11,8 @@
     "typecheck": "pnpm --filter @formulab/desktop typecheck",
     "lint": "pnpm --filter @formulab/desktop lint",
     "docs:fixture:seed": "tsx scripts/dev/seed-docs-fixture.ts",
-    "docs:fixture:reset": "tsx scripts/dev/seed-docs-fixture.ts --reset"
+    "docs:fixture:reset": "tsx scripts/dev/seed-docs-fixture.ts --reset",
+    "docs:guide:generate": "tsx scripts/dev/generate-user-guide.ts"
   },
   "engines": {
     "node": ">=20"

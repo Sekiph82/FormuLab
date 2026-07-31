@@ -2430,5 +2430,11 @@
         "createVersion": "새 버전 생성"
       }
     }
+  },
+  "guide": {
+    "title": "사용자 가이드",
+    "englishOnlyNotice": "이 가이드는 현재 영어로만 제공됩니다.",
+    "screenshotNotCaptured": "[스크린샷 아직 캡처되지 않음: {{caption}}]",
+    "screenshotFallbackCaption": "스크린샷"
   }
 }

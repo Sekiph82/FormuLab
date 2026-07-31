@@ -1,6 +1,6 @@
 # Phase 10 — User Guide and In-App Help
 
-## Status: Session 5 (documentation fixture data and screenshot capture system) complete.
+## Status: Session 6 (illustrated user guide content and PDF/DOCX generation) complete.
 
 ## Key finding: build on what already exists, don't start from zero
 This repository already has (a) a rich, technically accurate but
@@ -860,5 +860,120 @@ here per instruction, without renumbering any Phase 10 session.
   captures (light is primary per plan; dark is optional/secondary future
   work for the in-app Help Center only).
 
+## Session 6 summary — illustrated user guide content and PDF/DOCX generation (complete)
+
+- **Guide content**: `docs/USER_GUIDE.md` expanded from 26 to 31 real
+  sections (0, 0a, 0b, 1-30 plus Known limitations), covering every topic
+  the session objective listed: the `/live` session composer and V1/V2/V3
+  candidate editing (new §0b — previously undocumented entirely, despite
+  being the app's actual `/` redirect landing flow), Reverse Formulation
+  (new §24 — was previously marked "designed but not implemented (Phase
+  6)," which was stale; it shipped), Notebooks/Files/Runs (new §27),
+  Settings' real six sections (new §28), an explicit Roles/safety/
+  auditability chapter with a real gate-authority table (new §30), and
+  §29 documenting the in-app/PDF/DOCX triad this session adds. Stale
+  claims fixed: Data Exchange's template count (24 → the real,
+  test-enforced 41 — `dataExchangeRegistry.test.ts` asserts this exactly),
+  Dossier PDF/DOCX export ("does not generate a final formatted
+  PDF/DOCX" → real Phase 8 export, documented in new §21a), Reverse
+  Formulation's not-implemented marker, and a stray "fourteen workspaces"
+  reference left over after the section 0 heading itself dropped that
+  count. One genuine pre-existing broken internal anchor
+  (`#18-corrective-actions` pointing at what is actually section 19) was
+  found and fixed by `generate.test.ts`'s own anchor-resolution check —
+  not something this session introduced, but a real defect this session's
+  tooling caught.
+- **Screenshots — none captured, honestly disclosed**: the guide
+  references all 17 highest-value screenshots from
+  `docs/PHASE10_SCREENSHOT_MANIFEST.json` (Formulation generation/
+  candidate-tabs/function-totals, Laboratory method drawer, Dossier
+  readiness/export, Data Exchange validation, Help panel/Center/tooltip/
+  disabled-action/guided-tour/onboarding, Home/Projects/Administration/
+  Settings/Notebooks), but **zero were actually captured this session** —
+  no reliable, safe automation driver exists in this environment for the
+  native Tauri WebView2 window (no Playwright/WebDriver wired for Tauri,
+  no accessibility-tree-based clicking), and fragile timing-based input
+  injection risked capturing and shipping a wrong or half-loaded state,
+  which would be worse than no image. Every `lastCapturedCommit` in the
+  manifest stays `null` — nothing was falsely marked captured. The guide
+  itself discloses this plainly in "Known limitations," and both the
+  PDF/DOCX exporters and the in-app `MarkdownViewer` render a real,
+  honest "not yet captured" placeholder rather than a broken image.
+- **PDF/DOCX exporters** (`apps/desktop/src/lib/userGuideExport/`):
+  `markdown.ts` — a small, purpose-built block parser for the guide's own
+  real Markdown subset (headings, paragraphs, lists, blockquote callouts,
+  GFM tables, fenced code, images with optional titles) — deliberately
+  not a second content model borrowed from Dossier's
+  `buildDossierDocumentContent`, per the session's own instruction.
+  `pdf.ts` — `pdf-lib`, a genuinely two-pass render (body pages laid out
+  first, recording each chapter's real absolute page number; the
+  pre-reserved TOC pages are then drawn from that map), a cover page,
+  page numbers on every page, embedded screenshots with captions,
+  tone-colored callouts, bordered tables, and a `sanitizeForPdf` pass
+  (two real guide characters — ✕ and → — aren't in `pdf-lib`'s standard
+  WinAnsi font and would otherwise crash the render; caught by
+  `generate.test.ts`'s real end-to-end run against the actual guide text,
+  not a synthetic fixture). `docx.ts` — `docx`, real `HeadingLevel.
+  HEADING_1/2/3` styles (drives Word's own navigation pane) and a native
+  `TableOfContents` field (Word computes real page numbers itself on
+  open/refresh — a genuinely richer "internal document structure" than
+  the PDF's hand-computed one). Both libraries are the same ones Dossier
+  export already uses ([§21a](../USER_GUIDE.md#21a-dossier-pdfdocx-export)) —
+  reused, never duplicated. `screenshots.ts` — resolves an image block's
+  `src` against `docs/screenshots/<file>.png`, returning a typed
+  found/missing result, never throwing; `readPngDimensions` decodes a
+  PNG's own IHDR chunk (no image library dependency) for `docx`'s
+  `ImageRun`, which needs real pixel dimensions. `generate.ts` —the one
+  orchestrator both the CLI script and the tests call — reads
+  `docs/USER_GUIDE.md`, renders both formats, writes
+  `docs/generated/FormuLab-User-Guide.{pdf,docx}`.
+- **Determinism**: PDF output is byte-identical across regenerations of
+  the same source (verified by a direct buffer-equality test) — every
+  date comes from a caller-supplied fixed timestamp, never `new Date()`.
+  DOCX is NOT byte-identical (the `docx` package's public API exposes no
+  way to override its zip-archive timestamps — the exact same known,
+  already-documented limitation `documentExports/dossierDocx.ts` has);
+  `docx.test.ts` verifies structural determinism instead (the extracted
+  `word/document.xml` content is identical), matching that file's own
+  established precedent rather than inventing a new one.
+- **In-app guide**: new `/guide` route (`UserGuidePage.tsx`) renders
+  `docs/USER_GUIDE.md` through the existing `MarkdownViewer` (`variant=
+  "document"`) via a Vite `?raw` import — the file is bundled at build
+  time, never duplicated into locale JSON or a second copy; only the page
+  chrome (title, "English only" notice) is translated, matching the
+  explicit "do not duplicate guide text" instruction. Reachable from the
+  Help Center (new "Guide" group → "Open full user guide") and the
+  command palette (new "Open user guide" action) — no sidebar
+  restructuring. Added to `HELP_EXCLUSIONS` (its own content already
+  explains itself; a Help panel about the Help guide would be redundant).
+  `MarkdownViewer` itself gained two small, genuinely useful capabilities
+  used by every document it renders (not guide-specific): real heading
+  `id` attributes (a GitHub-slug-compatible `slugifyHeadingText`, mirrring
+  `lib/userGuideExport/markdown.ts`'s own `slugifyHeading` so a guide
+  cross-reference like `[§18](#18-corrective-actions)` actually navigates
+  in-app, not just on GitHub), and a graceful missing-image fallback
+  (`MarkdownImage`, real `onError` handling) — the same "not yet
+  captured" wording the PDF/DOCX exporters use, one honest message across
+  all three render paths.
+- **Tests**: `markdown.test.ts` (18), `screenshots.test.ts` (4),
+  `pdf.test.ts` (7), `docx.test.ts` (7), `guideContent.test.ts` (7),
+  `generate.test.ts` (13 — including the real end-to-end generation run
+  against the actual `docs/USER_GUIDE.md`, the real screenshot-reference
+  cross-check against the real manifest, and the real internal-anchor
+  cross-check), `MarkdownViewer.test.tsx` (5), `UserGuidePage.test.tsx`
+  (2) — 63 new tests. Full desktop suite: 999/999 across 121 files.
+  Desktop typecheck/lint clean. i18n parity 18/18 (new `session:guide.*`
+  keys — title, English-only notice, missing-screenshot placeholder text
+  — genuinely translated across all 8 locales; the guide BODY itself
+  stays English-only per policy). Shared and Rust untouched — not re-run.
+- **Documentation**: `docs/PHASE10_SCREENSHOT_MANIFEST.json` unchanged
+  (0 entries captured — nothing to update per-entry); `docs/generated/
+  FormuLab-User-Guide.{pdf,docx}` are real, committed build artifacts.
+- **Out of scope this session (unchanged from plan)**: the actual
+  screenshot capture sweep (deferred again, now explicitly to "a future
+  session with a proper window-automation harness" — not Session 7,
+  which is verification-only per its own scope), non-English guide body
+  content, dark-theme captures.
+
 ## Exact next session
-Phase 10 Session 6: Illustrated User Guide Content and PDF/DOCX Generation.
+Phase 10 Session 7: Full Coverage Verification.

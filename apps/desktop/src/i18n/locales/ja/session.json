@@ -2430,5 +2430,11 @@
         "createVersion": "新しいバージョンを作成"
       }
     }
+  },
+  "guide": {
+    "title": "ユーザーガイド",
+    "englishOnlyNotice": "このガイドは現在英語のみで提供されています。",
+    "screenshotNotCaptured": "[スクリーンショット未取得: {{caption}}]",
+    "screenshotFallbackCaption": "スクリーンショット"
   }
 }

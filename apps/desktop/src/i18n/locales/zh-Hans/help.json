@@ -505,7 +505,9 @@
       "title": "初次使用 FormuLab？",
       "body": "来一段关于配方、实验设计或档案的简短导览。",
       "skip": "以后再说"
-    }
+    },
+    "guideGroup": "指南",
+    "openFullGuide": "打开完整用户指南"
   },
   "tours": {
     "formulation": {

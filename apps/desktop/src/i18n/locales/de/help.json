@@ -505,7 +505,9 @@
       "title": "Neu bei FormuLab?",
       "body": "Nehmen Sie an einer kurzen geführten Tour zu Formulierung, Versuchsplanung oder Dossiers teil.",
       "skip": "Vielleicht später"
-    }
+    },
+    "guideGroup": "Handbuch",
+    "openFullGuide": "Vollständiges Benutzerhandbuch öffnen"
   },
   "tours": {
     "formulation": {
