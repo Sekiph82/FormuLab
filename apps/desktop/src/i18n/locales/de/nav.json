@@ -49,7 +49,9 @@
     "heading": "Sitzungen",
     "empty": "Noch keine Unterhaltungen.",
     "exampleTag": "Beispiel",
-    "deleteAria": "{{title}} löschen"
+    "deleteAria": "{{title}} löschen",
+    "viewAll": "Alle Sitzungen anzeigen",
+    "showFewer": "Weniger anzeigen"
   },
   "confirmDelete": {
     "sessionTitle": "Sitzung löschen?",

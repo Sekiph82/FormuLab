@@ -6,6 +6,7 @@
  * not be deleted).
  */
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { isValidElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useUiStore } from "@/lib/store";
@@ -29,12 +30,33 @@ vi.mock("@/lib/masterdata", async (importOriginal) => {
 afterEach(() => useUiStore.getState().setLocale("en"));
 
 describe("primary navigation", () => {
-  it("renders all ten workspaces", async () => {
+  it("renders the 10 top-level entries: 5 direct links, 4 accordion groups, and Sessions", async () => {
     renderAt("/home");
-    const nav = await screen.findByRole("navigation");
-    for (const label of ["Home", "Projects", "Formulation", "Laboratory", "Stability", "Optimization", "Regulatory", "Approval", "Reports", "Administration"]) {
-      expect(within(nav).getByText(label)).toBeInTheDocument();
+    const nav = await screen.findByRole("navigation", { name: "Workspaces" });
+    for (const label of ["Home", "Projects", "Reports", "Data Exchange", "Administration"]) {
+      expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }
+    for (const label of ["Formulation", "Laboratory", "Regulatory", "Tools"]) {
+      expect(within(nav).getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(screen.getByText("Sessions")).toBeInTheDocument();
+  });
+
+  it("reaches every workspace once its group is expanded", async () => {
+    const user = userEvent.setup();
+    renderAt("/home");
+    const nav = await screen.findByRole("navigation", { name: "Workspaces" });
+
+    await user.click(within(nav).getByRole("button", { name: "Laboratory" }));
+    for (const label of ["Laboratory", "Stability"]) {
+      expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
+    }
+
+    await user.click(within(nav).getByRole("button", { name: "Formulation" }));
+    expect(within(nav).getByRole("link", { name: "Optimization" })).toBeInTheDocument();
+
+    await user.click(within(nav).getByRole("button", { name: "Regulatory" }));
+    expect(within(nav).getByRole("link", { name: "Approval" })).toBeInTheDocument();
   });
 });
 

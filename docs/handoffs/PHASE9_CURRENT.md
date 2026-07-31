@@ -1,5 +1,42 @@
 # Phase 9 — `ai4s`/`AI4S` → FormuLab Naming Migration
 
+## Out-of-band: Sidebar Navigation Consolidation (unrelated to the naming
+migration — recorded here only because this is the currently active
+handoff document; does not affect Phase 9's own session numbering).
+
+Consolidated `apps/desktop/src/components/sidebar/Sidebar.tsx`'s
+top-level navigation from 15 flat items down to exactly 10: Home,
+Projects, Formulation (group), Laboratory (group), Regulatory (group),
+Reports, Data Exchange, Administration, Tools (group), Sessions.
+Formulation groups Optimization/Design of Experiments/Reverse
+Formulation; Laboratory groups Stability; Regulatory groups
+Dossiers/Claims & Labels/Approval; Tools groups Notebooks/Files/Runs —
+each group's own overview page is an explicit first child row, never
+merged into the header, so every group header is a pure accordion
+toggle. Single source of truth for the nav stayed in `Sidebar.tsx`
+itself (no second registry) — `router.tsx`'s route list is unchanged
+and every previous path still resolves. The group containing the
+active route auto-expands (and auto-switches on navigation); at most
+one group is expanded at a time. Every nav row is now a `NavLink`
+(previously plain `onClick` buttons with no active-state), so
+`aria-current="page"` and active highlighting are new, correct
+behavior, not a regression. Layout: brand header + New button fixed;
+only the group list (`<nav aria-label="Workspaces">`) scrolls; Sessions
+(capped at latest 3 + a "View all sessions" toggle with its own bounded
+`max-h-48 overflow-y-auto` when expanded — no new route added) and
+Settings are both `shrink-0`, pinned below the scroll region, never
+squeezed off-screen. Added `history.viewAll`/`history.showFewer` to
+all 8 locale `nav.json` files (i18n parity green); every other label
+reused an existing key — nothing else changed text-wise. Fixed one
+pre-existing test (`Workspaces.test.tsx`'s "renders all ten
+workspaces") whose flat-list assumption no longer held, rewriting it to
+match the grouped structure. Focused: 22/22
+(`Sidebar.test.tsx` 16, `Sidebar.i18n.test.tsx` 1, `Workspaces.test.tsx`
+6 — via a combined run). Full desktop: 735/736 — the one failure is
+`download.test.ts`'s pre-existing, unrelated (confirmed in Phase 9
+Session 1 via `git stash` against a pristine tree) `saveBinaryWithFeedback`
+failure; untouched by this change. Typecheck and lint both clean.
+
 ## Status: Session 3 (persisted localStorage keys) complete.
 
 ## Session 3 summary

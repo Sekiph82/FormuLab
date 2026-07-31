@@ -49,7 +49,9 @@
     "heading": "会话",
     "empty": "暂无对话。",
     "exampleTag": "示例",
-    "deleteAria": "删除 {{title}}"
+    "deleteAria": "删除 {{title}}",
+    "viewAll": "查看所有会话",
+    "showFewer": "收起"
   },
   "confirmDelete": {
     "sessionTitle": "删除会话？",

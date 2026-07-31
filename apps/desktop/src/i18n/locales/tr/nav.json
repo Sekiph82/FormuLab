@@ -49,7 +49,9 @@
     "heading": "Oturumlar",
     "empty": "Henüz konuşma yok.",
     "exampleTag": "örnek",
-    "deleteAria": "{{title}} sil"
+    "deleteAria": "{{title}} sil",
+    "viewAll": "Tüm oturumları görüntüle",
+    "showFewer": "Daha az göster"
   },
   "confirmDelete": {
     "sessionTitle": "Oturum silinsin mi?",

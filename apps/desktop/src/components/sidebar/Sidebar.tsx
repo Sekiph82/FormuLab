@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -7,6 +7,8 @@ import {
   Beaker,
   Boxes,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   FileBarChart2,
   FileCheck2,
   FlaskConical,
@@ -15,6 +17,7 @@ import {
   FolderTree,
   Grid3x3,
   Home,
+  type LucideIcon,
   Microscope,
   NotebookPen,
   PanelLeft,
@@ -25,6 +28,7 @@ import {
   Table2,
   Tags,
   Trash2,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
@@ -47,6 +51,24 @@ import logo from "@/assets/logo.webp";
 /** Dragging the divider below this pointer x collapses the sidebar; dragging
  *  back past it re-expands. Sits below SIDEBAR_MIN so there is a clear "snap". */
 const COLLAPSE_BELOW = 140;
+
+/** How many recent sessions show before "View all sessions" is needed. */
+const SESSIONS_PREVIEW_COUNT = 3;
+
+interface NavChild {
+  key: string;
+  icon: LucideIcon;
+  label: string;
+  path: string;
+}
+
+/** A single top-level entry: either a direct route (`leaf`) or an accordion
+ *  group whose header only toggles expansion — the group's own overview page
+ *  (if any) is an ordinary entry in `children`, never merged into the header,
+ *  so header vs. row behavior is uniform across every group. */
+type NavItem =
+  | { type: "leaf"; key: string; icon: LucideIcon; label: string; path: string }
+  | { type: "group"; key: string; icon: LucideIcon; label: string; children: NavChild[] };
 
 /**
  * App navigation plus the list of saved formulations. The list is read from the
@@ -113,9 +135,89 @@ export function Sidebar() {
     window.addEventListener(SESSIONS_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(SESSIONS_CHANGED_EVENT, refresh);
   }, [refresh]);
+  const [showAllSessions, setShowAllSessions] = useState(false);
 
   const isMac = navigator.userAgent.includes("Mac");
   const overlayTitlebar = useOverlayTitlebar();
+
+  // ---- Navigation groups (single source of truth for the sidebar's 10
+  // top-level entries — Sessions is the 10th, rendered separately below
+  // since it is pinned data, not a route group). ----
+  const navItems: NavItem[] = useMemo(
+    () => [
+      { type: "leaf", key: "home", icon: Home, label: t("workspacesNav.home"), path: "/home" },
+      { type: "leaf", key: "projects", icon: FolderKanban, label: t("workspacesNav.projects"), path: "/projects" },
+      {
+        type: "group",
+        key: "formulation",
+        icon: Table2,
+        label: t("workspacesNav.formulation"),
+        children: [
+          { key: "formulation", icon: Table2, label: t("workspacesNav.formulation"), path: "/formulation" },
+          { key: "optimization", icon: Sparkles, label: t("workspacesNav.optimization"), path: "/optimization" },
+          { key: "doe", icon: Grid3x3, label: t("workspacesNav.doe"), path: "/doe" },
+          { key: "reverseFormulation", icon: Microscope, label: t("workspacesNav.reverseFormulation"), path: "/reverse-formulation" },
+        ],
+      },
+      {
+        type: "group",
+        key: "laboratory",
+        icon: Beaker,
+        label: t("workspacesNav.laboratory"),
+        children: [
+          { key: "laboratory", icon: Beaker, label: t("workspacesNav.laboratory"), path: "/laboratory" },
+          { key: "stability", icon: FlaskRound, label: t("workspacesNav.stability"), path: "/stability" },
+        ],
+      },
+      {
+        type: "group",
+        key: "regulatory",
+        icon: Scale,
+        label: t("workspacesNav.regulatory"),
+        children: [
+          { key: "regulatory", icon: Scale, label: t("workspacesNav.regulatory"), path: "/regulatory" },
+          { key: "dossiers", icon: FileCheck2, label: t("workspacesNav.dossiers"), path: "/dossiers" },
+          { key: "claimsLabels", icon: Tags, label: t("workspacesNav.claimsLabels"), path: "/claims-labels" },
+          { key: "approval", icon: CheckCircle2, label: t("workspacesNav.approval"), path: "/approval" },
+        ],
+      },
+      { type: "leaf", key: "reports", icon: FileBarChart2, label: t("workspacesNav.reports"), path: "/reports" },
+      { type: "leaf", key: "dataExchange", icon: ArrowLeftRight, label: t("workspacesNav.dataExchange"), path: "/data-exchange" },
+      { type: "leaf", key: "administration", icon: Boxes, label: t("workspacesNav.administration"), path: "/administration" },
+      {
+        type: "group",
+        key: "tools",
+        icon: Wrench,
+        label: t("sections.tools"),
+        children: [
+          { key: "notebooks", icon: NotebookPen, label: t("items.notebooks"), path: "/notebooks" },
+          { key: "files", icon: FolderTree, label: t("items.files"), path: "/files" },
+          { key: "runs", icon: FlaskConical, label: t("items.runs"), path: "/runs" },
+        ],
+      },
+    ],
+    [t],
+  );
+
+  const activeGroupKey = useMemo(
+    () =>
+      navItems.find(
+        (item): item is Extract<NavItem, { type: "group" }> =>
+          item.type === "group" && item.children.some((c) => c.path === location.pathname),
+      )?.key,
+    [navItems, location.pathname],
+  );
+
+  // Accordion: at most one group open at a time. The group holding the
+  // active route auto-expands on navigation, closing any other — a manual
+  // toggle can still collapse it, but the next navigation re-opens whichever
+  // group is then active.
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  useEffect(() => {
+    if (activeGroupKey) setExpandedGroup(activeGroupKey);
+  }, [activeGroupKey]);
+  const toggleGroup = (key: string) =>
+    setExpandedGroup((current) => (current === key ? null : key));
 
   return (
     <div
@@ -208,93 +310,140 @@ export function Sidebar() {
               </div>
             </div>
 
-            <nav className="flex flex-col px-3">
+            {/* Brand header and New button stay fixed above the scroll region. */}
+            <div className="shrink-0 px-3">
               <NavRow
                 icon={<Plus size={16} />}
                 label={t("items.new")}
                 onClick={() => navigate("/live")}
               />
+            </div>
 
-              <div className="px-2 pb-0.5 pt-3 text-xs font-medium uppercase tracking-wider text-muted">
-                {t("sections.workspaces")}
-              </div>
-              <NavRow icon={<Home size={16} />} label={t("workspacesNav.home")} onClick={() => navigate("/home")} />
-              <NavRow icon={<FolderKanban size={16} />} label={t("workspacesNav.projects")} onClick={() => navigate("/projects")} />
-              <NavRow icon={<Table2 size={16} />} label={t("workspacesNav.formulation")} onClick={() => navigate("/formulation")} />
-              <NavRow icon={<Beaker size={16} />} label={t("workspacesNav.laboratory")} onClick={() => navigate("/laboratory")} />
-              <NavRow icon={<FlaskRound size={16} />} label={t("workspacesNav.stability")} onClick={() => navigate("/stability")} />
-              <NavRow icon={<Sparkles size={16} />} label={t("workspacesNav.optimization")} onClick={() => navigate("/optimization")} />
-              <NavRow icon={<Grid3x3 size={16} />} label={t("workspacesNav.doe")} onClick={() => navigate("/doe")} />
-              <NavRow icon={<Scale size={16} />} label={t("workspacesNav.regulatory")} onClick={() => navigate("/regulatory")} />
-              <NavRow icon={<FileCheck2 size={16} />} label={t("workspacesNav.dossiers")} onClick={() => navigate("/dossiers")} />
-              <NavRow icon={<Tags size={16} />} label={t("workspacesNav.claimsLabels")} onClick={() => navigate("/claims-labels")} />
-              <NavRow icon={<CheckCircle2 size={16} />} label={t("workspacesNav.approval")} onClick={() => navigate("/approval")} />
-              <NavRow icon={<FileBarChart2 size={16} />} label={t("workspacesNav.reports")} onClick={() => navigate("/reports")} />
-              <NavRow icon={<ArrowLeftRight size={16} />} label={t("workspacesNav.dataExchange")} onClick={() => navigate("/data-exchange")} />
-              <NavRow icon={<Microscope size={16} />} label={t("workspacesNav.reverseFormulation")} onClick={() => navigate("/reverse-formulation")} />
-              <NavRow icon={<Boxes size={16} />} label={t("workspacesNav.administration")} onClick={() => navigate("/administration")} />
-
-              <div className="px-2 pb-0.5 pt-3 text-xs font-medium uppercase tracking-wider text-muted">
-                {t("sections.tools")}
-              </div>
-              <NavRow
-                icon={<NotebookPen size={16} />}
-                label={t("items.notebooks")}
-                onClick={() => navigate("/notebooks")}
-              />
-              <NavRow
-                icon={<FolderTree size={16} />}
-                label={t("items.files")}
-                onClick={() => navigate("/files")}
-              />
-              <NavRow
-                icon={<FlaskConical size={16} />}
-                label={t("items.runs")}
-                onClick={() => navigate("/runs")}
-              />
+            {/* The only scrolling region: the 9 route-bearing top-level
+                entries (Sessions, the 10th, is pinned below — never here). */}
+            <nav aria-label={t("sections.workspaces")} className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 pt-1">
+              {navItems.map((item) =>
+                item.type === "leaf" ? (
+                  <NavLink
+                    key={item.key}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-2 rounded-input px-2 py-1 text-[13px]",
+                        isActive ? "bg-surface-2 text-text" : "text-text hover:bg-surface-2",
+                      )
+                    }
+                  >
+                    <span className="text-muted">
+                      <item.icon size={16} />
+                    </span>
+                    <span>{item.label}</span>
+                  </NavLink>
+                ) : (
+                  <div key={item.key}>
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(item.key)}
+                      aria-expanded={expandedGroup === item.key}
+                      aria-controls={`sidebar-group-${item.key}`}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-input px-2 py-1 text-[13px]",
+                        activeGroupKey === item.key ? "text-text" : "text-text/90",
+                        "hover:bg-surface-2",
+                      )}
+                    >
+                      <span className="text-muted">
+                        <item.icon size={16} />
+                      </span>
+                      <span className="flex-1 text-left">{item.label}</span>
+                      {expandedGroup === item.key ? (
+                        <ChevronDown size={14} className="text-muted" />
+                      ) : (
+                        <ChevronRight size={14} className="text-muted" />
+                      )}
+                    </button>
+                    {expandedGroup === item.key && (
+                      <div id={`sidebar-group-${item.key}`} className="ml-2 flex flex-col border-l border-border pl-2">
+                        {item.children.map((child) => (
+                          <NavLink
+                            key={child.key}
+                            to={child.path}
+                            className={({ isActive }) =>
+                              cn(
+                                "flex items-center gap-2 rounded-input px-2 py-1 text-[13px]",
+                                isActive ? "bg-surface-2 text-text" : "text-text/90 hover:bg-surface-2",
+                              )
+                            }
+                          >
+                            <span className="text-muted">
+                              <child.icon size={15} />
+                            </span>
+                            <span>{child.label}</span>
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ),
+              )}
             </nav>
 
-            <div className="mt-4 flex-1 overflow-y-auto px-3 pb-2">
+            {/* Sessions: the 10th top-level entry, pinned above Settings so
+                it never scrolls out of view with the groups above. Shows at
+                most the latest 3, with its own bounded scroll if expanded. */}
+            <div className="shrink-0 border-t border-border px-3 pb-2 pt-2">
               <div className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted">
                 {t("history.heading")}
               </div>
               {formulations.length === 0 ? (
                 <div className="px-2 py-2 text-xs text-muted">{t("history.empty")}</div>
               ) : (
-                formulations.map((s) => {
-                  const to = `/live/${s.id}`;
-                  const title = s.brief?.target ?? s.id;
-                  return (
-                    <div key={s.id} className="group relative">
-                      <NavLink
-                        to={to}
-                        className={cn(
-                          "flex items-center gap-2 rounded-input py-1 pl-2 pr-8 text-[13px] hover:bg-surface-2",
-                          location.pathname === to ? "bg-surface-2 text-text" : "text-text/90",
-                        )}
-                      >
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
-                        <span className="flex-1 truncate">{title}</span>
-                        {s.card_count > 1 && (
-                          <span className="shrink-0 text-[10px] tabular-nums text-muted">
-                            {s.card_count}
-                          </span>
-                        )}
-                      </NavLink>
-                      <button
-                        onClick={async () => {
-                          await deleteFormulationSession(s.id).catch(() => {});
-                          refresh();
-                          if (location.pathname === to) navigate("/live");
-                        }}
-                        aria-label={t("history.deleteAria", { title })}
-                        className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded p-1 text-muted hover:bg-border hover:text-error group-hover:block"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  );
-                })
+                <>
+                  <div className={cn("flex flex-col", showAllSessions && "max-h-48 overflow-y-auto")}>
+                    {(showAllSessions ? formulations : formulations.slice(0, SESSIONS_PREVIEW_COUNT)).map((s) => {
+                      const to = `/live/${s.id}`;
+                      const title = s.brief?.target ?? s.id;
+                      return (
+                        <div key={s.id} className="group relative">
+                          <NavLink
+                            to={to}
+                            className={cn(
+                              "flex items-center gap-2 rounded-input py-1 pl-2 pr-8 text-[13px] hover:bg-surface-2",
+                              location.pathname === to ? "bg-surface-2 text-text" : "text-text/90",
+                            )}
+                          >
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" />
+                            <span className="flex-1 truncate">{title}</span>
+                            {s.card_count > 1 && (
+                              <span className="shrink-0 text-[10px] tabular-nums text-muted">
+                                {s.card_count}
+                              </span>
+                            )}
+                          </NavLink>
+                          <button
+                            onClick={async () => {
+                              await deleteFormulationSession(s.id).catch(() => {});
+                              refresh();
+                              if (location.pathname === to) navigate("/live");
+                            }}
+                            aria-label={t("history.deleteAria", { title })}
+                            className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded p-1 text-muted hover:bg-border hover:text-error group-hover:block"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {formulations.length > SESSIONS_PREVIEW_COUNT && (
+                    <button
+                      onClick={() => setShowAllSessions((v) => !v)}
+                      className="mt-0.5 w-full rounded-input px-2 py-1 text-left text-[12px] text-muted hover:bg-surface-2 hover:text-text"
+                    >
+                      {showAllSessions ? t("history.showFewer") : t("history.viewAll")}
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
