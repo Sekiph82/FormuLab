@@ -468,5 +468,27 @@
       "term": "Instantané de méthode d'essai",
       "definition": "Une copie immuable de la norme/méthode réellement utilisée, capturée lors de l'enregistrement d'un résultat d'essai. Les modifications ultérieures de la norme ou de la méthode ne la changent jamais."
     }
+  },
+  "ui": {
+    "buttonLabel": "Aide",
+    "buttonTooltip": "Ouvrir l'aide pour cette page",
+    "close": "Fermer",
+    "panelTitle": "Aide",
+    "purpose": "Objectif",
+    "prerequisites": "Prérequis",
+    "quickStart": "Démarrage rapide",
+    "sections": "Sections",
+    "warnings": "Avertissements",
+    "roleNotes": "Notes de rôle",
+    "limitations": "Limitations connues",
+    "relatedTopics": "Sujets liés",
+    "glossaryHeading": "Glossaire",
+    "openPage": "Ouvrir la page",
+    "back": "Retour",
+    "centerAriaLabel": "Rechercher dans l'aide",
+    "searchPlaceholder": "Rechercher dans l'aide…",
+    "noResults": "Aucun résultat.",
+    "topicsGroup": "Sujets",
+    "glossaryGroup": "Glossaire"
   }
 }

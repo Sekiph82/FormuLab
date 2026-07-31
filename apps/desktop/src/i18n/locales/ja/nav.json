@@ -81,7 +81,8 @@
       "openNotebooks": "ノートブックを開く",
       "openSettings": "設定を開く",
       "toggleTheme": "テーマを切り替え（ライト / ウォーム / ダーク）",
-      "openFiles": "ファイルを開く"
+      "openFiles": "ファイルを開く",
+      "searchHelp": "ヘルプを検索"
     }
   }
 }

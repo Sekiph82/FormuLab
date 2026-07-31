@@ -81,7 +81,8 @@
       "openNotebooks": "Notebooks öffnen",
       "openSettings": "Einstellungen öffnen",
       "toggleTheme": "Design wechseln (Hell / Warm / Dunkel)",
-      "openFiles": "Dateien öffnen"
+      "openFiles": "Dateien öffnen",
+      "searchHelp": "Hilfe durchsuchen"
     }
   }
 }

@@ -468,5 +468,27 @@
       "term": "Instantánea del método de ensayo",
       "definition": "Una copia inmutable de la norma/método realmente utilizado, capturada al registrar un resultado de ensayo. Las ediciones posteriores de la norma o el método nunca la modifican."
     }
+  },
+  "ui": {
+    "buttonLabel": "Ayuda",
+    "buttonTooltip": "Abrir ayuda para esta página",
+    "close": "Cerrar",
+    "panelTitle": "Ayuda",
+    "purpose": "Propósito",
+    "prerequisites": "Requisitos previos",
+    "quickStart": "Inicio rápido",
+    "sections": "Secciones",
+    "warnings": "Advertencias",
+    "roleNotes": "Notas de rol",
+    "limitations": "Limitaciones conocidas",
+    "relatedTopics": "Temas relacionados",
+    "glossaryHeading": "Glosario",
+    "openPage": "Abrir página",
+    "back": "Atrás",
+    "centerAriaLabel": "Buscar ayuda",
+    "searchPlaceholder": "Buscar ayuda…",
+    "noResults": "Sin resultados.",
+    "topicsGroup": "Temas",
+    "glossaryGroup": "Glosario"
   }
 }

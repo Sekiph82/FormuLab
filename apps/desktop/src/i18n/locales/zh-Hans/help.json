@@ -468,5 +468,27 @@
       "term": "测试方法快照",
       "definition": "在记录测试结果时捕获的、实际使用的标准/方法的不可变副本。之后对标准或方法的修改都不会改变它。"
     }
+  },
+  "ui": {
+    "buttonLabel": "帮助",
+    "buttonTooltip": "打开此页面的帮助",
+    "close": "关闭",
+    "panelTitle": "帮助",
+    "purpose": "目的",
+    "prerequisites": "前提条件",
+    "quickStart": "快速入门",
+    "sections": "章节",
+    "warnings": "警告",
+    "roleNotes": "角色说明",
+    "limitations": "已知限制",
+    "relatedTopics": "相关主题",
+    "glossaryHeading": "术语表",
+    "openPage": "打开页面",
+    "back": "返回",
+    "centerAriaLabel": "搜索帮助",
+    "searchPlaceholder": "搜索帮助…",
+    "noResults": "没有结果。",
+    "topicsGroup": "主题",
+    "glossaryGroup": "术语表"
   }
 }

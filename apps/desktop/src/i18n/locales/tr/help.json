@@ -468,5 +468,27 @@
       "term": "Test yöntemi anlık görüntüsü",
       "definition": "Bir test sonucu kaydedildiğinde alınan, gerçekte kullanılan standardın/yöntemin değiştirilemez bir kopyasıdır. Standart veya yöntemdeki sonraki değişiklikler bunu asla değiştirmez."
     }
+  },
+  "ui": {
+    "buttonLabel": "Yardım",
+    "buttonTooltip": "Bu sayfa için yardımı aç",
+    "close": "Kapat",
+    "panelTitle": "Yardım",
+    "purpose": "Amaç",
+    "prerequisites": "Ön koşullar",
+    "quickStart": "Hızlı başlangıç",
+    "sections": "Bölümler",
+    "warnings": "Uyarılar",
+    "roleNotes": "Rol notları",
+    "limitations": "Bilinen sınırlamalar",
+    "relatedTopics": "İlgili konular",
+    "glossaryHeading": "Sözlük",
+    "openPage": "Sayfayı aç",
+    "back": "Geri",
+    "centerAriaLabel": "Yardımda ara",
+    "searchPlaceholder": "Yardımda ara…",
+    "noResults": "Sonuç yok.",
+    "topicsGroup": "Konular",
+    "glossaryGroup": "Sözlük"
   }
 }

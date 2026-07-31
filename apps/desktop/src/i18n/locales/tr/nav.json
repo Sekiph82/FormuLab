@@ -81,7 +81,8 @@
       "openNotebooks": "Not defterlerini aç",
       "openSettings": "Ayarları aç",
       "toggleTheme": "Temayı değiştir (açık / sıcak / koyu)",
-      "openFiles": "Dosyaları aç"
+      "openFiles": "Dosyaları aç",
+      "searchHelp": "Yardımda ara"
     }
   }
 }

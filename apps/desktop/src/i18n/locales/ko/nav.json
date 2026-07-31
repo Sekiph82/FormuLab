@@ -81,7 +81,8 @@
       "openNotebooks": "노트북 열기",
       "openSettings": "설정 열기",
       "toggleTheme": "테마 전환 (라이트 / 웜 / 다크)",
-      "openFiles": "파일 열기"
+      "openFiles": "파일 열기",
+      "searchHelp": "도움말 검색"
     }
   }
 }

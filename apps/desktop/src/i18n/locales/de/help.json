@@ -468,5 +468,27 @@
       "term": "Prüfmethoden-Schnappschuss",
       "definition": "Eine unveränderliche Kopie der tatsächlich verwendeten Norm/Methode, erfasst bei der Erfassung eines Prüfergebnisses. Spätere Änderungen an Norm oder Methode ändern sie nie."
     }
+  },
+  "ui": {
+    "buttonLabel": "Hilfe",
+    "buttonTooltip": "Hilfe für diese Seite öffnen",
+    "close": "Schließen",
+    "panelTitle": "Hilfe",
+    "purpose": "Zweck",
+    "prerequisites": "Voraussetzungen",
+    "quickStart": "Schnellstart",
+    "sections": "Abschnitte",
+    "warnings": "Warnungen",
+    "roleNotes": "Rollenhinweise",
+    "limitations": "Bekannte Einschränkungen",
+    "relatedTopics": "Verwandte Themen",
+    "glossaryHeading": "Glossar",
+    "openPage": "Seite öffnen",
+    "back": "Zurück",
+    "centerAriaLabel": "Hilfe durchsuchen",
+    "searchPlaceholder": "Hilfe durchsuchen…",
+    "noResults": "Keine Ergebnisse.",
+    "topicsGroup": "Themen",
+    "glossaryGroup": "Glossar"
   }
 }

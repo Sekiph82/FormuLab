@@ -468,5 +468,27 @@
       "term": "Test method snapshot",
       "definition": "An immutable copy of the standard/method actually used, captured when a test result is recorded. Later edits to the standard or method never change it."
     }
+  },
+  "ui": {
+    "buttonLabel": "Help",
+    "buttonTooltip": "Open help for this page",
+    "close": "Close",
+    "panelTitle": "Help",
+    "purpose": "Purpose",
+    "prerequisites": "Prerequisites",
+    "quickStart": "Quick start",
+    "sections": "Sections",
+    "warnings": "Warnings",
+    "roleNotes": "Role notes",
+    "limitations": "Known limitations",
+    "relatedTopics": "Related topics",
+    "glossaryHeading": "Glossary",
+    "openPage": "Open page",
+    "back": "Back",
+    "centerAriaLabel": "Search help",
+    "searchPlaceholder": "Search help…",
+    "noResults": "No results.",
+    "topicsGroup": "Topics",
+    "glossaryGroup": "Glossary"
   }
 }

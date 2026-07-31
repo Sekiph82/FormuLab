@@ -81,7 +81,8 @@
       "openNotebooks": "Abrir cuadernos",
       "openSettings": "Abrir configuración",
       "toggleTheme": "Cambiar tema (claro / cálido / oscuro)",
-      "openFiles": "Abrir archivos"
+      "openFiles": "Abrir archivos",
+      "searchHelp": "Buscar ayuda"
     }
   }
 }

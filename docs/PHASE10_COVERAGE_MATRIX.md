@@ -55,6 +55,19 @@ legacy page), and `*` (404) are documented `HELP_EXCLUSIONS` entries in
 this session's content is concise but factually grounded per-module, not
 yet the full guide prose planned for Session 6.
 
+## Visible help (Session 2 — `components/help/{HelpButton,HelpPanel,HelpCenter}.tsx`)
+
+Every "Help level" cell below now has a real, working `panel` tier: a
+"Help" button (bottom-right, every route above with a resolved topic)
+opens a route-aware side panel showing that topic's full content —
+summary, purpose, prerequisites, quick start, sections, warnings, role
+notes, limitations, related topics, and glossary term chips. A global
+Help Center (`Ctrl/Cmd+/` or the command palette's "Search help" action)
+full-text-searches every topic and glossary term regardless of route,
+including link-only topics (Materials, Optimizer). Field-level tooltips
+(the `panel+fields` tier) and guided tours (`panel+fields+tour`) remain
+Session 3/4 work — not yet implemented.
+
 ## Module map (confirmed against `router.tsx` + `Sidebar.tsx`)
 
 | # | Top-level entry | Route | Children (accordion group) |

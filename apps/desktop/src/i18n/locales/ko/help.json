@@ -468,5 +468,27 @@
       "term": "시험 방법 스냅샷",
       "definition": "시험 결과가 기록될 때 캡처되는, 실제로 사용된 표준/방법의 불변 사본입니다. 이후 표준이나 방법을 수정해도 변경되지 않습니다."
     }
+  },
+  "ui": {
+    "buttonLabel": "도움말",
+    "buttonTooltip": "이 페이지의 도움말 열기",
+    "close": "닫기",
+    "panelTitle": "도움말",
+    "purpose": "목적",
+    "prerequisites": "전제 조건",
+    "quickStart": "빠른 시작",
+    "sections": "섹션",
+    "warnings": "경고",
+    "roleNotes": "역할 참고사항",
+    "limitations": "알려진 제한사항",
+    "relatedTopics": "관련 주제",
+    "glossaryHeading": "용어집",
+    "openPage": "페이지 열기",
+    "back": "뒤로",
+    "centerAriaLabel": "도움말 검색",
+    "searchPlaceholder": "도움말 검색…",
+    "noResults": "결과가 없습니다.",
+    "topicsGroup": "주제",
+    "glossaryGroup": "용어집"
   }
 }

@@ -81,7 +81,8 @@
       "openNotebooks": "Ouvrir les notebooks",
       "openSettings": "Ouvrir les paramètres",
       "toggleTheme": "Changer de thème (clair / chaud / sombre)",
-      "openFiles": "Ouvrir les fichiers"
+      "openFiles": "Ouvrir les fichiers",
+      "searchHelp": "Rechercher dans l'aide"
     }
   }
 }

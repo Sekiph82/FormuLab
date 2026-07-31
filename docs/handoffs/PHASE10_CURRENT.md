@@ -1,6 +1,6 @@
 # Phase 10 — User Guide and In-App Help
 
-## Status: Session 1 (help schemas/registry/route mapping) complete.
+## Status: Session 2 (page Help panel and searchable Help Center) complete.
 
 ## Key finding: build on what already exists, don't start from zero
 This repository already has (a) a rich, technically accurate but
@@ -421,5 +421,70 @@ completed Session 1 (help registry) above.
   other approval-style panel in this app (no login/session-identity
   system exists to infer it automatically).
 
+## Session 2 summary — page Help panel and searchable Help Center (complete)
+
+- **Files**: `apps/desktop/src/lib/help/store.ts` (new, ephemeral zustand
+  store); `components/help/{HelpButton,HelpPanel,HelpCenter}.tsx` (new) +
+  their `.test.tsx`; `components/command-palette/CommandPalette.tsx`
+  (added a "Search help" action, reusing the existing palette rather than
+  a second entry point); `app/layout/AppShell.tsx` (mounts the three new
+  components globally, same placement as `CommandPalette`/`Toaster`);
+  `i18n/resources.d.ts` (fixed — Session 1 added the `help` namespace to
+  `NAMESPACES` but never added it to the strict i18next `CustomTypeOptions`
+  resource map, so `useTranslation("help")` failed to typecheck; this
+  session's `HelpPanel`/`HelpCenter` are the first components to call it
+  directly, which is what surfaced the gap); `i18n/locales/*/{help,nav}.json`
+  (8 locales — new `help:ui.*` UI strings, `nav:commandPalette.actions.searchHelp`).
+- **Architecture**: `topicForRoute()`/`HELP_TOPICS`/`GLOSSARY_TERMS` reused
+  unmodified — no second route registry, no hardcoded page-name switch.
+  `HelpButton` renders nothing on a route with no resolved topic (an
+  `HELP_EXCLUSIONS` entry or a genuine gap) rather than a dead link.
+  `HelpPanel` handles both a topic view and a glossary-term view in one
+  state model (`useHelpStore`'s `target: {kind:"topic"|"glossary", id}`)
+  instead of a second panel, satisfying "one coordinated shell" — this
+  app has no competing page-level inspector outside the `/live` session
+  workspace's own `InspectorShell`, which `HelpPanel` never touches or
+  stacks with (it is a modal overlay drawer, not a persistent pane).
+- **Help Center**: reuses `cmdk` exactly as `CommandPalette.tsx` already
+  does (`Command`/`Command.Input`/`Command.List`/`Command.Item`/
+  `Command.Empty`) — no second search framework. Searches localized
+  title/summary/module/keywords/quick-start text (topics) and localized
+  term/definition (glossary), grouped into two `Command.Group`s.
+  Selecting a result opens `HelpPanel` in place — reading help never
+  requires leaving the current route. Reachable via `Ctrl/Cmd+/` (checked
+  against every existing shortcut — `Ctrl/Cmd+B`, `Ctrl/Cmd+K`, `Esc`,
+  `Ctrl/Cmd(+Shift)+Enter` — no conflict) and via a new "Search help"
+  command-palette action.
+- **Focus discipline**: a real bug was caught and fixed during this
+  session — capturing `document.activeElement` in a `useEffect` keyed on
+  `centerOpen` recorded cmdk's own auto-focused search input, not the
+  real opener, because `autoFocus` fires during commit, before any effect
+  runs. Fixed by capturing the opener synchronously at the trigger site
+  (`useHelpStore`'s `openCenter()`/`toggleCenter()`), not in a post-render
+  effect. A dedicated regression test (`HelpCenter.test.tsx`'s "restores
+  focus to the previously focused element on close") guards this.
+- **Laboratory integration**: `HelpPanel`'s topic content renders the
+  `laboratory` topic's Session-1A-extended sections (including "Test
+  Standards and Methods") automatically — no duplicate content, no
+  second registry entry; verified by a dedicated test opening Help from
+  `/laboratory`.
+- **State**: one small dedicated `useHelpStore` (zustand, same pattern as
+  `useUiStore`/`useUpdateStore` — not a shared mega-store). Nothing
+  persisted; search text and open/active state are ephemeral by design.
+- **Tests**: `HelpPanel.test.tsx` (9: route coverage, exact/nested-fallback
+  resolution, Laboratory integration, close/Escape/focus-restore,
+  related-topic and glossary navigation) + `HelpCenter.test.tsx` (12:
+  open/close/shortcut-non-conflict, title/keyword/glossary search,
+  link-only-topic searchability, empty/no-results/clear states, result
+  selection without navigation, focus restoration) — 21 new tests, all
+  passing. Existing `registry.test.ts` (35), `parity.test.ts` (15),
+  `CommandPalette.test.tsx`, `Sidebar.test.tsx` all re-verified green.
+  Full desktop suite: 807/807 across 100 files (run in full — global
+  shell infrastructure). Desktop typecheck/lint clean. Shared and Rust
+  suites unaffected (no files in `packages/shared`/`src-tauri` changed
+  this session) — not re-run.
+- **Out of scope this session (unchanged from plan)**: field-level
+  tooltips, guided tours — deferred to Session 3.
+
 ## Exact next session
-Phase 10 Session 2: Page Help Panel and Searchable Help Center.
+Phase 10 Session 3: Field Help and Disabled-Action Explanations.

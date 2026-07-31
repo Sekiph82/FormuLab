@@ -81,7 +81,8 @@
       "openNotebooks": "打开笔记本",
       "openSettings": "打开设置",
       "toggleTheme": "切换主题（浅色 / 暖色 / 深色）",
-      "openFiles": "打开文件"
+      "openFiles": "打开文件",
+      "searchHelp": "搜索帮助"
     }
   }
 }

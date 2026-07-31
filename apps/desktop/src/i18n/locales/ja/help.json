@@ -468,5 +468,27 @@
       "term": "試験方法スナップショット",
       "definition": "試験結果の記録時に取得される、実際に使用された規格・メソッドの不変コピーです。規格やメソッドへの後の変更によって変わることはありません。"
     }
+  },
+  "ui": {
+    "buttonLabel": "ヘルプ",
+    "buttonTooltip": "このページのヘルプを開く",
+    "close": "閉じる",
+    "panelTitle": "ヘルプ",
+    "purpose": "目的",
+    "prerequisites": "前提条件",
+    "quickStart": "クイックスタート",
+    "sections": "セクション",
+    "warnings": "警告",
+    "roleNotes": "役割に関する注記",
+    "limitations": "既知の制限事項",
+    "relatedTopics": "関連トピック",
+    "glossaryHeading": "用語集",
+    "openPage": "ページを開く",
+    "back": "戻る",
+    "centerAriaLabel": "ヘルプを検索",
+    "searchPlaceholder": "ヘルプを検索…",
+    "noResults": "結果がありません。",
+    "topicsGroup": "トピック",
+    "glossaryGroup": "用語集"
   }
 }

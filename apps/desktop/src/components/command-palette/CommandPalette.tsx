@@ -4,12 +4,14 @@ import { Command } from "cmdk";
 import { useNavigate } from "react-router-dom";
 import {
   FileSearch,
+  HelpCircle,
   Moon,
   NotebookPen,
   Plus,
   Settings,
 } from "lucide-react";
 import { useUiStore } from "@/lib/store";
+import { useHelpStore } from "@/lib/help/store";
 
 interface Action {
   id: string;
@@ -24,6 +26,7 @@ export function CommandPalette() {
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
+  const openHelpCenter = useHelpStore((s) => s.openCenter);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export function CommandPalette() {
     { id: "notebooks", label: t("commandPalette.actions.openNotebooks"), icon: <NotebookPen size={16} />, run: () => { navigate("/notebooks"); close(); } },
     { id: "settings", label: t("commandPalette.actions.openSettings"), icon: <Settings size={16} />, run: () => { navigate("/settings"); close(); } },
     { id: "theme", label: t("commandPalette.actions.toggleTheme"), icon: <Moon size={16} />, run: () => { toggleTheme(); close(); } },
+    { id: "help", label: t("commandPalette.actions.searchHelp"), icon: <HelpCircle size={16} />, run: () => { close(); openHelpCenter(); } },
   ];
 
   if (!open) return null;

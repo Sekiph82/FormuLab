@@ -31,6 +31,33 @@ of these as a horizontal tab; nothing described in this guide was removed
 or rewritten — every section below still describes real, working
 functionality, just reached from its own workspace rather than a tab.
 
+## 0a. Getting help in the app
+
+Every workspace above has a small **Help** button (bottom-right corner)
+that opens a side panel explaining the current page — summary, purpose,
+prerequisites, a quick-start list, its sections, warnings, role notes, and
+known limitations, with clickable **related topics** and **glossary
+terms** that switch the panel in place (never leaving your page or
+losing your work). A page reached through a nested URL (e.g. a Settings
+section, or a live session) shows its parent page's help when it has no
+dedicated topic of its own.
+
+Press **Ctrl/Cmd+/** (or run **Search help** from the command palette,
+**Ctrl/Cmd+K**) to open the global **Help Center** — a full-text search
+across every topic's title, summary, keywords, and quick-start text, plus
+every glossary term, regardless of which page you're on. Selecting a
+result opens the same Help panel; searching help never navigates you
+away from what you're doing. A handful of pages (an old redirect, the
+retained legacy Formula Builder, the 404 page) intentionally have no
+help topic — the Help button simply doesn't appear there.
+
+Laboratory's help topic covers the Session 1A test-standards/methods
+feature — selecting a standard, primary vs. alternative methods, internal
+methods, and the official-standard copyright notice — reachable from
+Laboratory's own Help button or by searching "standard" or "method" in
+the Help Center. Field-level tooltips and guided tours are planned for a
+later session and do not exist yet.
+
 ## 1. Create a formula project
 
 **Projects → New project** in the sidebar (or **Home → Recent projects**

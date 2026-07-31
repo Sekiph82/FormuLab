@@ -81,7 +81,8 @@
       "openNotebooks": "Open notebooks",
       "openSettings": "Open settings",
       "toggleTheme": "Switch theme (light / warm / dark)",
-      "openFiles": "Open files"
+      "openFiles": "Open files",
+      "searchHelp": "Search help"
     }
   }
 }

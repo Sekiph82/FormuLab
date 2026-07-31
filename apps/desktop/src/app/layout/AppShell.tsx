@@ -5,6 +5,9 @@ import { PanelLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { CommandPalette } from "@/components/command-palette/CommandPalette";
+import { HelpButton } from "@/components/help/HelpButton";
+import { HelpPanel } from "@/components/help/HelpPanel";
+import { HelpCenter } from "@/components/help/HelpCenter";
 import { Toaster } from "@/components/ui/Toaster";
 import { ensureSetupProgressListener } from "@/lib/setup";
 import { useOverlayTitlebar, useUiStore } from "@/lib/store";
@@ -118,6 +121,9 @@ export function AppShell() {
         </div>
       </main>
       <CommandPalette />
+      <HelpButton />
+      <HelpPanel />
+      <HelpCenter />
       <Toaster />
     </div>
   );
