@@ -37,7 +37,70 @@ match the grouped structure. Focused: 22/22
 Session 1 via `git stash` against a pristine tree) `saveBinaryWithFeedback`
 failure; untouched by this change. Typecheck and lint both clean.
 
-## Status: Session 4 (scripts, CI, documentation, test naming) complete.
+## Status: Session 5 (focused verification and final naming sweep) complete.
+
+## Session 5 summary
+Ran the complete Phase 9 (Sessions 1–4) + sidebar-consolidation focused
+verification set together, and found + fixed one genuine defect —
+unrelated to Phase 9's own code, but blocking a clean verification
+result.
+
+**Package namespace**: root name `formulab`, packages
+`@formulab/shared`/`@formulab/desktop` confirmed. Zero first-party
+`@ai4s/*` remains anywhere. `pnpm install --frozen-lockfile` clean.
+Shared 1199/1199 + typecheck clean; desktop typecheck clean, lint
+clean.
+
+**Rust/binary naming**: Cargo package `formulab`, lib crate
+`formulab_lib`, `main.rs` calls `formulab_lib::run()`, verify script's
+`-ExePath` defaults to `formulab.exe`, CI artifact name
+`formulab-${target}` — all confirmed directly from source, not
+inferred. `com.formulab.app`/`productName: FormuLab` confirmed
+unchanged. Rust 82/82, `cargo clippy --all-targets --all-features -- -D
+warnings` clean. No release build run, per scope.
+
+**Persisted preferences**: all 8 `formulab.*` keys' migration tests
+(new-key-wins, legacy-only migrates, malformed falls back safely,
+writes go only to the new key, legacy never deleted) — 44/44.
+
+**Sidebar consolidation**: `Sidebar.test.tsx` (16), `Sidebar.i18n.test.tsx`
+(1), `Workspaces.test.tsx` (6), `parity.test.ts` (15) — 38/38 combined.
+10 top-level entries, every route reachable, active-route group
+auto-expand, Sessions/Settings pinned, latest-3 behavior, collapsed
+state, keyboard/ARIA all reconfirmed.
+
+**`download.test.ts` — root cause found and fixed.** The known failing
+test ("shows an error toast and re-throws when the save fails…") was
+investigated properly this time rather than re-confirmed as
+pre-existing-and-unrelated. Built a minimal, zero-mock, zero-app-code
+repro (`await expect(fn()).rejects.toThrow("disk full")` against a
+bare `vi.fn().mockRejectedValue(new Error("disk full"))`) and it failed
+identically with `TypeError: Cannot read properties of undefined
+(reading 'indexOf')` — proving the defect is in this project's
+vitest/chai tooling combination's handling of the async
+`.rejects.toThrow(<string>)` form specifically, not in `download.ts`'s
+`saveBinaryWithFeedback`. Confirmed every sibling form works correctly
+in this same environment: sync `toThrow(string)`, `.rejects.toThrow()`
+(no args), `.rejects.toThrow(Error)` (class), and a manual
+`try/catch`. Fixed the one real test by replacing the broken
+string-argument form with `.rejects.toThrow(Error)` plus an explicit
+manual `try/catch` asserting `caught.message === "disk full"` — same
+exact assertion strength (still verifies rejection + the precise error
+message + the error toast), just via a proven-working combination.
+`download.test.ts` now 7/7; full desktop suite 736/736, no red tests
+anywhere.
+
+**Final naming sweep**: identical file list to Session 4's (confirming
+nothing new leaked in during Sessions 4–5): 3 (dev-tool caches/binary/
+pycache), 20 historical/founding-doc files, 2 legacy-compatibility
+constant files (+ their tests), 1 external-dependency tree (
+`runtime/skills/external/ai4s-skills/` + its README/fetch-script/CI
+step/8 locale UI strings). Explicitly confirmed via targeted grep:
+zero first-party `@ai4s/*`, zero first-party `ai4s-workbench` (only a
+dated verification log and the external pack match), zero first-party
+`ai4s_workbench_lib` (only a dev-tool cache and this doc's own
+description of the rename match). Category 5 (unexpected first-party
+stale match): **empty**.
 
 ## Session 4 summary
 Cleaned up remaining first-party `ai4s`/`AI4S` naming in active
@@ -614,4 +677,4 @@ categorized:
    fully closes.
 
 ## Exact next session
-Phase 9 Session 5: Focused Verification and Final Naming Sweep.
+Phase 9 Session 6: Closure and Release.

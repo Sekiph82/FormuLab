@@ -43,7 +43,22 @@ describe("saveBinaryWithFeedback", () => {
 
   it("shows an error toast and re-throws when the save fails, so a caller can record the outcome", async () => {
     tauriMocks.saveBinaryFile.mockRejectedValue(new Error("disk full"));
-    await expect(saveBinaryWithFeedback("dossier.pdf", new Uint8Array([1, 2, 3]), "application/pdf")).rejects.toThrow("disk full");
+    // NOTE: `.rejects.toThrow("disk full")` (async + string-argument form) is
+    // broken in this vitest/chai combo — it throws "Cannot read properties
+    // of undefined (reading 'indexOf')" even for a trivial, mock-free repro
+    // unrelated to this file. Every other form works
+    // (`.rejects.toThrow()`, `.rejects.toThrow(Error)`, manual try/catch), so
+    // this asserts the exact same thing — rejection with the real error,
+    // carrying the real message — via a proven-working combination instead.
+    await expect(saveBinaryWithFeedback("dossier.pdf", new Uint8Array([1, 2, 3]), "application/pdf")).rejects.toThrow(Error);
+    let caught: unknown;
+    try {
+      await saveBinaryWithFeedback("dossier.pdf", new Uint8Array([1, 2, 3]), "application/pdf");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe("disk full");
     expect(toastMocks.error).toHaveBeenCalledWith(expect.stringContaining("disk full"));
   });
 
