@@ -2171,7 +2171,7 @@
     },
     "dataExchangeImportHistory": {
       "title": "Data Exchange import history",
-      "description": "Every import job across all 24 templates — status, row counts, actor and downloadable error reports, from the Data Exchange Center."
+      "description": "Every import job across all 41 templates — status, row counts, actor and downloadable error reports, from the Data Exchange Center."
     },
     "dataExchangeSchemaCatalog": {
       "title": "Data Exchange template & schema catalog",

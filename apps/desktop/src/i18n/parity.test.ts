@@ -42,3 +42,32 @@ describe("locale key parity (base keys)", () => {
     },
   );
 });
+
+/** All leaf string values in a nested bundle, joined for a single
+ *  substring scan — used below to catch a stale numeric claim regardless
+ *  of which key it lives under. */
+function allStringValues(obj: unknown): string[] {
+  if (typeof obj === "string") return [obj];
+  if (obj === null || typeof obj !== "object") return [];
+  return Object.values(obj as Record<string, unknown>).flatMap(allStringValues);
+}
+
+/**
+ * Phase 10 Session 7 — a real, in-app content staleness this session
+ * found and fixed: `session.json`'s `reports.links.dataExchangeImportHistory`
+ * description said "24 templates" in all 8 locales (the real, test-
+ * enforced count is 41 — see `dataExchangeRegistry.test.ts`). Distinct
+ * from `guideContent.ts`'s own stale-claim checks, which only scan
+ * `docs/USER_GUIDE.md` — this scans the actual in-app help/session
+ * content every locale ships.
+ */
+describe("in-app content staleness (Phase 10 Session 7)", () => {
+  it.each(shippedLocales().map((locale) => locale.code))("%s never claims Data Exchange has 24 templates", (code) => {
+    for (const ns of NAMESPACES) {
+      const bundle = i18n.getResourceBundle(code, ns) ?? {};
+      const values = allStringValues(bundle);
+      const stale = values.filter((v) => /\b24 templates\b/i.test(v) || /\b24 şablon/i.test(v));
+      expect(stale, `${code}/${ns}.json still claims "24 templates"`).toEqual([]);
+    }
+  });
+});

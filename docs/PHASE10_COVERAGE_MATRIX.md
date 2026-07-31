@@ -549,3 +549,26 @@ fixed: an internal guide cross-reference (`#18-corrective-actions`)
 pointed at the wrong section (the real Corrective Actions heading is
 §19) — caught by `generate.test.ts`'s anchor-resolution check, not
 something Session 6 introduced.
+
+## Full coverage verification (Session 7)
+
+Cross-checked the whole matrix above against real HEAD (not Session 0's
+snapshot): router→topic coverage, glossary/related-topic reference
+resolution, role notes, screenshot/guide references, and the
+"recent high-risk features" list — all confirmed still accurate, no
+drift since Sessions 1-6. Two real gaps found and closed:
+
+| Finding | Kind | Fix |
+|---|---|---|
+| `session.json`'s `reports.links.dataExchangeImportHistory.description` said "24 templates" (real: 41) in all 8 locales | genuine stale content, distinct from Session 6's guide-body fix | corrected in all 8 locale files; permanent regression test added (`parity.test.ts`, scans every locale/namespace/string) |
+| `DisabledReason.relatedTopicId` (Approval/Cost/Dossier/TestMethod/DataExchange panels) had no resolution test | coverage gap, not a live defect (all current references already valid) | new `registry.test.ts` filesystem-walk test added |
+
+Also added: an orphan-topic check (every `HelpTopic.routes[]` entry is a
+real `router.tsx` path — zero orphans found). Manual/visual verification
+of the running native app is **blocked** in this environment (no
+Playwright/WebDriver wired for the Tauri WebView2 window) — not claimed
+as verified beyond what the automated (jsdom) suites exercise. Full
+regression: shared 1248/1248, desktop 1010/1010 (121 files, 6
+pre-existing unrelated unhandled-rejection log lines confirmed via
+`git stash` to predate this session), Rust 83/83, both typechecks and
+lint clean.

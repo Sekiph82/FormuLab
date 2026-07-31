@@ -1,3 +1,5 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { RouteObject } from "react-router-dom";
 import { routes } from "@/app/router";
@@ -52,6 +54,20 @@ describe("HELP_TOPICS structure", () => {
       t.routes.filter((r) => r.mode !== "prefix").map((r) => r.path),
     );
     expect(new Set(exactPaths).size).toBe(exactPaths.length);
+  });
+
+  it("no orphan topics — every topic's own routes[] entries are real router.tsx paths (Phase 10 Session 7)", () => {
+    const broken: string[] = [];
+    for (const topic of HELP_TOPICS) {
+      for (const route of topic.routes) {
+        const isReal =
+          route.mode === "prefix"
+            ? ROUTE_PATHS.some((real) => real === route.path || real.startsWith(`${route.path}/`))
+            : ROUTE_PATHS.includes(route.path);
+        if (!isReal) broken.push(`${topic.id} -> "${route.path}" (mode: ${route.mode ?? "exact"})`);
+      }
+    }
+    expect(broken, broken.join("\n")).toEqual([]);
   });
 
   it("every relatedTopicId references an existing topic", () => {
@@ -155,5 +171,58 @@ describe("full router.tsx coverage", () => {
       if (exclusion.route === "*") continue; // catch-all, not a literal path
       expect(ROUTE_PATHS, `exclusion "${exclusion.route}" has no matching route`).toContain(exclusion.route);
     }
+  });
+});
+
+/**
+ * Phase 10 Session 7 — every real `DisabledReason.relatedTopicId`
+ * (ApprovalPanel/CostPanel/DossierPanel/TestMethodDrawer/
+ * DataExchangeImportDialog, and any future one) is a SEPARATE population
+ * of references from `HelpTopic.relatedTopicIds` above — this codebase
+ * had a real coverage gap: nothing previously checked that a disabled-
+ * action explanation's own "Learn more" target actually resolves. Walks
+ * the real `apps/desktop/src` tree (never a hand-copied list of call
+ * sites) so a future disabled-action reason with a typo'd topic id fails
+ * here, not silently in the running app.
+ */
+describe("DisabledReason.relatedTopicId references (Phase 10 Session 7)", () => {
+  const SRC_ROOT = path.resolve(__dirname, "..", "..");
+  const RELATED_TOPIC_ID_PATTERN = /relatedTopicId:\s*"([a-zA-Z][a-zA-Z0-9]*)"/g;
+
+  function collectTsxFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === "node_modules") continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        out.push(...collectTsxFiles(full));
+      } else if (/\.(tsx?|jsx?)$/.test(entry.name) && !entry.name.endsWith(".test.tsx") && !entry.name.endsWith(".test.ts")) {
+        out.push(full);
+      }
+    }
+    return out;
+  }
+
+  it("finds at least one real relatedTopicId reference outside the registry itself", () => {
+    let count = 0;
+    for (const file of collectTsxFiles(SRC_ROOT)) {
+      if (file.endsWith(path.join("lib", "help", "registry.ts"))) continue;
+      const text = fs.readFileSync(file, "utf8");
+      count += [...text.matchAll(RELATED_TOPIC_ID_PATTERN)].length;
+    }
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it("every relatedTopicId used anywhere in the real app resolves to a real HELP_TOPICS entry", () => {
+    const broken: string[] = [];
+    for (const file of collectTsxFiles(SRC_ROOT)) {
+      if (file.endsWith(path.join("lib", "help", "registry.ts"))) continue;
+      const text = fs.readFileSync(file, "utf8");
+      for (const match of text.matchAll(RELATED_TOPIC_ID_PATTERN)) {
+        const topicId = match[1];
+        if (!getTopic(topicId)) broken.push(`${path.relative(SRC_ROOT, file)}: relatedTopicId "${topicId}"`);
+      }
+    }
+    expect(broken, broken.join("\n")).toEqual([]);
   });
 });

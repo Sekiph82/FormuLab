@@ -1,6 +1,6 @@
 # Phase 10 — User Guide and In-App Help
 
-## Status: Session 6 (illustrated user guide content and PDF/DOCX generation) complete.
+## Status: Session 7 (full coverage verification) complete.
 
 ## Key finding: build on what already exists, don't start from zero
 This repository already has (a) a rich, technically accurate but
@@ -975,5 +975,101 @@ here per instruction, without renumbering any Phase 10 session.
   which is verification-only per its own scope), non-English guide body
   content, dark-theme captures.
 
+## Session 7 summary — full coverage verification (complete)
+
+- **Scope discipline**: verification only, per plan — no new features.
+  Two genuine defects found, both fixed; everything else checked and
+  confirmed already correct.
+- **Defect found and fixed — stale "24 templates" claim in shipped
+  in-app content** (distinct from Session 6's guide-body fix): `apps/
+  desktop/src/i18n/locales/*/session.json`'s `reports.links.
+  dataExchangeImportHistory.description` said "24 templates" in all 8
+  locale files (6 sharing one untranslated English string; `tr` had its
+  own genuine Turkish translation of the same stale number). Real count
+  is 41 (`dataExchangeRegistry.test.ts`). Fixed across all 8 files.
+  Guarded by a new permanent regression test (`i18n/parity.test.ts`'s
+  "in-app content staleness" describe block) that scans every locale's
+  every namespace's every leaf string for the stale pattern — not just
+  the one field that happened to be wrong, so a future reintroduction
+  anywhere else is also caught.
+- **Coverage gap closed — `DisabledReason.relatedTopicId` had no
+  regression test**: this population of Help-topic references (used by
+  `ApprovalPanel`/`CostPanel`/`DossierPanel`/`TestMethodDrawer`/
+  `DataExchangeImportDialog`'s "Learn more" links) is separate from
+  `HelpTopic.relatedTopicIds` and had never been checked for broken
+  references. Added a real filesystem walk
+  (`registry.test.ts`, new describe block) over `apps/desktop/src`
+  (excluding `registry.ts` and test files) that regex-extracts every
+  `relatedTopicId: "..."` literal and asserts it resolves to a real
+  `HELP_TOPICS` entry. Result: all current references ("approval",
+  "formulation", "dossiers", "laboratory", "dataExchange") already
+  valid — no defect, a coverage gap closed.
+- **Coverage gap closed — no orphan-topic check**: added a test
+  asserting every `HelpTopic.routes[]` entry corresponds to a real
+  `router.tsx` path (walks the real `routes` export, exact and
+  prefix-mode both checked). Result: zero orphans — confirms Sessions
+  1-6 never let the registry drift from the real route tree.
+  Complements the pre-existing "every real route has a topic or
+  documented exclusion" check (Session 1) with the reverse direction.
+- **Spot-checked, confirmed accurate, no fix needed**: `help.json`'s "No
+  automatic shelf-life prediction — deliberately not implemented"
+  (matches `STABILITY_TRENDS.md`'s own documented, intentional
+  limitation); `session.json`'s three `reports.links.{claimsReview,
+  labelReadiness,formulaLabelConsistency}` descriptions ending "Final
+  formatted PDF/DOCX export: not yet implemented" (correct — Claims &
+  Labels genuinely has no document export of its own; only Dossiers
+  does, per guide §21a — these are a different module, not a stale
+  echo of the Dossier fix); role-authority table in guide §30 against
+  the real `APPROVAL_AUTHORITY`/`AUTHORIZED_REGULATORY_ROLES`/
+  `LABORATORY_METHOD_MANAGER_ROLES` constants (exact match, no drift).
+- **High-risk-feature re-verification (existing tests, code unchanged
+  since Session 6, so re-confirmed via already-passing coverage rather
+  than duplicated)**: V1/V2/V3 independent editing
+  (`FormulationWorkspaceV2.test.tsx`), function totals using formula
+  percentage (`formula.test.ts`/`FormulaBuilder.test.tsx`), per-test
+  laboratory standards and immutable method snapshots
+  (`laboratoryStandards.test.ts`/`TestMethodDrawer.test.tsx`),
+  superseded-method acknowledgement gate, disabled-action real-guard
+  text (`DisabledActionButton.test.tsx` + per-panel tests), guided
+  tours targeting real elements (`tours.test.ts`/`TourOverlay.test.tsx`
+  + per-panel target-resolution tests), onboarding-once
+  (`onboardingStore.test.ts`), Dossier PDF/DOCX export accuracy (guide
+  §21a cross-checked against the real `dossierPdf.ts`/`dossierDocx.ts`),
+  Data Exchange template count = 41 (`dataExchangeRegistry.test.ts`
+  plus this session's new in-app-content check).
+- **Manual verification: blocked, honestly disclosed** — same
+  environment constraint as Session 6 (no Playwright/WebDriver wired
+  for the native Tauri WebView2 window, no accessibility-tree-based
+  clicking available). Did not claim visual verification of Help
+  button/panel/Center/InfoTooltip/tours/onboarding/in-app guide/PDF/
+  DOCX/Test Method drawer/V1-V2-V3/function totals beyond what the
+  automated test suites already exercise end-to-end (jsdom-rendered,
+  not a real native window). Recorded as **blocked**, not
+  verified — consistent with "do not claim verification without
+  opening and checking it."
+- **Regression (run once, consolidated, per the lean-test-strategy
+  End-of-Session-7 scope)**: full shared suite 1248/1248 (61 files);
+  full desktop suite 1010/1010 (121 files) — 6 pre-existing unhandled-
+  rejection log entries in `HelpPanel.test.tsx` confirmed NOT a
+  regression (reproduced identically on the clean Session-6 HEAD before
+  any Session 7 change, via `git stash`; root cause is the already-
+  documented Session-4 jsdom/undici `AbortSignal` gap plus `HomePage`'s
+  fire-and-forget masterdata seed rejecting after test teardown — both
+  pre-existing, neither a real assertion failure, all 1010 tests still
+  pass); full Rust suite 83/83; shared typecheck clean; desktop
+  typecheck clean; desktop lint clean; i18n parity 23/23 in
+  `parity.test.ts` (including the 8 new staleness tests) plus 38/38 in
+  `registry.test.ts` (including the 2 new coverage tests) — both are
+  part of the one full desktop suite run above, not run separately.
+- **Documentation**: this section; `docs/PHASE10_COVERAGE_MATRIX.md`
+  (new Session 7 verification row); external log
+  (`C:\Users\sekip\Desktop\FormuLab-Phase10-User-Guide-In-App-Help-Log.md`).
+  `docs/USER_GUIDE.md` itself required no content edits this session —
+  no stale claim survived Session 6's own fixes plus this session's
+  independent re-check.
+- **Out of scope this session (unchanged from plan)**: any new feature;
+  the still-deferred screenshot capture sweep (unchanged from Session
+  6 — no native automation driver exists in this environment).
+
 ## Exact next session
-Phase 10 Session 7: Full Coverage Verification.
+Phase 10 Session 8: Closure, Release Build, and Native Verification.

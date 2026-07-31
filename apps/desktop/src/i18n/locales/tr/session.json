@@ -2171,7 +2171,7 @@
     },
     "dataExchangeImportHistory": {
       "title": "Veri Alışverişi içe aktarma geçmişi",
-      "description": "24 şablonun tamamındaki her içe aktarma işi — durum, satır sayıları, işlemi yapan ve indirilebilir hata raporları, Veri Alışverişi Merkezi'nden."
+      "description": "41 şablonun tamamındaki her içe aktarma işi — durum, satır sayıları, işlemi yapan ve indirilebilir hata raporları, Veri Alışverişi Merkezi'nden."
     },
     "dataExchangeSchemaCatalog": {
       "title": "Veri Alışverişi şablon ve şema kataloğu",
