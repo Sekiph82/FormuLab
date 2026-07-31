@@ -16,6 +16,45 @@ but describes an earlier state) / `missing` (no user-facing coverage).
 `panel+fields` (also needs field tooltips) / `panel+fields+tour`
 (complex enough to warrant a guided tour).
 
+## Registry coverage (Session 1 — `apps/desktop/src/lib/help/registry.ts`)
+
+Every row below now has an actual `HELP_TOPICS` entry (22 topics total),
+resolved from its real route via `topicForRoute()`. Topic id equals the
+module's own sidebar/route key wherever one exists.
+
+| Coverage-matrix row | `HELP_TOPICS` id | Route match |
+|---|---|---|
+| Home | `home` | exact `/home` |
+| Projects | `projects` | exact `/projects` |
+| Formulation | `formulation` | exact `/formulation` |
+| Optimization | `optimization` | exact `/optimization` |
+| Design of Experiments | `doe` | exact `/doe` |
+| Reverse Formulation | `reverseFormulation` | exact `/reverse-formulation` |
+| Laboratory | `laboratory` | exact `/laboratory` |
+| Stability | `stability` | exact `/stability` |
+| Regulatory | `regulatory` | exact `/regulatory` |
+| Dossiers | `dossiers` | exact `/dossiers` |
+| Claims & Labels | `claimsLabels` | exact `/claims-labels` |
+| Approval | `approval` | exact `/approval` |
+| Reports | `reports` | exact `/reports` |
+| Data Exchange | `dataExchange` | exact `/data-exchange` |
+| Administration | `administration` | exact `/administration` |
+| Materials | `materials` (`linkOnly: true`) | exact `/materials` |
+| Optimizer | `optimizer` (`linkOnly: true`) | exact `/optimizer` |
+| Notebooks | `notebooks` | exact `/notebooks` |
+| Files | `files` | exact `/files` |
+| Runs | `runs` | exact `/runs` |
+| Sessions | `sessions` | prefix `/live`, exact `/example/:sessionId` |
+| Settings | `settings` | prefix `/settings` |
+| Legacy (`/formulas`, `/formulas/legacy`) | — (`HELP_EXCLUSIONS`) | deliberately excluded, see below |
+
+`/` (redirect), `/formulas` (redirect), `/formulas/legacy` (retained
+legacy page), and `*` (404) are documented `HELP_EXCLUSIONS` entries in
+`registry.ts`, each with a reason — not a coverage gap. Content itself
+(title/summary/sections/etc.) lives in `i18n/locales/<locale>/help.json`;
+this session's content is concise but factually grounded per-module, not
+yet the full guide prose planned for Session 6.
+
 ## Module map (confirmed against `router.tsx` + `Sidebar.tsx`)
 
 | # | Top-level entry | Route | Children (accordion group) |

@@ -1,0 +1,200 @@
+{
+  "home": {
+    "title": "Home",
+    "summary": "Your dashboard — recent projects, activity, open lab work, upcoming stability samples, and pending approvals.",
+    "purpose": "A real, honest dashboard, not a mockup: every number comes from your own persisted data, and every section shows an honest empty state when there is nothing to show yet.",
+    "quickStart": ["Open a recent project to jump straight into it.", "Check Pending approvals for anything waiting on you."],
+    "sections": ["Recent projects", "Recent activity", "Open laboratory work", "Upcoming stability samples", "Pending approvals"],
+    "limitations": ["Bounded to your 5 most recently updated projects — this is a real bound, not a silent cap."]
+  },
+  "projects": {
+    "title": "Projects",
+    "summary": "Every formulation project you've created, independent of which workspace you're using.",
+    "purpose": "The home for the full project list — open, create, and see each project's dossier status at a glance.",
+    "quickStart": ["Click New project.", "Pick a product family and packaging SKU.", "Fill in name, market, and target batch size."],
+    "sections": ["Project list with dossier-count badges"]
+  },
+  "formulation": {
+    "title": "Formulation",
+    "summary": "The formula grid, versions, cost, compatibility, safety, and packaging — your daily working surface.",
+    "purpose": "Build and refine a formula, save immutable numbered versions, and see cost/compatibility/safety findings update as you edit.",
+    "prerequisites": ["An open project (from Projects or Home)."],
+    "quickStart": ["Add a line: pick a material, phase, and percentage.", "Mark one line q.s. to auto-fill the rest to 100%.", "Save version once you're happy — this requires a change reason."],
+    "sections": ["Builder", "Versions", "Cost", "Compatibility", "Safety", "Packaging"],
+    "warnings": ["A saved version is immutable — editing it again creates a new version, never an in-place edit."],
+    "roleNotes": ["Approving a version to pilot or production status requires an authorized human role — no automated actor can ever approve one."]
+  },
+  "optimization": {
+    "title": "Optimization",
+    "summary": "A real constraint-solving optimizer bound to this project's current working draft.",
+    "purpose": "Pick candidate materials, set functional-group constraints and objectives, and let the solver propose a formula — never overwriting your saved version.",
+    "prerequisites": ["An open project with a working draft."],
+    "quickStart": ["Add candidate materials and constraints.", "Run — review the result, then Apply to draft if you like it."],
+    "sections": ["Run", "Scenarios"],
+    "limitations": ["No builder yet for composition/ratio/conditional constraints — only functional-group constraints, property targets, and a cost ceiling."]
+  },
+  "optimizer": {
+    "title": "Optimizer (standalone)",
+    "summary": "A standalone what-if cost calculator — not bound to any project.",
+    "purpose": "Quick, project-less cost exploration, genuinely distinct from the project-bound Optimization workspace.",
+    "quickStart": ["Enter materials and percentages directly to see a cost estimate."]
+  },
+  "doe": {
+    "title": "Design of Experiments",
+    "summary": "Plan and analyze a statistically valid formulation or process experiment.",
+    "purpose": "Turn a real saved formula version into a structured experiment: factors, responses, a generated run sheet, and a fitted statistical model.",
+    "prerequisites": ["A real saved formula version as the study's baseline — never the working draft."],
+    "quickStart": ["Create a study through the 9-step wizard.", "Record each run's observed responses.", "Run the analysis once enough data is in."],
+    "sections": ["Studies", "Design", "Runs", "Responses", "Analysis", "Candidates", "History", "Audit"],
+    "limitations": ["Some design types and fraction sizes are refused outright rather than faked — see the Design of Experiments guide chapter for the exact limits.", "An analysis-results export can't be re-imported as a native analysis."]
+  },
+  "reverseFormulation": {
+    "title": "Reverse Formulation",
+    "summary": "Given a competitor or benchmark product, proposes evidence-scored candidate formulas — decision support, never an auto-approved formula.",
+    "purpose": "Start from a declared ingredient list (and optional lab analysis) and get ranked candidates with a formula-fit score and a separately-labeled evidence-confidence score.",
+    "quickStart": ["Create a study and enter the benchmark product's declared ingredients.", "Set your target and constraints.", "Generate candidates, then save or convert the one you want."],
+    "sections": ["Studies", "Declaration & analytics", "Candidate generation & comparison"],
+    "warnings": ["A converted formulation always starts unapproved with no inherited approval — even from a well-scored candidate."],
+    "limitations": ["Candidate conversion refuses, visibly, if a candidate's material has left the catalog since it was generated."]
+  },
+  "laboratory": {
+    "title": "Laboratory",
+    "summary": "Trials, test definitions, and corrective actions for the selected project and version.",
+    "purpose": "Run real lab trials against a frozen formula snapshot, record weighing/process/test data, and manage deviations.",
+    "prerequisites": ["An open project; a version selector lets you pick which saved version's trials to view."],
+    "quickStart": ["Create a trial from the working draft or a saved version.", "Move it through planned → in progress → completed as work happens."],
+    "sections": ["Trials", "Test Definitions", "Corrective Actions"],
+    "roleNotes": ["Only a human can mark a trial completed."]
+  },
+  "stability": {
+    "title": "Stability",
+    "summary": "Stability studies, samples, results, and trends for the selected project and version.",
+    "purpose": "Track a formula's stability over time against real storage conditions and test definitions, with automatic failure detection.",
+    "prerequisites": ["An open project; a version selector."],
+    "quickStart": ["Create a study, then Generate samples.", "Record a result when a sample is due."],
+    "warnings": ["Trend projections are always labeled \"experimental estimate — human review required,\" never a shelf-life claim."],
+    "limitations": ["No automatic shelf-life prediction — deliberately not implemented."]
+  },
+  "regulatory": {
+    "title": "Regulatory",
+    "summary": "Kenya/EAC regulatory classification, rule evaluation, evidence confirmations, and human review.",
+    "purpose": "See your formula's deterministic regulatory classification and evaluate it against jurisdiction rules, then record a real human review.",
+    "prerequisites": ["A saved formula version, a jurisdiction, and (where relevant) a packaging SKU."],
+    "quickStart": ["Pick your version, jurisdiction, and acting role.", "Click Evaluate to see findings."],
+    "sections": ["Classification", "Rules", "Reviews"],
+    "roleNotes": ["Verifying a rule or recording a formal review requires an authorized regulatory/quality/administrator role."],
+    "limitations": ["Seed rules ship not_verified until a qualified reviewer confirms them."]
+  },
+  "dossiers": {
+    "title": "Dossiers",
+    "summary": "Build a per-version, per-jurisdiction regulatory dossier, including a real PDF/DOCX export.",
+    "purpose": "Assemble requirements, evidence, and reviews into one dossier per formula version and jurisdiction, then export it.",
+    "prerequisites": ["A real saved formula version — never a working draft."],
+    "quickStart": ["Create a dossier against a saved version and jurisdiction.", "Work through Requirements and the Evidence Library."],
+    "sections": ["Overview", "Evidence Matrix", "Requirements", "Evidence Library", "Reviews", "Submissions", "History", "Audit"],
+    "roleNotes": ["Exporting a PDF/DOCX requires an authorized regulatory/quality/administrator role — the buttons are hidden otherwise, and no history record is created for a blocked attempt."],
+    "limitations": ["No dedicated export-history viewer screen yet, though every attempt is recorded."]
+  },
+  "claimsLabels": {
+    "title": "Claims & Labels",
+    "summary": "Manage product claims and product labels for a formula version, including an artwork/consistency workflow.",
+    "purpose": "Draft claims linked to real dossier evidence, build label content, and check formula-label consistency before printing.",
+    "prerequisites": ["A real saved formula version."],
+    "quickStart": ["Create a claim or label.", "Link evidence and record a formal review."],
+    "sections": ["Claims", "Labels", "History", "Audit"],
+    "roleNotes": ["Only a formal review from an authorized regulatory/quality/administrator role changes a claim's true status."],
+    "limitations": ["No full graphic-design artwork editor — upload/preview/approve/reject/replace only."]
+  },
+  "approval": {
+    "title": "Approval",
+    "summary": "Readiness overview, blockers, approval policies, and decision history for the selected project.",
+    "purpose": "See exactly what blocks a formula from being approved, and record a real, named human approval decision.",
+    "quickStart": ["Review the blocker list.", "Approve or reject with a reason once every blocker is cleared."],
+    "sections": ["Readiness & blockers", "Policies", "Decision history"],
+    "warnings": ["No automated actor — agent, system process, or import — can ever set pilot_approved or production_approved, regardless of what a model concluded."],
+    "roleNotes": ["Pilot approval needs chemist/quality/administrator; production approval needs quality/regulatory/production/administrator."]
+  },
+  "reports": {
+    "title": "Reports",
+    "summary": "A navigation shell listing every real export already available in its source module.",
+    "purpose": "One place to find every export in the app — each row links to the workspace that actually produces it.",
+    "quickStart": ["Click Open on any row to go export it from its real source module."],
+    "limitations": ["Audit reports has no dedicated view yet, marked honestly rather than implied."]
+  },
+  "dataExchange": {
+    "title": "Data Exchange",
+    "summary": "Bulk CSV/Excel import and export across every module — 41 templates, with a preview-before-commit safety step.",
+    "purpose": "Move data in or out of FormuLab in bulk without hand-entering every row, while keeping every write reviewable before it happens.",
+    "quickStart": ["Download a Blank or Example file for the template you need.", "Fill it in, then Upload.", "Review the preview, then Commit import."],
+    "sections": ["Template Library", "Exports", "Imports", "Validation", "History", "Schema Versions", "Help"],
+    "roleNotes": ["An import can never mark anything verified or approved on its own — everything comes in as a draft, exactly like typing it in by hand."],
+    "limitations": ["2 templates (Stability Protocols and Stability Results) preview and validate but cannot yet be committed — reported honestly per row."]
+  },
+  "administration": {
+    "title": "Administration",
+    "summary": "Links to Materials, Regulatory rules, Approval policies, Data Exchange, and Settings, plus the global Test Definitions editor.",
+    "purpose": "One hub for configuration screens that already exist elsewhere in the app.",
+    "quickStart": ["Click through to Materials, Regulatory, Approval, Data Exchange, or Settings."],
+    "limitations": ["No user or role management — this codebase has no user-management backend, and Administration says so plainly rather than implying one."]
+  },
+  "materials": {
+    "title": "Materials",
+    "summary": "Materials, suppliers, packaging components/BOMs, and factory cost profiles.",
+    "purpose": "The catalog every formula line, cost calculation, and packaging summary is built from.",
+    "quickStart": ["Create a material with whatever is known today.", "Attach one or more suppliers."],
+    "sections": ["Materials", "Suppliers", "Packaging", "Factory profiles"]
+  },
+  "notebooks": {
+    "title": "Notebooks",
+    "summary": "A runnable notebook editor for exploratory analysis.",
+    "purpose": "Write and run notebook cells against the app's bundled Python/R runtime.",
+    "quickStart": ["Open a notebook and run a cell with Cmd/Ctrl+Enter."],
+    "limitations": ["Desktop-only — shows an honest empty state in a browser dev session."]
+  },
+  "files": {
+    "title": "Files",
+    "summary": "A file browser and previewer across your session folders.",
+    "purpose": "Browse, preview, and open files produced by your sessions and runs.",
+    "quickStart": ["Browse into a folder; click a file to preview it."]
+  },
+  "runs": {
+    "title": "Runs",
+    "summary": "History of every executed command or computation, with reproduce and log access.",
+    "purpose": "See what ran, when, and with what result — and re-run or inspect it.",
+    "quickStart": ["Filter by search or status; expand a run to see its recipe."]
+  },
+  "sessions": {
+    "title": "Sessions",
+    "summary": "Your AI-assisted research session list — pinned above Settings, latest 8 shown by default.",
+    "purpose": "The entry point for the agent/chat-driven research workflow: start a new session or reopen a past one.",
+    "quickStart": ["Click New to start a session.", "Click a past session to reopen it."],
+    "warnings": ["Deleting a session is confirmed first — it is not silently removed."]
+  },
+  "settings": {
+    "title": "Settings",
+    "summary": "General, Appearance, Models, Python runtime, Compute, and Privacy configuration.",
+    "purpose": "Configure the app itself — theme, locale, model provider, runtime, compute targets, and privacy options.",
+    "quickStart": ["Pick a section from the sidebar-style list on the left."],
+    "sections": ["General", "Appearance", "Models", "Python (runtime)", "Compute", "Privacy"]
+  },
+  "glossary": {
+    "workingDraft": { "term": "Working draft", "definition": "The current, editable, unsaved state of a formula — never approved, never exported as final." },
+    "savedVersion": { "term": "Saved version", "definition": "An immutable, numbered snapshot of a formula, created by Save version. Editing it again creates a new version." },
+    "approvalRole": { "term": "Approval role", "definition": "One of researcher, chemist, quality, regulatory, production, or administrator — the only roles that can ever approve a version, and only some of them for each approval gate." },
+    "blockingFinding": { "term": "Blocking finding", "definition": "A validation, compatibility, or safety result severe enough to prevent approval until resolved by a named human." },
+    "dossier": { "term": "Dossier", "definition": "A per-version, per-jurisdiction collection of regulatory requirements, evidence, and reviews for a formula." },
+    "evidenceConfirmation": { "term": "Evidence confirmation", "definition": "A persisted record that a regulatory requirement's evidence has been provided, revocable with a reason." },
+    "qsToHundred": { "term": "q.s. (quantum satis)", "definition": "A formula line marked to automatically fill to 100% of whatever the other lines leave, never going negative." },
+    "landedCost": { "term": "Landed cost", "definition": "A material's price plus freight, insurance, duty, tax, and other costs to get it to your factory." },
+    "costSnapshot": { "term": "Cost snapshot", "definition": "A frozen record of the exact prices, exchange rates, and factory costs used to cost a formula version at a point in time." },
+    "compatibilityFinding": { "term": "Compatibility finding", "definition": "A result from the deterministic ingredient-interaction rule engine — info/warning/error/blocking." },
+    "safetyClassification": { "term": "Safety classification", "definition": "The deterministic hazard category a formula is placed in — ordinary consumer through prohibited." },
+    "doeStudy": { "term": "DOE study", "definition": "One Design of Experiments plan: factors, constraints, responses, a generated run sheet, and (once run) a fitted statistical model." },
+    "reverseFormulationCandidate": { "term": "Reverse formulation candidate", "definition": "A proposed formula generated from a benchmark product's declared ingredients, scored on formula fit and evidence confidence separately." },
+    "dataExchangeTemplate": { "term": "Data Exchange template", "definition": "One importable/exportable collection's CSV/Excel schema, with its own preview-before-commit validation." },
+    "auditEvent": { "term": "Audit event", "definition": "An immutable, timestamped record of a real action taken by a real actor — the basis of every history/audit tab in the app." },
+    "watermark": { "term": "Watermark", "definition": "The \"R&D DRAFT — NOT PRODUCTION APPROVED\" stamp applied to any export whose source formula is not genuinely production_approved." },
+    "readinessBlocker": { "term": "Readiness blocker", "definition": "One specific, named reason a formula cannot yet be approved, shown in the Approval workspace." },
+    "jurisdiction": { "term": "Jurisdiction", "definition": "The market a regulatory evaluation applies to — Kenya, Uganda, Tanzania, Rwanda, Burundi, South Sudan, or the EAC regional bloc." }
+  }
+}

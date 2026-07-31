@@ -1,0 +1,200 @@
+{
+  "home": {
+    "title": "Start",
+    "summary": "Ihr Dashboard — aktuelle Projekte, Aktivitäten, offene Laborarbeit, anstehende Stabilitätsproben und ausstehende Freigaben.",
+    "purpose": "Ein echtes, ehrliches Dashboard, kein Mockup: jede Zahl stammt aus Ihren eigenen gespeicherten Daten, und jeder Abschnitt zeigt einen ehrlichen Leerzustand, wenn es noch nichts zu zeigen gibt.",
+    "quickStart": ["Öffnen Sie ein aktuelles Projekt, um direkt einzusteigen.", "Prüfen Sie Ausstehende Freigaben auf alles, was auf Sie wartet."],
+    "sections": ["Aktuelle Projekte", "Aktuelle Aktivität", "Offene Laborarbeit", "Anstehende Stabilitätsproben", "Ausstehende Freigaben"],
+    "limitations": ["Begrenzt auf Ihre 5 zuletzt aktualisierten Projekte — eine echte Grenze, kein stiller Deckel."]
+  },
+  "projects": {
+    "title": "Projekte",
+    "summary": "Jedes von Ihnen erstellte Formulierungsprojekt, unabhängig vom verwendeten Arbeitsbereich.",
+    "purpose": "Die Startseite für die vollständige Projektliste — öffnen, erstellen und den Dossierstatus jedes Projekts auf einen Blick sehen.",
+    "quickStart": ["Klicken Sie auf Neues Projekt.", "Wählen Sie eine Produktfamilie und Verpackungs-SKU.", "Füllen Sie Name, Markt und Zielchargengröße aus."],
+    "sections": ["Projektliste mit Dossier-Zähler-Badges"]
+  },
+  "formulation": {
+    "title": "Formulierung",
+    "summary": "Das Formelraster, Versionen, Kosten, Verträglichkeit, Sicherheit und Verpackung — Ihre tägliche Arbeitsfläche.",
+    "purpose": "Eine Formel erstellen und verfeinern, unveränderliche nummerierte Versionen speichern und sehen, wie sich Kosten-, Verträglichkeits- und Sicherheitsbefunde beim Bearbeiten aktualisieren.",
+    "prerequisites": ["Ein geöffnetes Projekt (aus Projekte oder Start)."],
+    "quickStart": ["Zeile hinzufügen: Material, Phase und Prozentsatz wählen.", "Eine Zeile als q.s. markieren, um den Rest automatisch auf 100 % aufzufüllen.", "Version speichern, sobald Sie zufrieden sind — dies erfordert einen Änderungsgrund."],
+    "sections": ["Builder", "Versionen", "Kosten", "Verträglichkeit", "Sicherheit", "Verpackung"],
+    "warnings": ["Eine gespeicherte Version ist unveränderlich — erneutes Bearbeiten erstellt eine neue Version, nie eine Änderung an Ort und Stelle."],
+    "roleNotes": ["Die Freigabe einer Version für Pilot- oder Produktionsstatus erfordert eine autorisierte menschliche Rolle — kein automatisierter Akteur kann jemals eine Version freigeben."]
+  },
+  "optimization": {
+    "title": "Optimierung",
+    "summary": "Ein echter Constraint-Solver-Optimierer, gebunden an den aktuellen Arbeitsentwurf dieses Projekts.",
+    "purpose": "Kandidatenmaterialien auswählen, funktionelle Gruppenbeschränkungen und Ziele festlegen und den Solver eine Formel vorschlagen lassen — ohne jemals Ihre gespeicherte Version zu überschreiben.",
+    "prerequisites": ["Ein geöffnetes Projekt mit einem Arbeitsentwurf."],
+    "quickStart": ["Kandidatenmaterialien und Beschränkungen hinzufügen.", "Ausführen — Ergebnis prüfen, dann bei Gefallen Auf Entwurf anwenden."],
+    "sections": ["Lauf", "Szenarien"],
+    "limitations": ["Noch kein Builder für Zusammensetzungs-/Verhältnis-/bedingte Beschränkungen — nur funktionelle Gruppenbeschränkungen, Eigenschaftsziele und eine Kostenobergrenze."]
+  },
+  "optimizer": {
+    "title": "Optimierer (eigenständig)",
+    "summary": "Ein eigenständiger Was-wäre-wenn-Kostenrechner — an kein Projekt gebunden.",
+    "purpose": "Schnelle, projektunabhängige Kostenerkundung, deutlich unterschieden vom projektgebundenen Optimierungs-Arbeitsbereich.",
+    "quickStart": ["Materialien und Prozentsätze direkt eingeben, um eine Kostenschätzung zu sehen."]
+  },
+  "doe": {
+    "title": "Versuchsplanung",
+    "summary": "Planen und analysieren Sie ein statistisch valides Formulierungs- oder Prozessexperiment.",
+    "purpose": "Machen Sie aus einer echten gespeicherten Formelversion ein strukturiertes Experiment: Faktoren, Antworten, ein generierter Laufplan und ein angepasstes statistisches Modell.",
+    "prerequisites": ["Eine echte gespeicherte Formelversion als Basis der Studie — niemals der Arbeitsentwurf."],
+    "quickStart": ["Eine Studie über den 9-Schritte-Assistenten erstellen.", "Für jeden Lauf die beobachteten Antworten erfassen.", "Die Analyse ausführen, sobald genug Daten vorliegen."],
+    "sections": ["Studien", "Design", "Läufe", "Antworten", "Analyse", "Kandidaten", "Verlauf", "Audit"],
+    "limitations": ["Manche Designtypen und Fraktionsgrößen werden bewusst abgelehnt statt vorgetäuscht — siehe das Versuchsplanungs-Kapitel für die genauen Grenzen.", "Ein Analyseergebnis-Export kann nicht als native Analyse re-importiert werden."]
+  },
+  "reverseFormulation": {
+    "title": "Rückwärts-Formulierung",
+    "summary": "Schlägt anhand eines Konkurrenz- oder Referenzprodukts evidenzbewertete Kandidatenformeln vor — Entscheidungshilfe, niemals eine automatisch freigegebene Formel.",
+    "purpose": "Ausgehend von einer deklarierten Zutatenliste (und optionaler Laboranalyse) bewertete Kandidaten mit einem Formel-Fit-Score und einem separat ausgewiesenen Evidenz-Konfidenz-Score erhalten.",
+    "quickStart": ["Eine Studie erstellen und die deklarierten Zutaten des Referenzprodukts eingeben.", "Ziel und Beschränkungen festlegen.", "Kandidaten generieren, dann den gewünschten speichern oder umwandeln."],
+    "sections": ["Studien", "Deklaration & Analytik", "Kandidatengenerierung & -vergleich"],
+    "warnings": ["Eine umgewandelte Formulierung startet immer unfreigegeben ohne übernommene Freigabe — selbst von einem gut bewerteten Kandidaten."],
+    "limitations": ["Die Kandidatenumwandlung wird sichtbar abgelehnt, wenn das Material eines Kandidaten seit der Generierung aus dem Katalog entfernt wurde."]
+  },
+  "laboratory": {
+    "title": "Labor",
+    "summary": "Versuche, Testdefinitionen und Korrekturmaßnahmen für das gewählte Projekt und die gewählte Version.",
+    "purpose": "Echte Laborversuche gegen einen eingefrorenen Formel-Schnappschuss durchführen, Wäge-, Prozess- und Testdaten erfassen und Abweichungen verwalten.",
+    "prerequisites": ["Ein geöffnetes Projekt; ein Versionswähler zeigt die Versuche der gewählten gespeicherten Version."],
+    "quickStart": ["Einen Versuch aus dem Arbeitsentwurf oder einer gespeicherten Version erstellen.", "Ihn durch geplant → in Bearbeitung → abgeschlossen führen, sobald Arbeit stattfindet."],
+    "sections": ["Versuche", "Testdefinitionen", "Korrekturmaßnahmen"],
+    "roleNotes": ["Nur ein Mensch kann einen Versuch als abgeschlossen markieren."]
+  },
+  "stability": {
+    "title": "Stabilität",
+    "summary": "Stabilitätsstudien, Proben, Ergebnisse und Trends für das gewählte Projekt und die gewählte Version.",
+    "purpose": "Die Stabilität einer Formel über die Zeit anhand echter Lagerbedingungen und Testdefinitionen verfolgen, mit automatischer Fehlererkennung.",
+    "prerequisites": ["Ein geöffnetes Projekt; ein Versionswähler."],
+    "quickStart": ["Eine Studie erstellen, dann Proben generieren.", "Ein Ergebnis erfassen, wenn eine Probe fällig ist."],
+    "warnings": ["Trendprojektionen sind immer als „experimentelle Schätzung — menschliche Prüfung erforderlich“ gekennzeichnet, niemals als Haltbarkeitsaussage."],
+    "limitations": ["Keine automatische Haltbarkeitsvorhersage — bewusst nicht implementiert."]
+  },
+  "regulatory": {
+    "title": "Regulatorik",
+    "summary": "Kenia/EAC-regulatorische Klassifizierung, Regelbewertung, Nachweisbestätigungen und menschliche Prüfung.",
+    "purpose": "Die deterministische regulatorische Klassifizierung Ihrer Formel sehen, sie gegen Jurisdiktionsregeln bewerten und eine echte menschliche Prüfung erfassen.",
+    "prerequisites": ["Eine gespeicherte Formelversion, eine Jurisdiktion und (wo relevant) eine Verpackungs-SKU."],
+    "quickStart": ["Version, Jurisdiktion und handelnde Rolle wählen.", "Auf Bewerten klicken, um Befunde zu sehen."],
+    "sections": ["Klassifizierung", "Regeln", "Prüfungen"],
+    "roleNotes": ["Das Verifizieren einer Regel oder das Erfassen einer formellen Prüfung erfordert eine autorisierte Rolle (Regulatorik/Qualität/Administrator)."],
+    "limitations": ["Seed-Regeln werden als not_verified ausgeliefert, bis ein qualifizierter Prüfer sie bestätigt."]
+  },
+  "dossiers": {
+    "title": "Dossiers",
+    "summary": "Erstellen Sie ein Dossier pro Version und Jurisdiktion, einschließlich eines echten PDF/DOCX-Exports.",
+    "purpose": "Anforderungen, Nachweise und Prüfungen in einem Dossier pro Formelversion und Jurisdiktion zusammenstellen und dann exportieren.",
+    "prerequisites": ["Eine echte gespeicherte Formelversion — niemals ein Arbeitsentwurf."],
+    "quickStart": ["Ein Dossier gegen eine gespeicherte Version und Jurisdiktion erstellen.", "Anforderungen und die Nachweisbibliothek bearbeiten."],
+    "sections": ["Übersicht", "Nachweismatrix", "Anforderungen", "Nachweisbibliothek", "Prüfungen", "Einreichungen", "Verlauf", "Audit"],
+    "roleNotes": ["Der PDF/DOCX-Export erfordert eine autorisierte Rolle (Regulatorik/Qualität/Administrator) — die Schaltflächen sind sonst ausgeblendet, und für einen blockierten Versuch wird kein Verlaufseintrag erstellt."],
+    "limitations": ["Noch kein eigener Bildschirm für den Exportverlauf, obwohl jeder Versuch erfasst wird."]
+  },
+  "claimsLabels": {
+    "title": "Aussagen & Etiketten",
+    "summary": "Produktaussagen und Produktetiketten für eine Formelversion verwalten, einschließlich Artwork- und Konsistenz-Workflow.",
+    "purpose": "Aussagen mit echten Dossier-Nachweisen verknüpfen, Etiketteninhalte erstellen und die Formel-Etiketten-Konsistenz vor dem Druck prüfen.",
+    "prerequisites": ["Eine echte gespeicherte Formelversion."],
+    "quickStart": ["Eine Aussage oder ein Etikett erstellen.", "Nachweis verknüpfen und eine formelle Prüfung erfassen."],
+    "sections": ["Aussagen", "Etiketten", "Verlauf", "Audit"],
+    "roleNotes": ["Nur eine formelle Prüfung durch eine autorisierte Rolle ändert den tatsächlichen Status einer Aussage."],
+    "limitations": ["Kein vollständiger grafischer Artwork-Editor — nur Hochladen/Vorschau/Freigeben/Ablehnen/Ersetzen."]
+  },
+  "approval": {
+    "title": "Freigabe",
+    "summary": "Bereitschaftsübersicht, Blocker, Freigaberichtlinien und Entscheidungsverlauf für das gewählte Projekt.",
+    "purpose": "Genau sehen, was eine Formel an der Freigabe hindert, und eine echte, namentliche menschliche Freigabeentscheidung erfassen.",
+    "quickStart": ["Die Blocker-Liste prüfen.", "Freigeben oder ablehnen mit Begründung, sobald jeder Blocker behoben ist."],
+    "sections": ["Bereitschaft & Blocker", "Richtlinien", "Entscheidungsverlauf"],
+    "warnings": ["Kein automatisierter Akteur — Agent, Systemprozess oder Import — kann jemals pilot_approved oder production_approved setzen, unabhängig davon, was ein Modell geschlussfolgert hat."],
+    "roleNotes": ["Pilotfreigabe benötigt Chemiker/Qualität/Administrator; Produktionsfreigabe benötigt Qualität/Regulatorik/Produktion/Administrator."]
+  },
+  "reports": {
+    "title": "Berichte",
+    "summary": "Eine Navigationsübersicht mit jedem echten Export, der bereits im jeweiligen Quellmodul verfügbar ist.",
+    "purpose": "Ein Ort, um jeden Export in der App zu finden — jede Zeile verlinkt zum Arbeitsbereich, der ihn tatsächlich erzeugt.",
+    "quickStart": ["Auf Öffnen in einer Zeile klicken, um im echten Quellmodul zu exportieren."],
+    "limitations": ["Für Audit-Berichte gibt es noch keine eigene Ansicht — ehrlich gekennzeichnet, nie vorgetäuscht."]
+  },
+  "dataExchange": {
+    "title": "Datenaustausch",
+    "summary": "Massen-CSV/Excel-Import und -Export über jedes Modul — 41 Vorlagen, mit Vorschau-vor-Commit als Sicherheitsschritt.",
+    "purpose": "Daten in großen Mengen in FormuLab hinein- oder herausbewegen, ohne jede Zeile von Hand einzugeben, während jeder Schreibvorgang vor dem Ausführen überprüfbar bleibt.",
+    "quickStart": ["Eine Leer- oder Beispieldatei für die benötigte Vorlage herunterladen.", "Ausfüllen, dann Hochladen.", "Die Vorschau prüfen, dann Import bestätigen."],
+    "sections": ["Vorlagenbibliothek", "Exporte", "Importe", "Validierung", "Verlauf", "Schemaversionen", "Hilfe"],
+    "roleNotes": ["Ein Import kann niemals etwas von sich aus als verifiziert oder freigegeben markieren — alles kommt als Entwurf herein, genau wie von Hand eingegeben."],
+    "limitations": ["2 Vorlagen (Stabilitätsprotokolle und Stabilitätsergebnisse) werden geprüft und validiert, können aber noch nicht committet werden — ehrlich pro Zeile gemeldet."]
+  },
+  "administration": {
+    "title": "Administration",
+    "summary": "Links zu Materialien, Regulatorik-Regeln, Freigaberichtlinien, Datenaustausch und Einstellungen, plus dem globalen Testdefinitionen-Editor.",
+    "purpose": "Ein zentraler Ort für Konfigurationsbildschirme, die bereits anderswo in der App existieren.",
+    "quickStart": ["Zu Materialien, Regulatorik, Freigabe, Datenaustausch oder Einstellungen weiterklicken."],
+    "limitations": ["Keine Benutzer- oder Rollenverwaltung — dieses Codebase hat kein Benutzerverwaltungs-Backend, und Administration sagt das offen, statt eines vorzutäuschen."]
+  },
+  "materials": {
+    "title": "Materialien",
+    "summary": "Materialien, Lieferanten, Verpackungskomponenten/Stücklisten und Fabrik-Kostenprofile.",
+    "purpose": "Der Katalog, aus dem jede Formelzeile, Kostenberechnung und Verpackungsübersicht aufgebaut ist.",
+    "quickStart": ["Ein Material mit dem heute Bekannten anlegen.", "Einen oder mehrere Lieferanten zuordnen."],
+    "sections": ["Materialien", "Lieferanten", "Verpackung", "Fabrikprofile"]
+  },
+  "notebooks": {
+    "title": "Notebooks",
+    "summary": "Ein ausführbarer Notebook-Editor für explorative Analysen.",
+    "purpose": "Notebook-Zellen gegen die gebündelte Python/R-Laufzeit der App schreiben und ausführen.",
+    "quickStart": ["Ein Notebook öffnen und eine Zelle mit Cmd/Strg+Enter ausführen."],
+    "limitations": ["Nur auf dem Desktop verfügbar — zeigt in einer Browser-Entwicklungssitzung einen ehrlichen Leerzustand."]
+  },
+  "files": {
+    "title": "Dateien",
+    "summary": "Ein Datei-Browser und Vorschautool über Ihre Sitzungsordner hinweg.",
+    "purpose": "Von Ihren Sitzungen und Läufen erzeugte Dateien durchsuchen, in der Vorschau ansehen und öffnen.",
+    "quickStart": ["In einen Ordner navigieren; auf eine Datei klicken, um sie in der Vorschau zu sehen."]
+  },
+  "runs": {
+    "title": "Läufe",
+    "summary": "Verlauf jedes ausgeführten Befehls oder jeder Berechnung, mit Zugriff auf Reproduktion und Log.",
+    "purpose": "Sehen, was wann mit welchem Ergebnis lief — und es erneut ausführen oder untersuchen.",
+    "quickStart": ["Nach Suche oder Status filtern; einen Lauf aufklappen, um sein Rezept zu sehen."]
+  },
+  "sessions": {
+    "title": "Sitzungen",
+    "summary": "Ihre KI-gestützte Forschungssitzungsliste — oberhalb von Einstellungen angeheftet, standardmäßig die letzten 8 angezeigt.",
+    "purpose": "Der Einstiegspunkt für den agenten-/chatgestützten Forschungsworkflow: eine neue Sitzung starten oder eine vergangene erneut öffnen.",
+    "quickStart": ["Auf Neu klicken, um eine Sitzung zu starten.", "Auf eine vergangene Sitzung klicken, um sie erneut zu öffnen."],
+    "warnings": ["Das Löschen einer Sitzung wird zuerst bestätigt — sie wird nicht stillschweigend entfernt."]
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "summary": "Konfiguration für Allgemein, Erscheinungsbild, Modelle, Python-Laufzeit, Compute und Datenschutz.",
+    "purpose": "Die App selbst konfigurieren — Design, Sprache, Modellanbieter, Laufzeit, Compute-Ziele und Datenschutzoptionen.",
+    "quickStart": ["Einen Abschnitt aus der Liste links wählen."],
+    "sections": ["Allgemein", "Erscheinungsbild", "Modelle", "Python (Laufzeit)", "Compute", "Datenschutz"]
+  },
+  "glossary": {
+    "workingDraft": { "term": "Arbeitsentwurf", "definition": "Der aktuelle, bearbeitbare, ungespeicherte Zustand einer Formel — nie freigegeben, nie als final exportiert." },
+    "savedVersion": { "term": "Gespeicherte Version", "definition": "Ein unveränderlicher, nummerierter Schnappschuss einer Formel, erstellt durch Version speichern. Erneutes Bearbeiten erstellt eine neue Version." },
+    "approvalRole": { "term": "Freigaberolle", "definition": "Eine von Forscher, Chemiker, Qualität, Regulatorik, Produktion oder Administrator — die einzigen Rollen, die jemals eine Version freigeben können, und nur einige davon für jedes Freigabetor." },
+    "blockingFinding": { "term": "Blockierender Befund", "definition": "Ein Validierungs-, Verträglichkeits- oder Sicherheitsergebnis, das schwer genug ist, um die Freigabe zu verhindern, bis es von einem namentlichen Menschen gelöst wird." },
+    "dossier": { "term": "Dossier", "definition": "Eine Sammlung von regulatorischen Anforderungen, Nachweisen und Prüfungen pro Version und Jurisdiktion für eine Formel." },
+    "evidenceConfirmation": { "term": "Nachweisbestätigung", "definition": "Ein gespeicherter Nachweis, dass der Nachweis einer regulatorischen Anforderung erbracht wurde, mit Begründung widerrufbar." },
+    "qsToHundred": { "term": "q.s. (quantum satis)", "definition": "Eine Formelzeile, die automatisch auf 100 % dessen aufgefüllt wird, was die anderen Zeilen übrig lassen, nie negativ werdend." },
+    "landedCost": { "term": "Gesamtkosten (landed cost)", "definition": "Der Preis eines Materials plus Fracht, Versicherung, Zoll, Steuer und weitere Kosten bis zu Ihrer Fabrik." },
+    "costSnapshot": { "term": "Kosten-Schnappschuss", "definition": "Ein eingefrorener Datensatz der genauen Preise, Wechselkurse und Fabrikkosten, die zu einem Zeitpunkt zur Kostenberechnung einer Formelversion verwendet wurden." },
+    "compatibilityFinding": { "term": "Verträglichkeitsbefund", "definition": "Ein Ergebnis der deterministischen Regel-Engine für Zutateninteraktionen — Info/Warnung/Fehler/blockierend." },
+    "safetyClassification": { "term": "Sicherheitsklassifizierung", "definition": "Die deterministische Gefahrenkategorie, in die eine Formel eingeordnet wird — von gewöhnlicher Verbraucherartikel bis verboten." },
+    "doeStudy": { "term": "DOE-Studie", "definition": "Ein Versuchsplanungsplan: Faktoren, Beschränkungen, Antworten, ein generierter Laufplan und (nach Ausführung) ein angepasstes statistisches Modell." },
+    "reverseFormulationCandidate": { "term": "Rückwärts-Formulierungskandidat", "definition": "Eine aus den deklarierten Zutaten eines Referenzprodukts generierte Kandidatenformel, separat nach Formel-Fit und Evidenz-Konfidenz bewertet." },
+    "dataExchangeTemplate": { "term": "Datenaustausch-Vorlage", "definition": "Das CSV/Excel-Schema einer importier-/exportierbaren Sammlung, mit eigener Vorschau-vor-Commit-Validierung." },
+    "auditEvent": { "term": "Audit-Ereignis", "definition": "Ein unveränderlicher, zeitgestempelter Datensatz einer echten Aktion eines echten Akteurs — die Grundlage jedes Verlaufs-/Audit-Tabs in der App." },
+    "watermark": { "term": "Wasserzeichen", "definition": "Der Stempel „R&D DRAFT — NOT PRODUCTION APPROVED“, der auf jeden Export angewendet wird, dessen Quellformel nicht wirklich production_approved ist." },
+    "readinessBlocker": { "term": "Bereitschafts-Blocker", "definition": "Ein spezifischer, benannter Grund, warum eine Formel noch nicht freigegeben werden kann, angezeigt im Freigabe-Arbeitsbereich." },
+    "jurisdiction": { "term": "Jurisdiktion", "definition": "Der Markt, für den eine regulatorische Bewertung gilt — Kenia, Uganda, Tansania, Ruanda, Burundi, Südsudan oder der EAC-Regionalblock." }
+  }
+}

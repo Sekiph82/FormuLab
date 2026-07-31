@@ -1,6 +1,6 @@
 # Phase 10 — User Guide and In-App Help
 
-## Status: Session 0 (assessment) complete. Nothing implemented yet.
+## Status: Session 1 (help schemas/registry/route mapping) complete.
 
 ## Key finding: build on what already exists, don't start from zero
 This repository already has (a) a rich, technically accurate but
@@ -310,5 +310,44 @@ artifact needed.
 - **Completion criteria**: Phase 10 CLOSED.
 - **Commit**: `chore(docs): close phase 10 user guide and help system`
 
+## Session 1 summary — help schemas, registry, and route mapping (complete)
+- **Files**: `apps/desktop/src/lib/help/{types,glossary,registry}.ts` +
+  `registry.test.ts`; `i18n/locales/*/help.json` (8 locales);
+  `i18n/index.ts` (namespace wiring); `i18n/index.test.ts` (namespace
+  count assertion updated).
+- **Architecture built as planned**: one central `HELP_TOPICS: HelpTopic[]`
+  registry, no second route registry — `topicForRoute(pathname)` uses
+  react-router's own `matchPath` in two passes (exact-mode first, then
+  `mode: "prefix"` as parent-topic fallback for `/settings/:section` and
+  `/live/:sessionId`). `HELP_SCHEMA_VERSION = "1.0"`.
+- **Topic count**: 22 topics, covering every sidebar module/child route
+  plus the two real link-only routes (`optimizer`, `materials`,
+  `linkOnly: true`). `sessions` topic covers both `/live` (prefix) and
+  `/example/:sessionId` (exact).
+- **Route coverage**: every real `router.tsx` leaf route resolves to a
+  topic or a documented `HELP_EXCLUSIONS` entry (`/` redirect, `/formulas`
+  redirect, `/formulas/legacy` retained-legacy page, `*` 404 catch-all) —
+  verified by `registry.test.ts` walking the actual `routes` export, not
+  a hand-copied list.
+- **Glossary**: 18 terms (`GLOSSARY_TERMS`), referenced from topics via
+  `glossaryTermIds`, definitions in `help.json`'s `glossary` key.
+- **Locale strategy**: full genuine translation for all 8 shipped locales
+  (en/zh-Hans/ja/es/de/fr/ko/tr) — no English-fallback markers used (none
+  found as an existing convention in this codebase). `keywords` is the one
+  field kept English-only/non-i18n by design (search-aid tags, not
+  user-facing prose) — documented in `types.ts`.
+- **Tests**: `registry.test.ts` — 35 tests (schema version validity, no
+  duplicate topic ids, no duplicate exact-route bindings, related/glossary
+  reference resolution, screenshot naming convention, per-route
+  resolution incl. prefix/parent fallback, full `router.tsx` coverage
+  cross-check, exclusion-list sanity). Plus existing `parity.test.ts`
+  (i18n key parity, now covering the `help` namespace across all 8
+  locales) and `index.test.ts` (namespace count = 9). Full desktop suite
+  re-run (i18n/index.ts is shared infra): 96 files / 773 tests, all green.
+- **Exclusions**: 4 routes (`/`, `/formulas`, `/formulas/legacy`, `*`),
+  each with a documented reason in `HELP_EXCLUSIONS`.
+- **Out of scope this session (unchanged from plan)**: Help panel, Help
+  Center, tooltips, tours, screenshots, guide exports — all deferred.
+
 ## Exact next session
-Phase 10 Session 1: Help Content Schemas, Registry, and Route Mapping.
+Phase 10 Session 2: Page Help Panel and Searchable Help Center.
