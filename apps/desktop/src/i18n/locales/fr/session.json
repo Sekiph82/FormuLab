@@ -447,7 +447,7 @@
     "goToLine": "Go to line",
     "findingSummary": "{{errors}} error(s), {{warnings}} warning(s)",
     "incomplete": "(incomplete)",
-    "groupIncompleteTitle": "{{pct}}% of this group has no declared active matter, so the figure is a lower bound.",
+    "groupIncompleteTitle": "{{pct}}% de ce groupe n'a pas de matière active déclarée — la contribution active est une limite inférieure. Le pourcentage de formule ci-dessus n'est pas affecté.",
     "unsaved": "Unsaved changes",
     "autosaving": "Saving draft...",
     "autosaved": "Draft saved",
@@ -519,7 +519,15 @@
     "loadingProject": "Loading project…",
     "projectDoeStudies": "Open this project's DOE studies",
     "projectDoeStudyCount": "{{n}} study(ies)",
-    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center"
+    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center",
+    "activeShort": "actif",
+    "malformed": "(erreur de données)",
+    "groupMalformedTitle": "{{count}} ligne(s) de ce groupe ont un pourcentage illisible et sont exclues de ce total.",
+    "unclassified": "non classé",
+    "unclassifiedTitle": "Pourcentage de formule porté par des lignes sans fonction assignée.",
+    "candidateTabsLabel": "Versions candidates",
+    "candidateHasViolations": "Comporte des avertissements de validation",
+    "candidateUnsavedTitle": "Comporte des modifications non enregistrées"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",

@@ -245,7 +245,9 @@ function ResultBody({
  * chemist edits it here and saves a version. The card stays available as the
  * printable, citable record of what was generated.
  */
-function CardsView({
+/** Exported for focused testing of candidate-version isolation
+ *  (FormulationWorkspaceV2.test.tsx) — internal otherwise. */
+export function CardsView({
   view,
   active,
   setActive,
@@ -258,17 +260,33 @@ function CardsView({
 }) {
   const card = view.cards[Math.min(active, view.cards.length - 1)];
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<FormulationLine[]>([]);
-  const [batchKg, setBatchKg] = useState("100");
+  // Keyed by the candidate's own stable `version` id (e.g. "v1"/"v2"/"v3"),
+  // never by `active` (an index, and not what the task requires) and never
+  // one shared array reused across candidates — that reuse was the root
+  // cause of "editing V1 shows V1's data in V2's tab": a single `draft`
+  // state, seeded only once (`draft.length === 0`), silently kept showing
+  // whichever candidate happened to be edited first. Each candidate now
+  // gets its own array, built fresh from that candidate's own (never
+  // mutated) `card.formula` the first time its Edit tab is opened.
+  const [draftsByVersion, setDraftsByVersion] = useState<Record<string, FormulationLine[]>>({});
+  const [batchKgByVersion, setBatchKgByVersion] = useState<Record<string, string>>({});
+  const draft = draftsByVersion[card.version] ?? [];
+  const batchKg = batchKgByVersion[card.version] ?? "100";
+  const hasUnsavedDraft = (version: string) => draftsByVersion[version] !== undefined;
 
-  // Entering edit mode seeds the grid from the generated formula, carrying each
-  // ingredient's origin through as a model estimate rather than a fact.
+  // Entering edit mode seeds THIS candidate's grid from its own generated
+  // formula — once per candidate, tracked by presence in the map rather than
+  // `.length === 0` (an empty-but-seeded draft must not be reseeded either).
   const startEditing = () => {
-    if (draft.length === 0 && card.formula) {
-      setDraft(linesFromGeneratedFormula(card.formula));
+    if (draftsByVersion[card.version] === undefined && card.formula) {
+      setDraftsByVersion((prev) => ({ ...prev, [card.version]: linesFromGeneratedFormula(card.formula) }));
     }
     setEditing(true);
   };
+  const setDraft = (lines: FormulationLine[]) =>
+    setDraftsByVersion((prev) => ({ ...prev, [card.version]: lines }));
+  const setBatchKg = (kg: string) =>
+    setBatchKgByVersion((prev) => ({ ...prev, [card.version]: kg }));
 
     return (
       <div className="flex h-full flex-col">
@@ -295,10 +313,25 @@ function CardsView({
           ) : null}
         </div>
         {view.cards.length > 1 && (
-          <div className="print-hide flex shrink-0 gap-1 border-b border-border-faint px-6 pt-3">
+          <div
+            role="tablist"
+            aria-label={t("builder.candidateTabsLabel", "Candidate versions")}
+            className="print-hide flex shrink-0 gap-1 border-b border-border-faint px-6 pt-3"
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+              e.preventDefault();
+              const delta = e.key === "ArrowRight" ? 1 : -1;
+              const next = (active + delta + view.cards.length) % view.cards.length;
+              setActive(next);
+              (e.currentTarget.querySelectorAll('[role="tab"]')[next] as HTMLElement | undefined)?.focus();
+            }}
+          >
             {view.cards.map((c, i) => (
               <button
                 key={c.version}
+                role="tab"
+                aria-selected={i === active}
+                tabIndex={i === active ? 0 : -1}
                 onClick={() => setActive(i)}
                 className={cn(
                   "rounded-t-input border-b-2 px-3 py-1.5 text-xs font-medium transition-colors",
@@ -309,7 +342,14 @@ function CardsView({
               >
                 {c.version.toUpperCase()}
                 {c.violations && c.violations.length > 0 && (
-                  <span className="ml-1 text-amber-500">•</span>
+                  <span className="ml-1 text-amber-500" title={t("builder.candidateHasViolations", "Has validation warnings")}>
+                    •
+                  </span>
+                )}
+                {hasUnsavedDraft(c.version) && (
+                  <span className="ml-1 text-accent" title={t("builder.candidateUnsavedTitle", "Has unsaved edits")}>
+                    •
+                  </span>
                 )}
               </button>
             ))}

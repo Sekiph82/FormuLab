@@ -12,7 +12,7 @@
  * 1000 kg batch scale. Neither is acceptable on a factory floor.
  */
 import Decimal from "decimal.js";
-import { ONE_HUNDRED, PRECISION, dec } from "./decimal";
+import { ONE_HUNDRED, PRECISION, dec, tryDec } from "./decimal";
 import type {
   FormulationLine,
   FormulationVersion,
@@ -49,12 +49,19 @@ export interface FormulaTotals {
  *
  * A raw material at 10% that is 70% active contributes 7% active matter, not
  * 10%. Conflating the two is the classic way to ship an under-active product.
+ *
+ * A line's `percent`/`activeMatterPercent` that cannot be parsed (mid-edit,
+ * e.g. briefly cleared to non-numeric text) is treated as 0 here rather than
+ * thrown — this function sits on the builder's live-render path
+ * (`FormulaBuilder.tsx`'s totals `useMemo`), so a single malformed cell must
+ * never take down the whole grid. The malformed cell is still visible, as
+ * typed, in its own input; only the aggregate arithmetic skips it.
  */
 export function computeTotals(lines: FormulationLine[]): FormulaTotals {
   let authored = new Decimal(0);
   for (const line of lines) {
     if (line.isQsToHundred) continue;
-    authored = authored.plus(dec(line.percent));
+    authored = authored.plus(tryDec(line.percent) ?? new Decimal(0));
   }
 
   const qsLines = lines.filter((l) => l.isQsToHundred);
@@ -68,13 +75,14 @@ export function computeTotals(lines: FormulationLine[]): FormulaTotals {
         qsLines.length > 0
         ? qsRemainder.dividedBy(qsLines.length)
         : new Decimal(0)
-      : dec(line.percent);
+      : (tryDec(line.percent) ?? new Decimal(0));
 
-    if (line.activeMatterPercent === undefined) {
+    const activeMatter = line.activeMatterPercent === undefined ? undefined : tryDec(line.activeMatterPercent);
+    if (activeMatter === undefined) {
       unknownActive = unknownActive.plus(pct);
       continue;
     }
-    active = active.plus(pct.times(dec(line.activeMatterPercent)).dividedBy(ONE_HUNDRED));
+    active = active.plus(pct.times(activeMatter).dividedBy(ONE_HUNDRED));
   }
 
   return {
@@ -86,12 +94,13 @@ export function computeTotals(lines: FormulationLine[]): FormulaTotals {
   };
 }
 
-/** The effective percentage of a line, with q.s. resolved. */
+/** The effective percentage of a line, with q.s. resolved. A malformed
+ *  `percent` resolves to 0 rather than throwing — see `computeTotals`. */
 export function resolvedPercent(
   line: FormulationLine,
   lines: FormulationLine[],
 ): Decimal {
-  if (!line.isQsToHundred) return dec(line.percent);
+  if (!line.isQsToHundred) return tryDec(line.percent) ?? new Decimal(0);
   const totals = computeTotals(lines);
   const qsCount = lines.filter((l) => l.isQsToHundred).length || 1;
   return totals.qsRemainder.dividedBy(qsCount);
@@ -132,24 +141,38 @@ export function functionalActiveTotal(
 }
 
 /**
- * Whether a group total can be trusted.
- *
- * `incomplete` is the honest answer when some member of the group has no
- * declared active matter: the number shown is a lower bound, and presenting it
- * as a fact is how a spec limit gets signed off against a figure that was never
- * measured.
+ * Whether a group's ACTIVE-MATTER total can be trusted — this status is
+ * about `activePercent`/`unknownActivePercent` only, never about
+ * `rawPercent`. `rawPercent` (the actual formula-percentage share of a
+ * function) is always a complete, real number whenever every member line
+ * has a valid percentage — it does not depend on active-matter data at
+ * all. `incomplete` is the honest answer when some member of the group
+ * has no declared active matter: the ACTIVE total is a lower bound, and
+ * presenting it as a fact is how a spec limit gets signed off against a
+ * figure that was never measured. It must never be read as "the formula
+ * percentage is zero/unknown."
  */
 export type CompletenessStatus = "complete" | "incomplete" | "not_available";
 
 export interface FunctionalGroupSummary {
   fn: MaterialFunction;
-  /** Sum of the raw-material percentages in this group. */
+  /** Sum of the raw-material (formula) percentages in this group — the
+   *  primary, always-complete figure whenever `malformedPercentLineIds`
+   *  is empty. Never zeroed by missing active-matter data. */
   rawPercent: string;
-  /** Sum of active contributions, counting only lines that declare one. */
+  /** Sum of active contributions, counting only lines that declare one.
+   *  Zero and `status: "incomplete"` together mean "no member of this
+   *  group has declared active matter yet" — not "this group is empty." */
   activePercent: string;
   /** Raw percentage carried by lines with no declared active matter. */
   unknownActivePercent: string;
+  /** Active-matter completeness only — see `CompletenessStatus`. */
   status: CompletenessStatus;
+  /** Member lines whose `percent` could not be parsed as a decimal (e.g.
+   *  cleared mid-edit) — excluded from every sum above rather than
+   *  crashing the summary. A non-empty array means `rawPercent` itself is
+   *  incomplete for this group, distinct from active-matter completeness. */
+  malformedPercentLineIds: string[];
   lineIds: string[];
 }
 
@@ -157,8 +180,27 @@ export interface FunctionalGroupSummary {
  * Per-group totals with their completeness stated.
  *
  * Unlike `functionalActiveTotal`, missing active-matter data is NOT assumed to
- * mean 100% — it is reported, and the group is marked `incomplete`.
+ * mean 100% — it is reported via `unknownActivePercent`/`status`, and never
+ * used to zero out `rawPercent`, which is derived purely from each line's own
+ * (q.s.-resolved) formula percentage. A line whose `percent` cannot be parsed
+ * is excluded and reported in `malformedPercentLineIds` rather than throwing
+ * and taking down the whole summary — the same "flag, never crash, never
+ * fabricate" discipline `flagOutliers`/`testApplicability` already use.
  */
+/** A non-q.s. line's own `percent` is malformed if it is non-empty and
+ *  unparseable — `dec()`'s existing convention already treats an empty
+ *  string as 0, never malformed. A q.s. line's percent is resolved (safe
+ *  by construction, from `computeTotals`) rather than read directly. */
+function safeResolvedPercent(line: FormulationLine, lines: FormulationLine[]): Decimal | undefined {
+  if (line.isQsToHundred) return resolvedPercent(line, lines);
+  // `tryDec` treats "" as "no value" (undefined) — appropriate for an
+  // optional field, but `percent` is required and `dec()` already treats
+  // "" as 0 everywhere else in this file; match that here too, or an
+  // untouched/blank cell would misreport as malformed.
+  if (line.percent === "") return new Decimal(0);
+  return tryDec(line.percent);
+}
+
 export function functionalSummary(lines: FormulationLine[]): FunctionalGroupSummary[] {
   const groups = new Map<MaterialFunction, FormulationLine[]>();
   for (const line of lines) {
@@ -172,13 +214,19 @@ export function functionalSummary(lines: FormulationLine[]): FunctionalGroupSumm
     let raw = new Decimal(0);
     let active = new Decimal(0);
     let unknown = new Decimal(0);
+    const malformedPercentLineIds: string[] = [];
     for (const line of members) {
-      const pct = resolvedPercent(line, lines);
+      const pct = safeResolvedPercent(line, lines);
+      if (pct === undefined) {
+        malformedPercentLineIds.push(line.id);
+        continue;
+      }
       raw = raw.plus(pct);
-      if (line.activeMatterPercent === undefined) {
+      const activeMatter = line.activeMatterPercent === undefined ? undefined : tryDec(line.activeMatterPercent);
+      if (activeMatter === undefined) {
         unknown = unknown.plus(pct);
       } else {
-        active = active.plus(pct.times(dec(line.activeMatterPercent)).dividedBy(ONE_HUNDRED));
+        active = active.plus(pct.times(activeMatter).dividedBy(ONE_HUNDRED));
       }
     }
     out.push({
@@ -187,10 +235,36 @@ export function functionalSummary(lines: FormulationLine[]): FunctionalGroupSumm
       activePercent: toDecimalString(active),
       unknownActivePercent: toDecimalString(unknown),
       status: unknown.isZero() ? "complete" : "incomplete",
+      malformedPercentLineIds,
       lineIds: members.map((m) => m.id),
     });
   }
   return out.sort((a, b) => a.fn.localeCompare(b.fn));
+}
+
+/**
+ * Total formula percentage carried by lines with NO function assigned at
+ * all — never silently folded into any group, and never invented (a line
+ * with no declared function stays unclassified; this function does not
+ * guess one). Reported separately so "the classified groups don't add up
+ * to the formula total" always has a visible, honest explanation. Lines
+ * whose percentage cannot be parsed are excluded here too (they carry no
+ * function, so `functionalSummary` never sees them either) — a genuinely
+ * malformed, unclassified line is silently absent from both, which is the
+ * correct "cannot report a number for this" behavior rather than a
+ * fabricated one.
+ */
+export function unclassifiedFormulaPercent(lines: FormulationLine[]): { percent: string; lineIds: string[] } {
+  let total = new Decimal(0);
+  const lineIds: string[] = [];
+  for (const line of lines) {
+    if (line.functions.length > 0) continue;
+    const pct = safeResolvedPercent(line, lines);
+    if (pct === undefined) continue;
+    total = total.plus(pct);
+    lineIds.push(line.id);
+  }
+  return { percent: toDecimalString(total), lineIds };
 }
 
 export interface BatchLine {
@@ -446,7 +520,10 @@ export function validateFormula(
   const qsLines = lines.filter((l) => l.isQsToHundred);
 
   for (const line of lines) {
-    if (dec(line.percent).isNegative()) {
+    // A malformed (unparseable, non-empty) percent is reported by
+    // `functionalSummary`'s `malformedPercentLineIds`, not re-thrown here —
+    // this check only applies to a value that DID parse.
+    if ((tryDec(line.percent) ?? new Decimal(0)).isNegative()) {
       findings.push(
         finding({
           severity: "error",

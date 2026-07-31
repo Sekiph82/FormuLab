@@ -5,8 +5,10 @@ import {
   diffVersions,
   functionalActiveTotal,
   functionalGroupTotals,
+  functionalSummary,
   isValid,
   scaleToBatch,
+  unclassifiedFormulaPercent,
   validateFormula,
 } from "./formula";
 import type { FormulationLine, FormulationVersion } from "../schemas/formulation";
@@ -77,6 +79,99 @@ describe("functional groups", () => {
   it("computes group ACTIVE totals, which is what specs limit", () => {
     expect(functionalActiveTotal(SHAMPOO, "anionic_surfactant").toString()).toBe("8.4");
     expect(functionalActiveTotal(SHAMPOO, "amphoteric_surfactant").toString()).toBe("2.4");
+  });
+});
+
+describe("functionalSummary — rawPercent is the primary, formula-percentage-based figure", () => {
+  // The exact screenshot regression: five lines with real, non-zero formula
+  // percentages and assigned functions, none declaring active matter. Before
+  // the fix, the UI showed activePercent (always 0 here) as the group total;
+  // rawPercent was always correct internally but never rendered.
+  const NO_ACTIVE_DECLARED: FormulationLine[] = [
+    line({ displayName: "Water", percent: "56.2", functions: ["solvent"] }),
+    line({ displayName: "Propylene Glycol", percent: "4.0", functions: ["solvent"] }),
+    line({ displayName: "Trisodium Citrate", percent: "2.0", functions: ["chelating_agent"] }),
+    line({ displayName: "Potassium Sorbate", percent: "0.5", functions: ["preservative"] }),
+    line({ displayName: "Citric Acid", percent: "0.3", functions: ["ph_adjuster"] }),
+    line({ displayName: "Other Base", percent: "37.0", functions: [] }),
+  ];
+
+  it("sums formula-line percentages per function even when no active matter is declared", () => {
+    const groups = functionalSummary(NO_ACTIVE_DECLARED);
+    const solvent = groups.find((g) => g.fn === "solvent")!;
+    const chelating = groups.find((g) => g.fn === "chelating_agent")!;
+    const preservative = groups.find((g) => g.fn === "preservative")!;
+    const phAdjuster = groups.find((g) => g.fn === "ph_adjuster")!;
+    expect(solvent.rawPercent).toBe("60.2000");
+    expect(chelating.rawPercent).toBe("2.0000");
+    expect(preservative.rawPercent).toBe("0.5000");
+    expect(phAdjuster.rawPercent).toBe("0.3000");
+  });
+
+  it("marks activePercent 0 and status incomplete without implying rawPercent is zero", () => {
+    const solvent = functionalSummary(NO_ACTIVE_DECLARED).find((g) => g.fn === "solvent")!;
+    expect(solvent.activePercent).toBe("0.0000");
+    expect(solvent.status).toBe("incomplete");
+    expect(solvent.rawPercent).toBe("60.2000"); // unaffected by the active-matter gap
+    expect(solvent.unknownActivePercent).toBe("60.2000");
+  });
+
+  it("multiple materials with the same function are summed, different functions stay separate", () => {
+    const groups = functionalSummary(NO_ACTIVE_DECLARED);
+    expect(groups.find((g) => g.fn === "solvent")?.lineIds).toHaveLength(2);
+    expect(groups.find((g) => g.fn === "chelating_agent")?.lineIds).toHaveLength(1);
+  });
+
+  it("is complete (not incomplete) once every member declares active matter", () => {
+    const withActive: FormulationLine[] = [
+      line({ displayName: "Potassium Sorbate", percent: "0.5", functions: ["preservative"], activeMatterPercent: "100" }),
+    ];
+    const preservative = functionalSummary(withActive).find((g) => g.fn === "preservative")!;
+    expect(preservative.status).toBe("complete");
+    expect(preservative.activePercent).toBe("0.5000");
+  });
+});
+
+describe("functionalSummary — unclassified, malformed, and q.s. lines", () => {
+  it("reports an unclassified line's percentage via unclassifiedFormulaPercent, not silently in any group", () => {
+    const lines: FormulationLine[] = [
+      line({ displayName: "Fragrance Blend", percent: "1.5", functions: [] }),
+      line({ displayName: "Citric Acid", percent: "0.3", functions: ["ph_adjuster"] }),
+    ];
+    const unclassified = unclassifiedFormulaPercent(lines);
+    expect(unclassified.percent).toBe("1.5000");
+    expect(unclassified.lineIds).toEqual([lines[0].id]);
+    // functionalSummary never invents a group for it.
+    expect(functionalSummary(lines).some((g) => g.lineIds.includes(lines[0].id))).toBe(false);
+  });
+
+  it("excludes a line with a malformed percentage instead of crashing, and reports it", () => {
+    const lines: FormulationLine[] = [
+      line({ displayName: "Broken Row", percent: "not-a-number", functions: ["preservative"] }),
+      line({ displayName: "Potassium Sorbate", percent: "0.5", functions: ["preservative"] }),
+    ];
+    expect(() => functionalSummary(lines)).not.toThrow();
+    const preservative = functionalSummary(lines).find((g) => g.fn === "preservative")!;
+    expect(preservative.malformedPercentLineIds).toEqual([lines[0].id]);
+    expect(preservative.rawPercent).toBe("0.5000"); // the malformed row is excluded, not treated as 0
+  });
+
+  it("an empty percentage is treated as 0, not malformed (matches dec()'s existing convention)", () => {
+    const lines: FormulationLine[] = [line({ displayName: "Blank", percent: "", functions: ["preservative"] })];
+    const preservative = functionalSummary(lines).find((g) => g.fn === "preservative")!;
+    expect(preservative.malformedPercentLineIds).toEqual([]);
+    expect(preservative.rawPercent).toBe("0.0000");
+  });
+
+  it("uses the resolved q.s. percentage exactly once, matching computeTotals — no double count", () => {
+    const lines: FormulationLine[] = [
+      line({ displayName: "Water", percent: "0", isQsToHundred: true, functions: ["solvent"] }),
+      line({ displayName: "Active", percent: "20", functions: ["anionic_surfactant"] }),
+    ];
+    const totals = computeTotals(lines);
+    const solvent = functionalSummary(lines).find((g) => g.fn === "solvent")!;
+    expect(solvent.rawPercent).toBe(totals.qsRemainder.toFixed(4));
+    expect(solvent.rawPercent).toBe("80.0000");
   });
 });
 

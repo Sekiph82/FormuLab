@@ -447,7 +447,7 @@
     "goToLine": "Go to line",
     "findingSummary": "{{errors}} error(s), {{warnings}} warning(s)",
     "incomplete": "(incomplete)",
-    "groupIncompleteTitle": "{{pct}}% of this group has no declared active matter, so the figure is a lower bound.",
+    "groupIncompleteTitle": "이 그룹의 {{pct}}%는 활성 물질이 신고되지 않았습니다 — 활성 기여도는 하한값입니다. 위의 배합 비율에는 영향이 없습니다.",
     "unsaved": "Unsaved changes",
     "autosaving": "Saving draft...",
     "autosaved": "Draft saved",
@@ -519,7 +519,15 @@
     "loadingProject": "Loading project…",
     "projectDoeStudies": "Open this project's DOE studies",
     "projectDoeStudyCount": "{{n}} study(ies)",
-    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center"
+    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center",
+    "activeShort": "활성",
+    "malformed": "(데이터 오류)",
+    "groupMalformedTitle": "이 그룹의 {{count}}개 행은 비율을 읽을 수 없어 이 합계에서 제외되었습니다.",
+    "unclassified": "미분류",
+    "unclassifiedTitle": "기능이 지정되지 않은 행의 배합 비율입니다.",
+    "candidateTabsLabel": "후보 버전",
+    "candidateHasViolations": "유효성 검사 경고가 있습니다",
+    "candidateUnsavedTitle": "저장되지 않은 변경 사항이 있습니다"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",

@@ -26,6 +26,7 @@ import {
   scaleToBatch,
   setQsLine,
   toDecimalString,
+  unclassifiedFormulaPercent,
   validateFormula,
   type FormulationLine,
   type MaterialFunction,
@@ -132,6 +133,7 @@ export function FormulaBuilder({
   );
   const quantities = useMemo(() => new Map(batch.map((b) => [b.lineId, b])), [batch]);
   const groups = useMemo(() => functionalSummary(lines), [lines]);
+  const unclassified = useMemo(() => unclassifiedFormulaPercent(lines), [lines]);
   const blocked = !isValid(findings);
 
   /** Findings that point at a specific line, so a row can show its own state. */
@@ -773,27 +775,47 @@ export function FormulaBuilder({
 
       {/* Findings + group totals */}
       <div className="print-hide max-h-52 shrink-0 overflow-y-auto border-t border-border px-4 py-2">
-        {groups.length > 0 && (
+        {(groups.length > 0 || !new Decimal(unclassified.percent).isZero()) && (
           <div className="mb-2 flex flex-wrap gap-1.5">
-            {groups.map((g) => (
+            {groups.map((g) => {
+              const hasMalformed = g.malformedPercentLineIds.length > 0;
+              const hasActiveData = !new Decimal(g.activePercent).isZero();
+              return (
+                <span
+                  key={g.fn}
+                  className={cn(
+                    "rounded px-2 py-0.5 text-[11px]",
+                    hasMalformed
+                      ? "bg-error/10 text-error"
+                      : g.status === "incomplete"
+                        ? "bg-warn/10 text-warn"
+                        : "bg-surface-2 text-muted",
+                  )}
+                  title={
+                    hasMalformed
+                      ? t("builder.groupMalformedTitle", { count: g.malformedPercentLineIds.length })
+                      : g.status === "incomplete"
+                        ? t("builder.groupIncompleteTitle", { pct: g.unknownActivePercent })
+                        : t("builder.groupActiveTitle")
+                  }
+                >
+                  {/* Primary figure is always the formula percentage — never
+                      zeroed by missing active-matter data. */}
+                  {g.fn.replace(/_/g, " ")}: {g.rawPercent}%
+                  {hasActiveData && ` (${t("builder.activeShort")} ${g.activePercent}%)`}
+                  {g.status === "incomplete" && ` ${t("builder.incomplete")}`}
+                  {hasMalformed && ` ${t("builder.malformed")}`}
+                </span>
+              );
+            })}
+            {!new Decimal(unclassified.percent).isZero() && (
               <span
-                key={g.fn}
-                className={cn(
-                  "rounded px-2 py-0.5 text-[11px]",
-                  g.status === "incomplete"
-                    ? "bg-warn/10 text-warn"
-                    : "bg-surface-2 text-muted",
-                )}
-                title={
-                  g.status === "incomplete"
-                    ? t("builder.groupIncompleteTitle", { pct: g.unknownActivePercent })
-                    : t("builder.groupActiveTitle")
-                }
+                className="rounded bg-surface-2 px-2 py-0.5 text-[11px] text-muted"
+                title={t("builder.unclassifiedTitle")}
               >
-                {g.fn.replace(/_/g, " ")}: {g.activePercent}%
-                {g.status === "incomplete" && ` ${t("builder.incomplete")}`}
+                {t("builder.unclassified")}: {unclassified.percent}%
               </span>
-            ))}
+            )}
           </div>
         )}
         {findings.length === 0 ? (

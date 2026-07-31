@@ -447,7 +447,7 @@
     "goToLine": "Go to line",
     "findingSummary": "{{errors}} error(s), {{warnings}} warning(s)",
     "incomplete": "(incomplete)",
-    "groupIncompleteTitle": "{{pct}}% of this group has no declared active matter, so the figure is a lower bound.",
+    "groupIncompleteTitle": "このグループの{{pct}}%は活性物質が申告されていません — 活性寄与は下限値です。上記の配合割合には影響しません。",
     "unsaved": "Unsaved changes",
     "autosaving": "Saving draft...",
     "autosaved": "Draft saved",
@@ -519,7 +519,15 @@
     "loadingProject": "Loading project…",
     "projectDoeStudies": "Open this project's DOE studies",
     "projectDoeStudyCount": "{{n}} study(ies)",
-    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center"
+    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center",
+    "activeShort": "活性",
+    "malformed": "（データエラー）",
+    "groupMalformedTitle": "このグループの{{count}}行は割合を読み取れないため、この合計から除外されています。",
+    "unclassified": "未分類",
+    "unclassifiedTitle": "機能が割り当てられていない行の配合割合。",
+    "candidateTabsLabel": "候補バージョン",
+    "candidateHasViolations": "検証の警告があります",
+    "candidateUnsavedTitle": "未保存の変更があります"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",

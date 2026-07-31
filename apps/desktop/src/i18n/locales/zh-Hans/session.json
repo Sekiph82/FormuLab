@@ -447,7 +447,7 @@
     "goToLine": "Go to line",
     "findingSummary": "{{errors}} error(s), {{warnings}} warning(s)",
     "incomplete": "(incomplete)",
-    "groupIncompleteTitle": "{{pct}}% of this group has no declared active matter, so the figure is a lower bound.",
+    "groupIncompleteTitle": "该组中有 {{pct}}% 未申报活性物质——活性贡献值为下限。上方的配方百分比不受影响。",
     "unsaved": "Unsaved changes",
     "autosaving": "Saving draft...",
     "autosaved": "Draft saved",
@@ -519,7 +519,15 @@
     "loadingProject": "Loading project…",
     "projectDoeStudies": "Open this project's DOE studies",
     "projectDoeStudyCount": "{{n}} study(ies)",
-    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center"
+    "projectDataExchange": "Import or export this project's data (Formula/BOM, Lab Results, Stability Results, Dossier Evidence, Claims, Label Content, DOE) in the Data Exchange Center",
+    "activeShort": "活性",
+    "malformed": "（数据错误）",
+    "groupMalformedTitle": "该组中有 {{count}} 行的百分比无法读取，已从此总计中排除。",
+    "unclassified": "未分类",
+    "unclassifiedTitle": "未分配功能的行所占的配方百分比。",
+    "candidateTabsLabel": "候选版本",
+    "candidateHasViolations": "存在验证警告",
+    "candidateUnsavedTitle": "存在未保存的更改"
   },
   "compare": {
     "needTwo": "Save at least two versions to compare them.",

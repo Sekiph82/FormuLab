@@ -466,7 +466,7 @@
     "goToLine": "Satıra git",
     "findingSummary": "{{errors}} hata, {{warnings}} uyarı",
     "incomplete": "(eksik)",
-    "groupIncompleteTitle": "Bu grubun %{{pct}}'inde beyan edilmiş aktif madde yok, bu yüzden rakam bir alt sınırdır.",
+    "groupIncompleteTitle": "Bu grubun %{{pct}}'i için beyan edilmiş aktif madde yok — aktif katkı bir alt sınırdır. Yukarıdaki formül yüzdesi bundan etkilenmez.",
     "unsaved": "Kaydedilmemiş değişiklikler",
     "autosaving": "Taslak kaydediliyor...",
     "autosaved": "Taslak kaydedildi",
@@ -519,7 +519,15 @@
     "tabApproval": "Onay",
     "projectDoeStudies": "Bu projenin DOE çalışmalarını aç",
     "projectDoeStudyCount": "{{n}} çalışma",
-    "projectDataExchange": "Bu projenin verilerini (Reçete/BOM, Laboratuvar Sonuçları, Stabilite Sonuçları, Dosya Kanıtı, İddialar, Etiket İçeriği, DOE) Veri Alışverişi Merkezi'nde içe/dışa aktar"
+    "projectDataExchange": "Bu projenin verilerini (Reçete/BOM, Laboratuvar Sonuçları, Stabilite Sonuçları, Dosya Kanıtı, İddialar, Etiket İçeriği, DOE) Veri Alışverişi Merkezi'nde içe/dışa aktar",
+    "activeShort": "aktif",
+    "malformed": "(veri hatası)",
+    "groupMalformedTitle": "Bu gruptaki {{count}} satırın yüzdesi okunamıyor ve bu toplamdan hariç tutuldu.",
+    "unclassified": "sınıflandırılmamış",
+    "unclassifiedTitle": "İşlev atanmamış satırların taşıdığı formül yüzdesi.",
+    "candidateTabsLabel": "Aday sürümler",
+    "candidateHasViolations": "Doğrulama uyarıları var",
+    "candidateUnsavedTitle": "Kaydedilmemiş değişiklikler var"
   },
   "compare": {
     "needTwo": "Karşılaştırmak için en az iki sürüm kaydedin.",

@@ -486,5 +486,87 @@ completed Session 1 (help registry) above.
 - **Out of scope this session (unchanged from plan)**: field-level
   tooltips, guided tours — deferred to Session 3.
 
+## Out-of-band corrective fix — candidate version isolation and function totals
+
+Not a Phase 10 session — an unrelated production bug fix, done between
+Session 2 and Session 3, in `apps/desktop/src/components/thread/
+FormulationWorkspaceV2.tsx` and `packages/shared/src/engine/formula.ts`.
+Does not touch the help/registry/Laboratory-standards work above; recorded
+here per instruction, without renumbering any Phase 10 session.
+
+- **Defect 1 root cause**: `CardsView` (inside `FormulationWorkspaceV2.tsx`)
+  held ONE shared `draft`/`batchKg` state for every generated candidate,
+  seeded only once (`draft.length === 0`) the first time any "Edit
+  formula" tab was opened. Selecting a different V1/V2/V3 tab never
+  reseeded it, so the Edit view kept showing whichever candidate was
+  edited first, regardless of the active tab.
+- **Fix**: `draftsByVersion`/`batchKgByVersion`, both `Record<string,
+  ...>` keyed by the candidate's own stable `version` id ("v1"/"v2"/
+  "v3"), seeded on first presence-check (`draftsByVersion[card.version]
+  === undefined`) per candidate. `linesFromGeneratedFormula` already
+  built fresh objects per call and never mutated its input, so keying
+  correctly was the entire fix — no change to how a draft is built.
+  Version tabs are now a real ARIA `tablist`/`tab` pattern (`aria-
+  selected`, roving `tabIndex`, arrow-key navigation) with a per-tab
+  unsaved-edit indicator (reusing the existing amber-violation-dot
+  convention, a second accent-colored dot).
+- **Defect 2 root cause**: `functionalSummary()` (`packages/shared/src/
+  engine/formula.ts`) already computed `rawPercent` (the correct,
+  formula-percentage-based group total) correctly — the bug was that
+  `FormulaBuilder.tsx`'s badge rendered `activePercent` (active-matter-
+  derived, always 0 when no member declares active matter) as the
+  primary figure instead. "Incomplete" was genuinely about missing
+  active-matter data, but read as "this number is wrong."
+- **Fix**: the badge now shows `rawPercent` as the primary figure, with
+  `activePercent` appended only when non-zero ("(active X%)"), and the
+  incomplete-active-matter warning's wording corrected so it can no
+  longer be read as applying to the formula percentage. Added
+  `unclassifiedFormulaPercent()` (a separate, non-invented figure for
+  lines with no function assigned) and a `malformedPercentLineIds` field
+  on `FunctionalGroupSummary`.
+- **A more severe latent defect found while testing defect 2**: a
+  malformed (non-empty, unparseable) `percent` string didn't just make
+  the function summary wrong — `computeTotals()`/`resolvedPercent()`
+  called `dec()` directly and unguarded, so a single bad cell crashed
+  the ENTIRE `FormulaBuilder` render (an uncaught `DecimalError`), not
+  just its function-summary badges. Fixed by having `computeTotals`,
+  `resolvedPercent`, and `validateFormula`'s negative-percent check use
+  `tryDec(...) ?? new Decimal(0)` instead of throwing `dec(...)` — a
+  malformed cell now contributes 0 to every aggregate and is reported in
+  `malformedPercentLineIds`, rather than taking the page down. An empty
+  string is still treated as 0 (matching `dec()`'s existing convention,
+  distinct from "malformed").
+- **q.s. handling**: unchanged and re-verified by test — `resolvedPercent`
+  already resolved a q.s. line's percentage exactly once (the remainder
+  to 100%, split evenly across multiple q.s. lines) before this fix, and
+  both `computeTotals` and `functionalSummary` still read that same
+  resolved value once.
+- **Tests**: `FormulationWorkspaceV2.test.tsx` (9, new) — candidate
+  fixture isolation, per-tab loading, cross-candidate edit isolation,
+  survive-tab-switch, Card/Edit switch preserves version, no mutation of
+  the original `card.formula`, keyboard tab navigation, unsaved
+  indicator. `formula.test.ts` (12 new, in the existing "functional
+  groups" area) — rawPercent-is-primary, incomplete-without-zero,
+  multi-material summing, unclassified reporting, malformed-percent
+  exclusion-not-crash, empty-vs-malformed distinction, q.s.-resolved-once.
+  `FormulaBuilder.test.tsx` (9, new) — screenshot-value regression,
+  incomplete wording, unclassified chip, active-contribution display,
+  recalculation after percent/function edits and after switching to a
+  different candidate's lines, malformed-percent non-crash, q.s. no-
+  double-count. Full shared suite 1248/1248; full desktop suite
+  825/825 across 102 files; desktop typecheck/lint clean; i18n parity
+  15/15 (new `builder.*` keys added across all 8 locales — group-badge
+  wording, unclassified/malformed labels, candidate-tab labels). Rust
+  untouched, not re-run.
+- **Limitations**: no "save this candidate as a project version" action
+  exists in this exact workspace view (confirmed pre-existing — `onSave`
+  was already never passed to `FormulaBuilder` here), so "saving one
+  version does not save another" is satisfied by construction (isolated
+  drafts) rather than by a dedicated save-path test; not invented, since
+  it was not part of either reported defect. `validateFormula`'s other
+  checks were not individually audited for the same malformed-percent
+  class of bug beyond the negative-percent check that was actually
+  reached by the crash test.
+
 ## Exact next session
 Phase 10 Session 3: Field Help and Disabled-Action Explanations.
