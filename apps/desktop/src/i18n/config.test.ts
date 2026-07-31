@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_LOCALE,
+  detectInitialLocale,
+  LOCALE_KEY,
   LOCALES,
   localeMeta,
   resolveLocale,
@@ -53,5 +55,37 @@ describe("resolveLocale", () => {
     expect(resolveLocale("xx")).toBe(DEFAULT_LOCALE);
     expect(resolveLocale(null)).toBe(DEFAULT_LOCALE);
     expect(resolveLocale(undefined)).toBe(DEFAULT_LOCALE);
+  });
+});
+
+describe("locale key migration (formulab.locale <- ai4s.locale)", () => {
+  const LEGACY_LOCALE_KEY = "ai4s.locale";
+
+  beforeEach(() => window.localStorage.clear());
+
+  it("prefers the new key when both new and legacy keys exist", () => {
+    window.localStorage.setItem(LOCALE_KEY, "ja");
+    window.localStorage.setItem(LEGACY_LOCALE_KEY, "de");
+    expect(detectInitialLocale()).toBe("ja");
+    expect(window.localStorage.getItem(LEGACY_LOCALE_KEY)).toBe("de");
+  });
+
+  it("migrates a legacy-only value and writes it once to the new key", () => {
+    window.localStorage.setItem(LEGACY_LOCALE_KEY, "fr");
+    expect(detectInitialLocale()).toBe("fr");
+    expect(window.localStorage.getItem(LOCALE_KEY)).toBe("fr");
+    expect(window.localStorage.getItem(LEGACY_LOCALE_KEY)).toBe("fr");
+  });
+
+  it("falls back to the default without crashing when the legacy value is an unshipped/unknown locale", () => {
+    window.localStorage.setItem(LEGACY_LOCALE_KEY, "not-a-real-locale");
+    expect(() => detectInitialLocale()).not.toThrow();
+    expect(detectInitialLocale()).toBe(DEFAULT_LOCALE);
+  });
+
+  it("does not delete the legacy key after migrating", () => {
+    window.localStorage.setItem(LEGACY_LOCALE_KEY, "es");
+    detectInitialLocale();
+    expect(window.localStorage.getItem(LEGACY_LOCALE_KEY)).toBe("es");
   });
 });

@@ -1,6 +1,50 @@
 # Phase 9 — `ai4s`/`AI4S` → FormuLab Naming Migration
 
-## Status: Session 2 (Rust/Tauri/product/binary naming) complete.
+## Status: Session 3 (persisted localStorage keys) complete.
+
+## Session 3 summary
+Migrated all 8 first-party `ai4s.*` `localStorage` keys to `formulab.*`,
+each with a one-time, write-once legacy-read migration that never
+deletes the old key:
+- `apps/desktop/src/lib/store.ts`: `theme` (`formulab.theme.v2`, with a
+  two-hop legacy chain — `ai4s.theme.v2` copied verbatim, then the
+  older pre-v2 `ai4s.theme` remapped `"light"`→`"warm"` exactly as the
+  existing `LEGACY_THEME_KEY` logic already did), `sidebar.width`,
+  `sidebar.collapsed`, `inspector.width`, `zoom`.
+- `apps/desktop/src/i18n/config.ts`: `locale`.
+- `apps/desktop/src/components/settings/modelPreferences.ts`:
+  `models.favorites.v1`, `models.recent.v1`.
+
+Pattern (reused across all keys, generalizing the pre-existing
+`LEGACY_THEME_KEY` precedent): read the new key first; if absent, read
+the legacy key; if the legacy key holds a value, write it once to the
+new key and return it; every subsequent write goes only to the new key;
+the legacy key is never deleted. A `migrateLegacyKey(newKey, legacyKey)`
+helper implements the blind-copy version (sidebar/inspector/zoom/
+locale/favorites/recent — downstream parsing already safely handles a
+malformed value from either key identically, so a raw copy is safe);
+`theme` keeps its own bespoke, value-validating version since it has
+two legacy tiers and one of them requires a value remap, not a blind
+copy. Exported the five `initial*()` read functions from `store.ts`
+(theme/sidebar-width/sidebar-collapsed/inspector-width/zoom) so tests
+can exercise the migration logic directly without depending on
+`useUiStore`'s one-time, module-load-time initialization.
+
+Added 31 new focused tests (21 in `store.test.ts`, 6 in
+`modelPreferences.test.ts`, 4 in `config.test.ts`) covering, per key or
+key group: new-key-wins-when-both-exist, legacy-only migrates
+correctly, malformed legacy value falls back safely without throwing,
+writes go only to the new key afterward, the legacy key is never
+deleted, and (for theme) the exact pre-existing cycling/remap UX is
+unchanged. Full desktop suite: 718/719 (94 files) — the same
+pre-existing, migration-unrelated `download.test.ts` failure flagged in
+Session 1 still reproduces (confirmed untouched by this session's
+changes; not fixed, per this session's own explicit instruction not to
+fix it unless this session's changes touch that area — they don't).
+Desktop typecheck and lint both clean. No app-data, schema, Rust,
+Tauri, package, installer, or binary files touched. Final grep sweep:
+every remaining `ai4s.`-prefixed string in `apps/desktop/src` is one of
+the intentional `LEGACY_*` constants or a test fixture referencing one.
 
 ## Session 2 summary
 Renamed the Rust package/binary `ai4s-workbench` → `formulab` and the
@@ -420,5 +464,4 @@ rename gets its first full real-user-path verification.
   plan touches them.
 
 ## Exact next session
-Phase 9 Session 3: Persisted Identifier and localStorage Compatibility
-Migration.
+Phase 9 Session 4: Scripts, CI, Documentation, and Test Naming Cleanup.

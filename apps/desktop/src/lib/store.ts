@@ -6,13 +6,31 @@ export type Theme = "light" | "warm" | "dark";
 
 export const THEMES: readonly Theme[] = ["light", "warm", "dark"];
 
-const THEME_KEY = "ai4s.theme.v2";
+const THEME_KEY = "formulab.theme.v2";
+/** Pre-FormuLab-rename key holding the same v2 theme values — direct copy, no remap. */
+const LEGACY_THEME_KEY_V2 = "ai4s.theme.v2";
 /** Two-theme era key: its "light" was the warm paper palette, now called "warm". */
 const LEGACY_THEME_KEY = "ai4s.theme";
-const SIDEBAR_WIDTH_KEY = "ai4s.sidebar.width";
-const SIDEBAR_COLLAPSED_KEY = "ai4s.sidebar.collapsed";
-const INSPECTOR_WIDTH_KEY = "ai4s.inspector.width";
-const ZOOM_KEY = "ai4s.zoom";
+const SIDEBAR_WIDTH_KEY = "formulab.sidebar.width";
+const LEGACY_SIDEBAR_WIDTH_KEY = "ai4s.sidebar.width";
+const SIDEBAR_COLLAPSED_KEY = "formulab.sidebar.collapsed";
+const LEGACY_SIDEBAR_COLLAPSED_KEY = "ai4s.sidebar.collapsed";
+const INSPECTOR_WIDTH_KEY = "formulab.inspector.width";
+const LEGACY_INSPECTOR_WIDTH_KEY = "ai4s.inspector.width";
+const ZOOM_KEY = "formulab.zoom";
+const LEGACY_ZOOM_KEY = "ai4s.zoom";
+
+/** Copies a legacy value to its FormuLab key once, only if the new key has
+ *  never been written and the legacy key holds something. Never overwrites
+ *  an existing new-key value (even an empty string) and never deletes the
+ *  legacy key — this is a one-way, one-time seed, not a rename. */
+function migrateLegacyKey(newKey: string, legacyKey: string): void {
+  if (typeof window === "undefined") return;
+  if (window.localStorage.getItem(newKey) !== null) return;
+  const legacy = window.localStorage.getItem(legacyKey);
+  if (legacy === null) return;
+  window.localStorage.setItem(newKey, legacy);
+}
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;
@@ -26,26 +44,50 @@ export const INSPECTOR_MIN = 360;
 export const INSPECTOR_MAX = 960;
 export const INSPECTOR_DEFAULT = 560;
 
-function initialTheme(): Theme {
+/** Exported for focused migration tests only — not meant as a public API
+ *  beyond this module and its test file. */
+export function initialTheme(): Theme {
   if (typeof window === "undefined") return "light";
   const saved = window.localStorage.getItem(THEME_KEY);
   if (saved === "light" || saved === "warm" || saved === "dark") return saved;
+  // Not yet migrated to the FormuLab key: try the pre-rename v2 key first
+  // (same value semantics, direct copy), then the pre-v2 key (value remap:
+  // "light" meant the warm paper palette back then).
+  const legacyV2 = window.localStorage.getItem(LEGACY_THEME_KEY_V2);
+  if (legacyV2 === "light" || legacyV2 === "warm" || legacyV2 === "dark") {
+    window.localStorage.setItem(THEME_KEY, legacyV2);
+    return legacyV2;
+  }
   const legacy = window.localStorage.getItem(LEGACY_THEME_KEY);
-  if (legacy === "dark") return "dark";
-  if (legacy === "light") return "warm";
+  if (legacy === "dark") {
+    window.localStorage.setItem(THEME_KEY, "dark");
+    return "dark";
+  }
+  if (legacy === "light") {
+    window.localStorage.setItem(THEME_KEY, "warm");
+    return "warm";
+  }
   const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
   return prefersDark ? "dark" : "light";
 }
 
-function initialSidebarWidth(): number {
+export function initialSidebarWidth(): number {
   if (typeof window === "undefined") return SIDEBAR_DEFAULT;
+  migrateLegacyKey(SIDEBAR_WIDTH_KEY, LEGACY_SIDEBAR_WIDTH_KEY);
   const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
   if (!Number.isFinite(saved) || saved === 0) return SIDEBAR_DEFAULT;
   return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, saved));
 }
 
-function initialInspectorWidth(): number {
+export function initialSidebarCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  migrateLegacyKey(SIDEBAR_COLLAPSED_KEY, LEGACY_SIDEBAR_COLLAPSED_KEY);
+  return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+}
+
+export function initialInspectorWidth(): number {
   if (typeof window === "undefined") return INSPECTOR_DEFAULT;
+  migrateLegacyKey(INSPECTOR_WIDTH_KEY, LEGACY_INSPECTOR_WIDTH_KEY);
   const saved = Number(window.localStorage.getItem(INSPECTOR_WIDTH_KEY));
   if (!Number.isFinite(saved) || saved === 0) return INSPECTOR_DEFAULT;
   return Math.min(INSPECTOR_MAX, Math.max(INSPECTOR_MIN, saved));
@@ -55,8 +97,9 @@ function clampZoom(z: number): number {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
 }
 
-function initialZoom(): number {
+export function initialZoom(): number {
   if (typeof window === "undefined") return 1;
+  migrateLegacyKey(ZOOM_KEY, LEGACY_ZOOM_KEY);
   const saved = Number(window.localStorage.getItem(ZOOM_KEY));
   if (!Number.isFinite(saved) || saved <= 0) return 1;
   return clampZoom(saved);
@@ -105,8 +148,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   theme: initialTheme(),
   locale: detectInitialLocale(),
   inspectorOpen: true,
-  sidebarCollapsed:
-    typeof window !== "undefined" && window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1",
+  sidebarCollapsed: initialSidebarCollapsed(),
   sidebarWidth: initialSidebarWidth(),
   isFullscreen: false,
   paletteOpen: false,
