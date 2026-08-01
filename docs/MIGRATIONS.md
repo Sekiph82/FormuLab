@@ -17,9 +17,13 @@ code. `migrateRecord`/`migrateCollection` is that walk.
 
 ```typescript
 interface SchemaMigration<T> {
+  id: string;                  // stable step identifier, in journal/error messages
   fromVersion: string;
   toVersion: string;
+  description: string;         // one sentence: what changes and why
+  reversible: boolean;         // declaration only — no automatic reverse migration
   migrate: (record: T) => T;   // pure — must not mutate its input
+  validate?: (record: T) => boolean; // optional post-transform check; false throws
 }
 
 type MigrationRegistry = Record<string, SchemaMigration[]>;
@@ -28,6 +32,15 @@ function registerMigration<T>(registry, collection: string, migration: SchemaMig
 function migrateRecord<T>(registry, collection: string, record: T): { record: T; applied: string[] };
 function migrateCollection<T>(registry, collection: string, rows: T[]): { rows: T[]; anyMigrated: boolean };
 ```
+
+`id`/`description`/`reversible` and the optional `validate` hook were added
+in Phase 11 Session 3 (`docs/PHASE11_MIGRATION_ARCHITECTURE.md`), which
+also added the orchestration layer around this engine (global schema
+version, a mandatory pre-migration verified backup, an append-only
+journal, and rollback-on-failure) — all in
+`apps/desktop/src/lib/migrationRunner.ts`, entirely on top of this
+module, which still never reads/writes a file or touches the backup
+system itself.
 
 `registerMigration` is generic per call so a caller's `migrate` function is
 type-checked against its own record shape; internally, `MigrationRegistry`

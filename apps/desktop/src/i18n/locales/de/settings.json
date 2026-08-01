@@ -221,6 +221,40 @@
       "error": "Fehler"
     }
   },
+  "migration": {
+    "title": "Schema-Migration",
+    "hint": "Hält Ihre Datendateien mit dieser FormuLab-Version aktuell, mit Sicherheitskopie und Rückabwicklung bei Problemen",
+    "unavailable": "in der Desktop-App verfügbar",
+    "checking": "Schemaversion wird geprüft…",
+    "currentVersion": "Aktuelle Version",
+    "pendingCount": "Ausstehende Migrationen",
+    "dryRunButton": "Testlauf",
+    "runButton": "Migration ausführen",
+    "dryRunningLabel": "Testlauf wird ausgeführt…",
+    "runningLabel": "Migration läuft…",
+    "dryRunDoneTitle": "Testlauf abgeschlossen",
+    "nothingPending": "Nichts zu migrieren — alle Sammlungen sind bereits aktuell.",
+    "dryRunRow": "{{collection}}: {{from}} → {{to}} ({{changed}} von {{total}} Zeilen würden sich ändern)",
+    "runDoneTitle": "Migration abgeschlossen",
+    "runDoneHint": "{{count}} Sammlung(en) auf Schemaversion {{version}} migriert.",
+    "failedTitle": "Migration fehlgeschlagen",
+    "rolledBackYes": "Ihre Daten wurden aus der Sicherung vor der Migration wiederhergestellt.",
+    "rolledBackNo": "Die Rückabwicklung konnte nicht automatisch abgeschlossen werden — stellen Sie die Sicherung vor der Migration manuell unter Sicherung und Wiederherstellung wieder her.",
+    "rejectedTitle": "Daten-Schemaversion nicht unterstützt",
+    "rejectedHint": "Ihre Daten liegen in Schemaversion {{current}} vor, die neuer ist als von dieser Version unterstützt ({{supported}}). Aktualisieren Sie FormuLab, bevor Sie dieses Projekt erneut öffnen.",
+    "interruptedTitle": "Eine frühere Migration wurde nicht abgeschlossen",
+    "interruptedHint": "FormuLab wurde während einer Schema-Migration beendet oder ist abgestürzt. Stellen Sie die Sicherung vor der Migration wieder her, um zu einem bekannt guten Zustand zurückzukehren.",
+    "recoverButton": "Sicherung vor der Migration wiederherstellen",
+    "toast": {
+      "loadFailed": "Schemaversion konnte nicht geprüft werden",
+      "dryRunFailed": "Testlauf fehlgeschlagen",
+      "completed": "Migration abgeschlossen.",
+      "failed": "Migration fehlgeschlagen",
+      "nothingPending": "Nichts zu migrieren.",
+      "recovered": "Von der unterbrochenen Migration wiederhergestellt.",
+      "recoverFailed": "Automatische Wiederherstellung nicht möglich"
+    }
+  },
   "python": {
     "title": "Lokaler Python-Kernel",
     "hint": "Führt Notebook-Zellen in der App aus. Nutzt Ihre Jupyter-Umgebung, falls eingerichtet (gleiches Python wie der Agent), sonst automatische Erkennung — oder unten einen expliziten Interpreter festlegen",

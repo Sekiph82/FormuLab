@@ -129,9 +129,56 @@ schema file changed.
 the verification module and its call sites (restore's pre-flight check
 from Session 1).
 
-## Session 3 — Schema Migration Framework
+## Session 3 — Schema Migration Framework (complete — actual results)
 
-**Focused tests**:
+- Rust: 7 new tests in `migration.rs` (schema-meta default-when-absent,
+  schema-meta write-then-read round trip, `schema_version_status`
+  current/upgradable/future-including-unparseable, journal append-then-
+  read round trip in order, missing-journal-path is an empty list not an
+  error, interrupted-run detection × 2 including an earlier-completed-run
+  not masking a later started one) + 1 new test in `masterdata.rs`
+  (`list_master_collections` matches the real `COLLECTIONS` allow-list
+  exactly). Full Rust suite re-run: **109/109 passing** (101 prior + 8
+  new).
+- Shared package: `migrations.test.ts` extended in place (added `id`/
+  `description`/`reversible` to every fixture, 2 new tests for the
+  `validate` hook passing and failing, 1 new test confirming
+  `migrateCollection` never mutates its input) — **13/13 passing** (8
+  prior + 5 new/changed).
+- TypeScript (desktop): 18 new tests in `migrationRunner.test.ts`
+  (`planForCollection` no-registration/ordered-multi-step/missing-
+  intermediate-step/already-current-no-op; `computeMigrationPlan` only
+  reads registered collections; `dryRunMigration` reports changed rows
+  without writing; `runMigration` no-op-at-current-version, future-
+  version-rejection-without-touching-collections, backup-required-
+  before-write with call-order assertion, journal-step-order,
+  validate-failure-triggers-rollback-and-journals-it, unverifiable-
+  backup-rejected-before-any-write, idempotent rerun via a stateful
+  mock store; interrupted-run detection × 3; thin-command-wrapper
+  round trips) — **18/18 passing**. 11 new tests in
+  `SchemaMigrationCard.test.tsx` (not-desktop fallback, current-version-
+  zero-pending, run-button-enabled-with-pending-plan, rejected-future-
+  version banner, dry-run success/failure, run success/failure incl.
+  rolled-back-yes/no wording, interrupted-migration banner + recover
+  action, no-banner-when-clean) — **11/11 passing**.
+- i18n parity: **23/23 passing** (8-locale `settings.migration.*` keys,
+  all real translations, no placeholders).
+- Help registry: **38/38 passing** (the `settings` topic's existing
+  `sections.0`/`warnings` extended in place again — still no new topic).
+- Desktop typecheck: clean (one real variance bug caught and fixed along
+  the way — constructing a `MigrationRegistry` literal directly with a
+  `SchemaMigration<Widget>` object fails TypeScript's contravariant
+  parameter check against the type-erased `SchemaMigration<Record<string,
+  unknown>>[]` storage type; fixed by using `registerMigration<Widget>()`
+  in test fixtures, exactly as the shared package's own tests already
+  do — not a framework bug, a test-authoring correction).
+- Desktop lint: clean.
+- Full desktop suite: **not run** — only `SettingsPage.tsx` (one more
+  conditional render block + import) changed outside the new,
+  already-tested files; no shared Settings infrastructure or global
+  shell behavior changed.
+
+**Originally planned focused tests** (for reference — see actual results above):
 - Extends the existing `migrations.test.ts` synthetic-example coverage
   (chain-walking, duplicate `fromVersion`, non-advancing-migration
   throws) — already real and passing; new tests add the journal,

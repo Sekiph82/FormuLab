@@ -10,6 +10,7 @@ mod formulation_v2;
 mod formulations;
 mod masterdata;
 mod materials;
+mod migration;
 mod git_snapshot;
 mod compute;
 mod jupyter;
@@ -112,6 +113,8 @@ pub fn run() {
             masterdata::upsert_master_records,
             masterdata::delete_master_record,
             masterdata::backup_master_collection,
+            masterdata::list_master_collections,
+            masterdata::write_master_collection_raw,
             artifact_file::read_artifact,
             artifact_file::open_path,
             artifact_file::reveal_path,
@@ -150,7 +153,13 @@ pub fn run() {
             backup::inspect_backup,
             backup::restore_backup,
             backup::cancel_restore,
-            backup::verify_backup
+            backup::verify_backup,
+            migration::read_schema_meta,
+            migration::write_schema_meta,
+            migration::check_schema_compatibility,
+            migration::append_migration_journal,
+            migration::read_migration_journal,
+            migration::create_pre_migration_backup
         ])
         .build(tauri::generate_context!())
         .expect("error while building FormuLab")

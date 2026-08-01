@@ -221,6 +221,40 @@
       "error": "Error"
     }
   },
+  "migration": {
+    "title": "Schema Migration",
+    "hint": "Keeps your data files up to date with this version of FormuLab, with a safety backup and rollback if anything goes wrong",
+    "unavailable": "available in the desktop app",
+    "checking": "Checking schema version…",
+    "currentVersion": "Current version",
+    "pendingCount": "Pending migrations",
+    "dryRunButton": "Dry Run",
+    "runButton": "Run Migration",
+    "dryRunningLabel": "Running a dry run…",
+    "runningLabel": "Migrating…",
+    "dryRunDoneTitle": "Dry run complete",
+    "nothingPending": "Nothing to migrate — every collection is already current.",
+    "dryRunRow": "{{collection}}: {{from}} → {{to}} ({{changed}} of {{total}} rows would change)",
+    "runDoneTitle": "Migration complete",
+    "runDoneHint": "{{count}} collection(s) migrated to schema version {{version}}.",
+    "failedTitle": "Migration failed",
+    "rolledBackYes": "Your data was restored from the pre-migration backup.",
+    "rolledBackNo": "Rollback could not complete automatically — restore the pre-migration backup manually from Backup and Recovery.",
+    "rejectedTitle": "Data schema version not supported",
+    "rejectedHint": "Your data is at schema version {{current}}, which is newer than this build supports ({{supported}}). Update FormuLab before opening this project again.",
+    "interruptedTitle": "An earlier migration did not finish",
+    "interruptedHint": "FormuLab was closed or crashed during a schema migration. Restore the pre-migration backup to return to a known-good state.",
+    "recoverButton": "Restore Pre-Migration Backup",
+    "toast": {
+      "loadFailed": "Could not check the schema version",
+      "dryRunFailed": "Dry run failed",
+      "completed": "Migration complete.",
+      "failed": "Migration failed",
+      "nothingPending": "Nothing to migrate.",
+      "recovered": "Recovered from the interrupted migration.",
+      "recoverFailed": "Could not recover automatically"
+    }
+  },
   "python": {
     "title": "Local Python kernel",
     "hint": "Runs notebook cells in the app. Uses your Jupyter environment when set up (same Python as the agent), else auto-detects — or set an explicit interpreter below",

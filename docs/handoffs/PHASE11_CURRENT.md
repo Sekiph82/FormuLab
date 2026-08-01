@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: SESSION 2 (Backup Verification) COMPLETE. Awaiting Session 3.
+## Status: SESSION 3 (Schema Migration Framework) COMPLETE. Awaiting Session 4.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -276,6 +276,98 @@ recorded once per document rather than duplicated here.
   or export of a verification report — UI-only, matching this session's
   bounded scope.
 
+## Session 3 summary — schema migration framework (complete)
+
+- **Extended the existing engine, not a second one**:
+  `packages/shared/src/engine/migrations.ts`'s `SchemaMigration<T>` gained
+  required `id`/`description`/`reversible` fields and an optional
+  `validate` hook; `migrateRecord` now runs `validate` after `migrate` and
+  throws (naming the failing step id) on a `false` result, using the same
+  "throw rather than silently continue" discipline the existing
+  non-advancing-version guard already used. `migrations.test.ts` extended
+  in place (13 tests, up from 8) — no new test file, no parallel engine.
+- **Global schema version**: `data/master/schema_meta.json`
+  (`{ globalSchemaVersion, updatedAt }`), read/written by new Rust
+  commands (`read_schema_meta`/`write_schema_meta` in the new
+  `apps/desktop/src-tauri/src/migration.rs`). A fresh/unmigrated project
+  has no file at all — that's not an error, it means every collection is
+  still at `"1.0"` (confirmed unchanged since Session 0), so the implicit
+  default IS the current supported version.
+- **Migration registry, reused as-is**: `apps/desktop/src/lib/migrationRunner.ts`
+  exports `MIGRATION_REGISTRY: MigrationRegistry = {}` — **empty by
+  design**, per this session's explicit instruction not to invent a
+  migration for a collection that has never changed schema. Every real
+  code path (plan computation, dry run, full run, rollback, interrupted-
+  run recovery) is exercised in `migrationRunner.test.ts` against a
+  synthetic, test-only registry (`widgetRegistry()`), never the real one.
+- **Backup integration — reused, not duplicated**: `create_pre_migration_backup`
+  (Rust) calls `backup::try_create_backup` directly (made `pub(crate)`
+  for this), writing to app-private storage, never a user-picked path.
+  The orchestrator then calls the existing `verifyBackup`/`restoreBackup`
+  Tauri commands from Sessions 1-2 unchanged — there is exactly one
+  backup-creation code path and one restore code path in this codebase,
+  now used by manual backup, restore's own safety backup, and
+  pre-migration backup alike.
+- **Journal**: append-only `data/master/migration_journal.jsonl`
+  (`append_migration_journal`/`read_migration_journal`, Rust). Steps:
+  `run_started` (carries the pre-migration backup path) →
+  `collection_started`/`collection_completed` per collection →
+  `run_completed`, or on any failure `collection_failed` →
+  `rolled_back` → `run_failed`. `findInterruptedRun`/
+  `find_interrupted_run` (mirrored in both TS and Rust, each independently
+  tested) detects a `run_started` with no matching terminal entry —
+  surfaced in the UI as a recovery banner, not auto-resolved.
+- **Real architectural finding**: `upsert_master_records` refuses to
+  overwrite an existing key in an append-only collection (by design, per
+  Session 0's inventory) — which would make it unusable for writing back
+  a migrated row of any append-only collection. Added
+  `write_master_collection_raw` (masterdata.rs), a migration-only raw
+  file overwrite that bypasses that refusal — safe specifically because
+  the migration runner never reaches it without a verified pre-migration
+  backup already existing, which is exactly the "no destructive mutation
+  without a recovery point" rule this project follows, satisfied by the
+  backup rather than by upsert's refusal.
+- **`list_master_collections`** (masterdata.rs): exposes the real
+  90-entry `COLLECTIONS` allow-list to the frontend directly — the plan
+  computation's one, non-duplicated source of "which collections exist."
+- **Future-version rejection**: `schema_version_status` (Rust,
+  `major.minor`-only comparator — deliberately separate from
+  `backup.rs`'s `major.minor.patch` app-version comparator, since the two
+  version schemes genuinely differ in shape) returns `current`/
+  `upgradable`/`futureUnsupported`; `runMigration` checks this first and
+  journals+returns `rejected_future_version` without creating a backup or
+  touching any collection when the data is newer than this build
+  supports.
+- **UI**: `SchemaMigrationCard` in Settings → General (alongside
+  Session 1-2's Backup and Recovery card) — current version, pending-
+  migration count, Dry Run, Run Migration (disabled with nothing
+  pending), a completed/failed result panel (failed shows whether
+  rollback succeeded), a rejected-future-version banner, and an
+  interrupted-migration recovery banner checked on mount.
+- **Tests**: 7 new Rust tests (`migration.rs` — schema-meta default/
+  round-trip, version-status current/upgradable/future, journal append/
+  read round-trip, missing-journal-is-empty, interrupted-run detection ×2)
+  plus 1 new masterdata.rs test (`list_master_collections` matches the
+  real allow-list) — full Rust suite **109/109**. 13 shared-package tests
+  (`migrations.test.ts`, extended in place). 18 new
+  `migrationRunner.test.ts` tests (plan walking incl. missing-intermediate-
+  step, no-op/current-version, future-version rejection, dry-run-no-writes,
+  backup-required-before-write, journal-step-order, validate-failure-
+  triggers-rollback, unverifiable-backup-rejected, idempotent rerun,
+  interrupted-run detection). 11 new `SchemaMigrationCard.test.tsx` tests
+  (every UI state incl. rejected/interrupted/rolled-back-yes-no). Desktop
+  typecheck clean. Desktop lint clean. i18n parity 23/23. Help registry
+  38/38 (settings topic extended again, no new topic).
+- **Known limitations**: no cross-collection migration ordering (each
+  collection's chain is independent — no evidence any real dependency
+  between collections exists yet, so none was built). No scheduled/
+  automatic migration — every run is a deliberate Settings click, per
+  this session's own instruction. `write_master_collection_raw` is
+  reachable only through the migration runner's own code path today, but
+  nothing at the Rust layer itself prevents a future caller from invoking
+  it directly outside that gated flow — recorded as a trust boundary to
+  revisit if this command ever gets a second caller.
+
 ## Exact next session
 
-**Phase 11 Session 3: Schema Migration Framework.**
+**Phase 11 Session 4: Active Data Location Clarification.**

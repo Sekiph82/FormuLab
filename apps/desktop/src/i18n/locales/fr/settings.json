@@ -221,6 +221,40 @@
       "error": "Erreur"
     }
   },
+  "migration": {
+    "title": "Migration de schéma",
+    "hint": "Maintient vos fichiers de données à jour avec cette version de FormuLab, avec une sauvegarde de sécurité et une restauration en cas de problème",
+    "unavailable": "disponible dans l'application de bureau",
+    "checking": "Vérification de la version du schéma…",
+    "currentVersion": "Version actuelle",
+    "pendingCount": "Migrations en attente",
+    "dryRunButton": "Simulation",
+    "runButton": "Exécuter la migration",
+    "dryRunningLabel": "Simulation en cours…",
+    "runningLabel": "Migration en cours…",
+    "dryRunDoneTitle": "Simulation terminée",
+    "nothingPending": "Rien à migrer — toutes les collections sont déjà à jour.",
+    "dryRunRow": "{{collection}} : {{from}} → {{to}} ({{changed}} lignes sur {{total}} changeraient)",
+    "runDoneTitle": "Migration terminée",
+    "runDoneHint": "{{count}} collection(s) migrée(s) vers la version de schéma {{version}}.",
+    "failedTitle": "Échec de la migration",
+    "rolledBackYes": "Vos données ont été restaurées à partir de la sauvegarde précédant la migration.",
+    "rolledBackNo": "La restauration n'a pas pu se terminer automatiquement — restaurez manuellement la sauvegarde précédant la migration depuis Sauvegarde et restauration.",
+    "rejectedTitle": "Version de schéma de données non prise en charge",
+    "rejectedHint": "Vos données sont à la version de schéma {{current}}, plus récente que celle prise en charge par cette version ({{supported}}). Mettez à jour FormuLab avant de rouvrir ce projet.",
+    "interruptedTitle": "Une migration précédente ne s'est pas terminée",
+    "interruptedHint": "FormuLab a été fermé ou a planté pendant une migration de schéma. Restaurez la sauvegarde précédant la migration pour revenir à un état connu et sain.",
+    "recoverButton": "Restaurer la sauvegarde précédant la migration",
+    "toast": {
+      "loadFailed": "Impossible de vérifier la version du schéma",
+      "dryRunFailed": "Échec de la simulation",
+      "completed": "Migration terminée.",
+      "failed": "Échec de la migration",
+      "nothingPending": "Rien à migrer.",
+      "recovered": "Récupéré après la migration interrompue.",
+      "recoverFailed": "Impossible de récupérer automatiquement"
+    }
+  },
   "python": {
     "title": "Noyau Python local",
     "hint": "Exécute les cellules de notebook dans l'application. Utilise votre environnement Jupyter s'il est configuré (même Python que l'agent), sinon détection automatique — ou définissez un interpréteur explicite ci-dessous",

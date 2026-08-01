@@ -396,6 +396,17 @@ const COLLECTIONS: [(&str, bool); 90] = [
     ("generated_document_records", false),
 ];
 
+/// Every allow-listed collection name and whether it is append-only — the
+/// single source of truth `migration.rs`'s plan computation reads from,
+/// rather than a second, hand-copied list that could drift from this one.
+#[tauri::command]
+pub fn list_master_collections() -> Vec<(String, bool)> {
+    COLLECTIONS
+        .iter()
+        .map(|(name, append_only)| (name.to_string(), *append_only))
+        .collect()
+}
+
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
     COLLECTIONS
         .iter()
@@ -564,6 +575,30 @@ fn backup_collection(app: &AppHandle, name: &str) -> Result<String, String> {
     Ok(dest.to_string_lossy().to_string())
 }
 
+/// Migration-only: overwrites an entire collection file, including an
+/// append-only one, bypassing `upsert_master_records`'s refusal to update
+/// an existing key.
+///
+/// That refusal exists to stop an ordinary edit from quietly rewriting
+/// history; a schema migration is a different, deliberately-gated
+/// operation — by the time `apps/desktop/src/lib/migrationRunner.ts` calls
+/// this, a verified pre-migration backup already exists (created via
+/// `backup::try_create_backup` and checked with `verify_backup_report`),
+/// so the "no destructive mutation without a recovery point" rule this
+/// project follows is satisfied by that backup, not by this function
+/// refusing to write. Never exposed to, or intended for, ordinary
+/// import/edit flows — those still go through `upsert_master_records`.
+#[tauri::command(async)]
+pub async fn write_master_collection_raw(
+    app: AppHandle,
+    collection: String,
+    records: Vec<serde_json::Value>,
+) -> Result<(), String> {
+    let (name, _) = collection_spec(&collection)?;
+    let path = collection_path(&app, name)?;
+    write_array(&path, &records)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -720,6 +755,18 @@ mod tests {
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
         assert_eq!(COLLECTIONS.len(), 90);
+    }
+
+    #[test]
+    fn list_master_collections_matches_the_real_allow_list_exactly() {
+        let listed = list_master_collections();
+        assert_eq!(listed.len(), COLLECTIONS.len());
+        for (name, append_only) in COLLECTIONS {
+            assert!(
+                listed.iter().any(|(n, a)| n == name && *a == append_only),
+                "{name} missing or mismatched in list_master_collections()"
+            );
+        }
     }
 
     #[test]

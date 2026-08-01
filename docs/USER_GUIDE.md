@@ -880,8 +880,8 @@ Open **Settings** (bottom of the sidebar) for six sections:
 - **General** — the raw-materials/pricing screen ([§6](#6-raw-materials-and-suppliers)),
   your **workspace folder** (where projects/sessions/formulas live on
   disk — change or reveal it in Explorer/Finder), **Backup and Recovery**
-  ([§28a](#28a-backup-and-recovery)), and **app updates** (manual check,
-  auto-check toggle, update-badge visibility).
+  and **Schema Migration** ([§28a](#28a-backup-and-recovery)), and **app
+  updates** (manual check, auto-check toggle, update-badge visibility).
 - **Models** — the provider, model, and API key the composer
   ([§0b](#0b-generate-a-starting-formulation-the-composer)) uses to
   generate a formulation. Never used for anything approval-related —
@@ -940,9 +940,27 @@ your data, or restore from one.
 - Restore only ever writes into **this machine's own** data folder — a
   backup made on another computer never overwrites where your workspace
   or `formulab-root.txt` override points here.
-- Not yet available: a backup history list, verifying a package without
-  restoring it, and automatic scheduled backups — all planned for later
-  Phase 11 sessions.
+- Not yet available: a backup history list, and automatic scheduled
+  backups — planned for later Phase 11 sessions.
+
+**Settings → General → Schema Migration** — shows the data schema
+version your project is currently at, and whether anything needs
+updating for this version of FormuLab.
+
+- **Dry Run** shows exactly what a migration would change — which
+  collections, how many rows — without touching anything.
+- **Run Migration** (only enabled when something is actually pending)
+  makes a verified safety backup first, migrates one collection at a
+  time, and automatically restores that backup if anything fails partway
+  — you are told whether the restore succeeded.
+- If FormuLab was closed or crashed during a migration, an **An earlier
+  migration did not finish** banner appears with a one-click **Restore
+  Pre-Migration Backup** action.
+- If your project's data was created by a newer version of FormuLab than
+  the one you're running, you'll see a clear message asking you to
+  update rather than a confusing error.
+- As of this version, every collection is already current — Run
+  Migration will normally show nothing pending.
 
 ## 29. In-app guide and PDF/DOCX generation
 

@@ -147,6 +147,84 @@ finding: **a real migration mechanism already exists**
   until then, `migrations.test.ts`'s existing synthetic example remains
   the only exercised case, and that is accurate, not a gap to backfill.
 
+## Session 3 implementation notes (what actually shipped)
+
+Everything in this section is real, built, and tested — not a plan.
+
+- **Engine change** (`packages/shared/src/engine/migrations.ts`):
+  `SchemaMigration<T>` gained `id: string`, `description: string`,
+  `reversible: boolean` (all required — every future real migration must
+  declare them), and `validate?: (record: T) => boolean` (optional).
+  `migrateRecord` runs `validate` immediately after `migrate` and throws
+  a step-identified error on `false`, using the exact same "throw, don't
+  silently continue" convention the pre-existing non-advancing-version
+  guard already used. `applied` log entries are now `"<id>: <from> ->
+  <to>"` instead of bare `"<from> -> <to>"`.
+- **Global schema version**: `data/master/schema_meta.json`, Rust-owned
+  (`migration.rs`'s `read_schema_meta`/`write_schema_meta`), write-then-
+  rename like every other persisted file in this codebase. Absent file =
+  implicitly current (`GLOBAL_SCHEMA_VERSION`, `"1.0"`, re-exported from
+  `backup.rs` — one constant, not two).
+- **Compatibility check**: `migration::schema_version_status(declared,
+  supported)` — a dedicated `major.minor` comparator, NOT a reuse of
+  `backup.rs`'s `major.minor.patch` app-version comparator, because
+  schema versions and app versions are genuinely different-shaped
+  strings in this codebase (`"1.0"` vs `"0.4.0"`) and forcing one parser
+  to handle both would either silently mis-parse or need format-sniffing
+  neither version scheme asks for.
+- **Migration registry**: `apps/desktop/src/lib/migrationRunner.ts`'s
+  `MIGRATION_REGISTRY` is empty, exactly as planned — confirmed again
+  this session that no collection has ever shipped at anything but
+  `"1.0"`.
+- **Plan computation**: `computeMigrationPlan()` calls the new
+  `list_master_collections` (masterdata.rs, exposes the real 90-entry
+  allow-list) and only ever calls `listRecords` for a collection the
+  registry actually names — today, none. `planForCollection` walks the
+  registry chain by version string alone (no row access), matching the
+  architecture originally sketched.
+- **Dry run**: `dryRunMigration()` — read-only, `migrateCollection` is
+  already side-effect-free, comparison is a plain `JSON.stringify` diff
+  per row. Never calls `writeMasterCollectionRaw`; a dedicated test
+  asserts this directly.
+- **Pre-migration backup**: `create_pre_migration_backup` (Rust) calls
+  `backup::try_create_backup` (widened to `pub(crate)` for this reuse)
+  directly, writing into app-private storage
+  (`app_private_dir(app, "backups")`), never a user-facing save dialog —
+  the same pattern Session 1's restore safety-backup already established.
+  The orchestrator then calls the existing `verifyBackup` command
+  unchanged; any status other than `valid`/`validWithWarnings` aborts
+  before touching a single collection.
+- **The append-only write problem, solved**: `upsert_master_records`
+  refuses to overwrite an existing key in an append-only collection by
+  design (Session 0 finding). A real migration would need to rewrite
+  existing rows in place, which that refusal structurally blocks.
+  Resolved with `write_master_collection_raw` (masterdata.rs) — a
+  migration-only whole-file overwrite, safe specifically because the
+  runner never reaches it without a verified backup already in hand.
+  Documented in the function's own doc comment as a trust boundary: it
+  is not itself access-controlled beyond "only the migration runner calls
+  it today."
+- **Journal steps** (`MigrationJournalEntry.step`): `run_started` (with
+  the backup path attached) → per-collection `collection_started`/
+  `collection_completed` → `run_completed`; or
+  `collection_failed` → `rolled_back` → `run_failed` on any error.
+  `rejected_future_version` is journaled on its own before any backup is
+  made. `findInterruptedRun` (TypeScript) / `find_interrupted_run` (Rust)
+  both implement the same "started with no terminal entry" check,
+  independently unit-tested on each side (not shared code across the
+  language boundary, since there is no mechanism to share it).
+- **Rollback**: on any thrown error inside the per-collection loop (a
+  broken `migrate`, a failed `validate`, a write failure),
+  `runMigration` calls the existing `restoreBackup` with the pre-migration
+  backup path, journals `rolled_back` (or skips straight to `run_failed`
+  if the restore itself throws — the backup file's path is still
+  returned to the caller for manual recovery, never silently dropped).
+- **UI**: `SchemaMigrationCard` (Settings → General) — current version,
+  pending count, Dry Run / Run Migration, a rejected-future-version
+  banner, a completed/failed result panel, and an interrupted-migration
+  recovery banner checked on mount via `checkForInterruptedMigration`.
+  Never migrates without an explicit click.
+
 ## What Session 3 must not do
 
 - Must not register a migration for any of the 90 existing collections

@@ -221,6 +221,40 @@
       "error": "Error"
     }
   },
+  "migration": {
+    "title": "Migración de esquema",
+    "hint": "Mantiene sus archivos de datos actualizados con esta versión de FormuLab, con copia de seguridad y reversión si algo falla",
+    "unavailable": "disponible en la app de escritorio",
+    "checking": "Comprobando la versión del esquema…",
+    "currentVersion": "Versión actual",
+    "pendingCount": "Migraciones pendientes",
+    "dryRunButton": "Simulación",
+    "runButton": "Ejecutar migración",
+    "dryRunningLabel": "Ejecutando una simulación…",
+    "runningLabel": "Migrando…",
+    "dryRunDoneTitle": "Simulación completa",
+    "nothingPending": "Nada que migrar — todas las colecciones ya están actualizadas.",
+    "dryRunRow": "{{collection}}: {{from}} → {{to}} ({{changed}} de {{total}} filas cambiarían)",
+    "runDoneTitle": "Migración completa",
+    "runDoneHint": "{{count}} colección(es) migradas a la versión de esquema {{version}}.",
+    "failedTitle": "La migración falló",
+    "rolledBackYes": "Sus datos se restauraron desde la copia de seguridad previa a la migración.",
+    "rolledBackNo": "La reversión no pudo completarse automáticamente — restaure la copia de seguridad previa a la migración manualmente desde Copia de seguridad y recuperación.",
+    "rejectedTitle": "Versión de esquema de datos no compatible",
+    "rejectedHint": "Sus datos están en la versión de esquema {{current}}, más reciente de lo que admite esta versión ({{supported}}). Actualice FormuLab antes de volver a abrir este proyecto.",
+    "interruptedTitle": "Una migración anterior no terminó",
+    "interruptedHint": "FormuLab se cerró o falló durante una migración de esquema. Restaure la copia de seguridad previa a la migración para volver a un estado conocido y correcto.",
+    "recoverButton": "Restaurar copia de seguridad previa a la migración",
+    "toast": {
+      "loadFailed": "No se pudo comprobar la versión del esquema",
+      "dryRunFailed": "La simulación falló",
+      "completed": "Migración completa.",
+      "failed": "La migración falló",
+      "nothingPending": "Nada que migrar.",
+      "recovered": "Recuperado de la migración interrumpida.",
+      "recoverFailed": "No se pudo recuperar automáticamente"
+    }
+  },
   "python": {
     "title": "Kernel local de Python",
     "hint": "Ejecuta las celdas del cuaderno en la app. Usa tu entorno de Jupyter cuando está configurado (el mismo Python que el agente); si no, se detecta automáticamente, o puedes indicar un intérprete explícito abajo",

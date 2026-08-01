@@ -53,7 +53,7 @@ pub const BACKUP_FORMAT_VERSION: &str = "1.0";
 /// architecture doc plans (docs/PHASE11_MIGRATION_ARCHITECTURE.md) — no
 /// collection has ever shipped at anything but "1.0", so this is a fixed
 /// placeholder, not yet a computed value.
-const GLOBAL_SCHEMA_VERSION: &str = "1.0";
+pub(crate) const GLOBAL_SCHEMA_VERSION: &str = "1.0";
 
 #[derive(Default)]
 pub struct BackupState(pub Mutex<Option<Arc<AtomicBool>>>);
@@ -241,12 +241,12 @@ fn read_manifest_from_archive(
 /// Minimal `major.minor.patch` compare (this project's versions, e.g.
 /// `Cargo.toml`'s `0.4.0`) — enough to tell "older/equal/newer" without a
 /// full semver dependency this codebase doesn't otherwise need.
-fn parse_simple_version(v: &str) -> Option<(u64, u64, u64)> {
+pub(crate) fn parse_simple_version(v: &str) -> Option<(u64, u64, u64)> {
     let mut parts = v.split('.').map(|p| p.parse::<u64>().ok());
     Some((parts.next()??, parts.next()??, parts.next()??))
 }
 
-fn version_in_range(version: &str, min: &str, max: &str) -> bool {
+pub(crate) fn version_in_range(version: &str, min: &str, max: &str) -> bool {
     let (Some(v), Some(lo), Some(hi)) = (
         parse_simple_version(version),
         parse_simple_version(min),
@@ -516,7 +516,7 @@ pub async fn verify_backup(source: String) -> Result<VerificationReport, String>
     Ok(verify_backup_report(&PathBuf::from(source)))
 }
 
-fn now_secs() -> u64 {
+pub(crate) fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -535,7 +535,7 @@ fn emit_progress(app: &AppHandle, event: &str, phase: &str, current: u64, total:
     );
 }
 
-fn app_private_dir(app: &AppHandle, sub: &str) -> Result<PathBuf, String> {
+pub(crate) fn app_private_dir(app: &AppHandle, sub: &str) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join(sub);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
@@ -819,7 +819,7 @@ fn zip_options() -> zip::write::SimpleFileOptions {
     zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated)
 }
 
-fn try_create_backup(
+pub(crate) fn try_create_backup(
     app: &AppHandle,
     dest_path: &Path,
     tmp_path: &Path,

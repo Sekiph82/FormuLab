@@ -383,7 +383,7 @@
       "Elija una sección de la lista a la izquierda."
     ],
     "sections": [
-      "General — carpeta de trabajo, Copia de seguridad y recuperación, actualizaciones de la app",
+      "General — carpeta de trabajo, Copia de seguridad y recuperación, Migración de esquema, actualizaciones de la app",
       "Apariencia",
       "Modelos",
       "Python (entorno)",
@@ -392,7 +392,8 @@
     ],
     "warnings": [
       "Restaurar una copia de seguridad reemplaza sus datos actuales. Primero se crea automáticamente una copia de seguridad de sus datos actuales, y su ruta se muestra al finalizar la restauración.",
-      "Verificar una copia de seguridad nunca cambia nada — solo inspecciona el paquete e informa Válida, Válida con advertencias, Incompatible, Dañada o No segura."
+      "Verificar una copia de seguridad nunca cambia nada — solo inspecciona el paquete e informa Válida, Válida con advertencias, Incompatible, Dañada o No segura.",
+      "Ejecutar una migración de esquema crea primero una copia de seguridad verificada y la restaura automáticamente si algo falla — nada se migra automáticamente sin que usted haga clic en Ejecutar migración."
     ]
   },
   "glossary": {

@@ -383,7 +383,7 @@
       "Choisissez une section dans la liste à gauche."
     ],
     "sections": [
-      "Général — dossier de travail, Sauvegarde et restauration, mises à jour de l'application",
+      "Général — dossier de travail, Sauvegarde et restauration, Migration de schéma, mises à jour de l'application",
       "Apparence",
       "Modèles",
       "Python (environnement)",
@@ -392,7 +392,8 @@
     ],
     "warnings": [
       "Restaurer une sauvegarde remplace vos données actuelles. Une sauvegarde de sécurité de vos données actuelles est créée automatiquement au préalable, et son chemin est affiché une fois la restauration terminée.",
-      "Vérifier une sauvegarde ne modifie jamais rien — cela inspecte uniquement le paquet et indique Valide, Valide avec avertissements, Incompatible, Corrompue ou Non sûre."
+      "Vérifier une sauvegarde ne modifie jamais rien — cela inspecte uniquement le paquet et indique Valide, Valide avec avertissements, Incompatible, Corrompue ou Non sûre.",
+      "Exécuter une migration de schéma crée d'abord une sauvegarde de sécurité vérifiée et la restaure automatiquement en cas d'échec — rien n'est migré automatiquement sans que vous cliquiez sur Exécuter la migration."
     ]
   },
   "glossary": {

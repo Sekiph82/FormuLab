@@ -221,6 +221,40 @@
       "error": "错误"
     }
   },
+  "migration": {
+    "title": "架构迁移",
+    "hint": "使您的数据文件与此版本的 FormuLab 保持同步;如出现问题,将自动创建安全备份并回滚",
+    "unavailable": "该功能在桌面应用中可用",
+    "checking": "正在检查架构版本…",
+    "currentVersion": "当前版本",
+    "pendingCount": "待处理的迁移",
+    "dryRunButton": "试运行",
+    "runButton": "运行迁移",
+    "dryRunningLabel": "正在试运行…",
+    "runningLabel": "正在迁移…",
+    "dryRunDoneTitle": "试运行完成",
+    "nothingPending": "没有需要迁移的内容——所有集合均已是最新版本。",
+    "dryRunRow": "{{collection}}: {{from}} → {{to}}(共 {{total}} 行中有 {{changed}} 行将发生变化)",
+    "runDoneTitle": "迁移完成",
+    "runDoneHint": "已将 {{count}} 个集合迁移到架构版本 {{version}}。",
+    "failedTitle": "迁移失败",
+    "rolledBackYes": "您的数据已从迁移前的备份中恢复。",
+    "rolledBackNo": "自动回滚未能完成——请在“备份与恢复”中手动恢复迁移前的备份。",
+    "rejectedTitle": "不支持的数据架构版本",
+    "rejectedHint": "您的数据架构版本为 {{current}},高于此版本支持的 {{supported}}。请在再次打开此项目前更新 FormuLab。",
+    "interruptedTitle": "此前的迁移未完成",
+    "interruptedHint": "FormuLab 在架构迁移过程中被关闭或崩溃。请恢复迁移前的备份以返回到已知的正常状态。",
+    "recoverButton": "恢复迁移前的备份",
+    "toast": {
+      "loadFailed": "无法检查架构版本",
+      "dryRunFailed": "试运行失败",
+      "completed": "迁移完成。",
+      "failed": "迁移失败",
+      "nothingPending": "没有需要迁移的内容。",
+      "recovered": "已从中断的迁移中恢复。",
+      "recoverFailed": "无法自动恢复"
+    }
+  },
   "python": {
     "title": "本地 Python 内核",
     "hint": "在应用内运行笔记本单元格。若已设置 Jupyter 环境则使用它（与代理共用同一 Python），否则自动检测——或在下方指定解释器",

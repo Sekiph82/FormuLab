@@ -346,6 +346,29 @@ export async function listRecordsSeeded<C extends Collection>(
   return listRecords(collection);
 }
 
+/** Every allow-listed collection name and whether it is append-only — read
+ *  directly from the Rust `COLLECTIONS` array (`masterdata.rs`), so this
+ *  never drifts from what the storage layer actually enforces. Used by the
+ *  schema migration runner to enumerate collections without a second,
+ *  hand-maintained list. */
+export async function listMasterCollections(): Promise<Array<[string, boolean]>> {
+  if (!isTauri) return [];
+  return call<Array<[string, boolean]>>("list_master_collections");
+}
+
+/**
+ * Migration-only: overwrites an entire collection file, including an
+ * append-only one — bypasses `upsertRecords`'s refusal to update an
+ * existing key. Never call this outside the migration runner, which only
+ * reaches it after a verified pre-migration backup already exists.
+ */
+export async function writeMasterCollectionRaw(
+  collection: Collection,
+  records: unknown[],
+): Promise<void> {
+  await call("write_master_collection_raw", { collection, records });
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }

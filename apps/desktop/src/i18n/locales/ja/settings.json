@@ -221,6 +221,40 @@
       "error": "エラー"
     }
   },
+  "migration": {
+    "title": "スキーマ移行",
+    "hint": "このバージョンのFormuLabに合わせてデータファイルを最新に保ちます。問題が発生した場合は安全バックアップとロールバックを行います",
+    "unavailable": "デスクトップアプリで利用可能",
+    "checking": "スキーマバージョンを確認中…",
+    "currentVersion": "現在のバージョン",
+    "pendingCount": "保留中の移行",
+    "dryRunButton": "ドライラン",
+    "runButton": "移行を実行",
+    "dryRunningLabel": "ドライランを実行中…",
+    "runningLabel": "移行中…",
+    "dryRunDoneTitle": "ドライラン完了",
+    "nothingPending": "移行する項目はありません — すべてのコレクションはすでに最新です。",
+    "dryRunRow": "{{collection}}: {{from}} → {{to}}（{{total}} 件中 {{changed}} 件が変更されます）",
+    "runDoneTitle": "移行が完了しました",
+    "runDoneHint": "{{count}} 件のコレクションをスキーマバージョン {{version}} に移行しました。",
+    "failedTitle": "移行に失敗しました",
+    "rolledBackYes": "移行前のバックアップからデータが復元されました。",
+    "rolledBackNo": "自動的なロールバックが完了しませんでした — バックアップと復元から移行前のバックアップを手動で復元してください。",
+    "rejectedTitle": "データのスキーマバージョンはサポートされていません",
+    "rejectedHint": "データはスキーマバージョン {{current}} ですが、このビルドがサポートするのは {{supported}} までです。このプロジェクトを再度開く前にFormuLabを更新してください。",
+    "interruptedTitle": "以前の移行が完了していません",
+    "interruptedHint": "スキーマ移行中にFormuLabが終了またはクラッシュしました。既知の正常な状態に戻すには、移行前のバックアップを復元してください。",
+    "recoverButton": "移行前のバックアップを復元",
+    "toast": {
+      "loadFailed": "スキーマバージョンを確認できませんでした",
+      "dryRunFailed": "ドライランに失敗しました",
+      "completed": "移行が完了しました。",
+      "failed": "移行に失敗しました",
+      "nothingPending": "移行する項目はありません。",
+      "recovered": "中断された移行から復旧しました。",
+      "recoverFailed": "自動的に復旧できませんでした"
+    }
+  },
   "python": {
     "title": "ローカル Python カーネル",
     "hint": "ノートブックのセルをアプリ内で実行します。設定済みの場合は Jupyter 環境（エージェントと同じ Python）を使用し、それ以外は自動検出します — または以下でインタープリタを明示的に指定できます",

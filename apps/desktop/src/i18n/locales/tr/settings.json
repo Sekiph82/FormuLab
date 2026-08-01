@@ -221,6 +221,40 @@
       "error": "Hata"
     }
   },
+  "migration": {
+    "title": "Şema Geçişi",
+    "hint": "Veri dosyalarınızı bu FormuLab sürümüyle günceller; bir sorun olursa güvenlik yedeği ve geri alma uygular",
+    "unavailable": "masaüstü uygulamasında kullanılabilir",
+    "checking": "Şema sürümü kontrol ediliyor…",
+    "currentVersion": "Mevcut sürüm",
+    "pendingCount": "Bekleyen geçişler",
+    "dryRunButton": "Deneme Çalıştırması",
+    "runButton": "Geçişi Çalıştır",
+    "dryRunningLabel": "Deneme çalıştırması yapılıyor…",
+    "runningLabel": "Geçiriliyor…",
+    "dryRunDoneTitle": "Deneme çalıştırması tamamlandı",
+    "nothingPending": "Geçirilecek bir şey yok — tüm koleksiyonlar zaten güncel.",
+    "dryRunRow": "{{collection}}: {{from}} → {{to}} ({{total}} satırdan {{changed}} tanesi değişecek)",
+    "runDoneTitle": "Geçiş tamamlandı",
+    "runDoneHint": "{{count}} koleksiyon şema sürümü {{version}}'e geçirildi.",
+    "failedTitle": "Geçiş başarısız oldu",
+    "rolledBackYes": "Verileriniz geçiş öncesi yedekten geri yüklendi.",
+    "rolledBackNo": "Geri alma otomatik olarak tamamlanamadı — geçiş öncesi yedeği Yedekleme ve Kurtarma bölümünden manuel olarak geri yükleyin.",
+    "rejectedTitle": "Veri şema sürümü desteklenmiyor",
+    "rejectedHint": "Verileriniz, bu sürümün desteklediğinden ({{supported}}) daha yeni olan {{current}} şema sürümünde. Bu projeyi tekrar açmadan önce FormuLab'ı güncelleyin.",
+    "interruptedTitle": "Önceki bir geçiş tamamlanmadı",
+    "interruptedHint": "Şema geçişi sırasında FormuLab kapandı veya çöktü. Bilinen iyi bir duruma dönmek için geçiş öncesi yedeği geri yükleyin.",
+    "recoverButton": "Geçiş Öncesi Yedeği Geri Yükle",
+    "toast": {
+      "loadFailed": "Şema sürümü kontrol edilemedi",
+      "dryRunFailed": "Deneme çalıştırması başarısız oldu",
+      "completed": "Geçiş tamamlandı.",
+      "failed": "Geçiş başarısız oldu",
+      "nothingPending": "Geçirilecek bir şey yok.",
+      "recovered": "Yarıda kalan geçişten kurtarıldı.",
+      "recoverFailed": "Otomatik olarak kurtarılamadı"
+    }
+  },
   "python": {
     "title": "Yerel Python çekirdeği",
     "hint": "Not defteri hücrelerini uygulama içinde çalıştırır. Kurulduğunda Jupyter ortamınızı kullanır (ajanla aynı Python), aksi halde otomatik algılar — veya aşağıda açık bir yorumlayıcı belirleyin",
