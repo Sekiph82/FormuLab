@@ -26,7 +26,11 @@ describe("Settings page strings (i18n)", () => {
     renderAt("/settings");
     expect(await screen.findByRole("heading", { level: 1, name: "General" })).toBeInTheDocument();
     expect(screen.getByText("Workspace")).toBeInTheDocument();
-    expect(screen.getByText("available in the desktop app")).toBeInTheDocument();
+    // Every General-section card (Workspace, Active Data Location, Backup and
+    // Recovery, Schema Migration, Diagnostics) shares this exact fallback
+    // string outside the desktop app — assert at least one renders it rather
+    // than assuming there is only ever one.
+    expect(screen.getAllByText("available in the desktop app").length).toBeGreaterThan(0);
     // The sidebar became the settings navigation with a way back to the app.
     expect(screen.getByRole("button", { name: "Back to app" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Models" })).toBeInTheDocument();

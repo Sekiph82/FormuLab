@@ -1407,6 +1407,102 @@ root) were deliberately left untouched during file consolidation — no
 supported raw-filesystem relocation mechanism exists; recorded as
 technical exceptions, not silently ignored.
 
+### Backup, Restore and Data Safety (Phase 11, Stage 1) — CLOSED
+Local backup/restore, standalone verification, a schema migration
+framework, active data-root clarification, and a basic diagnostics
+center — built across 6 sessions (assessment + 5 implementation +
+closure). Full session-by-session detail in
+`docs/handoffs/PHASE11_CURRENT.md`; dedicated architecture docs:
+[`PHASE11_BACKUP_RESTORE_ARCHITECTURE.md`](../PHASE11_BACKUP_RESTORE_ARCHITECTURE.md),
+[`PHASE11_MIGRATION_ARCHITECTURE.md`](../PHASE11_MIGRATION_ARCHITECTURE.md),
+[`PHASE11_DIAGNOSTICS_ARCHITECTURE.md`](../PHASE11_DIAGNOSTICS_ARCHITECTURE.md),
+[`PHASE11_DATA_INVENTORY.md`](../PHASE11_DATA_INVENTORY.md).
+
+**Implemented, verified by tests**:
+- `backup.rs`: a `.formulab-backup` ZIP package (manifest + full file
+  inventory with SHA256, schema-version snapshot) covering formulations,
+  all master-data collections, sessions, the formula library, and
+  run/provenance/compute history — structurally excluding
+  `.FormuLab/runs.db` (never on any inclusion-scanning path, not merely
+  filtered) and the WebView2 profile (where the plaintext LLM API key
+  lives). Create is atomic (stage-to-`.tmp` + self-check + rename);
+  restore stages every file (size+SHA256+JSON-parse checked), makes a
+  real safety backup first, then activates via rename-aside with full
+  rollback on any failure.
+- Standalone verification (`verify_backup_report`, no `AppHandle` — cannot
+  touch the active data root by its own type signature): 5 statuses
+  (Valid/ValidWithWarnings/Incompatible/Corrupted/Unsafe), reusing
+  restore's own manifest-reading and safety logic rather than a second
+  parser.
+- Schema migration framework: extends the pre-existing, previously-unused
+  `packages/shared/src/engine/migrations.ts` rather than building a second
+  engine — a global `data/master/schema_meta.json` version, an append-only
+  journal, mandatory verified pre-migration backup, dry run, rollback on
+  failure, future-version rejection, and interrupted-run detection. The
+  registry (`migrationRunner.ts`'s `MIGRATION_REGISTRY`) is empty by
+  design — none of the 90 master collections has ever changed schema.
+- `data_root.rs`: one shared resolver (`resolve_data_root`) replacing the
+  two independent funnels (`project_root()`/`workspace_dir()`) Session 0
+  found; explicit precedence
+  (`formulab-root.txt` > `active-workspace.txt` > `base-workspace.txt` >
+  default), no silent fallback on an invalid pointer, conflict detection
+  without auto-merge, a real write-probe. Also fixed the `runs.jsonl`/
+  `runs.db` divergence at its root cause (`runs_index.rs` now calls the
+  same `workspace_dir()` `runs.rs` already used) — provably a no-op for
+  every existing installation.
+- `diagnostics.rs`: app/OS/storage/schema/migration/backup-status summary,
+  a storage-health scan that flags a present-but-unparseable
+  `data/master/*.json` file as unhealthy (closing a real
+  `masterdata.rs::read_array` silent-empty-on-parse-failure gap Session 0
+  found), bounded `debug.log` rotation (`MAX_DEBUG_LOG_BYTES`, was
+  unbounded before), and a sanitized `export_support_bundle` (username/
+  long-token redaction, backup metadata only, never a formula/master-data
+  row, never reads `localStorage`).
+- Settings → General UI: `ActiveDataLocationCard`, `BackupRecoveryCard`
+  (create/restore/verify), `SchemaMigrationCard`, `DiagnosticsCard` — all
+  read-only where relevant, all requiring an explicit click for any
+  destructive action, all i18n-complete across 8 shipped locales.
+- **Stage 1 Closure session**: closed the one real verification gap
+  ("restore failure preserves original data" was code-inspection-only) by
+  extracting a pure, testable `activate_staged_files` function and adding
+  3 direct unit tests — a mocked `tauri::AppHandle` was investigated and
+  rejected as unsafe for a verification-only session (its `mock_context()`
+  resolves `app_data_dir()` unpredictably outside test isolation). All 12
+  of the session's required guarantees mapped to specific passing tests
+  (see `PHASE11_CURRENT.md`).
+- Closure regression: **136 Rust tests**, **1094 desktop tests** (127
+  files), **13 shared migration tests**, all green; desktop typecheck,
+  desktop lint, i18n parity (23/23), help registry (38/38), and
+  `cargo clippy --lib` all clean. Release build produced fresh
+  `formulab.exe` + MSI + NSIS installers, all inspected and confirmed
+  **not signed** (commercial-distribution signing remains deferred).
+- **Native verification**: process/window launch reconfirmed against the
+  fresh release exe (real PID, window title "FormuLab", clean close) via
+  the shortcut's exact target path. Interior UI content (existing projects
+  visible, each Settings card opening, log-folder action, support-bundle
+  save dialog) is **blocked** — this environment has no UI-content-reading
+  tool for the packaged app's WebView2 renderer, the same limitation
+  independently confirmed in the Phase 1 and Phase 10 closures (see
+  `TAURI_LIVE_VERIFICATION.md`). No visual or interactive confirmation was
+  fabricated for the blocked items; no real restore or migration was run
+  against live data.
+- Status: **PARTIALLY LIVE VERIFIED** (native launch confirmed; interior
+  flows verified only by the automated test suites above, matching this
+  document's existing precedent for environment-blocked deep click-through
+  — see Reverse Formulation, Phase 8, Phase 9, Phase 10 above).
+
+**Known limitations (Stage 1, as closed)**: no backup history list; no
+automatic/scheduled backups; restore/verify's structural check is
+JSON-parses-cleanly only, not a full per-schema Zod pass; no Data Location
+Manager UI to relocate/merge roots (conflicts are reported, never
+resolved in-app); no structured/leveled application log (Diagnostics'
+"recent errors" is heuristic text matching); support bundle is a single
+JSON file, not an archive; `find_interrupted_run` (Rust) has no live
+caller today.
+
+**Deferred to Stage 2**: automatic backups, a Data Location Manager, an
+update checker.
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it

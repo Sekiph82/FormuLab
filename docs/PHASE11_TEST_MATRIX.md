@@ -280,6 +280,49 @@ workspace paths).
   conditional block + import) changed outside new, already-tested files;
   no shared Settings infrastructure or global shell behavior changed.
 
+## Stage 1 Closure and Verification (complete — full-suite results)
+
+Per this project's own closure-session convention, every full suite ran
+exactly once this session (not repeated after, since no code changed
+after the last run except the 3 new `activate_staged_files` tests, which
+are included in the Rust count below).
+
+- **Rust** (`cargo test --lib`): **136/136 passing** (133 prior + 3 new
+  `activate_staged_files` tests in `backup.rs`, closing the one real
+  verification gap — "restore failure preserves original data" was
+  previously code-inspection-only).
+- **Rust clippy** (`cargo clippy --lib`): clean. Closed 3 pre-existing
+  warnings from this phase's own code: 2 `clippy::type_complexity`
+  (backup.rs, fixed with named type aliases `IncludedFile`/`HashedFile`)
+  and 1 `dead_code` (migration.rs's `find_interrupted_run`, fixed with
+  `#[allow(dead_code)]` + a doc comment explaining why it's kept).
+- **Desktop suite** (`pnpm --filter @formulab/desktop test`): **1094/1094
+  passing**, 127/127 files. One real regression found and fixed this
+  session: `SettingsPage.i18n.test.tsx` used a single-match `getByText`
+  for the fallback string `"available in the desktop app"`, which 5
+  different Settings cards (Workspace, Backup and Recovery, Schema
+  Migration, Active Data Location, Diagnostics — one per Session 1-5)
+  now all render identically outside the desktop app. Confirmed as a real,
+  deterministic regression (not flaky) by running the full suite twice
+  and comparing which failure persisted; fixed with
+  `getAllByText(...).length).toBeGreaterThan(0)`.
+- **Shared migration tests** (`packages/shared`'s `migrations.test.ts`):
+  13/13 passing.
+- **Desktop typecheck** (`tsc --noEmit`): clean.
+- **Desktop lint**: clean.
+- **i18n parity**: 23/23. **Help registry**: 38/38.
+- **Pre-existing, non-deterministic noise** (not a regression): 6
+  unhandled-rejection log lines from `HelpPanel.test.tsx` (a documented
+  jsdom/undici cross-realm `AbortSignal` incompatibility, predating Phase
+  11) appeared in one of the two full-suite runs and not the other,
+  confirming they are flaky pre-existing noise rather than a real failure
+  — distinguished from the genuine `SettingsPage.i18n.test.tsx` regression
+  above, which persisted identically in both runs.
+
+**Full audit**: all 12 of the session's required guarantees mapped to
+specific passing tests — see
+[`PHASE11_CURRENT.md`](handoffs/PHASE11_CURRENT.md#all-12-required-guarantees--confirmed-with-evidence).
+
 ## What no session in this first stage runs
 
 Per this session's own scope: none of Sessions 1-5 run the full desktop

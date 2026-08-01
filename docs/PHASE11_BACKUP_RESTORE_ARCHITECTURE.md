@@ -325,3 +325,29 @@ active data root" holds by the function's own signature.
   per-collection Zod pass is TypeScript-side and is not invoked from
   this Rust-only foundation. Recorded as a real, disclosed limitation,
   not silently treated as equivalent to schema validation.
+
+## Stage 1 Closure (verification session)
+
+- **`activate_staged_files` extracted** from `try_restore_backup`: a pure,
+  `AppHandle`-free function `(staged: &[(String, PathBuf)], staging_dir:
+  &Path) -> Result<Vec<PathBuf>, String>` that does the rename-aside /
+  copy-from-staging / rollback-on-failure work restore's activation phase
+  already did inline. Extracted specifically so "restore failure preserves
+  the original data" — previously verified only by code inspection — could
+  get a direct Rust unit test without needing a mocked `AppHandle` (a real
+  `tauri::test::mock_app()` was investigated and rejected: its
+  `mock_context()` uses an empty `identifier`, which resolves
+  `app.path().app_data_dir()` unpredictably outside test isolation — unsafe
+  for a verification-only session under "never modify real user data").
+  Three new tests cover it directly: rollback restores original content on
+  a mid-activation failure, a clean run leaves no aside copies behind, and
+  a brand-new file (no prior live file) activates correctly.
+- Two `clippy::type_complexity` warnings closed with named type aliases
+  (`IncludedFile`, `HashedFile`) rather than suppression — no behavior
+  change.
+- Full Rust suite after this refactor: **136/136 passing** (133 prior + 3
+  new), `backup::` module alone 21/21. `cargo clippy --lib` clean.
+- No new feature, no format change, no behavior change to `try_restore_backup`
+  itself — this is a test-ability refactor closing a real verification gap,
+  not new functionality.
+  not silently treated as equivalent to schema validation.

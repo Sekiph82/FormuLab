@@ -234,3 +234,16 @@ Everything in this section is real, built, and tested — not a plan.
   without the journal + pre-migration backup + validation pieces above
   landing first — automatic silent mutation of on-disk data without a
   recovery point is exactly what this session's instructions prohibit.
+
+## Stage 1 Closure (verification session)
+
+- `find_interrupted_run` (Rust) is real, tested, and correct, but has no
+  caller today — `checkForInterruptedMigration()` uses the TypeScript
+  `findInterruptedRun` instead, since the migration registry only exists
+  in `migrationRunner.ts`. Marked `#[allow(dead_code)]` with a doc comment
+  explaining exactly this, rather than deleted, since it is the tested
+  Rust-side equivalent for a future Rust-only caller. `cargo clippy --lib`
+  is clean with this in place.
+- No behavior change to the migration framework itself this session —
+  verification only.
+  recovery point is exactly what this session's instructions prohibit.

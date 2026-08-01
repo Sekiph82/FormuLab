@@ -183,3 +183,14 @@ adds — no second archive library) containing:
   severity, a larger change than this session's bounded scope), a full
   backup history UI, any archive-format bundle (JSON was sufficient for
   this session's text-only content).
+
+## Stage 1 Closure (verification session)
+
+- Re-verified this session, unchanged: `verify_backup_report`/
+  `diagnostics_summary` take no `AppHandle` write path capable of touching
+  the active data root; storage-health scan reports a present-but-
+  unparseable `data/master/*.json` file as unhealthy rather than silently
+  reading it as empty; `export_support_bundle`'s redaction covers paths,
+  log lines, and warnings, and the bundle carries backup metadata only
+  (never a backup's file inventory/contents) and no formula/master-data
+  row. No code change to `diagnostics.rs` this session.

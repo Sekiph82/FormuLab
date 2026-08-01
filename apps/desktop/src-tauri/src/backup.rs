@@ -660,6 +660,13 @@ struct RootPaths {
     base_root: PathBuf,
 }
 
+/// An included file: its real path on disk, plus the forward-slash
+/// archive-relative path it will be stored under.
+type IncludedFile = (PathBuf, String);
+/// An included file after hashing: real path, archive path, byte size,
+/// SHA256 hex digest.
+type HashedFile = (PathBuf, String, u64, String);
+
 fn resolve_roots(app: &AppHandle) -> Result<RootPaths, String> {
     Ok(RootPaths {
         project_root: crate::formulation_v2::project_root(app)?,
@@ -689,9 +696,7 @@ fn data_root_identifier(app: &AppHandle, roots: &RootPaths) -> DataRootIdentifie
 /// Build the full included-file list + warnings. Never touches
 /// `.FormuLab/runs.db` or `data/literature` — both are structurally absent
 /// from every path this function walks.
-fn collect_included(
-    roots: &RootPaths,
-) -> Result<(Vec<(PathBuf, String)>, Vec<String>), String> {
+fn collect_included(roots: &RootPaths) -> Result<(Vec<IncludedFile>, Vec<String>), String> {
     let mut files = Vec::new();
     let mut warnings = Vec::new();
 
@@ -753,11 +758,11 @@ const EXCLUDED_LABELS: &[&str] = &[
 fn build_manifest(
     app: &AppHandle,
     roots: &RootPaths,
-    files: &[(PathBuf, String)],
+    files: &[IncludedFile],
     mut warnings: Vec<String>,
     cancel: &AtomicBool,
     progress_event: &str,
-) -> Result<(BackupManifest, Vec<(PathBuf, String, u64, String)>), String> {
+) -> Result<(BackupManifest, Vec<HashedFile>), String> {
     let total = files.len() as u64;
     let mut hashed = Vec::with_capacity(files.len());
     let mut inventory = Vec::with_capacity(files.len());
@@ -1014,6 +1019,74 @@ fn archive_path_to_live(roots: &RootPaths, archive_rel: &str) -> Result<PathBuf,
     Err(format!("archive entry does not match a known data path: {archive_rel}"))
 }
 
+/// Activates every staged file into its live target, one at a time,
+/// renaming any existing live file aside first (`<path>.pre-restore-<ts>.bak`)
+/// so a mid-activation failure can be rolled back. Pure and AppHandle-free
+/// by design — this is what makes it directly unit-testable with real temp
+/// files (see `activate_staged_files_rolls_back_and_preserves_original_data_on_failure`
+/// below), proving "restore failure preserves the original data" against
+/// real bytes on disk rather than by inspection alone.
+///
+/// On success: returns the archive-relative paths that were activated, and
+/// every aside copy has already been removed. On failure: every file
+/// touched so far is restored from its aside copy (or removed, if it had
+/// none) before the error is returned — the live tree is left exactly as
+/// it was found.
+fn activate_staged_files(staged: &[(String, PathBuf)], staging_dir: &Path) -> Result<Vec<String>, String> {
+    let activation_stamp = now_secs();
+    let mut aside: Vec<(PathBuf, Option<PathBuf>)> = Vec::new();
+    let mut restored_paths = Vec::new();
+    let mut activation_error: Option<String> = None;
+
+    for (i, (archive_rel, live_target)) in staged.iter().enumerate() {
+        if let Some(parent) = live_target.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                activation_error = Some(e.to_string());
+                break;
+            }
+        }
+        let aside_path = if live_target.exists() {
+            let a = PathBuf::from(format!(
+                "{}.pre-restore-{activation_stamp}.bak",
+                live_target.to_string_lossy()
+            ));
+            if let Err(e) = std::fs::rename(live_target, &a) {
+                activation_error = Some(e.to_string());
+                break;
+            }
+            Some(a)
+        } else {
+            None
+        };
+
+        let staged_path = staging_dir.join(format!("{i}.bin"));
+        if let Err(e) = std::fs::copy(&staged_path, live_target) {
+            activation_error = Some(e.to_string());
+            aside.push((live_target.clone(), aside_path));
+            break;
+        }
+        aside.push((live_target.clone(), aside_path));
+        restored_paths.push(archive_rel.clone());
+    }
+
+    if let Some(err) = activation_error {
+        for (live_target, original) in aside.iter().rev() {
+            let _ = std::fs::remove_file(live_target);
+            if let Some(original) = original {
+                let _ = std::fs::rename(original, live_target);
+            }
+        }
+        return Err(err);
+    }
+
+    for (_, original) in aside {
+        if let Some(original) = original {
+            let _ = std::fs::remove_file(original);
+        }
+    }
+    Ok(restored_paths)
+}
+
 fn try_restore_backup(
     app: &AppHandle,
     source: &Path,
@@ -1152,64 +1225,20 @@ fn try_restore_backup(
     // Activate: move each staged file into place, renaming any existing
     // live file aside first so a mid-activation failure can roll back.
     emit_progress(app, "restore-progress", "activating", 0, total, "Activating restored data");
-    let activation_stamp = now_secs();
-    let mut aside: Vec<(PathBuf, Option<PathBuf>)> = Vec::new();
-    let mut restored_paths = Vec::new();
-    let mut activation_error: Option<String> = None;
-
-    for (i, (archive_rel, live_target)) in staged.iter().enumerate() {
-        if let Some(parent) = live_target.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                activation_error = Some(e.to_string());
-                break;
-            }
-        }
-        let aside_path = if live_target.exists() {
-            let a = PathBuf::from(format!(
-                "{}.pre-restore-{activation_stamp}.bak",
-                live_target.to_string_lossy()
+    let restored_paths = match activate_staged_files(&staged, &staging_dir) {
+        Ok(paths) => paths,
+        Err(err) => {
+            cleanup_staging(&staging_dir);
+            return Err(format!(
+                "restore failed during activation, rolled back: {err} (safety backup: {})",
+                safety_path.to_string_lossy()
             ));
-            if let Err(e) = std::fs::rename(live_target, &a) {
-                activation_error = Some(e.to_string());
-                break;
-            }
-            Some(a)
-        } else {
-            None
-        };
-
-        let staged_path = staging_dir.join(format!("{i}.bin"));
-        if let Err(e) = std::fs::copy(&staged_path, live_target) {
-            activation_error = Some(e.to_string());
-            aside.push((live_target.clone(), aside_path));
-            break;
         }
-        aside.push((live_target.clone(), aside_path));
-        restored_paths.push(archive_rel.clone());
-    }
+    };
 
-    if let Some(err) = activation_error {
-        // Roll back every file touched so far.
-        for (live_target, original) in aside.iter().rev() {
-            let _ = std::fs::remove_file(live_target);
-            if let Some(original) = original {
-                let _ = std::fs::rename(original, live_target);
-            }
-        }
-        cleanup_staging(&staging_dir);
-        return Err(format!(
-            "restore failed during activation, rolled back: {err} (safety backup: {})",
-            safety_path.to_string_lossy()
-        ));
-    }
-
-    // Success: drop the aside copies (the safety backup archive above is
-    // the durable fallback) and the staging directory.
-    for (_, original) in aside {
-        if let Some(original) = original {
-            let _ = std::fs::remove_file(original);
-        }
-    }
+    // Success: `activate_staged_files` already dropped its own aside
+    // copies (the safety backup archive above is the durable fallback);
+    // only the staging directory is left to clean up.
     cleanup_staging(&staging_dir);
 
     emit_progress(app, "restore-progress", "done", total, total, "Restore complete");
@@ -1640,6 +1669,90 @@ mod tests {
         let _ = verify_backup_report(&path);
         let after = std::fs::read(&path).unwrap();
         assert_eq!(before, after, "verification must never modify the package it reads");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ------------------------------------------------------ activation ---
+
+    #[test]
+    fn activate_staged_files_rolls_back_and_preserves_original_data_on_failure() {
+        let dir = verify_tmp_dir("activation-rollback");
+        let staging_dir = dir.join("staging");
+        std::fs::create_dir_all(&staging_dir).unwrap();
+
+        let live1 = dir.join("data/master/materials.json");
+        let live2 = dir.join("data/master/suppliers.json");
+        std::fs::create_dir_all(live1.parent().unwrap()).unwrap();
+        std::fs::write(&live1, "ORIGINAL-MATERIALS").unwrap();
+        std::fs::write(&live2, "ORIGINAL-SUPPLIERS").unwrap();
+
+        // Stage file 0 (for live1) with new content; deliberately leave
+        // staged file 1 (for live2) missing, so its `std::fs::copy` fails
+        // and forces a rollback partway through activation.
+        std::fs::write(staging_dir.join("0.bin"), "NEW-MATERIALS").unwrap();
+
+        let staged = vec![
+            ("data/master/materials.json".to_string(), live1.clone()),
+            ("data/master/suppliers.json".to_string(), live2.clone()),
+        ];
+
+        let result = activate_staged_files(&staged, &staging_dir);
+        assert!(result.is_err());
+
+        // The literal guarantee under test: a failed activation leaves the
+        // ORIGINAL fixture data exactly as it was, byte for byte — not
+        // half-migrated, not deleted, not the new content.
+        assert_eq!(std::fs::read_to_string(&live1).unwrap(), "ORIGINAL-MATERIALS");
+        assert_eq!(std::fs::read_to_string(&live2).unwrap(), "ORIGINAL-SUPPLIERS");
+
+        // No stray `.pre-restore-*.bak` file left behind either.
+        let leftover_bak = std::fs::read_dir(live1.parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().contains(".bak"));
+        assert!(!leftover_bak, "rollback must remove its own aside copies");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn activate_staged_files_succeeds_and_leaves_no_aside_copies_behind() {
+        let dir = verify_tmp_dir("activation-success");
+        let staging_dir = dir.join("staging");
+        std::fs::create_dir_all(&staging_dir).unwrap();
+
+        let live = dir.join("data/master/materials.json");
+        std::fs::create_dir_all(live.parent().unwrap()).unwrap();
+        std::fs::write(&live, "OLD").unwrap();
+        std::fs::write(staging_dir.join("0.bin"), "NEW").unwrap();
+
+        let staged = vec![("data/master/materials.json".to_string(), live.clone())];
+        let result = activate_staged_files(&staged, &staging_dir).unwrap();
+
+        assert_eq!(result, vec!["data/master/materials.json".to_string()]);
+        assert_eq!(std::fs::read_to_string(&live).unwrap(), "NEW");
+        let leftover_bak = std::fs::read_dir(live.parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().contains(".bak"));
+        assert!(!leftover_bak);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn activate_staged_files_creates_a_brand_new_file_when_no_live_file_existed() {
+        let dir = verify_tmp_dir("activation-new-file");
+        let staging_dir = dir.join("staging");
+        std::fs::create_dir_all(&staging_dir).unwrap();
+        let live = dir.join("data/master/new_collection.json");
+        std::fs::write(staging_dir.join("0.bin"), "[]").unwrap();
+
+        let staged = vec![("data/master/new_collection.json".to_string(), live.clone())];
+        let result = activate_staged_files(&staged, &staging_dir).unwrap();
+
+        assert_eq!(result, vec!["data/master/new_collection.json".to_string()]);
+        assert_eq!(std::fs::read_to_string(&live).unwrap(), "[]");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

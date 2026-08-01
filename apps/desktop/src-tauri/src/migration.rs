@@ -182,6 +182,13 @@ pub async fn read_migration_journal(app: AppHandle) -> Result<Vec<MigrationJourn
 /// matching `"run_completed"`/`"run_failed"`/`"rolled_back"` after it — an
 /// interrupted run (the app quit or crashed mid-migration) that needs
 /// recovery before anything else touches master data.
+///
+/// Not called by any command today — `apps/desktop/src/lib/migrationRunner.ts`'s
+/// `findInterruptedRun` is what `checkForInterruptedMigration()` actually
+/// uses (the registry it needs only exists in TypeScript). Kept and tested
+/// here as the Rust-side equivalent, in case a future Rust-only caller
+/// needs it without round-tripping through the frontend.
+#[allow(dead_code)]
 pub(crate) fn find_interrupted_run(entries: &[MigrationJournalEntry]) -> Option<String> {
     let mut started: Option<&str> = None;
     for e in entries {

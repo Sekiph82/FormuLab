@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: SESSION 5 (Basic Diagnostics and Log Export) COMPLETE. First stage (Sessions 1-5) closed pending Phase 11 Stage 1 Closure and Verification.
+## Status: STAGE 1 CLOSED. Sessions 0-5 (assessment, backup/restore, verification, migration, active data location, diagnostics) implemented and verified; Stage 1 Closure and Verification session complete.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -534,6 +534,182 @@ recorded once per document rather than duplicated here.
   file, not an archive — sufficient for this session's text-only
   content, revisit if binary attachments are ever needed.
 
+## Stage 1 Closure and Verification session (complete)
+
+**Scope**: verify all 8 Sessions 1-5 features, close the one real
+verification gap, run every full test suite once, build a fresh Windows
+release, perform honest native verification, update documentation. No new
+feature added. `.FormuLab/runs.db` and real user data untouched throughout
+(fixture/synthetic data only for every test).
+
+### Verification gap closed
+
+"Restore failure preserves the original fixture data" was previously
+confirmed only by code inspection, not a direct Rust unit test — closed by
+extracting `activate_staged_files` (a pure, `AppHandle`-free function) from
+`try_restore_backup` in `backup.rs`, then adding 3 direct unit tests
+(rollback-restores-original-content-on-failure, clean-run-leaves-no-aside-
+copies, brand-new-file-with-no-prior-live-file). See
+[`PHASE11_BACKUP_RESTORE_ARCHITECTURE.md`](../PHASE11_BACKUP_RESTORE_ARCHITECTURE.md#stage-1-closure-verification-session)
+for the full rationale, including why a mocked `tauri::AppHandle`
+(`tauri::test::mock_app()`) was investigated and rejected as unsafe for a
+verification-only session (its `mock_context()` resolves
+`app.path().app_data_dir()` to an unpredictable, non-isolated path).
+
+### All 12 required guarantees — confirmed, with evidence
+
+1. **Backup package can be created and verified** — `backup.rs`'s
+   `full_backup_then_restore_round_trip_is_byte_identical` and the 13
+   `verify_reports_*` tests (Session 2).
+2. **Corrupted or unsafe packages are rejected** — 5 statuses
+   (Valid/ValidWithWarnings/Incompatible/Corrupted/Unsafe), each reachable
+   via a dedicated fixture and asserted by name (Session 2 tests).
+3. **Restore uses staging and creates a safety backup** — `try_restore_backup`
+   stages every file, verifies size+SHA256+JSON-parse before activation,
+   and calls `try_create_backup` for a real safety package first (Session 1
+   design, re-read and confirmed unchanged this session).
+4. **Restore failure preserves the original fixture data** — closed this
+   session via `activate_staged_files`'s 3 new tests (above) — previously
+   the one real gap.
+5. **Migration dry run does not modify data** — `migrationRunner.test.ts`'s
+   `dryRunMigration reports changed rows without writing` (Session 3,
+   re-confirmed passing this session).
+6. **Future schema versions are rejected** — `schema_version_status`'s
+   `future`/`futureUnsupported` tests (Rust, Session 3) plus
+   `runMigration`'s `rejected_future_version` test (TypeScript, Session 3).
+7. **Interrupted migration is surfaced** — `find_interrupted_run`/
+   `findInterruptedRun` tests on both sides (Session 3); `find_interrupted_run`
+   itself has no live caller today (TypeScript's `findInterruptedRun` is
+   what's actually wired) — marked `#[allow(dead_code)]` with a doc comment
+   this session rather than deleted, since it's the tested Rust-side
+   equivalent.
+8. **Active-root status reports the real resolver result** — `data_root.rs`'s
+   `resolve_data_root`/`resolve_data_root_at`, 10 tests covering every
+   precedence tier, conflict detection, and writability (Session 4).
+9. **Diagnostics reports storage corruption without treating it as empty
+   data** — `diagnostics.rs`'s
+   `present-but-unparseable collection file flagged unhealthy` test
+   (Session 5), directly closing the `masterdata.rs::read_array` silent-
+   empty-on-parse-failure gap Session 0 found.
+10. **Support bundle redacts sensitive paths and tokens** — `redact_text`'s
+    username/token redaction tests (Session 5).
+11. **Support bundle contains no backup contents or user records** —
+    `SupportBundle` carries backup metadata only (filename/kind/timestamp),
+    confirmed by reading `diagnostics.rs`'s `export_support_bundle` this
+    session — no formula/master-data row is ever read into it.
+12. **`.FormuLab/runs.db` is never included or modified** — structurally
+    true by construction (never referenced by any inclusion-scanning path
+    in `backup.rs`), plus `verify_reports_unsafe_when_runs_db_is_present`
+    (Session 2) and `excluded_labels_name_runs_db_and_ebwebview_explicitly`
+    (Session 1) as direct regression tests.
+
+### Full test suites — run once, this session
+
+- **Rust** (`cargo test --lib`, `apps/desktop/src-tauri`): **136/136
+  passing** (133 prior + 3 new `activate_staged_files` tests).
+- **Rust clippy** (`cargo clippy --lib`): clean. Two pre-existing
+  `type_complexity` warnings (backup.rs) closed with named type aliases;
+  one `dead_code` warning (migration.rs) closed with `#[allow(dead_code)]`
+  + doc comment.
+- **Desktop suite** (`pnpm --filter @formulab/desktop test`): **1094/1094
+  passing**, 127/127 files. One real regression found and fixed —
+  `SettingsPage.i18n.test.tsx` asserted a single match for the shared
+  "available in the desktop app" fallback string, which 5 different
+  Settings cards (added across Sessions 1-5) now all render; changed to
+  `getAllByText(...).length > 0`. 6 pre-existing, non-deterministic
+  `HelpPanel.test.tsx` unhandled-rejection log lines (documented jsdom/
+  undici `AbortSignal` cross-realm incompatibility, predates Phase 11)
+  persisted across a second confirmation run and are not a new regression.
+- **Shared migration tests** (`migrations.test.ts`): 13/13 passing.
+- **Desktop typecheck** (`tsc --noEmit`): clean.
+- **Desktop lint**: clean.
+- **i18n/help tests**: 23/23 i18n parity, 38/38 help registry.
+
+### Native verification (release build)
+
+Release build: `pnpm tauri build` from `apps/desktop`, produced fresh
+`formulab.exe`, `FormuLab_0.4.0_x64_en-US.msi`,
+`FormuLab_0.4.0_x64-setup.exe` under `src-tauri/target/release/` (and its
+`bundle/msi/`, `bundle/nsis/` subfolders).
+
+Shortcut target confirmed: `C:\Users\sekip\Desktop\FormuLab.lnk` →
+`C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+— i.e. the exact freshly-built release exe.
+
+| Check | Result |
+|---|---|
+| App starts | **Verified** — `scripts/windows/verify-formulab-phase1.ps1` run against the release exe: process launched (PID observed), stayed running, top-level window appeared with title "FormuLab", app closed cleanly. |
+| Existing projects remain visible | **Blocked** — no UI-content-reading tool available (see below). |
+| Backup and Recovery card opens | **Blocked** — same reason. |
+| Verify Backup flow opens | **Blocked** — same reason. |
+| Schema Migration card opens | **Blocked** — same reason. |
+| Active Data Location card shows the actual path | **Blocked** — same reason. |
+| Diagnostics card opens | **Blocked** — same reason. |
+| Log folder action works | **Blocked** — same reason. |
+| Support-bundle save dialog opens | **Blocked** — same reason. |
+
+**Why blocked, honestly**: this environment has no UI Automation content
+access, WebDriver/`tauri-driver`, or accessibility-tree reach into the
+packaged app's Chromium/WebView2 renderer — confirmed independently twice
+before (Phase 1 closure's own `TAURI_LIVE_VERIFICATION.md`/
+`verify-formulab-phase1.ps1`, and Phase 10 closure). That script itself is
+explicit: `"Automated UI interaction verified: NOT PERFORMED BY THIS
+SCRIPT"`. No real restore or migration was run against live data, per
+instruction. No screenshot or interaction was fabricated for the 8 blocked
+items.
+
+### Release artifacts
+
+All three built fresh this session from `apps/desktop/src-tauri/target/release/`:
+
+All three under `apps/desktop/src-tauri/target/release/`:
+
+| Artifact | Path | Size (bytes) | SHA256 | Signed |
+|---|---|---|---|---|
+| EXE | `formulab.exe` | 23,040,512 | `F8C16F041BDE468348D9F0258E411D88B4CEF98E81AB9B5262466E8A9D12503E` | **Not signed** |
+| MSI | `bundle/msi/FormuLab_0.4.0_x64_en-US.msi` | 36,986,880 | `3B2F8EF53B99066897634B15EE554AE69C44B21CAB22E80740AA933F6D915BE0` | **Not signed** |
+| NSIS | `bundle/nsis/FormuLab_0.4.0_x64-setup.exe` | 25,300,117 | `CE1F4FA46E219D1831C52F0146C42AE8DD5289BE8A260713334E57405D669D24` | **Not signed** |
+
+All three inspected directly via `Get-AuthenticodeSignature` and confirmed
+`NotSigned` — signing was not claimed for any artifact. Commercial-
+distribution-stage signing remains fully deferred, unchanged from Session
+0's own scoping.
+
+### Remaining limitations (Stage 1, as closed)
+
+- No backup history list; no automatic/scheduled backups (Stage 2).
+- No Data Location Manager UI to relocate/merge roots — conflicts are
+  reported, never auto-resolved (Stage 2).
+- Restore/verify structural check is JSON-parses-cleanly only, not a full
+  per-schema Zod pass.
+- `find_interrupted_run` (Rust) has no live caller — the TypeScript
+  `findInterruptedRun` is what's actually wired.
+- No structured/leveled application log; "recent errors" in Diagnostics is
+  heuristic text matching.
+- Support bundle is a single JSON file, not an archive.
+- Native verification proves process/window launch only, not interior UI
+  content — an environment limitation confirmed across three separate
+  phase-closure sessions now (Phase 1, Phase 10, Phase 11), not specific to
+  this phase.
+
+### Deferred Stage 2 items (explicit, unchanged)
+
+Automatic backups, Data Location Manager, update checker — all noted with
+their real dependencies in Session 0's summary above; none designed
+further this session.
+
+### Commit and push
+
+Commit: `chore(phase11): close stage 1 data safety`. Files staged:
+`apps/desktop/src-tauri/src/backup.rs`, `apps/desktop/src-tauri/src/migration.rs`,
+`apps/desktop/src/app/routes/SettingsPage.i18n.test.tsx`, and the Phase 11
+documentation files listed above — `.FormuLab/runs.db`, `formulas/index.json`,
+and the two regenerated `docs/generated/FormuLab-User-Guide.{docx,pdf}`
+(an unrelated side effect of an earlier full-suite test run this session)
+deliberately excluded, per this session's own instructions and this
+project's "stage only current-task files" convention.
+
 ## Exact next session
 
-**Phase 11 Stage 1 Closure and Verification.**
+Phase 11 Stage 2, when scheduled: automatic backups, Data Location
+Manager, update checker.
