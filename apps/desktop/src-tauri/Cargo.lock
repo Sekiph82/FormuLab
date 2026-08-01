@@ -1177,6 +1177,7 @@ dependencies = [
  "getrandom 0.4.3",
  "objc2-app-kit",
  "opener",
+ "regex",
  "reqwest",
  "rusqlite",
  "serde",

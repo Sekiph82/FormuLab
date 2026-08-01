@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: SESSION 4 (Active Data Location Clarification) COMPLETE. Awaiting Session 5.
+## Status: SESSION 5 (Basic Diagnostics and Log Export) COMPLETE. First stage (Sessions 1-5) closed pending Phase 11 Stage 1 Closure and Verification.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -449,6 +449,91 @@ recorded once per document rather than duplicated here.
   `base_workspace_dir()` was deliberately left otherwise unchanged since
   narrowing its behavior wasn't this session's target.
 
+## Session 5 summary — basic diagnostics and log export (complete)
+
+- **Bounded log retention, the real gap closed**: `debug_log.rs` grew
+  `debug.log` forever before this session — no cap, unlike every other
+  log this project keeps (`runs.rs`'s captured stdout/stderr is capped
+  per entry via `LOG_CAP`). Added `MAX_DEBUG_LOG_BYTES` (2 MB) and a
+  small rotation scheme (`debug.log` -> `.1` -> `.2` -> `.3`, oldest
+  dropped), checked before every append — bounds total retention to
+  roughly 8 MB across 4 files.
+- **New `diagnostics.rs`**: `diagnostics_summary` assembles app version
+  (`CARGO_PKG_VERSION`), build id (honestly `None` — no build-time
+  identifier exists), OS/arch (`std::env::consts`), the active data path
+  + resolution source + writable + warnings (reusing
+  `data_root::resolve_data_root` from Session 4 directly, no
+  duplication), free disk space (`fs4`, already a Session 1 dependency),
+  global schema version + compatibility status + last migration result
+  (reusing `migration.rs` from Session 3 directly), last backup found
+  (scans the app-private `backups/` directory Sessions 1-3 already write
+  into — `pre-migration-*`/`pre-restore-*` — by filename-embedded epoch,
+  honestly labeled as "last internal safety backup found," not a general
+  backup history, since none exists), storage health (a NEW check: every
+  `data/master/*.json` file is parsed; a present-but-unparseable file is
+  flagged — this is the exact gap Session 0 found in `masterdata.rs`'s
+  `read_array`, closed here as an independent diagnostic rather than by
+  changing that function's own silent-empty-on-parse-failure behavior),
+  both known log directories, and a bounded, heuristic "recent errors"
+  scan of `debug.log` (lines containing "error"/"fail", case-insensitive
+  — not a structured error log, since none exists; no crash-dump
+  capability claimed or implied anywhere).
+- **"Pending migration" comes from the frontend, not Rust**: the
+  migration registry only exists in `migrationRunner.ts` (Session 3), so
+  `apps/desktop/src/lib/diagnostics.ts`'s `getDiagnosticsSummary()` calls
+  Rust's `diagnostics_summary` AND the existing `computeMigrationPlan()`
+  in parallel and merges them — no duplicated registry logic in Rust.
+- **Redaction (`redact_text`, new `regex` dependency, disclosed)**:
+  Windows/Unix usernames in paths replaced with `<redacted>`; long
+  (24+ char) alphanumeric tokens containing both a digit and a letter
+  replaced with `[REDACTED]` (a deliberate over-redaction — a long hash
+  isn't a secret, but safe-by-default is the right default for something
+  meant to leave the machine). `localStorage` (where the plaintext
+  per-provider LLM API key actually lives, per Session 0's inventory) is
+  structurally unreachable from Rust — "never read secrets from
+  localStorage" is true by construction, not by a rule someone has to
+  remember to follow.
+- **Two audiences, two levels of redaction, by design**: the on-screen
+  `diagnostics_summary` keeps the real active data path unredacted (a
+  user reading their own diagnostics needs the real path); the exported
+  `SupportBundle` (`export_support_bundle`) redacts it and every log
+  line and warning before writing — sanitized for sharing with someone
+  else. The bundle contains backup **metadata only** (filename/kind/
+  timestamp, never the backup's own file inventory or contents), the
+  same schema/storage-health fields as the summary, and bounded (200-line)
+  redacted log lines — no formula/master-data row ever appears, since
+  nothing here reads one.
+- **UI**: new `DiagnosticsCard` (Settings → General, after Schema
+  Migration) — all the fields above, plus Refresh, Open Log Folder
+  (reveals the app-data directory holding `debug.log`), Copy Summary
+  (plain text, via the existing `copyText` clipboard helper — no new
+  Rust command needed), Export Support Bundle (native save dialog ->
+  `export_support_bundle`).
+- **Tests**: 4 new Rust tests (`debug_log.rs` — no-op below cap, rotates
+  at the cap, shifts the rotation chain and drops the oldest, bounded
+  total retention across repeated rotations) + 10 new Rust tests
+  (`diagnostics.rs` — username redaction ×2, token redaction, ordinary-
+  text-untouched, missing-collection-is-healthy, corrupt-collection-
+  flagged, last-migration-status picks the most recent terminal entry,
+  empty-journal-is-none, tail_lines bounds+order, missing-file-is-empty)
+  — full Rust suite **133/133** (119 prior + 14 new). 14 new
+  `DiagnosticsCard.test.tsx` tests (not-desktop fallback, loading state,
+  real fields displayed, failure state, not-writable, storage-health
+  failure count, root warnings shown, recent errors shown, last-backup/
+  last-migration shown, open-log-folder never calls a write/restore
+  command, copy-summary content check, export-after-picking-a-
+  destination, cancelled-picker-no-op, refresh reflects a changed
+  summary). All settings-card tests re-run together: **73/73**. i18n
+  parity 23/23. Desktop typecheck clean. Desktop lint clean.
+- **Known limitations**: "recent errors" is heuristic text matching, not
+  a structured/leveled log — `debug_log::log_debug` never recorded a
+  severity. "Last backup" only sees the app-private safety-backup
+  directory, not a full backup history (there isn't one — backup history
+  was explicitly out of scope in Sessions 1-2 and remains so). No crash-
+  dump support exists or is claimed. The support bundle is a single JSON
+  file, not an archive — sufficient for this session's text-only
+  content, revisit if binary attachments are ever needed.
+
 ## Exact next session
 
-**Phase 11 Session 5: Basic Diagnostics and Log Export.**
+**Phase 11 Stage 1 Closure and Verification.**

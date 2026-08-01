@@ -5,6 +5,7 @@ mod attachments;
 mod backup;
 mod data_root;
 mod debug_log;
+mod diagnostics;
 mod formulation;
 mod formulation_advanced;
 mod formulation_v2;
@@ -162,7 +163,11 @@ pub fn run() {
             migration::read_migration_journal,
             migration::create_pre_migration_backup,
             data_root::active_data_root_status,
-            data_root::open_active_data_root
+            data_root::open_active_data_root,
+            diagnostics::diagnostics_summary,
+            diagnostics::export_support_bundle,
+            diagnostics::pick_support_bundle_destination,
+            diagnostics::open_log_folder
         ])
         .build(tauri::generate_context!())
         .expect("error while building FormuLab")

@@ -126,3 +126,60 @@ adds — no second archive library) containing:
 - No build-identifier value is claimed to exist — the honest state is
   "not tracked," and the summary schema above reflects that with a
   `null`, not a fabricated placeholder.
+
+## Session 5 implementation notes (what actually shipped)
+
+- **Log retention, real gap closed**: `debug_log.rs` had no cap or
+  rotation before this session (this doc's own earlier table flagged
+  this). Added `MAX_DEBUG_LOG_BYTES = 2_000_000` and a 3-generation
+  rotation (`debug.log` -> `.1` -> `.2` -> `.3`, oldest dropped),
+  checked before every `log_debug` append.
+- **`diagnostics_summary`** (`apps/desktop/src-tauri/src/diagnostics.rs`):
+  reuses `data_root::resolve_data_root` (Session 4) for the active path/
+  source/writable/warnings fields and `migration.rs` (Session 3) for
+  schema version/compatibility/journal — no duplicated logic. Free disk
+  space via `fs4::available_space` (already a Session 1 dependency).
+  "Pending migration count" is deliberately NOT computed in Rust — the
+  migration registry only exists in `migrationRunner.ts`, so
+  `apps/desktop/src/lib/diagnostics.ts`'s `getDiagnosticsSummary()` calls
+  the Rust command and the existing `computeMigrationPlan()` in parallel
+  and merges the result.
+- **Storage health**: a genuinely new check — every `data/master/*.json`
+  file under the resolved root is parsed as JSON; a file that exists but
+  fails to parse is the only "unhealthy" case (a missing file is
+  healthy — nothing created yet). This directly closes the gap this
+  document's own table flagged in `masterdata.rs`'s `read_array`
+  (silently treats a parse failure the same as empty) — as an
+  independent diagnostic check, without changing that function.
+- **Last backup**: scans the app-private `backups/` directory (Sessions
+  1 and 3 both already write `pre-migration-*`/`pre-restore-*` packages
+  there) for the highest embedded epoch timestamp in the filename —
+  reported as filename + kind + timestamp only, never a full path
+  (self-redacting by construction, no username or drive letter appears
+  in a bare filename).
+- **Redaction** (`redact_text`, new `regex` crate dependency, disclosed):
+  a Windows (`C:\Users\<name>\`) or Unix (`/home/<name>/`, `/Users/<name>/`)
+  username segment is replaced with `<redacted>`; a 24+ character
+  alphanumeric/`-`/`_` run containing at least one digit AND one letter
+  is replaced with `[REDACTED]` — checked in the replacement closure
+  rather than the pattern itself, since the `regex` crate (deliberately,
+  for guaranteed linear-time matching) has no look-around support.
+  Over-redacts a little (a long content hash isn't a secret) by design —
+  safe-by-default for something meant to leave the machine.
+- **Two redaction levels, by design**: `diagnostics_summary` (on-screen)
+  keeps the real active data path — the user reading their own
+  diagnostics needs it. `export_support_bundle`'s `SupportBundle` (a
+  separate struct, built from the summary) redacts the path, every log
+  line, and every warning before writing. `localStorage` — where the
+  plaintext per-provider LLM API key actually lives — is structurally
+  unreachable from this Rust process; "never read secrets from
+  localStorage" holds by construction, not by a followed convention.
+- **UI**: `DiagnosticsCard` (Settings → General) — all summary fields,
+  Refresh, Open Log Folder (reveals the app-data directory), Copy
+  Summary (via the existing `copyText` clipboard helper, no new Rust
+  command), Export Support Bundle (native save dialog).
+- **Not built this session** (deferred, as scoped): a structured/leveled
+  application log (would need `debug_log::log_debug` to accept a
+  severity, a larger change than this session's bounded scope), a full
+  backup history UI, any archive-format bundle (JSON was sufficient for
+  this session's text-only content).

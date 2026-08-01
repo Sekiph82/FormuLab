@@ -276,6 +276,37 @@
       "recoverFailed": "Automatische Wiederherstellung nicht möglich"
     }
   },
+  "diagnostics": {
+    "title": "Diagnose",
+    "hint": "Ein Überblick über App-/Versions-/Speicherstatus zur Fehlersuche, plus ein bereinigtes Paket, das Sie für den Support teilen können",
+    "unavailable": "in der Desktop-App verfügbar",
+    "checking": "Wird geprüft…",
+    "refresh": "Aktualisieren",
+    "appVersion": "App-Version",
+    "os": "Betriebssystem",
+    "activeDataPath": "Aktiver Datenpfad",
+    "writable": "Beschreibbar",
+    "writableYes": "Ja",
+    "writableNo": "Nein",
+    "freeDiskSpace": "Freier Speicherplatz",
+    "schemaVersion": "Schemaversion",
+    "pendingMigrations": "ausstehend",
+    "lastBackup": "Letzte Sicherung",
+    "none": "Keine gefunden",
+    "storageHealth": "Speicherstatus",
+    "storageHealthValue": "{{healthy}} in Ordnung, {{unhealthy}} fehlerhaft",
+    "recentErrors": "Aktuelle Protokollzeilen mit Fehlerhinweis ({{count}})",
+    "openLogFolder": "Protokollordner öffnen",
+    "copySummary": "Zusammenfassung kopieren",
+    "exportBundle": "Support-Paket exportieren",
+    "toast": {
+      "openLogFolderFailed": "Protokollordner konnte nicht geöffnet werden",
+      "copied": "Diagnose-Zusammenfassung kopiert.",
+      "copyFailed": "Zusammenfassung konnte nicht kopiert werden",
+      "exported": "Support-Paket exportiert.",
+      "exportFailed": "Support-Paket konnte nicht exportiert werden"
+    }
+  },
   "python": {
     "title": "Lokaler Python-Kernel",
     "hint": "Führt Notebook-Zellen in der App aus. Nutzt Ihre Jupyter-Umgebung, falls eingerichtet (gleiches Python wie der Agent), sonst automatische Erkennung — oder unten einen expliziten Interpreter festlegen",

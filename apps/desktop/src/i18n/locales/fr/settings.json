@@ -276,6 +276,37 @@
       "recoverFailed": "Impossible de récupérer automatiquement"
     }
   },
+  "diagnostics": {
+    "title": "Diagnostic",
+    "hint": "Un aperçu de l'état de l'application, de la version et du stockage pour le dépannage, et un paquet nettoyé que vous pouvez partager pour le support",
+    "unavailable": "disponible dans l'application de bureau",
+    "checking": "Vérification…",
+    "refresh": "Actualiser",
+    "appVersion": "Version de l'application",
+    "os": "Système d'exploitation",
+    "activeDataPath": "Chemin de données actif",
+    "writable": "Accès en écriture",
+    "writableYes": "Oui",
+    "writableNo": "Non",
+    "freeDiskSpace": "Espace disque libre",
+    "schemaVersion": "Version du schéma",
+    "pendingMigrations": "en attente",
+    "lastBackup": "Dernière sauvegarde",
+    "none": "Aucune trouvée",
+    "storageHealth": "État du stockage",
+    "storageHealthValue": "{{healthy}} en bon état, {{unhealthy}} en erreur",
+    "recentErrors": "Lignes de journal récentes mentionnant une erreur ({{count}})",
+    "openLogFolder": "Ouvrir le dossier des journaux",
+    "copySummary": "Copier le résumé",
+    "exportBundle": "Exporter le paquet de support",
+    "toast": {
+      "openLogFolderFailed": "Impossible d'ouvrir le dossier des journaux",
+      "copied": "Résumé du diagnostic copié.",
+      "copyFailed": "Impossible de copier le résumé",
+      "exported": "Paquet de support exporté.",
+      "exportFailed": "Impossible d'exporter le paquet de support"
+    }
+  },
   "python": {
     "title": "Noyau Python local",
     "hint": "Exécute les cellules de notebook dans l'application. Utilise votre environnement Jupyter s'il est configuré (même Python que l'agent), sinon détection automatique — ou définissez un interpréteur explicite ci-dessous",

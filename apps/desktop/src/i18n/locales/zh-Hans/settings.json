@@ -276,6 +276,37 @@
       "recoverFailed": "无法自动恢复"
     }
   },
+  "diagnostics": {
+    "title": "诊断",
+    "hint": "用于排查问题的应用/版本/存储状态快照,以及可用于支持共享的脱敏包",
+    "unavailable": "该功能在桌面应用中可用",
+    "checking": "正在检查…",
+    "refresh": "刷新",
+    "appVersion": "应用版本",
+    "os": "操作系统",
+    "activeDataPath": "当前数据路径",
+    "writable": "可写",
+    "writableYes": "是",
+    "writableNo": "否",
+    "freeDiskSpace": "可用磁盘空间",
+    "schemaVersion": "架构版本",
+    "pendingMigrations": "待处理",
+    "lastBackup": "上次备份",
+    "none": "未找到",
+    "storageHealth": "存储健康状况",
+    "storageHealthValue": "{{healthy}} 个正常,{{unhealthy}} 个异常",
+    "recentErrors": "提及错误的近期日志行({{count}} 条)",
+    "openLogFolder": "打开日志文件夹",
+    "copySummary": "复制摘要",
+    "exportBundle": "导出支持包",
+    "toast": {
+      "openLogFolderFailed": "无法打开日志文件夹",
+      "copied": "诊断摘要已复制。",
+      "copyFailed": "无法复制摘要",
+      "exported": "支持包已导出。",
+      "exportFailed": "无法导出支持包"
+    }
+  },
   "python": {
     "title": "本地 Python 内核",
     "hint": "在应用内运行笔记本单元格。若已设置 Jupyter 环境则使用它（与代理共用同一 Python），否则自动检测——或在下方指定解释器",

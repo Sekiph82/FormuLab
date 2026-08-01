@@ -276,6 +276,37 @@
       "recoverFailed": "Could not recover automatically"
     }
   },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "hint": "A snapshot of app/version/storage health for troubleshooting, and a sanitized bundle you can share for support",
+    "unavailable": "available in the desktop app",
+    "checking": "Checking…",
+    "refresh": "Refresh",
+    "appVersion": "App version",
+    "os": "OS",
+    "activeDataPath": "Active data path",
+    "writable": "Writable",
+    "writableYes": "Yes",
+    "writableNo": "No",
+    "freeDiskSpace": "Free disk space",
+    "schemaVersion": "Schema version",
+    "pendingMigrations": "pending",
+    "lastBackup": "Last backup",
+    "none": "None found",
+    "storageHealth": "Storage health",
+    "storageHealthValue": "{{healthy}} healthy, {{unhealthy}} unhealthy",
+    "recentErrors": "Recent log lines mentioning an error ({{count}})",
+    "openLogFolder": "Open Log Folder",
+    "copySummary": "Copy Summary",
+    "exportBundle": "Export Support Bundle",
+    "toast": {
+      "openLogFolderFailed": "Could not open the log folder",
+      "copied": "Diagnostics summary copied.",
+      "copyFailed": "Could not copy the summary",
+      "exported": "Support bundle exported.",
+      "exportFailed": "Could not export the support bundle"
+    }
+  },
   "python": {
     "title": "Local Python kernel",
     "hint": "Runs notebook cells in the app. Uses your Jupyter environment when set up (same Python as the agent), else auto-detects — or set an explicit interpreter below",

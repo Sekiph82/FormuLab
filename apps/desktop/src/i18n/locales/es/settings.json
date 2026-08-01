@@ -276,6 +276,37 @@
       "recoverFailed": "No se pudo recuperar automáticamente"
     }
   },
+  "diagnostics": {
+    "title": "Diagnóstico",
+    "hint": "Un resumen del estado de la app, versión y almacenamiento para solucionar problemas, y un paquete depurado que puede compartir para soporte",
+    "unavailable": "disponible en la app de escritorio",
+    "checking": "Comprobando…",
+    "refresh": "Actualizar",
+    "appVersion": "Versión de la app",
+    "os": "SO",
+    "activeDataPath": "Ruta de datos activa",
+    "writable": "Con permiso de escritura",
+    "writableYes": "Sí",
+    "writableNo": "No",
+    "freeDiskSpace": "Espacio libre en disco",
+    "schemaVersion": "Versión de esquema",
+    "pendingMigrations": "pendientes",
+    "lastBackup": "Última copia de seguridad",
+    "none": "Ninguna encontrada",
+    "storageHealth": "Estado del almacenamiento",
+    "storageHealthValue": "{{healthy}} correctas, {{unhealthy}} con problemas",
+    "recentErrors": "Líneas de registro recientes con errores ({{count}})",
+    "openLogFolder": "Abrir carpeta de registros",
+    "copySummary": "Copiar resumen",
+    "exportBundle": "Exportar paquete de soporte",
+    "toast": {
+      "openLogFolderFailed": "No se pudo abrir la carpeta de registros",
+      "copied": "Resumen de diagnóstico copiado.",
+      "copyFailed": "No se pudo copiar el resumen",
+      "exported": "Paquete de soporte exportado.",
+      "exportFailed": "No se pudo exportar el paquete de soporte"
+    }
+  },
   "python": {
     "title": "Kernel local de Python",
     "hint": "Ejecuta las celdas del cuaderno en la app. Usa tu entorno de Jupyter cuando está configurado (el mismo Python que el agente); si no, se detecta automáticamente, o puedes indicar un intérprete explícito abajo",

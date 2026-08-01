@@ -247,26 +247,38 @@ itself changes (none is planned).
 tests for `SettingsPage.tsx`/`NotebooksPage.tsx` (both already reference
 workspace paths).
 
-## Session 5 — Basic Diagnostics and Log Export
+## Session 5 — Basic Diagnostics and Log Export (complete — actual results)
 
-**Focused tests**:
-- Redaction rules each get a dedicated test: a fixture path containing
-  `C:\Users\realname\...` is asserted redacted in the exported bundle;
-  a fixture `debug.log` line containing something resembling an API key
-  pattern is asserted excluded/redacted (defense in depth, even though
-  the real key never reaches Rust-side code per this session's finding).
-  Not seeded, if left out. Explicit assertion for zero backup contents.
-- Diagnostics summary fields each individually asserted present with
-  the correct honest value (e.g. `buildId: null` today, not fabricated).
-- Storage-health / collection-health check against a deliberately
-  corrupted fixture collection file, asserting it is reported as
-  unhealthy rather than silently treated as empty (closing the
-  `read_array`-silent-empty-on-parse-failure gap this session found in
-  `masterdata.rs:418-423`).
-
-**Session-end proportional tests**: targeted desktop + Rust suites for
-the new diagnostics command and bundle exporter. No full regression
-unless a shared schema changed (none planned).
+- Rust: 4 new tests in `debug_log.rs` (no rotation below the cap, rotates
+  to `.1` once over the cap, shifts an existing rotation chain up and
+  drops the oldest, bounded total retention across 10 repeated
+  rotations) + 10 new tests in `diagnostics.rs` (Windows username
+  redaction, Unix home-username redaction, long-token redaction while
+  leaving ordinary short words/sentences untouched, a missing collection
+  file reported healthy not unhealthy, a present-but-unparseable
+  collection file flagged unhealthy — closing the exact
+  `read_array`-silent-empty-on-parse-failure gap Session 0 found,
+  last-migration-status picks the most recent terminal journal entry,
+  empty journal is `None`, `tail_lines` bounds to the requested count and
+  keeps order, a missing log file is an empty list not an error). Full
+  Rust suite re-run: **133/133 passing** (119 prior + 14 new).
+- TypeScript: 14 new tests in `DiagnosticsCard.test.tsx` (not-desktop
+  fallback, loading state, every real field displayed, a failure state
+  when the check itself throws, not-writable shown distinctly,
+  storage-health failure count shown, root warnings shown, recent-error
+  lines shown, last-backup + last-migration + pending-count shown,
+  Open Log Folder never calls a write/restore command, Copy Summary's
+  clipboard content checked for real field values, Export Support Bundle
+  after picking a destination, cancelled-picker no-op, Refresh reflects
+  a changed summary) — **14/14 passing**. All settings-card tests
+  re-run together (Backup/Verify/Migration/DataLocation/Diagnostics/
+  Modal/DataFlow/RemoteCompute): **73/73 passing**.
+- i18n parity: **23/23 passing** (8-locale `settings.diagnostics.*` keys,
+  all real translations).
+- Desktop typecheck: clean. Desktop lint: clean.
+- Full desktop suite: **not run** — only `SettingsPage.tsx` (one more
+  conditional block + import) changed outside new, already-tested files;
+  no shared Settings infrastructure or global shell behavior changed.
 
 ## What no session in this first stage runs
 

@@ -383,7 +383,7 @@
       "Elija una sección de la lista a la izquierda."
     ],
     "sections": [
-      "General — carpeta de trabajo, Ubicación activa de los datos, Copia de seguridad y recuperación, Migración de esquema, actualizaciones de la app",
+      "General — carpeta de trabajo, Ubicación activa de los datos, Copia de seguridad y recuperación, Migración de esquema, Diagnóstico, actualizaciones de la app",
       "Apariencia",
       "Modelos",
       "Python (entorno)",
@@ -394,7 +394,8 @@
       "Restaurar una copia de seguridad reemplaza sus datos actuales. Primero se crea automáticamente una copia de seguridad de sus datos actuales, y su ruta se muestra al finalizar la restauración.",
       "Verificar una copia de seguridad nunca cambia nada — solo inspecciona el paquete e informa Válida, Válida con advertencias, Incompatible, Dañada o No segura.",
       "Ejecutar una migración de esquema crea primero una copia de seguridad verificada y la restaura automáticamente si algo falla — nada se migra automáticamente sin que usted haga clic en Ejecutar migración.",
-      "Ubicación activa de los datos solo muestra y revela dónde están sus datos — nunca mueve, fusiona ni reubica nada. Si encuentra una segunda carpeta que también tiene datos reales, le avisa en lugar de decidir por usted."
+      "Ubicación activa de los datos solo muestra y revela dónde están sus datos — nunca mueve, fusiona ni reubica nada. Si encuentra una segunda carpeta que también tiene datos reales, le avisa en lugar de decidir por usted.",
+      "Exportar un paquete de soporte elimina su nombre de usuario de Windows y cualquier texto largo tipo token/clave de cada ruta y línea de registro, y nunca incluye el contenido de una copia de seguridad, sus datos de fórmulas/proyectos, ni nada del almacenamiento del navegador. FormuLab no tiene informes de fallos — los errores recientes son solo un análisis de registro de mejor esfuerzo."
     ]
   },
   "glossary": {

@@ -276,6 +276,37 @@
       "recoverFailed": "自動的に復旧できませんでした"
     }
   },
+  "diagnostics": {
+    "title": "診断",
+    "hint": "トラブルシューティング用のアプリ・バージョン・ストレージ状態のスナップショットと、サポート共有用に無害化されたバンドル",
+    "unavailable": "デスクトップアプリで利用可能",
+    "checking": "確認中…",
+    "refresh": "更新",
+    "appVersion": "アプリバージョン",
+    "os": "OS",
+    "activeDataPath": "有効なデータパス",
+    "writable": "書き込み可能",
+    "writableYes": "はい",
+    "writableNo": "いいえ",
+    "freeDiskSpace": "空きディスク容量",
+    "schemaVersion": "スキーマバージョン",
+    "pendingMigrations": "保留中",
+    "lastBackup": "最終バックアップ",
+    "none": "見つかりません",
+    "storageHealth": "ストレージの健全性",
+    "storageHealthValue": "正常 {{healthy}} 件、異常 {{unhealthy}} 件",
+    "recentErrors": "エラーに言及する最近のログ行（{{count}}件）",
+    "openLogFolder": "ログフォルダを開く",
+    "copySummary": "概要をコピー",
+    "exportBundle": "サポートバンドルをエクスポート",
+    "toast": {
+      "openLogFolderFailed": "ログフォルダを開けませんでした",
+      "copied": "診断概要をコピーしました。",
+      "copyFailed": "概要をコピーできませんでした",
+      "exported": "サポートバンドルをエクスポートしました。",
+      "exportFailed": "サポートバンドルをエクスポートできませんでした"
+    }
+  },
   "python": {
     "title": "ローカル Python カーネル",
     "hint": "ノートブックのセルをアプリ内で実行します。設定済みの場合は Jupyter 環境（エージェントと同じ Python）を使用し、それ以外は自動検出します — または以下でインタープリタを明示的に指定できます",

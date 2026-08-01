@@ -880,10 +880,9 @@ Open **Settings** (bottom of the sidebar) for six sections:
 - **General** — the raw-materials/pricing screen ([§6](#6-raw-materials-and-suppliers)),
   your **workspace folder** (where projects/sessions/formulas live on
   disk — change or reveal it in Explorer/Finder), your **Active Data
-  Location** (where your data is actually resolved to right now, and why
-  — [§28a](#28a-backup-and-recovery)), **Backup and Recovery** and
-  **Schema Migration** (same section), and **app updates** (manual check,
-  auto-check toggle, update-badge visibility).
+  Location**, **Backup and Recovery**, **Schema Migration**, and
+  **Diagnostics** (all in [§28a](#28a-backup-and-recovery)), and **app
+  updates** (manual check, auto-check toggle, update-badge visibility).
 - **Models** — the provider, model, and API key the composer
   ([§0b](#0b-generate-a-starting-formulation-the-composer)) uses to
   generate a formulation. Never used for anything approval-related —
@@ -921,6 +920,24 @@ that was decided.
   **Refresh** re-checks it.
 - Relocating or merging data roots isn't available yet — planned for a
   future Data Location Manager.
+
+**Settings → General → Diagnostics** — a snapshot for troubleshooting,
+and a way to share one safely.
+
+- Shows your app version, OS, active data path, free disk space, schema
+  version and pending migrations, your last known backup, storage
+  health (whether every data file on disk is actually readable), the log
+  folder location, and recent log lines that mention an error.
+- **Open Log Folder** reveals where `debug.log` lives.
+- **Copy Summary** copies a plain-text version you can paste anywhere.
+- **Export Support Bundle** saves a sanitized file you can send to
+  someone for help: your Windows username and any long token/key-like
+  string are stripped out of every path and log line, and it never
+  contains a backup's actual contents, your formula/project data, or
+  anything from browser storage (where your model API key lives) — only
+  counts, health, and redacted log lines.
+- "Recent errors" is a best-effort scan of the log for lines mentioning
+  a problem — FormuLab does not have crash-dump reporting.
 
 **Settings → General → Backup and Recovery** — save a portable copy of
 your data, or restore from one.
