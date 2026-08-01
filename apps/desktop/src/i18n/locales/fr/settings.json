@@ -170,10 +170,14 @@
     "unavailable": "disponible dans l'application de bureau",
     "createButton": "Créer une sauvegarde",
     "restoreButton": "Restaurer une sauvegarde",
+    "verifyButton": "Vérifier la sauvegarde",
     "creatingLabel": "Création de la sauvegarde…",
     "restoringLabel": "Restauration…",
+    "verifying": "Vérification du paquet…",
     "cancel": "Annuler",
     "inspecting": "Lecture du paquet…",
+    "errorsHeading": "Erreurs",
+    "warningsHeading": "Avertissements",
     "confirmTitle": "Cela remplacera vos données actuelles",
     "confirmHint": "Une sauvegarde de sécurité de vos données actuelles est créée automatiquement avant toute modification ; en cas d'échec, la restauration est annulée.",
     "confirmRestoreButton": "Restaurer maintenant",
@@ -190,12 +194,20 @@
       "restoredCount": "{{count}} fichiers restaurés",
       "safetyBackupAt": "Sauvegarde de sécurité de vos données précédentes :"
     },
+    "status": {
+      "valid": "Valide",
+      "validWithWarnings": "Valide, avec avertissements",
+      "incompatible": "Incompatible",
+      "corrupted": "Corrompue",
+      "unsafe": "Non sûre"
+    },
     "toast": {
       "created": "Sauvegarde créée.",
       "createFailed": "Impossible de créer la sauvegarde",
       "restored": "Restauration terminée.",
       "restoreFailed": "Impossible de restaurer la sauvegarde",
-      "inspectFailed": "Impossible de lire le paquet de sauvegarde"
+      "inspectFailed": "Impossible de lire le paquet de sauvegarde",
+      "verifyFailed": "Impossible de vérifier le paquet de sauvegarde"
     },
     "phase": {
       "scanning": "Analyse des données",

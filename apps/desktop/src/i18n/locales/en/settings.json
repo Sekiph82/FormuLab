@@ -170,10 +170,14 @@
     "unavailable": "available in the desktop app",
     "createButton": "Create Backup",
     "restoreButton": "Restore Backup",
+    "verifyButton": "Verify Backup",
     "creatingLabel": "Creating backup…",
     "restoringLabel": "Restoring…",
+    "verifying": "Verifying package…",
     "cancel": "Cancel",
     "inspecting": "Reading package…",
+    "errorsHeading": "Errors",
+    "warningsHeading": "Warnings",
     "confirmTitle": "This will replace your current data",
     "confirmHint": "A safety backup of your current data is made automatically before anything is changed, and the restore is rolled back if anything fails.",
     "confirmRestoreButton": "Restore Now",
@@ -190,12 +194,20 @@
       "restoredCount": "{{count}} files restored",
       "safetyBackupAt": "Safety backup of your previous data:"
     },
+    "status": {
+      "valid": "Valid",
+      "validWithWarnings": "Valid, with warnings",
+      "incompatible": "Incompatible",
+      "corrupted": "Corrupted",
+      "unsafe": "Unsafe"
+    },
     "toast": {
       "created": "Backup created.",
       "createFailed": "Could not create the backup",
       "restored": "Restore complete.",
       "restoreFailed": "Could not restore the backup",
-      "inspectFailed": "Could not read the backup package"
+      "inspectFailed": "Could not read the backup package",
+      "verifyFailed": "Could not verify the backup package"
     },
     "phase": {
       "scanning": "Scanning data",

@@ -223,6 +223,50 @@ Statuses:
 Corruption and incompatibility are always reported as distinct statuses
 — never conflated, per this session's explicit instruction.
 
+## Session 2 implementation notes (what actually shipped)
+
+`verify_backup_report(source: &Path) -> VerificationReport`
+(`backup.rs`) — takes only a `&Path`, no `AppHandle`, so it cannot resolve
+`project_root()`/`workspace_dir()` even in principle; "never modifies the
+active data root" holds by the function's own signature.
+
+- **No second parser**: `open_zip`/`read_manifest_from_archive`/
+  `entry_safety_violation` were extracted out of the Session 1 restore
+  path and are now shared by restore, `inspect_backup`, the backup
+  self-check, and verification alike.
+- **Status precedence**: `Unsafe > Corrupted > Incompatible >
+  ValidWithWarnings > Valid` — every check runs to completion (not
+  short-circuited) once the manifest parses, and the single worst tier
+  reached is reported.
+- **Checks implemented, mapped to status**:
+  - `archive_unreadable`, `manifest_unreadable`, `missing_file`,
+    `size_mismatch`, `hash_mismatch`, `malformed_json` → **Corrupted**.
+  - `unsupported_backup_format_version`, `unsupported_app_version`
+    (via a minimal `major.minor.patch` comparator against the manifest's
+    `compatibility.min/max`), `unsupported_schema_version` (per
+    `schema_versions` entry) → **Incompatible**.
+  - `unsafe_path` (traversal/absolute/drive-letter/symlink/directory-
+    entry/prohibited-extension, reusing `entry_safety_violation`),
+    `duplicate_path`, `runs_db_present`, `prohibited_path` (an entry
+    outside the same allow-list `archive_path_to_live` uses) → **Unsafe**.
+  - `unexpected_file` (present in the archive, safe, allow-listed, but
+    not declared in `manifest.file_inventory`) and any
+    `manifest.warnings` entry → **ValidWithWarnings** (when nothing worse
+    was found).
+- **Real constraint discovered this session**: `zip::ZipWriter` (the
+  crate this project uses to *write* `.formulab-backup` packages) refuses
+  to write two entries sharing a name — confirmed directly in a test. A
+  duplicate-path package is therefore not producible via this project's
+  own tooling; the `duplicate_names()` detection remains as defense in
+  depth against a hand-crafted or differently-produced archive, tested at
+  the pure-function level rather than through a full package round-trip
+  that cannot exist.
+- **UI**: `BackupRecoveryCard` gained a third, independent action —
+  Verify Backup — never offering to restore from within the verify flow.
+- **Not built this session** (deferred, as scoped): a backup history
+  list, a CLI/exportable verification report, automatic verification on
+  a schedule.
+
 ## Known open questions from Session 0 — resolved in Session 1
 
 - `data/master/backups/<collection>-<timestamp>.json` (the ad hoc

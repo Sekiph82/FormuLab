@@ -391,7 +391,8 @@
       "Privacy"
     ],
     "warnings": [
-      "Restoring a backup replaces your current data. A safety backup of your current data is made automatically first, and its path is shown to you when the restore finishes."
+      "Restoring a backup replaces your current data. A safety backup of your current data is made automatically first, and its path is shown to you when the restore finishes.",
+      "Verifying a backup never changes anything — it only inspects the package and reports Valid, Valid with warnings, Incompatible, Corrupted, or Unsafe."
     ]
   },
   "glossary": {

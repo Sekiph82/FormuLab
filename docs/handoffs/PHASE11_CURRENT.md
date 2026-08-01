@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: SESSION 1 (Backup and Restore Foundation) COMPLETE. Awaiting Session 2.
+## Status: SESSION 2 (Backup Verification) COMPLETE. Awaiting Session 3.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -205,6 +205,77 @@ recorded once per document rather than duplicated here.
   snapshot mechanism was left exactly as-is, not merged into the new
   system.
 
+## Session 2 summary — backup verification (complete)
+
+- **No second parser**: verification reuses the exact manifest-reading and
+  per-entry safety logic restore already had. Refactored `backup.rs` to
+  extract `open_zip`/`read_manifest_from_archive`/`entry_safety_violation`
+  as shared functions, then rewired `try_restore_backup`, `inspect_backup`,
+  and `try_create_backup`'s own self-check to all call them — one
+  definition of "open a package," "read its manifest," and "is this entry
+  safe," not three.
+- **`verify_backup_report(source: &Path) -> VerificationReport`**: takes
+  only a `&Path` — no `AppHandle` at all — so it structurally cannot call
+  `resolve_roots()`/`project_root()`/`workspace_dir()`. "Verification must
+  never modify the active data root" is true by the function's own type
+  signature, not an added guard someone could forget. A dedicated test
+  (`verify_never_touches_the_filesystem_outside_the_given_archive`) also
+  confirms the source file's bytes are byte-identical before and after.
+- **Five statuses, precedence `Unsafe > Corrupted > Incompatible >
+  ValidWithWarnings > Valid`**: every check runs (not short-circuited)
+  after the manifest is readable, collecting every issue found; the worst
+  tier reached becomes the report's single `status`. Corruption
+  (`archive_unreadable`/`manifest_unreadable`/`missing_file`/
+  `size_mismatch`/`hash_mismatch`/`malformed_json`) and incompatibility
+  (`unsupported_backup_format_version`/`unsupported_app_version`/
+  `unsupported_schema_version`) are disjoint code sets, never blended
+  into one status.
+- **Real finding during implementation**: the `zip` crate's own
+  `ZipWriter` refuses to write two entries sharing a name (errors at
+  `start_file`, confirmed directly — see
+  `duplicate_names_in_a_raw_name_list_are_detected`) — so a duplicate-path
+  archive is not producible via this project's own writer at all.
+  Duplicate detection is still implemented (a pure `duplicate_names()`
+  function, defense in depth against a hand-crafted or differently-tooled
+  archive) and unit-tested directly, but the full end-to-end "open a real
+  duplicate-path package" scenario is not something this codebase can
+  construct to test — documented rather than silently skipped.
+- **Version compatibility**: a minimal `major.minor.patch` comparator
+  (`parse_simple_version`/`version_in_range`) checks the current build's
+  `CARGO_PKG_VERSION` against the manifest's declared
+  `compatibility.min/max`, and every `schema_versions` entry against the
+  one schema version this build supports — both real checks, even though
+  every version in existence today is still `"1.0"`/`"0.4.0"`.
+- **`.FormuLab/runs.db` presence**: a dedicated `runs_db_present` check
+  (in addition to the allow-list already rejecting it as
+  `prohibited_path`) — a package containing it is unconditionally
+  `Unsafe`, directly testing this project's own never-touch rule.
+- **UI**: `BackupRecoveryCard` gained a third action, **Verify Backup**
+  (pick a package → verifying spinner → a `VerifyResult` panel: a
+  status badge colored by severity tier, the manifest summary when
+  readable, every error, every warning, and a Done button). Never offers
+  to restore from the verify flow — a separate, read-only path from
+  Create/Restore.
+- **i18n**: full genuine translation across all 8 locales
+  (`settings.backup.verifyButton/verifying/errorsHeading/warningsHeading/
+  status.*/toast.verifyFailed`).
+- **Tests**: 13 new Rust tests in `backup.rs` (valid, valid-with-warnings,
+  corrupted-garbage-bytes, corrupted-no-manifest, corrupted-malformed-
+  manifest, unsafe-traversal, corrupted-hash-mismatch, corrupted-size-
+  mismatch, incompatible-format-version, incompatible-schema-version,
+  unsafe-runs.db-present, never-touches-filesystem, duplicate-names-pure-
+  function-plus-writer-refusal) — full Rust suite 101/101. 9 new
+  `BackupRecoveryCard.test.tsx` tests (all 5 statuses individually
+  asserted distinct from each other, picker-cancelled no-op, verify
+  failure, dismiss-returns-to-idle, never-calls-restore-or-create-while-
+  verifying) — 21/21 passing. i18n parity 23/23. Typecheck clean. Lint
+  clean.
+- **Known limitations**: verification's JSON-content check remains
+  parses-cleanly only (no per-schema Zod validation from Rust, same
+  limitation Session 1's restore already disclosed). No standalone CLI
+  or export of a verification report — UI-only, matching this session's
+  bounded scope.
+
 ## Exact next session
 
-**Phase 11 Session 2: Backup Verification.**
+**Phase 11 Session 3: Schema Migration Framework.**

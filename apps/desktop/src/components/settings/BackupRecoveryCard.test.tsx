@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BackupManifest, BackupProgress, RestoreResult } from "@/lib/tauri";
+import type { BackupManifest, BackupProgress, RestoreResult, VerificationReport } from "@/lib/tauri";
 import { BackupRecoveryCard } from "./BackupRecoveryCard";
 
 const bridge = {
@@ -13,6 +13,7 @@ const bridge = {
   inspectBackup: vi.fn<(source: string) => Promise<BackupManifest>>(),
   restoreBackup: vi.fn<(source: string) => Promise<RestoreResult>>(),
   cancelRestore: vi.fn<() => Promise<void>>(),
+  verifyBackup: vi.fn<(source: string) => Promise<VerificationReport>>(),
   watchBackupProgress: vi.fn<(cb: (p: BackupProgress) => void) => Promise<() => void>>(),
   watchRestoreProgress: vi.fn<(cb: (p: BackupProgress) => void) => Promise<() => void>>(),
 };
@@ -28,6 +29,7 @@ vi.mock("@/lib/tauri", () => ({
   inspectBackup: (...a: [string]) => bridge.inspectBackup(...a),
   restoreBackup: (...a: [string]) => bridge.restoreBackup(...a),
   cancelRestore: () => bridge.cancelRestore(),
+  verifyBackup: (...a: [string]) => bridge.verifyBackup(...a),
   watchBackupProgress: (cb: (p: BackupProgress) => void) => bridge.watchBackupProgress(cb),
   watchRestoreProgress: (cb: (p: BackupProgress) => void) => bridge.watchRestoreProgress(cb),
 }));
@@ -212,5 +214,131 @@ describe("BackupRecoveryCard", () => {
 
     expect(await screen.findByText(/Something went wrong/)).toBeInTheDocument();
     expect(screen.getByText(/not a readable archive/)).toBeInTheDocument();
+  });
+
+  function report(overrides: Partial<VerificationReport> = {}): VerificationReport {
+    return {
+      status: "valid",
+      manifest: manifest(),
+      errors: [],
+      warnings: [],
+      ...overrides,
+    };
+  }
+
+  it("does nothing when the file picker is cancelled during verify", async () => {
+    bridge.pickBackupSource.mockResolvedValue(null);
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+    await waitFor(() => expect(bridge.pickBackupSource).toHaveBeenCalled());
+    expect(bridge.verifyBackup).not.toHaveBeenCalled();
+  });
+
+  it("shows a Valid result with the manifest summary", async () => {
+    bridge.pickBackupSource.mockResolvedValue("C:\\backups\\one.formulab-backup");
+    bridge.verifyBackup.mockResolvedValue(report({ status: "valid" }));
+
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+
+    expect(await screen.findByText("Valid")).toBeInTheDocument();
+    expect(screen.getByText("0.4.0")).toBeInTheDocument();
+    expect(bridge.verifyBackup).toHaveBeenCalledWith("C:\\backups\\one.formulab-backup");
+  });
+
+  it("shows a Valid with warnings result and lists each warning", async () => {
+    bridge.pickBackupSource.mockResolvedValue("C:\\backups\\one.formulab-backup");
+    bridge.verifyBackup.mockResolvedValue(
+      report({
+        status: "validWithWarnings",
+        warnings: [{ code: "unexpected_file", message: "archive contains an undeclared file" }],
+      }),
+    );
+
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+
+    expect(await screen.findByText("Valid, with warnings")).toBeInTheDocument();
+    expect(screen.getByText(/undeclared file/)).toBeInTheDocument();
+  });
+
+  it("shows a Corrupted result with each error listed", async () => {
+    bridge.pickBackupSource.mockResolvedValue("C:\\backups\\one.formulab-backup");
+    bridge.verifyBackup.mockResolvedValue(
+      report({
+        status: "corrupted",
+        errors: [{ code: "hash_mismatch", message: "data/master/materials.json failed a SHA256 check" }],
+      }),
+    );
+
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+
+    expect(await screen.findByText("Corrupted")).toBeInTheDocument();
+    expect(screen.getByText(/failed a SHA256 check/)).toBeInTheDocument();
+  });
+
+  it("shows an Unsafe result distinctly from Incompatible", async () => {
+    bridge.pickBackupSource.mockResolvedValue("C:\\backups\\one.formulab-backup");
+    bridge.verifyBackup.mockResolvedValue(
+      report({ status: "unsafe", errors: [{ code: "runs_db_present", message: "runs.db must never be included" }] }),
+    );
+
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+
+    expect(await screen.findByText("Unsafe")).toBeInTheDocument();
+    expect(screen.queryByText("Incompatible")).not.toBeInTheDocument();
+  });
+
+  it("shows an Incompatible result distinctly from Corrupted", async () => {
+    bridge.pickBackupSource.mockResolvedValue("C:\\backups\\one.formulab-backup");
+    bridge.verifyBackup.mockResolvedValue(
+      report({
+        status: "incompatible",
+        errors: [{ code: "unsupported_backup_format_version", message: "backup format version 9.9 is not supported" }],
+      }),
+    );
+
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+
+    expect(await screen.findByText("Incompatible")).toBeInTheDocument();
+    expect(screen.queryByText("Corrupted")).not.toBeInTheDocument();
+  });
+
+  it("returns to the action buttons after dismissing a verify result", async () => {
+    bridge.pickBackupSource.mockResolvedValue("C:\\backups\\one.formulab-backup");
+    bridge.verifyBackup.mockResolvedValue(report({ status: "valid" }));
+
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+    await screen.findByText("Valid");
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(screen.getByRole("button", { name: /Verify Backup/ })).toBeInTheDocument();
+  });
+
+  it("shows a failure state when verification itself cannot run", async () => {
+    bridge.pickBackupSource.mockResolvedValue("C:\\backups\\one.formulab-backup");
+    bridge.verifyBackup.mockRejectedValue(new Error("not running in the desktop app"));
+
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+
+    expect(await screen.findByText(/Something went wrong/)).toBeInTheDocument();
+    expect(screen.getByText(/not running in the desktop app/)).toBeInTheDocument();
+  });
+
+  it("never calls restore or create while verifying", async () => {
+    bridge.pickBackupSource.mockResolvedValue("C:\\backups\\one.formulab-backup");
+    bridge.verifyBackup.mockResolvedValue(report());
+
+    render(<BackupRecoveryCard />);
+    await userEvent.click(screen.getByRole("button", { name: /Verify Backup/ }));
+    await screen.findByText("Valid");
+
+    expect(bridge.restoreBackup).not.toHaveBeenCalled();
+    expect(bridge.createBackup).not.toHaveBeenCalled();
   });
 });

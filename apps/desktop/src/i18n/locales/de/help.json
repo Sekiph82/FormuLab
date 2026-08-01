@@ -391,7 +391,8 @@
       "Datenschutz"
     ],
     "warnings": [
-      "Das Wiederherstellen einer Sicherung ersetzt Ihre aktuellen Daten. Vorher wird automatisch eine Sicherheitskopie Ihrer aktuellen Daten erstellt, deren Pfad nach Abschluss der Wiederherstellung angezeigt wird."
+      "Das Wiederherstellen einer Sicherung ersetzt Ihre aktuellen Daten. Vorher wird automatisch eine Sicherheitskopie Ihrer aktuellen Daten erstellt, deren Pfad nach Abschluss der Wiederherstellung angezeigt wird.",
+      "Das Prüfen einer Sicherung ändert nie etwas — es untersucht nur das Paket und meldet Gültig, Gültig mit Warnungen, Inkompatibel, Beschädigt oder Unsicher."
     ]
   },
   "glossary": {

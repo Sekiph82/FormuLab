@@ -170,10 +170,14 @@
     "unavailable": "masaüstü uygulamasında kullanılabilir",
     "createButton": "Yedek Oluştur",
     "restoreButton": "Yedeği Geri Yükle",
+    "verifyButton": "Yedeği Doğrula",
     "creatingLabel": "Yedek oluşturuluyor…",
     "restoringLabel": "Geri yükleniyor…",
+    "verifying": "Paket doğrulanıyor…",
     "cancel": "İptal",
     "inspecting": "Paket okunuyor…",
+    "errorsHeading": "Hatalar",
+    "warningsHeading": "Uyarılar",
     "confirmTitle": "Bu, mevcut verilerinizin yerini alacak",
     "confirmHint": "Herhangi bir değişiklik yapılmadan önce mevcut verilerinizin güvenlik yedeği otomatik olarak oluşturulur; geri yükleme başarısız olursa geri alınır.",
     "confirmRestoreButton": "Şimdi Geri Yükle",
@@ -190,12 +194,20 @@
       "restoredCount": "{{count}} dosya geri yüklendi",
       "safetyBackupAt": "Önceki verilerinizin güvenlik yedeği:"
     },
+    "status": {
+      "valid": "Geçerli",
+      "validWithWarnings": "Geçerli, uyarılarla",
+      "incompatible": "Uyumsuz",
+      "corrupted": "Bozuk",
+      "unsafe": "Güvensiz"
+    },
     "toast": {
       "created": "Yedek oluşturuldu.",
       "createFailed": "Yedek oluşturulamadı",
       "restored": "Geri yükleme tamamlandı.",
       "restoreFailed": "Yedek geri yüklenemedi",
-      "inspectFailed": "Yedek paketi okunamadı"
+      "inspectFailed": "Yedek paketi okunamadı",
+      "verifyFailed": "Yedek doğrulanamadı"
     },
     "phase": {
       "scanning": "Veriler taranıyor",

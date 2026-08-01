@@ -391,7 +391,8 @@
       "Confidentialité"
     ],
     "warnings": [
-      "Restaurer une sauvegarde remplace vos données actuelles. Une sauvegarde de sécurité de vos données actuelles est créée automatiquement au préalable, et son chemin est affiché une fois la restauration terminée."
+      "Restaurer une sauvegarde remplace vos données actuelles. Une sauvegarde de sécurité de vos données actuelles est créée automatiquement au préalable, et son chemin est affiché une fois la restauration terminée.",
+      "Vérifier une sauvegarde ne modifie jamais rien — cela inspecte uniquement le paquet et indique Valide, Valide avec avertissements, Incompatible, Corrompue ou Non sûre."
     ]
   },
   "glossary": {

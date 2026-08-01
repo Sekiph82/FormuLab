@@ -391,7 +391,8 @@
       "Privacidad"
     ],
     "warnings": [
-      "Restaurar una copia de seguridad reemplaza sus datos actuales. Primero se crea automáticamente una copia de seguridad de sus datos actuales, y su ruta se muestra al finalizar la restauración."
+      "Restaurar una copia de seguridad reemplaza sus datos actuales. Primero se crea automáticamente una copia de seguridad de sus datos actuales, y su ruta se muestra al finalizar la restauración.",
+      "Verificar una copia de seguridad nunca cambia nada — solo inspecciona el paquete e informa Válida, Válida con advertencias, Incompatible, Dañada o No segura."
     ]
   },
   "glossary": {

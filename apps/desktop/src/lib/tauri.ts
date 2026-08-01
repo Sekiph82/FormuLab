@@ -654,3 +654,31 @@ export async function watchRestoreProgress(cb: (p: BackupProgress) => void): Pro
   const { listen } = await import("@tauri-apps/api/event");
   return listen<BackupProgress>("restore-progress", (e) => cb(e.payload));
 }
+
+// ---- Backup verification (Phase 11 Session 2) ------------------------------
+
+export type VerificationStatus = "valid" | "validWithWarnings" | "incompatible" | "corrupted" | "unsafe";
+
+export interface VerificationIssue {
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export interface VerificationReport {
+  status: VerificationStatus;
+  manifest?: BackupManifest;
+  errors: VerificationIssue[];
+  warnings: VerificationIssue[];
+}
+
+/** Standalone verification: inspects a `.formulab-backup` package without
+ *  restoring it or touching the active data root. Never throws for a bad
+ *  package — a corrupted/unsafe/incompatible package is a normal, typed
+ *  `VerificationReport` result, not an exception; this only throws for a
+ *  genuine desktop-boundary problem (not running in Tauri). */
+export async function verifyBackup(source: string): Promise<VerificationReport> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<VerificationReport>("verify_backup", { source });
+}

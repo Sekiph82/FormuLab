@@ -84,7 +84,36 @@ backup module + any Rust modules it touches; `pnpm --filter
 any lands this session. No full shared-suite re-run unless a shared
 schema file changed.
 
-## Session 2 — Backup Verification
+## Session 2 — Backup Verification (complete — actual results)
+
+- Rust: 13 new tests in `backup.rs` — `verify_reports_valid_for_a_well_formed_package`,
+  `verify_reports_valid_with_warnings_for_an_undeclared_extra_file`,
+  `verify_reports_corrupted_for_garbage_bytes_that_are_not_a_zip`,
+  `verify_reports_corrupted_for_a_zip_with_no_manifest`,
+  `verify_reports_corrupted_for_a_malformed_manifest`,
+  `duplicate_names_in_a_raw_name_list_are_detected` (pure-function check +
+  a direct assertion that `zip::ZipWriter` itself refuses a duplicate
+  entry name), `verify_reports_unsafe_for_a_path_traversal_entry`,
+  `verify_reports_corrupted_for_a_hash_mismatch`,
+  `verify_reports_corrupted_for_a_size_mismatch`,
+  `verify_reports_incompatible_for_an_unsupported_backup_format_version`,
+  `verify_reports_incompatible_for_an_unsupported_schema_version`,
+  `verify_reports_unsafe_when_runs_db_is_present`,
+  `verify_never_touches_the_filesystem_outside_the_given_archive`. Full
+  Rust suite re-run: **101/101 passing** (88 prior + 13 new).
+- TypeScript: 9 new tests in `BackupRecoveryCard.test.tsx` (picker-
+  cancelled no-op, Valid, ValidWithWarnings with warning text, Corrupted
+  with error text, Unsafe-distinct-from-Incompatible, Incompatible-
+  distinct-from-Corrupted, dismiss-returns-to-idle, verify-itself-fails,
+  never-calls-restore-or-create-while-verifying) — **21/21 passing**
+  (12 prior + 9 new).
+- i18n parity: **23/23 passing** (8-locale `settings.backup.verifyButton/
+  verifying/errorsHeading/warningsHeading/status.*/toast.verifyFailed`,
+  all real translations).
+- Desktop typecheck: clean. Desktop lint: clean.
+- Full desktop suite: **not run** — only the existing, already-tested
+  `BackupRecoveryCard.tsx` changed; no shared Settings infrastructure or
+  global shell behavior changed.
 
 **Focused tests**:
 - Each of the five statuses (`valid`/`valid with warnings`/

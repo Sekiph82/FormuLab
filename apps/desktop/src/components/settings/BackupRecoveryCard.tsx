@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { AlertTriangle, Archive, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, Archive, CheckCircle2, Loader2, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   cancelBackup,
@@ -10,11 +10,14 @@ import {
   pickBackupDestination,
   pickBackupSource,
   restoreBackup,
+  verifyBackup,
   watchBackupProgress,
   watchRestoreProgress,
   type BackupManifest,
   type BackupProgress,
   type RestoreResult,
+  type VerificationReport,
+  type VerificationStatus,
 } from "@/lib/tauri";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/cn";
@@ -50,7 +53,18 @@ type Phase =
   | { kind: "confirmRestore"; source: string; manifest: BackupManifest }
   | { kind: "restoring"; progress: BackupProgress | null }
   | { kind: "restoreDone"; result: RestoreResult }
-  | { kind: "restoreFailed"; message: string };
+  | { kind: "restoreFailed"; message: string }
+  | { kind: "verifying" }
+  | { kind: "verifyDone"; report: VerificationReport }
+  | { kind: "verifyFailed"; message: string };
+
+const STATUS_TONE: Record<VerificationStatus, "ok" | "warn" | "error"> = {
+  valid: "ok",
+  validWithWarnings: "warn",
+  incompatible: "warn",
+  corrupted: "error",
+  unsafe: "error",
+};
 
 /**
  * Phase 11 Session 1 — Backup and Recovery. Bounded scope: create a full
@@ -136,6 +150,21 @@ export function BackupRecoveryCard() {
     [stopWatching, t],
   );
 
+  const startVerify = useCallback(async () => {
+    if (!isTauri) return;
+    const source = await pickBackupSource();
+    if (!source) return;
+    setPhase({ kind: "verifying" });
+    try {
+      const report = await verifyBackup(source);
+      setPhase({ kind: "verifyDone", report });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setPhase({ kind: "verifyFailed", message });
+      toast.error(`${t("backup.toast.verifyFailed")}: ${message}`);
+    }
+  }, [t]);
+
   const cancelRunning = useCallback(async () => {
     if (phase.kind === "creating") await cancelBackup();
     if (phase.kind === "restoring") await cancelRestore();
@@ -149,13 +178,19 @@ export function BackupRecoveryCard() {
         <p className="text-[13px] text-muted">{t("backup.unavailable")}</p>
       ) : (
         <div className="space-y-3">
-          {(phase.kind === "idle" || phase.kind === "backupFailed" || phase.kind === "restoreFailed") && (
+          {(phase.kind === "idle" ||
+            phase.kind === "backupFailed" ||
+            phase.kind === "restoreFailed" ||
+            phase.kind === "verifyFailed") && (
             <div className="flex flex-wrap gap-2">
               <button className={btnAccent()} onClick={() => void startBackup()}>
                 <Archive size={13} /> {t("backup.createButton")}
               </button>
               <button className={btnGhost()} onClick={() => void startInspect()}>
                 <RotateCcw size={13} /> {t("backup.restoreButton")}
+              </button>
+              <button className={btnGhost()} onClick={() => void startVerify()}>
+                <ShieldCheck size={13} /> {t("backup.verifyButton")}
               </button>
             </div>
           )}
@@ -185,6 +220,15 @@ export function BackupRecoveryCard() {
               {t("backup.inspecting")}
             </div>
           )}
+
+          {phase.kind === "verifying" && (
+            <div className="flex items-center gap-2 text-[13px] text-muted">
+              <Loader2 size={14} className="animate-spin" />
+              {t("backup.verifying")}
+            </div>
+          )}
+
+          {phase.kind === "verifyDone" && <VerifyResult report={phase.report} onDone={reset} />}
 
           {phase.kind === "confirmRestore" && (
             <div className="rounded-input border border-warn/40 bg-warn/10 p-3">
@@ -266,7 +310,7 @@ export function BackupRecoveryCard() {
             </div>
           )}
 
-          {(phase.kind === "backupFailed" || phase.kind === "restoreFailed") && (
+          {(phase.kind === "backupFailed" || phase.kind === "restoreFailed" || phase.kind === "verifyFailed") && (
             <div className="rounded-input border border-error/40 bg-error/10 p-3 text-[13px] text-error">
               <p className="font-medium">{t("backup.failedTitle")}</p>
               <p className="mt-1 text-xs">{phase.message}</p>
@@ -275,6 +319,64 @@ export function BackupRecoveryCard() {
         </div>
       )}
     </Section>
+  );
+}
+
+/** The result panel for a completed verification — a status badge, every
+ *  error/warning the checks found, and the manifest summary when one could
+ *  be read (even an `unsafe`/`corrupted` result may still carry a manifest,
+ *  if only a later check failed). Read-only: nothing here can restore or
+ *  otherwise touch the active data root. */
+function VerifyResult({ report, onDone }: { report: VerificationReport; onDone: () => void }) {
+  const { t } = useTranslation(["settings", "common"]);
+  const tone = STATUS_TONE[report.status];
+  const Icon = tone === "ok" ? CheckCircle2 : tone === "warn" ? AlertTriangle : XCircle;
+  const toneCls =
+    tone === "ok" ? "border-ok/40 bg-ok/10 text-text" : tone === "warn" ? "border-warn/40 bg-warn/10 text-text" : "border-error/40 bg-error/10 text-error";
+  const iconCls = tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : "text-error";
+
+  return (
+    <div className={cn("rounded-input border p-3 text-[13px]", toneCls)}>
+      <div className="flex items-center gap-2 font-medium">
+        <Icon size={15} className={iconCls} />
+        {t(`backup.status.${report.status}`)}
+      </div>
+      {report.manifest && (
+        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+          <dt className="text-muted">{t("backup.summary.appVersion")}</dt>
+          <dd>{report.manifest.formulabAppVersion}</dd>
+          <dt className="text-muted">{t("backup.summary.created")}</dt>
+          <dd>{new Date(report.manifest.createdAt * 1000).toLocaleString()}</dd>
+          <dt className="text-muted">{t("backup.summary.files")}</dt>
+          <dd>{report.manifest.fileInventory.length}</dd>
+          <dt className="text-muted">{t("backup.summary.size")}</dt>
+          <dd>{formatBytes(report.manifest.totalBytes)}</dd>
+        </dl>
+      )}
+      {report.errors.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs font-medium">{t("backup.errorsHeading")}</p>
+          <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-xs">
+            {report.errors.map((e, i) => (
+              <li key={`${e.code}-${i}`}>{e.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {report.warnings.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs font-medium text-muted">{t("backup.warningsHeading")}</p>
+          <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-xs text-muted">
+            {report.warnings.map((w, i) => (
+              <li key={`${w.code}-${i}`}>{w.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <button className={cn(btnGhost(), "mt-3")} onClick={onDone}>
+        {t("backup.done")}
+      </button>
+    </div>
   );
 }
 

@@ -37,7 +37,7 @@
 //                             when the directory exists and holds files, so
 //                             a user knows it was skipped rather than being
 //                             silently unaware of it.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -118,6 +118,402 @@ pub struct RestoreResult {
     pub safety_backup_path: String,
     pub restored_paths: Vec<String>,
     pub warnings: Vec<String>,
+}
+
+// ---------------------------------------------------------- verification ---
+//
+// Session 2 — standalone verification: inspects a `.formulab-backup` package
+// without extracting it onto the data root or creating any safety backup.
+// Reuses the same manifest-reading and per-entry safety checks
+// `try_restore_backup` uses (`open_zip`/`read_manifest_from_archive`/
+// `check_entry_safety` below), rather than a second, parallel parser.
+
+#[derive(Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum VerificationStatus {
+    Valid,
+    ValidWithWarnings,
+    Incompatible,
+    Corrupted,
+    Unsafe,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationIssue {
+    /// Machine-readable check name, e.g. "hash_mismatch", "unsafe_path".
+    pub code: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationReport {
+    pub status: VerificationStatus,
+    /// Present whenever the manifest itself was readable — even an
+    /// `Unsafe`/`Corrupted` result may still carry the manifest if only a
+    /// later check (a bad hash, a prohibited entry) is what failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<BackupManifest>,
+    pub errors: Vec<VerificationIssue>,
+    pub warnings: Vec<VerificationIssue>,
+}
+
+fn issue(code: &str, message: impl Into<String>, path: Option<&str>) -> VerificationIssue {
+    VerificationIssue {
+        code: code.to_string(),
+        message: message.into(),
+        path: path.map(|s| s.to_string()),
+    }
+}
+
+/// Extensions this project will never legitimately package — a `.formulab-backup`
+/// contains only JSON/JSONL/Markdown/text data, never executable content.
+const PROHIBITED_EXTENSIONS: &[&str] = &[
+    "exe", "dll", "so", "dylib", "sh", "bat", "cmd", "ps1", "msi", "app", "scr", "com", "jar",
+    "vbs", "vbe", "js", "wsf", "msc", "pif", "gadget",
+];
+
+/// Returns each name that appears more than once, in first-seen order,
+/// each reported only once regardless of how many times it repeats.
+fn duplicate_names(names: &[String]) -> Vec<String> {
+    let mut seen: HashSet<&String> = HashSet::new();
+    let mut dups: Vec<String> = Vec::new();
+    for n in names {
+        if !seen.insert(n) && !dups.contains(n) {
+            dups.push(n.clone());
+        }
+    }
+    dups
+}
+
+fn has_prohibited_extension(name: &str) -> bool {
+    Path::new(name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| PROHIBITED_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
+/// Every safety property one archive entry must have, independent of
+/// whether it appears in the manifest — reused by both restore and
+/// standalone verification. Returns a description of the violation, if any,
+/// rather than a bare error, so a verification report can list it as one
+/// issue among several instead of aborting on the first problem.
+fn entry_safety_violation(name: &str, entry: &zip::read::ZipFile) -> Option<String> {
+    if let Err(e) = safe_archive_name(name) {
+        return Some(e);
+    }
+    if let Some(mode) = entry.unix_mode() {
+        const S_IFLNK: u32 = 0o120000;
+        const S_IFMT: u32 = 0o170000;
+        if mode & S_IFMT == S_IFLNK {
+            return Some(format!("unsafe archive entry (symbolic link): {name}"));
+        }
+    }
+    if entry.is_dir() {
+        return Some(format!("unsafe archive entry (directory entry not expected): {name}"));
+    }
+    if has_prohibited_extension(name) {
+        return Some(format!("unsafe archive entry (prohibited file type): {name}"));
+    }
+    None
+}
+
+fn open_zip(source: &Path) -> Result<zip::ZipArchive<std::fs::File>, String> {
+    let file = std::fs::File::open(source).map_err(|e| format!("cannot open file: {e}"))?;
+    zip::ZipArchive::new(file).map_err(|e| format!("not a readable archive: {e}"))
+}
+
+fn read_manifest_from_archive(
+    archive: &mut zip::ZipArchive<std::fs::File>,
+) -> Result<BackupManifest, String> {
+    let mut entry = archive
+        .by_name("manifest.json")
+        .map_err(|_| "package has no manifest.json — not a valid FormuLab backup".to_string())?;
+    let mut text = String::new();
+    entry.read_to_string(&mut text).map_err(|e| e.to_string())?;
+    serde_json::from_str(&text).map_err(|e| format!("manifest.json is not valid JSON or is missing a required field: {e}"))
+}
+
+/// Minimal `major.minor.patch` compare (this project's versions, e.g.
+/// `Cargo.toml`'s `0.4.0`) — enough to tell "older/equal/newer" without a
+/// full semver dependency this codebase doesn't otherwise need.
+fn parse_simple_version(v: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = v.split('.').map(|p| p.parse::<u64>().ok());
+    Some((parts.next()??, parts.next()??, parts.next()??))
+}
+
+fn version_in_range(version: &str, min: &str, max: &str) -> bool {
+    let (Some(v), Some(lo), Some(hi)) = (
+        parse_simple_version(version),
+        parse_simple_version(min),
+        parse_simple_version(max),
+    ) else {
+        // An unparseable version string is itself suspicious, not silently
+        // accepted — but that is reported separately by the malformed-JSON
+        // path above (the field failed to deserialize as a String only if
+        // absent entirely); here, treat "can't compare" as out of range.
+        return false;
+    };
+    v >= lo && v <= hi
+}
+
+/// Standalone inspection: never resolves `project_root()`/`workspace_dir()`,
+/// never creates a safety backup, never extracts a file to disk — reads
+/// only from the archive itself, entirely in memory. This is what makes
+/// "verification must never modify the active data root" true by
+/// construction rather than by a separate guard to remember.
+pub fn verify_backup_report(source: &Path) -> VerificationReport {
+    let mut errors = Vec::new();
+    let mut warnings = Vec::new();
+
+    let mut archive = match open_zip(source) {
+        Ok(a) => a,
+        Err(e) => {
+            errors.push(issue("archive_unreadable", e, None));
+            return VerificationReport {
+                status: VerificationStatus::Corrupted,
+                manifest: None,
+                errors,
+                warnings,
+            };
+        }
+    };
+
+    let manifest = match read_manifest_from_archive(&mut archive) {
+        Ok(m) => m,
+        Err(e) => {
+            errors.push(issue("manifest_unreadable", e, Some("manifest.json")));
+            return VerificationReport {
+                status: VerificationStatus::Corrupted,
+                manifest: None,
+                errors,
+                warnings,
+            };
+        }
+    };
+
+    if manifest.backup_format_version != BACKUP_FORMAT_VERSION {
+        errors.push(issue(
+            "unsupported_backup_format_version",
+            format!(
+                "backup format version {} is not supported by this build (supports {})",
+                manifest.backup_format_version, BACKUP_FORMAT_VERSION
+            ),
+            None,
+        ));
+    }
+
+    if !version_in_range(
+        env!("CARGO_PKG_VERSION"),
+        &manifest.compatibility.min_supported_app_version,
+        &manifest.compatibility.max_known_app_version,
+    ) {
+        errors.push(issue(
+            "unsupported_app_version",
+            format!(
+                "this build ({}) is outside the backup's declared compatibility range ({}..={})",
+                env!("CARGO_PKG_VERSION"),
+                manifest.compatibility.min_supported_app_version,
+                manifest.compatibility.max_known_app_version
+            ),
+            None,
+        ));
+    }
+
+    for (collection, version) in &manifest.schema_versions {
+        if version != GLOBAL_SCHEMA_VERSION {
+            errors.push(issue(
+                "unsupported_schema_version",
+                format!("collection {collection} has schema version {version}, this build only supports {GLOBAL_SCHEMA_VERSION}"),
+                Some(collection),
+            ));
+        }
+    }
+
+    // Duplicate-path detection is a pre-pass over every raw entry name
+    // (`zip::ZipArchive::new` above already refuses to open an archive
+    // written with a duplicate name via this crate's own writer — see
+    // `duplicate_names_in_a_raw_name_list_are_detected` — so this exists as
+    // defense in depth against a hand-crafted or differently-produced
+    // archive, not something reachable through this project's own writer).
+    let mut all_names = Vec::with_capacity(archive.len());
+    for i in 0..archive.len() {
+        match archive.by_index(i) {
+            Ok(e) => {
+                let name = e.name().to_string();
+                if name != "manifest.json" {
+                    all_names.push(name);
+                }
+            }
+            Err(e) => errors.push(issue("archive_unreadable", format!("could not read archive entry {i}: {e}"), None)),
+        }
+    }
+    for dup in duplicate_names(&all_names) {
+        errors.push(issue("duplicate_path", format!("duplicate archive entry: {dup}"), Some(&dup)));
+    }
+
+    // Walk every real archive entry once: safety checks (reused from
+    // restore), the runs.db never-touch rule, and cross-referencing against
+    // the manifest's declared file inventory.
+    let mut present_paths: HashSet<String> = HashSet::new();
+    for i in 0..archive.len() {
+        let entry = match archive.by_index(i) {
+            Ok(e) => e,
+            Err(_) => continue, // already reported above
+        };
+        let name = entry.name().to_string();
+        if name == "manifest.json" {
+            continue;
+        }
+
+        if name == ".FormuLab/runs.db" {
+            errors.push(issue(
+                "runs_db_present",
+                ".FormuLab/runs.db must never be included in a FormuLab backup package",
+                Some(&name),
+            ));
+        }
+
+        if let Some(violation) = entry_safety_violation(&name, &entry) {
+            errors.push(issue("unsafe_path", violation, Some(&name)));
+            continue;
+        }
+
+        // Allow-listed path check: every real entry must resolve through the
+        // same archive-to-live mapping restore uses. A root doesn't matter
+        // here (verification never touches the filesystem outside the
+        // archive), so any concrete root works as a probe.
+        let probe_roots = RootPaths {
+            project_root: PathBuf::from("."),
+            workspace_root: PathBuf::from("."),
+            base_root: PathBuf::from("."),
+        };
+        if archive_path_to_live(&probe_roots, &name).is_err() {
+            errors.push(issue(
+                "prohibited_path",
+                format!("archive entry is outside every FormuLab data path this build recognizes: {name}"),
+                Some(&name),
+            ));
+            continue;
+        }
+
+        present_paths.insert(name);
+    }
+
+    // Missing files: the manifest lists a file that isn't actually in the
+    // archive — an incomplete/interrupted package.
+    for entry in &manifest.file_inventory {
+        if !present_paths.contains(&entry.path) {
+            errors.push(issue(
+                "missing_file",
+                format!("manifest lists {} but it is not present in the archive", entry.path),
+                Some(&entry.path),
+            ));
+        }
+    }
+
+    // Unexpected files: present in the archive (and safe/allow-listed) but
+    // never declared in the manifest's own inventory — flagged, not fatal.
+    let declared: HashSet<&str> = manifest.file_inventory.iter().map(|f| f.path.as_str()).collect();
+    for path in &present_paths {
+        if !declared.contains(path.as_str()) {
+            warnings.push(issue(
+                "unexpected_file",
+                format!("archive contains {path}, which the manifest does not list"),
+                Some(path),
+            ));
+        }
+    }
+
+    // Size + SHA256 for every declared file actually present.
+    for entry in &manifest.file_inventory {
+        if !present_paths.contains(&entry.path) {
+            continue; // already reported as missing above
+        }
+        let mut zip_entry = match archive.by_name(&entry.path) {
+            Ok(e) => e,
+            Err(e) => {
+                errors.push(issue("archive_unreadable", format!("could not reopen {}: {e}", entry.path), Some(&entry.path)));
+                continue;
+            }
+        };
+        let mut bytes = Vec::with_capacity(entry.bytes as usize);
+        if let Err(e) = zip_entry.read_to_end(&mut bytes) {
+            errors.push(issue("archive_unreadable", format!("could not read {}: {e}", entry.path), Some(&entry.path)));
+            continue;
+        }
+        if bytes.len() as u64 != entry.bytes {
+            errors.push(issue(
+                "size_mismatch",
+                format!("{} declared {} bytes, archive has {}", entry.path, entry.bytes, bytes.len()),
+                Some(&entry.path),
+            ));
+            continue;
+        }
+        let actual_hash = sha256_bytes(&bytes);
+        if actual_hash != entry.sha256 {
+            errors.push(issue(
+                "hash_mismatch",
+                format!("{} failed a SHA256 check", entry.path),
+                Some(&entry.path),
+            ));
+            continue;
+        }
+        if entry.path.ends_with(".json") {
+            if let Err(e) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                errors.push(issue(
+                    "malformed_json",
+                    format!("{} is not valid JSON: {e}", entry.path),
+                    Some(&entry.path),
+                ));
+            }
+        }
+    }
+
+    for w in &manifest.warnings {
+        warnings.push(issue("manifest_warning", w.clone(), None));
+    }
+
+    let unsafe_found = errors.iter().any(|e| {
+        matches!(e.code.as_str(), "unsafe_path" | "duplicate_path" | "runs_db_present" | "prohibited_path")
+    });
+    let corrupted_found = errors.iter().any(|e| {
+        matches!(
+            e.code.as_str(),
+            "archive_unreadable" | "manifest_unreadable" | "missing_file" | "size_mismatch" | "hash_mismatch" | "malformed_json"
+        )
+    });
+    let incompatible_found = errors.iter().any(|e| {
+        matches!(e.code.as_str(), "unsupported_backup_format_version" | "unsupported_app_version" | "unsupported_schema_version")
+    });
+
+    let status = if unsafe_found {
+        VerificationStatus::Unsafe
+    } else if corrupted_found {
+        VerificationStatus::Corrupted
+    } else if incompatible_found {
+        VerificationStatus::Incompatible
+    } else if !warnings.is_empty() {
+        VerificationStatus::ValidWithWarnings
+    } else {
+        VerificationStatus::Valid
+    };
+
+    VerificationReport {
+        status,
+        manifest: Some(manifest),
+        errors,
+        warnings,
+    }
+}
+
+#[tauri::command(async)]
+pub async fn verify_backup(source: String) -> Result<VerificationReport, String> {
+    Ok(verify_backup_report(&PathBuf::from(source)))
 }
 
 fn now_secs() -> u64 {
@@ -501,12 +897,8 @@ fn try_create_backup(
     // Self-check: reopen what was just written and confirm the manifest
     // round-trips before this is ever treated as a valid package.
     {
-        let check_file = std::fs::File::open(tmp_path).map_err(|e| e.to_string())?;
-        let mut archive = zip::ZipArchive::new(check_file).map_err(|e| e.to_string())?;
-        let mut manifest_entry = archive.by_name("manifest.json").map_err(|e| e.to_string())?;
-        let mut text = String::new();
-        manifest_entry.read_to_string(&mut text).map_err(|e| e.to_string())?;
-        let round_tripped: BackupManifest = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        let mut archive = open_zip(tmp_path)?;
+        let round_tripped = read_manifest_from_archive(&mut archive)?;
         if round_tripped.backup_format_version != BACKUP_FORMAT_VERSION {
             return Err("backup self-check failed: manifest did not round-trip".to_string());
         }
@@ -630,17 +1022,8 @@ fn try_restore_backup(
     let roots = resolve_roots(app)?;
 
     emit_progress(app, "restore-progress", "verifying", 0, 0, "Reading package");
-    let file = std::fs::File::open(source).map_err(|e| e.to_string())?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("not a readable archive: {e}"))?;
-
-    let manifest: BackupManifest = {
-        let mut entry = archive
-            .by_name("manifest.json")
-            .map_err(|_| "package has no manifest.json — not a valid FormuLab backup".to_string())?;
-        let mut text = String::new();
-        entry.read_to_string(&mut text).map_err(|e| e.to_string())?;
-        serde_json::from_str(&text).map_err(|e| format!("manifest.json is not valid JSON: {e}"))?
-    };
+    let mut archive = open_zip(source)?;
+    let manifest = read_manifest_from_archive(&mut archive)?;
 
     if manifest.backup_format_version != BACKUP_FORMAT_VERSION {
         return Err(format!(
@@ -651,23 +1034,17 @@ fn try_restore_backup(
 
     // Reject unsafe paths, symlinks and traversal across every entry, not
     // just the ones the manifest lists — a corrupted or hand-edited archive
-    // could carry extra entries the manifest never mentions.
+    // could carry extra entries the manifest never mentions. Same check
+    // standalone verification uses (`entry_safety_violation`) — one
+    // definition of "safe entry," not a second parallel one.
     for i in 0..archive.len() {
         let entry = archive.by_index(i).map_err(|e| e.to_string())?;
         let name = entry.name().to_string();
         if name == "manifest.json" {
             continue;
         }
-        safe_archive_name(&name)?;
-        if let Some(mode) = entry.unix_mode() {
-            const S_IFLNK: u32 = 0o120000;
-            const S_IFMT: u32 = 0o170000;
-            if mode & S_IFMT == S_IFLNK {
-                return Err(format!("unsafe archive entry (symbolic link): {name}"));
-            }
-        }
-        if entry.is_dir() {
-            return Err(format!("unsafe archive entry (directory entry not expected): {name}"));
+        if let Some(violation) = entry_safety_violation(&name, &entry) {
+            return Err(violation);
         }
     }
 
@@ -851,14 +1228,8 @@ fn try_restore_backup(
 
 #[tauri::command(async)]
 pub async fn inspect_backup(source: String) -> Result<BackupManifest, String> {
-    let file = std::fs::File::open(&source).map_err(|e| e.to_string())?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("not a readable archive: {e}"))?;
-    let mut entry = archive
-        .by_name("manifest.json")
-        .map_err(|_| "package has no manifest.json — not a valid FormuLab backup".to_string())?;
-    let mut text = String::new();
-    entry.read_to_string(&mut text).map_err(|e| e.to_string())?;
-    serde_json::from_str(&text).map_err(|e| format!("manifest.json is not valid JSON: {e}"))
+    let mut archive = open_zip(&PathBuf::from(source))?;
+    read_manifest_from_archive(&mut archive)
 }
 
 #[tauri::command(async)]
@@ -1000,5 +1371,275 @@ mod tests {
 
         let _ = cancel;
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    // ------------------------------------------------------- verification ---
+
+    fn verify_tmp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("formulab-verify-{tag}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn base_manifest() -> BackupManifest {
+        BackupManifest {
+            backup_format_version: BACKUP_FORMAT_VERSION.to_string(),
+            formulab_app_version: env!("CARGO_PKG_VERSION").to_string(),
+            created_at: 1_800_000_000,
+            data_root: DataRootIdentifier {
+                resolved_project_root: "C:\\test".to_string(),
+                resolved_workspace_root: "C:\\test".to_string(),
+                resolved_base_root: "C:\\test".to_string(),
+                formulab_root_override_active: false,
+                active_workspace_override_active: false,
+            },
+            schema_versions: BTreeMap::from([("_global".to_string(), GLOBAL_SCHEMA_VERSION.to_string())]),
+            included: Vec::new(),
+            excluded: EXCLUDED_LABELS.iter().map(|s| s.to_string()).collect(),
+            file_inventory: Vec::new(),
+            total_bytes: 0,
+            warnings: Vec::new(),
+            compatibility: CompatibilityInfo {
+                min_supported_app_version: env!("CARGO_PKG_VERSION").to_string(),
+                max_known_app_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        }
+    }
+
+    /// Writes a real `.formulab-backup`-shaped ZIP: `manifest.json` plus
+    /// whatever raw entries the test supplies (which may include duplicate
+    /// or unsafe names deliberately, unlike the production writer).
+    fn write_test_package(path: &Path, manifest: &BackupManifest, entries: &[(&str, &[u8])]) {
+        let file = std::fs::File::create(path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let manifest_json = serde_json::to_vec_pretty(manifest).unwrap();
+        zip.start_file("manifest.json", zip_options()).unwrap();
+        zip.write_all(&manifest_json).unwrap();
+        for (name, bytes) in entries {
+            zip.start_file(*name, zip_options()).unwrap();
+            zip.write_all(bytes).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn verify_reports_valid_for_a_well_formed_package() {
+        let dir = verify_tmp_dir("valid");
+        let content: &[u8] = b"[{\"code\":\"M1\",\"schemaVersion\":\"1.0\"}]";
+        let mut manifest = base_manifest();
+        manifest.file_inventory.push(FileEntry {
+            path: "data/master/materials.json".to_string(),
+            bytes: content.len() as u64,
+            sha256: sha256_bytes(content),
+        });
+        let path = dir.join("valid.formulab-backup");
+        write_test_package(&path, &manifest, &[("data/master/materials.json", content)]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Valid), "expected Valid, got {:?}", report.errors.iter().map(|e| &e.code).collect::<Vec<_>>());
+        assert!(report.errors.is_empty());
+        assert!(report.warnings.is_empty());
+        assert!(report.manifest.is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_valid_with_warnings_for_an_undeclared_extra_file() {
+        let dir = verify_tmp_dir("warnings");
+        let manifest = base_manifest(); // empty file_inventory
+        let path = dir.join("warn.formulab-backup");
+        // A real, allow-listed, safe file that the manifest never declared.
+        write_test_package(&path, &manifest, &[("data/master/materials.json", b"[]")]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::ValidWithWarnings));
+        assert!(report.errors.is_empty());
+        assert!(report.warnings.iter().any(|w| w.code == "unexpected_file"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_corrupted_for_garbage_bytes_that_are_not_a_zip() {
+        let dir = verify_tmp_dir("garbage-zip");
+        let path = dir.join("garbage.formulab-backup");
+        std::fs::write(&path, b"this is not a zip file at all").unwrap();
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Corrupted));
+        assert!(report.errors.iter().any(|e| e.code == "archive_unreadable"));
+        assert!(report.manifest.is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_corrupted_for_a_zip_with_no_manifest() {
+        let dir = verify_tmp_dir("no-manifest");
+        let path = dir.join("no-manifest.formulab-backup");
+        let file = std::fs::File::create(&path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file("data/master/materials.json", zip_options()).unwrap();
+        zip.write_all(b"[]").unwrap();
+        zip.finish().unwrap();
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Corrupted));
+        assert!(report.errors.iter().any(|e| e.code == "manifest_unreadable"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_corrupted_for_a_malformed_manifest() {
+        let dir = verify_tmp_dir("malformed-manifest");
+        let path = dir.join("malformed.formulab-backup");
+        let file = std::fs::File::create(&path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file("manifest.json", zip_options()).unwrap();
+        zip.write_all(b"{ not valid json").unwrap();
+        zip.finish().unwrap();
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Corrupted));
+        assert!(report.errors.iter().any(|e| e.code == "manifest_unreadable"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn duplicate_names_in_a_raw_name_list_are_detected() {
+        // `zip::ZipWriter` (this crate's own writer) refuses to `finish()` a
+        // package with two entries sharing a name — confirmed directly: see
+        // the assertion below. A hand-crafted or differently-produced
+        // archive could still carry one, so `verify_backup_report` checks
+        // for it as defense in depth; that check is exercised here at the
+        // pure-function level, since this crate's writer makes it
+        // impossible to construct a real duplicate-name `.formulab-backup`
+        // to round-trip through the full reader.
+        let names = vec![
+            "data/master/materials.json".to_string(),
+            "data/master/suppliers.json".to_string(),
+            "data/master/materials.json".to_string(),
+        ];
+        assert_eq!(duplicate_names(&names), vec!["data/master/materials.json".to_string()]);
+
+        let dir = verify_tmp_dir("duplicate-write-refused");
+        let file = std::fs::File::create(dir.join("attempt.formulab-backup")).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file("data/master/materials.json", zip_options()).unwrap();
+        zip.write_all(b"[]").unwrap();
+        let second = zip.start_file("data/master/materials.json", zip_options());
+        assert!(second.is_err(), "the zip writer should refuse a duplicate entry name");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_unsafe_for_a_path_traversal_entry() {
+        let dir = verify_tmp_dir("traversal");
+        let manifest = base_manifest();
+        let path = dir.join("traversal.formulab-backup");
+        write_test_package(&path, &manifest, &[("../evil.json", b"{}")]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Unsafe));
+        assert!(report.errors.iter().any(|e| e.code == "unsafe_path"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_corrupted_for_a_hash_mismatch() {
+        let dir = verify_tmp_dir("hash-mismatch");
+        let content: &[u8] = b"[]";
+        let mut manifest = base_manifest();
+        manifest.file_inventory.push(FileEntry {
+            path: "data/master/materials.json".to_string(),
+            bytes: content.len() as u64,
+            sha256: sha256_bytes(b"different content entirely"),
+        });
+        let path = dir.join("hash.formulab-backup");
+        write_test_package(&path, &manifest, &[("data/master/materials.json", content)]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Corrupted));
+        assert!(report.errors.iter().any(|e| e.code == "hash_mismatch"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_corrupted_for_a_size_mismatch() {
+        let dir = verify_tmp_dir("size-mismatch");
+        let content: &[u8] = b"[]";
+        let mut manifest = base_manifest();
+        manifest.file_inventory.push(FileEntry {
+            path: "data/master/materials.json".to_string(),
+            bytes: content.len() as u64 + 100, // wrong on purpose
+            sha256: sha256_bytes(content),
+        });
+        let path = dir.join("size.formulab-backup");
+        write_test_package(&path, &manifest, &[("data/master/materials.json", content)]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Corrupted));
+        assert!(report.errors.iter().any(|e| e.code == "size_mismatch"));
+        assert!(!report.errors.iter().any(|e| e.code == "hash_mismatch"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_incompatible_for_an_unsupported_backup_format_version() {
+        let dir = verify_tmp_dir("bad-format-version");
+        let mut manifest = base_manifest();
+        manifest.backup_format_version = "9.9".to_string();
+        let path = dir.join("future.formulab-backup");
+        write_test_package(&path, &manifest, &[]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Incompatible));
+        assert!(report.errors.iter().any(|e| e.code == "unsupported_backup_format_version"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_incompatible_for_an_unsupported_schema_version() {
+        let dir = verify_tmp_dir("bad-schema-version");
+        let mut manifest = base_manifest();
+        manifest.schema_versions.insert("materials".to_string(), "2.0".to_string());
+        let path = dir.join("futureschema.formulab-backup");
+        write_test_package(&path, &manifest, &[]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Incompatible));
+        assert!(report.errors.iter().any(|e| e.code == "unsupported_schema_version"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_reports_unsafe_when_runs_db_is_present() {
+        let dir = verify_tmp_dir("runs-db");
+        let manifest = base_manifest();
+        let path = dir.join("runsdb.formulab-backup");
+        write_test_package(&path, &manifest, &[(".FormuLab/runs.db", b"sqlite-bytes")]);
+
+        let report = verify_backup_report(&path);
+        assert!(matches!(report.status, VerificationStatus::Unsafe));
+        assert!(report.errors.iter().any(|e| e.code == "runs_db_present"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_never_touches_the_filesystem_outside_the_given_archive() {
+        // `verify_backup_report` takes only a `&Path` — no `AppHandle` — so
+        // it cannot call `resolve_roots`/`project_root`/`workspace_dir` at
+        // all; this test additionally guards that the source file itself
+        // is never rewritten by verification (read-only end to end).
+        let dir = verify_tmp_dir("no-side-effects");
+        let manifest = base_manifest();
+        let path = dir.join("readonly.formulab-backup");
+        write_test_package(&path, &manifest, &[("data/master/materials.json", b"[]")]);
+
+        let before = std::fs::read(&path).unwrap();
+        let _ = verify_backup_report(&path);
+        let _ = verify_backup_report(&path);
+        let after = std::fs::read(&path).unwrap();
+        assert_eq!(before, after, "verification must never modify the package it reads");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

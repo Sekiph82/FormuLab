@@ -391,7 +391,8 @@
       "Gizlilik"
     ],
     "warnings": [
-      "Bir yedeği geri yüklemek mevcut verilerinizin yerini alır. Önce mevcut verilerinizin güvenlik yedeği otomatik olarak oluşturulur ve geri yükleme tamamlandığında yolu gösterilir."
+      "Bir yedeği geri yüklemek mevcut verilerinizin yerini alır. Önce mevcut verilerinizin güvenlik yedeği otomatik olarak oluşturulur ve geri yükleme tamamlandığında yolu gösterilir.",
+      "Bir yedeği doğrulamak hiçbir şeyi değiştirmez — yalnızca paketi inceler ve Geçerli, Geçerli (uyarılarla), Uyumsuz, Bozuk veya Güvensiz sonucunu bildirir."
     ]
   },
   "glossary": {

@@ -170,10 +170,14 @@
     "unavailable": "デスクトップアプリで利用可能",
     "createButton": "バックアップを作成",
     "restoreButton": "バックアップを復元",
+    "verifyButton": "バックアップを検証",
     "creatingLabel": "バックアップを作成中…",
     "restoringLabel": "復元中…",
+    "verifying": "パッケージを検証中…",
     "cancel": "キャンセル",
     "inspecting": "パッケージを読み込み中…",
+    "errorsHeading": "エラー",
+    "warningsHeading": "警告",
     "confirmTitle": "現在のデータが置き換えられます",
     "confirmHint": "変更前に現在のデータの安全バックアップが自動的に作成されます。復元に失敗した場合は元に戻されます。",
     "confirmRestoreButton": "今すぐ復元",
@@ -190,12 +194,20 @@
       "restoredCount": "{{count}} 件のファイルを復元しました",
       "safetyBackupAt": "復元前データの安全バックアップ:"
     },
+    "status": {
+      "valid": "有効",
+      "validWithWarnings": "有効（警告あり）",
+      "incompatible": "非互換",
+      "corrupted": "破損",
+      "unsafe": "安全ではありません"
+    },
     "toast": {
       "created": "バックアップを作成しました。",
       "createFailed": "バックアップを作成できませんでした",
       "restored": "復元が完了しました。",
       "restoreFailed": "バックアップを復元できませんでした",
-      "inspectFailed": "バックアップパッケージを読み込めませんでした"
+      "inspectFailed": "バックアップパッケージを読み込めませんでした",
+      "verifyFailed": "バックアップを検証できませんでした"
     },
     "phase": {
       "scanning": "データをスキャン中",

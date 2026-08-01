@@ -170,10 +170,14 @@
     "unavailable": "in der Desktop-App verfügbar",
     "createButton": "Sicherung erstellen",
     "restoreButton": "Sicherung wiederherstellen",
+    "verifyButton": "Sicherung prüfen",
     "creatingLabel": "Sicherung wird erstellt…",
     "restoringLabel": "Wird wiederhergestellt…",
+    "verifying": "Paket wird geprüft…",
     "cancel": "Abbrechen",
     "inspecting": "Paket wird gelesen…",
+    "errorsHeading": "Fehler",
+    "warningsHeading": "Warnungen",
     "confirmTitle": "Dies ersetzt Ihre aktuellen Daten",
     "confirmHint": "Vor jeder Änderung wird automatisch eine Sicherheitskopie Ihrer aktuellen Daten erstellt; schlägt die Wiederherstellung fehl, wird sie rückgängig gemacht.",
     "confirmRestoreButton": "Jetzt wiederherstellen",
@@ -190,12 +194,20 @@
       "restoredCount": "{{count}} Dateien wiederhergestellt",
       "safetyBackupAt": "Sicherheitskopie Ihrer vorherigen Daten:"
     },
+    "status": {
+      "valid": "Gültig",
+      "validWithWarnings": "Gültig, mit Warnungen",
+      "incompatible": "Inkompatibel",
+      "corrupted": "Beschädigt",
+      "unsafe": "Unsicher"
+    },
     "toast": {
       "created": "Sicherung erstellt.",
       "createFailed": "Sicherung konnte nicht erstellt werden",
       "restored": "Wiederherstellung abgeschlossen.",
       "restoreFailed": "Wiederherstellung fehlgeschlagen",
-      "inspectFailed": "Sicherungspaket konnte nicht gelesen werden"
+      "inspectFailed": "Sicherungspaket konnte nicht gelesen werden",
+      "verifyFailed": "Sicherung konnte nicht geprüft werden"
     },
     "phase": {
       "scanning": "Daten werden gescannt",

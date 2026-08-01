@@ -170,10 +170,14 @@
     "unavailable": "该功能在桌面应用中可用",
     "createButton": "创建备份",
     "restoreButton": "恢复备份",
+    "verifyButton": "验证备份",
     "creatingLabel": "正在创建备份…",
     "restoringLabel": "正在恢复…",
+    "verifying": "正在验证备份包…",
     "cancel": "取消",
     "inspecting": "正在读取备份包…",
+    "errorsHeading": "错误",
+    "warningsHeading": "警告",
     "confirmTitle": "此操作将替换您当前的数据",
     "confirmHint": "在进行任何更改之前,会自动创建当前数据的安全备份;如果恢复失败,将回滚。",
     "confirmRestoreButton": "立即恢复",
@@ -190,12 +194,20 @@
       "restoredCount": "已恢复 {{count}} 个文件",
       "safetyBackupAt": "此前数据的安全备份:"
     },
+    "status": {
+      "valid": "有效",
+      "validWithWarnings": "有效,但有警告",
+      "incompatible": "不兼容",
+      "corrupted": "已损坏",
+      "unsafe": "不安全"
+    },
     "toast": {
       "created": "备份已创建。",
       "createFailed": "无法创建备份",
       "restored": "恢复完成。",
       "restoreFailed": "无法恢复备份",
-      "inspectFailed": "无法读取备份包"
+      "inspectFailed": "无法读取备份包",
+      "verifyFailed": "无法验证备份包"
     },
     "phase": {
       "scanning": "正在扫描数据",

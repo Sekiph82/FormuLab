@@ -916,7 +916,18 @@ your data, or restore from one.
   restoring replaces your current data. A safety backup of your current
   data is made automatically first, so a failed or unwanted restore can
   always be undone; its path is shown to you when the restore finishes.
-- Both actions show live progress and can be cancelled.
+- **Verify Backup** checks a `.formulab-backup` file without restoring
+  it or touching your current data at all — useful before trusting an
+  old backup, or one you received from somewhere else. It reports one of
+  five results: **Valid**, **Valid, with warnings**, **Incompatible**
+  (a version this build doesn't support — not the same thing as a
+  damaged file), **Corrupted** (the file itself is damaged — a bad hash,
+  a missing piece, broken JSON), or **Unsafe** (the package contains
+  something FormuLab will never allow — a path trying to escape its
+  folder, a symbolic link, `.FormuLab/runs.db`, or an executable file).
+  Every error and warning found is listed individually.
+- Create/Restore both show live progress and can be cancelled; Verify is
+  a quick, read-only check.
 - **What's included**: formulations, all master-data collections,
   sessions, the formula library, and your run/provenance/compute
   history. **What's excluded**: `.FormuLab/runs.db` (a disposable index

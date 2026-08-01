@@ -170,10 +170,14 @@
     "unavailable": "disponible en la app de escritorio",
     "createButton": "Crear copia de seguridad",
     "restoreButton": "Restaurar copia de seguridad",
+    "verifyButton": "Verificar copia de seguridad",
     "creatingLabel": "Creando copia de seguridad…",
     "restoringLabel": "Restaurando…",
+    "verifying": "Verificando el paquete…",
     "cancel": "Cancelar",
     "inspecting": "Leyendo el paquete…",
+    "errorsHeading": "Errores",
+    "warningsHeading": "Advertencias",
     "confirmTitle": "Esto reemplazará sus datos actuales",
     "confirmHint": "Se crea automáticamente una copia de seguridad de sus datos actuales antes de cualquier cambio; si la restauración falla, se revierte.",
     "confirmRestoreButton": "Restaurar ahora",
@@ -190,12 +194,20 @@
       "restoredCount": "{{count}} archivos restaurados",
       "safetyBackupAt": "Copia de seguridad de sus datos anteriores:"
     },
+    "status": {
+      "valid": "Válida",
+      "validWithWarnings": "Válida, con advertencias",
+      "incompatible": "Incompatible",
+      "corrupted": "Dañada",
+      "unsafe": "No segura"
+    },
     "toast": {
       "created": "Copia de seguridad creada.",
       "createFailed": "No se pudo crear la copia de seguridad",
       "restored": "Restauración completa.",
       "restoreFailed": "No se pudo restaurar la copia de seguridad",
-      "inspectFailed": "No se pudo leer el paquete de copia de seguridad"
+      "inspectFailed": "No se pudo leer el paquete de copia de seguridad",
+      "verifyFailed": "No se pudo verificar el paquete de copia de seguridad"
     },
     "phase": {
       "scanning": "Explorando datos",

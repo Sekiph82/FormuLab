@@ -149,7 +149,8 @@ pub fn run() {
             backup::pick_backup_destination,
             backup::inspect_backup,
             backup::restore_backup,
-            backup::cancel_restore
+            backup::cancel_restore,
+            backup::verify_backup
         ])
         .build(tauri::generate_context!())
         .expect("error while building FormuLab")
