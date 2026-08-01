@@ -199,9 +199,36 @@ from Session 1).
 shared-suite re-run only if a schema file's `schemaVersion` literal
 itself changes (none is planned).
 
-## Session 4 — Active Data Location Clarification
+## Session 4 — Active Data Location Clarification (complete — actual results)
 
-**Focused tests**:
+- Rust: 10 new tests in `data_root.rs` (default root when nothing
+  configured, `formulab-root.txt` wins over everything, `active-workspace.txt`
+  wins when formulab-root is absent, `base-workspace.txt` wins when both
+  above are absent, a malformed pointer falls through with a visible
+  warning, a missing-target pointer falls through with a visible warning,
+  an unwritable-proxy case (a file standing in for a non-directory root)
+  is flagged but still returned, multiple valid roots holding real data
+  are flagged as a conflict — with an explicit byte-level assertion that
+  neither root's files were touched — an empty other-root correctly NOT
+  flagged, active/base agreement producing no false conflict). Full Rust
+  suite re-run: **119/119 passing** (109 prior + 10 new).
+- TypeScript: 11 new tests in `ActiveDataLocationCard.test.tsx`
+  (not-desktop fallback, real path + each of the four source labels
+  displayed, writable/not-writable, every warning rendered incl. a
+  conflict warning, no warning panel when clean, Open Folder calls only
+  the read-only reveal command, Refresh reflects a changed status, an
+  error state when the status check itself throws) — **11/11 passing**.
+  All settings-card tests re-run together (Backup/Verify/Migration/
+  DataLocation/Modal/DataFlow/RemoteCompute): **59/59 passing**.
+- i18n parity: **23/23 passing** (8-locale `settings.dataLocation.*` keys,
+  all real translations).
+- Desktop typecheck: clean. Desktop lint: clean.
+- Full desktop suite: **not run** — only `SettingsPage.tsx` (one more
+  conditional block + import) and the three refactored Rust resolution
+  call sites changed outside new, already-tested files; no shared
+  Settings infrastructure or global shell behavior changed.
+
+**Originally planned focused tests** (for reference — see actual results above):
 - Settings surface, once changed, correctly shows `project_root()`'s
   actual resolution source (including a `formulab-root.txt` override) —
   a synthetic-fixture test setting a fake override and asserting the UI

@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: SESSION 3 (Schema Migration Framework) COMPLETE. Awaiting Session 4.
+## Status: SESSION 4 (Active Data Location Clarification) COMPLETE. Awaiting Session 5.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -368,6 +368,87 @@ recorded once per document rather than duplicated here.
   it directly outside that gated flow — recorded as a trust boundary to
   revisit if this command ever gets a second caller.
 
+## Session 4 summary — active data location clarification (complete)
+
+- **One shared resolver, not two**: new `apps/desktop/src-tauri/src/data_root.rs`.
+  `formulation_v2::project_root()` and `workspace::workspace_dir()` both now
+  delegate to `data_root::resolve_data_root(app)` and are therefore always
+  identical — the "two funnels" Session 0 found are gone.
+  `workspace::base_workspace_dir()` is kept as a deliberately separate,
+  narrower concept ("the configured base, regardless of any session/manual
+  override") for the few callers that need it unconditionally
+  (`compute.rs`'s shared machine list, `artifact_file.rs`'s explicit
+  `"base"` scope, the Settings "workspace folder" controls).
+- **Precedence, one place**: `formulab-root.txt` > `active-workspace.txt`
+  > `base-workspace.txt` > default (`~/Documents/FormuLab`) — the exact
+  order `project_root()` already used, now applied uniformly instead of
+  `workspace_dir()` having a different, narrower one.
+- **No silent fallback**: a present-but-invalid pointer (empty, or its
+  target missing/not-a-directory) now always produces a specific,
+  human-readable warning (`"<file> is set but invalid (<reason>) —
+  ignored, falling back"`) rather than being swallowed with zero trace.
+- **Conflict detection, never auto-merged**: after resolving the winner,
+  every other valid, lower-precedence pointer is checked for real data
+  (`data/formulations`, `data/master`, `data/sessions`, `formulas` — the
+  same four locations `backup.rs`'s own scan already uses); if one holds
+  data, it's reported as a `conflictingRoots` entry plus a warning. Session
+  4's own instruction ("if multiple roots contain data, require an
+  explicit user decision. Never merge automatically") is satisfied by
+  always surfacing this rather than picking silently — a full picker/
+  merge UI is explicitly the (deferred) Data Location Manager's job, not
+  this session's.
+- **Writability**: a real write-probe (create+delete a marker file) after
+  resolution — `writable: false` is reported as a warning, never treated
+  as a hard failure (the app still gets a definite path back).
+- **The `runs.jsonl`/`runs.db` divergence, fixed at the root cause**:
+  `runs_index.rs` read `base_workspace_dir()` directly while `runs.rs`
+  wrote through `workspace_dir()` — two different functions that could
+  disagree. `runs_index.rs` now calls `workspace_dir()` (the same unified
+  resolver `runs.rs` already used), so both are provably the same path.
+  `.FormuLab/runs.db` itself was never opened, read, rewritten, or moved
+  by this change — only which directory Rust looks in for it changed, and
+  since neither `formulab-root.txt` nor `active-workspace.txt` has ever
+  had a writer anywhere in this codebase (confirmed again this session),
+  `workspace_dir()` and `base_workspace_dir()` were already identical for
+  every real installation — this fix is provably a no-op for any current
+  user, closing the divergence only for a future case, not retroactively
+  moving anyone's data.
+- **Backward compatible by construction**: every existing valid
+  installation (a `base-workspace.txt` pointing at a real folder, or
+  nothing configured at all) resolves to the exact same path as before —
+  confirmed by dedicated tests for each pointer tier plus the "active and
+  base agreeing" case.
+- **UI**: new `ActiveDataLocationCard` (Settings → General, right after
+  the existing Workspace section) — resolved path, resolution source
+  (plain-language label, e.g. "Manual override (formulab-root.txt)"),
+  writable yes/no, every warning listed, Open Folder (reveals the
+  resolved root, read-only), Refresh. Read-only throughout: no
+  relocation, no move-data control, no merge action — all explicitly out
+  of scope, deferred to the future Data Location Manager.
+- **Tests**: 10 new Rust tests (`data_root.rs` — default root, each of
+  the three pointer tiers winning in precedence order, a malformed
+  pointer, a missing-target pointer, an unwritable-proxy case, a real
+  multiple-valid-roots conflict with an explicit "no data moved/changed"
+  byte-level assertion, an empty other-root correctly NOT flagged, active/
+  base agreement producing no false conflict) — full Rust suite
+  **119/119** (109 prior + 10 new). 11 new
+  `ActiveDataLocationCard.test.tsx` tests (not-desktop fallback, real
+  path/source-label display for all four sources, writable/not-writable,
+  warnings incl. a conflict warning, no-warning-panel-when-clean, open-
+  folder calls only the read-only reveal command, refresh reflects a
+  changed status, an error state when the check itself fails). All
+  settings-card tests re-run together: 59/59. i18n parity 23/23. Desktop
+  typecheck clean. Desktop lint clean.
+- **Known limitations**: still no UI to actually pick/relocate a root
+  (deferred, as instructed — this is Data Location Manager scope). A
+  conflict is reported but not resolved by any in-app action beyond
+  looking at both folders yourself. `base_workspace_dir()`'s own
+  malformed-pointer handling remains its pre-existing silent-fallback
+  style internally (only the new unified resolver's independent read of
+  the same `base-workspace.txt` file produces a warning for it) —
+  `base_workspace_dir()` was deliberately left otherwise unchanged since
+  narrowing its behavior wasn't this session's target.
+
 ## Exact next session
 
-**Phase 11 Session 4: Active Data Location Clarification.**
+**Phase 11 Session 5: Basic Diagnostics and Log Export.**

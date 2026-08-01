@@ -164,6 +164,27 @@
     "change": "Değiştir…",
     "reveal": "Göster"
   },
+  "dataLocation": {
+    "title": "Etkin Veri Konumu",
+    "hint": "Formülasyonlarınızın, ana verilerinizin, oturumlarınızın ve formüllerinizin şu anda gerçekte nerede olduğu ve nedeni",
+    "unavailable": "masaüstü uygulamasında kullanılabilir",
+    "checking": "Kontrol ediliyor…",
+    "refresh": "Yenile",
+    "openFolder": "Klasörü Aç",
+    "source": "Şuradan çözümlendi",
+    "writable": "Yazılabilir",
+    "writableYes": "Evet",
+    "writableNo": "Hayır",
+    "sourceLabel": {
+      "formulabRootOverride": "Manuel geçersiz kılma (formulab-root.txt)",
+      "activeWorkspaceOverride": "Etkin çalışma alanı geçersiz kılma",
+      "baseWorkspaceOverride": "Çalışma klasörü (Ayarlar)",
+      "default": "Varsayılan (~/Documents/FormuLab)"
+    },
+    "toast": {
+      "openFailed": "Klasör açılamadı"
+    }
+  },
   "backup": {
     "title": "Yedekleme ve Kurtarma",
     "hint": "Formülasyonlarınızın, ana verilerinizin, oturumlarınızın ve çalıştırma geçmişinizin taşınabilir bir kopyasını kaydedin veya birinden geri yükleyin",

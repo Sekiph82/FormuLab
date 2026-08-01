@@ -474,7 +474,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       "settings.sections.0", "settings.sections.1", "settings.sections.2",
       "settings.sections.3", "settings.sections.4", "settings.sections.5",
     ],
-    warningKeys: ["settings.warnings.0", "settings.warnings.1", "settings.warnings.2"],
+    warningKeys: ["settings.warnings.0", "settings.warnings.1", "settings.warnings.2", "settings.warnings.3"],
     roleNoteKeys: [],
     knownLimitationKeys: [],
     relatedTopicIds: ["administration"],

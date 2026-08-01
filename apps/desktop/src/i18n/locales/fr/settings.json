@@ -164,6 +164,27 @@
     "change": "Changer…",
     "reveal": "Afficher"
   },
+  "dataLocation": {
+    "title": "Emplacement actif des données",
+    "hint": "Où vivent réellement en ce moment vos formulations, données de référence, sessions et formules, et pourquoi",
+    "unavailable": "disponible dans l'application de bureau",
+    "checking": "Vérification…",
+    "refresh": "Actualiser",
+    "openFolder": "Ouvrir le dossier",
+    "source": "Déterminé à partir de",
+    "writable": "Accès en écriture",
+    "writableYes": "Oui",
+    "writableNo": "Non",
+    "sourceLabel": {
+      "formulabRootOverride": "Substitution manuelle (formulab-root.txt)",
+      "activeWorkspaceOverride": "Substitution de l'espace de travail actif",
+      "baseWorkspaceOverride": "Dossier de travail (Paramètres)",
+      "default": "Par défaut (~/Documents/FormuLab)"
+    },
+    "toast": {
+      "openFailed": "Impossible d'ouvrir le dossier"
+    }
+  },
   "backup": {
     "title": "Sauvegarde et restauration",
     "hint": "Enregistrez une copie portable de vos formulations, données de référence, sessions et historique d'exécution, ou restaurez-en une",

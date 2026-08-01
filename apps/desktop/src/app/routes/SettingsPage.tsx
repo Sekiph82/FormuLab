@@ -28,6 +28,7 @@ import { useSetupStore } from "@/lib/setup";
 import { RemoteComputeCard } from "@/components/settings/RemoteComputeCard";
 import { BackupRecoveryCard } from "@/components/settings/BackupRecoveryCard";
 import { SchemaMigrationCard } from "@/components/settings/SchemaMigrationCard";
+import { ActiveDataLocationCard } from "@/components/settings/ActiveDataLocationCard";
 import { ModalCard } from "@/components/settings/ModalCard";
 import { DataFlowCard } from "@/components/settings/DataFlowCard";
 import { FormulationProviderCard } from "@/components/settings/FormulationProviderCard";
@@ -182,6 +183,9 @@ export function SettingsPage() {
           </div>
         </Section>
         )}
+
+        {/* ---- Active Data Location ---- */}
+        {section === "general" && <ActiveDataLocationCard />}
 
         {/* ---- Backup and Recovery ---- */}
         {section === "general" && <BackupRecoveryCard />}

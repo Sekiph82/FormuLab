@@ -164,6 +164,27 @@
     "change": "更改…",
     "reveal": "在文件管理器中显示"
   },
+  "dataLocation": {
+    "title": "当前数据位置",
+    "hint": "您的配方、主数据、会话和公式当前实际存放的位置,以及原因",
+    "unavailable": "该功能在桌面应用中可用",
+    "checking": "正在检查…",
+    "refresh": "刷新",
+    "openFolder": "打开文件夹",
+    "source": "解析来源",
+    "writable": "可写",
+    "writableYes": "是",
+    "writableNo": "否",
+    "sourceLabel": {
+      "formulabRootOverride": "手动覆盖(formulab-root.txt)",
+      "activeWorkspaceOverride": "活动工作区覆盖",
+      "baseWorkspaceOverride": "工作文件夹(设置)",
+      "default": "默认(~/Documents/FormuLab)"
+    },
+    "toast": {
+      "openFailed": "无法打开文件夹"
+    }
+  },
   "backup": {
     "title": "备份与恢复",
     "hint": "保存配方、主数据、会话和运行历史的可移植副本,或从中恢复",

@@ -16,29 +16,19 @@ fn runtime_root(app: &AppHandle) -> Result<PathBuf, String> {
         .join("runtime"))
 }
 
-/// File recording the user's chosen active workspace folder (absolute path).
-fn active_workspace_file(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(runtime_root(app)?.join("active-workspace.txt"))
-}
-
 /// File recording the user's chosen BASE folder (Settings → Workspace).
 fn base_workspace_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(runtime_root(app)?.join("base-workspace.txt"))
 }
 
-/// The active workspace folder the kernel / previews / provenance operate in.
-/// Defaults to the base folder until the user picks another; the choice
-/// persists across restarts.
+/// The active data root the kernel / previews / provenance / run logs
+/// operate in — Phase 11 Session 4 unified this with
+/// `formulation_v2::project_root()` (formerly a separate resolution with
+/// its own precedence) into one function, `data_root::resolve_data_root()`.
+/// The two are now always identical; see that module's doc comment for
+/// why unifying them was safe for every real installation.
 pub fn workspace_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    if let Ok(f) = active_workspace_file(app) {
-        if let Ok(s) = std::fs::read_to_string(&f) {
-            let dir = PathBuf::from(s.trim());
-            if dir.is_dir() {
-                return Ok(dir);
-            }
-        }
-    }
-    base_workspace_dir(app)
+    Ok(crate::data_root::resolve_data_root(app)?.path)
 }
 
 /// The root the user's work is created under. A folder picked in Settings wins;

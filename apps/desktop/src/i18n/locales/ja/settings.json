@@ -164,6 +164,27 @@
     "change": "変更…",
     "reveal": "表示"
   },
+  "dataLocation": {
+    "title": "有効なデータの場所",
+    "hint": "処方、マスターデータ、セッション、フォーミュラが現在実際にどこにあるか、その理由",
+    "unavailable": "デスクトップアプリで利用可能",
+    "checking": "確認中…",
+    "refresh": "更新",
+    "openFolder": "フォルダを開く",
+    "source": "解決元",
+    "writable": "書き込み可能",
+    "writableYes": "はい",
+    "writableNo": "いいえ",
+    "sourceLabel": {
+      "formulabRootOverride": "手動オーバーライド（formulab-root.txt）",
+      "activeWorkspaceOverride": "アクティブワークスペースのオーバーライド",
+      "baseWorkspaceOverride": "ワークスペースフォルダ（設定）",
+      "default": "デフォルト（~/Documents/FormuLab）"
+    },
+    "toast": {
+      "openFailed": "フォルダを開けませんでした"
+    }
+  },
   "backup": {
     "title": "バックアップと復元",
     "hint": "処方、マスターデータ、セッション、実行履歴の可搬コピーを保存、または復元します",

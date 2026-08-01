@@ -164,6 +164,27 @@
     "change": "Change…",
     "reveal": "Reveal"
   },
+  "dataLocation": {
+    "title": "Active Data Location",
+    "hint": "Where your formulations, master data, sessions and formulas actually live right now, and why",
+    "unavailable": "available in the desktop app",
+    "checking": "Checking…",
+    "refresh": "Refresh",
+    "openFolder": "Open Folder",
+    "source": "Resolved from",
+    "writable": "Writable",
+    "writableYes": "Yes",
+    "writableNo": "No",
+    "sourceLabel": {
+      "formulabRootOverride": "Manual override (formulab-root.txt)",
+      "activeWorkspaceOverride": "Active workspace override",
+      "baseWorkspaceOverride": "Workspace folder (Settings)",
+      "default": "Default (~/Documents/FormuLab)"
+    },
+    "toast": {
+      "openFailed": "Could not open the folder"
+    }
+  },
   "backup": {
     "title": "Backup and Recovery",
     "hint": "Save a portable copy of your formulations, master data, sessions and run history, or restore from one",

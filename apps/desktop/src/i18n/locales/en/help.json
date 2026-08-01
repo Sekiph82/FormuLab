@@ -383,7 +383,7 @@
       "Pick a section from the sidebar-style list on the left."
     ],
     "sections": [
-      "General — workspace folder, Backup and Recovery, Schema Migration, app updates",
+      "General — workspace folder, Active Data Location, Backup and Recovery, Schema Migration, app updates",
       "Appearance",
       "Models",
       "Python (runtime)",
@@ -393,7 +393,8 @@
     "warnings": [
       "Restoring a backup replaces your current data. A safety backup of your current data is made automatically first, and its path is shown to you when the restore finishes.",
       "Verifying a backup never changes anything — it only inspects the package and reports Valid, Valid with warnings, Incompatible, Corrupted, or Unsafe.",
-      "Running a schema migration makes a verified safety backup first and automatically restores it if anything fails — nothing migrates automatically without you clicking Run Migration."
+      "Running a schema migration makes a verified safety backup first and automatically restores it if anything fails — nothing migrates automatically without you clicking Run Migration.",
+      "Active Data Location only shows and reveals where your data lives — it never moves, merges, or relocates anything. If it finds a second folder that also has real data, it warns you rather than choosing for you."
     ]
   },
   "glossary": {

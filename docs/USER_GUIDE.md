@@ -879,9 +879,11 @@ Open **Settings** (bottom of the sidebar) for six sections:
 
 - **General** — the raw-materials/pricing screen ([§6](#6-raw-materials-and-suppliers)),
   your **workspace folder** (where projects/sessions/formulas live on
-  disk — change or reveal it in Explorer/Finder), **Backup and Recovery**
-  and **Schema Migration** ([§28a](#28a-backup-and-recovery)), and **app
-  updates** (manual check, auto-check toggle, update-badge visibility).
+  disk — change or reveal it in Explorer/Finder), your **Active Data
+  Location** (where your data is actually resolved to right now, and why
+  — [§28a](#28a-backup-and-recovery)), **Backup and Recovery** and
+  **Schema Migration** (same section), and **app updates** (manual check,
+  auto-check toggle, update-badge visibility).
 - **Models** — the provider, model, and API key the composer
   ([§0b](#0b-generate-a-starting-formulation-the-composer)) uses to
   generate a formulation. Never used for anything approval-related —
@@ -901,6 +903,24 @@ Open **Settings** (bottom of the sidebar) for six sections:
 ## 28a. Backup and Recovery
 
 Inserted section — does not renumber §29/§30 below.
+
+**Settings → General → Active Data Location** — shows exactly where your
+formulations, master data, sessions and formulas live right now, and how
+that was decided.
+
+- **Resolved from** tells you which setting produced the path: your
+  workspace folder (the normal case), an active-workspace override, a
+  manual `formulab-root.txt` override, or the built-in default
+  (`~/Documents/FormuLab`) if nothing is configured yet.
+- **Writable** confirms FormuLab can actually save to that folder.
+- Any problem — a broken or missing override, an unwritable folder, or a
+  second folder elsewhere that also contains real project data — appears
+  as a clear warning here. FormuLab never merges or moves data on its own
+  when this happens; you decide what to do.
+- **Open Folder** reveals the resolved location in Explorer/Finder.
+  **Refresh** re-checks it.
+- Relocating or merging data roots isn't available yet — planned for a
+  future Data Location Manager.
 
 **Settings → General → Backup and Recovery** — save a portable copy of
 your data, or restore from one.

@@ -164,6 +164,27 @@
     "change": "Cambiar…",
     "reveal": "Mostrar"
   },
+  "dataLocation": {
+    "title": "Ubicación activa de los datos",
+    "hint": "Dónde viven realmente ahora mismo sus formulaciones, datos maestros, sesiones y fórmulas, y por qué",
+    "unavailable": "disponible en la app de escritorio",
+    "checking": "Comprobando…",
+    "refresh": "Actualizar",
+    "openFolder": "Abrir carpeta",
+    "source": "Resuelto a partir de",
+    "writable": "Con permiso de escritura",
+    "writableYes": "Sí",
+    "writableNo": "No",
+    "sourceLabel": {
+      "formulabRootOverride": "Anulación manual (formulab-root.txt)",
+      "activeWorkspaceOverride": "Anulación del espacio de trabajo activo",
+      "baseWorkspaceOverride": "Carpeta de trabajo (Configuración)",
+      "default": "Predeterminado (~/Documents/FormuLab)"
+    },
+    "toast": {
+      "openFailed": "No se pudo abrir la carpeta"
+    }
+  },
   "backup": {
     "title": "Copia de seguridad y recuperación",
     "hint": "Guarde una copia portátil de sus formulaciones, datos maestros, sesiones e historial de ejecuciones, o restaure desde una",

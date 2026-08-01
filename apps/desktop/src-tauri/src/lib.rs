@@ -3,6 +3,7 @@
 mod artifact_file;
 mod attachments;
 mod backup;
+mod data_root;
 mod debug_log;
 mod formulation;
 mod formulation_advanced;
@@ -159,7 +160,9 @@ pub fn run() {
             migration::check_schema_compatibility,
             migration::append_migration_journal,
             migration::read_migration_journal,
-            migration::create_pre_migration_backup
+            migration::create_pre_migration_backup,
+            data_root::active_data_root_status,
+            data_root::open_active_data_root
         ])
         .build(tauri::generate_context!())
         .expect("error while building FormuLab")

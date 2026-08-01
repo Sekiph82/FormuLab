@@ -371,6 +371,24 @@ app-private code/log cache, not user data — see the cache rows below.
   `assertSafeFixtureRoot`, per the Phase 10 handoff). Developer tooling,
   not user data — excluded from backup.
 
+> **Session 4 update**: every finding below describes the state Session 0
+> found and is kept for the historical record, but the root-resolution
+> layer itself has since been unified — see
+> `docs/PHASE11_MIGRATION_ARCHITECTURE.md`'s sibling doc,
+> `docs/handoffs/PHASE11_CURRENT.md`'s Session 4 summary, and
+> `apps/desktop/src-tauri/src/data_root.rs`. In short: `project_root()`
+> and `workspace_dir()` now delegate to one shared
+> `data_root::resolve_data_root()` (same precedence
+> `formulab-root.txt` > `active-workspace.txt` > `base-workspace.txt` >
+> default), a malformed/missing-target pointer now produces a visible
+> warning instead of a silent fallthrough, a lower-precedence pointer
+> that also holds real data is now flagged as a conflict (never
+> auto-merged), and `runs_index.rs` was switched from
+> `base_workspace_dir()` to the same `workspace_dir()` `runs.rs` already
+> used, closing the divergence documented in item 8 below. Settings now
+> surfaces all of this via `ActiveDataLocationCard`. A full Data Location
+> Manager (relocating or merging roots) remains deferred.
+
 ## Active data-location assessment — direct answers
 
 - **How the active data root is selected today**: `project_root()`

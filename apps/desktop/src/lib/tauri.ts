@@ -315,6 +315,44 @@ export async function openWorkspaceBase(): Promise<void> {
   await invoke("open_workspace_base");
 }
 
+// ---- Active data location (Phase 11 Session 4) -----------------------------
+
+export type RootSource =
+  | "formulabRootOverride"
+  | "activeWorkspaceOverride"
+  | "baseWorkspaceOverride"
+  | "default";
+
+export interface ConflictingRoot {
+  source: RootSource;
+  path: string;
+}
+
+export interface DataRootStatus {
+  path: string;
+  source: RootSource;
+  writable: boolean;
+  warnings: string[];
+  conflictingRoots: ConflictingRoot[];
+}
+
+/** The unified active-data-root resolution (`data_root::resolve_data_root`)
+ *  — same root `project_root()`/`workspace_dir()` use internally, with the
+ *  resolution source, writability, and any conflict/fallback warnings a
+ *  malformed or divergent pointer file produced. Never modifies anything. */
+export async function activeDataRootStatus(): Promise<DataRootStatus | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataRootStatus>("active_data_root_status");
+}
+
+/** Reveal the resolved active data root in the OS file manager. */
+export async function openActiveDataRoot(): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("open_active_data_root");
+}
+
 /** A project: a named workspace folder under the base dir, marked by its
  *  `.FormuLab/project.json`. Sessions group under it by `directory`. */
 export interface ProjectInfo {

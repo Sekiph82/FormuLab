@@ -56,19 +56,12 @@ fn default_n() -> u32 {
 ///   <root>/data/literature/     the shared paper + PDF cache
 ///
 /// Kept independent of OpenCode's workspace base (which re-roots per run and is
-/// going away) so the layout survives that removal. A pointer file overrides it;
-/// otherwise it falls back to the workspace base.
+/// going away) so the layout survives that removal. Phase 11 Session 4
+/// unified this resolution with `workspace::workspace_dir()` — both now
+/// delegate to `data_root::resolve_data_root()`, one precedence chain
+/// instead of two; see that module's doc comment.
 pub(crate) fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
-    if let Ok(p) = app.path().app_data_dir() {
-        let pointer = p.join("runtime").join("formulab-root.txt");
-        if let Ok(s) = std::fs::read_to_string(&pointer) {
-            let dir = PathBuf::from(s.trim());
-            if dir.is_dir() {
-                return Ok(dir);
-            }
-        }
-    }
-    crate::workspace::base_workspace_dir(app)
+    Ok(crate::data_root::resolve_data_root(app)?.path)
 }
 
 fn data_dir(app: &AppHandle, sub: &[&str]) -> Result<PathBuf, String> {

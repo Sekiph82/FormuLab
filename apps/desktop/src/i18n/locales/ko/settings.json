@@ -164,6 +164,27 @@
     "change": "변경…",
     "reveal": "표시"
   },
+  "dataLocation": {
+    "title": "활성 데이터 위치",
+    "hint": "제형, 마스터 데이터, 세션, 수식이 현재 실제로 어디에 있는지와 그 이유",
+    "unavailable": "데스크톱 앱에서 사용 가능",
+    "checking": "확인 중…",
+    "refresh": "새로고침",
+    "openFolder": "폴더 열기",
+    "source": "확인된 위치",
+    "writable": "쓰기 가능",
+    "writableYes": "예",
+    "writableNo": "아니요",
+    "sourceLabel": {
+      "formulabRootOverride": "수동 재정의(formulab-root.txt)",
+      "activeWorkspaceOverride": "활성 작업 공간 재정의",
+      "baseWorkspaceOverride": "작업 폴더(설정)",
+      "default": "기본값(~/Documents/FormuLab)"
+    },
+    "toast": {
+      "openFailed": "폴더를 열지 못했습니다"
+    }
+  },
   "backup": {
     "title": "백업 및 복구",
     "hint": "제형, 마스터 데이터, 세션, 실행 기록의 이동 가능한 복사본을 저장하거나 복원합니다",

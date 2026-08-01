@@ -383,7 +383,7 @@
       "Einen Abschnitt aus der Liste links wählen."
     ],
     "sections": [
-      "Allgemein — Arbeitsordner, Sicherung und Wiederherstellung, Schema-Migration, App-Updates",
+      "Allgemein — Arbeitsordner, Aktiver Datenspeicherort, Sicherung und Wiederherstellung, Schema-Migration, App-Updates",
       "Erscheinungsbild",
       "Modelle",
       "Python (Laufzeit)",
@@ -393,7 +393,8 @@
     "warnings": [
       "Das Wiederherstellen einer Sicherung ersetzt Ihre aktuellen Daten. Vorher wird automatisch eine Sicherheitskopie Ihrer aktuellen Daten erstellt, deren Pfad nach Abschluss der Wiederherstellung angezeigt wird.",
       "Das Prüfen einer Sicherung ändert nie etwas — es untersucht nur das Paket und meldet Gültig, Gültig mit Warnungen, Inkompatibel, Beschädigt oder Unsicher.",
-      "Das Ausführen einer Schema-Migration erstellt zuerst eine geprüfte Sicherheitskopie und stellt sie automatisch wieder her, falls etwas fehlschlägt — nichts wird automatisch migriert, ohne dass Sie auf „Migration ausführen“ klicken."
+      "Das Ausführen einer Schema-Migration erstellt zuerst eine geprüfte Sicherheitskopie und stellt sie automatisch wieder her, falls etwas fehlschlägt — nichts wird automatisch migriert, ohne dass Sie auf „Migration ausführen“ klicken.",
+      "Der aktive Datenspeicherort zeigt nur an, wo Ihre Daten liegen, und öffnet den Ordner — er verschiebt, führt zusammen oder verlagert nie etwas. Wird ein zweiter Ordner mit echten Daten gefunden, wird gewarnt, statt automatisch zu entscheiden."
     ]
   },
   "glossary": {

@@ -164,6 +164,27 @@
     "change": "Ändern…",
     "reveal": "Anzeigen"
   },
+  "dataLocation": {
+    "title": "Aktiver Datenspeicherort",
+    "hint": "Wo Ihre Formulierungen, Stammdaten, Sitzungen und Formeln aktuell tatsächlich liegen, und warum",
+    "unavailable": "in der Desktop-App verfügbar",
+    "checking": "Wird geprüft…",
+    "refresh": "Aktualisieren",
+    "openFolder": "Ordner öffnen",
+    "source": "Ermittelt aus",
+    "writable": "Beschreibbar",
+    "writableYes": "Ja",
+    "writableNo": "Nein",
+    "sourceLabel": {
+      "formulabRootOverride": "Manuelle Überschreibung (formulab-root.txt)",
+      "activeWorkspaceOverride": "Überschreibung des aktiven Arbeitsbereichs",
+      "baseWorkspaceOverride": "Arbeitsordner (Einstellungen)",
+      "default": "Standard (~/Documents/FormuLab)"
+    },
+    "toast": {
+      "openFailed": "Ordner konnte nicht geöffnet werden"
+    }
+  },
   "backup": {
     "title": "Sicherung und Wiederherstellung",
     "hint": "Sichern Sie Ihre Formulierungen, Stammdaten, Sitzungen und den Ausführungsverlauf portabel oder stellen Sie sie wieder her",
