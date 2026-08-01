@@ -26,6 +26,7 @@ import {
 } from "@/lib/tauri";
 import { useSetupStore } from "@/lib/setup";
 import { RemoteComputeCard } from "@/components/settings/RemoteComputeCard";
+import { BackupRecoveryCard } from "@/components/settings/BackupRecoveryCard";
 import { ModalCard } from "@/components/settings/ModalCard";
 import { DataFlowCard } from "@/components/settings/DataFlowCard";
 import { FormulationProviderCard } from "@/components/settings/FormulationProviderCard";
@@ -180,6 +181,9 @@ export function SettingsPage() {
           </div>
         </Section>
         )}
+
+        {/* ---- Backup and Recovery ---- */}
+        {section === "general" && <BackupRecoveryCard />}
 
         {/* ---- Local Python kernel ---- */}
         {section === "runtime" && isTauri && (

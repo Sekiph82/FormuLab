@@ -383,12 +383,15 @@
       "Pick a section from the sidebar-style list on the left."
     ],
     "sections": [
-      "General",
+      "General — workspace folder, Backup and Recovery, app updates",
       "Appearance",
       "Models",
       "Python (runtime)",
       "Compute",
       "Privacy"
+    ],
+    "warnings": [
+      "Restoring a backup replaces your current data. A safety backup of your current data is made automatically first, and its path is shown to you when the restore finishes."
     ]
   },
   "glossary": {

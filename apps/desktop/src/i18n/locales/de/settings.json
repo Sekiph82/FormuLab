@@ -164,6 +164,51 @@
     "change": "Ändern…",
     "reveal": "Anzeigen"
   },
+  "backup": {
+    "title": "Sicherung und Wiederherstellung",
+    "hint": "Sichern Sie Ihre Formulierungen, Stammdaten, Sitzungen und den Ausführungsverlauf portabel oder stellen Sie sie wieder her",
+    "unavailable": "in der Desktop-App verfügbar",
+    "createButton": "Sicherung erstellen",
+    "restoreButton": "Sicherung wiederherstellen",
+    "creatingLabel": "Sicherung wird erstellt…",
+    "restoringLabel": "Wird wiederhergestellt…",
+    "cancel": "Abbrechen",
+    "inspecting": "Paket wird gelesen…",
+    "confirmTitle": "Dies ersetzt Ihre aktuellen Daten",
+    "confirmHint": "Vor jeder Änderung wird automatisch eine Sicherheitskopie Ihrer aktuellen Daten erstellt; schlägt die Wiederherstellung fehl, wird sie rückgängig gemacht.",
+    "confirmRestoreButton": "Jetzt wiederherstellen",
+    "doneTitle": "Sicherung erstellt",
+    "restoreDoneTitle": "Wiederherstellung abgeschlossen",
+    "failedTitle": "Etwas ist schiefgelaufen",
+    "done": "Fertig",
+    "summary": {
+      "appVersion": "App-Version",
+      "created": "Erstellt",
+      "files": "Dateien",
+      "size": "Größe",
+      "filesAndSize": "{{count}} Dateien, {{size}}",
+      "restoredCount": "{{count}} Dateien wiederhergestellt",
+      "safetyBackupAt": "Sicherheitskopie Ihrer vorherigen Daten:"
+    },
+    "toast": {
+      "created": "Sicherung erstellt.",
+      "createFailed": "Sicherung konnte nicht erstellt werden",
+      "restored": "Wiederherstellung abgeschlossen.",
+      "restoreFailed": "Wiederherstellung fehlgeschlagen",
+      "inspectFailed": "Sicherungspaket konnte nicht gelesen werden"
+    },
+    "phase": {
+      "scanning": "Daten werden gescannt",
+      "hashing": "Dateien werden geprüft",
+      "writing": "Paket wird geschrieben",
+      "verifying": "Wird überprüft",
+      "extracting": "Dateien werden entpackt",
+      "activating": "Wiederhergestellte Daten werden aktiviert",
+      "done": "Fertig",
+      "cancelled": "Abgebrochen",
+      "error": "Fehler"
+    }
+  },
   "python": {
     "title": "Lokaler Python-Kernel",
     "hint": "Führt Notebook-Zellen in der App aus. Nutzt Ihre Jupyter-Umgebung, falls eingerichtet (gleiches Python wie der Agent), sonst automatische Erkennung — oder unten einen expliziten Interpreter festlegen",

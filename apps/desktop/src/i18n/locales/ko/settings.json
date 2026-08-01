@@ -164,6 +164,51 @@
     "change": "변경…",
     "reveal": "표시"
   },
+  "backup": {
+    "title": "백업 및 복구",
+    "hint": "제형, 마스터 데이터, 세션, 실행 기록의 이동 가능한 복사본을 저장하거나 복원합니다",
+    "unavailable": "데스크톱 앱에서 사용 가능",
+    "createButton": "백업 생성",
+    "restoreButton": "백업 복원",
+    "creatingLabel": "백업 생성 중…",
+    "restoringLabel": "복원 중…",
+    "cancel": "취소",
+    "inspecting": "패키지 읽는 중…",
+    "confirmTitle": "현재 데이터가 교체됩니다",
+    "confirmHint": "변경 전에 현재 데이터의 안전 백업이 자동으로 생성됩니다. 복원이 실패하면 이전 상태로 되돌립니다.",
+    "confirmRestoreButton": "지금 복원",
+    "doneTitle": "백업이 생성되었습니다",
+    "restoreDoneTitle": "복원이 완료되었습니다",
+    "failedTitle": "문제가 발생했습니다",
+    "done": "완료",
+    "summary": {
+      "appVersion": "앱 버전",
+      "created": "생성일",
+      "files": "파일 수",
+      "size": "크기",
+      "filesAndSize": "파일 {{count}}개, {{size}}",
+      "restoredCount": "파일 {{count}}개 복원됨",
+      "safetyBackupAt": "이전 데이터의 안전 백업:"
+    },
+    "toast": {
+      "created": "백업이 생성되었습니다.",
+      "createFailed": "백업을 생성하지 못했습니다",
+      "restored": "복원이 완료되었습니다.",
+      "restoreFailed": "백업을 복원하지 못했습니다",
+      "inspectFailed": "백업 패키지를 읽지 못했습니다"
+    },
+    "phase": {
+      "scanning": "데이터 검색 중",
+      "hashing": "파일 확인 중",
+      "writing": "패키지 작성 중",
+      "verifying": "확인 중",
+      "extracting": "파일 추출 중",
+      "activating": "복원된 데이터 활성화 중",
+      "done": "완료",
+      "cancelled": "취소됨",
+      "error": "오류"
+    }
+  },
   "python": {
     "title": "로컬 Python 커널",
     "hint": "앱에서 노트북 셀을 실행합니다. 설정된 경우 Jupyter 환경(에이전트와 동일한 Python)을 사용하며, 그렇지 않으면 자동 감지하거나 아래에서 인터프리터를 직접 지정할 수 있습니다",

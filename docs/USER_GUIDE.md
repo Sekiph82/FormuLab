@@ -879,8 +879,9 @@ Open **Settings** (bottom of the sidebar) for six sections:
 
 - **General** — the raw-materials/pricing screen ([§6](#6-raw-materials-and-suppliers)),
   your **workspace folder** (where projects/sessions/formulas live on
-  disk — change or reveal it in Explorer/Finder), and **app updates**
-  (manual check, auto-check toggle, update-badge visibility).
+  disk — change or reveal it in Explorer/Finder), **Backup and Recovery**
+  ([§28a](#28a-backup-and-recovery)), and **app updates** (manual check,
+  auto-check toggle, update-badge visibility).
 - **Models** — the provider, model, and API key the composer
   ([§0b](#0b-generate-a-starting-formulation-the-composer)) uses to
   generate a formulation. Never used for anything approval-related —
@@ -896,6 +897,41 @@ Open **Settings** (bottom of the sidebar) for six sections:
   8 shipped locales), and, in the desktop app, page **zoom**.
 
 ![Settings](screenshots/settings-settings-default-light-en.png "General, Models, Runtime, Compute, Privacy, and Appearance")
+
+## 28a. Backup and Recovery
+
+Inserted section — does not renumber §29/§30 below.
+
+**Settings → General → Backup and Recovery** — save a portable copy of
+your data, or restore from one.
+
+- **Create Backup** packages your formulations, master data (materials,
+  suppliers, trials, stability, regulatory, dossiers, claims, labels,
+  DOE, and every other collection), your session/formula library, and
+  your run/provenance history into a single `.formulab-backup` file you
+  choose the name and location for. A summary (file count, size, any
+  warnings) appears when it finishes.
+- **Restore Backup** picks an existing `.formulab-backup` file, shows you
+  what it contains before anything happens, and asks you to confirm —
+  restoring replaces your current data. A safety backup of your current
+  data is made automatically first, so a failed or unwanted restore can
+  always be undone; its path is shown to you when the restore finishes.
+- Both actions show live progress and can be cancelled.
+- **What's included**: formulations, all master-data collections,
+  sessions, the formula library, and your run/provenance/compute
+  history. **What's excluded**: `.FormuLab/runs.db` (a disposable index
+  rebuilt automatically, never touched by backup or restore), the
+  webview cache (which is also where your LLM provider API key lives —
+  never included in a backup), and `data/literature` (the shared
+  open-access paper cache — re-fetched through ordinary use, not
+  something you authored, so it's left out and noted as a warning when
+  skipped).
+- Restore only ever writes into **this machine's own** data folder — a
+  backup made on another computer never overwrites where your workspace
+  or `formulab-root.txt` override points here.
+- Not yet available: a backup history list, verifying a package without
+  restoring it, and automatic scheduled backups — all planned for later
+  Phase 11 sessions.
 
 ## 29. In-app guide and PDF/DOCX generation
 

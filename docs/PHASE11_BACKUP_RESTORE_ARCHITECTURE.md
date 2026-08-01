@@ -223,17 +223,61 @@ Statuses:
 Corruption and incompatibility are always reported as distinct statuses
 — never conflated, per this session's explicit instruction.
 
-## Known open questions for Session 1 (not resolved here)
+## Known open questions from Session 0 — resolved in Session 1
 
-- Whether `data/master/backups/<collection>-<timestamp>.json` (the
-  existing ad hoc pre-delete snapshot mechanism, inventory item 3) should
-  be superseded by the new backup system or left as-is alongside it.
-- Whether `data/literature` defaults to included or excluded (leaning
-  excluded-by-default with an opt-in, pending a Session 1 decision, not
-  assumed here).
-- Disk-space validation strategy (check free space against the manifest
-  `fileInventory` size total before staging) — mechanism is
-  straightforward (`std::fs` on Windows via the same APIs
-  `set_workspace_base` already uses to create/canonicalize directories,
-  `workspace.rs:82-91`) but exact threshold/margin is a Session 1 design
-  decision, not fixed here.
+- `data/master/backups/<collection>-<timestamp>.json` (the ad hoc
+  pre-delete snapshot mechanism): **left exactly as-is, not superseded.**
+  The new backup system structurally never walks
+  `data/master/backups/` (only top-level `data/master/*.json` files are
+  collected — `backup.rs`'s `collect_master_files` does not recurse), so
+  the two mechanisms coexist without overlap or duplication.
+- `data/literature`: **excluded by default, decision final.** Confirmed
+  by re-reading `runtime/pipeline/literature_cache.py` — it stores
+  `pdfs/<doi>.pdf`, a network cache of open-access papers keyed by DOI,
+  re-fetchable through ordinary use, not user-authored. When the
+  directory exists and holds files, `collect_included()` records an
+  explicit manifest warning naming why it was skipped.
+- Disk-space validation: implemented via the `fs4` crate's
+  `available_space()` (a new, disclosed dependency — `std::fs` has no
+  portable free-space API), checked against the real summed file sizes
+  plus a 10% margin, before any file is opened for hashing/writing. A
+  filesystem `fs4` cannot query is not treated as a hard failure — the
+  write itself will fail cleanly if space genuinely runs out.
+
+## Session 1 implementation notes (what actually shipped)
+
+- **Package format confirmed**: `zip` crate v2 (`deflate` feature only,
+  `default-features = false` — no bzip2/zstd/AES needed for this use).
+  `SimpleFileOptions` (the `FileOptions<'static, ()>` alias in zip 2.x)
+  is used for every entry, compression method Deflated.
+- **Manifest `formulabAppVersion`**: read from `env!("CARGO_PKG_VERSION")`
+  at compile time, not a runtime read of `tauri.conf.json` — the two are
+  kept in sync manually today (`Cargo.toml` and `tauri.conf.json` both
+  say `0.4.0`) and the compile-time constant is the more authoritative
+  source for what the *running binary* actually is.
+- **Atomicity**: exactly as planned — stage to `<destination>.tmp`,
+  self-check by reopening and re-parsing the manifest, then
+  `remove_file` (if a stale file with the final name exists) +
+  `rename`. Every error path between `.tmp` creation and the final
+  rename removes the `.tmp` file before returning.
+- **Restore activation**: implemented with a rename-aside mechanic
+  (`<live path>.pre-restore-<timestamp>.bak`) rather than only relying
+  on the safety-backup archive for rollback — this makes rollback a
+  guaranteed local filesystem operation (no re-unzipping needed) while
+  the safety backup archive still exists as the durable, user-visible
+  fallback. Both are produced; the rename-aside copies are deleted only
+  after every file activates successfully.
+- **Archive-path safety is an allow-list, not a denylist**: restore maps
+  every archive-relative path back to a live path through a fixed set
+  of known prefixes (`data/formulations/`, `data/master/`,
+  `data/sessions/`, `formulas/`, and the specific `.FormuLab/*` file
+  names) — anything else, including a technically-safe-looking but
+  unrecognized path, is rejected. This is stricter than the traversal/
+  absolute-path/symlink checks alone and was added during implementation
+  as a defense-in-depth measure beyond what this document originally
+  specified.
+- **Structural validation limitation**: restore's "available structural
+  check" is JSON-parses-cleanly for every `.json` entry — a full
+  per-collection Zod pass is TypeScript-side and is not invoked from
+  this Rust-only foundation. Recorded as a real, disclosed limitation,
+  not silently treated as equivalent to schema validation.

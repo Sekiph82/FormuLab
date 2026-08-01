@@ -383,12 +383,15 @@
       "Soldaki listeden bir bölüm seçin."
     ],
     "sections": [
-      "Genel",
+      "Genel — çalışma klasörü, Yedekleme ve Kurtarma, uygulama güncellemeleri",
       "Görünüm",
       "Modeller",
       "Python (çalışma zamanı)",
       "Hesaplama",
       "Gizlilik"
+    ],
+    "warnings": [
+      "Bir yedeği geri yüklemek mevcut verilerinizin yerini alır. Önce mevcut verilerinizin güvenlik yedeği otomatik olarak oluşturulur ve geri yükleme tamamlandığında yolu gösterilir."
     ]
   },
   "glossary": {

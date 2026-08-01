@@ -2,6 +2,7 @@
 // bundled OpenCode sidecar (isolated config/data + dedicated port; killed on exit).
 mod artifact_file;
 mod attachments;
+mod backup;
 mod debug_log;
 mod formulation;
 mod formulation_advanced;
@@ -54,6 +55,7 @@ pub fn run() {
         .manage(ProvenanceState::default())
         .manage(runs::RunState::default())
         .manage(formulation_advanced::AdvancedOptimizerState::default())
+        .manage(backup::BackupState::default())
         // The transparent + vibrancy window loses tao's traffic-light inset on
         // some machines (tao only re-applies it from drawRect). Re-pin on the
         // events that cover launch, resize, and the in-app theme switch.
@@ -141,7 +143,13 @@ pub fn run() {
             large_file::probe_large_file,
             tools::detect_tools,
             updates::latest_release,
-            debug_log::log_debug
+            debug_log::log_debug,
+            backup::create_backup,
+            backup::cancel_backup,
+            backup::pick_backup_destination,
+            backup::inspect_backup,
+            backup::restore_backup,
+            backup::cancel_restore
         ])
         .build(tauri::generate_context!())
         .expect("error while building FormuLab")

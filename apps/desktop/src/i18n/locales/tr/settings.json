@@ -164,6 +164,51 @@
     "change": "Değiştir…",
     "reveal": "Göster"
   },
+  "backup": {
+    "title": "Yedekleme ve Kurtarma",
+    "hint": "Formülasyonlarınızın, ana verilerinizin, oturumlarınızın ve çalıştırma geçmişinizin taşınabilir bir kopyasını kaydedin veya birinden geri yükleyin",
+    "unavailable": "masaüstü uygulamasında kullanılabilir",
+    "createButton": "Yedek Oluştur",
+    "restoreButton": "Yedeği Geri Yükle",
+    "creatingLabel": "Yedek oluşturuluyor…",
+    "restoringLabel": "Geri yükleniyor…",
+    "cancel": "İptal",
+    "inspecting": "Paket okunuyor…",
+    "confirmTitle": "Bu, mevcut verilerinizin yerini alacak",
+    "confirmHint": "Herhangi bir değişiklik yapılmadan önce mevcut verilerinizin güvenlik yedeği otomatik olarak oluşturulur; geri yükleme başarısız olursa geri alınır.",
+    "confirmRestoreButton": "Şimdi Geri Yükle",
+    "doneTitle": "Yedek oluşturuldu",
+    "restoreDoneTitle": "Geri yükleme tamamlandı",
+    "failedTitle": "Bir şeyler ters gitti",
+    "done": "Bitti",
+    "summary": {
+      "appVersion": "Uygulama sürümü",
+      "created": "Oluşturulma",
+      "files": "Dosyalar",
+      "size": "Boyut",
+      "filesAndSize": "{{count}} dosya, {{size}}",
+      "restoredCount": "{{count}} dosya geri yüklendi",
+      "safetyBackupAt": "Önceki verilerinizin güvenlik yedeği:"
+    },
+    "toast": {
+      "created": "Yedek oluşturuldu.",
+      "createFailed": "Yedek oluşturulamadı",
+      "restored": "Geri yükleme tamamlandı.",
+      "restoreFailed": "Yedek geri yüklenemedi",
+      "inspectFailed": "Yedek paketi okunamadı"
+    },
+    "phase": {
+      "scanning": "Veriler taranıyor",
+      "hashing": "Dosyalar kontrol ediliyor",
+      "writing": "Paket yazılıyor",
+      "verifying": "Doğrulanıyor",
+      "extracting": "Dosyalar çıkarılıyor",
+      "activating": "Geri yüklenen veriler etkinleştiriliyor",
+      "done": "Bitti",
+      "cancelled": "İptal edildi",
+      "error": "Hata"
+    }
+  },
   "python": {
     "title": "Yerel Python çekirdeği",
     "hint": "Not defteri hücrelerini uygulama içinde çalıştırır. Kurulduğunda Jupyter ortamınızı kullanır (ajanla aynı Python), aksi halde otomatik algılar — veya aşağıda açık bir yorumlayıcı belirleyin",

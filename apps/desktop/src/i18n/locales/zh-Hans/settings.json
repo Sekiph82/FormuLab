@@ -164,6 +164,51 @@
     "change": "更改…",
     "reveal": "在文件管理器中显示"
   },
+  "backup": {
+    "title": "备份与恢复",
+    "hint": "保存配方、主数据、会话和运行历史的可移植副本,或从中恢复",
+    "unavailable": "该功能在桌面应用中可用",
+    "createButton": "创建备份",
+    "restoreButton": "恢复备份",
+    "creatingLabel": "正在创建备份…",
+    "restoringLabel": "正在恢复…",
+    "cancel": "取消",
+    "inspecting": "正在读取备份包…",
+    "confirmTitle": "此操作将替换您当前的数据",
+    "confirmHint": "在进行任何更改之前,会自动创建当前数据的安全备份;如果恢复失败,将回滚。",
+    "confirmRestoreButton": "立即恢复",
+    "doneTitle": "备份已创建",
+    "restoreDoneTitle": "恢复完成",
+    "failedTitle": "出现问题",
+    "done": "完成",
+    "summary": {
+      "appVersion": "应用版本",
+      "created": "创建时间",
+      "files": "文件数",
+      "size": "大小",
+      "filesAndSize": "{{count}} 个文件,{{size}}",
+      "restoredCount": "已恢复 {{count}} 个文件",
+      "safetyBackupAt": "此前数据的安全备份:"
+    },
+    "toast": {
+      "created": "备份已创建。",
+      "createFailed": "无法创建备份",
+      "restored": "恢复完成。",
+      "restoreFailed": "无法恢复备份",
+      "inspectFailed": "无法读取备份包"
+    },
+    "phase": {
+      "scanning": "正在扫描数据",
+      "hashing": "正在校验文件",
+      "writing": "正在写入备份包",
+      "verifying": "正在验证",
+      "extracting": "正在提取文件",
+      "activating": "正在激活恢复的数据",
+      "done": "完成",
+      "cancelled": "已取消",
+      "error": "错误"
+    }
+  },
   "python": {
     "title": "本地 Python 内核",
     "hint": "在应用内运行笔记本单元格。若已设置 Jupyter 环境则使用它（与代理共用同一 Python），否则自动检测——或在下方指定解释器",

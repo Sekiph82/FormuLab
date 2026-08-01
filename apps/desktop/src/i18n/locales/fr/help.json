@@ -383,12 +383,15 @@
       "Choisissez une section dans la liste à gauche."
     ],
     "sections": [
-      "Général",
+      "Général — dossier de travail, Sauvegarde et restauration, mises à jour de l'application",
       "Apparence",
       "Modèles",
       "Python (environnement)",
       "Calcul",
       "Confidentialité"
+    ],
+    "warnings": [
+      "Restaurer une sauvegarde remplace vos données actuelles. Une sauvegarde de sécurité de vos données actuelles est créée automatiquement au préalable, et son chemin est affiché une fois la restauration terminée."
     ]
   },
   "glossary": {

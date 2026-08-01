@@ -33,7 +33,32 @@ typecheck, no lint, no release/installer build. Only read-only
 inspection commands (listed in each architecture doc's own Method
 section) informed this assessment.
 
-## Session 1 — Backup and Restore Foundation
+## Session 1 — Backup and Restore Foundation (complete — actual results)
+
+- Rust: 5 new tests in `backup.rs` (`excluded_labels_name_runs_db_and_ebwebview_explicitly`,
+  `safe_archive_name_rejects_traversal_and_absolute_paths`,
+  `archive_path_to_live_rejects_unknown_prefixes`,
+  `schema_versions_reads_first_row_and_sets_global`,
+  `full_backup_then_restore_round_trip_is_byte_identical`). Full Rust
+  suite re-run (new module + `lib.rs`/`Cargo.toml` changed): **88/88
+  passing** (83 pre-existing + 5 new).
+- TypeScript: 12 new tests in `BackupRecoveryCard.test.tsx` (not-desktop
+  fallback, idle actions, cancelled-destination-picker no-op, backup
+  success summary, backup warnings display, backup failure, backup
+  cancellation returns to idle quietly, live progress display, full
+  restore confirm-then-restore flow, cancel-out-of-confirmation,
+  restore failure, inspect failure) — **12/12 passing**.
+- i18n parity: **23/23 passing** (8-locale `settings.backup.*` and
+  `help.settings.sections/warnings` additions all real translations, no
+  placeholders).
+- Help registry: **38/38 passing** (unchanged count — the `settings`
+  topic was extended in place, no new topic added).
+- Desktop typecheck: clean. Desktop lint: clean.
+- Full desktop suite: **not run** — only `SettingsPage.tsx` (a single
+  conditional render block + one import) changed outside the new,
+  already-tested files; no shared Settings infrastructure or global
+  shell behavior changed, per this session's own run-full-suite
+  trigger condition.
 
 **Focused tests** (written during the session, run targeted — not full
 suite):

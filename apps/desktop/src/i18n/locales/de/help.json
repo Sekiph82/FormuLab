@@ -383,12 +383,15 @@
       "Einen Abschnitt aus der Liste links wählen."
     ],
     "sections": [
-      "Allgemein",
+      "Allgemein — Arbeitsordner, Sicherung und Wiederherstellung, App-Updates",
       "Erscheinungsbild",
       "Modelle",
       "Python (Laufzeit)",
       "Compute",
       "Datenschutz"
+    ],
+    "warnings": [
+      "Das Wiederherstellen einer Sicherung ersetzt Ihre aktuellen Daten. Vorher wird automatisch eine Sicherheitskopie Ihrer aktuellen Daten erstellt, deren Pfad nach Abschluss der Wiederherstellung angezeigt wird."
     ]
   },
   "glossary": {

@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: SESSION 0 (Assessment and Data Safety Planning) COMPLETE. Awaiting Session 1.
+## Status: SESSION 1 (Backup and Restore Foundation) COMPLETE. Awaiting Session 2.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -109,6 +109,102 @@ See each architecture/inventory doc's own "Method"/"evidenced" citations
 for the exact `Read`/`Grep`/`Glob`/`git` commands that informed it —
 recorded once per document rather than duplicated here.
 
+## Session 1 summary — backup and restore foundation (complete)
+
+- **New Rust module**: `apps/desktop/src-tauri/src/backup.rs`. New
+  dependencies: `zip` (the `.formulab-backup` ZIP container) and `fs4`
+  (free-disk-space check), both disclosed in the Session 0 plan before
+  being added. Registered in `lib.rs` with a new `BackupState` (a
+  cancellation flag, same `Mutex<Option<Arc<AtomicBool>>>` pattern
+  `AdvancedOptimizerState` already uses) and six new commands:
+  `create_backup`, `cancel_backup`, `pick_backup_destination`,
+  `inspect_backup`, `restore_backup`, `cancel_restore`.
+- **Inclusion, exactly as planned in Session 0**: `data/formulations/**`,
+  `data/master/*.json` (top-level files only — `data/master/backups/` is
+  structurally never walked, not just filtered), `data/sessions/**`,
+  `formulas/**`, `.FormuLab/{runs.jsonl,remote-runs.jsonl,
+  provenance.jsonl,logs/*.txt}` (workspace root), `.FormuLab/compute.json`
+  (base root).
+- **`data/literature` decision, made this session**: excluded by default.
+  Confirmed by reading `runtime/pipeline/literature_cache.py` again —
+  it stores `pdfs/<doi>.pdf`, open-access papers fetched from public
+  sources and cached by DOI, re-fetchable through ordinary use, not
+  user-authored. When the directory exists and holds files, the manifest
+  records an explicit warning naming exactly why it was skipped, so a
+  user is never left silently unaware.
+- **Exclusions enforced structurally, not by a denylist filter**:
+  `.FormuLab/runs.db` is never referenced by any inclusion-scanning code
+  path in `backup.rs` at all (a dedicated Rust test,
+  `excluded_labels_name_runs_db_and_ebwebview_explicitly`, guards the
+  documented exclusion list itself). `EBWebView`/`localStorage` (the
+  plaintext per-provider API key) is outside this crate's filesystem
+  reach by construction — never a path this module can walk.
+- **Manifest**: format version, app version (`env!("CARGO_PKG_VERSION")`
+  at build time, not a runtime read of `tauri.conf.json`), created-at,
+  a `dataRoot` identifier (project/workspace/base root paths plus
+  whether `formulab-root.txt`/an active-workspace override is in play),
+  best-effort per-collection `schemaVersion` read from each collection's
+  first row, full file inventory (path/bytes/SHA256), included/excluded
+  lists, warnings, and compatibility bounds.
+- **Backup creation**: scans → disk-space check (`fs4::available_space`,
+  required = total bytes + 10% margin) → hashes every file → writes to
+  `<destination>.tmp` → self-check (reopens the just-written archive and
+  confirms the manifest round-trips) → atomic rename to the final name.
+  Any failure after the `.tmp` file exists removes it before returning.
+  Progress (`backup-progress` event) and cancellation (checked between
+  every file, both during hashing and during writing) are real, not
+  cosmetic — a cancelled run cleans up its `.tmp` file exactly like a
+  failed one.
+- **Restore**: reads the manifest, rejects the whole archive on any
+  unsafe entry (path traversal, absolute/drive-letter paths, a symlink
+  mode bit, or any entry the archive-to-live path mapper doesn't
+  recognize — an allow-list, not a denylist), creates a **real**
+  `.formulab-backup` safety package of the current data first (via the
+  same `try_create_backup` internals), stages every file into a private
+  directory while verifying size + SHA256 + (for `.json` entries) that
+  it actually parses, then activates by renaming each live file aside
+  before copying the staged one into place — any activation failure
+  rolls every touched file back from its aside copy and reports the
+  safety backup's path. Root-pointer files
+  (`formulab-root.txt`/`base-workspace.txt`/`active-workspace.txt`) are
+  never read from or written by restore — it only ever resolves and
+  writes into *this machine's own* current root.
+- **UI**: `components/settings/BackupRecoveryCard.tsx`, mounted in
+  Settings → General (`SettingsPage.tsx`), reusing the existing
+  `Section` chrome. States: idle (Create/Restore buttons) → creating
+  (live progress + cancel) → done (file count/size + warnings) / failed;
+  restore adds an inspect step and an explicit, non-dismissable-by-
+  accident confirmation panel (manifest summary + warnings) before a
+  destructive restore can start.
+- **i18n**: full genuine translation across all 8 shipped locales
+  (`settings.backup.*` in `settings.json`; `settings.sections.0`/
+  `settings.warnings.0` extended in `help.json`) — no English-fallback
+  placeholders, matching this project's established convention.
+- **Help**: the existing `settings` help topic
+  (`apps/desktop/src/lib/help/registry.ts`) was extended in place — one
+  `sections.0` string updated to mention Backup and Recovery, one new
+  `warningKeys` entry added — no second help topic created, matching the
+  Phase 10 Session 1A precedent of extending an existing topic over
+  adding a parallel one.
+- **Tests**: 5 new Rust tests in `backup.rs` (exclusion labels present,
+  unsafe-path rejection, archive-path allow-list rejection, schema-
+  version extraction, a full synthetic backup-then-scan round trip) —
+  full Rust suite re-run, 88/88 passing. 12 new
+  `BackupRecoveryCard.test.tsx` tests (idle/creating/progress/done/
+  failed for both backup and restore, cancelled-returns-to-idle,
+  cancel-out-of-confirmation, inspect-failure) — all passing. i18n
+  parity (23 tests) and the help registry suite (38 tests) both re-run
+  green. Desktop typecheck and lint both clean.
+- **Known limitations** (explicitly out of scope this session, per the
+  session brief): no backup history list, no standalone verify-without-
+  restoring mode (Session 2), no automatic/scheduled backups. Restore's
+  "structural check" is JSON-parses-cleanly only — a full per-schema Zod
+  pass lives on the TypeScript side and isn't run from this Rust-only
+  foundation; recorded as a real limitation, not silently assumed
+  equivalent. `data/master/backups/`'s existing ad hoc pre-delete
+  snapshot mechanism was left exactly as-is, not merged into the new
+  system.
+
 ## Exact next session
 
-**Phase 11 Session 1: Backup and Restore Foundation.**
+**Phase 11 Session 2: Backup Verification.**

@@ -140,6 +140,13 @@ app-private code/log cache, not user data — see the cache rows below.
   credentials (the API key used to generate it is never written here —
   see the localStorage row).
 
+> **Session 1 update**: the backup/restore foundation implemented this
+> decision — see `docs/PHASE11_BACKUP_RESTORE_ARCHITECTURE.md`'s
+> "Session 1 implementation notes." `data/literature` is excluded by
+> default (with a manifest warning when non-empty); `data/master/backups/`
+> is structurally never walked by the new `backup.rs` module, so it
+> coexists unchanged alongside the new system.
+
 ### 5. `data/literature/` — shared paper/PDF cache
 - **Resolution**: `project_root()/data/literature/` —
   `formulation_v2.rs:138`.

@@ -532,3 +532,125 @@ export async function watchFullscreen(cb: (fullscreen: boolean) => void): Promis
   await sync();
   return win.onResized(() => void sync());
 }
+
+// ---- Backup and restore (Phase 11) -----------------------------------------
+
+export interface BackupFileEntry {
+  path: string;
+  bytes: number;
+  sha256: string;
+}
+
+export interface BackupDataRootIdentifier {
+  resolvedProjectRoot: string;
+  resolvedWorkspaceRoot: string;
+  resolvedBaseRoot: string;
+  formulabRootOverrideActive: boolean;
+  activeWorkspaceOverrideActive: boolean;
+}
+
+export interface BackupManifest {
+  backupFormatVersion: string;
+  formulabAppVersion: string;
+  createdAt: number;
+  dataRoot: BackupDataRootIdentifier;
+  schemaVersions: Record<string, string>;
+  included: string[];
+  excluded: string[];
+  fileInventory: BackupFileEntry[];
+  totalBytes: number;
+  warnings: string[];
+  compatibility: { minSupportedAppVersion: string; maxKnownAppVersion: string };
+}
+
+export interface RestoreResult {
+  manifest: BackupManifest;
+  safetyBackupPath: string;
+  restoredPaths: string[];
+  warnings: string[];
+}
+
+/** One progress tick from a running backup or restore. */
+export interface BackupProgress {
+  phase:
+    | "scanning"
+    | "hashing"
+    | "writing"
+    | "verifying"
+    | "extracting"
+    | "activating"
+    | "done"
+    | "cancelled"
+    | "error";
+  current: number;
+  total: number;
+  message: string;
+}
+
+/** Native "Save As" dialog for a new `.formulab-backup` package (desktop only). */
+export async function pickBackupDestination(defaultName: string): Promise<string | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string | null>("pick_backup_destination", { defaultName });
+}
+
+/** Native "choose a file" dialog filtered to `.formulab-backup` packages. */
+export async function pickBackupSource(): Promise<string | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string | null>("pick_file", { extensions: ["formulab-backup"] });
+}
+
+/** Create a `.formulab-backup` package at `destination`. Throws on failure
+ *  (including cancellation, reported as an error whose message is
+ *  `"cancelled"`). Subscribe to `watchBackupProgress` first to see progress. */
+export async function createBackup(destination: string): Promise<BackupManifest> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<BackupManifest>("create_backup", { destination });
+}
+
+/** Request cancellation of a running backup (best-effort, checked between steps). */
+export async function cancelBackup(): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("cancel_backup");
+}
+
+/** Subscribe to backup progress events; returns the unlisten function. */
+export async function watchBackupProgress(cb: (p: BackupProgress) => void): Promise<() => void> {
+  if (!isTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<BackupProgress>("backup-progress", (e) => cb(e.payload));
+}
+
+/** Read a `.formulab-backup` package's manifest without restoring it. */
+export async function inspectBackup(source: string): Promise<BackupManifest> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<BackupManifest>("inspect_backup", { source });
+}
+
+/** Full restore from `source`. Creates a safety backup of the current data
+ *  first, stages and verifies every file, then activates — rolling back on
+ *  any failure. Throws on failure (including cancellation). Subscribe to
+ *  `watchRestoreProgress` first to see progress. */
+export async function restoreBackup(source: string): Promise<RestoreResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<RestoreResult>("restore_backup", { source });
+}
+
+/** Request cancellation of a running restore (best-effort). */
+export async function cancelRestore(): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("cancel_restore");
+}
+
+/** Subscribe to restore progress events; returns the unlisten function. */
+export async function watchRestoreProgress(cb: (p: BackupProgress) => void): Promise<() => void> {
+  if (!isTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<BackupProgress>("restore-progress", (e) => cb(e.payload));
+}

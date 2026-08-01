@@ -164,6 +164,51 @@
     "change": "Cambiar…",
     "reveal": "Mostrar"
   },
+  "backup": {
+    "title": "Copia de seguridad y recuperación",
+    "hint": "Guarde una copia portátil de sus formulaciones, datos maestros, sesiones e historial de ejecuciones, o restaure desde una",
+    "unavailable": "disponible en la app de escritorio",
+    "createButton": "Crear copia de seguridad",
+    "restoreButton": "Restaurar copia de seguridad",
+    "creatingLabel": "Creando copia de seguridad…",
+    "restoringLabel": "Restaurando…",
+    "cancel": "Cancelar",
+    "inspecting": "Leyendo el paquete…",
+    "confirmTitle": "Esto reemplazará sus datos actuales",
+    "confirmHint": "Se crea automáticamente una copia de seguridad de sus datos actuales antes de cualquier cambio; si la restauración falla, se revierte.",
+    "confirmRestoreButton": "Restaurar ahora",
+    "doneTitle": "Copia de seguridad creada",
+    "restoreDoneTitle": "Restauración completa",
+    "failedTitle": "Algo salió mal",
+    "done": "Listo",
+    "summary": {
+      "appVersion": "Versión de la app",
+      "created": "Creada",
+      "files": "Archivos",
+      "size": "Tamaño",
+      "filesAndSize": "{{count}} archivos, {{size}}",
+      "restoredCount": "{{count}} archivos restaurados",
+      "safetyBackupAt": "Copia de seguridad de sus datos anteriores:"
+    },
+    "toast": {
+      "created": "Copia de seguridad creada.",
+      "createFailed": "No se pudo crear la copia de seguridad",
+      "restored": "Restauración completa.",
+      "restoreFailed": "No se pudo restaurar la copia de seguridad",
+      "inspectFailed": "No se pudo leer el paquete de copia de seguridad"
+    },
+    "phase": {
+      "scanning": "Explorando datos",
+      "hashing": "Comprobando archivos",
+      "writing": "Escribiendo el paquete",
+      "verifying": "Verificando",
+      "extracting": "Extrayendo archivos",
+      "activating": "Activando los datos restaurados",
+      "done": "Listo",
+      "cancelled": "Cancelado",
+      "error": "Error"
+    }
+  },
   "python": {
     "title": "Kernel local de Python",
     "hint": "Ejecuta las celdas del cuaderno en la app. Usa tu entorno de Jupyter cuando está configurado (el mismo Python que el agente); si no, se detecta automáticamente, o puedes indicar un intérprete explícito abajo",
