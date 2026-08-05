@@ -388,6 +388,26 @@ app-private code/log cache, not user data — see the cache rows below.
 > used, closing the divergence documented in item 8 below. Settings now
 > surfaces all of this via `ActiveDataLocationCard`. A full Data Location
 > Manager (relocating or merging roots) remains deferred.
+>
+> **Session 8 update**: the Data Location Manager deferred above is now
+> built — see `docs/handoffs/PHASE11_CURRENT.md`'s Session 8 summary and
+> `apps/desktop/src-tauri/src/data_location_manager.rs`. It writes
+> exactly the `base-workspace.txt` pointer `workspace::set_workspace_base`
+> already wrote (now `pub(crate)` and reused, not a second writer of a
+> different file) — item 12's core finding is otherwise **still true
+> today**: `formulab-root.txt` and `active-workspace.txt` still have no
+> writer anywhere in this codebase, are still reachable only by manual
+> file edit, and a manually-placed `formulab-root.txt` still silently
+> outranks anything chosen through the new manager (surfaced as a
+> resolution warning, per Session 4's conflict/warning behavior — not
+> fixed, because fixing it would mean writing a file this codebase has
+> deliberately never claimed ownership of). A move validates a
+> destination into one of six kinds (empty / already-a-compatible-
+> FormuLab-root / conflicting-unrelated-files / same-as-current / not-a-
+> directory / unwritable) before ever touching anything, and the old root
+> is retained until a move is confirmed successful, then only ever
+> removed by a separate, explicitly-confirmed cleanup action — never
+> automatically, and never as a side effect of the move itself.
 
 ## Active data-location assessment — direct answers
 

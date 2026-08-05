@@ -100,7 +100,10 @@ fn dir_has_entries(p: &Path) -> bool {
 /// Whether `root` already holds real, non-fixture project data — the same
 /// four locations `backup.rs`'s own inclusion scan walks
 /// (`data/formulations`, `data/master`, `data/sessions`, `formulas`).
-fn path_holds_real_data(root: &Path) -> bool {
+/// `pub(crate)`: also used by `data_location_manager.rs` to classify a
+/// candidate destination (empty / an existing compatible root / holding
+/// unrelated, non-FormuLab-shaped files).
+pub(crate) fn path_holds_real_data(root: &Path) -> bool {
     ["data/formulations", "data/master", "data/sessions", "formulas"]
         .iter()
         .any(|rel| dir_has_entries(&root.join(rel)))
@@ -222,10 +225,12 @@ pub struct DataRootStatus {
     pub conflicting_roots: Vec<ConflictingRoot>,
 }
 
-#[tauri::command(async)]
-pub async fn active_data_root_status(app: AppHandle) -> Result<DataRootStatus, String> {
-    let r = resolve_data_root(&app)?;
-    Ok(DataRootStatus {
+/// Shared conversion from the internal resolution type to its serializable
+/// wire shape — `pub(crate)` so `data_location_manager.rs`'s Restore
+/// Default / post-move status reporting reuses it instead of re-deriving
+/// the same field mapping a second time.
+pub(crate) fn to_status(r: DataRootResolution) -> DataRootStatus {
+    DataRootStatus {
         path: r.path.to_string_lossy().to_string(),
         source: r.source.as_str().to_string(),
         writable: r.writable,
@@ -238,7 +243,12 @@ pub async fn active_data_root_status(app: AppHandle) -> Result<DataRootStatus, S
                 path: path.to_string_lossy().to_string(),
             })
             .collect(),
-    })
+    }
+}
+
+#[tauri::command(async)]
+pub async fn active_data_root_status(app: AppHandle) -> Result<DataRootStatus, String> {
+    Ok(to_status(resolve_data_root(&app)?))
 }
 
 /// Reveal the resolved active data root in the OS file manager/opener —

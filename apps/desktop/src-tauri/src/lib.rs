@@ -4,6 +4,7 @@ mod artifact_file;
 mod attachments;
 mod automatic_backup;
 mod backup;
+mod data_location_manager;
 mod data_root;
 mod debug_log;
 mod diagnostics;
@@ -170,6 +171,14 @@ pub fn run() {
             migration::create_pre_migration_backup,
             data_root::active_data_root_status,
             data_root::open_active_data_root,
+            data_location_manager::validate_data_move_destination,
+            data_location_manager::move_data_location,
+            data_location_manager::cancel_data_move,
+            data_location_manager::use_existing_data_location,
+            data_location_manager::restore_default_data_location,
+            data_location_manager::check_interrupted_data_move,
+            data_location_manager::resume_interrupted_data_move,
+            data_location_manager::cleanup_old_data_location,
             diagnostics::diagnostics_summary,
             diagnostics::export_support_bundle,
             diagnostics::pick_support_bundle_destination,

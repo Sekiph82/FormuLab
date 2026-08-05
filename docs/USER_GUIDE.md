@@ -905,8 +905,8 @@ Open **Settings** (bottom of the sidebar) for six sections:
 Inserted section — does not renumber §29/§30 below.
 
 **Settings → General → Active Data Location** — shows exactly where your
-formulations, master data, sessions and formulas live right now, and how
-that was decided.
+formulations, master data, sessions and formulas live right now, how that
+was decided, and lets you safely relocate that folder.
 
 - **Resolved from** tells you which setting produced the path: your
   workspace folder (the normal case), an active-workspace override, a
@@ -919,8 +919,33 @@ that was decided.
   when this happens; you decide what to do.
 - **Open Folder** reveals the resolved location in Explorer/Finder.
   **Refresh** re-checks it.
-- Relocating or merging data roots isn't available yet — planned for a
-  future Data Location Manager.
+- **Change Location** picks a folder and checks whether it's a safe move
+  target: an **empty** folder can be moved into; a folder that already
+  holds **another FormuLab project's data** cannot (use "Use Existing
+  Location" for that instead — see below); a folder with unrelated files
+  in it is refused outright, never merged. Free space and write access
+  are checked before anything happens.
+- **Move Data** (shown once a valid empty destination is chosen, and only
+  after you confirm) makes a verified safety backup of your current data
+  first, then copies every file to the new location and checks its size
+  and SHA256 hash before activating anything. Your previous location is
+  never touched or deleted — it stays exactly as it was until you
+  separately confirm cleanup (below). Live progress is shown, and the
+  move can be cancelled.
+- **Use Existing Location** points FormuLab at a folder that already
+  contains a real FormuLab project — nothing is copied. A safety backup
+  of your *current* data is still made first, in case you picked the
+  wrong folder.
+- **Restore Default** clears your chosen workspace folder and falls back
+  to the built-in default. This only changes where FormuLab looks — no
+  files are moved or deleted.
+- After a successful move, an optional **Clean Up Old Location** action
+  appears — it permanently deletes everything at the previous location,
+  and requires its own separate confirmation. It is never automatic.
+- If FormuLab was closed or crashed during a move, an interrupted-move
+  banner appears the next time you open this card, with a **Resume**
+  action that safely finishes the move if it's safe to do so, or rolls
+  back to your previous location — you are told which happened.
 
 **Settings → General → Diagnostics** — a snapshot for troubleshooting,
 and a way to share one safely.

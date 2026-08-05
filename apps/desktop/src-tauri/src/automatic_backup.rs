@@ -87,20 +87,23 @@ pub struct AutomaticBackupState {
     pub last_failure: Option<AutomaticBackupRunRecord>,
 }
 
-fn state_path(app: &AppHandle) -> Result<PathBuf, String> {
+/// `pub(crate)`: also read/written directly by `data_location_manager.rs`
+/// (`remap_destination_after_move`, below) — one persisted-state file, two
+/// callers, no second copy of the read/write logic.
+pub(crate) fn state_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("automatic_backup_state.json"))
 }
 
-fn read_state_at(path: &Path) -> AutomaticBackupState {
+pub(crate) fn read_state_at(path: &Path) -> AutomaticBackupState {
     std::fs::read_to_string(path)
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_default()
 }
 
-fn write_state_at(path: &Path, state: &AutomaticBackupState) -> Result<(), String> {
+pub(crate) fn write_state_at(path: &Path, state: &AutomaticBackupState) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -377,6 +380,64 @@ pub async fn apply_pre_migration_retention(app: AppHandle, keep: u32) -> Result<
     Ok(apply_retention(&dir, class_file_prefix("preMigration"), keep))
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DestinationRemapResult {
+    pub adjusted: bool,
+    pub note: String,
+}
+
+/// Pure remap decision: `None` when `folder` is not inside `old_root`
+/// (nothing to remap — left unchanged), `Some(new_path)` otherwise, with
+/// the exact same relative path preserved under `new_root`. Canonicalizes
+/// both sides first so a symlink or `..`-bearing path still compares
+/// correctly; falls back to the raw path when canonicalization fails
+/// (e.g. the folder no longer exists), matching this codebase's existing
+/// `canonicalize().unwrap_or_else(|_| ...)` convention.
+pub(crate) fn remap_path(folder: &str, old_root: &Path, new_root: &Path) -> Option<PathBuf> {
+    let folder_path = PathBuf::from(folder);
+    let old_canon = old_root.canonicalize().unwrap_or_else(|_| old_root.to_path_buf());
+    let folder_canon = folder_path.canonicalize().unwrap_or(folder_path);
+    let rel = folder_canon.strip_prefix(&old_canon).ok()?;
+    Some(new_root.join(rel))
+}
+
+/// Phase 11 Session 8 — called by the Data Location Manager after a
+/// completed move or "use existing location" switch. If the configured
+/// daily/weekly destination folder was inside the OLD data root, remaps
+/// it to the equivalent path under the new root (the old path may not
+/// exist once the old root is cleaned up). Otherwise leaves it completely
+/// untouched — a destination outside the data root (an external drive,
+/// say) has nothing to do with where the data itself lives, and this
+/// function must never invent a reason to touch it.
+pub(crate) fn remap_destination_after_move(
+    app: &AppHandle,
+    old_root: &Path,
+    new_root: &Path,
+) -> Result<DestinationRemapResult, String> {
+    let path = state_path(app)?;
+    let mut state = read_state_at(&path);
+    let Some(folder) = state.config.destination_folder.clone() else {
+        return Ok(DestinationRemapResult {
+            adjusted: false,
+            note: "no automatic backup destination folder was configured".to_string(),
+        });
+    };
+    let Some(new_dest) = remap_path(&folder, old_root, new_root) else {
+        return Ok(DestinationRemapResult {
+            adjusted: false,
+            note: "automatic backup destination is outside the moved data location — left unchanged".to_string(),
+        });
+    };
+    let _ = std::fs::create_dir_all(&new_dest);
+    state.config.destination_folder = Some(new_dest.to_string_lossy().to_string());
+    write_state_at(&path, &state)?;
+    Ok(DestinationRemapResult {
+        adjusted: true,
+        note: format!("automatic backup destination moved to {}", new_dest.to_string_lossy()),
+    })
+}
+
 /// Reveals the configured automatic-backup destination folder in the OS
 /// file manager. Unlike `artifact_file::open_path`/`reveal_path`, this
 /// path is deliberately NOT scoped under a resolved data root — it is
@@ -547,6 +608,30 @@ mod tests {
         assert_eq!(class_file_prefix("daily"), "formulab-auto-daily-");
         assert_eq!(class_file_prefix("weekly"), "formulab-auto-weekly-");
         assert_eq!(class_file_prefix("preMigration"), "pre-migration-");
+    }
+
+    #[test]
+    fn remap_path_preserves_the_relative_path_under_the_new_root() {
+        let dir = tmp_dir("remap-inside");
+        let old_root = dir.join("old");
+        let sub = old_root.join("auto-backups");
+        std::fs::create_dir_all(&sub).unwrap();
+        let new_root = dir.join("new");
+        let remapped = remap_path(&sub.to_string_lossy(), &old_root, &new_root).unwrap();
+        assert_eq!(remapped, new_root.join("auto-backups"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn remap_path_is_none_when_the_folder_is_outside_the_old_root() {
+        let dir = tmp_dir("remap-outside");
+        let old_root = dir.join("old");
+        let elsewhere = dir.join("elsewhere");
+        std::fs::create_dir_all(&old_root).unwrap();
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        let new_root = dir.join("new");
+        assert!(remap_path(&elsewhere.to_string_lossy(), &old_root, &new_root).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

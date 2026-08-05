@@ -383,7 +383,7 @@
       "Einen Abschnitt aus der Liste links wählen."
     ],
     "sections": [
-      "Allgemein — Arbeitsordner, Aktiver Datenspeicherort, Sicherung und Wiederherstellung, Automatische Sicherungen, Schema-Migration, Diagnose, App-Updates",
+      "Allgemein — Arbeitsordner, Aktiver Datenspeicherort (jetzt ein Datenspeicherort-Manager), Sicherung und Wiederherstellung, Automatische Sicherungen, Schema-Migration, Diagnose, App-Updates",
       "Erscheinungsbild",
       "Modelle",
       "Python (Laufzeit)",
@@ -396,7 +396,8 @@
       "Das Ausführen einer Schema-Migration erstellt zuerst eine geprüfte Sicherheitskopie und stellt sie automatisch wieder her, falls etwas fehlschlägt — nichts wird automatisch migriert, ohne dass Sie auf „Migration ausführen“ klicken.",
       "Der aktive Datenspeicherort zeigt nur an, wo Ihre Daten liegen, und öffnet den Ordner — er verschiebt, führt zusammen oder verlagert nie etwas. Wird ein zweiter Ordner mit echten Daten gefunden, wird gewarnt, statt automatisch zu entscheiden.",
       "Der Export eines Support-Pakets entfernt Ihren Windows-Benutzernamen und lange token-/schlüsselartige Zeichenfolgen aus jedem Pfad und jeder Protokollzeile und enthält nie den Inhalt einer Sicherung, Ihre Formel-/Projektdaten oder etwas aus dem Browserspeicher. FormuLab verfügt nicht über Absturzberichte — aktuelle Fehler sind nur eine bestmögliche Protokollsuche.",
-      "Automatische Sicherungen laufen nur, solange FormuLab geöffnet ist — es gibt keinen Hintergrunddienst. An einem Tag oder in einer Woche, an dem/der die App nie geöffnet wird, entfällt die automatische Sicherung schlicht; jede Sicherung wird trotzdem geprüft, bevor sie als erfolgreich zählt, und alte Sicherungen werden je Klasse (täglich/wöchentlich/vor Migration) bereinigt, wobei die letzte gültige einer Klasse nie gelöscht wird."
+      "Automatische Sicherungen laufen nur, solange FormuLab geöffnet ist — es gibt keinen Hintergrunddienst. An einem Tag oder in einer Woche, an dem/der die App nie geöffnet wird, entfällt die automatische Sicherung schlicht; jede Sicherung wird trotzdem geprüft, bevor sie als erfolgreich zählt, und alte Sicherungen werden je Klasse (täglich/wöchentlich/vor Migration) bereinigt, wobei die letzte gültige einer Klasse nie gelöscht wird.",
+      "Das Verschieben Ihres Datenspeicherorts erstellt zuerst eine geprüfte Sicherheitskopie und kopiert und prüft dann jede Datei (Hash) am neuen Ort, bevor irgendetwas umgeschaltet wird — Ihr bisheriger Speicherort wird nie automatisch berührt oder gelöscht. Enthält das Ziel bereits andere, nicht zugehörige Dateien (kein FormuLab-Datenordner), wird das Verschieben abgelehnt statt zusammengeführt; enthält es bereits ein echtes FormuLab-Projekt, können Sie stattdessen direkt darauf umschalten, ohne etwas zu kopieren."
     ]
   },
   "glossary": {

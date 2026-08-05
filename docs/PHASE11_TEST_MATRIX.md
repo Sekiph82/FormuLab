@@ -414,6 +414,102 @@ specific passing tests — see
   unconfigured destination folder, and populated vs. empty run-history
   fields all covered in `AutomaticBackupCard.test.tsx`.
 
+## Session 8 — Data Location Manager (Stage 2, complete — actual results)
+
+- Rust: 14 new tests in `data_location_manager.rs` (`walk_movable_files`
+  excludes `.FormuLab/runs.db` and stray `.formulab-move-staging-*`
+  directories, and returns empty for a missing root not an error;
+  `validate_destination_at` covers empty/existing-compatible-root/
+  conflicting/unwritable/same-as-current, plus insufficient free space
+  blocking a move but NOT blocking "use existing" since that path copies
+  nothing; `activate_staged` both places every file cleanly and rolls
+  back + removes the staging directory on a mid-activation failure;
+  `find_interrupted_move` detects an unresolved run and correctly ignores
+  an earlier completed one while flagging a later started one;
+  `restore_pointer` writes back previous pointer content or removes a
+  newly-written file when none existed before; `resume_decision` covers
+  every reached-journal-step combination) + 2 new tests in
+  `automatic_backup.rs` (`remap_path` preserves the relative path when
+  the configured destination was inside the old root, returns `None`
+  when it was outside). Full Rust suite re-run: **164/164 passing** (148
+  prior + 16 new). `cargo clippy --lib`: clean.
+- TypeScript: 20 new tests in `ActiveDataLocationCard.test.tsx`, replacing
+  the prior Session 4 file in place (read-only status behavior preserved
+  and re-tested: desktop-only fallback, real path/source display,
+  open-folder never calling a write/move command; a valid empty
+  destination reaching a Move Data confirmation; an existing-compatible
+  root reaching a Use Existing Location confirmation; a conflicting
+  destination blocking both actions with its real reason shown; 
+  insufficient space blocking Move Data specifically; an unwritable
+  destination blocking both; a cancelled folder picker never calling
+  validate; a full successful move showing files/size/safety-backup
+  summary; post-move cleanup gated behind its own separate confirmation
+  panel, never called without it; the automatic-backup adjustment note
+  rendered when applicable; a safety-backup failure surfacing its exact
+  message with the original location still shown as active; a staged
+  hash-mismatch failure never rendering a success state; an activation
+  failure explicitly confirming the source data untouched in its message;
+  a cancelled move (`message === "cancelled"`) returning to idle with no
+  failure panel; a full "use existing location" switch with no
+  files-moved row shown; Restore Default requiring its confirmation panel
+  before the command is ever called; the interrupted-move banner
+  appearing on mount, resuming, and clearing; no banner when nothing is
+  interrupted) — **20/20 passing**.
+- i18n parity: **23/23 passing** (8-locale `settings.dataLocation.*`
+  extended with ~45 new keys, all real translations, no placeholders).
+- Help registry: full suite passing (`settings` topic's `sections.0`
+  extended in place again, one new `warnings.6` entry added across all 8
+  locales — still no new topic).
+- Desktop typecheck: clean. Desktop lint: clean (one real
+  `react-hooks/rules-of-hooks` false positive found and fixed — a
+  `use`-prefixed Tauri wrapper function name triggered the hook-naming
+  heuristic despite being a plain async function never called
+  conditionally; renamed rather than suppressed).
+- Full desktop suite: **not run** — only Settings-scoped files changed
+  (`ActiveDataLocationCard.tsx`, `tauri.ts`,
+  `automatic_backup.rs`/`workspace.rs`/`data_root.rs` visibility-only
+  changes); no global/shared shell file changed this session. Every
+  `components/settings/*` card test + `SettingsPage.i18n.test.tsx` +
+  `migrationRunner.test.ts` + `automaticBackup.test.ts` re-run together:
+  **141/141 passing** across 12 files.
+
+**Focused tests** (per this session's own required list):
+- Valid empty destination / existing compatible root / conflicting root /
+  insufficient space / unwritable destination: all six `DestinationKind`
+  outcomes reachable via a dedicated fixture, asserted by name in Rust
+  (`validate_destination_at`) and by UI behavior in TypeScript (which
+  action buttons appear, which are blocked, and why).
+- Safety backup failure / hash mismatch: not independently reproducible
+  in a Rust unit test without an `AppHandle` (the same constraint Stage 1
+  Closure documented for `verify_backup_report`'s callers) — covered at
+  the TypeScript boundary instead, asserting the exact Rust error text
+  surfaces unchanged and no success state is ever rendered.
+- Interrupted move: journal step-detection tested directly in Rust
+  (`find_interrupted_move`, `resume_decision`); the recovery banner and
+  its resume action tested in TypeScript against a mocked
+  `checkInterruptedDataMove`/`resumeInterruptedDataMove` boundary.
+- Activation failure rollback / pointer rollback / old root preserved:
+  `activate_staged`'s rollback test asserts byte-for-byte that a
+  partially-activated file is removed and the staging directory is gone;
+  `restore_pointer`'s test asserts the exact previous-content-or-removed
+  behavior a pointer rollback depends on; every move/switch code path
+  writes the pointer only as its second-to-last step, after every file is
+  already confirmed at its final destination path, so the source root is
+  structurally never touched before that point — the TypeScript failure
+  tests confirm the ORIGINAL location is still what the status panel
+  displays after a failure.
+- `.FormuLab/runs.db` excluded: `walk_movable_files_excludes_runs_db_and_stray_staging_dirs`
+  directly asserts it is never included in what a move walks — the same
+  never-touch rule Session 1's backup engine already enforces, now
+  enforced a second, independent time for the move engine specifically.
+- Automatic-backup destination adjustment: `remap_path`'s two tests cover
+  both the inside-old-root (remapped) and outside-old-root (left alone)
+  cases directly; the move-result UI test confirms the adjustment note
+  renders when applicable.
+- Settings states: every `DestinationKind`, every confirmation panel, the
+  interrupted-move banner, and the post-move cleanup gate all covered in
+  `ActiveDataLocationCard.test.tsx`.
+
 ## What no session in this first stage runs
 
 Per this session's own scope: none of Sessions 1-5 run the full desktop

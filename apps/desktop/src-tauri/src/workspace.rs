@@ -17,7 +17,11 @@ fn runtime_root(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// File recording the user's chosen BASE folder (Settings → Workspace).
-fn base_workspace_file(app: &AppHandle) -> Result<PathBuf, String> {
+/// `pub(crate)`: the Data Location Manager (`data_location_manager.rs`)
+/// also writes this file directly (a safe move/use-existing/restore-
+/// default operation), reusing the exact pointer `set_workspace_base`
+/// itself writes — one writer's worth of logic, two callers.
+pub(crate) fn base_workspace_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(runtime_root(app)?.join("base-workspace.txt"))
 }
 

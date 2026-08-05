@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: STAGE 2 IN PROGRESS. Stage 1 (Sessions 0-5, assessment through diagnostics, plus its Closure and Verification session) complete. Stage 2 Session 7 (automatic backups) complete.
+## Status: STAGE 2 IN PROGRESS. Stage 1 (Sessions 0-5, assessment through diagnostics, plus its Closure and Verification session) complete. Stage 2 Session 7 (automatic backups) and Session 8 (Data Location Manager) complete.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -837,6 +837,163 @@ untouched throughout (Rust tests use synthetic temp directories only).
   1-99 client-side; the Rust-side floor of 1 is the actual safety
   guarantee, the UI range is just a sane input bound.
 
+## Phase 11 Session 8: Data Location Manager (complete)
+
+**Scope**: Stage 2's second item — turning Session 4's read-only Active
+Data Location card into a safe way to actually relocate the active data
+root: validate a destination, move data into it (stage -> hash-verify ->
+activate -> only then flip the pointer), point at an already-existing
+FormuLab root without copying anything, or restore the built-in default.
+`.FormuLab/runs.db` and real user data untouched throughout — every Rust
+test uses synthetic temp directories only; no real destination folder was
+ever chosen or moved into during this session's own testing.
+
+- **The first real writer for `base-workspace.txt` beyond `set_workspace_base`**:
+  `data_location_manager.rs` writes the exact same pointer file
+  `workspace::set_workspace_base` already writes (now `pub(crate)`,
+  reused directly — one writer's worth of logic, two callers), never
+  `formulab-root.txt` or `active-workspace.txt`. Session 0's finding that
+  `formulab-root.txt` has "no writer anywhere in the codebase" remains
+  literally true after this session — it is still reachable only by
+  manual file edit, and if present it still wins over anything this
+  manager does, surfaced as a resolution warning rather than silently
+  overridden.
+- **New Rust module**: `apps/desktop/src-tauri/src/data_location_manager.rs`.
+  Reuses, never duplicates: `backup::try_create_backup`/
+  `verify_backup_report` (Sessions 1-2, unchanged) for the mandatory
+  pre-move safety backup, `data_root::resolve_data_root` to confirm a
+  pointer change actually took effect, `automatic_backup::remap_destination_after_move`
+  (new, Session 7's module) for the automatic-backup destination
+  adjustment, and `BackupState` for the same concurrency slot manual
+  backup/restore and automatic backups already hold.
+- **Move ≠ Backup, deliberately**: a move's own file walk
+  (`walk_movable_files`) is independent of `backup.rs`'s curated
+  `collect_included` — the backup format deliberately excludes
+  `data/literature`, `data/master/backups/`, etc. for package-size
+  reasons, but a move must relocate the WHOLE root (minus only
+  `.FormuLab/runs.db`) or real files would be silently left behind.
+  Documented explicitly in the module's own doc comment so a future
+  session doesn't "simplify" this into reusing `collect_included` and
+  quietly drop real data.
+- **Ten-step safe move, exactly as specified**: validate source+destination
+  -> reject conflicting/unrelated destinations -> verified safety backup
+  -> stage every file into a private `.formulab-move-staging-<epoch>/`
+  directory under the destination, hashing as read -> re-hash every
+  staged copy against the recorded size+SHA256 -> activate (rename each
+  staged file into its final path, rolling back and removing the staging
+  dir on any failure) -> write the `base-workspace.txt` pointer only
+  after every file is confirmed at its final path -> re-resolve and
+  confirm the app now actually resolves to the destination (a
+  higher-precedence override could otherwise make the pointer write
+  silently no-op) -> the old root is never touched or deleted by this
+  flow at all -> failure at any step restores the pointer to its exact
+  previous content (or removes it) and reports why, with the previous
+  location still fully active and untouched.
+- **"Use Existing Location" is a distinct, lighter path**: no file copy
+  (the destination already holds its own data) — a safety backup of the
+  CURRENT root, then the same pointer-write-and-confirm activation a move
+  uses. Validation classifies a destination into exactly one of six kinds
+  (`empty`/`existingCompatibleRoot`/`conflicting`/`sameAsCurrent`/
+  `notADirectory`/`unwritable`) — `Move Data` is offered only for
+  `empty`, `Use Existing Location` only for `existingCompatibleRoot`;
+  `conflicting` (real, non-FormuLab-shaped files present) blocks both,
+  satisfying "never blindly merge two roots" by construction, not by a
+  guard someone could forget to check.
+- **Old root cleanup — separate, explicit, never automatic**: a new
+  `cleanup_old_data_location` command exists, but is reachable only from
+  a dedicated confirmation panel shown after a successful move/switch,
+  and refuses outright if the target is (or canonicalizes to) the
+  currently active root — a confused caller can never delete data that's
+  actually in use.
+- **Interrupted-move journal**: app-private
+  `runtime/data_move_journal.jsonl` (`AppHandle::app_data_dir()`,
+  deliberately NOT inside the data root itself — the root is exactly
+  what a move changes, so journaling inside it would make the journal
+  unreadable, or wrongly scoped, the moment resolution flips elsewhere).
+  A pure `resume_decision(steps: &HashSet<&str>) -> ResumeAction` function
+  decides the recovery action purely from which journal steps an
+  interrupted run reached (`AlreadyComplete` /
+  `CompleteFromPointerUpdated` / `CompleteFromActivated` /
+  `RollbackNothingActivated`) — directly unit-tested without an
+  `AppHandle`, isolating the one part of resume that's pure decision-
+  making from the filesystem/pointer side effects around it. The pointer
+  file's previous content is journaled alongside `pointer_updated`
+  (`prev:<content-or-NONE>`) specifically so a resume can roll it back
+  even after a crash wiped the writing process's own in-memory copy.
+- **Automatic-backup integration**: `automatic_backup::remap_path` (pure)
+  + `remap_destination_after_move` — if the configured daily/weekly
+  destination folder was inside the OLD data root, remaps it to the same
+  relative path under the new root; otherwise leaves it completely
+  untouched (an external-drive destination has nothing to do with where
+  the data itself lives) and reports which happened, with why, in the
+  move result.
+- **UI**: `ActiveDataLocationCard` rewritten in place (same file, same
+  read-only status section preserved) with Change Location, Use Existing
+  Location, Restore Default, live move progress + cancel, a validation
+  result panel (kind badge, space summary, warnings/blockers), an
+  explicit confirmation panel before any activating action (move, switch,
+  restore default, or cleanup — never a single click for any of them), a
+  successful-move summary (destination, files/size, safety backup path,
+  automatic-backup adjustment note), an interrupted-move recovery banner
+  checked on mount, and optional post-move old-location cleanup.
+- **i18n**: full genuine translation across all 8 shipped locales
+  (`settings.dataLocation.*` extended with ~45 new keys;
+  `help.settings.sections.0` extended in place, `help.settings.warnings.6`
+  added) — no placeholders.
+- **Tests**: 14 new Rust tests in `data_location_manager.rs`
+  (`walk_movable_files` excludes `runs.db` and stray staging dirs and
+  handles a missing root; `validate_destination_at` covers all six kinds
+  including insufficient-space-blocks-a-move-but-not-use-existing and
+  same-as-current; `activate_staged` both succeeds cleanly and rolls back
+  + removes staging on a mid-activation failure; `find_interrupted_move`
+  detects an unresolved run and ignores a completed earlier one;
+  `restore_pointer` writes back previous content or removes a new file;
+  `resume_decision` covers every reached-step combination) + 2 new tests
+  in `automatic_backup.rs` (`remap_path` preserves the relative path
+  inside the old root, is `None` outside it) — full Rust suite
+  **164/164 passing** (148 prior + 16 new), `cargo clippy --lib` clean.
+  20 new `ActiveDataLocationCard.test.tsx` tests (read-only status
+  preserved incl. open-folder-never-writes; all five blocking validation
+  kinds incl. a cancelled picker doing nothing; a full successful move
+  with summary; old-location cleanup gated by its own confirmation; the
+  automatic-backup adjustment note shown when applicable; a safety-backup
+  failure surfacing its exact message with the original root still shown
+  active; a staged hash-mismatch failure never claiming success; an
+  activation failure reporting the source data confirmed untouched; a
+  cancelled move returning to idle quietly; a full "use existing
+  location" switch; Restore Default requiring confirmation before
+  calling through; the interrupted-move banner appearing/resuming/
+  clearing, and not appearing when nothing is interrupted). i18n parity
+  **23/23**. Help registry suite passing. Desktop typecheck clean.
+  Desktop lint clean (one real `react-hooks/rules-of-hooks` false
+  positive fixed by renaming the `use`-prefixed Tauri wrapper
+  `useExistingDataLocation` to `activateExistingDataLocation` — the lint
+  rule treats any `use*`-named function called from a callback as a
+  hook regardless of what it actually does).
+- **Full desktop suite**: not run this session — only Settings-scoped
+  files changed (`ActiveDataLocationCard.tsx`, `tauri.ts`,
+  `automatic_backup.rs`'s new exports); no global/shared shell file like
+  `AppShell.tsx` was touched, unlike Session 7. Targeted run instead:
+  every `components/settings/*` card test + `SettingsPage.i18n.test.tsx`
+  + `migrationRunner.test.ts` + `automaticBackup.test.ts` together —
+  **141/141 passing** across 12 files (includes this session's new 20
+  `ActiveDataLocationCard.test.tsx` tests, Session 7's suites re-run
+  clean alongside them). i18n parity + help registry run separately —
+  **61/61 passing** (23 + 38).
+- **Known limitations** (disclosed, not silently assumed away): no
+  progress bar granularity finer than per-file during staging/
+  verification (matches manual backup's own existing progress model).
+  `formulab-root.txt`/`active-workspace.txt` remain entirely outside this
+  manager's writes — a poweruser's manually-placed override still wins
+  silently over any choice made here, exactly as Session 0 found and
+  Session 4 already surfaced as a warning; this session does not add a
+  UI to edit those two files, only to explain when one is active.
+  Interrupted-move resume has exactly one recovery path per state (finish
+  if safe, otherwise roll back) — there is no "inspect and choose" UI;
+  this mirrors Session 3's migration-recovery banner's own single-action
+  precedent. Cleanup deletes the entire old root in one operation — no
+  selective/partial cleanup.
+
 ## Exact next session
 
-Phase 11 Session 8: Data Location Manager.
+Phase 11 Session 9: Update Checker.

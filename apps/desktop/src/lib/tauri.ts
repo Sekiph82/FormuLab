@@ -353,6 +353,159 @@ export async function openActiveDataRoot(): Promise<void> {
   await invoke("open_active_data_root");
 }
 
+// ---- Data Location Manager (Phase 11 Session 8) ----------------------------
+
+export type DestinationKind =
+  | "empty"
+  | "existingCompatibleRoot"
+  | "conflicting"
+  | "sameAsCurrent"
+  | "notADirectory"
+  | "unwritable";
+
+export interface DestinationValidation {
+  path: string;
+  kind: DestinationKind;
+  writable: boolean;
+  requiredBytes: number;
+  availableBytes: number | null;
+  sufficientSpace: boolean;
+  canMove: boolean;
+  canUseExisting: boolean;
+  warnings: string[];
+  blockers: string[];
+}
+
+/** Checks whether `path` is safe to move data into or use as-is — never
+ *  copies, writes a pointer, or otherwise changes anything. Safe to call
+ *  repeatedly while a user is choosing a folder. */
+export async function validateDataMoveDestination(path: string): Promise<DestinationValidation> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DestinationValidation>("validate_data_move_destination", { path });
+}
+
+export interface AutomaticBackupDestinationAdjustment {
+  adjusted: boolean;
+  note: string;
+}
+
+export interface DataMoveResult {
+  runId: string;
+  sourceRoot: string;
+  destinationRoot: string;
+  filesMoved: number;
+  totalBytes: number;
+  safetyBackupPath: string;
+  automaticBackup: AutomaticBackupDestinationAdjustment;
+  warnings: string[];
+}
+
+/** Full safe move: validate -> safety backup -> stage -> verify (size +
+ *  SHA256) -> activate -> update the pointer -> confirm resolution. The
+ *  old location is never touched — throws (including on cancellation,
+ *  `message === "cancelled"`) with the previous location still active on
+ *  any failure. Subscribe to `watchDataMoveProgress` first for progress. */
+export async function moveDataLocation(destination: string): Promise<DataMoveResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataMoveResult>("move_data_location", { destination });
+}
+
+/** Request cancellation of a running move (best-effort, checked between steps). */
+export async function cancelDataMove(): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("cancel_data_move");
+}
+
+/** One progress tick from a running move or "use existing location" switch.
+ *  Same wire shape as `BackupProgress` (both come from the same Rust
+ *  `emit_progress` pattern) but a distinct phase set, since a move's own
+ *  phases (backing up, staging, activating, confirming) don't match
+ *  backup/restore's. */
+export interface DataMoveProgress {
+  phase: "backingUp" | "staging" | "verifying" | "activating" | "confirming" | "done" | "cancelled" | "error";
+  current: number;
+  total: number;
+  message: string;
+}
+
+/** Subscribe to move progress events; returns the unlisten function. */
+export async function watchDataMoveProgress(cb: (p: DataMoveProgress) => void): Promise<() => void> {
+  if (!isTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<DataMoveProgress>("data-move-progress", (e) => cb(e.payload));
+}
+
+/** Points the app at an already-existing FormuLab data root — no files are
+ *  copied. Makes a safety backup of the current root first, then switches
+ *  and confirms resolution, exactly like a move's own activation step.
+ *  Named without a `use` prefix on purpose — `react-hooks/rules-of-hooks`
+ *  treats any `use*`-named function called from a callback as a hook
+ *  violation, and this one is a plain async Tauri wrapper. */
+export async function activateExistingDataLocation(path: string): Promise<DataMoveResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataMoveResult>("use_existing_data_location", { path });
+}
+
+export interface RestoreDefaultResult {
+  status: DataRootStatus;
+  pointerRemoved: boolean;
+}
+
+/** Clears the base-workspace.txt pointer this manager (and the existing
+ *  "Change workspace folder" control) write — falls back to the built-in
+ *  default. Never touches formulab-root.txt/active-workspace.txt, which
+ *  this app has never written itself. */
+export async function restoreDefaultDataLocation(): Promise<RestoreDefaultResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<RestoreDefaultResult>("restore_default_data_location");
+}
+
+export interface DataMoveJournalEntry {
+  runId: string;
+  ts: number;
+  step: string;
+  sourceRoot: string;
+  destinationRoot: string;
+  message?: string;
+}
+
+/** Non-null when an earlier move/relocate quit or crashed partway through. */
+export async function checkInterruptedDataMove(): Promise<DataMoveJournalEntry | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataMoveJournalEntry | null>("check_interrupted_data_move");
+}
+
+export interface DataMoveRecoveryResult {
+  runId: string;
+  action: "completed" | "rolledBack";
+  detail: string;
+  destinationRoot: string;
+}
+
+/** Resumes an interrupted move: completes it if what was already verified
+ *  and activated is safe to finish, otherwise rolls back to the previous
+ *  location. Never leaves the app pointed at a half-written destination. */
+export async function resumeInterruptedDataMove(): Promise<DataMoveRecoveryResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataMoveRecoveryResult>("resume_interrupted_data_move");
+}
+
+/** Deletes the old location entirely — never called automatically, only
+ *  from an explicit, separately-confirmed cleanup action after a
+ *  successful move. Refuses if `oldRoot` is still the active root. */
+export async function cleanupOldDataLocation(oldRoot: string): Promise<void> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("cleanup_old_data_location", { oldRoot });
+}
+
 /** A project: a named workspace folder under the base dir, marked by its
  *  `.FormuLab/project.json`. Sessions group under it by `directory`. */
 export interface ProjectInfo {

@@ -383,7 +383,7 @@
       "Soldaki listeden bir bölüm seçin."
     ],
     "sections": [
-      "Genel — çalışma klasörü, Etkin Veri Konumu, Yedekleme ve Kurtarma, Otomatik Yedeklemeler, Şema Geçişi, Tanılama, uygulama güncellemeleri",
+      "Genel — çalışma klasörü, Etkin Veri Konumu (artık bir Veri Konumu Yöneticisi), Yedekleme ve Kurtarma, Otomatik Yedeklemeler, Şema Geçişi, Tanılama, uygulama güncellemeleri",
       "Görünüm",
       "Modeller",
       "Python (çalışma zamanı)",
@@ -396,7 +396,8 @@
       "Bir şema geçişi çalıştırmak önce doğrulanmış bir güvenlik yedeği oluşturur ve bir şeyler başarısız olursa otomatik olarak geri yükler — siz Geçişi Çalıştır'a tıklamadan hiçbir şey otomatik olarak geçirilmez.",
       "Etkin Veri Konumu yalnızca verilerinizin nerede olduğunu gösterir ve açar — hiçbir şeyi taşımaz, birleştirmez veya yeniden konumlandırmaz. Gerçek veri içeren ikinci bir klasör bulursa, sizin yerinize seçim yapmak yerine uyarır.",
       "Bir destek paketi dışa aktarmak, Windows kullanıcı adınızı ve her yol ile günlük satırından token/anahtar benzeri uzun metinleri kaldırır ve bir yedeğin içeriğini, formül/proje verilerinizi veya tarayıcı depolamasından hiçbir şeyi asla içermez. FormuLab'da çökme raporlama yoktur — son hatalar yalnızca en iyi çaba gösterilen bir günlük taramasıdır.",
-      "Otomatik yedeklemeler yalnızca FormuLab açıkken çalışır — arka planda çalışan bir hizmet yoktur. Uygulamanın hiç açılmadığı bir gün veya haftada, o gün veya hafta için otomatik yedekleme oluşturulmaz; yine de her yedek başarılı sayılmadan önce doğrulanır ve eski yedekler sınıfa göre (günlük/haftalık/geçiş öncesi) budanır, ancak bir sınıfın son geçerli yedeği asla silinmez."
+      "Otomatik yedeklemeler yalnızca FormuLab açıkken çalışır — arka planda çalışan bir hizmet yoktur. Uygulamanın hiç açılmadığı bir gün veya haftada, o gün veya hafta için otomatik yedekleme oluşturulmaz; yine de her yedek başarılı sayılmadan önce doğrulanır ve eski yedekler sınıfa göre (günlük/haftalık/geçiş öncesi) budanır, ancak bir sınıfın son geçerli yedeği asla silinmez.",
+      "Veri konumunuzu taşımak önce doğrulanmış bir güvenlik yedeği oluşturur, ardından herhangi bir şey değiştirilmeden önce her dosyayı yeni konuma kopyalar ve karma (hash) ile doğrular — önceki konumunuza otomatik olarak dokunulmaz veya o konum silinmez. Hedef zaten ilgisiz başka dosyalar içeriyorsa (bir FormuLab veri klasörü değilse), taşıma birleştirilmek yerine reddedilir; zaten gerçek bir FormuLab projesi içeriyorsa, hiçbir şey kopyalamadan doğrudan onu kullanmaya geçebilirsiniz."
     ]
   },
   "glossary": {
