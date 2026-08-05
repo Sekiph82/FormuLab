@@ -242,6 +242,46 @@
       "error": "Error"
     }
   },
+  "automaticBackup": {
+    "title": "Automatic Backups",
+    "hint": "Create and verify backups on a schedule, using the same backup package Backup and Recovery uses",
+    "unavailable": "available in the desktop app",
+    "enabledLabel": "Automatic backups",
+    "enabledHint": "Turn on daily/weekly scheduled backups and backup on exit",
+    "destinationLabel": "Destination folder",
+    "destinationHint": "Where daily and weekly backups are written — pre-migration backups always stay in FormuLab's own private storage",
+    "destinationUnset": "Not set — choose a folder",
+    "chooseFolder": "Choose Folder…",
+    "openFolder": "Open destination folder",
+    "dailyLabel": "Daily backup",
+    "dailyHint": "At most once every 24 hours while FormuLab is open",
+    "weeklyLabel": "Weekly backup",
+    "weeklyHint": "At most once every 7 days while FormuLab is open",
+    "onExitLabel": "Back up on exit",
+    "onExitHint": "Create a backup when you close FormuLab, if one hasn't already run today",
+    "preMigrationLabel": "Pre-migration backups kept",
+    "preMigrationHint": "FormuLab always backs up your data before a schema migration — this only limits how many of those are kept",
+    "retentionDailyLabel": "Daily backups to keep",
+    "retentionWeeklyLabel": "Weekly backups to keep",
+    "retentionPreMigrationLabel": "Pre-migration backups to keep",
+    "statusLabel": "Status",
+    "runNowButton": "Run Automatic Backup Now",
+    "nextEligible": "Next eligible run",
+    "lastSuccess": "Last successful backup",
+    "lastFailure": "Last failed backup",
+    "now": "Now",
+    "disabled": "Disabled",
+    "none": "None yet",
+    "class": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "preMigration": "Pre-migration"
+    },
+    "limitationNote": "Automatic backups only run while FormuLab is open — there is no background service. A day or week where the app never opens simply has no automatic backup for that day or week.",
+    "toast": {
+      "saveFailed": "Could not save automatic backup settings"
+    }
+  },
   "migration": {
     "title": "Schema Migration",
     "hint": "Keeps your data files up to date with this version of FormuLab, with a safety backup and rollback if anything goes wrong",

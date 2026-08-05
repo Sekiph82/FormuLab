@@ -27,6 +27,7 @@ import {
 import { useSetupStore } from "@/lib/setup";
 import { RemoteComputeCard } from "@/components/settings/RemoteComputeCard";
 import { BackupRecoveryCard } from "@/components/settings/BackupRecoveryCard";
+import { AutomaticBackupCard } from "@/components/settings/AutomaticBackupCard";
 import { SchemaMigrationCard } from "@/components/settings/SchemaMigrationCard";
 import { ActiveDataLocationCard } from "@/components/settings/ActiveDataLocationCard";
 import { DiagnosticsCard } from "@/components/settings/DiagnosticsCard";
@@ -190,6 +191,9 @@ export function SettingsPage() {
 
         {/* ---- Backup and Recovery ---- */}
         {section === "general" && <BackupRecoveryCard />}
+
+        {/* ---- Automatic Backups ---- */}
+        {section === "general" && <AutomaticBackupCard />}
 
         {/* ---- Schema Migration ---- */}
         {section === "general" && <SchemaMigrationCard />}

@@ -242,6 +242,46 @@
       "error": "Fehler"
     }
   },
+  "automaticBackup": {
+    "title": "Automatische Sicherungen",
+    "hint": "Erstellt und prüft Sicherungen nach Zeitplan, mit demselben Sicherungspaket wie Sicherung und Wiederherstellung",
+    "unavailable": "in der Desktop-App verfügbar",
+    "enabledLabel": "Automatische Sicherungen",
+    "enabledHint": "Geplante tägliche/wöchentliche Sicherungen und Sicherung beim Beenden aktivieren",
+    "destinationLabel": "Zielordner",
+    "destinationHint": "Wohin tägliche und wöchentliche Sicherungen geschrieben werden — Sicherungen vor Migrationen bleiben immer im privaten Speicher von FormuLab",
+    "destinationUnset": "Nicht festgelegt — Ordner wählen",
+    "chooseFolder": "Ordner wählen…",
+    "openFolder": "Zielordner öffnen",
+    "dailyLabel": "Tägliche Sicherung",
+    "dailyHint": "Höchstens alle 24 Stunden, solange FormuLab geöffnet ist",
+    "weeklyLabel": "Wöchentliche Sicherung",
+    "weeklyHint": "Höchstens alle 7 Tage, solange FormuLab geöffnet ist",
+    "onExitLabel": "Beim Beenden sichern",
+    "onExitHint": "Erstellt beim Schließen von FormuLab eine Sicherung, falls heute noch keine ausgeführt wurde",
+    "preMigrationLabel": "Aufbewahrte Sicherungen vor Migrationen",
+    "preMigrationHint": "FormuLab sichert Ihre Daten vor jeder Schema-Migration immer automatisch — dies begrenzt nur, wie viele davon aufbewahrt werden",
+    "retentionDailyLabel": "Aufzubewahrende tägliche Sicherungen",
+    "retentionWeeklyLabel": "Aufzubewahrende wöchentliche Sicherungen",
+    "retentionPreMigrationLabel": "Aufzubewahrende Sicherungen vor Migrationen",
+    "statusLabel": "Status",
+    "runNowButton": "Automatische Sicherung jetzt ausführen",
+    "nextEligible": "Nächster möglicher Zeitpunkt",
+    "lastSuccess": "Letzte erfolgreiche Sicherung",
+    "lastFailure": "Letzte fehlgeschlagene Sicherung",
+    "now": "Jetzt",
+    "disabled": "Deaktiviert",
+    "none": "Noch keine",
+    "class": {
+      "daily": "Täglich",
+      "weekly": "Wöchentlich",
+      "preMigration": "Vor Migration"
+    },
+    "limitationNote": "Automatische Sicherungen laufen nur, solange FormuLab geöffnet ist — es gibt keinen Hintergrunddienst. An einem Tag oder in einer Woche, an dem/der die App nie geöffnet wird, entfällt die automatische Sicherung schlicht.",
+    "toast": {
+      "saveFailed": "Einstellungen für automatische Sicherungen konnten nicht gespeichert werden"
+    }
+  },
   "migration": {
     "title": "Schema-Migration",
     "hint": "Hält Ihre Datendateien mit dieser FormuLab-Version aktuell, mit Sicherheitskopie und Rückabwicklung bei Problemen",

@@ -2,6 +2,7 @@
 // bundled OpenCode sidecar (isolated config/data + dedicated port; killed on exit).
 mod artifact_file;
 mod attachments;
+mod automatic_backup;
 mod backup;
 mod data_root;
 mod debug_log;
@@ -156,6 +157,11 @@ pub fn run() {
             backup::restore_backup,
             backup::cancel_restore,
             backup::verify_backup,
+            automatic_backup::read_automatic_backup_state,
+            automatic_backup::write_automatic_backup_config,
+            automatic_backup::run_automatic_backup,
+            automatic_backup::apply_pre_migration_retention,
+            automatic_backup::open_automatic_backup_destination,
             migration::read_schema_meta,
             migration::write_schema_meta,
             migration::check_schema_compatibility,

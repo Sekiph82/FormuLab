@@ -383,7 +383,7 @@
       "Elija una sección de la lista a la izquierda."
     ],
     "sections": [
-      "General — carpeta de trabajo, Ubicación activa de los datos, Copia de seguridad y recuperación, Migración de esquema, Diagnóstico, actualizaciones de la app",
+      "General — carpeta de trabajo, Ubicación activa de los datos, Copia de seguridad y recuperación, Copias de seguridad automáticas, Migración de esquema, Diagnóstico, actualizaciones de la app",
       "Apariencia",
       "Modelos",
       "Python (entorno)",
@@ -395,7 +395,8 @@
       "Verificar una copia de seguridad nunca cambia nada — solo inspecciona el paquete e informa Válida, Válida con advertencias, Incompatible, Dañada o No segura.",
       "Ejecutar una migración de esquema crea primero una copia de seguridad verificada y la restaura automáticamente si algo falla — nada se migra automáticamente sin que usted haga clic en Ejecutar migración.",
       "Ubicación activa de los datos solo muestra y revela dónde están sus datos — nunca mueve, fusiona ni reubica nada. Si encuentra una segunda carpeta que también tiene datos reales, le avisa en lugar de decidir por usted.",
-      "Exportar un paquete de soporte elimina su nombre de usuario de Windows y cualquier texto largo tipo token/clave de cada ruta y línea de registro, y nunca incluye el contenido de una copia de seguridad, sus datos de fórmulas/proyectos, ni nada del almacenamiento del navegador. FormuLab no tiene informes de fallos — los errores recientes son solo un análisis de registro de mejor esfuerzo."
+      "Exportar un paquete de soporte elimina su nombre de usuario de Windows y cualquier texto largo tipo token/clave de cada ruta y línea de registro, y nunca incluye el contenido de una copia de seguridad, sus datos de fórmulas/proyectos, ni nada del almacenamiento del navegador. FormuLab no tiene informes de fallos — los errores recientes son solo un análisis de registro de mejor esfuerzo.",
+      "Las copias de seguridad automáticas solo se ejecutan mientras FormuLab está abierto — no hay ningún servicio en segundo plano. Un día o semana en que la app nunca se abra simplemente no tendrá copia de seguridad automática ese día o semana; cada copia se verifica igualmente antes de contar como correcta, y las copias antiguas se depuran por clase (diaria/semanal/previa a la migración), sin borrar nunca la última válida de una clase."
     ]
   },
   "glossary": {

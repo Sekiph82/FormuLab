@@ -383,7 +383,7 @@
       "Soldaki listeden bir bölüm seçin."
     ],
     "sections": [
-      "Genel — çalışma klasörü, Etkin Veri Konumu, Yedekleme ve Kurtarma, Şema Geçişi, Tanılama, uygulama güncellemeleri",
+      "Genel — çalışma klasörü, Etkin Veri Konumu, Yedekleme ve Kurtarma, Otomatik Yedeklemeler, Şema Geçişi, Tanılama, uygulama güncellemeleri",
       "Görünüm",
       "Modeller",
       "Python (çalışma zamanı)",
@@ -395,7 +395,8 @@
       "Bir yedeği doğrulamak hiçbir şeyi değiştirmez — yalnızca paketi inceler ve Geçerli, Geçerli (uyarılarla), Uyumsuz, Bozuk veya Güvensiz sonucunu bildirir.",
       "Bir şema geçişi çalıştırmak önce doğrulanmış bir güvenlik yedeği oluşturur ve bir şeyler başarısız olursa otomatik olarak geri yükler — siz Geçişi Çalıştır'a tıklamadan hiçbir şey otomatik olarak geçirilmez.",
       "Etkin Veri Konumu yalnızca verilerinizin nerede olduğunu gösterir ve açar — hiçbir şeyi taşımaz, birleştirmez veya yeniden konumlandırmaz. Gerçek veri içeren ikinci bir klasör bulursa, sizin yerinize seçim yapmak yerine uyarır.",
-      "Bir destek paketi dışa aktarmak, Windows kullanıcı adınızı ve her yol ile günlük satırından token/anahtar benzeri uzun metinleri kaldırır ve bir yedeğin içeriğini, formül/proje verilerinizi veya tarayıcı depolamasından hiçbir şeyi asla içermez. FormuLab'da çökme raporlama yoktur — son hatalar yalnızca en iyi çaba gösterilen bir günlük taramasıdır."
+      "Bir destek paketi dışa aktarmak, Windows kullanıcı adınızı ve her yol ile günlük satırından token/anahtar benzeri uzun metinleri kaldırır ve bir yedeğin içeriğini, formül/proje verilerinizi veya tarayıcı depolamasından hiçbir şeyi asla içermez. FormuLab'da çökme raporlama yoktur — son hatalar yalnızca en iyi çaba gösterilen bir günlük taramasıdır.",
+      "Otomatik yedeklemeler yalnızca FormuLab açıkken çalışır — arka planda çalışan bir hizmet yoktur. Uygulamanın hiç açılmadığı bir gün veya haftada, o gün veya hafta için otomatik yedekleme oluşturulmaz; yine de her yedek başarılı sayılmadan önce doğrulanır ve eski yedekler sınıfa göre (günlük/haftalık/geçiş öncesi) budanır, ancak bir sınıfın son geçerli yedeği asla silinmez."
     ]
   },
   "glossary": {

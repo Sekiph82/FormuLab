@@ -242,6 +242,46 @@
       "error": "오류"
     }
   },
+  "automaticBackup": {
+    "title": "자동 백업",
+    "hint": "백업 및 복구와 동일한 백업 패키지를 사용해 일정에 따라 백업을 생성하고 검증합니다",
+    "unavailable": "데스크톱 앱에서 사용 가능",
+    "enabledLabel": "자동 백업",
+    "enabledHint": "예약된 일일/주간 백업과 종료 시 백업을 활성화합니다",
+    "destinationLabel": "대상 폴더",
+    "destinationHint": "일일/주간 백업이 저장되는 위치입니다 — 마이그레이션 전 백업은 항상 FormuLab 자체 저장소에 유지됩니다",
+    "destinationUnset": "설정되지 않음 — 폴더를 선택하세요",
+    "chooseFolder": "폴더 선택…",
+    "openFolder": "대상 폴더 열기",
+    "dailyLabel": "일일 백업",
+    "dailyHint": "FormuLab이 실행 중일 때 최대 24시간마다 한 번",
+    "weeklyLabel": "주간 백업",
+    "weeklyHint": "FormuLab이 실행 중일 때 최대 7일마다 한 번",
+    "onExitLabel": "종료 시 백업",
+    "onExitHint": "오늘 아직 백업이 실행되지 않았다면 FormuLab을 닫을 때 백업을 생성합니다",
+    "preMigrationLabel": "보관할 마이그레이션 전 백업 수",
+    "preMigrationHint": "FormuLab은 스키마 마이그레이션 전에 항상 데이터를 백업합니다 — 이 설정은 보관 개수만 제한합니다",
+    "retentionDailyLabel": "보관할 일일 백업 수",
+    "retentionWeeklyLabel": "보관할 주간 백업 수",
+    "retentionPreMigrationLabel": "보관할 마이그레이션 전 백업 수",
+    "statusLabel": "상태",
+    "runNowButton": "지금 자동 백업 실행",
+    "nextEligible": "다음 실행 가능 시점",
+    "lastSuccess": "마지막 성공한 백업",
+    "lastFailure": "마지막 실패한 백업",
+    "now": "지금",
+    "disabled": "비활성화됨",
+    "none": "아직 없음",
+    "class": {
+      "daily": "일일",
+      "weekly": "주간",
+      "preMigration": "마이그레이션 전"
+    },
+    "limitationNote": "자동 백업은 FormuLab이 실행 중일 때만 동작합니다 — 백그라운드 서비스는 없습니다. 앱이 한 번도 열리지 않은 날이나 주에는 해당 기간의 자동 백업이 생성되지 않습니다.",
+    "toast": {
+      "saveFailed": "자동 백업 설정을 저장하지 못했습니다"
+    }
+  },
   "migration": {
     "title": "스키마 마이그레이션",
     "hint": "이 FormuLab 버전에 맞게 데이터 파일을 최신 상태로 유지하며, 문제가 발생하면 안전 백업과 롤백을 수행합니다",

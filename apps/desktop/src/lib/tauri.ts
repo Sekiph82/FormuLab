@@ -720,3 +720,98 @@ export async function verifyBackup(source: string): Promise<VerificationReport> 
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<VerificationReport>("verify_backup", { source });
 }
+
+// ---- Automatic backups (Phase 11 Session 7) --------------------------------
+
+/** "preMigration" reuses the app-private pre-migration backup mechanism
+ *  from Session 3 (`create_pre_migration_backup`) — only its retention is
+ *  new here. "daily"/"weekly" write into the user-configured destination
+ *  folder below. */
+export type AutomaticBackupClass = "daily" | "weekly" | "preMigration";
+
+export interface AutomaticBackupConfig {
+  enabled: boolean;
+  dailyEnabled: boolean;
+  weeklyEnabled: boolean;
+  backupOnExitEnabled: boolean;
+  destinationFolder: string | null;
+  retentionDaily: number;
+  retentionWeekly: number;
+  retentionPreMigration: number;
+}
+
+export interface AutomaticBackupRunRecord {
+  class: string;
+  startedAt: number;
+  finishedAt: number;
+  status: "success" | "failed";
+  path?: string;
+  error?: string;
+  verificationStatus?: VerificationStatus;
+}
+
+export interface AutomaticBackupState {
+  config: AutomaticBackupConfig;
+  lastDailyAt?: number;
+  lastWeeklyAt?: number;
+  lastSuccess?: AutomaticBackupRunRecord;
+  lastFailure?: AutomaticBackupRunRecord;
+}
+
+/** Reads persisted automatic-backup settings + run history (app-private
+ *  JSON, never the workspace). Returns the same shape a fresh install
+ *  would have (disabled, no history) when not running in the desktop app,
+ *  so callers never need an `isTauri` branch just to read state. */
+export async function readAutomaticBackupState(): Promise<AutomaticBackupState> {
+  if (!isTauri) {
+    return {
+      config: {
+        enabled: false,
+        dailyEnabled: true,
+        weeklyEnabled: true,
+        backupOnExitEnabled: false,
+        destinationFolder: null,
+        retentionDaily: 7,
+        retentionWeekly: 4,
+        retentionPreMigration: 2,
+      },
+    };
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<AutomaticBackupState>("read_automatic_backup_state");
+}
+
+export async function writeAutomaticBackupConfig(config: AutomaticBackupConfig): Promise<AutomaticBackupState> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<AutomaticBackupState>("write_automatic_backup_config", { config });
+}
+
+/** Runs one automatic backup of `cls`, verifying it before it counts as
+ *  successful and applying that class's retention afterward. Never throws
+ *  for an expected failure (missing destination, low disk space, a
+ *  concurrent backup already running, a failed verification) — those come
+ *  back as a normal `{ status: "failed", error }` record; this only
+ *  throws for a genuine desktop-boundary problem. */
+export async function runAutomaticBackup(cls: AutomaticBackupClass): Promise<AutomaticBackupRunRecord> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<AutomaticBackupRunRecord>("run_automatic_backup", { class: cls });
+}
+
+/** Prunes app-private pre-migration backups down to `keep` (never the last
+ *  one). Returns the paths deleted, for logging by the caller. */
+export async function applyPreMigrationRetention(keep: number): Promise<string[]> {
+  if (!isTauri) return [];
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string[]>("apply_pre_migration_retention", { keep });
+}
+
+/** Reveals the configured automatic-backup destination folder — an
+ *  absolute, user-picked path outside the workspace, so unlike
+ *  `revealPath` this takes no workspace-relative `root`. */
+export async function openAutomaticBackupDestination(path: string): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("open_automatic_backup_destination", { path });
+}

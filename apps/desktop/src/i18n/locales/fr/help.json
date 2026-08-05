@@ -383,7 +383,7 @@
       "Choisissez une section dans la liste à gauche."
     ],
     "sections": [
-      "Général — dossier de travail, Emplacement actif des données, Sauvegarde et restauration, Migration de schéma, Diagnostic, mises à jour de l'application",
+      "Général — dossier de travail, Emplacement actif des données, Sauvegarde et restauration, Sauvegardes automatiques, Migration de schéma, Diagnostic, mises à jour de l'application",
       "Apparence",
       "Modèles",
       "Python (environnement)",
@@ -395,7 +395,8 @@
       "Vérifier une sauvegarde ne modifie jamais rien — cela inspecte uniquement le paquet et indique Valide, Valide avec avertissements, Incompatible, Corrompue ou Non sûre.",
       "Exécuter une migration de schéma crée d'abord une sauvegarde de sécurité vérifiée et la restaure automatiquement en cas d'échec — rien n'est migré automatiquement sans que vous cliquiez sur Exécuter la migration.",
       "Emplacement actif des données se contente d'afficher et de révéler où se trouvent vos données — il ne déplace, ne fusionne ni ne relocalise jamais rien. S'il trouve un second dossier contenant aussi de vraies données, il vous avertit au lieu de choisir à votre place.",
-      "Exporter un paquet de support supprime votre nom d'utilisateur Windows et tout texte long de type jeton/clé de chaque chemin et ligne de journal, et n'inclut jamais le contenu d'une sauvegarde, vos données de formule/projet, ni rien du stockage du navigateur. FormuLab n'a pas de rapport de plantage — les erreurs récentes ne sont qu'une analyse de journal au mieux."
+      "Exporter un paquet de support supprime votre nom d'utilisateur Windows et tout texte long de type jeton/clé de chaque chemin et ligne de journal, et n'inclut jamais le contenu d'une sauvegarde, vos données de formule/projet, ni rien du stockage du navigateur. FormuLab n'a pas de rapport de plantage — les erreurs récentes ne sont qu'une analyse de journal au mieux.",
+      "Les sauvegardes automatiques ne s'exécutent que tant que FormuLab est ouvert — il n'existe aucun service en arrière-plan. Un jour ou une semaine où l'application n'est jamais ouverte n'aura tout simplement pas de sauvegarde automatique pour cette période ; chaque sauvegarde est tout de même vérifiée avant de compter comme réussie, et les anciennes sauvegardes sont supprimées par catégorie (quotidienne/hebdomadaire/avant migration), sans jamais supprimer la dernière valide d'une catégorie."
     ]
   },
   "glossary": {

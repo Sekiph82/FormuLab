@@ -242,6 +242,46 @@
       "error": "エラー"
     }
   },
+  "automaticBackup": {
+    "title": "自動バックアップ",
+    "hint": "バックアップと復元と同じバックアップパッケージを使い、スケジュールに沿ってバックアップを作成・検証します",
+    "unavailable": "デスクトップアプリで利用可能",
+    "enabledLabel": "自動バックアップ",
+    "enabledHint": "毎日/毎週のスケジュールバックアップと終了時バックアップを有効にします",
+    "destinationLabel": "保存先フォルダ",
+    "destinationHint": "毎日/毎週のバックアップの書き込み先です — 移行前バックアップは常にFormuLabの内部ストレージに保存されます",
+    "destinationUnset": "未設定 — フォルダを選択してください",
+    "chooseFolder": "フォルダを選択…",
+    "openFolder": "保存先フォルダを開く",
+    "dailyLabel": "毎日のバックアップ",
+    "dailyHint": "FormuLabが開いている間、24時間に最大1回",
+    "weeklyLabel": "毎週のバックアップ",
+    "weeklyHint": "FormuLabが開いている間、7日に最大1回",
+    "onExitLabel": "終了時にバックアップ",
+    "onExitHint": "その日まだ実行されていなければ、FormuLabを閉じるときにバックアップを作成します",
+    "preMigrationLabel": "保持する移行前バックアップ数",
+    "preMigrationHint": "FormuLabはスキーマ移行前に必ずデータをバックアップします — ここでは保持数のみを制限します",
+    "retentionDailyLabel": "保持する日次バックアップ数",
+    "retentionWeeklyLabel": "保持する週次バックアップ数",
+    "retentionPreMigrationLabel": "保持する移行前バックアップ数",
+    "statusLabel": "状態",
+    "runNowButton": "今すぐ自動バックアップを実行",
+    "nextEligible": "次に実行可能なタイミング",
+    "lastSuccess": "直近の成功したバックアップ",
+    "lastFailure": "直近の失敗したバックアップ",
+    "now": "今すぐ",
+    "disabled": "無効",
+    "none": "まだありません",
+    "class": {
+      "daily": "毎日",
+      "weekly": "毎週",
+      "preMigration": "移行前"
+    },
+    "limitationNote": "自動バックアップはFormuLabが開いている間のみ実行されます — バックグラウンドサービスはありません。アプリが一度も開かれなかった日や週は、その期間の自動バックアップは作成されません。",
+    "toast": {
+      "saveFailed": "自動バックアップの設定を保存できませんでした"
+    }
+  },
   "migration": {
     "title": "スキーマ移行",
     "hint": "このバージョンのFormuLabに合わせてデータファイルを最新に保ちます。問題が発生した場合は安全バックアップとロールバックを行います",

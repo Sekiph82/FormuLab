@@ -323,6 +323,97 @@ are included in the Rust count below).
 specific passing tests — see
 [`PHASE11_CURRENT.md`](handoffs/PHASE11_CURRENT.md#all-12-required-guarantees--confirmed-with-evidence).
 
+## Session 7 — Automatic Backups (Stage 2, complete — actual results)
+
+- Rust: 12 new tests in `automatic_backup.rs` (default-config matches
+  recommended defaults, state JSON round-trip incl. a fresh default,
+  destination-missing vs. destination-unset distinguished, epoch parsing
+  from a filename, per-class retention-count mapping, retention keeps the
+  newest N and deletes the oldest, retention never deletes the only valid
+  backup even at a configured `0`, retention is isolated per class in a
+  shared directory, retention removes orphaned `.tmp` packages from an
+  interrupted backup, retention on a missing directory is a no-op not an
+  error, naming-convention fixed-string regression, verification-status
+  string mapping covers every variant). Full Rust suite re-run (new
+  module + `lib.rs`/`Cargo.toml`-adjacent changes): **148/148 passing**
+  (136 prior + 12 new). `cargo clippy --lib`: clean (one
+  `clippy::result_large_err` warning closed by boxing the `Err` variant,
+  not suppressed).
+- TypeScript: 21 new tests in `automaticBackup.test.ts`
+  (`isDailyEligible`/`isWeeklyEligible`/`nextEligibleAt` pure-function
+  behavior, refresh/setConfig write-through, duplicate-trigger prevention
+  via a controlled-promise second concurrent `runNow`, success re-reads
+  state and never notifies, failure records + notifies incl. missing-
+  destination and low-disk-space error text passed through unchanged, a
+  failed-verification record carries its verification status, `running`
+  clears even when the Rust call throws, `maybeRunScheduled` respecting
+  both the master and per-class enabled flags and real eligibility,
+  `runOnExit` respecting both `enabled` and `backupOnExitEnabled`) —
+  **21/21 passing**. 12 new tests in `AutomaticBackupCard.test.tsx`
+  (not-desktop fallback, disabled-state hides schedule controls while
+  still showing pre-migration retention, enabled-state reveals them,
+  toggling the master switch writes config and reveals the rest, folder
+  picker incl. a cancelled picker never writing config, Run Now disabled
+  without a destination folder, Run Now triggers a daily-classed run,
+  last success/last failure shown with class labels and the failure
+  reason, a retention input writes the new count through, Open Folder
+  calls only the reveal command, the while-open-only limitation note
+  always renders) — **12/12 passing**. 3 new tests in
+  `migrationRunner.test.ts` (pre-migration retention is applied with the
+  configured count after a `completed` run, retention is never called
+  after a `failed` run, a retention failure never fails an otherwise-
+  completed migration) — migrationRunner suite **21/21 passing** (18
+  prior + 3 new).
+- i18n parity: **23/23 passing** (8-locale `settings.automaticBackup.*`,
+  all real translations, no placeholders).
+- Help registry: full suite passing (the `settings` topic's existing
+  `sections.0` extended in place again, one new `warnings.5` entry added
+  across all 8 locales — no new topic).
+- Desktop typecheck: clean. Desktop lint: clean.
+- **Full desktop suite run this session** (`AppShell.tsx` — a global/
+  shared file every route mounts — changed, meeting this project's own
+  "run broader suites when shared/global behavior changes" trigger):
+  **1130/1130 passing** once the one pre-existing flake is isolated —
+  `HelpPanel.test.tsx`'s documented jsdom/undici `AbortSignal` cross-realm
+  incompatibility (first recorded in the Stage 1 Closure session,
+  predates Phase 11 entirely) reproduced 3 failures only when run inside
+  the full suite; the same file passes 11/11 in isolation, confirming no
+  regression was introduced this session.
+
+**Focused tests** (per this session's own scope):
+- Enabled/disabled behavior: `maybeRunScheduled` and the UI's disabled-
+  state both gate on the master `enabled` flag independently of the
+  per-class flags.
+- Daily/weekly eligibility: pure functions tested directly against the
+  24-hour/7-day boundary (`now - lastAt >= interval`), not just through
+  the store.
+- Duplicate-trigger prevention: a synchronous second `runNow` call while
+  the first is still in flight rejects immediately (in-tab), backed by
+  the Rust-side `BackupState` slot for cross-surface (manual backup, a
+  second app instance) concurrency.
+- Successful verification / failed verification: both reachable through
+  the same Rust `run_automatic_backup_inner` code path Session 2's
+  `verify_backup_report` already covers exhaustively — not re-tested at
+  the status-enumeration level here, only that a failed one is deleted
+  and reported.
+- Missing destination / low disk space: distinct, stable error-message
+  text asserted to pass through unchanged from Rust to the failure record
+  the UI displays.
+- Retention by backup class / only-valid-backup protection / interrupted-
+  backup cleanup: all three directly unit-tested in Rust against real
+  temp-directory fixtures (`apply_retention_keeps_the_newest_n_and_deletes_the_oldest`,
+  `apply_retention_never_deletes_the_only_valid_backup_even_at_zero_keep`,
+  `apply_retention_removes_orphaned_tmp_packages_from_an_interrupted_backup`).
+- Backup-on-exit trigger: `runOnExit`'s gating tested directly; the
+  actual `onCloseRequested` window-hook wiring itself is not unit-tested
+  (no headless Tauri window in this test environment — the same
+  environment limitation Stage 1 Closure's native-verification section
+  already documented for UI-content checks) but is a thin, reviewed
+  wrapper with no independent logic of its own.
+- Settings states: enabled/disabled UI rendering, a configured vs.
+  unconfigured destination folder, and populated vs. empty run-history
+  fields all covered in `AutomaticBackupCard.test.tsx`.
+
 ## What no session in this first stage runs
 
 Per this session's own scope: none of Sessions 1-5 run the full desktop

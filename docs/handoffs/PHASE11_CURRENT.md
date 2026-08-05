@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: STAGE 1 CLOSED. Sessions 0-5 (assessment, backup/restore, verification, migration, active data location, diagnostics) implemented and verified; Stage 1 Closure and Verification session complete.
+## Status: STAGE 2 IN PROGRESS. Stage 1 (Sessions 0-5, assessment through diagnostics, plus its Closure and Verification session) complete. Stage 2 Session 7 (automatic backups) complete.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -709,7 +709,134 @@ and the two regenerated `docs/generated/FormuLab-User-Guide.{docx,pdf}`
 deliberately excluded, per this session's own instructions and this
 project's "stage only current-task files" convention.
 
+## Phase 11 Session 7: Automatic Backups (complete)
+
+**Scope**: Stage 2's first item — automatic (daily/weekly/on-exit)
+backups and retention, built entirely on Sessions 1-3's existing
+`.formulab-backup` engine. No second backup format, no second write
+path. `.FormuLab/runs.db`, `formulas/index.json`, and real user data
+untouched throughout (Rust tests use synthetic temp directories only).
+
+- **No background service, disclosed honestly**: FormuLab has none, and
+  this session was explicitly told not to invent one. Every automatic
+  backup — scheduled or on-exit — only ever runs while the app is the
+  foreground process: on launch, on a 30-minute while-open interval, or
+  when the window closes. A day or week the app never opens has no
+  automatic backup for that day or week; both the Settings card and the
+  Help topic (`settings.warnings.5`, all 8 locales) say this in plain
+  language, not buried in a changelog.
+- **New Rust module**: `apps/desktop/src-tauri/src/automatic_backup.rs`.
+  Reuses `backup::try_create_backup`/`backup::verify_backup_report`
+  directly — the exact functions Sessions 1-2 built — for every byte
+  written and every verification check run. New commands:
+  `read_automatic_backup_state`, `write_automatic_backup_config`,
+  `run_automatic_backup`, `apply_pre_migration_retention`,
+  `open_automatic_backup_destination`. Settings + run history persist as
+  app-private `automatic_backup_state.json` (write-then-rename, same
+  discipline as every other JSON write in this codebase).
+- **Classification and naming**: `formulab-auto-daily-<epoch>.formulab-backup`
+  / `formulab-auto-weekly-<epoch>.formulab-backup` in the user-configured
+  destination folder; `pre-migration-<epoch>.formulab-backup` (Session
+  3's existing naming, unchanged) in FormuLab's own app-private storage —
+  pre-migration backups are not user-relocatable, matching their existing
+  mandatory-per-migration-run design.
+- **Backup-on-exit is classified "daily"**, deliberately, not a fourth
+  class: it also satisfies that day's daily-backup eligibility, so
+  closing the app in the evening doesn't cause a second daily backup on
+  the next same-day launch. Documented as a design decision, not left
+  implicit.
+- **Verification is mandatory, not optional**: every automatic backup is
+  checked with `verify_backup_report` immediately after writing; anything
+  short of `Valid`/`ValidWithWarnings` is deleted on the spot and recorded
+  as a failure — never left on disk pretending to be a real backup.
+- **Retention** (`apply_retention`, pure and unit-tested without an
+  `AppHandle`): keeps the newest N per class, deletes older ones, and
+  removes stray `.tmp` packages left by a crash mid-write. A configured
+  retention of `0` — or any count — never deletes the last remaining
+  valid backup of a class; the floor is unconditional, not a suggested
+  default.
+- **Concurrency**: `run_automatic_backup` reuses `BackupState` — the same
+  slot manual `create_backup`/`restore_backup` already hold while
+  running — so an automatic run can never start alongside a manual
+  backup, a restore, or another automatic run. A collision reports itself
+  as a normal failed `AutomaticBackupRunRecord`, not a thrown error.
+- **Failure handling**: missing/moved destination folder, low disk space
+  (`try_create_backup`'s existing check, unchanged), and permission
+  errors all surface as the real underlying message, not swallowed or
+  generalized. A failed automatic backup shows a toast (if the window is
+  focused) and a native OS notification (`notifyAutomaticBackupFailure`,
+  extending `lib/systemNotification.ts` — silent if permission was never
+  granted, never prompts proactively for it).
+- **Pre-migration retention, the real pre-existing gap closed**: Session
+  3's `create_pre_migration_backup` had no retention at all — every
+  migration run added one more file to app-private storage forever.
+  `migrationRunner.ts`'s `runMigration` now calls the new
+  `apply_pre_migration_retention` (via `pruneOldPreMigrationBackups`,
+  best-effort) only after a clean `run_completed` — never after a
+  failure, since a failed run's own pre-migration backup is exactly what
+  a user or `recoverInterruptedMigration` may still need.
+- **Frontend**: `lib/automaticBackup.ts` (a zustand store, matching
+  `lib/update.ts`'s existing auto-check pattern) owns eligibility
+  (`isDailyEligible`/`isWeeklyEligible`, pure functions), the scheduling
+  tick, and the backup-on-exit `onCloseRequested` window hook
+  (`installAutomaticBackupLifecycle`, wired once from `AppShell`,
+  matching the existing `ensureJupyter()`/`ensureSetupProgressListener()`
+  app-lifetime-setup convention).
+- **UI**: new `AutomaticBackupCard` (Settings → General, after Backup and
+  Recovery) — master enable, destination folder picker + open, daily/
+  weekly toggles with their own retention counts, backup-on-exit toggle,
+  an always-visible pre-migration retention count (applies regardless of
+  the master toggle, since pre-migration backup itself is mandatory), a
+  status panel (next eligible run, last success, last failure with
+  reason), and Run Automatic Backup Now.
+- **i18n**: full genuine translation across all 8 shipped locales
+  (`settings.automaticBackup.*`; `help.settings.sections.0` extended in
+  place, `help.settings.warnings.5` added) — no placeholders.
+- **Tests**: 12 new Rust tests (`automatic_backup.rs` — default config,
+  state round-trip, destination-missing/unset distinguished, epoch
+  parsing, retention-per-class mapping, retention keeps-newest-N,
+  retention never deletes the last valid backup even at a configured
+  zero, retention is isolated per class in a shared directory, retention
+  removes orphaned `.tmp` packages, retention on a missing directory is a
+  no-op, naming convention, verification-status mapping) — full Rust
+  suite **148/148** (136 prior + 12 new), `cargo clippy --lib` clean (one
+  `result_large_err` warning closed by boxing the error variant, not
+  suppressed). 21 new `automaticBackup.test.ts` tests (eligibility pure
+  functions, refresh/setConfig, duplicate-trigger prevention, success,
+  failure incl. missing-destination/low-disk-space/failed-verification
+  text passed through unchanged, `maybeRunScheduled` respecting the
+  master and per-class toggles and eligibility, `runOnExit` respecting
+  both toggles). 12 new `AutomaticBackupCard.test.tsx` tests (not-desktop
+  fallback, disabled-state hides schedule controls, enabled-state shows
+  them, toggling on writes config, folder picker incl. cancel-is-a-no-op,
+  Run Now disabled without a destination, Run Now triggers a daily run,
+  last success/failure display with class labels, a retention input
+  writes through, Open Folder calls only the reveal command, the
+  limitation note always renders). 3 new `migrationRunner.test.ts` tests
+  (retention runs after a completed migration with the configured count,
+  retention is skipped after a failed run, a retention failure never
+  fails an otherwise-completed migration) — migrationRunner suite
+  **21/21**. i18n parity **23/23**. Help registry **38/38** (new test
+  count varies by loop, no fixed assertion broken). Desktop typecheck
+  clean. Desktop lint clean.
+- **Full desktop suite** (`pnpm --filter @formulab/desktop test`, run
+  this session since `AppShell.tsx` — a global/shared file — changed):
+  **1130/1130 passing** when isolating the one pre-existing flake
+  (`HelpPanel.test.tsx`'s documented jsdom/undici `AbortSignal`
+  cross-realm incompatibility, predating Phase 11 and already recorded in
+  the Stage 1 Closure notes above — 3 tests fail only when run inside the
+  full suite, 11/11 pass in isolation, confirming this session introduced
+  no regression there).
+- **Known limitations** (disclosed, not silently assumed away): no
+  background service — see above, the load-bearing one. No backup
+  history list for automatic runs beyond "last success"/"last failure"
+  (matches manual backup's own existing limitation). Manually triggered
+  "Run Automatic Backup Now" and backup-on-exit are both always
+  daily-classed — there is no UI to force a one-off weekly or
+  pre-migration run. `AutomaticBackupCard`'s retention inputs clamp to
+  1-99 client-side; the Rust-side floor of 1 is the actual safety
+  guarantee, the UI range is just a sane input bound.
+
 ## Exact next session
 
-Phase 11 Stage 2, when scheduled: automatic backups, Data Location
-Manager, update checker.
+Phase 11 Session 8: Data Location Manager.

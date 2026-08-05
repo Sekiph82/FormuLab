@@ -242,6 +242,46 @@
       "error": "Hata"
     }
   },
+  "automaticBackup": {
+    "title": "Otomatik Yedeklemeler",
+    "hint": "Yedekleme ve Kurtarma ile aynı yedek paketini kullanarak zamanlanmış şekilde yedek oluşturur ve doğrular",
+    "unavailable": "masaüstü uygulamasında kullanılabilir",
+    "enabledLabel": "Otomatik yedeklemeler",
+    "enabledHint": "Zamanlanmış günlük/haftalık yedeklemeleri ve çıkışta yedeklemeyi etkinleştirin",
+    "destinationLabel": "Hedef klasör",
+    "destinationHint": "Günlük ve haftalık yedeklerin yazıldığı yer — geçiş öncesi yedekler her zaman FormuLab'ın kendi özel depolamasında kalır",
+    "destinationUnset": "Ayarlanmadı — bir klasör seçin",
+    "chooseFolder": "Klasör Seç…",
+    "openFolder": "Hedef klasörü aç",
+    "dailyLabel": "Günlük yedekleme",
+    "dailyHint": "FormuLab açıkken en fazla 24 saatte bir",
+    "weeklyLabel": "Haftalık yedekleme",
+    "weeklyHint": "FormuLab açıkken en fazla 7 günde bir",
+    "onExitLabel": "Çıkışta yedekle",
+    "onExitHint": "Bugün henüz çalışmadıysa, FormuLab'ı kapattığınızda bir yedek oluşturur",
+    "preMigrationLabel": "Saklanan geçiş öncesi yedekler",
+    "preMigrationHint": "FormuLab, şema geçişinden önce verilerinizi her zaman yedekler — bu yalnızca kaç tanesinin saklanacağını sınırlar",
+    "retentionDailyLabel": "Saklanacak günlük yedek sayısı",
+    "retentionWeeklyLabel": "Saklanacak haftalık yedek sayısı",
+    "retentionPreMigrationLabel": "Saklanacak geçiş öncesi yedek sayısı",
+    "statusLabel": "Durum",
+    "runNowButton": "Otomatik Yedeklemeyi Şimdi Çalıştır",
+    "nextEligible": "Sonraki uygun çalıştırma",
+    "lastSuccess": "Son başarılı yedekleme",
+    "lastFailure": "Son başarısız yedekleme",
+    "now": "Şimdi",
+    "disabled": "Devre dışı",
+    "none": "Henüz yok",
+    "class": {
+      "daily": "Günlük",
+      "weekly": "Haftalık",
+      "preMigration": "Geçiş öncesi"
+    },
+    "limitationNote": "Otomatik yedeklemeler yalnızca FormuLab açıkken çalışır — arka planda çalışan bir hizmet yoktur. Uygulamanın hiç açılmadığı bir gün veya haftada, o gün veya hafta için otomatik yedekleme oluşturulmaz.",
+    "toast": {
+      "saveFailed": "Otomatik yedekleme ayarları kaydedilemedi"
+    }
+  },
   "migration": {
     "title": "Şema Geçişi",
     "hint": "Veri dosyalarınızı bu FormuLab sürümüyle günceller; bir sorun olursa güvenlik yedeği ve geri alma uygular",

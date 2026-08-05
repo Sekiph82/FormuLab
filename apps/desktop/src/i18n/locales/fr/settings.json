@@ -242,6 +242,46 @@
       "error": "Erreur"
     }
   },
+  "automaticBackup": {
+    "title": "Sauvegardes automatiques",
+    "hint": "Crée et vérifie des sauvegardes selon un calendrier, avec le même paquet que Sauvegarde et restauration",
+    "unavailable": "disponible dans l'application de bureau",
+    "enabledLabel": "Sauvegardes automatiques",
+    "enabledHint": "Activer les sauvegardes quotidiennes/hebdomadaires planifiées et la sauvegarde à la fermeture",
+    "destinationLabel": "Dossier de destination",
+    "destinationHint": "Où sont écrites les sauvegardes quotidiennes et hebdomadaires — les sauvegardes précédant une migration restent toujours dans le stockage privé de FormuLab",
+    "destinationUnset": "Non défini — choisissez un dossier",
+    "chooseFolder": "Choisir un dossier…",
+    "openFolder": "Ouvrir le dossier de destination",
+    "dailyLabel": "Sauvegarde quotidienne",
+    "dailyHint": "Au plus une fois toutes les 24 heures tant que FormuLab est ouvert",
+    "weeklyLabel": "Sauvegarde hebdomadaire",
+    "weeklyHint": "Au plus une fois tous les 7 jours tant que FormuLab est ouvert",
+    "onExitLabel": "Sauvegarder à la fermeture",
+    "onExitHint": "Crée une sauvegarde à la fermeture de FormuLab, si aucune n'a déjà été effectuée aujourd'hui",
+    "preMigrationLabel": "Sauvegardes précédant une migration conservées",
+    "preMigrationHint": "FormuLab sauvegarde toujours vos données avant une migration de schéma — ceci limite seulement le nombre conservé",
+    "retentionDailyLabel": "Sauvegardes quotidiennes à conserver",
+    "retentionWeeklyLabel": "Sauvegardes hebdomadaires à conserver",
+    "retentionPreMigrationLabel": "Sauvegardes précédant une migration à conserver",
+    "statusLabel": "État",
+    "runNowButton": "Lancer une sauvegarde automatique maintenant",
+    "nextEligible": "Prochaine exécution possible",
+    "lastSuccess": "Dernière sauvegarde réussie",
+    "lastFailure": "Dernière sauvegarde échouée",
+    "now": "Maintenant",
+    "disabled": "Désactivé",
+    "none": "Aucune pour l'instant",
+    "class": {
+      "daily": "Quotidienne",
+      "weekly": "Hebdomadaire",
+      "preMigration": "Avant migration"
+    },
+    "limitationNote": "Les sauvegardes automatiques ne s'exécutent que tant que FormuLab est ouvert — il n'existe aucun service en arrière-plan. Un jour ou une semaine où l'application n'est jamais ouverte n'aura tout simplement pas de sauvegarde automatique pour cette période.",
+    "toast": {
+      "saveFailed": "Impossible d'enregistrer les paramètres de sauvegarde automatique"
+    }
+  },
   "migration": {
     "title": "Migration de schéma",
     "hint": "Maintient vos fichiers de données à jour avec cette version de FormuLab, avec une sauvegarde de sécurité et une restauration en cas de problème",

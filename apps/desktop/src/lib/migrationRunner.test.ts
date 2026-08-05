@@ -6,6 +6,8 @@ const bridge = {
   isTauri: true,
   verifyBackup: vi.fn<(source: string) => Promise<VerificationReport>>(),
   restoreBackup: vi.fn<(source: string) => Promise<RestoreResult>>(),
+  applyPreMigrationRetention: vi.fn<(keep: number) => Promise<string[]>>(),
+  readAutomaticBackupState: vi.fn<() => Promise<{ config: { retentionPreMigration: number } }>>(),
 };
 
 const masterdataBridge = {
@@ -20,6 +22,8 @@ vi.mock("./tauri", () => ({
   },
   verifyBackup: (...a: [string]) => bridge.verifyBackup(...a),
   restoreBackup: (...a: [string]) => bridge.restoreBackup(...a),
+  applyPreMigrationRetention: (...a: [number]) => bridge.applyPreMigrationRetention(...a),
+  readAutomaticBackupState: () => bridge.readAutomaticBackupState(),
 }));
 
 vi.mock("./masterdata", () => ({
@@ -120,11 +124,15 @@ beforeEach(() => {
   bridge.isTauri = true;
   bridge.verifyBackup.mockReset();
   bridge.restoreBackup.mockReset();
+  bridge.applyPreMigrationRetention.mockReset();
+  bridge.readAutomaticBackupState.mockReset();
   masterdataBridge.listMasterCollections.mockReset();
   masterdataBridge.listRecords.mockReset();
   masterdataBridge.writeMasterCollectionRaw.mockReset();
   journalCalls.length = 0;
   bridge.verifyBackup.mockResolvedValue({ status: "valid", manifest: manifest(), errors: [], warnings: [] });
+  bridge.readAutomaticBackupState.mockResolvedValue({ config: { retentionPreMigration: 2 } });
+  bridge.applyPreMigrationRetention.mockResolvedValue([]);
 });
 
 describe("planForCollection", () => {
@@ -269,6 +277,47 @@ describe("runMigration", () => {
     bridge.verifyBackup.mockResolvedValue({ status: "corrupted", manifest: manifest(), errors: [], warnings: [] });
     await expect(runMigration(widgetRegistry())).rejects.toThrow(/failed verification/);
     expect(masterdataBridge.writeMasterCollectionRaw).not.toHaveBeenCalled();
+  });
+
+  it("prunes old pre-migration backups (retentionPreMigration) after a completed run", async () => {
+    masterdataBridge.listMasterCollections.mockResolvedValue([["widgets", false]]);
+    masterdataBridge.listRecords.mockResolvedValue([{ schemaVersion: "1.0", code: "w1" }]);
+    bridge.readAutomaticBackupState.mockResolvedValue({ config: { retentionPreMigration: 3 } });
+    const status = await runMigration(widgetRegistry());
+    expect(status.kind).toBe("completed");
+    expect(bridge.applyPreMigrationRetention).toHaveBeenCalledWith(3);
+  });
+
+  it("never prunes pre-migration backups when the run fails (the failure's own backup must survive)", async () => {
+    masterdataBridge.listMasterCollections.mockResolvedValue([["widgets", false]]);
+    masterdataBridge.listRecords.mockResolvedValue([{ schemaVersion: "1.0", code: "w1" }]);
+    bridge.restoreBackup.mockResolvedValue({
+      manifest: manifest(),
+      safetyBackupPath: "C:\\backups\\pre-restore.formulab-backup",
+      restoredPaths: [],
+      warnings: [],
+    });
+    const registry: MigrationRegistry = {};
+    registerMigration<Widget>(registry, "widgets", {
+      id: "widgets-broken",
+      fromVersion: "1.0",
+      toVersion: "1.1",
+      description: "Deliberately fails validation in this test.",
+      reversible: true,
+      migrate: (r) => ({ ...r, schemaVersion: "1.1" }),
+      validate: () => false,
+    });
+    const status = await runMigration(registry);
+    expect(status.kind).toBe("failed");
+    expect(bridge.applyPreMigrationRetention).not.toHaveBeenCalled();
+  });
+
+  it("a retention failure never fails an otherwise-completed migration", async () => {
+    masterdataBridge.listMasterCollections.mockResolvedValue([["widgets", false]]);
+    masterdataBridge.listRecords.mockResolvedValue([{ schemaVersion: "1.0", code: "w1" }]);
+    bridge.readAutomaticBackupState.mockRejectedValue(new Error("state file unreadable"));
+    const status = await runMigration(widgetRegistry());
+    expect(status.kind).toBe("completed");
   });
 
   it("is idempotent on a rerun — the second run finds nothing pending", async () => {

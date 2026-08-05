@@ -16,6 +16,7 @@ import { useOverlayTitlebar, useUiStore } from "@/lib/store";
 import { overlayTitlebarStyle } from "@/lib/titlebar";
 import { ensureJupyter, openExternal, watchFullscreen } from "@/lib/tauri";
 import { useUpdateStore } from "@/lib/update";
+import { installAutomaticBackupLifecycle } from "@/lib/automaticBackup";
 
 export function AppShell() {
   const { t } = useTranslation("nav");
@@ -47,6 +48,15 @@ export function AppShell() {
     if (!import.meta.env.TEST) {
       void useUpdateStore.getState().maybeAutoCheck();
     }
+  }, []);
+
+  // Phase 11 Session 7 — automatic backups: scheduling tick (mount + a
+  // while-open interval) and the backup-on-exit window hook, both app-
+  // lifetime for as long as AppShell is mounted (effectively the whole
+  // session — see the module doc for why this can't run while closed).
+  useEffect(() => {
+    if (import.meta.env.TEST) return;
+    return installAutomaticBackupLifecycle();
   }, []);
 
   // Track native fullscreen: macOS hides the traffic lights there, so headers

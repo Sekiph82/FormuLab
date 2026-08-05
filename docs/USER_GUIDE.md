@@ -880,9 +880,10 @@ Open **Settings** (bottom of the sidebar) for six sections:
 - **General** — the raw-materials/pricing screen ([§6](#6-raw-materials-and-suppliers)),
   your **workspace folder** (where projects/sessions/formulas live on
   disk — change or reveal it in Explorer/Finder), your **Active Data
-  Location**, **Backup and Recovery**, **Schema Migration**, and
-  **Diagnostics** (all in [§28a](#28a-backup-and-recovery)), and **app
-  updates** (manual check, auto-check toggle, update-badge visibility).
+  Location**, **Backup and Recovery**, **Automatic Backups**, **Schema
+  Migration**, and **Diagnostics** (all in
+  [§28a](#28a-backup-and-recovery)), and **app updates** (manual check,
+  auto-check toggle, update-badge visibility).
 - **Models** — the provider, model, and API key the composer
   ([§0b](#0b-generate-a-starting-formulation-the-composer)) uses to
   generate a formulation. Never used for anything approval-related —
@@ -977,8 +978,50 @@ your data, or restore from one.
 - Restore only ever writes into **this machine's own** data folder — a
   backup made on another computer never overwrites where your workspace
   or `formulab-root.txt` override points here.
-- Not yet available: a backup history list, and automatic scheduled
-  backups — planned for later Phase 11 sessions.
+- Not yet available: a backup history list — planned for a later Phase 11
+  session.
+
+**Settings → General → Automatic Backups** — turns on scheduled
+daily/weekly backups, backup on exit, and retention, using the exact same
+`.formulab-backup` package Backup and Recovery creates.
+
+- **Automatic backups** is off by default. Turning it on reveals a
+  **destination folder** (choose one — daily and weekly backups are
+  written there; pre-migration backups always stay in FormuLab's own
+  private storage, unchanged from Schema Migration's existing behavior),
+  a **Daily backup** and **Weekly backup** toggle (each with its own
+  "backups to keep" count — 7 and 4 by default), and **Back up on exit**
+  (creates a backup, classified as a daily one, when you close FormuLab if
+  one hasn't already run today).
+- **Pre-migration backups kept** (default 2) is always visible and always
+  applies, whether or not automatic backups are turned on — FormuLab
+  already backs up your data before every schema migration; this only
+  bounds how many of those it keeps.
+- Every automatic backup is **verified** the same way Verify Backup checks
+  a package before it counts as successful — a backup that fails
+  verification is deleted immediately, never left on disk pretending to be
+  a real backup.
+- **Retention** keeps the newest N backups per class (daily/weekly/
+  pre-migration) and removes older ones — but never deletes the last
+  remaining valid backup of a class, even if you set the count very low.
+  A backup interrupted by a crash (a leftover, incomplete `.tmp` file) is
+  cleaned up the next time that class runs.
+- **Run Automatic Backup Now** runs one immediately (as a daily-classed
+  backup) — useful to test your destination folder or get an extra backup
+  without waiting for the schedule.
+- **Status** shows the next eligible run, and your last successful and
+  last failed automatic backup (with the reason, for a failure). A failed
+  automatic backup also shows a system notification if you've allowed
+  FormuLab to send them.
+- Two backups can never run at the same time — a manual backup/restore in
+  progress, or another automatic backup already running, makes a new
+  automatic run report itself as failed (not an error dialog) rather than
+  colliding.
+- **Important limitation, stated honestly**: FormuLab has no background
+  service. Automatic backups only run while the app is actually open — on
+  launch, periodically while you're using it, and on exit if you've
+  enabled that. A day or week where you never open FormuLab simply has no
+  automatic backup for that day or week.
 
 **Settings → General → Schema Migration** — shows the data schema
 version your project is currently at, and whether anything needs

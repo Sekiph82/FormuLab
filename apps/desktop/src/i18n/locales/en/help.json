@@ -383,7 +383,7 @@
       "Pick a section from the sidebar-style list on the left."
     ],
     "sections": [
-      "General — workspace folder, Active Data Location, Backup and Recovery, Schema Migration, Diagnostics, app updates",
+      "General — workspace folder, Active Data Location, Backup and Recovery, Automatic Backups, Schema Migration, Diagnostics, app updates",
       "Appearance",
       "Models",
       "Python (runtime)",
@@ -395,7 +395,8 @@
       "Verifying a backup never changes anything — it only inspects the package and reports Valid, Valid with warnings, Incompatible, Corrupted, or Unsafe.",
       "Running a schema migration makes a verified safety backup first and automatically restores it if anything fails — nothing migrates automatically without you clicking Run Migration.",
       "Active Data Location only shows and reveals where your data lives — it never moves, merges, or relocates anything. If it finds a second folder that also has real data, it warns you rather than choosing for you.",
-      "Exporting a support bundle strips your Windows username and any long token/key-like text from every path and log line, and never includes a backup's contents, your formula/project data, or anything from browser storage. FormuLab does not have crash-dump reporting — recent errors are a best-effort log scan only."
+      "Exporting a support bundle strips your Windows username and any long token/key-like text from every path and log line, and never includes a backup's contents, your formula/project data, or anything from browser storage. FormuLab does not have crash-dump reporting — recent errors are a best-effort log scan only.",
+      "Automatic backups only run while FormuLab is open — there is no background service. A day or week where the app never opens has no automatic backup for that day or week; each backup is still verified before it counts as successful, and old backups are pruned per class (daily/weekly/pre-migration) but the last valid one of a class is never deleted."
     ]
   },
   "glossary": {

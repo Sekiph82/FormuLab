@@ -351,3 +351,126 @@ active data root" holds by the function's own signature.
   itself — this is a test-ability refactor closing a real verification gap,
   not new functionality.
   not silently treated as equivalent to schema validation.
+
+## Session 7 — automatic backups (Stage 2, complete)
+
+New module `apps/desktop/src-tauri/src/automatic_backup.rs`. Builds
+entirely on top of this document's Session 1-2 engine — `try_create_backup`
+and `verify_backup_report` are called directly, unmodified; this session
+adds no second backup format and no second write path.
+
+### Package naming and destination, per class
+
+| Class | Filename pattern | Destination |
+|---|---|---|
+| `daily` | `formulab-auto-daily-<epoch>.formulab-backup` | user-configured destination folder |
+| `weekly` | `formulab-auto-weekly-<epoch>.formulab-backup` | user-configured destination folder |
+| `preMigration` | `pre-migration-<epoch>.formulab-backup` (Session 3's existing naming, unchanged) | app-private `backups/` dir (never user-relocatable — matches its existing mandatory-per-migration-run design) |
+
+A backup-on-exit trigger is classified `daily` — a deliberate choice
+(documented in `PHASE11_CURRENT.md`'s Session 7 summary), not a fourth
+class, so it also satisfies that day's own daily-backup eligibility.
+
+### Run sequence (`run_automatic_backup_inner`)
+
+1. Resolve the class's destination directory. Daily/weekly: the
+   configured folder, validated to actually exist as a directory —
+   missing/moved is reported as `"destination folder does not exist:
+   <path>"`, unset as `"no automatic backup destination folder is
+   configured"`, two distinct messages so a failure record is
+   diagnosable at a glance. Pre-migration: `app_private_dir(app,
+   "backups")`, same as Session 3.
+2. `try_create_backup` — identical staging/hashing/atomic-rename flow
+   Session 1 built, including its existing disk-space check
+   (`fs4::available_space`, required = total bytes + 10% margin) and its
+   own `.tmp`-file cleanup on failure.
+3. **Mandatory verification**: `verify_backup_report` on the just-written
+   package. Anything short of `Valid`/`ValidWithWarnings` deletes the
+   package immediately and returns a failure record carrying the
+   verification status — an automatic backup is never left on disk
+   pretending to be valid.
+4. **Retention**, only reached after a verified-good backup: `apply_retention`
+   removes any stray `<prefix>...formulab-backup.tmp` orphaned by a
+   crash mid-write (a later run's own cleanup, since a same-process
+   failure already removes its own `.tmp`), then prunes to the class's
+   configured count, oldest first, with a hard floor of 1 regardless of
+   the configured number — the "never delete the only valid backup" rule
+   holds even for a misconfigured `0`.
+
+Retention is skipped entirely on a failed run — a failure's own backup
+(or lack of one) is never touched, so a bug in a later run can never
+cascade into deleting the last known-good backup of a class.
+
+### Concurrency
+
+`run_automatic_backup` takes `State<'_, BackupState>` — the exact same
+`Mutex<Option<Arc<AtomicBool>>>` manual `create_backup`/`restore_backup`
+already hold for the duration of their run (Session 1). If that slot is
+already occupied, an automatic run reports itself as a normal failed
+`AutomaticBackupRunRecord` ("another backup or restore is already in
+progress") rather than throwing — a scheduling collision with a manual
+backup, a restore, or another automatic run (same or a second app
+instance, guarded upstream by the existing single-instance plugin) is an
+expected, recoverable condition, not a bug.
+
+### Settings and run-history persistence
+
+App-private `automatic_backup_state.json`
+(`{ config, lastDailyAt, lastWeeklyAt, lastSuccess, lastFailure }`),
+write-then-rename like every other JSON write in this codebase. Not
+localStorage (unlike `lib/update.ts`'s auto-check settings) — this
+describes where real backup files land on disk, so it needs to survive
+exactly as long as the backups it describes, in app-private storage the
+user doesn't casually clear.
+
+### No background service — the honest limitation
+
+FormuLab has no OS-level scheduled task, system service, or tray-resident
+process. Every automatic backup — scheduled or on-exit — only runs while
+the app is the foreground process:
+
+- **On launch**: `AppShell` calls `installAutomaticBackupLifecycle()`
+  (`apps/desktop/src/lib/automaticBackup.ts`), which refreshes state and
+  immediately checks eligibility once.
+- **While open**: a 30-minute interval (`SCHEDULE_CHECK_INTERVAL_MS`)
+  re-checks eligibility — fine-grained enough that a daily/weekly backup
+  runs within half an hour of becoming due, without polling excessively.
+- **On exit**: `getCurrentWindow().onCloseRequested` (Tauri's window-close
+  hook) prevents the default close, runs a (daily-classed) backup if
+  enabled, then calls `window.close()` again — best-effort: a failed
+  exit backup is recorded as `lastFailure` but never traps the user in an
+  unclosable window.
+
+A day or week the app is never opened has no automatic backup for that
+day or week. This is stated in the Settings card itself and in the
+`settings` Help topic (`warnings.5`, all 8 locales) — not a gap discovered
+later, a limitation this session's own instructions required disclosing
+honestly rather than building a background service to hide it.
+
+### Pre-migration retention — a real pre-existing gap closed
+
+Session 3's `create_pre_migration_backup` had no retention at all —
+every migration run added one more file to app-private storage,
+unbounded, forever. This session adds `apply_pre_migration_retention`
+(reusing the same `apply_retention` function daily/weekly use) and wires
+it into `migrationRunner.ts`'s `runMigration`: called once, after a clean
+`run_completed`, using the configured `retentionPreMigration` (default
+2) regardless of whether the "automatic backups" master toggle itself is
+on — a pre-migration backup is mandatory per migration run, not part of
+that schedule, so its retention isn't gated by it either. Never called
+after a failed run: a failed run's own pre-migration backup is exactly
+what a user, or `recoverInterruptedMigration` on next launch, may still
+need to restore from.
+
+### Tests
+
+12 new Rust tests, all against pure functions that take no `AppHandle`
+(`configured_destination_dir`, `apply_retention`, `backup_epoch_from_name`,
+`retention_for`, `class_file_prefix`, `status_str`) — the same
+"AppHandle-free where possible" discipline the Stage 1 Closure session
+established for `verify_backup_report`, avoiding the unsafe mocked-
+`AppHandle` workaround that session investigated and rejected. Full Rust
+suite **148/148**, `cargo clippy --lib` clean. Frontend: 21
+`automaticBackup.test.ts` tests + 12 `AutomaticBackupCard.test.tsx` tests
++ 3 `migrationRunner.test.ts` retention tests — see
+`PHASE11_CURRENT.md`'s Session 7 summary for the full breakdown.

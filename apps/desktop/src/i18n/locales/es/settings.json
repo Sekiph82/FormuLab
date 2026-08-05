@@ -242,6 +242,46 @@
       "error": "Error"
     }
   },
+  "automaticBackup": {
+    "title": "Copias de seguridad automáticas",
+    "hint": "Crea y verifica copias de seguridad según un calendario, usando el mismo paquete que Copia de seguridad y recuperación",
+    "unavailable": "disponible en la app de escritorio",
+    "enabledLabel": "Copias de seguridad automáticas",
+    "enabledHint": "Active copias diarias/semanales programadas y la copia al salir",
+    "destinationLabel": "Carpeta de destino",
+    "destinationHint": "Dónde se escriben las copias diarias y semanales — las copias previas a la migración siempre permanecen en el almacenamiento privado de FormuLab",
+    "destinationUnset": "No establecida — elija una carpeta",
+    "chooseFolder": "Elegir carpeta…",
+    "openFolder": "Abrir carpeta de destino",
+    "dailyLabel": "Copia diaria",
+    "dailyHint": "Como máximo una vez cada 24 horas mientras FormuLab está abierto",
+    "weeklyLabel": "Copia semanal",
+    "weeklyHint": "Como máximo una vez cada 7 días mientras FormuLab está abierto",
+    "onExitLabel": "Copiar al salir",
+    "onExitHint": "Crea una copia de seguridad al cerrar FormuLab, si no se ha ejecutado ya una hoy",
+    "preMigrationLabel": "Copias previas a la migración conservadas",
+    "preMigrationHint": "FormuLab siempre hace una copia de seguridad de sus datos antes de una migración de esquema — esto solo limita cuántas se conservan",
+    "retentionDailyLabel": "Copias diarias a conservar",
+    "retentionWeeklyLabel": "Copias semanales a conservar",
+    "retentionPreMigrationLabel": "Copias previas a la migración a conservar",
+    "statusLabel": "Estado",
+    "runNowButton": "Ejecutar copia de seguridad automática ahora",
+    "nextEligible": "Próxima ejecución posible",
+    "lastSuccess": "Última copia de seguridad correcta",
+    "lastFailure": "Última copia de seguridad fallida",
+    "now": "Ahora",
+    "disabled": "Desactivado",
+    "none": "Ninguna todavía",
+    "class": {
+      "daily": "Diaria",
+      "weekly": "Semanal",
+      "preMigration": "Previa a la migración"
+    },
+    "limitationNote": "Las copias de seguridad automáticas solo se ejecutan mientras FormuLab está abierto — no hay ningún servicio en segundo plano. Un día o semana en que la app nunca se abra simplemente no tendrá copia de seguridad automática ese día o semana.",
+    "toast": {
+      "saveFailed": "No se pudo guardar la configuración de copias de seguridad automáticas"
+    }
+  },
   "migration": {
     "title": "Migración de esquema",
     "hint": "Mantiene sus archivos de datos actualizados con esta versión de FormuLab, con copia de seguridad y reversión si algo falla",

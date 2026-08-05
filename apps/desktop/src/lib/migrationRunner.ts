@@ -23,7 +23,7 @@
  * test-only registry, not this real empty one.
  */
 import { migrateCollection, type MigrationRegistry } from "@formulab/shared";
-import { isTauri, restoreBackup, verifyBackup } from "./tauri";
+import { applyPreMigrationRetention, isTauri, readAutomaticBackupState, restoreBackup, verifyBackup } from "./tauri";
 import { listMasterCollections, listRecords, writeMasterCollectionRaw, type Collection } from "./masterdata";
 
 /** Must match `backup::GLOBAL_SCHEMA_VERSION` (`apps/desktop/src-tauri/src/backup.rs`) —
@@ -101,6 +101,25 @@ export async function readMigrationJournal(): Promise<MigrationJournalEntry[]> {
 
 export async function createPreMigrationBackup(): Promise<string> {
   return call<string>("create_pre_migration_backup");
+}
+
+/**
+ * Phase 11 Session 7 — bounds the previously-unlimited app-private
+ * pre-migration backup directory (Session 3's `create_pre_migration_backup`
+ * had no retention at all) to the configured `retentionPreMigration` count
+ * (default 2, from the automatic-backup settings — the retention count
+ * applies regardless of whether the "automatic backups" toggle itself is
+ * on, since a pre-migration backup is mandatory per migration run, not
+ * part of that schedule). Best-effort: retention is housekeeping, and a
+ * failure here must never fail an otherwise-completed migration.
+ */
+async function pruneOldPreMigrationBackups(): Promise<void> {
+  try {
+    const { config } = await readAutomaticBackupState();
+    await applyPreMigrationRetention(config.retentionPreMigration);
+  } catch {
+    // Best-effort — see doc comment above.
+  }
 }
 
 // ------------------------------------------------------------- planning ---
@@ -279,6 +298,10 @@ export async function runMigration(registry: MigrationRegistry = MIGRATION_REGIS
     const newVersion = plan.steps.reduce((v, s) => (s.targetVersion > v ? s.targetVersion : v), compat.supportedVersion);
     await writeSchemaMeta(newVersion);
     await appendMigrationJournal({ runId, ts: Date.now(), step: "run_completed", toVersion: newVersion });
+    // Only after a clean completion — a failed run's own pre-migration
+    // backup (below) is exactly what a user or `recoverInterruptedMigration`
+    // may still need to restore from.
+    await pruneOldPreMigrationBackups();
     return { kind: "completed", runId, migratedCollections, newVersion };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

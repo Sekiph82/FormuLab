@@ -242,6 +242,46 @@
       "error": "错误"
     }
   },
+  "automaticBackup": {
+    "title": "自动备份",
+    "hint": "按计划创建并验证备份,使用与“备份与恢复”相同的备份包",
+    "unavailable": "该功能在桌面应用中可用",
+    "enabledLabel": "自动备份",
+    "enabledHint": "启用计划的每日/每周备份以及退出时备份",
+    "destinationLabel": "目标文件夹",
+    "destinationHint": "每日和每周备份的写入位置——迁移前备份始终保存在 FormuLab 自身的私有存储中",
+    "destinationUnset": "未设置——请选择一个文件夹",
+    "chooseFolder": "选择文件夹…",
+    "openFolder": "打开目标文件夹",
+    "dailyLabel": "每日备份",
+    "dailyHint": "在 FormuLab 打开期间,最多每 24 小时一次",
+    "weeklyLabel": "每周备份",
+    "weeklyHint": "在 FormuLab 打开期间,最多每 7 天一次",
+    "onExitLabel": "退出时备份",
+    "onExitHint": "如果今天尚未运行过备份,则在关闭 FormuLab 时创建一个",
+    "preMigrationLabel": "保留的迁移前备份数",
+    "preMigrationHint": "FormuLab 始终会在架构迁移前备份您的数据——此设置仅限制保留的份数",
+    "retentionDailyLabel": "保留的每日备份数",
+    "retentionWeeklyLabel": "保留的每周备份数",
+    "retentionPreMigrationLabel": "保留的迁移前备份数",
+    "statusLabel": "状态",
+    "runNowButton": "立即运行自动备份",
+    "nextEligible": "下次可运行时间",
+    "lastSuccess": "最近一次成功的备份",
+    "lastFailure": "最近一次失败的备份",
+    "now": "现在",
+    "disabled": "已禁用",
+    "none": "尚无",
+    "class": {
+      "daily": "每日",
+      "weekly": "每周",
+      "preMigration": "迁移前"
+    },
+    "limitationNote": "自动备份仅在 FormuLab 打开期间运行——没有后台服务。如果某一天或某一周应用从未打开过,则该期间不会有自动备份。",
+    "toast": {
+      "saveFailed": "无法保存自动备份设置"
+    }
+  },
   "migration": {
     "title": "架构迁移",
     "hint": "使您的数据文件与此版本的 FormuLab 保持同步;如出现问题,将自动创建安全备份并回滚",
