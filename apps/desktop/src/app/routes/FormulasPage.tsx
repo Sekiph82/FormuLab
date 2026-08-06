@@ -38,6 +38,7 @@ import { ApprovalPanel } from "@/components/formula/ApprovalPanel";
 import { ExportMenu } from "@/components/formula/ExportMenu";
 import { NewProjectDialog } from "@/components/formula/NewProjectDialog";
 import { SaveVersionDialog } from "@/components/formula/SaveVersionDialog";
+import { registerUnsavedWork, unregisterUnsavedWork } from "@/lib/unsavedWork";
 import { useUndoable } from "@/components/formula/useUndoable";
 import {
   appendAudit,
@@ -175,14 +176,19 @@ export function FormulasPage() {
     return () => window.clearTimeout(autosaveTimer.current);
   }, [draft.value, dirty]);
 
-  // Warn before losing unsaved work on a reload.
+  // Tells the native window-close handler (`lib/automaticBackup.ts`) there is
+  // a draft it may need to flush before the app actually exits — replaces a
+  // previous `beforeunload` listener, which is a browser/reload event, not
+  // Tauri's native close event, and never reliably shows a dialog inside the
+  // desktop webview (see `lib/unsavedWork.ts`).
   useEffect(() => {
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (dirty) e.preventDefault();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
+    if (!active?.id || !draft.value || !dirty) return;
+    const key = `formulation:${active.id}`;
+    registerUnsavedWork(key, {
+      save: () => saveDraft({ ...draft.value!, updatedAt: new Date().toISOString(), dirty: true }),
+    });
+    return () => unregisterUnsavedWork(key);
+  }, [active?.id, draft.value, dirty]);
 
   // ---------------------------------------------------------------- actions ---
 

@@ -349,7 +349,6 @@
     "none": "見つかりません",
     "storageHealth": "ストレージの健全性",
     "storageHealthValue": "正常 {{healthy}} 件、異常 {{unhealthy}} 件",
-    "recentErrors": "エラーに言及する最近のログ行（{{count}}件）",
     "openLogFolder": "ログフォルダを開く",
     "copySummary": "概要をコピー",
     "exportBundle": "サポートバンドルをエクスポート",
@@ -359,7 +358,10 @@
       "copyFailed": "概要をコピーできませんでした",
       "exported": "サポートバンドルをエクスポートしました。",
       "exportFailed": "サポートバンドルをエクスポートできませんでした"
-    }
+    },
+    "informational": "Informational",
+    "currentErrors": "This session's log lines mentioning an error ({{count}})",
+    "historicalErrors": "Earlier log lines mentioning an error, from before this session ({{count}})"
   },
   "python": {
     "title": "ローカル Python カーネル",

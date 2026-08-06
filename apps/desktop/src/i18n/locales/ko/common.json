@@ -3,5 +3,11 @@
     "save": "저장",
     "cancel": "취소",
     "remove": "제거"
+  },
+  "unsavedClose": {
+    "title": "Unsaved changes",
+    "body": "You have unsaved formulation changes. What would you like to do before closing?",
+    "saveAndClose": "Save and close",
+    "closeWithoutSaving": "Close without saving"
   }
 }

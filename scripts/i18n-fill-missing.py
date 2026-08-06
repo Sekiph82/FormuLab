@@ -15,7 +15,7 @@ import os
 
 BASE = "apps/desktop/src/i18n/locales"
 SOURCE = "en"
-NAMESPACES = ["session.json", "nav.json", "settings.json"]
+NAMESPACES = ["session.json", "nav.json", "settings.json", "common.json"]
 
 
 def fill_missing(src, dst):
@@ -43,7 +43,11 @@ for ns in NAMESPACES:
         dst = json.load(open(path, encoding="utf-8"))
         n = fill_missing(src, dst)
         total += n
-        with open(path, "w", encoding="utf-8") as f:
+        # `newline=""` keeps this an LF write regardless of platform — Python's
+        # default text-mode write translates every "\n" to os.linesep, which
+        # silently turns every locale file CRLF on Windows even when nothing
+        # in it changed.
+        with open(path, "w", encoding="utf-8", newline="") as f:
             json.dump(dst, f, indent=2, ensure_ascii=False)
             f.write("\n")
         if n:

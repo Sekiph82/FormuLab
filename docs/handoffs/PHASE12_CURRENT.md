@@ -1,5 +1,98 @@
 # Phase 12 — Commercial Distribution
 
+## Maintenance fixes (2026-08-07, outside the SignPath session track)
+
+Two bugfixes done in parallel with the SignPath approval wait — neither
+touches signing, the release, or `v0.4.0`.
+
+**Diagnostics Center false-positive fixes.** Settings → General →
+Diagnostics was presenting stale, pre-restart log residue as live errors
+and undercounting real backups:
+- *Historical OpenCode errors shown as current.* No live OpenCode
+  event-stream connection exists anywhere in the current source (confirmed
+  by exhaustive search) — the lines were leftover `debug.log` entries from
+  before the runtime was removed (Session 2A). Fixed with a session-start
+  marker (`diagnostics::AppStartTime`, `app.manage()`'d in `lib.rs`) so
+  each log line is now labeled `currentSession: true/false` and the UI
+  renders current-session errors (red) and historical ones (muted,
+  separately) instead of one undifferentiated list.
+  `apps/desktop/src-tauri/src/diagnostics.rs`,
+  `apps/desktop/src/lib/diagnostics.ts`,
+  `apps/desktop/src/components/settings/DiagnosticsCard.tsx`.
+- *"Last backup: None found" was wrong.* `find_last_backup` only
+  recognized the `pre-migration-`/`pre-restore-` filename prefixes — real
+  automatic daily/weekly backups (`formulab-auto-daily-`,
+  `formulab-auto-weekly-`) were invisible to it. Fixed by extracting a
+  pure `classify_backup_filename` covering all four known classes.
+  Standalone/manual backups remain structurally undiscoverable (they go to
+  an arbitrary user-chosen destination via a Save dialog) — documented,
+  not silently implied otherwise.
+- *Alternate-root warning* (`C:\...\FormuLab also contains real project
+  data`) is confirmed working as designed, with one correction to the
+  earlier read: the active data root (`C:\...\FormuLab\data`) is the
+  *same directory* the repo root's own `data/` heuristic check inspects,
+  so `formulations/master/sessions` never actually diverge — but the
+  repo root's top-level `formulas/` (git-tracked, 69 files, newest dated
+  2026-07-18) and the active root's own `data/formulas/` (git-ignored,
+  7 files, newest dated 2026-08-07) are two genuinely different
+  directories with different content: current formula-card exports land
+  in the git-ignored `data/formulas/`, while the tracked `formulas/`
+  fixture at the repo root is stale legacy data from before storage moved
+  to `data/`. No files were merged, moved, or deleted — read-only
+  comparison only, per instruction. `formulas/index.json` remains tracked
+  and untouched (Claude Code's own safety classifier already refused to
+  untrack it in an earlier session; that stands).
+- Tests: `cargo test --lib diagnostics::` (16/16 passing),
+  `pnpm vitest run` on `DiagnosticsCard.test.tsx` (15/15) and
+  `i18n/parity.test.ts` (23/23), `cargo clippy --lib -- -D warnings`
+  clean, `tsc --noEmit` clean.
+
+**Window-close failure (X / Alt+F4 did nothing, required Task Manager).**
+Root cause: two independent, uncoordinated close-blocking mechanisms, both
+violating "never silently block close":
+1. `apps/desktop/src/lib/automaticBackup.ts`'s native `onCloseRequested`
+   handler (the *only* close-interception code in the app — the title bar
+   is native/undecorated-by-us, so X and Alt+F4 both raise the identical
+   Tauri `CloseRequested` event through this one handler; minimize/
+   maximize use separate APIs, unaffected, which is why only close hung)
+   called `event.preventDefault()` then `await`ed the exit backup with
+   **no timeout**. A stalled backup destination (removable/network drive,
+   large data dir) would never let the `finally` that calls `win.close()`
+   run — permanent hang, exactly matching every reported symptom.
+2. `useFormulationWorkspace.ts` and a duplicate copy in `FormulasPage.tsx`
+   each installed a `window.addEventListener("beforeunload", ...)` that
+   called `e.preventDefault()` when a draft was dirty — a browser/reload
+   event (the code's own comment said "before losing unsaved work on a
+   *reload*"), architecturally separate from Tauri's native close event,
+   with no reliable confirmation UI inside the desktop WebView2 — a second
+   way for close to silently do nothing.
+
+Fix: a single unified close flow. Removed both `beforeunload` listeners;
+added `apps/desktop/src/lib/unsavedWork.ts` (a small registry the two
+workspace hooks use to declare "this draft is dirty" instead) and
+`apps/desktop/src/components/ui/UnsavedCloseDialog.tsx` (mounted once in
+`AppShell`). The one `onCloseRequested` handler now: checks for unsaved
+work → shows Save and close / Close without saving / Cancel if any exists
+→ runs the exit backup wrapped in a 10s timeout (`runExitBackupWithTimeout`)
+→ closes. Every failure path (save failure, backup failure, backup
+timeout, any unexpected error) is logged via the existing `logDebug` →
+`debug.log` and never blocks the close. Tests:
+`automaticBackup.close.test.ts` (new, 9 cases covering the cancel /
+discard / save decisions, a failed exit backup, a hung exit backup with
+fake timers, a successful exit backup, and the self-triggered re-close
+guard — X, Alt+F4, and a fullscreen window's close button all funnel
+through this identical handler, so one set of handler-level tests covers
+all three trigger paths), `cargo test --lib automatic_backup` (14/14,
+unchanged — no Rust changes were needed), `tsc --noEmit` clean,
+`eslint` clean, `cargo clippy --lib -- -D warnings` clean.
+
+Also fixed in passing: `scripts/i18n-fill-missing.py` was missing
+`common.json` from its namespace list (the new `unsavedClose` dialog
+strings needed it) and, on Windows, was writing every locale file it
+touched with `\n`→CRLF translation regardless of the source file's own
+line endings — silently CRLF-converting files even when zero keys were
+added. Fixed both; re-ran, only genuinely new content changed.
+
 ## Status: SESSION 4A (User Input File, runs.db Root-Cause Analysis, Safe Untracking and Main Merge) COMPLETE. `.FormuLab/runs.db` root-caused (pure append-only growth between two commit snapshots of a disposable, rebuildable index — confirmed both structurally and against the app's own source) and safely untracked (`git rm --cached`, physical file verified byte-identical before/after). [PR #1](https://github.com/Sekiph82/FormuLab/pull/1) updated and **merged** — `main` now contains the full FormuLab source and every Phase 11/12 policy document, confirmed publicly reachable. `feature/laboratory-stability` fast-forwarded to match. `v0.4.0` and the published release are unchanged. SignPath's own application page never rendered a form (confirmed structurally empty via accessibility tree, screenshot, and network/console checks, from two different entry points and two different SignPath product domains). The user separately logged into `app.signpath.io` directly and found/created a self-service "Free trial subscription" organization named "FormuLab" — investigated (subscription/quotas/billing: paid plans only, no free/OSS conversion in-app) without creating any certificate, activating CI signing, or signing/publishing anything, per explicit instruction. Filed a public Foundation-review request at [github.com/SignPath/fdn-website#26](https://github.com/SignPath/fdn-website/issues/26) as the alternate support channel. **SignPath status: `AWAITING_RESPONSE`** — not an approval; the trial org must not be used for production signing until SignPath confirms its status or converts/links it to the Foundation program. `main`, `origin/main`, and `feature/laboratory-stability` all verified identical (`12f3eb1c7149f1ff0bc8722578dddd842456f51e`). Next: **Phase 12 Session 4B: SignPath Approval Watch**.
 
 ## Session 3 summary (superseded by Session 4A above — kept for the record)

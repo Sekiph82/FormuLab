@@ -118,13 +118,22 @@ describe("DiagnosticsCard", () => {
     expect(await screen.findByText(/base-workspace\.txt is set but invalid/)).toBeInTheDocument();
   });
 
-  it("shows recent error lines when present", async () => {
+  it("shows current-session error lines when present", async () => {
     bridge.getDiagnosticsSummary.mockResolvedValue(
-      summary({ recentErrors: ["1700000000 sidecar connection failed"] }),
+      summary({ recentErrors: [{ message: "sidecar connection failed", at: 1_700_000_000_000, currentSession: true }] }),
     );
     render(<DiagnosticsCard />);
-    expect(await screen.findByText(/Recent log lines mentioning an error \(1\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/This session's log lines mentioning an error \(1\)/)).toBeInTheDocument();
     expect(screen.getByText(/sidecar connection failed/)).toBeInTheDocument();
+  });
+
+  it("shows historical error lines separately from current-session ones", async () => {
+    bridge.getDiagnosticsSummary.mockResolvedValue(
+      summary({ recentErrors: [{ message: "Timed out opening OpenCode event stream", at: 1_000, currentSession: false }] }),
+    );
+    render(<DiagnosticsCard />);
+    expect(await screen.findByText(/Earlier log lines mentioning an error, from before this session \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Timed out opening OpenCode event stream/)).toBeInTheDocument();
   });
 
   it("shows the last backup and last migration when present", async () => {
@@ -136,7 +145,7 @@ describe("DiagnosticsCard", () => {
       }),
     );
     render(<DiagnosticsCard />);
-    expect(await screen.findByText(/preMigration/)).toBeInTheDocument();
+    expect(await screen.findByText(/pre-migration safety backup/)).toBeInTheDocument();
     expect(screen.getByText(/1\.0 · 2 pending/)).toBeInTheDocument();
   });
 

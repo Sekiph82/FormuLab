@@ -349,7 +349,6 @@
     "none": "Aucune trouvée",
     "storageHealth": "État du stockage",
     "storageHealthValue": "{{healthy}} en bon état, {{unhealthy}} en erreur",
-    "recentErrors": "Lignes de journal récentes mentionnant une erreur ({{count}})",
     "openLogFolder": "Ouvrir le dossier des journaux",
     "copySummary": "Copier le résumé",
     "exportBundle": "Exporter le paquet de support",
@@ -359,7 +358,10 @@
       "copyFailed": "Impossible de copier le résumé",
       "exported": "Paquet de support exporté.",
       "exportFailed": "Impossible d'exporter le paquet de support"
-    }
+    },
+    "informational": "Informational",
+    "currentErrors": "This session's log lines mentioning an error ({{count}})",
+    "historicalErrors": "Earlier log lines mentioning an error, from before this session ({{count}})"
   },
   "python": {
     "title": "Noyau Python local",

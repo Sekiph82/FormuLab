@@ -349,7 +349,6 @@
     "none": "Bulunamadı",
     "storageHealth": "Depolama durumu",
     "storageHealthValue": "{{healthy}} sağlıklı, {{unhealthy}} sorunlu",
-    "recentErrors": "Hata içeren son günlük satırları ({{count}})",
     "openLogFolder": "Günlük Klasörünü Aç",
     "copySummary": "Özeti Kopyala",
     "exportBundle": "Destek Paketini Dışa Aktar",
@@ -359,7 +358,10 @@
       "copyFailed": "Özet kopyalanamadı",
       "exported": "Destek paketi dışa aktarıldı.",
       "exportFailed": "Destek paketi dışa aktarılamadı"
-    }
+    },
+    "informational": "Informational",
+    "currentErrors": "This session's log lines mentioning an error ({{count}})",
+    "historicalErrors": "Earlier log lines mentioning an error, from before this session ({{count}})"
   },
   "python": {
     "title": "Yerel Python çekirdeği",

@@ -349,7 +349,6 @@
     "none": "Keine gefunden",
     "storageHealth": "Speicherstatus",
     "storageHealthValue": "{{healthy}} in Ordnung, {{unhealthy}} fehlerhaft",
-    "recentErrors": "Aktuelle Protokollzeilen mit Fehlerhinweis ({{count}})",
     "openLogFolder": "Protokollordner öffnen",
     "copySummary": "Zusammenfassung kopieren",
     "exportBundle": "Support-Paket exportieren",
@@ -359,7 +358,10 @@
       "copyFailed": "Zusammenfassung konnte nicht kopiert werden",
       "exported": "Support-Paket exportiert.",
       "exportFailed": "Support-Paket konnte nicht exportiert werden"
-    }
+    },
+    "informational": "Informational",
+    "currentErrors": "This session's log lines mentioning an error ({{count}})",
+    "historicalErrors": "Earlier log lines mentioning an error, from before this session ({{count}})"
   },
   "python": {
     "title": "Lokaler Python-Kernel",

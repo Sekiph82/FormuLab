@@ -61,6 +61,7 @@ pub fn run() {
         .manage(runs::RunState::default())
         .manage(formulation_advanced::AdvancedOptimizerState::default())
         .manage(backup::BackupState::default())
+        .manage(diagnostics::AppStartTime::now())
         // The transparent + vibrancy window loses tao's traffic-light inset on
         // some machines (tao only re-applies it from drawRect). Re-pin on the
         // events that cover launch, resize, and the in-app theme switch.

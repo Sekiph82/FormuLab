@@ -24,6 +24,7 @@
 import { create } from "zustand";
 import {
   isTauri,
+  logDebug,
   readAutomaticBackupState,
   runAutomaticBackup,
   writeAutomaticBackupConfig,
@@ -33,6 +34,7 @@ import {
 } from "./tauri";
 import { notifyAutomaticBackupFailure } from "./systemNotification";
 import { toast } from "./toast";
+import { hasUnsavedWork, requestUnsavedCloseDecision, saveAllUnsavedWork } from "./unsavedWork";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
@@ -163,11 +165,51 @@ export const useAutomaticBackupStore = create<AutomaticBackupStoreState>((set, g
   },
 }));
 
-/** Wires the scheduling tick (mount + while-open interval) and the
- *  backup-on-exit window hook. Called once from `AppShell`, matching the
+/** A hung exit backup must never trap the user in an unclosable window
+ *  (req: "any backup or cleanup failure must not trap the application
+ *  indefinitely"). `run_automatic_backup` has no server-side timeout of
+ *  its own, so this is enforced here: if it hasn't settled within
+ *  `EXIT_BACKUP_TIMEOUT_MS`, the close proceeds anyway and the abandoned
+ *  Rust task is left to be killed with the process — its orphaned `.tmp`
+ *  file is cleaned up by the next successful run of the same class
+ *  (`apply_retention`'s orphan-tmp sweep already handles an interrupted
+ *  write; this is that same case, just triggered by a close instead of a
+ *  crash). */
+const EXIT_BACKUP_TIMEOUT_MS = 10_000;
+
+async function runExitBackupWithTimeout(): Promise<void> {
+  let timedOut = false;
+  const timeout = new Promise<void>((resolve) => {
+    setTimeout(() => {
+      timedOut = true;
+      resolve();
+    }, EXIT_BACKUP_TIMEOUT_MS);
+  });
+  const run = useAutomaticBackupStore
+    .getState()
+    .runOnExit()
+    .catch((e) => {
+      void logDebug(`window close: automatic exit backup failed: ${e instanceof Error ? e.message : String(e)}`);
+    });
+  await Promise.race([run, timeout]);
+  if (timedOut) {
+    void logDebug(`window close: automatic exit backup did not finish within ${EXIT_BACKUP_TIMEOUT_MS}ms, closing anyway`);
+  }
+}
+
+/** Wires the scheduling tick (mount + while-open interval) and the single
+ *  native close-request handler. Called once from `AppShell`, matching the
  *  existing `ensureJupyter()`/`ensureSetupProgressListener()` pattern of
  *  app-lifetime setup living in a `lib/` module, not inline in the shell.
- *  Returns a cleanup function. */
+ *  Returns a cleanup function.
+ *
+ *  This is the ONLY place that intercepts the native window-close event —
+ *  the title bar is the OS's own (`decorations`/native, no custom close
+ *  button; see `tauri.conf.json`), so clicking X and pressing Alt+F4 both
+ *  raise the identical Tauri `CloseRequested` event and go through this
+ *  exact same sequence: unsaved-work check → optional exit backup (bounded)
+ *  → close. Minimize/maximize use separate window APIs entirely and are
+ *  untouched by any of this. */
 export function installAutomaticBackupLifecycle(): () => void {
   if (!isTauri) return () => {};
 
@@ -185,20 +227,32 @@ export function installAutomaticBackupLifecycle(): () => void {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const win = getCurrentWindow();
     const unlisten = await win.onCloseRequested(async (event) => {
-      if (closing) return; // already ran once for this close, let it proceed
-      const s = useAutomaticBackupStore.getState();
-      if (!s.config.enabled || !s.config.backupOnExitEnabled) return; // default close behavior
+      if (closing) return; // this app-initiated re-close already ran the flow once — let it through
       event.preventDefault();
+
       try {
-        await s.runOnExit();
-      } catch {
-        // Best-effort: a failed exit backup must never trap the user in
-        // an unclosable window. It is still recorded as `lastFailure` for
-        // the next launch to show.
-      } finally {
-        closing = true;
-        await win.close();
+        if (hasUnsavedWork()) {
+          const choice = await requestUnsavedCloseDecision();
+          if (choice === "cancel") return; // stays open; preventDefault above already blocked this attempt
+          if (choice === "save") {
+            await saveAllUnsavedWork(); // logs its own per-draft failures; never rejects
+          }
+        }
+
+        const s = useAutomaticBackupStore.getState();
+        if (s.config.enabled && s.config.backupOnExitEnabled) {
+          await runExitBackupWithTimeout();
+        }
+      } catch (e) {
+        // Every step above already catches its own failures; this is only
+        // reached by a genuinely unexpected error. Per requirement: a
+        // backup/cleanup failure must never trap the app — log it and close
+        // anyway rather than leave the window stuck.
+        void logDebug(`window close: unexpected error in close flow, closing anyway: ${e instanceof Error ? e.message : String(e)}`);
       }
+
+      closing = true;
+      await win.close();
     });
     if (cancelled) unlisten();
     else unlistenClose = unlisten;

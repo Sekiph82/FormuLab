@@ -3,5 +3,11 @@
     "save": "Save",
     "cancel": "Cancel",
     "remove": "Remove"
+  },
+  "unsavedClose": {
+    "title": "Unsaved changes",
+    "body": "You have unsaved formulation changes. What would you like to do before closing?",
+    "saveAndClose": "Save and close",
+    "closeWithoutSaving": "Close without saving"
   }
 }

@@ -349,7 +349,6 @@
     "none": "未找到",
     "storageHealth": "存储健康状况",
     "storageHealthValue": "{{healthy}} 个正常,{{unhealthy}} 个异常",
-    "recentErrors": "提及错误的近期日志行({{count}} 条)",
     "openLogFolder": "打开日志文件夹",
     "copySummary": "复制摘要",
     "exportBundle": "导出支持包",
@@ -359,7 +358,10 @@
       "copyFailed": "无法复制摘要",
       "exported": "支持包已导出。",
       "exportFailed": "无法导出支持包"
-    }
+    },
+    "informational": "Informational",
+    "currentErrors": "This session's log lines mentioning an error ({{count}})",
+    "historicalErrors": "Earlier log lines mentioning an error, from before this session ({{count}})"
   },
   "python": {
     "title": "本地 Python 内核",

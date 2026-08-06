@@ -53,8 +53,40 @@ pub struct LastBackupInfo {
     /// Filename only, never a full path — self-redacting by construction
     /// (no username, no drive letter).
     pub filename: String,
-    pub kind: String, // "preMigration" | "preRestore"
+    pub kind: String, // "preMigration" | "preRestore" | "automaticDaily" | "automaticWeekly"
     pub created_at: u64,
+}
+
+/// The instant this app process started, captured once via `.manage()` in
+/// `lib.rs`. Used only to classify `debug.log` lines already present when
+/// the app started ("historical") from ones appended during this run
+/// ("current session") — Diagnostics must not present a leftover log line
+/// from a much earlier run (or an already-removed feature) as if it were a
+/// live, present-tense problem.
+pub struct AppStartTime(pub u64);
+
+impl AppStartTime {
+    pub fn now() -> Self {
+        let ms = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+        Self(ms as u64)
+    }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LogErrorLine {
+    /// The log text after its leading epoch-millisecond timestamp — never
+    /// the raw `"{ts} {message}"` line, so the UI never has to re-parse it.
+    pub message: String,
+    /// Epoch milliseconds, parsed from the line's own leading timestamp —
+    /// `0` for a line that (unexpectedly) has no parseable timestamp, which
+    /// `current_session` then correctly treats as historical rather than
+    /// guessing.
+    pub at: u64,
+    /// `true` only if this line was appended at or after `AppStartTime` —
+    /// i.e. actually happened in the app instance the user is looking at
+    /// right now, not carried over from a previous run.
+    pub current_session: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -84,7 +116,7 @@ pub struct DiagnosticsSummary {
     pub last_backup: Option<LastBackupInfo>,
     pub storage_health: StorageHealth,
     pub log_directories: Vec<String>,
-    pub recent_errors: Vec<String>,
+    pub recent_errors: Vec<LogErrorLine>,
 }
 
 fn now_secs() -> u64 {
@@ -117,25 +149,65 @@ fn scan_storage_health(project_root: &Path) -> StorageHealth {
     StorageHealth { healthy_count, unhealthy }
 }
 
+/// Scans the *default* app-private backups directory
+/// (`automatic_backup.rs`'s own default destination, and where
+/// pre-migration/pre-restore safety backups always land) for every backup
+/// class this project can actually name: safety-net (`pre-migration-`,
+/// `pre-restore-`) and scheduled automatic (`formulab-auto-daily-`,
+/// `formulab-auto-weekly-` — `automatic_backup.rs::class_file_prefix`'s own
+/// exact prefixes, kept in sync with it here rather than duplicated
+/// blindly). **Does not, and structurally cannot, see a standalone backup**
+/// (`backup.rs::create_backup`) — the user picks that destination via a
+/// native Save dialog, so it can be anywhere, under any filename; the UI
+/// label reflects this distinction rather than implying "no backup exists
+/// at all" when what's actually true is "no *safety-net or automatic*
+/// backup exists in the default location."
+/// Pure: classifies one filename into `(kind, epoch)` if it matches a known
+/// backup-class prefix, or `None` for anything else (a `.tmp` in-progress
+/// file, an unrelated file, a standalone backup under a user-chosen name).
+/// The prefixes here must stay in sync with `automatic_backup.rs::class_file_prefix`
+/// and `backup.rs`'s own `pre-restore-`/`pre-migration-` literals — not
+/// re-derived from them (both live in different modules with different
+/// concerns), so this is deliberately a second, explicit list, not a
+/// re-export.
+fn classify_backup_filename(name: &str) -> Option<(&'static str, u64)> {
+    let (kind, rest) = if let Some(r) = name.strip_prefix("pre-migration-") {
+        ("preMigration", r)
+    } else if let Some(r) = name.strip_prefix("pre-restore-") {
+        ("preRestore", r)
+    } else if let Some(r) = name.strip_prefix("formulab-auto-daily-") {
+        ("automaticDaily", r)
+    } else if let Some(r) = name.strip_prefix("formulab-auto-weekly-") {
+        ("automaticWeekly", r)
+    } else {
+        return None;
+    };
+    let epoch_str = rest.strip_suffix(".formulab-backup")?;
+    let epoch = epoch_str.parse::<u64>().ok()?;
+    Some((kind, epoch))
+}
+
+/// Scans the *default* app-private backups directory
+/// (`automatic_backup.rs`'s own default destination, and where
+/// pre-migration/pre-restore safety backups always land) for every backup
+/// class this project can actually name via `classify_backup_filename`.
+/// **Does not, and structurally cannot, see a standalone backup**
+/// (`backup.rs::create_backup`) — the user picks that destination via a
+/// native Save dialog, so it can be anywhere, under any filename; the UI
+/// label reflects this distinction rather than implying "no backup exists
+/// at all" when what's actually true is "no *safety-net or automatic*
+/// backup exists in the default location."
 fn find_last_backup(app: &AppHandle) -> Option<LastBackupInfo> {
     let dir = crate::backup::app_private_dir(app, "backups").ok()?;
-    let mut best: Option<(u64, String, String)> = None; // (epoch, filename, kind)
+    let mut best: Option<(u64, String, &'static str)> = None; // (epoch, filename, kind)
     for entry in std::fs::read_dir(&dir).ok()?.filter_map(|e| e.ok()) {
         let name = entry.file_name().to_string_lossy().to_string();
-        let (kind, rest) = if let Some(r) = name.strip_prefix("pre-migration-") {
-            ("preMigration", r)
-        } else if let Some(r) = name.strip_prefix("pre-restore-") {
-            ("preRestore", r)
-        } else {
-            continue;
-        };
-        let Some(epoch_str) = rest.strip_suffix(".formulab-backup") else { continue };
-        let Ok(epoch) = epoch_str.parse::<u64>() else { continue };
+        let Some((kind, epoch)) = classify_backup_filename(&name) else { continue };
         if best.as_ref().map(|(e, ..)| epoch > *e).unwrap_or(true) {
-            best = Some((epoch, name, kind.to_string()));
+            best = Some((epoch, name, kind));
         }
     }
-    best.map(|(epoch, filename, kind)| LastBackupInfo { filename, kind, created_at: epoch })
+    best.map(|(epoch, filename, kind)| LastBackupInfo { filename, kind: kind.to_string(), created_at: epoch })
 }
 
 fn last_migration_status(entries: &[MigrationJournalEntry]) -> Option<LastMigrationInfo> {
@@ -169,13 +241,33 @@ fn tail_lines(path: &Path, max_lines: usize) -> Vec<String> {
     all.iter().rev().take(max_lines).rev().map(|s| s.to_string()).collect()
 }
 
-fn recent_error_lines(app: &AppHandle) -> Vec<String> {
+/// Splits a raw `debug_log::log_debug` line (`"{epoch_ms} {message}"`) into
+/// its timestamp and message. A line with no parseable leading number
+/// (shouldn't happen — every line `log_debug` writes has one — but a
+/// malformed/truncated line is possible after an ungraceful shutdown) keeps
+/// its entire text as the message with `at: 0`, which `current_session`
+/// then correctly treats as historical rather than guessing "now".
+fn parse_log_line(line: &str) -> (u64, String) {
+    match line.split_once(' ') {
+        Some((ts, rest)) => match ts.parse::<u64>() {
+            Ok(epoch_ms) => (epoch_ms, rest.to_string()),
+            Err(_) => (0, line.to_string()),
+        },
+        None => (0, line.to_string()),
+    }
+}
+
+fn recent_error_lines(app: &AppHandle, session_start_ms: u64) -> Vec<LogErrorLine> {
     let Some(path) = debug_log_path(app) else { return Vec::new() };
-    let matched: Vec<String> = tail_lines(&path, 2000)
+    let matched: Vec<LogErrorLine> = tail_lines(&path, 2000)
         .into_iter()
         .filter(|l| {
             let lower = l.to_lowercase();
             lower.contains("error") || lower.contains("fail")
+        })
+        .map(|l| {
+            let (at, message) = parse_log_line(&l);
+            LogErrorLine { message, at, current_session: at >= session_start_ms }
         })
         .collect();
     let start = matched.len().saturating_sub(RECENT_ERRORS_LIMIT);
@@ -194,6 +286,7 @@ pub async fn diagnostics_summary(app: AppHandle) -> Result<DiagnosticsSummary, S
     let storage_health = scan_storage_health(&root.path);
     let last_backup = find_last_backup(&app);
     let last_migration = last_migration_status(&journal);
+    let session_start_ms = app.state::<AppStartTime>().0;
 
     let log_dirs = {
         let mut dirs = vec![workspace_root.join(".FormuLab").join("logs").to_string_lossy().to_string()];
@@ -221,7 +314,7 @@ pub async fn diagnostics_summary(app: AppHandle) -> Result<DiagnosticsSummary, S
         last_backup,
         storage_health,
         log_directories: log_dirs,
-        recent_errors: recent_error_lines(&app),
+        recent_errors: recent_error_lines(&app, session_start_ms),
     })
 }
 
@@ -481,5 +574,68 @@ mod tests {
         let dir = tmp("tail-missing");
         assert!(tail_lines(&dir.join("nope.log"), 10).is_empty());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parse_log_line_splits_the_leading_epoch_millis_from_the_message() {
+        let (at, message) = parse_log_line("1700000000000 Timed out opening OpenCode event stream");
+        assert_eq!(at, 1_700_000_000_000);
+        assert_eq!(message, "Timed out opening OpenCode event stream");
+    }
+
+    #[test]
+    fn parse_log_line_on_a_line_with_no_leading_number_keeps_the_whole_text_and_reports_zero() {
+        let (at, message) = parse_log_line("not a timestamped line at all");
+        assert_eq!(at, 0);
+        assert_eq!(message, "not a timestamped line at all");
+    }
+
+    /// The exact regression this fix exists for: a real, historical
+    /// "Timed out opening OpenCode event stream" line — logged by the
+    /// frontend back when OpenCode was still bundled (Phase 12 Session 2A
+    /// removed it) — sitting in `debug.log` from a much earlier run. Once
+    /// the app has since restarted (a later `AppStartTime`), this line must
+    /// be classified `current_session: false`, not presented as if it were
+    /// a live, present-tense connection failure.
+    #[test]
+    fn a_historical_opencode_line_is_not_current_session_once_the_app_has_restarted() {
+        let old_run_ts: u64 = 1_700_000_000_000;
+        let (at, message) = parse_log_line(&format!("{old_run_ts} Timed out opening OpenCode event stream"));
+        let this_session_start = old_run_ts + 60_000; // app restarted a minute later
+        let line = LogErrorLine { message, at, current_session: at >= this_session_start };
+        assert!(!line.current_session);
+        assert!(line.message.contains("OpenCode event stream"));
+    }
+
+    #[test]
+    fn a_line_appended_after_this_session_started_is_current_session() {
+        let session_start: u64 = 1_700_000_000_000;
+        let (at, _) = parse_log_line(&format!("{} some error happened", session_start + 5_000));
+        assert!(at >= session_start);
+    }
+
+    #[test]
+    fn classify_backup_filename_recognizes_every_known_class() {
+        assert_eq!(classify_backup_filename("pre-migration-42.formulab-backup"), Some(("preMigration", 42)));
+        assert_eq!(classify_backup_filename("pre-restore-7.formulab-backup"), Some(("preRestore", 7)));
+        assert_eq!(
+            classify_backup_filename("formulab-auto-daily-1700000000.formulab-backup"),
+            Some(("automaticDaily", 1_700_000_000))
+        );
+        assert_eq!(
+            classify_backup_filename("formulab-auto-weekly-1700000000.formulab-backup"),
+            Some(("automaticWeekly", 1_700_000_000))
+        );
+    }
+
+    #[test]
+    fn classify_backup_filename_rejects_a_standalone_or_unrelated_filename() {
+        // A standalone backup's filename is entirely user-chosen via a
+        // native Save dialog — this is the whole reason "Last backup" can't
+        // claim to have checked for one.
+        assert_eq!(classify_backup_filename("My FormuLab Backup 2026-08-01.formulab-backup"), None);
+        assert_eq!(classify_backup_filename("pre-migration-not-a-number.formulab-backup"), None);
+        assert_eq!(classify_backup_filename("pre-migration-42.formulab-backup.tmp"), None);
+        assert_eq!(classify_backup_filename("random-file.txt"), None);
     }
 }

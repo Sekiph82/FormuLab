@@ -349,7 +349,6 @@
     "none": "없음",
     "storageHealth": "저장소 상태",
     "storageHealthValue": "정상 {{healthy}}개, 이상 {{unhealthy}}개",
-    "recentErrors": "오류가 언급된 최근 로그 줄 ({{count}}개)",
     "openLogFolder": "로그 폴더 열기",
     "copySummary": "요약 복사",
     "exportBundle": "지원 번들 내보내기",
@@ -359,7 +358,10 @@
       "copyFailed": "요약을 복사하지 못했습니다",
       "exported": "지원 번들을 내보냈습니다.",
       "exportFailed": "지원 번들을 내보내지 못했습니다"
-    }
+    },
+    "informational": "Informational",
+    "currentErrors": "This session's log lines mentioning an error ({{count}})",
+    "historicalErrors": "Earlier log lines mentioning an error, from before this session ({{count}})"
   },
   "python": {
     "title": "로컬 Python 커널",

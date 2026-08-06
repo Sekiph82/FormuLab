@@ -25,12 +25,24 @@ export interface StorageHealth {
   unhealthy: CollectionHealth[];
 }
 
-export type BackupKind = "preMigration" | "preRestore";
+export type BackupKind = "preMigration" | "preRestore" | "automaticDaily" | "automaticWeekly";
 
 export interface LastBackupInfo {
   filename: string;
   kind: BackupKind;
   createdAt: number;
+}
+
+/** A `debug.log` line matching the "error"/"fail" heuristic. `currentSession`
+ *  is `false` for a line that was already in the log when this app instance
+ *  started — e.g. a leftover line from a since-removed feature, or simply an
+ *  earlier run — so the UI can stop presenting old log residue as a live,
+ *  present-tense problem. */
+export interface LogErrorLine {
+  message: string;
+  /** Epoch milliseconds; `0` if the line had no parseable leading timestamp. */
+  at: number;
+  currentSession: boolean;
 }
 
 export type MigrationRunStatusLabel = "completed" | "failed" | "rejectedFutureVersion";
@@ -56,7 +68,7 @@ interface DiagnosticsSummaryBase {
   lastBackup: LastBackupInfo | null;
   storageHealth: StorageHealth;
   logDirectories: string[];
-  recentErrors: string[];
+  recentErrors: LogErrorLine[];
 }
 
 export interface DiagnosticsSummary extends DiagnosticsSummaryBase {

@@ -11,6 +11,7 @@ import { HelpCenter } from "@/components/help/HelpCenter";
 import { TourOverlay } from "@/components/help/TourOverlay";
 import { OnboardingPrompt } from "@/components/help/OnboardingPrompt";
 import { Toaster } from "@/components/ui/Toaster";
+import { UnsavedCloseDialog } from "@/components/ui/UnsavedCloseDialog";
 import { ensureSetupProgressListener } from "@/lib/setup";
 import { useOverlayTitlebar, useUiStore } from "@/lib/store";
 import { overlayTitlebarStyle } from "@/lib/titlebar";
@@ -156,6 +157,7 @@ export function AppShell() {
       <TourOverlay />
       <OnboardingPrompt />
       <Toaster />
+      <UnsavedCloseDialog />
     </div>
   );
 }

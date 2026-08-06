@@ -32,7 +32,27 @@ function formatWhen(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toLocaleString();
 }
 
+/** `LogErrorLine.at`/`LastBackupInfo.createdAt` for automatic/safety-net
+ *  backups are epoch *milliseconds* and *seconds* respectively — different
+ *  units by construction (`LastBackupInfo.createdAt` reuses the backup
+ *  filename's own epoch-seconds scheme; `debug.log` lines use
+ *  `SystemTime`'s millisecond precision) — always format through the
+ *  matching helper, never interchange them. */
+function formatWhenMillis(epochMillis: number): string {
+  if (epochMillis === 0) return "unknown time";
+  return new Date(epochMillis).toLocaleString();
+}
+
+const BACKUP_KIND_LABELS: Record<NonNullable<DiagnosticsSummary["lastBackup"]>["kind"], string> = {
+  preMigration: "pre-migration safety backup",
+  preRestore: "pre-restore safety backup",
+  automaticDaily: "automatic daily backup",
+  automaticWeekly: "automatic weekly backup",
+};
+
 function buildSummaryText(s: DiagnosticsSummary): string {
+  const current = s.recentErrors.filter((e) => e.currentSession);
+  const historical = s.recentErrors.filter((e) => !e.currentSession);
   const lines = [
     `FormuLab ${s.appVersion}${s.buildId ? ` (${s.buildId})` : ""}`,
     `OS: ${s.os} (${s.arch})`,
@@ -43,14 +63,20 @@ function buildSummaryText(s: DiagnosticsSummary): string {
     `Schema version: ${s.globalSchemaVersion} (${s.schemaStatus})`,
     `Pending migrations: ${s.pendingMigrationCount}`,
     `Last migration: ${s.lastMigration ? `${s.lastMigration.status} at ${formatWhen(s.lastMigration.at)}` : "none"}`,
-    `Last backup: ${s.lastBackup ? `${s.lastBackup.kind} — ${s.lastBackup.filename}` : "none found"}`,
+    `Last automatic/safety backup: ${
+      s.lastBackup
+        ? `${BACKUP_KIND_LABELS[s.lastBackup.kind]} — ${s.lastBackup.filename} (${formatWhen(s.lastBackup.createdAt)})`
+        : "none found in the default location (a standalone backup you saved elsewhere isn't tracked here)"
+    }`,
     `Storage health: ${s.storageHealth.healthyCount} healthy, ${s.storageHealth.unhealthy.length} unhealthy`,
     ...s.storageHealth.unhealthy.map((c) => `  - ${c.name}: unreadable`),
     `Log directories: ${s.logDirectories.join(", ")}`,
-    `Root warnings: ${s.rootWarnings.length === 0 ? "none" : ""}`,
+    `Root warnings (informational — not necessarily an error): ${s.rootWarnings.length === 0 ? "none" : ""}`,
     ...s.rootWarnings.map((w) => `  - ${w}`),
-    `Recent errors (${s.recentErrors.length}):`,
-    ...s.recentErrors.map((e) => `  ${e}`),
+    `Current-session log lines mentioning an error (${current.length}):`,
+    ...current.map((e) => `  [${formatWhenMillis(e.at)}] ${e.message}`),
+    `Historical log lines mentioning an error, from before this run (${historical.length}):`,
+    ...historical.map((e) => `  [${formatWhenMillis(e.at)}] ${e.message}`),
   ];
   return lines.join("\n");
 }
@@ -121,6 +147,9 @@ export function DiagnosticsCard() {
     }
   }, [t]);
 
+  const currentErrors = summary?.recentErrors.filter((e) => e.currentSession) ?? [];
+  const historicalErrors = summary?.recentErrors.filter((e) => !e.currentSession) ?? [];
+
   return (
     <Section
       title={t("diagnostics.title")}
@@ -170,7 +199,9 @@ export function DiagnosticsCard() {
             </dd>
             <dt className="text-muted">{t("diagnostics.lastBackup")}</dt>
             <dd className="text-text">
-              {summary.lastBackup ? `${summary.lastBackup.kind} — ${formatWhen(summary.lastBackup.createdAt)}` : t("diagnostics.none")}
+              {summary.lastBackup
+                ? `${BACKUP_KIND_LABELS[summary.lastBackup.kind]} — ${formatWhen(summary.lastBackup.createdAt)}`
+                : t("diagnostics.none")}
             </dd>
             <dt className="text-muted">{t("diagnostics.storageHealth")}</dt>
             <dd className={cn("text-text", summary.storageHealth.unhealthy.length > 0 && "text-error")}>
@@ -185,24 +216,44 @@ export function DiagnosticsCard() {
             <div className="rounded-input border border-warn/40 bg-warn/10 p-2.5">
               <div className="flex items-start gap-2">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
-                <ul className="min-w-0 flex-1 list-disc space-y-1 pl-4 text-xs text-text">
-                  {summary.rootWarnings.map((w) => (
-                    <li key={w}>{w}</li>
-                  ))}
-                </ul>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
+                    {t("diagnostics.informational")}
+                  </p>
+                  <ul className="list-disc space-y-1 pl-4 text-xs text-text">
+                    {summary.rootWarnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
           )}
 
-          {summary.recentErrors.length > 0 && (
+          {currentErrors.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-error">
+                {t("diagnostics.currentErrors", { count: currentErrors.length })}
+              </p>
+              <div className="mt-1 max-h-32 overflow-y-auto rounded-input border border-error/40 bg-error/5 p-2 font-mono text-[11px] text-text">
+                {currentErrors.map((line, i) => (
+                  <div key={i} className="truncate" title={line.message}>
+                    <span className="text-muted">[{formatWhenMillis(line.at)}]</span> {line.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {historicalErrors.length > 0 && (
             <div>
               <p className="text-xs font-medium text-muted">
-                {t("diagnostics.recentErrors", { count: summary.recentErrors.length })}
+                {t("diagnostics.historicalErrors", { count: historicalErrors.length })}
               </p>
-              <div className="mt-1 max-h-32 overflow-y-auto rounded-input border border-border bg-surface-2 p-2 font-mono text-[11px] text-muted">
-                {summary.recentErrors.map((line, i) => (
-                  <div key={i} className="truncate">
-                    {line}
+              <div className="mt-1 max-h-32 overflow-y-auto rounded-input border border-border bg-surface-2 p-2 font-mono text-[11px] text-muted opacity-75">
+                {historicalErrors.map((line, i) => (
+                  <div key={i} className="truncate" title={line.message}>
+                    <span>[{formatWhenMillis(line.at)}]</span> {line.message}
                   </div>
                 ))}
               </div>
