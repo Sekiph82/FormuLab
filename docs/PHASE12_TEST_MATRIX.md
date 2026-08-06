@@ -216,6 +216,26 @@ completed a build. Both published artifacts SHA256-verified via an
 independent fresh re-download (not just the CI build's own reported
 hash) against a published `SHA256SUMS.txt`.
 
+## Session 4 (SignPath Application and Approval Gate): no application source changed — proportional verification only
+
+Documentation, application-dossier audit, a bounded tag-push-trigger
+investigation (no workflow file changes), and branch investigation
+(PR opened, not merged) only. No `apps/desktop` or `packages/shared`
+source changed, so no product test suite was re-run — correctly
+proportional per the user's own explicit "run tests proportional to
+actual source changes" instruction. What was actually verified:
+`git diff --check` clean; the 4 policy documents' public reachability
+re-checked via direct unauthenticated fetch (`raw.githubusercontent.com`):
+`404` on `main`, `200` on `v0.4.0` for all four; `v0.4.0`'s 3 release
+assets re-verified unchanged via `gh api` (identical sizes and SHA256
+digests to Session 3's own record); `Get-AuthenticodeSignature` on both
+installers re-confirmed `NotSigned`; whole-tree identity scan re-run,
+literal `0`. The tag-push anomaly investigation used one bounded, safe
+synthetic test (a throwaway tag matching the `v*` trigger pattern,
+deleted immediately after use, no permanent artifact created) — not a
+repeated delete/recreate of the published `v0.4.0` tag, which was never
+touched this session.
+
 ## Planned per-session test discipline (Sessions 3-12, proportional)
 
 Renumbered in Session 2 to insert the previous-identity-eradication session ahead of

@@ -668,12 +668,20 @@ not ship under the wrong identity.
   than hidden — worked around with a `workflow_dispatch` `tag` input so
   a manual dispatch produces the same tagged-release behavior. Full
   detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 3 summary.
-- **Session 4** — SignPath Application and Approval Gate. Submit the
-  dossier (`docs/SIGNPATH_APPLICATION.md`) now that a real release exists;
-  this is largely an external-review wait, bounded to: submit, track,
-  and record the outcome (approved with real
-  organization/project/policy/connector identifiers, or specific
-  feedback to address and reapply).
+- **Session 4** — SignPath Application and Approval Gate. **Prepared,
+  not submitted.** The dossier (`docs/SIGNPATH_APPLICATION.md`) was
+  re-audited against fresh GitHub state and is copy-paste ready.
+  Submission itself is blocked at a genuine gate: SignPath's
+  application is a browser-only, JavaScript-rendered form with no
+  CLI/API path, requiring at least a contact-email confirmation this
+  session could not authoritatively supply without the user. Also
+  opened [PR #1](https://github.com/Sekiph82/FormuLab/pull/1) (fast-
+  forward, `feature/laboratory-stability` → `main`) to fix the stale
+  `main` branch the dossier's own checklist depends on — left open, not
+  merged, because the diff would change `.FormuLab/runs.db`'s tracked
+  content on `main`. Full detail: `docs/handoffs/PHASE12_CURRENT.md`'s
+  Session 4 summary. Next: **Session 4A — SignPath Manual Submission
+  Completion** (the user completes and submits the form personally).
 - **Session 5** — Signing wired for real. Replace the documentation-only
   GitHub Actions example (§9) with a live workflow step using the real
   SignPath identifiers from Session 4; add the `signtool verify`
@@ -726,22 +734,24 @@ phase's closure discipline.
 
 ## 8. Exact next session
 
-**Phase 12 Session 4: SignPath Application and Approval Gate.** Session
-3's real, published, non-draft
-[`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0)
-release satisfies the eligibility blocker found in Session 1 (§9) —
-SignPath requires the project already be released in the form to be
-signed, and it now is. Submit the dossier
-(`docs/SIGNPATH_APPLICATION.md`, updated for the real release) to
-`signpath.org/apply`. Largely an external-review wait: submit, track,
-and record the outcome. Session 3 also flagged a real, unresolved
-discrepancy Session 4 should address before or during submission: the
-application checklist assumes `SECURITY.md`/`docs/PRIVACY.md`/
-`docs/CODE_SIGNING_POLICY.md` are "live on `main`," but `main` is 224
-commits behind `feature/laboratory-stability` and does not contain any
-of Phase 11/12's work — either merge to `main` first, or adjust the
-application's claims to reference the branch/tag the documents actually
-live on.
+**Phase 12 Session 4A: SignPath Manual Submission Completion.** Session
+4 fully prepared and re-audited the application dossier
+(`docs/SIGNPATH_APPLICATION.md`) against fresh GitHub state, but could
+not submit it: SignPath's application (`signpath.org/apply.html`) is a
+browser-only, JavaScript-rendered form with no CLI/API path, and at
+least one required field (a contact email address) is not present in
+this repository's own evidence — supplying it without the user's
+explicit confirmation would have been fabrication. `docs/
+SIGNPATH_APPLICATION.md`'s "USER INPUT REQUIRED" section lists the
+exact remaining fields and submission steps. Session 4A: the user
+completes and submits the form personally (or confirms the missing
+fields so a future session can record the real outcome). Separately —
+not blocking 4A — [PR #1](https://github.com/Sekiph82/FormuLab/pull/1)
+(bringing `main` current) remains open pending a human decision about
+its `.FormuLab/runs.db` diff, and the Session 3 tag-push trigger
+anomaly remains unresolved (re-confirmed reproducible via a bounded,
+safe synthetic-tag test in Session 4; the `workflow_dispatch` `tag`-
+input fallback remains the working release-publish path).
 
 ## 9. Session 1 — Free Open-Source Code-Signing Foundation (complete)
 

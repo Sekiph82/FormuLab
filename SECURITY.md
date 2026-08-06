@@ -44,10 +44,10 @@ In scope: FormuLab's own source code
 its build/release pipeline, and its Windows/macOS/Linux installers.
 
 Out of scope: vulnerabilities in third-party dependencies not specific to
-how FormuLab uses them (report those upstream — e.g. to the OpenCode
-project, `astral-sh/uv`, or the relevant npm/crates.io package maintainer)
-and vulnerabilities in an LLM provider's own API/service that FormuLab
-merely calls with a user-supplied key.
+how FormuLab uses them (report those upstream — e.g. to `astral-sh/uv`
+or the relevant npm/crates.io package maintainer) and vulnerabilities in
+an LLM provider's own API/service that FormuLab merely calls with a
+user-supplied key.
 
 ## Code signing and release integrity
 

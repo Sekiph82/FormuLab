@@ -1,6 +1,10 @@
 # Phase 12 — Commercial Distribution
 
-## Status: SESSION 3 (First Public Release Publication) COMPLETE. FormuLab's first real, public, non-draft GitHub Release is live: [`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0), Windows x64 only, unsigned and disclosed as such, both installers hash-verified against a published `SHA256SUMS.txt` via an independent fresh re-download. Session 1's eligibility blocker (no release ever published) is now resolved — the SignPath application prerequisite is satisfied. Next: Session 4 (SignPath Application and Approval Gate).
+## Status: SESSION 4 (SignPath Application and Approval Gate) — application PREPARED, not yet submitted. Fresh eligibility re-audit against live GitHub state: all conditions met. Opened [PR #1](https://github.com/Sekiph82/FormuLab/pull/1) to bring `main` current — left open, not merged, because the diff would change `.FormuLab/runs.db`'s tracked content on `main`, a real conflict with this project's own "never touch real user data" rule that needs a human decision. Investigated the Session 3 tag-push anomaly with a bounded, safe synthetic-tag test: still reproducible, root cause not established, `workflow_dispatch` fallback remains the only working release-publish path. SignPath's application form is a browser-only, JS-rendered form with no CLI/API path and at least one field (contact email) this session could not authoritatively confirm without the user — application dossier fully prepared and copy-paste ready, submission stopped at that gate per explicit instruction. Next: **Phase 12 Session 4A: SignPath Manual Submission Completion**.
+
+## Session 3 summary (superseded by Session 4 above — kept for the record)
+
+SESSION 3 (First Public Release Publication) COMPLETE. FormuLab's first real, public, non-draft GitHub Release is live: [`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0), Windows x64 only, unsigned and disclosed as such, both installers hash-verified against a published `SHA256SUMS.txt` via an independent fresh re-download. Session 1's eligibility blocker (no release ever published) was resolved — the SignPath application prerequisite was satisfied.
 
 ## Session 2A summary (superseded by Session 3 above — kept for the record)
 
@@ -1003,7 +1007,7 @@ table updated accordingly (see below).
   dossier's claims to reference the actual branch/tag the documents live
   on, not assumed resolved here.
 
-### Exact next session
+### Exact next session (as Session 3 originally reported it)
 
 Every Session 3 requirement genuinely passed: audit items 1-7 all PASS,
 the release-workflow correction was minimal and disclosed, the tag-push
@@ -1011,3 +1015,254 @@ anomaly was found and honestly worked around (not hidden), the workflow
 run succeeded, the release is public with verified artifacts, and the
 SignPath prerequisite is now satisfied. **Phase 12 Session 4: SignPath
 Application and Approval Gate.**
+
+## Session 4 summary — SignPath Application and Approval Gate (application prepared, not submitted)
+
+**Objective**: prepare, and submit where technically possible without
+inventing identity/legal information, FormuLab's SignPath Foundation
+application. Not a signing-activation session.
+
+**Initial HEAD**: `b6f899f6809bd0ec29ff8e482cb7e56c036e9b30`.
+
+### 1. Fresh eligibility and repository audit (live GitHub state, not trusted from prior logs)
+
+- Repository: public, not archived, not disabled (`gh api
+  repos/Sekiph82/FormuLab`).
+- License: `LICENSE` is unambiguous MIT; GitHub's own detector reports
+  `NOASSERTION` — investigated directly rather than repeated as an
+  unexplained finding: the license body is a verbatim MIT template, but
+  a trailing footnote (disclosing that an optional, never-bundled
+  third-party skill collection carries its own licenses) is appended
+  after it, which most likely drops the automated similarity match
+  below GitHub's detection threshold. A known limitation of automated
+  license detection, not a real licensing defect.
+- `v0.4.0` release: `draft: false`, `prerelease: false`,
+  `target_commitish: 833e7ee9`, 3 assets (`FormuLab_0.4.0_x64-setup.exe`
+  25,324,495 bytes, `FormuLab_0.4.0_x64_en-US.msi` 36,052,992 bytes,
+  `SHA256SUMS.txt` 190 bytes), all `state: "uploaded"` — unchanged from
+  Session 3, re-verified via `gh api` rather than assumed.
+- `SECURITY.md`, `docs/PRIVACY.md`, `docs/CODE_SIGNING_POLICY.md`,
+  `docs/SIGNPATH_APPLICATION.md`: fetched fresh, unauthenticated
+  (`raw.githubusercontent.com`) — all 4 return `404` on `main`, all 4
+  return `200` on the `v0.4.0` tag. Direct evidence for section 2 below.
+- No malware/security-circumvention behavior: unchanged finding,
+  re-confirmed no new functionality was added this phase that would
+  change this.
+- No proprietary skill pack shipped: unchanged (`anthropics/skills`
+  content still fetched by CI, still never in `bundle.resources`).
+- Artifacts remain unsigned: `Get-AuthenticodeSignature` on both
+  independently re-downloaded `v0.4.0` installers, checked fresh this
+  session: `NotSigned` for both.
+- Contributor count: `git shortlog -sne --all` → **242/242**, single
+  contributor (grew from 235 at Session 1, as expected for continued
+  sole-maintainer work).
+
+### 2. The main-branch problem — investigated, PR opened, not merged
+
+Inspected before touching anything: default branch is `main`
+(`gh api repos/.../default_branch`); `gh api
+repos/.../branches/main/protection` → `404 Branch not protected` (no
+required checks, no review requirement configured); `gh pr list --state
+open` → empty (no existing PR); `git log --oneline
+feature/laboratory-stability..main` → empty (**zero commits unique to
+`main`** — nothing would be lost by fast-forwarding); `git log --oneline
+main..feature/laboratory-stability` → **227 commits** (grew from
+Session 3's 224 — real ongoing work, not stale); `git merge-base
+--is-ancestor main feature/laboratory-stability` → true (**a clean
+fast-forward is possible**); CI status for the feature HEAD via `gh api
+.../check-runs` → empty (expected — `build.yml` only runs on tag push or
+manual dispatch, never on ordinary branch pushes, so there is no
+CI-status concept to check here); the `v0.4.0` tag sits on
+`feature/laboratory-stability`, not `main` (expected, unmerged).
+
+**Opened [PR #1](https://github.com/Sekiph82/FormuLab/pull/1)** —
+`feature/laboratory-stability` → `main`, full description covering the
+fast-forward nature, the missing-policy-docs motivation, and the
+blocker below. **Did not merge.** Before merging anything, checked the
+diff for real user data or unrelated generated documents per the user's
+explicit instruction — found a real one: `git diff --stat main
+feature/laboratory-stability -- .FormuLab/ formulas/index.json
+docs/generated/` shows `.FormuLab/runs.db` **is tracked in git on
+`main`** and differs from the feature branch's copy (same size, 53,248
+bytes, different content). Every session working on this repository has
+treated `.FormuLab/runs.db` as real user data that must never be
+staged, committed, or modified — merging this PR would change that
+file's committed content on `main`. This is disclosed prominently in
+the PR description itself, not hidden, and the PR is left open for a
+human decision (e.g., is `main`'s copy a stale placeholder safe to
+overwrite, or should the file be `git rm --cached` + `.gitignore`d
+first) rather than bypassed. `formulas/index.json` and
+`docs/generated/FormuLab-User-Guide.{docx,pdf}` are also new-on-branch
+generated files carried by the same diff, for the same standing reason.
+
+**Result**: `main` still does not contain the released source or
+policy documents. The `v0.4.0` tag was **not** moved (it correctly sits
+on the commit it was built from, regardless of branch topology).
+
+### 3. Application dossier audit and correction
+
+Re-audited `docs/SIGNPATH_APPLICATION.md` line by line. Corrected: the
+"live on `main`" policy-document links (now point to the immutable
+`v0.4.0` tag, proven reachable, with an explicit note about the `main`
+gap rather than silently switching URLs); added a "Release version and
+commit" field (tag, commit, workflow run — wasn't in the dossier
+before); updated the contributor count (235 → 242); updated "Build
+workflow" to describe both the tag-push trigger and the
+`workflow_dispatch` fallback actually used to publish `v0.4.0`; added
+an explicit "Signing-integration status: not active" statement; added
+the license-detector explanation. Nothing fabricated: no legal-entity
+name, address, phone number, additional reviewers/approvers, certificate
+identifiers, SignPath IDs, or claim of acceptance appears anywhere in
+the document.
+
+### 4. SignPath submission — prepared, not submitted
+
+Researched the real current application route (SignPath's own
+`terms.html`, a third-party walkthrough of a completed application, and
+attempted to load `signpath.org/apply.html` directly). Finding: the
+application is a **JavaScript-rendered web form** — `WebFetch` against
+that URL returns only static shell content (nav links, a heading, a
+cookie-consent banner), no actual form fields, confirming it cannot be
+completed via a plain HTTP request. **No browser automation was
+available this session** (`mcp__claude-in-chrome` tools returned
+"Browser extension is not connected" — the extension was not installed/
+running) to load and inspect the live form directly, so the exact field
+list below is research-derived, not screen-verified.
+
+Known required fields (from SignPath's own terms + a documented
+successful application): project/repository URL, license, download/
+release URL, project description, and **a contact email address**.
+Every evidenced field is filled in `docs/SIGNPATH_APPLICATION.md`'s
+dossier section. **Not filled in, per the user's explicit "do not
+fabricate... personal email... do not bypass anything" instruction**:
+confirmation that `sekiphayit1982@gmail.com` (present in local,
+non-committed project configuration, not in the git repository itself)
+is the address to use; any legal/applicant name distinct from the
+GitHub handle; MFA-enabled confirmation for the SignPath/GitHub
+accounts; acceptance of SignPath's current terms. **Application was not
+submitted.** No confirmation, application ID, ticket, or dashboard
+status exists — none is claimed.
+
+Full field-by-field detail and the exact submission steps are in
+`docs/SIGNPATH_APPLICATION.md`'s new "USER INPUT REQUIRED" section.
+
+### 5. Signing-integration gate
+
+`docs/CODE_SIGNING_POLICY.md`'s "Status of GitHub Actions integration"
+section now states the explicit gate: **`BLOCKED_PENDING_SIGNPATH_APPROVAL`.**
+`docs/SIGNPATH_APPLICATION.md` gained a "Signing-integration readiness"
+section itemizing exactly what activation will require (organization
+ID, project slug, signing-policy slug, artifact-configuration slug, the
+`SIGNPATH_API_TOKEN` environment-protected secret, trusted-build-system
+confirmation) — none of it exists yet, none of it was fabricated or
+placeholder-filled. The nested signing order and approval-workflow
+roles were already fully specified in prior sessions and don't need
+rework once approved.
+
+### 6. Tag-push workflow anomaly — bounded investigation, root cause not established
+
+Researched official GitHub documentation and known behaviors before
+testing anything: workflows with only a `tags:` filter (no `branches:`)
+still run for tag-push events per GitHub's own docs (ruled out as a
+misconfiguration); the well-documented "`GITHUB_TOKEN`-originated pushes
+don't trigger further workflow runs" behavior was investigated and
+**ruled out** — that restriction applies to the ephemeral
+`secrets.GITHUB_TOKEN` used *inside* a running workflow (to prevent
+infinite trigger loops), not to a maintainer's own personal OAuth token
+used from `git`/`gh` on a local machine (confirmed via `gh auth
+status`: a `gho_`-prefixed user OAuth token, not a workflow-internal
+token); `build.yml` exists with the identical `push: tags: ["v*"]`
+trigger on both `main` and the tagged commit (ruled out a
+default-branch-only-evaluation theory).
+
+**Bounded, safe empirical test**: created a synthetic tag,
+`v0.0.0-test-trigger-diagnostic` (matches the `v*` glob so it exercises
+the exact same trigger path; clearly not a plausible real version), at
+the current HEAD, and pushed it. Polled `gh api
+repos/.../actions/runs?event=push` for 90 seconds — **no run was
+created**, reproducing the exact Session 3 symptom on a brand-new tag
+name, ruling out both a "was specific to `v0.4.0`" theory and a
+"was a one-off transient delay that has since cleared" theory. Checked
+`gh api repos/.../actions/permissions/workflow` (`default_workflow_permissions:
+"read"` — a token-permission default, not a trigger gate) and `gh api
+repos/.../hooks` (`[]`, no custom webhooks that could interfere) — both
+ruled out as causes. **Deleted the diagnostic tag immediately after
+determining the result** (`git tag -d` + `git push --delete origin`);
+confirmed via `gh release view` that no draft release or other artifact
+was ever created from it (the run never fired, so nothing existed to
+clean up beyond the tag ref itself); confirmed via `git ls-remote
+--tags` that it no longer exists remotely. The published `v0.4.0` tag
+was never touched, moved, or re-pushed this session.
+
+**Root cause: not established.** Every official-documentation-backed
+explanation available this session was checked and ruled out. This
+remains a genuine, reproducible, unexplained anomaly specific to this
+repository's tag-push trigger — the `workflow_dispatch` `tag`-input
+fallback (Session 3) remains the only proven-working release-publish
+path, exactly per the user's own instruction that it "must remain
+available until a real tag-trigger test passes." A future session
+should consider opening a GitHub Support ticket, since every
+self-service diagnostic path available via `gh`/documentation has now
+been exhausted.
+
+### Tests and validation
+
+Documentation, workflow *investigation* (no workflow file changes this
+session), and branch operations only — no application source changed.
+Proportional verification, not a full re-run: `git diff --check`:
+clean. `main`/`v0.4.0` URL reachability re-verified via direct
+unauthenticated fetch (`raw.githubusercontent.com`), not assumed.
+`v0.4.0`'s 3 release assets re-verified unchanged (identical sizes and
+SHA256 digests to Session 3's own record) via `gh api`. Whole-tree
+identity scan re-run: literal `0`. No product test suite was re-run —
+correctly proportional, since nothing in `apps/desktop` or
+`packages/shared` changed.
+
+### Commits and pushes
+
+`SECURITY.md` (one stale OpenCode reference corrected — it named
+"the OpenCode project" as an example third-party dependency to report
+upstream; OpenCode was removed from this app in Phase 12 Session 2A),
+`docs/CODE_SIGNING_POLICY.md` (explicit `BLOCKED_PENDING_SIGNPATH_APPROVAL`
+gate), `docs/SIGNPATH_APPLICATION.md` (full re-audit, provenance fields,
+`main`-vs-tag URL fix, USER INPUT REQUIRED and Signing-integration-
+readiness sections) — committed together as
+`docs(signing): finalize SignPath application`. No `fix(ci):` commit
+this session — the tag-push anomaly's investigation produced no
+resolution and no repository change (matching the user's own "do not
+create a commit for an investigation that produces no repository
+changes" instruction). No `docs(signing): record SignPath submission`
+commit — nothing was actually submitted.
+
+### Limitations
+
+- **Application not submitted** — stopped at the browser-interaction/
+  contact-email-confirmation gate, per explicit instruction not to
+  fabricate or bypass.
+- **`main` still lacks the released source and policy documents** — PR
+  #1 is open, not merged, blocked on a human decision about
+  `.FormuLab/runs.db`'s tracked-content diff.
+- **Tag-push trigger anomaly's root cause remains unknown** — every
+  self-service avenue was exhausted this session; GitHub Support
+  engagement is the likely next step, not something achievable via
+  `gh`/documentation alone.
+- **No browser automation was available** to directly inspect
+  SignPath's live application form — the field list in "USER INPUT
+  REQUIRED" is research-derived (SignPath's own terms page, a
+  documented successful application), not screen-verified against the
+  actual current form, which "form wording may change" per that same
+  research.
+
+### Exact next session
+
+The application could not be submitted this session because required
+user-identity/legal fields (at minimum, contact-email confirmation) are
+genuinely missing from repository evidence — this matches the user's
+own specified condition for **Phase 12 Session 4A: SignPath Manual
+Submission Completion**: the user completes `docs/SIGNPATH_APPLICATION.md`'s
+"USER INPUT REQUIRED" section personally (submits the form at
+`signpath.org/apply.html`, or confirms the fields so a future session
+can record the outcome), and that session records the real submission
+result. Separately, and not blocking Session 4A: PR #1's
+`.FormuLab/runs.db` decision and the tag-push anomaly's root cause
+remain open threads for whenever a human is available to weigh in.

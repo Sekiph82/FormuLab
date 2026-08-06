@@ -1823,8 +1823,36 @@ the first result). SignPath's "already released" eligibility prerequisite
 is now satisfied. Full detail: `docs/handoffs/PHASE12_CURRENT.md`'s
 Session 3 summary and `docs/PHASE12_TEST_MATRIX.md`.
 
-**Phase 12 status: Sessions 0-3 complete. Next: Session 4 (SignPath
-Application and Approval Gate).**
+**Session 4 (SignPath Application and Approval Gate) — dossier prepared
+and re-audited against fresh GitHub state; application not submitted.**
+Fresh eligibility re-check (not trusted from prior logs): repository
+public, `v0.4.0` release confirmed still `draft: false`/`prerelease:
+false` with 3 unchanged assets, artifacts re-confirmed `NotSigned`,
+contributor count re-verified (242/242, sole maintainer). Explained
+(not just repeated) why GitHub's license detector shows `NOASSERTION`
+despite an unambiguous MIT `LICENSE`: a trailing footnote after the
+license template likely drops the automated similarity match below
+threshold. Opened [PR #1](https://github.com/Sekiph82/FormuLab/pull/1)
+(`feature/laboratory-stability` → `main`, a clean fast-forward, zero
+conflicts, zero unique `main`-only commits) to fix `main`'s missing
+policy documents — left open, not merged: the diff would change
+`.FormuLab/runs.db`'s tracked content on `main`, a real conflict with
+this project's own "never touch real user data" rule, needing a human
+decision first. SignPath's application form is a browser-only,
+JavaScript-rendered web form with no CLI/API path; at least one
+required field (contact email) could not be supplied without the
+user's own confirmation — the dossier is fully prepared and copy-paste
+ready, but genuinely not submitted, per explicit instruction not to
+fabricate or bypass. Investigated the Session 3 tag-push trigger
+anomaly with a bounded, safe synthetic-tag test (created, tested,
+deleted — the published `v0.4.0` tag was never touched): still
+reproducible, root cause not established after exhausting every
+official-documentation-backed explanation available via `gh`. Full
+detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4 summary.
+
+**Phase 12 status: Sessions 0-3 complete, Session 4 prepared/blocked at
+a real user-input gate. Next: Session 4A (SignPath Manual Submission
+Completion).**
 
 ## Not yet started
 

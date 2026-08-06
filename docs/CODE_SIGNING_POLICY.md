@@ -139,13 +139,17 @@ open an issue or use the process in `../SECURITY.md`.
 
 ## Status of GitHub Actions integration
 
-**Not active.** No workflow file in this repository currently submits a
-signing request to SignPath, and none will until SignPath supplies real
-`organization-id`/`project-slug`/`signing-policy-slug`/
-`artifact-configuration-slug` values after approving FormuLab's
-application. A documentation-only, annotated example of what that
-integration step will look like — using SignPath's own published
-`signpath/github-action-submit-signing-request` action — is recorded in
-`docs/PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md`'s Session 1
-section for Session 2 to implement for real, with genuine identifiers, not
-before.
+**`BLOCKED_PENDING_SIGNPATH_APPROVAL`.** No workflow file in this
+repository currently submits a signing request to SignPath, and none
+will until SignPath supplies real `organization-id`/`project-slug`/
+`signing-policy-slug`/`artifact-configuration-slug` values after
+approving FormuLab's application (not yet submitted as of Phase 12
+Session 4 — see `docs/SIGNPATH_APPLICATION.md`'s "USER INPUT REQUIRED"
+section for exactly what's blocking submission). No placeholder IDs or
+fake secrets exist anywhere in this repository, and none will be added
+before a real approval exists. A documentation-only, annotated example
+of what that integration step will look like — using SignPath's own
+published `signpath/github-action-submit-signing-request` action — is
+recorded in `docs/PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md`'s
+Session 1 section, for a future session to implement for real, with
+genuine identifiers, once this gate lifts.
