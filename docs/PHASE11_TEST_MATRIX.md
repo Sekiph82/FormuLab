@@ -617,6 +617,35 @@ specific passing tests — see
   variants, the ignored-version state, and both toggles/the frequency
   select all covered in `UpdateCheckerCard.test.tsx`.
 
+## Stage 2 Closure and Verification (complete — full-suite results)
+
+- Rust: 3 new tests in `data_location_manager.rs`
+  (`a_full_stage_and_activate_sequence_leaves_the_source_root_byte_identical`,
+  `is_cleanup_safe_refuses_only_when_old_root_is_the_active_root`,
+  `is_cleanup_safe_compares_canonicalized_paths_not_raw_strings`), closing
+  two guarantees previously confirmed only by code-signature argument.
+  Full Rust suite: **180/180 passing** (177 prior + 3 new). `cargo clippy
+  --lib`: clean.
+- The `HelpPanel.test.tsx` jsdom/undici `AbortSignal` flake — recorded as
+  a known limitation in every prior Stage 2 session — was genuinely
+  root-caused and fixed this session, not documented around again. See
+  `docs/handoffs/PHASE11_CURRENT.md`'s "Stage 2 Closure" section for the
+  full investigation (two ruled-out fix attempts: dependency inlining,
+  OS-process-per-file isolation; the actual fix:
+  `vite.config.ts`'s `test.fileParallelism: false`).
+- **Desktop suite** (`pnpm vitest run`, plain, no flag, no isolation
+  needed): **130/130 files, 1185/1185 tests passing**. `HelpPanel.test.tsx`
+  run alone, 4 consecutive times: 11/11 passing every time.
+- **Shared package** (`pnpm --filter @formulab/shared vitest run`):
+  **61/61 files, 1251/1251 tests passing**, including `migrations.test.ts`
+  (13/13), run standalone.
+- i18n parity: **23/23**. Help registry: **38/38** (`registry.test.ts`)
+  plus **9/9** (`tours.test.ts`), run standalone.
+- Desktop typecheck: clean. Desktop lint: clean.
+- Release build (`pnpm tauri build`): fresh `formulab.exe` + MSI + NSIS
+  installers built; see `docs/handoffs/PHASE11_CURRENT.md` for
+  paths/hashes/signing status and native-launch verification.
+
 ## What no session in this first stage runs
 
 Per this session's own scope: none of Sessions 1-5 run the full desktop

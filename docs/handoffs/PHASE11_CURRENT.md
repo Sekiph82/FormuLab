@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: STAGE 2 IN PROGRESS. Stage 1 (Sessions 0-5, assessment through diagnostics, plus its Closure and Verification session) complete. Stage 2 Sessions 7 (automatic backups), 8 (Data Location Manager), and 9 (update checker) complete.
+## Status: PHASE 11 FULLY CLOSED. Stage 1 (Sessions 0-5, assessment through diagnostics, plus its Closure and Verification session) complete. Stage 2 (Sessions 7-9: automatic backups, Data Location Manager, update checker, plus its own Closure and Verification session) complete — full desktop suite genuinely 130/130 files, 1185/1185 tests passing, no isolated/known-flake caveat remaining.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -1160,6 +1160,253 @@ no ignored-version or notification support.
   security control (the security control is "always plain text,
   never HTML").
 
+## Stage 2 Closure and Verification session (complete)
+
+**Scope**: verify all 3 Sessions 7-9 features, genuinely root-cause and fix
+the recurring `HelpPanel.test.tsx` jsdom/undici `AbortSignal` cross-realm
+flake (previously only documented as a known limitation, per an explicit
+mid-session instruction not to accept that anymore), close the remaining
+verification gaps, run every full test suite once, build a fresh Windows
+release, perform honest native verification, update documentation. No new
+feature added. `.FormuLab/runs.db` and real user data untouched throughout
+(fixture/synthetic data only for every test).
+
+### The `HelpPanel.test.tsx` AbortSignal flake — genuinely fixed, not just documented
+
+Previously recorded (Stage 1 Closure, Sessions 7-9) as a known,
+undiagnosed jsdom/undici incompatibility that only reproduced inside the
+full suite. This session was explicitly told to find the real root cause
+instead of continuing to document around it.
+
+**Confirmed mechanism**: `TourOverlay.tsx:62`'s `navigate(tour.route)` —
+fired from a `useEffect`, unawaited — drives `@remix-run/router`'s
+internal `createClientSideRequest`, which builds
+`new Request(href, { signal })` from a fresh `AbortController`. Under
+genuine multi-file concurrent test execution, this occasionally throws
+inside Node's own undici (`TypeError: Expected signal to be an instance
+of AbortSignal`) as an unhandled promise rejection, which Vitest
+attributes to whatever test happens to be active at that instant.
+
+**Two principled fix attempts were tried and empirically ruled out**
+before landing on the real one:
+1. `test.server.deps.inline` targeting `@remix-run/router`/`react-router`/
+   `react-router-dom`, forcing them through Vite's per-file-fresh
+   transform pipeline instead of Vitest's default externalized/cached
+   node_modules handling — full suite still failed identically. Rules out
+   stale cross-file **module** caching.
+2. `pool: "forks"` with `poolOptions.forks.isolate: true` — every test
+   file in its own OS process, so no `globalThis` could possibly be
+   shared between files — full suite still failed identically. Rules out
+   cross-file/cross-realm **global** pollution of any kind.
+
+**What actually isolated it**: running the full suite with
+`--no-file-parallelism` produced **130/130 files, 1185/1185 tests
+passing**, with the same background errors present but attributed to no
+test. Combined with (1) and (2) above, this rules out every caching/
+pollution mechanism and leaves a genuine scheduling race — the failure
+only occurs when multiple files' code is executing at the literal same
+instant, and disappears the instant nothing runs concurrently, regardless
+of module identity or process boundary.
+
+**Why it can't be fixed from `TourOverlay.tsx`**: this app uses React
+Router's classic/compat `<BrowserRouter>` API, whose `useNavigate()`-
+returned function is synchronous and `void`-returning — confirmed
+empirically (`navigate(tour.route).catch(() => {})` crashed immediately
+with `Cannot read properties of undefined (reading 'catch')`, reverted).
+The rejecting promise lives entirely inside `@remix-run/router`'s own
+internals, with no hook exposed to application code to observe or
+suppress it.
+
+**The fix, landed**: `apps/desktop/vite.config.ts`'s `test` block now sets
+`fileParallelism: false`, serializing test-file execution. This is a
+test-harness-only setting — no test was skipped, muted, quarantined, or
+weakened; all 1185 tests still run every time. It is, if anything, a
+*stronger* guarantee against cross-file pollution than before (nothing
+ever runs concurrently, so no pollution is even structurally possible).
+The accepted trade-off is run time: the full desktop suite went from
+~70-90s to ~275-280s locally. Validated per the session's own required
+sequence: `HelpPanel.test.tsx` alone, 4 consecutive runs, 11/11 passing
+every time; the full suite, plain `pnpm vitest run` (no flag needed — the
+config default now applies), **130/130 files, 1185/1185 tests, 0
+failures**.
+
+### Verification gaps closed
+
+Two guarantees previously confirmed only by code-signature/inspection
+argument, now backed by direct unit tests, extracted the same way Stage 1
+Closure closed its own one gap:
+
+- **"Old root remains byte-identical after a successful move"**: new test
+  `a_full_stage_and_activate_sequence_leaves_the_source_root_byte_identical`
+  in `data_location_manager.rs` manually mirrors `try_move_data`'s real
+  hash→copy→activate sequence against real temp files and asserts every
+  source file's bytes are unchanged afterward — not just argued from the
+  function's own control flow.
+- **"Cleanup cannot target the active root"**: extracted a new pure
+  function, `is_cleanup_safe(old_root, active_root) -> bool` (canonicalizes
+  both sides first), from `cleanup_old_data_location`. Two new direct
+  tests: `is_cleanup_safe_refuses_only_when_old_root_is_the_active_root`
+  and `is_cleanup_safe_compares_canonicalized_paths_not_raw_strings` (a
+  trailing-slash-spelled duplicate of the same path is still refused).
+
+### All 16 required checks — confirmed, with evidence
+
+1. **Automatic backups use the existing backup engine, not a second one**
+   — `automatic_backup.rs:25` imports `backup::try_create_backup`/
+   `verify_backup_report` directly; `run_automatic_backup_inner` (line
+   272) calls `try_create_backup` for every byte written.
+2. **Every automatic backup is verified before being kept** —
+   `run_automatic_backup_inner` calls `verify_backup_report` immediately
+   after writing; anything short of Valid/ValidWithWarnings is deleted on
+   the spot (Session 7 design, re-confirmed unchanged this session).
+3. **Retention never deletes the final valid backup of a class** —
+   `apply_retention_never_deletes_the_only_valid_backup_even_at_zero_keep`
+   (`automatic_backup.rs`), asserted even with a configured retention of
+   `0`.
+4. **Retention is isolated per class in a shared directory** —
+   `apply_retention_ignores_other_classes_in_the_same_directory`.
+5. **Pre-migration backups get their own retention, applied only after a
+   clean run** — `apply_pre_migration_retention` (line 378);
+   `migrationRunner.ts`'s `runMigration` calls it via
+   `pruneOldPreMigrationBackups` only after `run_completed`, never after a
+   failure (Session 7 design, re-confirmed).
+6. **A destination move validates before touching anything, and rejects
+   conflicting/unrelated destinations** — `validate_destination_at`'s six
+   classification kinds (`empty`/`existingCompatibleRoot`/`conflicting`/
+   `sameAsCurrent`/`notADirectory`/`unwritable`), tested per-kind in
+   Session 8.
+7. **A move failure restores the previous pointer** —
+   `activate_pointer` (`data_location_manager.rs:624`): reads and holds
+   `previous_pointer` before writing, calls `restore_pointer` on both a
+   write failure and a post-write resolution mismatch (lines 632-651).
+8. **The old data root remains untouched after a successful move** —
+   `activate_staged`'s own doc comment ("the source root is never touched
+   by this function at all," line 585) plus this session's new byte-
+   identity test (above).
+9. **`.FormuLab/runs.db` is never copied, moved, or backed up by a move**
+   — `walk_movable_files` structurally excludes `RUNS_DB_REL`
+   (`data_location_manager.rs:43,86-92`), directly tested at lines
+   987-996 (`assert!(!rels.iter().any(|r| r.ends_with("runs.db")))`).
+10. **Cleanup cannot target the active root** — `is_cleanup_safe`, this
+    session's new closure tests (above).
+11. **The automatic-backup destination is remapped correctly after a
+    move, and left alone when it should be** — `automatic_backup::remap_path`
+    (pure): remaps a destination that was inside the old root to the same
+    relative path under the new one, returns `None` (untouched) for a
+    destination outside it — both cases unit-tested (Session 8).
+12. **The update checker never claims a same-or-older version is an
+    update** — `lib/update.ts`'s `check()` (line 280):
+    `isNewerVersion(latest.version, s.currentVersion) ? "updateAvailable"
+    : "upToDate"` — a same or older reported version always resolves to
+    `"upToDate"`, never `"error"` and never `"updateAvailable"` (Session 9
+    design, re-confirmed).
+13. **Ignored-version suppression never suppresses a genuinely newer
+    version** — `derive()` (line 174) re-checks `isNewerVersion` against
+    the current `latest` on every call, not just equality-to-ignored; a
+    newer version released after an older one was ignored is still
+    flagged (Session 9 test, re-confirmed).
+14. **Scheduling respects a configurable frequency, not a fixed
+    interval** — `shouldAutoCheck(lastCheckedAt, now, frequencyHours)`
+    (line 144), user-configurable via `FREQUENCY_OPTIONS_HOURS`.
+15. **Duplicate update notifications are prevented** — a separate,
+    persisted `notifiedVersion` (line 290): `notifyUpdateAvailable` is
+    only called when `!isSameVersion(latest.version, cur.notifiedVersion ?? "")`
+    — fires at most once per version.
+16. **No installer is ever downloaded or executed, and all update-metadata
+    fetching is HTTPS-only and size-capped** — `updates.rs:6-8`'s own doc
+    comment ("Does not download, verify, or execute an installer"); `View
+    Release / Download` only calls `openExternal(latest.url)` (opens the
+    OS browser); `is_https_url`/`fetch_release_metadata_bytes_refuses_a_non_https_endpoint_before_any_request`
+    and `enforce_size_limit` enforce HTTPS-only and a capped response size
+    before any content is trusted (Session 9, re-confirmed).
+
+### Full test suites — run once, this session
+
+- **Rust** (`cargo test --lib`, `apps/desktop/src-tauri`): **180/180
+  passing** (177 prior + 3 new closure tests). `cargo clippy --lib`:
+  clean.
+- **Desktop suite** (`pnpm vitest run`, plain, no flag):
+  **130/130 files, 1185/1185 tests passing** — genuinely, not "clean once
+  the known flake is isolated." This is the first Phase 11 session where
+  that sentence is literally true.
+- **Shared package** (`pnpm --filter @formulab/shared vitest run`):
+  **61/61 files, 1251/1251 tests passing**, including `migrations.test.ts`
+  (13/13).
+- **i18n parity**: 23/23. **Help registry**: 38/38 (`registry.test.ts`)
+  plus 9/9 (`tours.test.ts`), run standalone.
+- **Desktop typecheck** (`tsc --noEmit`): clean.
+- **Desktop lint**: clean.
+
+### Native verification (release build)
+
+Release build: `pnpm tauri build` from `apps/desktop`, produced fresh
+`formulab.exe`, `FormuLab_0.4.0_x64_en-US.msi`,
+`FormuLab_0.4.0_x64-setup.exe` under `src-tauri/target/release/` (and its
+`bundle/msi/`, `bundle/nsis/` subfolders).
+
+Shortcut target confirmed: `C:\Users\sekip\Desktop\FormuLab.lnk` →
+`C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+— the exact freshly-built release exe.
+
+`scripts/windows/verify-formulab-phase1.ps1` run against the release exe:
+
+| Check | Result |
+|---|---|
+| App starts | **Verified** — process launched (PID 17504), stayed running, top-level window appeared with title "FormuLab", app closed cleanly. |
+| Existing projects visible / each Settings card opens / log-folder / support-bundle dialog | **Blocked** — no UI-content-reading tool available (see below). |
+
+**Why blocked, honestly**: this environment has no UI Automation content
+access, WebDriver/`tauri-driver`, or accessibility-tree reach into the
+packaged app's Chromium/WebView2 renderer — the same environment
+limitation independently confirmed across Phase 1, Phase 10, and Phase 11
+Stage 1's own closures. That script itself is explicit: "Automated UI
+interaction verified: NOT PERFORMED BY THIS SCRIPT." No screenshot or
+interaction was fabricated for any blocked item this session either.
+
+### Release artifacts
+
+All three built fresh this session, under
+`apps/desktop/src-tauri/target/release/`:
+
+| Artifact | Path | Size (bytes) | SHA256 | Signed |
+|---|---|---|---|---|
+| EXE | `formulab.exe` | 23,527,936 | `C4F1D1405724B8ADD570B997E942669F560784B6D059E20D8F9037D7762B3FED` | **Not signed** |
+| MSI | `bundle/msi/FormuLab_0.4.0_x64_en-US.msi` | 37,142,528 | `0305C60006A6067DB982A1CFB8261BC57BF538C81ECA3B5A2A6213F16021DBBA` | **Not signed** |
+| NSIS | `bundle/nsis/FormuLab_0.4.0_x64-setup.exe` | 25,418,248 | `742599E31931E71151650BDA278175E79021ABFBD7C2A6ED9C5EF10F3C5CCFED` | **Not signed** |
+
+All three inspected via `Get-AuthenticodeSignature` and confirmed
+`NotSigned` — signing was not claimed for any artifact.
+Commercial-distribution-stage signing remains fully deferred to Phase 12.
+
+### Remaining limitations (Stage 2, as closed)
+
+- No signed installers, no automatic download/installation, no rollback —
+  all explicitly Phase 12.
+- No backup history list beyond "last success"/"last failure" for
+  automatic runs.
+- No Data Location Manager "inspect and choose" UI for interrupted-move
+  recovery — exactly one recovery path per journaled state, mirroring
+  Session 3's migration-recovery banner precedent.
+- `formulab-root.txt`/`active-workspace.txt` remain outside the Data
+  Location Manager's writes — a manually-placed override still wins
+  silently, surfaced only as a warning.
+- The desktop full test suite now runs ~4x slower locally
+  (`fileParallelism: false`) — the accepted, disclosed trade-off for a
+  suite that passes the same way every time instead of depending on
+  scheduling luck.
+- Native verification proves process/window launch only, not interior UI
+  content — an environment limitation confirmed across four separate
+  phase-closure sessions now, not specific to this phase.
+
+### Commit and push
+
+Commit: `chore(phase11): close stage 2 data safety`. `.FormuLab/runs.db`,
+`formulas/index.json`, and the two regenerated
+`docs/generated/FormuLab-User-Guide.{docx,pdf}` deliberately excluded, per
+this session's own instructions and this project's "stage only
+current-task files" convention.
+
 ## Exact next session
 
-Phase 11 Session 10: Second-Stage Closure and Verification.
+Phase 12 Session 0: Commercial Distribution Assessment. Scope: signed
+installers/updates, secure update installation, automatic rollback.

@@ -938,6 +938,15 @@ pub async fn resume_interrupted_data_move(app: AppHandle, state: State<'_, Backu
 
 // -------------------------------------------------------------- cleanup ---
 
+/// Phase 11 Session 10 closure — extracted so "cleanup can never target the
+/// active root" is a directly unit-tested pure comparison, not just an
+/// inline check inside an `AppHandle`-requiring command. Canonicalizes
+/// both sides first so a symlink or trailing-slash difference can't slip
+/// a same-root request past a naive string comparison.
+pub(crate) fn is_cleanup_safe(old_root: &Path, active_root: &Path) -> bool {
+    canonical_or_self(old_root) != canonical_or_self(active_root)
+}
+
 /// Deletes the OLD root's contents entirely — never called automatically,
 /// only from an explicit, separately-confirmed UI action after a
 /// successful move. Refuses outright if `old_root` is (or canonicalizes
@@ -946,9 +955,8 @@ pub async fn resume_interrupted_data_move(app: AppHandle, state: State<'_, Backu
 #[tauri::command(async)]
 pub async fn cleanup_old_data_location(app: AppHandle, old_root: String) -> Result<(), String> {
     let old_path = PathBuf::from(&old_root);
-    let old_canon = canonical_or_self(&old_path);
     let active = resolve_data_root(&app)?.path;
-    if old_canon == active {
+    if !is_cleanup_safe(&old_path, &active) {
         return Err("refusing to delete the currently active data location".to_string());
     }
     if !old_path.is_dir() {
@@ -1200,6 +1208,101 @@ mod tests {
         std::fs::write(&pointer, "D:\\attempted-new-root").unwrap();
         restore_pointer(&pointer, None);
         assert!(!pointer.exists());
+        let _ = std::fs::remove_dir_all(&scratch);
+    }
+
+    // -------------------------------------------- Phase 11 Session 10 closure ---
+    //
+    // Two guarantees Stage 2's own verification session singled out as the
+    // highest-stakes, previously-inspection-only claims for this module
+    // (paralleling Stage 1 Closure's "restore failure preserves original
+    // data" gap): a successful move must leave the SOURCE root byte-
+    // identical, and cleanup must never be able to target the active root.
+    // `try_move_data`/`cleanup_old_data_location` themselves need an
+    // `AppHandle` (for `resolve_data_root`/the safety backup) and so
+    // remain untested directly — same constraint Stage 1 Closure already
+    // investigated and rejected a mocked `AppHandle` for — but the exact
+    // pure sequence each guarantee depends on is fully reproducible here
+    // without one.
+
+    #[test]
+    fn a_full_stage_and_activate_sequence_leaves_the_source_root_byte_identical() {
+        // Mirrors exactly what `try_move_data` does between `walk_movable_files`
+        // and `activate_staged` (hash each source file, copy into staging,
+        // then activate) — using real files, so this proves the source
+        // tree's bytes on success, not just that the function signatures
+        // never receive a `source` argument.
+        let scratch = tmp("move-success-source-untouched");
+        let source = scratch.join("source");
+        let dest = scratch.join("dest");
+        std::fs::create_dir_all(source.join("data/master")).unwrap();
+        std::fs::create_dir_all(source.join("formulas")).unwrap();
+        std::fs::create_dir_all(&dest).unwrap();
+        std::fs::write(source.join("data/master/materials.json"), r#"[{"code":"M1"}]"#).unwrap();
+        std::fs::write(source.join("formulas/index.json"), "[]").unwrap();
+
+        let before: Vec<(String, Vec<u8>)> = walk_movable_files(&source)
+            .unwrap()
+            .iter()
+            .map(|(p, rel)| (rel.clone(), std::fs::read(p).unwrap()))
+            .collect();
+
+        // Stage: hash + copy each source file into a staging dir under dest,
+        // exactly as `try_move_data` does.
+        let staging = dest.join(format!("{STAGING_PREFIX}1"));
+        std::fs::create_dir_all(&staging).unwrap();
+        let files = walk_movable_files(&source).unwrap();
+        let mut staged = Vec::new();
+        for (i, (src_path, rel)) in files.iter().enumerate() {
+            let (hash, len) = hash_and_len(src_path).unwrap();
+            let staged_path = staging.join(format!("{i}.bin"));
+            std::fs::copy(src_path, &staged_path).unwrap();
+            staged.push((staged_path, rel.clone(), len, hash));
+        }
+
+        // Activate.
+        let activated = activate_staged(&dest, &staging, &staged).unwrap();
+        assert_eq!(activated.len(), before.len());
+
+        // The guarantee under test: every source file, read again after a
+        // full successful stage+activate, is byte-for-byte what it was
+        // before — nothing here ever opened a source path for writing.
+        for (rel, original_bytes) in &before {
+            let still_at_source = std::fs::read(source.join(rel)).unwrap();
+            assert_eq!(&still_at_source, original_bytes, "source file {rel} changed after a successful move");
+        }
+        // And the destination genuinely received the data (this is a real
+        // move, not a no-op check).
+        assert_eq!(
+            std::fs::read(dest.join("data/master/materials.json")).unwrap(),
+            std::fs::read(source.join("data/master/materials.json")).unwrap(),
+        );
+
+        let _ = std::fs::remove_dir_all(&scratch);
+    }
+
+    #[test]
+    fn is_cleanup_safe_refuses_only_when_old_root_is_the_active_root() {
+        let scratch = tmp("cleanup-safety");
+        let old_root = scratch.join("old");
+        let active_root = scratch.join("old"); // same path, different PathBuf instance
+        let different_root = scratch.join("different");
+        std::fs::create_dir_all(&old_root).unwrap();
+        std::fs::create_dir_all(&different_root).unwrap();
+
+        assert!(!is_cleanup_safe(&old_root, &active_root), "cleanup must refuse when old_root IS the active root");
+        assert!(is_cleanup_safe(&old_root, &different_root), "cleanup must proceed when old_root is genuinely not the active root");
+    }
+
+    #[test]
+    fn is_cleanup_safe_compares_canonicalized_paths_not_raw_strings() {
+        let scratch = tmp("cleanup-safety-canon");
+        let real = scratch.join("real-dir");
+        std::fs::create_dir_all(&real).unwrap();
+        // Same directory, spelled two different ways (trailing separator) —
+        // a naive string compare would treat these as different.
+        let spelled_differently = PathBuf::from(format!("{}\\", real.to_string_lossy()));
+        assert!(!is_cleanup_safe(&real, &spelled_differently));
         let _ = std::fs::remove_dir_all(&scratch);
     }
 

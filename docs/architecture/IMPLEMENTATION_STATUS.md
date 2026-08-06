@@ -1500,8 +1500,82 @@ resolved in-app); no structured/leveled application log (Diagnostics'
 JSON file, not an archive; `find_interrupted_run` (Rust) has no live
 caller today.
 
-**Deferred to Stage 2**: automatic backups, a Data Location Manager, an
-update checker.
+### Backup, Restore and Data Safety (Phase 11, Stage 2) — CLOSED
+Automatic (daily/weekly/on-exit) backups, a Data Location Manager (safe
+move/switch/restore-default for the active data root), and a check-only
+update checker — built across 3 sessions plus a closure session, all on
+top of Stage 1's existing engines rather than parallel ones. Full
+session-by-session detail in `docs/handoffs/PHASE11_CURRENT.md`.
+
+**Implemented, verified by tests**:
+- `automatic_backup.rs`: reuses `backup::try_create_backup`/
+  `verify_backup_report` for every write; daily/weekly/on-exit scheduling
+  (foreground-only — no background service, disclosed explicitly, not
+  invented), mandatory verification with delete-on-failure, per-class
+  retention with an unconditional floor (never deletes the last valid
+  backup of a class, even at a configured `0`), pre-migration retention
+  (the real gap Session 3 left open, closed here).
+- `data_location_manager.rs`: a 10-step safe move (validate → verified
+  safety backup → stage+hash → re-verify → activate → pointer write only
+  after every file is confirmed at its final path → re-resolve and
+  confirm → old root never touched) plus a lighter "use existing
+  location" path and a "restore default" path. Destination validation
+  classifies into 6 kinds, never blindly merging two roots. `.FormuLab/
+  runs.db` structurally excluded from the whole-root move (only
+  exclusion). Old-root cleanup is a separate, explicitly confirmed action
+  that refuses outright if the target canonicalizes to the active root.
+  Interrupted-move journal + pure `resume_decision` for crash recovery.
+- `updates.rs`/`lib/update.ts`: rewrote the pre-existing dual-path
+  fetch into one configurable HTTPS-only endpoint, a 1 MB response cap
+  (two layers), a 10s timeout, real semver validation, platform/arch
+  matching (informational only — never downloads an asset), a
+  user-configurable check frequency, ignored-version suppression that
+  never suppresses a genuinely newer release, and duplicate-notification
+  prevention (fires at most once per version). Never downloads or
+  executes an installer — "View Release" only opens the OS browser.
+- Settings → General UI: `AutomaticBackupCard`, `ActiveDataLocationCard`
+  (rewritten from Session 4's read-only version), `UpdateCheckerCard` —
+  all requiring explicit confirmation for any activating action, all
+  i18n-complete across 8 shipped locales.
+- **Stage 2 Closure session**: closed two remaining verification gaps
+  (old-root byte-identity after a move, `is_cleanup_safe` as a directly
+  tested pure function) the same way Stage 1 Closure closed its own gap.
+  Genuinely root-caused and fixed the `HelpPanel.test.tsx` jsdom/undici
+  `AbortSignal` flake that every prior Stage 2 session could only
+  document — two fix attempts (dependency inlining, OS-process
+  isolation) were tried and empirically ruled out before landing on
+  `vite.config.ts`'s `test.fileParallelism: false`, which serializes
+  test-file execution and is confirmed to produce a genuinely, fully
+  passing suite (see `PHASE11_CURRENT.md` for the full investigation).
+- Closure regression: **180 Rust tests**, **1185 desktop tests** (130
+  files, genuinely 0 failures — no isolated-flake caveat), **1251 shared
+  tests** (61 files, includes 13 migration tests), all green; desktop
+  typecheck, desktop lint, i18n parity (23/23), help registry (38/38),
+  and `cargo clippy --lib` all clean. Release build produced fresh
+  `formulab.exe` + MSI + NSIS installers, all inspected and confirmed
+  **not signed** (commercial-distribution signing remains deferred to
+  Phase 12).
+- **Native verification**: process/window launch reconfirmed via the
+  shortcut's exact target path. Interior UI content remains **blocked** —
+  same environment limitation independently confirmed across Phase 1,
+  Phase 10, and Phase 11 Stage 1's own closures (no UI-content-reading
+  tool for the packaged app's WebView2 renderer). No visual or
+  interactive confirmation fabricated for any blocked item.
+- Status: **PARTIALLY LIVE VERIFIED** (native launch confirmed; interior
+  flows verified only by the automated test suites above).
+
+**Known limitations (Stage 2, as closed)**: no signed installers, no
+automatic download/installation, no rollback (all Phase 12); no backup
+history list beyond last-success/last-failure for automatic runs; no
+"inspect and choose" UI for interrupted-move recovery (one recovery path
+per journaled state); `formulab-root.txt`/`active-workspace.txt` remain
+outside the Data Location Manager's writes; the desktop full suite now
+runs ~4x slower locally (`fileParallelism: false`), an accepted trade-off
+for deterministic passing.
+
+**Phase 11 status: FULLY CLOSED.** Both stages complete; next phase is
+Phase 12 Session 0 (Commercial Distribution Assessment — signed
+installers/updates, secure update installation, automatic rollback).
 
 ## Not yet started
 

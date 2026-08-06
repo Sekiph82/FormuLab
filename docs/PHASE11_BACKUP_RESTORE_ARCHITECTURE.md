@@ -474,3 +474,31 @@ suite **148/148**, `cargo clippy --lib` clean. Frontend: 21
 `automaticBackup.test.ts` tests + 12 `AutomaticBackupCard.test.tsx` tests
 + 3 `migrationRunner.test.ts` retention tests — see
 `PHASE11_CURRENT.md`'s Session 7 summary for the full breakdown.
+
+## Stage 2 Closure (verification session)
+
+Two guarantees this document (and Sessions 7-8) had previously argued
+only from control flow / code signature were closed with direct tests,
+following the same discipline the Stage 1 Closure section above
+established:
+
+- **"The old data root is never touched by a successful move"** — a new
+  test in `data_location_manager.rs`,
+  `a_full_stage_and_activate_sequence_leaves_the_source_root_byte_identical`,
+  manually replays the real hash→copy→activate sequence against actual
+  temp files and asserts every source byte is unchanged afterward.
+- **"Cleanup cannot target the active root"** — `cleanup_old_data_location`
+  now delegates to a new pure function, `is_cleanup_safe(old_root,
+  active_root) -> bool` (canonicalizes both sides), directly tested
+  including a trailing-slash-spelled duplicate of the active path (still
+  refused).
+
+The `HelpPanel.test.tsx` jsdom/undici `AbortSignal` flake — present since
+before Phase 11 and only ever documented as a known limitation in every
+prior session that touched the full desktop suite (Stage 1 Closure,
+Sessions 7-9) — was root-caused and genuinely fixed this session rather
+than documented again. Full investigation, including two ruled-out fix
+attempts, lives in `PHASE11_CURRENT.md`'s Stage 2 Closure section; the
+fix itself is a one-line `apps/desktop/vite.config.ts` change
+(`test.fileParallelism: false`). Full Rust suite **180/180**, desktop
+suite genuinely **1185/1185** (no isolated-flake caveat).
