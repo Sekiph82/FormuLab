@@ -9,6 +9,18 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Release tag to build for (e.g. v0.4.0). Only needed when
+          triggering manually instead of via a tag push — see the
+          Phase 12 Session 3 external log for why this exists: a real
+          `v0.4.0` tag push did not trigger this workflow on this
+          repository (confirmed twice), while `workflow_dispatch` fired
+          normally, isolating the problem to the tag-push trigger
+          specifically. Leave blank for a plain build with no release.
+        required: false
+        default: ""
 
 # tauri-action needs to create the draft release and upload assets.
 permissions:
@@ -93,9 +105,12 @@ jobs:
           # original blocker is still believed to apply.
           args: --target ${{ matrix.target }} ${{ startsWith(matrix.platform, 'ubuntu') && '--bundles deb,rpm' || '' }}
           # On a v* tag push, attach installers to a draft GitHub Release.
-          # Empty tagName (workflow_dispatch) skips release creation.
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: ${{ github.ref_type == 'tag' && format('FormuLab {0}', github.ref_name) || '' }}
+          # A manual workflow_dispatch run with the `tag` input set does
+          # the same (see the `on.workflow_dispatch.inputs.tag` comment
+          # above for why this exists). Empty tagName skips release
+          # creation entirely (a plain build-only dispatch).
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+          releaseName: ${{ github.ref_type == 'tag' && format('FormuLab {0}', github.ref_name) || (inputs.tag && format('FormuLab {0}', inputs.tag) || '') }}
           releaseDraft: true
           # Standing install/first-launch notes — every draft is born with these
           # (the builds are unsigned/un-notarized, so users must clear Gatekeeper /
