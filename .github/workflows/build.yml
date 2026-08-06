@@ -18,16 +18,24 @@ jobs:
   build:
     strategy:
       fail-fast: false
+      # Phase 12 Session 3: this repository's first public release is
+      # deliberately Windows-only. The macOS and Linux legs below are
+      # real, working config (kept, not deleted) but have never had a
+      # published release built or independently verified from them —
+      # publishing untested mac/Linux binaries would contradict this
+      # release's own notes, which state Windows x64 as the only
+      # currently supported platform. Re-enable them for a future
+      # multi-platform release once each has been independently verified.
       matrix:
         include:
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-          - platform: macos-latest
-            target: x86_64-apple-darwin
+          # - platform: macos-latest
+          #   target: aarch64-apple-darwin
+          # - platform: macos-latest
+          #   target: x86_64-apple-darwin
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
-          - platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
+          # - platform: ubuntu-22.04
+          #   target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
