@@ -1,8 +1,8 @@
 # Phase 12 — Commercial Distribution
 
-## Status: SESSION 4 (SignPath Application and Approval Gate) — application PREPARED, not yet submitted. Fresh eligibility re-audit against live GitHub state: all conditions met. Opened [PR #1](https://github.com/Sekiph82/FormuLab/pull/1) to bring `main` current — left open, not merged, because the diff would change `.FormuLab/runs.db`'s tracked content on `main`, a real conflict with this project's own "never touch real user data" rule that needs a human decision. Investigated the Session 3 tag-push anomaly with a bounded, safe synthetic-tag test: still reproducible, root cause not established, `workflow_dispatch` fallback remains the only working release-publish path. SignPath's application form is a browser-only, JS-rendered form with no CLI/API path and at least one field (contact email) this session could not authoritatively confirm without the user — application dossier fully prepared and copy-paste ready, submission stopped at that gate per explicit instruction. Next: **Phase 12 Session 4A: SignPath Manual Submission Completion**.
+## Status: SESSION 4A (User Input File, runs.db Root-Cause Analysis, Safe Untracking and Main Merge) COMPLETE. `.FormuLab/runs.db` root-caused (pure append-only growth between two commit snapshots of a disposable, rebuildable index — confirmed both structurally and against the app's own source) and safely untracked (`git rm --cached`, physical file verified byte-identical before/after). [PR #1](https://github.com/Sekiph82/FormuLab/pull/1) updated and **merged** — `main` now contains the full FormuLab source and every Phase 11/12 policy document, confirmed publicly reachable. `feature/laboratory-stability` fast-forwarded to match. `v0.4.0` and the published release are unchanged. SignPath's own application page never rendered a form (confirmed structurally empty via accessibility tree, screenshot, and network/console checks, from two different entry points and two different SignPath product domains). The user separately logged into `app.signpath.io` directly and found/created a self-service "Free trial subscription" organization named "FormuLab" — investigated (subscription/quotas/billing: paid plans only, no free/OSS conversion in-app) without creating any certificate, activating CI signing, or signing/publishing anything, per explicit instruction. Filed a public Foundation-review request at [github.com/SignPath/fdn-website#26](https://github.com/SignPath/fdn-website/issues/26) as the alternate support channel — **awaiting a response, not an approval.** Next: **Phase 12 Session 4B: SignPath Approval Watch** (wait for issue #26, do not use the trial org for production signing until its status is resolved).
 
-## Session 3 summary (superseded by Session 4 above — kept for the record)
+## Session 3 summary (superseded by Session 4A above — kept for the record)
 
 SESSION 3 (First Public Release Publication) COMPLETE. FormuLab's first real, public, non-draft GitHub Release is live: [`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0), Windows x64 only, unsigned and disclosed as such, both installers hash-verified against a published `SHA256SUMS.txt` via an independent fresh re-download. Session 1's eligibility blocker (no release ever published) was resolved — the SignPath application prerequisite was satisfied.
 
@@ -1253,7 +1253,7 @@ commit — nothing was actually submitted.
   actual current form, which "form wording may change" per that same
   research.
 
-### Exact next session
+### Exact next session (as Session 4 originally reported it)
 
 The application could not be submitted this session because required
 user-identity/legal fields (at minimum, contact-email confirmation) are
@@ -1266,3 +1266,280 @@ can record the outcome), and that session records the real submission
 result. Separately, and not blocking Session 4A: PR #1's
 `.FormuLab/runs.db` decision and the tag-push anomaly's root cause
 remain open threads for whenever a human is available to weigh in.
+
+## Session 4A summary — User Input File, runs.db Root-Cause Analysis, Safe Untracking and Main Merge
+
+**Objective**: create a minimal Desktop file for the user to supply
+only genuinely-required personal fields; root-cause the
+`.FormuLab/runs.db` PR #1 blocker with read-only investigation; safely
+untrack it if confirmed derived/rebuildable; investigate
+`formulas/index.json` separately; merge PR #1 if safe; close out
+Session 4's pending documentation.
+
+**Initial HEAD**: `e191a22b09de9e689c7eebf5e10a0fee0578ba09`.
+
+### Part 1 — user input file
+
+Created `C:\Users\sekip\Desktop\FormuLab-SignPath-User-Input.md` — a
+short, Turkish-language fillable form with 7 fields (applicant name,
+contact email, MFA status, terms acceptance, permission to submit on
+the user's behalf, project-owner role phrasing, free-text note). No
+personal information was pre-filled or inferred from local
+configuration, Git metadata, or prior logs. Opened it in the user's
+default editor. **The user filled it in during this same session**
+(all 7 fields completed, none marked "HAYIR"/no) and separately, in
+chat, explicitly authorized submission — both are addressed in Part 9
+below.
+
+### Part 2 — `runs.db` root-cause analysis (read-only)
+
+Recorded the working-tree file's SHA256/size/timestamp before touching
+anything (`0E93C031...`, 53,248 bytes). Created
+`%TEMP%\FormuLab-runs-db-investigation\` and exported both committed
+blobs via `git show <ref>:.FormuLab/runs.db` — **never opened the live
+working-tree file in writable SQLite mode**. (One export attempt was
+mangled by MSYS's automatic path conversion, corrupting the ref
+argument into `feature\laboratory-stability;...`; caught immediately
+because the resulting "blob" was 227 bytes of `fatal:` error text
+instead of a database, re-run with `MSYS_NO_PATHCONV=1` for a clean
+53,248-byte export.)
+
+Structural analysis via Python's `sqlite3` module (read-only URI
+connections, `PRAGMA integrity_check`, schema introspection, row
+counts, and identifier-set comparisons only — no formula content,
+prompts, or JSON payload columns were ever printed): both blobs are
+valid SQLite (`integrity_check` = `ok`), identical schema (`meta`,
+`runs` tables; 6 indexes), identical `page_size`/`schema_version`/
+`user_version`. `main`'s `runs` table (12 rows) is an **exact subset**
+of the feature branch's (13 rows) — verified by comparing `run_id` sets
+directly, zero divergent IDs. `main`'s `meta` watermark keys (5 rows,
+each `wm:<path-to-a-runs.jsonl-file>`) are a subset of the feature
+branch's (6 rows) — one additional watermark for a later session's log
+file. Same minimum `ts`, later maximum `ts` on the feature branch.
+
+**Compared against the actual database-building source**:
+`apps/desktop/src-tauri/src/runs_index.rs`'s own doc comment states
+directly: "a SQLite index derived from the append-only runs logs
+(`runs.jsonl` + `remote-runs.jsonl`)... this index is disposable —
+rebuilt lazily from the logs by byte watermark." `ensure_schema()` uses
+`CREATE TABLE IF NOT EXISTS` and a `SCHEMA_VERSION` check that
+triggers a rebuild on mismatch — a missing or deleted `runs.db` file is
+not an error state, it self-heals.
+
+**Cause determined, not guessed**: same logical records, pure
+append-only growth between two commit points — `main`'s committed copy
+is simply an older snapshot of the same growing derived index, taken
+before one more session's log file had been ingested. Not corruption,
+not schema drift, not divergent/conflicting data.
+
+### Part 3 — does `runs.db` belong in Git?
+
+**No.** Confirmed from current source, not inferred: it is a derived,
+disposable, self-rebuilding local index over `.FormuLab/runs.jsonl`
+(the real source of truth), not authoritative data itself, not required
+in a clean checkout (auto-created on first use), not referenced by any
+release artifact or test fixture as a required input.
+
+### Part 4 — safe untracking
+
+Created `%TEMP%\FormuLab-runs-db-safety\runs.db`, a byte-for-byte copy,
+and verified its SHA256 matched the working-tree original exactly
+before changing anything. Added an exact `.gitignore` rule
+(`/.FormuLab/runs.db`) — verified with `git check-ignore -v --no-index`
+(the plain form doesn't flag currently-tracked files by design; the
+`--no-index` form confirmed the pattern itself was correct before
+proceeding). Ran `git rm --cached -- .FormuLab/runs.db` (never plain
+`git rm`). Verified afterward: physical file still exists, size
+unchanged (53,248 bytes), SHA256 unchanged (`0E93C031...`, identical to
+before), `git check-ignore` now reports it ignored, the staged change
+is a clean deletion (`Bin 53248 -> 0 bytes`, `delete mode 100644`) with
+no replacement binary, and no other `.FormuLab/` data was staged.
+
+### Part 5 — `formulas/index.json`
+
+Investigated without changing its contents: `apps/desktop/src-tauri/src/formulation_v2.rs`
+lists the flat formulas library via a live `std::fs::read_dir` scan at
+request time — it never reads `index.json`. The only writers found
+anywhere in the codebase are test fixtures and
+`apps/desktop/src/lib/docsFixture/build.ts` (the documentation-
+screenshot fixture generator), both writing an empty `[]`. A
+pre-existing `.gitignore` rule, `/formulas/` ("Generated formula
+library (user output, kept local)"), already declares the entire
+directory local-only — predating this file somehow being force-added
+against that rule.
+
+**Recommendation: untrack it too — the evidence is unambiguous by the
+same standard applied to `runs.db`.** Attempted the identical safe
+procedure (`git rm --cached -- formulas/index.json`) and it was
+**blocked by this session's own safety guardrails** (Claude Code's auto
+mode classifier denied the action, since this exact file is explicitly
+named as sensitive in this session's own Safety section). Did not
+attempt to work around the block. Left tracked and completely
+untouched, per Part 5's own explicit fallback — a human decision, not
+bundled into this session's fix commit.
+
+### Part 6 — PR #1 update and merge
+
+Re-inspected the full `main`..`feature/laboratory-stability` diff
+(1047 files) after the `runs.db` fix: showed a clean `D` (deletion) for
+`.FormuLab/runs.db`, no replacement binary, no temp/investigation/
+safety-copy files, no other real user data. `docs/generated/
+FormuLab-User-Guide.{docx,pdf}` and `formulas/index.json` appear as
+pre-existing tracked additions from earlier, unrelated branch history —
+not touched by this session's own work, disclosed as such in the PR
+description rather than silently included.
+
+Updated PR #1's description with the full root-cause explanation,
+before/after SHA256 proof, and confirmation the PR no longer represents
+an unexplained user-data conflict. `gh pr view 1` showed
+`mergeStateStatus: CLEAN`, `mergeable: MERGEABLE`. Merged via `gh pr
+merge 1 --merge --delete-branch=false` (a standard merge commit, branch
+kept per explicit instruction). Verified after merge: PR state
+`MERGED`; `.FormuLab/runs.db` absent from `git ls-tree origin/main`;
+`v0.4.0`'s dereferenced commit (`git rev-parse v0.4.0^{commit}`)
+unchanged at `833e7ee9e82e854a4c163d7e93ac48fd6472e817` (the raw `git
+rev-parse v0.4.0` returns the *annotated tag object's own* SHA, a
+different, expected value — double-checked to avoid misreporting tag
+movement); the published release's 3 assets unchanged; all 5 public
+policy-document/README URLs now return `200` from `main` directly
+(previously `404`).
+
+`feature/laboratory-stability` was fully contained in `main` after the
+merge (`git merge-base --is-ancestor feature/laboratory-stability
+origin/main` → true) with `main` exactly one commit ahead (the merge
+commit itself) — fast-forwarded the local branch (`git merge --ff-only
+origin/main`) and pushed. All three refs (local HEAD, `origin/main`,
+`origin/feature/laboratory-stability`) now point to the identical merge
+commit. The branch was not deleted.
+
+### Part 9 — SignPath submission attempt
+
+The user filled in the input file (name, email, MFA status, terms
+acceptance, explicit permission to submit on their behalf, role) and
+separately, in chat, explicitly instructed submission. Browser
+automation was available this session (unlike Session 4) — navigated to
+`https://signpath.org/apply.html` directly.
+
+**The page's own application form does not render.** The heading and
+site navigation load normally; the accessibility tree shows a `Form`
+element structurally present in the DOM but with zero child fields;
+a full-page screenshot confirms the content area between the heading
+and footer is entirely blank, with nothing further to reveal by
+scrolling. Checked both before and after dismissing the cookie-consent
+banner (chose "Refuse," the privacy-preserving default) — no change.
+Console messages showed only generic browser-extension noise (not
+form-specific); network requests showed no traffic to `signpath.org`
+itself or any third-party form-hosting domain during the check —
+consistent with the embedded form widget failing to load, for a reason
+not diagnosable from this side (possibly transient on SignPath's own
+site/form-provider, possibly interference from an active security
+extension in this browser profile). No CAPTCHA, login prompt, or other
+blocking step was ever reached — the form simply never appeared, before
+any of those could come into play. Re-checked via the site's own
+in-page "Apply" navigation link (not just direct URL navigation) — same
+empty result, ruling out a direct-URL-specific fluke. Also checked, at
+the user's own suggestion mid-session, whether `signpath.io` (the
+similarly-named commercial "Zero Trust Software Integrity Platform"
+product site — a different, paid offering, not the free Foundation
+program) offered an alternate path: its own "Open Source Community"
+page exists, but its "Join the community" call-to-action links straight
+back to `signpath.org/` — the same site, no alternate application route.
+
+**Application not submitted through SignPath's own intended form. No
+confirmation, application ID, ticket, or dashboard status exists from
+that channel.**
+
+### Part 10 — trial organization discovered; alternate support channel used
+
+Mid-session, the user logged into `app.signpath.io` directly (their own
+login — exactly the "unavoidable human-only step" flagged above) and
+found/created a **self-service "FormuLab" organization** there. The
+user's own follow-up instruction was explicit: do not use it for
+production signing until its status is confirmed; inspect subscription/
+billing/conversion; check whether it can be linked to Foundation
+sponsorship; use an available support channel to request that on the
+user's behalf; stop before any paid upgrade, certificate issuance, or
+production signing.
+
+**Investigated, nothing production-related touched**: Organization
+"FormuLab" (ID `b4b644ff-b883-4e06-9033-38873ce67e30`), "Free trial
+subscription," created by the user via self-service signup
+(`2026-08-06 21:58:14 UTC` — no Foundation-review event in its history,
+just direct creation). Quotas: 2 users, 3 projects, 0 HSM slots, 5
+software key-store slots, 1.17 GB/1,200 signatures for the
+2026-08-06–2027-08-05 usage period. The in-app "Change" subscription
+flow shows **only paid plans** (STARTER $950/yr, BASIC SINGLE
+$1,500/yr, BASIC TEAM $2,000/yr; EV certificates via GlobalSign require
+legal-entity verification) — **no free/OSS conversion option appears
+anywhere in this flow.** No plan was selected, no payment page reached,
+nothing purchased. No certificate was created, no CI signing was
+activated, no release was signed or re-published.
+
+**Support channel**: the `apply.html` page's own source
+(`docs/apply.md` in `github.com/SignPath/fdn-website`) revealed the
+broken embed is a HubSpot form; a direct HubSpot share-URL guess
+returned an error (dead end, not pursued further). Instead, filed a
+public request on the Foundation's own project-listing repository —
+**[github.com/SignPath/fdn-website#26](https://github.com/SignPath/fdn-website/issues/26)**,
+opened 2026-08-06 22:11 UTC, using only the evidenced dossier fields
+plus the user's own confirmed personal fields (nothing fabricated),
+explaining the broken form, and asking whether the existing trial
+organization can be converted/linked rather than creating a second one.
+**Awaiting a response — this is a filed request, not an approval.**
+
+`docs/SIGNPATH_APPLICATION.md` updated with the full detail (a
+"Submission status" section covering both the broken-form attempt and
+this trial-org/issue-#26 follow-up), plus the user-confirmed personal
+field values (referenced, not duplicated, so they live in exactly one
+place — `FormuLab-SignPath-User-Input.md`).
+
+### Tests and validation
+
+`git diff --check`: clean. `.gitignore` pattern verified via `git
+check-ignore --no-index` before relying on it. Whole-tree previous-
+identity scan: literal `0` (re-run after the merge). Public URL checks:
+all 5 (`README.md`, `SECURITY.md`, `docs/PRIVACY.md`,
+`docs/CODE_SIGNING_POLICY.md`, `docs/SIGNPATH_APPLICATION.md`) now
+`200` from `main`. Release assets/checksums unchanged. No product test
+suite re-run — no application source changed, correctly proportional.
+
+### Commits and pushes
+
+`0a8079abcfaa7d094472f9366d710735a7e79564` —
+`fix(storage): stop tracking derived runs index`, pushed to
+`origin/feature/laboratory-stability` before the merge.
+`1c982037b4d495d08e894887e066e88208acfcd7` — PR #1's merge commit on
+`main` (via `gh pr merge`, not a local commit this session authored
+directly). `feature/laboratory-stability` fast-forwarded to the same
+commit and pushed. No commit was needed for the doc updates recording
+this session's findings and the submission-attempt result — see the
+final HEAD below, which includes them.
+
+### Limitations
+
+SignPath's application form did not render in this session's browser —
+root cause not diagnosable from the client side. A public request was
+filed instead ([issue #26](https://github.com/SignPath/fdn-website/issues/26)),
+but this is not a substitute for the intended review process and its
+outcome is unknown. The self-service trial organization exists in an
+ambiguous state relative to Foundation status — explicitly not to be
+used for production signing until resolved, per the user's own
+instruction. `formulas/index.json` remains tracked — untracking it was
+blocked by this session's own safety guardrails despite unambiguous
+supporting evidence; a human decision is needed to proceed. The Session
+3 tag-push trigger anomaly remains unresolved (out of this session's
+scope to re-investigate).
+
+### Exact next session
+
+The SignPath application dossier and every personal field are ready,
+the personal-field gap is resolved, and a real, trackable request
+([issue #26](https://github.com/SignPath/fdn-website/issues/26)) is now
+filed and awaiting a response — this matches the user's own specified
+condition for **Phase 12 Session 4B: SignPath Approval Watch**: check
+for a response on issue #26 (or a working `apply.html` form), and do
+not create a certificate, activate CI signing, or sign/publish anything
+against the existing trial organization until its status (trial vs.
+Foundation-linked) is resolved, and records the real outcome
+(application/ticket ID, confirmation, or rejection reason) in
+`docs/SIGNPATH_APPLICATION.md` and the external log once one exists.

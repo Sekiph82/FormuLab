@@ -236,6 +236,26 @@ deleted immediately after use, no permanent artifact created) — not a
 repeated delete/recreate of the published `v0.4.0` tag, which was never
 touched this session.
 
+## Session 4A (User Input File, runs.db Root-Cause Analysis, Safe Untracking and Main Merge): read-only DB analysis + one storage fix + a merge
+
+`.FormuLab/runs.db`'s PR #1 blocker was root-caused entirely read-only:
+both committed blobs exported via `git show <ref>:...` (never the live
+working-tree file, never opened in writable SQLite mode), analyzed via
+Python's `sqlite3` module in read-only URI mode — `PRAGMA
+integrity_check` = `ok` on both, identical schema, `main`'s `runs`
+table confirmed an exact subset of the feature branch's (12 of 13 rows,
+zero divergent `run_id`s) via direct set comparison. One real fix
+committed (`fix(storage): stop tracking derived runs index`,
+`0a8079a`): `git rm --cached` only, verified via SHA256 before
+(`0E93C031...`) and after (`0E93C031...`, unchanged) that the physical
+working-tree file was untouched. PR #1 then merged cleanly (fast-
+forward, `mergeStateStatus: CLEAN`). Post-merge: `main`'s 5 public
+policy-document/README URLs re-checked, all `200` (previously `404`);
+release assets/checksums re-verified unchanged; `v0.4.0`'s dereferenced
+commit re-confirmed unchanged. Whole-tree identity scan re-run after
+the merge: literal `0`. No product test suite re-run — no application
+source changed.
+
 ## Planned per-session test discipline (Sessions 3-12, proportional)
 
 Renumbered in Session 2 to insert the previous-identity-eradication session ahead of

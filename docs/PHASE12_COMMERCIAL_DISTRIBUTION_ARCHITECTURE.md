@@ -734,24 +734,26 @@ phase's closure discipline.
 
 ## 8. Exact next session
 
-**Phase 12 Session 4A: SignPath Manual Submission Completion.** Session
-4 fully prepared and re-audited the application dossier
-(`docs/SIGNPATH_APPLICATION.md`) against fresh GitHub state, but could
-not submit it: SignPath's application (`signpath.org/apply.html`) is a
-browser-only, JavaScript-rendered form with no CLI/API path, and at
-least one required field (a contact email address) is not present in
-this repository's own evidence — supplying it without the user's
-explicit confirmation would have been fabrication. `docs/
-SIGNPATH_APPLICATION.md`'s "USER INPUT REQUIRED" section lists the
-exact remaining fields and submission steps. Session 4A: the user
-completes and submits the form personally (or confirms the missing
-fields so a future session can record the real outcome). Separately —
-not blocking 4A — [PR #1](https://github.com/Sekiph82/FormuLab/pull/1)
-(bringing `main` current) remains open pending a human decision about
-its `.FormuLab/runs.db` diff, and the Session 3 tag-push trigger
-anomaly remains unresolved (re-confirmed reproducible via a bounded,
-safe synthetic-tag test in Session 4; the `workflow_dispatch` `tag`-
-input fallback remains the working release-publish path).
+**Phase 12 Session 4B: SignPath Application Retry.** Session 4A
+resolved every internal blocker: the user completed and confirmed the
+previously-missing personal fields and explicitly authorized
+submission, `.FormuLab/runs.db` was root-caused (pure append-only
+growth between two commit snapshots of a disposable, rebuildable index)
+and safely untracked, and [PR #1](https://github.com/Sekiph82/FormuLab/pull/1)
+was merged — `main` now carries the full source and every policy
+document. The one remaining blocker is genuinely external: SignPath's
+own application page (`signpath.org/apply`) renders no form fields at
+all in this session's browser, checked via direct navigation, the
+site's own in-page "Apply" link, before and after cookie consent, and a
+second SignPath product domain (`signpath.io`) that redirects back to
+the same broken page. No CAPTCHA, login, or other interactive step was
+ever reached — the form simply never appeared. Session 4B: the user (or
+a future session) retries from a different browser/network once the
+issue is confirmed resolved, and records the real outcome. `formulas/
+index.json` also remains tracked pending a human decision (untracking
+it was blocked by this session's own safety guardrails despite
+unambiguous supporting evidence), and the Session 3 tag-push trigger
+anomaly remains unresolved — neither blocks Session 4B.
 
 ## 9. Session 1 — Free Open-Source Code-Signing Foundation (complete)
 

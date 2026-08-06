@@ -3,14 +3,24 @@
 Copy-paste-ready material for FormuLab's application to
 [SignPath Foundation's free open-source code-signing program](https://signpath.org).
 **This document does not claim SignPath has reviewed or approved
-anything, and no application has been submitted as of Phase 12 Session
-4** — it is preparation only, assembled from this repository's own
-verified state, originally as of Phase 12 Session 1 (2026-08-06),
+anything.** As of Phase 12 Session 4A: no application was submitted
+through SignPath's own intended form (it does not render); instead, a
+public request was filed at
+[github.com/SignPath/fdn-website#26](https://github.com/SignPath/fdn-website/issues/26)
+asking for Foundation review — **awaiting a response, not an
+approval.** Separately, the user self-service-signed-up for a
+commercial "Free trial subscription" organization on `app.signpath.io`
+(unrelated to Foundation review) — see "Submission status" below for
+the full, real distinction between these two things. This document is
+preparation and status-tracking only, assembled from this repository's
+own verified state, originally as of Phase 12 Session 1 (2026-08-06),
 corrected in Session 2A (OpenCode sidecar removal), Session 3 (the
-release blocker resolved), and Session 4 (fresh eligibility re-audit,
-provenance fields added, submission-readiness assessed — see the
-correction notes below each affected row rather than silently rewriting
-earlier sessions' own original findings).
+release blocker resolved), Session 4 (fresh eligibility re-audit,
+provenance fields added, submission-readiness assessed), and Session 4A
+(personal fields confirmed by the user, a trial organization discovered
+and investigated without production use, a public Foundation-review
+request filed) — see the correction notes below each affected row
+rather than silently rewriting earlier sessions' own original findings.
 
 **Signing-integration status: `BLOCKED_PENDING_SIGNPATH_APPROVAL`.** No
 SignPath organization, project, signing policy, or artifact
@@ -182,58 +192,103 @@ immutable `v0.4.0` tag (proven reachable) rather than `main` (proven
 unreachable), per the same reasoning applied to the release notes in
 Session 3.
 
-## USER INPUT REQUIRED before this application can actually be submitted
+## Submission status (Phase 12 Session 4A)
 
-This session did **not** submit the application. SignPath's application
-form (`https://signpath.org/apply.html`) is a JavaScript-rendered web
-form — no CLI/API submission path exists (confirmed: `WebFetch` against
-that URL returns only static shell content, no form fields; no browser
-automation tool was available/connected this session to load and
-inspect it directly). Research (SignPath's own `terms.html`, a
-third-party walkthrough of a real successful application, `OSSRequestForm-v4`)
-indicates the form asks at minimum for: project/repository URL, license,
-download/release URL, a project description, and a **contact email
-address**. It may ask for more (organization/legal name, applicant name)
-that this repository's own evidence cannot supply.
+**Still not submitted — blocked by a different, external cause than
+before.** The user completed and confirmed the previously-missing
+personal fields via
+`C:\Users\sekip\Desktop\FormuLab-SignPath-User-Input.md` (applicant
+name, contact email, MFA confirmation, terms acceptance, and explicit
+permission to submit on their behalf) and explicitly authorized
+submission in chat. With browser access available this session,
+`https://signpath.org/apply.html` was opened directly to attempt it.
 
-Every field above this section is evidenced and ready to paste in as-is.
-The following are **not** filled in, and must come from the user
-directly — nothing below was fabricated:
+**The page itself does not render an application form.** The heading
+("Apply for a free SignPath.io subscription") and site navigation load
+normally; the accessibility tree shows a `Form` element is structurally
+present in the DOM, but it contains **zero fields, zero inputs, zero
+content** — confirmed via the page's own accessibility tree (`read_page`),
+a full-page screenshot, and scrolling (the visible content area is
+entirely blank between the heading and the footer; there is nothing
+further to scroll to). This was checked both before and after dismissing
+the page's cookie-consent banner (chose "Refuse," the privacy-preserving
+option) — no change. Console messages showed only generic browser-
+extension noise, nothing form-specific; network requests showed no
+traffic to `signpath.org` itself or any third-party form-hosting domain
+during this check. This looks like the embedded form widget failing to
+load for a reason not diagnosable from this side — possibly a temporary
+issue on SignPath's own site/form-provider, or interference from a
+security extension in this browser profile (a Kaspersky link-scanning
+extension was observed active during the check). Re-checked via the
+site's own in-page "Apply" nav link (not just direct URL navigation) —
+identical empty result. Also checked `signpath.io` (a similarly-named
+but different, commercial "Zero Trust Software Integrity Platform"
+product — not the free Foundation program) at the user's own
+suggestion: its "Open Source Community" page's "Join the community"
+button links straight back to `signpath.org/`, no alternate
+application route.
 
-- **Contact email address.** Not committed anywhere in this repository.
-  `sekiphayit1982@gmail.com` is on file as this project's owner email in
-  local, non-committed project configuration (`CLAUDE.md`, not part of
-  the git repository) — confirm this is the address to use before
-  pasting it into any external form.
-- **Applicant/legal name**, if the form distinguishes a person from a
-  GitHub handle — not evidenced anywhere in this repository.
-- **Postal address or phone number**, if requested — never gather or
-  fabricate these; supply only if you choose to and the form requires
-  them.
-- **MFA confirmation** for both SignPath and GitHub account access —
-  SignPath's eligibility conditions require this for all team members
-  with signing access; confirm your own GitHub account
-  (`Sekiph82`) has MFA enabled (`gh api user --jq .two_factor_authentication`
-  can check this, but the API only reports MFA status for the
-  authenticated user, and only in some auth contexts — verify directly
-  in GitHub's own Settings → Password and authentication if unsure).
-- **Acceptance of SignPath's own terms/legal conditions** — a decision
-  only the user can make, reviewing the actual current terms at
-  submission time (this document's own eligibility table is this
-  session's best-effort match against `terms.html` as fetched this
-  session, not a legal opinion).
+**Update, same session**: the user separately signed into
+`app.signpath.io` directly (their own login — the "unavoidable
+human-only step" this document already flagged) and found/created a
+**"FormuLab" organization there via SignPath.io's own self-service
+signup**, not through Foundation review. Investigated before touching
+anything further (no certificate created, no CI signing activated, no
+release signed or re-published):
 
-**Exact steps to submit**:
-1. Open `https://signpath.org/apply.html` in a browser.
-2. Fill in the evidenced fields exactly as listed under "Application
-   dossier" above.
-3. Supply the fields listed in this section personally.
-4. Review and accept SignPath's terms if presented.
-5. Submit.
-6. Record the result (confirmation, application/ticket ID, or rejection
-   reason) in this document's "Application checklist" below and in the
-   Phase 12 external log — a future session can do this recording step
-   directly if the user pastes the confirmation details back.
+- **Organization**: name "FormuLab", ID
+  `b4b644ff-b883-4e06-9033-38873ce67e30`, created by the user via
+  self-service signup (`Created by Sekip HAYIT at 2026-08-06 21:58:14
+  UTC` — 3 minutes before the user mentioned it, no Foundation review
+  event in its history).
+- **Subscription type**: "Free trial subscription." Quotas: 2
+  interactive users (1 used), 3 projects (0 used), 0 Hardware Security
+  Module slots, 5 software key-store slots, 1.17 GB artifact volume/
+  1,200 signatures for the usage period 2026-08-06 to 2027-08-05.
+- **Billing/conversion**: the in-app "Change" subscription flow
+  (`docs.signpath.io/change-subscription?...&currentProductId=FreeTrial`)
+  shows **only paid plans** — STARTER ($950/yr), BASIC SINGLE
+  ($1,500/yr), BASIC TEAM ($2,000/yr) — **no free/OSS option appears
+  anywhere in this in-app flow.** EV certificates are issued by
+  GlobalSign and require legal-entity verification. **No plan was
+  selected, no payment page was reached, nothing was purchased.** This
+  confirms the self-service trial and the Foundation's free program are
+  genuinely different things — the trial does not automatically convert
+  to or unlock Foundation status.
+- **Support/contact channel used**: the in-app "More → Delete
+  organization" option is destructive and was not touched. "Authorize
+  support user" was seen but not used (grants SignPath staff access,
+  not a communication channel). The `apply.html` page's own source
+  (`docs/apply.md` in `github.com/SignPath/fdn-website`) revealed the
+  broken embed is a HubSpot form (portal `145110231`, form
+  `bf62807d-bb72-4e45-9bde-1f3a53ba2472`) — a direct HubSpot share-URL
+  guess (`share-eu1.hsforms.com/<formId>`) returned an error page, a
+  dead end, not pursued further. Instead, filed a public request on the
+  Foundation's own project-listing repository — a precedented channel
+  for exactly this: **[github.com/SignPath/fdn-website#26](https://github.com/SignPath/fdn-website/issues/26)**,
+  opened 2026-08-06 22:11 UTC, requesting Foundation review of FormuLab
+  and asking whether the existing trial organization can be converted
+  or linked rather than creating a second one. Used only the evidenced
+  dossier fields plus the user's own confirmed personal fields — nothing
+  fabricated. **This is the current tracked request; no response yet.**
+
+**Exact remaining action**: wait for a response on
+[issue #26](https://github.com/SignPath/fdn-website/issues/26), or (as
+before) try `https://signpath.org/apply.html` yourself from a different
+browser/network in case it renders there. **Do not** create a
+certificate, activate CI signing, or sign/publish anything against the
+existing "FormuLab" trial organization until its status (trial vs.
+Foundation-linked) is resolved — per the user's own explicit
+instruction this session.
+
+**Fields confirmed by the user** (from the completed input file,
+2026-08-07 — not fabricated, supplied directly by the applicant):
+applicant name, contact email, "GitHub MFA enabled: yes," "terms
+accepted: yes," "permission to submit on my behalf: yes," role
+description "Project owner." These are ready to use the moment the form
+itself is reachable — see the input file directly for the literal
+values (deliberately not duplicated here, so there is exactly one place
+this personal information lives in written form).
 
 ## Signing-integration readiness (for a future session, once approved)
 
@@ -283,11 +338,21 @@ next session"), not this session's.
   above; re-verified fresh via `gh api` this session, not assumed
   carried over.
 - [ ] Submit the application at `signpath.org/apply.html` using the
-  dossier fields above. **Not done as of Phase 12 Session 4** — the
-  form requires browser interaction and at least one field (contact
-  email) this session could not authoritatively confirm belongs to the
-  applicant without the user's own confirmation. See "USER INPUT
-  REQUIRED" above for the exact remaining steps.
+  dossier fields above. **Still not done as of Phase 12 Session 4A** —
+  the personal-field gap from Session 4 is resolved (user confirmed via
+  the input file and authorized submission), but the form itself does
+  not render any fields in this session's browser (structurally present
+  in the DOM, visibly and structurally empty) — an external blocker on
+  SignPath's own site, not a missing-information gap.
+- [x] Alternate channel used, Phase 12 Session 4A: filed a public
+  Foundation-review request at
+  [github.com/SignPath/fdn-website#26](https://github.com/SignPath/fdn-website/issues/26)
+  — **awaiting a response, this is not an approval.** See "Submission
+  status (Phase 12 Session 4A)" above for the full detail, including a
+  self-service "Free trial subscription" organization the user
+  separately created on `app.signpath.io` (unrelated to Foundation
+  review — do not treat it as approval, and do not use it for
+  production signing until its status is resolved).
 - [ ] On approval, record the real SignPath organization ID, project
   slug, signing-policy slug, and artifact-configuration slug in
   `docs/CODE_SIGNING_POLICY.md` and wire the real (not documentation-only)

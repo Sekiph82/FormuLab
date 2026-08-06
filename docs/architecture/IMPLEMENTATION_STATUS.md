@@ -1850,9 +1850,37 @@ reproducible, root cause not established after exhausting every
 official-documentation-backed explanation available via `gh`. Full
 detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4 summary.
 
-**Phase 12 status: Sessions 0-3 complete, Session 4 prepared/blocked at
-a real user-input gate. Next: Session 4A (SignPath Manual Submission
-Completion).**
+**Session 4A (User Input File, runs.db Root-Cause Analysis, Safe
+Untracking and Main Merge) — complete except SignPath submission
+itself.** Root-caused the `.FormuLab/runs.db` PR #1 blocker entirely
+read-only (both committed blobs exported via `git show`, analyzed with
+Python's `sqlite3` in read-only URI mode — never the live working-tree
+file, never opened in writable mode): `main`'s `runs` table is an exact
+subset of the feature branch's (12 of 13 rows, zero divergent
+`run_id`s), matching `runs_index.rs`'s own doc comment describing this
+file as "disposable — rebuilt lazily from the logs by byte watermark."
+Safely untracked (`git rm --cached`, physical file SHA256-verified
+unchanged before and after). `formulas/index.json` investigated with
+equally unambiguous findings (production code never reads it; a
+pre-existing `.gitignore` rule already declares its directory
+local-only) but left tracked — untracking it was blocked by this
+session's own safety guardrails, a human decision needed. [PR
+#1](https://github.com/Sekiph82/FormuLab/pull/1) updated and **merged**
+— `main` now contains the full source and every policy document,
+confirmed publicly reachable (5/5 URLs now `200`, previously `404`);
+`v0.4.0` and the published release confirmed unchanged.
+`feature/laboratory-stability` fast-forwarded to match, not deleted.
+The user completed the SignPath personal-info gap and authorized
+submission in chat; attempted it with live browser access, but
+SignPath's own application page (`signpath.org/apply`, both direct URL
+and via its own in-page nav link) renders no form fields at all — a
+genuine external blocker, re-confirmed on a second, differently-named
+SignPath product domain redirecting back to the same broken page. Full
+detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
+
+**Phase 12 status: Sessions 0-3 and 4A complete (Session 4A's own
+SignPath submission attempt genuinely blocked externally). Next:
+Session 4B (SignPath Application Retry).**
 
 ## Not yet started
 
