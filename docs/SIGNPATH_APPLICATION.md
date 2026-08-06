@@ -1,5 +1,15 @@
 # SignPath Foundation Application Dossier
 
+**Status: `AWAITING_RESPONSE`.** Official Foundation application form
+(`signpath.org/apply.html`) did not render. A real request was filed at
+[github.com/SignPath/fdn-website#26](https://github.com/SignPath/fdn-website/issues/26).
+The existing `app.signpath.io` "FormuLab" organization is a commercial
+free-trial signup, not confirmed Foundation approval — **it must not be
+used for production signing** (no certificate, no signing policy, no
+API token, no GitHub Actions signing, no signing/republishing a
+release, no paid-plan selection) until SignPath confirms its status or
+converts/links it to the OSS/Foundation program.
+
 Copy-paste-ready material for FormuLab's application to
 [SignPath Foundation's free open-source code-signing program](https://signpath.org).
 **This document does not claim SignPath has reviewed or approved
