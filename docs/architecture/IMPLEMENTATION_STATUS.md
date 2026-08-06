@@ -1801,10 +1801,30 @@ re-run once more per the user's explicit instruction: `0`. Full detail:
 `docs/handoffs/PHASE12_CURRENT.md`'s Session 2A summary (updated) and
 `docs/PHASE12_TEST_MATRIX.md`.
 
-**Phase 12 status: Sessions 0-2A complete. Next: Session 3 (First Public
-Release Publication) — a bounded remediation session for Session 1's
-blocker, before Session 4 (SignPath Application and Approval Gate). No
-implementation started.**
+**Session 3 (First Public Release Publication) — complete.** Published
+FormuLab's first real, public, non-draft GitHub Release,
+[`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0)
+(Windows x64 only, unsigned, disclosed as such). Fresh pre-release audit
+(not assumed from Session 1): local HEAD matched upstream, whole-tree
+identity scan literal `0`, no user-facing OpenCode claims remained,
+version `0.4.0` consistent across all 4 files, zero prior tags/releases/
+workflow runs. Restricted `build.yml`'s matrix to Windows-only for this
+release (mac/Linux legs kept, commented out, for a future verified
+multi-platform release). Found and disclosed a real anomaly: the
+standard tag-push trigger did not fire (confirmed via the GitHub Actions
+API, isolated against a working `workflow_dispatch`) — worked around
+with a `workflow_dispatch` `tag` input rather than silently retrying
+until something worked. CI run
+[#31127313636](https://github.com/Sekiph82/FormuLab/actions/runs/31127313636)
+succeeded, producing both Windows installers; published with a SHA256
+checksum file; independently re-verified via a fresh download (which
+caught and retried one network-truncated attempt, rather than trusting
+the first result). SignPath's "already released" eligibility prerequisite
+is now satisfied. Full detail: `docs/handoffs/PHASE12_CURRENT.md`'s
+Session 3 summary and `docs/PHASE12_TEST_MATRIX.md`.
+
+**Phase 12 status: Sessions 0-3 complete. Next: Session 4 (SignPath
+Application and Approval Gate).**
 
 ## Not yet started
 

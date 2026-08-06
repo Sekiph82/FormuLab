@@ -10,6 +10,15 @@ Built with Tauri, MCP, and agent skills — for macOS, Windows & Linux.
 
 ---
 
+## Download
+
+**[Latest release](https://github.com/Sekiph82/FormuLab/releases/latest)**
+— Windows x64 installers (`.exe`/`.msi`). This is an early public preview:
+**installers are not code-signed yet** (Windows SmartScreen will warn on
+first launch — see the release notes for why and how to verify what you
+downloaded). See [docs/CODE_SIGNING_POLICY.md](docs/CODE_SIGNING_POLICY.md)
+for the free open-source signing program FormuLab has applied to.
+
 ## What it is
 
 FormuLab is a desktop workbench that pairs a general AI research environment
@@ -87,7 +96,6 @@ machine.
 
 ## Features
 
-- **Chat + Agents** — local/API models, tools, MCP, files, shell, skills, memory.
 - **Formulation Optimizer** — cost-minimal blending under active-content, stock,
   and max-usage constraints.
 - **Formulation Discovery** — literature-driven candidate formulas with citations.
@@ -196,8 +204,9 @@ Checks: `pnpm test` - `pnpm typecheck` - `pnpm lint`.
   default.
 - Command execution, file deletion, dependency installation, and remote
   connections are human-approved flows in the app.
-- Provider credentials are written to app-private runtime config, never to the
-  workspace, provenance, git, or exports.
+- Provider API keys are stored in the app's own local browser storage
+  (not yet OS-keychain — see `docs/PRIVACY.md`), never to the workspace,
+  provenance, git, or exports.
 - Full network-communication disclosure: [docs/PRIVACY.md](docs/PRIVACY.md).
   Vulnerability reporting: [SECURITY.md](SECURITY.md).
 

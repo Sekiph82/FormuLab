@@ -657,16 +657,17 @@ not ship under the wrong identity.
   must not ship under an identity the project already renamed away from
   in Phase 9. Complete — full detail in
   `docs/handoffs/PHASE12_CURRENT.md`'s Session 2 summary.
-- **Session 3** — First Public Release Publication (bounded remediation
-  for the blocker found in Session 1). Tag a real version (`v0.4.0` or
-  current, built from the now-cleared tree), let the existing unsigned
-  `build.yml` pipeline build and draft a release exactly as it's designed
-  to, review it, and **publish** it — still unsigned, disclosed as such
-  exactly like every artifact has been throughout Phase 11. Re-run the
-  eligibility self-check (§9) against the live, published release page.
-  No signing, no CI changes beyond what Session 2 already made — this
-  session only exercises a pipeline that has existed since before Phase
-  12 and has simply never been run end to end.
+- **Session 3** — First Public Release Publication. **Complete.**
+  Published FormuLab's first-ever real GitHub Release,
+  [`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0)
+  (Windows x64 only for this release), unsigned and disclosed as such.
+  One real CI change was needed beyond what Session 2/2A already made:
+  the standard `push: tags: ["v*"]` trigger did not fire (confirmed via
+  the GitHub Actions API), isolated to be a tag-push-specific issue
+  (`workflow_dispatch` fired instantly), and disclosed honestly rather
+  than hidden — worked around with a `workflow_dispatch` `tag` input so
+  a manual dispatch produces the same tagged-release behavior. Full
+  detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 3 summary.
 - **Session 4** — SignPath Application and Approval Gate. Submit the
   dossier (`docs/SIGNPATH_APPLICATION.md`) now that a real release exists;
   this is largely an external-review wait, bounded to: submit, track,
@@ -725,16 +726,22 @@ phase's closure discipline.
 
 ## 8. Exact next session
 
-**Phase 12 Session 3: First Public Release Publication.** A real
-repository-eligibility blocker was found in Session 1 (§9) — SignPath
-requires the project already be released in the form to be signed, and
-FormuLab has never published a release (zero tags, zero GitHub releases,
-draft or otherwise). This is a bounded remediation session, not the
-SignPath application itself: publish FormuLab's first real (still
-unsigned, still disclosed as unsigned) GitHub Release using the existing,
-never-yet-run `build.yml` pipeline — now against the tree Session 2
-cleared of the project's previous identity. Only once that exists does Session 4 (SignPath
-Application and Approval Gate) become meaningful.
+**Phase 12 Session 4: SignPath Application and Approval Gate.** Session
+3's real, published, non-draft
+[`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0)
+release satisfies the eligibility blocker found in Session 1 (§9) —
+SignPath requires the project already be released in the form to be
+signed, and it now is. Submit the dossier
+(`docs/SIGNPATH_APPLICATION.md`, updated for the real release) to
+`signpath.org/apply`. Largely an external-review wait: submit, track,
+and record the outcome. Session 3 also flagged a real, unresolved
+discrepancy Session 4 should address before or during submission: the
+application checklist assumes `SECURITY.md`/`docs/PRIVACY.md`/
+`docs/CODE_SIGNING_POLICY.md` are "live on `main`," but `main` is 224
+commits behind `feature/laboratory-stability` and does not contain any
+of Phase 11/12's work — either merge to `main` first, or adjust the
+application's claims to reference the branch/tag the documents actually
+live on.
 
 ## 9. Session 1 — Free Open-Source Code-Signing Foundation (complete)
 

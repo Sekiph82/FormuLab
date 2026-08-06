@@ -193,6 +193,29 @@ re-run again as a regression check: **130/130 files, 1161/1161 tests,
 exit code 0**. Whole-tree identity scan, re-run per the user's explicit
 instruction after these text changes: `TOTAL BYTE-LEVEL OCCURRENCES: 0`.
 
+## Session 3 (First Public Release Publication): reused Session 2A's verification, no new test changes
+
+No application test changes — matched the expectation set below. Reused
+Session 2A's own same-commit-lineage verification rather than
+re-running it redundantly (`AGENTS.md`'s "no source changes, no re-run"
+principle): Rust **180/180**, `cargo clippy --lib` clean, desktop suite
+**130/130 files, 1161/1161 tests, exit 0**, shared **61/61 files,
+1251/1251 tests**, typecheck/lint clean, i18n parity **23/23**, help
+registry **38/38 + 9/9**. A fresh local clean release build passed
+native launch verification (PASS). Two `.github/workflows/build.yml`-
+only commits this session (matrix restricted to Windows, then a
+`workflow_dispatch` tag-input fallback added after the tag-push trigger
+was found not to fire) — neither touches application source, verified
+via `git diff --stat` before each commit. Whole-tree identity scan: run
+at session start (`0`) and confirmed still `0` after the workflow-file
+edits. Real GitHub Actions CI run
+([#31127313636](https://github.com/Sekiph82/FormuLab/actions/runs/31127313636))
+succeeded end to end, producing the two published Windows installers —
+this is the first time this repository's actual CI pipeline has ever
+completed a build. Both published artifacts SHA256-verified via an
+independent fresh re-download (not just the CI build's own reported
+hash) against a published `SHA256SUMS.txt`.
+
 ## Planned per-session test discipline (Sessions 3-12, proportional)
 
 Renumbered in Session 2 to insert the previous-identity-eradication session ahead of

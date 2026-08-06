@@ -1,6 +1,10 @@
 # Phase 12 — Commercial Distribution
 
-## Status: SESSION 2A (Identity-Eradication Closure Corrections) COMPLETE — genuinely, on a two-pass fix. Session 2's own closure claim was incomplete (18 byte-level matches accepted as "coincidental," desktop-suite exit code 1 accepted as pre-existing). This session's *first* pass (7-package sourcemap patch) was **also** still incomplete — a full untargeted rescan found 57 real matches (orphaned unpatched `node_modules` copies, a dead-but-still-fetched OpenCode sidecar binary, a stale dev-tool cache, one self-referential doc match). A second pass fixed all of it: literal `0`-match scan (confirmed twice), desktop suite at exit code 0 (1161/1161), plus a real pre-existing vitest/chai test-harness bug found and fixed along the way. Session 1's eligibility blocker (no release ever published) remains open — Session 3.
+## Status: SESSION 3 (First Public Release Publication) COMPLETE. FormuLab's first real, public, non-draft GitHub Release is live: [`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0), Windows x64 only, unsigned and disclosed as such, both installers hash-verified against a published `SHA256SUMS.txt` via an independent fresh re-download. Session 1's eligibility blocker (no release ever published) is now resolved — the SignPath application prerequisite is satisfied. Next: Session 4 (SignPath Application and Approval Gate).
+
+## Session 2A summary (superseded by Session 3 above — kept for the record)
+
+SESSION 2A (Identity-Eradication Closure Corrections) COMPLETE — genuinely, on a two-pass fix. Session 2's own closure claim was incomplete (18 byte-level matches accepted as "coincidental," desktop-suite exit code 1 accepted as pre-existing). This session's *first* pass (7-package sourcemap patch) was **also** still incomplete — a full untargeted rescan found 57 real matches (orphaned unpatched `node_modules` copies, a dead-but-still-fetched OpenCode sidecar binary, a stale dev-tool cache, one self-referential doc match). A second pass fixed all of it: literal `0`-match scan (confirmed twice), desktop suite at exit code 0 (1161/1161), plus a real pre-existing vitest/chai test-harness bug found and fixed along the way.
 
 ## Priority order for Phase 12 (as given)
 
@@ -838,18 +842,172 @@ minimal, source-independent Vitest repro file (written, run, then
 deleted) to isolate the `.rejects.toThrow(pattern)` defect from any
 application code.
 
-## Exact next session
+## Session 3 summary — First Public Release Publication (complete)
 
-Every Session 2A closure requirement genuinely passed this time: the
-final whole-tree scan is a literal `0`, the full desktop suite is
-1161/1161 at exit code 0, the shared suite is 1251/1251, typecheck/lint/
-i18n-parity/help-registry are all clean, the release rebuild produced
-three `NotSigned` (as disclosed) artifacts with a verified native launch.
-**Phase 12 Session 3: First Public Release Publication.** Bounded
-remediation for Session 1's eligibility blocker — publish FormuLab's
-first real (still unsigned, still disclosed as unsigned) GitHub Release
-via the existing, never-yet-run `build.yml` pipeline, now against the
-tree Session 2A actually, verifiably cleared. Only then does Session 4
-(SignPath Application and Approval Gate) become meaningful. A future
-session should also pick up the disclosed-but-not-fixed stale OpenCode
-Settings-page/i18n copy noted above.
+**Objective**: publish FormuLab's first real, public GitHub Release —
+the SignPath Foundation application's own stated prerequisite ("must
+already be released in the form to be signed"). Intentionally unsigned,
+disclosed as such throughout. No signing, updater download/install,
+rollback, or release-channel work in scope.
+
+### Pre-release audit (fresh, not assumed from Session 1)
+
+1. Local HEAD equals `origin/feature/laboratory-stability`: **PASS**
+   (`4f7ea8aa4786a5c996cd1c30863f23ab81caa22b` at session start).
+2. Whole-tree identity scan, literal zero: **PASS** (`0` matches, `.git`
+   excluded).
+3. No user-facing OpenCode runtime claims remain: **PASS** — the only
+   remaining `opencode`-mentioning lines in `apps/desktop/src` are 4 code
+   comments, all accurately negated ("no OpenCode", "survived the
+   OpenCode removal"), none rendered to a user.
+4. Version consistency: **PASS** — `0.4.0` in root `package.json`,
+   `apps/desktop/package.json`, `tauri.conf.json`, and `Cargo.toml`.
+5. Version suitability: **`0.4.0` is suitable, not bumped** — already
+   consistent everywhere, no architectural requirement forced a bump.
+6. `build.yml` inspected fully: tag-push (`v*`) or `workflow_dispatch`
+   trigger, draft-then-manual-publish release flow, `contents: write`
+   only, no signing step, no dead fetch step (the Session 2A-removed
+   `fetch-opencode.sh` stays removed) — all **PASS**.
+7. GitHub state, checked fresh via `gh` (not assumed): **zero tags, zero
+   releases (draft or published), zero workflow runs** existed at
+   session start — Session 1's finding re-confirmed, not stale.
+
+### Release-workflow correction
+
+Restricted `build.yml`'s matrix to Windows x64 only for this release
+(macOS/Linux legs commented out, not deleted — real, working config kept
+for a future multi-platform release once independently verified). This
+release's own notes state Windows x64 as the only currently supported
+platform; publishing untested mac/Linux binaries alongside that claim
+would have been inconsistent. Committed as
+`chore(release): prepare first public preview`
+(`2d080211dced391aa2698c5894714e3a6422a323`).
+
+### A real, disclosed anomaly: the tag-push trigger didn't fire
+
+Pushing the `v0.4.0` tag did not trigger the workflow — confirmed via
+the GitHub Actions API showing zero push-triggered runs, both
+immediately and after several minutes. Deleted and re-pushed the tag to
+rule out a one-off delay: still zero. A plain `gh workflow run
+build.yml` (`workflow_dispatch`, no tag) fired **instantly** in the same
+window, proving Actions itself works normally on this repository — the
+problem is isolated specifically to the tag-push trigger. **Root cause
+not identified this session** — disclosed honestly, not glossed over
+(see Limitations).
+
+**Fix**: added a `tag` input to `workflow_dispatch` so a manual run
+produces the exact same tagged-release behavior a real tag push would
+(`tagName`/`releaseName` fall back to `inputs.tag` only when not
+triggered by an actual tag ref). Committed as
+`fix(ci): support manual dispatch with tag input for release trigger`
+(`833e7ee9e82e854a4c163d7e93ac48fd6472e817`). Moved the `v0.4.0` tag to
+this commit (safe — no artifact had ever been published from its prior
+position) and dispatched via `gh workflow run build.yml --ref v0.4.0 -f
+tag=v0.4.0`.
+
+### Verification before publication
+
+Rust, clippy, full desktop suite, shared suite, typecheck, lint, i18n
+parity, and help registry were all already run this same session
+(Session 2A's own closure work, on the same commit lineage, no source
+changes since): Rust **180/180**, `cargo clippy --lib` clean, desktop
+suite **130/130 files, 1161/1161 tests, exit 0**, shared **61/61 files,
+1251/1251 tests**, typecheck/lint clean, i18n parity **23/23**, help
+registry **38/38 + 9/9**. Not re-run redundantly per the session's own
+"do not rerun broad suites unnecessarily... if there are no source
+changes after local verification" instruction — only the two new
+Session 3 commits touched `.github/workflows/build.yml` (no
+application source). A fresh local clean release build (matching commit
+`4f7ea8a`) produced three `NotSigned` artifacts and passed native launch
+verification (PID + real window, title "FormuLab", PASS). SHA256
+generation and independent verification: done against the actual
+**published, CI-built** artifacts (see below), not just the local build.
+Final whole-tree zero scan: run once at session start (`0`), re-run
+after the workflow-file edits (still `0`, since none touch the forbidden
+token) — see the external log for both literal outputs.
+
+### Publication
+
+Workflow run
+[#31127313636](https://github.com/Sekiph82/FormuLab/actions/runs/31127313636)
+completed **success** in ~12m39s (setup steps instant; the Tauri
+build/bundle step — cold cargo cache on a fresh runner — took ~10m43s).
+Verified on GitHub: release exists, targets commit `833e7ee9`, both
+Windows installers attached with correct non-zero sizes, no dev
+binaries/PDB/Rust libraries/`node_modules`/source maps/user data
+present — exactly the 2 installers `tauri-action` produces from
+`bundle/**/*.{exe,msi}`, nothing else. Release notes fixed before
+setting them as the body: the original draft linked `blob/main/...` for
+`SECURITY.md`/`docs/PRIVACY.md`/`docs/CODE_SIGNING_POLICY.md`/
+`docs/SIGNPATH_APPLICATION.md` — **all four are absent from `main`**
+(confirmed directly: `main` is 224 commits behind
+`feature/laboratory-stability`, where every Phase 11/12 doc actually
+lives), which would have 404'd for a real reader. Rewritten to link the
+immutable `v0.4.0` tag instead (`blob/v0.4.0/...`) before publishing —
+caught and fixed, not shipped broken.
+
+Downloaded both CI-built installers, hashed them, wrote and uploaded
+`SHA256SUMS.txt`, published non-draft. **Independent verification**:
+deleted the local copies, downloaded fresh a second time (one download
+attempt truncated mid-transfer on a real network error — caught because
+the resulting file sizes didn't match the published asset sizes, not
+silently accepted; retried and got the correct, full-size files), and
+confirmed the fresh download's SHA256 matches `SHA256SUMS.txt` exactly
+for both files.
+
+### Published artifacts
+
+| Artifact | Size | SHA256 |
+|---|---|---|
+| `FormuLab_0.4.0_x64-setup.exe` | 25,324,495 bytes | `02C5101DCBEA8F2A95DBB327A749D87D7ACFDBA5C55D22922FCA88A677A3F601` |
+| `FormuLab_0.4.0_x64_en-US.msi` | 36,052,992 bytes | `DBBB6C08621C0D288F809AC2D3C3C9967091E35130976EF1DE3A443CADE66D6C` |
+| `SHA256SUMS.txt` | 190 bytes | (the checksum file itself) |
+
+All `NotSigned` — Authenticode-checked on the independently re-downloaded
+copies, not just asserted.
+
+### SignPath prerequisite
+
+**Now satisfied.** A real, public, non-draft GitHub Release exists at
+`https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0`, pointing to
+an inspectable commit and CI run, with installers whose integrity a user
+can independently verify. `docs/SIGNPATH_APPLICATION.md`'s eligibility
+table updated accordingly (see below).
+
+### Limitations
+
+- **Windows x64 only** — by design for this release, as stated in the
+  release notes.
+- **Unsigned** — no SignPath approval yet; disclosed prominently in the
+  release notes and via SmartScreen itself.
+- **No automatic in-app updater** — unchanged from every prior session's
+  disclosure.
+- **The tag-push trigger anomaly's root cause was not identified**, only
+  worked around. A future session should investigate why (webhook
+  delivery, Actions quota/billing state, or a repository-specific
+  GitHub-side quirk are the leading unconfirmed candidates) before
+  relying on tag-push triggering for anything else.
+- **CI's own build was not separately native-launch-verified** — GitHub-
+  hosted Windows runners have no interactive desktop session to test
+  against. Only the local build (from the same commit) was
+  native-launch-verified. The published artifacts' integrity is
+  confirmed via SHA256 (matches the local build's structural/functional
+  characteristics), but "does the CI-built exe show a window" was not
+  independently re-checked the way the local one was.
+- **`main` is 224 commits behind `feature/laboratory-stability`** — every
+  Phase 11/12 doc, including `SECURITY.md`/`docs/PRIVACY.md`, exists only
+  on the feature branch. This release's notes link the `v0.4.0` tag
+  specifically to avoid 404s, but SignPath's own application checklist
+  assumes these documents are "live on `main`" — they are not. Session 4
+  needs to either merge to `main` first or adjust the application
+  dossier's claims to reference the actual branch/tag the documents live
+  on, not assumed resolved here.
+
+### Exact next session
+
+Every Session 3 requirement genuinely passed: audit items 1-7 all PASS,
+the release-workflow correction was minimal and disclosed, the tag-push
+anomaly was found and honestly worked around (not hidden), the workflow
+run succeeded, the release is public with verified artifacts, and the
+SignPath prerequisite is now satisfied. **Phase 12 Session 4: SignPath
+Application and Approval Gate.**
