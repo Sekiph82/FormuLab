@@ -52,25 +52,51 @@
     "mirrorHint": "Optional mirrors, used only when setting up Python tools (Jupyter, science databases) on networks where pypi.org / github.com are slow. Leave blank for defaults."
   },
   "updates": {
-    "title": "App updates",
-    "hint": "Checks GitHub Releases at most once every 24 hours",
-    "available": "Update available",
-    "checking": "Checking",
-    "failed": "Check failed",
-    "upToDate": "Up to date",
-    "currentVersion": "Current: {{version}}",
-    "latestVersion": "Latest: {{version}}",
-    "publishedAt": "Published {{date}}",
+    "title": "App Updates",
+    "hint": "Checks for a newer FormuLab release — does not download or install anything",
+    "unavailable": "available in the desktop app",
+    "currentVersionLabel": "Current version",
+    "checkNow": "Check for Updates",
     "lastChecked": "Last checked {{date}}",
+    "neverChecked": "Never checked",
     "checkFailed": "Check failed: {{message}}",
-    "checkNow": "Check now",
-    "openRelease": "Open release",
-    "hideBadge": "Hide badge",
-    "autoCheck": "Check automatically",
-    "autoCheckHint": "Enabled by default. The app checks at most once per day.",
+    "offlineHint": "Could not reach the update server — check your connection and try again.",
+    "status": {
+      "idle": "Not checked yet",
+      "checking": "Checking…",
+      "upToDate": "Up to date",
+      "updateAvailable": "Update available",
+      "error": "Check failed",
+      "offline": "Offline"
+    },
+    "availableSummary": {
+      "versionLabel": "Version",
+      "publishedLabel": "Published"
+    },
+    "platformNote": "A build for your platform was found in this release.",
+    "platformMissingNote": "No build for your platform was found in this release's assets.",
+    "notesHeading": "Release notes",
+    "viewRelease": "View Release / Download",
+    "ignoreVersion": "Ignore This Version",
+    "ignoredNote": "You're ignoring version {{version}} — it won't be flagged as available again unless a newer version is released.",
+    "clearIgnored": "Clear Ignored Version",
+    "autoCheck": "Check automatically on launch",
+    "autoCheckHint": "Checks once per launch, at most as often as the frequency below",
+    "frequencyLabel": "Check frequency",
+    "frequencyHint": "How often an automatic check is allowed to run",
+    "frequency": {
+      "6": "Every 6 hours",
+      "12": "Every 12 hours",
+      "24": "Daily",
+      "72": "Every 3 days",
+      "168": "Weekly"
+    },
     "showBadge": "Show Settings badge",
-    "showBadgeHint": "Show a red dot on Settings when a newer release is found.",
-    "privacy": "Only the public GitHub Releases API is contacted. No workspace files or API keys are sent."
+    "showBadgeHint": "Show a dot on Settings when an update is available",
+    "disclaimer": "FormuLab checks for updates only — it does not download or install them. Use View Release / Download to get the new version from the release page.",
+    "toast": {
+      "checkFailed": "Could not check for updates"
+    }
   },
   "model": {
     "title": "Model",

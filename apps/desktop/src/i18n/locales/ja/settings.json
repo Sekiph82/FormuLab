@@ -53,24 +53,50 @@
   },
   "updates": {
     "title": "アプリの更新",
-    "hint": "GitHub Releases を確認します。自動確認は 24 時間に 1 回までです",
-    "available": "更新があります",
-    "checking": "確認中",
-    "failed": "確認失敗",
-    "upToDate": "最新です",
-    "currentVersion": "現在: {{version}}",
-    "latestVersion": "最新: {{version}}",
-    "publishedAt": "公開日時: {{date}}",
+    "hint": "新しいFormuLabのリリースを確認します — ダウンロードやインストールは行いません",
+    "unavailable": "デスクトップアプリで利用可能",
+    "currentVersionLabel": "現在のバージョン",
+    "checkNow": "更新を確認",
     "lastChecked": "前回確認: {{date}}",
+    "neverChecked": "未確認",
     "checkFailed": "確認に失敗しました: {{message}}",
-    "checkNow": "今すぐ確認",
-    "openRelease": "リリースを開く",
-    "hideBadge": "バッジを隠す",
-    "autoCheck": "自動で確認",
-    "autoCheckHint": "既定で有効です。アプリは 1 日 1 回まで確認します。",
+    "offlineHint": "更新サーバーに接続できませんでした — 接続を確認して再試行してください。",
+    "status": {
+      "idle": "まだ確認していません",
+      "checking": "確認中…",
+      "upToDate": "最新です",
+      "updateAvailable": "更新があります",
+      "error": "確認に失敗しました",
+      "offline": "オフライン"
+    },
+    "availableSummary": {
+      "versionLabel": "バージョン",
+      "publishedLabel": "公開日"
+    },
+    "platformNote": "このリリースにはお使いのプラットフォーム向けのビルドがあります。",
+    "platformMissingNote": "このリリースの配布物にお使いのプラットフォーム向けのビルドが見つかりませんでした。",
+    "notesHeading": "リリースノート",
+    "viewRelease": "リリースを見る / ダウンロード",
+    "ignoreVersion": "このバージョンを無視",
+    "ignoredNote": "バージョン {{version}} を無視しています — さらに新しいバージョンが公開されるまで、再び「更新あり」として表示されません。",
+    "clearIgnored": "無視したバージョンを解除",
+    "autoCheck": "起動時に自動で確認",
+    "autoCheckHint": "起動ごとに1回、下記の頻度を超えない範囲で確認します",
+    "frequencyLabel": "確認頻度",
+    "frequencyHint": "自動確認を実行できる間隔",
+    "frequency": {
+      "6": "6時間ごと",
+      "12": "12時間ごと",
+      "24": "毎日",
+      "72": "3日ごと",
+      "168": "毎週"
+    },
     "showBadge": "設定バッジを表示",
-    "showBadgeHint": "新しいリリースが見つかったら、設定に赤い点を表示します。",
-    "privacy": "公開 GitHub Releases API だけに接続します。ワークスペースのファイルや API キーは送信しません。"
+    "showBadgeHint": "更新がある場合に設定にバッジを表示します",
+    "disclaimer": "FormuLabは更新の確認のみを行い、ダウンロードやインストールは行いません。新しいバージョンを入手するには「リリースを見る / ダウンロード」からリリースページをご利用ください。",
+    "toast": {
+      "checkFailed": "更新を確認できませんでした"
+    }
   },
   "model": {
     "title": "モデル",

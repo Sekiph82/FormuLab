@@ -53,24 +53,50 @@
   },
   "updates": {
     "title": "App-Updates",
-    "hint": "Prüft GitHub Releases höchstens einmal alle 24 Stunden",
-    "available": "Update verfügbar",
-    "checking": "Wird geprüft",
-    "failed": "Prüfung fehlgeschlagen",
-    "upToDate": "Aktuell",
-    "currentVersion": "Aktuell: {{version}}",
-    "latestVersion": "Neueste: {{version}}",
-    "publishedAt": "Veröffentlicht {{date}}",
+    "hint": "Prüft auf ein neueres FormuLab-Release — lädt oder installiert nichts",
+    "unavailable": "in der Desktop-App verfügbar",
+    "currentVersionLabel": "Aktuelle Version",
+    "checkNow": "Nach Updates suchen",
     "lastChecked": "Zuletzt geprüft {{date}}",
+    "neverChecked": "Noch nie geprüft",
     "checkFailed": "Prüfung fehlgeschlagen: {{message}}",
-    "checkNow": "Jetzt prüfen",
-    "openRelease": "Release öffnen",
-    "hideBadge": "Punkt ausblenden",
-    "autoCheck": "Automatisch prüfen",
-    "autoCheckHint": "Standardmäßig aktiv. Die App prüft höchstens einmal pro Tag.",
+    "offlineHint": "Update-Server nicht erreichbar — Verbindung prüfen und erneut versuchen.",
+    "status": {
+      "idle": "Noch nicht geprüft",
+      "checking": "Wird geprüft…",
+      "upToDate": "Aktuell",
+      "updateAvailable": "Update verfügbar",
+      "error": "Prüfung fehlgeschlagen",
+      "offline": "Offline"
+    },
+    "availableSummary": {
+      "versionLabel": "Version",
+      "publishedLabel": "Veröffentlicht"
+    },
+    "platformNote": "In diesem Release wurde eine Version für Ihre Plattform gefunden.",
+    "platformMissingNote": "In den Dateien dieses Releases wurde keine Version für Ihre Plattform gefunden.",
+    "notesHeading": "Versionshinweise",
+    "viewRelease": "Release ansehen / herunterladen",
+    "ignoreVersion": "Diese Version ignorieren",
+    "ignoredNote": "Sie ignorieren Version {{version}} — sie wird erst wieder als verfügbar angezeigt, wenn eine neuere Version erscheint.",
+    "clearIgnored": "Ignorierte Version zurücksetzen",
+    "autoCheck": "Beim Start automatisch prüfen",
+    "autoCheckHint": "Prüft einmal pro Start, höchstens so oft wie unten festgelegt",
+    "frequencyLabel": "Prüfhäufigkeit",
+    "frequencyHint": "Wie oft eine automatische Prüfung laufen darf",
+    "frequency": {
+      "6": "Alle 6 Stunden",
+      "12": "Alle 12 Stunden",
+      "24": "Täglich",
+      "72": "Alle 3 Tage",
+      "168": "Wöchentlich"
+    },
     "showBadge": "Punkt in Einstellungen anzeigen",
-    "showBadgeHint": "Zeigt einen roten Punkt in den Einstellungen, wenn ein neues Release gefunden wurde.",
-    "privacy": "Es wird nur die öffentliche GitHub-Releases-API kontaktiert. Workspace-Dateien und API-Schlüssel werden nicht gesendet."
+    "showBadgeHint": "Zeigt einen Punkt in den Einstellungen, wenn ein Update verfügbar ist",
+    "disclaimer": "FormuLab prüft nur auf Updates — es lädt oder installiert sie nicht. Nutzen Sie „Release ansehen / herunterladen“, um die neue Version von der Release-Seite zu beziehen.",
+    "toast": {
+      "checkFailed": "Update-Prüfung fehlgeschlagen"
+    }
   },
   "model": {
     "title": "Modell",

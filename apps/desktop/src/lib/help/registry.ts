@@ -482,6 +482,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       "settings.warnings.4",
       "settings.warnings.5",
       "settings.warnings.6",
+      "settings.warnings.7",
     ],
     roleNoteKeys: [],
     knownLimitationKeys: [],

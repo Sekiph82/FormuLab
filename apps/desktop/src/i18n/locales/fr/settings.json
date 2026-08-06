@@ -53,24 +53,50 @@
   },
   "updates": {
     "title": "Mises à jour de l'app",
-    "hint": "Consulte GitHub Releases au plus une fois toutes les 24 heures",
-    "available": "Mise à jour disponible",
-    "checking": "Vérification",
-    "failed": "Échec de la vérification",
-    "upToDate": "À jour",
-    "currentVersion": "Actuelle : {{version}}",
-    "latestVersion": "Dernière : {{version}}",
-    "publishedAt": "Publiée le {{date}}",
+    "hint": "Vérifie s'il existe une version plus récente de FormuLab — ne télécharge ni n'installe rien",
+    "unavailable": "disponible dans l'application de bureau",
+    "currentVersionLabel": "Version actuelle",
+    "checkNow": "Vérifier les mises à jour",
     "lastChecked": "Dernière vérification {{date}}",
+    "neverChecked": "Jamais vérifié",
     "checkFailed": "Échec de la vérification : {{message}}",
-    "checkNow": "Vérifier maintenant",
-    "openRelease": "Ouvrir la release",
-    "hideBadge": "Masquer le point",
-    "autoCheck": "Vérifier automatiquement",
-    "autoCheckHint": "Activé par défaut. L'app vérifie au plus une fois par jour.",
+    "offlineHint": "Impossible de contacter le serveur de mise à jour — vérifiez votre connexion et réessayez.",
+    "status": {
+      "idle": "Pas encore vérifié",
+      "checking": "Vérification…",
+      "upToDate": "À jour",
+      "updateAvailable": "Mise à jour disponible",
+      "error": "Échec de la vérification",
+      "offline": "Hors ligne"
+    },
+    "availableSummary": {
+      "versionLabel": "Version",
+      "publishedLabel": "Publiée"
+    },
+    "platformNote": "Une version pour votre plateforme a été trouvée dans cette publication.",
+    "platformMissingNote": "Aucune version pour votre plateforme n'a été trouvée parmi les fichiers de cette publication.",
+    "notesHeading": "Notes de version",
+    "viewRelease": "Voir la publication / Télécharger",
+    "ignoreVersion": "Ignorer cette version",
+    "ignoredNote": "Vous ignorez la version {{version}} — elle ne sera plus signalée comme disponible tant qu'une version plus récente ne sera pas publiée.",
+    "clearIgnored": "Réinitialiser la version ignorée",
+    "autoCheck": "Vérifier automatiquement au lancement",
+    "autoCheckHint": "Vérifie une fois par lancement, au plus aussi souvent que la fréquence ci-dessous",
+    "frequencyLabel": "Fréquence de vérification",
+    "frequencyHint": "À quelle fréquence une vérification automatique peut s'exécuter",
+    "frequency": {
+      "6": "Toutes les 6 heures",
+      "12": "Toutes les 12 heures",
+      "24": "Quotidienne",
+      "72": "Tous les 3 jours",
+      "168": "Hebdomadaire"
+    },
     "showBadge": "Afficher le point dans Paramètres",
-    "showBadgeHint": "Affiche un point rouge dans Paramètres lorsqu'une nouvelle release est trouvée.",
-    "privacy": "Seule l'API publique GitHub Releases est contactée. Aucun fichier de workspace ni clé API n'est envoyé."
+    "showBadgeHint": "Affiche un point dans Paramètres lorsqu'une mise à jour est disponible",
+    "disclaimer": "FormuLab vérifie seulement les mises à jour — il ne les télécharge ni ne les installe. Utilisez « Voir la publication / Télécharger » pour obtenir la nouvelle version depuis la page de publication.",
+    "toast": {
+      "checkFailed": "Impossible de vérifier les mises à jour"
+    }
   },
   "model": {
     "title": "Modèle",

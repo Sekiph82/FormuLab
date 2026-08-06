@@ -53,24 +53,50 @@
   },
   "updates": {
     "title": "앱 업데이트",
-    "hint": "GitHub Releases를 확인합니다. 자동 확인은 24시간에 한 번까지만 실행됩니다",
-    "available": "업데이트 있음",
-    "checking": "확인 중",
-    "failed": "확인 실패",
-    "upToDate": "최신 상태",
-    "currentVersion": "현재: {{version}}",
-    "latestVersion": "최신: {{version}}",
-    "publishedAt": "게시일: {{date}}",
+    "hint": "새로운 FormuLab 릴리스를 확인합니다 — 다운로드하거나 설치하지 않습니다",
+    "unavailable": "데스크톱 앱에서 사용 가능",
+    "currentVersionLabel": "현재 버전",
+    "checkNow": "업데이트 확인",
     "lastChecked": "마지막 확인: {{date}}",
+    "neverChecked": "확인한 적 없음",
     "checkFailed": "확인 실패: {{message}}",
-    "checkNow": "지금 확인",
-    "openRelease": "릴리스 열기",
-    "hideBadge": "점 숨기기",
-    "autoCheck": "자동으로 확인",
-    "autoCheckHint": "기본으로 켜져 있습니다. 앱은 하루에 한 번까지만 확인합니다.",
+    "offlineHint": "업데이트 서버에 연결할 수 없습니다 — 연결 상태를 확인한 후 다시 시도하세요.",
+    "status": {
+      "idle": "아직 확인하지 않음",
+      "checking": "확인 중…",
+      "upToDate": "최신 상태",
+      "updateAvailable": "업데이트 있음",
+      "error": "확인 실패",
+      "offline": "오프라인"
+    },
+    "availableSummary": {
+      "versionLabel": "버전",
+      "publishedLabel": "게시일"
+    },
+    "platformNote": "이 릴리스에서 사용자의 플랫폼용 빌드를 찾았습니다.",
+    "platformMissingNote": "이 릴리스의 파일 중에서 사용자의 플랫폼용 빌드를 찾지 못했습니다.",
+    "notesHeading": "릴리스 노트",
+    "viewRelease": "릴리스 보기 / 다운로드",
+    "ignoreVersion": "이 버전 무시",
+    "ignoredNote": "버전 {{version}}을(를) 무시하고 있습니다 — 더 최신 버전이 나오기 전까지는 다시 업데이트 있음으로 표시되지 않습니다.",
+    "clearIgnored": "무시한 버전 지우기",
+    "autoCheck": "시작 시 자동으로 확인",
+    "autoCheckHint": "시작할 때마다 한 번, 아래 빈도를 넘지 않는 범위에서 확인합니다",
+    "frequencyLabel": "확인 빈도",
+    "frequencyHint": "자동 확인이 실행될 수 있는 주기",
+    "frequency": {
+      "6": "6시간마다",
+      "12": "12시간마다",
+      "24": "매일",
+      "72": "3일마다",
+      "168": "매주"
+    },
     "showBadge": "설정에 점 표시",
-    "showBadgeHint": "새 릴리스가 발견되면 설정에 빨간 점을 표시합니다.",
-    "privacy": "공개 GitHub Releases API에만 연결합니다. 워크스페이스 파일이나 API 키는 전송하지 않습니다."
+    "showBadgeHint": "업데이트가 있을 때 설정에 점을 표시합니다",
+    "disclaimer": "FormuLab은 업데이트 확인만 합니다 — 다운로드하거나 설치하지 않습니다. 새 버전을 받으려면 \"릴리스 보기 / 다운로드\"에서 릴리스 페이지를 이용하세요.",
+    "toast": {
+      "checkFailed": "업데이트를 확인하지 못했습니다"
+    }
   },
   "model": {
     "title": "모델",

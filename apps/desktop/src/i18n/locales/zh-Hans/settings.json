@@ -53,24 +53,50 @@
   },
   "updates": {
     "title": "应用更新",
-    "hint": "通过 GitHub Releases 检查更新，24 小时内最多自动检查一次",
-    "available": "有新版本",
-    "checking": "检查中",
-    "failed": "检查失败",
-    "upToDate": "已是最新",
-    "currentVersion": "当前版本：{{version}}",
-    "latestVersion": "最新版本：{{version}}",
-    "publishedAt": "发布时间：{{date}}",
+    "hint": "检查是否有更新的 FormuLab 版本——不会下载或安装任何内容",
+    "unavailable": "该功能在桌面应用中可用",
+    "currentVersionLabel": "当前版本",
+    "checkNow": "检查更新",
     "lastChecked": "上次检查：{{date}}",
+    "neverChecked": "从未检查过",
     "checkFailed": "检查失败：{{message}}",
-    "checkNow": "立即检查",
-    "openRelease": "打开发布页",
-    "hideBadge": "隐藏红点",
-    "autoCheck": "自动检查更新",
-    "autoCheckHint": "默认开启。应用每天最多自动检查一次。",
+    "offlineHint": "无法连接到更新服务器——请检查网络连接后重试。",
+    "status": {
+      "idle": "尚未检查",
+      "checking": "检查中…",
+      "upToDate": "已是最新",
+      "updateAvailable": "有新版本",
+      "error": "检查失败",
+      "offline": "离线"
+    },
+    "availableSummary": {
+      "versionLabel": "版本",
+      "publishedLabel": "发布时间"
+    },
+    "platformNote": "此版本中找到了适用于您平台的构建。",
+    "platformMissingNote": "在此版本的文件中未找到适用于您平台的构建。",
+    "notesHeading": "更新说明",
+    "viewRelease": "查看发布 / 下载",
+    "ignoreVersion": "忽略此版本",
+    "ignoredNote": "您正在忽略版本 {{version}}——在发布更新的版本之前，它不会再被标记为可用。",
+    "clearIgnored": "清除已忽略的版本",
+    "autoCheck": "启动时自动检查",
+    "autoCheckHint": "每次启动检查一次，且不超过下方设置的频率",
+    "frequencyLabel": "检查频率",
+    "frequencyHint": "自动检查允许运行的频率",
+    "frequency": {
+      "6": "每 6 小时",
+      "12": "每 12 小时",
+      "24": "每天",
+      "72": "每 3 天",
+      "168": "每周"
+    },
     "showBadge": "在设置入口显示红点",
-    "showBadgeHint": "发现新版本时，在设置入口显示红点提醒。",
-    "privacy": "仅访问公开的 GitHub Releases API。不会发送工作区文件或 API 密钥。"
+    "showBadgeHint": "有可用更新时在设置入口显示红点",
+    "disclaimer": "FormuLab 仅检查更新——不会下载或安装它们。请使用“查看发布 / 下载”从发布页面获取新版本。",
+    "toast": {
+      "checkFailed": "无法检查更新"
+    }
   },
   "model": {
     "title": "模型",

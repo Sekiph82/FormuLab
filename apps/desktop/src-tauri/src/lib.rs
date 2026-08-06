@@ -149,7 +149,7 @@ pub fn run() {
             preview_server::preview_url,
             large_file::probe_large_file,
             tools::detect_tools,
-            updates::latest_release,
+            updates::check_for_update,
             debug_log::log_debug,
             backup::create_backup,
             backup::cancel_backup,

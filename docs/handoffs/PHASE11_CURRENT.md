@@ -1,6 +1,6 @@
 # Phase 11 — Backup, Restore and Data Safety
 
-## Status: STAGE 2 IN PROGRESS. Stage 1 (Sessions 0-5, assessment through diagnostics, plus its Closure and Verification session) complete. Stage 2 Session 7 (automatic backups) and Session 8 (Data Location Manager) complete.
+## Status: STAGE 2 IN PROGRESS. Stage 1 (Sessions 0-5, assessment through diagnostics, plus its Closure and Verification session) complete. Stage 2 Sessions 7 (automatic backups), 8 (Data Location Manager), and 9 (update checker) complete.
 
 ## Priority order for Phase 11 (as given, unchanged)
 
@@ -994,6 +994,172 @@ ever chosen or moved into during this session's own testing.
   precedent. Cleanup deletes the entire old root in one operation — no
   selective/partial cleanup.
 
+## Phase 11 Session 9: Update Checker (complete)
+
+**Scope**: Stage 2's third item — a safe, check-only update checker.
+Signed installation, automatic update installation, and rollback are
+explicitly Phase 12, not this session. Rewrote the pre-existing (pre-
+Phase-11) update-check code that already lived in `updates.rs`/
+`lib/update.ts` rather than building a parallel system — that code
+already had current-version display, manual/automatic check, and a
+Settings badge, but used a hardcoded, dual-path fetch (a Rust Atom-feed
+scraper falling back to a raw browser `fetch`), a fixed 24h interval, no
+size/timeout/HTTPS enforcement, no release notes, no platform info, and
+no ignored-version or notification support.
+
+- **This session hit an API error immediately before running the
+  focused tests** and resumed from the existing working tree — `git
+  status`/`git diff --check` at resume time showed every Session 9 file
+  already fully written with no conflict markers or truncation; only one
+  real defect was found (a garbled sentence fragment
+  — "(off by default is not the case — it's on by default)" — left
+  mid-edit in `docs/USER_GUIDE.md`), fixed before continuing. No other
+  file needed repair; all Rust/TS compiled and all focused tests passed
+  on the first resumed run.
+- **Metadata contract**: ONE configurable HTTPS endpoint (GitHub's public
+  Releases API by default, `updates::DEFAULT_RELEASE_METADATA_URL` /
+  `lib/update.ts`'s `DEFAULT_RELEASE_METADATA_URL` — duplicated as a
+  literal on both sides deliberately, matching this codebase's existing
+  `GLOBAL_SCHEMA_VERSION`-style cross-boundary-constant convention, since
+  Rust and TS constants can't literally share storage). The endpoint
+  itself is not exposed as a Settings UI control this session (the task's
+  own UI list didn't ask for one) — the store's `setEndpointUrl`/
+  `endpointUrl` exist and are HTTPS-validated for future/programmatic use,
+  keeping the architecture configurable without adding an unrequested
+  surface.
+- **Rust owns validation of the response itself** (`updates.rs`,
+  rewritten): HTTPS-only (checked before any request, and again on the
+  `html_url` field inside the parsed JSON), a 1&nbsp;MB response-size cap
+  enforced twice (a `Content-Length` pre-check and a hard-capped
+  `Read::take` on the actual bytes, so a lying or missing header can't
+  bypass it), a 10s request timeout, required-field structural validation
+  (missing tag/URL, malformed JSON, a draft/prerelease entry — all
+  rejected with a specific reason), and platform/architecture matching
+  (`find_platform_asset`, loose filename-keyword matching against
+  `std::env::consts::OS`/`ARCH` — informational only, never downloads an
+  asset to confirm).
+- **TypeScript owns everything version-shaped** (`lib/update.ts`,
+  rewritten): `isValidSemver` (a real semver-shape check — a malformed
+  version like `"abc"`/`"1.2"` is now rejected outright, not silently
+  coerced to `0` the way the old lenient numeric parse did),
+  `compareVersions`/`isNewerVersion` (unchanged, already tested), and the
+  same-or-older-version case: `check()` reports a same/older response as
+  `"upToDate"`, never `"error"` and never `"updateAvailable"` — this is
+  the downgrade/same-version rejection the task asked for, expressed as
+  "never trust a non-newer response as an update" rather than a separate
+  error path.
+- **Scheduling**: `shouldAutoCheck(lastCheckedAt, now, frequencyHours)`
+  replaces the old fixed `CHECK_INTERVAL_MS` — `frequencyHours` is
+  user-configurable (`FREQUENCY_OPTIONS_HOURS`: 6/12/24/72/168, default
+  24) and persisted in localStorage, matching this module's existing
+  persistence pattern (unlike Sessions 7-8's app-private JSON stores —
+  deliberately unchanged here, since this exact code was already shipped
+  and tested with localStorage before Phase 11 and switching persistence
+  layers was not asked for). A manual check always bypasses the
+  frequency; an automatic one (`maybeAutoCheck`, called from `AppShell`
+  on launch, unchanged call site) is gated by both `enabled` and the
+  configured frequency.
+- **Offline detection**: `navigator.onLine === false` short-circuits to
+  `"offline"` before ever calling through to Rust; a Rust
+  connect/timeout error message (`fetch_release_metadata_bytes`'s own
+  "you may be offline" phrasing) is also classified as `"offline"`
+  client-side (`isOfflineLooking`) — best-effort, not a guarantee, since
+  a browser `fetch` fallback (not used by default here, since the native
+  Tauri command is now the only path — no more dual-path fetch) could
+  phrase a connectivity error differently.
+- **Ignored version**: unified into one concept (`ignoredVersion`,
+  replacing the old `dismissedVersion`/badge-only "dismiss" — Sidebar's
+  `showBadge` field kept its exact name/semantics for compatibility,
+  since only that one field was read outside this module).
+  `ignoreVersion()`/`clearIgnoredVersion()` suppress/restore `hasUpdate`
+  (and therefore the Settings badge) for that exact version only — a
+  genuinely newer version released later is never suppressed by an older
+  ignored one (`derive()` re-checks `isNewerVersion` against the CURRENT
+  `latest`, not just equality-to-ignored).
+- **Duplicate-notification prevention**: a separate `notifiedVersion`
+  (persisted, distinct from `ignoredVersion`) — `notifyUpdateAvailable`
+  (new, `lib/systemNotification.ts`, matching Session 7's
+  `notifyAutomaticBackupFailure` pattern exactly: silent if OS
+  notification permission was never granted, never requests it
+  proactively) fires at most once per version, tracked independently of
+  whether the user later ignores that version.
+- **Release notes are plain text, never HTML**: the `notes` string from
+  `ReleaseMetadata` is placed directly into JSX text content in
+  `UpdateCheckerCard.tsx` (React escapes it; `dangerouslySetInnerHTML` is
+  never used, and no Markdown/HTML renderer touches it), truncated to
+  2000 characters for display sanity. A dedicated test asserts a
+  deliberately hostile notes string (`<img onerror=...>`) renders as
+  literal text with no `<img>`/`<b>` element ever created.
+- **No installer download or execution anywhere in this session** — `View
+  Release / Download` only calls the existing `openExternal(latest.url)`
+  wrapper (opens the OS browser); no file is ever fetched beyond the one
+  JSON metadata document.
+- **UI**: new `UpdateCheckerCard.tsx` (Settings → General, after
+  Diagnostics), replacing the inline "App updates" block that previously
+  lived directly in `SettingsPage.tsx` (removing ~90 lines of inline JSX
+  and the now-unused `dismissBadge`/`ExternalLink`/`RefreshCw`/
+  `openExternal`/`Switch` imports it was the only user of) — current
+  version, status (idle/checking/up to date/update available/error/
+  offline, each with a distinct icon+tone), last-checked time, an
+  available-version summary (version, publish date, platform-support
+  note, release notes), View Release / Download, Ignore This Version,
+  Clear Ignored Version, an automatic-check toggle, a frequency select
+  (disabled when automatic check is off), a Settings-badge toggle, and an
+  always-visible disclaimer stating FormuLab checks only and does not
+  install updates.
+- **i18n**: full genuine translation across all 8 shipped locales
+  (`settings.updates.*` fully replaced — old `available`/`latestVersion`/
+  `openRelease`/`hideBadge`/`privacy` keys retired, ~30 new keys added;
+  `help.settings.warnings.7` added) — no placeholders.
+- **Tests**: 14 new Rust tests in `updates.rs` (HTTPS-only acceptance,
+  size-limit boundary, platform/arch matching incl. an unknown-OS never
+  claiming a match, a well-formed response accepted with the right
+  platform match, an honest no-match report, missing version/missing
+  URL/non-HTTPS-URL/malformed-JSON/oversized-response all rejected with
+  a distinct reason, empty optional fields treated as absent, a draft or
+  prerelease skipped, a non-HTTPS endpoint refused before any request) —
+  full Rust suite **177/177 passing** (163 prior + 14 new), `cargo
+  clippy --lib` clean. 30 new `update.test.ts` tests (semver validation,
+  HTTPS-URL validation, ignored-version matching, configurable-frequency
+  eligibility, the full store: manual bypass, disabled/not-due automatic
+  checks, same-version and older-version-both-report-up-to-date,
+  malformed-version-is-an-error, HTTPS enforcement before calling
+  through, `setEndpointUrl` accept/reject, offline detection incl. a
+  classified Rust timeout message, an oversized/malformed-response error
+  classified as generic not offline, platform-support fields preserved,
+  ignore/clear-ignore restoring `hasUpdate` correctly, a newer version
+  after an ignored older one still flagged, notify-once-per-version,
+  never-notify-for-ignored, never-notify-when-not-newer, frequency
+  clamping). 19 new `UpdateCheckerCard.test.tsx` tests (every status
+  state, the available-version summary incl. platform note both ways,
+  View Release opening externally, Ignore/Clear actions, automatic-check
+  and badge toggles, frequency select enabled/disabled, the plain-text-
+  notes security test, the "checks only" disclaimer always present). 2
+  new `systemNotification.test.ts` tests (`notifyUpdateAvailable` sends
+  with permission, never requests it proactively). i18n parity **23/23**.
+  Help registry suite passing. Desktop typecheck clean. Desktop lint
+  clean.
+- **Full desktop suite run this session** (launch behavior and shared
+  update state changed, per this session's own instruction):
+  **1182/1185 passing** once the one pre-existing flake is isolated —
+  `HelpPanel.test.tsx`'s documented jsdom/undici `AbortSignal` cross-realm
+  incompatibility (first recorded in the Stage 1 Closure session,
+  reconfirmed in Sessions 7 and 8, predates Phase 11 entirely) reproduced
+  3 failures only when run inside the full suite; the same file passes
+  11/11 in isolation, confirming no regression was introduced this
+  session.
+- **Known limitations** (disclosed, not silently assumed away): no
+  signed installers, no automatic download/installation, no rollback —
+  all explicitly Phase 12. The update endpoint is configurable in the
+  store but has no Settings UI field this session (not requested). Offline
+  classification is best-effort text matching on Rust's own error
+  message, not a guaranteed network-state API. Platform/architecture
+  detection is filename-keyword matching against release assets, not a
+  guarantee a given asset will actually run — informational only. The
+  release-notes truncation (2000 chars) is a display limit, not a
+  security control (the security control is "always plain text,
+  never HTML").
+
 ## Exact next session
 
-Phase 11 Session 9: Update Checker.
+Phase 11 Session 10: Second-Stage Closure and Verification.

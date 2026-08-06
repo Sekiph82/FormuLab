@@ -53,24 +53,50 @@
   },
   "updates": {
     "title": "Uygulama güncellemeleri",
-    "hint": "GitHub Releases'i en fazla 24 saatte bir kontrol eder",
-    "available": "Güncelleme mevcut",
-    "checking": "Kontrol ediliyor",
-    "failed": "Kontrol başarısız",
-    "upToDate": "Güncel",
-    "currentVersion": "Mevcut: {{version}}",
-    "latestVersion": "En son: {{version}}",
-    "publishedAt": "{{date}} tarihinde yayımlandı",
+    "hint": "Daha yeni bir FormuLab sürümü olup olmadığını kontrol eder — hiçbir şey indirmez veya yüklemez",
+    "unavailable": "masaüstü uygulamasında kullanılabilir",
+    "currentVersionLabel": "Mevcut sürüm",
+    "checkNow": "Güncellemeleri Kontrol Et",
     "lastChecked": "Son kontrol {{date}}",
+    "neverChecked": "Hiç kontrol edilmedi",
     "checkFailed": "Kontrol başarısız: {{message}}",
-    "checkNow": "Şimdi kontrol et",
-    "openRelease": "Sürümü aç",
-    "hideBadge": "Rozeti gizle",
-    "autoCheck": "Otomatik kontrol et",
-    "autoCheckHint": "Varsayılan olarak etkin. Uygulama günde en fazla bir kez kontrol eder.",
+    "offlineHint": "Güncelleme sunucusuna bağlanılamadı — bağlantınızı kontrol edip tekrar deneyin.",
+    "status": {
+      "idle": "Henüz kontrol edilmedi",
+      "checking": "Kontrol ediliyor…",
+      "upToDate": "Güncel",
+      "updateAvailable": "Güncelleme mevcut",
+      "error": "Kontrol başarısız",
+      "offline": "Çevrimdışı"
+    },
+    "availableSummary": {
+      "versionLabel": "Sürüm",
+      "publishedLabel": "Yayım tarihi"
+    },
+    "platformNote": "Bu sürümde platformunuz için bir yapı bulundu.",
+    "platformMissingNote": "Bu sürümün dosyaları arasında platformunuz için bir yapı bulunamadı.",
+    "notesHeading": "Sürüm notları",
+    "viewRelease": "Sürümü Görüntüle / İndir",
+    "ignoreVersion": "Bu Sürümü Yoksay",
+    "ignoredNote": "{{version}} sürümünü yoksayıyorsunuz — daha yeni bir sürüm yayımlanana kadar yeniden mevcut olarak işaretlenmeyecek.",
+    "clearIgnored": "Yoksayılan Sürümü Temizle",
+    "autoCheck": "Başlatıldığında otomatik kontrol et",
+    "autoCheckHint": "Her başlatmada bir kez, en fazla aşağıdaki sıklıkta kontrol eder",
+    "frequencyLabel": "Kontrol sıklığı",
+    "frequencyHint": "Otomatik kontrolün ne sıklıkta çalışabileceği",
+    "frequency": {
+      "6": "6 saatte bir",
+      "12": "12 saatte bir",
+      "24": "Günlük",
+      "72": "3 günde bir",
+      "168": "Haftalık"
+    },
     "showBadge": "Ayarlar rozetini göster",
-    "showBadgeHint": "Daha yeni bir sürüm bulunduğunda Ayarlar'da kırmızı bir nokta göster.",
-    "privacy": "Yalnızca genel GitHub Releases API'sine erişilir. Hiçbir çalışma alanı dosyası veya API anahtarı gönderilmez."
+    "showBadgeHint": "Bir güncelleme mevcut olduğunda Ayarlar'da bir nokta gösterir",
+    "disclaimer": "FormuLab yalnızca güncellemeleri kontrol eder — indirmez veya yüklemez. Yeni sürümü sürüm sayfasından almak için \"Sürümü Görüntüle / İndir\"i kullanın.",
+    "toast": {
+      "checkFailed": "Güncellemeler kontrol edilemedi"
+    }
   },
   "model": {
     "title": "Model",

@@ -53,3 +53,23 @@ export async function notifyAutomaticBackupFailure(className: string, message: s
     return false;
   }
 }
+
+/** A newly detected update surfaces here too — the app may be closed or
+ *  unfocused when a scheduled/launch check finds one. Caller (`lib/update.ts`)
+ *  is responsible for calling this at most once per version (see its own
+ *  `notifiedVersion` tracking) — this function itself has no memory of
+ *  what it already announced. Never requests permission proactively. */
+export async function notifyUpdateAvailable(version: string, url: string): Promise<boolean> {
+  const granted = await isPermissionGranted();
+  if (!granted) return false;
+
+  try {
+    sendNotification({
+      title: "FormuLab update available",
+      body: `Version ${version} is available.\n${url}`,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}

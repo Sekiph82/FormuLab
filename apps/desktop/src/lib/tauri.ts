@@ -241,17 +241,31 @@ export async function openExternal(url: string): Promise<void> {
   }
 }
 
-export interface LatestRelease {
+// ---- Update checker (Phase 11 Session 9) ------------------------------
+
+/** Structurally validated release metadata (Rust enforces HTTPS, a size
+ *  cap, a timeout, and required fields before this ever reaches here —
+ *  see `apps/desktop/src-tauri/src/updates.rs`). Version comparison and
+ *  ignored-version handling happen in `lib/update.ts`, not here. */
+export interface ReleaseMetadata {
   version: string;
   url: string;
   name: string | null;
   publishedAt: string | null;
+  notes: string | null;
+  /** Whether a release asset's file name matches this build's OS/arch —
+   *  informational only; nothing is ever downloaded to confirm it. */
+  platformSupported: boolean;
+  matchedAssetName: string | null;
 }
 
-export async function latestRelease(): Promise<LatestRelease | null> {
-  if (!isTauri) return null;
+/** Checks `endpoint` (must be HTTPS; an empty string falls back to the
+ *  built-in default) for the latest published release. Never downloads
+ *  or executes an installer — metadata only. */
+export async function checkForUpdate(endpoint: string): Promise<ReleaseMetadata> {
+  if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<LatestRelease>("latest_release");
+  return invoke<ReleaseMetadata>("check_for_update", { endpoint });
 }
 
 export type SaveResult =

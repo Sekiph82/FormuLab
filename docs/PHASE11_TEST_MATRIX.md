@@ -510,6 +510,113 @@ specific passing tests — see
   interrupted-move banner, and the post-move cleanup gate all covered in
   `ActiveDataLocationCard.test.tsx`.
 
+## Session 9 — Update Checker (Stage 2, complete — actual results)
+
+- Rust: 14 new tests in `updates.rs`, replacing the single old
+  `parses_first_release_entry_from_atom` test (the Atom-feed scraper it
+  covered was removed along with the rest of the old dual-path fetch) —
+  `is_https_url` accepts only `https://` (case-insensitive), rejects
+  `http://`/`ftp://`/empty; `enforce_size_limit` accepts exactly the cap
+  and rejects one byte over it; `find_platform_asset` matches by OS+arch
+  filename keywords and never claims a match for an unrecognized OS;
+  `parse_release_metadata` accepts a well-formed response (asserting the
+  matched asset name), honestly reports no platform match when none
+  fits, rejects a missing version/missing URL/non-HTTPS URL/malformed
+  JSON/oversized response each with a distinct message, treats blank
+  optional fields as absent, and skips a draft-or-prerelease entry;
+  `fetch_release_metadata_bytes` refuses a non-HTTPS endpoint before any
+  network call. Full Rust suite re-run: **177/177 passing** (163 prior +
+  14 new). `cargo clippy --lib`: clean.
+- TypeScript: 30 new tests in `update.test.ts`, replacing the prior
+  smaller suite in place (version-comparison tests kept, `shouldAutoCheck`
+  extended for configurable frequency, everything else new) —
+  `isValidSemver` accept/reject cases, `isHttpsUrl`, `isIgnoredVersion`,
+  configurable-frequency launch-eligibility (a shorter frequency makes
+  the same elapsed time eligible, a longer one keeps it ineligible),
+  `shouldShowUpdateBadge`, and the full store (manual bypasses frequency;
+  disabled and not-yet-due automatic checks are both skipped; a same-
+  version response is "up to date" not an error — same-version
+  rejection; an older/downgrade response is also "up to date," never
+  "available" — downgrade rejection; a malformed response version is an
+  "error," never silently coerced; HTTPS is enforced on the endpoint
+  before ever calling through; `setEndpointUrl` accepts/rejects
+  correctly; offline is detected both via `navigator.onLine` before any
+  call and via classifying a Rust timeout/connect message after one; an
+  oversized/malformed-response Rust error is classified as a generic
+  error, not offline; platform-support fields pass through unchanged;
+  `ignoreVersion`/`clearIgnoredVersion` suppress/restore `hasUpdate`
+  correctly; a newer version after an ignored older one is still
+  flagged; a notification fires once per version and never again for
+  the same one — duplicate-notification prevention; a newer version
+  after that notifies again; an ignored or non-newer version never
+  notifies at all; `setFrequencyHours` clamps to a minimum of 1) —
+  **30/30 passing**. 19 new tests in `UpdateCheckerCard.test.tsx`
+  (desktop-only fallback; idle state with no prior check; manual check
+  calls through; checking-state button disabled; up-to-date, failed-
+  with-message, and offline-with-hint states; the available-version
+  summary with notes and a platform-found note; a platform-missing note
+  shown honestly when no asset matched; View Release opens externally
+  and only externally; Ignore This Version calls through for the latest
+  version; the ignored-version note + Clear Ignored Version shown and
+  wired correctly; automatic-check toggle and frequency-select
+  enabled/disabled/on-change; Settings-badge toggle; the "checks only,
+  never installs" disclaimer always present; release notes containing
+  a hostile `<img onerror>`/`<b>` string render as literal text with no
+  such element ever created in the DOM) — **19/19 passing**. 2 new tests
+  in `systemNotification.test.ts` (`notifyUpdateAvailable` sends with
+  permission already granted, never requests permission proactively).
+  i18n parity: **23/23 passing** (8-locale `settings.updates.*`, fully
+  replaced key set, all real translations). Help registry suite passing
+  (`settings` topic's `warnings.7` added across all 8 locales — still no
+  new topic). Desktop typecheck: clean. Desktop lint: clean.
+- **Full desktop suite run this session** (launch behavior and shared
+  update state changed, meeting this session's own "run the full suite
+  when shared/launch behavior changes" instruction): **1182/1185
+  passing** once the one pre-existing flake is isolated —
+  `HelpPanel.test.tsx`'s documented jsdom/undici `AbortSignal` cross-realm
+  incompatibility (first recorded in the Stage 1 Closure session,
+  reconfirmed in Sessions 7 and 8) reproduced 3 failures only inside the
+  full suite; the same file passes 11/11 in isolation, confirming no
+  regression this session introduced.
+
+**Focused tests** (per this session's own required list):
+- Newer / same / older versions: `isNewerVersion` unit tests plus the
+  store's own `check()` behavior for each case — same and older both
+  resolve to `"upToDate"`, never an error and never "available."
+- Malformed versions: `isValidSemver` rejects `"abc"`/`"1.2"`/`"1.2.x"`/
+  `"v1"`/empty directly; the store's `check()` throws a specific "invalid
+  version" message when the metadata reports one.
+- HTTPS enforcement: tested at three layers — Rust refuses a non-HTTPS
+  endpoint before any request (`fetch_release_metadata_bytes`) and a
+  non-HTTPS `html_url` field inside an otherwise-valid response
+  (`parse_release_metadata`); TypeScript's `check()` refuses to call
+  through at all when the configured endpoint itself isn't HTTPS.
+- Timeout and offline errors: `navigator.onLine === false` short-circuits
+  before any call; a Rust connect/timeout error message is classified as
+  `"offline"` client-side; both paths tested directly in `update.test.ts`.
+- Oversized or malformed response: Rust's own two-layer size cap
+  (`Content-Length` pre-check + hard-capped read) tested via
+  `enforce_size_limit` and `parse_release_metadata_rejects_an_oversized_response`;
+  malformed JSON, a missing version, and a missing URL each tested with
+  their own fixture and assertion on the specific rejection reason.
+- Platform/architecture mismatch: `find_platform_asset`'s own tests cover
+  a real match, a real non-match (macOS/aarch64 against Windows-only
+  assets), and the unknown-OS-never-matches guard.
+- Ignored version: full round trip tested in both `update.test.ts`
+  (store-level suppression/restoration, a newer-after-ignored-older case)
+  and `UpdateCheckerCard.test.tsx` (the ignored-version UI state and its
+  Clear action).
+- Duplicate-notification prevention: three repeated checks for the same
+  version notify exactly once; a genuinely newer version afterward
+  notifies again; an ignored or non-newer version never notifies at all.
+- Launch-check eligibility: `shouldAutoCheck` tested directly against
+  the configurable frequency (not the old fixed interval), plus the
+  store's own disabled/not-due skip behavior.
+- Settings states: every status (idle/checking/upToDate/updateAvailable/
+  error/offline), the available-version summary, both platform-note
+  variants, the ignored-version state, and both toggles/the frequency
+  select all covered in `UpdateCheckerCard.test.tsx`.
+
 ## What no session in this first stage runs
 
 Per this session's own scope: none of Sessions 1-5 run the full desktop

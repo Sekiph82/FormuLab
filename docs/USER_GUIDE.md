@@ -881,9 +881,8 @@ Open **Settings** (bottom of the sidebar) for six sections:
   your **workspace folder** (where projects/sessions/formulas live on
   disk — change or reveal it in Explorer/Finder), your **Active Data
   Location**, **Backup and Recovery**, **Automatic Backups**, **Schema
-  Migration**, and **Diagnostics** (all in
-  [§28a](#28a-backup-and-recovery)), and **app updates** (manual check,
-  auto-check toggle, update-badge visibility).
+  Migration**, **Diagnostics**, and **App Updates** (all in
+  [§28a](#28a-backup-and-recovery)).
 - **Models** — the provider, model, and API key the composer
   ([§0b](#0b-generate-a-starting-formulation-the-composer)) uses to
   generate a formulation. Never used for anything approval-related —
@@ -1066,6 +1065,39 @@ updating for this version of FormuLab.
   update rather than a confusing error.
 - As of this version, every collection is already current — Run
   Migration will normally show nothing pending.
+
+**Settings → General → App Updates** — checks whether a newer FormuLab
+release exists. **This checks only — it never downloads or installs
+anything.**
+
+- **Current version** is always shown, so you know what you're comparing
+  against.
+- **Check for Updates** runs an immediate, manual check. **Check
+  automatically on launch** (on by default) runs one check per launch, at
+  most as often as the **check frequency** you choose (every 6/12 hours,
+  daily, every 3 days, or weekly).
+- Status is always one of: **Not checked yet**, **Checking…**, **Up to
+  date**, **Update available**, **Check failed**, or **Offline** (no
+  connection to the update server) — the last checked time is always
+  shown alongside it.
+- When an update is available, you see its **version**, **publish date**,
+  and **release notes** (shown as plain text — never treated as HTML),
+  plus whether a build for **your platform** was actually found in that
+  release.
+- **View Release / Download** opens the release page in your browser —
+  FormuLab does not download or run an installer for you; you get the
+  new version from the release page yourself.
+- **Ignore This Version** stops that specific version from being flagged
+  as available again — a genuinely newer release still gets flagged
+  normally. **Clear Ignored Version** undoes this at any time.
+- **Show Settings badge** shows a small dot on the Settings entry when an
+  update is available (and not ignored).
+- A newly detected update also shows a system notification, once per
+  version — checking again never repeats it for the same version.
+- Only one HTTPS endpoint is contacted (GitHub's public releases API by
+  default) — no workspace files, formulas, or API keys are ever sent.
+- Signed installers and automatic update installation are not part of
+  this version — planned for a later phase.
 
 ## 29. In-app guide and PDF/DOCX generation
 
