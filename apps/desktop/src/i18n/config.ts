@@ -16,7 +16,6 @@ export const DEFAULT_LOCALE = "en";
 
 /** localStorage key holding the user's chosen locale. */
 export const LOCALE_KEY = "formulab.locale";
-const LEGACY_LOCALE_KEY = "ai4s.locale";
 
 /** Registration order is the switcher's display order. */
 export const LOCALES: LocaleMeta[] = [
@@ -54,18 +53,12 @@ export function resolveLocale(candidate: string | null | undefined): string {
   return byBase ? byBase.code : DEFAULT_LOCALE;
 }
 
-/** First-run guess when no preference is stored: saved value → legacy
- *  ai4s.locale value (migrated once, never deleted) → OS/browser language →
- *  default. Persistence is owned by the store; this only seeds it. */
+/** First-run guess when no preference is stored: saved value → OS/browser
+ *  language → default. Persistence is owned by the store; this only seeds it. */
 export function detectInitialLocale(): string {
   if (typeof window === "undefined") return DEFAULT_LOCALE;
   const saved = window.localStorage.getItem(LOCALE_KEY);
   if (saved) return resolveLocale(saved);
-  const legacy = window.localStorage.getItem(LEGACY_LOCALE_KEY);
-  if (legacy) {
-    window.localStorage.setItem(LOCALE_KEY, legacy);
-    return resolveLocale(legacy);
-  }
   const nav = typeof navigator !== "undefined" ? navigator.language : null;
   return resolveLocale(nav);
 }

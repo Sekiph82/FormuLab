@@ -59,7 +59,7 @@
   "skills": {
     "title": "スキル & エージェント",
     "description": {
-      "prefix": "OpenCode ランタイムからライブで読み込まれます — バンドルされた ai4s-skills パックと、ワークスペース内の ",
+      "prefix": "OpenCode ランタイムからライブで読み込まれます — バンドルされた FormuLab のスキルと、ワークスペース内の ",
       "suffix": " にあるものすべて。"
     },
     "install": {

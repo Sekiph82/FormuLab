@@ -14,11 +14,11 @@ Shared: 1199/1199 tests, typecheck clean. Desktop: 688/688 tests
 clean (`-D warnings`). No Phase 8 Python changes — Python suite not run.
 
 ## Release artifacts
-Built via `pnpm --filter @ai4s/desktop exec tauri build`.
+Built via `pnpm --filter @legacy/desktop exec tauri build`.
 
 | Artifact | Path | Size | SHA-256 |
 |---|---|---|---|
-| Executable | `apps/desktop/src-tauri/target/release/ai4s-workbench.exe` | 21,894,144 B | `b40416d1b4508abfa080a614f649c61a568f86ba767e505258fe82eddb85ad5a` |
+| Executable | `apps/desktop/src-tauri/target/release/legacy-workbench.exe` | 21,894,144 B | `b40416d1b4508abfa080a614f649c61a568f86ba767e505258fe82eddb85ad5a` |
 | MSI installer | `apps/desktop/src-tauri/target/release/bundle/msi/FormuLab_0.4.0_x64_en-US.msi` | 35,606,528 B | `4f64fcb1a020a311c7a3192ea14290a3fdb04b66748c9087ce7b90f53d51b442` |
 | NSIS installer | `apps/desktop/src-tauri/target/release/bundle/nsis/FormuLab_0.4.0_x64-setup.exe` | 24,949,109 B | `a1ece1dee3b59a2aed3ba66f8e42d8d604204f16c8cd92f6132288ada8163019` |
 
@@ -26,7 +26,7 @@ Built via `pnpm --filter @ai4s/desktop exec tauri build`.
 `C:\Users\sekip\Desktop\FormuLab.lnk` backed up to
 `FormuLab.lnk.bak-phase8session8` before refresh. Target confirmed
 unchanged and correct:
-`apps\desktop\src-tauri\target\release\ai4s-workbench.exe`, working
+`apps\desktop\src-tauri\target\release\legacy-workbench.exe`, working
 directory the containing `release` folder.
 
 ## Native verification: PARTIALLY LIVE VERIFIED

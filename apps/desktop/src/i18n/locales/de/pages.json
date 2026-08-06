@@ -59,7 +59,7 @@
   "skills": {
     "title": "Skills & Agenten",
     "description": {
-      "prefix": "Live aus der OpenCode-Runtime geladen — das gebündelte ai4s-skills-Paket plus alles unter ",
+      "prefix": "Live aus der OpenCode-Runtime geladen — die integrierten FormuLab-Skills plus alles unter ",
       "suffix": " in Ihrem Arbeitsbereich."
     },
     "install": {

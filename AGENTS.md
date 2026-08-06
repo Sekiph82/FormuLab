@@ -1,8 +1,8 @@
 # FormuLab
 
 Brand name: **FormuLab** — "Local-first, model-agnostic AI research
-workbench for macOS, Windows & Linux." Formerly AI4S Workbench. Bundle
-identifier: `com.formulab.app`. Internal packages: `@formulab/shared`,
+workbench for macOS, Windows & Linux." Bundle identifier:
+`com.formulab.app`. Internal packages: `@formulab/shared`,
 `@formulab/desktop`.
 
 Project rules and working context for AI agents (Claude Code, Cursor, Codex, etc.).

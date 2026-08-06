@@ -66,17 +66,13 @@ jobs:
         shell: bash
         run: bash scripts/dev/fetch-opencode.sh ${{ matrix.target }}
 
-      - name: Fetch bundled ai4s-skills pack
+      - name: Fetch bundled skills
         shell: bash
         run: bash scripts/dev/fetch-skills.sh
 
       - name: Fetch bundled uv sidecar
         shell: bash
         run: bash scripts/dev/fetch-uv.sh ${{ matrix.target }}
-
-      - name: Fetch bundled goal plugin
-        shell: bash
-        run: bash scripts/dev/fetch-goal-plugin.sh
 
       - name: Build the app (Tauri)
         uses: tauri-apps/tauri-action@v0

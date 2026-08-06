@@ -24,11 +24,11 @@ New tests:
 `claims.test.ts`: 28 → 36 tests, all passing. No existing test's expectations changed except the one id-forcing fix above (its assertions — `toHaveLength(1)` / `linkStatus === "accepted"` — are unchanged, only the *setup* stopped forcing a fake id).
 
 **Full regression, run after the changes**:
-- `pnpm --filter @ai4s/shared run typecheck` — clean.
-- `pnpm --filter @ai4s/shared exec vitest run` — **860/860 passing** (852 → 860, +8, matches exactly).
-- `pnpm --filter @ai4s/desktop run typecheck` — clean.
-- `pnpm --filter @ai4s/desktop run lint` — clean.
-- `pnpm --filter @ai4s/desktop exec vitest run` — **451/451 passing**, unchanged (no desktop-side code touched by Task 1).
+- `pnpm --filter @legacy/shared run typecheck` — clean.
+- `pnpm --filter @legacy/shared exec vitest run` — **860/860 passing** (852 → 860, +8, matches exactly).
+- `pnpm --filter @legacy/desktop run typecheck` — clean.
+- `pnpm --filter @legacy/desktop run lint` — clean.
+- `pnpm --filter @legacy/desktop exec vitest run` — **451/451 passing**, unchanged (no desktop-side code touched by Task 1).
 No regressions anywhere.
 
 ## Task 2: live Approval blocker verification
@@ -92,8 +92,8 @@ Both pushed to `origin/feature/laboratory-stability` in this session (fast-forwa
 `git push origin feature/laboratory-stability`: `8ae30a6..2a46261` then `2a46261..18ccef1` — both fast-forward.
 
 ## Release build
-`pnpm --filter @ai4s/desktop exec tauri build`, run after closing the then-running old instance (file lock, same pattern as the prior session). Succeeded:
-- **Exe**: `apps\desktop\src-tauri\target\release\ai4s-workbench.exe` — 21,539,328 bytes — SHA256 `6DE4014016B549071F7836EBF33D106655D03ACBCDBE0F691BECD497F0657CF3`
+`pnpm --filter @legacy/desktop exec tauri build`, run after closing the then-running old instance (file lock, same pattern as the prior session). Succeeded:
+- **Exe**: `apps\desktop\src-tauri\target\release\legacy-workbench.exe` — 21,539,328 bytes — SHA256 `6DE4014016B549071F7836EBF33D106655D03ACBCDBE0F691BECD497F0657CF3`
 - **MSI**: `apps\desktop\src-tauri\target\release\bundle\msi\FormuLab_0.4.0_x64_en-US.msi` — 35,270,656 bytes — SHA256 `00DB478A04A62B60C43E9A7945342C986F8F899064AA7BBB023483F1372BB349`
 - **NSIS**: `apps\desktop\src-tauri\target\release\bundle\nsis\FormuLab_0.4.0_x64-setup.exe` — 24,618,217 bytes — SHA256 `87D1A4B53BB2BEC8492CE10F3478EF15127FF1DE0591BBF74F21D0CF8110E802`
 

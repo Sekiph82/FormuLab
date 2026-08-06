@@ -42,8 +42,8 @@ Phase 8 area files:
   `scripts/**/*shortcut*` found (no repo shortcut-update script exists â€”
   confirmed by glob), `apps/desktop/src-tauri/tauri.conf.json` and
   `Cargo.toml` (already read/known from Phase 7 closure this same
-  conversation â€” package name `ai4s-workbench`, binary
-  `ai4s-workbench.exe`, not `FormuLab.exe`).
+  conversation â€” package name `legacy-workbench`, binary
+  `legacy-workbench.exe`, not `FormuLab.exe`).
 
 ### Findings by Phase 8 area
 
@@ -335,7 +335,7 @@ conversation, unchanged since â€” no source touched between then and now).
 
 ### Executable build decision and result
 DECISION: NO REBUILD. Existing release executable
-(`apps/desktop/src-tauri/target/release/ai4s-workbench.exe`, last
+(`apps/desktop/src-tauri/target/release/legacy-workbench.exe`, last
 modified 2026-07-30 14:57) was built from the exact working-tree state
 committed as HEAD `1379130cd0c743b49e709cfaf211ccb2d91ebac8` at
 2026-07-30T15:15:59+03:00 (the Phase 7 closure commit â€” source fixes were
@@ -348,13 +348,13 @@ still exists and re-verified launch via the actual Desktop shortcut
 (below) rather than rebuilding.
 
 ### Executable path
-`C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\ai4s-workbench.exe`
+`C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\legacy-workbench.exe`
 
 ### Desktop shortcut path
 `C:\Users\sekip\Desktop\FormuLab.lnk`
 
 ### Previous shortcut target
-`C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\ai4s-workbench.exe`
+`C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\legacy-workbench.exe`
 (already correct before this session â€” working directory and icon were
 also already correct; no drift found).
 
@@ -362,14 +362,14 @@ also already correct; no drift found).
 `C:\Users\sekip\Desktop\FormuLab.lnk.backup-20260730-163334`
 
 ### New shortcut target and working directory
-Target: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\ai4s-workbench.exe`
+Target: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\legacy-workbench.exe`
 (unchanged â€” reconfirmed/rewritten to the same, verified-correct value).
 Working directory: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release`.
 Icon: the exe itself, index 0 (unchanged). No arguments.
 
 ### Shortcut launch-verification result
 PASS. Launched via the actual `.lnk` file (`Start-Process` targeting the
-shortcut, not the exe directly). Resulting process: `ai4s-workbench.exe`,
+shortcut, not the exe directly). Resulting process: `legacy-workbench.exe`,
 PID 50936, `MainWindowTitle` = "FormuLab", `Path` matched the current
 repository build exactly. No FormuLab instance was running before this
 verification (confirmed via `tasklist` first), so the verification
@@ -469,7 +469,7 @@ Implemented as a `superRefine` on `generatedDocumentRecordSchema`:
   placeholder.
 
 ### Tests and results
-`pnpm --filter @ai4s/shared exec vitest run src/schemas/
+`pnpm --filter @legacy/shared exec vitest run src/schemas/
 documentExport.test.ts` â€” 19/19 passing: valid report definition parses;
 valid PDF/DOCX export requests parse; explicit timestamp required
 (missing-field and non-parseable-string cases); deterministic parsing of
@@ -482,7 +482,7 @@ accepted; PDF/DOCX MIME coherence enforced both ways; source-version
 traceability fields preserved; unsupplied optional source fields stay
 `undefined` (never defaulted); approval status confirmed as read-only
 source metadata with no separate "approved" field anywhere on the
-schema. `pnpm --filter @ai4s/shared typecheck` â€” clean, no errors.
+schema. `pnpm --filter @legacy/shared typecheck` â€” clean, no errors.
 
 ### Remaining limitations
 No render engine (Session 3), no dossier export-snapshot assembly
@@ -607,7 +607,7 @@ passthrough).
   rather than silently dropped.
 
 ### Tests and results
-`pnpm --filter @ai4s/shared exec vitest run src/engine/dossierExportAssembly.test.ts`
+`pnpm --filter @legacy/shared exec vitest run src/engine/dossierExportAssembly.test.ts`
 â€” 19/19 passing: valid snapshot assembly; deeply identical output for
 identical input; input arrays not mutated (including original unsorted
 order preserved); exact revision preserved in both meta and source;
@@ -624,7 +624,7 @@ approvalStatusAtGeneration) stay undefined; explicit generationTimestamp
 preserved verbatim; no approved/verified top-level field exists on the
 output at all; a mismatched dossierRevision is rejected; a requirement
 referencing a foreign dossierId is rejected.
-`pnpm --filter @ai4s/shared typecheck` â€” clean. regulatoryDossier.ts was
+`pnpm --filter @legacy/shared typecheck` â€” clean. regulatoryDossier.ts was
 not modified (pure import-only reuse), so its own 676-line test suite was
 not rerun â€” not genuinely necessary per this session's instructions.
 
@@ -712,7 +712,7 @@ confirmation of regulatory authority approval", the readiness summary,
 warnings, and assumptions. `renderDossierDocument(snapshot, format,
 options)` is the single entry point Session 4's UI action will call,
 returning `{ bytes: Uint8Array, mimeType }` with `mimeType` always read
-from `DOCUMENT_FORMAT_MIME_TYPES` (`@ai4s/shared`, Session 1) â€” never a
+from `DOCUMENT_FORMAT_MIME_TYPES` (`@legacy/shared`, Session 1) â€” never a
 locally re-declared value.
 
 ### Determinism decision
@@ -730,7 +730,7 @@ dependency) and compares `word/document.xml`'s actual text content
 between two renders, which IS stable, rather than comparing raw bytes.
 
 ### Tests and results
-`pnpm --filter @ai4s/desktop exec vitest run src/lib/documentExports/
+`pnpm --filter @legacy/desktop exec vitest run src/lib/documentExports/
 dossierExports.test.ts` â€” 18/18 passing: valid PDF bytes (`%PDF-`
 header); valid DOCX bytes (zip local-file-header magic); dossier
 traceability present in the PDF's actual drawn content (not just
@@ -747,8 +747,8 @@ literal word "unknown" (DOCX: tag-stripped visible text, since label
 and value are deliberately separate bold/plain runs); neither renderer
 mutates the input snapshot (`toEqual` against a pre-render deep clone);
 `renderDossierDocument`'s `mimeType` matches `DOCUMENT_FORMAT_MIME_TYPES`
-for both formats. `pnpm --filter @ai4s/desktop typecheck` â€” clean.
-`pnpm --filter @ai4s/desktop lint` â€” clean (new files triggered no
+for both formats. `pnpm --filter @legacy/desktop typecheck` â€” clean.
+`pnpm --filter @legacy/desktop lint` â€” clean (new files triggered no
 rules).
 
 ### Remaining limitations
@@ -889,7 +889,7 @@ new test was added there (nothing new to test in that file).
 ### Tests
 `cargo test --lib artifact_file::` â€” 12/12 (10 pre-existing + 2 new:
 arbitrary-byte round-trip including invalid UTF-8; clear error for an
-unwritable path). `pnpm --filter @ai4s/desktop exec vitest run
+unwritable path). `pnpm --filter @legacy/desktop exec vitest run
 src/lib/download.test.ts src/components/formula/DossierPanel.test.tsx
 src/i18n/parity.test.ts` â€” 40/40: `download.test.ts` (5, all new) covers
 success-toast-with-path, silent cancellation, browser-download fallback,
@@ -901,12 +901,12 @@ visible error with no crash on a forced render failure, zero
 real end-to-end PDF and DOCX render triggered from inside the actual
 rendered UI component (not just the Session 3 unit tests in isolation);
 `parity.test.ts` (15, pre-existing) confirms all 8 locales still carry
-matching key sets after the new additions. `pnpm --filter @ai4s/desktop
+matching key sets after the new additions. `pnpm --filter @legacy/desktop
 typecheck` â€” clean (one real fix needed: `new Blob([bytes], ...)` didn't
 satisfy a stricter `ArrayBufferView<ArrayBuffer>` constraint for a
 `Uint8Array<ArrayBufferLike>` from `pdf-lib`/`docx`'s return type â€”
 fixed by wrapping in `new Uint8Array(bytes)` first, a copy into a
-plain-`ArrayBuffer`-backed view). `pnpm --filter @ai4s/desktop lint` â€”
+plain-`ArrayBuffer`-backed view). `pnpm --filter @legacy/desktop lint` â€”
 clean.
 
 ### Remaining limitations
@@ -1079,7 +1079,7 @@ deliberately breaks with `commitFormulaBom`'s auto-create precedent for
 exactly this reason.
 
 ### Tests and results
-`pnpm --filter @ai4s/shared exec vitest run src/engine/
+`pnpm --filter @legacy/shared exec vitest run src/engine/
 dataExchangeRegistry.test.ts src/engine/dataExchangeValidation.test.ts`
 â€” 42/42 + 41/41. New registry tests: all 6 templates registered exactly
 once in module "dossier"; every workflow-status column locked to its
@@ -1089,7 +1089,7 @@ templates confirmed `enabled: false` with a non-empty `disabledReason`;
 `dossier_headers.formula_code` confirmed `code_reference`+required;
 `dossier_review_revocations`' natural key confirmed
 `[dossier_code, dossier_revision, reviewed_at]`, every column required.
-`pnpm --filter @ai4s/desktop exec vitest run src/lib/
+`pnpm --filter @legacy/desktop exec vitest run src/lib/
 dataExchangeCommit.test.ts src/lib/dataExchangeExisting.test.ts` â€”
 80/80 + 46/46. Commit tests per handler: missing-parent rejection (each
 of the 4, including "already exists" for headers and "no saved version"
@@ -1109,11 +1109,11 @@ fields match. Loader tests: each of the 4 new join-based loaders
 (`dossier_headers`/`dossier_submissions`/`dossier_evidence_links`/
 `dossier_review_revocations`) resolves its foreign ids back to codes
 correctly, matching the exact style of the existing `dossier_evidence`
-loader test. `pnpm --filter @ai4s/shared typecheck` and `pnpm --filter
-@ai4s/desktop typecheck` â€” both clean (one real fix needed: 3 test-file
+loader test. `pnpm --filter @legacy/shared typecheck` and `pnpm --filter
+@legacy/desktop typecheck` â€” both clean (one real fix needed: 3 test-file
 object-spread expressions needed an explicit `Record<string, string>`
 annotation, since TS narrowed the spread's inferred type to only the
-overridden literal keys). `pnpm --filter @ai4s/desktop lint` â€” clean.
+overridden literal keys). `pnpm --filter @legacy/desktop lint` â€” clean.
 No Rust changes, so no `cargo test` run this session.
 
 ### Remaining limitations
@@ -1215,16 +1215,16 @@ rewritten to allow `generated_document_records` writes while asserting
 zero writes to any of the 8 dossier-owned collections above.
 
 ### Commands run
-`pnpm --filter @ai4s/desktop exec vitest run
+`pnpm --filter @legacy/desktop exec vitest run
 src/lib/documentExports/exportHistory.test.ts src/lib/download.test.ts` â€”
-17/17. `pnpm --filter @ai4s/desktop exec vitest run
+17/17. `pnpm --filter @legacy/desktop exec vitest run
 src/components/formula/DossierPanel.test.tsx` â€” 26/26 (a missing `nowIso`
 export in this file's `@/lib/masterdata` mock, needed internally by the
 new `exportHistory.ts`, broke 3 pre-existing tests until added). `cargo
 test --lib masterdata::` (in `apps/desktop/src-tauri`) â€” 12/12, incl. the
 new `generated_document_records_is_allow_listed_as_mutable` test and the
-updated 88-length regression guard. `pnpm --filter @ai4s/desktop
-typecheck` â€” clean. `pnpm --filter @ai4s/desktop lint` â€” clean. Shared
+updated 88-length regression guard. `pnpm --filter @legacy/desktop
+typecheck` â€” clean. `pnpm --filter @legacy/desktop lint` â€” clean. Shared
 package untouched this session; no shared typecheck run.
 
 ### Remaining limitations
@@ -1304,8 +1304,8 @@ clean (-D warnings). No Phase 8 Python changes, Python suite not run.
 No genuine closure regressions found — nothing to fix.
 
 ### Release build
-pnpm --filter @ai4s/desktop exec tauri build. Produced:
-- ai4s-workbench.exe — 21,894,144 B —
+pnpm --filter @legacy/desktop exec tauri build. Produced:
+- legacy-workbench.exe — 21,894,144 B —
   sha256 b40416d1b4508abfa080a614f649c61a568f86ba767e505258fe82eddb85ad5a
 - FormuLab_0.4.0_x64_en-US.msi — 35,606,528 B —
   sha256 4f64fcb1a020a311c7a3192ea14290a3fdb04b66748c9087ce7b90f53d51b442
@@ -1315,7 +1315,7 @@ pnpm --filter @ai4s/desktop exec tauri build. Produced:
 ### Shortcut
 C:\Users\sekip\Desktop\FormuLab.lnk backed up to
 FormuLab.lnk.bak-phase8session8, then refreshed. Target confirmed
-correct and unchanged: the release ai4s-workbench.exe path.
+correct and unchanged: the release legacy-workbench.exe path.
 
 ### Native verification
 Attempted to move the real %APPDATA%\com.formulab.app directory

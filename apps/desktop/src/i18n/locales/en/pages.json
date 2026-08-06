@@ -91,7 +91,7 @@
   "skills": {
     "title": "Skills & Agents",
     "description": {
-      "prefix": "Loaded live from the OpenCode runtime — the bundled ai4s-skills pack plus anything under ",
+      "prefix": "Loaded live from the OpenCode runtime — FormuLab's bundled skills plus anything under ",
       "suffix": " in your workspace."
     },
     "install": {

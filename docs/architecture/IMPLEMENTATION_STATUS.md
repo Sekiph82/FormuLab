@@ -976,7 +976,7 @@ and lint clean.
 
 **Deferred / explicitly out of scope**: reverse formulation, the
 Phase 7 PDF/DOCX report engine (including formatted dossier/label/claims
-exports), the `ai4s`→`FormuLab` naming migration, desktop shortcut
+exports), the pre-rename→`FormuLab` naming migration, desktop shortcut
 installation, any new ERP module, and a new user-management/auth system
 (Administration links to existing screens; it does not add user/role
 management, since none exists in this codebase to build on). The Phase 3
@@ -1248,26 +1248,31 @@ fonts are Latin-only; no dedicated export-history viewer UI
 no retention/cleanup policy for `generated_document_records` rows; no UI
 to export an older (superseded) dossier revision — only the current one.
 
-### Identity Rename: `ai4s` → FormuLab (Phase 9) — CLOSED
-Migrated every first-party `ai4s`/`AI4S` identifier to `FormuLab`
+### Identity Rename: pre-rename identifier → FormuLab (Phase 9) — CLOSED
+Migrated every first-party pre-rename identifier to `FormuLab`
 naming, in bounded sessions, with compatibility preserved throughout —
 see `docs/handoffs/PHASE9_CURRENT.md` for full session-by-session
-detail.
+detail. **Update (Phase 12 Session 2)**: the compatibility fallback
+described below was fully removed and the one remaining external
+third-party dependency this phase deliberately left alone was removed
+too, once confirmed unused — see that section's own entry below.
 
 **Implemented, verified by tests**:
-- npm workspace scope `@ai4s/*` → `@formulab/*` (root `formulab`,
+- npm workspace scope migrated to `@formulab/*` (root `formulab`,
   `@formulab/shared`, `@formulab/desktop`) across 125 files; lockfile
   regenerated, never hand-edited.
-- Rust package/binary `ai4s-workbench` → `formulab`, lib crate
-  `ai4s_workbench_lib` → `formulab_lib`; the shipped executable is now
+- Rust package/binary renamed to `formulab`, lib crate renamed to
+  `formulab_lib`; the shipped executable is now
   `formulab.exe`. `tauri.conf.json`'s `identifier` (`com.formulab.app`)
   and `productName` (`FormuLab`) were **already correct** before this
   phase and remain unchanged — no app-data migration was ever needed.
 - 8 first-party `localStorage` keys (theme, sidebar width/collapsed,
-  inspector width, zoom, locale, model favorites/recent) migrated
-  `ai4s.*` → `formulab.*`, each with a one-time, write-once legacy-read
+  inspector width, zoom, locale, model favorites/recent) migrated to
+  `formulab.*`, each with a one-time, write-once legacy-read
   fallback that never deletes the old key — every existing user's saved
-  preference carries forward exactly, with zero silent reset.
+  preference carried forward exactly, with zero silent reset. (This
+  fallback and its old-namespace keys were fully removed in Phase 12
+  Session 2 — see that section.)
 - Remaining first-party naming in active scripts, docs, comments, and
   Rust test-only identifiers cleaned up, including a genuinely false
   claim in `AGENTS.md` (a stale bundle identifier) that predated this
@@ -1276,10 +1281,12 @@ detail.
   from 15 flat top-level items to exactly 10 (grouped accordion
   navigation) — unrelated to the naming migration itself, tracked in
   the same handoff for continuity.
-- The real external `ai4s-research/ai4s-skills` dependency (its fetch
-  script, env var, local directory, and every UI/doc string naming it)
-  was identified early and deliberately left untouched throughout —
-  it is someone else's project name, not this app's branding.
+- A real external third-party scientific-skills-pack dependency (its
+  fetch script, env var, local directory, and every UI/doc string
+  naming it) was identified early and deliberately left untouched
+  throughout — it was someone else's project name, not this app's
+  branding. (Removed entirely in Phase 12 Session 2 once confirmed
+  unused — see that section.)
 - Closure regression: 1199 shared tests, 736 desktop tests, 82 Rust
   tests, all green; shared/desktop typecheck, desktop lint, `cargo
   clippy --all-targets --all-features -- -D warnings` all clean. Release
@@ -1300,16 +1307,19 @@ detail.
   live interaction confirmed; the one specific layout claim blocked by
   display height is covered by automated tests instead).
 
-**Accepted compatibility decisions**: `%APPDATA%\com.formulab.app` was
-never touched — it was already correctly named before this phase.
-Legacy `ai4s.*` `localStorage` keys remain readable (one-time migration
-source) but are never written to again. Historical logs, hashes, paths,
+**Accepted compatibility decisions, as of Phase 9**: `%APPDATA%\com.formulab.app`
+was never touched — it was already correctly named before this phase.
+The pre-rename `localStorage` keys remained readable (one-time migration
+source) but were never written to again. Historical logs, hashes, paths,
 and closed handoffs (Phases 0–8, and this phase's own prior sessions)
-were never rewritten retroactively. `ai4s-research/ai4s-skills` naming
-is completely unchanged. No binary alias/shim for the renamed
-`ai4s-workbench.exe` was created — any out-of-repo script or shortcut
-that still hardcodes that filename must be updated manually; this repo
-does not carry a compatibility shim it never needed internally.
+were never rewritten retroactively at the time. The external skills-pack
+dependency's own naming was left completely unchanged at the time. No
+binary alias/shim for the renamed pre-rename `.exe` name was created —
+this repo did not carry a compatibility shim it never needed internally.
+**All of the above compatibility allowances were superseded in Phase 12
+Session 2**, which removed the legacy-key fallback and the external
+dependency outright, disclosed as a deliberate compatibility break — see
+that section.
 
 ### User Guide and In-App Help (Phase 10) — CLOSED
 Illustrated user guide (in-app/PDF/DOCX), a full in-app help system
@@ -1639,10 +1649,57 @@ activated — the SignPath submission step is documentation-only in
 secrets. Full detail: `PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md`
 §9.
 
-**Phase 12 status: Sessions 0-1 complete. Next: Session 2 (First Public
-Release Publication) — a bounded remediation session for the blocker
-found above, before Session 3 (SignPath Application and Approval Gate).
-No implementation started.**
+**Session 2 (Complete Previous-Identity Eradication and Native FormuLab
+Skill Migration) — complete.** Removed every trace of the project's
+previous, pre-rename identity and its dependencies from the working
+tree, ahead of the still-pending first public release — a release must
+not ship under the identity Phase 9 renamed away from. A tree-wide
+case-insensitive search returned 43 files / 352 occurrences; first-party
+Rust source and every `package.json`/`Cargo.toml` were already clean
+(confirmed directly, Phase 9's own work). The real surface: legacy
+`localStorage`-key migration constants/logic in `store.ts`/
+`modelPreferences.ts`/`i18n/config.ts` (removed entirely, per this
+session's explicit "no forbidden-named fallbacks" instruction — a real,
+disclosed compatibility break for any user who hasn't opened the app
+since before Phase 9); an 8-locale i18n string describing a bundled
+third-party skills pack by name; a CI fetch step + script for that pack.
+**Key finding**: that pack (7 skills) was already completely dead — no
+`runtime.rs`/`deploy_bundled_skills` function exists in current Rust
+source, `tauri.conf.json`'s `bundle.resources` never included it, zero
+current references anywhere — removed entirely with no native
+replacement built, per "do not invent replacement functionality for
+unused components." The previously-flagged dead goal-plugin CI fetch was
+re-confirmed dead and removed too (script deleted, CI step removed,
+`.gitignore`/`README.md` references removed). Several current
+architecture/product docs (`PRD.md`, `TECHNICAL_DESIGN.md`,
+`CURRENT_STATE_AUDIT.md`, `TAURI_LIVE_VERIFICATION.md`,
+`INFORMATION_ARCHITECTURE.md`, `CONNECT_YOUR_TOOLS.md`, this document,
+`AGENTS.md`) never updated since the Phase 9 rename were corrected.
+Historical archives (`PROGRESS.md`, `docs/external-logs/*`, closed
+`docs/handoffs/PHASE8-9_CURRENT.md`) were mechanically scrubbed too, at
+the user's explicit direction after being asked whether to preserve them
+as an immutable record — disclosed plainly, not hidden, as a real
+reduction in historical precision. Clean rebuild: `node_modules` +
+`apps/desktop/src-tauri/target` removed entirely (the latter's
+`.fingerprint/` directory was found to hold genuinely stale
+pre-rename-crate-named Cargo build artifacts, confirming the rebuild
+mattered); fresh install, fresh Rust build (**180/180** tests, clippy
+clean), fresh desktop suite, fresh shared suite, fresh signed... — see
+`docs/handoffs/PHASE12_CURRENT.md`'s Session 2 summary and
+`docs/PHASE12_TEST_MATRIX.md` for full totals. Final tree-wide scan
+(including the freshly generated `node_modules`/`target`/release
+artifacts): zero matches in every first-party/project file; a handful of
+coincidental case-insensitive substring matches remain inside
+unrelated third-party npm packages' `.js.map` source-map files (base64/
+VLQ-encoded mapping data, not readable text, not modifiable without
+corrupting the sourcemap, unrelated to this project's identity) —
+disclosed explicitly rather than hidden, per this session's own "explain
+the exact file, reason and blocker" instruction.
+
+**Phase 12 status: Sessions 0-2 complete. Next: Session 3 (First Public
+Release Publication) — a bounded remediation session for Session 1's
+blocker, before Session 4 (SignPath Application and Approval Gate). No
+implementation started.**
 
 ## Not yet started
 

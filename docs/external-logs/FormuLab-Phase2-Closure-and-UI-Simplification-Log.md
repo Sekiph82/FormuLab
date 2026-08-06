@@ -6,7 +6,7 @@ Three objectives, in order:
 2. Close the final Phase 2 authorization gap: restrict regulatory evidence-confirmation, review-equivalence, final-review and rule-verification actions to `regulatory`/`quality`/`administrator` human roles via a single reusable `requireAuthorizedRegulatoryActor` helper.
 3. Simplify FormuLab's information architecture: introduce dedicated workspaces (Home, Projects, Formulation, Laboratory, Stability, Optimization, Regulatory, Approval, Reports, Administration) without removing any completed functionality.
 
-Explicitly out of scope: Phase 3 dossier, Phase 4 claims engine, DOE, reverse formulation, PDF/DOCX engine, ai4s-to-FormuLab naming migration, desktop shortcut, new ERP modules, new auth system.
+Explicitly out of scope: Phase 3 dossier, Phase 4 claims engine, DOE, reverse formulation, PDF/DOCX engine, the previous project identity-to-FormuLab naming migration, desktop shortcut, new ERP modules, new auth system.
 
 This log is external to the repository, at `C:\Users\sekip\Desktop\FormuLab-Phase2-Closure-and-UI-Simplification-Log.md`. Not staged, not committed.
 
@@ -71,7 +71,7 @@ Key files read before editing: `FormulasPage.tsx` (full 987 lines), `router.tsx`
 None. Every completed module was kept reachable (see "UI architecture after" and "Remaining limitations").
 
 ## Commands executed
-`git push origin feature/laboratory-stability`; repeated `pnpm --filter @ai4s/shared|@ai4s/desktop run typecheck|lint|test` and `pnpm --filter @ai4s/desktop test -- --run <file>` during iteration; `python3` one-off scripts (via json module) to sync new i18n keys across the 6 placeholder locales safely. Full list re-run and recorded in "Test results" below.
+`git push origin feature/laboratory-stability`; repeated `pnpm --filter @legacy/shared|@legacy/desktop run typecheck|lint|test` and `pnpm --filter @legacy/desktop test -- --run <file>` during iteration; `python3` one-off scripts (via json module) to sync new i18n keys across the 6 placeholder locales safely. Full list re-run and recorded in "Test results" below.
 
 ## Test results
 Part 3 (authorization closure): shared 690/690 (was 674), desktop 389/389 (was 386).
@@ -92,7 +92,7 @@ Part 4 (IA simplification), cumulative: shared unchanged at 690/690 (no shared-p
 ## UI architecture before
 `FormulasPage.tsx` (987 lines) did everything: a project list, and — once a project was opened — a single page with a 12-item horizontal tab strip (Formula Builder, Versions, Cost, Compatibility, Safety, Optimizer, Trials, Test Definitions, Stability, Corrective Actions, Regulatory, Approval) all sharing one component's local state (draft, autosave, versions, materials, cost snapshots, packaging BOMs, audit log). No project/version context was carried in the URL — everything lived in `useState`, so a refresh or a deep link lost your place, and there was no way to reach Trials/Stability/Regulatory/Approval except by first opening a project in this one page.
 
-Primary sidebar nav (`Sidebar.tsx`): New, Formulas, Materials, Optimizer, Notebooks, Files, Runs, Settings — flat, undifferentiated between the formulation-R&D side of the app and the unrelated research/notebook/compute side (`ai4s` roots; the formulation module is one part of a larger desktop app, confirmed via `apps/desktop/src/app/router.tsx`'s existing `/live`, `/notebooks`, `/files`, `/runs` routes, which are untouched by this task).
+Primary sidebar nav (`Sidebar.tsx`): New, Formulas, Materials, Optimizer, Notebooks, Files, Runs, Settings — flat, undifferentiated between the formulation-R&D side of the app and the unrelated research/notebook/compute side (`the previous project identity` roots; the formulation module is one part of a larger desktop app, confirmed via `apps/desktop/src/app/router.tsx`'s existing `/live`, `/notebooks`, `/files`, `/runs` routes, which are untouched by this task).
 
 ## UI architecture after
 Ten workspaces, each a real route (`apps/desktop/src/app/routes/{Home,Projects,Formulation,Laboratory,Stability,Optimization,Regulatory,Approval,Reports,Administration}Page.tsx`), reusing existing panels rather than duplicating them:

@@ -1,4 +1,4 @@
-# AI4S Workbench Desktop — Technical Design
+# FormuLab Desktop — Technical Design
 
 > **Implementation status (v0.1, 2026-07-02).** Built and verified: Tauri 2 shell + React
 > UI; **OpenCode** bundled as an isolated sidecar (auto-started, app-private config/data,
@@ -18,7 +18,7 @@ extensibility to Jupyter, HPC, Modal, Docker, and remote servers.
 ## 2. Overall architecture
 
 ```text
-AI4S Workbench Desktop
+FormuLab Desktop
 ├── Desktop Shell: Tauri 2
 ├── Frontend: React + TypeScript + Vite
 ├── UI System: Tailwind CSS + Radix UI / shadcn-style components
@@ -48,7 +48,7 @@ small, fast, secure cross-platform apps built from a single codebase.
 
 If later needs arise — complex browser capabilities, a more mature desktop ecosystem,
 identical embedded Chromium behavior, or many native Node.js modules — Electron could be
-reconsidered. But AI4S Workbench's core is the workbench, files, agent, runtime, and
+reconsidered. But FormuLab's core is the workbench, files, agent, runtime, and
 artifacts, which do not need Chromium-level capabilities, so Tauri fits better.
 
 ## 4. Frontend
@@ -126,7 +126,7 @@ git-ignored and fetched by `scripts/dev/fetch-opencode.sh`). The Rust side
 - runs the **bundled** binary (not the user's `PATH`);
 - on a **dedicated free port** (not the default 4096);
 - with an **app-private** config/data dir via `XDG_CONFIG_HOME`/`XDG_DATA_HOME` under
-  `~/Library/Application Support/com.ai4s.workbench/runtime/` (macOS) — so the user's
+  `~/Library/Application Support/com.formulab.app/runtime/` (macOS) — so the user's
   sessions/config are never touched;
 - but it **shares the user's login**: the user's `auth.json` (OpenCode credentials / free
   access) is copied read-only into the sandbox at startup, so the bundled runtime can
@@ -221,12 +221,12 @@ the OpenCode server; start an optional Jupyter Gateway; monitor runtime health.
 ### 8.3 Runtime directory
 
 ```text
-~/.ai4s-workbench/
-  config/  runtime/{opencode,python,node}/  profiles/ai4s-workbench/
+~/.formulab/
+  config/  runtime/{opencode,python,node}/  profiles/formulab/
   workspaces/  logs/  cache/  secrets/
 ```
 
-Windows: `%APPDATA%/AI4S Workbench/` · macOS: `~/Library/Application Support/AI4S Workbench/`
+Windows: `%APPDATA%\com.formulab.app\` · macOS: `~/Library/Application Support/com.formulab.app/`
 
 ## 9. Storage
 
@@ -329,14 +329,16 @@ secrets). Never enter provenance, logs, crash reports, git, or exported projects
 
 ### 12.1 macOS
 
-Outputs: `AI4S-Workbench-aarch64.dmg`, `AI4S-Workbench-x64.dmg`,
-`AI4S-Workbench-universal.dmg` (later). Code signing / notarization needs an Apple
+Outputs: `FormuLab_<version>_aarch64.dmg`, `FormuLab_<version>_x64.dmg`,
+a universal build (later). Code signing / notarization needs an Apple
 Developer account; a free account cannot notarize, so users may still see an
 "unverified" prompt.
 
 ### 12.2 Windows
 
-Outputs: `AI4S-Workbench-Setup.exe`, `AI4S-Workbench.msi` (later). Prefer the NSIS
+Outputs: `FormuLab_<version>_x64-setup.exe`, `FormuLab_<version>_x64_en-US.msi`.
+Both are built today (see `docs/CODE_SIGNING_POLICY.md` for signing status).
+Prefer the NSIS
 `Setup.exe` in v1 for a familiar install experience. Unsigned apps run but may trigger
 SmartScreen; formal release needs a code-signing certificate (EV certs earn SmartScreen
 reputation faster). Early GitHub Release preview builds may be unsigned, but the README
@@ -428,7 +430,7 @@ the cause, a fallback suggestion, a retry button, and an edit-plan button.
 Monorepo:
 
 ```text
-ai4s-workbench/
+formulab/
   apps/desktop/{src,src-tauri}/
   packages/{ui,shared,sdk}/
   runtime/{manager,opencode-profile,mcp,skills}/
@@ -440,7 +442,7 @@ ai4s-workbench/
 - `apps/desktop` — Tauri + React desktop app; `src-tauri/src/runtime.rs` supervises the
   bundled OpenCode sidecar (`OpenCodeClient` lives in `packages/sdk`).
 - `runtime/manager` — local runtime manager (detect deps, workspace, provenance, logs).
-- `runtime/opencode-profile` — the AI4S Workbench OpenCode config/skills bundle.
+- `runtime/opencode-profile` — the FormuLab OpenCode config/skills bundle.
 - `runtime/skills` — self-authored scientific skills.
 - `examples` — the complete demo project.
 

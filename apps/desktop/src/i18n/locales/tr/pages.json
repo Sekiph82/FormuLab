@@ -91,7 +91,7 @@
   "skills": {
     "title": "Beceriler ve Ajanlar",
     "description": {
-      "prefix": "OpenCode çalışma zamanından canlı olarak yüklenir — paketlenmiş ai4s-skills paketi artı çalışma alanınızda ",
+      "prefix": "OpenCode çalışma zamanından canlı olarak yüklenir — FormuLab'ın paketlenmiş becerileri artı çalışma alanınızda ",
       "suffix": " altındaki her şey."
     },
     "install": {

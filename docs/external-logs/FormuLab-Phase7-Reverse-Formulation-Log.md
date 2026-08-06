@@ -270,7 +270,7 @@ candidate generation or scoring.
   compliance/evidence requirement.
 
 ### Tests
-`pnpm --filter @ai4s/shared exec vitest run` on the 5 new focused test files:
+`pnpm --filter @legacy/shared exec vitest run` on the 5 new focused test files:
 23/23 passing. Coverage includes blank/empty input, malformed input, duplicate
 ingredient names, multi-word names, declared order, unknown ingredients/analytes,
 low-confidence mappings, empty-catalog handling, measured-vs-inferred value
@@ -278,7 +278,7 @@ distinction, deterministic generation/scoring, and the neutral-not-fabricated
 scoring behavior for unassessed dimensions.
 
 ### Results
-`pnpm --filter @ai4s/shared typecheck` — clean, no errors.
+`pnpm --filter @legacy/shared typecheck` — clean, no errors.
 
 ### Remaining issues
 - candidateGenerator.ts and scoringModel.ts each carry a private, near-duplicate
@@ -355,7 +355,7 @@ helpers flagged as a known issue after Session 1. No new subsystem.
   instead of propagating NaN.
 
 ### Tests
-`pnpm --filter @ai4s/shared exec vitest run` on the 2 focused test files:
+`pnpm --filter @legacy/shared exec vitest run` on the 2 focused test files:
 23/23 passing (candidateGenerator: 11, scoringModel: 12). New coverage:
 duplicate/equivalent-candidate dedup, constraint rejection (excluded
 material, missing required material), blank-hint-not-zero, unmapped
@@ -365,7 +365,7 @@ evidence-vs-neutral-default distinction, confidence-vs-score distinguishability,
 and a bounded-not-perfect overall score under maximal evidence.
 
 ### Results
-`pnpm --filter @ai4s/shared typecheck` — clean, no errors.
+`pnpm --filter @legacy/shared typecheck` — clean, no errors.
 
 ### Remaining issues
 - No real analyte-to-material quantification model — `generateFromAnalytical`
@@ -548,20 +548,20 @@ for the adjacent schema/index cases.
   boundary and independently rejects any name it doesn't recognize.
 
 ### Tests
-- `pnpm --filter @ai4s/shared exec vitest run` on the registry + validation
+- `pnpm --filter @legacy/shared exec vitest run` on the registry + validation
   focused files: 76/76 passing (35 registry incl. new "Reverse Formulation
   templates" block; 41 validation incl. new "Reverse Formulation templates"
   block covering missing identifiers, malformed decimals, out-of-range
   confidence, invalid enums, blank-stays-blank, and exact decimal
   preservation).
-- `pnpm --filter @ai4s/desktop exec vitest run` on the commit + shapes
+- `pnpm --filter @legacy/desktop exec vitest run` on the commit + shapes
   focused files: 74/74 passing (20 new commit tests covering every
   missing-parent path, append-only new-record-per-import behavior for
   analytical results and score explanations, grouped candidate commits, and
   the stable-id resolution of the Session 3 blocker).
 
 ### Results
-`pnpm --filter @ai4s/shared typecheck` — clean. `pnpm --filter @ai4s/desktop
+`pnpm --filter @legacy/shared typecheck` — clean. `pnpm --filter @legacy/desktop
 typecheck` — 2 pre-existing errors, both in Session 2 files
 (`candidateGenerator.ts`/`scoringModel.ts`, unused parameters under this
 package's stricter `noUnusedParameters`, never previously surfaced because
@@ -625,7 +625,7 @@ against the real file.
   already-loaded records (declaration lines mapped via their best recorded,
   non-rejected `IngredientMapping`, or an honest "unmapped" result — never a
   guess), calls the real `generateCandidates`/`scoreReverseFormulaCandidate`
-  from `@ai4s/shared` directly, and renders their unmodified output: formula
+  from `@legacy/shared` directly, and renders their unmodified output: formula
   lines, overall score vs. evidence confidence as two distinct numbers, a
   7-dimension breakdown explicitly tagged Evaluated/Not evaluated from
   `ScoringModelOutput.evaluatedDimensions`, and the engine's own
@@ -654,7 +654,7 @@ against the real file.
   passed on the first run after generation.
 
 ### Tests
-`pnpm --filter @ai4s/desktop exec vitest run` on the new
+`pnpm --filter @legacy/desktop exec vitest run` on the new
 ReverseFormulationPage.test.tsx plus the directly-affected
 parity/Sidebar-i18n/Workspaces/Pages-i18n suites: 36/36 passing. Coverage:
 route resolves, Sidebar link present, empty-state renders safely, studies
@@ -669,7 +669,7 @@ collections (never `formulations`), and a mocked persistence failure
 surfacing a visible `role="alert"` error.
 
 ### Results
-`pnpm --filter @ai4s/shared typecheck` and `pnpm --filter @ai4s/desktop
+`pnpm --filter @legacy/shared typecheck` and `pnpm --filter @legacy/desktop
 typecheck` — both clean (the two previously-known desktop errors are gone).
 
 ### Remaining issues
@@ -745,7 +745,7 @@ inherited approval state.
   — verified with a full block review, not just the mechanical rename.
 
 ### Tests
-`pnpm --filter @ai4s/desktop exec vitest run` on ReverseFormulationPage.test.tsx
+`pnpm --filter @legacy/desktop exec vitest run` on ReverseFormulationPage.test.tsx
 (23, 10 new for conversion), dataExchangeCommit.test.ts (61, confirms the
 bridge removal changed no behavior), and parity.test.ts (15): 99/99 passing.
 New coverage: no action without selection, missing-material block (material
@@ -761,7 +761,7 @@ as genuinely distinct actions, and the source candidate record never
 re-written during conversion.
 
 ### Results
-`pnpm --filter @ai4s/desktop typecheck` — clean. No shared package files
+`pnpm --filter @legacy/desktop typecheck` — clean. No shared package files
 changed this session, so shared typecheck was not run (per instructions).
 
 ### Remaining issues
@@ -820,7 +820,7 @@ since Phase 7 landed, not newly introduced this session):
    touched this phase, skipped per instructions.
 
 ### Release build
-`pnpm --filter @ai4s/desktop tauri build` — Vite build + Rust release
+`pnpm --filter @legacy/desktop tauri build` — Vite build + Rust release
 compile + WiX/NSIS bundling all succeeded, 0 errors. Rebuilt because the
 existing `target/release` artifacts predated this session's
 `CandidateComparisonPanel.tsx` fix (a real frontend-output change).

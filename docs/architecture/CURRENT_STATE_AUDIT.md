@@ -25,7 +25,7 @@ There is no server; everything is local-first.
 **Routes** — `/live` (formulation workspace), `/live/:sessionId` (a saved run,
 read-only), `/example/:sessionId`, `/notebooks`, `/optimizer`, `/files`,
 `/runs`, `/settings`. The workspace is the product; the rest are inherited
-from the AI4S workbench.
+from the original research-workbench foundation this project was built on.
 
 **Formulation pipeline** (`runtime/pipeline/`) — a direct request/response
 chain, not an agent loop:
@@ -124,8 +124,10 @@ packaging, no factory overhead, no currency table, no SKU fill cost.
 **Precision.** Python uses binary floats throughout. There is no decimal policy
 for percentages, quantities or money.
 
-**Identity.** The crate is `ai4s-workbench`, packages are `@ai4s/*`, and the
-built binary is `ai4s-workbench.exe`. Installers are already branded FormuLab.
+**Identity.** The crate and packages still carried the pre-rename
+identifier at the time of this audit; the built binary matched. Installers
+were already branded FormuLab. (Since fully renamed — see
+`IMPLEMENTATION_STATUS.md`'s Identity Rename entry.)
 
 **Testing.** 73 test files, concentrated in the frontend and the Python
 pipeline. No property-based tests, no migration tests, no golden evaluation

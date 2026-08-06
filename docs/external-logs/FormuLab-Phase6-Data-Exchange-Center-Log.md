@@ -14,7 +14,7 @@ tests; documentation; and live native verification through the real desktop
 shortcut with persistent `TEST-` prefixed verification data. Also: correct
 the master phase tracker to the new 9-phase roadmap (Phase 6 = Data
 Exchange Center, Phase 7 = Reverse Formulation, Phase 8 = Reports/Dossiers/
-Document Exports + final Data Exchange expansion, Phase 9 = ai4s->FormuLab
+Document Exports + final Data Exchange expansion, Phase 9 = the previous project identity->FormuLab
 naming migration). Do not begin Phase 7. Fully autonomous session.
 
 This log is external to the repository. Not staged, not committed. Never
@@ -57,24 +57,24 @@ fast-forwarded to `d4ef817` by the push above. Confirmed match both times.
 - Phase 7: Reverse Formulation — NOT STARTED
 - Phase 8: Reports, Dossiers, Document Exports and Final Data Exchange
   Expansion — NOT STARTED
-- Phase 9: ai4s -> FormuLab Naming Migration — NOT STARTED (renumbered
+- Phase 9: the previous project identity -> FormuLab Naming Migration — NOT STARTED (renumbered
   from the old Phase 8)
 
 ## Baseline tests
 All green, run at local HEAD `d4ef817` before any Phase 6 source change:
-- `pnpm --filter @ai4s/shared test` — **1027/1027**.
-- `pnpm --filter @ai4s/shared run typecheck` — clean.
-- `pnpm --filter @ai4s/desktop run typecheck` — clean.
-- `pnpm --filter @ai4s/desktop run lint` — clean.
-- `pnpm --filter @ai4s/desktop test` — **458/458**.
-- `pnpm --filter @ai4s/desktop build` — succeeds (production Vite build).
+- `pnpm --filter @legacy/shared test` — **1027/1027**.
+- `pnpm --filter @legacy/shared run typecheck` — clean.
+- `pnpm --filter @legacy/desktop run typecheck` — clean.
+- `pnpm --filter @legacy/desktop run lint` — clean.
+- `pnpm --filter @legacy/desktop test` — **458/458**.
+- `pnpm --filter @legacy/desktop build` — succeeds (production Vite build).
 - `python -m pytest runtime/formulation -q` — 67 passed.
 - `python -m pytest runtime/pipeline -q` — 71 passed (63 baseline + 8 new
   `test_llm.py` cases added in the prior session's `parse_json` fix).
 - `cargo build --lib` — clean.
 - `cargo clippy --all-targets --all-features -- -D warnings` — clean.
 - `cargo test` — **74/74**.
-- `pnpm --filter @ai4s/desktop exec vitest run src/i18n/parity.test.ts` —
+- `pnpm --filter @legacy/desktop exec vitest run src/i18n/parity.test.ts` —
   **15/15**.
 - Kenya catalog invariants (`src/catalog/kenya.test.ts`, inside the 1027)
   unaffected — 55 families / 91 SKUs, untouched by this session.
@@ -428,14 +428,14 @@ unwired stability templates reporting `skipped` honestly), `DataExchangePage
 .test.tsx` 10 (9 original + 1 new cancelled-job-persistence case).
 
 ## Test results
-Final full regression, all green: `pnpm --filter @ai4s/shared` — **1088
-tests / 51 files**. `pnpm --filter @ai4s/desktop` — **514 tests / 88
+Final full regression, all green: `pnpm --filter @legacy/shared` — **1088
+tests / 51 files**. `pnpm --filter @legacy/desktop` — **514 tests / 88
 files**. `cargo test` (src-tauri) — **75/75**, including the new
 `all_nine_data_exchange_collections_are_allow_listed_with_the_designed_
 mutability` test. `python -m pytest runtime/pipeline` — **71/71**
-(unaffected, no Python touched this session). `pnpm --filter @ai4s/shared
-typecheck` / `pnpm --filter @ai4s/desktop typecheck` / `pnpm --filter
-@ai4s/desktop lint` — all clean. Kenya catalog invariants (55 families /
+(unaffected, no Python touched this session). `pnpm --filter @legacy/shared
+typecheck` / `pnpm --filter @legacy/desktop typecheck` / `pnpm --filter
+@legacy/desktop lint` — all clean. Kenya catalog invariants (55 families /
 91 SKUs) unaffected — no catalog file touched.
 
 ## Bugs discovered
@@ -525,11 +525,11 @@ origin/feature/laboratory-stability` both `df11919a38a9c579589768441b0
 8510f49341994` — **local == remote, confirmed**.
 
 ## Release build
-`pnpm --filter @ai4s/desktop exec tauri build`, run at local/remote HEAD
+`pnpm --filter @legacy/desktop exec tauri build`, run at local/remote HEAD
 `df11919`. `beforeBuildCommand` (`tsc --noEmit && vite build`) succeeded
 clean. Rust `release` profile compiled in 52.05s, no running FormuLab
 process to lock the exe. 2 bundles produced:
-- exe: `apps\desktop\src-tauri\target\release\ai4s-workbench.exe` —
+- exe: `apps\desktop\src-tauri\target\release\legacy-workbench.exe` —
   21,602,816 bytes, last write `2026-07-25 11:41:54`, SHA-256
   `32AD307D0A61271926DE11C9BDD65AE2D2427446BBB3AD2709322A1ADCC2FADC`
 - MSI: `apps\desktop\src-tauri\target\release\bundle\msi\
@@ -560,7 +560,7 @@ just a soft reload).
 ## Shortcut verification
 `C:\Users\sekip\Desktop\FormuLab.lnk` inspected via `WScript.Shell`:
 TargetPath already `apps\desktop\src-tauri\target\release\
-ai4s-workbench.exe` (matched the just-built exe exactly — not replaced,
+legacy-workbench.exe` (matched the just-built exe exactly — not replaced,
 per instructions). Launched via the shortcut (`Start-Process` on the
 `.lnk`); process confirmed by PID with `MainWindowTitle = "FormuLab"` and
 `Path` matching the built exe.

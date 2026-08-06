@@ -1,8 +1,8 @@
-# Phase 9 — `ai4s`/`AI4S` → FormuLab Naming Migration
+# Phase 9 — `the previous project identity` → FormuLab Naming Migration
 
 ## Status: CLOSED (2026-07-31)
 
-Every first-party `ai4s`/`AI4S` identifier — npm package scope, Rust
+Every first-party `the previous project identity` identifier — npm package scope, Rust
 crate/binary, persisted `localStorage` keys, active scripts/docs/
 comments — has been migrated to FormuLab naming, with compatibility
 preserved throughout (legacy-read fallbacks for storage keys, a
@@ -19,8 +19,8 @@ closed-state summary.
 | Session | Scope | Result |
 |---|---|---|
 | 0 | Assessment — full naming inventory, 6-session plan | Found `productName`/`identifier` already correct; scoped the rest |
-| 1 | npm package/import namespace | `@ai4s/*` → `@formulab/*`, 125 files |
-| 2 | Rust crate/binary/product naming | `ai4s-workbench`/`ai4s_workbench_lib` → `formulab`/`formulab_lib`; shortcut refreshed |
+| 1 | npm package/import namespace | `@legacy/*` → `@formulab/*`, 125 files |
+| 2 | Rust crate/binary/product naming | `legacy-workbench`/`legacy_workbench_lib` → `formulab`/`formulab_lib`; shortcut refreshed |
 | 3 | Persisted `localStorage` keys | 8 keys migrated with one-time legacy-read fallback, zero data loss |
 | 4 | Scripts, CI, docs, comments, test naming | 18 files; fixed a false claim in `AGENTS.md` |
 | — | *Out-of-band*: sidebar navigation consolidation (unrelated to naming, tracked here for continuity) | 15 flat items → 10 grouped top-level entries |
@@ -48,8 +48,8 @@ Built via `pnpm --filter @formulab/desktop exec tauri build`.
 Confirmed: Cargo package `formulab`, lib crate `formulab_lib`, shipped
 executable `formulab.exe`, `productName: "FormuLab"`, bundle identifier
 exactly `com.formulab.app` (unchanged), installer filenames
-FormuLab-branded. No release artifact depends on `ai4s-workbench.exe`.
-(A stale pre-rename `ai4s-workbench.exe` + `.pdb`/`.d` sit in the
+FormuLab-branded. No release artifact depends on `legacy-workbench.exe`.
+(A stale pre-rename `legacy-workbench.exe` + `.pdb`/`.d` sit in the
 gitignored `target/release/` build-output directory from before Session
 2 — build-cache debris, not shipped, not referenced by anything active.)
 
@@ -72,7 +72,7 @@ active child (Dossiers) gets both a visible focus ring and persistent
 active-highlight styling while its parent group stays expanded,
 real existing project data loads successfully (`TEST-FORM-0…`,
 `HH-HANDSOAP-…`, `HC-SHAMPOO-…` — genuine reads, zero writes). No stale
-`AI4S Workbench` branding appeared anywhere in the live window.
+`the previous project identity` branding appeared anywhere in the live window.
 `%APPDATA%\com.formulab.app` file count reconfirmed identical (19,677)
 before and after the entire session's launch/interact/close sequence —
 nothing was lost, moved, or altered.
@@ -91,16 +91,16 @@ passing in the 736/736 total above.
 
 ## Final naming sweep
 Category 5 (unexpected first-party stale match): **empty**, reconfirmed
-at closure. Explicitly verified: zero first-party `@ai4s/*`, zero
-first-party `ai4s-workbench` (only a dated verification log and the
-external pack match), zero first-party `ai4s_workbench_lib` (only a
+at closure. Explicitly verified: zero first-party `@legacy/*`, zero
+first-party `legacy-workbench` (only a dated verification log and the
+external pack match), zero first-party `legacy_workbench_lib` (only a
 dev-tool cache and this document's own description of the rename
-match), zero active command points to `ai4s-workbench.exe`. Remaining
+match), zero active command points to `legacy-workbench.exe`. Remaining
 matches, all intentionally preserved: 8 historical/founding-doc files
 (dated journals, closed handoffs, point-in-time audits, verification
 reports describing a specific past build — never rewritten
-retroactively), 1 external dependency tree (`ai4s-research/ai4s-skills`
-— the fetch script, its `AI4S_SKILLS_COMMIT` env var, and every correct
+retroactively), 1 external dependency tree (`legacy-research/legacy-skills`
+— the fetch script, its `legacy_skills_commit` env var, and every correct
 UI/doc reference to it), the 8 `LEGACY_*` `localStorage` constants and
 their tests (intentional, one-way compatibility reads), and a handful
 of dev-tool-generated caches/binaries.
@@ -109,17 +109,17 @@ of dev-tool-generated caches/binaries.
 - `%APPDATA%\com.formulab.app` was never touched by this migration —
   it was already correctly named before Phase 9 began. No app-data
   directory was ever orphaned.
-- Legacy `ai4s.*` `localStorage` keys remain readable (one-time
+- Legacy `legacy.*` `localStorage` keys remain readable (one-time
   migration source, checked only when the new `formulab.*` key is
   absent) but are no longer primary write targets — every write goes
   only to the new key, and the legacy key is never deleted.
 - Historical logs, hashes, paths, and closed handoffs (Phases 0–8, and
   this phase's own Sessions 0–5) remain exactly as originally recorded
   — none were rewritten retroactively during closure.
-- The external `ai4s-research/ai4s-skills` dependency's naming is
+- The external `legacy-research/legacy-skills` dependency's naming is
   completely unchanged — it is a real third-party project this app
   bundles, not this app's own branding.
-- No binary alias/shim for `ai4s-workbench.exe` was created — the
+- No binary alias/shim for `legacy-workbench.exe` was created — the
   repository never required one internally (every in-repo reference was
   updated directly). Any out-of-repo script, pinned taskbar entry, or
   automation that still hardcodes the old filename must be updated
@@ -133,7 +133,7 @@ session — out of scope for a naming-migration closure, and the
 underlying behavior is already covered by Phase 8's own closure
 verification, unaffected by this phase's renames (confirmed by the full
 green regression above). Stale pre-rename build debris
-(`ai4s-workbench.exe`/`.pdb`/`.d`) remains in the gitignored
+(`legacy-workbench.exe`/`.pdb`/`.d`) remains in the gitignored
 `target/release/` directory — harmless, not shipped, cleared by a
 normal `cargo clean` whenever convenient, not addressed here since it
 is generated output, not source.
@@ -142,4 +142,4 @@ is generated output, not source.
 **CLOSED.** All 6 sessions (0–5) plus this closure session complete.
 Full regression green across shared/desktop/Rust. Release built and
 verified. Shortcut refreshed and live-launch-verified. Zero unexpected
-first-party `ai4s`/`AI4S` naming remains.
+first-party `the previous project identity` naming remains.

@@ -2,8 +2,10 @@
 
 Records the spec-§4 investigation into real, native click-through
 verification of the packaged Tauri desktop app — not React component
-tests, not a browser tab against the Vite dev server, the actual
-`ai4s-workbench.exe` window. This corrects a prior assumption
+tests, not a browser tab against the Vite dev server, the actual native
+app window (`formulab.exe`; built and named under this project's
+pre-rename identifier at the time this investigation ran — see
+`IMPLEMENTATION_STATUS.md`'s Identity Rename entry). This corrects a prior assumption
 (`docs/OPTIMIZER_UI_VERIFICATION.md`'s "no tool available here can attach
 to or drive a native WebView window"): that claim was not re-verified
 before being written down, and this session found it to be **false** in
@@ -38,22 +40,25 @@ claimed as "LIVE TAURI UI VERIFIED."
    debug binary that still points at `http://localhost:5173` and fails
    with "localhost refused to connect" once Vite isn't running):
    ```
-   pnpm --filter @ai4s/desktop build
-   pnpm --filter @ai4s/desktop exec tauri build --debug --no-bundle
+   pnpm --filter @formulab/desktop build
+   pnpm --filter @formulab/desktop exec tauri build --debug --no-bundle
    ```
-   Executable: `apps/desktop/src-tauri/target/debug/ai4s-workbench.exe`
+   Executable: `apps/desktop/src-tauri/target/debug/formulab.exe` (at the
+   time of this investigation, built under this project's pre-rename
+   package/binary identifiers — commands and paths above are given in
+   their current, post-rename form)
 
 2. **Launched it and confirmed a real native window**, twice — once
    against the real (pre-existing) `%APPDATA%\com.formulab.app` data
    directory, once against a fresh one (see "Data safety" below):
-   - Process name: `ai4s-workbench`, real PID (e.g. 20468, 16288, 22344
-     across separate launches)
+   - Process name: `formulab` (pre-rename binary name at the time of this
+     run), real PID (e.g. 20468, 16288, 22344 across separate launches)
    - `MainWindowTitle`: `FormuLab` — matches `tauri.conf.json`'s
      configured window title
    - `MainWindowHandle`: non-zero real HWND (e.g. `9897536`) — confirms an
      actual native window exists, not just a background process
    - Launch command used: `Start-Process -FilePath <exe-path> -PassThru`,
-     confirmed via `Get-Process ai4s-workbench | Select Id, MainWindowTitle, MainWindowHandle`
+     confirmed via `Get-Process formulab | Select Id, MainWindowTitle, MainWindowHandle`
 
 3. **Captured real screenshots** of the rendered window (`GetWindowRect` +
    `System.Drawing.Graphics.CopyFromScreen`), confirming actual application

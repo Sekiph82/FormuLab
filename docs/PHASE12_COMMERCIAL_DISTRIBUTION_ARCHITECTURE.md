@@ -633,9 +633,12 @@ Release / Download" stays exactly as it is today.
 ## 7. Proposed Phase 12 session plan
 
 Continuous numbering, beginning at Session 0. Renumbered in Session 1 to
-insert a real, evidenced blocker-remediation session (§9) ahead of the
-SignPath application itself — publishing FormuLab's first-ever GitHub
-Release turned out to be a genuine prerequisite, not an assumption.
+insert a real, evidenced blocker-remediation session ahead of the
+SignPath application itself (publishing FormuLab's first-ever GitHub
+Release turned out to be a genuine prerequisite, not an assumption), and
+renumbered again in Session 2 to insert the previous-identity-eradication
+session before that same release is published — a public release must
+not ship under the wrong identity.
 
 - **Session 0** — Commercial Distribution Assessment. Assessment and
   architecture only. Complete.
@@ -645,53 +648,63 @@ Release turned out to be a genuine prerequisite, not an assumption.
   published conditions; repository policy/privacy/signing documents and
   a copy-paste-ready application dossier prepared; one real blocker
   found (no release has ever been published). Complete — full detail §9.
-- **Session 2** — First Public Release Publication (bounded remediation
+- **Session 2** — Complete Previous-Identity Eradication and Native
+  FormuLab Skill Migration. Removed every trace of the project's
+  previous, pre-rename identity and its dependencies from the working
+  tree (source, tests, docs, CI, the fetched third-party
+  scientific-skills pack and its dead deploy mechanism, the also-dead
+  goal-plugin CI fetch) ahead of the first public release — a release
+  must not ship under an identity the project already renamed away from
+  in Phase 9. Complete — full detail in
+  `docs/handoffs/PHASE12_CURRENT.md`'s Session 2 summary.
+- **Session 3** — First Public Release Publication (bounded remediation
   for the blocker found in Session 1). Tag a real version (`v0.4.0` or
-  current), let the existing unsigned `build.yml` pipeline build and
-  draft a release exactly as it's designed to, review it, and **publish**
-  it — still unsigned, disclosed as such exactly like every artifact has
-  been throughout Phase 11. Re-run the eligibility self-check (§9) against
-  the live, published release page. No signing, no CI changes, no new
-  code — this session only exercises a pipeline that has existed since
-  before Phase 12 and has simply never been run end to end.
-- **Session 3** — SignPath Application and Approval Gate. Submit the
+  current, built from the now-cleared tree), let the existing unsigned
+  `build.yml` pipeline build and draft a release exactly as it's designed
+  to, review it, and **publish** it — still unsigned, disclosed as such
+  exactly like every artifact has been throughout Phase 11. Re-run the
+  eligibility self-check (§9) against the live, published release page.
+  No signing, no CI changes beyond what Session 2 already made — this
+  session only exercises a pipeline that has existed since before Phase
+  12 and has simply never been run end to end.
+- **Session 4** — SignPath Application and Approval Gate. Submit the
   dossier (`docs/SIGNPATH_APPLICATION.md`) now that a real release exists;
   this is largely an external-review wait, bounded to: submit, track,
   and record the outcome (approved with real
   organization/project/policy/connector identifiers, or specific
   feedback to address and reapply).
-- **Session 4** — Signing wired for real. Replace the documentation-only
+- **Session 5** — Signing wired for real. Replace the documentation-only
   GitHub Actions example (§9) with a live workflow step using the real
-  SignPath identifiers from Session 3; add the `signtool verify`
+  SignPath identifiers from Session 4; add the `signtool verify`
   CI gate; add the environment-protected secret
   (`SIGNPATH_API_TOKEN`)/variable (`SIGNPATH_ORGANIZATION_ID`); confirm
   exact `tauri-plugin-updater` version and add the dependency (Rust + JS)
   without wiring the updater itself up yet.
-- **Session 5** — Signed update manifest + updater plugin wiring. Add
+- **Session 6** — Signed update manifest + updater plugin wiring. Add
   `bundle.createUpdaterArtifacts`; generate the Ed25519 updater keypair;
   extend `updates.rs`/`lib/update.ts`'s contract with the new manifest
   fields (§3.5); wire `tauri-plugin-updater`'s `check()`/`downloadAndInstall()`
   behind the existing check-only UI's "install" action (previously just
   "View Release / Download").
-- **Session 6** — Secure download/verify/install, end to end. HTTPS
+- **Session 7** — Secure download/verify/install, end to end. HTTPS
   redirect-target validation (§3.7); SHA256 pre-check alongside the
   plugin's own signature check (§3.6); restart behavior (§3.15).
-- **Session 7** — Mandatory pre-update backup + update journal. New
+- **Session 8** — Mandatory pre-update backup + update journal. New
   `"preUpdate"` backup class; `update_journal.jsonl`; abort-before-
   touching-anything on backup failure, matching §3.12.
-- **Session 8** — Startup health check + rollback trigger + rollback
+- **Session 9** — Startup health check + rollback trigger + rollback
   execution. §3.16-3.17; the actual rollback mechanism (restore the
   pre-update backup, reinstall the retained previous version).
-- **Session 9** — Rollback retention + limits + failed-update recovery
+- **Session 10** — Rollback retention + limits + failed-update recovery
   UI. §3.18-3.20.
-- **Session 10** — Channels + staged rollout + update eligibility rules
+- **Session 11** — Channels + staged rollout + update eligibility rules
   (schema compatibility, downgrade prevention hardening). §3.8-3.11 —
   contingent on the unresolved-decision answers in §5.
-- **Session 11** — CI/CD release automation closure. Version-bump
+- **Session 12** — CI/CD release automation closure. Version-bump
   single-source tooling (§1.4); release-provenance line in release notes
   (§3.23); offline/manual fallback re-confirmed still works end to end
   (§3.21); full release workflow dry run on a real test tag.
-- **Session 12** — Commercial Release Closure and Verification. Full
+- **Session 13** — Commercial Release Closure and Verification. Full
   regression (mirroring every prior phase's closure discipline); a real
   signed release built and inspected (`Get-AuthenticodeSignature` =
   `Valid`, not `NotSigned`); a verified in-app update install on a real
@@ -702,23 +715,26 @@ Release turned out to be a genuine prerequisite, not an assumption.
   docs, matching Phase 11 Stage 1/Stage 2 Closure's own precedent.
 
 Each session stays bounded to one related subsystem and one logical
-commit, per `AGENTS.md`'s existing phase-handoff convention. Sessions 2-11
+commit, per `AGENTS.md`'s existing phase-handoff convention. Sessions 2-12
 are implementation/process sessions (targeted tests only, per
-`AGENTS.md`); full regression, release builds, and native verification
-are reserved for Session 12, matching every prior phase's closure
-discipline.
+`AGENTS.md`, except Session 2's own closure-style full verification —
+justified because it touches shared/first-party source across the whole
+tree, not one subsystem); full regression, release builds, and native
+verification are otherwise reserved for Session 13, matching every prior
+phase's closure discipline.
 
 ## 8. Exact next session
 
-**Phase 12 Session 2: First Public Release Publication.** A real
+**Phase 12 Session 3: First Public Release Publication.** A real
 repository-eligibility blocker was found in Session 1 (§9) — SignPath
 requires the project already be released in the form to be signed, and
 FormuLab has never published a release (zero tags, zero GitHub releases,
 draft or otherwise). This is a bounded remediation session, not the
 SignPath application itself: publish FormuLab's first real (still
 unsigned, still disclosed as unsigned) GitHub Release using the existing,
-never-yet-run `build.yml` pipeline. Only once that exists does Session 3
-(SignPath Application and Approval Gate) become meaningful.
+never-yet-run `build.yml` pipeline — now against the tree Session 2
+cleared of the project's previous identity. Only once that exists does Session 4 (SignPath
+Application and Approval Gate) become meaningful.
 
 ## 9. Session 1 — Free Open-Source Code-Signing Foundation (complete)
 
@@ -774,8 +790,8 @@ build time, individually, by license:
 - OpenCode sidecar (`anomalyco/opencode`) — MIT, confirmed via
   `gh api repos/anomalyco/opencode`.
 - `uv` sidecar (`astral-sh/uv`) — Apache-2.0, confirmed the same way.
-- `ai4s-skills` (`ai4s-research/ai4s-skills`) — MIT, confirmed the same
-  way.
+- The (since-removed, see §10) default scientific-skills pack — MIT,
+  confirmed the same way at the time.
 - `anthropic-skills` (`anthropics/skills`, the docx/pdf/pptx/xlsx document
   skills) — **`scripts/dev/fetch-skills.sh`'s own comment claimed this
   was "the Apache-2.0 licensed anthropics/skills repo."** Checked
@@ -793,8 +809,8 @@ build time, individually, by license:
   `tauri.conf.json`'s `bundle.resources` only lists
   `runtime/skills/core` (FormuLab's own first-party skills),
   `runtime/harness`, and two example project directories.
-  `runtime/skills/external/` (where both `ai4s-skills` and
-  `anthropic-skills` are fetched by CI) is **not** in that list, and nothing
+  `runtime/skills/external/` (where both the former default scientific
+  pack and `anthropic-skills` were fetched by CI) is **not** in that list, and nothing
   in `apps/desktop/src-tauri/src` references either directory (checked via
   `grep`). **Conclusion: the proprietary content is fetched by CI but
   never bundled into any built installer today** — the "no proprietary

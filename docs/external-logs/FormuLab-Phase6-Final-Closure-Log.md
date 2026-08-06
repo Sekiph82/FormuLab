@@ -89,7 +89,7 @@ added two new `describe` blocks to `dataExchangeExisting.test.ts` —
 `stability_protocols loader` and `stability_results loader` — which had
 **no dedicated tests at all** before this segment (only mentioned in the
 "all 24 templates have a loader" smoke list), which is exactly why this
-bug survived. `pnpm --filter @ai4s/desktop exec vitest run
+bug survived. `pnpm --filter @legacy/desktop exec vitest run
 dataExchangeCommit.test.ts dataExchangeExisting.test.ts` — 78/78 passed.
 Full regression re-run: shared 1097/1097, desktop 572/572, both
 typecheck/lint clean. Commit `1c88164`, pushed; local HEAD == remote HEAD.
@@ -394,15 +394,15 @@ touched/staged this session either).
 
 ## Tests
 
-- `pnpm --filter @ai4s/shared exec vitest run` — 51 files, **1094/1094
+- `pnpm --filter @legacy/shared exec vitest run` — 51 files, **1094/1094
   passed**.
-- `pnpm --filter @ai4s/desktop exec vitest run` — 89 files, **527/527
+- `pnpm --filter @legacy/desktop exec vitest run` — 89 files, **527/527
   passed**.
-- `pnpm --filter @ai4s/shared typecheck` / `pnpm --filter @ai4s/desktop
+- `pnpm --filter @legacy/shared typecheck` / `pnpm --filter @legacy/desktop
   typecheck` — clean, 0 errors (after fixing the missing
   `status: "active"` field).
-- `pnpm --filter @ai4s/desktop lint` — clean, 0 warnings/errors.
-- `pnpm --filter @ai4s/desktop build` — succeeds (Vite production
+- `pnpm --filter @legacy/desktop lint` — clean, 0 warnings/errors.
+- `pnpm --filter @legacy/desktop build` — succeeds (Vite production
   build).
 - `cargo build --lib`, `cargo clippy --all-targets --all-features -- -D
   warnings`, `cargo test` (in `apps/desktop/src-tauri`) — all clean;
@@ -477,10 +477,10 @@ shape/UI coverage) — added one per template (commit 6).
 ## Release build
 
 Built after all commits/push, from local HEAD `30e61af`.
-- `pnpm --filter @ai4s/desktop build` — succeeded (Vite production build).
-- `pnpm --filter @ai4s/desktop exec tauri build` — succeeded.
+- `pnpm --filter @legacy/desktop build` — succeeded (Vite production build).
+- `pnpm --filter @legacy/desktop exec tauri build` — succeeded.
 - Build timestamp: 2026-07-25T17:02:20Z (UTC).
-- Exe: `apps\desktop\src-tauri\target\release\ai4s-workbench.exe` — 21,606,400 bytes — SHA-256 `76ee2528c271118f40a357ac7d74fb7422e8186d9f80db6b7ed4d97f5332e6f1`
+- Exe: `apps\desktop\src-tauri\target\release\legacy-workbench.exe` — 21,606,400 bytes — SHA-256 `76ee2528c271118f40a357ac7d74fb7422e8186d9f80db6b7ed4d97f5332e6f1`
 - MSI: `apps\desktop\src-tauri\target\release\bundle\msi\FormuLab_0.4.0_x64_en-US.msi` — 35,332,096 bytes — SHA-256 `6b7fb2cebb4651f49b5c1e0a7f093cfd42c136bd68d270f63f498efbb7a7d247`
 - NSIS: `apps\desktop\src-tauri\target\release\bundle\nsis\FormuLab_0.4.0_x64-setup.exe` — 24,669,599 bytes — SHA-256 `4e051171b27ff7aece9548231a4e24380aac33b5b3f58acbb1ea71b2e279f92f`
 
@@ -491,7 +491,7 @@ Built after all commits/push, from local HEAD `30e61af`.
 
 `C:\Users\sekip\Desktop\FormuLab.lnk` target verified via
 `WScript.Shell`: `TargetPath` =
-`C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\ai4s-workbench.exe`,
+`C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\legacy-workbench.exe`,
 SHA-256 of that file = `76EE2528C271118F40A357AC7D74FB7422E8186D9F80DB6B7ED4D97F5332E6F1`
 — matches the just-rebuilt exe exactly. Launched via
 `Start-Process` on that exact path: process started, stayed
@@ -699,7 +699,7 @@ artwork_register. Live verification results:
 
 1. Snapshot: counted unique TEST- references in all 17 data files
 2. Closed app: `Stop-Process -Id 51556 -Force`
-3. Confirmed closed: no FormuLab/ai4s-workbench process
+3. Confirmed closed: no FormuLab/legacy-workbench process
 4. Waited 3 seconds
 5. Relaunched via desktop shortcut (`FormuLab.lnk`)
 6. App started: PID 17260, `MainWindowTitle = "FormuLab"`

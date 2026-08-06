@@ -183,7 +183,6 @@ pnpm install
 bash scripts/dev/fetch-opencode.sh
 bash scripts/dev/fetch-uv.sh
 bash scripts/dev/fetch-skills.sh
-bash scripts/dev/fetch-goal-plugin.sh
 
 # Run in development or build installers.
 pnpm --filter @formulab/desktop tauri dev

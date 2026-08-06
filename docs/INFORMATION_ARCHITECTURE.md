@@ -154,7 +154,7 @@ the new workspaces should be read as implying they were:
 - The Phase 8 PDF/DOCX report-generation engine (Reports is a navigation
   shell over the JSON/CSV/Excel exports that already exist — see
   [WORKSPACES.md](WORKSPACES.md#reports))
-- The `ai4s` → `FormuLab` package/identifier naming migration
+- The pre-rename → `FormuLab` package/identifier naming migration
 - Desktop shortcut installation
 - Any new ERP module
 - A new authentication/user-management system (Administration links to

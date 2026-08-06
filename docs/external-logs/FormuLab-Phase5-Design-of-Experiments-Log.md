@@ -14,18 +14,18 @@ Remote (`origin/feature/laboratory-stability`): `18ccef14f4c544ebfcac6f7af59aab3
 Match confirmed exactly. `git log --oneline origin/feature/laboratory-stability..HEAD` empty — nothing unpushed.
 
 ## Baseline tests
-- `pnpm --filter @ai4s/shared exec vitest run` — **867/867 passing** (exceeds documented minimum 860).
-- `pnpm --filter @ai4s/shared run typecheck` — clean.
-- `pnpm --filter @ai4s/desktop run typecheck` — clean.
-- `pnpm --filter @ai4s/desktop run lint` — clean.
-- `pnpm --filter @ai4s/desktop exec vitest run` — **453/453 passing** (matches documented minimum exactly).
+- `pnpm --filter @legacy/shared exec vitest run` — **867/867 passing** (exceeds documented minimum 860).
+- `pnpm --filter @legacy/shared run typecheck` — clean.
+- `pnpm --filter @legacy/desktop run typecheck` — clean.
+- `pnpm --filter @legacy/desktop run lint` — clean.
+- `pnpm --filter @legacy/desktop exec vitest run` — **453/453 passing** (matches documented minimum exactly).
 - `python -m pytest runtime/formulation -q` — 67 passed.
 - `python -m pytest runtime/pipeline -q` — 63 passed. Total **130/130** (matches documented minimum exactly).
 - `cargo build --lib` — clean.
 - `cargo clippy --all-targets --all-features -- -D warnings` — clean, 0 warnings.
 - `cargo test` (apps/desktop/src-tauri) — **73/73 passing** (matches documented minimum exactly).
-- `pnpm --filter @ai4s/desktop exec vitest run src/i18n/parity.test.ts` — **15/15 passing**.
-- `pnpm --filter @ai4s/shared exec vitest run src/catalog/kenya.test.ts` — **9/9 passing** (asserts `families.length >= 50`, `skus.length >= 80`, and `skus.length === KENYA_CATALOG_SKU_COUNT` — catalog untouched this session, so these remain unaffected by construction; not re-deriving the literal 55/91 figures since the test suite itself only asserts the lower bounds and internal consistency, which is what regression protection actually requires).
+- `pnpm --filter @legacy/desktop exec vitest run src/i18n/parity.test.ts` — **15/15 passing**.
+- `pnpm --filter @legacy/shared exec vitest run src/catalog/kenya.test.ts` — **9/9 passing** (asserts `families.length >= 50`, `skus.length >= 80`, and `skus.length === KENYA_CATALOG_SKU_COUNT` — catalog untouched this session, so these remain unaffected by construction; not re-deriving the literal 55/91 figures since the test suite itself only asserts the lower bounds and internal consistency, which is what regression protection actually requires).
 
 Baseline is fully green. Proceeding with Phase 5.
 
@@ -61,7 +61,7 @@ Inspected (read-only) to match established conventions before writing new code:
 Desirability/candidate search (`engine/doeCandidates.ts`) is a separate, smaller, seeded random search over the design's own coded space — deliberately NOT merged into `engine/optimization.ts`'s existing deterministic LP optimizer. Cross-engine UI integration (opening a DOE candidate in Optimization, source/lineage labeling) is deferred to task #119 (Laboratory/Stability/Optimization integration), not yet started.
 
 ## Persistence
-Registered all 10 collections (`doe_studies`/`doe_factors`/`doe_constraints`/`doe_responses`/`doe_designs`/`doe_runs`/`doe_observations`/`doe_analyses`/`doe_candidates`/`doe_review_actions`) in the Rust `COLLECTIONS` allow-list (`apps/desktop/src-tauri/src/masterdata.rs`) and the TypeScript `Collection` union/`CollectionTypes` map (`apps/desktop/src/lib/masterdata.ts`). Mutability classification (revised once, before any UI was built on top of it, after noticing the mismatch): `doe_studies`/`doe_factors`/`doe_constraints`/`doe_responses`/`doe_designs`/`doe_runs`/`doe_observations`/`doe_candidates` are MUTABLE header-style rows — a study's status/revision, a run's execution status, an observation's validate/exclude/restore, and a candidate's shortlist/select/apply-to-draft all change fields in place, with the full history preserved in the audit log, not a second row. Only `doe_analyses` (a re-run is a genuinely new fit, linked via `supersedesAnalysisId`, never an edit of stored coefficients a completed study's lineage depends on) and `doe_review_actions` (an append-only sign-off log, same shape as `regulatory_dossier_manual_requirement_actions`) are append-only. `cargo build --lib`, `cargo test` (74/74), `cargo clippy -- -D warnings` (0 warnings) and `pnpm --filter @ai4s/desktop run typecheck` all clean after wiring.
+Registered all 10 collections (`doe_studies`/`doe_factors`/`doe_constraints`/`doe_responses`/`doe_designs`/`doe_runs`/`doe_observations`/`doe_analyses`/`doe_candidates`/`doe_review_actions`) in the Rust `COLLECTIONS` allow-list (`apps/desktop/src-tauri/src/masterdata.rs`) and the TypeScript `Collection` union/`CollectionTypes` map (`apps/desktop/src/lib/masterdata.ts`). Mutability classification (revised once, before any UI was built on top of it, after noticing the mismatch): `doe_studies`/`doe_factors`/`doe_constraints`/`doe_responses`/`doe_designs`/`doe_runs`/`doe_observations`/`doe_candidates` are MUTABLE header-style rows — a study's status/revision, a run's execution status, an observation's validate/exclude/restore, and a candidate's shortlist/select/apply-to-draft all change fields in place, with the full history preserved in the audit log, not a second row. Only `doe_analyses` (a re-run is a genuinely new fit, linked via `supersedesAnalysisId`, never an edit of stored coefficients a completed study's lineage depends on) and `doe_review_actions` (an append-only sign-off log, same shape as `regulatory_dossier_manual_requirement_actions`) are append-only. `cargo build --lib`, `cargo test` (74/74), `cargo clippy -- -D warnings` (0 warnings) and `pnpm --filter @legacy/desktop run typecheck` all clean after wiring.
 
 ## Tests added
 - `packages/shared/src/engine/doeMath.test.ts` — 20 tests (matrix ops, inversion, condition number, OLS known-coefficient recovery, insufficient-DoF/singular honest failures, leverage trace identity, Cook's distance).
@@ -76,18 +76,18 @@ Registered all 10 collections (`doe_studies`/`doe_factors`/`doe_constraints`/`do
 
 ## Test results
 Full regression (after every Phase 5 commit landed), all green:
-- `pnpm --filter @ai4s/shared test` — **1027/1027** (baseline 867 + 160 new DOE tests).
-- `pnpm --filter @ai4s/shared run typecheck` — clean.
-- `pnpm --filter @ai4s/desktop run typecheck` — clean.
-- `pnpm --filter @ai4s/desktop run lint` — clean.
-- `pnpm --filter @ai4s/desktop test` — **458/458** (baseline 453 + 5 new DoePanel UI tests).
+- `pnpm --filter @legacy/shared test` — **1027/1027** (baseline 867 + 160 new DOE tests).
+- `pnpm --filter @legacy/shared run typecheck` — clean.
+- `pnpm --filter @legacy/desktop run typecheck` — clean.
+- `pnpm --filter @legacy/desktop run lint` — clean.
+- `pnpm --filter @legacy/desktop test` — **458/458** (baseline 453 + 5 new DoePanel UI tests).
 - `python -m pytest runtime/formulation -q` — 67 passed.
 - `python -m pytest runtime/pipeline -q` — 63 passed. Total **130/130**.
 - `cargo build --lib` — clean.
 - `cargo clippy --all-targets --all-features -- -D warnings` — clean, 0 warnings.
 - `cargo test` (apps/desktop/src-tauri) — **74/74** (baseline 73 + 1 new DOE-collections allow-list test).
-- `pnpm --filter @ai4s/desktop exec vitest run src/i18n/parity.test.ts` — **15/15**.
-- `pnpm --filter @ai4s/shared exec vitest run src/catalog/kenya.test.ts` — **9/9**, Kenya families/SKUs invariants unchanged.
+- `pnpm --filter @legacy/desktop exec vitest run src/i18n/parity.test.ts` — **15/15**.
+- `pnpm --filter @legacy/shared exec vitest run src/catalog/kenya.test.ts` — **9/9**, Kenya families/SKUs invariants unchanged.
 
 Invariants confirmed: no saved formula version overwritten by any DOE code
 path; no DOE run silently changes after execution begins; no observation
@@ -128,14 +128,14 @@ the "Test results" section above (1027/458/130/74), all green. This was
 the state of `HEAD` (`c4edf66`) for the **first** release build.
 
 ## First release build
-`pnpm --filter @ai4s/desktop exec tauri build`. First attempt hit a Windows
-file lock (`Access is denied` removing `ai4s-workbench.exe`) — a running
+`pnpm --filter @legacy/desktop exec tauri build`. First attempt hit a Windows
+file lock (`Access is denied` removing `legacy-workbench.exe`) — a running
 FormuLab instance (PID 19960) had the exe open. Closed it
 (`taskkill /PID 19960 /F`), confirmed no FormuLab process remained, reran
 the exact same build command (no source change) — succeeded.
 
 - HEAD at build time: `c4edf66` (feature/laboratory-stability, pushed).
-- `ai4s-workbench.exe`: 21,564,928 bytes, SHA-256
+- `legacy-workbench.exe`: 21,564,928 bytes, SHA-256
   `1cbaf99913b4a0f1155d2ef3e0f1cd0a69e5f8ffc8f022ff97bccfff0e8f068f`.
 - MSI: `FormuLab_0.4.0_x64_en-US.msi`, 35,299,328 bytes.
 - NSIS: `FormuLab_0.4.0_x64-setup.exe`, 24,632,745 bytes.
@@ -144,7 +144,7 @@ the exact same build command (no source change) — succeeded.
 ## Shortcut verification
 Launched via the real desktop shortcut `C:\Users\sekip\Desktop\FormuLab.lnk`
 (never the raw exe) using `Start-Process`, confirmed the process
-(`ai4s-workbench.exe`) came up and the main window rendered via UI
+(`legacy-workbench.exe`) came up and the main window rendered via UI
 Automation (`AutomationElement.FromHandle(MainWindowHandle)`) + a real
 screenshot. Done for every relaunch in this log (first build, the
 fulltext.py hotfix rebuild, and the final rebuild below).
@@ -297,11 +297,11 @@ changing Run 2's status; applying Candidate #2 now shows the info message
 and leaves it `proposed`.
 
 ## Final regression (after the bug fixes)
-- `pnpm --filter @ai4s/desktop run typecheck` — clean.
-- `pnpm --filter @ai4s/desktop exec eslint src/components/formula/DoePanel.tsx` — clean.
-- `pnpm --filter @ai4s/desktop exec vitest run src/components/formula/DoePanel.test.tsx` — **5/5** passing.
-- `pnpm --filter @ai4s/shared test` — **1027/1027** passing.
-- `pnpm --filter @ai4s/desktop test` (full suite) — **458/458** passing.
+- `pnpm --filter @legacy/desktop run typecheck` — clean.
+- `pnpm --filter @legacy/desktop exec eslint src/components/formula/DoePanel.tsx` — clean.
+- `pnpm --filter @legacy/desktop exec vitest run src/components/formula/DoePanel.test.tsx` — **5/5** passing.
+- `pnpm --filter @legacy/shared test` — **1027/1027** passing.
+- `pnpm --filter @legacy/desktop test` (full suite) — **458/458** passing.
 - `cargo test --release` (apps/desktop/src-tauri) — **74/74** passing.
 - `cargo clippy --release --all-targets` — clean.
 
@@ -318,13 +318,13 @@ fast-forward, no force. Confirmed `git rev-parse HEAD` ==
 `git rev-parse origin/feature/laboratory-stability` == `32ebc46`.
 
 ## Final release build
-`pnpm --filter @ai4s/desktop exec tauri build`, HEAD `32ebc46`. A running
+`pnpm --filter @legacy/desktop exec tauri build`, HEAD `32ebc46`. A running
 FormuLab instance (PID 32984, launched during this segment's native
 verification) held the exe open — closed it
 (`taskkill /PID 32984 /F`), reran the identical build command, succeeded.
 
 - HEAD at build time: `32ebc46` (feature/laboratory-stability, pushed).
-- `ai4s-workbench.exe`: 21,574,144 bytes, SHA-256
+- `legacy-workbench.exe`: 21,574,144 bytes, SHA-256
   `8ec30c1c1c9a88f9d3aa22322d6ca2811554520244bc144051f96b6f3e693b38`.
 - MSI: `FormuLab_0.4.0_x64_en-US.msi`, 35,303,424 bytes.
 - NSIS: `FormuLab_0.4.0_x64-setup.exe`, 24,638,686 bytes.

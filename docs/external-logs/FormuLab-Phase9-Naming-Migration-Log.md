@@ -1,9 +1,9 @@
-# Phase 9 — ai4s/AI4S → FormuLab Naming Migration Log
+# Phase 9 — the previous project identity → FormuLab Naming Migration Log
 
 ## Session 0: Naming Migration Assessment
 
 ### Objective
-Map every remaining user-visible and technical `ai4s`/`AI4S` identifier
+Map every remaining user-visible and technical `the previous project identity` identifier
 and produce a safe, bounded migration plan to FormuLab. Assessment and
 planning only — no renames performed.
 
@@ -14,16 +14,16 @@ already correct, installers already ship FormuLab-branded, the window
 title is already "FormuLab", and `%APPDATA%\com.formulab.app` is
 already the real in-use app-data directory (19,677+ files of genuine
 project history) — nothing to orphan, no app-data migration needed.
-What remains is internal/technical: the npm package scope (`@ai4s/*`,
-118 importing files), the Rust crate/binary name (`ai4s-workbench` /
-`ai4s_workbench_lib`, which the shipped `.exe` is literally built from —
-`ai4s-workbench.exe` today), 8 persisted `localStorage` keys, and a
+What remains is internal/technical: the npm package scope (`@legacy/*`,
+118 importing files), the Rust crate/binary name (`legacy-workbench` /
+`legacy_workbench_lib`, which the shipped `.exe` is literally built from —
+`legacy-workbench.exe` today), 8 persisted `localStorage` keys, and a
 documentation cleanup — including `AGENTS.md`, which currently states a
-factually **wrong** bundle identifier (`com.ai4s.workbench`, when the
+factually **wrong** bundle identifier (`com.legacy.workbench`, when the
 real one is `com.formulab.app`) and must be corrected regardless of
 migration timing.
 
-173 files match `ai4s`/`AI4S` case-insensitive outside
+173 files match `the previous project identity` case-insensitive outside
 `node_modules`/`target`/`dist`/`.git`.
 
 ### Method
@@ -39,21 +39,21 @@ arrived after the doc was substantially complete and corroborated the
 independent findings; folded in its 3 additional citations
 (`CURRENT_STATE_AUDIT.md`'s already-accurate "Identity" note,
 `IMPLEMENTATION_STATUS.md:979`'s prior deferred-item note,
-`pnpm-lock.yaml`'s single generated `@ai4s/shared` entry) rather than
+`pnpm-lock.yaml`'s single generated `@legacy/shared` entry) rather than
 duplicating the search.
 
 ### Classification summary (full detail in PHASE9_CURRENT.md)
 1. User-visible, must change: LICENSE copyright, AGENTS.md's false
    bundle-identifier claim, Cargo.toml authors, lib.rs comment/panic
    string.
-2. Internal, safe to change: 3 package.json names + 118 `@ai4s/shared`
+2. Internal, safe to change: 3 package.json names + 118 `@legacy/shared`
    imports, Cargo.toml package/lib names, main.rs call site, CI
    artifact-upload name, 14 Rust test-only temp-dir prefixes,
    README.md example commands.
 3. Compatibility-sensitive, needs migration/alias: the Rust binary
-   rename (`ai4s-workbench.exe` → new name) breaks the existing
+   rename (`legacy-workbench.exe` → new name) breaks the existing
    `FormuLab.lnk` shortcut target and any out-of-repo user automation;
-   8 `ai4s.`-prefixed localStorage keys (theme/sidebar/zoom/locale/
+   8 `legacy.`-prefixed localStorage keys (theme/sidebar/zoom/locale/
    model-favorites) risk a one-time silent prefs reset for every
    existing user if renamed without a legacy-read fallback — a fallback
    pattern (`LEGACY_THEME_KEY`) already exists as precedent in this
@@ -62,29 +62,29 @@ duplicating the search.
    external Phase-log .md files (this one included, append-only),
    TAURI_LIVE_VERIFICATION.md, APPROVAL_MANUAL_SMOKE_TEST.md, dated
    IMPLEMENTATION_STATUS.md closure paragraphs (incl. its own Phase 8
-   section's real `ai4s-workbench.exe` SHA-256, written this same
+   section's real `legacy-workbench.exe` SHA-256, written this same
    session), CURRENT_STATE_AUDIT.md's currently-accurate Identity note,
    PRD.md/TECHNICAL_DESIGN.md (founding pre-rebrand specs — flagged as
    an open question, not force-rewritten).
 5. Generated/external, must not be edited: the real third-party
-   `ai4s-research/ai4s-skills` GitHub dependency (fetch script, env var,
+   `legacy-research/legacy-skills` GitHub dependency (fetch script, env var,
    local dir name, CI step name, and the one UI string that correctly
    names it) — this is someone else's project name, not ours;
    pnpm-lock.yaml (regenerates via `pnpm install`).
 
 ### Proposed sessions (6, bounded)
-1. Package/import namespace migration (`@ai4s/*` → `@formulab/*`,
+1. Package/import namespace migration (`@legacy/*` → `@formulab/*`,
    118+ files, low risk, full regression not just focused — mechanical
    global rename)
 2. Rust/Tauri/product/binary naming (Cargo.toml, main.rs, lib.rs,
    shortcut refresh, CI artifact name — highest risk, needs a real
    release build + relaunch verification)
 3. Persisted-identifier (localStorage) migration — decide rename+
-   fallback vs leave-as-is for the 8 `ai4s.*` keys; no app-data
+   fallback vs leave-as-is for the 8 `legacy.*` keys; no app-data
    directory migration needed (already correct)
 4. Scripts, CI, docs, and tests (AGENTS.md fix, LICENSE, README
    examples, REQUIREMENTS.md, INFORMATION_ARCHITECTURE.md closure note;
-   explicitly excludes the external ai4s-skills dependency and the
+   explicitly excludes the external legacy-skills dependency and the
    founding-spec docs)
 5. Focused verification (full regression + final grep sweep)
 6. Closure and release (full regression, release build, shortcut
@@ -92,7 +92,7 @@ duplicating the search.
 
 ### Safety rules confirmed satisfiable
 No app-data directory orphaned (already `com.formulab.app`). No saved
-project at risk (no schema field/id-prefix contains `ai4s`, confirmed
+project at risk (no schema field/id-prefix contains `the previous project identity`, confirmed
 by direct inspection). Compatibility alias mechanisms identified for
 both risk items (shortcut refresh; localStorage legacy-read fallback
 pattern already precedented). Historical logs/hashes explicitly listed
@@ -102,7 +102,7 @@ as never-rewrite. `.FormuLab/runs.db` untouched this session.
 Created `docs/handoffs/PHASE9_CURRENT.md`. Created this external log.
 
 ### Commit
-docs(phase9): assess ai4s to FormuLab naming migration
+docs(phase9): assess the previous project identity to FormuLab naming migration
 
 ### Push result
 Pushed to origin/feature/laboratory-stability (existing tracking branch).
@@ -114,33 +114,33 @@ Phase 9 Session 1: Package/Import Namespace Migration.
 ## Session 1: Package and Import Namespace Migration
 
 ### Objective
-Migrate only the npm workspace/package namespace from `@ai4s/*` to
+Migrate only the npm workspace/package namespace from `@legacy/*` to
 `@formulab/*`. No Rust, Tauri, executable, installer, or localStorage
 changes.
 
 ### Renamed
-`@ai4s/shared` -> `@formulab/shared`, `@ai4s/desktop` -> `@formulab/desktop`,
-root workspace label `ai4s-workbench` -> `formulab`.
+`@legacy/shared` -> `@formulab/shared`, `@legacy/desktop` -> `@formulab/desktop`,
+root workspace label `legacy-workbench` -> `formulab`.
 
 ### Files changed (125)
 packages/shared/package.json, apps/desktop/package.json (name + the
-@ai4s/shared dependency entry), root package.json (name + 4 --filter
+@legacy/shared dependency entry), root package.json (name + 4 --filter
 script lines), apps/desktop/tsconfig.json (path alias),
 apps/desktop/vite.config.ts (resolve alias),
 apps/desktop/src-tauri/tauri.conf.json (beforeDevCommand/
 beforeBuildCommand workspace-filter strings only -- identifier/
 productName untouched), scripts/windows/verify-formulab-phase1.ps1 (2
---filter example-command lines only -- its ai4s-workbench.exe ExePath
+--filter example-command lines only -- its legacy-workbench.exe ExePath
 default is Session 2 scope, left untouched), 118 first-party source
 files under apps/desktop/src (117 .ts/.tsx importers + 1 CSS comment in
 index.css). pnpm-lock.yaml regenerated via pnpm install, reverified via
 pnpm install --frozen-lockfile -- never hand-edited.
 
 ### Verification
-Zero first-party @ai4s/ matches remain anywhere in the repo (confirmed
+Zero first-party @legacy/ matches remain anywhere in the repo (confirmed
 by repo-wide grep after the rename). Rust crate/binary names, Tauri
 identifier/productName, installer names, localStorage keys, historical
-docs, and the external ai4s-research/ai4s-skills dependency confirmed
+docs, and the external legacy-research/legacy-skills dependency confirmed
 untouched.
 
 Shared: 1199/1199 tests, typecheck clean. Desktop: 687/688 tests (1
@@ -173,16 +173,16 @@ Phase 9 Session 2: Rust, Tauri, Product, and Binary Naming.
 
 ### Objective
 Migrate only the first-party Rust crate, binary, product, and
-build-artifact names from ai4s-workbench/ai4s_workbench_lib to FormuLab
+build-artifact names from legacy-workbench/legacy_workbench_lib to FormuLab
 naming. Keep Tauri productName "FormuLab" and identifier
 com.formulab.app exactly as-is; no app-data change.
 
 ### Renamed
-Cargo.toml package: ai4s-workbench -> formulab. Lib crate:
-ai4s_workbench_lib -> formulab_lib. authors: "AI4S Workbench
+Cargo.toml package: legacy-workbench -> formulab. Lib crate:
+legacy_workbench_lib -> formulab_lib. authors: "the previous project identity
 contributors" -> "FormuLab contributors". main.rs call site,
 lib.rs header comment + .expect(...) panic string, tools.rs comment.
-.github/workflows/build.yml artifact-upload name: ai4s-workbench-${target}
+.github/workflows/build.yml artifact-upload name: legacy-workbench-${target}
 -> formulab-${target}. scripts/windows/verify-formulab-phase1.ps1's
 default -ExePath -> formulab.exe.
 
@@ -215,15 +215,15 @@ cargo build --release: succeeded, package "formulab". cargo test --lib:
 (confirms no TS code depended on the old Rust name). Full tauri build:
 succeeded, produced formulab.exe + the already-FormuLab-named MSI/NSIS
 installers. Final grep sweep: zero stale first-party
-ai4s-workbench/ai4s_workbench_lib references in any .rs/.toml/.ps1/
+legacy-workbench/legacy_workbench_lib references in any .rs/.toml/.ps1/
 .sh/.yml/.json file.
 
-### Remaining ai4s matches and why
+### Remaining the previous project identity matches and why
 docs/architecture/CURRENT_STATE_AUDIT.md, docs/handoffs/PHASE8_CURRENT.md
 (a dated closure record, correctly never rewritten retroactively),
 docs/TAURI_LIVE_VERIFICATION.md, docs/TECHNICAL_DESIGN.md,
 runtime/manager/README.md -- all historical or living docs deferred to
-Session 4, per the Phase 9 plan. build.yml:69 "Fetch bundled ai4s-skills
+Session 4, per the Phase 9 plan. build.yml:69 "Fetch bundled legacy-skills
 pack" -- correctly untouched, names the real external dependency.
 
 ### Commit
@@ -241,13 +241,13 @@ Migration.
 
 ### Objective
 Migrate the first-party persisted browser/localStorage keys from
-ai4s.* to formulab.*, preserving every existing user preference through
+legacy.* to formulab.*, preserving every existing user preference through
 legacy-read compatibility. No app-data, schema, Rust, Tauri, package,
 installer, or binary changes.
 
 ### Keys migrated (8)
-store.ts: theme (formulab.theme.v2, two-hop legacy -- ai4s.theme.v2
-copied verbatim, then the older ai4s.theme remapped light->warm exactly
+store.ts: theme (formulab.theme.v2, two-hop legacy -- legacy.theme.v2
+copied verbatim, then the older legacy.theme remapped light->warm exactly
 as the pre-existing LEGACY_THEME_KEY logic already did),
 sidebar.width, sidebar.collapsed, inspector.width, zoom.
 i18n/config.ts: locale. settings/modelPreferences.ts:
@@ -279,8 +279,8 @@ pre-existing download.test.ts failure flagged in Session 1 still
 reproduces, confirmed untouched by this session, not fixed per this
 session's own scope. Desktop typecheck and lint both clean.
 
-### Remaining ai4s matches
-Every remaining ai4s.-prefixed string in apps/desktop/src is one of the
+### Remaining the previous project identity matches
+Every remaining legacy.-prefixed string in apps/desktop/src is one of the
 intentional LEGACY_* constants (store.ts, config.ts, modelPreferences.ts)
 or a test fixture referencing one -- confirmed via a final repo-wide
 grep. No stray/forgotten references.
@@ -297,7 +297,7 @@ Phase 9 Session 4: Scripts, CI, Documentation, and Test Naming Cleanup.
 
 ## Out-of-band: Sidebar Navigation Consolidation
 
-Unrelated to the ai4s/FormuLab naming migration — recorded here only
+Unrelated to the the previous project identity/FormuLab naming migration — recorded here only
 because this is the currently active project log. Does not affect the
 Phase 9 session sequence or numbering (Session 4 is still next).
 
@@ -355,7 +355,7 @@ Final HEAD: `8cc02bce4ffddb6404f973d81d769edb0ade090c`, matches `@{u}`.
 ## Session 4: Scripts, CI, Documentation, and Test Naming Cleanup
 
 ### Objective
-Clean up remaining first-party ai4s/AI4S naming in active scripts,
+Clean up remaining first-party the previous project identity naming in active scripts,
 documentation, comments, examples, test-only names, and configuration
 text. Classify every remaining match before editing -- no blind global
 replacement.
@@ -366,24 +366,24 @@ Full case-insensitive repo sweep excluding node_modules/target/dist/
 (not filename guessing) before deciding fix vs preserve.
 
 ### Fixed (mandatory corrections + other stale first-party naming)
-AGENTS.md (was stating a false bundle identifier com.ai4s.workbench and
+AGENTS.md (was stating a false bundle identifier com.legacy.workbench and
 a garbled self-reference; now states the real com.formulab.app and
 @formulab/shared /@formulab/desktop). LICENSE copyright holder.
 README.md and APPROVAL_MANUAL_SMOKE_TEST.md's active, copy-pasteable
-pnpm --filter @ai4s/desktop command examples. apps/desktop/README.md's
+pnpm --filter @legacy/desktop command examples. apps/desktop/README.md's
 product-name reference. docs/REQUIREMENTS.md and
-IMPLEMENTATION_STATUS.md's live "## Done" narrative @ai4s/* references
+IMPLEMENTATION_STATUS.md's live "## Done" narrative @legacy/* references
 (2 spots -- not dated closure paragraphs, which were correctly left
 alone). packages/shared/src/index.ts and runtime/kernel/
 kernel_bridge.py source comments/docstrings. runtime/manager/README.md
--- its documented runtime-directory paths named a folder ("AI4S
+-- its documented runtime-directory paths named a folder ("the previous project identity
 Workbench") that was never real; confirmed via formulation_v2.rs's
 app_dir() that Tauri's app_data_dir() resolves from the identifier
 field, so this now states the real com.formulab.app-keyed paths.
 runtime/opencode-profile/README.md (product name + a first-party
 skills/ comment reworded to avoid ambiguity with the genuinely-external
-ai4s-skills pack named two lines below it). .gitignore's
-.ai4s-workbench/ pattern (confirmed dead -- no code creates that literal
+legacy-skills pack named two lines below it). .gitignore's
+.legacy-workbench/ pattern (confirmed dead -- no code creates that literal
 path -- renamed anyway for consistency). 16 Rust test-only temp-dir
 prefixes across 5 files, all inside #[cfg(test)] blocks.
 
@@ -396,9 +396,9 @@ PHASE9_CURRENT.md (this migration's own tracking doc), a dated
 verification log, PRD.md/TECHNICAL_DESIGN.md (founding specs, no
 passage flagged as active-and-misleading), IMPLEMENTATION_STATUS.md's
 older closure paragraph. External dependency: the entire
-runtime/skills/external/ai4s-skills/ tree, fetch-skills.sh and its
-AI4S_SKILLS_COMMIT var, build.yml's fetch-step name,
-runtime/skills/README.md, the "bundled ai4s-skills pack" UI string in
+runtime/skills/external/legacy-skills/ tree, fetch-skills.sh and its
+legacy_skills_commit var, build.yml's fetch-step name,
+runtime/skills/README.md, the "bundled legacy-skills pack" UI string in
 all 8 locales' pages.json, CONNECT_YOUR_TOOLS.md's mention. Legacy
 compatibility: the LEGACY_* localStorage constants and tests from
 Session 3. Generated artifacts: aider's cache.db, the bundled opencode
@@ -439,7 +439,7 @@ regressions. No release build, no shortcut update.
 
 ### Verification results
 Package namespace: root formulab, @formulab/shared, @formulab/desktop
-confirmed. Zero first-party @ai4s/* anywhere. pnpm install
+confirmed. Zero first-party @legacy/* anywhere. pnpm install
 --frozen-lockfile clean. Shared 1199/1199 + typecheck clean. Desktop
 typecheck clean, lint clean.
 
@@ -480,9 +480,9 @@ download.test.ts now 7/7. Full desktop suite rerun after the fix:
 ### Final naming sweep
 Identical file list to Session 4's -- nothing new leaked in during
 Sessions 4-5. Category 5 (unexpected first-party stale match): empty.
-Explicitly confirmed via targeted grep: zero first-party @ai4s/*, zero
-first-party ai4s-workbench (only a dated verification log and the
-external pack match), zero first-party ai4s_workbench_lib (only a
+Explicitly confirmed via targeted grep: zero first-party @legacy/*, zero
+first-party legacy-workbench (only a dated verification log and the
+external pack match), zero first-party legacy_workbench_lib (only a
 dev-tool cache and this doc's own description of the rename match).
 
 ### Defect fixed
@@ -530,7 +530,7 @@ anywhere. The Session 5 download.test.ts fix stayed green.
 Confirmed: Cargo package formulab, lib crate formulab_lib, executable
 formulab.exe, productName FormuLab, identifier exactly com.formulab.app
 (unchanged), installer filenames FormuLab-branded, no release artifact
-depends on ai4s-workbench.exe. Stale pre-rename ai4s-workbench.exe/.pdb/.d
+depends on legacy-workbench.exe. Stale pre-rename legacy-workbench.exe/.pdb/.d
 noted in the gitignored target/release/ build-output dir -- build cache
 debris, not shipped, not referenced by anything active.
 
@@ -550,7 +550,7 @@ Regulatory accordion group expands on Enter showing its 4 real
 children, active child (Dossiers) gets a visible focus ring + persistent
 active-highlight while its parent stays expanded, real existing project
 data loads (TEST-FORM-0..., HH-HANDSOAP-..., HC-SHAMPOO-... -- genuine
-reads, zero writes). No stale AI4S Workbench branding anywhere in the
+reads, zero writes). No stale the previous project identity branding anywhere in the
 live window. %APPDATA%\com.formulab.app file count reconfirmed
 identical (19,677) before and after the full session.
 
@@ -565,26 +565,26 @@ dedicated automated test, passing in the 736/736 total.
 
 ### Final naming sweep
 Category 5 (unexpected first-party stale match): empty, reconfirmed at
-closure. Zero first-party @ai4s/*, zero first-party ai4s-workbench
-(only a dated log + external pack), zero first-party ai4s_workbench_lib
+closure. Zero first-party @legacy/*, zero first-party legacy-workbench
+(only a dated log + external pack), zero first-party legacy_workbench_lib
 (only a dev-tool cache + this doc's own description), zero active
-command points to ai4s-workbench.exe. Remaining matches all
-intentionally preserved (historical docs, external ai4s-skills
+command points to legacy-workbench.exe. Remaining matches all
+intentionally preserved (historical docs, external legacy-skills
 dependency, LEGACY_* constants, generated caches) -- see PHASE9_CURRENT.md
 for the full accounting.
 
 ### Accepted compatibility decisions
 %APPDATA%\com.formulab.app untouched (already correct before Phase 9).
-Legacy ai4s.* localStorage keys remain readable but are never written
+Legacy legacy.* localStorage keys remain readable but are never written
 to again. Historical logs/hashes/paths/closed handoffs never rewritten.
-ai4s-research/ai4s-skills naming completely unchanged. No binary
-alias/shim created for ai4s-workbench.exe -- any out-of-repo script that
+legacy-research/legacy-skills naming completely unchanged. No binary
+alias/shim created for legacy-workbench.exe -- any out-of-repo script that
 hardcoded it must be updated manually; this is accepted, not an
 oversight.
 
 ### Documentation
 Rewrote docs/handoffs/PHASE9_CURRENT.md as a concise closed-state
-handoff. Added a closed "Identity Rename: ai4s -> FormuLab (Phase 9)"
+handoff. Added a closed "Identity Rename: the previous project identity -> FormuLab (Phase 9)"
 section to docs/architecture/IMPLEMENTATION_STATUS.md and removed the
 now-stale "Identity rename" row from its "Not yet started" table.
 
