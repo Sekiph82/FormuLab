@@ -88,47 +88,6 @@
       "openInDefaultApp": "Varsayılan uygulamada aç"
     }
   },
-  "skills": {
-    "title": "Beceriler ve Ajanlar",
-    "description": {
-      "prefix": "OpenCode çalışma zamanından canlı olarak yüklenir — FormuLab'ın paketlenmiş becerileri artı çalışma alanınızda ",
-      "suffix": " altındaki her şey."
-    },
-    "install": {
-      "sectionTitle": "Bir beceri kur",
-      "placeholder": "Bir beceri (Markdown) veya bir GitHub URL'si yapıştırın — ajan bunu .opencode/skills/ içine kurar",
-      "starting": "Başlatılıyor…",
-      "cta": "Ajanla kur",
-      "hintConnected": "Bir oturum açar ve ajandan eklemesini ister (customize-opencode).",
-      "hintDisconnected": "Önce çalışma zamanını bağlayın."
-    },
-    "environment": {
-      "sectionTitle": "Bilimsel ortam",
-      "detectionUnavailable": "Ortam algılama masaüstü uygulamasında çalışır.",
-      "found": "bulundu",
-      "notFound": "bulunamadı",
-      "note": "OpenCode, kodu burada kurulu olan her şeyle çalıştırır (örn. kabuk aracı üzerinden Python). Python/R/Jupyter pakete dahil değildir; analiz için bunları veya bir Science Pack'i kurun."
-    },
-    "agentsSection": {
-      "sectionTitle": "Ajanlar ({{count}})",
-      "empty": "Bildirilen ajan yok.",
-      "agentMode": {
-        "primary": "birincil",
-        "subagent": "alt ajan",
-        "all": "tümü"
-      }
-    },
-    "skillsListSection": {
-      "sectionTitle": "Beceriler ({{count}})",
-      "empty": "Henüz yüklenmiş beceri yok.",
-      "source": {
-        "builtin": "yerleşik",
-        "project": "proje",
-        "user": "kullanıcı"
-      }
-    },
-    "disconnected": "Yüklediği becerileri ve ajanları listelemek için çalışma zamanını bağlayın."
-  },
   "notFound": {
     "title": "404 — Bulunamadı",
     "hint": "Bu sayfa mevcut değil.",

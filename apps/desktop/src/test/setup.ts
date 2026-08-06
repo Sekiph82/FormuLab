@@ -2,8 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import "@/i18n";
 import { processError } from "@vitest/utils/error";
 
-// DOM stubs — only in a browser-like (jsdom) environment. The node-env tests
-// (e.g. the OpenCode integration test) skip these.
+// DOM stubs — only in a browser-like (jsdom) environment. Any future
+// node-environment test (this suite has none today) would skip these.
 if (typeof window !== "undefined") {
   if (!("ResizeObserver" in globalThis)) {
     (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {

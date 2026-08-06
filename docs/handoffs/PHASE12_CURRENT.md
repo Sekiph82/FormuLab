@@ -726,24 +726,89 @@ TOTAL BYTE-LEVEL OCCURRENCES: 0
 "false positive" classification applied or needed — there is nothing
 left to classify.
 
-### Disclosed finding, deliberately not fixed this session: stale OpenCode UI copy
+**Third rescan, after the OpenCode UI/i18n text changes below** (the
+user's own explicit instruction: re-run the scan after any further text
+edit, not assume it stays zero): identical command, same scope, same
+result —
 
-While investigating the OpenCode binary above, found that
-`apps/desktop/src/app/routes/SettingsPage.tsx` and this app's i18n
-strings **across all 8 shipped locales** still describe OpenCode in
-present tense as a currently-bundled, currently-connected feature —
-e.g. "Everything here configures the bundled OpenCode runtime," "Loaded
-live from the OpenCode runtime," an "Already use the OpenCode CLI?
-Import its login" flow — even though the Rust backend cannot spawn it
-(confirmed above: no sidecar registration, no spawn call anywhere).
-This is a real, user-facing product-copy staleness bug, **distinct from
-the byte-match requirement that drove this session's work** and not
-fixed here: correcting 8 locales' worth of Settings-page copy (and
-verifying exactly what, if anything, of the "BYO external OpenCode"
-flow still functions versus is fully dead) is a frontend/product-scope
-change this identity-eradication/exit-code correction session should
-not absorb. Flagged here plainly, not swept under the rug, for a future
-session to pick up.
+```
+=== Filename matches: 0 ===
+=== Content/byte matches: 0 files ===
+TOTAL BYTE-LEVEL OCCURRENCES: 0
+```
+
+Expected — none of the OpenCode text edits touch the unrelated forbidden
+token — but run and confirmed for real, not assumed.
+
+### Stale OpenCode UI copy — disclosed, then fixed this same session
+
+Originally disclosed here as a deliberately-unfixed, out-of-scope
+finding. **The user asked for it to be fixed before Session 3, so it was
+— in this same Session 2A, as a continuation, not a new session.**
+
+Investigation before touching anything: `apps/desktop/src/app/routes/
+SettingsPage.tsx` (354 lines, read in full) has exactly five live
+sections — workspace, Python interpreter, appearance/theme/zoom,
+language, and (via `<FormulationProviderCard />`) the direct
+pipeline's own model/provider/key config, which uses its own `model.*`
+i18n namespace. It contains **zero** references to any `runtime`,
+`providers`, `mcp`, or `page` i18n keys, and zero "Connect"/"Disconnect"
+UI. The actual scope was far bigger than the original disclosure
+suggested — not just Settings-page copy, but **entire dead, unreferenced
+i18n namespaces across all 8 locales**, confirmed one at a time by
+grepping every component in `apps/desktop/src` for each key path before
+deleting it:
+
+- `settings.json`: the whole `page` object (unused `page.title`/
+  `page.subtitle` — the subtitle was "Everything here configures the
+  bundled OpenCode runtime"), the whole `runtime` object ("Agent
+  runtime" / "opencode serve..." — note this is a *different*, dead key
+  from the live `nav.runtime` = "Python" label, which was left
+  untouched), the whole `providers` object (provider-connect/import-
+  login copy), the whole `mcp` object (MCP-server-connect copy). Within
+  the still-live `toast` object, only the two keys that explicitly
+  named OpenCode (`noOpenCodeLoginFound`, `importedLogin`) — its other,
+  generically-named dead keys (`mcpAdded`, `endpointAdded`, etc.) were
+  left alone as out of this specific scope.
+- `pages.json`: the whole `skills` object ("Loaded live from the
+  OpenCode runtime," `.opencode/skills/` install flow) — no
+  `SkillsPage.tsx` component exists at all; this entire page was
+  removed from the app with its i18n left behind.
+- `session.json`: the whole `live` object (`runtime`, `connect`,
+  `subagentFallback`, `header`, `filesToggle`, `runsToggle`, `notebook`,
+  `connBadge`, `status`, `placeholder`) — the real `/live` route
+  (`FormulationWorkspaceV2.tsx`) uses only `studio.*`/`builder.*`, never
+  `live.*`.
+
+Deleted all of it, identically, across all 8 locales (`de`, `en`, `es`,
+`fr`, `ja`, `ko`, `tr`, `zh-Hans`) via a small Python script that loads,
+deletes the same key paths, and re-serializes preserving the existing
+2-space-indent/CRLF formatting — not hand-edited per-locale, so no risk
+of a locale-specific key-set drift. Also removed the dead
+`OpenCodeCredentials` TypeScript interface from `apps/desktop/src/lib/
+tauri.ts` (confirmed unused anywhere), corrected `SettingsPage.tsx`'s
+own misleading top-of-file comment (previously: "everything talks to
+the bundled OpenCode's own config/auth API" — now describes the real
+local/`formulationV2.ts` architecture), and fixed a stale comment in
+`apps/desktop/src/test/setup.ts` referencing a nonexistent "OpenCode
+integration test."
+
+**Did not** restore the removed OpenCode binary, fetch script, sidecar,
+or backend integration — this was a text/dead-code removal only, per
+the user's explicit instruction.
+
+Verified afterward: `grep -rli opencode` across the entire
+`src/i18n/locales/` tree returns zero matches (down from 8 files).
+Focused tests (i18n config/parity/format/index,
+`SettingsPage.i18n.test.tsx`, `thread.i18n.test.tsx`, help registry,
+tours, `tauri.test.ts`): **9 files, 93 tests, exit 0**. i18n parity,
+re-run standalone once more: **23/23**. Desktop typecheck: clean,
+`EXIT: 0`. Desktop lint: clean, `EXIT: 0`. Full desktop suite, re-run as
+a regression check (i18n parity iterates every key across every
+locale, so a key-set mismatch between locales would have failed it):
+**130/130 files, 1161/1161 tests, `EXIT: 0`**. Whole-tree identity scan,
+re-run after these text changes per the user's explicit instruction:
+see "Final scan result" below for the literal output.
 
 ## Inspection commands run this session (Session 2A)
 

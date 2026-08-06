@@ -99,49 +99,6 @@
       "description": "Cost-optimize a surfactant blend to a target active content, then write a report."
     }
   },
-  "live": {
-    "runtime": {
-      "title": "OpenCode ランタイム",
-      "bodyPrefix": "デスクトップアプリはバンドルされた OpenCode を自動的に実行します。ブラウザでは、",
-      "bodySuffix": " で起動して接続してください。"
-    },
-    "connect": "接続",
-    "subagentFallback": "サブエージェント",
-    "header": {
-      "expandSidebarAria": "サイドバーを展開する",
-      "expandSidebarTitle": "サイドバーを展開する（{{shortcut}}）"
-    },
-    "filesToggle": {
-      "default": "ファイル",
-      "title": "チャットの横でこのセッションのフォルダを参照"
-    },
-    "runsToggle": {
-      "label": "実行",
-      "title": "このセッションの実験実行 — チャットの横に表示"
-    },
-    "notebook": {
-      "openTitle": "{{path}} を開く — エージェントはこのセッションでこのノートブックを操作します"
-    },
-    "connBadge": {
-      "title": "OpenCode · {{status}}",
-      "status": {
-        "ready": "準備完了",
-        "connecting": "接続中",
-        "error": "エラー",
-        "offline": "オフライン"
-      }
-    },
-    "status": {
-      "paused": "一時停止中 — エージェントが下で回答を待っています",
-      "startingSession": "セッションをそのフォルダで開始しています…",
-      "retrying": "プロバイダーエラー — 再試行中（{{attempt}} 回目）",
-      "working": "作業中…"
-    },
-    "placeholder": {
-      "disconnected": "チャットするには接続してください",
-      "waiting": "返信を待っています…"
-    }
-  },
   "tool": {
     "status": {
       "pending": "保留中",

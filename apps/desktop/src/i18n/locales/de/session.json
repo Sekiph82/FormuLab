@@ -99,49 +99,6 @@
       "description": "Cost-optimize a surfactant blend to a target active content, then write a report."
     }
   },
-  "live": {
-    "runtime": {
-      "title": "OpenCode-Runtime",
-      "bodyPrefix": "Die Desktop-App führt automatisch eine gebündelte OpenCode-Instanz aus. Starten Sie im Browser eine mit",
-      "bodySuffix": " und verbinden Sie sich."
-    },
-    "connect": "Verbinden",
-    "subagentFallback": "ein Subagent",
-    "header": {
-      "expandSidebarAria": "Seitenleiste ausklappen",
-      "expandSidebarTitle": "Seitenleiste ausklappen ({{shortcut}})"
-    },
-    "filesToggle": {
-      "default": "Dateien",
-      "title": "Den Ordner dieser Sitzung neben dem Chat durchsuchen"
-    },
-    "runsToggle": {
-      "label": "Durchläufe",
-      "title": "Die Experimentdurchläufe dieser Sitzung — neben dem Chat"
-    },
-    "notebook": {
-      "openTitle": "{{path}} öffnen — der Agent arbeitet in dieser Sitzung an diesem Notebook"
-    },
-    "connBadge": {
-      "title": "OpenCode · {{status}}",
-      "status": {
-        "ready": "bereit",
-        "connecting": "verbindet …",
-        "error": "Fehler",
-        "offline": "offline"
-      }
-    },
-    "status": {
-      "paused": "Pausiert — der Agent benötigt Ihre Antwort unten",
-      "startingSession": "Die Sitzung wird in ihrem Ordner gestartet…",
-      "retrying": "Anbieterfehler — neuer Versuch (Versuch {{attempt}})",
-      "working": "Arbeitet…"
-    },
-    "placeholder": {
-      "disconnected": "Zum Chatten verbinden",
-      "waiting": "Warte auf die Antwort…"
-    }
-  },
   "tool": {
     "status": {
       "pending": "Ausstehend",

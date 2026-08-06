@@ -40,8 +40,11 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/cn";
 
 /**
- * Settings. ONE configuration surface: everything talks to the bundled
- * OpenCode's own config/auth API — no separate "model key" concept.
+ * Settings. Each section is local: workspace/backup/diagnostics config,
+ * the local Python interpreter used by notebooks, and the direct
+ * formulation pipeline's own provider/model/key (`formulationV2.ts`,
+ * stored in `localStorage` — see `docs/PRIVACY.md`). No agent runtime to
+ * connect to.
  */
 export function SettingsPage() {
   // Which settings section is on screen — the sidebar is the navigation.

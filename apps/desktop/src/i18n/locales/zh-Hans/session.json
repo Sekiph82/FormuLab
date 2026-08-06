@@ -99,49 +99,6 @@
       "description": "Cost-optimize a surfactant blend to a target active content, then write a report."
     }
   },
-  "live": {
-    "runtime": {
-      "title": "OpenCode 运行时",
-      "bodyPrefix": "桌面应用会自动运行一个内置的 OpenCode。在浏览器中，请使用以下命令启动一个",
-      "bodySuffix": "并连接。"
-    },
-    "connect": "连接",
-    "subagentFallback": "一个子代理",
-    "header": {
-      "expandSidebarAria": "展开侧边栏",
-      "expandSidebarTitle": "展开侧边栏（{{shortcut}}）"
-    },
-    "filesToggle": {
-      "default": "文件",
-      "title": "在聊天旁浏览此会话的文件夹"
-    },
-    "runsToggle": {
-      "label": "运行",
-      "title": "此会话的实验运行——在聊天旁显示"
-    },
-    "notebook": {
-      "openTitle": "打开 {{path}} — 代理在此会话中处理此笔记本"
-    },
-    "connBadge": {
-      "title": "OpenCode · {{status}}",
-      "status": {
-        "ready": "就绪",
-        "connecting": "连接中",
-        "error": "错误",
-        "offline": "离线"
-      }
-    },
-    "status": {
-      "paused": "已暂停——代理需要您在下方回答",
-      "startingSession": "正在其文件夹中启动会话…",
-      "retrying": "服务商报错——正在重试（第 {{attempt}} 次）",
-      "working": "正在处理…"
-    },
-    "placeholder": {
-      "disconnected": "连接以开始聊天",
-      "waiting": "等待回复…"
-    }
-  },
   "tool": {
     "status": {
       "pending": "待处理",

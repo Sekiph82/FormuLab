@@ -1772,11 +1772,32 @@ pre-existing test failures (`migrationRunner.test.ts`,
 once before in this codebase (`download.test.ts`'s own inline comment)
 and fixed here using that same established workaround convention. Full
 desktop suite, re-verified clean after all of the above: 130/130 files,
-1161/1161 tests, exit code 0. Also disclosed, deliberately not fixed
-this session: FormuLab's Settings UI and i18n strings across all 8
-locales still describe OpenCode as a currently-bundled, currently-live
-runtime — real, user-facing staleness, but out of this session's scope
-(frontend/product copy, not a byte-match-blocking issue). Full detail:
+1161/1161 tests, exit code 0. Also disclosed, then fixed within this
+same Session 2A at the user's request (see the follow-up paragraph
+immediately below): FormuLab's Settings UI and i18n strings across all
+8 locales still described OpenCode as a currently-bundled,
+currently-live runtime.
+
+**Follow-up within Session 2A: OpenCode UI/i18n staleness, fixed.** The
+real scope was larger than originally disclosed — not just Settings-page
+copy, but entire dead, unreferenced i18n namespaces confirmed via
+exhaustive grep against every component in `apps/desktop/src`:
+`settings.json`'s `page`/`runtime`/`providers`/`mcp` objects (a
+different, dead `runtime` key from the live `nav.runtime` = "Python"
+label, left untouched) plus two explicitly-OpenCode-named `toast.*`
+keys, `pages.json`'s entire `skills` object (no `SkillsPage.tsx`
+component exists), and `session.json`'s entire `live` object (the real
+`/live` route uses only `studio.*`/`builder.*`). Deleted identically
+across all 8 locales via a script that preserves the existing JSON
+formatting; removed the dead `OpenCodeCredentials` TS interface from
+`tauri.ts`; corrected `SettingsPage.tsx`'s misleading top comment and a
+stale test-setup comment. Did not restore the removed OpenCode binary,
+fetch script, sidecar, or backend integration — text/dead-code removal
+only. Verified: zero `opencode` matches left anywhere in
+`src/i18n/locales/`; focused tests 9 files/93 tests exit 0; i18n parity
+23/23; typecheck/lint clean; full desktop suite re-verified clean again,
+130/130 files, 1161/1161 tests, exit code 0; whole-tree identity scan
+re-run once more per the user's explicit instruction: `0`. Full detail:
 `docs/handoffs/PHASE12_CURRENT.md`'s Session 2A summary (updated) and
 `docs/PHASE12_TEST_MATRIX.md`.
 

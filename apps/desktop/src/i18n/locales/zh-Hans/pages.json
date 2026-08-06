@@ -56,47 +56,6 @@
       "openInDefaultApp": "用默认应用打开"
     }
   },
-  "skills": {
-    "title": "技能与代理",
-    "description": {
-      "prefix": "从 OpenCode 运行时实时加载——内置的 FormuLab 技能，以及您工作区中位于 ",
-      "suffix": " 下的所有内容。"
-    },
-    "install": {
-      "sectionTitle": "安装技能",
-      "placeholder": "粘贴一个技能（Markdown）或 GitHub URL — 代理会将其安装到 .opencode/skills/",
-      "starting": "正在启动…",
-      "cta": "使用代理安装",
-      "hintConnected": "将打开一个会话并让代理添加它（customize-opencode）。",
-      "hintDisconnected": "请先连接运行时。"
-    },
-    "environment": {
-      "sectionTitle": "科学计算环境",
-      "detectionUnavailable": "环境检测功能在桌面应用中运行。",
-      "found": "已找到",
-      "notFound": "未找到",
-      "note": "OpenCode 使用此处已安装的组件运行代码（例如通过其 shell 工具调用 Python）。Python/R/Jupyter 并未内置；请安装它们或安装 Science Pack 以启用分析功能。"
-    },
-    "agentsSection": {
-      "sectionTitle": "代理（{{count}}）",
-      "empty": "未报告任何代理。",
-      "agentMode": {
-        "primary": "主要",
-        "subagent": "子代理",
-        "all": "全部"
-      }
-    },
-    "skillsListSection": {
-      "sectionTitle": "技能（{{count}}）",
-      "empty": "尚未加载任何技能。",
-      "source": {
-        "builtin": "内置",
-        "project": "项目",
-        "user": "用户"
-      }
-    },
-    "disconnected": "连接运行时以列出其已加载的技能和代理。"
-  },
   "notFound": {
     "title": "404 — 未找到",
     "hint": "此页面不存在。",

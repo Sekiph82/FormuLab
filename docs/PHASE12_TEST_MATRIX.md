@@ -170,6 +170,29 @@ that same established `.rejects.toThrow(Error)` + manual try/catch
 convention). Full desktop suite, re-run a third time after this fix:
 **130/130 files, 1161/1161 tests, exit code 0**, genuinely clean.
 
+### Follow-up within Session 2A: OpenCode UI/i18n staleness — fixed
+
+Session 2A's own final scan disclosed FormuLab's Settings UI and i18n
+strings still describing OpenCode as bundled/live, flagged as a
+deliberately-unfixed, out-of-scope finding. The user asked for it to be
+fixed before Session 3, so it was fixed within this same Session 2A.
+Investigation found the real scope was larger than the original
+disclosure: not just Settings-page copy, but entire dead, unreferenced
+i18n namespaces across all 8 locales (`settings.json`'s `page`/
+`runtime`/`providers`/`mcp` objects plus two `toast.*` keys,
+`pages.json`'s `skills` object, `session.json`'s `live` object) —
+confirmed via exhaustive grep across `apps/desktop/src` that zero live
+components consume any of them. Deleted identically across all 8
+locales; removed the dead `OpenCodeCredentials` TS interface; corrected
+`SettingsPage.tsx`'s misleading top comment and a stale test-setup
+comment. Focused tests (i18n config/parity/format/index,
+`SettingsPage.i18n.test.tsx`, `thread.i18n.test.tsx`, help registry,
+tours, `tauri.test.ts`): **9 files, 93 tests, exit 0**. i18n parity,
+re-run standalone: **23/23**. Typecheck/lint: clean. Full desktop suite,
+re-run again as a regression check: **130/130 files, 1161/1161 tests,
+exit code 0**. Whole-tree identity scan, re-run per the user's explicit
+instruction after these text changes: `TOTAL BYTE-LEVEL OCCURRENCES: 0`.
+
 ## Planned per-session test discipline (Sessions 3-12, proportional)
 
 Renumbered in Session 2 to insert the previous-identity-eradication session ahead of

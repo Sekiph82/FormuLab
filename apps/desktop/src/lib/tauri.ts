@@ -4,13 +4,6 @@
 export const isTauri =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-export interface OpenCodeCredentials {
-  provider: string;
-  apiKey: string;
-  model: string;
-  baseUrl?: string;
-}
-
 export type ConfigureResult =
   | { ok: true; path: string }
   | { ok: false; reason: "not-desktop" }

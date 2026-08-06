@@ -99,49 +99,6 @@
       "description": "Cost-optimize a surfactant blend to a target active content, then write a report."
     }
   },
-  "live": {
-    "runtime": {
-      "title": "OpenCode runtime",
-      "bodyPrefix": "The desktop app runs a bundled OpenCode automatically. In the browser, start one with",
-      "bodySuffix": " and connect."
-    },
-    "connect": "Connect",
-    "subagentFallback": "a subagent",
-    "header": {
-      "expandSidebarAria": "Expand sidebar",
-      "expandSidebarTitle": "Expand sidebar ({{shortcut}})"
-    },
-    "filesToggle": {
-      "default": "Files",
-      "title": "Browse this session's folder beside the chat"
-    },
-    "runsToggle": {
-      "label": "Runs",
-      "title": "This session's experiment runs — beside the chat"
-    },
-    "notebook": {
-      "openTitle": "Open {{path}} — the agent works on this notebook in this session"
-    },
-    "connBadge": {
-      "title": "OpenCode · {{status}}",
-      "status": {
-        "ready": "ready",
-        "connecting": "connecting",
-        "error": "error",
-        "offline": "offline"
-      }
-    },
-    "status": {
-      "paused": "Paused — the agent needs your answer below",
-      "startingSession": "Starting the session in its folder…",
-      "retrying": "Provider error — retrying (attempt {{attempt}})",
-      "working": "Working…"
-    },
-    "placeholder": {
-      "disconnected": "Connect to chat",
-      "waiting": "Waiting for the reply…"
-    }
-  },
   "tool": {
     "status": {
       "pending": "Pending",

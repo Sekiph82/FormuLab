@@ -99,49 +99,6 @@
       "description": "Hedef bir aktif madde içeriğine göre bir surfaktan karışımını maliyet açısından optimize edin, ardından bir rapor yazın."
     }
   },
-  "live": {
-    "runtime": {
-      "title": "OpenCode çalışma zamanı",
-      "bodyPrefix": "Masaüstü uygulaması otomatik olarak paketlenmiş bir OpenCode çalıştırır. Tarayıcıda, şununla bir tane başlatın:",
-      "bodySuffix": " ve bağlanın."
-    },
-    "connect": "Bağlan",
-    "subagentFallback": "bir alt ajan",
-    "header": {
-      "expandSidebarAria": "Kenar çubuğunu genişlet",
-      "expandSidebarTitle": "Kenar çubuğunu genişlet ({{shortcut}})"
-    },
-    "filesToggle": {
-      "default": "Dosyalar",
-      "title": "Bu oturumun klasörüne sohbetin yanında göz atın"
-    },
-    "runsToggle": {
-      "label": "Çalıştırmalar",
-      "title": "Bu oturumun deney çalıştırmaları — sohbetin yanında"
-    },
-    "notebook": {
-      "openTitle": "{{path}} aç — ajan bu oturumda bu not defteri üzerinde çalışır"
-    },
-    "connBadge": {
-      "title": "OpenCode · {{status}}",
-      "status": {
-        "ready": "hazır",
-        "connecting": "bağlanıyor",
-        "error": "hata",
-        "offline": "çevrimdışı"
-      }
-    },
-    "status": {
-      "paused": "Duraklatıldı — ajan aşağıda cevabınızı bekliyor",
-      "startingSession": "Oturum kendi klasöründe başlatılıyor…",
-      "retrying": "Sağlayıcı hatası — yeniden deneniyor (deneme {{attempt}})",
-      "working": "Çalışıyor…"
-    },
-    "placeholder": {
-      "disconnected": "Sohbet etmek için bağlanın",
-      "waiting": "Yanıt bekleniyor…"
-    }
-  },
   "tool": {
     "status": {
       "pending": "Beklemede",
