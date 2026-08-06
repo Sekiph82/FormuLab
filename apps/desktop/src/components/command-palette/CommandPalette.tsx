@@ -4,16 +4,15 @@ import { Command } from "cmdk";
 import { useNavigate } from "react-router-dom";
 import {
   FileSearch,
+  FileText,
+  HelpCircle,
   Moon,
   NotebookPen,
-  PackagePlus,
   Plus,
   Settings,
-  ShieldCheck,
 } from "lucide-react";
 import { useUiStore } from "@/lib/store";
-import { useRuntimeStore } from "@/lib/runtime";
-import { WORKFLOW_STARTERS } from "@/components/thread/WorkflowStarters";
+import { useHelpStore } from "@/lib/help/store";
 
 interface Action {
   id: string;
@@ -22,14 +21,13 @@ interface Action {
   run: () => void;
 }
 
-/** Prompt for a starter workflow by id, so ⌘K and the empty-session cards stay in sync. */
-const starterPrompt = (id: string) => WORKFLOW_STARTERS.find((s) => s.id === id)?.prompt ?? "";
 
 export function CommandPalette() {
   const { t } = useTranslation("nav");
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
+  const openHelpCenter = useHelpStore((s) => s.openCenter);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,22 +49,14 @@ export function CommandPalette() {
 
   const close = () => setOpen(false);
 
-  // Start a new session and send a workflow prompt, then reveal that session.
-  const runWorkflow = async (starterId: string) => {
-    close();
-    useRuntimeStore.getState().startDraft();
-    const id = await useRuntimeStore.getState().sendPrompt(starterPrompt(starterId));
-    if (id) navigate(`/live/${id}`);
-  };
-
   const actions: Action[] = [
-    { id: "new", label: t("commandPalette.actions.newSession"), icon: <Plus size={16} />, run: () => { useRuntimeStore.getState().startDraft(); navigate("/live"); close(); } },
-    { id: "analyze", label: t("commandPalette.actions.analyzeData"), icon: <FileSearch size={16} />, run: () => void runWorkflow("analyze") },
-    { id: "review", label: t("commandPalette.actions.auditReport"), icon: <ShieldCheck size={16} />, run: () => void runWorkflow("audit") },
+    { id: "new", label: t("commandPalette.actions.newSession"), icon: <Plus size={16} />, run: () => { navigate("/live"); close(); } },
+    { id: "files", label: t("commandPalette.actions.openFiles"), icon: <FileSearch size={16} />, run: () => { navigate("/files"); close(); } },
     { id: "notebooks", label: t("commandPalette.actions.openNotebooks"), icon: <NotebookPen size={16} />, run: () => { navigate("/notebooks"); close(); } },
-    { id: "skills", label: t("commandPalette.actions.manageSkills"), icon: <PackagePlus size={16} />, run: () => { navigate("/skills"); close(); } },
     { id: "settings", label: t("commandPalette.actions.openSettings"), icon: <Settings size={16} />, run: () => { navigate("/settings"); close(); } },
     { id: "theme", label: t("commandPalette.actions.toggleTheme"), icon: <Moon size={16} />, run: () => { toggleTheme(); close(); } },
+    { id: "help", label: t("commandPalette.actions.searchHelp"), icon: <HelpCircle size={16} />, run: () => { close(); openHelpCenter(); } },
+    { id: "guide", label: t("commandPalette.actions.openGuide"), icon: <FileText size={16} />, run: () => { navigate("/guide"); close(); } },
   ];
 
   if (!open) return null;

@@ -1,5 +1,5 @@
 // Detects which scientific/runtime tools are available on the user's system.
-// AI4S Workbench does not bundle Python/R/Jupyter; OpenCode's shell tool uses whatever
+// FormuLab does not bundle Python/R/Jupyter; OpenCode's shell tool uses whatever
 // is installed. This surfaces that to the UI honestly.
 use serde::Serialize;
 
@@ -14,12 +14,12 @@ fn probe(name: &str, bin: &str, version_arg: &str) -> ToolStatus {
     // Search the SAME enriched PATH the kernel and the agent's shell run
     // under — a GUI-launched app has a minimal PATH, and probing with it
     // misreported the user's anaconda/homebrew tools as missing.
-    let path = Some(crate::runtime::enriched_path());
+    let path = Some(crate::workspace::enriched_path());
     probe_with_path(name, bin, version_arg, path.as_deref())
 }
 
 fn probe_with_path(name: &str, bin: &str, version_arg: &str, path: Option<&str>) -> ToolStatus {
-    let mut cmd = crate::runtime::quiet_command(bin);
+    let mut cmd = crate::workspace::quiet_command(bin);
     cmd.arg(version_arg);
     if let Some(p) = path {
         cmd.env("PATH", p);
@@ -44,6 +44,11 @@ fn probe_with_path(name: &str, bin: &str, version_arg: &str, path: Option<&str>)
 
 #[cfg(test)]
 mod tests {
+    // Both tests below are `#[cfg(unix)]` (they `chmod` a shell-script fixture
+    // executable, which has no Windows equivalent), so on a non-unix target
+    // nothing in this module uses `super::*` — gate the import the same way
+    // rather than leaving a platform-conditional unused-import warning.
+    #[cfg(unix)]
     use super::*;
 
     // A Finder-launched app has a minimal PATH, so probing with the plain

@@ -1,12 +1,12 @@
 [package]
-name = "ai4s-workbench"
+name = "formulab"
 version = "0.4.0"
 description = "FormuLab Desktop"
-authors = ["AI4S Workbench contributors"]
+authors = ["FormuLab contributors"]
 edition = "2021"
 
 [lib]
-name = "ai4s_workbench_lib"
+name = "formulab_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -29,6 +29,17 @@ getrandom = "0.4.3"
 opener = { version = "0.8.5", features = ["reveal"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "native-tls"] }
+# Attachment checksums (spec: "checksum retained") — copied-in laboratory /
+# stability evidence files are hashed at copy time, not trusted from the
+# renderer.
+sha2 = "0.10"
+# Phase 11: portable .formulab-backup package format (ZIP container).
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Phase 11: free-disk-space check before staging a backup/restore.
+fs4 = "0.9"
+# Phase 11 Session 5: redaction (usernames in paths, token/key-like
+# strings) for the diagnostics support bundle.
+regex = "1"
 
 # Already in the tree via tao — used to re-pin the traffic lights (src/macos.rs).
 [target.'cfg(target_os = "macos")'.dependencies]

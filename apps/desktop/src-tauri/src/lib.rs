@@ -1,25 +1,31 @@
-// AI4S Workbench — Tauri 2 entry. Hosts the React frontend and supervises the
+// FormuLab — Tauri 2 entry. Hosts the React frontend and supervises the
 // bundled OpenCode sidecar (isolated config/data + dedicated port; killed on exit).
 mod artifact_file;
+mod attachments;
+mod automatic_backup;
+mod backup;
+mod data_location_manager;
+mod data_root;
 mod debug_log;
-mod examples;
+mod diagnostics;
 mod formulation;
+mod formulation_advanced;
+mod formulation_v2;
+mod formulations;
+mod masterdata;
+mod materials;
+mod migration;
 mod git_snapshot;
-mod goal;
-mod harness;
 mod compute;
 mod jupyter;
 mod kernel;
 mod large_file;
 mod modal;
-mod opencode_config;
 mod preview_server;
-mod project;
 mod provenance;
 mod runs;
 mod runs_index;
-mod runtime;
-mod science_mcp;
+mod workspace;
 mod tools;
 #[cfg(target_os = "macos")]
 mod macos;
@@ -30,7 +36,6 @@ use jupyter::JupyterState;
 use kernel::KernelState;
 use preview_server::PreviewState;
 use provenance::ProvenanceState;
-use runtime::RuntimeState;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -49,12 +54,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
-        .manage(RuntimeState::default())
         .manage(KernelState::default())
         .manage(JupyterState::default())
         .manage(PreviewState::default())
         .manage(ProvenanceState::default())
         .manage(runs::RunState::default())
+        .manage(formulation_advanced::AdvancedOptimizerState::default())
+        .manage(backup::BackupState::default())
         // The transparent + vibrancy window loses tao's traffic-light inset on
         // some machines (tao only re-applies it from drawRect). Re-pin on the
         // events that cover launch, resize, and the in-app theme switch.
@@ -70,52 +76,57 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            runtime::start_runtime,
-            runtime::runtime_password,
-            runtime::stop_runtime,
-            runtime::workspace_path,
-            runtime::workspace_base,
-            runtime::set_workspace_base,
-            runtime::open_workspace_base,
-            runtime::set_workspace,
-            runtime::mark_session,
-            runtime::new_dated_workspace,
-            goal::goal_state,
-            goal::goal_update,
-            project::create_project,
-            project::import_project,
-            project::list_projects,
-            project::rename_project,
-            project::set_project_pinned,
-            project::delete_project,
-            project::open_project_folder,
-            runtime::pick_folder,
-            runtime::import_opencode_login,
-            runtime::provider_auth_exists,
-            runtime::remove_config_entry,
+            workspace::workspace_path,
+            workspace::workspace_base,
+            workspace::set_workspace_base,
+            workspace::open_workspace_base,
+            workspace::pick_folder,
+            workspace::pick_file,
             jupyter::jupyter_status,
             jupyter::setup_jupyter,
             jupyter::start_jupyter,
-            runtime::configure_opencode,
-            runtime::get_approval_mode,
-            runtime::set_approval_mode,
-            runtime::get_proxy_setting,
-            runtime::set_proxy_setting,
-            runtime::get_mirror_setting,
-            runtime::set_mirror_setting,
             kernel::kernel_execute,
             kernel::kernel_reset,
             kernel::python_interpreter,
             kernel::set_python_path,
             formulation::run_formulation_optimize,
+            formulation_advanced::run_advanced_formulation_optimize,
+            formulation_advanced::cancel_advanced_formulation_optimize,
+            formulation_v2::generate_formulation,
+            formulation_v2::list_sessions,
+            formulation_v2::read_session,
+            formulation_v2::delete_session,
+            materials::import_materials,
+            materials::list_materials,
+            materials::cost_formulation,
+            formulations::list_formulations,
+            formulations::read_formulation,
+            formulations::save_formulation,
+            formulations::save_formulation_version,
+            formulations::delete_formulation,
+            formulations::read_formulation_draft,
+            formulations::save_formulation_draft,
+            formulations::discard_formulation_draft,
+            formulations::save_approval_record,
+            formulations::list_approval_records,
+            formulations::append_audit_event,
+            formulations::read_audit_log,
+            attachments::copy_attachment_into_project,
+            attachments::open_attachment,
+            masterdata::list_master_records,
+            masterdata::upsert_master_records,
+            masterdata::delete_master_record,
+            masterdata::backup_master_collection,
+            masterdata::list_master_collections,
+            masterdata::write_master_collection_raw,
             artifact_file::read_artifact,
             artifact_file::open_path,
             artifact_file::reveal_path,
             artifact_file::absolute_path,
             artifact_file::resolve_artifact,
             artifact_file::save_text_file,
+            artifact_file::save_binary_file,
             artifact_file::open_url,
-            artifact_file::add_files_to_workspace,
             artifact_file::add_text_to_workspace,
             artifact_file::list_notebooks,
             artifact_file::list_dir,
@@ -127,10 +138,6 @@ pub fn run() {
             runs::list_runs,
             runs::read_run_log,
             runs_index::query_runs_cmd,
-            science_mcp::science_mcp_python,
-            science_mcp::setup_science_mcp,
-            examples::install_example,
-            git_snapshot::commit_workspace_snapshot,
             compute::list_ssh_hosts,
             compute::compute_machines,
             compute::add_compute_machine,
@@ -142,18 +149,49 @@ pub fn run() {
             preview_server::preview_url,
             large_file::probe_large_file,
             tools::detect_tools,
-            updates::latest_release,
-            debug_log::log_debug
+            updates::check_for_update,
+            debug_log::log_debug,
+            backup::create_backup,
+            backup::cancel_backup,
+            backup::pick_backup_destination,
+            backup::inspect_backup,
+            backup::restore_backup,
+            backup::cancel_restore,
+            backup::verify_backup,
+            automatic_backup::read_automatic_backup_state,
+            automatic_backup::write_automatic_backup_config,
+            automatic_backup::run_automatic_backup,
+            automatic_backup::apply_pre_migration_retention,
+            automatic_backup::open_automatic_backup_destination,
+            migration::read_schema_meta,
+            migration::write_schema_meta,
+            migration::check_schema_compatibility,
+            migration::append_migration_journal,
+            migration::read_migration_journal,
+            migration::create_pre_migration_backup,
+            data_root::active_data_root_status,
+            data_root::open_active_data_root,
+            data_location_manager::validate_data_move_destination,
+            data_location_manager::move_data_location,
+            data_location_manager::cancel_data_move,
+            data_location_manager::use_existing_data_location,
+            data_location_manager::restore_default_data_location,
+            data_location_manager::check_interrupted_data_move,
+            data_location_manager::resume_interrupted_data_move,
+            data_location_manager::cleanup_old_data_location,
+            diagnostics::diagnostics_summary,
+            diagnostics::export_support_bundle,
+            diagnostics::pick_support_bundle_destination,
+            diagnostics::open_log_folder
         ])
         .build(tauri::generate_context!())
-        .expect("error while building AI4S Workbench")
+        .expect("error while building FormuLab")
         .run(|app, event| {
             // Clean up on exit. macOS Cmd+Q / Quit terminates via RunEvent::Exit
             // (ExitRequested is not always delivered), so handle BOTH — otherwise
             // the OpenCode sidecar / kernel / Jupyter orphan on every quit. The
             // cleanup is idempotent, so running on both is safe.
             if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
-                runtime::kill_child(&app.state::<RuntimeState>());
                 kernel::kill_kernel(&app.state::<KernelState>());
                 jupyter::kill_jupyter(&app.state::<JupyterState>());
             }

@@ -1,0 +1,72 @@
+{
+  "title": "Çalıştırmalar",
+  "description": {
+    "prefix": "Tüm oturumlardaki her deney çalıştırması — komut, kod sürümü, ortam, donanım ve çıktılar. ",
+    "suffix": " yeniden çalıştırır ve sonuçları karşılaştırır."
+  },
+  "pane": {
+    "subtitle": "bu oturum",
+    "closeAria": "Çalıştırmaları kapat"
+  },
+  "searchPlaceholder": "Komut veya çıktı yolu ara…",
+  "filter": {
+    "ok": "Tamam",
+    "failed": "Başarısız",
+    "anytime": "Herhangi bir zaman",
+    "clear": "Temizle"
+  },
+  "loading": "Çalıştırmalar yükleniyor…",
+  "loadingMore": "Daha fazla yükleniyor…",
+  "empty": {
+    "title": "Henüz kayıtlı çalıştırma yok",
+    "bodyPrefix": "Ajan kod çalıştırdığında (örn. ",
+    "bodyExample": "python train.py",
+    "bodySuffix": "), her çalıştırma yeniden üretilebilirlik bilgisiyle birlikte burada kaydedilir.",
+    "noMatch": "Filtrelerinize uyan çalıştırma yok."
+  },
+  "status": {
+    "succeeded": "Başarılı",
+    "failed": "Başarısız"
+  },
+  "hardware": {
+    "title": "Bu çalıştırmanın çalıştığı donanım",
+    "remoteTitle": "Bu çalıştırmanın çalıştığı uzak donanım",
+    "packageCount_one": "{{count}} paket",
+    "packageCount_other": "{{count}} paket"
+  },
+  "host": {
+    "title": "Küme sunucusu / Modal uygulaması",
+    "jobLabel": "iş"
+  },
+  "action": {
+    "reproduce": "Yeniden üret",
+    "reproduceTitle": "Bu komutu yeniden çalıştırıp çıktıları karşılaştıran bir istem taslağı oluştur",
+    "log": "Günlük",
+    "logTitle": "Yakalanan stdout/stderr'i görüntüle",
+    "openConversation": "Konuşmayı aç",
+    "openConversationTitle": "Bu çalıştırmanın geldiği konuşmayı aç",
+    "copyCommand": "Komutu kopyala",
+    "copied": "Kopyalandı",
+    "copyTitle": "Komutu kopyala"
+  },
+  "files": {
+    "code": "Kod",
+    "outputs": "Çıktılar",
+    "openTitle": "Bu çıktı dosyasını aç"
+  },
+  "remote": {
+    "hpcLabel": "bir HPC kümesi",
+    "outputsNotCaptured": "{{surface}} üzerinde çalıştı — çıktılar bu makinenin dışında ve yerel olarak yakalanmadı."
+  },
+  "log": {
+    "header": "stdout / stderr",
+    "loading": "Yükleniyor…"
+  },
+  "relative": {
+    "today": "Bugün",
+    "yesterday": "Dün",
+    "justNow": "az önce",
+    "minutesAgo": "{{count}} dk önce",
+    "hoursAgo": "{{count}} sa önce"
+  }
+}

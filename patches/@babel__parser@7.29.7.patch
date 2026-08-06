@@ -1,0 +1,15 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+deleted file mode 100644
+index b3840ac8d0ac588ea7a2483c29acb58929a7536e..0000000000000000000000000000000000000000
+diff --git a/lib/index.js b/lib/index.js
+index a7c46672efaa5b5cd3d14ce4e418cfa0736ae15f..c2de47f2b1df43a595a2079e58c3924399f1a1ff 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -14596,4 +14596,3 @@ function getParserClass(pluginsMap) {
+ exports.parse = parse;
+ exports.parseExpression = parseExpression;
+ exports.tokTypes = tokTypes;
+-//# sourceMappingURL=index.js.map
+diff --git a/lib/index.js.map b/lib/index.js.map
+deleted file mode 100644
+index b3d52258ce2c7bc12cefd9df51700942d417530c..0000000000000000000000000000000000000000

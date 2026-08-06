@@ -1,0 +1,54 @@
+﻿FormuLab
+FormuLab - Web content
+BETA
+Collapse sidebar
+New
+WORKSPACES
+Home
+Projects
+Formulation
+Laboratory
+Stability
+Optimization
+Regulatory
+Dossiers
+Approval
+Reports
+Administration
+TOOLS
+Notebooks
+Files
+Runs
+SESSIONS
+gum health protective toothpaste 3
+anti-dandruff shampoo for sensitive scalp 3
+Delete anti-dandruff shampoo for sensitive scalp
+sensitive skin body wash 3
+anti-dandruff shampoo 3
+gentle baby shampoo 2
+laundry detergent for white clothes 3
+Settings
+Current reportable information, organized by module. Full PDF/DOCX report generation is a later phase — not available yet.
+Formula reportsPer-version JSON export, from the Formulation workspace's Versions tab.Open
+Formula reports
+Per-version JSON export, from the Formulation workspace's Versions tab.
+Open
+Trial reportsPer-trial JSON export, from the Laboratory workspace.Open
+Trial reports
+Per-trial JSON export, from the Laboratory workspace.
+Stability reportsStudy/trend export, from the Stability workspace.Open
+Stability reports
+Study/trend export, from the Stability workspace.
+Regulatory summariesRule and finding export (JSON/CSV/Excel), from the Regulatory workspace.Open
+Regulatory summaries
+Rule and finding export (JSON/CSV/Excel), from the Regulatory workspace.
+Regulatory dossier reportsDossier JSON export and evidence-matrix CSV/Excel export, from a dossier's Evidence Library. Final formatted PDF/DOCX dossier export: not yet implemented.Open
+Regulatory dossier reports
+Dossier JSON export and evidence-matrix CSV/Excel export, from a dossier's Evidence Library. Final formatted PDF/DOCX dossier export: not yet implemented.
+Approval recordsDecision history and approval snapshots, from the Approval workspace.Open
+Approval records
+Decision history and approval snapshots, from the Approval workspace.
+Audit reportsNo dedicated audit-log report view yet — per-project decision history is visible in the Approval workspace.Not yet implemented
+Audit reports
+No dedicated audit-log report view yet — per-project decision history is visible in the Approval workspace.
+A dedicated report-generation engine (PDF/DOCX, formatted for print) is planned for a later phase. Today, each module below provides its own JSON/CSV/Excel export where noted.

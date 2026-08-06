@@ -1,0 +1,3 @@
+dossier_code,requirement_code,evidence_code,evidence_type,document_type,title,document_number,issuer,issue_date,expiry_date,language,file_name,source_entity_code,status,notes
+DOS-MRYYTDFN,KE-REG-999:KE,TEST-EVID-BADREQ,other,regulatory_declaration,TEST bad requirement row,DECL-999,TEST QA,2026-07-30,,en,test-badreq.pdf,,,Synthetic test row - bad requirement_code.
+DOS-MRYYTDFN,KE-REG-001:KE,TEST-EVID-RESUME-001,other,regulatory_declaration,TEST net-contents declaration (resume segment),DECL-100,TEST QA,2026-07-30,,en,test-declaration-resume.pdf,,,Synthetic test row.

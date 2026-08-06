@@ -45,7 +45,7 @@ fn run_core(
     script: &PathBuf,
     input_json: &str,
 ) -> Result<Result<serde_json::Value, String>, String> {
-    let mut cmd = crate::runtime::quiet_command(python);
+    let mut cmd = crate::workspace::quiet_command(python);
     cmd.arg(script)
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8")
@@ -77,8 +77,10 @@ fn run_core(
     }
 }
 
-/// Does the parsed result signal a missing solver dependency (PuLP)?
-fn is_missing_solver(value: &serde_json::Value) -> bool {
+/// Does the parsed result signal a missing solver dependency (PuLP)? Shared
+/// with `formulation_advanced.rs` — both scripts report the same message on
+/// a missing `pulp` import.
+pub(crate) fn is_missing_solver(value: &serde_json::Value) -> bool {
     value.get("status").and_then(|s| s.as_str()) == Some("error")
         && value
             .get("message")
@@ -88,8 +90,9 @@ fn is_missing_solver(value: &serde_json::Value) -> bool {
 }
 
 /// Install `pulp<4` into the resolved interpreter via the bundled uv. Pinned
-/// below 4.0 so the core's PULP_CBC_CMD / bundled CBC keep working.
-async fn install_pulp(app: &AppHandle, python: &str) -> Result<(), String> {
+/// below 4.0 so the core's PULP_CBC_CMD / bundled CBC keep working. Shared
+/// with `formulation_advanced.rs`.
+pub(crate) async fn install_pulp(app: &AppHandle, python: &str) -> Result<(), String> {
     let args = vec![
         "pip".to_string(),
         "install".to_string(),

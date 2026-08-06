@@ -8,6 +8,7 @@ import type enSession from "./locales/en/session.json";
 import type enInspector from "./locales/en/inspector.json";
 import type enErrors from "./locales/en/errors.json";
 import type enPages from "./locales/en/pages.json";
+import type enHelp from "./locales/en/help.json";
 
 declare module "i18next" {
   interface CustomTypeOptions {
@@ -21,6 +22,7 @@ declare module "i18next" {
       inspector: typeof enInspector;
       errors: typeof enErrors;
       pages: typeof enPages;
+      help: typeof enHelp;
     };
   }
 }

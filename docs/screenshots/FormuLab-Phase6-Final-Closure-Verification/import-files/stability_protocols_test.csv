@@ -1,0 +1,3 @@
+﻿protocol_code,protocol_name,product_family_code,packaging_sku_code,condition_code,temperature,humidity,light_condition,orientation,time_point,time_unit,test_code,sample_quantity,acceptance_criteria,active,notes
+STUDY-mryylrsx-xnb5g1,,,,99C,,,,,2WK,,TEST-VISCOSITY,,,,
+STUDY-mryylrsx-xnb5g1,,,,25C,,,,,2WK,,TEST-VISCOSITY,,,,Synthetic test row.

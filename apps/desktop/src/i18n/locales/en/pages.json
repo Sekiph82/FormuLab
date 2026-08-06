@@ -67,7 +67,10 @@
       "stopLabel": "Stop",
       "runLabel": "Run",
       "addCellLabel": "Add cell"
-    }
+    },
+    "setUpJupyter": "Set up Jupyter",
+    "settingUpJupyter": "Setting up…",
+    "setUpJupyterTitle": "Download and install an isolated Jupyter environment"
   },
   "files": {
     "loading": "Loading…",
@@ -84,47 +87,6 @@
       "relativePathLabel": "Relative path",
       "openInDefaultApp": "Open in default app"
     }
-  },
-  "skills": {
-    "title": "Skills & Agents",
-    "description": {
-      "prefix": "Loaded live from the OpenCode runtime — the bundled ai4s-skills pack plus anything under ",
-      "suffix": " in your workspace."
-    },
-    "install": {
-      "sectionTitle": "Install a skill",
-      "placeholder": "Paste a skill (Markdown) or a GitHub URL — the agent installs it into .opencode/skills/",
-      "starting": "Starting…",
-      "cta": "Install with agent",
-      "hintConnected": "Opens a session and asks the agent to add it (customize-opencode).",
-      "hintDisconnected": "Connect the runtime first."
-    },
-    "environment": {
-      "sectionTitle": "Scientific environment",
-      "detectionUnavailable": "Environment detection runs in the desktop app.",
-      "found": "found",
-      "notFound": "not found",
-      "note": "OpenCode runs code with whatever is installed here (e.g. Python via its shell tool). Python/R/Jupyter are not bundled; install them or a Science Pack to enable analysis."
-    },
-    "agentsSection": {
-      "sectionTitle": "Agents ({{count}})",
-      "empty": "No agents reported.",
-      "agentMode": {
-        "primary": "primary",
-        "subagent": "subagent",
-        "all": "all"
-      }
-    },
-    "skillsListSection": {
-      "sectionTitle": "Skills ({{count}})",
-      "empty": "No skills loaded yet.",
-      "source": {
-        "builtin": "built-in",
-        "project": "project",
-        "user": "user"
-      }
-    },
-    "disconnected": "Connect the runtime to list the skills and agents it has loaded."
   },
   "notFound": {
     "title": "404 — Not found",

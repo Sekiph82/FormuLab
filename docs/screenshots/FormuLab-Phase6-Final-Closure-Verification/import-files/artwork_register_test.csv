@@ -1,0 +1,3 @@
+artwork_code,label_code,label_revision,file_name,format,width,height,dimension_unit,color_mode,languages,status,created_by,created_at,supersedes_artwork_code,notes
+TEST-ART-BADSTATUS,LBL-MRZ04D2X,1,,AI,180,60,mm,CMYK,en,approved,Test Designer,2026-07-30T00:00:00.000Z,,Synthetic test row - bad status (approved not allowed on import).
+TEST-ART-RESUME-001,LBL-MRZ04D2X,1,,AI,180,60,mm,CMYK,en,draft,Test Designer,2026-07-30T00:00:00.000Z,,Synthetic test row.

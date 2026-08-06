@@ -12,17 +12,13 @@ import {
   Loader2,
   NotebookPen,
   Sheet,
-  X,
 } from "lucide-react";
 import { extOf, extToKind, previewKindForName, type PreviewKind } from "@/lib/artifacts";
-import { listDir, type DirEntry } from "@/lib/artifactFile";
-import { isTauri, workspaceBase } from "@/lib/tauri";
-import { useRuntimeStore } from "@/lib/runtime";
-import { baseName } from "@/components/thread/WorkspaceChip";
+import { listDir, type DirEntry, type FileRoot } from "@/lib/artifactFile";
+import { isTauri } from "@/lib/tauri";
 import { NotebookEditor } from "@/components/notebook/NotebookEditor";
 import { FilePreviewInspector } from "@/components/inspector/FilePreviewInspector";
 import { FileContextMenu } from "@/components/files/FileContextMenu";
-import { PaneTitlebarInset } from "@/components/inspector/RightPane";
 import { cn } from "@/lib/cn";
 
 const EXT_LANG: Record<string, string> = {
@@ -50,29 +46,30 @@ function humanSize(n: number): string {
 }
 
 /**
- * GLOBAL file explorer: browses from the base folder (Settings → Workspace),
- * which holds every session's dated folder — not the active session only.
- * Directories are navigable via a breadcrumb; files open in the same viewers
- * used elsewhere (figures, tables, PDF, molecule, genome tracks, notebooks),
- * so all past work is reachable in one place.
+ * File explorer for everything the app produces: `data/` (sessions and the
+ * shared literature cache) and `formulas/` (the formula library). Directories
+ * are navigable via a breadcrumb; files open in the same viewers used elsewhere
+ * (figures, tables, PDF, notebooks), so past work is reachable in one place.
  */
+/** The two folders a run produces — the whole of what the app writes. */
+const ROOTS = [
+  { id: "data" as const, label: "Data" },
+  { id: "formulas" as const, label: "Formulas" },
+];
+
 export function FilesPage() {
   const { t } = useTranslation(["pages", "common"]);
-  const [dir, setDir] = useState(""); // base-relative; "" = the base folder
+  const [root, setRoot] = useState<FileRoot>("data");
+  const [dir, setDir] = useState(""); // root-relative; "" = the root folder
   const [entries, setEntries] = useState<DirEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<DirEntry | null>(null);
-  // The base folder's path, for the root crumb (name + full path on hover).
-  const [basePath, setBasePath] = useState<string | null>(null);
-  useEffect(() => {
-    void workspaceBase().then(setBasePath).catch(() => {});
-  }, []);
 
-  const load = useCallback(async (rel: string) => {
+  const load = useCallback(async (rel: string, scope: FileRoot) => {
     setEntries(null);
     setError(null);
     try {
-      setEntries(await listDir(rel, "base"));
+      setEntries(await listDir(rel, scope));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setEntries([]);
@@ -80,8 +77,15 @@ export function FilesPage() {
   }, []);
 
   useEffect(() => {
-    void load(dir);
-  }, [dir, load]);
+    void load(dir, root);
+  }, [dir, root, load]);
+
+  // Switching folders starts at that folder's top level.
+  const switchRoot = (next: FileRoot) => {
+    setRoot(next);
+    setDir("");
+    setSelected(null);
+  };
 
   const open = (entry: DirEntry) => {
     if (entry.isDir) {
@@ -97,13 +101,28 @@ export function FilesPage() {
   return (
     <div className="flex h-full min-h-0">
       <div className="flex w-72 shrink-0 flex-col border-r border-border">
+        <div className="flex gap-1 border-b border-border px-2 pt-2">
+          {ROOTS.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => switchRoot(r.id)}
+              className={cn(
+                "rounded-t-input border-b-2 px-3 py-1.5 text-xs font-medium transition-colors",
+                root === r.id
+                  ? "border-accent text-text"
+                  : "border-transparent text-muted hover:text-text",
+              )}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-3 py-2.5 text-[13px]">
           <button
             className={cn("rounded px-1 hover:bg-surface-2", dir ? "text-link" : "font-medium text-text")}
             onClick={() => setDir("")}
-            title={basePath ?? undefined}
           >
-            {baseName(basePath)}
+            {root}
           </button>
           {crumbs.map((part, i) => {
             const to = crumbs.slice(0, i + 1).join("/");
@@ -135,7 +154,7 @@ export function FilesPage() {
             </div>
           )}
           {entries?.map((entry) => (
-            <FileContextMenu key={entry.path} entry={entry} root="base">
+            <FileContextMenu key={entry.path} entry={entry} root={root}>
               <button
                 onClick={() => open(entry)}
                 className={cn(
@@ -155,7 +174,7 @@ export function FilesPage() {
 
       <div className="min-h-0 flex-1">
         {selected ? (
-          <FilePreview key={selected.path} entry={selected} root="base" onClose={() => setSelected(null)} />
+          <FilePreview key={selected.path} entry={selected} root={root} onClose={() => setSelected(null)} />
         ) : (
           <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted">
             {t("files.selectFilePrompt")}
@@ -173,7 +192,7 @@ function FilePreview({
   controls,
 }: {
   entry: DirEntry;
-  root: "workspace" | "base";
+  root: FileRoot;
   onClose: () => void;
   controls?: React.ReactNode;
 }) {
@@ -203,119 +222,3 @@ function FilePreview({
  * the Files page itself is global). Clicking a file swaps the pane to its
  * preview; closing the preview returns to the list.
  */
-export function SessionFilesPane({
-  onClose,
-  controls,
-}: {
-  onClose: () => void;
-  /** Pane-level header buttons (e.g. maximize), rendered before Close. */
-  controls?: React.ReactNode;
-}) {
-  const { t } = useTranslation(["pages", "common"]);
-  const workspace = useRuntimeStore((s) => s.workspace);
-  const [dir, setDir] = useState("");
-  const [entries, setEntries] = useState<DirEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<DirEntry | null>(null);
-
-  // A session switch moves the active folder — restart at its root.
-  useEffect(() => {
-    setSelected(null);
-    setDir("");
-  }, [workspace]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setEntries(null);
-    setError(null);
-    listDir(dir, "workspace")
-      .then((e) => {
-        if (!cancelled) setEntries(e);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e));
-          setEntries([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [dir, workspace]);
-
-  if (selected) {
-    return (
-      <FilePreview
-        entry={selected}
-        root="workspace"
-        onClose={() => setSelected(null)}
-        controls={controls}
-      />
-    );
-  }
-
-  const crumbs = dir ? dir.split("/") : [];
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-        <PaneTitlebarInset />
-        <Folder size={14} strokeWidth={1.5} className="shrink-0 text-text" />
-        <span className="truncate text-sm font-medium text-text" title={workspace ?? undefined}>
-          {baseName(workspace)}
-        </span>
-        <span className="text-xs text-muted">{t("files.pane.subtitle")}</span>
-        <div className="flex-1" />
-        {controls}
-        <button className="text-text hover:opacity-60" aria-label={t("files.pane.closeAria")} onClick={onClose}>
-          <X size={14} strokeWidth={1.5} />
-        </button>
-      </div>
-      {crumbs.length > 0 && (
-        <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-3 py-2 text-[12px]">
-          <button className="rounded px-1 text-link hover:bg-surface-2" onClick={() => setDir("")}>
-            {baseName(workspace)}
-          </button>
-          {crumbs.map((part, i) => {
-            const to = crumbs.slice(0, i + 1).join("/");
-            const isLast = i === crumbs.length - 1;
-            return (
-              <span key={to} className="flex items-center gap-0.5">
-                <ChevronRight size={12} className="text-muted" />
-                <button
-                  className={cn("rounded px-1 hover:bg-surface-2", isLast ? "font-medium text-text" : "text-link")}
-                  onClick={() => setDir(to)}
-                >
-                  {part}
-                </button>
-              </span>
-            );
-          })}
-        </div>
-      )}
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {entries === null && (
-          <div className="flex items-center gap-2 p-2 text-sm text-muted">
-            <Loader2 size={14} className="animate-spin" /> {t("files.loading")}
-          </div>
-        )}
-        {error && <div className="p-2 text-sm text-error">{error}</div>}
-        {entries && entries.length === 0 && !error && (
-          <div className="p-2 text-sm text-muted">{t("files.folderEmpty")}</div>
-        )}
-        {entries?.map((entry) => (
-          <FileContextMenu key={entry.path} entry={entry} root="workspace">
-            <button
-              onClick={() => (entry.isDir ? setDir(entry.path) : setSelected(entry))}
-              className="flex w-full items-center gap-2 rounded-input px-2 py-1.5 text-left text-[13px] text-text/90 hover:bg-surface-2"
-            >
-              {iconFor(entry)}
-              <span className="flex-1 truncate">{entry.name}</span>
-              {!entry.isDir && <span className="shrink-0 text-[11px] text-muted">{humanSize(entry.size)}</span>}
-              {entry.isDir && <ChevronRight size={14} className="shrink-0 text-muted" />}
-            </button>
-          </FileContextMenu>
-        ))}
-      </div>
-    </div>
-  );
-}

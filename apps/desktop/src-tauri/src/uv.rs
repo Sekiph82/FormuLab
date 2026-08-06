@@ -56,7 +56,7 @@ pub async fn run_uv(
     // download of the managed Python (github.com) and wheels (pypi.org) ignores
     // the user's configured proxy and mirrors and can hang or fail on restricted
     // networks (see runtime::uv_network_env).
-    for (k, v) in crate::runtime::uv_network_env(app) {
+    for (k, v) in crate::workspace::uv_network_env(app) {
         cmd = cmd.env(k, v);
     }
     let (mut rx, child) = cmd

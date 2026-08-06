@@ -1,0 +1,4 @@
+﻿study_code,sample_code,formula_version,packaging_sku_code,condition_code,time_point,test_code,numeric_value,text_value,unit,result_date,analyst,status,observation,notes
+STUDY-mryylrsx-xnb5g1,STUDY-BOGUS-SAMPLE,,,40C,INITIAL,TEST-PH,7.2,,,,,,,
+STUDY-mryylrsx-xnb5g1,STUDY-mryylrsx-xnb5g1-40C-INITIAL-R1,,,40C,INITIAL,TEST-PH,7.2,,pH,2026-07-26,TEST Analyst,,,Synthetic test row.
+STUDY-mryylrsx-xnb5g1,STUDY-mryylrsx-xnb5g1-40C-INITIAL-R1,,,40C,INITIAL,TEST-APPEARANCE,,,,,TEST Analyst,,"Not yet tested - left blank intentionally to confirm it stays missing, not zero.",

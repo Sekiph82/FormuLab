@@ -1,0 +1,2 @@
+supplier_code,supplier_name,legal_name,contact_name,email,phone,website,country,city,address,currency,payment_terms,lead_time_days,minimum_order_value,approved_supplier,qualification_status,last_audit_date,next_audit_date,rating,tags,notes
+TEST-SUP-001,TEST Ingredients Africa,TEST Ingredients Africa Ltd,Jane Tester,jane@example.test,+254700000000,https://example.test,KE,Nairobi,1 Test Road,KES,Net 30,14,50000,false,under_review,2025-06-01,2026-06-01,4,surfactants,Native verification row

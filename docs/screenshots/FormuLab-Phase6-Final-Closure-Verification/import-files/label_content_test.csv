@@ -1,0 +1,3 @@
+label_code,formula_version,packaging_sku_code,jurisdiction,language,label_revision,panel,block_type,content_text,mandatory,source,status,notes
+LBL-MRZ04D2X,1,,KE,en,1,front,not_a_real_block_type,TEST bad block type row,true,,,Synthetic test row - bad block_type.
+LBL-MRZ04D2X,1,,KE,en,1,front,product_name,TEST Gentle Hand Soap (resume segment),true,,,Synthetic test row.

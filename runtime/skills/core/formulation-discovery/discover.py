@@ -86,8 +86,13 @@ def _reconstruct_abstract(inv):
 def fetch_openalex(query, max_results):
     out, cursor = [], "*"
     while len(out) < max_results:
+        # Only open-access work: a paywalled hit costs a slot in the candidate
+        # pool and can never be downloaded or read, so it is filtered out at the
+        # source rather than discarded after the fact. Mirrors the OpenAlex UI
+        # filter `open_access.is_oa:true`.
         params = {"search": query, "per-page": str(min(50, max_results)),
-                  "cursor": cursor, "mailto": MAILTO}
+                  "cursor": cursor, "mailto": MAILTO,
+                  "filter": "open_access.is_oa:true"}
         data = json.loads(_get(f"https://api.openalex.org/works?{urllib.parse.urlencode(params)}"))
         results = data.get("results", [])
         if not results:
@@ -97,12 +102,22 @@ def fetch_openalex(query, max_results):
             best = w.get("best_oa_location") or w.get("primary_location") or {}
             authors = [(a.get("author") or {}).get("display_name", "") for a in (w.get("authorships") or [])]
             concepts = [c.get("display_name", "") for c in (w.get("concepts") or [])[:6]]
+            # Prefer an ACTUAL pdf link from any open location: the best
+            # location's landing page is usually publisher HTML (or blocks
+            # automated clients), while a repository copy of the same paper is
+            # directly downloadable.
+            pdf = best.get("pdf_url")
+            if not pdf:
+                for loc in (w.get("locations") or []):
+                    if loc.get("is_oa") and loc.get("pdf_url"):
+                        pdf = loc["pdf_url"]
+                        break
             out.append(_row(
                 "openalex", w.get("title"), w.get("publication_year"),
                 "; ".join(a for a in authors if a),
                 ((w.get("primary_location") or {}).get("source") or {}).get("display_name", ""),
                 w.get("doi"), oa.get("is_oa"),
-                best.get("pdf_url") or best.get("landing_page_url") or oa.get("oa_url"),
+                pdf or best.get("landing_page_url") or oa.get("oa_url"),
                 w.get("cited_by_count", 0), ", ".join(concepts),
                 _reconstruct_abstract(w.get("abstract_inverted_index")),
             ))
@@ -119,7 +134,10 @@ def fetch_europepmc(query, max_results):
     out, cursor = [], "*"
     base = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     while len(out) < max_results:
-        params = {"query": query, "format": "json", "resultType": "core",
+        # OPEN_ACCESS:y restricts to the OA subset, whose full text Europe PMC
+        # will actually serve — the rest can only ever contribute an abstract.
+        params = {"query": f"({query}) AND (OPEN_ACCESS:y)", "format": "json",
+                  "resultType": "core",
                   "pageSize": str(min(100, max_results)), "cursorMark": cursor}
         data = json.loads(_get(f"{base}?{urllib.parse.urlencode(params)}"))
         results = (data.get("resultList") or {}).get("result", [])
@@ -136,6 +154,15 @@ def fetch_europepmc(query, max_results):
                     break
                 if u.get("availabilityCode") in ("OA", "F") and not oa_url:
                     oa_url = u.get("url", "")
+            # For PMC articles the listed fullTextUrl is usually a publisher
+            # landing page (HTML, or a 403 for non-browser clients). Europe PMC's
+            # own REST service is the sanctioned route and serves the complete
+            # article as XML — richer than a PDF for downstream use.
+            pmcid = r.get("pmcid") or ""
+            if pmcid and (not oa_url or not oa_url.lower().endswith(".pdf")):
+                if r.get("inPMC") == "Y" or r.get("isOpenAccess") == "Y":
+                    oa_url = ("https://www.ebi.ac.uk/europepmc/webservices/rest/"
+                              f"{pmcid}/fullTextXML")
             venue = ((r.get("journalInfo") or {}).get("journal") or {}).get("title", "") or src
             out.append(_row(
                 db, r.get("title"), r.get("pubYear"), r.get("authorString", ""),
@@ -173,7 +200,126 @@ def fetch_arxiv(query, max_results):
     return out[:max_results]
 
 
-FETCHERS = {"openalex": fetch_openalex, "europepmc": fetch_europepmc, "arxiv": fetch_arxiv}
+# ---------------------------------------------------------------- Crossref ----
+
+def _strip_tags(text):
+    """Crossref/OpenAIRE abstracts arrive as JATS XML."""
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text or "")).strip()
+
+
+def fetch_crossref(query, max_results):
+    """Crossref indexes essentially every DOI, including the applied and
+    industrial chemistry journals other sources rank lower. Roughly a third of
+    records carry a deposited abstract; the rest still contribute title, venue
+    and DOI, and dedup by DOI merges them with richer records from elsewhere."""
+    # has-full-text keeps records that advertise a retrievable body, which is the
+    # closest Crossref gets to an open-access filter.
+    url = ("https://api.crossref.org/works?filter=has-full-text:true&"
+           f"query={urllib.parse.quote(query)}&rows={min(100, max_results)}"
+           "&select=title,abstract,issued,author,container-title,DOI,"
+           "is-referenced-by-count,link,license")
+    items = json.loads(_get(url)).get("message", {}).get("items", [])
+    out = []
+    for w in items:
+        title = (w.get("title") or [""])[0]
+        if not title:
+            continue
+        year = ""
+        parts = ((w.get("issued") or {}).get("date-parts") or [[]])[0]
+        if parts:
+            year = parts[0]
+        pdf = ""
+        for l in (w.get("link") or []):
+            if l.get("content-type") == "application/pdf":
+                pdf = l.get("URL", "")
+                break
+        out.append(_row(
+            "crossref", title, year,
+            "; ".join(f"{a.get('given','')} {a.get('family','')}".strip()
+                      for a in (w.get("author") or [])[:8]),
+            (w.get("container-title") or [""])[0], w.get("DOI"),
+            bool(pdf), pdf, w.get("is-referenced-by-count", 0), "",
+            _strip_tags(w.get("abstract")),
+        ))
+        if len(out) >= max_results:
+            break
+    return out
+
+
+# ---------------------------------------------------------------- OpenAIRE ----
+
+def _oa_text(v):
+    """OpenAIRE returns a field as a dict, a list of dicts, or a bare string."""
+    if isinstance(v, list):
+        return _oa_text(v[0]) if v else ""
+    if isinstance(v, dict):
+        return str(v.get("$", ""))
+    return str(v or "")
+
+
+def _oa_attr(v, attr):
+    """Read an @attribute from a field that may also arrive as a list."""
+    if isinstance(v, list):
+        v = v[0] if v else {}
+    return str((v or {}).get(attr, "")) if isinstance(v, dict) else ""
+
+
+def _oa_list(v):
+    if v is None:
+        return []
+    return v if isinstance(v, list) else [v]
+
+
+def fetch_openaire(query, max_results):
+    """OpenAIRE aggregates European open-access repositories, so it surfaces
+    green-OA copies (author manuscripts, institutional deposits) that are
+    downloadable when the publisher's own copy is not."""
+    url = ("https://api.openaire.eu/search/publications?"
+           f"keywords={urllib.parse.quote(query)}&size={min(50, max_results)}&format=json")
+    data = json.loads(_get(url))
+    results = _oa_list(((data.get("response") or {}).get("results") or {}).get("result"))
+    out = []
+    for r in results:
+        meta = (((r.get("metadata") or {}).get("oaf:entity") or {}).get("oaf:result") or {})
+        title = _oa_text(meta.get("title"))
+        if not title:
+            continue
+        doi = ""
+        for pid in _oa_list(meta.get("pid")):
+            if isinstance(pid, dict) and pid.get("@classid") == "doi":
+                doi = _oa_text(pid)
+                break
+        is_oa = _oa_attr(meta.get("bestaccessright"), "@classname").lower().startswith("open")
+        url_out = ""
+        children = meta.get("children")
+        if isinstance(children, list):
+            children = children[0] if children else {}
+        for inst in _oa_list((children or {}).get("instance")):
+            for wr in _oa_list((inst or {}).get("webresource")):
+                url_out = _oa_text((wr or {}).get("url") if isinstance(wr, dict) else wr)
+                if url_out:
+                    break
+            if url_out:
+                break
+        out.append(_row(
+            "openaire", title, _oa_text(meta.get("dateofacceptance"))[:4],
+            "; ".join(_oa_text(c.get("fullname")) for c in _oa_list(meta.get("creator"))
+                      if isinstance(c, dict))[:400],
+            _oa_attr(meta.get("collectedfrom"), "@name"),
+            doi, is_oa, url_out, 0, "", _strip_tags(_oa_text(meta.get("description"))),
+        ))
+        if len(out) >= max_results:
+            break
+    return out
+
+
+FETCHERS = {
+    "openalex": fetch_openalex,
+    "crossref": fetch_crossref,
+    "europepmc": fetch_europepmc,
+    "openaire": fetch_openaire,
+    "arxiv": fetch_arxiv,
+}
 
 
 # --------------------------------------------------------------- pipeline ----

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ExternalLink, NotebookPen, Plus } from "lucide-react";
 import { addTextToWorkspace, isTauri, jupyterStatus, openJupyterLab, workspaceBase, workspacePath } from "@/lib/tauri";
-import { listNotebooks, type NotebookEntry } from "@/lib/artifactFile";
+import { listNotebooks, type NotebookEntry, type FileRoot } from "@/lib/artifactFile";
 import { emptyIpynb } from "@/lib/notebook-file";
 import type { KernelLanguage } from "@/lib/kernel";
 import { NotebookEditor } from "@/components/notebook/NotebookEditor";
+import { useSetupStore } from "@/lib/setup";
 import { toast } from "@/lib/toast";
 import i18n from "@/i18n";
 
@@ -21,12 +22,14 @@ export function NotebooksPage() {
   const [entries, setEntries] = useState<NotebookEntry[]>([]);
   /** Open notebook + the tree its path resolves in ("base" = listed here;
    *  "workspace" = just created in the active session folder). */
-  const [open, setOpen] = useState<{ path: string; root: "workspace" | "base" } | null>(null);
+  const [open, setOpen] = useState<{ path: string; root: FileRoot } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   // Whether the app-managed Jupyter env exists — gates the "Open JupyterLab"
   // button (no point offering it before setup).
   const [jupyterInstalled, setJupyterInstalled] = useState(false);
   const [openingLab, setOpeningLab] = useState(false);
+  const jupyterBusy = useSetupStore((s) => s.jupyterBusy);
+  const setupGeneration = useSetupStore((s) => s.generation);
   // The active session folder new notebooks land in — creation is scoped to it,
   // so we show it explicitly (browsing is global, creation is local).
   const [createTarget, setCreateTarget] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export function NotebooksPage() {
     void refresh();
     void refreshTarget();
     void jupyterStatus().then((s) => setJupyterInstalled(Boolean(s?.installed)));
-  }, [refresh, refreshTarget]);
+  }, [refresh, refreshTarget, setupGeneration]);
 
   const openLab = async () => {
     setOpeningLab(true);
@@ -112,6 +115,18 @@ export function NotebooksPage() {
             >
               <ExternalLink size={13} className="text-muted" />
               {t("notebooks.openJupyterLab")}
+            </button>
+          )}
+          {/* Provisioning used to sit in the settings connectors section; with
+              that gone, the page that needs Jupyter offers the install. */}
+          {isTauri && !jupyterInstalled && (
+            <button
+              className="flex items-center gap-1.5 rounded-input border border-border bg-surface px-2.5 py-1.5 text-xs text-text transition-colors hover:bg-surface-2 disabled:opacity-50"
+              onClick={() => void useSetupStore.getState().enableJupyter()}
+              disabled={jupyterBusy}
+              title={t("notebooks.setUpJupyterTitle")}
+            >
+              {jupyterBusy ? t("notebooks.settingUpJupyter") : t("notebooks.setUpJupyter")}
             </button>
           )}
           <div className="relative" ref={menuRef}>

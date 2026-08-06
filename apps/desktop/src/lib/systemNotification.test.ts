@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { notifyPermissionRequest } from "./systemNotification";
+import { notifyPermissionRequest, notifyUpdateAvailable } from "./systemNotification";
 
 const notificationPlugin = vi.hoisted(() => ({
   isPermissionGranted: vi.fn(async () => true),
@@ -51,6 +51,34 @@ describe("notifyPermissionRequest", () => {
       notifyPermissionRequest({ action: "bash", resources: ["rm -rf build/"] }),
     ).resolves.toBe(false);
 
+    expect(notificationPlugin.sendNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe("notifyUpdateAvailable", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    notificationPlugin.isPermissionGranted.mockResolvedValue(true);
+  });
+
+  it("sends a native notification with the version and release URL when permission is already granted", async () => {
+    await expect(
+      notifyUpdateAvailable("v0.5.0", "https://github.com/Sekiph82/FormuLab/releases/tag/v0.5.0"),
+    ).resolves.toBe(true);
+
+    expect(notificationPlugin.requestPermission).not.toHaveBeenCalled();
+    expect(notificationPlugin.sendNotification).toHaveBeenCalledWith({
+      title: "FormuLab update available",
+      body: "Version v0.5.0 is available.\nhttps://github.com/Sekiph82/FormuLab/releases/tag/v0.5.0",
+    });
+  });
+
+  it("never requests permission proactively — does nothing when it was never granted", async () => {
+    notificationPlugin.isPermissionGranted.mockResolvedValue(false);
+
+    await expect(notifyUpdateAvailable("v0.5.0", "https://example.com")).resolves.toBe(false);
+
+    expect(notificationPlugin.requestPermission).not.toHaveBeenCalled();
     expect(notificationPlugin.sendNotification).not.toHaveBeenCalled();
   });
 });

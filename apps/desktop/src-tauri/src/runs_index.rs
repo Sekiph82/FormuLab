@@ -11,7 +11,7 @@ use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use tauri::AppHandle;
 
 use crate::runs::RunRecord;
-use crate::runtime::base_workspace_dir;
+use crate::workspace::workspace_dir;
 
 const DB_FILE: &str = "runs.db";
 /// Bump to force a full rebuild when the schema or ingest logic changes.
@@ -372,12 +372,18 @@ pub fn query_runs(conn: &Connection, q: &RunQuery) -> Result<RunPage, String> {
 /// queries it — none of which may run on the UI thread.
 #[tauri::command(async)]
 pub fn query_runs_cmd(app: AppHandle, query: RunQuery) -> Result<RunPage, String> {
-    // Global index, keyed to the base folder: it aggregates every session's
-    // logs. The Runs page queries it unfiltered; a session's Runs pane passes
-    // `sessionId` to narrow to its own runs.
-    let base = base_workspace_dir(&app)?;
-    let conn = open_index(&base)?;
-    sync_index(&conn, &base)?;
+    // Global index, keyed to the SAME unified active data root `runs.rs`
+    // writes `runs.jsonl` through (`workspace::workspace_dir`, which now
+    // delegates to `data_root::resolve_data_root` — Phase 11 Session 4).
+    // This used to read `base_workspace_dir()` directly here while
+    // `runs.rs` wrote through `workspace_dir()`; the two diverged whenever
+    // `active-workspace.txt` disagreed with `base-workspace.txt`. No real
+    // installation ever hit that (neither pointer has ever had a writer),
+    // so this fix changes nothing on disk for any current user — it only
+    // removes the possibility going forward.
+    let root = workspace_dir(&app)?;
+    let conn = open_index(&root)?;
+    sync_index(&conn, &root)?;
     query_runs(&conn, &query)
 }
 
@@ -386,7 +392,7 @@ mod tests {
     use super::*;
 
     fn temp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("ai4s-runidx-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("formulab-runidx-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join(".FormuLab")).unwrap();
         dir

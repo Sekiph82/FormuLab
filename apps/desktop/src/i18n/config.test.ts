@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_LOCALE,
+  detectInitialLocale,
+  LOCALE_KEY,
   LOCALES,
   localeMeta,
   resolveLocale,
@@ -8,9 +10,9 @@ import {
 } from "./config";
 
 describe("locale registry", () => {
-  it("ships exactly the 7 first-batch locales, in order", () => {
+  it("ships exactly the 8 first-batch locales, in order", () => {
     expect(shippedLocales().map((l) => l.code)).toEqual([
-      "en", "zh-Hans", "ja", "es", "de", "fr", "ko",
+      "en", "zh-Hans", "ja", "es", "de", "fr", "ko", "tr",
     ]);
   });
 
@@ -53,5 +55,18 @@ describe("resolveLocale", () => {
     expect(resolveLocale("xx")).toBe(DEFAULT_LOCALE);
     expect(resolveLocale(null)).toBe(DEFAULT_LOCALE);
     expect(resolveLocale(undefined)).toBe(DEFAULT_LOCALE);
+  });
+});
+
+describe("detectInitialLocale", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("uses the saved locale when present", () => {
+    window.localStorage.setItem(LOCALE_KEY, "ja");
+    expect(detectInitialLocale()).toBe("ja");
+  });
+
+  it("falls back to the default without crashing when no preference is stored and navigator is unrecognized", () => {
+    expect(() => detectInitialLocale()).not.toThrow();
   });
 });

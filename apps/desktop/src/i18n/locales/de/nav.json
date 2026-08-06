@@ -12,42 +12,46 @@
     "notebooks": "Notebooks",
     "files": "Dateien",
     "runs": "Durchläufe",
-    "skills": "Skills",
-    "projects": "Projekte",
-    "optimizer": "Optimierer"
+    "optimizer": "Optimierer",
+    "formulas": "Formulas",
+    "materials": "Materials"
   },
-  "projects": {
-    "heading": "Projekte",
-    "new": "Neues Projekt",
-    "importedBadge": "importiert",
-    "menuScratch": "Bei null anfangen",
-    "menuExisting": "Vorhandenen Ordner verwenden",
-    "nameTitle": "Projekt benennen",
-    "nameSubtitle": "Kurz und einprägsam halten",
-    "namePlaceholder": "Projektname",
-    "newSessionAria": "Neue Sitzung in „{{name}}“",
-    "noSessions": "Noch keine Sitzungen.",
-    "renameHint": "Zum Umbenennen doppelklicken",
-    "pageSearch": "Projekte suchen",
-    "colName": "Name",
-    "colSources": "Quellen",
-    "colUpdated": "Aktualisiert",
-    "noResults": "Keine passenden Projekte.",
-    "pin": "Anheften",
-    "unpin": "Lösen",
-    "rename": "Umbenennen",
-    "remove": "Entfernen",
-    "more": "Mehr",
-    "removeTitle": "{{name}} entfernen?",
-    "removeBody": "Entfernt das Projekt aus der Seitenleiste. Dateien auf der Festplatte werden nicht gelöscht.",
-    "seeAll": "Alle Projekte",
-    "openFolder": "{{path}} öffnen"
+  "sections": {
+    "workspaces": "Workspaces",
+    "tools": "Tools"
+  },
+  "workspacesNav": {
+    "home": "Home",
+    "projects": "Projects",
+    "formulation": "Formulation",
+    "laboratory": "Laboratory",
+    "stability": "Stability",
+    "optimization": "Optimization",
+    "doe": "Design of Experiments",
+    "regulatory": "Regulatory",
+    "dossiers": "Dossiers",
+    "claimsLabels": "Claims & Labels",
+    "approval": "Approval",
+    "reports": "Reports",
+    "administration": "Administration",
+    "dataExchange": "Data Exchange",
+    "reverseFormulation": "Rückformulierung"
+  },
+  "workspace": {
+    "noProjectsYet": "No projects yet — create one from Projects to get started.",
+    "pickProject": "Choose a project",
+    "changeProject": "Change project",
+    "versionLabel": "Version",
+    "currentDraft": "Current draft",
+    "openInFormulation": "Open in Formulation"
   },
   "history": {
     "heading": "Sitzungen",
     "empty": "Noch keine Unterhaltungen.",
     "exampleTag": "Beispiel",
-    "deleteAria": "{{title}} löschen"
+    "deleteAria": "{{title}} löschen",
+    "viewAll": "Alle Sitzungen anzeigen",
+    "showFewer": "Weniger anzeigen"
   },
   "confirmDelete": {
     "sessionTitle": "Sitzung löschen?",
@@ -73,13 +77,13 @@
     "placeholder": "Befehl eingeben…",
     "noResults": "Keine Ergebnisse.",
     "actions": {
-      "newSession": "Neue Sitzung",
-      "analyzeData": "Meine Daten analysieren (neuer Workflow)",
-      "auditReport": "Bericht prüfen (Nachvollziehbarkeitsprüfung)",
+      "newSession": "Neue Formulierung",
       "openNotebooks": "Notebooks öffnen",
-      "manageSkills": "Skills verwalten",
       "openSettings": "Einstellungen öffnen",
-      "toggleTheme": "Design wechseln (Hell / Warm / Dunkel)"
+      "toggleTheme": "Design wechseln (Hell / Warm / Dunkel)",
+      "openFiles": "Dateien öffnen",
+      "searchHelp": "Hilfe durchsuchen",
+      "openGuide": "Benutzerhandbuch öffnen"
     }
   }
 }

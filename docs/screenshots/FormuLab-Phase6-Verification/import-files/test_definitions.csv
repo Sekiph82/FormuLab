@@ -1,0 +1,2 @@
+test_code,test_name,test_category,method_reference,unit,result_type,lower_limit,target_value,upper_limit,decimal_places,replicate_count,destructive_test,required_for_release,required_for_stability,active,tags,notes
+TEST-TST-001,TEST pH Measurement,physicochemical,internal method TP-01,pH,numeric,4.5,5.5,6.5,1,2,false,true,true,true,physicochemical,Native verification row

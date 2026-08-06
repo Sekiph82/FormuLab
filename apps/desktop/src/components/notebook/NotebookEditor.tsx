@@ -13,8 +13,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { NotebookCell } from "@ai4s/shared";
-import { readArtifact, writeWorkspaceFile } from "@/lib/artifactFile";
+import type { NotebookCell } from "@formulab/shared";
+import { readArtifact, writeWorkspaceFile, type FileRoot } from "@/lib/artifactFile";
 import { ProvenancePanel } from "@/components/inspector/ProvenancePanel";
 import { PaneTitlebarInset } from "@/components/inspector/RightPane";
 import { parseIpynb, serializeIpynb, notebookLanguage } from "@/lib/notebook-file";
@@ -45,7 +45,7 @@ export function NotebookEditor({
   path: string;
   /** Folder tree `path` resolves in (default the active workspace). The
    *  kernel also runs with the notebook's own folder as cwd. */
-  root?: "workspace" | "base";
+  root?: FileRoot;
   /** Back navigation (full-page use). */
   onBack?: () => void;
   /** Close the pane (inspector use). */

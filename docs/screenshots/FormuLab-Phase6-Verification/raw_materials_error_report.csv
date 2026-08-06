@@ -1,0 +1,2 @@
+﻿row_number,template_code,column,provided_value,error_code,severity,message,suggested_action
+3,raw_materials,,TEST-MAT-002,invalid,error,"""hazardous"": ""maybe"" is not a recognized yes/no value.",Correct the value and re-upload.

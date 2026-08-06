@@ -1,0 +1,1417 @@
+/**
+ * The desktop approval action — spec closure for the gap
+ * docs/APPROVAL_READINESS.md disclosed: `assessApprovalReadiness` was
+ * implemented and tested but no screen ever called it. This is that screen.
+ *
+ * Every readiness source is real, derived from persisted records (never a
+ * placeholder boolean): formula validation/compatibility/safety findings are
+ * computed live against the selected version's own lines, exactly the same
+ * way the Compatibility/Safety tabs compute them; laboratory and stability
+ * readiness are derived by `deriveLabReadiness`/`deriveStabilityReadiness`
+ * from the real `laboratory_trials`/`test_results`/`trial_deviations`/
+ * `corrective_actions`/`stability_studies`/`stability_samples`/
+ * `stability_results`/`stability_failures` collections.
+ *
+ * The cost-snapshot requirement is NOT one of `assessApprovalReadiness`'s
+ * built-in blocker sources (that module's `ApprovalBlockerSource` union is
+ * fixed and already covered by 38 passing tests this phase deliberately did
+ * not touch) — it is enforced here, one layer up, as an additional
+ * workflow-level gate folded into `effectiveReady`/the persisted readiness
+ * snapshot's `blockers` array under a synthetic `"cost"` source. See
+ * docs/APPROVAL_WORKFLOW.md.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { CheckCircle2, ExternalLink, Shield, XCircle } from "lucide-react";
+import {
+  APPROVAL_AUTHORITY,
+  APPROVAL_ROLES,
+  activeEquivalencesFor,
+  activeEvidenceConfirmations,
+  activeLinksForDossier,
+  assessApprovalReadiness,
+  assessMultiJurisdictionRegulatoryReadiness,
+  attemptApprovalTransition,
+  buildEvidenceMatrix,
+  buildKenyaCatalog,
+  calculateDossierReadiness,
+  currentRequirementsForRevision,
+  classifyProductRegulatory,
+  classifyProductSafety,
+  calculateClaimsReadiness,
+  calculateLabelReadiness,
+  clonePolicy,
+  currentContentForRevision,
+  declareEquivalence,
+  deriveArtworkEffectiveStatus,
+  deriveClaimEffectiveStatus,
+  deriveClaimsLabelApprovalReadiness,
+  deriveDossierApprovalReadiness,
+  deriveLabelEffectiveStatus,
+  evaluateClaimAgainstRules,
+  evaluateClaimEvidence,
+  evaluateLabelContent,
+  isClaimReviewActive,
+  isLabelReviewActive,
+  deriveLabReadiness,
+  deriveRegulatoryReadiness,
+  deriveStabilityReadiness,
+  editPolicy,
+  evaluateRegulatory,
+  effectiveStatus,
+  equivalentVersionIdsFor,
+  evaluateCompatibility,
+  evaluateSafety,
+  explainRegulatoryReviewStatus,
+  findApplicableRegulatoryReview,
+  findDossierForScope,
+  initialPolicyRevision,
+  isDossierReviewActive,
+  newId,
+  policyApplies,
+  resolveDossierJurisdictions,
+  resolveLabelRequirements,
+  resolvePolicyPrecedence,
+  resolveRegulatoryJurisdictions,
+  restorePolicyRevision,
+  retirePolicy,
+  revokeEquivalence,
+  setPolicyActive,
+  templateForFamily,
+  toClaimsLabelApprovalPolicy,
+  toDossierApprovalPolicy,
+  toLabApprovalPolicy,
+  toRegulatoryApprovalPolicy,
+  toStabilityApprovalPolicy,
+  validateFormula,
+  REGULATORY_JURISDICTIONS,
+  SEED_COMPATIBILITY_RULES,
+  SEED_REGULATORY_RULES,
+  SEED_SAFETY_RULES,
+  SEED_STABILITY_TIME_POINTS,
+  SEED_TEST_DEFINITIONS,
+  type Actor,
+  type ApprovalBlocker,
+  type ApprovalPolicy,
+  type ApprovalPolicyRevision,
+  type ApprovalReadiness,
+  type ApprovalRecord,
+  type ApprovalRole,
+  type ApprovalWarning,
+  type AuditEvent,
+  type ClaimEvidenceLink,
+  type ClaimReview,
+  type ClaimReviewRevocation,
+  type ClaimsLabelApprovalSnapshot,
+  type CorrectiveAction,
+  type CostSnapshot,
+  type DossierApprovalSnapshot,
+  type LabelArtwork,
+  type LabelContentBlock,
+  type LabelReview,
+  type LabelReviewRevocation,
+  type EvidenceReuseScope,
+  type Formulation,
+  type FormulationVersion,
+  type FormulaStatus,
+  type FormulaVersionEquivalence,
+  type LaboratoryTrial,
+  type OptimizationRun,
+  type ProductClaim,
+  type ProductLabel,
+  type RawMaterial,
+  type RegulatoryApprovalSnapshot,
+  type RegulatoryDossier,
+  type RegulatoryDossierEvidenceItem,
+  type RegulatoryDossierRequirement,
+  type RegulatoryDossierReview,
+  type RegulatoryDossierReviewRevocation,
+  type RegulatoryDossierSubmission,
+  type RegulatoryEvidenceConfirmation,
+  type RegulatoryEvidenceConfirmationRevocation,
+  type RegulatoryJurisdiction,
+  type RegulatoryRequirementEvidenceLink,
+  type RegulatoryReview,
+  type RegulatoryReviewEquivalence,
+  type RegulatoryReviewRevocation,
+  type RegulatoryRule,
+  type SafetyResolution,
+  type StabilityFailure,
+  type StabilityResult,
+  type StabilitySample,
+  type StabilityStudy,
+  type SubstitutionRun,
+  type TestDefinition,
+  type TestResult,
+  type TrialDeviation,
+} from "@formulab/shared";
+import { appendAudit, auditEvent, listApprovalRecords, saveApprovalRecord } from "@/lib/formulations";
+import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
+import { cn } from "@/lib/cn";
+import { DisabledActionButton } from "@/components/help/DisabledActionButton";
+import { InfoTooltip } from "@/components/help/InfoTooltip";
+import type { DisabledReason } from "@/lib/help/disabledReason";
+import { PolicyEditor } from "./PolicyEditor";
+import { EquivalenceWorkflow } from "./EquivalenceWorkflow";
+
+type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
+
+type NavTarget = "builder" | "compatibility" | "safety" | "optimizer" | "trials" | "tests" | "stability" | "correctiveActions" | "cost" | "regulatory";
+
+/** A blocker/warning as the panel renders it — a superset of the engine's
+ *  own `ApprovalBlockerSource`, because the cost-snapshot gate (below) is a
+ *  workflow-level rule, not one of `assessApprovalReadiness`'s built-in
+ *  sources. */
+interface DisplayFinding {
+  id: string;
+  source: string;
+  message: string;
+  lineId?: string;
+  code?: string;
+}
+
+const SOURCE_NAV: Record<string, NavTarget> = {
+  validation: "builder",
+  compatibility: "compatibility",
+  safety: "safety",
+  human_review: "safety",
+  optimization: "optimizer",
+  substitution: "builder",
+  laboratory: "trials",
+  stability: "stability",
+  cost: "cost",
+  regulatory: "regulatory",
+  // Dossier detail itself lives on the separate /dossiers route (see
+  // RegulatoryPanel's dossier-link section for the actual deep link) —
+  // routing here to Regulatory, the closest in-workflow section, rather
+  // than inventing a second navigation mechanism just for this blocker source.
+  dossier: "regulatory",
+  // Claims & Labels lives on its own separate /claims-labels route, same
+  // reasoning as the dossier entry above — route to the closest in-workflow
+  // section rather than inventing a second navigation mechanism.
+  claims_label: "regulatory",
+};
+
+const CODE_NAV_OVERRIDE: Record<string, NavTarget> = {
+  critical_corrective_action_open: "correctiveActions",
+  critical_test_failed: "tests",
+  trial_not_completed: "tests",
+};
+
+export function ApprovalPanel({
+  formulation,
+  versions,
+  baseVersion,
+  auditLog,
+  onFocusLine,
+  onNavigate,
+  onAuditChanged,
+}: {
+  formulation: Formulation;
+  versions: FormulationVersion[];
+  baseVersion?: FormulationVersion;
+  auditLog: AuditEvent[];
+  onFocusLine: (lineId: string) => void;
+  onNavigate: (tab: NavTarget) => void;
+  onAuditChanged: () => Promise<void>;
+}) {
+  const { t: tRaw } = useTranslation(["session", "common"]);
+  const t = tRaw as SimpleT;
+
+  const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>(baseVersion?.id ?? versions[0]?.id);
+  useEffect(() => {
+    if (!selectedVersionId && (baseVersion || versions[0])) {
+      setSelectedVersionId(baseVersion?.id ?? versions[0]?.id);
+    }
+  }, [baseVersion, versions, selectedVersionId]);
+  const selectedVersion = versions.find((v) => v.id === selectedVersionId) ?? baseVersion;
+
+  const [materials, setMaterials] = useState<RawMaterial[]>([]);
+  const [compatibilityRules, setCompatibilityRules] = useState(SEED_COMPATIBILITY_RULES);
+  const [safetyRules, setSafetyRules] = useState(SEED_SAFETY_RULES);
+  const [safetyResolutions, setSafetyResolutions] = useState<SafetyResolution[]>([]);
+  const [trials, setTrials] = useState<LaboratoryTrial[]>([]);
+  const [testDefinitions, setTestDefinitions] = useState<TestDefinition[]>(SEED_TEST_DEFINITIONS);
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [deviations, setDeviations] = useState<TrialDeviation[]>([]);
+  const [correctiveActions, setCorrectiveActions] = useState<CorrectiveAction[]>([]);
+  const [studies, setStudies] = useState<StabilityStudy[]>([]);
+  const [samples, setSamples] = useState<StabilitySample[]>([]);
+  const [stabilityResults, setStabilityResults] = useState<StabilityResult[]>([]);
+  const [failures, setFailures] = useState<StabilityFailure[]>([]);
+  const [costSnapshots, setCostSnapshots] = useState<CostSnapshot[]>([]);
+  const [optimizationRuns, setOptimizationRuns] = useState<OptimizationRun[]>([]);
+  const [substitutionRuns, setSubstitutionRuns] = useState<SubstitutionRun[]>([]);
+  const [policies, setPolicies] = useState<ApprovalPolicy[]>([]);
+  const [policyRevisions, setPolicyRevisions] = useState<ApprovalPolicyRevision[]>([]);
+  const [equivalences, setEquivalences] = useState<FormulaVersionEquivalence[]>([]);
+  const [approvalRecords, setApprovalRecords] = useState<ApprovalRecord[]>([]);
+  const [regulatoryRules, setRegulatoryRules] = useState<RegulatoryRule[]>(SEED_REGULATORY_RULES);
+  const [regulatoryReviews, setRegulatoryReviews] = useState<RegulatoryReview[]>([]);
+  const [regulatoryReviewRevocations, setRegulatoryReviewRevocations] = useState<RegulatoryReviewRevocation[]>([]);
+  const [regulatoryReviewEquivalences, setRegulatoryReviewEquivalences] = useState<RegulatoryReviewEquivalence[]>([]);
+  const [regulatoryConfirmations, setRegulatoryConfirmations] = useState<RegulatoryEvidenceConfirmation[]>([]);
+  const [regulatoryConfirmationRevocations, setRegulatoryConfirmationRevocations] = useState<RegulatoryEvidenceConfirmationRevocation[]>([]);
+  // Phase 3 §10 — dossier readiness gates. Off by default (see
+  // DISABLED_EXAMPLE_POLICY / regulatoryDossierApproval.ts): loading these
+  // collections costs nothing when a policy never opts in, since
+  // deriveDossierApprovalReadiness short-circuits to { ready: true } before
+  // touching any of them.
+  const [dossiers, setDossiers] = useState<RegulatoryDossier[]>([]);
+  const [dossierRequirements, setDossierRequirements] = useState<RegulatoryDossierRequirement[]>([]);
+  const [dossierLinks, setDossierLinks] = useState<RegulatoryRequirementEvidenceLink[]>([]);
+  const [dossierEvidence, setDossierEvidence] = useState<RegulatoryDossierEvidenceItem[]>([]);
+  const [dossierReviews, setDossierReviews] = useState<RegulatoryDossierReview[]>([]);
+  const [dossierReviewRevocations, setDossierReviewRevocations] = useState<RegulatoryDossierReviewRevocation[]>([]);
+  const [dossierSubmissions, setDossierSubmissions] = useState<RegulatoryDossierSubmission[]>([]);
+  // Phase 4 §17 — claims & label readiness gates. Off by default, exactly
+  // like the dossier gates above: loading these collections costs nothing
+  // when a policy never opts in, since deriveClaimsLabelApprovalReadiness
+  // short-circuits to { ready: true } before touching any of them.
+  const [claims, setClaims] = useState<ProductClaim[]>([]);
+  const [claimLinks, setClaimLinks] = useState<ClaimEvidenceLink[]>([]);
+  const [claimReviews, setClaimReviews] = useState<ClaimReview[]>([]);
+  const [claimReviewRevocations, setClaimReviewRevocations] = useState<ClaimReviewRevocation[]>([]);
+  const [productLabels, setProductLabels] = useState<ProductLabel[]>([]);
+  const [labelContent, setLabelContent] = useState<LabelContentBlock[]>([]);
+  const [labelArtworks, setLabelArtworks] = useState<LabelArtwork[]>([]);
+  const [labelReviews, setLabelReviews] = useState<LabelReview[]>([]);
+  const [labelReviewRevocations, setLabelReviewRevocations] = useState<LabelReviewRevocation[]>([]);
+
+  const load = useCallback(async () => {
+    const [m, cr, sr, sres, tr, td, tres, dev, ca, st, sam, stres, fail, cs, opt, sub, pol, polrev, equiv, rec, regr, regrev, regrevrev, regequiv, regconf, regconfrev, doss, dreq, dlink, dev2, drev, drevrev, dsub, cl, clk, crv, crvrv, plab, lcnt, lart, lrev, lrevrv] = await Promise.all([
+      listRecords("materials"),
+      listRecordsSeeded("compatibility_rules", SEED_COMPATIBILITY_RULES),
+      listRecordsSeeded("safety_rules", SEED_SAFETY_RULES),
+      listRecords("safety_resolutions"),
+      listRecords("laboratory_trials"),
+      listRecordsSeeded("test_definitions", SEED_TEST_DEFINITIONS),
+      listRecords("test_results"),
+      listRecords("trial_deviations"),
+      listRecords("corrective_actions"),
+      listRecords("stability_studies"),
+      listRecords("stability_samples"),
+      listRecords("stability_results"),
+      listRecords("stability_failures"),
+      listRecords("cost_snapshots"),
+      listRecords("optimization_runs"),
+      listRecords("substitution_runs"),
+      listRecordsSeeded("approval_policies", [DISABLED_EXAMPLE_POLICY]),
+      listRecords("approval_policy_revisions"),
+      listRecords("formula_version_equivalences"),
+      listApprovalRecords(formulation.id),
+      listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES),
+      listRecords("regulatory_reviews"),
+      listRecords("regulatory_review_revocations"),
+      listRecords("regulatory_review_equivalences"),
+      listRecords("regulatory_evidence_confirmations"),
+      listRecords("regulatory_evidence_confirmation_revocations"),
+      listRecords("regulatory_dossiers"),
+      listRecords("regulatory_dossier_requirements"),
+      listRecords("regulatory_requirement_evidence_links"),
+      listRecords("regulatory_evidence_items"),
+      listRecords("regulatory_dossier_reviews"),
+      listRecords("regulatory_dossier_review_revocations"),
+      listRecords("regulatory_dossier_submissions"),
+      listRecords("product_claims"),
+      listRecords("claim_evidence_links"),
+      listRecords("claim_reviews"),
+      listRecords("claim_review_revocations"),
+      listRecords("product_labels"),
+      listRecords("label_content_blocks"),
+      listRecords("label_artworks"),
+      listRecords("label_reviews"),
+      listRecords("label_review_revocations"),
+    ]);
+    setMaterials(m);
+    setCompatibilityRules(cr);
+    setSafetyRules(sr);
+    setSafetyResolutions(sres.filter((r) => r.formulationId === formulation.id));
+    setTrials(tr.filter((x) => x.projectId === formulation.id));
+    setTestDefinitions(td);
+    setTestResults(tres);
+    setDeviations(dev);
+    setCorrectiveActions(ca.filter((x) => x.projectId === formulation.id));
+    setStudies(st.filter((x) => x.projectId === formulation.id));
+    setSamples(sam);
+    setStabilityResults(stres);
+    setFailures(fail);
+    setPolicyRevisions(polrev);
+    setEquivalences(equiv.filter((e) => e.formulationId === formulation.id));
+    setCostSnapshots(cs);
+    setOptimizationRuns(opt);
+    setSubstitutionRuns(sub);
+    setPolicies(pol);
+    setApprovalRecords(rec);
+    setRegulatoryRules(regr);
+    setRegulatoryReviews(regrev.filter((r) => r.formulationId === formulation.id));
+    setRegulatoryReviewRevocations(regrevrev);
+    setRegulatoryReviewEquivalences(regequiv.filter((e) => e.formulationId === formulation.id));
+    setRegulatoryConfirmations(regconf.filter((c) => c.formulationId === formulation.id));
+    setRegulatoryConfirmationRevocations(regconfrev);
+    const ownDossiers = doss.filter((d) => d.formulationId === formulation.id);
+    setDossiers(ownDossiers);
+    const ownDossierIds = new Set(ownDossiers.map((d) => d.id));
+    setDossierRequirements(dreq.filter((r) => ownDossierIds.has(r.dossierId)));
+    setDossierLinks(dlink.filter((l) => ownDossierIds.has(l.dossierId)));
+    setDossierEvidence(dev2.filter((e) => e.formulationId === formulation.id));
+    setDossierReviews(drev.filter((r) => ownDossierIds.has(r.dossierId)));
+    setDossierReviewRevocations(drevrev);
+    setDossierSubmissions(dsub.filter((s) => ownDossierIds.has(s.dossierId)));
+    const ownClaims = cl.filter((c: ProductClaim) => c.formulationId === formulation.id);
+    setClaims(ownClaims);
+    const ownClaimIds = new Set(ownClaims.map((c: ProductClaim) => c.id));
+    setClaimLinks(clk.filter((l: ClaimEvidenceLink) => ownClaimIds.has(l.claimId)));
+    setClaimReviews(crv.filter((r: ClaimReview) => ownClaimIds.has(r.claimId)));
+    setClaimReviewRevocations(crvrv);
+    const ownLabels = plab.filter((l: ProductLabel) => l.formulationId === formulation.id);
+    setProductLabels(ownLabels);
+    const ownLabelIds = new Set(ownLabels.map((l: ProductLabel) => l.id));
+    setLabelContent(lcnt.filter((b: LabelContentBlock) => ownLabelIds.has(b.labelId)));
+    setLabelArtworks(lart.filter((a: LabelArtwork) => ownLabelIds.has(a.labelId)));
+    setLabelReviews(lrev.filter((r: LabelReview) => ownLabelIds.has(r.labelId)));
+    setLabelReviewRevocations(lrevrv);
+  }, [formulation.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const catalog = useMemo(() => buildKenyaCatalog(), []);
+  const family = catalog.families.find((f) => f.code === formulation.productFamilyCode);
+  const packagingSkuCode = formulation.targetSkuCodes[0];
+
+  const currentStatus: FormulaStatus = selectedVersion ? effectiveStatus(selectedVersion, auditLog) : "concept";
+  // Mirrors the two edges into `HUMAN_ONLY_STATUSES` in the status graph
+  // (`ALLOWED_NEXT`, schemas/status.ts) — `pilot_candidate -> pilot_approved`
+  // and `pilot_approved -> production_approved` are the only two, so this is
+  // duplicated here rather than importing a private table.
+  const targetOptions = useMemo<FormulaStatus[]>(() => {
+    if (currentStatus === "pilot_candidate") return ["pilot_approved"];
+    if (currentStatus === "pilot_approved") return ["production_approved"];
+    return [];
+  }, [currentStatus]);
+  const [targetStatus, setTargetStatus] = useState<FormulaStatus>("pilot_approved");
+  useEffect(() => {
+    if (targetOptions.length && !targetOptions.includes(targetStatus)) setTargetStatus(targetOptions[0]);
+  }, [targetOptions, targetStatus]);
+
+  const applicablePolicies = policies.filter(
+    (p) => p.active && !p.retired && p.targetStatus === targetStatus && policyApplies(p, formulation.productFamilyCode, packagingSkuCode),
+  );
+  const [policyId, setPolicyId] = useState<string>("");
+  const explicitPolicy = policies.find((p) => p.id === policyId && applicablePolicies.some((ap) => ap.id === p.id));
+  const policyResolution = useMemo(
+    () => resolvePolicyPrecedence(policies, targetStatus as "pilot_approved" | "production_approved", formulation.productFamilyCode, packagingSkuCode),
+    [policies, targetStatus, formulation.productFamilyCode, packagingSkuCode],
+  );
+  // An explicit selector choice always wins; absent one, deterministic
+  // precedence resolves it, or — when resolution is genuinely ambiguous —
+  // no policy is applied and a structured conflict blocker is shown
+  // instead of silently merging or guessing (spec §1.2).
+  const activePolicy = explicitPolicy ?? policyResolution.resolved;
+  const policyConflict = !explicitPolicy ? policyResolution.conflict : undefined;
+  const [managingPolicies, setManagingPolicies] = useState(false);
+  const [managingEquivalence, setManagingEquivalence] = useState(false);
+
+  const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("chemist");
+  const [reviewerDisplayName, setReviewerDisplayName] = useState("");
+  const [reviewerUserId, setReviewerUserId] = useState("local");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    if (!opened && selectedVersion) {
+      setOpened(true);
+      void appendAudit(auditEvent(formulation.id, "approval.dialog_opened", { versionId: selectedVersion.id, detail: targetStatus }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVersion?.id]);
+
+  const lines = useMemo(() => selectedVersion?.lines ?? [], [selectedVersion]);
+  const template = templateForFamily(formulation.productFamilyCode);
+
+  const validationFindings = useMemo(
+    () =>
+      validateFormula(lines, {
+        requiresPreservative: template?.requiresPreservative,
+        requiresPhAdjuster: template?.requiresPhAdjuster,
+      }),
+    [lines, template?.requiresPreservative, template?.requiresPhAdjuster],
+  );
+
+  const compatibilityFindings = useMemo(
+    () => evaluateCompatibility(lines, compatibilityRules, { materials, productDomain: family?.domain }),
+    [lines, compatibilityRules, materials, family?.domain],
+  );
+  const safetyFindings = useMemo(() => evaluateSafety(lines, safetyRules, { materials }), [lines, safetyRules, materials]);
+  const classification = family ? classifyProductSafety(family, formulation.targetClaims) : "human_review_required";
+
+  /** For the equivalence workflow's comparison view — the same live
+   *  evaluation used for the selected version, run against an arbitrary
+   *  candidate version's own lines. */
+  const findingCountsForVersion = (version: FormulationVersion) => ({
+    compatibility: evaluateCompatibility(version.lines, compatibilityRules, { materials, productDomain: family?.domain }).length,
+    safety: evaluateSafety(version.lines, safetyRules, { materials }).length,
+  });
+  const humanReviewAcknowledged = safetyResolutions.some((r) => r.findingId === `classification:${classification}`);
+  const resolvedFindingIds = safetyResolutions.map((r) => r.findingId);
+
+  const appliedOptimizationRunCode = selectedVersion?.appliedOptimizationRunCode;
+  const appliedOptimizationRun = useMemo(
+    () =>
+      appliedOptimizationRunCode
+        ? { code: appliedOptimizationRunCode, status: optimizationRuns.find((r) => r.code === appliedOptimizationRunCode)?.result.status }
+        : undefined,
+    [appliedOptimizationRunCode, optimizationRuns],
+  );
+  const appliedSubstitutionRunCode = selectedVersion?.appliedSubstitutionRunCode;
+  const appliedSubstitutionRun = useMemo(() => {
+    if (!appliedSubstitutionRunCode) return undefined;
+    const run = substitutionRuns.find((r) => r.code === appliedSubstitutionRunCode);
+    const candidate = run?.result.candidates.find((c) => c.id === run.selectedCandidateId);
+    return {
+      code: appliedSubstitutionRunCode,
+      status: run?.result.status,
+      selectedCandidateId: run?.selectedCandidateId,
+      selectedCandidateBlocked: candidate ? candidate.hasBlockingCompatibilityFinding || candidate.hasBlockingSafetyFinding : undefined,
+    };
+  }, [appliedSubstitutionRunCode, substitutionRuns]);
+
+  const labEquivalentVersionIds = selectedVersion ? equivalentVersionIdsFor(selectedVersion.id, "laboratory", equivalences) : [];
+  const stabilityEquivalentVersionIds = selectedVersion ? equivalentVersionIdsFor(selectedVersion.id, "stability", equivalences) : [];
+  const activeEquivalences = selectedVersion ? activeEquivalencesFor(selectedVersion.id, equivalences) : [];
+
+  const labReadiness = selectedVersion
+    ? deriveLabReadiness({
+        policy: activePolicy ? toLabApprovalPolicy(activePolicy) : {},
+        formulaVersionId: selectedVersion.id,
+        trials,
+        testDefinitions,
+        testResults,
+        deviations,
+        correctiveActions,
+        equivalentVersionIds: labEquivalentVersionIds,
+      })
+    : undefined;
+
+  const stabilityDerivation = selectedVersion
+    ? deriveStabilityReadiness({
+        policy: activePolicy ? toStabilityApprovalPolicy(activePolicy) : {},
+        formulaVersionId: selectedVersion.id,
+        productFamilyId: formulation.productFamilyCode,
+        packagingSkuCode,
+        studies,
+        samples,
+        results: stabilityResults,
+        failures,
+        timePoints: SEED_STABILITY_TIME_POINTS,
+        testDefinitions,
+        equivalentVersionIds: stabilityEquivalentVersionIds,
+      })
+    : undefined;
+
+  const readiness: ApprovalReadiness = useMemo(
+    () =>
+      assessApprovalReadiness({
+        validationFindings,
+        compatibilityFindings,
+        safetyFindings,
+        productClassification: classification,
+        resolvedFindingIds,
+        humanReviewAcknowledged,
+        appliedOptimizationRun,
+        appliedSubstitutionRun,
+        labReadiness,
+        stabilityReadiness: stabilityDerivation,
+      }),
+    [validationFindings, compatibilityFindings, safetyFindings, classification, resolvedFindingIds, humanReviewAcknowledged, appliedOptimizationRun, appliedSubstitutionRun, labReadiness, stabilityDerivation],
+  );
+
+  const hasCostSnapshot = !!selectedVersion && costSnapshots.some((c) => c.versionId === selectedVersion.id);
+  const costRequired = !!activePolicy?.requireCostSnapshot;
+  const costBlocker: DisplayFinding | undefined =
+    costRequired && !hasCostSnapshot
+      ? { id: "cost:missing_snapshot", source: "cost", code: "missing_cost_snapshot", message: t("approval.blockers.missingCostSnapshot") }
+      : undefined;
+  const conflictBlocker: DisplayFinding | undefined = policyConflict
+    ? { id: "policy:conflict", source: "policy", code: "policy_conflict", message: policyConflict.reason }
+    : undefined;
+
+  // Regulatory readiness — same one-layer-up pattern as the cost-snapshot
+  // gate above: `assessApprovalReadiness` doesn't know about regulatory
+  // rules, so this panel derives the facts from real persisted
+  // rules/findings/reviews/confirmations and folds the result into the
+  // same blocker list. Multi-jurisdiction (spec §3.3):
+  // `resolveRegulatoryJurisdictions` decides which market(s) the six
+  // gates evaluate against — an explicit policy list, every target
+  // market, or the primary market only, defaulting to primary-only so a
+  // policy that never touches those three fields behaves exactly as
+  // before. `formulaVersionId` is the REAL selected, saved version — a
+  // review only ever satisfies the exact version it was recorded
+  // against, never a working draft.
+  const regulatoryPolicy = activePolicy ? toRegulatoryApprovalPolicy(activePolicy) : {};
+  const regulatoryJurisdictions = resolveRegulatoryJurisdictions(regulatoryPolicy, formulation.targetMarkets);
+  const regulatoryClassificationsByJurisdiction = useMemo(
+    () =>
+      new Map(
+        regulatoryJurisdictions.map((jurisdiction) => [
+          jurisdiction,
+          family ? classifyProductRegulatory({ family, claims: formulation.targetClaims, market: jurisdiction }) : undefined,
+        ]),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [family, formulation.targetClaims, regulatoryJurisdictions.join(",")],
+  );
+  const regulatoryFindings = useMemo(
+    () =>
+      regulatoryJurisdictions.flatMap((jurisdiction) => {
+        const classification = regulatoryClassificationsByJurisdiction.get(jurisdiction);
+        return classification
+          ? evaluateRegulatory(lines, regulatoryRules, { jurisdiction, category: classification.category, materials, claims: formulation.targetClaims })
+          : [];
+      }),
+    [lines, regulatoryRules, regulatoryJurisdictions, regulatoryClassificationsByJurisdiction, materials, formulation.targetClaims],
+  );
+  const regulatoryReadinessPerJurisdiction = selectedVersion
+    ? regulatoryJurisdictions.map((jurisdiction) =>
+        deriveRegulatoryReadiness({
+          policy: regulatoryPolicy,
+          classified: !!regulatoryClassificationsByJurisdiction.get(jurisdiction) && !regulatoryClassificationsByJurisdiction.get(jurisdiction)?.uncertain,
+          findings: regulatoryFindings,
+          rules: regulatoryRules,
+          reviews: regulatoryReviews,
+          reviewRevocations: regulatoryReviewRevocations,
+          reviewEquivalences: regulatoryReviewEquivalences,
+          confirmations: regulatoryConfirmations,
+          confirmationRevocations: regulatoryConfirmationRevocations,
+          formulaVersionId: selectedVersion.id,
+          jurisdiction,
+          packagingSkuCode,
+        }),
+      )
+    : [];
+  const regulatoryAssessment = assessMultiJurisdictionRegulatoryReadiness(regulatoryReadinessPerJurisdiction);
+  const regulatoryBlockers: DisplayFinding[] = regulatoryAssessment.blockers.map((b) => ({ id: b.id, source: "regulatory", code: b.code, message: b.message }));
+
+  // Phase 3 §10 — dossier readiness, one more layer-up blocker source,
+  // exactly the cost/regulatory pattern above. `deriveDossierApprovalReadiness`
+  // itself short-circuits to `{ ready: true, blockers: [] }` whenever the
+  // policy never sets `requireRegulatoryDossier` — installing Phase 3 never
+  // blocks an existing project that has not opted in.
+  const dossierPolicy = activePolicy ? toDossierApprovalPolicy(activePolicy) : {};
+  const dossierTargetMarkets = formulation.targetMarkets.filter((m): m is RegulatoryJurisdiction =>
+    (REGULATORY_JURISDICTIONS as readonly string[]).includes(m),
+  );
+  const dossierJurisdictions = resolveDossierJurisdictions(dossierPolicy, dossierTargetMarkets);
+  const dossierReadinessResult = selectedVersion
+    ? deriveDossierApprovalReadiness({
+        policy: dossierPolicy,
+        formulaVersionId: selectedVersion.id,
+        packagingSkuCode,
+        jurisdictions: dossierJurisdictions,
+        dossiers,
+        requirements: dossierRequirements,
+        links: dossierLinks,
+        evidenceItems: dossierEvidence,
+        reviews: dossierReviews,
+        reviewRevocations: dossierReviewRevocations,
+        currentRules: regulatoryRules,
+      })
+    : { ready: true, blockers: [] };
+  const dossierBlockers: DisplayFinding[] = dossierReadinessResult.blockers.map((b) => ({ id: b.id, source: "dossier", code: b.code, message: b.message }));
+
+  // Phase 4 §17 — claims & label readiness, the same one-more-layer-up
+  // blocker source as the dossier gates above. `deriveClaimsLabelApprovalReadiness`
+  // itself short-circuits to `{ ready: true, blockers: [] }` whenever the
+  // policy never sets any of the 7 opt-in fields — installing Phase 4 never
+  // blocks an existing project that has not opted in. No persisted
+  // "required languages" concept exists on `Formulation` yet, so the
+  // required-language set is derived honestly from whichever languages this
+  // formula version's own labels actually cover, unioned with the
+  // documented English baseline (spec §13) — never a fabricated policy field.
+  const claimsLabelPolicy = activePolicy ? toClaimsLabelApprovalPolicy(activePolicy) : {};
+  const versionLabels = productLabels.filter((l) => l.formulaVersionId === selectedVersion?.id && (!packagingSkuCode || !l.packagingSkuCode || l.packagingSkuCode === packagingSkuCode));
+  const requiredLanguages = Array.from(new Set(["en", ...versionLabels.map((l) => l.language)]));
+  const claimsLabelReadinessResult = selectedVersion
+    ? deriveClaimsLabelApprovalReadiness({
+        policy: claimsLabelPolicy,
+        formulationName: formulation.name,
+        formulaVersion: selectedVersion,
+        packagingSkuCode,
+        jurisdictions: dossierJurisdictions.length > 0 ? dossierJurisdictions : dossierTargetMarkets,
+        requiredLanguages,
+        claims,
+        claimLinks,
+        claimReviews,
+        claimReviewRevocations,
+        dossierEvidence,
+        labels: productLabels,
+        labelContent,
+        labelArtworks,
+        labelReviews,
+        labelReviewRevocations,
+        rules: regulatoryRules,
+      })
+    : { ready: true, blockers: [] };
+  const claimsLabelBlockers: DisplayFinding[] = claimsLabelReadinessResult.blockers.map((b) => ({ id: b.id, source: "claims_label", code: b.code, message: b.message }));
+
+  // Frozen at the moment of decision (spec §3.9): later rule edits, later
+  // reviews, or later confirmation revocations must not retroactively
+  // rewrite what this historical approval record says was true. Recomputes
+  // the same per-jurisdiction facts `deriveRegulatoryReadiness` already
+  // used, plus the ids that actually satisfied each gate, rather than a
+  // second independent readiness pass.
+  const buildRegulatorySnapshot = (): RegulatoryApprovalSnapshot | undefined => {
+    if (!selectedVersion || regulatoryJurisdictions.length === 0) return undefined;
+    const perJurisdiction = regulatoryJurisdictions.map((jurisdiction, index) => {
+      const jurisdictionRules = regulatoryRules.filter((r) => r.jurisdiction === jurisdiction || r.jurisdiction === "EAC");
+      const ruleVersionSnapshot = jurisdictionRules.map((r) => ({ ruleId: r.id, ruleCode: r.code, version: r.version, verificationStatus: r.verificationStatus }));
+      const findingSnapshot = regulatoryFindings.filter((f) => f.jurisdiction === jurisdiction);
+      const activeConfirmations = activeEvidenceConfirmations(selectedVersion.id, jurisdiction, packagingSkuCode, regulatoryConfirmations, regulatoryConfirmationRevocations);
+      const reviewCtx = { formulaVersionId: selectedVersion.id, jurisdiction, packagingSkuCode };
+      const applicableReview = findApplicableRegulatoryReview(reviewCtx, regulatoryReviews, regulatoryReviewRevocations, regulatoryReviewEquivalences, regulatoryRules);
+      const humanReviewCurrentness = applicableReview ? "current" : explainRegulatoryReviewStatus(reviewCtx, regulatoryReviews, regulatoryReviewRevocations, regulatoryRules);
+      const perJur = regulatoryAssessment.perJurisdiction[index];
+      return {
+        jurisdiction,
+        classificationSnapshot: regulatoryClassificationsByJurisdiction.get(jurisdiction),
+        findingSnapshot,
+        ruleVersionSnapshot,
+        evidenceConfirmationIds: activeConfirmations.map((c) => c.id),
+        humanReviewId: applicableReview?.review.id,
+        humanReviewCurrentness,
+        ready: perJur?.ready ?? false,
+        blockers: (perJur?.blockers ?? []).map((b) => ({ id: b.id, source: "regulatory", message: b.message, code: b.code })),
+        warnings: [],
+      };
+    });
+    return {
+      ready: regulatoryAssessment.ready,
+      jurisdictionsEvaluated: regulatoryAssessment.jurisdictionsEvaluated,
+      perJurisdiction,
+      packagingSkuCode,
+    };
+  };
+
+  // Phase 3 §10 — frozen at the moment of decision, same reasoning as
+  // buildRegulatorySnapshot above: a later dossier edit, evidence change or
+  // review must never rewrite what a past ApprovalRecord's dossierSnapshot
+  // says was true at approval time.
+  const buildDossierSnapshot = (): DossierApprovalSnapshot | undefined => {
+    if (!selectedVersion || dossierJurisdictions.length === 0) return undefined;
+    const matchedDossiers = dossierJurisdictions
+      .map((jurisdiction) => findDossierForScope(dossiers, { formulaVersionId: selectedVersion.id, packagingSkuCode, jurisdiction }).dossier)
+      .filter((d): d is RegulatoryDossier => !!d);
+    const uniqueDossiers = Array.from(new Map(matchedDossiers.map((d) => [d.id, d])).values());
+    if (uniqueDossiers.length === 0) {
+      return {
+        dossierIds: [],
+        dossierRevisionIds: [],
+        jurisdictions: dossierJurisdictions,
+        requirementCounts: {},
+        missingEvidenceCount: 0,
+        expiredEvidenceCount: 0,
+        reviewIds: [],
+        submissionIds: [],
+        blockers: dossierReadinessResult.blockers.map((b) => b.message),
+        warnings: [],
+        readinessState: "unknown",
+      };
+    }
+    const requirementCounts: Record<string, number> = {};
+    let missingEvidenceCount = 0;
+    let expiredEvidenceCount = 0;
+    const reviewIds: string[] = [];
+    const submissionIds: string[] = [];
+    const readinessStates: string[] = [];
+    for (const dossier of uniqueDossiers) {
+      const reqs = currentRequirementsForRevision(dossierRequirements, dossier.id, dossier.revision);
+      const links = activeLinksForDossier(dossierLinks, dossier.id);
+      const evidence = dossierEvidence.filter((e) => e.dossierId === dossier.id);
+      const matrix = buildEvidenceMatrix(reqs, links, evidence, dossier.formulaVersionId, dossier.packagingSkuCode);
+      const dossierReadiness = calculateDossierReadiness(dossier, matrix);
+      requirementCounts[dossier.dossierCode] = reqs.length;
+      missingEvidenceCount += dossierReadiness.missingMandatoryRequirements;
+      expiredEvidenceCount += dossierReadiness.expiredEvidenceCount;
+      readinessStates.push(dossierReadiness.overallReadiness);
+      for (const review of dossierReviews.filter((r) => r.dossierId === dossier.id)) {
+        if (isDossierReviewActive(review, dossierReviewRevocations, dossier.revision)) reviewIds.push(review.id);
+      }
+      for (const submission of dossierSubmissions.filter((s) => s.dossierId === dossier.id)) submissionIds.push(submission.id);
+    }
+    // "unknown" and "blocked" outrank a per-dossier "ready" when several
+    // jurisdictions' dossiers are folded into one snapshot — the same
+    // never-silently-hide-the-worse-answer principle calculateDossierReadiness
+    // itself uses for "unknown must never become ready".
+    const priority = ["unknown", "blocked", "not_ready", "partially_ready", "under_review", "review_complete", "ready_for_review"];
+    const worst = readinessStates.reduce((acc, s) => (priority.indexOf(s) < priority.indexOf(acc) ? s : acc), readinessStates[0] ?? "unknown");
+    return {
+      dossierIds: uniqueDossiers.map((d) => d.id),
+      dossierRevisionIds: uniqueDossiers.map((d) => `${d.id}:${d.revision}`),
+      jurisdictions: dossierJurisdictions,
+      requirementCounts,
+      missingEvidenceCount,
+      expiredEvidenceCount,
+      reviewIds,
+      submissionIds,
+      blockers: dossierReadinessResult.blockers.map((b) => b.message),
+      warnings: [],
+      readinessState: worst as DossierApprovalSnapshot["readinessState"],
+    };
+  };
+
+  // Phase 4 §17 — frozen at the moment of decision, same reasoning as
+  // buildDossierSnapshot above: a later claim edit, label content change or
+  // review must never rewrite what a past ApprovalRecord's claimsLabelSnapshot
+  // says was true at approval time.
+  const buildClaimsLabelSnapshot = (): ClaimsLabelApprovalSnapshot | undefined => {
+    if (!selectedVersion) return undefined;
+    const activeClaims = claims.filter((c) => c.formulaVersionId === selectedVersion.id && deriveClaimEffectiveStatus(c, claims) !== "superseded");
+    const findingsByClaimId = new Map(
+      activeClaims.map((c) => [
+        c.id,
+        [
+          ...evaluateClaimAgainstRules(c, { jurisdictions: c.jurisdictions, rules: regulatoryRules }),
+          ...evaluateClaimEvidence(c, claimLinks, dossierEvidence, { formulaVersionId: c.formulaVersionId, packagingSkuCode: c.packagingSkuCode, jurisdictions: c.jurisdictions }).findings,
+        ],
+      ]),
+    );
+    const claimsReadiness = calculateClaimsReadiness(activeClaims, findingsByClaimId);
+    const claimReviewIds = claimReviews.filter((r) => activeClaims.some((c) => c.id === r.claimId) && isClaimReviewActive(r, claimReviewRevocations, 1)).map((r) => r.id);
+
+    const versionScopedLabels = productLabels.filter(
+      (l) => l.formulaVersionId === selectedVersion.id && deriveLabelEffectiveStatus(l, productLabels) !== "superseded" && (!packagingSkuCode || !l.packagingSkuCode || l.packagingSkuCode === packagingSkuCode),
+    );
+    const labelReviewIds: string[] = [];
+    const artworkIds: string[] = [];
+    const labelReadinessStates: string[] = [];
+    for (const label of versionScopedLabels) {
+      const blocks = currentContentForRevision(labelContent, label.id, label.revision);
+      const artworksForLabel = labelArtworks.filter((a) => a.labelId === label.id && a.labelRevision === label.revision);
+      const currentArtwork = artworksForLabel.find((a) => deriveArtworkEffectiveStatus(a, artworksForLabel) !== "superseded");
+      if (currentArtwork) artworkIds.push(currentArtwork.id);
+      const hasActiveClaims = activeClaims.some((c) => c.jurisdictions.includes(label.jurisdiction));
+      const requirements = resolveLabelRequirements({ jurisdiction: label.jurisdiction, language: label.language, rules: regulatoryRules, hasActiveClaims });
+      const contentRows = evaluateLabelContent(requirements, blocks, label.language);
+      const labelReadiness = calculateLabelReadiness(label, contentRows, [label.language], [label.language], currentArtwork);
+      labelReadinessStates.push(labelReadiness.overallReadiness);
+      for (const review of labelReviews.filter((r) => r.labelId === label.id)) {
+        if (isLabelReviewActive(review, labelReviewRevocations, label.revision, review.artworkRevision)) labelReviewIds.push(review.id);
+      }
+    }
+    const priority = ["unknown", "blocked", "not_ready", "partially_ready", "under_review", "review_complete", "ready_for_review"];
+    const worstLabel = labelReadinessStates.reduce((acc, s) => (priority.indexOf(s) < priority.indexOf(acc) ? s : acc), labelReadinessStates[0] ?? "unknown");
+    return {
+      claimIds: activeClaims.map((c) => c.id),
+      claimRevisions: Object.fromEntries(activeClaims.map((c) => [c.id, 1])),
+      labelIds: versionScopedLabels.map((l) => l.id),
+      labelRevisions: Object.fromEntries(versionScopedLabels.map((l) => [l.id, l.revision])),
+      artworkIds,
+      labelReviewIds,
+      claimReviewIds,
+      languages: requiredLanguages,
+      jurisdictions: dossierJurisdictions.length > 0 ? dossierJurisdictions : dossierTargetMarkets,
+      claimsReadinessState: claimsReadiness.overallReadiness,
+      labelReadinessState: (versionScopedLabels.length > 0 ? worstLabel : "unknown") as ClaimsLabelApprovalSnapshot["labelReadinessState"],
+      blockers: claimsLabelReadinessResult.blockers.map((b) => b.message),
+      warnings: [],
+    };
+  };
+
+  const allBlockers: DisplayFinding[] = [...readiness.blockers, ...(costBlocker ? [costBlocker] : []), ...(conflictBlocker ? [conflictBlocker] : []), ...regulatoryBlockers, ...dossierBlockers, ...claimsLabelBlockers];
+  const allWarnings: (ApprovalWarning | DisplayFinding)[] = readiness.warnings;
+  const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker && regulatoryAssessment.ready && dossierReadinessResult.ready && claimsLabelReadinessResult.ready;
+
+  const canApprove = !!selectedVersion && targetOptions.includes(targetStatus) && APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole);
+
+  // Built from the exact booleans the Approve button's own `disabled` prop
+  // already used — never a separately invented reason.
+  const approveDisabledReason: DisabledReason | null = busy
+    ? { code: "approval_busy", messageKey: "approval.reasons.busy", resolvable: true }
+    : !effectiveReady
+      ? {
+          // Deliberately no `prerequisite` field here: the full blocker list
+          // is already shown above this button, in the readiness summary —
+          // repeating one blocker's exact text here would duplicate it on
+          // screen (and, e.g., break a test asserting one occurrence).
+          code: "approval_not_ready",
+          messageKey: "approval.reasons.notReady",
+          messageValues: { count: allBlockers.length },
+          relatedTopicId: "approval",
+          resolvable: true,
+        }
+      : !APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole)
+        ? {
+            code: "approval_role_not_authorized",
+            messageKey: "approval.reasons.roleNotAuthorized",
+            requiredRole: APPROVAL_AUTHORITY[targetStatus].join(", "),
+            relatedTopicId: "approval",
+            resolvable: false,
+          }
+        : !reviewerDisplayName.trim() || !reason.trim()
+          ? {
+              code: "approval_missing_fields",
+              messageKey: "approval.reasons.missingFields",
+              relatedTopicId: "approval",
+              resolvable: true,
+            }
+          : !canApprove
+            ? { code: "approval_cannot_approve", messageKey: "approval.reasons.notReady", relatedTopicId: "approval", resolvable: true }
+            : null;
+
+  const buildReadinessSnapshot = () => ({ ready: effectiveReady, blockers: allBlockers, warnings: readiness.warnings });
+
+  const navigate = (finding: DisplayFinding) => {
+    if (finding.source === "policy") {
+      setManagingPolicies(true);
+      return;
+    }
+    if (finding.lineId) onFocusLine(finding.lineId);
+    const target = (finding.code && CODE_NAV_OVERRIDE[finding.code]) || SOURCE_NAV[finding.source] || "builder";
+    onNavigate(target);
+  };
+
+  const policyActor: Actor = { kind: "human", role: reviewerRole, userId: reviewerUserId.trim() || "local" };
+
+  const persistPolicyChange = async ({ policy, revision }: { policy: ApprovalPolicy; revision: ApprovalPolicyRevision }) => {
+    await upsertRecords("approval_policies", [policy]);
+    await upsertRecords("approval_policy_revisions", [revision]);
+    setPolicies((prev) => (prev.some((p) => p.id === policy.id) ? prev.map((p) => (p.id === policy.id ? policy : p)) : [...prev, policy]));
+    setPolicyRevisions((prev) => [...prev, revision]);
+    setPolicyId(policy.id);
+    await appendAudit(
+      auditEvent(formulation.id, "approval.policy_changed", {
+        detail: `${revision.changeType} "${policy.name}" (revision ${revision.revisionNumber})`,
+        metadata: { policyId: policy.id, revisionId: revision.id, changeType: revision.changeType, changedBy: revision.changedBy },
+      }),
+    );
+  };
+
+  const handleCreatePolicy = (policy: ApprovalPolicy) => persistPolicyChange({ policy, revision: initialPolicyRevision(policy, policyActor) });
+  const handleEditPolicy = (current: ApprovalPolicy, updates: Partial<ApprovalPolicy>, reason: string) =>
+    persistPolicyChange(editPolicy(current, updates, policyActor, reason));
+  const handleToggleActive = (current: ApprovalPolicy, active: boolean) => persistPolicyChange(setPolicyActive(current, active, policyActor));
+  const handleRetirePolicy = (current: ApprovalPolicy, reason: string) => persistPolicyChange(retirePolicy(current, policyActor, reason));
+  const handleClonePolicy = (source: ApprovalPolicy, newName: string) => persistPolicyChange(clonePolicy(source, policyActor, newName));
+  const handleRestoreRevision = (current: ApprovalPolicy, revision: ApprovalPolicyRevision) =>
+    persistPolicyChange(restorePolicyRevision(current, revision, policyActor));
+
+  const handleDeclareEquivalence = async (equivalentVersionId: string, scope: EvidenceReuseScope, justification: string) => {
+    if (!selectedVersion) return;
+    const eq = declareEquivalence(
+      { formulationId: formulation.id, sourceVersionId: selectedVersion.id, equivalentVersionId, evidenceReuseScope: scope, justification },
+      policyActor,
+    );
+    await upsertRecords("formula_version_equivalences", [eq]);
+    setEquivalences((prev) => [...prev, eq]);
+    await appendAudit(
+      auditEvent(formulation.id, "equivalence.declared", {
+        versionId: eq.sourceVersionId,
+        detail: `${eq.equivalentVersionId} (${eq.evidenceReuseScope})`,
+        metadata: { equivalenceId: eq.id, equivalentVersionId: eq.equivalentVersionId, scope: eq.evidenceReuseScope },
+      }),
+    );
+  };
+
+  const handleRevokeEquivalence = async (eq: FormulaVersionEquivalence, reason: string) => {
+    const revocation = revokeEquivalence(eq, policyActor, reason);
+    await upsertRecords("formula_version_equivalences", [revocation]);
+    setEquivalences((prev) => [...prev, revocation]);
+    await appendAudit(
+      auditEvent(formulation.id, "equivalence.revoked", {
+        versionId: eq.sourceVersionId,
+        detail: reason,
+        metadata: { equivalenceId: eq.id, revocationId: revocation.id },
+      }),
+    );
+  };
+
+  const record = async (decision: ApprovalRecord["decision"]) => {
+    if (!selectedVersion) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const actor: Actor = { kind: "human", role: reviewerRole, userId: reviewerUserId.trim() || "local" };
+      const snapshot = buildReadinessSnapshot();
+      const regulatorySnapshot = buildRegulatorySnapshot();
+      const dossierSnapshot = buildDossierSnapshot();
+      const claimsLabelSnapshot = buildClaimsLabelSnapshot();
+      const approvalId = newId("approval");
+      const now = new Date().toISOString();
+
+      if (decision === "approved") {
+        const result = attemptApprovalTransition(
+          currentStatus,
+          targetStatus as "pilot_approved" | "production_approved",
+          actor,
+          { ready: snapshot.ready, blockers: snapshot.blockers as ApprovalBlocker[], warnings: snapshot.warnings },
+          { hasApprovalRecord: true },
+        );
+        if (!result.allowed || !result.action) {
+          await saveApprovalRecord(
+            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason || result.message || "blocked", snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
+          );
+          await appendAudit(auditEvent(formulation.id, "approval.blocked", { versionId: selectedVersion.id, detail: result.message }));
+          setError(result.message ?? t("approval.blockedGeneric"));
+          return;
+        }
+        await saveApprovalRecord(
+          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
+        );
+        await appendAudit(auditEvent(formulation.id, result.action, { versionId: selectedVersion.id, detail: reason }));
+        await appendAudit(auditEvent(formulation.id, "approval.granted", { versionId: selectedVersion.id, detail: approvalId }));
+      } else {
+        await saveApprovalRecord(
+          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
+        );
+        await appendAudit(auditEvent(formulation.id, `approval.${decision}`, { versionId: selectedVersion.id, detail: reason }));
+      }
+
+      setReason("");
+      await load();
+      await onAuditChanged();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!selectedVersion) {
+    return <p className="px-6 py-8 text-center text-[13px] text-muted">{t("approval.noVersion")}</p>;
+  }
+
+  return (
+    <div className="h-full overflow-auto px-4 py-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Shield size={15} className="text-accent" />
+        <h3 className="text-[13px] font-medium text-text">{t("approval.heading")}</h3>
+        <InfoTooltip title={t("approval.reasons.stateInfoTitle")} body={t("approval.reasons.stateInfoBody")} learnMoreTopicId="approval" />
+        <div className="flex-1" />
+        <select
+          value={selectedVersionId}
+          onChange={(e) => setSelectedVersionId(e.target.value)}
+          className="rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text"
+        >
+          {versions.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.versionLabel ?? `0.${v.versionNumber}`} — {effectiveStatus(v, auditLog)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error && (
+        <div role="alert" className="mb-3 rounded-input bg-error/10 px-3 py-2 text-[12px] text-error">
+          {error}
+        </div>
+      )}
+
+      <div className="mb-3 grid grid-cols-2 gap-3 rounded-card border border-border p-3 text-[12px] sm:grid-cols-4">
+        <Field label={t("approval.currentStatus")} value={currentStatus} />
+        <div>
+          <div className="mb-1 text-[10px] text-muted">{t("approval.requestedStatus")}</div>
+          <select
+            value={targetStatus}
+            onChange={(e) => setTargetStatus(e.target.value as FormulaStatus)}
+            disabled={targetOptions.length === 0}
+            className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text disabled:opacity-40"
+          >
+            {(targetOptions.length ? targetOptions : [currentStatus]).map((s) => (
+              <option key={s} value={s}>
+                {t(`approval.status.${s}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <div className="mb-1 text-[10px] text-muted">{t("approval.policy")}</div>
+          <select
+            aria-label={t("approval.policy")}
+            value={activePolicy?.id ?? ""}
+            onChange={(e) => setPolicyId(e.target.value)}
+            className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text"
+          >
+            <option value="">{t("approval.noPolicy")}</option>
+            {applicablePolicies.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <div className="mt-1 flex gap-2">
+            <button onClick={() => setManagingPolicies((v) => !v)} className="text-[10px] text-accent hover:underline">
+              {t("approval.managePolicies")}
+            </button>
+            <button onClick={() => setManagingEquivalence((v) => !v)} className="text-[10px] text-accent hover:underline">
+              {t("approval.equivalenceHeading")}
+              {activeEquivalences.length > 0 && ` (${activeEquivalences.length})`}
+            </button>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 text-[10px] text-muted">{t("approval.readiness")}</div>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium",
+              effectiveReady ? "bg-success/10 text-success" : "bg-error/10 text-error",
+            )}
+          >
+            {effectiveReady ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+            {effectiveReady ? t("approval.ready") : t("approval.notReady")}
+          </span>
+        </div>
+      </div>
+
+      {managingPolicies && (
+        <Section title={t("approval.managePolicies")}>
+          <PolicyEditor
+            policies={policies}
+            revisions={policyRevisions}
+            productFamilyOptions={catalog.families.map((f) => f.code)}
+            packagingSkuOptions={formulation.targetSkuCodes}
+            onCreate={handleCreatePolicy}
+            onEdit={handleEditPolicy}
+            onToggleActive={handleToggleActive}
+            onRetire={handleRetirePolicy}
+            onClone={handleClonePolicy}
+            onRestoreRevision={handleRestoreRevision}
+            t={t}
+          />
+        </Section>
+      )}
+
+      {managingEquivalence && selectedVersion && (
+        <Section title={t("approval.equivalenceHeading")}>
+          <EquivalenceWorkflow
+            versions={versions}
+            sourceVersion={selectedVersion}
+            activeEquivalences={activeEquivalences}
+            findingCounts={findingCountsForVersion}
+            onDeclare={handleDeclareEquivalence}
+            onRevoke={handleRevokeEquivalence}
+            t={t}
+          />
+        </Section>
+      )}
+
+      <Section title={t("approval.blockersHeading", { count: allBlockers.length })}>
+        {allBlockers.length === 0 ? (
+          <p className="text-[11px] text-muted">{t("approval.noBlockers")}</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {allBlockers.map((b) => (
+              <li key={b.id} className="flex items-start gap-2 rounded-input border border-error/30 bg-error/5 px-2 py-1.5 text-[11px] text-text">
+                <span className="mt-0.5 rounded bg-error/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-error">{b.source}</span>
+                <span className="flex-1">{b.message}</span>
+                <button onClick={() => navigate(b)} className="flex shrink-0 items-center gap-1 text-[10px] text-accent hover:underline">
+                  {t("approval.goTo")} <ExternalLink size={10} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section title={t("approval.warningsHeading", { count: allWarnings.length })}>
+        {allWarnings.length === 0 ? (
+          <p className="text-[11px] text-muted">{t("approval.noWarnings")}</p>
+        ) : (
+          <ul className="space-y-1">
+            {allWarnings.map((w) => (
+              <li key={w.id} className="rounded-input border border-warn/30 bg-warn/5 px-2 py-1.5 text-[11px] text-text">
+                {w.message}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {labReadiness && (
+          <SummaryCard title={t("approval.laboratorySummary")}>
+            {labEquivalentVersionIds.length > 0 && (
+              <p className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">{t("approval.evidenceFromEquivalent", { versions: labEquivalentVersionIds.join(", ") })}</p>
+            )}
+            <SummaryRow label={t("approval.hasCompletedTrial")} ok={labReadiness.hasCompletedTrial} />
+            <SummaryRow label={t("approval.allRequiredTestsCompleted")} ok={labReadiness.allRequiredTestsCompleted} />
+            <SummaryRow label={t("approval.allCriticalTestsPassed")} ok={labReadiness.allCriticalTestsPassed} />
+            <SummaryRow label={t("approval.noOpenCriticalDeviation")} ok={!labReadiness.hasUnresolvedCriticalDeviation} />
+            <SummaryRow label={t("approval.noOpenCriticalCorrectiveAction")} ok={!labReadiness.hasUnresolvedCriticalCorrectiveAction} />
+          </SummaryCard>
+        )}
+        {stabilityDerivation && (
+          <SummaryCard title={t("approval.stabilitySummary")}>
+            {stabilityEquivalentVersionIds.length > 0 && (
+              <p className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">{t("approval.evidenceFromEquivalent", { versions: stabilityEquivalentVersionIds.join(", ") })}</p>
+            )}
+            <SummaryRow label={t("approval.hasActiveOrCompletedStudy")} ok={stabilityDerivation.hasActiveOrCompletedStudy} />
+            <SummaryRow label={t("approval.initialTestsPassed")} ok={stabilityDerivation.initialTestsPassed} />
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted">{t("approval.completedTimePointCount")}</span>
+              <span className="text-text">{stabilityDerivation.completedTimePointCount}</span>
+            </div>
+            <SummaryRow label={t("approval.noOpenCriticalStabilityFailure")} ok={!stabilityDerivation.hasUnresolvedCriticalFailure} />
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted">{t("approval.packagingCompatibility")}</span>
+              <span className={cn("font-medium", stabilityDerivation.packagingCompatibilityStatus === "passed" ? "text-success" : stabilityDerivation.packagingCompatibilityStatus === "not_required" ? "text-muted" : "text-error")}>
+                {t(`approval.packagingStatus.${stabilityDerivation.packagingCompatibilityStatus}`)}
+              </span>
+            </div>
+          </SummaryCard>
+        )}
+        <SummaryCard title={t("approval.validationCompatibilitySafetySummary")}>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted">{t("approval.compatibilityFindings")}</span>
+            <span className="text-text">{compatibilityFindings.length}</span>
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted">{t("approval.safetyFindings")}</span>
+            <span className="text-text">{safetyFindings.length}</span>
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted">{t("approval.classification")}</span>
+            <span className="text-text">{classification}</span>
+          </div>
+        </SummaryCard>
+        <SummaryCard title={t("approval.costSummary")}>
+          <SummaryRow label={t("approval.costSnapshotPresent")} ok={hasCostSnapshot} muted={!costRequired} />
+        </SummaryCard>
+        <SummaryCard title={t("regulatory.approvalSummaryHeading")}>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted">{t("regulatory.approvalSummaryJurisdiction")}</span>
+            <span className="text-text">{regulatoryJurisdictions.map((j) => t(`regulatory.jurisdiction.${j}`)).join(", ")}</span>
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted">{t("regulatory.approvalSummaryFindings")}</span>
+            <span className="text-text">{regulatoryFindings.length}</span>
+          </div>
+          {regulatoryReadinessPerJurisdiction.map((input) => (
+            <div key={input.jurisdiction} className="mt-1.5 border-t border-border-faint pt-1.5 first:mt-0 first:border-0 first:pt-0">
+              {regulatoryJurisdictions.length > 1 && <p className="mb-0.5 text-[10px] font-medium text-muted">{t(`regulatory.jurisdiction.${input.jurisdiction}`)}</p>}
+              <SummaryRow
+                label={t("regulatory.approvalSummaryNoBlockingFinding")}
+                ok={!input.hasBlockingFinding}
+                muted={!activePolicy?.requireNoBlockingRegulatoryFinding}
+              />
+              <SummaryRow
+                label={t("regulatory.approvalSummaryHumanReview")}
+                ok={input.humanReviewCompleted}
+                muted={!activePolicy?.requireHumanRegulatoryReviewCompleted}
+              />
+            </div>
+          ))}
+        </SummaryCard>
+      </div>
+
+      <Section title={t("approval.decisionHeading")}>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerRole")}</span>
+            <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text">
+              {APPROVAL_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerDisplayName")}</span>
+            <input value={reviewerDisplayName} onChange={(e) => setReviewerDisplayName(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerUserId")}</span>
+            <input value={reviewerUserId} onChange={(e) => setReviewerUserId(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
+          </label>
+        </div>
+        <label className="mt-2 block">
+          <span className="mb-1 block text-[10px] text-muted">{t("approval.reason")}</span>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
+        </label>
+        {!APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole) && (
+          <p className="mt-1 text-[10px] text-error">{t("approval.roleNotAuthorized")}</p>
+        )}
+        <div className="mt-2 flex flex-wrap gap-2">
+          <DisabledActionButton
+            reason={approveDisabledReason}
+            onClick={() => void record("approved")}
+            ns="session"
+            className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
+          >
+            {t("approval.approveButton", { status: t(`approval.status.${targetStatus}`) })}
+          </DisabledActionButton>
+          <button
+            onClick={() => void record("rejected")}
+            disabled={busy || !reviewerDisplayName.trim() || !reason.trim()}
+            className="rounded-input border border-error/40 px-3 py-1.5 text-xs text-error hover:bg-error/10 disabled:opacity-40"
+          >
+            {t("approval.rejectButton")}
+          </button>
+          <button
+            onClick={() => void record("cancelled")}
+            disabled={busy}
+            className="rounded-input border border-border px-3 py-1.5 text-xs text-muted hover:bg-surface-2 disabled:opacity-40"
+          >
+            {t("approval.cancelButton")}
+          </button>
+        </div>
+      </Section>
+
+      <Section title={t("approval.historyHeading")}>
+        {approvalRecords.length === 0 ? (
+          <p className="text-[11px] text-muted">{t("approval.noHistory")}</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {[...approvalRecords]
+              .sort((a, b) => b.approvedAt.localeCompare(a.approvedAt))
+              .map((r) => (
+                <li key={r.id} className="rounded-input border border-border px-2 py-1.5 text-[11px]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", r.decision === "approved" ? "bg-success/10 text-success" : r.decision === "blocked" ? "bg-error/10 text-error" : "bg-surface-2 text-muted")}>
+                      {r.decision}
+                    </span>
+                    <span className="text-text">{r.requestedStatus ?? r.status}</span>
+                    <span className="text-muted">{r.approvedBy}</span>
+                    <span className="text-muted">{new Date(r.approvedAt).toLocaleString()}</span>
+                  </div>
+                  <p className="mt-0.5 text-muted">{r.justification}</p>
+                </li>
+              ))}
+          </ul>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+const DISABLED_EXAMPLE_POLICY: ApprovalPolicy = {
+  schemaVersion: "1.0",
+  id: "policy-example-pilot-lab-gate",
+  name: "Example: require a completed trial before pilot approval (disabled)",
+  productFamilyCodes: [],
+  packagingSkuCodes: [],
+  targetStatus: "pilot_approved",
+  verificationStatus: "not_verified",
+  active: false,
+  retired: false,
+  revisionNumber: 1,
+  requireCompletedTrial: true,
+  requireAllRequiredTestsCompleted: true,
+  requireAllCriticalTestsPassed: true,
+  requireNoUnresolvedCriticalDeviation: true,
+  requireNoUnresolvedCriticalCorrectiveAction: true,
+  requireActiveStudy: false,
+  requireInitialTestsPassed: false,
+  requireNoUnresolvedCriticalFailure: false,
+  requirePackagingCompatibilityPassed: false,
+  requireCostSnapshot: false,
+  requireRegulatoryClassificationCompleted: false,
+  requireNoBlockingRegulatoryFinding: false,
+  requireAllMandatoryDocumentsPresent: false,
+  requireAllMandatoryEvidencePresent: false,
+  requireAllRequiredClaimsReviewed: false,
+  requireHumanRegulatoryReviewCompleted: false,
+  requireAllTargetMarketsReviewed: false,
+  allowPrimaryMarketOnly: false,
+  requireRegulatoryDossier: false,
+  requireDossierReadyForReview: false,
+  requireDossierReviewComplete: false,
+  requireNoMissingMandatoryDossierEvidence: false,
+  requireNoExpiredMandatoryDossierEvidence: false,
+  requireAllRequiredJurisdictionDossiers: false,
+  requireAllClaimsReviewed: false,
+  requireNoProhibitedClaims: false,
+  requireNoUnsupportedClaims: false,
+  requireLabelReviewComplete: false,
+  requireArtworkApproved: false,
+  requireFormulaLabelConsistency: false,
+  requireAllRequiredLanguagesReviewed: false,
+  createdBy: "local",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
+function buildApprovalRecord(
+  id: string,
+  decision: ApprovalRecord["decision"],
+  formulationId: string,
+  versionId: string,
+  previousStatus: FormulaStatus,
+  requestedStatus: FormulaStatus,
+  actor: Actor & { kind: "human" },
+  reviewerDisplayName: string,
+  justification: string,
+  snapshot: { ready: boolean; blockers: DisplayFinding[]; warnings: ApprovalWarning[] },
+  now: string,
+  regulatorySnapshot?: RegulatoryApprovalSnapshot,
+  dossierSnapshot?: DossierApprovalSnapshot,
+  claimsLabelSnapshot?: ClaimsLabelApprovalSnapshot,
+): ApprovalRecord {
+  return {
+    schemaVersion: "1.0",
+    id,
+    formulationId,
+    versionId,
+    status: decision === "approved" ? requestedStatus : previousStatus,
+    decision,
+    previousStatus,
+    requestedStatus,
+    approvedBy: reviewerDisplayName.trim() || actor.userId,
+    approvedByRole: actor.role,
+    approvedAt: now,
+    reviewerUserId: actor.userId,
+    reviewerRole: actor.role,
+    justification: justification.trim() || `${decision} without a stated reason`,
+    readinessSnapshot: snapshot,
+    regulatorySnapshot,
+    dossierSnapshot,
+    claimsLabelSnapshot,
+    createdAt: now,
+  };
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="mb-1 text-[10px] text-muted">{label}</div>
+      <div className="text-[12px] font-medium text-text">{value}</div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-3 rounded-card border border-border p-3">
+      <h4 className="mb-2 text-[11px] font-medium text-muted">{title}</h4>
+      {children}
+    </div>
+  );
+}
+
+function SummaryCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-card border border-border p-2.5">
+      <h5 className="mb-1.5 text-[10px] font-medium text-muted">{title}</h5>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, ok, muted }: { label: string; ok: boolean; muted?: boolean }) {
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="text-muted">{label}</span>
+      {muted ? (
+        <span className="text-muted">—</span>
+      ) : ok ? (
+        <CheckCircle2 size={13} className="text-success" />
+      ) : (
+        <XCircle size={13} className="text-error" />
+      )}
+    </div>
+  );
+}

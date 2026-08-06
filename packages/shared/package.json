@@ -1,5 +1,5 @@
 {
-  "name": "@ai4s/shared",
+  "name": "@formulab/shared",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,5 +7,17 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.4.3",
+    "decimal.js": "^10.6.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4",
+    "typescript": "^5.9.3"
   }
 }

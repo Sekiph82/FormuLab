@@ -47,10 +47,10 @@ pub fn probe_large_file(
     let (python, _) = crate::kernel::python_bin(&app)?;
     let script = probe_script(&app).ok_or("large-file probe not found")?;
 
-    let mut cmd = crate::runtime::quiet_command(&python);
+    let mut cmd = crate::workspace::quiet_command(&python);
     cmd.arg(&script).arg(&full);
     // Same enriched PATH as the kernel/agent so a conda/homebrew python resolves.
-    cmd.env("PATH", crate::runtime::enriched_path());
+    cmd.env("PATH", crate::workspace::enriched_path());
     let out = cmd.output().map_err(|e| format!("probe failed to run: {e}"))?;
     if !out.status.success() {
         return Err(format!("probe error: {}", String::from_utf8_lossy(&out.stderr)));

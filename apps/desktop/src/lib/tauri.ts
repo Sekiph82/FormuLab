@@ -4,45 +4,10 @@
 export const isTauri =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-export interface OpenCodeCredentials {
-  provider: string;
-  apiKey: string;
-  model: string;
-  baseUrl?: string;
-}
-
 export type ConfigureResult =
   | { ok: true; path: string }
   | { ok: false; reason: "not-desktop" }
   | { ok: false; reason: "error"; message: string };
-
-/** Start the bundled OpenCode sidecar (desktop only). Returns its base URL. */
-export async function startRuntime(): Promise<string | null> {
-  if (!isTauri) return null;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string>("start_runtime");
-}
-
-/**
- * Per-run password the sidecar requires on every request (desktop only —
- * browser dev talks to a user-run, passwordless `opencode serve`). Held in
- * memory on both sides; never persisted.
- */
-export async function runtimePassword(): Promise<string | null> {
-  if (!isTauri) return null;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string>("runtime_password");
-}
-
-/**
- * Pick local files via the native dialog and copy them into the agent
- * workspace (desktop only). Returns the workspace file names; [] on cancel.
- */
-export async function addFilesToWorkspace(): Promise<string[]> {
-  if (!isTauri) return [];
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string[]>("add_files_to_workspace");
-}
 
 /**
  * Write text into the workspace as a file (desktop only), deduplicating the
@@ -54,36 +19,10 @@ export async function addTextToWorkspace(filename: string, content: string): Pro
   return invoke<string>("add_text_to_workspace", { filename, content });
 }
 
-/**
- * Explicitly import the user's OpenCode CLI login into the app's private
- * runtime (desktop only). Returns false when no CLI login exists; the sidecar
- * is restarted on success.
- */
-export async function importOpenCodeLogin(): Promise<boolean> {
-  if (!isTauri) return false;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<boolean>("import_opencode_login");
-}
-
 /** How agent actions get approved — the composer's Codex-style switch.
  *  "approve": dangerous shell commands (delete / install / remote / privilege)
  *  and web fetches prompt first. "full": everything in-workspace just runs. */
 export type ApprovalMode = "approve" | "full";
-
-/** The approval mode OpenCode's config currently holds ("approve" until changed). */
-export async function getApprovalMode(): Promise<ApprovalMode> {
-  if (!isTauri) return "approve";
-  const { invoke } = await import("@tauri-apps/api/core");
-  const mode = await invoke<string>("get_approval_mode");
-  return mode === "full" ? "full" : "approve";
-}
-
-/** Switch the approval mode; the sidecar restarts — the caller must reconnect. */
-export async function setApprovalMode(mode: ApprovalMode): Promise<void> {
-  if (!isTauri) return;
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("set_approval_mode", { mode });
-}
 
 /** Network proxy for the sidecar: follow the OS, a fixed URL, or direct. */
 export type ProxyMode = "system" | "custom" | "none";
@@ -95,53 +34,12 @@ export interface ProxySetting {
   effective: string | null;
 }
 
-/** The persisted proxy setting (desktop only; null in browser). */
-export async function getProxySetting(): Promise<ProxySetting | null> {
-  if (!isTauri) return null;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return await invoke<ProxySetting>("get_proxy_setting");
-}
-
-/** Persist the proxy setting; the sidecar restarts — the caller must reconnect. */
-export async function setProxySetting(mode: ProxyMode, url: string): Promise<void> {
-  if (!isTauri) return;
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("set_proxy_setting", { mode, url });
-}
-
 /** uv download mirrors used only when provisioning Python tools (empty ⇒ default). */
 export interface MirrorSetting {
   /** PyPI index URL (UV_DEFAULT_INDEX). */
   pypi: string;
   /** Python-download mirror (UV_PYTHON_INSTALL_MIRROR). */
   python: string;
-}
-
-/** The persisted uv mirrors (desktop only; null in browser). */
-export async function getMirrorSetting(): Promise<MirrorSetting | null> {
-  if (!isTauri) return null;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return await invoke<MirrorSetting>("get_mirror_setting");
-}
-
-/** Persist the uv mirrors; blank fields clear. No sidecar restart. */
-export async function setMirrorSetting(pypi: string, python: string): Promise<void> {
-  if (!isTauri) return;
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("set_mirror_setting", { pypi, python });
-}
-
-/** Whether the bundled runtime's credential store has an entry for this
- *  provider — ground truth that a browser login landed even when its OAuth
- *  callback was lost. False in browser dev (and on any read failure). */
-export async function providerAuthExists(providerID: string): Promise<boolean> {
-  if (!isTauri) return false;
-  const { invoke } = await import("@tauri-apps/api/core");
-  try {
-    return await invoke<boolean>("provider_auth_exists", { providerId: providerID });
-  } catch {
-    return false;
-  }
 }
 
 /** Per-session goal-mode state, as the bundled goal plugin records it.
@@ -154,37 +52,6 @@ export interface GoalState {
   blocker?: string | null;
   completionEvidence?: string | null;
   lastStatus?: string | null;
-}
-
-/** The session's current goal (null when none / in browser dev). Reads the
- *  plugin's state file directly — a status pill must not cost a model turn. */
-export async function goalState(sessionId: string): Promise<GoalState | null> {
-  if (!isTauri) return null;
-  const { invoke } = await import("@tauri-apps/api/core");
-  try {
-    return await invoke<GoalState | null>("goal_state", { sessionId });
-  } catch {
-    return null;
-  }
-}
-
-/** Pause / resume / clear the session's goal from the UI (no model turn).
- *  Continuation only fires while status is "active", so pause stops the loop
- *  at the next idle. Returns the new state (null after clear). */
-export async function goalUpdate(
-  sessionId: string,
-  action: "pause" | "resume" | "clear",
-): Promise<GoalState | null> {
-  if (!isTauri) return null;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<GoalState | null>("goal_update", { sessionId, action });
-}
-
-/** Remove a provider/mcp entry from the global OpenCode config (restarts the sidecar). */
-export async function removeConfigEntry(section: "provider" | "mcp", key: string): Promise<void> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("remove_config_entry", { section, key });
 }
 
 export interface JupyterStatus {
@@ -274,22 +141,6 @@ export async function watchSetupProgress(
   return listen<SetupProgress>("setup-progress", (e) => cb(e.payload));
 }
 
-/** Managed interpreter path for the shared science-MCP env, or null if not yet
- *  provisioned (desktop only). */
-export async function scienceMcpPython(): Promise<string | null> {
-  if (!isTauri) return null;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string | null>("science_mcp_python");
-}
-
-/** Provision one open-source MCP pip package into the shared isolated env and
- *  return the managed Python path to launch it with (desktop only). */
-export async function setupScienceMcp(pkg: string): Promise<string> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string>("setup_science_mcp", { package: pkg });
-}
-
 // ---- Formulation optimizer -------------------------------------------------
 
 /** One raw material row in a formulation problem. */
@@ -337,6 +188,27 @@ export async function runFormulationOptimize(
   return invoke<FormulationResult>("run_formulation_optimize", { input });
 }
 
+/** Solve an Advanced Optimizer `FormulationProblem` (`@formulab/shared`'s
+ *  `FormulationProblem`/`AdvancedOptimizationResult` types) — a separate
+ *  command and script from the simple optimizer above. Returns null when not
+ *  running in the desktop app. */
+export async function runAdvancedFormulationOptimize(
+  input: unknown,
+): Promise<unknown | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("run_advanced_formulation_optimize", { input });
+}
+
+/** Kill whatever Advanced Optimizer solve is currently running, if any.
+ *  Resolves `true` when a run was actually cancelled. No-op (`false`) in the
+ *  browser or when nothing was running. */
+export async function cancelAdvancedFormulationOptimize(): Promise<boolean> {
+  if (!isTauri) return false;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<boolean>("cancel_advanced_formulation_optimize");
+}
+
 /** Auto-start Jupyter on launch when it was enabled before. Silent no-op otherwise. */
 export async function ensureJupyter(): Promise<void> {
   try {
@@ -362,17 +234,31 @@ export async function openExternal(url: string): Promise<void> {
   }
 }
 
-export interface LatestRelease {
+// ---- Update checker (Phase 11 Session 9) ------------------------------
+
+/** Structurally validated release metadata (Rust enforces HTTPS, a size
+ *  cap, a timeout, and required fields before this ever reaches here —
+ *  see `apps/desktop/src-tauri/src/updates.rs`). Version comparison and
+ *  ignored-version handling happen in `lib/update.ts`, not here. */
+export interface ReleaseMetadata {
   version: string;
   url: string;
   name: string | null;
   publishedAt: string | null;
+  notes: string | null;
+  /** Whether a release asset's file name matches this build's OS/arch —
+   *  informational only; nothing is ever downloaded to confirm it. */
+  platformSupported: boolean;
+  matchedAssetName: string | null;
 }
 
-export async function latestRelease(): Promise<LatestRelease | null> {
-  if (!isTauri) return null;
+/** Checks `endpoint` (must be HTTPS; an empty string falls back to the
+ *  built-in default) for the latest published release. Never downloads
+ *  or executes an installer — metadata only. */
+export async function checkForUpdate(endpoint: string): Promise<ReleaseMetadata> {
+  if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<LatestRelease>("latest_release");
+  return invoke<ReleaseMetadata>("check_for_update", { endpoint });
 }
 
 export type SaveResult =
@@ -385,6 +271,17 @@ export async function saveTextFile(filename: string, content: string): Promise<S
   if (!isTauri) return { kind: "not-desktop" };
   const { invoke } = await import("@tauri-apps/api/core");
   const path = await invoke<string | null>("save_text_file", { filename, content });
+  return path ? { kind: "saved", path } : { kind: "canceled" };
+}
+
+/** Save arbitrary bytes (e.g. a generated PDF/DOCX) via the same native
+ *  "Save As" dialog `saveTextFile` uses (desktop only). `bytes` is sent as a
+ *  plain number array — never coerced through a UTF-8 string — so the Rust
+ *  side writes the exact bytes given. Throws on write failure. */
+export async function saveBinaryFile(filename: string, bytes: Uint8Array): Promise<SaveResult> {
+  if (!isTauri) return { kind: "not-desktop" };
+  const { invoke } = await import("@tauri-apps/api/core");
+  const path = await invoke<string | null>("save_binary_file", { filename, bytes: Array.from(bytes) });
   return path ? { kind: "saved", path } : { kind: "canceled" };
 }
 
@@ -425,36 +322,195 @@ export async function openWorkspaceBase(): Promise<void> {
   await invoke("open_workspace_base");
 }
 
-/** Switch the active workspace folder (creates it if needed; the runtime
- *  rescopes via `?directory=` — no restart). Returns the canonical path.
- *  Throws in the browser. */
-export async function setWorkspace(path: string): Promise<string> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string>("set_workspace", { path });
+// ---- Active data location (Phase 11 Session 4) -----------------------------
+
+export type RootSource =
+  | "formulabRootOverride"
+  | "activeWorkspaceOverride"
+  | "baseWorkspaceOverride"
+  | "default";
+
+export interface ConflictingRoot {
+  source: RootSource;
+  path: string;
 }
 
-/** Record which session owns the active workspace (written to
- *  `.FormuLab/session.txt`) so skill helpers can attribute remote runs. */
-export async function markSession(sessionId: string): Promise<void> {
+export interface DataRootStatus {
+  path: string;
+  source: RootSource;
+  writable: boolean;
+  warnings: string[];
+  conflictingRoots: ConflictingRoot[];
+}
+
+/** The unified active-data-root resolution (`data_root::resolve_data_root`)
+ *  — same root `project_root()`/`workspace_dir()` use internally, with the
+ *  resolution source, writability, and any conflict/fallback warnings a
+ *  malformed or divergent pointer file produced. Never modifies anything. */
+export async function activeDataRootStatus(): Promise<DataRootStatus | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataRootStatus>("active_data_root_status");
+}
+
+/** Reveal the resolved active data root in the OS file manager. */
+export async function openActiveDataRoot(): Promise<void> {
   if (!isTauri) return;
   const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("mark_session", { sessionId });
+  await invoke("open_active_data_root");
 }
 
-/** Best-effort local git checkpoint for the active workspace. Returns false
- *  when there were no changes. Never configures a remote or pushes. */
-export async function commitWorkspaceSnapshot(message: string): Promise<boolean> {
-  if (!isTauri) return false;
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<boolean>("commit_workspace_snapshot", { message });
+// ---- Data Location Manager (Phase 11 Session 8) ----------------------------
+
+export type DestinationKind =
+  | "empty"
+  | "existingCompatibleRoot"
+  | "conflicting"
+  | "sameAsCurrent"
+  | "notADirectory"
+  | "unwritable";
+
+export interface DestinationValidation {
+  path: string;
+  kind: DestinationKind;
+  writable: boolean;
+  requiredBytes: number;
+  availableBytes: number | null;
+  sufficientSpace: boolean;
+  canMove: boolean;
+  canUseExisting: boolean;
+  warnings: string[];
+  blockers: string[];
 }
 
-/** Create a new dated folder under the base workspace and switch to it. */
-export async function newDatedWorkspace(name: string): Promise<string> {
+/** Checks whether `path` is safe to move data into or use as-is — never
+ *  copies, writes a pointer, or otherwise changes anything. Safe to call
+ *  repeatedly while a user is choosing a folder. */
+export async function validateDataMoveDestination(path: string): Promise<DestinationValidation> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string>("new_dated_workspace", { name });
+  return invoke<DestinationValidation>("validate_data_move_destination", { path });
+}
+
+export interface AutomaticBackupDestinationAdjustment {
+  adjusted: boolean;
+  note: string;
+}
+
+export interface DataMoveResult {
+  runId: string;
+  sourceRoot: string;
+  destinationRoot: string;
+  filesMoved: number;
+  totalBytes: number;
+  safetyBackupPath: string;
+  automaticBackup: AutomaticBackupDestinationAdjustment;
+  warnings: string[];
+}
+
+/** Full safe move: validate -> safety backup -> stage -> verify (size +
+ *  SHA256) -> activate -> update the pointer -> confirm resolution. The
+ *  old location is never touched — throws (including on cancellation,
+ *  `message === "cancelled"`) with the previous location still active on
+ *  any failure. Subscribe to `watchDataMoveProgress` first for progress. */
+export async function moveDataLocation(destination: string): Promise<DataMoveResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataMoveResult>("move_data_location", { destination });
+}
+
+/** Request cancellation of a running move (best-effort, checked between steps). */
+export async function cancelDataMove(): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("cancel_data_move");
+}
+
+/** One progress tick from a running move or "use existing location" switch.
+ *  Same wire shape as `BackupProgress` (both come from the same Rust
+ *  `emit_progress` pattern) but a distinct phase set, since a move's own
+ *  phases (backing up, staging, activating, confirming) don't match
+ *  backup/restore's. */
+export interface DataMoveProgress {
+  phase: "backingUp" | "staging" | "verifying" | "activating" | "confirming" | "done" | "cancelled" | "error";
+  current: number;
+  total: number;
+  message: string;
+}
+
+/** Subscribe to move progress events; returns the unlisten function. */
+export async function watchDataMoveProgress(cb: (p: DataMoveProgress) => void): Promise<() => void> {
+  if (!isTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<DataMoveProgress>("data-move-progress", (e) => cb(e.payload));
+}
+
+/** Points the app at an already-existing FormuLab data root — no files are
+ *  copied. Makes a safety backup of the current root first, then switches
+ *  and confirms resolution, exactly like a move's own activation step.
+ *  Named without a `use` prefix on purpose — `react-hooks/rules-of-hooks`
+ *  treats any `use*`-named function called from a callback as a hook
+ *  violation, and this one is a plain async Tauri wrapper. */
+export async function activateExistingDataLocation(path: string): Promise<DataMoveResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataMoveResult>("use_existing_data_location", { path });
+}
+
+export interface RestoreDefaultResult {
+  status: DataRootStatus;
+  pointerRemoved: boolean;
+}
+
+/** Clears the base-workspace.txt pointer this manager (and the existing
+ *  "Change workspace folder" control) write — falls back to the built-in
+ *  default. Never touches formulab-root.txt/active-workspace.txt, which
+ *  this app has never written itself. */
+export async function restoreDefaultDataLocation(): Promise<RestoreDefaultResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<RestoreDefaultResult>("restore_default_data_location");
+}
+
+export interface DataMoveJournalEntry {
+  runId: string;
+  ts: number;
+  step: string;
+  sourceRoot: string;
+  destinationRoot: string;
+  message?: string;
+}
+
+/** Non-null when an earlier move/relocate quit or crashed partway through. */
+export async function checkInterruptedDataMove(): Promise<DataMoveJournalEntry | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataMoveJournalEntry | null>("check_interrupted_data_move");
+}
+
+export interface DataMoveRecoveryResult {
+  runId: string;
+  action: "completed" | "rolledBack";
+  detail: string;
+  destinationRoot: string;
+}
+
+/** Resumes an interrupted move: completes it if what was already verified
+ *  and activated is safe to finish, otherwise rolls back to the previous
+ *  location. Never leaves the app pointed at a half-written destination. */
+export async function resumeInterruptedDataMove(): Promise<DataMoveRecoveryResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<DataMoveRecoveryResult>("resume_interrupted_data_move");
+}
+
+/** Deletes the old location entirely — never called automatically, only
+ *  from an explicit, separately-confirmed cleanup action after a
+ *  successful move. Refuses if `oldRoot` is still the active root. */
+export async function cleanupOldDataLocation(oldRoot: string): Promise<void> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("cleanup_old_data_location", { oldRoot });
 }
 
 /** A project: a named workspace folder under the base dir, marked by its
@@ -474,60 +530,6 @@ export interface ProjectInfo {
   pinned: boolean;
 }
 
-/** Create a project folder (with metadata, harness and an initial git
- *  snapshot). Does not switch the active workspace. */
-export async function createProject(name: string): Promise<ProjectInfo> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<ProjectInfo>("create_project", { name });
-}
-
-/** Import an existing repo/folder as a project, referenced in place: the repo
- *  is not moved, not scaffolded, and never auto-committed into. */
-export async function importProject(path: string): Promise<ProjectInfo> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<ProjectInfo>("import_project", { path });
-}
-
-/** Every project under the base dir, sorted by name. */
-export async function listProjects(): Promise<ProjectInfo[]> {
-  if (!isTauri) return [];
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<ProjectInfo[]>("list_projects");
-}
-
-/** Rename a project's display name (keyed by id; the folder never moves). */
-export async function renameProject(id: string, name: string): Promise<void> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("rename_project", { id, name });
-}
-
-/** Open a project's workspace folder in the OS file manager (Finder / Explorer /
- *  Linux file manager). Resolved server-side from the project id. */
-export async function openProjectFolder(id: string): Promise<void> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("open_project_folder", { id });
-}
-
-/** Pin/unpin a project to the sidebar. */
-export async function setProjectPinned(id: string, pinned: boolean): Promise<void> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("set_project_pinned", { id, pinned });
-}
-
-/** Remove a project from the index. Files on disk are NOT deleted (an imported
- *  project's external repo is untouched; an app-created project's folder stays,
- *  demoted to a plain folder). */
-export async function deleteProject(id: string): Promise<void> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("delete_project", { id });
-}
-
 /** Native folder picker; null on cancel or in the browser. */
 export async function pickFolder(): Promise<string | null> {
   if (!isTauri) return null;
@@ -535,17 +537,17 @@ export async function pickFolder(): Promise<string | null> {
   return invoke<string | null>("pick_folder");
 }
 
+/** Native file picker, filtered to `extensions`; null on cancel or in the browser. */
+export async function pickFile(extensions: string[] = []): Promise<string | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string | null>("pick_file", { extensions });
+}
+
 export interface ToolStatus {
   name: string;
   found: boolean;
   version?: string | null;
-}
-
-/** Detect scientific/runtime tools on the user's system (desktop only). */
-export async function detectTools(): Promise<ToolStatus[]> {
-  if (!isTauri) return [];
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<ToolStatus[]>("detect_tools");
 }
 
 /** Host aliases from the user's ~/.ssh/config (desktop only). */
@@ -654,14 +656,6 @@ export async function modalStatus(): Promise<ModalStatus | null> {
   return invoke<ModalStatus>("modal_status");
 }
 
-/** Copy a bundled example project into the workspace (idempotent; never
- *  overwrites user edits). Returns the workspace directory name. */
-export async function installExample(name: string): Promise<string> {
-  if (!isTauri) throw new Error("not running in the desktop app");
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string>("install_example", { name });
-}
-
 /** Append a diagnostic line to <app-data>/debug.log (desktop only; no-op in browser). */
 export async function logDebug(message: string): Promise<void> {
   if (!isTauri) return;
@@ -737,21 +731,247 @@ export async function watchFullscreen(cb: (fullscreen: boolean) => void): Promis
   return win.onResized(() => void sync());
 }
 
-/** Write the provider key/model into OpenCode's config via the Rust command. */
-export async function configureOpenCode(
-  creds: OpenCodeCredentials,
-): Promise<ConfigureResult> {
-  if (!isTauri) return { ok: false, reason: "not-desktop" };
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const path = await invoke<string>("configure_opencode", {
-      provider: creds.provider,
-      apiKey: creds.apiKey,
-      model: creds.model,
-      baseUrl: creds.baseUrl ?? null,
-    });
-    return { ok: true, path };
-  } catch (e) {
-    return { ok: false, reason: "error", message: e instanceof Error ? e.message : String(e) };
+// ---- Backup and restore (Phase 11) -----------------------------------------
+
+export interface BackupFileEntry {
+  path: string;
+  bytes: number;
+  sha256: string;
+}
+
+export interface BackupDataRootIdentifier {
+  resolvedProjectRoot: string;
+  resolvedWorkspaceRoot: string;
+  resolvedBaseRoot: string;
+  formulabRootOverrideActive: boolean;
+  activeWorkspaceOverrideActive: boolean;
+}
+
+export interface BackupManifest {
+  backupFormatVersion: string;
+  formulabAppVersion: string;
+  createdAt: number;
+  dataRoot: BackupDataRootIdentifier;
+  schemaVersions: Record<string, string>;
+  included: string[];
+  excluded: string[];
+  fileInventory: BackupFileEntry[];
+  totalBytes: number;
+  warnings: string[];
+  compatibility: { minSupportedAppVersion: string; maxKnownAppVersion: string };
+}
+
+export interface RestoreResult {
+  manifest: BackupManifest;
+  safetyBackupPath: string;
+  restoredPaths: string[];
+  warnings: string[];
+}
+
+/** One progress tick from a running backup or restore. */
+export interface BackupProgress {
+  phase:
+    | "scanning"
+    | "hashing"
+    | "writing"
+    | "verifying"
+    | "extracting"
+    | "activating"
+    | "done"
+    | "cancelled"
+    | "error";
+  current: number;
+  total: number;
+  message: string;
+}
+
+/** Native "Save As" dialog for a new `.formulab-backup` package (desktop only). */
+export async function pickBackupDestination(defaultName: string): Promise<string | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string | null>("pick_backup_destination", { defaultName });
+}
+
+/** Native "choose a file" dialog filtered to `.formulab-backup` packages. */
+export async function pickBackupSource(): Promise<string | null> {
+  if (!isTauri) return null;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string | null>("pick_file", { extensions: ["formulab-backup"] });
+}
+
+/** Create a `.formulab-backup` package at `destination`. Throws on failure
+ *  (including cancellation, reported as an error whose message is
+ *  `"cancelled"`). Subscribe to `watchBackupProgress` first to see progress. */
+export async function createBackup(destination: string): Promise<BackupManifest> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<BackupManifest>("create_backup", { destination });
+}
+
+/** Request cancellation of a running backup (best-effort, checked between steps). */
+export async function cancelBackup(): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("cancel_backup");
+}
+
+/** Subscribe to backup progress events; returns the unlisten function. */
+export async function watchBackupProgress(cb: (p: BackupProgress) => void): Promise<() => void> {
+  if (!isTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<BackupProgress>("backup-progress", (e) => cb(e.payload));
+}
+
+/** Read a `.formulab-backup` package's manifest without restoring it. */
+export async function inspectBackup(source: string): Promise<BackupManifest> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<BackupManifest>("inspect_backup", { source });
+}
+
+/** Full restore from `source`. Creates a safety backup of the current data
+ *  first, stages and verifies every file, then activates — rolling back on
+ *  any failure. Throws on failure (including cancellation). Subscribe to
+ *  `watchRestoreProgress` first to see progress. */
+export async function restoreBackup(source: string): Promise<RestoreResult> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<RestoreResult>("restore_backup", { source });
+}
+
+/** Request cancellation of a running restore (best-effort). */
+export async function cancelRestore(): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("cancel_restore");
+}
+
+/** Subscribe to restore progress events; returns the unlisten function. */
+export async function watchRestoreProgress(cb: (p: BackupProgress) => void): Promise<() => void> {
+  if (!isTauri) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<BackupProgress>("restore-progress", (e) => cb(e.payload));
+}
+
+// ---- Backup verification (Phase 11 Session 2) ------------------------------
+
+export type VerificationStatus = "valid" | "validWithWarnings" | "incompatible" | "corrupted" | "unsafe";
+
+export interface VerificationIssue {
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export interface VerificationReport {
+  status: VerificationStatus;
+  manifest?: BackupManifest;
+  errors: VerificationIssue[];
+  warnings: VerificationIssue[];
+}
+
+/** Standalone verification: inspects a `.formulab-backup` package without
+ *  restoring it or touching the active data root. Never throws for a bad
+ *  package — a corrupted/unsafe/incompatible package is a normal, typed
+ *  `VerificationReport` result, not an exception; this only throws for a
+ *  genuine desktop-boundary problem (not running in Tauri). */
+export async function verifyBackup(source: string): Promise<VerificationReport> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<VerificationReport>("verify_backup", { source });
+}
+
+// ---- Automatic backups (Phase 11 Session 7) --------------------------------
+
+/** "preMigration" reuses the app-private pre-migration backup mechanism
+ *  from Session 3 (`create_pre_migration_backup`) — only its retention is
+ *  new here. "daily"/"weekly" write into the user-configured destination
+ *  folder below. */
+export type AutomaticBackupClass = "daily" | "weekly" | "preMigration";
+
+export interface AutomaticBackupConfig {
+  enabled: boolean;
+  dailyEnabled: boolean;
+  weeklyEnabled: boolean;
+  backupOnExitEnabled: boolean;
+  destinationFolder: string | null;
+  retentionDaily: number;
+  retentionWeekly: number;
+  retentionPreMigration: number;
+}
+
+export interface AutomaticBackupRunRecord {
+  class: string;
+  startedAt: number;
+  finishedAt: number;
+  status: "success" | "failed";
+  path?: string;
+  error?: string;
+  verificationStatus?: VerificationStatus;
+}
+
+export interface AutomaticBackupState {
+  config: AutomaticBackupConfig;
+  lastDailyAt?: number;
+  lastWeeklyAt?: number;
+  lastSuccess?: AutomaticBackupRunRecord;
+  lastFailure?: AutomaticBackupRunRecord;
+}
+
+/** Reads persisted automatic-backup settings + run history (app-private
+ *  JSON, never the workspace). Returns the same shape a fresh install
+ *  would have (disabled, no history) when not running in the desktop app,
+ *  so callers never need an `isTauri` branch just to read state. */
+export async function readAutomaticBackupState(): Promise<AutomaticBackupState> {
+  if (!isTauri) {
+    return {
+      config: {
+        enabled: false,
+        dailyEnabled: true,
+        weeklyEnabled: true,
+        backupOnExitEnabled: false,
+        destinationFolder: null,
+        retentionDaily: 7,
+        retentionWeekly: 4,
+        retentionPreMigration: 2,
+      },
+    };
   }
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<AutomaticBackupState>("read_automatic_backup_state");
+}
+
+export async function writeAutomaticBackupConfig(config: AutomaticBackupConfig): Promise<AutomaticBackupState> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<AutomaticBackupState>("write_automatic_backup_config", { config });
+}
+
+/** Runs one automatic backup of `cls`, verifying it before it counts as
+ *  successful and applying that class's retention afterward. Never throws
+ *  for an expected failure (missing destination, low disk space, a
+ *  concurrent backup already running, a failed verification) — those come
+ *  back as a normal `{ status: "failed", error }` record; this only
+ *  throws for a genuine desktop-boundary problem. */
+export async function runAutomaticBackup(cls: AutomaticBackupClass): Promise<AutomaticBackupRunRecord> {
+  if (!isTauri) throw new Error("not running in the desktop app");
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<AutomaticBackupRunRecord>("run_automatic_backup", { class: cls });
+}
+
+/** Prunes app-private pre-migration backups down to `keep` (never the last
+ *  one). Returns the paths deleted, for logging by the caller. */
+export async function applyPreMigrationRetention(keep: number): Promise<string[]> {
+  if (!isTauri) return [];
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string[]>("apply_pre_migration_retention", { keep });
+}
+
+/** Reveals the configured automatic-backup destination folder — an
+ *  absolute, user-picked path outside the workspace, so unlike
+ *  `revealPath` this takes no workspace-relative `root`. */
+export async function openAutomaticBackupDestination(path: string): Promise<void> {
+  if (!isTauri) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("open_automatic_backup_destination", { path });
 }

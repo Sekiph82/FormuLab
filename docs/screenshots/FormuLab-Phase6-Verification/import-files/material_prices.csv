@@ -1,0 +1,2 @@
+material_code,supplier_code,supplier_material_code,manufacturer_name,brand_name,currency,unit_price,price_unit,minimum_order_quantity,pack_size,valid_from,valid_until,lead_time_days,incoterm,country_of_origin,preferred,approved,certificate_available,coa_available,sds_available,notes
+TEST-MAT-001,TEST-SUP-001,DG-50,TEST Chemicals Ltd,TEST Glucoside,KES,450.00,kg,25,25kg drum,2026-01-01,2026-12-31,14,FOB,KE,true,false,true,true,true,Native verification row

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2, MessageSquare, Package, RotateCcw, Terminal } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import type { ProvenanceRecord, RunRecord } from "@ai4s/shared";
+import type { ProvenanceRecord, RunRecord } from "@formulab/shared";
 import { listProvenance, readEnvLockfile } from "@/lib/provenance";
 import { listRuns, reproduceRunPrompt } from "@/lib/runs";
 import { useUiStore } from "@/lib/store";

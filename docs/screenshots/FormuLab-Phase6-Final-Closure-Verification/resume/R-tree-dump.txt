@@ -1,0 +1,17 @@
+﻿[ControlType.Window] name='FormuLab' id='' patterns=Window,Transform
+  [ControlType.Pane] name='' id='' patterns=
+    [ControlType.Pane] name='FormuLab' id='' patterns=ScrollItem,ItemContainer
+      [ControlType.Pane] name='' id='' patterns=
+      [ControlType.Pane] name='FormuLab - Web content' id='' patterns=ScrollItem
+        [ControlType.Pane] name='' id='' patterns=ScrollItem
+          [ControlType.Pane] name='' id='' patterns=ScrollItem
+            [ControlType.Pane] name='' id='' patterns=ScrollItem
+              [ControlType.Pane] name='' id='' patterns=ScrollItem
+              [ControlType.Pane] name='' id='' patterns=ScrollItem
+                [ControlType.Pane] name='' id='' patterns=ScrollItem
+                  [ControlType.Pane] name='' id='' patterns=ScrollItem
+                    [ControlType.Pane] name='' id='' patterns=ScrollItem
+              [ControlType.Pane] name='' id='' patterns=ScrollItem
+          [ControlType.Pane] name='' id='' patterns=ScrollItem
+          [ControlType.Pane] name='' id='' patterns=ScrollItem
+

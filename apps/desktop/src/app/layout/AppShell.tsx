@@ -5,14 +5,18 @@ import { PanelLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { CommandPalette } from "@/components/command-palette/CommandPalette";
+import { HelpButton } from "@/components/help/HelpButton";
+import { HelpPanel } from "@/components/help/HelpPanel";
+import { HelpCenter } from "@/components/help/HelpCenter";
+import { TourOverlay } from "@/components/help/TourOverlay";
+import { OnboardingPrompt } from "@/components/help/OnboardingPrompt";
 import { Toaster } from "@/components/ui/Toaster";
-import { mockProject } from "@/lib/mock";
-import { useRuntimeStore } from "@/lib/runtime";
 import { ensureSetupProgressListener } from "@/lib/setup";
 import { useOverlayTitlebar, useUiStore } from "@/lib/store";
 import { overlayTitlebarStyle } from "@/lib/titlebar";
 import { ensureJupyter, openExternal, watchFullscreen } from "@/lib/tauri";
 import { useUpdateStore } from "@/lib/update";
+import { installAutomaticBackupLifecycle } from "@/lib/automaticBackup";
 
 export function AppShell() {
   const { t } = useTranslation("nav");
@@ -33,10 +37,10 @@ export function AppShell() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  // In the packaged desktop app, auto-start the bundled OpenCode and connect,
-  // and bring the Jupyter server back up if the user enabled it before.
+  // Formulation runs through the direct pipeline (a Tauri command), so there is
+  // no agent runtime to start here — only the Jupyter server the notebooks page
+  // uses, brought back up if the user enabled it before.
   useEffect(() => {
-    void useRuntimeStore.getState().bootstrap();
     void ensureJupyter();
     // One app-lifetime listener for uv provisioning progress, so a running
     // download's live output survives navigating between pages.
@@ -44,6 +48,15 @@ export function AppShell() {
     if (!import.meta.env.TEST) {
       void useUpdateStore.getState().maybeAutoCheck();
     }
+  }, []);
+
+  // Phase 11 Session 7 — automatic backups: scheduling tick (mount + a
+  // while-open interval) and the backup-on-exit window hook, both app-
+  // lifetime for as long as AppShell is mounted (effectively the whole
+  // session — see the module doc for why this can't run while closed).
+  useEffect(() => {
+    if (import.meta.env.TEST) return;
+    return installAutomaticBackupLifecycle();
   }, []);
 
   // Track native fullscreen: macOS hides the traffic lights there, so headers
@@ -88,8 +101,8 @@ export function AppShell() {
     // The window background lives on <main>, not the shell: under vibrancy
     // the area behind the (translucent) sidebar must stay transparent.
     <div className="flex h-screen w-screen overflow-hidden text-text">
-      <Sidebar project={mockProject} />
-      <main className="flex min-w-0 flex-1 flex-col bg-bg">
+      <Sidebar />
+      <main className="relative flex min-w-0 flex-1 flex-col bg-bg">
         {/* Titlebar strip for pages that don't own one: keeps the whole top
             of the content area draggable under the macOS overlay titlebar,
             and hosts the expand button while the sidebar is collapsed. */}
@@ -107,6 +120,7 @@ export function AppShell() {
               <button
                 onClick={() => setSidebarCollapsed(false)}
                 aria-label={t("sidebar.expand")}
+                aria-expanded={false}
                 title={t("sidebar.expandTitle", { shortcut: isMac ? "⌘B" : "Ctrl+B" })}
                 className="fade-in rounded p-1 text-text hover:bg-surface-2"
               >
@@ -115,11 +129,32 @@ export function AppShell() {
             )}
           </div>
         )}
+        {/* Pages that own their own titlebar (currently just /live) render no
+            strip above, so they'd otherwise have zero way to reopen a
+            collapsed sidebar — a floating restore button over the content's
+            upper-left corner covers them without touching that page's own
+            header layout. */}
+        {pageOwnsTitlebar && sidebarCollapsed && (
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            aria-label={t("sidebar.expand")}
+            aria-expanded={false}
+            title={t("sidebar.expandTitle", { shortcut: isMac ? "⌘B" : "Ctrl+B" })}
+            className="fade-in absolute left-2 top-2 z-20 rounded bg-bg/80 p-1 text-text backdrop-blur hover:bg-surface-2"
+          >
+            <PanelLeft size={14} strokeWidth={1.5} />
+          </button>
+        )}
         <div className="min-h-0 flex-1">
           <Outlet />
         </div>
       </main>
       <CommandPalette />
+      <HelpButton />
+      <HelpPanel />
+      <HelpCenter />
+      <TourOverlay />
+      <OnboardingPrompt />
       <Toaster />
     </div>
   );

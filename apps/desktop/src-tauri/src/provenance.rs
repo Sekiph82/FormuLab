@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
-use crate::runtime::workspace_dir;
+use crate::workspace::workspace_dir;
 
 const STORE_DIR: &str = ".FormuLab";
 const STORE_FILE: &str = "provenance.jsonl";
@@ -136,7 +136,7 @@ fn pip_freeze(interpreter: &str) -> Option<String> {
     static CACHE: std::sync::OnceLock<Mutex<HashMap<String, Option<String>>>> = std::sync::OnceLock::new();
     let cache = CACHE.get_or_init(Mutex::default);
     cached_probe(cache, interpreter, || {
-        let out = crate::runtime::quiet_command(interpreter)
+        let out = crate::workspace::quiet_command(interpreter)
             .args(["-m", "pip", "freeze"])
             .output()
             .ok()?;
@@ -178,7 +178,7 @@ fn probe_hardware() -> HardwareInfo {
 fn probe_cpu_mem() -> (Option<String>, Option<u32>) {
     if std::env::consts::OS == "macos" {
         let sysctl = |key: &str| {
-            crate::runtime::quiet_command("sysctl")
+            crate::workspace::quiet_command("sysctl")
                 .args(["-n", key])
                 .output()
                 .ok()
@@ -212,7 +212,7 @@ fn probe_cpu_mem() -> (Option<String>, Option<u32>) {
 
 /// NVIDIA GPU model names via `nvidia-smi`; empty if the tool is absent.
 fn probe_nvidia_gpus() -> Vec<String> {
-    crate::runtime::quiet_command("nvidia-smi")
+    crate::workspace::quiet_command("nvidia-smi")
         .args(["--query-gpu=name", "--format=csv,noheader"])
         .output()
         .ok()
@@ -255,7 +255,7 @@ fn python_version(interpreter: &str) -> Option<String> {
     static CACHE: std::sync::OnceLock<Mutex<HashMap<String, Option<String>>>> = std::sync::OnceLock::new();
     let cache = CACHE.get_or_init(Mutex::default);
     cached_probe(cache, interpreter, || {
-        let out = crate::runtime::quiet_command(interpreter).arg("--version").output().ok()?;
+        let out = crate::workspace::quiet_command(interpreter).arg("--version").output().ok()?;
         let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
         let text = if text.is_empty() {
             String::from_utf8_lossy(&out.stderr).trim().to_string() // Python 2 printed -V to stderr
@@ -651,7 +651,7 @@ mod tests {
     use super::{append_record, cap_content, normalize_rel, versions_for, CONTENT_CAP};
 
     fn temp_root(tag: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("ai4s-prov-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("formulab-prov-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -794,9 +794,9 @@ mod tests {
         assert_eq!(explicit(&format!("{} -c 'x'", py.to_string_lossy())), py); // absolute path
 
         // A bare `python` is PATH-resolved, not an explicit path — fall back to default.
-        assert!(matches!(interpreter_from_command("python train.py", &root), None));
+        assert!(interpreter_from_command("python train.py", &root).is_none());
         // A non-Python path-form command is not treated as an interpreter.
-        assert!(matches!(interpreter_from_command("./scripts/run.sh", &root), None));
+        assert!(interpreter_from_command("./scripts/run.sh", &root).is_none());
         // An explicit interpreter that does NOT exist is reported Missing, so the
         // caller attributes no Python env rather than the misleading default (#23).
         assert!(matches!(

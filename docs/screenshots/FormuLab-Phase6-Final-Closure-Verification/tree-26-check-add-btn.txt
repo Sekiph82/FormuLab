@@ -1,0 +1,103 @@
+﻿[ControlType.Window] Name='FormuLab' AutomationId='' Rect=(0,0,2590,1630) Enabled=True Patterns=WindowPatternIdentifiers.Pattern,TransformPatternIdentifiers.Pattern
+  [ControlType.Pane] Name='' AutomationId='' Rect=(13,58,2564,1559) Enabled=True Patterns=
+    [ControlType.Pane] Name='FormuLab' AutomationId='' Rect=(13,58,2564,1559) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern,ItemContainerPatternIdentifiers.Pattern
+      [ControlType.Pane] Name='' AutomationId='' Rect=(13,58,2564,1559) Enabled=False Patterns=
+      [ControlType.Pane] Name='FormuLab - Web content' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+        [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+          [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+            [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+              [ControlType.Pane] Name='' AutomationId='' Rect=(NA,NA,NA,NA) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+              [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                  [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                    [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                      [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                        [ControlType.Document] Name='FormuLab' AutomationId='RootWebArea' Rect=(14,58,2564,1560) Enabled=True Patterns=ValuePatternIdentifiers.Pattern,ScrollPatternIdentifiers.Pattern,TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                          [ControlType.Group] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                            [ControlType.Group] Name='' AutomationId='root' Rect=(14,58,2564,1560) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                              [ControlType.Group] Name='' AutomationId='' Rect=(14,58,680,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Text] Name='FormuLab' AutomationId='' Rect=(94,84,165,46) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Text] Name='BETA' AutomationId='' Rect=(270,100,59,24) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Button] Name='Collapse sidebar' AutomationId='' Rect=(616,90,44,44) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Image] Name='' AutomationId='' Rect=(624,98,28,28) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Group] Name='' AutomationId='' Rect=(14,158,678,1110) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='New' AutomationId='' Rect=(38,158,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,169,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name='WORKSPACES' AutomationId='' Rect=(54,238,179,29) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Home' AutomationId='' Rect=(38,273,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,284,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Projects' AutomationId='' Rect=(38,328,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,339,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Formulation' AutomationId='' Rect=(38,383,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,394,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Laboratory' AutomationId='' Rect=(38,438,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,449,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Stability' AutomationId='' Rect=(38,493,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,504,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Optimization' AutomationId='' Rect=(38,548,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,559,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Design of Experiments' AutomationId='' Rect=(38,603,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,614,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Regulatory' AutomationId='' Rect=(38,658,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,669,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Dossiers' AutomationId='' Rect=(38,713,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,724,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Claims & Labels' AutomationId='' Rect=(38,768,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,779,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Approval' AutomationId='' Rect=(38,823,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,834,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Reports' AutomationId='' Rect=(38,878,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,889,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Data Exchange' AutomationId='' Rect=(38,933,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,944,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Administration' AutomationId='' Rect=(38,988,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,999,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name='TOOLS' AutomationId='' Rect=(54,1068,87,29) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Notebooks' AutomationId='' Rect=(38,1103,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,1114,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Files' AutomationId='' Rect=(38,1158,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,1169,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='Runs' AutomationId='' Rect=(38,1213,630,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(54,1224,32,33) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Text] Name='SESSIONS' AutomationId='' Rect=(54,1309,130,29) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Hyperlink] Name='a gentle sulfate-free daily shampoo for sensitive scalp 3' AutomationId='' Rect=(38,1348,610,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Hyperlink] Name='gum health protective toothpaste 3' AutomationId='' Rect=(38,1403,610,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Hyperlink] Name='gum health protective toothpaste 3' AutomationId='' Rect=(38,1458,610,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Hyperlink] Name='anti-dandruff shampoo for sensitive scalp 3' AutomationId='' Rect=(38,1513,610,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Hyperlink] Name='sensitive skin body wash 3' AutomationId='' Rect=(38,1568,610,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Hyperlink] Name='anti-dandruff shampoo 3' AutomationId='' Rect=(38,1623,610,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Hyperlink] Name='gentle baby shampoo 2' AutomationId='' Rect=(38,1678,610,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Hyperlink] Name='laundry detergent for white clothes 3' AutomationId='' Rect=(38,1733,610,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Button] Name='Settings' AutomationId='' Rect=(38,1539,179,55) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Image] Name='' AutomationId='' Rect=(54,1551,30,31) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                              [ControlType.Group] Name='' AutomationId='' Rect=(694,58,1884,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Group] Name='' AutomationId='' Rect=(694,58,1884,106) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='← Change project' AutomationId='' Rect=(726,92,202,36) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name='TEST Gentle Hand Soap' AutomationId='' Rect=(951,74,386,39) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name='TEST-FORM-001' AutomationId='' Rect=(951,116,176,26) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name=' · ' AutomationId='' Rect=(1126,116,19,26) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name='UNASSIGNED' AutomationId='' Rect=(1144,116,146,26) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name=' · ' AutomationId='' Rect=(1289,116,19,26) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name='KE' AutomationId='' Rect=(1308,116,29,26) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name='Version' AutomationId='' Rect=(2020,96,79,27) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.ComboBox] Name='Version' AutomationId='' Rect=(2110,85,203,50) Enabled=True Patterns=ValuePatternIdentifiers.Pattern,ExpandCollapsePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Hyperlink] Name='Open in Formulation' AutomationId='' Rect=(2336,93,210,34) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ValuePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Button] Name='Trials' AutomationId='' Rect=(726,180,149,60) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Image] Name='' AutomationId='' Rect=(750,195,26,26) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Button] Name='Tests' AutomationId='' Rect=(882,180,149,60) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Image] Name='' AutomationId='' Rect=(906,195,27,26) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Button] Name='Corrective actions' AutomationId='' Rect=(1038,180,297,60) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Image] Name='' AutomationId='' Rect=(1062,195,27,26) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Group] Name='' AutomationId='' Rect=(694,242,512,1376) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Text] Name='Laboratory Trials' AutomationId='' Rect=(718,258,195,36) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Edit] Name='New trial title' AutomationId='' Rect=(718,328,404,53) Enabled=True Patterns=ValuePatternIdentifiers.Pattern,TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.Button] Name='New trial title' AutomationId='' Rect=(1134,331,46,47) Enabled=True Patterns=InvokePatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.Image] Name='' AutomationId='' Rect=(1144,341,26,27) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                  [ControlType.List] Name='' AutomationId='' Rect=(694,399,510,97) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                    [ControlType.ListItem] Name='No trials yet.' AutomationId='' Rect=(694,399,510,97) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Image] Name='' AutomationId='' Rect=(1637,916,29,28) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+                                [ControlType.Text] Name='Select a trial to view its execution record.' AutomationId='' Rect=(1681,915,466,29) Enabled=True Patterns=TextPatternIdentifiers.Pattern,ScrollItemPatternIdentifiers.Pattern
+              [ControlType.Pane] Name='' AutomationId='' Rect=(NA,NA,NA,NA) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+          [ControlType.Pane] Name='' AutomationId='' Rect=(NA,NA,NA,NA) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+          [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+

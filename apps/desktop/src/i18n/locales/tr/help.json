@@ -1,0 +1,611 @@
+{
+  "home": {
+    "title": "Ana Sayfa",
+    "summary": "Panonuz — son projeler, etkinlik, açık laboratuvar işleri, yaklaşan stabilite numuneleri ve bekleyen onaylar.",
+    "purpose": "Bir maket değil, gerçek ve dürüst bir pano: her rakam kendi kayıtlı verilerinizden gelir ve gösterilecek bir şey olmadığında her bölüm dürüst bir boş durum gösterir.",
+    "quickStart": [
+      "Doğrudan devam etmek için son bir projeyi açın.",
+      "Sizi bekleyenler için Bekleyen onayları kontrol edin."
+    ],
+    "sections": [
+      "Son projeler",
+      "Son etkinlik",
+      "Açık laboratuvar işleri",
+      "Yaklaşan stabilite numuneleri",
+      "Bekleyen onaylar"
+    ],
+    "limitations": [
+      "En son güncellenen 5 projenizle sınırlıdır — bu gerçek bir sınırdır, gizli bir tavan değil."
+    ]
+  },
+  "projects": {
+    "title": "Projeler",
+    "summary": "Hangi çalışma alanında olduğunuzdan bağımsız olarak oluşturduğunuz her formülasyon projesi.",
+    "purpose": "Tam proje listesinin ana sayfası — açın, oluşturun ve her projenin dosya durumunu bir bakışta görün.",
+    "quickStart": [
+      "Yeni proje'ye tıklayın.",
+      "Bir ürün ailesi ve ambalaj SKU'su seçin.",
+      "Ad, pazar ve hedef parti boyutunu girin."
+    ],
+    "sections": [
+      "Dosya sayısı rozetli proje listesi"
+    ]
+  },
+  "formulation": {
+    "title": "Formülasyon",
+    "summary": "Formül ızgarası, sürümler, maliyet, uyumluluk, güvenlik ve ambalaj — günlük çalışma yüzeyiniz.",
+    "purpose": "Bir formül oluşturun ve iyileştirin, değişmez numaralı sürümler kaydedin ve düzenledikçe maliyet/uyumluluk/güvenlik bulgularının güncellendiğini görün.",
+    "prerequisites": [
+      "Açık bir proje (Projeler veya Ana Sayfa'dan)."
+    ],
+    "quickStart": [
+      "Bir satır ekleyin: malzeme, faz ve yüzde seçin.",
+      "Bir satırı q.s. olarak işaretleyin — geri kalanı otomatik olarak %100'e tamamlanır.",
+      "Memnun kaldığınızda Sürüm kaydet — bir değişiklik nedeni gerektirir."
+    ],
+    "sections": [
+      "Oluşturucu",
+      "Sürümler",
+      "Maliyet",
+      "Uyumluluk",
+      "Güvenlik",
+      "Ambalaj"
+    ],
+    "warnings": [
+      "Kaydedilmiş bir sürüm değişmezdir — tekrar düzenlemek yeni bir sürüm oluşturur, asla yerinde düzenleme yapmaz."
+    ],
+    "roleNotes": [
+      "Bir sürümü pilot veya üretim durumuna onaylamak yetkili bir insan rolü gerektirir — hiçbir otomatik aktör asla onaylayamaz."
+    ]
+  },
+  "optimization": {
+    "title": "Optimizasyon",
+    "summary": "Bu projenin mevcut çalışma taslağına bağlı gerçek bir kısıt çözme optimizasyon aracı.",
+    "purpose": "Aday malzemeler seçin, fonksiyonel grup kısıtları ve hedefler belirleyin ve çözücünün bir formül önermesine izin verin — kaydedilmiş sürümünüzü asla üzerine yazmadan.",
+    "prerequisites": [
+      "Çalışma taslağı olan açık bir proje."
+    ],
+    "quickStart": [
+      "Aday malzemeler ve kısıtlar ekleyin.",
+      "Çalıştır — sonucu inceleyin, beğenirseniz Taslağa uygula."
+    ],
+    "sections": [
+      "Çalıştırma",
+      "Senaryolar"
+    ],
+    "limitations": [
+      "Bileşim/oran/koşullu kısıtlar için henüz bir oluşturucu yok — yalnızca fonksiyonel grup kısıtları, özellik hedefleri ve bir maliyet tavanı."
+    ]
+  },
+  "optimizer": {
+    "title": "Optimizer (bağımsız)",
+    "summary": "Herhangi bir projeye bağlı olmayan bağımsız bir varsayımsal maliyet hesaplayıcısı.",
+    "purpose": "Projeye bağlı Optimizasyon çalışma alanından belirgin şekilde farklı, hızlı ve projeden bağımsız maliyet keşfi.",
+    "quickStart": [
+      "Bir maliyet tahmini görmek için malzemeleri ve yüzdeleri doğrudan girin."
+    ]
+  },
+  "doe": {
+    "title": "Deney Tasarımı",
+    "summary": "İstatistiksel olarak geçerli bir formülasyon veya süreç deneyi planlayın ve analiz edin.",
+    "purpose": "Gerçek kaydedilmiş bir formül sürümünü yapılandırılmış bir deneye dönüştürün: faktörler, yanıtlar, oluşturulan bir çalışma planı ve uyumlu bir istatistiksel model.",
+    "prerequisites": [
+      "Çalışmanın temeli olarak gerçek kaydedilmiş bir formül sürümü — asla çalışma taslağı değil."
+    ],
+    "quickStart": [
+      "9 adımlı sihirbaz aracılığıyla bir çalışma oluşturun.",
+      "Her çalıştırmanın gözlemlenen yanıtlarını kaydedin.",
+      "Yeterli veri girildiğinde analizi çalıştırın."
+    ],
+    "sections": [
+      "Çalışmalar",
+      "Tasarım",
+      "Çalıştırmalar",
+      "Yanıtlar",
+      "Analiz",
+      "Adaylar",
+      "Geçmiş",
+      "Denetim"
+    ],
+    "limitations": [
+      "Bazı tasarım türleri ve fraksiyon boyutları taklit edilmek yerine bilerek reddedilir — kesin sınırlar için Deney Tasarımı bölümüne bakın.",
+      "Bir analiz sonucu dışa aktarımı, yerel bir analiz olarak yeniden içe aktarılamaz."
+    ]
+  },
+  "reverseFormulation": {
+    "title": "Ters Formülasyon",
+    "summary": "Bir rakip veya referans ürüne dayanarak kanıta dayalı puanlanmış aday formüller önerir — karar destek amaçlıdır, asla otomatik onaylanmış bir formül değildir.",
+    "purpose": "Beyan edilmiş bir bileşen listesinden (ve isteğe bağlı analitik sonuçlardan) başlayarak, formül uyumu puanı ve ayrı olarak dürüstçe etiketlenmiş bir kanıt güven puanı olan sıralı adaylar elde edin.",
+    "quickStart": [
+      "Bir çalışma oluşturun ve referans ürünün beyan edilmiş bileşenlerini girin.",
+      "Hedefinizi ve kısıtlarınızı ayarlayın.",
+      "Adaylar oluşturun, ardından istediğinizi kaydedin veya dönüştürün."
+    ],
+    "sections": [
+      "Çalışmalar",
+      "Beyan & analitik",
+      "Aday oluşturma & karşılaştırma"
+    ],
+    "warnings": [
+      "Dönüştürülmüş bir formülasyon her zaman onaylanmamış olarak başlar, hiçbir onay devralmaz — iyi puanlı bir adaydan bile."
+    ],
+    "limitations": [
+      "Bir adayın malzemesi oluşturulduktan sonra katalogdan çıkarılmışsa, aday dönüştürme görünür şekilde reddedilir."
+    ]
+  },
+  "laboratory": {
+    "title": "Laboratuvar",
+    "summary": "Seçili proje ve sürüm için denemeler, test tanımları ve düzeltici faaliyetler.",
+    "purpose": "Dondurulmuş bir formül anlık görüntüsüne karşı gerçek laboratuvar denemeleri yürütün, tartım/süreç/test verilerini kaydedin ve sapmaları yönetin.",
+    "prerequisites": [
+      "Açık bir proje; bir sürüm seçici hangi kaydedilmiş sürümün denemelerini göreceğinizi seçmenizi sağlar."
+    ],
+    "quickStart": [
+      "Çalışma taslağından veya kaydedilmiş bir sürümden bir deneme oluşturun.",
+      "İş ilerledikçe planlandı → devam ediyor → tamamlandı arasında taşıyın.",
+      "Bir testin kendi Yöntem girişini açarak birincil standardını seçin, alternatifleri inceleyin veya tam prosedürü görüntüleyin."
+    ],
+    "sections": [
+      "Denemeler",
+      "Test Tanımları",
+      "Düzeltici Faaliyetler",
+      "Test Standartları ve Yöntemleri"
+    ],
+    "roleNotes": [
+      "Bir denemeyi yalnızca bir insan tamamlandı olarak işaretleyebilir."
+    ],
+    "warnings": [
+      "Yerini almış bir standart, seçilmeden önce açıkça onaylanmalıdır."
+    ],
+    "limitations": [
+      "Mevcut serbest metin yöntem referansları otomatik olarak standartlara dönüştürülmez — bir kimyager yapılandırılmış standart/yöntemi oluşturana kadar çözülmemiş eski referans olarak görünmeye devam eder."
+    ]
+  },
+  "stability": {
+    "title": "Stabilite",
+    "summary": "Seçili proje ve sürüm için stabilite çalışmaları, numuneler, sonuçlar ve eğilimler.",
+    "purpose": "Bir formülün stabilitesini gerçek saklama koşulları ve test tanımlarına karşı zaman içinde izleyin, otomatik hata tespiti ile.",
+    "prerequisites": [
+      "Açık bir proje; bir sürüm seçici."
+    ],
+    "quickStart": [
+      "Bir çalışma oluşturun, ardından Numune oluştur.",
+      "Bir numunenin süresi geldiğinde bir sonuç kaydedin."
+    ],
+    "warnings": [
+      "Eğilim projeksiyonları her zaman \"deneysel tahmin — insan incelemesi gerekli\" olarak etiketlenir, asla bir raf ömrü iddiası değildir."
+    ],
+    "limitations": [
+      "Otomatik raf ömrü tahmini yoktur — bilerek uygulanmamıştır."
+    ]
+  },
+  "regulatory": {
+    "title": "Mevzuat",
+    "summary": "Kenya/EAC mevzuat sınıflandırması, kural değerlendirmesi, kanıt onayları ve insan incelemesi.",
+    "purpose": "Formülünüzün belirleyici mevzuat sınıflandırmasını görün ve yargı yetkisi kurallarına göre değerlendirin, ardından gerçek bir insan incelemesi kaydedin.",
+    "prerequisites": [
+      "Kaydedilmiş bir formül sürümü, bir yargı yetkisi ve (ilgiliyse) bir ambalaj SKU'su."
+    ],
+    "quickStart": [
+      "Sürümünüzü, yargı yetkinizi ve rolünüzü seçin.",
+      "Bulguları görmek için Değerlendir'e tıklayın."
+    ],
+    "sections": [
+      "Sınıflandırma",
+      "Kurallar",
+      "İncelemeler"
+    ],
+    "roleNotes": [
+      "Bir kuralı doğrulamak veya resmi bir inceleme kaydetmek yetkili bir rol (mevzuat/kalite/yönetici) gerektirir."
+    ],
+    "limitations": [
+      "Tohum kurallar, yetkin bir inceleyen onaylayana kadar not_verified olarak gönderilir."
+    ]
+  },
+  "dossiers": {
+    "title": "Dosyalar",
+    "summary": "Gerçek bir PDF/DOCX dışa aktarımı dahil olmak üzere sürüm ve yargı yetkisi başına bir mevzuat dosyası oluşturun.",
+    "purpose": "Gereksinimleri, kanıtları ve incelemeleri formül sürümü ve yargı yetkisi başına bir dosyada toplayın, ardından dışa aktarın.",
+    "prerequisites": [
+      "Gerçek kaydedilmiş bir formül sürümü — asla bir çalışma taslağı değil."
+    ],
+    "quickStart": [
+      "Kaydedilmiş bir sürüm ve yargı yetkisine karşı bir dosya oluşturun.",
+      "Gereksinimler ve Kanıt Kütüphanesi üzerinde çalışın."
+    ],
+    "sections": [
+      "Genel Bakış",
+      "Kanıt Matrisi",
+      "Gereksinimler",
+      "Kanıt Kütüphanesi",
+      "İncelemeler",
+      "Gönderimler",
+      "Geçmiş",
+      "Denetim"
+    ],
+    "roleNotes": [
+      "PDF/DOCX dışa aktarımı yetkili bir rol (mevzuat/kalite/yönetici) gerektirir — aksi takdirde düğmeler gizlenir ve engellenen bir girişim için geçmiş kaydı oluşturulmaz."
+    ],
+    "limitations": [
+      "Henüz özel bir dışa aktarım geçmişi görüntüleyicisi yok, ancak her girişim kaydedilir."
+    ]
+  },
+  "claimsLabels": {
+    "title": "İddialar & Etiketler",
+    "summary": "Bir formül sürümü için ürün iddialarını ve etiketlerini yönetin, sanat eseri/tutarlılık iş akışı dahil.",
+    "purpose": "Gerçek dosya kanıtına bağlı iddialar taslağı hazırlayın, etiket içeriği oluşturun ve baskıdan önce formül-etiket tutarlılığını kontrol edin.",
+    "prerequisites": [
+      "Gerçek kaydedilmiş bir formül sürümü."
+    ],
+    "quickStart": [
+      "Bir iddia veya etiket oluşturun.",
+      "Kanıt bağlayın ve resmi bir inceleme kaydedin."
+    ],
+    "sections": [
+      "İddialar",
+      "Etiketler",
+      "Geçmiş",
+      "Denetim"
+    ],
+    "roleNotes": [
+      "Yalnızca yetkili bir rolden resmi bir inceleme, bir iddianın gerçek durumunu değiştirir."
+    ],
+    "limitations": [
+      "Tam bir grafik tasarım sanat eseri düzenleyicisi yoktur — yalnızca yükleme/önizleme/onaylama/reddetme/değiştirme."
+    ]
+  },
+  "approval": {
+    "title": "Onay",
+    "summary": "Seçili proje için hazır olma durumu genel bakışı, engelleyiciler, onay politikaları ve karar geçmişi.",
+    "purpose": "Bir formülün onayını tam olarak neyin engellediğini görün ve gerçek, adı belirtilmiş bir insan onay kararı kaydedin.",
+    "quickStart": [
+      "Engelleyici listesini gözden geçirin.",
+      "Her engelleyici temizlendiğinde bir nedenle onaylayın veya reddedin."
+    ],
+    "sections": [
+      "Hazır olma & engelleyiciler",
+      "Politikalar",
+      "Karar geçmişi"
+    ],
+    "warnings": [
+      "Hiçbir otomatik aktör — ajan, sistem süreci veya içe aktarma — bir modelin ne sonuca vardığından bağımsız olarak pilot_approved veya production_approved ayarlayamaz."
+    ],
+    "roleNotes": [
+      "Pilot onayı kimyager/kalite/yönetici gerektirir; üretim onayı kalite/mevzuat/üretim/yönetici gerektirir."
+    ]
+  },
+  "reports": {
+    "title": "Raporlar",
+    "summary": "Kaynak modülünde zaten mevcut olan her gerçek dışa aktarımı listeleyen bir gezinme kabuğu.",
+    "purpose": "Uygulamadaki her dışa aktarımı bulmak için tek bir yer — her satır, onu gerçekten üreten çalışma alanına bağlanır.",
+    "quickStart": [
+      "Gerçek kaynak modülünden dışa aktarmak için herhangi bir satırda Aç'a tıklayın."
+    ],
+    "limitations": [
+      "Denetim raporlarının henüz özel bir görünümü yok — varmış gibi ima etmek yerine dürüstçe belirtilir."
+    ]
+  },
+  "dataExchange": {
+    "title": "Veri Değişimi",
+    "summary": "Her modülde toplu CSV/Excel içe ve dışa aktarım — 41 şablon, güvenlik için taahhütten önce önizleme adımı ile.",
+    "purpose": "Her satırı elle girmeden verileri toplu olarak FormuLab içine veya dışına taşıyın, her yazma işlemini gerçekleşmeden önce gözden geçirilebilir tutarak.",
+    "quickStart": [
+      "İhtiyacınız olan şablon için bir Boş veya Örnek dosya indirin.",
+      "Doldurun, ardından Yükle.",
+      "Önizlemeyi gözden geçirin, ardından İçe aktarmayı onayla."
+    ],
+    "sections": [
+      "Şablon Kütüphanesi",
+      "Dışa Aktarımlar",
+      "İçe Aktarımlar",
+      "Doğrulama",
+      "Geçmiş",
+      "Şema Sürümleri",
+      "Yardım"
+    ],
+    "roleNotes": [
+      "Bir içe aktarma hiçbir şeyi kendi başına doğrulanmış veya onaylanmış olarak işaretleyemez — her şey elle girilmiş gibi taslak olarak gelir."
+    ],
+    "limitations": [
+      "2 şablon (Stabilite Protokolleri ve Stabilite Sonuçları) önizlenir ve doğrulanır ancak henüz taahhüt edilemez — satır başına dürüstçe raporlanır."
+    ]
+  },
+  "administration": {
+    "title": "Yönetim",
+    "summary": "Malzemeler, mevzuat kuralları, onay politikaları, veri değişimi ve ayarlara bağlantılar, artı küresel Test Tanımları düzenleyicisi.",
+    "purpose": "Uygulamanın başka bir yerinde zaten var olan yapılandırma ekranları için tek bir merkez.",
+    "quickStart": [
+      "Malzemeler, Mevzuat, Onay, Veri Değişimi veya Ayarlara tıklayarak gidin."
+    ],
+    "limitations": [
+      "Kullanıcı veya rol yönetimi yoktur — bu kod tabanının bir kullanıcı yönetimi arka ucu yoktur ve Yönetim bunu taklit etmek yerine açıkça belirtir."
+    ]
+  },
+  "materials": {
+    "title": "Malzemeler",
+    "summary": "Malzemeler, tedarikçiler, ambalaj bileşenleri/reçeteleri ve fabrika maliyet profilleri.",
+    "purpose": "Her formül satırının, maliyet hesaplamasının ve ambalaj özetinin oluşturulduğu katalog.",
+    "quickStart": [
+      "Bugün bilinenlerle bir malzeme oluşturun.",
+      "Bir veya daha fazla tedarikçi ekleyin."
+    ],
+    "sections": [
+      "Malzemeler",
+      "Tedarikçiler",
+      "Ambalaj",
+      "Fabrika profilleri"
+    ]
+  },
+  "notebooks": {
+    "title": "Not Defterleri",
+    "summary": "Keşifsel analiz için çalıştırılabilir bir not defteri düzenleyicisi.",
+    "purpose": "Uygulamanın paketlenmiş Python/R çalışma zamanına karşı not defteri hücreleri yazın ve çalıştırın.",
+    "quickStart": [
+      "Bir not defteri açın ve Cmd/Ctrl+Enter ile bir hücre çalıştırın."
+    ],
+    "limitations": [
+      "Yalnızca masaüstünde — bir tarayıcı geliştirme oturumunda dürüst bir boş durum gösterir."
+    ]
+  },
+  "files": {
+    "title": "Dosyalar",
+    "summary": "Oturum klasörleriniz genelinde bir dosya tarayıcısı ve önizleyicisi.",
+    "purpose": "Oturumlarınız ve çalıştırmalarınız tarafından üretilen dosyalara göz atın, önizleyin ve açın.",
+    "quickStart": [
+      "Bir klasöre göz atın; önizlemek için bir dosyaya tıklayın."
+    ]
+  },
+  "runs": {
+    "title": "Çalıştırmalar",
+    "summary": "Çalıştırılan her komut veya hesaplamanın geçmişi, yeniden üretme ve günlük erişimi ile.",
+    "purpose": "Neyin ne zaman ve hangi sonuçla çalıştırıldığını görün — ve yeniden çalıştırın veya inceleyin.",
+    "quickStart": [
+      "Arama veya duruma göre filtreleyin; tarifi görmek için bir çalıştırmayı genişletin."
+    ]
+  },
+  "sessions": {
+    "title": "Oturumlar",
+    "summary": "Yapay zeka destekli araştırma oturumu listeniz — Ayarların üzerine sabitlenmiş, varsayılan olarak en son 8 gösterilir.",
+    "purpose": "Ajan/sohbet odaklı araştırma iş akışının giriş noktası: yeni bir oturum başlatın veya geçmiş birini yeniden açın.",
+    "quickStart": [
+      "Bir oturum başlatmak için Yeni'ye tıklayın.",
+      "Yeniden açmak için geçmiş bir oturuma tıklayın."
+    ],
+    "warnings": [
+      "Bir oturumu silmek önce onaylanır — sessizce kaldırılmaz."
+    ]
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "summary": "Genel, Görünüm, Modeller, Python çalışma zamanı, Hesaplama ve Gizlilik yapılandırması.",
+    "purpose": "Uygulamanın kendisini yapılandırın — tema, dil, model sağlayıcı, çalışma zamanı, hesaplama hedefleri ve gizlilik seçenekleri.",
+    "quickStart": [
+      "Soldaki listeden bir bölüm seçin."
+    ],
+    "sections": [
+      "Genel — çalışma klasörü, Etkin Veri Konumu (artık bir Veri Konumu Yöneticisi), Yedekleme ve Kurtarma, Otomatik Yedeklemeler, Şema Geçişi, Tanılama, uygulama güncellemeleri",
+      "Görünüm",
+      "Modeller",
+      "Python (çalışma zamanı)",
+      "Hesaplama",
+      "Gizlilik"
+    ],
+    "warnings": [
+      "Bir yedeği geri yüklemek mevcut verilerinizin yerini alır. Önce mevcut verilerinizin güvenlik yedeği otomatik olarak oluşturulur ve geri yükleme tamamlandığında yolu gösterilir.",
+      "Bir yedeği doğrulamak hiçbir şeyi değiştirmez — yalnızca paketi inceler ve Geçerli, Geçerli (uyarılarla), Uyumsuz, Bozuk veya Güvensiz sonucunu bildirir.",
+      "Bir şema geçişi çalıştırmak önce doğrulanmış bir güvenlik yedeği oluşturur ve bir şeyler başarısız olursa otomatik olarak geri yükler — siz Geçişi Çalıştır'a tıklamadan hiçbir şey otomatik olarak geçirilmez.",
+      "Etkin Veri Konumu yalnızca verilerinizin nerede olduğunu gösterir ve açar — hiçbir şeyi taşımaz, birleştirmez veya yeniden konumlandırmaz. Gerçek veri içeren ikinci bir klasör bulursa, sizin yerinize seçim yapmak yerine uyarır.",
+      "Bir destek paketi dışa aktarmak, Windows kullanıcı adınızı ve her yol ile günlük satırından token/anahtar benzeri uzun metinleri kaldırır ve bir yedeğin içeriğini, formül/proje verilerinizi veya tarayıcı depolamasından hiçbir şeyi asla içermez. FormuLab'da çökme raporlama yoktur — son hatalar yalnızca en iyi çaba gösterilen bir günlük taramasıdır.",
+      "Otomatik yedeklemeler yalnızca FormuLab açıkken çalışır — arka planda çalışan bir hizmet yoktur. Uygulamanın hiç açılmadığı bir gün veya haftada, o gün veya hafta için otomatik yedekleme oluşturulmaz; yine de her yedek başarılı sayılmadan önce doğrulanır ve eski yedekler sınıfa göre (günlük/haftalık/geçiş öncesi) budanır, ancak bir sınıfın son geçerli yedeği asla silinmez.",
+      "Veri konumunuzu taşımak önce doğrulanmış bir güvenlik yedeği oluşturur, ardından herhangi bir şey değiştirilmeden önce her dosyayı yeni konuma kopyalar ve karma (hash) ile doğrular — önceki konumunuza otomatik olarak dokunulmaz veya o konum silinmez. Hedef zaten ilgisiz başka dosyalar içeriyorsa (bir FormuLab veri klasörü değilse), taşıma birleştirilmek yerine reddedilir; zaten gerçek bir FormuLab projesi içeriyorsa, hiçbir şey kopyalamadan doğrudan onu kullanmaya geçebilirsiniz.",
+      "Uygulama güncellemeleri yalnızca daha yeni bir FormuLab sürümü olup olmadığını kontrol eder — tek bir HTTPS sürüm meta verisi uç noktasıyla (varsayılan olarak genel GitHub API'si) iletişim kurar ve asla çalışma alanı dosyalarını veya API anahtarlarını göndermez. Hiçbir şey indirmez veya yüklemez — yeni bir sürümü kendiniz almak için \"Sürümü Görüntüle / İndir\"i kullanın."
+    ]
+  },
+  "glossary": {
+    "workingDraft": {
+      "term": "Çalışma taslağı",
+      "definition": "Bir formülün mevcut, düzenlenebilir, kaydedilmemiş durumu — asla onaylanmaz, asla nihai olarak dışa aktarılmaz."
+    },
+    "savedVersion": {
+      "term": "Kaydedilmiş sürüm",
+      "definition": "Sürüm kaydet ile oluşturulan bir formülün değişmez, numaralandırılmış bir anlık görüntüsü. Tekrar düzenlemek yeni bir sürüm oluşturur."
+    },
+    "approvalRole": {
+      "term": "Onay rolü",
+      "definition": "Araştırmacı, kimyager, kalite, mevzuat, üretim veya yönetici rollerinden biri — bir sürümü onaylayabilecek tek roller, ve her onay kapısı için yalnızca bazıları."
+    },
+    "blockingFinding": {
+      "term": "Engelleyici bulgu",
+      "definition": "Adı belirtilmiş bir insan tarafından çözülene kadar onayı engelleyecek kadar ciddi bir doğrulama, uyumluluk veya güvenlik sonucu."
+    },
+    "dossier": {
+      "term": "Dosya",
+      "definition": "Bir formül için sürüm ve yargı yetkisi başına mevzuat gereksinimleri, kanıt ve incelemeler koleksiyonu."
+    },
+    "evidenceConfirmation": {
+      "term": "Kanıt onayı",
+      "definition": "Bir mevzuat gereksiniminin kanıtının sağlandığına dair kalıcı bir kayıt, bir nedenle geri alınabilir."
+    },
+    "qsToHundred": {
+      "term": "q.s. (quantum satis)",
+      "definition": "Diğer satırların bıraktığı kadarını otomatik olarak %100'e tamamlayan, asla negatif olmayan bir formül satırı işareti."
+    },
+    "landedCost": {
+      "term": "Teslim maliyeti",
+      "definition": "Bir malzemenin fiyatı artı navlun, sigorta, gümrük, vergi ve fabrikanıza ulaştırmak için diğer maliyetler."
+    },
+    "costSnapshot": {
+      "term": "Maliyet anlık görüntüsü",
+      "definition": "Belirli bir zamanda bir formül sürümünü maliyetlendirmek için kullanılan tam fiyatların, döviz kurlarının ve fabrika maliyetlerinin dondurulmuş bir kaydı."
+    },
+    "compatibilityFinding": {
+      "term": "Uyumluluk bulgusu",
+      "definition": "Belirleyici bileşen etkileşimi kural motorundan bir sonuç — bilgi/uyarı/hata/engelleyici."
+    },
+    "safetyClassification": {
+      "term": "Güvenlik sınıflandırması",
+      "definition": "Bir formülün yerleştirildiği belirleyici tehlike kategorisi — sıradan tüketiciden yasaklıya kadar."
+    },
+    "doeStudy": {
+      "term": "DOE çalışması",
+      "definition": "Bir Deney Tasarımı planı: faktörler, kısıtlar, yanıtlar, oluşturulan bir çalışma planı ve (çalıştırıldıktan sonra) uyumlu bir istatistiksel model."
+    },
+    "reverseFormulationCandidate": {
+      "term": "Ters formülasyon adayı",
+      "definition": "Bir referans ürünün beyan edilmiş bileşenlerinden oluşturulan aday bir formül, formül uyumu ve kanıt güveni ayrı ayrı puanlanır."
+    },
+    "dataExchangeTemplate": {
+      "term": "Veri Değişimi şablonu",
+      "definition": "İçe/dışa aktarılabilir bir koleksiyonun kendi taahhütten önce önizleme doğrulamasına sahip CSV/Excel şeması."
+    },
+    "auditEvent": {
+      "term": "Denetim olayı",
+      "definition": "Gerçek bir aktörün gerçek bir eylemine ait değişmez, zaman damgalı bir kayıt — uygulamadaki her geçmiş/denetim sekmesinin temeli."
+    },
+    "watermark": {
+      "term": "Filigran",
+      "definition": "Kaynak formülü gerçekten production_approved olmayan herhangi bir dışa aktarıma uygulanan \"R&D DRAFT — NOT PRODUCTION APPROVED\" damgası."
+    },
+    "readinessBlocker": {
+      "term": "Hazır olma engelleyicisi",
+      "definition": "Bir formülün henüz onaylanamamasının belirli, adlandırılmış bir nedeni, Onay çalışma alanında gösterilir."
+    },
+    "jurisdiction": {
+      "term": "Yargı yetkisi",
+      "definition": "Bir mevzuat değerlendirmesinin geçerli olduğu pazar — Kenya, Uganda, Tanzanya, Ruanda, Burundi, Güney Sudan veya EAC bölgesel bloğu."
+    },
+    "testMethodSnapshot": {
+      "term": "Test yöntemi anlık görüntüsü",
+      "definition": "Bir test sonucu kaydedildiğinde alınan, gerçekte kullanılan standardın/yöntemin değiştirilemez bir kopyasıdır. Standart veya yöntemdeki sonraki değişiklikler bunu asla değiştirmez."
+    }
+  },
+  "ui": {
+    "buttonLabel": "Yardım",
+    "buttonTooltip": "Bu sayfa için yardımı aç",
+    "close": "Kapat",
+    "panelTitle": "Yardım",
+    "purpose": "Amaç",
+    "prerequisites": "Ön koşullar",
+    "quickStart": "Hızlı başlangıç",
+    "sections": "Bölümler",
+    "warnings": "Uyarılar",
+    "roleNotes": "Rol notları",
+    "limitations": "Bilinen sınırlamalar",
+    "relatedTopics": "İlgili konular",
+    "glossaryHeading": "Sözlük",
+    "openPage": "Sayfayı aç",
+    "back": "Geri",
+    "centerAriaLabel": "Yardımda ara",
+    "searchPlaceholder": "Yardımda ara…",
+    "noResults": "Sonuç yok.",
+    "topicsGroup": "Konular",
+    "glossaryGroup": "Sözlük",
+    "learnMore": "Daha fazla bilgi",
+    "requiredRole": "Gerekli: {{role}}",
+    "prerequisiteLabel": "Gereken: {{prerequisite}}",
+    "resolvableYes": "Bunu kendiniz çözebilirsiniz.",
+    "resolvableNo": "Bunu gerekli role sahip biri çözmelidir.",
+    "startTour": "Turu başlat",
+    "tourNext": "İleri",
+    "tourBack": "Geri",
+    "tourSkip": "Atla",
+    "tourFinish": "Bitir",
+    "tourProgress": "{{total}} adımdan {{current}}.",
+    "onboarding": {
+      "title": "FormuLab'da yeni misiniz?",
+      "body": "Formülasyon, Deney Tasarımı veya Dosyalar hakkında kısa bir rehberli tur yapın.",
+      "skip": "Belki sonra"
+    },
+    "guideGroup": "Kılavuz",
+    "openFullGuide": "Tam kullanıcı kılavuzunu aç"
+  },
+  "tours": {
+    "formulation": {
+      "title": "Formülasyon turu",
+      "steps": {
+        "target": {
+          "title": "Ürünü tanımlayın",
+          "body": "Hedef ürünü sade bir dille tanımlayarak başlayın — bu, hattın ürettiği her şeyi yönlendirir."
+        },
+        "categoryMarket": {
+          "title": "Kategori ve pazar",
+          "body": "Kategoriyi ve hedef pazarı daraltmak, hattın hangi malzemeleri ve kuralları dikkate aldığını iyileştirir."
+        },
+        "generate": {
+          "title": "Oluştur",
+          "body": "Oluştur, keşif hattını çalıştırır ve bir veya daha fazla başlangıç formülasyonunu geri akıtır."
+        },
+        "candidates": {
+          "title": "Aday sürümler",
+          "body": "Oluşturulan her formülasyon bir V1/V2/V3 sekmesi olarak görünür — karşılaştırmak için adaylar arasında geçiş yapın."
+        },
+        "cardEdit": {
+          "title": "Kart ve Düzenle",
+          "body": "Kart, oluşturulan metni gösterir; Düzenle aynı adayı ayarlamak için formül ızgarasında açar."
+        },
+        "functionTotals": {
+          "title": "İşlev toplamları",
+          "body": "Bu rozetler her bileşen işlevini bir varsayımla değil, gerçek formül yüzdesiyle toplar."
+        },
+        "warnings": {
+          "title": "Uyarılar",
+          "body": "Doğrulama bulguları ve eksik aktif madde verileri burada görünür — bir sürümü kaydetmeden önce bunları gözden geçirin."
+        }
+      }
+    },
+    "doe": {
+      "title": "Deney Tasarımı turu",
+      "steps": {
+        "factors": {
+          "title": "Faktörler",
+          "body": "Bir çalışma, Yeni çalışma'dan kurulan, değiştirmek istediğiniz faktörleri tanımlayarak başlar."
+        },
+        "levels": {
+          "title": "Seviyeler",
+          "body": "Her faktöre düşük ve yüksek bir seviye atanır — tasarımın keşfedeceği aralık budur."
+        },
+        "responses": {
+          "title": "Yanıtlar",
+          "body": "Yanıtlar, optimize ettiğiniz veya kısıtladığınız ölçülen sonuçlardır."
+        },
+        "runGeneration": {
+          "title": "Deneme oluşturma",
+          "body": "Bir tasarım oluşturmak, yürütülecek denemelerin tam kümesi olan bir çalışma listesi üretir."
+        },
+        "interpretation": {
+          "title": "Yorumlama sınırları",
+          "body": "Analiz ve aday sıralaması yalnızca kendi kaydettiğiniz gözlemlerden gelir — bir sonuca göre hareket etmeden önce çalışmanın bilinen sınırlamalarını okuyun."
+        }
+      }
+    },
+    "dossiers": {
+      "title": "Dosyalar turu",
+      "steps": {
+        "requirements": {
+          "title": "Gereksinimler",
+          "body": "Her dosya, bir yargı alanının kurallarının bu ürün için oluşturduğu gereksinimleri izler."
+        },
+        "evidence": {
+          "title": "Kanıt eşleme",
+          "body": "Kanıtı burada bir gereksinime bağlayın — yalnızca doğrulanmış kanıt hazır olma durumuna sayılır."
+        },
+        "readiness": {
+          "title": "Hazır olma durumu",
+          "body": "Bu özet, kaç zorunlu gereksinimin karşılandığını ve neyin hâlâ eksik olduğunu gösterir."
+        },
+        "review": {
+          "title": "İnceleme",
+          "body": "Resmi bir inceleme, adı belirtilen bir incelemecinin sonucunu kaydeder — asla otomatik veya çıkarımsal bir onay değildir."
+        },
+        "export": {
+          "title": "Dışa aktar",
+          "body": "Dışa aktarma, mevcut kanıt matrisinin gerçek bir PDF veya DOCX anlık görüntüsünü üretir."
+        },
+        "notApproval": {
+          "title": "Dışa aktarma onay değildir",
+          "body": "Bir dosya belgesini dışa aktarmak onu asla onaylamaz — onay yalnızca Onay çalışma alanında gerçekleşir."
+        }
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
-use crate::runtime::workspace_dir;
+use crate::workspace::workspace_dir;
 
 /// Largest file we inline into a preview. Beyond this the UI shows a "too large"
 /// note (with an open-externally affordance) rather than loading it — a huge
@@ -101,14 +101,22 @@ pub fn resolve_under(root: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(full)
 }
 
-/// The folder tree a file command operates in: the ACTIVE session workspace
-/// (default) or the base folder every session workspace is created under.
-/// Pages declare their scope explicitly — no fallback guessing between the
-/// two, so an identical relative path can never resolve ambiguously.
+/// The folder tree a file command operates in. `data` (sessions + the shared
+/// literature cache) and `formulas` (the formula library) are the two the Files
+/// page shows — together they are everything a run produces. Pages declare their
+/// scope explicitly — no fallback guessing, so an identical relative path can
+/// never resolve ambiguously.
 pub fn scope_root(app: &AppHandle, root: Option<&str>) -> Result<PathBuf, String> {
-    match root.unwrap_or("workspace") {
+    let under_project = |name: &str| -> Result<PathBuf, String> {
+        let dir = crate::formulation_v2::project_root(app)?.join(name);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        Ok(dir)
+    };
+    match root.unwrap_or("data") {
+        "data" => under_project("data"),
+        "formulas" => under_project("formulas"),
         "workspace" => workspace_dir(app),
-        "base" => crate::runtime::base_workspace_dir(app),
+        "base" => crate::workspace::base_workspace_dir(app),
         other => Err(format!("unknown root scope: {other}")),
     }
 }
@@ -459,33 +467,6 @@ pub fn write_workspace_file(
     Ok(())
 }
 
-/// Pick local files via the native open dialog and copy them into the agent
-/// workspace so the agent can read them. Returns workspace-relative names
-/// (deduplicated as name-1.ext, name-2.ext on collision); empty on cancel.
-#[tauri::command]
-pub async fn add_files_to_workspace(app: AppHandle) -> Result<Vec<String>, String> {
-    use tauri_plugin_dialog::DialogExt;
-    let Some(picked) = app.dialog().file().blocking_pick_files() else {
-        return Ok(Vec::new()); // user cancelled
-    };
-    let ws = workspace_dir(&app)?;
-    let mut added = Vec::new();
-    for file in picked {
-        let src = file.into_path().map_err(|e| e.to_string())?;
-        let name = src
-            .file_name()
-            .ok_or("picked path has no file name")?
-            .to_string_lossy()
-            .to_string();
-        let dst_name = unique_name(&ws, &name);
-        std::fs::copy(&src, ws.join(&dst_name)).map_err(|e| format!("copy failed: {e}"))?;
-        added.push(dst_name);
-    }
-    if !added.is_empty() {
-        crate::git_snapshot::commit_best_effort(&ws, "Add workspace files");
-    }
-    Ok(added)
-}
 
 /// Write text content into the workspace under `filename` (deduplicated as
 /// name-1.ext on collision). Used when a long paste becomes a file. Returns
@@ -559,6 +540,35 @@ pub async fn save_text_file(
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
+/// Writes raw bytes to `path` — never routed through a Rust `String`/UTF-8
+/// step, so an arbitrary byte sequence (e.g. a generated PDF/DOCX) round-trips
+/// exactly. Split out from `save_binary_file` so it's testable without a live
+/// dialog/AppHandle (mirrors `unique_name`/`dir_entries` below).
+fn write_binary_file(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    std::fs::write(path, bytes).map_err(|e| format!("write failed: {e}"))
+}
+
+/// Save arbitrary bytes (e.g. a generated PDF/DOCX) through the same native
+/// "Save As" dialog `save_text_file` uses — same reuse-the-dialog convention,
+/// same cancel/error shape, just a `Vec<u8>` payload instead of a `String` so
+/// the bytes are never coerced through UTF-8 text at any point. The save path
+/// always comes from the OS file picker, never a caller-supplied string, so
+/// there is no path-traversal surface to validate.
+#[tauri::command]
+pub async fn save_binary_file(
+    app: AppHandle,
+    filename: String,
+    bytes: Vec<u8>,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let Some(choice) = app.dialog().file().set_file_name(&filename).blocking_save_file() else {
+        return Ok(None); // user cancelled
+    };
+    let path = choice.into_path().map_err(|e| e.to_string())?;
+    write_binary_file(&path, &bytes)?;
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
 /// Minimal std-only base64 (avoids adding a dependency).
 fn base64_encode(input: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -578,7 +588,7 @@ fn base64_encode(input: &[u8]) -> String {
 mod tests {
     use super::{
         base64_encode, dir_entries, encode_for_preview, exceeds_preview_cap, locate_under,
-        mime_for, open_url, unique_name,
+        mime_for, open_url, unique_name, write_binary_file,
     };
 
     #[test]
@@ -630,7 +640,7 @@ mod tests {
 
     #[test]
     fn list_dir_sorts_dirs_first_and_skips_hidden() {
-        let root = std::env::temp_dir().join(format!("ai4s-listdir-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("formulab-listdir-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("sub")).unwrap();
         std::fs::create_dir_all(root.join(".hidden")).unwrap();
@@ -665,7 +675,7 @@ mod tests {
 
     #[test]
     fn unique_name_dedupes_with_numeric_suffix() {
-        let dir = std::env::temp_dir().join(format!("ai4s-unique-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("formulab-unique-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
@@ -685,6 +695,31 @@ mod tests {
     }
 
     #[test]
+    fn write_binary_file_round_trips_arbitrary_bytes_including_invalid_utf8() {
+        // 0x00 and the lone continuation/overlong bytes below are not valid
+        // UTF-8 — a text-based write path would corrupt or reject them.
+        let path = std::env::temp_dir().join(format!("formulab-binary-write-test-{}.bin", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let bytes: Vec<u8> = vec![0x00, 0xFF, 0xC0, 0x80, b'h', b'i', 0x00];
+
+        write_binary_file(&path, &bytes).unwrap();
+        let read_back = std::fs::read(&path).unwrap();
+        assert_eq!(read_back, bytes);
+
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn write_binary_file_reports_a_clear_error_for_an_unwritable_path() {
+        let bogus = std::env::temp_dir()
+            .join(format!("formulab-nonexistent-dir-{}", std::process::id()))
+            .join("f.bin");
+        let result = write_binary_file(&bogus, b"data");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("write failed"));
+    }
+
+    #[test]
     fn base64_matches_known_vectors() {
         assert_eq!(base64_encode(b""), "");
         assert_eq!(base64_encode(b"f"), "Zg==");
@@ -695,7 +730,7 @@ mod tests {
 
     #[test]
     fn locate_finds_literal_bare_and_missing_paths() {
-        let root = std::env::temp_dir().join(format!("ai4s-locate-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("formulab-locate-test-{}", std::process::id()));
         std::fs::create_dir_all(root.join("proj")).unwrap();
         std::fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
         std::fs::write(root.join("root.pdf"), b"x").unwrap();
@@ -732,7 +767,7 @@ mod tests {
 
     #[test]
     fn locate_prefers_the_newest_of_duplicate_basenames() {
-        let root = std::env::temp_dir().join(format!("ai4s-locate-dup-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("formulab-locate-dup-test-{}", std::process::id()));
         std::fs::create_dir_all(root.join("old")).unwrap();
         std::fs::create_dir_all(root.join("new")).unwrap();
         std::fs::write(root.join("old/report.pdf"), b"x").unwrap();

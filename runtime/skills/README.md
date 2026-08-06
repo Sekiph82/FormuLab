@@ -10,39 +10,30 @@ skills/
   user/      # user-installed / custom skills (live in the runtime workspace)
 ```
 
-Core skills are bundled as the `skills-core/` app resource and deployed next to
-the external pack on every sidecar start; directories without a `SKILL.md` are
-skipped.
+Core skills are bundled as the `skills-core/` app resource; directories
+without a `SKILL.md` are skipped. `external/` is fetched by CI/dev scripts
+but not currently deployed into the running app — see the correction
+below.
 
-## Default pack: ai4s-skills (bundled into the installer)
+## Third-party document skills: docx / pdf / pptx / xlsx (fetched, not bundled)
 
-The default scientific skills come from
-[ai4s-research/ai4s-skills](https://github.com/ai4s-research/ai4s-skills)
-(research-explorer, literature-survey, experiment-suite, paper-writer,
-integrity-auditor, mindmap-render, ai4s-agent).
-
-How they ship, end to end:
-
-1. `scripts/dev/fetch-skills.sh` (run locally and in CI) downloads the pack at a
-   pinned commit into `external/ai4s-skills/`.
-2. `tauri.conf.json` bundles that directory as an app resource (`resources/skills/`).
-3. On every sidecar start, `runtime.rs::deploy_bundled_skills` syncs the pack into
-   the app-private profile's global skills dir (`<xdg-config>/opencode/skills/`),
-   which OpenCode scans regardless of project detection. Bundled skill directories
-   are replaced on app upgrade; the workspace's own `.opencode/skills/` stays
-   reserved for user-installed skills. Skill listing must be workspace-scoped
-   (`GET /api/skill?directory=…`) — the SDK does this via its `directory` option.
-
-To bump the pack version, update `AI4S_SKILLS_COMMIT` in `fetch-skills.sh`.
-
-## Office pack: Anthropic document skills (bundled into the installer)
-
-The docx / pdf / pptx / xlsx skills come from Anthropic's open-source
-[anthropics/skills](https://github.com/anthropics/skills) repo (Apache-2.0;
-each skill directory keeps its own `LICENSE.txt`). Same pipeline as above:
-`fetch-skills.sh` pins them into `external/anthropic-skills/`, bundled as the
-`skills-office/` app resource, deployed by `deploy_bundled_skills`. Bump via
+The docx / pdf / pptx / xlsx skills come from Anthropic's
+[anthropics/skills](https://github.com/anthropics/skills) repo. `fetch-skills.sh`
+pins them into `external/anthropic-skills/` (each skill directory keeps its
+own `LICENSE.txt` — read it before relying on this content; it is not
+Apache-2.0, see the fetch script's own note). Bump via
 `ANTHROPIC_SKILLS_COMMIT` in `fetch-skills.sh`.
+
+**Correction (Phase 12 Session 2, verified directly against current
+source)**: this directory is fetched by CI but is **not** currently
+deployed anywhere — `tauri.conf.json`'s `bundle.resources` does not
+include `runtime/skills/external/`, and no `runtime.rs`/
+`deploy_bundled_skills` function (previously described here) exists in
+the current Rust source. A prior scientific skills pack that WAS wired
+through that mechanism has been removed entirely (see PROGRESS.md/git
+history for when the mechanism itself was removed) — this doc is
+corrected to describe what actually ships today, not what shipped in an
+earlier build.
 
 ## Third-party skills
 

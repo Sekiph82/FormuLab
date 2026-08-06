@@ -1,0 +1,3 @@
+costing_profile_code,currency,effective_date,labor_cost_per_hour,energy_cost_per_kwh,water_cost_per_m3,steam_cost_per_kg,waste_cost_per_kg,overhead_percent,manufacturing_loss_percent,freight_percent,duty_percent,tax_percent,target_margin_percent,notes
+TEST-COST-RESUME-001,KES,2026-01-01,500,25,150,5,10,15,2,150,0,16,30,Synthetic test row - bad freight_percent (over 100).
+TEST-COST-RESUME-001,KES,2026-07-30,500,25,150,5,10,15,2,3,0,16,30,Synthetic test row.

@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { renderAt } from "@/test/render";
 import { useUiStore } from "@/lib/store";
-import { useRuntimeStore } from "@/lib/runtime";
 import { shippedLocales } from "@/i18n/config";
 
 describe("Settings language selector", () => {
@@ -27,40 +26,36 @@ describe("Settings page strings (i18n)", () => {
     renderAt("/settings");
     expect(await screen.findByRole("heading", { level: 1, name: "General" })).toBeInTheDocument();
     expect(screen.getByText("Workspace")).toBeInTheDocument();
-    expect(screen.getByText("available in the desktop app")).toBeInTheDocument();
+    // Every General-section card (Workspace, Active Data Location, Backup and
+    // Recovery, Schema Migration, Diagnostics) shares this exact fallback
+    // string outside the desktop app — assert at least one renders it rather
+    // than assuming there is only ever one.
+    expect(screen.getAllByText("available in the desktop app").length).toBeGreaterThan(0);
     // The sidebar became the settings navigation with a way back to the app.
     expect(screen.getByRole("button", { name: "Back to app" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Connectors" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Models" })).toBeInTheDocument();
   });
 
-  it("renders each section's own title and disconnected-runtime prompt", async () => {
+  it("renders each section's own title", async () => {
+    // The agent-runtime and MCP sections went with OpenCode; what remains under
+    // "runtime" is the local Python kernel the notebooks use.
     const runtime = renderAt("/settings/runtime");
-    expect(await screen.findByText("Agent runtime")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Python" })).toBeInTheDocument();
     runtime.unmount();
 
-    const connectors = renderAt("/settings/connectors");
-    expect(await screen.findByText("MCP servers")).toBeInTheDocument();
-    expect(screen.getByText("Connect the runtime to configure MCP servers.")).toBeInTheDocument();
-    connectors.unmount();
-
+    // The model section belongs to the direct formulation pipeline, so it needs
+    // no runtime connection — it renders its selector straight away.
     renderAt("/settings/models");
-    expect(await screen.findByText("Connect the runtime to configure models.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Model" })).toBeInTheDocument();
   });
 
-  it("renders separate model browsing and provider management surfaces when connected", async () => {
-    const original = useRuntimeStore.getState();
-    let view: ReturnType<typeof renderAt> | undefined;
-    try {
-      useRuntimeStore.setState({ status: "ready", defaultModel: null });
-      view = renderAt("/settings/models");
-      // No client behind this render: the Models card sits in its loading
-      // state while the separate Providers card is already on screen.
-      expect(await screen.findByText("Loading the model catalog…")).toBeInTheDocument();
-      expect(screen.getByRole("heading", { level: 2, name: "Providers" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Manage" })).toHaveAttribute("aria-expanded", "false");
-    } finally {
-      view?.unmount();
-      useRuntimeStore.setState({ status: original.status, defaultModel: original.defaultModel });
-    }
+  it("renders the formulation model/key surface", async () => {
+    // Provider/model/key are local settings; nothing to connect to.
+    renderAt("/settings/models");
+    expect(
+      await screen.findByText("The model and API key used to generate formulations"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Provider")).toBeInTheDocument();
+    expect(screen.getByText("API key")).toBeInTheDocument();
   });
 });

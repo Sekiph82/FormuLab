@@ -37,6 +37,11 @@ const DEMO: Row[] = [
   row({ name: "Filler", unit_price: 0.4, stock: 400, active_matter_pct: 0, max_usage_pct: 60 }),
 ];
 
+/** Editable numeric columns, in display order. Declared outside the JSX
+ *  subtree so the i18n literal-string lint (which scans JSX for user-facing
+ *  text) does not mistake these field keys for translatable copy. */
+const NUMERIC_FIELDS = ["unit_price", "stock", "active_matter_pct", "max_usage_pct"] as const;
+
 export function OptimizerPage() {
   const { t } = useTranslation(["pages", "common"]);
   const [rows, setRows] = useState<Row[]>(DEMO);
@@ -128,7 +133,7 @@ export function OptimizerPage() {
                         className="w-40 rounded-input border border-transparent bg-transparent px-2 py-1 text-text outline-none hover:border-border focus:border-accent"
                       />
                     </td>
-                    {(["unit_price", "stock", "active_matter_pct", "max_usage_pct"] as const).map(
+                    {NUMERIC_FIELDS.map(
                       (key) => (
                         <td key={key} className="px-2 py-1.5">
                           <input

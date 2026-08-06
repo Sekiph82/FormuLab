@@ -1,0 +1,10 @@
+﻿[ControlType.Window] Name='FormuLab' AutomationId='' Rect=(0,0,2590,1630) Enabled=True Patterns=WindowPatternIdentifiers.Pattern,TransformPatternIdentifiers.Pattern
+  [ControlType.Pane] Name='' AutomationId='' Rect=(13,58,2564,1559) Enabled=True Patterns=
+    [ControlType.Pane] Name='FormuLab' AutomationId='' Rect=(13,58,2564,1559) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern,ItemContainerPatternIdentifiers.Pattern
+      [ControlType.Pane] Name='' AutomationId='' Rect=(13,58,3072,2048) Enabled=False Patterns=
+      [ControlType.Pane] Name='FormuLab - Web content' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+        [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+          [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+          [ControlType.Pane] Name='' AutomationId='' Rect=(NA,NA,NA,NA) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+          [ControlType.Pane] Name='' AutomationId='' Rect=(14,58,2564,1560) Enabled=True Patterns=ScrollItemPatternIdentifiers.Pattern
+

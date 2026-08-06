@@ -10,6 +10,15 @@ Built with Tauri, MCP, and agent skills — for macOS, Windows & Linux.
 
 ---
 
+## Download
+
+**[Latest release](https://github.com/Sekiph82/FormuLab/releases/latest)**
+— Windows x64 installers (`.exe`/`.msi`). This is an early public preview:
+**installers are not code-signed yet** (Windows SmartScreen will warn on
+first launch — see the release notes for why and how to verify what you
+downloaded). See [docs/CODE_SIGNING_POLICY.md](docs/CODE_SIGNING_POLICY.md)
+for the free open-source signing program FormuLab has applied to.
+
 ## What it is
 
 FormuLab is a desktop workbench that pairs a general AI research environment
@@ -19,23 +28,133 @@ FormuLab is a desktop workbench that pairs a general AI research environment
 - **Formulation Optimizer** — a linear program (PuLP + CBC) that finds the
   lowest-cost raw-material mix meeting an active-content target within stock and
   usage limits. Available as a UI tab *and* an agent skill.
+- **Advanced Formulation Constraint Optimizer** — a separate, mixed-integer
+  solver over composition, functional-group, ratio and conditional
+  constraints, genuine soft-constraint penalty relaxation, calculated
+  property targets, a cost ceiling, multi-objective (weighted or
+  lexicographic) including graded compatibility/safety risk, structured
+  infeasibility explanations, and automatic exclusion of any material
+  combination the real compatibility/safety engines flag as blocking.
+  Named, comparable optimization scenarios (save/clone/rename/retire,
+  product-family profile application, run comparison) build on top of it.
+  See [docs/ADVANCED_OPTIMIZER.md](docs/ADVANCED_OPTIMIZER.md) and
+  [docs/OPTIMIZATION_SCENARIOS.md](docs/OPTIMIZATION_SCENARIOS.md).
+- **Material Substitution** — deterministic, scored candidate ranking for
+  replacing one raw material with another, using real price/stock/supplier
+  data and a live compatibility/safety re-check, never name similarity —
+  plus multi-material system substitution (one/many-to-many, routed through
+  the real optimizer). See
+  [docs/MATERIAL_SUBSTITUTION.md](docs/MATERIAL_SUBSTITUTION.md) and
+  [docs/SYSTEM_SUBSTITUTION.md](docs/SYSTEM_SUBSTITUTION.md).
 - **Formulation Discovery** — give a target product ("an anti-dandruff, soothing
   shampoo") and the agent retrieves open-access literature (OpenAlex), extracts
   the ingredients/functions/concentrations reported there, synthesizes an
   evidence-based candidate formula with citations, and hands it to the optimizer.
+- **Formula Builder** — the daily working surface: a versioned formulation
+  workspace with an editable grid, water q.s., deterministic decimal arithmetic,
+  validation, immutable versions and version comparison.
+- **Compatibility and safety engines** — deterministic, versioned rule
+  checking (never the LLM) with human-review-gated approval; see
+  [docs/COMPATIBILITY_ENGINE.md](docs/COMPATIBILITY_ENGINE.md) and
+  [docs/SAFETY_ENGINE.md](docs/SAFETY_ENGINE.md).
+- **Raw materials and costing** — material master, suppliers, append-only price
+  history, inventory, landed cost, packaging BOMs and per-SKU cost snapshots.
+- **Laboratory Trials and Stability Studies** — bench-execution records
+  (material weighing, process steps, deviations) with a human-gated
+  lifecycle, a shared test-definition/result system with replicate
+  statistics and outlier flagging, trial comparison, configurable stability
+  conditions/time points with pull-point sample tracking, deterministic
+  trend analysis (no automated shelf-life claims), and corrective actions —
+  all wired into approval readiness. See
+  [docs/LABORATORY_TRIALS.md](docs/LABORATORY_TRIALS.md) and
+  [docs/STABILITY_STUDIES.md](docs/STABILITY_STUDIES.md).
+- **Kenya/EAC Regulatory Engine, Dossiers, and Claims & Labels** — a
+  deterministic, version-bound regulatory classification/rule-evaluation
+  engine across seven East African jurisdictions; per-version, per-
+  jurisdiction regulatory dossiers with a live evidence matrix, evidence
+  discovery/replacement, and reviews/submissions; and product claims/
+  labels/artwork with evidence linking (reused from a dossier, never
+  duplicated), formal reviews, and formula-to-label consistency checking
+  — all folding into Approval Readiness as opt-in policy gates, never
+  claiming legal compliance on their own. See
+  [docs/REGULATORY_ENGINE.md](docs/REGULATORY_ENGINE.md),
+  [docs/REGULATORY_DOSSIERS.md](docs/REGULATORY_DOSSIERS.md),
+  [docs/PRODUCT_CLAIMS.md](docs/PRODUCT_CLAIMS.md), and
+  [docs/PRODUCT_LABELS.md](docs/PRODUCT_LABELS.md).
+- **Design of Experiments** — plan a statistically valid formulation/process
+  experiment against a real saved formula version, generate a randomized
+  set of runs (full/fractional/two-level factorial, Plackett-Burman,
+  central composite, Box-Behnken, Latin hypercube, mixture simplex-lattice,
+  or a custom design), record real responses, fit a deterministic OLS
+  model to what was actually observed (never AI-sourced, never
+  fabricated), and rank candidate factor settings by desirability —
+  applying one only ever updates a working draft, never a saved version.
+  See [docs/DESIGN_OF_EXPERIMENTS.md](docs/DESIGN_OF_EXPERIMENTS.md).
 
 Everything runs locally by default; your data, runs, and provenance stay on your
 machine.
 
 ## Features
 
-- **Chat + Agents** — local/API models, tools, MCP, files, shell, skills, memory.
 - **Formulation Optimizer** — cost-minimal blending under active-content, stock,
   and max-usage constraints.
 - **Formulation Discovery** — literature-driven candidate formulas with citations.
 - **Notebooks** — real `.ipynb`, local Python/R kernels, managed Jupyter via `uv`.
 - **Runs & Provenance** — append-only run logs and artifact lineage.
 - **Deep Research** — multi-step web research with source reading and reports.
+- **Formula Builder & versioning** — editable formulation grid, water q.s.,
+  exact decimal arithmetic, four-level validation, immutable versions with
+  required change reasons, and field-level version comparison.
+- **Materials & cost engine** — raw-material master data, suppliers, price
+  history, inventory, exchange rates you control, landed cost, packaging BOMs,
+  factory cost profiles and immutable cost snapshots.
+- **Data Exchange Center** — schema-driven CSV/Excel import/export across 24
+  templates spanning materials, formulas, lab, stability, regulatory,
+  dossiers, claims, labels and DOE data, with preview-before-commit, row-level
+  validation, and full import/export history.
+
+### Two rules the formulation side is built around
+
+**Missing data is never zero.** A material with no recorded active matter, a
+line with no price, a currency pair with no rate — each is reported as what it
+is, and any total over it is labelled a lower bound. A silently-zero value looks
+complete and is wrong in the cheap direction.
+
+**No automated actor can approve a formula.** Agents, system processes and
+imports are all refused `pilot_approved` and `production_approved`, whatever a
+model concluded and whatever a spreadsheet claims. Approval is a named person
+accepting responsibility, with a signed record and an audit entry.
+
+## Formulation documentation
+
+| Document | Covers |
+| --- | --- |
+| [USER_GUIDE.md](docs/USER_GUIDE.md) | End-to-end walkthrough: project → grid → version → materials → cost |
+| [INFORMATION_ARCHITECTURE.md](docs/INFORMATION_ARCHITECTURE.md) | The ten-workspace navigation model and why it replaced the old single-page Formula Builder |
+| [WORKSPACES.md](docs/WORKSPACES.md) | Per-workspace reference: responsibility, reused components, route |
+| [NAVIGATION_AND_CONTEXT.md](docs/NAVIGATION_AND_CONTEXT.md) | Project/version/tab context preservation across workspaces |
+| [FORMULA_BUILDER.md](docs/FORMULA_BUILDER.md) | Project workflow, the grid, water q.s., validation, templates, declarations |
+| [FORMULA_VERSIONING.md](docs/FORMULA_VERSIONING.md) | Draft vs version, comparison, approval rules |
+| [RAW_MATERIALS.md](docs/RAW_MATERIALS.md) | Material master, suppliers, price history, inventory |
+| [COST_ENGINE.md](docs/COST_ENGINE.md) | Cost layers, landed cost, SKU costing, snapshots |
+| [IMPORT_EXPORT.md](docs/IMPORT_EXPORT.md) | CSV formats, validation, injection handling |
+| [PRECISION_POLICY.md](docs/PRECISION_POLICY.md) | Decimal handling and rounding |
+| [LABORATORY_TRIALS.md](docs/LABORATORY_TRIALS.md) | Trial domain model, lifecycle, human gating |
+| [TRIAL_EXECUTION.md](docs/TRIAL_EXECUTION.md) | Weighing, process steps, observations, deviations |
+| [TEST_DEFINITIONS.md](docs/TEST_DEFINITIONS.md) | Shared test-definition schema and seed catalog |
+| [TEST_RESULTS.md](docs/TEST_RESULTS.md) | Replicate stats, outliers, override, revision history |
+| [TRIAL_COMPARISON.md](docs/TRIAL_COMPARISON.md) | Comparing two or more trials |
+| [STABILITY_STUDIES.md](docs/STABILITY_STUDIES.md) | Study/condition/time-point/sample domain and lifecycle |
+| [STABILITY_TRENDS.md](docs/STABILITY_TRENDS.md) | Trend calculation, limit crossing, projection gating, failures |
+| [CORRECTIVE_ACTIONS.md](docs/CORRECTIVE_ACTIONS.md) | Shared corrective-action model and draft-from-action flow |
+| [LAB_STABILITY_APPROVAL.md](docs/LAB_STABILITY_APPROVAL.md) | Configurable lab/stability approval-readiness gates |
+| [REGULATORY_DOSSIERS.md](docs/REGULATORY_DOSSIERS.md) | Per-version regulatory dossiers, requirements, evidence matrix |
+| [PRODUCT_CLAIMS.md](docs/PRODUCT_CLAIMS.md) | Product claim domain model, classification, rule evaluation |
+| [PRODUCT_LABELS.md](docs/PRODUCT_LABELS.md) | Product label domain model, content, artwork, consistency |
+| [CLAIMS_LABEL_READINESS.md](docs/CLAIMS_LABEL_READINESS.md) | Claims/label readiness and Approval Readiness integration |
+| [DESIGN_OF_EXPERIMENTS.md](docs/DESIGN_OF_EXPERIMENTS.md) | DOE overview: studies, design generation, statistical analysis, candidates |
+| [DOE_STATISTICAL_ANALYSIS.md](docs/DOE_STATISTICAL_ANALYSIS.md) | The deterministic OLS/ANOVA analysis engine, what is and is not modeled |
+| [IMPLEMENTATION_STATUS.md](docs/architecture/IMPLEMENTATION_STATUS.md) | What is actually built, and what is not |
 
 ## Formulation quick start
 
@@ -69,14 +188,12 @@ cd FormuLab
 pnpm install
 
 # Fetch pinned sidecars and bundled skills (git-ignored).
-bash scripts/dev/fetch-opencode.sh
 bash scripts/dev/fetch-uv.sh
 bash scripts/dev/fetch-skills.sh
-bash scripts/dev/fetch-goal-plugin.sh
 
 # Run in development or build installers.
-pnpm --filter @ai4s/desktop tauri dev
-pnpm --filter @ai4s/desktop tauri build
+pnpm --filter @formulab/desktop tauri dev
+pnpm --filter @formulab/desktop tauri build
 ```
 
 Checks: `pnpm test` - `pnpm typecheck` - `pnpm lint`.
@@ -87,10 +204,21 @@ Checks: `pnpm test` - `pnpm typecheck` - `pnpm lint`.
   default.
 - Command execution, file deletion, dependency installation, and remote
   connections are human-approved flows in the app.
-- Provider credentials are written to app-private runtime config, never to the
-  workspace, provenance, git, or exports.
+- Provider API keys are stored in the app's own local browser storage
+  (not yet OS-keychain — see `docs/PRIVACY.md`), never to the workspace,
+  provenance, git, or exports.
+- Full network-communication disclosure: [docs/PRIVACY.md](docs/PRIVACY.md).
+  Vulnerability reporting: [SECURITY.md](SECURITY.md).
 
 ## License
 
 MIT — see [LICENSE](LICENSE). FormuLab builds on an open-source, MIT-licensed
 research-workbench foundation; that copyright notice is retained in `LICENSE`.
+
+## Code signing
+
+Windows releases are prepared for free HSM-backed signing through
+[SignPath Foundation](https://signpath.org)'s open-source program — see
+[docs/CODE_SIGNING_POLICY.md](docs/CODE_SIGNING_POLICY.md). Signing is not
+yet active; every current release is disclosed as unsigned in its own
+release notes.

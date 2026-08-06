@@ -35,7 +35,10 @@
       "stopLabel": "Arrêter",
       "runLabel": "Exécuter",
       "addCellLabel": "Ajouter une cellule"
-    }
+    },
+    "setUpJupyter": "Configurer Jupyter",
+    "settingUpJupyter": "Configuration…",
+    "setUpJupyterTitle": "Télécharger et installer un environnement Jupyter isolé"
   },
   "files": {
     "loading": "Chargement…",
@@ -52,47 +55,6 @@
       "relativePathLabel": "Chemin relatif",
       "openInDefaultApp": "Ouvrir dans l'application par défaut"
     }
-  },
-  "skills": {
-    "title": "Compétences et agents",
-    "description": {
-      "prefix": "Chargé en direct depuis le runtime OpenCode — le pack ai4s-skills intégré, plus tout ce qui se trouve sous ",
-      "suffix": " dans votre espace de travail."
-    },
-    "install": {
-      "sectionTitle": "Installer une compétence",
-      "placeholder": "Collez une compétence (Markdown) ou une URL GitHub — l'agent l'installe dans .opencode/skills/",
-      "starting": "Démarrage…",
-      "cta": "Installer avec l'agent",
-      "hintConnected": "Ouvre une session et demande à l'agent de l'ajouter (customize-opencode).",
-      "hintDisconnected": "Connectez d'abord le runtime."
-    },
-    "environment": {
-      "sectionTitle": "Environnement scientifique",
-      "detectionUnavailable": "La détection de l'environnement s'exécute dans l'application de bureau.",
-      "found": "trouvé",
-      "notFound": "introuvable",
-      "note": "OpenCode exécute le code avec ce qui est installé ici (p. ex. Python via son outil shell). Python/R/Jupyter ne sont pas intégrés ; installez-les, ou un Science Pack, pour activer l'analyse."
-    },
-    "agentsSection": {
-      "sectionTitle": "Agents ({{count}})",
-      "empty": "Aucun agent signalé.",
-      "agentMode": {
-        "primary": "principal",
-        "subagent": "sous-agent",
-        "all": "tous"
-      }
-    },
-    "skillsListSection": {
-      "sectionTitle": "Compétences ({{count}})",
-      "empty": "Aucune compétence chargée pour le moment.",
-      "source": {
-        "builtin": "intégré",
-        "project": "projet",
-        "user": "utilisateur"
-      }
-    },
-    "disconnected": "Connectez le runtime pour lister les compétences et agents qu'il a chargés."
   },
   "notFound": {
     "title": "404 — Introuvable",

@@ -6,13 +6,11 @@ export type Theme = "light" | "warm" | "dark";
 
 export const THEMES: readonly Theme[] = ["light", "warm", "dark"];
 
-const THEME_KEY = "ai4s.theme.v2";
-/** Two-theme era key: its "light" was the warm paper palette, now called "warm". */
-const LEGACY_THEME_KEY = "ai4s.theme";
-const SIDEBAR_WIDTH_KEY = "ai4s.sidebar.width";
-const SIDEBAR_COLLAPSED_KEY = "ai4s.sidebar.collapsed";
-const INSPECTOR_WIDTH_KEY = "ai4s.inspector.width";
-const ZOOM_KEY = "ai4s.zoom";
+const THEME_KEY = "formulab.theme.v2";
+const SIDEBAR_WIDTH_KEY = "formulab.sidebar.width";
+const SIDEBAR_COLLAPSED_KEY = "formulab.sidebar.collapsed";
+const INSPECTOR_WIDTH_KEY = "formulab.inspector.width";
+const ZOOM_KEY = "formulab.zoom";
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;
@@ -26,25 +24,27 @@ export const INSPECTOR_MIN = 360;
 export const INSPECTOR_MAX = 960;
 export const INSPECTOR_DEFAULT = 560;
 
-function initialTheme(): Theme {
+export function initialTheme(): Theme {
   if (typeof window === "undefined") return "light";
   const saved = window.localStorage.getItem(THEME_KEY);
   if (saved === "light" || saved === "warm" || saved === "dark") return saved;
-  const legacy = window.localStorage.getItem(LEGACY_THEME_KEY);
-  if (legacy === "dark") return "dark";
-  if (legacy === "light") return "warm";
   const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
   return prefersDark ? "dark" : "light";
 }
 
-function initialSidebarWidth(): number {
+export function initialSidebarWidth(): number {
   if (typeof window === "undefined") return SIDEBAR_DEFAULT;
   const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
   if (!Number.isFinite(saved) || saved === 0) return SIDEBAR_DEFAULT;
   return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, saved));
 }
 
-function initialInspectorWidth(): number {
+export function initialSidebarCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+}
+
+export function initialInspectorWidth(): number {
   if (typeof window === "undefined") return INSPECTOR_DEFAULT;
   const saved = Number(window.localStorage.getItem(INSPECTOR_WIDTH_KEY));
   if (!Number.isFinite(saved) || saved === 0) return INSPECTOR_DEFAULT;
@@ -55,7 +55,7 @@ function clampZoom(z: number): number {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
 }
 
-function initialZoom(): number {
+export function initialZoom(): number {
   if (typeof window === "undefined") return 1;
   const saved = Number(window.localStorage.getItem(ZOOM_KEY));
   if (!Number.isFinite(saved) || saved <= 0) return 1;
@@ -105,8 +105,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   theme: initialTheme(),
   locale: detectInitialLocale(),
   inspectorOpen: true,
-  sidebarCollapsed:
-    typeof window !== "undefined" && window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1",
+  sidebarCollapsed: initialSidebarCollapsed(),
   sidebarWidth: initialSidebarWidth(),
   isFullscreen: false,
   paletteOpen: false,

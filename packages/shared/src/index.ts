@@ -1,4 +1,4 @@
-// Stable domain types for AI4S Workbench.
+// Stable domain types for FormuLab.
 // Imported by the desktop app now, and by the SDK / runtime in later slices.
 
 export type RuntimeStatus = "connecting" | "ready" | "error" | "offline";
@@ -207,7 +207,7 @@ export type Inspector =
 
 /** Folder tree a root-relative file path resolves in: the active session
  *  workspace (default) or the base folder all session workspaces live under. */
-export type FileRoot = "workspace" | "base";
+export type FileRoot = "data" | "formulas" | "workspace" | "base";
 
 /** A real .ipynb in the workspace, opened in the runnable notebook editor. */
 export interface NotebookFileInspector {
@@ -482,3 +482,108 @@ export function seriesColor(i: number, theme: ChartTheme): string {
   const c = chartPalette(theme).categorical;
   return c[((i % c.length) + c.length) % c.length];
 }
+
+// ---- Formulation domain schemas (Kenya R&D platform) ------------------------
+// Versioned, validated shapes shared by the UI, the Python pipeline and exports.
+export * from "./schemas/product";
+export * from "./schemas/formulation";
+export * from "./schemas/status";
+export * from "./schemas/events";
+export * from "./catalog/kenya";
+export * from "./catalog/templates";
+export * from "./engine/formula";
+export * from "./engine/versioning";
+export * from "./engine/declaration";
+export * from "./engine/declarationParser";
+export * from "./engine/ingredientMapper";
+export * from "./engine/analyticalInference";
+export * from "./engine/candidateGenerator";
+export * from "./engine/scoringModel";
+export * from "./schemas/materials";
+export * from "./schemas/costing";
+export * from "./engine/cost";
+export * from "./engine/importer";
+export * from "./schemas/ruleConditions";
+export * from "./engine/ruleConditions";
+export * from "./schemas/compatibility";
+export * from "./engine/compatibility";
+export * from "./catalog/compatibilityRules";
+export * from "./schemas/safety";
+export * from "./engine/safety";
+export * from "./catalog/safetyRules";
+export * from "./engine/approvalReadiness";
+export * from "./engine/lifecycle";
+export * from "./engine/exports";
+export * from "./schemas/optimization";
+export * from "./engine/optimization";
+export * from "./engine/scenarios";
+export * from "./catalog/optimizationProfiles";
+export * from "./schemas/substitution";
+export * from "./engine/substitution";
+export * from "./engine/systemSubstitution";
+export * from "./engine/migrations";
+export * from "./schemas/laboratoryStandards";
+export * from "./schemas/testDefinitions";
+export * from "./schemas/correctiveActions";
+export * from "./schemas/laboratory";
+export * from "./schemas/stability";
+export * from "./engine/testResults";
+export * from "./engine/correctiveActions";
+export * from "./engine/laboratory";
+export * from "./engine/laboratoryStandards";
+export * from "./engine/stability";
+export * from "./catalog/testDefinitions";
+export * from "./catalog/laboratoryStandards";
+export * from "./catalog/stabilityConditions";
+export * from "./engine/labExports";
+export * from "./engine/stabilityExports";
+export * from "./engine/testApplicability";
+export * from "./engine/approvalDerivation";
+export * from "./schemas/approvalPolicy";
+export * from "./engine/approvalPolicy";
+export * from "./schemas/equivalence";
+export * from "./engine/equivalence";
+export * from "./engine/resultHistory";
+export * from "./schemas/regulatory";
+export * from "./schemas/dossier";
+export * from "./schemas/claimsLabels";
+export * from "./schemas/reverseFormulation";
+export * from "./schemas/documentExport";
+export * from "./engine/dossierExportAssembly";
+export * from "./engine/regulatoryClassification";
+export * from "./engine/regulatoryAuthorization";
+export * from "./engine/regulatoryRules";
+export * from "./engine/regulatoryApproval";
+export * from "./engine/regulatoryReviews";
+export * from "./engine/regulatoryDossier";
+export * from "./engine/regulatoryDossierApproval";
+export * from "./engine/dossierRecordDiscovery";
+export * from "./engine/claims";
+export * from "./engine/labels";
+export * from "./engine/claimsLabelApproval";
+export * from "./schemas/doe";
+export * from "./engine/doeExpression";
+export * from "./engine/doeMath";
+export * from "./engine/doeDesign";
+export * from "./engine/doeAnalysis";
+export * from "./engine/doeCandidates";
+export * from "./engine/doeLabIntegration";
+export * from "./engine/doeExports";
+export * from "./schemas/dataExchange";
+export * from "./engine/dataExchangeRegistry";
+export * from "./engine/dataExchangeCsv";
+export * from "./engine/dataExchangeValidation";
+export * from "./catalog/regulatoryRules";
+export {
+  PRECISION,
+  CURRENCY_DP,
+  moneyDp,
+  tryDec,
+  parseHumanDecimal,
+  fmt,
+  fmtMoney,
+  displayMoney,
+  sum,
+  nearlyEqual,
+  type PrecisionKind,
+} from "./engine/decimal";

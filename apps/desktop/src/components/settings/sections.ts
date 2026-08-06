@@ -2,7 +2,6 @@ import {
   Cloud,
   Cpu,
   Palette,
-  Plug,
   Settings,
   Shapes,
   ShieldCheck,
@@ -16,7 +15,6 @@ export const SETTINGS_SECTIONS = [
   { key: "appearance", icon: Palette },
   { key: "models", icon: Shapes },
   { key: "runtime", icon: Cpu },
-  { key: "connectors", icon: Plug },
   { key: "compute", icon: Cloud },
   { key: "privacy", icon: ShieldCheck },
 ] as const satisfies ReadonlyArray<{ key: string; icon: LucideIcon }>;

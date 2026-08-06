@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
 use crate::provenance::{capture_env, content_hash, EnvInfo, ProvenanceState};
-use crate::runtime::workspace_dir;
+use crate::workspace::workspace_dir;
 
 const STORE_DIR: &str = ".FormuLab";
 const RUNS_FILE: &str = "runs.jsonl";
@@ -433,7 +433,7 @@ mod tests {
     use super::*;
 
     fn temp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("ai4s-runs-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("formulab-runs-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

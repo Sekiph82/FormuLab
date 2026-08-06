@@ -13,41 +13,45 @@
     "files": "Files",
     "runs": "Runs",
     "optimizer": "Optimizer",
-    "skills": "Skills",
-    "projects": "Projects"
+    "formulas": "Formulas",
+    "materials": "Materials"
   },
-  "projects": {
-    "heading": "Projects",
-    "new": "New project",
-    "importedBadge": "imported",
-    "menuScratch": "Start from scratch",
-    "menuExisting": "Use an existing folder",
-    "nameTitle": "Name project",
-    "nameSubtitle": "Keep it short and recognizable",
-    "namePlaceholder": "Project name",
-    "newSessionAria": "New session in {{name}}",
-    "noSessions": "No sessions yet.",
-    "renameHint": "Double-click to rename",
-    "pageSearch": "Search projects",
-    "colName": "Name",
-    "colSources": "Sources",
-    "colUpdated": "Updated",
-    "noResults": "No projects match.",
-    "pin": "Pin",
-    "unpin": "Unpin",
-    "rename": "Rename",
-    "remove": "Remove",
-    "more": "More",
-    "removeTitle": "Remove {{name}}?",
-    "removeBody": "This removes the project from the sidebar. Files on disk will not be deleted.",
-    "seeAll": "All projects",
-    "openFolder": "Open {{path}}"
+  "sections": {
+    "workspaces": "Workspaces",
+    "tools": "Tools"
+  },
+  "workspacesNav": {
+    "home": "Home",
+    "projects": "Projects",
+    "formulation": "Formulation",
+    "laboratory": "Laboratory",
+    "stability": "Stability",
+    "optimization": "Optimization",
+    "doe": "Design of Experiments",
+    "regulatory": "Regulatory",
+    "dossiers": "Dossiers",
+    "claimsLabels": "Claims & Labels",
+    "approval": "Approval",
+    "reports": "Reports",
+    "administration": "Administration",
+    "dataExchange": "Data Exchange",
+    "reverseFormulation": "Reverse Formulation"
+  },
+  "workspace": {
+    "noProjectsYet": "No projects yet — create one from Projects to get started.",
+    "pickProject": "Choose a project",
+    "changeProject": "Change project",
+    "versionLabel": "Version",
+    "currentDraft": "Current draft",
+    "openInFormulation": "Open in Formulation"
   },
   "history": {
     "heading": "Sessions",
     "empty": "No conversations yet.",
     "exampleTag": "example",
-    "deleteAria": "Delete {{title}}"
+    "deleteAria": "Delete {{title}}",
+    "viewAll": "View all sessions",
+    "showFewer": "Show fewer"
   },
   "confirmDelete": {
     "sessionTitle": "Delete session?",
@@ -73,13 +77,13 @@
     "placeholder": "Type a command…",
     "noResults": "No results.",
     "actions": {
-      "newSession": "New session",
-      "analyzeData": "Analyze my data (new workflow)",
-      "auditReport": "Audit a report (traceability review)",
+      "newSession": "New formulation",
       "openNotebooks": "Open notebooks",
-      "manageSkills": "Manage skills",
       "openSettings": "Open settings",
-      "toggleTheme": "Switch theme (light / warm / dark)"
+      "toggleTheme": "Switch theme (light / warm / dark)",
+      "openFiles": "Open files",
+      "searchHelp": "Search help",
+      "openGuide": "Open user guide"
     }
   }
 }

@@ -35,7 +35,10 @@
       "stopLabel": "停止",
       "runLabel": "実行",
       "addCellLabel": "セルを追加"
-    }
+    },
+    "setUpJupyter": "Jupyter をセットアップ",
+    "settingUpJupyter": "セットアップ中…",
+    "setUpJupyterTitle": "独立した Jupyter 環境をダウンロードしてインストールします"
   },
   "files": {
     "loading": "読み込み中…",
@@ -52,47 +55,6 @@
       "relativePathLabel": "相対パス",
       "openInDefaultApp": "デフォルトのアプリで開く"
     }
-  },
-  "skills": {
-    "title": "スキル & エージェント",
-    "description": {
-      "prefix": "OpenCode ランタイムからライブで読み込まれます — バンドルされた ai4s-skills パックと、ワークスペース内の ",
-      "suffix": " にあるものすべて。"
-    },
-    "install": {
-      "sectionTitle": "スキルをインストール",
-      "placeholder": "スキル（Markdown）または GitHub URL を貼り付けてください — エージェントが .opencode/skills/ にインストールします",
-      "starting": "開始中…",
-      "cta": "エージェントでインストール",
-      "hintConnected": "セッションを開き、エージェントに追加を依頼します（customize-opencode）。",
-      "hintDisconnected": "先にランタイムに接続してください。"
-    },
-    "environment": {
-      "sectionTitle": "科学計算環境",
-      "detectionUnavailable": "環境検出はデスクトップアプリで実行されます。",
-      "found": "検出済み",
-      "notFound": "未検出",
-      "note": "OpenCode はここにインストールされているものを使ってコードを実行します（例: シェルツール経由の Python）。Python/R/Jupyter はバンドルされていません。分析を有効にするには、それらまたは Science Pack をインストールしてください。"
-    },
-    "agentsSection": {
-      "sectionTitle": "エージェント ({{count}})",
-      "empty": "エージェントが報告されていません。",
-      "agentMode": {
-        "primary": "プライマリ",
-        "subagent": "サブエージェント",
-        "all": "すべて"
-      }
-    },
-    "skillsListSection": {
-      "sectionTitle": "スキル ({{count}})",
-      "empty": "まだスキルが読み込まれていません。",
-      "source": {
-        "builtin": "組み込み",
-        "project": "プロジェクト",
-        "user": "ユーザー"
-      }
-    },
-    "disconnected": "読み込まれたスキルとエージェントを一覧表示するには、ランタイムに接続してください。"
   },
   "notFound": {
     "title": "404 — 見つかりません",

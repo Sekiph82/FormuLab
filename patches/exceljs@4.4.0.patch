@@ -1,0 +1,2039 @@
+diff --git a/dist/es5/csv/csv.js b/dist/es5/csv/csv.js
+index 67cbcfed61b0fccc32feefe73d641879ba0dc88d..494888826a63d2b21f29bea3ea552f03ce5ca754 100644
+--- a/dist/es5/csv/csv.js
++++ b/dist/es5/csv/csv.js
+@@ -179,4 +179,3 @@ class CSV {
+   }
+ }
+ module.exports = CSV;
+-//# sourceMappingURL=csv.js.map
+diff --git a/dist/es5/csv/csv.js.map b/dist/es5/csv/csv.js.map
+deleted file mode 100644
+index 95050a60110a84993b99cddac1eb434ee8fc7d16..0000000000000000000000000000000000000000
+diff --git a/dist/es5/csv/line-buffer.js b/dist/es5/csv/line-buffer.js
+index 26388dc9b01dee5bcb0b3fd14059bdc886583905..c09a0b6157e8f4f8ca2f89aa9691694cc694a044 100644
+--- a/dist/es5/csv/line-buffer.js
++++ b/dist/es5/csv/line-buffer.js
+@@ -65,4 +65,3 @@ class LineBuffer extends EventEmitter {
+   }
+ }
+ module.exports = LineBuffer;
+-//# sourceMappingURL=line-buffer.js.map
+diff --git a/dist/es5/csv/line-buffer.js.map b/dist/es5/csv/line-buffer.js.map
+deleted file mode 100644
+index 30e2e2442182858a9878e496be96e05d258f6caa..0000000000000000000000000000000000000000
+diff --git a/dist/es5/csv/stream-converter.js b/dist/es5/csv/stream-converter.js
+index 94685c05f1f80f2919e941df427e79fc824e963e..f758c2cc2a581658bde5c81ec5d091bb1ea99f12 100644
+--- a/dist/es5/csv/stream-converter.js
++++ b/dist/es5/csv/stream-converter.js
+@@ -107,4 +107,3 @@ class StreamConverter {
+   }
+ }
+ module.exports = StreamConverter;
+-//# sourceMappingURL=stream-converter.js.map
+diff --git a/dist/es5/csv/stream-converter.js.map b/dist/es5/csv/stream-converter.js.map
+deleted file mode 100644
+index 2d56f2ebd7c6ede0d58f39c2822746646e7a2c4f..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/anchor.js b/dist/es5/doc/anchor.js
+index 98041868dbef9269be4b4f78248c85216adfee4b..e267b024e438ea1144b436b8b2b5de07cdc916b8 100644
+--- a/dist/es5/doc/anchor.js
++++ b/dist/es5/doc/anchor.js
+@@ -70,4 +70,3 @@ class Anchor {
+   }
+ }
+ module.exports = Anchor;
+-//# sourceMappingURL=anchor.js.map
+diff --git a/dist/es5/doc/anchor.js.map b/dist/es5/doc/anchor.js.map
+deleted file mode 100644
+index 80523883dfd762fb2ba539ab9bb83205dca4d6bd..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/cell.js b/dist/es5/doc/cell.js
+index f6b607ce0210504652aa60be766b0fe6162410e9..82b540b0ec606fe7b78d394549fb6bbd1dd0f9f8 100644
+--- a/dist/es5/doc/cell.js
++++ b/dist/es5/doc/cell.js
+@@ -958,4 +958,3 @@ const Value = {
+   }
+ };
+ module.exports = Cell;
+-//# sourceMappingURL=cell.js.map
+diff --git a/dist/es5/doc/cell.js.map b/dist/es5/doc/cell.js.map
+deleted file mode 100644
+index af000efb952b5d5bb7c40da21b811104bf063a37..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/column.js b/dist/es5/doc/column.js
+index 524248fbc648022c95c5e84f57aea7bfdf1f50c6..2d9c3df2fc210a33b60848f1a5920440d159ec15 100644
+--- a/dist/es5/doc/column.js
++++ b/dist/es5/doc/column.js
+@@ -271,4 +271,3 @@ class Column {
+   }
+ }
+ module.exports = Column;
+-//# sourceMappingURL=column.js.map
+diff --git a/dist/es5/doc/column.js.map b/dist/es5/doc/column.js.map
+deleted file mode 100644
+index 2bf2609b5a9dec05db97fdc30be80195b6996ddc..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/data-validations.js b/dist/es5/doc/data-validations.js
+index c8912f7aa7b84a1334d64d1ac09fdc129c3d5412..4a9edd07645cfae121273765f35cc044cd8745ef 100644
+--- a/dist/es5/doc/data-validations.js
++++ b/dist/es5/doc/data-validations.js
+@@ -15,4 +15,3 @@ class DataValidations {
+   }
+ }
+ module.exports = DataValidations;
+-//# sourceMappingURL=data-validations.js.map
+diff --git a/dist/es5/doc/data-validations.js.map b/dist/es5/doc/data-validations.js.map
+deleted file mode 100644
+index 3660a71dee96df9700ac71ffb5ab45fe6511bbdf..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/defined-names.js b/dist/es5/doc/defined-names.js
+index 76de5603b27efb8f6d2fb5cd6ac0bc83bd6bc139..993aa0dc8b27bfc9ba3e67fcaeb6c402d2f99dd5 100644
+--- a/dist/es5/doc/defined-names.js
++++ b/dist/es5/doc/defined-names.js
+@@ -170,4 +170,3 @@ class DefinedNames {
+   }
+ }
+ module.exports = DefinedNames;
+-//# sourceMappingURL=defined-names.js.map
+diff --git a/dist/es5/doc/defined-names.js.map b/dist/es5/doc/defined-names.js.map
+deleted file mode 100644
+index a43a18320467bce7cb398f53d7fbb8c09c3d4b59..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/enums.js b/dist/es5/doc/enums.js
+index 4b7589cf9b3d864ea12a8faf8da4aef474d8da81..83e142a0d820489fde49387787f0d929b3abf8e5 100644
+--- a/dist/es5/doc/enums.js
++++ b/dist/es5/doc/enums.js
+@@ -46,4 +46,3 @@ module.exports = {
+     Num: '#NUM!'
+   }
+ };
+-//# sourceMappingURL=enums.js.map
+diff --git a/dist/es5/doc/enums.js.map b/dist/es5/doc/enums.js.map
+deleted file mode 100644
+index 2aaec4af138fcc2c229205bc447e9b8d4fd24f2b..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/image.js b/dist/es5/doc/image.js
+index 7e58fe234fb117e0f3d94b210ec61ab09e07dcce..d2830ce0ae542b1672da7d31ea3a0fce43c06e61 100644
+--- a/dist/es5/doc/image.js
++++ b/dist/es5/doc/image.js
+@@ -66,4 +66,3 @@ class Image {
+   }
+ }
+ module.exports = Image;
+-//# sourceMappingURL=image.js.map
+diff --git a/dist/es5/doc/image.js.map b/dist/es5/doc/image.js.map
+deleted file mode 100644
+index 090ba15354a9e7f2e012bba954833fba16b72d5e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/modelcontainer.js b/dist/es5/doc/modelcontainer.js
+index 55fa6d1c39aa820b725fd9590d882d3a3d7e09be..aa588a8c03867acbf16d0cac2ece6a970bcc45f5 100644
+--- a/dist/es5/doc/modelcontainer.js
++++ b/dist/es5/doc/modelcontainer.js
+@@ -13,4 +13,3 @@ class ModelContainer {
+   }
+ }
+ module.exports = ModelContainer;
+-//# sourceMappingURL=modelcontainer.js.map
+diff --git a/dist/es5/doc/modelcontainer.js.map b/dist/es5/doc/modelcontainer.js.map
+deleted file mode 100644
+index 0f77d0ed14c962ebf64df06ed1e34eaa029205d1..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/note.js b/dist/es5/doc/note.js
+index 0053513afc234fe444eae932cebf24b99dd24a60..8095cbc3d2685cfb58af229e53ac4e8010f717e2 100644
+--- a/dist/es5/doc/note.js
++++ b/dist/es5/doc/note.js
+@@ -61,4 +61,3 @@ Note.DEFAULT_CONFIGS = {
+   }
+ };
+ module.exports = Note;
+-//# sourceMappingURL=note.js.map
+diff --git a/dist/es5/doc/note.js.map b/dist/es5/doc/note.js.map
+deleted file mode 100644
+index 732076be0c94bf8cdea42c43e28b73758ea7308b..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/range.js b/dist/es5/doc/range.js
+index cb37656fadf3c7aa55cffb22517ff35b174d36fe..7b39fa79027ad1f9f7207f1738e6b64728370f38 100644
+--- a/dist/es5/doc/range.js
++++ b/dist/es5/doc/range.js
+@@ -226,4 +226,3 @@ class Range {
+   }
+ }
+ module.exports = Range;
+-//# sourceMappingURL=range.js.map
+diff --git a/dist/es5/doc/range.js.map b/dist/es5/doc/range.js.map
+deleted file mode 100644
+index 5e5f232b403834598b51d267c383d7dab3c2c8c5..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/row.js b/dist/es5/doc/row.js
+index 4afba3794a83cad53baffbf4f516631adaba7776..2e416055dcf6c2111ca36d847db5d11a53f4b97f 100644
+--- a/dist/es5/doc/row.js
++++ b/dist/es5/doc/row.js
+@@ -379,4 +379,3 @@ class Row {
+   }
+ }
+ module.exports = Row;
+-//# sourceMappingURL=row.js.map
+diff --git a/dist/es5/doc/row.js.map b/dist/es5/doc/row.js.map
+deleted file mode 100644
+index d1f308d391e062b946ba6d5be8d93a81f7a00e75..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/table.js b/dist/es5/doc/table.js
+index 9fffe48b80ea0a0f160d4fc1fc027d042b03602e..19c5dbcba9a960a0c291ed6e60add12bd128697d 100644
+--- a/dist/es5/doc/table.js
++++ b/dist/es5/doc/table.js
+@@ -440,4 +440,3 @@ class Table {
+ }
+ 
+ module.exports = Table;
+-//# sourceMappingURL=table.js.map
+diff --git a/dist/es5/doc/table.js.map b/dist/es5/doc/table.js.map
+deleted file mode 100644
+index 1ddae0bf67dc780bf0e2ba08f1177959d35ef586..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/workbook.js b/dist/es5/doc/workbook.js
+index 908d8a5e531dc7d557dd2bcbbf6af89a5d92cc38..10018b2033062fc0f94feb7816e98bf3fce84219 100644
+--- a/dist/es5/doc/workbook.js
++++ b/dist/es5/doc/workbook.js
+@@ -199,4 +199,3 @@ class Workbook {
+   }
+ }
+ module.exports = Workbook;
+-//# sourceMappingURL=workbook.js.map
+diff --git a/dist/es5/doc/workbook.js.map b/dist/es5/doc/workbook.js.map
+deleted file mode 100644
+index 765c79138be9dfe63f861492d7cf8814b549e489..0000000000000000000000000000000000000000
+diff --git a/dist/es5/doc/worksheet.js b/dist/es5/doc/worksheet.js
+index 1584ed76110873875a6fba9811bdfcb308eed546..03f42f9243c84a3cb4c0bab6138622428a0bedb9 100644
+--- a/dist/es5/doc/worksheet.js
++++ b/dist/es5/doc/worksheet.js
+@@ -897,4 +897,3 @@ class Worksheet {
+   }
+ }
+ module.exports = Worksheet;
+-//# sourceMappingURL=worksheet.js.map
+diff --git a/dist/es5/doc/worksheet.js.map b/dist/es5/doc/worksheet.js.map
+deleted file mode 100644
+index 0a87506dc6d12a5e567f16be78f2a431745b6f2f..0000000000000000000000000000000000000000
+diff --git a/dist/es5/exceljs.bare.js b/dist/es5/exceljs.bare.js
+index 8ff5ebb2f0e2fd4be8ee2ef4730664f7073f670a..8284207b9f4c5aa7570185a9799a3c690824b2a7 100644
+--- a/dist/es5/exceljs.bare.js
++++ b/dist/es5/exceljs.bare.js
+@@ -11,4 +11,3 @@ Object.keys(Enums).forEach(key => {
+   ExcelJS[key] = Enums[key];
+ });
+ module.exports = ExcelJS;
+-//# sourceMappingURL=exceljs.bare.js.map
+diff --git a/dist/es5/exceljs.bare.js.map b/dist/es5/exceljs.bare.js.map
+deleted file mode 100644
+index 8b7835c422734a913e4e7eb4723f53d5e1e94c37..0000000000000000000000000000000000000000
+diff --git a/dist/es5/exceljs.browser.js b/dist/es5/exceljs.browser.js
+index a0bdfddce3b021873346e30f26740df8062ef53a..dd1af74db4428a37a42cf1e6c488a693665b081a 100644
+--- a/dist/es5/exceljs.browser.js
++++ b/dist/es5/exceljs.browser.js
+@@ -33,4 +33,3 @@ Object.keys(Enums).forEach(key => {
+   ExcelJS[key] = Enums[key];
+ });
+ module.exports = ExcelJS;
+-//# sourceMappingURL=exceljs.browser.js.map
+diff --git a/dist/es5/exceljs.browser.js.map b/dist/es5/exceljs.browser.js.map
+deleted file mode 100644
+index 7bfaa5c5a5f5d4219453f06842af9e4c5a6872d7..0000000000000000000000000000000000000000
+diff --git a/dist/es5/exceljs.nodejs.js b/dist/es5/exceljs.nodejs.js
+index a352f39e6aabdbc70022a9eedfa979f3511d2a90..8eed341598dff9cd0e2753823f00f798a4dbca97 100644
+--- a/dist/es5/exceljs.nodejs.js
++++ b/dist/es5/exceljs.nodejs.js
+@@ -12,4 +12,3 @@ const ExcelJS = {
+ };
+ Object.assign(ExcelJS, require('./doc/enums'));
+ module.exports = ExcelJS;
+-//# sourceMappingURL=exceljs.nodejs.js.map
+diff --git a/dist/es5/exceljs.nodejs.js.map b/dist/es5/exceljs.nodejs.js.map
+deleted file mode 100644
+index 85b87a2c9ff48e7b7e8ea7353ee547428b486818..0000000000000000000000000000000000000000
+diff --git a/dist/es5/index.js b/dist/es5/index.js
+index a352f39e6aabdbc70022a9eedfa979f3511d2a90..8eed341598dff9cd0e2753823f00f798a4dbca97 100644
+--- a/dist/es5/index.js
++++ b/dist/es5/index.js
+@@ -12,4 +12,3 @@ const ExcelJS = {
+ };
+ Object.assign(ExcelJS, require('./doc/enums'));
+ module.exports = ExcelJS;
+-//# sourceMappingURL=exceljs.nodejs.js.map
+diff --git a/dist/es5/stream/xlsx/hyperlink-reader.js b/dist/es5/stream/xlsx/hyperlink-reader.js
+index d948fc6ed7400d2eb4ae7051033c39bf06f4c7fb..fee8c9dd8cc62dc6d187d610dd65f8efe7e6cbbb 100644
+--- a/dist/es5/stream/xlsx/hyperlink-reader.js
++++ b/dist/es5/stream/xlsx/hyperlink-reader.js
+@@ -87,4 +87,3 @@ class HyperlinkReader extends EventEmitter {
+   }
+ }
+ module.exports = HyperlinkReader;
+-//# sourceMappingURL=hyperlink-reader.js.map
+diff --git a/dist/es5/stream/xlsx/hyperlink-reader.js.map b/dist/es5/stream/xlsx/hyperlink-reader.js.map
+deleted file mode 100644
+index f48c0b9d3a9aa0ea6aec5cfcd22c66049b50fbef..0000000000000000000000000000000000000000
+diff --git a/dist/es5/stream/xlsx/sheet-comments-writer.js b/dist/es5/stream/xlsx/sheet-comments-writer.js
+index 9b484c37e47c664618748e0195ab7453ed880c91..e8626721f038f36d345307777109c86cc4d23589 100644
+--- a/dist/es5/stream/xlsx/sheet-comments-writer.js
++++ b/dist/es5/stream/xlsx/sheet-comments-writer.js
+@@ -91,4 +91,3 @@ class SheetCommentsWriter {
+   }
+ }
+ module.exports = SheetCommentsWriter;
+-//# sourceMappingURL=sheet-comments-writer.js.map
+diff --git a/dist/es5/stream/xlsx/sheet-comments-writer.js.map b/dist/es5/stream/xlsx/sheet-comments-writer.js.map
+deleted file mode 100644
+index 3866e2f3df7dcefe6e64c790791291239a422583..0000000000000000000000000000000000000000
+diff --git a/dist/es5/stream/xlsx/sheet-rels-writer.js b/dist/es5/stream/xlsx/sheet-rels-writer.js
+index e88d683acff37ba2ad15864b387f318ef7c1ac6f..b0f3a5974e89dcbf6ec32ad037086dafe093bcae 100644
+--- a/dist/es5/stream/xlsx/sheet-rels-writer.js
++++ b/dist/es5/stream/xlsx/sheet-rels-writer.js
+@@ -91,4 +91,3 @@ class SheetRelsWriter {
+   }
+ }
+ module.exports = SheetRelsWriter;
+-//# sourceMappingURL=sheet-rels-writer.js.map
+diff --git a/dist/es5/stream/xlsx/sheet-rels-writer.js.map b/dist/es5/stream/xlsx/sheet-rels-writer.js.map
+deleted file mode 100644
+index e4506994929d7ab0496aebe3bf51a5fe6ab3081b..0000000000000000000000000000000000000000
+diff --git a/dist/es5/stream/xlsx/workbook-reader.js b/dist/es5/stream/xlsx/workbook-reader.js
+index 0abf26c2d9c88569f10e7b2cae1d1e279ea40890..972a8e978c9dc6988641b3a03ca116c0ba878973 100644
+--- a/dist/es5/stream/xlsx/workbook-reader.js
++++ b/dist/es5/stream/xlsx/workbook-reader.js
+@@ -359,4 +359,3 @@ WorkbookReader.Options = {
+   entries: ['emit', 'ignore']
+ };
+ module.exports = WorkbookReader;
+-//# sourceMappingURL=workbook-reader.js.map
+diff --git a/dist/es5/stream/xlsx/workbook-reader.js.map b/dist/es5/stream/xlsx/workbook-reader.js.map
+deleted file mode 100644
+index 827f849698ab04668a77a87e4ffaa9c65838077e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/stream/xlsx/workbook-writer.js b/dist/es5/stream/xlsx/workbook-writer.js
+index f06796b948c3afa98b058d3ed438c9c3625aee03..67dd3498099e1d728d5a8d495208e18eb5caa2dc 100644
+--- a/dist/es5/stream/xlsx/workbook-writer.js
++++ b/dist/es5/stream/xlsx/workbook-writer.js
+@@ -344,4 +344,3 @@ class WorkbookWriter {
+   }
+ }
+ module.exports = WorkbookWriter;
+-//# sourceMappingURL=workbook-writer.js.map
+diff --git a/dist/es5/stream/xlsx/workbook-writer.js.map b/dist/es5/stream/xlsx/workbook-writer.js.map
+deleted file mode 100644
+index 0360621bdf0343bb3a2e37f845fffd3ed727bd2e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/stream/xlsx/worksheet-reader.js b/dist/es5/stream/xlsx/worksheet-reader.js
+index fde1935d7dbd7fc1526543294866481e2f4ad90a..1efc304d3972968b83ac49edd4ee3c95f93821f9 100644
+--- a/dist/es5/stream/xlsx/worksheet-reader.js
++++ b/dist/es5/stream/xlsx/worksheet-reader.js
+@@ -389,4 +389,3 @@ class WorksheetReader extends EventEmitter {
+   }
+ }
+ module.exports = WorksheetReader;
+-//# sourceMappingURL=worksheet-reader.js.map
+diff --git a/dist/es5/stream/xlsx/worksheet-reader.js.map b/dist/es5/stream/xlsx/worksheet-reader.js.map
+deleted file mode 100644
+index 1592788424f64447e0a01bec41a72763cfabc54a..0000000000000000000000000000000000000000
+diff --git a/dist/es5/stream/xlsx/worksheet-writer.js b/dist/es5/stream/xlsx/worksheet-writer.js
+index 6592f0a2305d1ee950be3b239dbd4fb66e040bf7..8c4ef4312c6519ececc9317ccef3e6d60cb16c4d 100644
+--- a/dist/es5/stream/xlsx/worksheet-writer.js
++++ b/dist/es5/stream/xlsx/worksheet-writer.js
+@@ -649,4 +649,3 @@ class WorksheetWriter {
+   }
+ }
+ module.exports = WorksheetWriter;
+-//# sourceMappingURL=worksheet-writer.js.map
+diff --git a/dist/es5/stream/xlsx/worksheet-writer.js.map b/dist/es5/stream/xlsx/worksheet-writer.js.map
+deleted file mode 100644
+index 20205389c730195a039cbe76295784fe20373c4c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/auto-drain.js b/dist/es5/utils/auto-drain.js
+index 9c4992b1bfa34e91dee917f622208b0095d1cfbd..3ea14e12e1f28caf4086a80961a3c6243326d66e 100644
+--- a/dist/es5/utils/auto-drain.js
++++ b/dist/es5/utils/auto-drain.js
+@@ -15,4 +15,3 @@ class AutoDrain extends EventEmitter {
+   }
+ }
+ module.exports = AutoDrain;
+-//# sourceMappingURL=auto-drain.js.map
+diff --git a/dist/es5/utils/auto-drain.js.map b/dist/es5/utils/auto-drain.js.map
+deleted file mode 100644
+index b11ae9d5bd5a40984c43e5577d04a2498505928c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/browser-buffer-decode.js b/dist/es5/utils/browser-buffer-decode.js
+index 35f7098f7ac2d829d98fa59d395a6e393669dec2..30b68e1b42e09d970b2ed49f841989dff6467dd4 100644
+--- a/dist/es5/utils/browser-buffer-decode.js
++++ b/dist/es5/utils/browser-buffer-decode.js
+@@ -12,4 +12,3 @@ function bufferToString(chunk) {
+   return chunk.toString();
+ }
+ exports.bufferToString = bufferToString;
+-//# sourceMappingURL=browser-buffer-decode.js.map
+diff --git a/dist/es5/utils/browser-buffer-decode.js.map b/dist/es5/utils/browser-buffer-decode.js.map
+deleted file mode 100644
+index 7b700abf7add38349f75b3026ef4fb8b97a5ee7a..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/browser-buffer-encode.js b/dist/es5/utils/browser-buffer-encode.js
+index 78b75d131eaee18f19c20f3222f2d7c9969120bb..fe683d66c35b867cbfbc1b51606fb851cb9079a7 100644
+--- a/dist/es5/utils/browser-buffer-encode.js
++++ b/dist/es5/utils/browser-buffer-encode.js
+@@ -15,4 +15,3 @@ function stringToBuffer(str) {
+   return Buffer.from(str);
+ }
+ exports.stringToBuffer = stringToBuffer;
+-//# sourceMappingURL=browser-buffer-encode.js.map
+diff --git a/dist/es5/utils/browser-buffer-encode.js.map b/dist/es5/utils/browser-buffer-encode.js.map
+deleted file mode 100644
+index 809395f3adb72336df63fe28d800ee6989658bcb..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/cell-matrix.js b/dist/es5/utils/cell-matrix.js
+index 099fd9bd876940f08949cbc488d52ad37cac90b8..b647ea2ed8f7fa274321e08346466732397c6b6a 100644
+--- a/dist/es5/utils/cell-matrix.js
++++ b/dist/es5/utils/cell-matrix.js
+@@ -146,4 +146,3 @@ class CellMatrix {
+   }
+ }
+ module.exports = CellMatrix;
+-//# sourceMappingURL=cell-matrix.js.map
+diff --git a/dist/es5/utils/cell-matrix.js.map b/dist/es5/utils/cell-matrix.js.map
+deleted file mode 100644
+index ee3df3eb950ef3b3ae17f583f6ac97fa841f43ee..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/col-cache.js b/dist/es5/utils/col-cache.js
+index cfa14f886ae20ffb11430f9eaaf6413ad0dc0e95..89ca102f5e3e5caf239e1dcdf10a65fbcd8a293a 100644
+--- a/dist/es5/utils/col-cache.js
++++ b/dist/es5/utils/col-cache.js
+@@ -255,4 +255,3 @@ const colCache = {
+   }
+ };
+ module.exports = colCache;
+-//# sourceMappingURL=col-cache.js.map
+diff --git a/dist/es5/utils/col-cache.js.map b/dist/es5/utils/col-cache.js.map
+deleted file mode 100644
+index 61dd984f618c03cb96a194bec1c95a53909e8f3b..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/copy-style.js b/dist/es5/utils/copy-style.js
+index 73db3baf4b430c4cc2f9bb310a526a31f9974446..9c91208853f186089f68465603ab84f03aa609fb 100644
+--- a/dist/es5/utils/copy-style.js
++++ b/dist/es5/utils/copy-style.js
+@@ -40,4 +40,3 @@ const copyStyle = style => {
+   return copied;
+ };
+ exports.copyStyle = copyStyle;
+-//# sourceMappingURL=copy-style.js.map
+diff --git a/dist/es5/utils/copy-style.js.map b/dist/es5/utils/copy-style.js.map
+deleted file mode 100644
+index 86a18bdca77a723f3909bd29202c79e03ed54a53..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/encryptor.js b/dist/es5/utils/encryptor.js
+index d3731fa22977064406084160052b3e1ec97af457..32de4ccdef64fcad9b16fe5bbbf8ccea8b146c96 100644
+--- a/dist/es5/utils/encryptor.js
++++ b/dist/es5/utils/encryptor.js
+@@ -55,4 +55,3 @@ const Encryptor = {
+   }
+ };
+ module.exports = Encryptor;
+-//# sourceMappingURL=encryptor.js.map
+diff --git a/dist/es5/utils/encryptor.js.map b/dist/es5/utils/encryptor.js.map
+deleted file mode 100644
+index 14c659c646583ccfe150b74fef55ce2e5c6d1ce7..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/iterate-stream.js b/dist/es5/utils/iterate-stream.js
+index 84764d221761a0137217d0402b61e180165d6ff9..919392e25378c0a49a9d13961d170478d1e199db 100644
+--- a/dist/es5/utils/iterate-stream.js
++++ b/dist/es5/utils/iterate-stream.js
+@@ -43,4 +43,3 @@ function once(eventEmitter, type) {
+     eventEmitter.addListener(type, handler);
+   });
+ }
+-//# sourceMappingURL=iterate-stream.js.map
+diff --git a/dist/es5/utils/iterate-stream.js.map b/dist/es5/utils/iterate-stream.js.map
+deleted file mode 100644
+index 5a2de604c34f13f90537d7934316cc4d82033b5a..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/parse-sax.js b/dist/es5/utils/parse-sax.js
+index df49fbf9a10095cd0dba7fd249ae23ed67891b61..a094963efda8d8fb518f67e18c53f031af0b868d 100644
+--- a/dist/es5/utils/parse-sax.js
++++ b/dist/es5/utils/parse-sax.js
+@@ -44,4 +44,3 @@ module.exports = async function* (iterable) {
+     events = [];
+   }
+ };
+-//# sourceMappingURL=parse-sax.js.map
+diff --git a/dist/es5/utils/parse-sax.js.map b/dist/es5/utils/parse-sax.js.map
+deleted file mode 100644
+index 646479b886dea734127dcd3f8843d68cfb236673..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/shared-formula.js b/dist/es5/utils/shared-formula.js
+index 9838f263b679c4d3aae703cc0a5444892780bfd7..8de1b02e933d547e1311b2fe53d9e529fc90cf6f 100644
+--- a/dist/es5/utils/shared-formula.js
++++ b/dist/es5/utils/shared-formula.js
+@@ -39,4 +39,3 @@ function slideFormula(formula, fromCell, toCell) {
+ module.exports = {
+   slideFormula
+ };
+-//# sourceMappingURL=shared-formula.js.map
+diff --git a/dist/es5/utils/shared-formula.js.map b/dist/es5/utils/shared-formula.js.map
+deleted file mode 100644
+index 1b78d6594e04cf5ad4a5dd4c159f43873bf30418..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/shared-strings.js b/dist/es5/utils/shared-strings.js
+index 4cfebb5ff58537b76a9a96718d2684d920dd886b..35411595146b2e02efb311ddbb62f45c69ca6ca0 100644
+--- a/dist/es5/utils/shared-strings.js
++++ b/dist/es5/utils/shared-strings.js
+@@ -29,4 +29,3 @@ class SharedStrings {
+   }
+ }
+ module.exports = SharedStrings;
+-//# sourceMappingURL=shared-strings.js.map
+diff --git a/dist/es5/utils/shared-strings.js.map b/dist/es5/utils/shared-strings.js.map
+deleted file mode 100644
+index d33a43258549750fbb8fa53afbdb6d0cc9f8aa9f..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/stream-base64.js b/dist/es5/utils/stream-base64.js
+index 51a36a385ca2d668801023235c7131af49b88baa..8c7249fdb6e69d113d98cde204057c6542dba9af 100644
+--- a/dist/es5/utils/stream-base64.js
++++ b/dist/es5/utils/stream-base64.js
+@@ -63,4 +63,3 @@ class StreamBase64 extends Stream.Duplex {
+   }
+ }
+ module.exports = StreamBase64;
+-//# sourceMappingURL=stream-base64.js.map
+diff --git a/dist/es5/utils/stream-base64.js.map b/dist/es5/utils/stream-base64.js.map
+deleted file mode 100644
+index 0bc8fd389246ce3982cd54e560f188c7ecca960b..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/stream-buf.js b/dist/es5/utils/stream-buf.js
+index 33e814442c609682dca02f9a161d0a33a6804588..53ba48c13f82d61f1f03796c57fd39c8c0e0f501 100644
+--- a/dist/es5/utils/stream-buf.js
++++ b/dist/es5/utils/stream-buf.js
+@@ -340,4 +340,3 @@ utils.inherits(StreamBuf, Stream.Duplex, {
+   }
+ });
+ module.exports = StreamBuf;
+-//# sourceMappingURL=stream-buf.js.map
+diff --git a/dist/es5/utils/stream-buf.js.map b/dist/es5/utils/stream-buf.js.map
+deleted file mode 100644
+index ce320c08b4bcbcc2de6bf10ecbf592432d6aa4ac..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/string-buf.js b/dist/es5/utils/string-buf.js
+index 066bb635d878305a967a8d9e1ad81ff2e345f305..442c8284fefa1bf8279ec6e2786de0f83897cbdf 100644
+--- a/dist/es5/utils/string-buf.js
++++ b/dist/es5/utils/string-buf.js
+@@ -70,4 +70,3 @@ class StringBuf {
+   }
+ }
+ module.exports = StringBuf;
+-//# sourceMappingURL=string-buf.js.map
+diff --git a/dist/es5/utils/string-buf.js.map b/dist/es5/utils/string-buf.js.map
+deleted file mode 100644
+index 99fba5bb9c387e1008b3b223d1cbae1ad60c3d03..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/string-builder.js b/dist/es5/utils/string-builder.js
+index 45625dc3fd39e310bbab9e791e46a54ee23e0b65..4fe7b06c987c8a2d732cbc7bbaba839baa1575d3 100644
+--- a/dist/es5/utils/string-builder.js
++++ b/dist/es5/utils/string-builder.js
+@@ -29,4 +29,3 @@ class StringBuilder {
+   }
+ }
+ module.exports = StringBuilder;
+-//# sourceMappingURL=string-builder.js.map
+diff --git a/dist/es5/utils/string-builder.js.map b/dist/es5/utils/string-builder.js.map
+deleted file mode 100644
+index a0c1273c6fe66e7eca05453656da31db32944b33..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/stuttered-pipe.js b/dist/es5/utils/stuttered-pipe.js
+index 933ca594a61ce8f05af97799dd3229ed5b8a475d..e66d4cf23a7ae2ce6d5f6813d0179db7252487a1 100644
+--- a/dist/es5/utils/stuttered-pipe.js
++++ b/dist/es5/utils/stuttered-pipe.js
+@@ -58,4 +58,3 @@ class StutteredPipe extends events.EventEmitter {
+   }
+ }
+ module.exports = StutteredPipe;
+-//# sourceMappingURL=stuttered-pipe.js.map
+diff --git a/dist/es5/utils/stuttered-pipe.js.map b/dist/es5/utils/stuttered-pipe.js.map
+deleted file mode 100644
+index b3d6a91689340e146c5a81c3e81ec67ad9675931..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/typed-stack.js b/dist/es5/utils/typed-stack.js
+index 969b47508cfe4d0512b0b0beb1e3acc38d534399..5e6a342c235214c7a6c1081bbc84f127957065f3 100644
+--- a/dist/es5/utils/typed-stack.js
++++ b/dist/es5/utils/typed-stack.js
+@@ -20,4 +20,3 @@ class TypedStack {
+   }
+ }
+ module.exports = TypedStack;
+-//# sourceMappingURL=typed-stack.js.map
+diff --git a/dist/es5/utils/typed-stack.js.map b/dist/es5/utils/typed-stack.js.map
+deleted file mode 100644
+index 2ad4b39f69afbbee6a47925e834000038f6bd178..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/under-dash.js b/dist/es5/utils/under-dash.js
+index 6361e754b2c66572cd785727912f8d57eb896b07..d01f2338b0b10615b199c4d3cba5fb712664809b 100644
+--- a/dist/es5/utils/under-dash.js
++++ b/dist/es5/utils/under-dash.js
+@@ -165,4 +165,3 @@ const _ = {
+   }
+ };
+ module.exports = _;
+-//# sourceMappingURL=under-dash.js.map
+diff --git a/dist/es5/utils/under-dash.js.map b/dist/es5/utils/under-dash.js.map
+deleted file mode 100644
+index e90c5368154d22d54b362475929c45339b9274e3..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/utils.js b/dist/es5/utils/utils.js
+index 121b1256a0fdce7e405821924ad76433058c989c..7fcaae01a3aed089ac4c28bd8d12bf6d875d0168 100644
+--- a/dist/es5/utils/utils.js
++++ b/dist/es5/utils/utils.js
+@@ -168,4 +168,3 @@ const utils = {
+   }
+ };
+ module.exports = utils;
+-//# sourceMappingURL=utils.js.map
+diff --git a/dist/es5/utils/utils.js.map b/dist/es5/utils/utils.js.map
+deleted file mode 100644
+index 6e9c5046e02d75536c423652a4042252c4bfbfb8..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/xml-stream.js b/dist/es5/utils/xml-stream.js
+index 7e31c18450c896dd7ae59d47d33a014d97510053..079c222a56dd4b583299e0f8dafb4aa7ff17584d 100644
+--- a/dist/es5/utils/xml-stream.js
++++ b/dist/es5/utils/xml-stream.js
+@@ -148,4 +148,3 @@ XmlStream.StdDocAttributes = {
+   standalone: 'yes'
+ };
+ module.exports = XmlStream;
+-//# sourceMappingURL=xml-stream.js.map
+diff --git a/dist/es5/utils/xml-stream.js.map b/dist/es5/utils/xml-stream.js.map
+deleted file mode 100644
+index e269bb6f9682ae72d6df25758bb04659a99408bf..0000000000000000000000000000000000000000
+diff --git a/dist/es5/utils/zip-stream.js b/dist/es5/utils/zip-stream.js
+index cbb63c1e3e573b9257f033f63655c6d27c582b2f..fca0228c698c4124f24df1f91d643035f3362efe 100644
+--- a/dist/es5/utils/zip-stream.js
++++ b/dist/es5/utils/zip-stream.js
+@@ -76,4 +76,3 @@ class ZipWriter extends events.EventEmitter {
+ module.exports = {
+   ZipWriter
+ };
+-//# sourceMappingURL=zip-stream.js.map
+diff --git a/dist/es5/utils/zip-stream.js.map b/dist/es5/utils/zip-stream.js.map
+deleted file mode 100644
+index 88189d38cbdabc99fa3ff195486a2467895c39bc..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/defaultnumformats.js b/dist/es5/xlsx/defaultnumformats.js
+index ed7ee4e9c09fd54590c7a50af2ac1550944806a6..f58347d1d0480f218ec004ded54f03bde919b67b 100644
+--- a/dist/es5/xlsx/defaultnumformats.js
++++ b/dist/es5/xlsx/defaultnumformats.js
+@@ -227,4 +227,3 @@ module.exports = {
+     'th-th': 'd/m/bb'
+   }
+ };
+-//# sourceMappingURL=defaultnumformats.js.map
+diff --git a/dist/es5/xlsx/defaultnumformats.js.map b/dist/es5/xlsx/defaultnumformats.js.map
+deleted file mode 100644
+index a2dc514bc7c0c3b328cbbe28d63700a5ef057274..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/rel-type.js b/dist/es5/xlsx/rel-type.js
+index af200669884b05de4518819e130cef6dccf6946e..0fb9cd7f8b1be826507eb3cbd17afc4be24f5cee 100644
+--- a/dist/es5/xlsx/rel-type.js
++++ b/dist/es5/xlsx/rel-type.js
+@@ -15,4 +15,3 @@ module.exports = {
+   VmlDrawing: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing',
+   Table: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/table'
+ };
+-//# sourceMappingURL=rel-type.js.map
+diff --git a/dist/es5/xlsx/rel-type.js.map b/dist/es5/xlsx/rel-type.js.map
+deleted file mode 100644
+index 64a14eb2d2ce12b40cb64531fb6f43f420577b22..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/base-xform.js b/dist/es5/xlsx/xform/base-xform.js
+index 96d7a39391c4d68fac5c296f4a6f1fd7655f2396..4768a7d41aac1aaca6caadbc6fbd419ec0e2cba2 100644
+--- a/dist/es5/xlsx/xform/base-xform.js
++++ b/dist/es5/xlsx/xform/base-xform.js
+@@ -136,4 +136,3 @@ class BaseXform {
+   }
+ }
+ module.exports = BaseXform;
+-//# sourceMappingURL=base-xform.js.map
+diff --git a/dist/es5/xlsx/xform/base-xform.js.map b/dist/es5/xlsx/xform/base-xform.js.map
+deleted file mode 100644
+index 0055ceef4a25311c2ea32d7435ea59ce1e3b0011..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/book/defined-name-xform.js b/dist/es5/xlsx/xform/book/defined-name-xform.js
+index 95f0ee25a9576786992314c68985a9eb7818f034..d300b24ff54b1488abd6e9e2fdb452042e3517d3 100644
+--- a/dist/es5/xlsx/xform/book/defined-name-xform.js
++++ b/dist/es5/xlsx/xform/book/defined-name-xform.js
+@@ -82,4 +82,3 @@ function extractRanges(parsedText) {
+   return ranges;
+ }
+ module.exports = DefinedNamesXform;
+-//# sourceMappingURL=defined-name-xform.js.map
+diff --git a/dist/es5/xlsx/xform/book/defined-name-xform.js.map b/dist/es5/xlsx/xform/book/defined-name-xform.js.map
+deleted file mode 100644
+index 61c28779b9cf06326fef437b88f054648afd436a..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/book/sheet-xform.js b/dist/es5/xlsx/xform/book/sheet-xform.js
+index 7c7e577259633449fc760fc14587fc558685d407..88e21d526fc37e43735a20ef1f75e01c6b97f4aa 100644
+--- a/dist/es5/xlsx/xform/book/sheet-xform.js
++++ b/dist/es5/xlsx/xform/book/sheet-xform.js
+@@ -29,4 +29,3 @@ class WorksheetXform extends BaseXform {
+   }
+ }
+ module.exports = WorksheetXform;
+-//# sourceMappingURL=sheet-xform.js.map
+diff --git a/dist/es5/xlsx/xform/book/sheet-xform.js.map b/dist/es5/xlsx/xform/book/sheet-xform.js.map
+deleted file mode 100644
+index 8c07e5fe18838e7d48e395c4193d053e3c983a7a..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/book/workbook-calc-properties-xform.js b/dist/es5/xlsx/xform/book/workbook-calc-properties-xform.js
+index d08fb76a76253c26b8e77acac66f2cf6daec6515..1bb60be461cecdc270b859fd9f4d1c031549011b 100644
+--- a/dist/es5/xlsx/xform/book/workbook-calc-properties-xform.js
++++ b/dist/es5/xlsx/xform/book/workbook-calc-properties-xform.js
+@@ -21,4 +21,3 @@ class WorkbookCalcPropertiesXform extends BaseXform {
+   }
+ }
+ module.exports = WorkbookCalcPropertiesXform;
+-//# sourceMappingURL=workbook-calc-properties-xform.js.map
+diff --git a/dist/es5/xlsx/xform/book/workbook-calc-properties-xform.js.map b/dist/es5/xlsx/xform/book/workbook-calc-properties-xform.js.map
+deleted file mode 100644
+index 65a1ecddcdf4d7ee7c9d9f45a02434da82977e37..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/book/workbook-properties-xform.js b/dist/es5/xlsx/xform/book/workbook-properties-xform.js
+index ee43fc9272950c3f7b77902580f253b502632b20..e5b52049be3f5bf1dd781850fdc050a491cc96df 100644
+--- a/dist/es5/xlsx/xform/book/workbook-properties-xform.js
++++ b/dist/es5/xlsx/xform/book/workbook-properties-xform.js
+@@ -24,4 +24,3 @@ class WorksheetPropertiesXform extends BaseXform {
+   }
+ }
+ module.exports = WorksheetPropertiesXform;
+-//# sourceMappingURL=workbook-properties-xform.js.map
+diff --git a/dist/es5/xlsx/xform/book/workbook-properties-xform.js.map b/dist/es5/xlsx/xform/book/workbook-properties-xform.js.map
+deleted file mode 100644
+index 9680c2d599cdb447c745a1744800665ea95158e6..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/book/workbook-view-xform.js b/dist/es5/xlsx/xform/book/workbook-view-xform.js
+index 78155a5638da61d9e7ae28ee1e674bee220e21a7..d793aead7d1a3446f566e6c90c025596dde8751b 100644
+--- a/dist/es5/xlsx/xform/book/workbook-view-xform.js
++++ b/dist/es5/xlsx/xform/book/workbook-view-xform.js
+@@ -48,4 +48,3 @@ class WorkbookViewXform extends BaseXform {
+   }
+ }
+ module.exports = WorkbookViewXform;
+-//# sourceMappingURL=workbook-view-xform.js.map
+diff --git a/dist/es5/xlsx/xform/book/workbook-view-xform.js.map b/dist/es5/xlsx/xform/book/workbook-view-xform.js.map
+deleted file mode 100644
+index 623e84d2db94320e4fa019590128afa030766cdf..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/book/workbook-xform.js b/dist/es5/xlsx/xform/book/workbook-xform.js
+index 192b2ef0e41eb02357c170008e3b6cbc6ecb6b63..e137cae3ae50e586eeff16a27ca99f662d53ad89 100644
+--- a/dist/es5/xlsx/xform/book/workbook-xform.js
++++ b/dist/es5/xlsx/xform/book/workbook-xform.js
+@@ -231,4 +231,3 @@ WorkbookXform.STATIC_XFORMS = {
+   })
+ };
+ module.exports = WorkbookXform;
+-//# sourceMappingURL=workbook-xform.js.map
+diff --git a/dist/es5/xlsx/xform/book/workbook-xform.js.map b/dist/es5/xlsx/xform/book/workbook-xform.js.map
+deleted file mode 100644
+index e04ea7f8b50e5cac54ca2bbbc3795cddd1a5bdcc..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/comment-xform.js b/dist/es5/xlsx/xform/comment/comment-xform.js
+index 73fa9c84e58ebf32e3f00ad853bd6153385bde46..2d4e70c03ad64150b1e4db0033cc96aac67e7368 100644
+--- a/dist/es5/xlsx/xform/comment/comment-xform.js
++++ b/dist/es5/xlsx/xform/comment/comment-xform.js
+@@ -100,4 +100,3 @@ utils.inherits(CommentXform, BaseXform, {
+     }
+   }
+ });
+-//# sourceMappingURL=comment-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/comment-xform.js.map b/dist/es5/xlsx/xform/comment/comment-xform.js.map
+deleted file mode 100644
+index 7933f79e3a995cd32751c98d64aeb6ec98e17e02..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/comments-xform.js b/dist/es5/xlsx/xform/comment/comments-xform.js
+index c35cc1c6ee5406bb09b4a0da9b5cbf98780094a1..cd20f8251ffb67306700e0dea74c7e4bf49b5348 100644
+--- a/dist/es5/xlsx/xform/comment/comments-xform.js
++++ b/dist/es5/xlsx/xform/comment/comments-xform.js
+@@ -73,4 +73,3 @@ utils.inherits(CommentsXform, BaseXform, {
+     }
+   }
+ });
+-//# sourceMappingURL=comments-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/comments-xform.js.map b/dist/es5/xlsx/xform/comment/comments-xform.js.map
+deleted file mode 100644
+index 722d107fe13ad9a66b850c51c7bd47834760005e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/style/vml-position-xform.js b/dist/es5/xlsx/xform/comment/style/vml-position-xform.js
+index ab4dec6017434ad6a18141d556afbd3acb81a89b..7bd0ed92ab452e06f796de13d9774ce8b7f4f8a4 100644
+--- a/dist/es5/xlsx/xform/comment/style/vml-position-xform.js
++++ b/dist/es5/xlsx/xform/comment/style/vml-position-xform.js
+@@ -32,4 +32,3 @@ class VmlPositionXform extends BaseXform {
+   }
+ }
+ module.exports = VmlPositionXform;
+-//# sourceMappingURL=vml-position-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/style/vml-position-xform.js.map b/dist/es5/xlsx/xform/comment/style/vml-position-xform.js.map
+deleted file mode 100644
+index 47eeefa16317f36a89d8a60af3308108328cb2d4..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/style/vml-protection-xform.js b/dist/es5/xlsx/xform/comment/style/vml-protection-xform.js
+index f9163e6f352f66159c040601662249121aaf501a..c9cc1d3e7b05de536950480f3c2906f33a688a5e 100644
+--- a/dist/es5/xlsx/xform/comment/style/vml-protection-xform.js
++++ b/dist/es5/xlsx/xform/comment/style/vml-protection-xform.js
+@@ -29,4 +29,3 @@ class VmlProtectionXform extends BaseXform {
+   }
+ }
+ module.exports = VmlProtectionXform;
+-//# sourceMappingURL=vml-protection-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/style/vml-protection-xform.js.map b/dist/es5/xlsx/xform/comment/style/vml-protection-xform.js.map
+deleted file mode 100644
+index 3af7a0fc354c70280ac3898803903b8b7bf178da..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/vml-anchor-xform.js b/dist/es5/xlsx/xform/comment/vml-anchor-xform.js
+index fd77a210c316a8fca46e9c4bfc72c65f08eaf035..bdfbdaea234787e578f20fa96f155a7b4d7a2ef0 100644
+--- a/dist/es5/xlsx/xform/comment/vml-anchor-xform.js
++++ b/dist/es5/xlsx/xform/comment/vml-anchor-xform.js
+@@ -50,4 +50,3 @@ class VmlAnchorXform extends BaseXform {
+   }
+ }
+ module.exports = VmlAnchorXform;
+-//# sourceMappingURL=vml-anchor-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/vml-anchor-xform.js.map b/dist/es5/xlsx/xform/comment/vml-anchor-xform.js.map
+deleted file mode 100644
+index f9790c01c896a46b31661e439cac1dfdb7566942..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/vml-client-data-xform.js b/dist/es5/xlsx/xform/comment/vml-client-data-xform.js
+index 53157208a724c6315125527b22c3cd395c0e6627..d616034756b892a22c2957738111b126e3c3b51f 100644
+--- a/dist/es5/xlsx/xform/comment/vml-client-data-xform.js
++++ b/dist/es5/xlsx/xform/comment/vml-client-data-xform.js
+@@ -94,4 +94,3 @@ class VmlClientDataXform extends BaseXform {
+   }
+ }
+ module.exports = VmlClientDataXform;
+-//# sourceMappingURL=vml-client-data-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/vml-client-data-xform.js.map b/dist/es5/xlsx/xform/comment/vml-client-data-xform.js.map
+deleted file mode 100644
+index 8a03ab34ba82ea16d2eedf8fe6b159aebf5703fe..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/vml-notes-xform.js b/dist/es5/xlsx/xform/comment/vml-notes-xform.js
+index 86cb683ccd12eb89f1aad649bcde91b7711f0a58..c89019e8f7d47254a8fec2e06ef43053f1d57359 100644
+--- a/dist/es5/xlsx/xform/comment/vml-notes-xform.js
++++ b/dist/es5/xlsx/xform/comment/vml-notes-xform.js
+@@ -104,4 +104,3 @@ VmlNotesXform.DRAWING_ATTRIBUTES = {
+   'xmlns:x': 'urn:schemas-microsoft-com:office:excel'
+ };
+ module.exports = VmlNotesXform;
+-//# sourceMappingURL=vml-notes-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/vml-notes-xform.js.map b/dist/es5/xlsx/xform/comment/vml-notes-xform.js.map
+deleted file mode 100644
+index 527e8d43ac8e6dde1249921041d5c01b1dbeead2..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/vml-shape-xform.js b/dist/es5/xlsx/xform/comment/vml-shape-xform.js
+index d2f1d2a4049b8a0f491db69d14b49b23d4c2114d..d14fda505139524e61d25e397109e5919c70b3ba 100644
+--- a/dist/es5/xlsx/xform/comment/vml-shape-xform.js
++++ b/dist/es5/xlsx/xform/comment/vml-shape-xform.js
+@@ -89,4 +89,3 @@ VmlShapeXform.V_SHAPE_ATTRIBUTES = (model, index) => ({
+   'o:insetmode': model.note.margins && model.note.margins.insetmode
+ });
+ module.exports = VmlShapeXform;
+-//# sourceMappingURL=vml-shape-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/vml-shape-xform.js.map b/dist/es5/xlsx/xform/comment/vml-shape-xform.js.map
+deleted file mode 100644
+index 9bfc2c54e63f52041cae156f93fa3b1ab149fbc1..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/comment/vml-textbox-xform.js b/dist/es5/xlsx/xform/comment/vml-textbox-xform.js
+index 6c0711f145a3aaa4912f109807348499e7e95cf3..0fddd42afbe73e4ff20b5e6f06abfe05b9ae72b4 100644
+--- a/dist/es5/xlsx/xform/comment/vml-textbox-xform.js
++++ b/dist/es5/xlsx/xform/comment/vml-textbox-xform.js
+@@ -58,4 +58,3 @@ class VmlTextboxXform extends BaseXform {
+   }
+ }
+ module.exports = VmlTextboxXform;
+-//# sourceMappingURL=vml-textbox-xform.js.map
+diff --git a/dist/es5/xlsx/xform/comment/vml-textbox-xform.js.map b/dist/es5/xlsx/xform/comment/vml-textbox-xform.js.map
+deleted file mode 100644
+index e81a436287664e3d1d1a7761447169331135a3ec..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/composite-xform.js b/dist/es5/xlsx/xform/composite-xform.js
+index 4624ba8554daac188f1d3f144a3d2643e5ff4e97..2ad1a86409c9c74c4b975443a66b8fbe8156c636 100644
+--- a/dist/es5/xlsx/xform/composite-xform.js
++++ b/dist/es5/xlsx/xform/composite-xform.js
+@@ -48,4 +48,3 @@ class CompositeXform extends BaseXform {
+   }
+ }
+ module.exports = CompositeXform;
+-//# sourceMappingURL=composite-xform.js.map
+diff --git a/dist/es5/xlsx/xform/composite-xform.js.map b/dist/es5/xlsx/xform/composite-xform.js.map
+deleted file mode 100644
+index 1aac604c4188b2f2e5baa5d7f2c1f4ba9aae2a6c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/core/app-heading-pairs-xform.js b/dist/es5/xlsx/xform/core/app-heading-pairs-xform.js
+index 72edbf2cd3199739ea0ae458e29e235455d7434c..cf874db09e21d89644345dbdc0ea394c6212800f 100644
+--- a/dist/es5/xlsx/xform/core/app-heading-pairs-xform.js
++++ b/dist/es5/xlsx/xform/core/app-heading-pairs-xform.js
+@@ -27,4 +27,3 @@ class AppHeadingPairsXform extends BaseXform {
+   }
+ }
+ module.exports = AppHeadingPairsXform;
+-//# sourceMappingURL=app-heading-pairs-xform.js.map
+diff --git a/dist/es5/xlsx/xform/core/app-heading-pairs-xform.js.map b/dist/es5/xlsx/xform/core/app-heading-pairs-xform.js.map
+deleted file mode 100644
+index 95a322f4f19dbc2b65f061d5983e6f90a4eb2c47..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/core/app-titles-of-parts-xform.js b/dist/es5/xlsx/xform/core/app-titles-of-parts-xform.js
+index 830ba987eb31548ba95b2e1aaccb2965a0bc34c9..8b659a1e57d7046d48b4ce723b13a096c767003a 100644
+--- a/dist/es5/xlsx/xform/core/app-titles-of-parts-xform.js
++++ b/dist/es5/xlsx/xform/core/app-titles-of-parts-xform.js
+@@ -24,4 +24,3 @@ class AppTitlesOfPartsXform extends BaseXform {
+   }
+ }
+ module.exports = AppTitlesOfPartsXform;
+-//# sourceMappingURL=app-titles-of-parts-xform.js.map
+diff --git a/dist/es5/xlsx/xform/core/app-titles-of-parts-xform.js.map b/dist/es5/xlsx/xform/core/app-titles-of-parts-xform.js.map
+deleted file mode 100644
+index edb4e67c4bb6814980e0a71b9d51d11d7a38399f..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/core/app-xform.js b/dist/es5/xlsx/xform/core/app-xform.js
+index eef9b2d439347859eb50a4461ea16dc5240f88ca..715987092c4a24d8c58210198d489f418ff15380 100644
+--- a/dist/es5/xlsx/xform/core/app-xform.js
++++ b/dist/es5/xlsx/xform/core/app-xform.js
+@@ -90,4 +90,3 @@ AppXform.PROPERTY_ATTRIBUTES = {
+   'xmlns:vt': 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes'
+ };
+ module.exports = AppXform;
+-//# sourceMappingURL=app-xform.js.map
+diff --git a/dist/es5/xlsx/xform/core/app-xform.js.map b/dist/es5/xlsx/xform/core/app-xform.js.map
+deleted file mode 100644
+index 64b4fb481fdc0437bac8655da3733d1601eb35d5..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/core/content-types-xform.js b/dist/es5/xlsx/xform/core/content-types-xform.js
+index 54ef9c4e232b20bc34d0264f263c88fb77389a71..17406e02dc7a8f448f180ab5235e0f3932aeae65 100644
+--- a/dist/es5/xlsx/xform/core/content-types-xform.js
++++ b/dist/es5/xlsx/xform/core/content-types-xform.js
+@@ -109,4 +109,3 @@ ContentTypesXform.PROPERTY_ATTRIBUTES = {
+   xmlns: 'http://schemas.openxmlformats.org/package/2006/content-types'
+ };
+ module.exports = ContentTypesXform;
+-//# sourceMappingURL=content-types-xform.js.map
+diff --git a/dist/es5/xlsx/xform/core/content-types-xform.js.map b/dist/es5/xlsx/xform/core/content-types-xform.js.map
+deleted file mode 100644
+index 6ff2ad0cd2d182f973f0dbd3dbea1b345e161b0c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/core/core-xform.js b/dist/es5/xlsx/xform/core/core-xform.js
+index 873165e1bbdb55808c4ddd0bb7927cd45f3587e8..1f2993b2401ac4d1003342e9cc9332350c63b370 100644
+--- a/dist/es5/xlsx/xform/core/core-xform.js
++++ b/dist/es5/xlsx/xform/core/core-xform.js
+@@ -155,4 +155,3 @@ CoreXform.CORE_PROPERTY_ATTRIBUTES = {
+   'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance'
+ };
+ module.exports = CoreXform;
+-//# sourceMappingURL=core-xform.js.map
+diff --git a/dist/es5/xlsx/xform/core/core-xform.js.map b/dist/es5/xlsx/xform/core/core-xform.js.map
+deleted file mode 100644
+index a0aca90f63658bb4ecfae12cd1593b1c026113ac..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/core/relationship-xform.js b/dist/es5/xlsx/xform/core/relationship-xform.js
+index 2e52cbb791b48173fd1d14729aec18e66af0674c..b0f8af4ebeb0e6b5f9ba746a0617668c5c01e3ee 100644
+--- a/dist/es5/xlsx/xform/core/relationship-xform.js
++++ b/dist/es5/xlsx/xform/core/relationship-xform.js
+@@ -20,4 +20,3 @@ class RelationshipXform extends BaseXform {
+   }
+ }
+ module.exports = RelationshipXform;
+-//# sourceMappingURL=relationship-xform.js.map
+diff --git a/dist/es5/xlsx/xform/core/relationship-xform.js.map b/dist/es5/xlsx/xform/core/relationship-xform.js.map
+deleted file mode 100644
+index 6d01776122aa8099656e31834205f24cfa2c13ca..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/core/relationships-xform.js b/dist/es5/xlsx/xform/core/relationships-xform.js
+index 17d13990c68d021136da944f43a5a8db2128e270..9f516bdbd23a2e9731e99083619dfa7c73ebca1b 100644
+--- a/dist/es5/xlsx/xform/core/relationships-xform.js
++++ b/dist/es5/xlsx/xform/core/relationships-xform.js
+@@ -62,4 +62,3 @@ RelationshipsXform.RELATIONSHIPS_ATTRIBUTES = {
+   xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships'
+ };
+ module.exports = RelationshipsXform;
+-//# sourceMappingURL=relationships-xform.js.map
+diff --git a/dist/es5/xlsx/xform/core/relationships-xform.js.map b/dist/es5/xlsx/xform/core/relationships-xform.js.map
+deleted file mode 100644
+index b08491c447558d5803b532f35ad31db4e15bb757..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/base-cell-anchor-xform.js b/dist/es5/xlsx/xform/drawing/base-cell-anchor-xform.js
+index 71a48a3360d1ca8d551e8321c9e10171a910870a..d0fd008b9bc6ab160884f3ba59738a774702a983 100644
+--- a/dist/es5/xlsx/xform/drawing/base-cell-anchor-xform.js
++++ b/dist/es5/xlsx/xform/drawing/base-cell-anchor-xform.js
+@@ -44,4 +44,3 @@ class BaseCellAnchorXform extends BaseXform {
+   }
+ }
+ module.exports = BaseCellAnchorXform;
+-//# sourceMappingURL=base-cell-anchor-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/base-cell-anchor-xform.js.map b/dist/es5/xlsx/xform/drawing/base-cell-anchor-xform.js.map
+deleted file mode 100644
+index 154d064079d198cbda6e6fb0ed41feb88d146766..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/blip-fill-xform.js b/dist/es5/xlsx/xform/drawing/blip-fill-xform.js
+index f12e579dea171056d3d8232e795005cb0566282c..9618f0724a18c504c1fc251109e6cbc70bd5e965 100644
+--- a/dist/es5/xlsx/xform/drawing/blip-fill-xform.js
++++ b/dist/es5/xlsx/xform/drawing/blip-fill-xform.js
+@@ -58,4 +58,3 @@ class BlipFillXform extends BaseXform {
+   }
+ }
+ module.exports = BlipFillXform;
+-//# sourceMappingURL=blip-fill-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/blip-fill-xform.js.map b/dist/es5/xlsx/xform/drawing/blip-fill-xform.js.map
+deleted file mode 100644
+index 207250fbaf9c22a529dff7d3f40b8957bdfcb7b7..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/blip-xform.js b/dist/es5/xlsx/xform/drawing/blip-xform.js
+index 3a6c0a708400f677e702866525064e2d3a050120..ddea848ab03ecefa3f30efc2c4297378c973e355 100644
+--- a/dist/es5/xlsx/xform/drawing/blip-xform.js
++++ b/dist/es5/xlsx/xform/drawing/blip-xform.js
+@@ -37,4 +37,3 @@ class BlipXform extends BaseXform {
+   }
+ }
+ module.exports = BlipXform;
+-//# sourceMappingURL=blip-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/blip-xform.js.map b/dist/es5/xlsx/xform/drawing/blip-xform.js.map
+deleted file mode 100644
+index 59ebd8b88a4418d22d9ba51b19be050532e142e3..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/c-nv-pic-pr-xform.js b/dist/es5/xlsx/xform/drawing/c-nv-pic-pr-xform.js
+index 380afaca005f7f3a162940685b46a56cf83763c9..27f9cbc7332f6dce093d794e80a78f8a39f43d2a 100644
+--- a/dist/es5/xlsx/xform/drawing/c-nv-pic-pr-xform.js
++++ b/dist/es5/xlsx/xform/drawing/c-nv-pic-pr-xform.js
+@@ -32,4 +32,3 @@ class CNvPicPrXform extends BaseXform {
+   }
+ }
+ module.exports = CNvPicPrXform;
+-//# sourceMappingURL=c-nv-pic-pr-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/c-nv-pic-pr-xform.js.map b/dist/es5/xlsx/xform/drawing/c-nv-pic-pr-xform.js.map
+deleted file mode 100644
+index 5bacf180a7d52c010e1736e355ee51c61669b8dc..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/c-nv-pr-xform.js b/dist/es5/xlsx/xform/drawing/c-nv-pr-xform.js
+index da68dbf1daabe6d21e20d9b39d31f148f0fb59cc..e7211e89ec5046c7a669d72e182f37537eb468cb 100644
+--- a/dist/es5/xlsx/xform/drawing/c-nv-pr-xform.js
++++ b/dist/es5/xlsx/xform/drawing/c-nv-pr-xform.js
+@@ -59,4 +59,3 @@ class CNvPrXform extends BaseXform {
+   }
+ }
+ module.exports = CNvPrXform;
+-//# sourceMappingURL=c-nv-pr-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/c-nv-pr-xform.js.map b/dist/es5/xlsx/xform/drawing/c-nv-pr-xform.js.map
+deleted file mode 100644
+index faf9ff5f4b5ff9b90e1f7f86ad2ed89bd3664fb1..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/cell-position-xform.js b/dist/es5/xlsx/xform/drawing/cell-position-xform.js
+index 7c2c6f752d9c4fc5e1ee37338fb3d8bac10fcf71..762d783ef31b9d663569f36898f381a4f94f9c8a 100644
+--- a/dist/es5/xlsx/xform/drawing/cell-position-xform.js
++++ b/dist/es5/xlsx/xform/drawing/cell-position-xform.js
+@@ -79,4 +79,3 @@ class CellPositionXform extends BaseXform {
+   }
+ }
+ module.exports = CellPositionXform;
+-//# sourceMappingURL=cell-position-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/cell-position-xform.js.map b/dist/es5/xlsx/xform/drawing/cell-position-xform.js.map
+deleted file mode 100644
+index 735ecd04617f5c252bd4ef7dab670ef072f1a621..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/drawing-xform.js b/dist/es5/xlsx/xform/drawing/drawing-xform.js
+index a95249ee561338611df82ff6ca6365841e87fc99..938ca77d486d25fbaabe2f1bf2288072437fbe3d 100644
+--- a/dist/es5/xlsx/xform/drawing/drawing-xform.js
++++ b/dist/es5/xlsx/xform/drawing/drawing-xform.js
+@@ -95,4 +95,3 @@ DrawingXform.DRAWING_ATTRIBUTES = {
+   'xmlns:a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
+ };
+ module.exports = DrawingXform;
+-//# sourceMappingURL=drawing-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/drawing-xform.js.map b/dist/es5/xlsx/xform/drawing/drawing-xform.js.map
+deleted file mode 100644
+index 7b35c135bb0639f419ed4a21311a2e817c6e89ef..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/ext-lst-xform.js b/dist/es5/xlsx/xform/drawing/ext-lst-xform.js
+index 8c4709489c8b2e156e572b34a66b0fe0efe0247a..63d258401c2aa8cd066ffa547b9a884e39e801c4 100644
+--- a/dist/es5/xlsx/xform/drawing/ext-lst-xform.js
++++ b/dist/es5/xlsx/xform/drawing/ext-lst-xform.js
+@@ -37,4 +37,3 @@ class ExtLstXform extends BaseXform {
+   }
+ }
+ module.exports = ExtLstXform;
+-//# sourceMappingURL=ext-lst-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/ext-lst-xform.js.map b/dist/es5/xlsx/xform/drawing/ext-lst-xform.js.map
+deleted file mode 100644
+index 4446b450c3f58cd0f9bad61dfeee4a714c58eb12..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/ext-xform.js b/dist/es5/xlsx/xform/drawing/ext-xform.js
+index 0806a230883c50b15c693fb047e45a5a65571448..fdfd6a085f2ce06607a3009fe391d8b763c3c37a 100644
+--- a/dist/es5/xlsx/xform/drawing/ext-xform.js
++++ b/dist/es5/xlsx/xform/drawing/ext-xform.js
+@@ -35,4 +35,3 @@ class ExtXform extends BaseXform {
+   }
+ }
+ module.exports = ExtXform;
+-//# sourceMappingURL=ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/ext-xform.js.map b/dist/es5/xlsx/xform/drawing/ext-xform.js.map
+deleted file mode 100644
+index e0926b2d8d7d571cbbd139b5dcac6c1fdecb30eb..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/hlink-click-xform.js b/dist/es5/xlsx/xform/drawing/hlink-click-xform.js
+index 7b0d506f2f2360a27bcbbe24bcee7cce178a0248..68fb48671abc8571f75983e0cd8d43fd7d392998 100644
+--- a/dist/es5/xlsx/xform/drawing/hlink-click-xform.js
++++ b/dist/es5/xlsx/xform/drawing/hlink-click-xform.js
+@@ -35,4 +35,3 @@ class HLinkClickXform extends BaseXform {
+   }
+ }
+ module.exports = HLinkClickXform;
+-//# sourceMappingURL=hlink-click-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/hlink-click-xform.js.map b/dist/es5/xlsx/xform/drawing/hlink-click-xform.js.map
+deleted file mode 100644
+index 833559c148cb588676791927056e49fadc27a343..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/nv-pic-pr-xform.js b/dist/es5/xlsx/xform/drawing/nv-pic-pr-xform.js
+index 0a30be7596e54bc4fbc461d99ae08cabd167da6b..ba37f0ab2d10e8a66e1a33245acf0ffc12544917 100644
+--- a/dist/es5/xlsx/xform/drawing/nv-pic-pr-xform.js
++++ b/dist/es5/xlsx/xform/drawing/nv-pic-pr-xform.js
+@@ -56,4 +56,3 @@ class NvPicPrXform extends BaseXform {
+   }
+ }
+ module.exports = NvPicPrXform;
+-//# sourceMappingURL=nv-pic-pr-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/nv-pic-pr-xform.js.map b/dist/es5/xlsx/xform/drawing/nv-pic-pr-xform.js.map
+deleted file mode 100644
+index 06ec1a96655013dc7a4b8a3c1a5da764de0a5547..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/one-cell-anchor-xform.js b/dist/es5/xlsx/xform/drawing/one-cell-anchor-xform.js
+index 4d95dc7347d10b115674fe3330feab6841b7be18..aa881d92ea52f12b9d63eec192f31346f6af9441 100644
+--- a/dist/es5/xlsx/xform/drawing/one-cell-anchor-xform.js
++++ b/dist/es5/xlsx/xform/drawing/one-cell-anchor-xform.js
+@@ -60,4 +60,3 @@ class OneCellAnchorXform extends BaseCellAnchorXform {
+   }
+ }
+ module.exports = OneCellAnchorXform;
+-//# sourceMappingURL=one-cell-anchor-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/one-cell-anchor-xform.js.map b/dist/es5/xlsx/xform/drawing/one-cell-anchor-xform.js.map
+deleted file mode 100644
+index 6f3d43d039547a6d91b7a1f6122113570e3d7418..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/pic-xform.js b/dist/es5/xlsx/xform/drawing/pic-xform.js
+index 1060995fe1e22bdf9d154cf36852265c7ac211c4..41ba14e6f8c7508cfa124fe949e12eef607ced84 100644
+--- a/dist/es5/xlsx/xform/drawing/pic-xform.js
++++ b/dist/es5/xlsx/xform/drawing/pic-xform.js
+@@ -64,4 +64,3 @@ class PicXform extends BaseXform {
+   }
+ }
+ module.exports = PicXform;
+-//# sourceMappingURL=pic-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/pic-xform.js.map b/dist/es5/xlsx/xform/drawing/pic-xform.js.map
+deleted file mode 100644
+index 0baa25fd17fb2c74b6d0b06ed6bb62afa603ac8a..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/sp-pr.js b/dist/es5/xlsx/xform/drawing/sp-pr.js
+index 09c4add7ba738a8c1cff359cad90b1c56355360c..9987bd06ac992def6fd5b044964a4ae1d7f72519 100644
+--- a/dist/es5/xlsx/xform/drawing/sp-pr.js
++++ b/dist/es5/xlsx/xform/drawing/sp-pr.js
+@@ -27,4 +27,3 @@ module.exports = {
+     }]
+   }]
+ };
+-//# sourceMappingURL=sp-pr.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/sp-pr.js.map b/dist/es5/xlsx/xform/drawing/sp-pr.js.map
+deleted file mode 100644
+index 3e86fe892db65c9beeaa60082f468b6fd4f25b90..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/drawing/two-cell-anchor-xform.js b/dist/es5/xlsx/xform/drawing/two-cell-anchor-xform.js
+index b8bfe9658c6763ccafb5eab00481d0843ee84f29..37e84d3ae5c0d45295af817c4347e700cd14286a 100644
+--- a/dist/es5/xlsx/xform/drawing/two-cell-anchor-xform.js
++++ b/dist/es5/xlsx/xform/drawing/two-cell-anchor-xform.js
+@@ -59,4 +59,3 @@ class TwoCellAnchorXform extends BaseCellAnchorXform {
+   }
+ }
+ module.exports = TwoCellAnchorXform;
+-//# sourceMappingURL=two-cell-anchor-xform.js.map
+diff --git a/dist/es5/xlsx/xform/drawing/two-cell-anchor-xform.js.map b/dist/es5/xlsx/xform/drawing/two-cell-anchor-xform.js.map
+deleted file mode 100644
+index 0e9f476d246442da5055639638c2eafd472fa006..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/list-xform.js b/dist/es5/xlsx/xform/list-xform.js
+index f9a70c639b8ed16a5958937af31463f343a00255..ea904e02af1cc36b934905357e802522780a4eb0 100644
+--- a/dist/es5/xlsx/xform/list-xform.js
++++ b/dist/es5/xlsx/xform/list-xform.js
+@@ -88,4 +88,3 @@ class ListXform extends BaseXform {
+   }
+ }
+ module.exports = ListXform;
+-//# sourceMappingURL=list-xform.js.map
+diff --git a/dist/es5/xlsx/xform/list-xform.js.map b/dist/es5/xlsx/xform/list-xform.js.map
+deleted file mode 100644
+index 7dc704da62356908b9aa7b165e62d4d1476630d4..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/auto-filter-xform.js b/dist/es5/xlsx/xform/sheet/auto-filter-xform.js
+index 4a2729b7a5ad3d7c2f9cc8fbb6fce342d4d27df8..f07cf8c7670bdc15dbaaeb506edef2d222c20dcc 100644
+--- a/dist/es5/xlsx/xform/sheet/auto-filter-xform.js
++++ b/dist/es5/xlsx/xform/sheet/auto-filter-xform.js
+@@ -37,4 +37,3 @@ class AutoFilterXform extends BaseXform {
+   }
+ }
+ module.exports = AutoFilterXform;
+-//# sourceMappingURL=auto-filter-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/auto-filter-xform.js.map b/dist/es5/xlsx/xform/sheet/auto-filter-xform.js.map
+deleted file mode 100644
+index 40f2c6a007dc1fefd853abf323952c4eaf31c16d..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cell-xform.js b/dist/es5/xlsx/xform/sheet/cell-xform.js
+index b1618ab253cdc9fff1705ce1269ee4cc4494f74c..6b6eb08ec8f7a778e9e4fa47e44eae42a022c83c 100644
+--- a/dist/es5/xlsx/xform/sheet/cell-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cell-xform.js
+@@ -448,4 +448,3 @@ class CellXform extends BaseXform {
+   }
+ }
+ module.exports = CellXform;
+-//# sourceMappingURL=cell-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cell-xform.js.map b/dist/es5/xlsx/xform/sheet/cell-xform.js.map
+deleted file mode 100644
+index f42dab28fbee78c69ea03a0c4adca84d081a6a6f..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/cf-rule-xform.js b/dist/es5/xlsx/xform/sheet/cf/cf-rule-xform.js
+index ec1c8f386c357af76e23701657a560e96caac3c1..cb5bf6882a6b609f880aed4f777a57d298e994b5 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/cf-rule-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/cf-rule-xform.js
+@@ -272,4 +272,3 @@ class CfRuleXform extends CompositeXform {
+   }
+ }
+ module.exports = CfRuleXform;
+-//# sourceMappingURL=cf-rule-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/cf-rule-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/cf-rule-xform.js.map
+deleted file mode 100644
+index 00a52219381db43c7395d0bae9c95de0d0c0994c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/cfvo-xform.js b/dist/es5/xlsx/xform/sheet/cf/cfvo-xform.js
+index 9fa9d3ba2fb4e7ad9cb64f09439ebb668090b889..0e05d64793f1e5d883f0fab3ead54fa9fa96e48b 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/cfvo-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/cfvo-xform.js
+@@ -22,4 +22,3 @@ class CfvoXform extends BaseXform {
+   }
+ }
+ module.exports = CfvoXform;
+-//# sourceMappingURL=cfvo-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/cfvo-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/cfvo-xform.js.map
+deleted file mode 100644
+index 322dcfc394ab70cd7f92b46f1014815b5bbbd8d9..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/color-scale-xform.js b/dist/es5/xlsx/xform/sheet/cf/color-scale-xform.js
+index 26369f87169187e8e20858efdd03cd57dcc00fec..f3191bbb647c74517621bf2cc1c677fce174f4fc 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/color-scale-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/color-scale-xform.js
+@@ -35,4 +35,3 @@ class ColorScaleXform extends CompositeXform {
+   }
+ }
+ module.exports = ColorScaleXform;
+-//# sourceMappingURL=color-scale-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/color-scale-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/color-scale-xform.js.map
+deleted file mode 100644
+index 3c654e8b9c3f52fcb3443d8b5ffb783ba9158eca..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/conditional-formatting-xform.js b/dist/es5/xlsx/xform/sheet/cf/conditional-formatting-xform.js
+index 8cc9565bf3e9ff9f1da8bb69f44d574fe87d478b..18ffba31610c53db0a58ecf691a325c363bdb1dc 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/conditional-formatting-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/conditional-formatting-xform.js
+@@ -42,4 +42,3 @@ class ConditionalFormattingXform extends CompositeXform {
+   }
+ }
+ module.exports = ConditionalFormattingXform;
+-//# sourceMappingURL=conditional-formatting-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/conditional-formatting-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/conditional-formatting-xform.js.map
+deleted file mode 100644
+index b5503461cb7ef0ed49006871a5d2271fbea6f73e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/conditional-formattings-xform.js b/dist/es5/xlsx/xform/sheet/cf/conditional-formattings-xform.js
+index 627a0c50b36841b50a3b5ee334d549b8c43b071a..7dc26b989139b9d9b353de509f44a072bbad492c 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/conditional-formattings-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/conditional-formattings-xform.js
+@@ -74,4 +74,3 @@ class ConditionalFormattingsXform extends BaseXform {
+   }
+ }
+ module.exports = ConditionalFormattingsXform;
+-//# sourceMappingURL=conditional-formattings-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/conditional-formattings-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/conditional-formattings-xform.js.map
+deleted file mode 100644
+index 2aa5f5c0ee23a060b4428ef14e42ab02c4eb9093..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/databar-xform.js b/dist/es5/xlsx/xform/sheet/cf/databar-xform.js
+index adba60eb308d47f2042ccb81062e82e93a6670b7..ae7bb5e4f851754f768d29200fe3560daa1a5c88 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/databar-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/databar-xform.js
+@@ -39,4 +39,3 @@ class DatabarXform extends CompositeXform {
+   }
+ }
+ module.exports = DatabarXform;
+-//# sourceMappingURL=databar-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/databar-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/databar-xform.js.map
+deleted file mode 100644
+index 55e756b3e91fefef508bdb5b5da73b1d1b5508b9..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/ext-lst-ref-xform.js b/dist/es5/xlsx/xform/sheet/cf/ext-lst-ref-xform.js
+index 4d4ce74a682255ef28ce30219c21848db905cf61..8f609a79aedf415fa5e930201631d4dbf1c418ef 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/ext-lst-ref-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/ext-lst-ref-xform.js
+@@ -68,4 +68,3 @@ class ExtLstRefXform extends CompositeXform {
+   }
+ }
+ module.exports = ExtLstRefXform;
+-//# sourceMappingURL=ext-lst-ref-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/ext-lst-ref-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/ext-lst-ref-xform.js.map
+deleted file mode 100644
+index 4f69afcab3434f8b09be5bb402ee4852fe6e784d..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/formula-xform.js b/dist/es5/xlsx/xform/sheet/cf/formula-xform.js
+index 779ca7b086fdc666bf42886746b98d4b55c87312..cb7bbee1c63c81a316e15e44a0d938ee82094bf8 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/formula-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/formula-xform.js
+@@ -19,4 +19,3 @@ class FormulaXform extends BaseXform {
+   }
+ }
+ module.exports = FormulaXform;
+-//# sourceMappingURL=formula-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/formula-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/formula-xform.js.map
+deleted file mode 100644
+index 1ec9f353539991a74cb45ef1b21af29c93415af9..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf/icon-set-xform.js b/dist/es5/xlsx/xform/sheet/cf/icon-set-xform.js
+index 3e9587efcec98739c1fdfb2555b42a8adf9d5d62..e4a6f2834615b305e87c0b21df4df7e6453060a7 100644
+--- a/dist/es5/xlsx/xform/sheet/cf/icon-set-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf/icon-set-xform.js
+@@ -40,4 +40,3 @@ class IconSetXform extends CompositeXform {
+   }
+ }
+ module.exports = IconSetXform;
+-//# sourceMappingURL=icon-set-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf/icon-set-xform.js.map b/dist/es5/xlsx/xform/sheet/cf/icon-set-xform.js.map
+deleted file mode 100644
+index 5fdc6d19a5107512685717c265c8e34a312af193..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/cf-icon-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/cf-icon-ext-xform.js
+index a9d565d7a67dbadac76eeccdcdfdd4a2a4ed0696..073beebadde1e79961c5e2899e302c0e7315e862 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/cf-icon-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/cf-icon-ext-xform.js
+@@ -25,4 +25,3 @@ class CfIconExtXform extends BaseXform {
+   }
+ }
+ module.exports = CfIconExtXform;
+-//# sourceMappingURL=cf-icon-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/cf-icon-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/cf-icon-ext-xform.js.map
+deleted file mode 100644
+index 60e873df94dfa1cc7d5ded820adcc682378a6024..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js
+index b85279a519d8c9ea32a754611c4ac79b225d3354..ea79fd273b78db93f06b06f5223c621bb40c2ac9 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js
+@@ -85,4 +85,3 @@ class CfRuleExtXform extends CompositeXform {
+   }
+ }
+ module.exports = CfRuleExtXform;
+-//# sourceMappingURL=cf-rule-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js.map
+deleted file mode 100644
+index 8d89451d1b9b134bf8396fc98aa6198f8a397291..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/cfvo-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/cfvo-ext-xform.js
+index f45ac9d26c694780ab5917a06efd298bf52e95f9..a2391781d2fa35fa5d6944864393222356a26cb6 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/cfvo-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/cfvo-ext-xform.js
+@@ -35,4 +35,3 @@ class CfvoExtXform extends CompositeXform {
+   }
+ }
+ module.exports = CfvoExtXform;
+-//# sourceMappingURL=cfvo-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/cfvo-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/cfvo-ext-xform.js.map
+deleted file mode 100644
+index 53f3e51dc91013d5684fbe199b9771cd7b20d3d9..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formatting-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formatting-ext-xform.js
+index d59990c38458bc40898a36a1c59fe166be2f29bc..6381fb2b8edeb19c5a2390adb36382a8c3e1c45a 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formatting-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formatting-ext-xform.js
+@@ -49,4 +49,3 @@ class ConditionalFormattingExtXform extends CompositeXform {
+   }
+ }
+ module.exports = ConditionalFormattingExtXform;
+-//# sourceMappingURL=conditional-formatting-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formatting-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formatting-ext-xform.js.map
+deleted file mode 100644
+index 8e6806b74cc8868471e3c47af1075c24f3650775..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formattings-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formattings-ext-xform.js
+index 82926ca51960bc1a06b8a9eb9e430d8dea833892..02f31fa49d385ab7cc5bab492717fd7c847b1b3b 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formattings-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formattings-ext-xform.js
+@@ -40,4 +40,3 @@ class ConditionalFormattingsExtXform extends CompositeXform {
+   }
+ }
+ module.exports = ConditionalFormattingsExtXform;
+-//# sourceMappingURL=conditional-formattings-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formattings-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/conditional-formattings-ext-xform.js.map
+deleted file mode 100644
+index 7dc8679cc0923cade84a56713f37dd3576bf0dad..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/databar-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/databar-ext-xform.js
+index c41da852f4e22efd7950fa710c77c81471c41b0d..594fd46f160b99554617584e5f6bb5638cc625ff 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/databar-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/databar-ext-xform.js
+@@ -72,4 +72,3 @@ class DatabarExtXform extends CompositeXform {
+   }
+ }
+ module.exports = DatabarExtXform;
+-//# sourceMappingURL=databar-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/databar-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/databar-ext-xform.js.map
+deleted file mode 100644
+index d19b0a3899651a0d3e82b02fbafb975206a6e8cc..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/f-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/f-ext-xform.js
+index dc814f8520a5fd2d05b140b66a1845675116c0ae..d9077d0b690cd0c0800258974003958eac0ace04 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/f-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/f-ext-xform.js
+@@ -19,4 +19,3 @@ class FExtXform extends BaseXform {
+   }
+ }
+ module.exports = FExtXform;
+-//# sourceMappingURL=f-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/f-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/f-ext-xform.js.map
+deleted file mode 100644
+index 51fa0dcfdb30de31a2847f6d38d2dbe36191eea5..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/icon-set-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/icon-set-ext-xform.js
+index ce800d25360784cb9b0eeea781a0fc53e9c18d09..4dd328d3f3c6081b3cc9cf6ce958a79d55543b0d 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/icon-set-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/icon-set-ext-xform.js
+@@ -63,4 +63,3 @@ class IconSetExtXform extends CompositeXform {
+   }
+ }
+ module.exports = IconSetExtXform;
+-//# sourceMappingURL=icon-set-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/icon-set-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/icon-set-ext-xform.js.map
+deleted file mode 100644
+index 5f864c6861cb7b25b0f941e566135d3cf7f23b8d..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/sqref-ext-xform.js b/dist/es5/xlsx/xform/sheet/cf-ext/sqref-ext-xform.js
+index a2ec945f1956d6d5426c6a722561c01850d9f498..0aebd985d9477656540834b344a27c403010a67a 100644
+--- a/dist/es5/xlsx/xform/sheet/cf-ext/sqref-ext-xform.js
++++ b/dist/es5/xlsx/xform/sheet/cf-ext/sqref-ext-xform.js
+@@ -19,4 +19,3 @@ class SqrefExtXform extends BaseXform {
+   }
+ }
+ module.exports = SqrefExtXform;
+-//# sourceMappingURL=sqref-ext-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/cf-ext/sqref-ext-xform.js.map b/dist/es5/xlsx/xform/sheet/cf-ext/sqref-ext-xform.js.map
+deleted file mode 100644
+index 051ac120b6e05e67ee77858b14637d37a41675a9..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/col-xform.js b/dist/es5/xlsx/xform/sheet/col-xform.js
+index 1101a6638e97013fd3f88dd71c83a5f9c5e8ee4a..22e9c4f63838a695e0d90412e4a6d92758772e92 100644
+--- a/dist/es5/xlsx/xform/sheet/col-xform.js
++++ b/dist/es5/xlsx/xform/sheet/col-xform.js
+@@ -75,4 +75,3 @@ class ColXform extends BaseXform {
+   }
+ }
+ module.exports = ColXform;
+-//# sourceMappingURL=col-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/col-xform.js.map b/dist/es5/xlsx/xform/sheet/col-xform.js.map
+deleted file mode 100644
+index 1abbffc70b50737200f5a8493fae76f3cf2ac311..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/data-validations-xform.js b/dist/es5/xlsx/xform/sheet/data-validations-xform.js
+index 20a30bb3c8aee252103cce58de9847583c130bc3..eab0eb7fe80898302d3d605ac265f5d4db660115 100644
+--- a/dist/es5/xlsx/xform/sheet/data-validations-xform.js
++++ b/dist/es5/xlsx/xform/sheet/data-validations-xform.js
+@@ -244,4 +244,3 @@ class DataValidationsXform extends BaseXform {
+   }
+ }
+ module.exports = DataValidationsXform;
+-//# sourceMappingURL=data-validations-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/data-validations-xform.js.map b/dist/es5/xlsx/xform/sheet/data-validations-xform.js.map
+deleted file mode 100644
+index adf98474e3aad38cc25f03a6741c9db18df1d3dd..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/dimension-xform.js b/dist/es5/xlsx/xform/sheet/dimension-xform.js
+index 667a3f991c13c67a388dd934af62378f892e3a6e..b48b03da72ca3765527da7db97473c195d11b7b3 100644
+--- a/dist/es5/xlsx/xform/sheet/dimension-xform.js
++++ b/dist/es5/xlsx/xform/sheet/dimension-xform.js
+@@ -25,4 +25,3 @@ class DimensionXform extends BaseXform {
+   }
+ }
+ module.exports = DimensionXform;
+-//# sourceMappingURL=dimension-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/dimension-xform.js.map b/dist/es5/xlsx/xform/sheet/dimension-xform.js.map
+deleted file mode 100644
+index 8612d3046d677113096dc3106855451057d7d13f..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/drawing-xform.js b/dist/es5/xlsx/xform/sheet/drawing-xform.js
+index 36a3f30d8452a2d9bf6aa817c850000107b1656c..45523039e8a241797edbbbba17e4e081272e0d1c 100644
+--- a/dist/es5/xlsx/xform/sheet/drawing-xform.js
++++ b/dist/es5/xlsx/xform/sheet/drawing-xform.js
+@@ -29,4 +29,3 @@ class DrawingXform extends BaseXform {
+   }
+ }
+ module.exports = DrawingXform;
+-//# sourceMappingURL=drawing-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/drawing-xform.js.map b/dist/es5/xlsx/xform/sheet/drawing-xform.js.map
+deleted file mode 100644
+index 60f210cf814a894741fde6b137e86caedcb53f7a..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/ext-lst-xform.js b/dist/es5/xlsx/xform/sheet/ext-lst-xform.js
+index 2025044414852626cd6e35b03d2d713f03a3e2f4..986b22fc9d5b18b7c21d3505df1d12941eef145c 100644
+--- a/dist/es5/xlsx/xform/sheet/ext-lst-xform.js
++++ b/dist/es5/xlsx/xform/sheet/ext-lst-xform.js
+@@ -66,4 +66,3 @@ class ExtLstXform extends CompositeXform {
+   }
+ }
+ module.exports = ExtLstXform;
+-//# sourceMappingURL=ext-lst-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/ext-lst-xform.js.map b/dist/es5/xlsx/xform/sheet/ext-lst-xform.js.map
+deleted file mode 100644
+index c5c7c1363df3d83e915dfd460c24414a3a75dfe7..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/header-footer-xform.js b/dist/es5/xlsx/xform/sheet/header-footer-xform.js
+index 2ac3ed1a849628cda9f968658c376e8faebdd103..68f3db13ec2a5e23382f1d9c5f2046326aa08c50 100644
+--- a/dist/es5/xlsx/xform/sheet/header-footer-xform.js
++++ b/dist/es5/xlsx/xform/sheet/header-footer-xform.js
+@@ -123,4 +123,3 @@ class HeaderFooterXform extends BaseXform {
+   }
+ }
+ module.exports = HeaderFooterXform;
+-//# sourceMappingURL=header-footer-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/header-footer-xform.js.map b/dist/es5/xlsx/xform/sheet/header-footer-xform.js.map
+deleted file mode 100644
+index 51a1ad26d7f2d0f49361e165547e3c6b0b30f3ef..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/hyperlink-xform.js b/dist/es5/xlsx/xform/sheet/hyperlink-xform.js
+index 0335644998d34c2c8a32d04d78592f1940c4d8e0..31d155c97c4305a47e8f30e6f5c925992c83ab23 100644
+--- a/dist/es5/xlsx/xform/sheet/hyperlink-xform.js
++++ b/dist/es5/xlsx/xform/sheet/hyperlink-xform.js
+@@ -47,4 +47,3 @@ class HyperlinkXform extends BaseXform {
+   }
+ }
+ module.exports = HyperlinkXform;
+-//# sourceMappingURL=hyperlink-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/hyperlink-xform.js.map b/dist/es5/xlsx/xform/sheet/hyperlink-xform.js.map
+deleted file mode 100644
+index 6d8defdc5417b83e0d1509505d22a8f803633b0c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/merge-cell-xform.js b/dist/es5/xlsx/xform/sheet/merge-cell-xform.js
+index 5e6dbef9a45ca43deb091f34bbd97a0a0677fd2b..575720330d4b0502626af2964fe2d4219ba0bc1e 100644
+--- a/dist/es5/xlsx/xform/sheet/merge-cell-xform.js
++++ b/dist/es5/xlsx/xform/sheet/merge-cell-xform.js
+@@ -23,4 +23,3 @@ class MergeCellXform extends BaseXform {
+   }
+ }
+ module.exports = MergeCellXform;
+-//# sourceMappingURL=merge-cell-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/merge-cell-xform.js.map b/dist/es5/xlsx/xform/sheet/merge-cell-xform.js.map
+deleted file mode 100644
+index 3783efff2a3b6df9cf59f3576edf1eee77eac788..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/merges.js b/dist/es5/xlsx/xform/sheet/merges.js
+index 29c2e6f0553e4459d62f9e0cf2f1d25ce5512123..f272513998c3dacb798dc86b4414864850643cbe 100644
+--- a/dist/es5/xlsx/xform/sheet/merges.js
++++ b/dist/es5/xlsx/xform/sheet/merges.js
+@@ -49,4 +49,3 @@ class Merges {
+   }
+ }
+ module.exports = Merges;
+-//# sourceMappingURL=merges.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/merges.js.map b/dist/es5/xlsx/xform/sheet/merges.js.map
+deleted file mode 100644
+index e1ce891a3348ac6a95b049e5e76b7a8320344d80..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/outline-properties-xform.js b/dist/es5/xlsx/xform/sheet/outline-properties-xform.js
+index af932100a1cc84cb8e927cb1d772a52afc4e3987..38ce39d339b3f560f73ca5198b2af06440979a7e 100644
+--- a/dist/es5/xlsx/xform/sheet/outline-properties-xform.js
++++ b/dist/es5/xlsx/xform/sheet/outline-properties-xform.js
+@@ -32,4 +32,3 @@ class OutlinePropertiesXform extends BaseXform {
+   }
+ }
+ module.exports = OutlinePropertiesXform;
+-//# sourceMappingURL=outline-properties-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/outline-properties-xform.js.map b/dist/es5/xlsx/xform/sheet/outline-properties-xform.js.map
+deleted file mode 100644
+index cf7caba2def6588348ef993b43607684fc4b2d6f..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/page-breaks-xform.js b/dist/es5/xlsx/xform/sheet/page-breaks-xform.js
+index bb43f1cd1384147dae15298f480b58aedeb7a204..ae79c9ea34fd5e471b161b5c5c5960cc169adc55 100644
+--- a/dist/es5/xlsx/xform/sheet/page-breaks-xform.js
++++ b/dist/es5/xlsx/xform/sheet/page-breaks-xform.js
+@@ -21,4 +21,3 @@ class PageBreaksXform extends BaseXform {
+   }
+ }
+ module.exports = PageBreaksXform;
+-//# sourceMappingURL=page-breaks-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/page-breaks-xform.js.map b/dist/es5/xlsx/xform/sheet/page-breaks-xform.js.map
+deleted file mode 100644
+index 3e9e9578e7dd141134d1dd86bb1b9f6360b1d61c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/page-margins-xform.js b/dist/es5/xlsx/xform/sheet/page-margins-xform.js
+index fe2dddb91a49d9d36ef3fd3e4ba32a11afbbe25f..26164893b82b5961943a46ace6503bed9fa229d4 100644
+--- a/dist/es5/xlsx/xform/sheet/page-margins-xform.js
++++ b/dist/es5/xlsx/xform/sheet/page-margins-xform.js
+@@ -43,4 +43,3 @@ class PageMarginsXform extends BaseXform {
+   }
+ }
+ module.exports = PageMarginsXform;
+-//# sourceMappingURL=page-margins-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/page-margins-xform.js.map b/dist/es5/xlsx/xform/sheet/page-margins-xform.js.map
+deleted file mode 100644
+index fca3c13ea05c9962bf05054e55e36c12447683f4..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/page-setup-properties-xform.js b/dist/es5/xlsx/xform/sheet/page-setup-properties-xform.js
+index bdb8accae206265ce1b4f2a77112efd18bc3c600..2c2e883e2ccc8e28e1b717145a739b12fd946e50 100644
+--- a/dist/es5/xlsx/xform/sheet/page-setup-properties-xform.js
++++ b/dist/es5/xlsx/xform/sheet/page-setup-properties-xform.js
+@@ -29,4 +29,3 @@ class PageSetupPropertiesXform extends BaseXform {
+   }
+ }
+ module.exports = PageSetupPropertiesXform;
+-//# sourceMappingURL=page-setup-properties-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/page-setup-properties-xform.js.map b/dist/es5/xlsx/xform/sheet/page-setup-properties-xform.js.map
+deleted file mode 100644
+index 275f5e155e02048730bbd87166bada75e2ff96cd..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/page-setup-xform.js b/dist/es5/xlsx/xform/sheet/page-setup-xform.js
+index 38206df280372d90d388685184d9081e990a9984..33a056625d02235d206dace67573186835778022 100644
+--- a/dist/es5/xlsx/xform/sheet/page-setup-xform.js
++++ b/dist/es5/xlsx/xform/sheet/page-setup-xform.js
+@@ -96,4 +96,3 @@ class PageSetupXform extends BaseXform {
+   }
+ }
+ module.exports = PageSetupXform;
+-//# sourceMappingURL=page-setup-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/page-setup-xform.js.map b/dist/es5/xlsx/xform/sheet/page-setup-xform.js.map
+deleted file mode 100644
+index 664a702d06d057bd66c75f11562f09ab9e13503c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/picture-xform.js b/dist/es5/xlsx/xform/sheet/picture-xform.js
+index 3b5d3304500ff43b85c88385b8a3bd469ef483a0..8d03f3a2a714f1b1b64b3eabdca258e78f16945c 100644
+--- a/dist/es5/xlsx/xform/sheet/picture-xform.js
++++ b/dist/es5/xlsx/xform/sheet/picture-xform.js
+@@ -29,4 +29,3 @@ class PictureXform extends BaseXform {
+   }
+ }
+ module.exports = PictureXform;
+-//# sourceMappingURL=picture-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/picture-xform.js.map b/dist/es5/xlsx/xform/sheet/picture-xform.js.map
+deleted file mode 100644
+index fe0e3135405a986f5b44240d1f2ec96d62bbcadf..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/print-options-xform.js b/dist/es5/xlsx/xform/sheet/print-options-xform.js
+index d4791df8fb3290a3d816003d0fce6826026759af..9cbfe623296806f97b377f00975c48147c88f795 100644
+--- a/dist/es5/xlsx/xform/sheet/print-options-xform.js
++++ b/dist/es5/xlsx/xform/sheet/print-options-xform.js
+@@ -42,4 +42,3 @@ class PrintOptionsXform extends BaseXform {
+   }
+ }
+ module.exports = PrintOptionsXform;
+-//# sourceMappingURL=print-options-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/print-options-xform.js.map b/dist/es5/xlsx/xform/sheet/print-options-xform.js.map
+deleted file mode 100644
+index d20935ecbd8bf77b1c711ae6ce73bf8c214db865..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/row-breaks-xform.js b/dist/es5/xlsx/xform/sheet/row-breaks-xform.js
+index fdfa62e41313cd4dc2926df311c0496d16264331..9689f8fadc73f3ca36edc54a48dfa3d0d84b55dc 100644
+--- a/dist/es5/xlsx/xform/sheet/row-breaks-xform.js
++++ b/dist/es5/xlsx/xform/sheet/row-breaks-xform.js
+@@ -34,4 +34,3 @@ class RowBreaksXform extends ListXform {
+   }
+ }
+ module.exports = RowBreaksXform;
+-//# sourceMappingURL=row-breaks-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/row-breaks-xform.js.map b/dist/es5/xlsx/xform/sheet/row-breaks-xform.js.map
+deleted file mode 100644
+index 3f185274eec6a114dbd7325757f4ec0f4b242a10..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/row-xform.js b/dist/es5/xlsx/xform/sheet/row-xform.js
+index 5a56b4b648de4ae14236e57b08be7ab110a11e05..17ea0fcfd1895982d12ef98e069267fb0494a7d9 100644
+--- a/dist/es5/xlsx/xform/sheet/row-xform.js
++++ b/dist/es5/xlsx/xform/sheet/row-xform.js
+@@ -125,4 +125,3 @@ class RowXform extends BaseXform {
+   }
+ }
+ module.exports = RowXform;
+-//# sourceMappingURL=row-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/row-xform.js.map b/dist/es5/xlsx/xform/sheet/row-xform.js.map
+deleted file mode 100644
+index 01c81106512149c7880a42ed7f9d4f311bb3a622..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/sheet-format-properties-xform.js b/dist/es5/xlsx/xform/sheet/sheet-format-properties-xform.js
+index 1db7fda092f066adc46e9bcf563f4502b4da4591..f1d662c4538d545da2b0114969f4aaaf3a7ab3de 100644
+--- a/dist/es5/xlsx/xform/sheet/sheet-format-properties-xform.js
++++ b/dist/es5/xlsx/xform/sheet/sheet-format-properties-xform.js
+@@ -48,4 +48,3 @@ class SheetFormatPropertiesXform extends BaseXform {
+   }
+ }
+ module.exports = SheetFormatPropertiesXform;
+-//# sourceMappingURL=sheet-format-properties-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/sheet-format-properties-xform.js.map b/dist/es5/xlsx/xform/sheet/sheet-format-properties-xform.js.map
+deleted file mode 100644
+index 8d79e75c55add40e8f60d73ebc0034bace9f5f2e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/sheet-properties-xform.js b/dist/es5/xlsx/xform/sheet/sheet-properties-xform.js
+index eab4b992df7f2b525882f7455a7cd37d4c4952ff..db8732d64c26cbcacaee62ff2454e66664f62488 100644
+--- a/dist/es5/xlsx/xform/sheet/sheet-properties-xform.js
++++ b/dist/es5/xlsx/xform/sheet/sheet-properties-xform.js
+@@ -80,4 +80,3 @@ class SheetPropertiesXform extends BaseXform {
+   }
+ }
+ module.exports = SheetPropertiesXform;
+-//# sourceMappingURL=sheet-properties-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/sheet-properties-xform.js.map b/dist/es5/xlsx/xform/sheet/sheet-properties-xform.js.map
+deleted file mode 100644
+index 0ebbbb43e86fc3c86af3db40cdf3d8ad1ef0babb..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/sheet-protection-xform.js b/dist/es5/xlsx/xform/sheet/sheet-protection-xform.js
+index e117040feefdd14a85faf8041524beec1a54eb49..12832515645f94baf84d6d145ec60729a80bda3c 100644
+--- a/dist/es5/xlsx/xform/sheet/sheet-protection-xform.js
++++ b/dist/es5/xlsx/xform/sheet/sheet-protection-xform.js
+@@ -81,4 +81,3 @@ class SheetProtectionXform extends BaseXform {
+   }
+ }
+ module.exports = SheetProtectionXform;
+-//# sourceMappingURL=sheet-protection-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/sheet-protection-xform.js.map b/dist/es5/xlsx/xform/sheet/sheet-protection-xform.js.map
+deleted file mode 100644
+index dfa02277eb29fd4fd2a0fd3c1d86d211db46b7d0..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/sheet-view-xform.js b/dist/es5/xlsx/xform/sheet/sheet-view-xform.js
+index 4b79cc8df42de860255ecabbbf0180bfabdecab7..fde45fcabf1d9cdeaf171141ef4a79364376c9e5 100644
+--- a/dist/es5/xlsx/xform/sheet/sheet-view-xform.js
++++ b/dist/es5/xlsx/xform/sheet/sheet-view-xform.js
+@@ -187,4 +187,3 @@ class SheetViewXform extends BaseXform {
+   reconcile() {}
+ }
+ module.exports = SheetViewXform;
+-//# sourceMappingURL=sheet-view-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/sheet-view-xform.js.map b/dist/es5/xlsx/xform/sheet/sheet-view-xform.js.map
+deleted file mode 100644
+index 557e1bf129278ad57f2c96f55b28eb27e2e37e35..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/table-part-xform.js b/dist/es5/xlsx/xform/sheet/table-part-xform.js
+index 1a7f7939a288c08d0556b7921c3d2e5837172f9f..fb273e4d4b8e3f5c9564d4c72238bcc725ed149e 100644
+--- a/dist/es5/xlsx/xform/sheet/table-part-xform.js
++++ b/dist/es5/xlsx/xform/sheet/table-part-xform.js
+@@ -29,4 +29,3 @@ class TablePartXform extends BaseXform {
+   }
+ }
+ module.exports = TablePartXform;
+-//# sourceMappingURL=table-part-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/table-part-xform.js.map b/dist/es5/xlsx/xform/sheet/table-part-xform.js.map
+deleted file mode 100644
+index cc96238ba24c321a5252677dd6167f447adc6cb9..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/sheet/worksheet-xform.js b/dist/es5/xlsx/xform/sheet/worksheet-xform.js
+index 26a6bbf0f645fa45431390251eeb9af78fc66e7a..c6082df097830bda7c58faa0cf2c387e57147b58 100644
+--- a/dist/es5/xlsx/xform/sheet/worksheet-xform.js
++++ b/dist/es5/xlsx/xform/sheet/worksheet-xform.js
+@@ -510,4 +510,3 @@ WorkSheetXform.WORKSHEET_ATTRIBUTES = {
+   'xmlns:x14ac': 'http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac'
+ };
+ module.exports = WorkSheetXform;
+-//# sourceMappingURL=worksheet-xform.js.map
+diff --git a/dist/es5/xlsx/xform/sheet/worksheet-xform.js.map b/dist/es5/xlsx/xform/sheet/worksheet-xform.js.map
+deleted file mode 100644
+index f3c92b62e971985ff4cf12a9e97cdb85baaf9a41..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/simple/boolean-xform.js b/dist/es5/xlsx/xform/simple/boolean-xform.js
+index 0b0cd5b779ba83010c7c6ac69e2b38007749166d..7b68314d2aab3e326832a2f274f85a01aea274e9 100644
+--- a/dist/es5/xlsx/xform/simple/boolean-xform.js
++++ b/dist/es5/xlsx/xform/simple/boolean-xform.js
+@@ -24,4 +24,3 @@ class BooleanXform extends BaseXform {
+   }
+ }
+ module.exports = BooleanXform;
+-//# sourceMappingURL=boolean-xform.js.map
+diff --git a/dist/es5/xlsx/xform/simple/boolean-xform.js.map b/dist/es5/xlsx/xform/simple/boolean-xform.js.map
+deleted file mode 100644
+index 88dd70bb113bd095e321bde76788b2832dc24391..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/simple/date-xform.js b/dist/es5/xlsx/xform/simple/date-xform.js
+index 9cc79160ed53a99ff88df4b8f2570c28aca26457..821a5a3383e1a81929b2c78f5268b531f1fe17ef 100644
+--- a/dist/es5/xlsx/xform/simple/date-xform.js
++++ b/dist/es5/xlsx/xform/simple/date-xform.js
+@@ -55,4 +55,3 @@ class DateXform extends BaseXform {
+   }
+ }
+ module.exports = DateXform;
+-//# sourceMappingURL=date-xform.js.map
+diff --git a/dist/es5/xlsx/xform/simple/date-xform.js.map b/dist/es5/xlsx/xform/simple/date-xform.js.map
+deleted file mode 100644
+index 9e655708ae0373810955c8c0c3bcf3138242199e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/simple/float-xform.js b/dist/es5/xlsx/xform/simple/float-xform.js
+index 1b3843a9a0edb976495bb2d2f6cae60465b3681e..6e64db95d99b3fea80f0bd757b2de0b34826e932 100644
+--- a/dist/es5/xlsx/xform/simple/float-xform.js
++++ b/dist/es5/xlsx/xform/simple/float-xform.js
+@@ -44,4 +44,3 @@ class FloatXform extends BaseXform {
+   }
+ }
+ module.exports = FloatXform;
+-//# sourceMappingURL=float-xform.js.map
+diff --git a/dist/es5/xlsx/xform/simple/float-xform.js.map b/dist/es5/xlsx/xform/simple/float-xform.js.map
+deleted file mode 100644
+index 038257676b3b6dc0ecd8e6a7daea0898fa4e65d5..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/simple/integer-xform.js b/dist/es5/xlsx/xform/simple/integer-xform.js
+index 5b47cf8727b1868dfbb09af878ec036d18d8314c..ba0fe3533227f2126f3285195a6c2dafbbf9f0ea 100644
+--- a/dist/es5/xlsx/xform/simple/integer-xform.js
++++ b/dist/es5/xlsx/xform/simple/integer-xform.js
+@@ -50,4 +50,3 @@ class IntegerXform extends BaseXform {
+   }
+ }
+ module.exports = IntegerXform;
+-//# sourceMappingURL=integer-xform.js.map
+diff --git a/dist/es5/xlsx/xform/simple/integer-xform.js.map b/dist/es5/xlsx/xform/simple/integer-xform.js.map
+deleted file mode 100644
+index 619a3977021e6be005212bb36960b96674fd579e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/simple/string-xform.js b/dist/es5/xlsx/xform/simple/string-xform.js
+index dc760e60953d4c11537ad3f626911328b0cb559c..de0a0f503e3ca8c129f7059bc10bc39e11921fc4 100644
+--- a/dist/es5/xlsx/xform/simple/string-xform.js
++++ b/dist/es5/xlsx/xform/simple/string-xform.js
+@@ -44,4 +44,3 @@ class StringXform extends BaseXform {
+   }
+ }
+ module.exports = StringXform;
+-//# sourceMappingURL=string-xform.js.map
+diff --git a/dist/es5/xlsx/xform/simple/string-xform.js.map b/dist/es5/xlsx/xform/simple/string-xform.js.map
+deleted file mode 100644
+index a5ffb8aa9bcfd24b2cb7060f91c5b1573c5a4af9..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/static-xform.js b/dist/es5/xlsx/xform/static-xform.js
+index 80c2951ff31c542ceebef63ae0fc1bf906f7943e..1ef51a511596ae3c72406be97c134ea040bd91d3 100644
+--- a/dist/es5/xlsx/xform/static-xform.js
++++ b/dist/es5/xlsx/xform/static-xform.js
+@@ -58,4 +58,3 @@ class StaticXform extends BaseXform {
+   }
+ }
+ module.exports = StaticXform;
+-//# sourceMappingURL=static-xform.js.map
+diff --git a/dist/es5/xlsx/xform/static-xform.js.map b/dist/es5/xlsx/xform/static-xform.js.map
+deleted file mode 100644
+index 70f9f07ad17077d89673d7caecb796b44bbabf8d..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/strings/phonetic-text-xform.js b/dist/es5/xlsx/xform/strings/phonetic-text-xform.js
+index 4fb390d03d89c1b6fd363d1b5b055a4ba17091d1..1bbe27c6640978c3c8d9d7e83d7998599e01cf21 100644
+--- a/dist/es5/xlsx/xform/strings/phonetic-text-xform.js
++++ b/dist/es5/xlsx/xform/strings/phonetic-text-xform.js
+@@ -95,4 +95,3 @@ class PhoneticTextXform extends BaseXform {
+   }
+ }
+ module.exports = PhoneticTextXform;
+-//# sourceMappingURL=phonetic-text-xform.js.map
+diff --git a/dist/es5/xlsx/xform/strings/phonetic-text-xform.js.map b/dist/es5/xlsx/xform/strings/phonetic-text-xform.js.map
+deleted file mode 100644
+index f7d994c37074b59dc553b5b563ece303b7d4a1aa..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/strings/rich-text-xform.js b/dist/es5/xlsx/xform/strings/rich-text-xform.js
+index f81d51858fe76923995ea347f57401595624ea29..5ac953d3f9544f1efd98a53f26899fd6acc0e25e 100644
+--- a/dist/es5/xlsx/xform/strings/rich-text-xform.js
++++ b/dist/es5/xlsx/xform/strings/rich-text-xform.js
+@@ -89,4 +89,3 @@ RichTextXform.FONT_OPTIONS = {
+   fontNameTag: 'rFont'
+ };
+ module.exports = RichTextXform;
+-//# sourceMappingURL=rich-text-xform.js.map
+diff --git a/dist/es5/xlsx/xform/strings/rich-text-xform.js.map b/dist/es5/xlsx/xform/strings/rich-text-xform.js.map
+deleted file mode 100644
+index e0478295ad7b41ed71ad2d8d883422e7411db7c6..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/strings/shared-string-xform.js b/dist/es5/xlsx/xform/strings/shared-string-xform.js
+index 7c6fdd6cd01959860c48f16ba7fdebc2db2b90da..fb2ef22fc28e60437179d73f3da1a930627fcad0 100644
+--- a/dist/es5/xlsx/xform/strings/shared-string-xform.js
++++ b/dist/es5/xlsx/xform/strings/shared-string-xform.js
+@@ -96,4 +96,3 @@ class SharedStringXform extends BaseXform {
+   }
+ }
+ module.exports = SharedStringXform;
+-//# sourceMappingURL=shared-string-xform.js.map
+diff --git a/dist/es5/xlsx/xform/strings/shared-string-xform.js.map b/dist/es5/xlsx/xform/strings/shared-string-xform.js.map
+deleted file mode 100644
+index 76d24f777cafa73785bf5903df072b6a4e44ffbd..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/strings/shared-strings-xform.js b/dist/es5/xlsx/xform/strings/shared-strings-xform.js
+index 3f9a7d8978a9588850741cadd1c2f11cdd7eaddb..23958cfc2bd84619027789eda7293c93a0273ba5 100644
+--- a/dist/es5/xlsx/xform/strings/shared-strings-xform.js
++++ b/dist/es5/xlsx/xform/strings/shared-strings-xform.js
+@@ -111,4 +111,3 @@ class SharedStringsXform extends BaseXform {
+   }
+ }
+ module.exports = SharedStringsXform;
+-//# sourceMappingURL=shared-strings-xform.js.map
+diff --git a/dist/es5/xlsx/xform/strings/shared-strings-xform.js.map b/dist/es5/xlsx/xform/strings/shared-strings-xform.js.map
+deleted file mode 100644
+index 6c8ce1db23d3d7707860d74835d0e9304af49cb6..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/strings/text-xform.js b/dist/es5/xlsx/xform/strings/text-xform.js
+index e65308366bba4b92f62d3a47e85a9118ad763705..28f037a8af13fdbdbf4a3c426f3d22c56c64e6ba 100644
+--- a/dist/es5/xlsx/xform/strings/text-xform.js
++++ b/dist/es5/xlsx/xform/strings/text-xform.js
+@@ -36,4 +36,3 @@ class TextXform extends BaseXform {
+   }
+ }
+ module.exports = TextXform;
+-//# sourceMappingURL=text-xform.js.map
+diff --git a/dist/es5/xlsx/xform/strings/text-xform.js.map b/dist/es5/xlsx/xform/strings/text-xform.js.map
+deleted file mode 100644
+index b3d8c98b2d48cfc5cd4ddc560a960809dde51e30..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/alignment-xform.js b/dist/es5/xlsx/xform/style/alignment-xform.js
+index 1f14fc1fa8263884752c365f63ee7c6194e0d518..ab28625f007c8ef5b38f07e1874dab35b0fd8585 100644
+--- a/dist/es5/xlsx/xform/style/alignment-xform.js
++++ b/dist/es5/xlsx/xform/style/alignment-xform.js
+@@ -136,4 +136,3 @@ class AlignmentXform extends BaseXform {
+   }
+ }
+ module.exports = AlignmentXform;
+-//# sourceMappingURL=alignment-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/alignment-xform.js.map b/dist/es5/xlsx/xform/style/alignment-xform.js.map
+deleted file mode 100644
+index a3d360c3e6eef8ded11d8730419f2e2f4ce89f61..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/border-xform.js b/dist/es5/xlsx/xform/style/border-xform.js
+index c9adc82b418e15b05b01f7cf3e9661d793753a8f..9ff58a28d7ed25edcd5576dfd4eb00562dbb1789 100644
+--- a/dist/es5/xlsx/xform/style/border-xform.js
++++ b/dist/es5/xlsx/xform/style/border-xform.js
+@@ -182,4 +182,3 @@ class BorderXform extends BaseXform {
+   }
+ }
+ module.exports = BorderXform;
+-//# sourceMappingURL=border-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/border-xform.js.map b/dist/es5/xlsx/xform/style/border-xform.js.map
+deleted file mode 100644
+index 0fa2cf40ca0ccc77ea8b8dcec3b876b22c363e7e..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/color-xform.js b/dist/es5/xlsx/xform/style/color-xform.js
+index b5a5d32d776e5f53fc913fd5870cc7551f3ce99e..76ab3104e84c5904b4028fcd6e83b39abad80db6 100644
+--- a/dist/es5/xlsx/xform/style/color-xform.js
++++ b/dist/es5/xlsx/xform/style/color-xform.js
+@@ -63,4 +63,3 @@ class ColorXform extends BaseXform {
+   }
+ }
+ module.exports = ColorXform;
+-//# sourceMappingURL=color-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/color-xform.js.map b/dist/es5/xlsx/xform/style/color-xform.js.map
+deleted file mode 100644
+index 0017b878c6d34760dd31bb7ba90487c6f43d0b36..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/dxf-xform.js b/dist/es5/xlsx/xform/style/dxf-xform.js
+index e1f5e7242f4cb23a67ee1a6a4d47de4a7f5e7668..07cb470c153b666cf28413153d3b024d866460e1 100644
+--- a/dist/es5/xlsx/xform/style/dxf-xform.js
++++ b/dist/es5/xlsx/xform/style/dxf-xform.js
+@@ -103,4 +103,3 @@ class DxfXform extends BaseXform {
+   }
+ }
+ module.exports = DxfXform;
+-//# sourceMappingURL=dxf-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/dxf-xform.js.map b/dist/es5/xlsx/xform/style/dxf-xform.js.map
+deleted file mode 100644
+index 2dbc0858af21875b28694b13841aa427267be40b..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/fill-xform.js b/dist/es5/xlsx/xform/style/fill-xform.js
+index 85479e8723ace3a2c1999424a0fd3a1c3321b45c..5be35b64422e82b23d79f76ad8d26d9e0c4bcafc 100644
+--- a/dist/es5/xlsx/xform/style/fill-xform.js
++++ b/dist/es5/xlsx/xform/style/fill-xform.js
+@@ -305,4 +305,3 @@ FillXform.StopXform = StopXform;
+ FillXform.PatternFillXform = PatternFillXform;
+ FillXform.GradientFillXform = GradientFillXform;
+ module.exports = FillXform;
+-//# sourceMappingURL=fill-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/fill-xform.js.map b/dist/es5/xlsx/xform/style/fill-xform.js.map
+deleted file mode 100644
+index 6d7c2ca59c3dca2994940b5fce212682b6fb9cfa..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/font-xform.js b/dist/es5/xlsx/xform/style/font-xform.js
+index f982078f9d27de6bbe5ab3204ca1a99030d677c6..59499d887c714196a8d975167c989798c13bdb9a 100644
+--- a/dist/es5/xlsx/xform/style/font-xform.js
++++ b/dist/es5/xlsx/xform/style/font-xform.js
+@@ -172,4 +172,3 @@ FontXform.OPTIONS = {
+   fontNameTag: 'name'
+ };
+ module.exports = FontXform;
+-//# sourceMappingURL=font-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/font-xform.js.map b/dist/es5/xlsx/xform/style/font-xform.js.map
+deleted file mode 100644
+index 2784b2a815a2c9ad0df4e7321adf001a82d3267b..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/numfmt-xform.js b/dist/es5/xlsx/xform/style/numfmt-xform.js
+index 86f01bd4cd13817bc26fbcee79a698dbac8048be..79c23e52644a57be1adcfe87605308156d3aa13e 100644
+--- a/dist/es5/xlsx/xform/style/numfmt-xform.js
++++ b/dist/es5/xlsx/xform/style/numfmt-xform.js
+@@ -56,4 +56,3 @@ NumFmtXform.getDefaultFmtCode = function getDefaultFmtCode(numFmtId) {
+   return defaultNumFormats[numFmtId] && defaultNumFormats[numFmtId].f;
+ };
+ module.exports = NumFmtXform;
+-//# sourceMappingURL=numfmt-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/numfmt-xform.js.map b/dist/es5/xlsx/xform/style/numfmt-xform.js.map
+deleted file mode 100644
+index 45cc7c80b56bde7c9ecbc4aaca8e85f8ec587e9a..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/protection-xform.js b/dist/es5/xlsx/xform/style/protection-xform.js
+index a63b5c6d636cd960138653d286a2f16942824d40..fd8704177bc45d0db4af612de402baac977c9fdf 100644
+--- a/dist/es5/xlsx/xform/style/protection-xform.js
++++ b/dist/es5/xlsx/xform/style/protection-xform.js
+@@ -50,4 +50,3 @@ class ProtectionXform extends BaseXform {
+   }
+ }
+ module.exports = ProtectionXform;
+-//# sourceMappingURL=protection-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/protection-xform.js.map b/dist/es5/xlsx/xform/style/protection-xform.js.map
+deleted file mode 100644
+index 2807cc67d12ee973087534f2c02045025fc001ed..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/style-xform.js b/dist/es5/xlsx/xform/style/style-xform.js
+index 71528bbe2d947f9b3ae9f1f2b0006f5fd861ee1b..70f370a913f9ea8c904077b40b48c326d31262e9 100644
+--- a/dist/es5/xlsx/xform/style/style-xform.js
++++ b/dist/es5/xlsx/xform/style/style-xform.js
+@@ -115,4 +115,3 @@ class StyleXform extends BaseXform {
+   }
+ }
+ module.exports = StyleXform;
+-//# sourceMappingURL=style-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/style-xform.js.map b/dist/es5/xlsx/xform/style/style-xform.js.map
+deleted file mode 100644
+index a3fb5e801e1f2dd72186ef24e988ae2423b0fb43..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/styles-xform.js b/dist/es5/xlsx/xform/style/styles-xform.js
+index 100076716204fd89115cb9ae8b282f45757f4752..0759b45b03a6654ff25aa9713195597c7c085d15 100644
+--- a/dist/es5/xlsx/xform/style/styles-xform.js
++++ b/dist/es5/xlsx/xform/style/styles-xform.js
+@@ -609,4 +609,3 @@ class StylesXformMock extends StylesXform {
+ }
+ StylesXform.Mock = StylesXformMock;
+ module.exports = StylesXform;
+-//# sourceMappingURL=styles-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/styles-xform.js.map b/dist/es5/xlsx/xform/style/styles-xform.js.map
+deleted file mode 100644
+index eace1a83191d9600836b73478c4c2bcd6e26e55c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/style/underline-xform.js b/dist/es5/xlsx/xform/style/underline-xform.js
+index 5a1f2e22513022e36babaa515f0c78e9e9501dde..020d59bdaea0a60806113bd475160f0ce11666fe 100644
+--- a/dist/es5/xlsx/xform/style/underline-xform.js
++++ b/dist/es5/xlsx/xform/style/underline-xform.js
+@@ -43,4 +43,3 @@ UnderlineXform.Attributes = {
+   }
+ };
+ module.exports = UnderlineXform;
+-//# sourceMappingURL=underline-xform.js.map
+diff --git a/dist/es5/xlsx/xform/style/underline-xform.js.map b/dist/es5/xlsx/xform/style/underline-xform.js.map
+deleted file mode 100644
+index dc03ca82f2b1c03f14e61b718d6ef3152e6b6a25..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/table/auto-filter-xform.js b/dist/es5/xlsx/xform/table/auto-filter-xform.js
+index 57be781159c3b790caa00b7e2c96b8f8c7d79f0b..3ce5bf201231017cc37e0dc70f062807b4ae0e7a 100644
+--- a/dist/es5/xlsx/xform/table/auto-filter-xform.js
++++ b/dist/es5/xlsx/xform/table/auto-filter-xform.js
+@@ -72,4 +72,3 @@ class AutoFilterXform extends BaseXform {
+   }
+ }
+ module.exports = AutoFilterXform;
+-//# sourceMappingURL=auto-filter-xform.js.map
+diff --git a/dist/es5/xlsx/xform/table/auto-filter-xform.js.map b/dist/es5/xlsx/xform/table/auto-filter-xform.js.map
+deleted file mode 100644
+index aea9de2a1c16e76824f84d0c3ee6035bf0472142..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/table/custom-filter-xform.js b/dist/es5/xlsx/xform/table/custom-filter-xform.js
+index 8d8d7c7f466595a327ef6d832e584daf421f1397..8fe5e1691b4cf0dc001bddd9f561a9d5ff2ba054 100644
+--- a/dist/es5/xlsx/xform/table/custom-filter-xform.js
++++ b/dist/es5/xlsx/xform/table/custom-filter-xform.js
+@@ -27,4 +27,3 @@ class CustomFilterXform extends BaseXform {
+   }
+ }
+ module.exports = CustomFilterXform;
+-//# sourceMappingURL=custom-filter-xform.js.map
+diff --git a/dist/es5/xlsx/xform/table/custom-filter-xform.js.map b/dist/es5/xlsx/xform/table/custom-filter-xform.js.map
+deleted file mode 100644
+index 4b9714ea6acd5fed92172a1a8f4c56a5cb66f5af..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/table/filter-column-xform.js b/dist/es5/xlsx/xform/table/filter-column-xform.js
+index e4c59be695520ebe7aceaa0b6c98da1c9a8689ed..ecf326ef666d404ad2ef78d02148956f43acaee6 100644
+--- a/dist/es5/xlsx/xform/table/filter-column-xform.js
++++ b/dist/es5/xlsx/xform/table/filter-column-xform.js
+@@ -86,4 +86,3 @@ class FilterColumnXform extends BaseXform {
+   }
+ }
+ module.exports = FilterColumnXform;
+-//# sourceMappingURL=filter-column-xform.js.map
+diff --git a/dist/es5/xlsx/xform/table/filter-column-xform.js.map b/dist/es5/xlsx/xform/table/filter-column-xform.js.map
+deleted file mode 100644
+index 2e391a9a133aca27cbb989f6cc83bbeadd52c5ec..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/table/filter-xform.js b/dist/es5/xlsx/xform/table/filter-xform.js
+index 7fff6df119f03dc49fa392e00b9e296b529ccec2..997a82c48a6a55e755e209978ba33c017cb65088 100644
+--- a/dist/es5/xlsx/xform/table/filter-xform.js
++++ b/dist/es5/xlsx/xform/table/filter-xform.js
+@@ -25,4 +25,3 @@ class FilterXform extends BaseXform {
+   }
+ }
+ module.exports = FilterXform;
+-//# sourceMappingURL=filter-xform.js.map
+diff --git a/dist/es5/xlsx/xform/table/filter-xform.js.map b/dist/es5/xlsx/xform/table/filter-xform.js.map
+deleted file mode 100644
+index 93dd69c54330ecce398f070c8466e9f77c856e8b..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/table/table-column-xform.js b/dist/es5/xlsx/xform/table/table-column-xform.js
+index 296b99dbd81f11ea13b017e36f39256eb5478581..c8f5261ec2a6d84887d2a87a65576136b31f2160 100644
+--- a/dist/es5/xlsx/xform/table/table-column-xform.js
++++ b/dist/es5/xlsx/xform/table/table-column-xform.js
+@@ -39,4 +39,3 @@ class TableColumnXform extends BaseXform {
+   }
+ }
+ module.exports = TableColumnXform;
+-//# sourceMappingURL=table-column-xform.js.map
+diff --git a/dist/es5/xlsx/xform/table/table-column-xform.js.map b/dist/es5/xlsx/xform/table/table-column-xform.js.map
+deleted file mode 100644
+index 50321eed4a8102486dabd6dc0fb5712569ad7fe9..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/table/table-style-info-xform.js b/dist/es5/xlsx/xform/table/table-style-info-xform.js
+index 5f6a78ca51ea9ed53e03f2130183d33c3e22b2f2..0cdc6f48714435409f36057dc3ac8d0f084a762f 100644
+--- a/dist/es5/xlsx/xform/table/table-style-info-xform.js
++++ b/dist/es5/xlsx/xform/table/table-style-info-xform.js
+@@ -37,4 +37,3 @@ class TableStyleInfoXform extends BaseXform {
+   }
+ }
+ module.exports = TableStyleInfoXform;
+-//# sourceMappingURL=table-style-info-xform.js.map
+diff --git a/dist/es5/xlsx/xform/table/table-style-info-xform.js.map b/dist/es5/xlsx/xform/table/table-style-info-xform.js.map
+deleted file mode 100644
+index 2aa1982f47c9d4ca0d8ea03df591764fddf0cdf1..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xform/table/table-xform.js b/dist/es5/xlsx/xform/table/table-xform.js
+index 3fa5d97e4ea2d7efac6cadcb4bbc16a343e7ef3f..e8bf0000b8bacdb9960c6204582f706e1ab1b33a 100644
+--- a/dist/es5/xlsx/xform/table/table-xform.js
++++ b/dist/es5/xlsx/xform/table/table-xform.js
+@@ -120,4 +120,3 @@ TableXform.TABLE_ATTRIBUTES = {
+ };
+ 
+ module.exports = TableXform;
+-//# sourceMappingURL=table-xform.js.map
+diff --git a/dist/es5/xlsx/xform/table/table-xform.js.map b/dist/es5/xlsx/xform/table/table-xform.js.map
+deleted file mode 100644
+index 97d7e025709892efc7ef5c820238895a1a48d65c..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xlsx.js b/dist/es5/xlsx/xlsx.js
+index fd05bdac9cbeaa6e326b04a0b88d949c8b4d0a41..ef14efd57aca9bd9315cb32f1379490293e77a39 100644
+--- a/dist/es5/xlsx/xlsx.js
++++ b/dist/es5/xlsx/xlsx.js
+@@ -694,4 +694,3 @@ class XLSX {
+ }
+ XLSX.RelType = require('./rel-type');
+ module.exports = XLSX;
+-//# sourceMappingURL=xlsx.js.map
+diff --git a/dist/es5/xlsx/xlsx.js.map b/dist/es5/xlsx/xlsx.js.map
+deleted file mode 100644
+index f4f095976d54f7ef7b1a936e278d0d7ba83f5c11..0000000000000000000000000000000000000000
+diff --git a/dist/es5/xlsx/xml/theme1.js b/dist/es5/xlsx/xml/theme1.js
+index 25b0adaa784bdd2f786fd2a3202d87eaa445baad..a001ddac2038f41570d2e7e17e7570a1e6efae6d 100644
+--- a/dist/es5/xlsx/xml/theme1.js
++++ b/dist/es5/xlsx/xml/theme1.js
+@@ -2,4 +2,3 @@
+ 
+ /* eslint-disable */
+ module.exports = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office Theme"> <a:themeElements> <a:clrScheme name="Office"> <a:dk1> <a:sysClr val="windowText" lastClr="000000"/> </a:dk1> <a:lt1> <a:sysClr val="window" lastClr="FFFFFF"/> </a:lt1> <a:dk2> <a:srgbClr val="1F497D"/> </a:dk2> <a:lt2> <a:srgbClr val="EEECE1"/> </a:lt2> <a:accent1> <a:srgbClr val="4F81BD"/> </a:accent1> <a:accent2> <a:srgbClr val="C0504D"/> </a:accent2> <a:accent3> <a:srgbClr val="9BBB59"/> </a:accent3> <a:accent4> <a:srgbClr val="8064A2"/> </a:accent4> <a:accent5> <a:srgbClr val="4BACC6"/> </a:accent5> <a:accent6> <a:srgbClr val="F79646"/> </a:accent6> <a:hlink> <a:srgbClr val="0000FF"/> </a:hlink> <a:folHlink> <a:srgbClr val="800080"/> </a:folHlink> </a:clrScheme> <a:fontScheme name="Office"> <a:majorFont> <a:latin typeface="Cambria"/> <a:ea typeface=""/> <a:cs typeface=""/> <a:font script="Jpan" typeface="ＭＳ Ｐゴシック"/> <a:font script="Hang" typeface="맑은 고딕"/> <a:font script="Hans" typeface="宋体"/> <a:font script="Hant" typeface="新細明體"/> <a:font script="Arab" typeface="Times New Roman"/> <a:font script="Hebr" typeface="Times New Roman"/> <a:font script="Thai" typeface="Tahoma"/> <a:font script="Ethi" typeface="Nyala"/> <a:font script="Beng" typeface="Vrinda"/> <a:font script="Gujr" typeface="Shruti"/> <a:font script="Khmr" typeface="MoolBoran"/> <a:font script="Knda" typeface="Tunga"/> <a:font script="Guru" typeface="Raavi"/> <a:font script="Cans" typeface="Euphemia"/> <a:font script="Cher" typeface="Plantagenet Cherokee"/> <a:font script="Yiii" typeface="Microsoft Yi Baiti"/> <a:font script="Tibt" typeface="Microsoft Himalaya"/> <a:font script="Thaa" typeface="MV Boli"/> <a:font script="Deva" typeface="Mangal"/> <a:font script="Telu" typeface="Gautami"/> <a:font script="Taml" typeface="Latha"/> <a:font script="Syrc" typeface="Estrangelo Edessa"/> <a:font script="Orya" typeface="Kalinga"/> <a:font script="Mlym" typeface="Kartika"/> <a:font script="Laoo" typeface="DokChampa"/> <a:font script="Sinh" typeface="Iskoola Pota"/> <a:font script="Mong" typeface="Mongolian Baiti"/> <a:font script="Viet" typeface="Times New Roman"/> <a:font script="Uigh" typeface="Microsoft Uighur"/> <a:font script="Geor" typeface="Sylfaen"/> </a:majorFont> <a:minorFont> <a:latin typeface="Calibri"/> <a:ea typeface=""/> <a:cs typeface=""/> <a:font script="Jpan" typeface="ＭＳ Ｐゴシック"/> <a:font script="Hang" typeface="맑은 고딕"/> <a:font script="Hans" typeface="宋体"/> <a:font script="Hant" typeface="新細明體"/> <a:font script="Arab" typeface="Arial"/> <a:font script="Hebr" typeface="Arial"/> <a:font script="Thai" typeface="Tahoma"/> <a:font script="Ethi" typeface="Nyala"/> <a:font script="Beng" typeface="Vrinda"/> <a:font script="Gujr" typeface="Shruti"/> <a:font script="Khmr" typeface="DaunPenh"/> <a:font script="Knda" typeface="Tunga"/> <a:font script="Guru" typeface="Raavi"/> <a:font script="Cans" typeface="Euphemia"/> <a:font script="Cher" typeface="Plantagenet Cherokee"/> <a:font script="Yiii" typeface="Microsoft Yi Baiti"/> <a:font script="Tibt" typeface="Microsoft Himalaya"/> <a:font script="Thaa" typeface="MV Boli"/> <a:font script="Deva" typeface="Mangal"/> <a:font script="Telu" typeface="Gautami"/> <a:font script="Taml" typeface="Latha"/> <a:font script="Syrc" typeface="Estrangelo Edessa"/> <a:font script="Orya" typeface="Kalinga"/> <a:font script="Mlym" typeface="Kartika"/> <a:font script="Laoo" typeface="DokChampa"/> <a:font script="Sinh" typeface="Iskoola Pota"/> <a:font script="Mong" typeface="Mongolian Baiti"/> <a:font script="Viet" typeface="Arial"/> <a:font script="Uigh" typeface="Microsoft Uighur"/> <a:font script="Geor" typeface="Sylfaen"/> </a:minorFont> </a:fontScheme> <a:fmtScheme name="Office"> <a:fillStyleLst> <a:solidFill> <a:schemeClr val="phClr"/> </a:solidFill> <a:gradFill rotWithShape="1"> <a:gsLst> <a:gs pos="0"> <a:schemeClr val="phClr"> <a:tint val="50000"/> <a:satMod val="300000"/> </a:schemeClr> </a:gs> <a:gs pos="35000"> <a:schemeClr val="phClr"> <a:tint val="37000"/> <a:satMod val="300000"/> </a:schemeClr> </a:gs> <a:gs pos="100000"> <a:schemeClr val="phClr"> <a:tint val="15000"/> <a:satMod val="350000"/> </a:schemeClr> </a:gs> </a:gsLst> <a:lin ang="16200000" scaled="1"/> </a:gradFill> <a:gradFill rotWithShape="1"> <a:gsLst> <a:gs pos="0"> <a:schemeClr val="phClr"> <a:tint val="100000"/> <a:shade val="100000"/> <a:satMod val="130000"/> </a:schemeClr> </a:gs> <a:gs pos="100000"> <a:schemeClr val="phClr"> <a:tint val="50000"/> <a:shade val="100000"/> <a:satMod val="350000"/> </a:schemeClr> </a:gs> </a:gsLst> <a:lin ang="16200000" scaled="0"/> </a:gradFill> </a:fillStyleLst> <a:lnStyleLst> <a:ln w="9525" cap="flat" cmpd="sng" algn="ctr"> <a:solidFill> <a:schemeClr val="phClr"> <a:shade val="95000"/> <a:satMod val="105000"/> </a:schemeClr> </a:solidFill> <a:prstDash val="solid"/> </a:ln> <a:ln w="25400" cap="flat" cmpd="sng" algn="ctr"> <a:solidFill> <a:schemeClr val="phClr"/> </a:solidFill> <a:prstDash val="solid"/> </a:ln> <a:ln w="38100" cap="flat" cmpd="sng" algn="ctr"> <a:solidFill> <a:schemeClr val="phClr"/> </a:solidFill> <a:prstDash val="solid"/> </a:ln> </a:lnStyleLst> <a:effectStyleLst> <a:effectStyle> <a:effectLst> <a:outerShdw blurRad="40000" dist="20000" dir="5400000" rotWithShape="0"> <a:srgbClr val="000000"> <a:alpha val="38000"/> </a:srgbClr> </a:outerShdw> </a:effectLst> </a:effectStyle> <a:effectStyle> <a:effectLst> <a:outerShdw blurRad="40000" dist="23000" dir="5400000" rotWithShape="0"> <a:srgbClr val="000000"> <a:alpha val="35000"/> </a:srgbClr> </a:outerShdw> </a:effectLst> </a:effectStyle> <a:effectStyle> <a:effectLst> <a:outerShdw blurRad="40000" dist="23000" dir="5400000" rotWithShape="0"> <a:srgbClr val="000000"> <a:alpha val="35000"/> </a:srgbClr> </a:outerShdw> </a:effectLst> <a:scene3d> <a:camera prst="orthographicFront"> <a:rot lat="0" lon="0" rev="0"/> </a:camera> <a:lightRig rig="threePt" dir="t"> <a:rot lat="0" lon="0" rev="1200000"/> </a:lightRig> </a:scene3d> <a:sp3d> <a:bevelT w="63500" h="25400"/> </a:sp3d> </a:effectStyle> </a:effectStyleLst> <a:bgFillStyleLst> <a:solidFill> <a:schemeClr val="phClr"/> </a:solidFill> <a:gradFill rotWithShape="1"> <a:gsLst> <a:gs pos="0"> <a:schemeClr val="phClr"> <a:tint val="40000"/> <a:satMod val="350000"/> </a:schemeClr> </a:gs> <a:gs pos="40000"> <a:schemeClr val="phClr"> <a:tint val="45000"/> <a:shade val="99000"/> <a:satMod val="350000"/> </a:schemeClr> </a:gs> <a:gs pos="100000"> <a:schemeClr val="phClr"> <a:shade val="20000"/> <a:satMod val="255000"/> </a:schemeClr> </a:gs> </a:gsLst> <a:path path="circle"> <a:fillToRect l="50000" t="-80000" r="50000" b="180000"/> </a:path> </a:gradFill> <a:gradFill rotWithShape="1"> <a:gsLst> <a:gs pos="0"> <a:schemeClr val="phClr"> <a:tint val="80000"/> <a:satMod val="300000"/> </a:schemeClr> </a:gs> <a:gs pos="100000"> <a:schemeClr val="phClr"> <a:shade val="30000"/> <a:satMod val="200000"/> </a:schemeClr> </a:gs> </a:gsLst> <a:path path="circle"> <a:fillToRect l="50000" t="50000" r="50000" b="50000"/> </a:path> </a:gradFill> </a:bgFillStyleLst> </a:fmtScheme> </a:themeElements> <a:objectDefaults> <a:spDef> <a:spPr/> <a:bodyPr/> <a:lstStyle/> <a:style> <a:lnRef idx="1"> <a:schemeClr val="accent1"/> </a:lnRef> <a:fillRef idx="3"> <a:schemeClr val="accent1"/> </a:fillRef> <a:effectRef idx="2"> <a:schemeClr val="accent1"/> </a:effectRef> <a:fontRef idx="minor"> <a:schemeClr val="lt1"/> </a:fontRef> </a:style> </a:spDef> <a:lnDef> <a:spPr/> <a:bodyPr/> <a:lstStyle/> <a:style> <a:lnRef idx="2"> <a:schemeClr val="accent1"/> </a:lnRef> <a:fillRef idx="0"> <a:schemeClr val="accent1"/> </a:fillRef> <a:effectRef idx="1"> <a:schemeClr val="accent1"/> </a:effectRef> <a:fontRef idx="minor"> <a:schemeClr val="tx1"/> </a:fontRef> </a:style> </a:lnDef> </a:objectDefaults> <a:extraClrSchemeLst/> </a:theme>';
+-//# sourceMappingURL=theme1.js.map
+diff --git a/dist/es5/xlsx/xml/theme1.js.map b/dist/es5/xlsx/xml/theme1.js.map
+deleted file mode 100644
+index f2802300a45ec2e45021a389cd8e4c62013d0f0c..0000000000000000000000000000000000000000
+diff --git a/dist/exceljs.bare.js b/dist/exceljs.bare.js
+index cbca4960becb7bd5d6c43a17457c4159df5cb6d6..0391cb38a107196e010b63bcbb620ec7d62d7a6c 100644
+--- a/dist/exceljs.bare.js
++++ b/dist/exceljs.bare.js
+@@ -55250,4 +55250,3 @@ exports.isNCNameChar = isNCNameChar;
+ 
+ },{}]},{},[15])(15)
+ });
+-//# sourceMappingURL=exceljs.bare.js.map
+diff --git a/dist/exceljs.bare.js.map b/dist/exceljs.bare.js.map
+deleted file mode 100644
+index d95f90b3a5a703090804c74720c920c6598f83a2..0000000000000000000000000000000000000000
+diff --git a/dist/exceljs.bare.min.js b/dist/exceljs.bare.min.js
+index 3838ffb977c6c8300d1aa77aadf9f02036c49423..dc4619bf407d0895222ae430dbd0694610516d57 100644
+--- a/dist/exceljs.bare.min.js
++++ b/dist/exceljs.bare.min.js
+@@ -42,4 +42,3 @@ https://github.com/nodeca/pako/blob/main/LICENSE
+  * @license MIT
+  * @copyright Louis-Dominique Dubeau
+  */function i(e){return e>=65&&e<=90||95===e||e>=97&&e<=122||e>=192&&e<=214||e>=216&&e<=246||e>=248&&e<=767||e>=880&&e<=893||e>=895&&e<=8191||e>=8204&&e<=8205||e>=8304&&e<=8591||e>=11264&&e<=12271||e>=12289&&e<=55295||e>=63744&&e<=64975||e>=65008&&e<=65533||e>=65536&&e<=983039}Object.defineProperty(r,"__esModule",{value:!0}),r.NC_NAME_START_CHAR="A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c-\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd\ud800\udc00-\udb7f\udfff",r.NC_NAME_CHAR="-"+r.NC_NAME_START_CHAR+".0-9\xb7\u0300-\u036f\u203f-\u2040",r.NC_NAME_START_CHAR_RE=new RegExp("^["+r.NC_NAME_START_CHAR+"]$","u"),r.NC_NAME_CHAR_RE=new RegExp("^["+r.NC_NAME_CHAR+"]$","u"),r.NC_NAME_RE=new RegExp("^["+r.NC_NAME_START_CHAR+"]["+r.NC_NAME_CHAR+"]*$","u"),r.isNCNameStartChar=i,r.isNCNameChar=function(e){return i(e)||45===e||46===e||e>=48&&e<=57||183===e||e>=768&&e<=879||e>=8255&&e<=8256}},{}]},{},[15])(15)}));
+-//# sourceMappingURL=exceljs.bare.min.js.map
+\ No newline at end of file
+diff --git a/dist/exceljs.bare.min.js.map b/dist/exceljs.bare.min.js.map
+deleted file mode 100644
+index 96c9412cf921c61954a21ea4d6a70ba03432352e..0000000000000000000000000000000000000000
+diff --git a/dist/exceljs.js b/dist/exceljs.js
+index ab2c9d6e576d8069d77d787b863dfe09c7659890..eb4f01390e4c8ed9550eabb8461c0c6f196c0801 100644
+--- a/dist/exceljs.js
++++ b/dist/exceljs.js
+@@ -59897,4 +59897,3 @@ exports.isNCNameChar = isNCNameChar;
+ 
+ },{}]},{},[15])(15)
+ });
+-//# sourceMappingURL=exceljs.js.map
+diff --git a/dist/exceljs.js.map b/dist/exceljs.js.map
+deleted file mode 100644
+index b2d9fda0b6fd6c0b789b21b16894c524caf613f7..0000000000000000000000000000000000000000
+diff --git a/dist/exceljs.min.js b/dist/exceljs.min.js
+index 0b07c1ee50eefd56c0f363540750bbcc6225b75b..db8015d619026253d574bed2a01865c05baec99a 100644
+--- a/dist/exceljs.min.js
++++ b/dist/exceljs.min.js
+@@ -42,4 +42,3 @@ https://github.com/nodeca/pako/blob/main/LICENSE
+  * @license MIT
+  * @copyright Louis-Dominique Dubeau
+  */function n(e){return e>=65&&e<=90||95===e||e>=97&&e<=122||e>=192&&e<=214||e>=216&&e<=246||e>=248&&e<=767||e>=880&&e<=893||e>=895&&e<=8191||e>=8204&&e<=8205||e>=8304&&e<=8591||e>=11264&&e<=12271||e>=12289&&e<=55295||e>=63744&&e<=64975||e>=65008&&e<=65533||e>=65536&&e<=983039}Object.defineProperty(r,"__esModule",{value:!0}),r.NC_NAME_START_CHAR="A-Z_a-z\xc0-\xd6\xd8-\xf6\xf8-\u02ff\u0370-\u037d\u037f-\u1fff\u200c-\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd\ud800\udc00-\udb7f\udfff",r.NC_NAME_CHAR="-"+r.NC_NAME_START_CHAR+".0-9\xb7\u0300-\u036f\u203f-\u2040",r.NC_NAME_START_CHAR_RE=new RegExp("^["+r.NC_NAME_START_CHAR+"]$","u"),r.NC_NAME_CHAR_RE=new RegExp("^["+r.NC_NAME_CHAR+"]$","u"),r.NC_NAME_RE=new RegExp("^["+r.NC_NAME_START_CHAR+"]["+r.NC_NAME_CHAR+"]*$","u"),r.isNCNameStartChar=n,r.isNCNameChar=function(e){return n(e)||45===e||46===e||e>=48&&e<=57||183===e||e>=768&&e<=879||e>=8255&&e<=8256}},{}]},{},[15])(15)}));
+-//# sourceMappingURL=exceljs.min.js.map
+\ No newline at end of file
+diff --git a/dist/exceljs.min.js.map b/dist/exceljs.min.js.map
+deleted file mode 100644
+index a3173f460ea68ffb78aa196cc1ff77170ec80497..0000000000000000000000000000000000000000

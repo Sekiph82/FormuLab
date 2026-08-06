@@ -5,7 +5,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  addMcpServer: vi.fn(async () => {}),
   loadCatalog: vi.fn(async () => {}),
   /** Resolver for the in-flight setupJupyter promise, so tests hold it open. */
   resolveSetup: (() => {}) as () => void,
@@ -17,10 +16,6 @@ mocks.setupJupyter.mockImplementation(
   () => new Promise<void>((r) => (mocks.resolveSetup = () => r())),
 );
 
-vi.mock("./runtime", () => ({
-  getClient: () => ({ addMcpServer: mocks.addMcpServer }),
-  useRuntimeStore: { getState: () => ({ loadCatalog: mocks.loadCatalog }) },
-}));
 vi.mock("./tauri", () => ({
   setupJupyter: mocks.setupJupyter,
   startJupyter: async () => ({
@@ -31,12 +26,6 @@ vi.mock("./tauri", () => ({
   setupScienceMcp: mocks.setupScienceMcp,
   watchSetupProgress: async () => () => {},
 }));
-vi.mock("./scienceConnectors", () => ({
-  SCIENCE_CONNECTORS: [
-    { id: "papers", label: "Papers", pkg: "paper-search-mcp" },
-  ],
-  connectorConfig: () => ({ type: "local", command: ["/env/bin/python"], enabled: true }),
-}));
 vi.mock("./toast", () => ({ toast: { success: () => {}, error: () => {} } }));
 
 import { useSetupStore } from "./setup";
@@ -46,7 +35,7 @@ beforeEach(() => {
   mocks.setupJupyter.mockImplementation(
     () => new Promise<void>((r) => (mocks.resolveSetup = () => r())),
   );
-  useSetupStore.setState({ jupyterBusy: false, connectorId: null, line: null, generation: 0 });
+  useSetupStore.setState({ jupyterBusy: false, line: null, generation: 0 });
 });
 
 describe("setup store", () => {
@@ -62,7 +51,7 @@ describe("setup store", () => {
     expect(s.jupyterBusy).toBe(false);
     expect(s.line).toBeNull();
     expect(s.generation).toBe(gen0 + 1);
-    expect(mocks.addMcpServer).toHaveBeenCalledWith("jupyter", expect.anything());
+    expect(mocks.setupJupyter).toHaveBeenCalled();
   });
 
   it("ignores a second concurrent enableJupyter — no colliding provisioning run", async () => {
@@ -76,11 +65,4 @@ describe("setup store", () => {
     expect(mocks.setupJupyter).toHaveBeenCalledTimes(1);
   });
 
-  it("tracks the connector being provisioned and clears it when done", async () => {
-    const run = useSetupStore.getState().enableConnector("papers", "key123");
-    expect(useSetupStore.getState().connectorId).toBe("papers");
-    await run;
-    expect(useSetupStore.getState().connectorId).toBeNull();
-    expect(mocks.addMcpServer).toHaveBeenCalledWith("papers", expect.anything());
-  });
 });
