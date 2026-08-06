@@ -200,8 +200,18 @@ Checks: `pnpm test` - `pnpm typecheck` - `pnpm lint`.
   connections are human-approved flows in the app.
 - Provider credentials are written to app-private runtime config, never to the
   workspace, provenance, git, or exports.
+- Full network-communication disclosure: [docs/PRIVACY.md](docs/PRIVACY.md).
+  Vulnerability reporting: [SECURITY.md](SECURITY.md).
 
 ## License
 
 MIT — see [LICENSE](LICENSE). FormuLab builds on an open-source, MIT-licensed
 research-workbench foundation; that copyright notice is retained in `LICENSE`.
+
+## Code signing
+
+Windows releases are prepared for free HSM-backed signing through
+[SignPath Foundation](https://signpath.org)'s open-source program — see
+[docs/CODE_SIGNING_POLICY.md](docs/CODE_SIGNING_POLICY.md). Signing is not
+yet active; every current release is disclosed as unsigned in its own
+release notes.

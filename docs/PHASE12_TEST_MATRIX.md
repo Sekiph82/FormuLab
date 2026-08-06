@@ -28,48 +28,87 @@ No source code was changed. Verification performed:
   `Get-AuthenticodeSignature` confirmed `NotSigned` on all three) was
   inspected as evidence, not rebuilt.
 
-## Planned per-session test discipline (Sessions 1-8, proportional)
+## Session 1 (Free Open-Source Code-Signing Foundation): documentation + one line-scope fix
 
-Each implementation session runs targeted tests for what it touched,
-matching `AGENTS.md`'s "targeted tests during implementation sessions,
-full regression only in closure sessions" convention — the same
-discipline Phase 11 Sessions 1-9 followed. Concrete expectations, set
-now so each session has a checkable bar without re-deriving it:
+Certificate route decided (SignPath Foundation free OSS program, given by
+the user — no paid alternative considered). Repository policy/privacy/
+security documentation and the SignPath application dossier prepared. No
+GitHub Actions workflow added or changed. Verification performed:
 
-- **Session 1 (Code-Signing Foundation)**: no application test changes
-  expected (CI-workflow-only); verification is `signtool verify`/
-  provider-equivalent succeeding in CI on a real signed artifact, not a
+- `git diff --check` — clean.
+- Version consistency re-checked: `package.json` (root),
+  `apps/desktop/package.json`, `tauri.conf.json`, `Cargo.toml` all still
+  agree at `0.4.0`.
+- `bash -n scripts/dev/fetch-skills.sh` — clean, after correcting a
+  factually wrong license comment (the only source-adjacent file this
+  session touched; a comment-only change, no behavior change, so no
+  broader test suite was required or run per this session's own
+  instruction).
+- Every eligibility claim in `docs/SIGNPATH_APPLICATION.md` and
+  `docs/PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md` §9 traced to a
+  direct `gh api`/`grep`/`git shortlog`/`WebFetch` command run this
+  session — including the real blocker found (`gh api
+  repos/Sekiph82/FormuLab/releases` → `[]`) and the corrected license
+  finding (`anthropics/skills`' per-skill `LICENSE.txt`, fetched and read
+  directly, not assumed from a prior in-repo comment).
+- Link check (manual, not automated — no link-checker tool exists in this
+  repository yet): every cross-reference added this session
+  (`README.md` → `SECURITY.md`/`docs/PRIVACY.md`/
+  `docs/CODE_SIGNING_POLICY.md`; `SECURITY.md` → `docs/PRIVACY.md`/
+  `docs/CODE_SIGNING_POLICY.md`; `docs/CODE_SIGNING_POLICY.md` →
+  `docs/SIGNPATH_APPLICATION.md`) confirmed to point at a file that
+  actually exists in this commit.
+
+## Planned per-session test discipline (Sessions 2-11, proportional)
+
+Renumbered in Session 1 to insert the release-publication remediation
+session (§8 of the architecture doc) ahead of the SignPath application
+itself. Each implementation session runs targeted tests for what it
+touched, matching `AGENTS.md`'s "targeted tests during implementation
+sessions, full regression only in closure sessions" convention — the same
+discipline Phase 11 Sessions 1-9 followed. Concrete expectations, set now
+so each session has a checkable bar without re-deriving it:
+
+- **Session 2 (First Public Release Publication)**: no application test
+  changes expected — this session only runs the existing, never-yet-run
+  `build.yml` pipeline against a real tag. Verification is the published
+  release existing and its artifacts matching what local `pnpm tauri
+  build` output looks like, not a Vitest/Rust test.
+- **Session 3 (SignPath Application and Approval Gate)**: no tests — an
+  external review-and-wait session.
+- **Session 4 (Signing wired for real)**: `signtool verify`/SignPath's
+  own verification succeeding in CI on a real signed artifact, not a
   Vitest/Rust test.
-- **Session 2 (Signed update manifest + updater plugin wiring)**: new
+- **Session 5 (Signed update manifest + updater plugin wiring)**: new
   Rust tests for the extended `ReleaseMetadata` fields (channel,
   `minSchemaSupported`, signature/SHA256 presence validation) mirroring
   Phase 11 Session 9's own `updates.rs` test style exactly (one fixture +
   one assertion per rejection reason); new `update.test.ts` tests for
   manifest parsing.
-- **Session 3 (Secure download/verify/install)**: HTTPS redirect-target
+- **Session 6 (Secure download/verify/install)**: HTTPS redirect-target
   validation tests (mirroring `is_https_url`'s existing test style);
   restart-flag/first-run-marker tests.
-- **Session 4 (Mandatory pre-update backup + update journal)**: new
+- **Session 7 (Mandatory pre-update backup + update journal)**: new
   Rust tests for the `"preUpdate"` backup class and `update_journal.jsonl`
   read/write/interrupted-detection, mirroring `migration.rs`'s and
   `data_location_manager.rs`'s own existing journal test patterns
   directly (same fixture style: synthetic temp directories only, no real
   data).
-- **Session 5 (Startup health check + rollback trigger/execution)**: a
+- **Session 8 (Startup health check + rollback trigger/execution)**: a
   pure `resume_decision`-style function for rollback state, directly
   unit-tested without an `AppHandle`, matching
   `data_location_manager.rs::resume_decision`'s own precedent exactly.
-- **Session 6 (Rollback retention + limits + recovery UI)**: retention
+- **Session 9 (Rollback retention + limits + recovery UI)**: retention
   tests mirroring `automatic_backup.rs::apply_retention`'s existing
   "never deletes the last valid one, even at a configured floor" test
   directly; new `*Card.test.tsx` tests for the recovery UI.
-- **Session 7 (Channels + staged rollout + eligibility)**: pure-function
+- **Session 10 (Channels + staged rollout + eligibility)**: pure-function
   tests for `shouldReceiveRollout`, schema-compatibility gating, and
   downgrade-prevention-via-manifest-freshness — mirroring
   `isNewerVersion`/`shouldAutoCheck`'s existing pure-function test style.
-- **Session 8 (CI/CD release automation closure)**: a real dry-run tag
+- **Session 11 (CI/CD release automation closure)**: a real dry-run tag
   push against a test/scratch release, not a Vitest/Rust suite.
-- **Session 9 (Commercial Release Closure and Verification)**: full
+- **Session 12 (Commercial Release Closure and Verification)**: full
   regression — full Rust suite, full desktop suite, full shared suite,
   typecheck, lint, i18n parity, help registry — matching Phase 11 Stage 1
   and Stage 2 Closure's own precedent exactly, plus this phase's own
@@ -78,11 +117,11 @@ now so each session has a checkable bar without re-deriving it:
   install, a verified automatic rollback (deliberately induced failure),
   and a final clean-machine Windows installation test.
 
-## What no session before Session 9 runs
+## What no session before Session 12 runs
 
 Per this phase's own scope (mirroring Phase 11's identical discipline):
 no session before the closure session runs the full desktop suite, full
 shared suite, full Rust suite, typecheck, lint, release build, or
 installer build as a matter of course — each runs targeted tests for
 what it touched, with full regression and native/signed verification
-reserved for Session 9.
+reserved for Session 12.

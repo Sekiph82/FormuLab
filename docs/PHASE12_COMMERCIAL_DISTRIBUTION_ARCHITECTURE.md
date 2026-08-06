@@ -1,10 +1,19 @@
 # Phase 12 — Commercial Distribution Architecture
 
-Assessment and design only (Session 0). No signing, update download,
-update execution, or rollback implemented this session — every claim
-below is either evidenced from the current repository or explicitly
-marked as a decision/verification deferred to a numbered implementation
-session.
+Assessment and design (Session 0), extended by Session 1's certificate-
+route decision and repository preparation. No signing, update download,
+update execution, or rollback has been implemented as of either session —
+every claim below is either evidenced from the current repository or
+explicitly marked as a decision/verification deferred to a numbered
+implementation session.
+
+**Certificate/provider decision (§1.8, §3.1, §4 below): RESOLVED in
+Session 1.** The project has zero code-signing budget — the user
+directed use of **SignPath Foundation's free open-source HSM-backed
+signing program**, explicitly ruling out any paid OV/EV certificate or
+Azure Artifact Signing. Full Session 1 findings, the eligibility
+self-check, the one real blocker found, and the policy documents/
+application dossier prepared: §9.
 
 ## 1. Current-state assessment (evidenced)
 
@@ -575,8 +584,10 @@ Release / Download" stays exactly as it is today.
 
 ## 5. Unresolved decisions
 
-1. Certificate model and provider (§1.8, §3.1) — blocks Session 1
-   entirely until answered.
+1. ~~Certificate model and provider (§1.8, §3.1)~~ — **RESOLVED in
+   Session 1**: SignPath Foundation's free OSS program, per explicit user
+   direction (zero budget; no paid OV/EV/Azure Artifact Signing route).
+   See §9.
 2. Beta/internal channel: build it now (§3.8) or defer to a later phase —
    affects whether Session 6 (channels) is in-scope for this phase's
    closure or pushed out.
@@ -621,41 +632,66 @@ Release / Download" stays exactly as it is today.
 
 ## 7. Proposed Phase 12 session plan
 
-Continuous numbering, beginning at Session 0 (this session).
+Continuous numbering, beginning at Session 0. Renumbered in Session 1 to
+insert a real, evidenced blocker-remediation session (§9) ahead of the
+SignPath application itself — publishing FormuLab's first-ever GitHub
+Release turned out to be a genuine prerequisite, not an assumption.
 
-- **Session 0** — Commercial Distribution Assessment (this session).
-  Assessment and architecture only. Complete.
-- **Session 1** — Code-signing foundation. Confirm certificate/provider
-  decision (§4) has been made by the user; wire the CI signing step into
-  `build.yml` for `formulab.exe`/MSI/NSIS; add the `signtool verify`
-  (or provider-equivalent) CI gate; add environment-protected secrets;
-  confirm exact `tauri-plugin-updater` version and add the dependency
-  (Rust + JS) without wiring it up yet.
-- **Session 2** — Signed update manifest + updater plugin wiring. Add
+- **Session 0** — Commercial Distribution Assessment. Assessment and
+  architecture only. Complete.
+- **Session 1** — Free Open-Source Code-Signing Foundation. Certificate
+  route decided (SignPath Foundation, free OSS program — zero budget, no
+  paid alternative). Eligibility self-checked against SignPath's
+  published conditions; repository policy/privacy/signing documents and
+  a copy-paste-ready application dossier prepared; one real blocker
+  found (no release has ever been published). Complete — full detail §9.
+- **Session 2** — First Public Release Publication (bounded remediation
+  for the blocker found in Session 1). Tag a real version (`v0.4.0` or
+  current), let the existing unsigned `build.yml` pipeline build and
+  draft a release exactly as it's designed to, review it, and **publish**
+  it — still unsigned, disclosed as such exactly like every artifact has
+  been throughout Phase 11. Re-run the eligibility self-check (§9) against
+  the live, published release page. No signing, no CI changes, no new
+  code — this session only exercises a pipeline that has existed since
+  before Phase 12 and has simply never been run end to end.
+- **Session 3** — SignPath Application and Approval Gate. Submit the
+  dossier (`docs/SIGNPATH_APPLICATION.md`) now that a real release exists;
+  this is largely an external-review wait, bounded to: submit, track,
+  and record the outcome (approved with real
+  organization/project/policy/connector identifiers, or specific
+  feedback to address and reapply).
+- **Session 4** — Signing wired for real. Replace the documentation-only
+  GitHub Actions example (§9) with a live workflow step using the real
+  SignPath identifiers from Session 3; add the `signtool verify`
+  CI gate; add the environment-protected secret
+  (`SIGNPATH_API_TOKEN`)/variable (`SIGNPATH_ORGANIZATION_ID`); confirm
+  exact `tauri-plugin-updater` version and add the dependency (Rust + JS)
+  without wiring the updater itself up yet.
+- **Session 5** — Signed update manifest + updater plugin wiring. Add
   `bundle.createUpdaterArtifacts`; generate the Ed25519 updater keypair;
   extend `updates.rs`/`lib/update.ts`'s contract with the new manifest
   fields (§3.5); wire `tauri-plugin-updater`'s `check()`/`downloadAndInstall()`
   behind the existing check-only UI's "install" action (previously just
   "View Release / Download").
-- **Session 3** — Secure download/verify/install, end to end. HTTPS
+- **Session 6** — Secure download/verify/install, end to end. HTTPS
   redirect-target validation (§3.7); SHA256 pre-check alongside the
   plugin's own signature check (§3.6); restart behavior (§3.15).
-- **Session 4** — Mandatory pre-update backup + update journal. New
+- **Session 7** — Mandatory pre-update backup + update journal. New
   `"preUpdate"` backup class; `update_journal.jsonl`; abort-before-
   touching-anything on backup failure, matching §3.12.
-- **Session 5** — Startup health check + rollback trigger + rollback
+- **Session 8** — Startup health check + rollback trigger + rollback
   execution. §3.16-3.17; the actual rollback mechanism (restore the
   pre-update backup, reinstall the retained previous version).
-- **Session 6** — Rollback retention + limits + failed-update recovery
+- **Session 9** — Rollback retention + limits + failed-update recovery
   UI. §3.18-3.20.
-- **Session 7** — Channels + staged rollout + update eligibility rules
+- **Session 10** — Channels + staged rollout + update eligibility rules
   (schema compatibility, downgrade prevention hardening). §3.8-3.11 —
   contingent on the unresolved-decision answers in §5.
-- **Session 8** — CI/CD release automation closure. Version-bump
+- **Session 11** — CI/CD release automation closure. Version-bump
   single-source tooling (§1.4); release-provenance line in release notes
   (§3.23); offline/manual fallback re-confirmed still works end to end
   (§3.21); full release workflow dry run on a real test tag.
-- **Session 9** — Commercial Release Closure and Verification. Full
+- **Session 12** — Commercial Release Closure and Verification. Full
   regression (mirroring every prior phase's closure discipline); a real
   signed release built and inspected (`Get-AuthenticodeSignature` =
   `Valid`, not `NotSigned`); a verified in-app update install on a real
@@ -666,13 +702,212 @@ Continuous numbering, beginning at Session 0 (this session).
   docs, matching Phase 11 Stage 1/Stage 2 Closure's own precedent.
 
 Each session stays bounded to one related subsystem and one logical
-commit, per `AGENTS.md`'s existing phase-handoff convention. Sessions 1-8
-are implementation sessions (targeted tests only, per `AGENTS.md`); full
-regression, release builds, and native verification are reserved for
-Session 9, matching every prior phase's closure discipline.
+commit, per `AGENTS.md`'s existing phase-handoff convention. Sessions 2-11
+are implementation/process sessions (targeted tests only, per
+`AGENTS.md`); full regression, release builds, and native verification
+are reserved for Session 12, matching every prior phase's closure
+discipline.
 
 ## 8. Exact next session
 
-**Phase 12 Session 1: Code-Signing Foundation.** Blocked on the user's
-certificate/provider decision (§4, item 1) — cannot meaningfully begin
-until that answer exists.
+**Phase 12 Session 2: First Public Release Publication.** A real
+repository-eligibility blocker was found in Session 1 (§9) — SignPath
+requires the project already be released in the form to be signed, and
+FormuLab has never published a release (zero tags, zero GitHub releases,
+draft or otherwise). This is a bounded remediation session, not the
+SignPath application itself: publish FormuLab's first real (still
+unsigned, still disclosed as unsigned) GitHub Release using the existing,
+never-yet-run `build.yml` pipeline. Only once that exists does Session 3
+(SignPath Application and Approval Gate) become meaningful.
+
+## 9. Session 1 — Free Open-Source Code-Signing Foundation (complete)
+
+**Scope**: business decision from the user (zero code-signing budget —
+use SignPath Foundation's free open-source program; no paid OV/EV
+certificate, no Azure Artifact Signing). Verify repository eligibility
+against SignPath's own published conditions; prepare policy/privacy/
+security documentation and a copy-paste-ready application dossier;
+design (but do not activate) the GitHub Actions signing integration and
+the nested signing order. No signing, update download, update execution,
+or rollback implemented.
+
+### Eligibility conditions — sourced directly, not from memory
+
+Fetched directly from `signpath.org/terms.html` this session (quoted
+verbatim in the eligibility table below) rather than relied on from
+general knowledge, matching this project's own "evidenced not assumed"
+discipline. Cross-checked against `ossperks.com`'s and other independent
+summaries via web search for consistency.
+
+### Eligibility result: 6 of 7 conditions met; 1 real blocker found
+
+See `docs/SIGNPATH_APPLICATION.md`'s own eligibility table for the full
+condition-by-condition evidence. Summary:
+
+- **License** — MIT, OSI-approved, no dual-licensing. Met.
+- **Public repository** — confirmed via `gh api repos/Sekiph82/FormuLab`
+  (`"private":false,"visibility":"public"`). Met.
+- **Actively maintained** — commits on essentially every recent working
+  day, most recent the same day as this session. Met.
+- **No malware/PUP/security-circumvention features** — met by inspection;
+  nothing in this codebase does either.
+- **GitHub-hosted build origin** — `build.yml`'s Windows job already runs
+  on `windows-latest` (GitHub-hosted), which is what SignPath's GitHub
+  connector requires for OSS-tier origin verification (confirmed via
+  SignPath's own published GitHub integration documentation, fetched this
+  session). Met.
+- **No proprietary component** — met, **but only as currently
+  configured**, and only after this session found and corrected a real
+  problem: see "Real finding" below.
+- **"Must already be released in the form that should be signed"** —
+  **NOT met.** `gh api repos/Sekiph82/FormuLab/releases` returns `[]`;
+  `git tag -l` is empty. Zero releases, draft or published, have ever
+  existed. This is the one genuine repository-eligibility blocker this
+  session found — see §8 above for the remediation session it requires.
+
+### Real finding: a bundled component's license was misdocumented
+
+Investigating "does any proprietary first-party component exist" led to
+checking every third-party component `scripts/dev/fetch-*.sh` pulls in at
+build time, individually, by license:
+
+- OpenCode sidecar (`anomalyco/opencode`) — MIT, confirmed via
+  `gh api repos/anomalyco/opencode`.
+- `uv` sidecar (`astral-sh/uv`) — Apache-2.0, confirmed the same way.
+- `ai4s-skills` (`ai4s-research/ai4s-skills`) — MIT, confirmed the same
+  way.
+- `anthropic-skills` (`anthropics/skills`, the docx/pdf/pptx/xlsx document
+  skills) — **`scripts/dev/fetch-skills.sh`'s own comment claimed this
+  was "the Apache-2.0 licensed anthropics/skills repo."** Checked
+  directly: the repository has **no root `LICENSE` file** (GitHub's own
+  API reports `license: null`), and each individual skill directory
+  (`skills/docx/LICENSE.txt`, fetched and read directly) instead reads:
+  *"(c) 2025 Anthropic, PBC. All rights reserved... governed by your
+  agreement with Anthropic regarding use of Anthropic's services."* This
+  is a proprietary license, not Apache-2.0 — the in-repo comment was
+  factually wrong. **Corrected this session** in
+  `scripts/dev/fetch-skills.sh` (a one-line-scope comment fix, syntax-
+  checked with `bash -n`, no behavior change).
+- Whether this actually threatens eligibility depends entirely on whether
+  this content ends up **inside the signed artifact** — checked directly:
+  `tauri.conf.json`'s `bundle.resources` only lists
+  `runtime/skills/core` (FormuLab's own first-party skills),
+  `runtime/harness`, and two example project directories.
+  `runtime/skills/external/` (where both `ai4s-skills` and
+  `anthropic-skills` are fetched by CI) is **not** in that list, and nothing
+  in `apps/desktop/src-tauri/src` references either directory (checked via
+  `grep`). **Conclusion: the proprietary content is fetched by CI but
+  never bundled into any built installer today** — the "no proprietary
+  component" condition is genuinely met by what actually ships, not
+  merely assumed. This must stay true; the correction above and
+  `docs/SIGNPATH_APPLICATION.md`'s own note both flag that
+  `bundle.resources` must be re-checked before ever adding
+  `runtime/skills/external/` to it.
+
+### Secondary finding: dead CI step fetching an unused component
+
+The same investigation found `fetch-goal-plugin.sh` still runs in
+`build.yml`, fetching `@prevalentware/opencode-goal-plugin` from npm
+(MIT-licensed, no eligibility concern) — but zero references to
+`goal_plugin`/`ensure_goal_plugin`/`goal.rs` exist anywhere in
+`apps/desktop/src-tauri/src` today, despite `PROGRESS.md` (2026-07-15)
+describing this feature as shipped and wired in. The feature appears to
+have been removed from the application since; the fetch step was not
+removed alongside it. Not a SignPath-eligibility concern (the package is
+MIT and, like the skills above, not in `bundle.resources` either) — noted
+here as a repository-hygiene finding for a future session to decide
+whether to remove, not acted on in this session (out of this session's
+scope, and removing a CI step is a build-pipeline change this session
+was explicitly told to leave prepared-but-inactive, not to start editing
+for unrelated cleanup).
+
+### Roles — disclosed honestly, not padded
+
+SignPath's Author/Reviewer/Approver model is recorded against FormuLab's
+real structure: a single maintainer (`Sekiph82`, confirmed 235/235
+commits via `git shortlog -sne --all`, no `CODEOWNERS` file, no external
+contributors to date). Reviewers and a second Approver are recorded as
+"not yet applicable" rather than invented — full detail and the honest-
+disclosure rationale in `docs/CODE_SIGNING_POLICY.md`.
+
+### Policy documents created this session
+
+- `SECURITY.md` (repository root) — vulnerability reporting (GitHub
+  private vulnerability reporting as the preferred channel, deliberately
+  avoiding publishing a personal email to a public repository), scope,
+  response-time honesty (single-maintainer, no formal SLA), a pointer to
+  the code-signing verification instructions.
+- `docs/PRIVACY.md` — a complete network-communication inventory
+  (LLM provider calls using the user's own key, the update-metadata
+  check, OpenAlex literature search, explicit "open externally" clicks —
+  and nothing else, re-verified this session: zero telemetry/analytics/
+  crash-reporting SDK anywhere in `apps/desktop/src` or
+  `apps/desktop/src-tauri/src`).
+- `docs/CODE_SIGNING_POLICY.md` — SignPath attribution text (required by
+  its OSS conditions), roles, release-approval policy, the full nested
+  signing order (sign exe → package installers → sign installers →
+  verify → publish SHA256), artifact scope (`formulab.exe`, NSIS, MSI —
+  explicitly not macOS/Linux), deterministic naming, verification
+  instructions (`Get-AuthenticodeSignature`/`Get-FileHash`), release-
+  provenance expectations, and explicit "not active" status for the
+  GitHub Actions integration.
+- `docs/SIGNPATH_APPLICATION.md` — the copy-paste-ready dossier (project
+  description, repository URL, license, release/download URL,
+  maintainers, reviewers, signing approvers, security/privacy/code-
+  signing policy URLs, build workflow, artifacts to be signed,
+  justification) plus the eligibility self-check table and an
+  application checklist whose first item is the blocker remediation
+  (§8).
+- `README.md` — linked the above from Safety and Privacy, and added a
+  short Code Signing section stating signing is prepared but not active.
+
+### GitHub Actions integration — prepared, documentation-only, not activated
+
+No `.github/workflows/*.yml` file was added or modified this session
+(`build.yml` itself is untouched). Per this session's explicit
+instruction, the SignPath submission step is recorded as an annotated
+example only, in `docs/CODE_SIGNING_POLICY.md`, referencing SignPath's
+own published `signpath/github-action-submit-signing-request@v2` action
+and its real required inputs (`api-token` from a `SIGNPATH_API_TOKEN`
+secret, `organization-id` from a `SIGNPATH_ORGANIZATION_ID` variable,
+`project-slug`, `signing-policy-slug`, `github-artifact-id`) — every
+identifier a genuine placeholder-free description of what's needed, never
+a fabricated value that could be mistaken for real configuration. Wiring
+this for real is Session 4's work, after Session 3's approval supplies
+the actual identifiers.
+
+### Nested signing order and artifact scope — designed, not yet executed
+
+Recorded in full in `docs/CODE_SIGNING_POLICY.md`: sign `formulab.exe` →
+package MSI/NSIS around the now-signed exe → sign each installer as its
+own outer package → CI-side `signtool verify` gate → publish SHA256 for
+all three. Scope is exactly `formulab.exe`, the NSIS installer, and the
+MSI installer — macOS/Linux signing explicitly out of scope for this
+free-OSS-Windows-only program.
+
+### Tests
+
+`git diff --check`: clean. Version-consistency check re-run: all four
+version literals (`package.json` root, `apps/desktop/package.json`,
+`tauri.conf.json`, `Cargo.toml`) still agree at `0.4.0`. `bash -n` on the
+one shell-script comment fix (`scripts/dev/fetch-skills.sh`): clean. No
+broad product suite run — no application source code changed, per this
+session's own instruction.
+
+### Limitations and unresolved items carried forward
+
+- The release-publication blocker itself (§8) — the load-bearing item.
+- SignPath's actual review outcome is unknown and unclaimed — this
+  session prepares the application, it does not submit or claim
+  approval, per explicit instruction.
+- Reviewer/second-Approver roles remain "not yet applicable" — a real
+  structural limitation of a single-maintainer project, not hidden but
+  not solved by this session either.
+- The dead `fetch-goal-plugin.sh` CI step (secondary finding above) is
+  noted, not removed — a future session's call, not this one's.
+- GitHub's own license detector reports `NOASSERTION` for this repository
+  despite a clearly valid root `LICENSE` file (MIT) — likely because the
+  file's trailing third-party-skills note breaks GitHub's automatic SPDX
+  match; harmless for a human SignPath reviewer reading the actual file,
+  but noted since it could look like a licensing red flag from GitHub's
+  UI alone.

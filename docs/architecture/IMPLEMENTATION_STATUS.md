@@ -1577,7 +1577,7 @@ for deterministic passing.
 Phase 12 Session 0 (Commercial Distribution Assessment — signed
 installers/updates, secure update installation, automatic rollback).
 
-### Commercial Distribution (Phase 12, Session 0) — ASSESSMENT ONLY, NOT IMPLEMENTED
+### Commercial Distribution (Phase 12, Sessions 0-1) — ASSESSMENT + SIGNING-FOUNDATION PREP, NOT IMPLEMENTED
 Assessment and architecture for signed installers, a signed update
 manifest, secure in-app update download/install, update verification,
 automatic rollback, release channels, schema-compatibility gating,
@@ -1615,12 +1615,34 @@ primitives (`try_create_backup`/`verify_backup_report`, the
 migration-journal and data-move-journal "append-only journal + pure
 resume-decision function" pattern) rather than new parallel mechanisms.
 
-**Unresolved, blocking Session 1**: the Windows code-signing certificate
-model and provider (OV file/token vs. EV/cloud-HSM service) is a business
-decision not made this session — Session 1 cannot meaningfully begin
-until it exists.
+**Session 1 (Free Open-Source Code-Signing Foundation) — complete.**
+Certificate route decided by explicit user direction: zero budget, use
+**SignPath Foundation's free open-source HSM-backed signing program**,
+no paid OV/EV certificate, no Azure Artifact Signing. Eligibility
+checked directly against SignPath's own published conditions
+(`signpath.org/terms.html`, fetched this session): 6 of 7 met. **One
+real blocker found**: `gh api repos/Sekiph82/FormuLab/releases` returns
+`[]` — FormuLab has never published a release, and SignPath requires the
+project already be released in the form to be signed. A second real
+finding: `scripts/dev/fetch-skills.sh`'s own comment incorrectly called
+the bundled `anthropics/skills` document-skills content "Apache-2.0" —
+verified directly (its per-skill `LICENSE.txt` reads "All rights
+reserved," proprietary) and corrected; separately confirmed this content
+is not actually bundled into any built installer (`tauri.conf.json`'s
+`bundle.resources` excludes it), so the "no proprietary component"
+condition is genuinely met by what ships today. New:
+`SECURITY.md`, `docs/PRIVACY.md`, `docs/CODE_SIGNING_POLICY.md`,
+`docs/SIGNPATH_APPLICATION.md` (a copy-paste-ready application dossier +
+eligibility table + checklist). No GitHub Actions workflow added or
+activated — the SignPath submission step is documentation-only in
+`docs/CODE_SIGNING_POLICY.md`, with no fake credentials or placeholder
+secrets. Full detail: `PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md`
+§9.
 
-**Phase 12 status: Session 0 complete, no implementation started.**
+**Phase 12 status: Sessions 0-1 complete. Next: Session 2 (First Public
+Release Publication) — a bounded remediation session for the blocker
+found above, before Session 3 (SignPath Application and Approval Gate).
+No implementation started.**
 
 ## Not yet started
 

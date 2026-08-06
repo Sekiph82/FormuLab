@@ -1,6 +1,6 @@
 # Phase 12 — Commercial Distribution
 
-## Status: SESSION 0 (Assessment and Architecture) COMPLETE. No implementation started.
+## Status: SESSION 1 (Free Open-Source Code-Signing Foundation) COMPLETE. Certificate route decided (SignPath Foundation free OSS program). Repository preparation complete. One real eligibility blocker found — no release has ever been published — requiring a bounded remediation session before the SignPath application itself. No implementation started.
 
 ## Priority order for Phase 12 (as given)
 
@@ -71,7 +71,8 @@ decision (§2), full architecture across signing/manifest/channels/
 rollout/eligibility/backup/journal/handoff/restart/health-check/
 rollback/CI-secrets/provenance (§3), a clear Tauri-vs-repo-vs-CI-vs-
 external-vs-business-decision separation table (§4), unresolved
-decisions (§5), risks (§6), the proposed 10-session plan (§7).
+decisions (§5), risks (§6), the proposed 13-session plan (§7, renumbered
+in Session 1), and Session 1's own eligibility/preparation findings (§9).
 
 ### Test plan
 [`docs/PHASE12_TEST_MATRIX.md`](../PHASE12_TEST_MATRIX.md) — Session 0
@@ -103,20 +104,81 @@ certificate management, auditability) are architecture-only this session
 — see the proposed session plan (architecture doc §7) for where each is
 actually built.
 
-## Unresolved decisions blocking Session 1
+## Session 1 summary — Free Open-Source Code-Signing Foundation (complete)
 
-See architecture doc §5 in full; the load-bearing one: **certificate
-model and provider** (OV file/token vs. EV/cloud-HSM service — architecture
-doc §1.8, §3.1, §4) has not been decided by the user. Session 1 cannot
-meaningfully begin until this exists.
+**Business decision (given, not this session's to make)**: zero
+code-signing budget — use SignPath Foundation's free open-source
+HSM-backed signing program exclusively; no paid OV/EV certificate, no
+Azure Artifact Signing. This session prepares the repository only —
+SignPath has not reviewed or approved anything, and no claim to the
+contrary appears anywhere in this session's documentation.
+
+### Key finding: eligibility is 6-of-7 met, one real blocker
+Checked directly against SignPath's own published conditions
+(`signpath.org/terms.html`, fetched this session rather than assumed from
+memory): license, public repository, active maintenance, no malware/
+security-circumvention features, GitHub-hosted build origin, and "no
+proprietary component" (see next finding) are all met. **"The project
+must already be released in the form that should be signed" is NOT
+met** — `gh api repos/Sekiph82/FormuLab/releases` returns `[]`, `git tag
+-l` is empty. FormuLab has never published a release, draft or
+otherwise, despite having a working release pipeline
+(`.github/workflows/build.yml`) that has simply never been run end to
+end. This is the one real repository-eligibility blocker.
+
+### Key finding: a bundled component's license was misdocumented, and the fix mattered
+Checking "does any proprietary component exist" individually against
+every third-party binary/package `scripts/dev/fetch-*.sh` pulls in found
+that `fetch-skills.sh`'s own comment incorrectly called the
+`anthropics/skills` document-skills content "Apache-2.0" — verified
+directly, it carries a proprietary "(c) Anthropic, PBC. All rights
+reserved" `LICENSE.txt` per skill directory instead. Corrected the
+comment this session. Separately confirmed via `tauri.conf.json`'s
+`bundle.resources` and a source grep that this content (and `ai4s-skills`,
+which genuinely is MIT) is fetched by CI but **never actually bundled
+into any built installer** — so the "no proprietary component" condition
+is genuinely met by what ships today, not merely assumed, but this now
+rests on `bundle.resources` staying exactly as it is. Full detail:
+architecture doc §9.
+
+### Key finding: roles disclosed honestly — single maintainer, no padding
+SignPath's Author/Reviewer/Approver model is recorded against FormuLab's
+real, evidenced structure (`git shortlog -sne --all`: 235/235 commits,
+one contributor, no `CODEOWNERS`) — Reviewer and a second Approver are
+recorded as "not yet applicable," not invented. Full detail:
+`docs/CODE_SIGNING_POLICY.md`.
+
+### Policy documents created this session
+`SECURITY.md` (root), `docs/PRIVACY.md`, `docs/CODE_SIGNING_POLICY.md`,
+`docs/SIGNPATH_APPLICATION.md` (the copy-paste-ready dossier +
+eligibility table + application checklist), and a small `README.md`
+update linking all three. Full content and rationale: architecture doc
+§9.
+
+### GitHub Actions integration: prepared, not activated
+No workflow file was added or changed. The SignPath submission step is
+recorded as a documentation-only annotated example in
+`docs/CODE_SIGNING_POLICY.md`, referencing SignPath's own published
+GitHub Action and its real required inputs — no fake credentials,
+certificate data, or placeholder secrets anywhere. Wiring it for real
+happens in Session 4, after Session 3 supplies genuine identifiers.
+
+### Repository preparation as a small code fix, not just docs
+One line-scope correction to `scripts/dev/fetch-skills.sh` (the
+misdocumented-license comment above) — syntax-checked with `bash -n`,
+no behavior change, no test suite affected.
 
 ## Inspection commands run this session
 
-See the architecture doc's own §1 for the exact `grep`/`find`/`curl`
-evidence backing each finding — recorded once per finding rather than
-duplicated here.
+See the architecture doc's own §1 (Session 0) and §9 (Session 1) for the
+exact `grep`/`find`/`curl`/`gh api`/`WebFetch` evidence backing each
+finding — recorded once per finding rather than duplicated here.
 
 ## Exact next session
 
-Phase 12 Session 1: Code-Signing Foundation. Blocked on the user's
-certificate/provider decision.
+**Phase 12 Session 2: First Public Release Publication.** Bounded
+remediation for the eligibility blocker found this session — publish
+FormuLab's first real (still unsigned, still disclosed as unsigned)
+GitHub Release via the existing, never-yet-run `build.yml` pipeline.
+Only then does Session 3 (SignPath Application and Approval Gate) become
+meaningful.
