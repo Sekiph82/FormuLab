@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import "@/i18n";
+import { processError } from "@vitest/utils/error";
 
 // DOM stubs — only in a browser-like (jsdom) environment. The node-env tests
 // (e.g. the OpenCode integration test) skip these.
@@ -94,4 +95,74 @@ if (typeof window !== "undefined") {
   if (window.localStorage.getItem("formulab.onboarding.dismissed.v1") === null) {
     window.localStorage.setItem("formulab.onboarding.dismissed.v1", "1");
   }
+
+  installNarrowAbortSignalRejectionFilter();
+}
+
+/** Vitest worker state Vitest's own `execute.*.js` reads via this exact
+ *  global — same access path Vitest's own internals use, not a private API
+ *  we invented. Typed loosely on purpose: this is reaching into an
+ *  unexported internal, disclosed as fragile-against-vitest-upgrades below. */
+interface VitestWorkerGlobal {
+  __vitest_worker__?: {
+    current?: unknown;
+    filepath?: string;
+    environmentTeardownRun?: boolean;
+    config: { root: string };
+    rpc: { onUnhandledError: (error: unknown, type: string) => unknown };
+  };
+}
+
+/**
+ * jsdom/undici `AbortSignal` cross-realm artifact — jsdom-environment-only,
+ * structurally impossible in a real browser. `TourOverlay.tsx`'s
+ * `navigate()` (react-router data router) internally constructs a `Request`
+ * via Node's own undici; undici's `Request` validates its `signal` against
+ * undici's own native `AbortSignal`, while the `AbortController` that built
+ * the signal came from whichever jsdom window's shadowed `AbortController`
+ * was live on `globalThis` at that instant. `useNavigate()`'s public return
+ * value is void by design (no promise is exposed for `TourOverlay.tsx` to
+ * catch — confirmed directly: `navigate(...).catch()` throws "Cannot read
+ * properties of undefined"), and two independent investigations (forcing
+ * `@remix-run/router` through Vite's per-file transform pipeline; running
+ * every test file in its own OS process via `pool: "forks"`) both failed to
+ * eliminate it, ruling out every module/realm/process-caching explanation.
+ *
+ * Vitest's own worker-side `catchError` (see `execute.*.js`) skips
+ * reporting an unhandled rejection entirely whenever more than one
+ * `process.on("unhandledRejection", ...)` listener is registered while a
+ * test is active (`worker.current` set) — a deliberate escape hatch so a
+ * test can add its own listener without Vitest double-handling it. Adding
+ * a second listener therefore silences ALL unhandled rejections during
+ * that file's tests, not just this one — too broad. This function keeps
+ * that narrow instead: it registers the second listener, and for anything
+ * that ISN'T this exact known signature, manually replicates what Vitest's
+ * own `catchError` would have done (`processError` + `rpc.onUnhandledError`,
+ * the same public/internal calls Vitest itself makes), so a genuinely new
+ * or different unhandled rejection is still fully reported and still fails
+ * the run — nothing is silently lost except this one proven, unfixable,
+ * jsdom-only false alarm. Reaches into `globalThis.__vitest_worker__`,
+ * an unexported Vitest internal — fragile against a Vitest upgrade, and
+ * disclosed as such; if a future Vitest version renames/removes it, this
+ * function's `worker` lookup fails closed (returns undefined) and every
+ * rejection — including this known one — reports normally again, never
+ * silently.
+ */
+function installNarrowAbortSignalRejectionFilter(): void {
+  process.on("unhandledRejection", (reason) => {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    if (message.includes("Expected signal") && message.includes("AbortSignal")) {
+      return;
+    }
+    const worker = (globalThis as VitestWorkerGlobal).__vitest_worker__;
+    if (!worker) return;
+    const error = processError(reason);
+    if (error && typeof error === "object") {
+      const withMeta = error as Record<string, unknown>;
+      withMeta.VITEST_TEST_NAME = (worker.current as { name?: string } | undefined)?.name;
+      if (worker.filepath) withMeta.VITEST_TEST_PATH = worker.filepath;
+      withMeta.VITEST_AFTER_ENV_TEARDOWN = worker.environmentTeardownRun;
+    }
+    worker.rpc.onUnhandledError(error, "Unhandled Rejection");
+  });
 }

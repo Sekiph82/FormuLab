@@ -51,13 +51,25 @@ merely calls with a user-supplied key.
 
 ## Code signing and release integrity
 
-FormuLab's Windows release artifacts (once signed — see
-[`docs/CODE_SIGNING_POLICY.md`](docs/CODE_SIGNING_POLICY.md)) are
-Authenticode-signed via SignPath.io, with the certificate held by SignPath
-Foundation on their own HSM — no private key material is ever stored in
-this repository, in CI logs, or on any maintainer's machine. See the code
-signing policy document for verification instructions once signed releases
-exist.
+**Current status: FormuLab's Windows release artifacts are not signed
+today.** Every `formulab.exe`/MSI/NSIS build to date is `NotSigned`
+(verified directly via `Get-AuthenticodeSignature` on every release build
+this project has produced) — this is disclosed in every current release's
+own notes, not hidden.
+
+The project has applied for [SignPath Foundation](https://signpath.org)'s
+free open-source code-signing program — see
+[`docs/SIGNPATH_APPLICATION.md`](docs/SIGNPATH_APPLICATION.md) for the
+eligibility assessment and dossier. **That application has not been
+approved. No SignPath organization, signing certificate, or signing
+connector exists yet.** Once (if) approved, releases will be
+Authenticode-signed via SignPath.io, with the private key held on
+SignPath Foundation's own HSM — never stored in this repository, in CI
+logs, or on any maintainer's machine — and this section will be updated
+to reflect that as a real, current fact, not before. See
+[`docs/CODE_SIGNING_POLICY.md`](docs/CODE_SIGNING_POLICY.md) for the
+full policy this project intends to follow once signing is active,
+including verification instructions for that future state.
 
 ## Privacy
 

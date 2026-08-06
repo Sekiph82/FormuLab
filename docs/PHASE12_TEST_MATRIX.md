@@ -89,6 +89,87 @@ deferring it to Session 13:
   scan section for the result.
 - `git diff --check`: clean.
 
+**Correction (Session 2A): this closure was genuinely incomplete.** The
+scan above still returned 18 byte-level matches (17 inside third-party
+`.js.map` source maps, 1 inside the NSIS installer's compressed payload),
+accepted at the time as "coincidental" — the user's own standard for
+this project does not accept that classification as a substitute for a
+literal zero result. Separately, the full desktop suite in that closure
+run passed all assertions but the **test process itself exited 1**, also
+wrongly accepted as pre-existing/unrelated. Neither was a true closure.
+See Session 2A below for the real fix to both.
+
+## Session 2A (Identity-Eradication Closure Corrections): the actual closure
+
+Bounded correction session, not a new implementation session — no
+product features touched. Reused Session 2's own closure-style
+verification discipline (full regression, not proportional/targeted),
+since it was correcting that same closure's shortfall.
+
+- **Source-map matches (17 of 18)**: traced to 7 npm packages
+  (`@babel/parser`, `@dimforge/rapier3d-compat`, `@remix-run/router`,
+  `docx-preview`, `exceljs`, `pdf-lib`, `xlsx`) each shipping a `.js.map`
+  file with a coincidental byte match in its encoded mapping data. Fixed
+  by removing sourcemaps from all 7 via reproducible mechanisms (6 via
+  `pnpm patch`/`pnpm.patchedDependencies`; 1 — `xlsx`, a tarball-URL
+  dependency `pnpm patch` cannot resolve — via a `postinstall` script),
+  not by editing the encoded source maps themselves. Verified clean
+  against each package's actual resolved/symlinked install path.
+- **NSIS installer match (1 of 18)**: required a clean rebuild
+  (`apps/desktop/src-tauri/target` removed and recompiled) to test
+  whether it reappears — see the final scan result in
+  `docs/handoffs/PHASE12_CURRENT.md` for the outcome.
+- **Desktop-suite exit code**: two real unhandled-promise-rejection root
+  causes fixed — `HomePage.tsx`'s missing `.catch()` (application-code
+  fix) and a jsdom/undici `AbortSignal` cross-realm artifact inside
+  `@remix-run/router`'s internals (narrow, disclosed
+  `process.on("unhandledRejection", ...)` filter in
+  `apps/desktop/src/test/setup.ts` that reports anything not matching the
+  one known signature exactly as Vitest itself would). Confirmed
+  `fileParallelism: false` (Phase 11 Session 10) still present and still
+  necessary — a different problem than these two, not a duplicate fix.
+- Full regression re-run clean: Rust **180/180**, `cargo clippy --lib`
+  clean, shared suite **61/61 files, 1251/1251 tests**, full desktop
+  suite **130/130 files, 1161/1161 tests, exit code 0** (confirmed via
+  shell `$?`, not the printed summary alone), typecheck clean, lint
+  clean, i18n parity **23/23**, Help registry **38/38 + 9/9**.
+- Clean Windows release rebuild and native launch verification, and the
+  final exhaustive whole-tree scan (filenames + text + raw bytes,
+  including fresh `node_modules`/`target`/release artifacts, excluding
+  only `.git`): see `docs/handoffs/PHASE12_CURRENT.md`'s "Final scan
+  result (Session 2A)" section for the literal, unqualified result.
+
+**Correction: the bullets above describe this session's *first* pass,
+which was itself still incomplete.** Verifying each patched package's
+"resolved/symlinked install path" (as done above) is not the same as a
+literal, resolution-independent whole-tree scan — `pnpm patch-commit`
+leaves the original *unpatched* package extraction physically present
+on disk (`node_modules/.pnpm/<pkg>@<version>/`), and a literal scan
+still counts it. Running that literal scan for real found **57
+byte-level matches**, not zero: the 35 orphaned-copy matches above, plus
+a ~165 MB dead-but-still-fetched OpenCode sidecar binary (10 matches,
+counted twice via a pnpm workspace symlink = 20), a stale local
+`aider`-tool cache (1), and one self-referential match in
+`docs/handoffs/PHASE12_CURRENT.md` itself (1). The real fix: a full
+`node_modules` wipe + fresh `pnpm install` (eliminating orphaned copies
+entirely), deleting the dead OpenCode binary/fetch script/CI step (with
+source-level confirmation it is genuinely unreferenced, not merely
+unused this session), deleting the stale cache, and rewording the
+self-referential doc line. **The literal final scan, re-run after all
+of this, returned `TOTAL BYTE-LEVEL OCCURRENCES: 0`** — see
+`docs/handoffs/PHASE12_CURRENT.md`'s "Final scan result (Session 2A)"
+for the full breakdown and the literal command output.
+
+Separately, the `node_modules` wipe this correction required surfaced
+**2 additional, genuinely pre-existing test failures** —
+`migrationRunner.test.ts` and `automaticBackup.test.ts` — caused by a
+real `vitest@2.1.9`/`chai@5.3.3` compatibility defect in
+`.rejects.toThrow(pattern)` (already discovered once before in this
+codebase, per `download.test.ts`'s own inline comment; fixed here using
+that same established `.rejects.toThrow(Error)` + manual try/catch
+convention). Full desktop suite, re-run a third time after this fix:
+**130/130 files, 1161/1161 tests, exit code 0**, genuinely clean.
+
 ## Planned per-session test discipline (Sessions 3-12, proportional)
 
 Renumbered in Session 2 to insert the previous-identity-eradication session ahead of

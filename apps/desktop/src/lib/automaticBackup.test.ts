@@ -135,7 +135,20 @@ describe("useAutomaticBackupStore.runNow", () => {
     const first = useAutomaticBackupStore.getState().runNow("daily");
     expect(useAutomaticBackupStore.getState().running).toBe("daily");
 
-    await expect(useAutomaticBackupStore.getState().runNow("weekly")).rejects.toThrow(/already running/);
+    // NOTE: `.rejects.toThrow(pattern)` (string/regex argument form) is
+    // broken in this vitest/chai combo (see `download.test.ts`'s own note on
+    // the same defect) — asserts the exact same thing via the
+    // proven-working combination instead: `.rejects.toThrow(Error)` plus a
+    // manual try/catch for the message.
+    await expect(useAutomaticBackupStore.getState().runNow("weekly")).rejects.toThrow(Error);
+    let caught: unknown;
+    try {
+      await useAutomaticBackupStore.getState().runNow("weekly");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toMatch(/already running/);
 
     resolveFirst(successRecord("daily"));
     await first;

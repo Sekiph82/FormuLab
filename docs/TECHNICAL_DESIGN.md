@@ -119,6 +119,17 @@ Frontend renders streaming messages, tool cards, and per-session history
 
 ### 5.3 Bundling & isolation (no interference)
 
+**Superseded (Phase 12 Session 2A):** this section (5.1-5.3) describes
+FormuLab's original v0.1 agent-runtime design — OpenCode bundled as a
+Tauri sidecar. That integration, its `src-tauri/src/runtime.rs` module,
+and its `scripts/dev/fetch-opencode.sh` fetch step have since been
+removed from the running app (see `formulation_v2.rs`/`formulationV2.ts`
+for the current direct-pipeline architecture, which runs independently
+of OpenCode). This section is left below as a historical design record
+rather than rewritten, since documenting the current v2 architecture in
+full is out of this correction session's scope — do not treat the
+`fetch-opencode.sh`/`runtime.rs` references immediately below as current.
+
 OpenCode is bundled as a Tauri **sidecar** (`externalBin`, one binary per target triple,
 git-ignored and fetched by `scripts/dev/fetch-opencode.sh`). The Rust side
 (`src-tauri/src/runtime.rs`) starts it so it never collides with a user's own OpenCode:
@@ -436,7 +447,7 @@ formulab/
   runtime/{manager,opencode-profile,mcp,skills}/
   docs/{PRD.md,TECHNICAL_DESIGN.md}
   examples/bci-trends/
-  scripts/{release,dev}/     # dev/fetch-opencode.sh fetches the pinned sidecar
+  scripts/{release,dev}/     # dev/fetch-uv.sh, dev/fetch-skills.sh fetch pinned git-ignored assets
 ```
 
 - `apps/desktop` — Tauri + React desktop app; `src-tauri/src/runtime.rs` supervises the

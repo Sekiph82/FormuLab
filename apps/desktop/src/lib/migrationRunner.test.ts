@@ -275,7 +275,20 @@ describe("runMigration", () => {
     masterdataBridge.listMasterCollections.mockResolvedValue([["widgets", false]]);
     masterdataBridge.listRecords.mockResolvedValue([{ schemaVersion: "1.0", code: "w1" }]);
     bridge.verifyBackup.mockResolvedValue({ status: "corrupted", manifest: manifest(), errors: [], warnings: [] });
-    await expect(runMigration(widgetRegistry())).rejects.toThrow(/failed verification/);
+    // NOTE: `.rejects.toThrow(pattern)` (string/regex argument form) is
+    // broken in this vitest/chai combo (see `download.test.ts`'s own note on
+    // the same defect) — asserts the exact same thing via the
+    // proven-working combination instead: `.rejects.toThrow(Error)` plus a
+    // manual try/catch for the message.
+    await expect(runMigration(widgetRegistry())).rejects.toThrow(Error);
+    let caught: unknown;
+    try {
+      await runMigration(widgetRegistry());
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toMatch(/failed verification/);
     expect(masterdataBridge.writeMasterCollectionRaw).not.toHaveBeenCalled();
   });
 

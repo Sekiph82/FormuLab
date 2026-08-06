@@ -1696,7 +1696,91 @@ corrupting the sourcemap, unrelated to this project's identity) —
 disclosed explicitly rather than hidden, per this session's own "explain
 the exact file, reason and blocker" instruction.
 
-**Phase 12 status: Sessions 0-2 complete. Next: Session 3 (First Public
+**Correction (Session 2A): this was not a genuine closure.** 18
+byte-level matches remained at the moment this session closed (17 of the
+above `.js.map` matches plus 1 inside the NSIS installer's compressed
+payload) and were accepted under a "coincidental" classification — that
+classification does not satisfy this project's actual requirement, which
+is a literal zero-match result. The full desktop suite's underlying test
+*process* also exited with code 1 in this session's own closure run
+(every individual test passed; the process exit code did not), likewise
+wrongly accepted as pre-existing rather than fixed. Both are corrected
+for real in Session 2A, immediately below — this paragraph is left
+in place rather than deleted, so the record of what Session 2 actually
+verified (and didn't) stays honest.
+
+**Session 2A (Identity-Eradication Closure Corrections) — complete.**
+Fixed both shortfalls in Session 2's closure claim, without touching any
+product feature. Source maps removed (reproducibly, not by hand-editing
+encoded map data) from all 7 npm packages responsible for the 17
+sourcemap-side matches — `@babel/parser`, `@dimforge/rapier3d-compat`,
+`@remix-run/router`, `docx-preview`, `exceljs`, `pdf-lib` via
+`pnpm patch`/`pnpm.patchedDependencies`; `xlsx` (installed from a CDN
+tarball URL, which `pnpm patch` in this pnpm version cannot resolve a
+version for) via a new `postinstall` script,
+`scripts/dev/strip-xlsx-sourcemaps.mjs`. The NSIS installer's 1 remaining
+match required a from-clean rebuild to test whether it was a
+build-specific compression artifact — see this session's own final scan
+result in `docs/handoffs/PHASE12_CURRENT.md` for the outcome, rather than
+this paragraph, so the two documents don't drift. The desktop-suite exit
+code was root-caused to two distinct unhandled promise rejections — a
+genuine missing `.catch()` on `HomePage.tsx`'s data-load effect (fixed in
+application code, also a real independent robustness fix: the page no
+longer spins forever on a real backend failure) and a jsdom/undici
+`AbortSignal` cross-realm defect inside `@remix-run/router`'s own
+internals (unfixable from application code; addressed with a narrowly-
+scoped, disclosed `process.on("unhandledRejection", ...)` filter in
+`apps/desktop/src/test/setup.ts` that reports anything not matching this
+one exact signature exactly as Vitest's own reporter would, so it cannot
+silently swallow a genuinely new failure). Confirmed Phase 11 Session
+10's `fileParallelism: false` fix is still present in
+`apps/desktop/vite.config.ts` and still needed — a different bug than
+these two. `SECURITY.md` and `docs/PRIVACY.md` were also re-audited
+against current source and corrected: the code-signing section no longer
+implies SignPath approval exists; the privacy doc no longer claims API
+keys use OS-keychain storage (they use plaintext `localStorage` —
+verified directly in `formulationV2.ts`; keychain storage is `AGENTS.md`'s
+stated goal, not current behavior); absolute network-call claims were
+scoped explicitly to FormuLab's own first-party source. Full detail,
+including the actual final scan result and release-build/native-launch
+verification: `docs/handoffs/PHASE12_CURRENT.md`'s Session 2A summary and
+`docs/PHASE12_TEST_MATRIX.md`.
+
+**Correction: the paragraph above describes Session 2A's *first* pass,
+itself still incomplete.** It verified each patched package only against
+its resolved/symlinked install path, not a literal whole-tree scan —
+`pnpm patch-commit` leaves the original unpatched extraction physically
+on disk, and a real scan still counts it. A genuine whole-tree byte-level
+rescan found **57 matches, not zero**: the orphaned unpatched copies
+(35), a ~165 MB OpenCode CLI sidecar binary fetched by a dev/CI script
+but confirmed dead in current Rust source — no `.sidecar("opencode")`
+call anywhere, `tauri.conf.json`'s `externalBin` lists only `binaries/uv`,
+and `workspace.rs`'s own comment states this integration already
+"survived the OpenCode removal" (a leftover from before this app's
+v1→v2 pivot to `formulation_v2.rs`'s direct pipeline) — counted twice via
+a pnpm workspace symlink (20), a stale local `aider`-tool cache (1), and
+one self-referential match inside `docs/handoffs/PHASE12_CURRENT.md`
+itself (1). Fixed for real via a full `node_modules` wipe + fresh
+`pnpm install` (eliminating orphaned copies), deleting the dead OpenCode
+binary/fetch script/CI step and correcting the now-stale references to
+it in `README.md` and `docs/TECHNICAL_DESIGN.md`, deleting the stale
+cache, and rewording the self-referential line. The re-run literal scan
+returned `0`. That same `node_modules` wipe also surfaced 2 genuinely
+pre-existing test failures (`migrationRunner.test.ts`,
+`automaticBackup.test.ts`) caused by a real `vitest@2.1.9`/`chai@5.3.3`
+`.rejects.toThrow(pattern)` compatibility defect — already discovered
+once before in this codebase (`download.test.ts`'s own inline comment)
+and fixed here using that same established workaround convention. Full
+desktop suite, re-verified clean after all of the above: 130/130 files,
+1161/1161 tests, exit code 0. Also disclosed, deliberately not fixed
+this session: FormuLab's Settings UI and i18n strings across all 8
+locales still describe OpenCode as a currently-bundled, currently-live
+runtime — real, user-facing staleness, but out of this session's scope
+(frontend/product copy, not a byte-match-blocking issue). Full detail:
+`docs/handoffs/PHASE12_CURRENT.md`'s Session 2A summary (updated) and
+`docs/PHASE12_TEST_MATRIX.md`.
+
+**Phase 12 status: Sessions 0-2A complete. Next: Session 3 (First Public
 Release Publication) — a bounded remediation session for Session 1's
 blocker, before Session 4 (SignPath Application and Approval Gate). No
 implementation started.**

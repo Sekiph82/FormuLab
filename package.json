@@ -12,7 +12,8 @@
     "lint": "pnpm --filter @formulab/desktop lint",
     "docs:fixture:seed": "tsx scripts/dev/seed-docs-fixture.ts",
     "docs:fixture:reset": "tsx scripts/dev/seed-docs-fixture.ts --reset",
-    "docs:guide:generate": "tsx scripts/dev/generate-user-guide.ts"
+    "docs:guide:generate": "tsx scripts/dev/generate-user-guide.ts",
+    "postinstall": "node scripts/dev/strip-xlsx-sourcemaps.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -24,5 +25,15 @@
   },
   "devDependencies": {
     "tsx": "^4.23.1"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "docx-preview@0.3.7": "patches/docx-preview@0.3.7.patch",
+      "exceljs@4.4.0": "patches/exceljs@4.4.0.patch",
+      "pdf-lib@1.17.1": "patches/pdf-lib@1.17.1.patch",
+      "@remix-run/router@1.23.3": "patches/@remix-run__router@1.23.3.patch",
+      "@babel/parser@7.29.7": "patches/@babel__parser@7.29.7.patch",
+      "@dimforge/rapier3d-compat@0.12.0": "patches/@dimforge__rapier3d-compat@0.12.0.patch"
+    }
   }
 }

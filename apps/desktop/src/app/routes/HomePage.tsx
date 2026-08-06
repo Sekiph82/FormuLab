@@ -127,7 +127,7 @@ export function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    (async () => {
       const [all, trials, studies, samples, dossiers, dossierRequirements, dossierLinks, dossierEvidence, dossierReviews, dossierReviewRevocations, claims, claimReviews, claimReviewRevocations, productLabels, labelArtworks, labelReviews, labelReviewRevocations, regulatoryRules, doeStudies, doeRuns, doeAnalyses, doeCandidates, dxImportJobs, dxExportJobs] = await Promise.all([
         listFormulations(),
         listRecords("laboratory_trials"),
@@ -346,7 +346,14 @@ export function HomePage() {
       setDxRecentExportsCount((dxExportJobs as DataExchangeExportJob[]).filter((j) => new Date(j.requestedAt) >= exportWindowStart).length);
 
       setLoading(false);
-    })();
+    })().catch(() => {
+      // Home's summary data failed to load (e.g. no Tauri host in a test/
+      // dev-browser context, or a real backend error) — never leave the
+      // page spinning forever, and never let this become an unhandled
+      // rejection. No error UI here by design; this mirrors the rest of
+      // the app's existing fire-and-forget `.catch(() => {})` convention.
+      if (!cancelled) setLoading(false);
+    });
     return () => {
       cancelled = true;
     };

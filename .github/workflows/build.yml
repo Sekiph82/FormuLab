@@ -62,10 +62,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Fetch bundled OpenCode sidecar
-        shell: bash
-        run: bash scripts/dev/fetch-opencode.sh ${{ matrix.target }}
-
       - name: Fetch bundled skills
         shell: bash
         run: bash scripts/dev/fetch-skills.sh
@@ -80,9 +76,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/desktop
-          # Linux: deb+rpm only. AppImage is off because linuxdeploy runs ldd
-          # on every bundled ELF and ldd exits 1 on the Bun-built opencode
-          # sidecar, aborting the whole bundle (tauri-apps/tauri#8929).
+          # Linux: deb+rpm only. AppImage was originally disabled because
+          # linuxdeploy's ldd check aborted on a since-removed bundled
+          # OpenCode sidecar (tauri-apps/tauri#8929). That sidecar (and its
+          # CI fetch step) no longer exists (Phase 12 Session 2A) — whether
+          # AppImage can now be safely re-enabled has not been re-tested,
+          # so it stays off pending that verification, not because the
+          # original blocker is still believed to apply.
           args: --target ${{ matrix.target }} ${{ startsWith(matrix.platform, 'ubuntu') && '--bundles deb,rpm' || '' }}
           # On a v* tag push, attach installers to a draft GitHub Release.
           # Empty tagName (workflow_dispatch) skips release creation.

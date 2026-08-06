@@ -1,12 +1,14 @@
 # Privacy and Network Communication
 
-FormuLab is local-first. This document lists, honestly and completely to
-the best of this project's own knowledge, every network call the shipped
-desktop app makes and what stays local. Re-verified directly against the
-source this session (Phase 12 Session 1) — no telemetry, analytics, or
-crash-reporting SDK exists anywhere in `apps/desktop/src` or
-`apps/desktop/src-tauri/src` (checked directly: zero matches for Sentry,
-Amplitude, Mixpanel, PostHog, Google Analytics, Segment, or any
+FormuLab is local-first. This document lists every network call
+**FormuLab's own first-party code** (`apps/desktop/src`,
+`apps/desktop/src-tauri/src`) initiates, based on direct inspection of
+that code — it is not an exhaustive audit of every line of every
+third-party dependency in `node_modules` (a real, disclosed scope limit,
+not a claim that dependency code has been separately verified not to
+phone home). No telemetry, analytics, or crash-reporting SDK exists
+anywhere in FormuLab's own source (checked directly: zero matches for
+Sentry, Amplitude, Mixpanel, PostHog, Google Analytics, Segment, or any
 crash-reporting library).
 
 ## What stays local, always
@@ -14,13 +16,20 @@ crash-reporting library).
 - Workspace files, formulations, master data, runs, provenance, and the
   local run index (`.FormuLab/runs.db`) — never uploaded anywhere by the
   app itself.
-- LLM/agent-provider API keys — written to app-private runtime config
-  (OS keychain / credential manager on platforms where that's wired up),
-  never into the workspace, provenance, git history, exported projects,
-  logs, or the Diagnostics support bundle (`diagnostics.rs`'s redaction
-  never reads `localStorage`, where a provider key can live, by
-  construction — see `docs/architecture/IMPLEMENTATION_STATUS.md`'s
-  Phase 11 Session 5 entry).
+- LLM/agent-provider API keys — **currently written to the browser
+  `localStorage` inside the app's own WebView2 profile** (e.g.
+  `formulab.v2.key.<provider>`, confirmed directly in
+  `apps/desktop/src/lib/formulationV2.ts`), not OS keychain/credential-
+  manager storage — that stronger storage is `AGENTS.md`'s stated goal
+  for this project, not yet how the code actually works today, and this
+  document says so plainly rather than describing the goal as already
+  true. Keys are never written into the workspace, provenance, git
+  history, exported projects, or logs, and the Diagnostics support
+  bundle's redaction never reads `localStorage` by construction (see
+  `docs/architecture/IMPLEMENTATION_STATUS.md`'s Phase 11 Session 5
+  entry) — but `localStorage` itself is plaintext, readable by anything
+  with access to the WebView2 profile directory on this machine, which
+  is a materially weaker guarantee than OS-keychain storage would be.
 - Command execution, file deletion, dependency installation, and remote
   connections initiated by the agent all require a human-approved flow
   in the app (`AGENTS.md`'s own non-negotiable safety default) — nothing
@@ -35,11 +44,13 @@ crash-reporting library).
 | OpenAlex (`api.openalex.org`) | Only when you run Formulation Discovery's literature search | Your search query | Open-access paper metadata/PDFs |
 | Whatever URL you explicitly open via "View Release / Download" or any in-app "open externally" action | Only on your explicit click | Standard browser request to that URL | Whatever that page returns — this leaves the app entirely, handled by your OS's default browser |
 
-Nothing else calls out. In particular: no usage analytics, no crash
-reporting, no update check silently running in the background without the
-setting that controls it, no first-run "phone home," no license-check
-network call (there is no license server — FormuLab is MIT-licensed and
-free).
+FormuLab's own code initiates no other network call: no usage analytics,
+no crash reporting, no update check silently running in the background
+without the setting that controls it, no first-run "phone home," no
+license-check network call (there is no license server — FormuLab is
+MIT-licensed and free). This is a statement about FormuLab's own source,
+not a guarantee about every bundled third-party library's own behavior
+(see the scope note above).
 
 ## Update checking specifically
 

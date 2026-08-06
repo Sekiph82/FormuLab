@@ -180,7 +180,6 @@ cd FormuLab
 pnpm install
 
 # Fetch pinned sidecars and bundled skills (git-ignored).
-bash scripts/dev/fetch-opencode.sh
 bash scripts/dev/fetch-uv.sh
 bash scripts/dev/fetch-skills.sh
 
