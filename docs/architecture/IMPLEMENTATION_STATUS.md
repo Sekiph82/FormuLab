@@ -1577,6 +1577,51 @@ for deterministic passing.
 Phase 12 Session 0 (Commercial Distribution Assessment — signed
 installers/updates, secure update installation, automatic rollback).
 
+### Commercial Distribution (Phase 12, Session 0) — ASSESSMENT ONLY, NOT IMPLEMENTED
+Assessment and architecture for signed installers, a signed update
+manifest, secure in-app update download/install, update verification,
+automatic rollback, release channels, schema-compatibility gating,
+CI/CD release automation, certificate management, and release
+auditability. No code written. Full detail in
+[`PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md`](../PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md);
+handoff in `docs/handoffs/PHASE12_CURRENT.md`.
+
+**Verified, not assumed, this session**:
+- `tauri-plugin-updater` is absent from both `Cargo.lock` (`grep -c` = 0)
+  and `apps/desktop/package.json` — FormuLab has no update-download or
+  install capability today, official or custom. Phase 11 Session 9's
+  `updates.rs`/`lib/update.ts` is check-only by explicit design.
+- Every Windows artifact remains genuinely `NotSigned`
+  (`Get-AuthenticodeSignature`, confirmed again on this same day's Phase
+  11 Stage 2 closure build) — no certificate or CI signing step exists
+  anywhere in the repository.
+- `.github/workflows/build.yml` is the only workflow file; produces an
+  unsigned, draft GitHub Release on a `v*` tag with a hardcoded
+  "these builds are unsigned" disclaimer already shown to users today.
+- Version is duplicated across 4 files (`package.json` root,
+  `apps/desktop/package.json`, `tauri.conf.json`, `Cargo.toml`) with no
+  bump tooling — `scripts/release/` is an empty placeholder directory.
+
+**Architecture decision**: adopt `tauri-plugin-updater` for the
+download/verify/install mechanism rather than hand-rolling one — it
+already provides HTTPS fetch, Ed25519 signature verification, and (for
+NSIS) installer handoff/restart. Its updater-artifact format doesn't
+cover MSI, so NSIS carries the auto-update path while MSI remains a
+manual/IT-deployment artifact. Everything the plugin doesn't cover
+(mandatory pre-update backup, schema-compatibility gating,
+health-check-triggered rollback, rollback retention, staged rollout,
+channels) is designed to reuse Phase 11's existing backup/journal
+primitives (`try_create_backup`/`verify_backup_report`, the
+migration-journal and data-move-journal "append-only journal + pure
+resume-decision function" pattern) rather than new parallel mechanisms.
+
+**Unresolved, blocking Session 1**: the Windows code-signing certificate
+model and provider (OV file/token vs. EV/cloud-HSM service) is a business
+decision not made this session — Session 1 cannot meaningfully begin
+until it exists.
+
+**Phase 12 status: Session 0 complete, no implementation started.**
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it
