@@ -1,8 +1,9 @@
-// Not yet wired to any Tauri command or caller outside this module's own
-// tests — Session 2 adds login/bootstrap commands on top of this
-// foundation. Allowed dead-code at the module level rather than
-// per-function so real usage (Session 2+) doesn't need to hunt down and
-// remove scattered #[allow] attributes one at a time.
+// Session 2 wires `login`/`bootstrap_status`/`bootstrap_create_administrator`/
+// `logout`/`current_session` (see `auth.rs`) on top of this module's storage
+// primitives. A few primitives (`update_role`, `update_account_status`,
+// `update_password_hash`) remain unused until the Administration -> Users UI
+// (Session 5) calls them — allowed dead-code at the module level rather than
+// per-function so that doesn't need scattered #[allow] attributes.
 #![allow(dead_code)]
 // Phase 13 Session 1 — Identity/authentication database foundation.
 //
@@ -25,6 +26,7 @@ use argon2::Argon2;
 use rand_core::OsRng;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 
 use crate::backup::app_private_dir;
@@ -114,7 +116,10 @@ fn identity_db_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_private_dir(app, "identity")?.join(DB_FILE))
 }
 
-fn open_at(path: &Path) -> Result<Connection, String> {
+/// `pub(crate)` (not just module-private) so `auth.rs`'s tests can open the
+/// same kind of disposable temp database this module's own tests use,
+/// without duplicating the migration-running logic.
+pub(crate) fn open_at(path: &Path) -> Result<Connection, String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
@@ -275,6 +280,24 @@ pub(crate) fn verify_password(password: &str, encoded_hash: &str) -> bool {
     Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
 }
 
+/// A real, validly-hashed Argon2id PHC string used for exactly one purpose:
+/// spending the same CPU cost as a genuine password check when there is no
+/// real user record to check against (unknown username, disabled account,
+/// locked account) — so a login attempt's response time doesn't itself leak
+/// which of those cases applies (architecture doc §13, "timing/username
+/// enumeration defense"). This does not claim mathematically constant
+/// timing, only that the same expensive Argon2id call runs on every code
+/// path that must return the identical public error. Computed once (the
+/// underlying password is a fixed, meaningless constant, never a real
+/// account's credential) and cached for the process lifetime.
+pub(crate) fn dummy_password_hash() -> &'static str {
+    static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    DUMMY.get_or_init(|| {
+        hash_password("formulab-timing-defense-dummy-value-never-a-real-account-password")
+            .expect("hashing a fixed constant string cannot fail")
+    })
+}
+
 // -------------------------------------------------------------- user ---
 
 #[derive(Debug, Clone, Serialize)]
@@ -319,7 +342,10 @@ fn new_id(prefix: &str) -> String {
     format!("{prefix}_{now:x}{}", buf.iter().map(|b| format!("{b:02x}")).collect::<String>())
 }
 
-fn now_iso() -> String {
+/// `pub(crate)` so `auth.rs`'s tests can compute the same "now" epoch-
+/// seconds string to construct deterministic past/future timestamps
+/// (simulating an expired lock/session without a real `sleep`).
+pub(crate) fn now_iso() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -494,6 +520,87 @@ pub(crate) fn update_login_state(
     Ok(())
 }
 
+/// True while `locked_until` is set and still in the future. Every caller
+/// (login, tests, future admin UI) goes through this instead of comparing
+/// timestamps itself, so "locked" has exactly one definition.
+pub(crate) fn is_locked(user: &User) -> bool {
+    match &user.locked_until {
+        Some(until) => until.parse::<i64>().unwrap_or(0) > now_iso().parse::<i64>().unwrap_or(0),
+        None => false,
+    }
+}
+
+/// Whether `identity.db` currently has at least one `administrator` — the
+/// sole gate `bootstrap_administrator` and `bootstrap_status` (Session 2,
+/// `auth.rs`) both check. Deliberately keyed on role, not on "any user
+/// exists at all": the fixed-role model makes "an administrator exists" the
+/// only meaningful bootstrap-closed condition.
+pub(crate) fn any_administrator_exists(conn: &Connection) -> Result<bool, String> {
+    let count: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM users WHERE role = ?1",
+            params![Role::Administrator.as_str()],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(count > 0)
+}
+
+/// The only way `identity.db` ever gets an Administrator without one
+/// already existing. The "does an administrator exist" check and the
+/// insert run inside one IMMEDIATE transaction so two concurrent bootstrap
+/// attempts cannot both observe zero administrators and both insert one —
+/// SQLite serializes writers, so the second transaction's check always sees
+/// the first's committed row (or blocks until it commits). If this returns
+/// `Err`, the transaction was never committed and rolls back automatically
+/// (`rusqlite::Transaction::drop`) — no partial user is left behind.
+///
+/// Bootstrap administrators are exempted from `must_change_password`: they
+/// just chose their own password during setup, so there is no admin-set
+/// temporary password to force a change away from (unlike every
+/// Administration-created user in later sessions, which keeps the default
+/// `must_change_password = true` from `create_user`).
+pub(crate) fn bootstrap_administrator(
+    conn: &mut Connection,
+    username: &str,
+    display_name: &str,
+    password_hash: &str,
+) -> Result<User, String> {
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| e.to_string())?;
+    let count: i64 = tx
+        .query_row(
+            "SELECT count(*) FROM users WHERE role = ?1",
+            params![Role::Administrator.as_str()],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if count > 0 {
+        return Err("an administrator already exists; bootstrap is permanently closed".into());
+    }
+    let mut user = create_user(
+        &tx,
+        NewUser {
+            username,
+            display_name,
+            password_hash,
+            role: Role::Administrator,
+            department: None,
+            employee_reference: None,
+            created_by: None,
+        },
+    )?;
+    tx.execute(
+        "UPDATE users SET must_change_password = 0, updated_at = ?1 WHERE id = ?2",
+        params![now_iso(), user.id],
+    )
+    .map_err(|e| e.to_string())?;
+    user.must_change_password = false;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(user)
+}
+
 // ------------------------------------------------ login attempts ---
 
 pub(crate) fn record_login_attempt(
@@ -512,42 +619,84 @@ pub(crate) fn record_login_attempt(
 
 // ------------------------------------------------------- sessions ---
 
+/// A fresh, high-entropy (256-bit) random bearer token — never derived from
+/// a predictable value (user id, timestamp, sequence number). Returned to
+/// the caller exactly once, at session creation; only its SHA-256 hash
+/// (`hash_session_token`) is ever persisted, so a leaked/stolen
+/// `identity.db` file alone does not hand out a reusable active session —
+/// the attacker would need the raw token too, which the database never
+/// contains. Mature, un-invented cryptography only: `getrandom` for the
+/// entropy source, `sha2` (already a dependency, used by `backup.rs`'s
+/// manifest hashing) for the one-way hash. Not a JWT — an offline local
+/// desktop app has no second party to verify a signed claim against, so a
+/// plain random-token-plus-hash design is the right amount of complexity.
+fn generate_session_token() -> String {
+    let mut buf = [0u8; 32];
+    let _ = getrandom::fill(&mut buf);
+    buf.iter().map(|b| format!("{b:02x}")).collect::<String>()
+}
+
+fn hash_session_token(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hasher.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>()
+}
+
+/// A freshly issued session. `token` is the raw bearer credential — hand it
+/// to the caller once and never store it; only `hash_session_token(token)`
+/// is written to `authenticated_sessions.id`. (Session 1 originally stored
+/// a plain `new_id("sess")` directly as both the row id and the bearer
+/// value; Session 2 splits these per the architecture doc's token-storage
+/// decision, §15 of the security brief — no schema migration needed, since
+/// `id` already held an opaque string and now simply holds a hash instead.)
 #[derive(Debug, Clone)]
 pub(crate) struct Session {
-    pub id: String,
+    pub token: String,
     pub user_id: String,
     pub created_at: String,
     pub expires_at: String,
 }
 
 pub(crate) fn create_session(conn: &Connection, user_id: &str, ttl_secs: i64) -> Result<Session, String> {
-    let id = new_id("sess");
+    let token = generate_session_token();
+    let token_hash = hash_session_token(&token);
     let now = now_iso();
     let expires = (now.parse::<i64>().unwrap_or(0) + ttl_secs).to_string();
     conn.execute(
         "INSERT INTO authenticated_sessions (id, user_id, created_at, expires_at, last_seen_at, revoked_at) \
          VALUES (?1, ?2, ?3, ?4, ?3, NULL)",
-        params![id, user_id, now, expires],
+        params![token_hash, user_id, now, expires],
     )
     .map_err(|e| e.to_string())?;
-    Ok(Session { id, user_id: user_id.to_string(), created_at: now, expires_at: expires })
+    Ok(Session { token, user_id: user_id.to_string(), created_at: now, expires_at: expires })
 }
 
-/// A session is valid only if: it exists, was never revoked, hasn't
-/// expired, and its owning user is still `active` — checked fresh on
-/// every call (never cached), so a disable/role-change takes effect on
-/// the very next privileged action, not "eventually."
-pub(crate) fn validate_session(conn: &Connection, session_id: &str) -> Result<Option<User>, String> {
+/// A session is valid only if: the presented token's hash matches a stored
+/// row, that row was never revoked, hasn't passed its absolute expiry, and
+/// — when `idle_timeout_secs > 0` — hasn't sat idle past that window since
+/// `last_seen_at`; the row's owning user must also still be `active`,
+/// checked fresh on every call (never cached), so a disable/role-change
+/// takes effect on the very next privileged action, not "eventually."
+/// `idle_timeout_secs <= 0` disables the idle check (used by tests that
+/// only care about absolute expiry/revocation). A successful validation
+/// slides `last_seen_at` forward — normal desktop-app idle-timeout UX:
+/// activity keeps a session alive, only true idleness expires it.
+pub(crate) fn validate_session(
+    conn: &Connection,
+    presented_token: &str,
+    idle_timeout_secs: i64,
+) -> Result<Option<User>, String> {
+    let token_hash = hash_session_token(presented_token);
     let now: i64 = now_iso().parse().unwrap_or(0);
-    let row: Option<(String, String, i64)> = conn
+    let row: Option<(String, String, String, i64)> = conn
         .query_row(
-            "SELECT user_id, expires_at, revoked_at IS NOT NULL FROM authenticated_sessions WHERE id = ?1",
-            params![session_id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            "SELECT user_id, expires_at, last_seen_at, revoked_at IS NOT NULL FROM authenticated_sessions WHERE id = ?1",
+            params![token_hash],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    let Some((user_id, expires_at, revoked)) = row else {
+    let Some((user_id, expires_at, last_seen_at, revoked)) = row else {
         return Ok(None);
     };
     if revoked != 0 {
@@ -556,13 +705,35 @@ pub(crate) fn validate_session(conn: &Connection, session_id: &str) -> Result<Op
     if expires_at.parse::<i64>().unwrap_or(0) <= now {
         return Ok(None);
     }
+    if idle_timeout_secs > 0 && last_seen_at.parse::<i64>().unwrap_or(0) + idle_timeout_secs <= now {
+        return Ok(None);
+    }
     let Some(user) = find_user_by_id(conn, &user_id)? else {
         return Ok(None);
     };
     if user.status != "active" {
         return Ok(None);
     }
+    conn.execute(
+        "UPDATE authenticated_sessions SET last_seen_at = ?1 WHERE id = ?2",
+        params![now_iso(), token_hash],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(Some(user))
+}
+
+/// Revokes one session by its presented bearer token (logout). A no-op —
+/// not an error — if the token is unknown or already revoked: logout must
+/// never let a caller distinguish "that token was never valid" from
+/// "already logged out" through an error response.
+pub(crate) fn revoke_session(conn: &Connection, presented_token: &str) -> Result<(), String> {
+    let token_hash = hash_session_token(presented_token);
+    conn.execute(
+        "UPDATE authenticated_sessions SET revoked_at = ?1 WHERE id = ?2 AND revoked_at IS NULL",
+        params![now_iso(), token_hash],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // --------------------------------------------------------- audit ---
@@ -792,11 +963,11 @@ mod tests {
         let (_p, conn) = tmp_db("disable-revokes");
         let user = seeded_user(&conn, "prod.mgr", Role::ProductionManager);
         let session = create_session(&conn, &user.id, 3600).unwrap();
-        assert!(validate_session(&conn, &session.id).unwrap().is_some());
+        assert!(validate_session(&conn, &session.token, 0).unwrap().is_some());
 
         update_account_status(&conn, &user.id, false).unwrap();
 
-        assert!(validate_session(&conn, &session.id).unwrap().is_none());
+        assert!(validate_session(&conn, &session.token, 0).unwrap().is_none());
         let refreshed = find_user_by_id(&conn, &user.id).unwrap().unwrap();
         assert_eq!(refreshed.status, "disabled");
     }
@@ -865,16 +1036,138 @@ mod tests {
         let (_p, conn) = tmp_db("session-expiry");
         let user = seeded_user(&conn, "session.user", Role::Researcher);
         let live = create_session(&conn, &user.id, 3600).unwrap();
-        assert!(validate_session(&conn, &live.id).unwrap().is_some());
+        assert!(validate_session(&conn, &live.token, 0).unwrap().is_some());
 
         let expired = create_session(&conn, &user.id, -1).unwrap();
-        assert!(validate_session(&conn, &expired.id).unwrap().is_none());
+        assert!(validate_session(&conn, &expired.token, 0).unwrap().is_none());
     }
 
     #[test]
     fn an_unknown_session_id_validates_to_none() {
         let (_p, conn) = tmp_db("session-unknown");
-        assert!(validate_session(&conn, "sess_doesnotexist").unwrap().is_none());
+        assert!(validate_session(&conn, "not-a-real-token", 0).unwrap().is_none());
+    }
+
+    // ---------------------------------------- session 2: token hashing ---
+
+    #[test]
+    fn the_raw_session_token_is_never_stored_only_its_hash_is() {
+        let (_p, conn) = tmp_db("token-not-stored");
+        let user = seeded_user(&conn, "token.user", Role::Researcher);
+        let session = create_session(&conn, &user.id, 3600).unwrap();
+        let stored_id: String =
+            conn.query_row("SELECT id FROM authenticated_sessions WHERE user_id = ?1", params![user.id], |r| r.get(0)).unwrap();
+        assert_ne!(stored_id, session.token, "the raw bearer token must never equal the stored row id");
+        assert_eq!(stored_id.len(), 64, "expected a 64-hex-char SHA-256 digest");
+    }
+
+    #[test]
+    fn two_sessions_for_the_same_user_get_different_unpredictable_tokens() {
+        let (_p, conn) = tmp_db("token-unpredictable");
+        let user = seeded_user(&conn, "two.sessions", Role::Researcher);
+        let a = create_session(&conn, &user.id, 3600).unwrap();
+        let b = create_session(&conn, &user.id, 3600).unwrap();
+        assert_ne!(a.token, b.token);
+    }
+
+    #[test]
+    fn a_revoked_session_no_longer_validates() {
+        let (_p, conn) = tmp_db("revoke");
+        let user = seeded_user(&conn, "revoke.user", Role::Researcher);
+        let session = create_session(&conn, &user.id, 3600).unwrap();
+        assert!(validate_session(&conn, &session.token, 0).unwrap().is_some());
+        revoke_session(&conn, &session.token).unwrap();
+        assert!(validate_session(&conn, &session.token, 0).unwrap().is_none());
+    }
+
+    #[test]
+    fn revoking_an_unknown_token_is_a_harmless_no_op() {
+        let (_p, conn) = tmp_db("revoke-unknown");
+        // Must not error — logout must never let a caller distinguish
+        // "never valid" from "already logged out".
+        revoke_session(&conn, "not-a-real-token").unwrap();
+    }
+
+    #[test]
+    fn a_session_idle_past_the_timeout_no_longer_validates_even_before_absolute_expiry() {
+        let (_p, conn) = tmp_db("idle-timeout");
+        let user = seeded_user(&conn, "idle.user", Role::Researcher);
+        let session = create_session(&conn, &user.id, 3600).unwrap(); // absolute expiry far in the future
+        // Force last_seen_at into the past to simulate real idleness without sleeping in a test.
+        let stale = (now_iso().parse::<i64>().unwrap() - 7200).to_string();
+        conn.execute(
+            "UPDATE authenticated_sessions SET last_seen_at = ?1 WHERE user_id = ?2",
+            params![stale, user.id],
+        )
+        .unwrap();
+        assert!(
+            validate_session(&conn, &session.token, 3600).unwrap().is_none(),
+            "a session idle for 2h must fail a 1h idle-timeout check even though it hasn't absolutely expired"
+        );
+        // idle_timeout_secs <= 0 disables the idle check entirely (still gated by absolute expiry).
+        assert!(validate_session(&conn, &session.token, 0).unwrap().is_some());
+    }
+
+    #[test]
+    fn a_successful_validation_slides_last_seen_at_forward() {
+        let (_p, conn) = tmp_db("idle-slide");
+        let user = seeded_user(&conn, "slide.user", Role::Researcher);
+        let session = create_session(&conn, &user.id, 3600).unwrap();
+        let old_last_seen: String =
+            conn.query_row("SELECT last_seen_at FROM authenticated_sessions WHERE user_id = ?1", params![user.id], |r| r.get(0)).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1100)); // now_iso() is second-granularity
+        validate_session(&conn, &session.token, 3600).unwrap();
+        let new_last_seen: String =
+            conn.query_row("SELECT last_seen_at FROM authenticated_sessions WHERE user_id = ?1", params![user.id], |r| r.get(0)).unwrap();
+        assert!(new_last_seen >= old_last_seen);
+    }
+
+    // -------------------------------------------- session 2: lockout ---
+
+    #[test]
+    fn is_locked_reflects_locked_until_relative_to_now() {
+        let (_p, conn) = tmp_db("is-locked");
+        let mut user = seeded_user(&conn, "lock.check", Role::Researcher);
+        assert!(!is_locked(&user), "a freshly created user must not be locked");
+        user.locked_until = Some((now_iso().parse::<i64>().unwrap() + 900).to_string());
+        assert!(is_locked(&user), "a locked_until in the future must count as locked");
+        user.locked_until = Some((now_iso().parse::<i64>().unwrap() - 1).to_string());
+        assert!(!is_locked(&user), "a locked_until in the past must no longer count as locked");
+    }
+
+    // ------------------------------------------- session 2: bootstrap ---
+
+    #[test]
+    fn any_administrator_exists_is_false_on_a_fresh_database() {
+        let (_p, conn) = tmp_db("no-admin-yet");
+        assert!(!any_administrator_exists(&conn).unwrap());
+    }
+
+    #[test]
+    fn bootstrap_administrator_creates_the_first_admin_with_role_forced_and_no_forced_password_change() {
+        let dir = std::env::temp_dir().join(format!("formulab-identity-test-bootstrap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut conn = open_at(&dir.join("identity.db")).unwrap();
+        let hash = hash_password("bootstrap-password-123").unwrap();
+        let admin = bootstrap_administrator(&mut conn, "first.admin", "First Admin", &hash).unwrap();
+        assert_eq!(admin.role, Role::Administrator);
+        assert!(!admin.must_change_password, "a bootstrap administrator chose their own password — no forced change");
+        assert_ne!(admin.password_hash, "bootstrap-password-123", "only the hash is ever stored");
+        assert!(any_administrator_exists(&conn).unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_second_bootstrap_attempt_is_permanently_rejected() {
+        let (_p, mut conn) = tmp_db("bootstrap-second");
+        let hash = hash_password("first-password").unwrap();
+        bootstrap_administrator(&mut conn, "admin.one", "Admin One", &hash).unwrap();
+        let hash2 = hash_password("second-password").unwrap();
+        let err = bootstrap_administrator(&mut conn, "admin.two", "Admin Two", &hash2).unwrap_err();
+        assert!(err.contains("already exists"));
+        // The rejected attempt must not have left a partial second user behind.
+        assert!(find_user_by_normalized_username(&conn, "admin.two").unwrap().is_none());
     }
 
     // -------------------------------------------------------- audit ---

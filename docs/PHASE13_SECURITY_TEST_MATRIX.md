@@ -25,22 +25,29 @@ assert `production_manager` approves and `raw_material`/`procurement`/
 `production_engineering`/`production` are each refused their own gate —
 the same shape as the existing B3/B4 role-model-regression tests below.
 
+**Session 2 note**: bootstrap, login, logout, and session
+validation/expiry/idle-timeout are now real, implemented, tested
+commands — section A below is corrected from a plan to a factual
+report (Status column added). Section H is new: it records the 63 Rust
+(`identity.rs` + `auth.rs`) and 12 frontend (`AuthProvider`) tests this
+session actually implemented and passing.
+
 ## A. Authentication
 
-| # | Test | Session |
-|---|---|---|
-| A1 | Valid username + correct password → session issued | 2 |
-| A2 | Valid username + wrong password → generic "Invalid username or password.", no session | 2 |
-| A3 | Unknown username → identical generic error, identical timing-insensitive-enough response shape as A2 (no username-enumeration signal) | 2 |
-| A4 | Disabled account + correct password → refused before password is even checked | 2 |
-| A5 | Locked account (brute-force threshold hit) → refused with the same generic message | 6 |
-| A6 | Logout invalidates the session; a subsequent privileged call with the old session id fails | 2 |
-| A7 | Expired session → refused, user routed back to Login | 2 |
-| A8 | Idle timeout → refused after the configured idle window | 2 |
-| A9 | Administrator password reset → old password no longer works, new one does | 2 |
-| A10 | `mustChangePassword` true → only the change-password action is reachable until it's cleared | 2 |
-| A11 | Bootstrap: fresh install has no administrator → Setup screen renders, not Login | 2 |
-| A12 | Bootstrap: after the first administrator exists, the bootstrap command refuses to create a second one, even called directly | 2 |
+| # | Test | Status | Session |
+|---|---|---|---|
+| A1 | Valid username + correct password → session issued | **Implemented, passing** | 2 |
+| A2 | Valid username + wrong password → generic "Invalid username or password.", no session | **Implemented, passing** | 2 |
+| A3 | Unknown username → identical generic error (assert `===` equal to A2's), same-cost dummy-hash timing normalization | **Implemented, passing** | 2 |
+| A4 | Disabled account + correct password → refused before password is even checked | **Implemented, passing** | 2 |
+| A5 | Locked account (brute-force threshold hit) → refused with the same generic message; expired lock allows attempts again; lockout persists across a DB reopen | **Implemented, passing** | 2 |
+| A6 | Logout invalidates the session; a subsequent check with the old token fails | **Implemented, passing** | 2 |
+| A7 | Expired session → refused | **Implemented, passing** | 2 |
+| A8 | Idle timeout → refused after the configured idle window, even before absolute expiry | **Implemented, passing** | 2 |
+| A9 | Administrator password reset → old password no longer works, new one does | Planned (no admin UI/command yet) | 5 |
+| A10 | `mustChangePassword` true → only the change-password action is reachable until it's cleared | Planned (flag is preserved in `UserContext`, §17.5; UI restriction not built) | 5 |
+| A11 | Bootstrap: fresh install has no administrator → Setup screen renders, not Login | **Implemented, passing** | 2 |
+| A12 | Bootstrap: after the first administrator exists, the bootstrap command refuses to create a second one, even called directly | **Implemented, passing** | 2 |
 
 ## B. Role enforcement (per built-in role)
 
@@ -90,9 +97,12 @@ themselves already bind every field as a parameter, not just
 | D8 | Password field: oversized input (1MB) | Hashes/verifies without panicking or unbounded cost issue | **Implemented, passing** |
 | D9 | Password field: malformed/corrupt stored hash | Verification fails cleanly (`false`), never panics | **Implemented, passing** |
 
-Password/displayName/department/employeeId injection at the *command*
-layer (once those commands exist) remains Session 2+ work — see
-section G below for the exact 9 tests implemented this session.
+Password injection at the *command* layer is now covered — §H's
+`sql_injection_shaped_usernames_are_inert_through_the_full_login_path`
+runs the same hostile-string battery through `login_logic` end to end
+(normalize → lookup → verify → session), not just the storage
+functions. `displayName`/`department`/`employeeId` injection stays
+Session 5+ work, once Administration → Users commands accept them.
 
 ## E. Administrator security
 
@@ -165,6 +175,111 @@ expired) one does not; an unknown session id validates to `None`.
 **SQL injection (2)**: the hostile-string battery (§D) and the
 excessive-length-username test.
 
-**Total**: 28 tests, 28 passing. Full Rust suite (`cargo test --lib`,
-all modules): 216/216 passing, confirming nothing else in the crate
-regressed. `cargo clippy --lib -- -D warnings`: clean.
+**Total**: 28 tests, 28 passing (Session 1 baseline; §H below records
+what changed/was added in `identity.rs` for Session 2).
+
+## H. Session 2 — authentication lifecycle tests actually implemented and passing
+
+### H.1 `identity.rs` additions (10 new tests, on top of Session 1's 28 — 38 total)
+
+Token hashing (2): the raw session token is never stored, only its
+SHA-256 hash is (asserted against the actual stored `id` column); two
+sessions for the same user get different, unpredictable tokens.
+Revocation (2): a revoked session no longer validates; revoking an
+unknown token is a harmless no-op (never an error — logout must not let
+a caller distinguish "never valid" from "already logged out"). Idle
+timeout (2): a session idle past the configured window fails validation
+even before its absolute expiry; a successful validation slides
+`last_seen_at` forward. Lockout (1): `is_locked` correctly reflects a
+`locked_until` in the future vs. the past. Bootstrap (3): a fresh
+database has no administrator; `bootstrap_administrator` creates the
+first admin with the role forced to `Administrator` and no forced
+password change; a second bootstrap attempt is permanently rejected and
+leaves no partial second user behind.
+
+### H.2 `auth.rs` (25 new tests)
+
+**Bootstrap (6)**: fresh database reports bootstrap required; bootstrap
+creates an administrator and immediately enters an authenticated
+session (the chosen UX, architecture doc §5); the password is never
+returned and only its hash is stored; a second bootstrap is rejected
+including a direct backend call (not just through a UI layer); mismatched
+password confirmation and an under-length password are both rejected,
+and a rejected bootstrap attempt creates no one; no default
+`admin`/`admin`-shaped credentials ever authenticate.
+
+**Login (6)**: correct credentials succeed; username case normalization
+works (`Case.Admin` logs in as `case.admin`); wrong password and unknown
+username return the **identical** public error string (asserted `===`
+equal, not just similarly worded); a disabled account cannot log in even
+with the correct password; malformed input (SQL-injection-shaped
+usernames, empty username, a 1MB password) is rejected safely without
+panicking and without disrupting the real account.
+
+**Lockout (3)**: 4 failures leave an account unlocked and the 5th locks
+it (even the correct password is then refused); an expired lock (forced
+into the past directly, no real sleep) allows login attempts again;
+lockout state survives a database close/reopen, proving it's real
+persisted state, not just in-memory.
+
+**Session (6)**: a valid session resolves via `current_session_logic`;
+an absolute-expiry-forced session is rejected; logout revokes a session
+and it no longer validates; logging out an unknown or already-revoked
+token does not error; a role change is reflected on the very next
+session check for the same still-valid token (no stale snapshot); a
+malformed/garbage/oversized token validates to `None`, never an error.
+
+**Audit (2)**: bootstrap/login-success/login-failure/lockout-triggered/
+logout all produce their own distinct `security_audit_events` row; no
+audit row or `login_attempts` row ever contains the real password hash,
+the raw bearer session token, or the plaintext password used in the
+test.
+
+**Security (2)**: the full hostile-string SQL-injection battery run
+through the complete `login_logic` path (not just storage functions) is
+inert — the `users` table survives intact and the real account is
+unaffected; bootstrap structurally cannot create a non-administrator
+role (no `role` parameter exists on the command at all) and a plain
+employee-tier user existing doesn't open or close bootstrap by itself.
+
+**Total**: 25 tests, 25 passing.
+
+### H.3 Frontend — `AuthProvider.test.tsx` (12 new tests)
+
+Startup routing (5): a fresh install (bootstrap required) shows
+Administrator Setup and renders neither Login nor the app; a configured
+install with no persisted session shows Login; a valid persisted session
+enters the app directly without showing Login; an invalid/expired
+persisted session falls through to Login and clears the stale
+`localStorage` token; no protected content renders while bootstrap
+status is still resolving (no flash). Login flow (3): a successful
+login enters the app and persists only the opaque token (never
+username/role — asserted the stored value doesn't contain the
+username); an invalid login shows the generic error and stays on Login;
+the Login screen has no signup/social/email/SMS/forgot-password
+affordances (queried and asserted absent). Bootstrap flow (2): the
+bootstrap screen has no role selector anywhere (`<select>` query
+returns null); a successful bootstrap enters the app as administrator.
+Logout (2): logout clears local state, calls the backend revoke, and
+returns to Login; logout still returns to Login even if the backend
+revoke call fails (offline edge case) — local session is cleared either
+way.
+
+**Total**: 12 tests, 12 passing.
+
+### H.4 Full-suite confirmation
+
+`cargo build --lib`: clean. `cargo test --lib identity auth` (filtered):
+63/63 passing. `cargo test --lib` (full crate, every module): 251/251
+passing (Session 1's 216 + 35 net new), confirming nothing else in the
+crate regressed. `cargo clippy --lib -- -D warnings`: clean. Desktop
+frontend: `tsc --noEmit` clean; `vitest run` (full desktop suite):
+1185/1185 passing (Session 1's 1173 + 12 new), including the i18n
+parity suite across all 8 locales after adding the new Login/Bootstrap/
+account strings to all 7 non-English shipped locales (not just
+English — this session's new UI-facing strings are fully translated,
+unlike some earlier sessions' narrower role-string corrections).
+`eslint` clean on every touched file. `git diff --check`: clean. Shared
+package (`packages/shared`) untouched this session — its own
+typecheck/test suite was not re-run, per the instruction to scope
+verification to what actually changed.

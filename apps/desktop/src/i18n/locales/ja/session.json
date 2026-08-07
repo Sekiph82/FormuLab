@@ -2393,5 +2393,34 @@
     "englishOnlyNotice": "このガイドは現在英語のみで提供されています。",
     "screenshotNotCaptured": "[スクリーンショット未取得: {{caption}}]",
     "screenshotFallbackCaption": "スクリーンショット"
+  },
+  "auth": {
+    "login": {
+      "title": "サインイン",
+      "subtitle": "FormuLab のユーザー名とパスワードを入力してください。",
+      "usernameLabel": "ユーザー名",
+      "passwordLabel": "パスワード",
+      "showPassword": "パスワードを表示",
+      "hidePassword": "パスワードを非表示",
+      "submit": "サインイン",
+      "submitting": "サインイン中…",
+      "genericError": "ユーザー名またはパスワードが正しくありません。",
+      "passwordRecoveryNotice": "パスワードをお忘れですか？管理者にリセットを依頼してください。"
+    },
+    "bootstrap": {
+      "title": "FormuLab のセットアップ",
+      "subtitle": "これは新規インストールです。開始するには最初の管理者アカウントを作成してください。",
+      "usernameLabel": "ユーザー名",
+      "displayNameLabel": "表示名",
+      "passwordLabel": "パスワード",
+      "confirmPasswordLabel": "パスワード（確認）",
+      "submit": "管理者を作成",
+      "submitting": "アカウントを作成中…",
+      "roleNotice": "このアカウントは常に完全な管理者権限で作成されます。初回セットアップでロールを選択することはできません。"
+    },
+    "account": {
+      "logout": "サインアウト",
+      "signedInAs": "{{name}} としてサインイン中"
+    }
   }
 }

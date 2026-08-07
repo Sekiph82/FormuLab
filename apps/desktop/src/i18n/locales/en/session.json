@@ -2393,5 +2393,34 @@
     "englishOnlyNotice": "This guide is currently available in English only.",
     "screenshotNotCaptured": "[Screenshot not yet captured: {{caption}}]",
     "screenshotFallbackCaption": "Screenshot"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Enter your FormuLab username and password.",
+      "usernameLabel": "Username",
+      "passwordLabel": "Password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "genericError": "Invalid username or password.",
+      "passwordRecoveryNotice": "Forgotten your password? Ask your administrator to reset it."
+    },
+    "bootstrap": {
+      "title": "Set up FormuLab",
+      "subtitle": "This is a new installation. Create the first Administrator account to get started.",
+      "usernameLabel": "Username",
+      "displayNameLabel": "Display name",
+      "passwordLabel": "Password",
+      "confirmPasswordLabel": "Confirm password",
+      "submit": "Create Administrator",
+      "submitting": "Creating account…",
+      "roleNotice": "This account is always created with full Administrator access. There is no role choice on first setup."
+    },
+    "account": {
+      "logout": "Sign out",
+      "signedInAs": "Signed in as {{name}}"
+    }
   }
 }

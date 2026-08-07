@@ -1,6 +1,8 @@
 # Phase 13 — Enterprise Identity, Authentication, Fixed RBAC & Application Security
 
-**Status: Session 1 (identity database + password subsystem + final 12-role model) complete. No login/bootstrap UI, no Administration → Users UI, no application-wide enforcement yet — those are later Phase 13 sessions. This document is the design they build against.**
+**Status: Session 2 (Administrator bootstrap, username/password login/logout, authenticated session lifecycle) complete. No Administration → Users UI, no `rolePolicy.ts`, no application-wide role enforcement yet — those are later Phase 13 sessions. This document is the design they build against.**
+
+**Session 2 summary**: wired `identity.rs`'s Session 1 storage primitives to real Tauri commands (`bootstrap_status`, `bootstrap_create_administrator`, `login`, `logout`, `current_session`) via a new orchestration module, `auth.rs`, that owns the actual lockout/session/timing policy Session 1 deliberately left as caller-supplied parameters. Session tokens are now hashed before storage (§15.5), idle-timeout is implemented (§17.1), and a full Administrator Setup / Login screen pair gates the whole application at startup (§17.2-§17.4). See the Session 2 sections below (§5, §15.5, §16.1, §17.1-§17.5) for what changed; every Session 0/1 design decision not called out as changed is unchanged.
 
 **Session 1 correction, superseding Session 0's role list**: Session 0 shipped a first-draft 6-role model. After reviewing the real FormuLab dossier/evidence/document workflow, the user approved a final, authoritative **12-role** model (§1). Every "6 roles" statement in the original Session 0 text has been rewritten below — nowhere in this document should you find a claim that FormuLab has 6 fixed roles.
 
@@ -152,25 +154,26 @@ every `rusqlite` call site, and every Rust file for `password`/`login`/
 
 | Capability | Status | Evidence |
 |---|---|---|
-| User accounts | **MISSING** (Session 1: identity.db now exists, not yet wired to any command) | — |
-| Administrator-created users | **MISSING** | No creation flow/UI exists yet |
-| Username login | **MISSING** | No login screen; app opens directly to `HomePage` |
-| Password authentication | **PARTIAL** (Session 1: `hash_password`/`verify_password` implemented and tested; no login command uses them yet) | `identity.rs` |
-| Logout | **MISSING** | No session UI to log out of |
+| User accounts | **IMPLEMENTED** (Session 2: bootstrap creates the first; ordinary admin-created users are Session 5) | `identity.rs` + `auth.rs` |
+| Administrator-created users | **MISSING** (bootstrap creates only the first Administrator) | Administration → Users is Session 5 |
+| Username login | **IMPLEMENTED** (Session 2) | `auth::login`, `LoginScreen.tsx` |
+| Password authentication | **IMPLEMENTED** (Session 2) | `auth::login_logic` calls `identity::verify_password` |
+| Logout | **IMPLEMENTED** (Session 2) | `auth::logout`, session revoked backend-side |
 | Password hashing | **IMPLEMENTED** (Session 1) | Argon2id, `identity.rs` |
-| Account enable/disable | **PARTIAL** (Session 1: `update_account_status` implemented + tested, incl. session revocation; no admin UI) | `identity.rs` |
+| Account enable/disable | **PARTIAL** (Session 1: `update_account_status` implemented + tested, incl. session revocation and login refusal, §24; no admin UI yet) | `identity.rs` |
 | Administrator password reset | **PARTIAL** (Session 1: `update_password_hash` implemented + tested; no admin UI) | `identity.rs` |
-| Brute-force protection / login throttling | **PARTIAL** (Session 1: `update_login_state` lockout logic implemented + tested; not wired to a login command yet) | `identity.rs` |
-| Authenticated session | **PARTIAL** (Session 1: `create_session`/`validate_session` implemented + tested; no login command issues one yet) | `identity.rs` |
-| Session expiration / idle timeout | **PARTIAL** (expiry implemented + tested; idle-timeout policy not yet decided) | `identity.rs` |
-| Role storage (trusted) | **PARTIAL** (Session 1: `users.role`, constrained to the 12 fixed roles by `Role::parse`; not yet the source any command trusts) | `identity.rs` |
+| Brute-force protection / login throttling | **IMPLEMENTED** (Session 2: final policy — 5 attempts, 15-minute lock, §17.1) | `auth.rs` |
+| Authenticated session | **IMPLEMENTED** (Session 2: hashed bearer tokens, §15.5) | `auth.rs`, `identity.rs` |
+| Session expiration / idle timeout | **IMPLEMENTED** (Session 2: 12h absolute / 60min idle, §17.1) | `identity::validate_session`, `auth.rs` |
+| Role storage (trusted) | **IMPLEMENTED** (Session 2: `current_session`/`login`/`bootstrap_create_administrator` are now the trusted source every session-derived role comes from) | `identity.rs` + `auth.rs` |
 | Role assignment (by admin) | **MISSING** | No admin UI |
 | Role enforcement (domain-level) | **PARTIAL** | `canTransitionTo` (`status.ts`) is real, tested, working enforcement, now re-derived for the 12-role model (§6) |
-| Role enforcement (backend/Rust) | **UNSAFE** (unchanged from Session 0) | `save_approval_record` performs no role check at all — see Session 0's original finding, still true, not yet fixed (Session 4) |
-| UI role selection | **UNSAFE** (unchanged from Session 0) | `reviewerRole`/`actorRole`/`actingRole` are still plain, freely-editable `useState`s — Session 1 only renamed their default/option values to the new 12 roles, it did not add authentication underneath them |
+| Role enforcement (backend/Rust) | **UNSAFE** (unchanged from Session 0/1) | `save_approval_record` performs no role check at all — still true, not yet fixed (Session 4). The new `login`/`current_session` commands never accept a caller-supplied role (§9.1), but nothing outside `auth.rs` itself consumes their output yet. |
+| UI role selection | **UNSAFE** (unchanged from Session 0/1) | `reviewerRole`/`actorRole`/`actingRole` are still plain, freely-editable `useState`s, structurally independent of the new `AuthProvider`/`UserContext` (§20.1) — Session 4's job is wiring them together |
 | Project/resource access | **NOT_APPLICABLE (confirmed out of scope for Phase 13)** | See §12 |
-| Audit logging (security events) | **PARTIAL** (Session 1: `record_security_audit_event` implemented + tested; nothing calls it yet outside tests) | `identity.rs` |
+| Audit logging (security events) | **PARTIAL** (Session 2: bootstrap/login-success/login-failure/lockout/logout now call `record_security_audit_event` for real, §23; admin-action events remain Session 5/6) | `auth.rs` |
 | SQLite/user database | **IMPLEMENTED** (Session 1) | `identity.db`, app-private, §11 |
+| Startup authentication routing | **IMPLEMENTED** (Session 2) | `AuthProvider.tsx` gates `main.tsx`'s `RouterProvider` — no protected content renders before it resolves, §17.4 |
 
 Explicitly **NOT REQUIRED**, confirmed absent and staying that way:
 public registration, email verification, SMS/phone verification,
@@ -240,17 +243,41 @@ password history (no concrete requirement demands it yet).
 
 ---
 
-## 5. First administrator bootstrap (designed, not yet implemented — Session 2)
+## 5. First administrator bootstrap (implemented Session 2)
 
-On a fresh install, `users` is empty. A `bootstrap_status` Tauri command
-(Session 2) checks `{ hasAdministrator: bool }`; if false, the frontend
-renders an Administrator Setup screen instead of Login. The installing
-person enters administrator username/password/display name; on submit,
-Rust re-checks `hasAdministrator` is still false (race safety) and only
-then inserts the row via `identity::create_user` with
-`role: Administrator`, permanently closing bootstrap. No default
-credentials are ever seeded — `admin/admin` and equivalents are
-permanently absent from source, seed data, and documentation.
+On a fresh install, `users` is empty. `bootstrap_status` (Tauri command,
+`auth.rs`) returns `{ bootstrapRequired: bool }`, keyed off
+`identity::any_administrator_exists` (role-based, not row-count-based —
+§1). If `true`, the frontend renders `BootstrapScreen` instead of Login.
+The installing person enters username, display name, password, and a
+password confirmation — no role field anywhere, not even hidden or
+disabled: `bootstrap_create_administrator`'s Rust signature has no role
+parameter at all, so there is no code path through which a caller could
+ask for a different first role (§9.1).
+
+On submit, `identity::bootstrap_administrator` re-checks (inside one
+`IMMEDIATE` SQLite transaction, so two concurrent bootstrap attempts
+cannot both observe zero administrators and both insert one) that no
+administrator exists yet, then inserts the row with `role: Administrator`
+and clears `must_change_password` — deliberately, since a bootstrap
+administrator chose their own password during setup; there is no
+admin-set temporary password to force a change away from (unlike every
+Administration-created user in later sessions, which keeps
+`must_change_password = true`). A second bootstrap attempt — through the
+UI or a direct backend call — is permanently refused from then on with a
+plain, safe error (tested: `a_second_bootstrap_attempt_is_permanently_rejected`,
+`second_bootstrap_is_rejected_including_a_direct_backend_call`). No
+default credentials are ever seeded — `admin/admin` and equivalents are
+permanently absent from source, seed data, and documentation (tested:
+`no_default_administrator_credentials_ever_work`).
+
+**Chosen post-bootstrap UX (§8 of the Session 2 brief, decided and
+documented)**: option A — `bootstrap_create_administrator` immediately
+issues an authenticated session and the frontend enters FormuLab
+directly, the same as a successful login. Rejected: bouncing the person
+who just typed a username/password to a second Login screen for
+credentials they entered ten seconds earlier is friction with no
+security benefit on a local, offline, single-workstation install.
 
 ---
 
@@ -391,6 +418,20 @@ Unchanged finding from Session 0 (§2's UNSAFE row): still true, still
 not fixed — `reviewerRole` etc. remain freely-editable `useState`s.
 Session 4 fixes this by resolving role from an authenticated session
 server-side.
+
+### 9.1 Session 2: the new auth commands never trust a caller-supplied role
+
+`login`, `bootstrap_create_administrator`, and `current_session` (`auth.rs`)
+have no `role` parameter in their signatures at all — not optional, not
+ignored-if-present, simply absent from the function they deserialize
+their arguments into. There is no code path through which the frontend
+could send `"I am administrator"` and have it believed: every returned
+`SafeUser.role` comes from the `users` row a validated password check or
+session-token lookup resolved to, never from anything the caller sent.
+This closes the *storage/session* half of §2's UNSAFE finding — the
+*consuming* half (application commands that still don't ask `auth.rs`
+who's logged in at all, e.g. `save_approval_record`) is still open and
+stays Session 4's job.
 
 **Administrator authority (explicit, user-approved, §9 of the phase
 brief)**: administrator does **not** get create/edit authority over
@@ -695,6 +736,32 @@ session) adds real `FormulaStatus`/gate representations for these four
 stages, `production_manager` is now the pre-decided approval role to
 wire in — no further product decision needed at that point.
 
+### 15.5 Session token storage (implemented Session 2)
+
+Session 1's `authenticated_sessions.id` stored a plain `new_id("sess")` —
+8 random bytes plus a timestamp — directly, used as both the row's
+primary key and, implicitly, the bearer credential a caller would
+present. Session 2's brief (§15) asked whether hashing the presented
+token before persistence was practical without a schema migration — it
+is: `identity::create_session` now generates a fresh, unrelated
+256-bit random token (`getrandom`, 32 bytes) and stores only its SHA-256
+hash (`sha2`, already a dependency — `backup.rs`'s manifest hashing uses
+it) in the existing `id` column. The raw token is returned to the caller
+exactly once, at creation, and is never written to the database, a log
+line, or an audit `detail` field (tested:
+`the_raw_session_token_is_never_stored_only_its_hash_is`,
+`no_audit_row_or_login_attempt_row_ever_contains_a_password_hash_or_raw_session_token`).
+`identity::validate_session`/`revoke_session` hash whatever token they're
+handed and look up by that hash. No schema migration was needed — `id`
+already held an opaque string; it now holds a hash of one instead. This
+means a leaked/stolen `identity.db` file alone no longer hands out a
+reusable active session — the attacker would also need the raw token,
+which the database never contains. Not a JWT: an offline local desktop
+app has no second party to verify a signed claim against, so a plain
+random-token-plus-hash design is the appropriate amount of complexity,
+per the brief's explicit instruction not to invent JWT infrastructure
+without a concrete need.
+
 ---
 
 ## 16. SQL injection safety (implemented + tested Session 1)
@@ -719,25 +786,133 @@ unique per test, cleaned up), never real user data.
 
 ---
 
-## 17. Login brute-force protection (implemented Session 1, not yet wired to a login command)
+## 17. Authentication lifecycle (implemented Session 2)
+
+### 17.1 Final lockout and session policy
 
 `identity::update_login_state(conn, user_id, success, threshold,
-lock_secs)` — increments `failed_login_count` on failure, resets it on
-success, sets `locked_until` once `threshold` is reached.
-`threshold`/`lock_secs` are caller-supplied, not hardcoded, so Session
-2/6 can tune them against real usability testing without touching this
-function. Tested with `threshold=5`: 4 failures leave the account
-unlocked, the 5th locks it, and a subsequent success fully resets both
-the counter and the lock. `record_login_attempt` persists every
-attempt (success or failure) to `login_attempts` regardless of outcome.
-**Not yet decided** (Session 2): the exact default threshold/backoff
-curve, and the generic `"Invalid username or password."` error text is
-designed but not yet wired to any command (no login command exists
-yet).
+lock_secs)` (Session 1) is now called with `auth.rs`'s real application
+policy, not just test values:
+
+| Policy | Value | Constant |
+|---|---|---|
+| Failed-attempt lockout threshold | 5 consecutive failures | `auth::LOGIN_LOCKOUT_THRESHOLD` |
+| Lockout duration | 15 minutes, always temporary | `auth::LOGIN_LOCKOUT_SECS` |
+| Session absolute lifetime | 12 hours | `auth::SESSION_TTL_SECS` |
+| Session inactivity timeout | 60 minutes | `auth::SESSION_IDLE_TIMEOUT_SECS` |
+
+A simple, defensible local-desktop baseline — not tuned against real
+usability data yet (Risks, below). Lockout is never permanent and never
+requires administrator intervention for an ordinary mistyped password; a
+lock that has passed its `locked_until` allows login attempts again
+automatically (tested: `an_expired_lock_allows_login_attempts_again`),
+and lockout state survives a process restart because it's a `users`
+row, not in-memory state (tested:
+`lockout_state_persists_across_a_database_reopen`). Idle timeout is
+`identity::validate_session`'s `idle_timeout_secs` parameter (§15.2's
+original `create_session`/`validate_session` design gained this
+parameter this session, using the already-existing but previously
+unused `last_seen_at` column — no schema change needed); a successful
+validation slides `last_seen_at` forward (normal desktop-app idle UX:
+activity keeps a session alive, only true idleness expires it).
+
+### 17.2 Login flow and timing/enumeration defense
+
+`auth::login_logic` (called by the `login` Tauri command): normalize
+username → look up the user → check account status → check lockout →
+verify the Argon2id password → update login state → record the attempt
+→ on success, create a session and return `AuthSession`. Every failure
+shape — unknown username, malformed username, disabled account, locked
+account, wrong password, oversized input — returns the **identical**
+public string, `"Invalid username or password."` (tested directly:
+`wrong_password_and_unknown_username_return_the_identical_public_error`
+asserts the two error values are `===` equal, not just similarly
+worded). Internally, `login_attempts`/`security_audit_events` rows *do*
+distinguish the real reason (`unknown_username`, `account_disabled`,
+`account_locked`, `invalid_password`, `invalid_input`) — safe to record
+since those tables are never frontend-visible.
+
+**Timing/enumeration defense**: when there is no real user record to
+check a password against (unknown username, disabled account, locked
+account), `login_logic` still calls `identity::verify_password` against
+`identity::dummy_password_hash()` — a real, validly-hashed Argon2id PHC
+string for a fixed, meaningless constant, computed once and cached —
+and discards the result. This spends the same Argon2id CPU cost on
+every code path that returns the generic error, so response time alone
+doesn't distinguish "no such user" from "wrong password" the way a
+fast-path early return would. This does **not** claim mathematically
+constant timing (network/OS/DB-cache jitter dwarfs anything finer); it
+claims the same expensive operation runs on every losing path. A
+password longer than 512 characters is rejected before touching Argon2
+at all (on any path, including the dummy-hash one) — otherwise an
+oversized-password login attempt would be a cheap way to force
+disproportionate server-side CPU cost, since Argon2's cost scales with
+input size.
+
+### 17.3 Login and Administrator Setup screens
+
+`LoginScreen.tsx` / `BootstrapScreen.tsx` (`apps/desktop/src/components/auth/`):
+username + password (Login) or username + display name + password +
+confirm password (Setup), a show/hide password toggle, a loading state,
+Enter-to-submit (native `<form onSubmit>`), and the one generic error
+message for Login. No sign-up, no social/email/SMS login, no
+"Forgot password?" email flow anywhere — password recovery is
+administrator-mediated (a later session's Administration → Users
+"reset password" action); the Login screen's only related text is a
+one-line pointer to that ("Forgotten your password? Ask your
+administrator to reset it."), never a self-service flow of any kind.
+Bootstrap has no role field, hidden or otherwise (tested:
+`the_bootstrap_screen_has_no_role_selector_anywhere` and the backend
+structural guarantee in §5/§9.1).
+
+### 17.4 Startup authentication routing
+
+`AuthProvider.tsx` wraps `main.tsx`'s `<RouterProvider>` — not
+`AppShell`, the whole routed application. On mount it calls
+`bootstrap_status`; if bootstrap is required it renders `BootstrapScreen`
+directly (no router, no `AppShell`, no sidebar). Otherwise it reads a
+persisted session token (see §17.5) and, if present, calls
+`current_session` to resolve it; a valid result renders the routed
+application, anything else (`null`, or the very first run before an
+administrator exists at all) renders `LoginScreen`. Because the router
+itself is a child of this gate rather than a sibling, there is no route
+a direct URL/history navigation could reach before authentication
+resolves — the routes don't exist yet as far as React is concerned.
+While the initial `bootstrap_status`/`current_session` calls are
+in-flight, a blank themed shell renders (no app chrome, no
+protected-content flash).
+
+### 17.5 Authenticated `UserContext` shape
+
+`AuthProvider`'s React context exposes exactly the safe projection
+`auth::SafeUser` maps to — `userId`, `username`, `displayName`, `role`,
+`accountStatus`, `mustChangePassword` — plus `login`/`logout`/
+`completeBootstrap` actions and a `phase`. No mutable `permissions`
+array; role-to-capability derivation stays `rolePolicy.ts`'s job
+(Session 3, §7/§14). Only the opaque bearer token is persisted to
+`localStorage` (`formulab.auth.token`) — never username, role, or any
+other user detail — and every restart re-resolves the full user record
+from Rust via `current_session` rather than trusting a cached frontend
+copy (§22's "never use localStorage as the sole authentication
+authority" requirement). A role change made directly against the
+database takes effect on the very next `current_session`/session
+validation call for that same still-valid token (tested:
+`a_role_change_is_reflected_on_the_very_next_session_check`), matching
+§19's existing "no stale frontend permission snapshot" guarantee —
+Session 2 doesn't add a polling/refresh timer, since nothing yet calls
+`current_session` per authorized action outside startup and
+login/bootstrap entry; wiring that into every privileged action is
+Session 4's job once `rolePolicy.ts` exists to call it from.
+
+**Deliberately not built this session** (§21 of the Session 2 brief):
+Administrator bootstrap/Setup UI polish beyond the functional screen
+above, Administration → Users UI, arbitrary user creation, role-change
+UI, password-reset administration UI, full `rolePolicy.ts` enforcement,
+full application-wide RBAC, the full department workflow engine.
 
 ---
 
-## 18. Account deactivation (implemented Session 1: storage primitive; UI is Session 5)
+## 18. Account deactivation (storage primitive Session 1, honored by login/session Session 2; admin UI is Session 5)
 
 `update_account_status(conn, user_id, active)` — setting `active:
 false` also revokes every currently-open session for that user
@@ -749,6 +924,17 @@ user only ever changes the `users` row and revokes sessions; nothing
 about `security_audit_events`, `login_attempts`, or (once it exists)
 `ApprovalRecord`/provenance history referencing that user's id is
 deleted or altered.
+
+**Session 2**: `login_logic` refuses a disabled account before checking
+the password at all (still via the one generic error, §17.2 —
+`disabled_account_cannot_log_in_even_with_the_correct_password`), and
+`current_session_logic` (used at startup and by `AuthProvider`) resolves
+`identity::validate_session`, which itself refuses any session whose
+owning user is no longer `active` — checked fresh on every call, never
+cached. There is still no admin UI to disable a user (Session 5); this
+session only made sure that once a user *is* disabled (by any means,
+including a test/manual DB edit), login and session validation both
+honor it correctly.
 
 ---
 
@@ -798,34 +984,46 @@ different backend later) still applies once those commands exist
 
 ---
 
-## 23. Audit logging (implemented Session 1: storage primitive; not yet called from any command)
+## 23. Audit logging (storage primitive Session 1; wired to real commands Session 2)
 
 `record_security_audit_event(conn, actor_user_id, target_user_id,
 action, outcome, detail)` — tested to persist correctly and to never
 contain password material (`security_audit_events_persist_without_ever_storing_password_material`
 explicitly asserts no stored `detail` field contains the test user's
-password hash). The full event-class list (login success/failure,
-logout, account lifecycle, password reset/change, role change, lock/
-unlock, permission denied, privileged admin actions) from Session 0's
-design is unchanged — Session 2+ calls this function at each of those
-points as the corresponding commands are built.
+password hash). **Session 2** calls it from real authentication events,
+not just tests: `bootstrap_administrator_created`, `login_success`,
+`login_failure` (with a safe, internal-only reason in `detail` —
+`unknown_username`/`account_disabled`/`account_locked`/
+`invalid_password`/`invalid_input`), `login_lockout_triggered` (a
+distinct event the moment a failure count crosses the threshold, not
+just another `login_failure`), and `logout`. Verified with a dedicated
+regression (`no_audit_row_or_login_attempt_row_ever_contains_a_password_hash_or_raw_session_token`)
+that no audit `detail` or `login_attempts.outcome` value ever contains
+the stored password hash, the raw bearer session token, or the
+plaintext password used in the test. Remaining event classes from
+Session 0's design (account lifecycle beyond login/logout, password
+reset/change, role change, permission denied, privileged admin actions)
+stay Session 5/6, once the commands that would trigger them exist.
 
 ---
 
 ## 24. Security test matrix
 
 See `docs/PHASE13_SECURITY_TEST_MATRIX.md` — updated this session with
-Session 1's actual 28 identity-layer tests (was a plan; now also a
-report of what exists and passes).
+Session 2's real login/bootstrap/lockout/session/audit test results
+(§G: `identity.rs`, 38 tests, 28 from Session 1 plus 10 new Session 2
+additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
+`auth.rs`, 25 new tests, plus 12 new frontend `AuthProvider` tests).
 
 ---
 
-## 25. Proposed Phase 13 sessions (Session 1 complete; renumbered plan unchanged in shape from Session 0)
+## 25. Proposed Phase 13 sessions (Sessions 1-2 complete; renumbered plan unchanged in shape from Session 0)
 
-1. ~~User database + migrations + password subsystem~~ **DONE.** ~~Production Manager gate authority for the four §15.3 gaps~~ **DECIDED (§15.4), this closure — implementation still Session 4/dedicated workflow session.**
-2. Administrator bootstrap + `login`/`logout` Tauri commands +
+1. ~~User database + migrations + password subsystem~~ **DONE.** ~~Production Manager gate authority for the four §15.3 gaps~~ **DECIDED (§15.4), Session 1 closure — implementation still Session 4/dedicated workflow session.**
+2. ~~Administrator bootstrap + `login`/`logout` Tauri commands +
    authenticated session lifecycle (creation, persistence across
-   restarts, expiration/idle timeout), using the 12-role model.
+   restarts, expiration/idle timeout), using the 12-role model.~~
+   **DONE, this session** (§5, §15.5, §17).
 3. `rolePolicy.ts` (canonical `can()` covering all of §6's matrix, not
    just the two approval gates) + wire `UserContext` through the app +
    a Rust/TypeScript role-vocabulary parity test.
@@ -849,7 +1047,7 @@ report of what exists and passes).
 
 ---
 
-## Risks and open decisions (updated Session 1)
+## Risks and open decisions (updated Session 2)
 
 1. **§6's full matrix is Session 1's first draft**, built from current
    navigation/routes and §1.1's role intent, not domain-expert-
@@ -859,19 +1057,33 @@ report of what exists and passes).
    before Session 4 makes it load-bearing in enforcement.
 3. **§12 — project/resource access is confirmed (not just
    recommended) out of scope for Phase 13** — no longer an open
-   question, closed this session.
+   question, closed in Session 1's closure.
 4. **§15.3's four gaps — authority resolved, implementation still
    open.** Raw-material verification, supplier-document verification,
    production-engineering→production handoff, and production release
    are now decided as `production_manager` gates (§15.4, user-approved,
-   this closure). They still have no `FormulaStatus` representation in
-   the current domain model — building that and wiring real enforcement
-   is real, unimplemented work (Session 4 or a dedicated workflow
-   session), not a Session 1 oversight.
+   Session 1 closure). They still have no `FormulaStatus` representation
+   in the current domain model — building that and wiring real
+   enforcement is real, unimplemented work (Session 4 or a dedicated
+   workflow session).
 5. **§10 — Argon2 parameters are crate defaults**, not hand-tuned
    against real target hardware — revisit only if a genuine performance
    problem surfaces on real desktop specs.
-6. **§17 — exact lockout threshold/backoff curve** deferred to Session
-   2/6, same as Session 0's plan.
+6. ~~§17 — exact lockout threshold/backoff curve~~ **DECIDED this
+   session** (§17.1: 5 attempts / 15-minute lock / 12h session / 60min
+   idle) — a simple, defensible baseline, not yet validated against real
+   usability testing on real desktop hardware. Revisit if it proves too
+   strict/loose in practice.
 7. **§22 Model B** remains explicitly out of Phase 13's implementation
    scope.
+8. **`current_session` is not yet called per privileged action** —
+   Session 2 resolves it at startup and right after login/bootstrap
+   only. A role/status change made mid-session is only picked up the
+   next time something calls `current_session`/`validate_session` for
+   that token — correct today (nothing privileged checks per-action
+   yet), but Session 4 must make sure real enforcement calls it on every
+   authorization-relevant action, not just at login.
+9. **No password-complexity policy beyond an 8-512 character length
+   bound** (`auth::validate_new_password`) — deliberately not inventing
+   uppercase/digit/symbol rules the brief never asked for; revisit only
+   if a real compliance requirement demands it.

@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-1) — IDENTITY DATABASE FOUNDATION IMPLEMENTED, AUTHENTICATION NOT YET WIRED
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-2) — BOOTSTRAP/LOGIN/LOGOUT/SESSION LIFECYCLE IMPLEMENTED, APPLICATION-WIDE ENFORCEMENT NOT YET WIRED
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -1926,8 +1926,33 @@ had left open — raw-material verification, supplier-document
 verification, production-engineering→production handoff, and
 production release are now all **`production_manager`** gates, one
 explicit decision (architecture doc §15.4). No `FormulaStatus`/gate
-exists yet for any of the four, so this is a documentation-only
-decision — no source code or tests changed. Full design:
+exists yet for any of the four, so this was a documentation-only
+decision — no source code or tests changed.
+
+Session 2 wired `identity.rs`'s storage primitives to real Tauri
+commands via a new orchestration module, `apps/desktop/src-tauri/src/auth.rs`:
+`bootstrap_status`, `bootstrap_create_administrator`, `login`, `logout`,
+`current_session` — none of them accepts a caller-supplied role. Session
+tokens are now hashed before storage (a fresh 256-bit random token is
+returned once; only its SHA-256 hash is persisted), idle timeout is
+implemented (60 minutes, sliding), and lockout has a final policy (5
+attempts, 15-minute lock) alongside the existing 12-hour absolute
+session lifetime. Login uses a real timing/enumeration defense (a
+same-cost dummy Argon2id verify on every path with no real user to
+check) so unknown-username and wrong-password errors are provably
+`===` identical to the caller. The whole application is now gated
+behind authentication: `AuthProvider.tsx` wraps `main.tsx`'s
+`<RouterProvider>` itself (not just `AppShell`), rendering
+`BootstrapScreen`/`LoginScreen` standalone until a session resolves —
+no protected-content flash, no route that bypasses it. Only an opaque
+session token is ever persisted client-side; every restart re-resolves
+the real user record from Rust. `identity.rs` gained 10 new tests (38
+total); `auth.rs` shipped 25 new tests; the frontend `AuthProvider`
+shipped 12 new tests. Full Rust suite: 251/251. Full desktop frontend
+suite: 1185/1185 (shared package unchanged this session, still
+1254/1254 from Session 1). Still no `Administration → Users` UI, no
+`rolePolicy.ts`, and no privileged command outside `auth.rs` itself
+resolves role from a session yet (Session 4's job). Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`; test report:
 `docs/PHASE13_SECURITY_TEST_MATRIX.md`; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`.

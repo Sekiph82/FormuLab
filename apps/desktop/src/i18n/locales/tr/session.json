@@ -2393,5 +2393,34 @@
     "englishOnlyNotice": "Bu kılavuz şu anda yalnızca İngilizce olarak mevcuttur.",
     "screenshotNotCaptured": "[Ekran görüntüsü henüz alınmadı: {{caption}}]",
     "screenshotFallbackCaption": "Ekran görüntüsü"
+  },
+  "auth": {
+    "login": {
+      "title": "Oturum aç",
+      "subtitle": "FormuLab kullanıcı adınızı ve parolanızı girin.",
+      "usernameLabel": "Kullanıcı adı",
+      "passwordLabel": "Parola",
+      "showPassword": "Parolayı göster",
+      "hidePassword": "Parolayı gizle",
+      "submit": "Oturum aç",
+      "submitting": "Oturum açılıyor…",
+      "genericError": "Geçersiz kullanıcı adı veya parola.",
+      "passwordRecoveryNotice": "Parolanızı mı unuttunuz? Sıfırlaması için yöneticinize başvurun."
+    },
+    "bootstrap": {
+      "title": "FormuLab'ı kur",
+      "subtitle": "Bu yeni bir kurulumdur. Başlamak için ilk Yönetici hesabını oluşturun.",
+      "usernameLabel": "Kullanıcı adı",
+      "displayNameLabel": "Görünen ad",
+      "passwordLabel": "Parola",
+      "confirmPasswordLabel": "Parolayı onayla",
+      "submit": "Yönetici oluştur",
+      "submitting": "Hesap oluşturuluyor…",
+      "roleNotice": "Bu hesap her zaman tam Yönetici erişimiyle oluşturulur. İlk kurulumda rol seçimi yoktur."
+    },
+    "account": {
+      "logout": "Oturumu kapat",
+      "signedInAs": "{{name}} olarak oturum açıldı"
+    }
   }
 }

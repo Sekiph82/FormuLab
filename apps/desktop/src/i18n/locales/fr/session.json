@@ -2393,5 +2393,34 @@
     "englishOnlyNotice": "Ce guide est actuellement disponible uniquement en anglais.",
     "screenshotNotCaptured": "[Capture d'écran pas encore disponible : {{caption}}]",
     "screenshotFallbackCaption": "Capture d'écran"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "subtitle": "Saisissez votre nom d'utilisateur et votre mot de passe FormuLab.",
+      "usernameLabel": "Nom d'utilisateur",
+      "passwordLabel": "Mot de passe",
+      "showPassword": "Afficher le mot de passe",
+      "hidePassword": "Masquer le mot de passe",
+      "submit": "Se connecter",
+      "submitting": "Connexion…",
+      "genericError": "Nom d'utilisateur ou mot de passe invalide.",
+      "passwordRecoveryNotice": "Mot de passe oublié ? Demandez à votre administrateur de le réinitialiser."
+    },
+    "bootstrap": {
+      "title": "Configurer FormuLab",
+      "subtitle": "Il s'agit d'une nouvelle installation. Créez le premier compte administrateur pour commencer.",
+      "usernameLabel": "Nom d'utilisateur",
+      "displayNameLabel": "Nom affiché",
+      "passwordLabel": "Mot de passe",
+      "confirmPasswordLabel": "Confirmer le mot de passe",
+      "submit": "Créer l'administrateur",
+      "submitting": "Création du compte…",
+      "roleNotice": "Ce compte est toujours créé avec un accès administrateur complet. Aucun choix de rôle n'est proposé lors de la configuration initiale."
+    },
+    "account": {
+      "logout": "Se déconnecter",
+      "signedInAs": "Connecté en tant que {{name}}"
+    }
   }
 }

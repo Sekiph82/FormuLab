@@ -2393,5 +2393,34 @@
     "englishOnlyNotice": "Esta guía está disponible actualmente solo en inglés.",
     "screenshotNotCaptured": "[Captura de pantalla aún no disponible: {{caption}}]",
     "screenshotFallbackCaption": "Captura de pantalla"
+  },
+  "auth": {
+    "login": {
+      "title": "Iniciar sesión",
+      "subtitle": "Introduce tu nombre de usuario y contraseña de FormuLab.",
+      "usernameLabel": "Nombre de usuario",
+      "passwordLabel": "Contraseña",
+      "showPassword": "Mostrar contraseña",
+      "hidePassword": "Ocultar contraseña",
+      "submit": "Iniciar sesión",
+      "submitting": "Iniciando sesión…",
+      "genericError": "Nombre de usuario o contraseña no válidos.",
+      "passwordRecoveryNotice": "¿Olvidaste tu contraseña? Pide a tu administrador que la restablezca."
+    },
+    "bootstrap": {
+      "title": "Configurar FormuLab",
+      "subtitle": "Esta es una instalación nueva. Crea la primera cuenta de administrador para empezar.",
+      "usernameLabel": "Nombre de usuario",
+      "displayNameLabel": "Nombre para mostrar",
+      "passwordLabel": "Contraseña",
+      "confirmPasswordLabel": "Confirmar contraseña",
+      "submit": "Crear administrador",
+      "submitting": "Creando cuenta…",
+      "roleNotice": "Esta cuenta siempre se crea con acceso completo de administrador. No hay selección de rol en la configuración inicial."
+    },
+    "account": {
+      "logout": "Cerrar sesión",
+      "signedInAs": "Sesión iniciada como {{name}}"
+    }
   }
 }

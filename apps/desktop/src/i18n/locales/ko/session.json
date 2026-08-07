@@ -2393,5 +2393,34 @@
     "englishOnlyNotice": "이 가이드는 현재 영어로만 제공됩니다.",
     "screenshotNotCaptured": "[스크린샷 아직 캡처되지 않음: {{caption}}]",
     "screenshotFallbackCaption": "스크린샷"
+  },
+  "auth": {
+    "login": {
+      "title": "로그인",
+      "subtitle": "FormuLab 사용자 이름과 비밀번호를 입력하세요.",
+      "usernameLabel": "사용자 이름",
+      "passwordLabel": "비밀번호",
+      "showPassword": "비밀번호 표시",
+      "hidePassword": "비밀번호 숨기기",
+      "submit": "로그인",
+      "submitting": "로그인 중…",
+      "genericError": "사용자 이름 또는 비밀번호가 올바르지 않습니다.",
+      "passwordRecoveryNotice": "비밀번호를 잊으셨나요? 관리자에게 재설정을 요청하세요."
+    },
+    "bootstrap": {
+      "title": "FormuLab 설정",
+      "subtitle": "새로운 설치입니다. 시작하려면 첫 번째 관리자 계정을 생성하세요.",
+      "usernameLabel": "사용자 이름",
+      "displayNameLabel": "표시 이름",
+      "passwordLabel": "비밀번호",
+      "confirmPasswordLabel": "비밀번호 확인",
+      "submit": "관리자 생성",
+      "submitting": "계정 생성 중…",
+      "roleNotice": "이 계정은 항상 전체 관리자 권한으로 생성됩니다. 최초 설정 시 역할을 선택할 수 없습니다."
+    },
+    "account": {
+      "logout": "로그아웃",
+      "signedInAs": "{{name}}(으)로 로그인됨"
+    }
   }
 }

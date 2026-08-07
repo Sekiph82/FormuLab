@@ -17,6 +17,7 @@ import {
   FolderTree,
   Grid3x3,
   Home,
+  LogOut,
   type LucideIcon,
   Microscope,
   NotebookPen,
@@ -46,6 +47,7 @@ import {
   type SessionSummary,
 } from "@/lib/formulationV2";
 import { SETTINGS_SECTIONS, resolveSection } from "@/components/settings/sections";
+import { useOptionalAuth } from "@/app/providers/AuthProvider";
 import logo from "@/assets/logo.webp";
 
 /** Dragging the divider below this pointer x collapses the sidebar; dragging
@@ -76,9 +78,12 @@ type NavItem =
  * stored cards without re-running a model.
  */
 export function Sidebar() {
-  const { t } = useTranslation(["nav", "settings"]);
+  const { t } = useTranslation(["nav", "settings", "session"]);
   const navigate = useNavigate();
   const location = useLocation();
+  const auth = useOptionalAuth();
+  const user = auth?.user ?? null;
+  const logout = auth?.logout;
   // In settings the sidebar becomes the settings navigation: "Back to app" on
   // top, one row per section, and NO collapse affordance — a collapsed sidebar
   // would strand the user with no way back.
@@ -464,6 +469,24 @@ export function Sidebar() {
                   />
                 )}
               </button>
+              {user && (
+                <div className="mt-1 flex items-center gap-2 px-2 py-1">
+                  <span
+                    className="min-w-0 flex-1 truncate text-[12px] text-muted"
+                    title={t("session:auth.account.signedInAs", { name: user.displayName })}
+                  >
+                    {user.displayName}
+                  </span>
+                  <button
+                    onClick={() => void logout?.()}
+                    aria-label={t("session:auth.account.logout")}
+                    title={t("session:auth.account.logout")}
+                    className="shrink-0 rounded-input p-1 text-muted hover:bg-surface-2 hover:text-text"
+                  >
+                    <LogOut size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}

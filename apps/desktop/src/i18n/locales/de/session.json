@@ -2393,5 +2393,34 @@
     "englishOnlyNotice": "Dieses Handbuch ist derzeit nur auf Englisch verfügbar.",
     "screenshotNotCaptured": "[Screenshot noch nicht aufgenommen: {{caption}}]",
     "screenshotFallbackCaption": "Screenshot"
+  },
+  "auth": {
+    "login": {
+      "title": "Anmelden",
+      "subtitle": "Geben Sie Ihren FormuLab-Benutzernamen und Ihr Passwort ein.",
+      "usernameLabel": "Benutzername",
+      "passwordLabel": "Passwort",
+      "showPassword": "Passwort anzeigen",
+      "hidePassword": "Passwort ausblenden",
+      "submit": "Anmelden",
+      "submitting": "Anmeldung läuft…",
+      "genericError": "Ungültiger Benutzername oder ungültiges Passwort.",
+      "passwordRecoveryNotice": "Passwort vergessen? Bitten Sie Ihren Administrator, es zurückzusetzen."
+    },
+    "bootstrap": {
+      "title": "FormuLab einrichten",
+      "subtitle": "Dies ist eine Neuinstallation. Erstellen Sie das erste Administratorkonto, um zu beginnen.",
+      "usernameLabel": "Benutzername",
+      "displayNameLabel": "Anzeigename",
+      "passwordLabel": "Passwort",
+      "confirmPasswordLabel": "Passwort bestätigen",
+      "submit": "Administrator erstellen",
+      "submitting": "Konto wird erstellt…",
+      "roleNotice": "Dieses Konto wird immer mit vollen Administratorrechten erstellt. Bei der Ersteinrichtung gibt es keine Rollenauswahl."
+    },
+    "account": {
+      "logout": "Abmelden",
+      "signedInAs": "Angemeldet als {{name}}"
+    }
   }
 }

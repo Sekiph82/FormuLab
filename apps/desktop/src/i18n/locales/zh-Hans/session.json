@@ -2393,5 +2393,34 @@
     "englishOnlyNotice": "本指南目前仅提供英文版本。",
     "screenshotNotCaptured": "[截图尚未采集：{{caption}}]",
     "screenshotFallbackCaption": "截图"
+  },
+  "auth": {
+    "login": {
+      "title": "登录",
+      "subtitle": "请输入您的 FormuLab 用户名和密码。",
+      "usernameLabel": "用户名",
+      "passwordLabel": "密码",
+      "showPassword": "显示密码",
+      "hidePassword": "隐藏密码",
+      "submit": "登录",
+      "submitting": "登录中…",
+      "genericError": "用户名或密码无效。",
+      "passwordRecoveryNotice": "忘记密码？请联系管理员重置。"
+    },
+    "bootstrap": {
+      "title": "设置 FormuLab",
+      "subtitle": "这是一次全新安装。请创建第一个管理员账户以开始使用。",
+      "usernameLabel": "用户名",
+      "displayNameLabel": "显示名称",
+      "passwordLabel": "密码",
+      "confirmPasswordLabel": "确认密码",
+      "submit": "创建管理员",
+      "submitting": "正在创建账户…",
+      "roleNotice": "此账户始终以完整管理员权限创建。初始设置时无法选择角色。"
+    },
+    "account": {
+      "logout": "退出登录",
+      "signedInAs": "已登录：{{name}}"
+    }
   }
 }

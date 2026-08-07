@@ -2,6 +2,7 @@
 // bundled OpenCode sidecar (isolated config/data + dedicated port; killed on exit).
 mod artifact_file;
 mod attachments;
+mod auth;
 mod automatic_backup;
 mod backup;
 mod data_location_manager;
@@ -78,6 +79,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            auth::bootstrap_status,
+            auth::bootstrap_create_administrator,
+            auth::login,
+            auth::logout,
+            auth::current_session,
             workspace::workspace_path,
             workspace::workspace_base,
             workspace::set_workspace_base,
