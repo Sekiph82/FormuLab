@@ -1882,6 +1882,31 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Session 0) — ARCHITECTURE + AUDIT, NOT IMPLEMENTED
+
+Runs in parallel with Phase 12, unrelated to it. Session 0 audited
+current identity/authorization state and found: no authentication of
+any kind exists — every "who did this" field is either hardcoded
+`userId: "local"` or a free-text/dropdown value the frontend lets the
+user set itself (`ApprovalPanel.tsx`'s `reviewerRole` select and
+`reviewerUserId` text field, mirrored across 5 other panels). The
+domain-level approval-authority check (`APPROVAL_AUTHORITY`/
+`canTransitionTo` in `packages/shared/src/schemas/status.ts`) is real
+and already refuses non-human actors, but trusts whatever role it's
+handed — and the Rust-side `save_approval_record` command performs no
+role check at all, only a not-a-machine-actor check, so a raw
+`invoke()` call bypassing the UI can write an approval record with no
+role gate. This is a real, currently-exploitable authorization bypass,
+found and documented, not yet fixed (fixing it is Session 4's job,
+once a trustworthy role source exists to check against). The six
+required roles (researcher/chemist/quality/regulatory/production/
+administrator) already exist as `APPROVAL_ROLES` in `status.ts` — no
+schema correction needed. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`;
+test plan: `docs/PHASE13_SECURITY_TEST_MATRIX.md`; handoff:
+`docs/handoffs/PHASE13_CURRENT.md`. No authentication code, database,
+or UI exists yet — Session 0 is architecture and audit only, per
+explicit instruction.
+
 ## Not yet started
 
 Everything below is specified and designed but **not implemented**. Listing it
