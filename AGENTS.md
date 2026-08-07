@@ -24,24 +24,30 @@ for macOS, Windows, and Linux. See `README.md`, `docs/PRD.md`, and
 `docs/TECHNICAL_DESIGN.md`.
 
 Recommended stack: **Tauri 2 + React + TypeScript + Vite**, Tailwind + Radix UI,
-**OpenCode** as the agent runtime (bundled single-binary sidecar; HTTP + SSE API),
-local workspace + SQLite + JSONL provenance.
+a direct Tauri-command pipeline (`formulation_v2.rs::generate_formulation`)
+into the bundled Python/R runtime (`runtime/pipeline`, `runtime/formulation`,
+`runtime/kernel`) — no separate agent-runtime sidecar — local workspace +
+SQLite + JSONL provenance.
 
 ## Repository map
 
 - `apps/desktop/` — Tauri + React desktop shell (`src/` frontend, `src-tauri/` Rust).
-- `packages/` — `ui`, `shared`, `sdk` (the `OpenCodeClient` wrapper).
-- `runtime/` — `manager`, `opencode-profile`, `mcp`, `skills`.
+- `packages/` — `ui`, `shared`.
+- `runtime/` — `formulation`, `kernel`, `pipeline`, `harness`, `skills` (the
+  optimizer, R/Python kernel bridge, literature/materials pipeline, the
+  bundled harness, and self-authored scientific skills — all bundled via
+  `tauri.conf.json`'s `bundle.resources` or run as local processes).
 - `docs/` — product and technical specs.
-- `examples/bci-trends/` — the built-in demo project.
+- `examples/` — the bundled demo projects (`shampoo-formulation`, `surface-cleaner`).
 - `scripts/` — release and dev scripts.
 
 ## Architecture guardrails
 
-- The UI never calls OpenCode directly — it goes through `packages/sdk` (`OpenCodeClient`).
-  Pin the OpenCode version (see `OPENCODE_VERSION`) and bundle it as a sidecar.
-- Keep the frontend, desktop shell, and agent runtime decoupled.
-- Skills, MCP servers, and model providers must stay pluggable.
+- Formulation generation runs through one direct Tauri command
+  (`generate_formulation`) into the bundled Python pipeline — no agent
+  runtime, no sidecar process to supervise.
+- Keep the frontend, desktop shell, and Python/R runtime decoupled.
+- Skills must stay pluggable.
 - Keep the artifact schema and workflow templates stable and versioned.
 
 ## Safety defaults (non-negotiable for the desktop)

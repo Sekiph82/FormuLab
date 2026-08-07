@@ -74,7 +74,9 @@ docs/shampoo-formulation/
 # Local OpenCode CLI install/profile residue (the OpenCode sidecar itself
 # was removed from the app in Phase 12 Session 2A) — a local `opencode`
 # CLI run recreates this with its own node_modules; never meant to be
-# tracked, unlike the workspace-scoped runtime/opencode-profile/.
+# tracked. (runtime/opencode-profile/, the workspace-scoped counterpart
+# this comment used to contrast with, was itself removed as dead
+# documentation for the same removed sidecar — see the Phase 12 log.)
 /.opencode/
 
 # All app-generated data lives in ONE folder inside the project: sessions,

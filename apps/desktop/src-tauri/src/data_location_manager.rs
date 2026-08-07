@@ -214,6 +214,29 @@ pub(crate) fn validate_destination_at(current_root: &Path, dest: &Path, required
         };
     }
 
+    // A destination *inside* the current root looks "Empty" (freshly
+    // created, no entries yet) and would otherwise sail through validation
+    // — but `walk_movable_files` snapshots the source tree before staging
+    // begins, so a move would silently nest the whole source under itself
+    // (`data/` -> `data/data/`) rather than fail loudly. `strip_prefix`
+    // checks real path components, not a string prefix, so a sibling like
+    // `data-archive` next to `data` does not false-positive here.
+    if dest_canon.strip_prefix(&current_canon).is_ok() {
+        blockers.push("the destination is inside the current data location — choose a folder outside it".to_string());
+        return DestinationValidation {
+            path: dest.to_string_lossy().to_string(),
+            kind: DestinationKind::Conflicting,
+            writable,
+            required_bytes,
+            available_bytes: None,
+            sufficient_space: false,
+            can_move: false,
+            can_use_existing: false,
+            warnings,
+            blockers,
+        };
+    }
+
     // Free space is only ever relevant to a MOVE (a copy) — "use existing"
     // copies nothing, so an existing-compatible-root destination is never
     // blocked by it. Computed here regardless so the UI can always show it.
@@ -1109,6 +1132,47 @@ mod tests {
         let v = validate_destination_at(&source, &source, 0);
         assert_eq!(v.kind, DestinationKind::SameAsCurrent);
         assert!(!v.can_move && !v.can_use_existing);
+        let _ = std::fs::remove_dir_all(&scratch);
+    }
+
+    /// Regression: a live root's own `data/data/` nested duplicate, found
+    /// and root-caused in the Phase 12 cleanup follow-up. A destination
+    /// *inside* the current root is freshly created and empty, so without
+    /// this guard it would validate as `Empty`/`can_move: true` — but
+    /// `walk_movable_files` snapshots the source tree before staging
+    /// starts, so the move would silently nest the whole root under
+    /// itself instead of failing loudly.
+    #[test]
+    fn validate_blocks_a_destination_nested_inside_the_current_root() {
+        let scratch = tmp("validate-nested");
+        let source = scratch.join("source");
+        std::fs::create_dir_all(source.join("master")).unwrap();
+        std::fs::write(source.join("master/materials.json"), "[]").unwrap();
+        let nested_dest = source.join("data"); // e.g. picking ...\data\data from inside ...\data
+
+        let v = validate_destination_at(&source, &nested_dest, 0);
+        assert_eq!(v.kind, DestinationKind::Conflicting);
+        assert!(!v.can_move && !v.can_use_existing);
+        assert!(v.blockers.iter().any(|b| b.contains("inside the current data location")));
+        let _ = std::fs::remove_dir_all(&scratch);
+    }
+
+    /// A sibling directory that merely shares a name prefix with the
+    /// current root (e.g. `data-archive` next to `data`) must not
+    /// false-positive on the nested-destination guard above —
+    /// `strip_prefix` checks real path components, not a raw string
+    /// prefix.
+    #[test]
+    fn validate_does_not_false_positive_on_a_sibling_with_a_shared_name_prefix() {
+        let scratch = tmp("validate-sibling");
+        let source = scratch.join("data");
+        let sibling = scratch.join("data-archive");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::create_dir_all(&sibling).unwrap();
+
+        let v = validate_destination_at(&source, &sibling, 0);
+        assert_eq!(v.kind, DestinationKind::Empty);
+        assert!(v.can_move);
         let _ = std::fs::remove_dir_all(&scratch);
     }
 

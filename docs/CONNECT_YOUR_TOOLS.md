@@ -65,9 +65,11 @@ Add it as a **local** server with the command that launches it. Restart-free.
 ## Bring your own skill
 
 A skill is a folder with a `SKILL.md` (instructions the agent follows) plus any
-scripts/templates it needs. Install one from the **Skills** page (paste a URL or
-Markdown; the agent saves it under the workspace's `.opencode/skills/`). The
-app also bundles first-party skills (e.g. `traceability-review`).
+scripts/templates it needs. The in-app "install a skill from a URL/Markdown"
+flow described here previously relied on the OpenCode agent runtime, which
+has been removed from the app — that install flow no longer exists. The app
+still bundles first-party skills directly (e.g. `traceability-review`,
+`formulation-discovery`, `formulation-optimizer`) under `runtime/skills/core`.
 
 ## Safety
 

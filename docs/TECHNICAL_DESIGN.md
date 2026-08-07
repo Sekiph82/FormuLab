@@ -1,6 +1,21 @@
 # FormuLab Desktop — Technical Design
 
-> **Implementation status (v0.1, 2026-07-02).** Built and verified: Tauri 2 shell + React
+> **Superseded (2026-08-07).** The OpenCode sidecar / `OpenCodeClient` / chat /
+> Skills-Agents-page architecture this document describes (§5 "Local Service",
+> §7-8 Runtime Manager/sidecar startup sequence, and the risk/mitigation
+> sections referencing it) has been removed from the app (Phase 12 Session
+> 2A) and was not replaced with an equivalent agent runtime — formulation
+> generation is now one direct Tauri command (`generate_formulation`) into a
+> bundled Python pipeline, with no supervised sidecar process. This document
+> was not rewritten section-by-section to match; treat everything below that
+> mentions OpenCode, the Runtime Manager, or `runtime/manager`/`runtime/mcp`/
+> `runtime/opencode-profile` as a historical design record, not current
+> behavior. See `docs/architecture/CURRENT_STATE_AUDIT.md` and `AGENTS.md`
+> for what is actually current. The monorepo layout and repository-map bullet
+> list immediately below §16 ("Monorepo:") have been corrected to match
+> current reality; the rest of this document has not.
+>
+> **Implementation status (v0.1, 2026-07-02), as originally written.** Built and verified: Tauri 2 shell + React
 > UI; **OpenCode** bundled as an isolated sidecar (auto-started, app-private config/data,
 > dedicated port); `OpenCodeClient` over HTTP + SSE; real multi-session chat with history;
 > Skills page backed by OpenCode's real skills/agents; macOS `.dmg`; cross-platform CI.
@@ -443,19 +458,22 @@ Monorepo:
 ```text
 formulab/
   apps/desktop/{src,src-tauri}/
-  packages/{ui,shared,sdk}/
-  runtime/{manager,opencode-profile,mcp,skills}/
+  packages/{ui,shared}/
+  runtime/{formulation,kernel,pipeline,harness,skills}/
   docs/{PRD.md,TECHNICAL_DESIGN.md}
-  examples/bci-trends/
+  examples/{shampoo-formulation,surface-cleaner}/
   scripts/{release,dev}/     # dev/fetch-uv.sh, dev/fetch-skills.sh fetch pinned git-ignored assets
 ```
 
-- `apps/desktop` — Tauri + React desktop app; `src-tauri/src/runtime.rs` supervises the
-  bundled OpenCode sidecar (`OpenCodeClient` lives in `packages/sdk`).
-- `runtime/manager` — local runtime manager (detect deps, workspace, provenance, logs).
-- `runtime/opencode-profile` — the FormuLab OpenCode config/skills bundle.
-- `runtime/skills` — self-authored scientific skills.
-- `examples` — the complete demo project.
+- `apps/desktop` — Tauri + React desktop app; `src-tauri/src/formulation_v2.rs`'s
+  `generate_formulation` command runs the pipeline directly (no supervised
+  sidecar process; there is no `runtime.rs` and no agent-runtime client).
+- `runtime/formulation`, `runtime/kernel`, `runtime/pipeline` — the advanced
+  optimizer, the R/Python kernel bridge, and the literature/materials
+  pipeline — live application code, invoked directly by Rust/the kernel.
+- `runtime/harness`, `runtime/skills/core` — bundled via `tauri.conf.json`'s
+  `bundle.resources`.
+- `examples` — the bundled demo projects.
 
 ## 17. v0.1 task breakdown
 

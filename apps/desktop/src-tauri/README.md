@@ -5,12 +5,12 @@ The Rust side of the Tauri app.
 Responsibilities:
 
 - Native commands exposed to the frontend (filesystem within the workspace, OS keychain
-  access for API keys, etc.).
-- Spawning and supervising sidecars (the OpenCode runtime; later the Jupyter Kernel Gateway).
+  access for API keys, formulation generation via `formulation_v2.rs`, etc.).
+- Supervising the Jupyter kernel/Gateway processes (`kernel.rs`/`jupyter.rs`) — there is
+  no agent-runtime sidecar; formulation generation runs as a direct command into the
+  bundled Python pipeline, not a supervised long-running process.
 - Packaging configuration — targets: `dmg` / `app` (macOS), `nsis` / `msi` (Windows).
-- Auto-update wiring (Tauri updater, GitHub Releases + signed `latest.json`) — later.
+- Auto-update check (`updates.rs`) — download/install/rollback is Phase 12 scope, not yet built.
 
 Keep this thin: system capabilities only, no heavy computation. Heavy work goes to
-`runtime/manager` and sidecars.
-
-To be added when build tooling is scaffolded: `Cargo.toml`, `tauri.conf.json`, `src/main.rs`.
+`runtime/formulation`, `runtime/kernel`, `runtime/pipeline`.

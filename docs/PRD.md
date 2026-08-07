@@ -1,6 +1,17 @@
 # FormuLab Desktop — Product Requirements
 
-> **Status (v0.1, 2026-07-02).** The runtime is **OpenCode**, bundled as an isolated
+> **Superseded (2026-08-07).** This document describes the original v0.1
+> (2026-07-02) OpenCode-agent-based design below. The OpenCode sidecar,
+> its chat/Skills-Agents UI, and the MCP-connector flow it describes have
+> since been removed from the app (Phase 12 Session 2A) and were not
+> replaced with an equivalent agent-runtime feature — formulation
+> generation is now one direct Tauri command into a bundled Python
+> pipeline (see `docs/architecture/CURRENT_STATE_AUDIT.md` and
+> `AGENTS.md` for what is actually current). Kept as a historical design
+> record rather than rewritten line-by-line; do not treat the OpenCode
+> references below as describing present-day functionality.
+>
+> **Status (v0.1, 2026-07-02), as originally written.** The runtime is **OpenCode**, bundled as an isolated
 > sidecar (one-click, auto-started, does not touch a user's own OpenCode). Built: the
 > three-column workbench UI, real multi-session chat with history, a real Skills/Agents
 > view, BYOK key config, and a macOS installer. Literature search, provenance/reviewer,
