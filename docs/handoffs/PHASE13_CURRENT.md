@@ -1,81 +1,124 @@
 # Phase 13 — Enterprise Identity, Authentication, Fixed RBAC & Application Security
 
-## Status: SESSION 0 (architecture + audit) COMPLETE. No authentication system implemented — this is architecture/documentation only, per the phase brief's explicit instruction. Full design in `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`, test plan in `docs/PHASE13_SECURITY_TEST_MATRIX.md`. Runs in parallel with Phase 12's still-open SignPath thread (`docs/handoffs/PHASE12_CURRENT.md`) — unrelated, does not block or get blocked by it.
+## Status: SESSION 1 (identity database, password subsystem, final 12-role model) COMPLETE. No login/bootstrap UI, no Administration → Users UI, no application-wide enforcement — those are later sessions. Full design in `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`, test report in `docs/PHASE13_SECURITY_TEST_MATRIX.md`. Runs in parallel with Phase 12's still-open SignPath thread (`docs/handoffs/PHASE12_CURRENT.md`) — unrelated, does not block or get blocked by it.
 
-## Session 0 summary
+## Session 1 summary
 
-**Audit finding (the core result of this session):** FormuLab today has
-no authentication of any kind — every "who did this" field is either
-hardcoded `userId: "local"` or a free-text/dropdown value the user
-sets themselves (`ApprovalPanel.tsx`'s `reviewerRole` `<select>` and
-`reviewerUserId` text input, mirrored in `ClaimsLabelsPanel.tsx`,
-`DoePanel.tsx`, `DossierPanel.tsx`, `RegulatoryPanel.tsx`,
-`TestMethodDrawer.tsx`). The domain-level approval-authority check
-(`APPROVAL_AUTHORITY`/`canTransitionTo` in
-`packages/shared/src/schemas/status.ts`) is real, well-designed, and
-already refuses non-human actors — but it trusts whatever role it's
-handed, and the Rust-side `save_approval_record` command performs no
-role check at all, only a "the approver isn't a machine" check. A raw
-`invoke("save_approval_record", ...)` call bypassing the UI entirely
-can write a valid approval record with any name and no role gate —
-a real, currently-exploitable authorization bypass. Full capability-
-by-capability audit table in the architecture doc §1.
+**The role model changed, authoritatively, mid-phase.** After reviewing
+the real FormuLab dossier/evidence/document workflow, the user replaced
+Session 0's 6-role draft with a final **12-role** model:
+`researcher`, `research_manager`, `quality`, `quality_manager`,
+`regulatory`, `raw_material`, `procurement`, `production_engineering`,
+`production`, `production_manager`, `document_control`,
+`administrator`. `chemist` was folded into `researcher`;
+`quality`/`production` each split into an employee tier and a manager
+tier that alone holds approval authority. No `packaging` role was
+created — packaging-related work maps onto the existing roles above.
+Full role intent: architecture doc §1.1.
 
-The six roles the phase brief specifies
-(researcher/chemist/quality/regulatory/production/administrator)
-**already exist** as `APPROVAL_ROLES` in `status.ts` — no schema
-correction needed, confirmed by direct inspection, not assumed.
+**Every "6 roles" reference in the codebase and docs was found and
+corrected this session** — `packages/shared/src/schemas/status.ts`'s
+`APPROVAL_ROLES`/`APPROVAL_AUTHORITY`, `laboratoryStandards.ts`'s
+manager-role gate, `dataExchangeRegistry.ts`'s per-template role lists,
+every frontend hardcoded `role: "chemist"` actor (13 sites), every
+`APPROVAL_ROLES`-driven `<select>` (automatically correct — they map
+over the constant), 2 i18n strings (`session.json`), 2 stale-claim i18n
+strings (`help.json`), and roughly 30 test-file role references across
+18 test files (renamed, not just mechanically substituted — 4 tests
+that used to assert `chemist`/`quality` *could* grant an approval were
+rewritten to assert the correct manager-tier role can and the
+employee-tier role cannot, adding the explicit role-model-regression
+tests the phase brief required).
+
+**`APPROVAL_AUTHORITY` was re-derived, not blindly carried forward** —
+audited per explicit instruction. `pilot_approved` and
+`production_approved` moved from employee-tier-inclusive lists to
+manager-tier + regulatory + administrator only. Full derivation and
+the exact old→new mapping: architecture doc §6.2.
+
+**Session 0's core audit finding is unchanged and still real**: no
+authentication exists; `reviewerRole` etc. are still freely-editable,
+unauthenticated `<select>`s; `save_approval_record` (Rust) still
+performs no role check at all. Session 1 did not fix this — it built
+the identity-storage foundation the fix (Session 4) will sit on, and
+made sure that foundation already speaks the correct, final role
+vocabulary.
 
 ## Deliverables (this session)
 
-- `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` — full design:
-  current-state audit, User entity, username rules, bootstrap,
-  fixed role-permission matrix (with the Administrator-authority
-  decision made explicit, not silently assumed), canonical
-  authorization module design, password/session/database design,
-  SQL-injection assessment, brute-force design, audit-log design,
-  Administration UI design, standalone vs. company-local identity
-  models, implementation session plan, and an explicit risks/open-
-  decisions list.
-- `docs/PHASE13_SECURITY_TEST_MATRIX.md` — full enumerated test plan
-  (authentication, per-role enforcement, privilege escalation, SQL
-  injection, administrator security, audit), each test tagged with
-  the implementation session it belongs to.
+- `apps/desktop/src-tauri/src/identity.rs` (new) — the identity/
+  authentication database foundation: `identity.db` (app-private,
+  never the relocatable data root), 4 tables (`users`,
+  `authenticated_sessions`, `login_attempts`,
+  `security_audit_events`), a versioned/idempotent migration runner
+  (`PRAGMA user_version`-based), Argon2id password hashing
+  (`hash_password`/`verify_password`), username validation/
+  normalization, and narrow repository primitives (create/find/update
+  user, session create/validate, login-attempt/audit persistence). 28
+  tests, all passing. No Tauri command exposes any of this yet.
+- `apps/desktop/src-tauri/Cargo.toml` — added `argon2` (0.5) and
+  `rand_core` (0.6, `getrandom` feature).
+- `packages/shared/src/schemas/status.ts` — 12-role `APPROVAL_ROLES`,
+  re-derived `APPROVAL_AUTHORITY`.
+- `packages/shared/src/engine/laboratoryStandards.ts`,
+  `dataExchangeRegistry.ts` — role-list corrections.
+- 13 frontend files (hardcoded actors + `useState` defaults) — see
+  the external log for the exact list.
+- 2 i18n locale files (`en/session.json`, `en/help.json`) — stale
+  role-name/claim strings corrected (English only this session; other
+  7 locales not updated — flagged as a known gap, same as this
+  project's established i18n-gap convention).
+- ~18 test files across `packages/shared` and `apps/desktop` —
+  updated for the new role vocabulary, including new role-model-
+  regression assertions.
+- `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` — substantially
+  revised: 12-role model, four-concept authorization layering
+  (visibility/role-capability/workflow-state/required-approval),
+  workflow foundation vocabulary, a proposed canonical workflow matrix
+  (with 4 explicitly-marked implementation gaps), updated
+  `APPROVAL_AUTHORITY` derivation, `identity.db` design-as-implemented.
+- `docs/PHASE13_SECURITY_TEST_MATRIX.md` — 12-role corrections, new
+  §G reporting the 28 real Session 1 tests.
 - This handoff.
-- External log: `C:\Users\sekip\Desktop\FormuLab-Phase13-Identity-Security-Log.md` (new, per the project's per-phase external-log convention — not a reuse/rename of the Phase 12 log).
+- External log: `C:\Users\sekip\Desktop\FormuLab-Phase13-Identity-Security-Log.md`, Session 1 entry appended (not a new log).
 
-## What Session 0 deliberately did NOT do
+## What Session 1 deliberately did NOT do
 
-- No `users`/`authenticated_sessions`/`security_audit_events` tables
-  created.
-- No login screen, no bootstrap screen, no Argon2id dependency added.
+- No login/bootstrap Tauri commands or UI.
 - No `Administration → Users` UI.
-- No enforcement wired into any existing command or component.
-- No change to `status.ts`, `canTransitionTo`, `APPROVAL_AUTHORITY`, or
-  any regulatory engine file — existing enforcement preserved exactly
-  as-is, confirmed by not touching it.
-
-All of the above are Session 1+ work, per the architecture doc's §27
-plan.
+- No `rolePolicy.ts`/`can()` module (Session 3).
+- No application-wide enforcement — `save_approval_record`'s missing
+  role check is still unfixed (Session 4).
+- No workflow-engine implementation — §15.3's matrix and its 4 marked
+  gaps are a design proposal, not new `FormulaStatus` values or gate
+  logic.
+- No project/resource access — confirmed out of scope for Phase 13
+  (no longer just "recommended," now decided).
+- No other-locale (non-English) i18n updates for the corrected role
+  strings.
 
 ## Open decisions requiring a human answer before Session 4
 
-1. Is the §6 role-permission matrix (beyond the pre-existing Approval
-   rows) actually correct for a real lab/QA/regulatory workflow? It's
-   this session's first draft from current navigation, not domain-
-   expert-reviewed.
-2. Should Administrator really retain `pilot_approved`/
-   `production_approved` authority? Currently inherited from existing
-   `APPROVAL_AUTHORITY` (so as not to weaken current enforcement) —
-   flagged, not silently decided.
-3. Is project/resource access (§20) needed in Phase 13's initial scope,
-   or can it wait for a dedicated later session? Recommendation: wait.
+1. Is the full §6 role-permission matrix correct for a real lab/QA/
+   regulatory/production workflow? Session 1's first draft, not
+   domain-expert-reviewed.
+2. Final confirmation that Administrator should keep approval authority
+   on both gates (currently yes, explicit and user-approved, but worth
+   reconfirming before it becomes load-bearing in Session 4's
+   enforcement).
+3. §15.3's 4 workflow gaps (raw-material verification, supplier-
+   document verification, production-engineering→production-manager
+   approval, production→production-manager approval) have no
+   `FormulaStatus` today — real future work, sequencing TBD (Session 4
+   or a dedicated workflow session).
 
 ## Exact next session
 
-**Phase 13 Session 1: User database + migrations + password subsystem.**
-Build `identity.db` (`users`, `authenticated_sessions`,
-`login_attempts`, `security_audit_events`), wire it through the
-existing `migration.rs` framework, add the `argon2` crate, and write
-the full SQL-injection regression suite (test matrix §D) against every
-new query before any UI work begins.
+**Phase 13 Session 2: Administrator bootstrap + username/password
+login/logout + authenticated session lifecycle, using the new
+canonical 12-role identity model.** Wire `identity.rs`'s primitives to
+real Tauri commands (`bootstrap_status`, a bootstrap-create command,
+`login`, `logout`), decide the exact lockout threshold/backoff and
+session idle-timeout policy, and build the Login/Administrator-Setup
+screens. Still no `Administration → Users` UI and no application-wide
+role enforcement — those stay Session 5/4 respectively.

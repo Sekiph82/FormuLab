@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Session 0) — ARCHITECTURE + AUDIT, NOT IMPLEMENTED
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-1) — IDENTITY DATABASE FOUNDATION IMPLEMENTED, AUTHENTICATION NOT YET WIRED
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -1897,15 +1897,32 @@ handed — and the Rust-side `save_approval_record` command performs no
 role check at all, only a not-a-machine-actor check, so a raw
 `invoke()` call bypassing the UI can write an approval record with no
 role gate. This is a real, currently-exploitable authorization bypass,
-found and documented, not yet fixed (fixing it is Session 4's job,
-once a trustworthy role source exists to check against). The six
-required roles (researcher/chemist/quality/regulatory/production/
-administrator) already exist as `APPROVAL_ROLES` in `status.ts` — no
-schema correction needed. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`;
-test plan: `docs/PHASE13_SECURITY_TEST_MATRIX.md`; handoff:
-`docs/handoffs/PHASE13_CURRENT.md`. No authentication code, database,
-or UI exists yet — Session 0 is architecture and audit only, per
-explicit instruction.
+found and documented in Session 0, still not fixed (Session 4's job,
+once a trustworthy role source exists).
+
+Session 1 replaced the Session 0 6-role draft with a **final, user-
+approved 12-role model** (`researcher`, `research_manager`, `quality`,
+`quality_manager`, `regulatory`, `raw_material`, `procurement`,
+`production_engineering`, `production`, `production_manager`,
+`document_control`, `administrator` — `chemist` folded into
+`researcher`; `quality`/`production` each split into employee + manager
+tiers) and corrected every reference to the old model across
+`status.ts`, `laboratoryStandards.ts`, `dataExchangeRegistry.ts`, 13
+frontend actor sites, i18n, and ~18 test files — `APPROVAL_AUTHORITY`
+was re-derived (not blindly carried forward) so approval gates now
+require the manager tier, not the employee tier. Session 1 also
+implemented the actual identity-storage foundation:
+`apps/desktop/src-tauri/src/identity.rs` — a dedicated app-private
+`identity.db` (4 tables, versioned/idempotent SQLite migrations via
+`PRAGMA user_version`), Argon2id password hashing, username validation/
+normalization, and repository primitives for users/sessions/login-
+attempts/audit events. 28 Rust tests, all passing; full crate suite
+216/216; full frontend suite (shared 1254 + desktop 1173) 2427/2427.
+No Tauri command exposes any of this yet — no login, no bootstrap, no
+Administration → Users UI. Full design:
+`docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`; test report:
+`docs/PHASE13_SECURITY_TEST_MATRIX.md`; handoff:
+`docs/handoffs/PHASE13_CURRENT.md`.
 
 ## Not yet started
 

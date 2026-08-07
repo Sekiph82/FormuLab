@@ -256,7 +256,7 @@ describe("ClaimsLabelsPanel — claim evidence and reviews", () => {
     await user.click(screen.getByRole("button", { name: "Reviews" }));
     expect(screen.getByRole("button", { name: "Record review" })).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Acting as"), "chemist");
+    await user.selectOptions(screen.getByLabelText("Acting as"), "researcher");
     expect(screen.queryByRole("button", { name: "Record review" })).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("Acting as"), "regulatory");

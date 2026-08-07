@@ -35,6 +35,13 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 sha2 = "0.10"
 # Phase 11: portable .formulab-backup package format (ZIP container).
 zip = { version = "2", default-features = false, features = ["deflate"] }
+# Phase 13: Argon2id password hashing for the identity/authentication
+# database (identity.rs). PHC-string encoded output (algorithm+params+
+# salt+hash in one self-describing string) via the `password-hash` API.
+argon2 = "0.5"
+# argon2's re-exported rand_core::OsRng needs this crate's own
+# "getrandom" feature explicitly on — it's off by default.
+rand_core = { version = "0.6", features = ["getrandom"] }
 # Phase 11: free-disk-space check before staging a backup/restore.
 fs4 = "0.9"
 # Phase 11 Session 5: redaction (usernames in paths, token/key-like

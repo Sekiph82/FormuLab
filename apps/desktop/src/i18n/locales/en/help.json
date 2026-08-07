@@ -158,7 +158,7 @@
       "A superseded standard must be explicitly acknowledged before it can be selected."
     ],
     "limitations": [
-      "Existing free-text method references are not auto-converted into standards — they stay visible as an unresolved legacy reference until a chemist creates the structured standard/method."
+      "Existing free-text method references are not auto-converted into standards — they stay visible as an unresolved legacy reference until an authorized research manager, quality manager, or administrator creates the structured standard/method."
     ]
   },
   "stability": {
@@ -271,7 +271,7 @@
       "No automated actor — agent, system process, or import — can ever set pilot_approved or production_approved, regardless of what a model concluded."
     ],
     "roleNotes": [
-      "Pilot approval needs chemist/quality/administrator; production approval needs quality/regulatory/production/administrator."
+      "Pilot approval needs research manager/quality manager/administrator; production approval needs quality manager/regulatory/production manager/administrator."
     ]
   },
   "reports": {
@@ -412,7 +412,7 @@
     },
     "approvalRole": {
       "term": "Approval role",
-      "definition": "One of researcher, chemist, quality, regulatory, production, or administrator — the only roles that can ever approve a version, and only some of them for each approval gate."
+      "definition": "One of researcher, research manager, quality, quality manager, regulatory, raw material, procurement, production engineering, production, production manager, document control, or administrator — the only roles that can ever approve a version, and only the manager-tier roles (plus regulatory and administrator) for each approval gate."
     },
     "blockingFinding": {
       "term": "Blocking finding",

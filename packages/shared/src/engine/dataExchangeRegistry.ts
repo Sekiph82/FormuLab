@@ -894,14 +894,17 @@ function template(def: {
   };
 }
 
+// Phase 13 Session 1: the old "chemist" role was folded into "researcher"
+// (day-to-day formulation/lab work) when the role model expanded from 6 to
+// 12 fixed roles — see docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md §1/§9.
 const MASTER_DATA_ROLES: readonly ApprovalRole[] = ["administrator"];
 const QUALITY_MASTER_DATA_ROLES: readonly ApprovalRole[] = ["quality", "administrator"];
-const FORMULATION_ROLES: readonly ApprovalRole[] = ["researcher", "chemist", "administrator"];
-const COST_ROLES: readonly ApprovalRole[] = ["chemist", "quality", "administrator"];
-const LAB_ROLES: readonly ApprovalRole[] = ["researcher", "chemist", "quality", "administrator"];
+const FORMULATION_ROLES: readonly ApprovalRole[] = ["researcher", "administrator"];
+const COST_ROLES: readonly ApprovalRole[] = ["researcher", "quality", "administrator"];
+const LAB_ROLES: readonly ApprovalRole[] = ["researcher", "quality", "administrator"];
 const REGULATORY_ROLES: readonly ApprovalRole[] = ["regulatory", "quality", "administrator"];
-const DRAFT_CONTENT_ROLES: readonly ApprovalRole[] = ["researcher", "chemist", "quality", "regulatory", "administrator"];
-const DOE_ROLES: readonly ApprovalRole[] = ["researcher", "chemist", "administrator"];
+const DRAFT_CONTENT_ROLES: readonly ApprovalRole[] = ["researcher", "quality", "regulatory", "administrator"];
+const DOE_ROLES: readonly ApprovalRole[] = ["researcher", "administrator"];
 
 export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
   template({

@@ -1,6 +1,8 @@
 # Phase 13 — Enterprise Identity, Authentication, Fixed RBAC & Application Security
 
-**Status: Session 0 (architecture + audit) complete. No authentication system implemented yet — this document is the design this and future sessions build against.**
+**Status: Session 1 (identity database + password subsystem + final 12-role model) complete. No login/bootstrap UI, no Administration → Users UI, no application-wide enforcement yet — those are later Phase 13 sessions. This document is the design they build against.**
+
+**Session 1 correction, superseding Session 0's role list**: Session 0 shipped a first-draft 6-role model. After reviewing the real FormuLab dossier/evidence/document workflow, the user approved a final, authoritative **12-role** model (§1). Every "6 roles" statement in the original Session 0 text has been rewritten below — nowhere in this document should you find a claim that FormuLab has 6 fixed roles.
 
 ## 0. Why this phase exists
 
@@ -10,695 +12,793 @@ literal string `"local"`, or a free-text field the user types into a
 panel. There is no login, no user database, no password, no session.
 Selling FormuLab into labs/QA/regulatory/production departments requires
 a real, closed, enterprise-only identity system: administrator-created
-accounts, username + password login, and a fixed six-role permission
+accounts, username + password login, and a fixed 12-role permission
 model — no public sign-up, no email/SMS verification, no mandatory
-external identity provider.
+external identity provider, no per-user permission customization.
 
 ---
 
-## 1. Current-state audit
+## 1. The final 12 fixed roles (authoritative, Session 1)
+
+| Group | Roles |
+|---|---|
+| R&D / Laboratory | `researcher`, `research_manager` |
+| Quality | `quality`, `quality_manager` |
+| Regulatory | `regulatory` |
+| Materials / Supply | `raw_material`, `procurement` |
+| Production | `production_engineering`, `production`, `production_manager` |
+| Document Management | `document_control` |
+| System | `administrator` |
+
+These are fixed application roles — not user-created, not editable, no
+custom permission sets, no `role_permissions`/`user_permission_overrides`
+tables, no per-user permission checkboxes. **User gets a role. User does
+not get individual permissions.** Implemented Session 1 as
+`identity::Role` (a 12-variant Rust enum, `src-tauri/src/identity.rs`)
+and mirrored in TypeScript as `packages/shared/src/schemas/status.ts`'s
+`APPROVAL_ROLES`/`ApprovalRole` — the exact same 12 strings on both
+sides (`researcher`, `research_manager`, `quality`, `quality_manager`,
+`regulatory`, `raw_material`, `procurement`, `production_engineering`,
+`production`, `production_manager`, `document_control`,
+`administrator`).
+
+### 1.1 Role intent (business meaning, drives §5's workflow matrix)
+
+- **`researcher`** — Formulation-development and laboratory work:
+  create/edit experimental formulations where allowed, create lab
+  trials, enter test results and observations, work with stability/
+  laboratory records, prepare work for manager review. Cannot
+  self-approve work that requires `research_manager` approval.
+- **`research_manager`** — R&D/Laboratory managerial authority: reviews
+  researcher work, approves/rejects laboratory-stage completion,
+  approves formulation/laboratory readiness for downstream workflow,
+  returns work for correction. **Critical rule**: researcher completion
+  is not departmental approval — work stays blocked from the next
+  controlled stage until `research_manager` approves it.
+- **`quality`** — QA/QC working role: quality checks, inspections,
+  test/result review, quality evidence, non-conformance working
+  records, prepares quality work for `quality_manager` review. Cannot
+  self-approve a `quality_manager`-reserved stage.
+- **`quality_manager`** — Quality managerial authority: reviews QA/QC
+  work, quality-stage approval/rejection, release/hold decisions where
+  the role matrix assigns them, returns quality work for correction,
+  authorizes leaving a quality-manager-controlled stage. Same
+  completion-≠-approval rule as research_manager.
+- **`regulatory`** — Regulatory Affairs, kept as **one** fixed role
+  (not split into employee/manager tiers) per explicit instruction:
+  regulatory review, dossier work, regulatory evidence verification,
+  claims/regulatory assessment, jurisdictional review, and whatever
+  approval/rejection/verification/supersession operations the role
+  matrix defines.
+- **`raw_material`** — Raw Material / material-management technical
+  role: raw-material records, specifications, SDS/TDS/COA/certificates,
+  raw-material technical status, material suitability information,
+  material-related records used by formulation/dossier workflows. Does
+  **not** automatically get Procurement authority.
+- **`procurement`** — Procurement / Supplier Management: supplier
+  information/documentation, obtaining supplier/manufacturer
+  documents, supplier declarations, received SDS/TDS/COA/certificates,
+  supplier qualification records, procurement-side document
+  completeness. Collecting a document is **not** the same as
+  scientifically verifying or approving it — collection, technical
+  verification, quality approval, and regulatory approval stay
+  separate concepts, never conflated under one role.
+- **`production_engineering`** — Scale-up/industrialization: production
+  readiness engineering, manufacturing process preparation, process
+  parameters, routing/process linkage, technical transfer from
+  development toward manufacturing, production feasibility, engineering
+  changes, manufacturing instructions where supported. Must not bypass
+  upstream required approvals — technical accessibility is not
+  production approval.
+- **`production`** — Production operational role: production execution,
+  batch/process records, manufacturing operational entries,
+  production-stage data, permitted shop-floor actions. Does not grant
+  manager-level production approval unless the role matrix explicitly
+  says so.
+- **`production_manager`** — Production managerial authority:
+  production-stage review, approval/rejection, release decisions,
+  management-level manufacturing signoff, returns production work for
+  correction. Where configured as a required gate, downstream work
+  stays blocked until it passes.
+- **`document_control`** — Document Control / Technical Documentation —
+  **not** a scientific approval role by default: document package
+  completeness, revision control, correct released-document version,
+  document publication/export, controlled external-system upload,
+  recording external publication, obsolete-document prevention,
+  document distribution, dossier/package administrative completeness.
+  Does **not** automatically gain formulation/laboratory/QA scientific
+  approval, or regulatory verification, or production approval, unless
+  a specific policy explicitly says otherwise.
+- **`administrator`** — System/IT administration: create/disable/enable
+  users, reset passwords, assign/change roles, inspect security audit
+  history, manage application/system settings. **User-approved
+  exception**: administrator also retains scientific approval authority
+  (§9), specifically so IT can exercise/test every workflow gate — this
+  does not make administrator a scientific-content editor (§9 explains
+  the exact boundary).
+
+No `packaging` role exists or was created — packaging-related actions
+map onto the roles above (researcher/research_manager for formulation-
+side packaging compatibility work, quality/quality_manager for QA
+review, regulatory for compliance, production_engineering for
+manufacturing-side packaging, document_control for
+artwork/packaging-document publication) based on the app's actual
+current behavior, per explicit instruction not to invent a new role.
+
+---
+
+## 2. Current-state audit (Session 0, unchanged findings)
 
 Audited: `packages/shared/src/schemas/status.ts` (Actor/ApprovalRole),
-`packages/shared/src/engine/{approvalReadiness,lifecycle,claims,
-regulatoryReviews,regulatoryRules,regulatoryDossier,laboratoryStandards,
-labels,doeAnalysis,doeCandidates,doeDesign}.ts`, every frontend site that
-constructs an `Actor`, `apps/desktop/src-tauri/src/formulations.rs`'s
+every `packages/shared/src/engine/*.ts` file touching approval/
+regulatory authorization, every frontend site that constructs an
+`Actor`, `apps/desktop/src-tauri/src/formulations.rs`'s
 `save_approval_record`, `apps/desktop/src-tauri/capabilities/default.json`,
 `apps/desktop/src/app/routes/AdministrationPage.tsx`, `SECURITY.md`,
-rusqlite usage across `src-tauri/src` (grep for every `.rs` file), and
-every Rust file for `password`/`login`/`authenticate` tokens.
+every `rusqlite` call site, and every Rust file for `password`/`login`/
+`authenticate` tokens.
 
 | Capability | Status | Evidence |
 |---|---|---|
-| User accounts | **MISSING** | No user table/store anywhere. |
-| Administrator-created users | **MISSING** | No creation flow exists. |
-| Username login | **MISSING** | No login screen; app opens directly to `HomePage`. |
-| Password authentication | **MISSING** | No password field/hash anywhere in the codebase. |
-| Logout | **MISSING** | No session to log out of. |
-| Password hashing | **MISSING** | No password storage of any kind. |
-| Account enable/disable | **MISSING** | No account concept. |
-| Administrator password reset | **MISSING** | — |
-| Brute-force protection / login throttling | **MISSING** | No login endpoint to throttle. |
-| Authenticated session | **MISSING** | No session token/cookie/context anywhere. |
-| Session expiration / idle timeout | **MISSING** | — |
-| Role storage (trusted) | **MISSING** | `ApprovalRole` is a real, well-designed *type*, but nothing durably stores "this human is a chemist" — see below. |
-| Role assignment (by admin) | **MISSING** | No admin UI to assign a role to anyone. |
-| Role enforcement (domain-level) | **PARTIAL** | `canTransitionTo` (`status.ts`) is real, tested, working enforcement — see §8 — but it trusts whatever `Actor.role` it's given. |
-| Role enforcement (backend/Rust) | **UNSAFE** | `save_approval_record` (Tauri command) validates that an approver name is non-empty and not a machine actor (`"ai"`/`"system"`/etc.), but performs **no role check at all**. A raw `invoke("save_approval_record", {...})` from the WebView devtools console — bypassing the React UI and its `canTransitionTo` call entirely — writes a valid, permanent approval record with any name and no role gate. This is a real, currently-exploitable authorization bypass, not a hypothetical. |
-| UI role selection | **UNSAFE** | `reviewerRole`/`actorRole`/`actingRole` are plain `useState<ApprovalRole>` values bound to a `<select>` the user freely changes (`ApprovalPanel.tsx:417,1214`; same pattern in `ClaimsLabelsPanel.tsx`, `DoePanel.tsx`, `DossierPanel.tsx`, `RegulatoryPanel.tsx`, `TestMethodDrawer.tsx`). The paired `userId` is a free-text input defaulting to `"local"`. Nothing authenticates either value. This is exactly the "reviewerRole dropdown" attack the phase brief names. |
-| Project/resource access | **NOT_APPLICABLE (today)** | No project-membership concept exists at all — every user, hypothetically, can reach every project. Not unsafe *today* (no users exist to restrict), but a real gap once accounts exist. |
-| Audit logging (security events) | **PARTIAL** | `formulations.rs`/`provenance.rs` log domain events (formula saves, approvals, run provenance) with a named `approvedBy`, but there is no login/logout/account-lifecycle/permission-denied audit trail, because none of those events exist yet. |
-| SQLite/user database | **NOT_APPLICABLE (today)** | The only `rusqlite` usage in the whole Rust source is `runs_index.rs` — a disposable, rebuildable run-index cache, not a candidate for the identity store. |
-| `capabilities/default.json` | **NOT_APPLICABLE (today)** | No identity-related Tauri permission exists because no identity Tauri command exists yet. |
-| Administration UI | **PARTIAL** | `AdministrationPage.tsx` exists today with `overview`/`testDefinitions` sections only — a real, working page to extend, not build from scratch, but it has zero user-management content today. |
+| User accounts | **MISSING** (Session 1: identity.db now exists, not yet wired to any command) | — |
+| Administrator-created users | **MISSING** | No creation flow/UI exists yet |
+| Username login | **MISSING** | No login screen; app opens directly to `HomePage` |
+| Password authentication | **PARTIAL** (Session 1: `hash_password`/`verify_password` implemented and tested; no login command uses them yet) | `identity.rs` |
+| Logout | **MISSING** | No session UI to log out of |
+| Password hashing | **IMPLEMENTED** (Session 1) | Argon2id, `identity.rs` |
+| Account enable/disable | **PARTIAL** (Session 1: `update_account_status` implemented + tested, incl. session revocation; no admin UI) | `identity.rs` |
+| Administrator password reset | **PARTIAL** (Session 1: `update_password_hash` implemented + tested; no admin UI) | `identity.rs` |
+| Brute-force protection / login throttling | **PARTIAL** (Session 1: `update_login_state` lockout logic implemented + tested; not wired to a login command yet) | `identity.rs` |
+| Authenticated session | **PARTIAL** (Session 1: `create_session`/`validate_session` implemented + tested; no login command issues one yet) | `identity.rs` |
+| Session expiration / idle timeout | **PARTIAL** (expiry implemented + tested; idle-timeout policy not yet decided) | `identity.rs` |
+| Role storage (trusted) | **PARTIAL** (Session 1: `users.role`, constrained to the 12 fixed roles by `Role::parse`; not yet the source any command trusts) | `identity.rs` |
+| Role assignment (by admin) | **MISSING** | No admin UI |
+| Role enforcement (domain-level) | **PARTIAL** | `canTransitionTo` (`status.ts`) is real, tested, working enforcement, now re-derived for the 12-role model (§6) |
+| Role enforcement (backend/Rust) | **UNSAFE** (unchanged from Session 0) | `save_approval_record` performs no role check at all — see Session 0's original finding, still true, not yet fixed (Session 4) |
+| UI role selection | **UNSAFE** (unchanged from Session 0) | `reviewerRole`/`actorRole`/`actingRole` are still plain, freely-editable `useState`s — Session 1 only renamed their default/option values to the new 12 roles, it did not add authentication underneath them |
+| Project/resource access | **NOT_APPLICABLE (confirmed out of scope for Phase 13)** | See §12 |
+| Audit logging (security events) | **PARTIAL** (Session 1: `record_security_audit_event` implemented + tested; nothing calls it yet outside tests) | `identity.rs` |
+| SQLite/user database | **IMPLEMENTED** (Session 1) | `identity.db`, app-private, §11 |
 
-**Explicitly NOT REQUIRED**, confirmed and carried forward as a hard
-constraint for every later session: public registration, email
-verification, SMS/phone verification, social login, email-based
-password recovery, consumer account creation. None of this exists
-today either, which is correct — it must stay that way.
+Explicitly **NOT REQUIRED**, confirmed absent and staying that way:
+public registration, email verification, SMS/phone verification,
+social login, email-based password recovery, consumer account
+creation.
 
-### 1.1 The one piece of real, valuable existing infrastructure: `canTransitionTo`
+### 2.1 The one piece of real, valuable existing infrastructure: `canTransitionTo`
 
-`packages/shared/src/schemas/status.ts` already encodes the load-bearing
-safety rule this phase must not weaken: an approval status
-(`pilot_approved`, `production_approved`) can only be reached by a
-`{kind: "human"}` actor whose role is in `APPROVAL_AUTHORITY[to]`, and
-only with a signed `ApprovalRecord` attached. Agents, imports, and system
-processes are refused outright, by type — `Actor.kind !== "human"`. This
-is exactly the right shape for the *authorization* half of RBAC; what's
-missing is the *authentication* half that would make `actor.role`
-trustworthy instead of self-reported.
+`packages/shared/src/schemas/status.ts` encodes the load-bearing safety
+rule this phase must not weaken: an approval status (`pilot_approved`,
+`production_approved`) can only be reached by a `{kind: "human"}` actor
+whose role is in `APPROVAL_AUTHORITY[to]`, with a signed
+`ApprovalRecord`. Agents, imports, and system processes are refused by
+type. Session 1 re-derived `APPROVAL_AUTHORITY` for the 12-role model
+(§6.2) — the mechanism is unchanged, only the role lists inside it.
 
 ---
 
-## 2. User entity design
+## 3. User entity design (implemented Session 1, `identity.rs::User`)
 
-```ts
-interface User {
-  id: string;                 // immutable internal ID (ULID or uuid v7 — sortable, generated client-independent)
-  username: string;            // as typed at creation, display casing preserved
-  usernameNormalized: string;  // lowercased, trimmed — the actual uniqueness/lookup key
-  displayName: string;
-  passwordHash: string;        // Argon2id encoded hash string (algorithm+params+salt+hash, self-describing)
-  role: ApprovalRole;          // one of the six fixed roles — reuses the existing shared type, not a new one
-  status: "active" | "disabled";
-  department?: string;
-  employeeId?: string;
-  mustChangePassword: boolean;
-  createdAt: string;           // ISO 8601
-  createdBy: string;           // User.id of the admin who created this account
-  updatedAt: string;
-  lastLoginAt?: string;
-  failedLoginCount: number;
-  lockedUntil?: string;        // set by brute-force protection, see §10
+```rust
+pub struct User {
+    pub id: String,                       // "usr_" + timestamp + random hex — immutable
+    pub username: String,                 // as typed, display casing preserved
+    pub normalized_username: String,      // trimmed + ASCII-lowercased — the real uniqueness key
+    pub display_name: String,
+    pub password_hash: String,            // Argon2id PHC string; #[serde(skip)] — never serialized out
+    pub role: Role,                       // one of the 12 fixed roles
+    pub status: String,                   // "active" | "disabled"
+    pub department: Option<String>,
+    pub employee_reference: Option<String>,
+    pub must_change_password: bool,       // true by default on create/reset — see §8
+    pub failed_login_count: i64,
+    pub locked_until: Option<String>,
+    pub created_at: String,
+    pub created_by: Option<String>,
+    pub updated_at: String,
+    pub last_login_at: Option<String>,
 }
 ```
 
-Deliberately **not** in this table: email, phone, avatar, locale
-preference (that's already a separate app-settings concern),
-per-user permission rows (§6/§9 explain why), password history (not
-required by the stated business model; add later only if a concrete
-compliance requirement demands it — do not build ahead of the need).
+Deliberately absent: email, phone, avatar, per-user permission rows,
+password history (no concrete requirement demands it yet).
 
 ---
 
-## 3. Username rules
+## 4. Username rules (implemented Session 1, `identity::validate_username`/`normalize_username`)
 
-- **Uniqueness**: enforced on `usernameNormalized` via a `UNIQUE`
-  database constraint (not just an app-level check — the constraint is
-  the actual source of truth; the app check is only a friendlier error
-  before hitting it).
-- **Normalization**: `usernameNormalized = username.trim().toLowerCase()`.
-  Unicode is normalized to NFC before lowercasing so visually-identical
-  usernames typed with different composed/decomposed accent forms can't
-  collide-but-not-collide.
-- **Case sensitivity**: login and uniqueness are case-**insensitive**
-  (`ahmet.yilmaz` and `Ahmet.Yilmaz` are the same account) — matches
-  every enterprise directory convention (AD/LDAP-style) and avoids
-  support tickets from employees who don't remember their own casing.
-  `username` (original casing) is kept only for display.
-- **Allowed characters**: ASCII letters, digits, `.`, `_`, `-`. No spaces
-  (rejected, not silently stripped — silent stripping is a source of
-  duplicate-looking accounts). No requirement to look like an email
-  address — `lab01`, `chemist03`, `quality.manager` are all valid.
-- **Length**: 3–64 characters after trimming.
-- **Whitespace**: leading/trailing trimmed before validation; internal
-  whitespace rejected outright (not collapsed).
+- **Length**: 3–64 characters.
+- **Allowed characters**: ASCII letters, digits, `.`, `_`, `-` only. No
+  spaces (rejected outright, never silently stripped).
+- **Case sensitivity**: login/uniqueness is case-**insensitive**
+  (`ahmet.yilmaz` == `Ahmet.Yilmaz`); `username` (original casing) is
+  kept only for display.
+- **Unicode**: rejected outright by the ASCII-only charset rule — which
+  also means NFC/Unicode normalization is unnecessary in practice: any
+  input that would need it never reaches the database at all. (This
+  simplifies Session 0's original design, which anticipated needing
+  Unicode normalization; Session 1's actual implementation found the
+  ASCII-only charset makes that moot, and doesn't add an unnecessary
+  dependency for it.)
+- **No email-format requirement**: `ahmet.yilmaz`, `ayse_demir`,
+  `lab01`, `chemist03`, `quality.manager` are all valid.
+- **Database uniqueness**: `UNIQUE` constraint on `normalized_username`
+  — the actual source of truth, not just an app-level pre-check.
+  Tested (`a_second_user_differing_only_by_case_is_refused_by_the_database_constraint`).
 
 ---
 
-## 4. First administrator bootstrap
+## 5. First administrator bootstrap (designed, not yet implemented — Session 2)
 
-On a fresh install, the `users` table is empty. `apps/desktop/src-tauri`
-exposes a single Tauri command, `bootstrap_status`, checked once at
-startup: `{ "hasAdministrator": bool }`. If false, the frontend renders
-an **Administrator Setup** screen instead of the normal Login screen —
-same shell, different content, no separate binary/mode. The installing
-person enters: administrator username, password (with the app's own
-strength rule, not a copy-pasted generic one — TBD in Session 1/2 against
-real threat model, not invented here), and display name. On submit, the
-Rust command re-checks `hasAdministrator` is still false (races between
-two windows/processes are possible on a machine with multiple app
-instances briefly running) and only then inserts the row and marks
-bootstrap permanently closed. After that, `bootstrap_status` always
-returns `hasAdministrator: true` and the Administrator Setup route
-becomes unreachable — not just hidden, the Rust command itself refuses
-to insert a second bootstrap administrator once one exists, so a UI bug
-can't reopen this hole.
-
-No default credentials are ever seeded. `admin/admin`,
-`admin123`, `administrator/password`, `formulab/formulab` are
+On a fresh install, `users` is empty. A `bootstrap_status` Tauri command
+(Session 2) checks `{ hasAdministrator: bool }`; if false, the frontend
+renders an Administrator Setup screen instead of Login. The installing
+person enters administrator username/password/display name; on submit,
+Rust re-checks `hasAdministrator` is still false (race safety) and only
+then inserts the row via `identity::create_user` with
+`role: Administrator`, permanently closing bootstrap. No default
+credentials are ever seeded — `admin/admin` and equivalents are
 permanently absent from source, seed data, and documentation.
 
 ---
 
-## 5. Administrator creates users
+## 6. Fixed role-permission matrix (Session 1 — the final 12-role matrix)
 
-`Administration → Users → Create User`. Fields: username, display name,
-initial password, role (one of the fixed six, `<select>` — this is the
-*only* role-selection UI in the whole app, and it belongs to the admin
-creating the account, never to the user logging in), optional
-department, optional employee/reference ID, active/inactive (defaults
-active). No permission checkboxes. On save, the account can log in
-immediately with username + the initial password (subject to
-`mustChangePassword`, §11) — no email, no SMS, no external service, no
-verification step of any kind.
+Legend: V=view, C=create, E=edit, D=delete, S=submit, A=approve,
+Rj=reject, Vf=verify, Sp=supersede, X=export, Ad=administer. Employee
+tiers can submit/prepare; only the paired manager tier (or regulatory/
+administrator, per §6.2) can approve/reject at a required gate.
 
----
+| Area | researcher | research_manager | quality | quality_manager | regulatory | raw_material | procurement | production_engineering | production | production_manager | document_control | administrator |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Home | V | V | V | V | V | V | V | V | V | V | V | V |
+| Projects | V,C | V,C,E | V | V | V | V | V | V | V | V | V | V,C,E,D |
+| Formulation | V,C,E,S | V,A,Rj | V | V | V | V | — | V | V | V | V | V |
+| Laboratory (trials, methods, corrective actions) | V,C,E,S | V,A,Rj | V,C | V,A,Rj | V | V | — | V | V | V | V | V |
+| Stability | V,C,E,S | V,A,Rj | V,C | V,A,Rj | V | — | — | V | — | V | V | V |
+| Optimization | V,C,E | V | V | V | V | — | — | V | — | — | — | V |
+| Raw material records (SDS/TDS/COA/specs) | V | V | V,Vf | V,A | V | V,C,E | V,C | V | — | — | V | V |
+| Supplier/procurement documentation | — | — | V | V | V | V | V,C,E | — | — | — | V | V |
+| Regulatory (dossier, claims/labels) | V | V | V | V | V,C,E,Vf,A,Rj | V | V | V | — | — | V | V |
+| Approval — `pilot_approved` | S (prepares) | A,Rj | S (prepares) | A,Rj | — | — | — | — | — | — | — | A,Rj |
+| Approval — `production_approved` | — | — | S (prepares) | A,Rj | A,Rj | — | — | — | S (prepares) | A,Rj | — | A,Rj |
+| Production engineering (scale-up, process prep) | — | — | — | — | — | — | — | V,C,E | V | V,A,Rj | V | V |
+| Production (batch/process records) | — | — | — | — | — | — | — | V | V,C,E | V,A,Rj | V | V |
+| Document control (publication, revision, export) | — | — | — | — | — | — | — | — | — | — | V,C,E,X,Ad | V |
+| Reports | V,X | V,X | V,X | V,X | V,X | V,X | V,X | V,X | V,X | V,X | V,X | V,X |
+| Data Exchange (import/commit masterdata) | V,C | V,C | V,C | V,C | V,C | V,C | V,C | — | — | — | — | V,C,Ad |
+| Administration → Users | — | — | — | — | — | — | — | — | — | — | — | V,C,E,Ad |
+| Administration → Security history | — | — | — | — | — | — | — | — | — | — | — | V,Ad |
+| Administration → App settings | — | — | — | — | — | — | — | — | — | — | — | V,E,Ad |
 
-## 6. Fixed role-permission matrix
+This is Session 1's first full-matrix draft against current navigation
+and the role intent in §1.1 — **not yet domain-expert-reviewed**,
+flagged again here exactly as in Session 0 (§ Risks). Session 4 must
+not wire enforcement against this matrix until a human with real lab/
+QA/regulatory/production workflow experience has walked through it.
 
-Every cell below is **ALLOWED** or **DENIED**, no partial/conditional
-states — conditional access (e.g. "chemist can edit only formulas
-they created") stays inside existing domain logic (ownership,
-lifecycle state) exactly as it already works; RBAC answers "can this
-role ever do X", not "can this specific record be edited right now."
+### 6.2 `APPROVAL_AUTHORITY` — re-derived for the 12-role model (implemented, `status.ts`)
 
-Legend: V=view, C=create, E=edit, D=delete, S=submit (advance a
-non-approval lifecycle step, e.g. concept → chemist_review),
-A=approve (grant `pilot_approved`/`production_approved`), Rj=reject,
-Vf=verify (regulatory dossier/claim verification), Sp=supersede,
-X=export, Ad=administer.
+```ts
+export const APPROVAL_AUTHORITY: Record<FormulaStatus, readonly ApprovalRole[]> = {
+  pilot_approved: ["research_manager", "quality_manager", "administrator"],
+  production_approved: ["quality_manager", "regulatory", "production_manager", "administrator"],
+  retired: ["research_manager", "quality_manager", "administrator"],
+  rejected: ["research_manager", "quality_manager", "regulatory", "administrator"],
+  // working states carry no approval authority — unchanged
+  concept: [], literature_candidate: [], chemist_review: [], lab_candidate: [],
+  stability_testing: [], pilot_candidate: [],
+};
+```
 
-| Area | Researcher | Chemist | Quality | Regulatory | Production | Administrator |
-|---|---|---|---|---|---|---|
-| Home | V | V | V | V | V | V |
-| Projects | V,C | V,C,E | V | V | V | V,C,E,D |
-| Formulation (builder, versions) | V | V,C,E,S | V | V | V | V |
-| Laboratory (trials, test methods, corrective actions) | V | V,C,E | V,C | V | V,C | V |
-| Stability | V | V,C,E | V,C | V | V | V |
-| Optimization (advanced optimizer, substitution) | V | V,C,E | V | V | — | V |
-| Regulatory (dossier, claims/labels, DOE as evidence) | V | V | V | V,C,E,Vf | V | V |
-| Approval (`pilot_approved`) | — | A,Rj | A,Rj | — | — | A,Rj |
-| Approval (`production_approved`) | — | — | A,Rj | A,Rj | A,Rj | A,Rj |
-| Reports | V,X | V,X | V,X | V,X | V,X | V,X |
-| Administration → Users | — | — | — | — | — | V,C,E,Ad |
-| Administration → Security history | — | — | — | — | — | V,Ad |
-| Administration → App settings (backup, schema, data location) | — | — | — | — | — | V,E,Ad |
-| Data Exchange (import/commit masterdata) | — | V,C | V,C | V,C | — | V,C,Ad |
+Derivation, per explicit instruction — audited, not blindly carried
+forward:
+- `pilot_approved` (old: `chemist, quality, administrator`) → **moved
+  to manager tier**: `chemist` folded into `researcher` for working
+  purposes, but pilot approval was always a manager-tier decision, so
+  it moves to `research_manager`. Plain `quality` (old: could also
+  grant this) is removed — that authority now belongs to
+  `quality_manager` only, per the explicit "quality must not inherit
+  quality_manager approval automatically" rule (this gate's inclusion
+  of quality historically was itself an example of exactly the
+  self-approval blur this redesign exists to close).
+- `production_approved` (old: `quality, regulatory, production,
+  administrator`) → `quality`/`production` (employee tiers) removed,
+  replaced by `quality_manager`/`production_manager`. `regulatory`
+  unchanged (kept as one fixed role, retains its own authority,
+  unsplit). `administrator` unchanged.
+- `retired`/`rejected` → same manager-tier substitution
+  (`chemist`→`research_manager`, `quality`→`quality_manager`);
+  `rejected` additionally keeps `regulatory` (a rejection at the
+  regulatory gate is regulatory's own call, not a manager-tier
+  hand-off).
+- `administrator` retains authority on **every** gate, unchanged from
+  Session 0/the original 6-role design — the explicit, user-approved
+  exception (§9) so IT can exercise/test every workflow gate.
 
-Directly reuses `APPROVAL_AUTHORITY` from `status.ts` for the two
-Approval rows — **not** redefined here, to guarantee there is exactly
-one source for who can approve what (§7). Every other row is new
-policy this phase introduces; it is a first draft against current
-navigation (`AGENTS.md`'s route list, `AdministrationPage.tsx`,
-`Sidebar.tsx`) and must be walked past a real domain expert (someone
-who actually runs a lab/QA/regulatory workflow) before Session 4 wires
-enforcement — recorded here as an explicit open decision (§ Risks).
+**Tested** (`packages/shared/src/schemas/status.test.ts`,
+`packages/shared/src/engine/{approvalReadiness,lifecycle,versioning}.test.ts`):
+employee-tier roles (`researcher`, `quality`) are explicitly asserted
+to be refused `ROLE_NOT_AUTHORIZED` on both approval gates even with a
+valid approval record — the exact regression the phase brief asked
+for, not just an implicit side effect of the type change.
 
-### 6.1 The Administrator authority decision (explicit, per phase brief §"IMPORTANT ADMINISTRATOR DISTINCTION")
+`laboratoryStandards.ts`'s `LABORATORY_METHOD_MANAGER_ROLES` (gates
+assigning/activating/superseding a lab standard or method — "gated the
+same way as `pilot_approved`" per its own doc comment) was re-derived
+identically: `["chemist", "quality", "administrator"]` →
+`["research_manager", "quality_manager", "administrator"]`.
 
-**Administrator does NOT get scientific/quality/regulatory approval
-authority by default.** The matrix above deliberately grants
-Administrator `A,Rj` on `pilot_approved`/`production_approved` **only**
-because `APPROVAL_AUTHORITY` in the *existing, working* `status.ts`
-already includes `"administrator"` on both gates today — changing that
-would be *weakening* existing enforcement, which §31 of the phase brief
-explicitly forbids. Administrator's role here is system administration
-(user lifecycle, security history, app settings) — it is not granted
-`C`/`E` on Formulation/Laboratory/Stability/Optimization content, and
-has only `V` (view) everywhere scientific work happens, mirroring "system
-administration and scientific/business approval authority should remain
-separate where appropriate." The one deliberate exception (approval
-authority) is inherited, not invented, and is flagged here rather than
-silently carried over so a human can veto it explicitly before Session 4
-if the real business decision is "administrator should never approve."
+`dataExchangeRegistry.ts`'s per-template role lists (`FORMULATION_ROLES`,
+`COST_ROLES`, `LAB_ROLES`, `DRAFT_CONTENT_ROLES`, `DOE_ROLES`) had
+`"chemist"` replaced with `"researcher"` (its direct successor for
+working-tier authorization) — a mechanical, non-authority-changing fix
+(these lists gate day-to-day data-exchange actions, not approval
+gates, so no manager-tier redesign applied here).
 
 ---
 
 ## 7. Canonical authorization source
 
-One module, `packages/shared/src/engine/rolePolicy.ts` (new, Session 3),
-owns the entire matrix in §6 as a typed, exhaustive `Record`:
-
-```ts
-export type Area =
-  | "home" | "projects" | "formulation" | "laboratory" | "stability"
-  | "optimization" | "regulatory" | "approvalPilot" | "approvalProduction"
-  | "reports" | "adminUsers" | "adminSecurity" | "adminSettings" | "dataExchange";
-
-export type Capability = "view" | "create" | "edit" | "delete" | "submit"
-  | "approve" | "reject" | "verify" | "supersede" | "export" | "administer";
-
-export function can(role: ApprovalRole, area: Area, capability: Capability): boolean;
-```
-
-`APPROVAL_AUTHORITY` (`status.ts`) stays the literal source for the two
-approval areas — `rolePolicy.ts` imports and re-exposes it through `can()`
-rather than duplicating the role lists, so there is structurally no way
-for the two to drift. Every consumer — `Sidebar.tsx` nav filtering,
-button `disabled`/hidden state, Tauri command guards (Rust re-imports
-the *same policy*, generated or hand-mirrored with a test asserting
-byte-for-byte parity — decided in Session 3, not guessed here), and
-every RBAC test — calls `can()`. No second matrix is ever hand-written
-in a component, a seed file, or a doc (this document is a *description*
-of the matrix, not a second copy of the code — Session 3 must keep it
-that way by generating this table from the source, not maintaining it
-by hand, once the module exists).
+`APPROVAL_ROLES`/`APPROVAL_AUTHORITY` in `packages/shared/src/schemas/
+status.ts` is the canonical role vocabulary and approval-gate policy —
+implemented Session 1. The broader `can(role, area, capability)` module
+(`rolePolicy.ts`, covering all of §6's matrix, not just the two
+approval gates) remains a Session 3 task, per the original Session 0
+plan — Session 1 deliberately stayed inside the identity/database layer
+plus the minimum TypeScript-side role-vocabulary correction needed to
+avoid ever having identity.db (12 roles) and `status.ts` (was 6 roles)
+disagree, even temporarily. `identity::Role` (Rust) is the equivalent
+canonical source on the storage side; a cross-language parity test
+(asserting the Rust and TypeScript role-string lists are byte-identical
+against a shared fixture) is a Session 3 task, once `rolePolicy.ts`
+exists to anchor it to.
 
 ---
 
 ## 8. Preserving existing Regulatory authorization
 
-`APPROVAL_AUTHORITY`, `canTransitionTo`, and every regulatory-engine
-function that already checks `Actor.role` (`regulatoryReviews.ts`,
-`regulatoryRules.ts`, `regulatoryDossier.ts`, `claims.ts`) are **kept
-verbatim**. Phase 13 adds a trustworthy source for `Actor.role` (an
-authenticated `UserContext`, §14) underneath them — it does not touch
-their logic. No secure domain-level check is replaced with a UI-only
-one; the fix is the opposite direction: today's UI-only role selection
-(§1's UNSAFE finding) gets replaced by the authenticated context, while
-the domain checks it feeds stay exactly as strict as they are today.
+Unchanged from Session 0: `regulatoryAuthorization.ts`'s
+`AUTHORIZED_REGULATORY_ROLES = ["regulatory", "quality", "administrator"]`
+was **not** touched — `quality` (not `quality_manager`) still gates
+regulatory-evidence-confirmation actions, because that's what the
+existing, working code already granted, and Session 1's mandate was
+"do not weaken existing enforcement," not "re-derive every role list in
+the codebase toward stricter manager-tier gating." Only the two actual
+*approval* gates (§6.2) and the lab-method-manager gate (also §6.2,
+directly modeled on the approval gates by its own doc comment) were
+re-derived. This distinction — approval-authority gates re-derived,
+everything else left as the minimum mechanical fix — is deliberate and
+should guide Session 4's broader enforcement pass too.
 
 ---
 
-## 9. Frontend is not the security boundary
+## 9. Frontend is not the security boundary / Administrator authority decision
 
-Confirmed gap, confirmed fix direction: today, hiding a button *is* the
-only protection (§1). Phase 13's fix is at the Tauri command layer —
-every command that performs a role-gated action takes the caller's
-*trusted* `session_id` (never a `role` string passed as a plain
-argument), resolves the session to its `User.role` server-side (i.e.
-Rust-side; "server" here means the Rust process, not a network
-service), and calls the *same* `can()`/`APPROVAL_AUTHORITY` policy
-before performing the action — exactly mirroring `save_approval_record`'s
-existing "the webview is untrusted input" comment (§1.1's evidence),
-generalized from "reject non-human actors" to "reject non-authorized
-roles." A forged `role` in `localStorage`, a modified `reviewerRole`
-select, a hand-crafted `invoke()` call, a doctored URL/route param — none
-of them can influence which role a Tauri command believes it's talking
-to, because after this phase the command never accepts a role as
-input at all; it only accepts a session id and looks the role up
-itself.
+Unchanged finding from Session 0 (§2's UNSAFE row): still true, still
+not fixed — `reviewerRole` etc. remain freely-editable `useState`s.
+Session 4 fixes this by resolving role from an authenticated session
+server-side.
 
----
-
-## 10. Password security
-
-**Argon2id**, via the `argon2` crate (`RustCrypto/argon2`, mature,
-already the modern default recommendation over bcrypt/scrypt for new
-Rust codebases) — no compatibility evidence in this codebase favors an
-alternative (no existing password-hashing dependency to be compatible
-*with*; this would be the first). Parameters chosen in Session 1 against
-this app's real threat model (offline attacker with a stolen SQLite
-file, single-workstation hardware) — not invented here, but Argon2id
-itself is decided now because it directly shapes the `users` schema
-(`passwordHash` is one self-describing encoded string, not separate
-salt/hash/algorithm columns).
-
-Never stored or logged: plaintext password, any recoverable/encrypted
-password, the password hash itself in logs, a temporary/reset password
-in logs, session tokens/secrets. Administrator can **reset** (write a
-new hash) but structurally **cannot view** an existing password — there
-is no code path that ever reads `passwordHash` back out as anything
-other than an opaque string fed into the Argon2 *verify* function.
+**Administrator authority (explicit, user-approved, §9 of the phase
+brief)**: administrator does **not** get create/edit authority over
+scientific content (§6's matrix: view-only on Formulation/Laboratory/
+Stability/Optimization/Regulatory/Production areas) but **does** retain
+approval authority on both `pilot_approved` and `production_approved`
+(§6.2) — an explicit, deliberate exception specifically so IT can
+exercise/test every workflow gate. System administration and
+scientific/business approval authority are otherwise kept separate,
+exactly as the phase brief asks — the one exception is named, not
+accidental.
 
 ---
 
-## 11. First-login password change
+## 10. Password security (implemented Session 1)
 
-`mustChangePassword: boolean` on `User`, set `true` by default whenever
-an administrator sets/resets a password (both account creation and
-password reset go through the same "set a new initial/temporary
-password" code path). **Recommendation: enabled by default**, matching
-every real enterprise IT practice this app is being sold into — an
-admin-chosen initial password is known to at least one other person
-(the admin) and should not remain the employee's permanent password.
-On login, if `mustChangePassword` is true, the session is granted just
-enough to reach a "choose a new password" screen and nothing else
-(not the full app) until a new password is set, then `mustChangePassword`
-flips false and normal login proceeds. Still no email/SMS at any point.
+**Argon2id** via the `argon2` crate (v0.5), with `rand_core`'s
+`OsRng` (explicit `getrandom` feature) for per-hash salt generation.
+`hash_password`/`verify_password` in `identity.rs`:
 
----
+- Random salt per password (`SaltString::generate(&mut OsRng)`) —
+  tested: hashing the same password twice produces two different
+  stored strings, both of which still verify correctly.
+- PHC-string encoded output (`argon2::password_hash`'s `PasswordHash`)
+  — one self-describing string (algorithm + params + salt + hash), no
+  separate salt/algorithm columns needed.
+- Default Argon2 parameters (crate defaults: Argon2id, 19 MiB memory,
+  2 iterations, 1 degree of parallelism, per the `argon2` crate's own
+  RFC-9106-informed defaults) — not hand-tuned against specific
+  hardware in Session 1; revisit if a real desktop-hardware performance
+  problem surfaces.
+- No custom crypto anywhere — every cryptographic primitive comes from
+  `argon2`/`password-hash`/`rand_core`, none hand-rolled.
+- Never logged/stored in plaintext: tested directly
+  (`the_plaintext_password_never_appears_inside_its_own_stored_hash`).
+- Oversized input (tested with a 1MB password) hashes and verifies
+  without panicking — no unbounded-cost or crash risk from a hostile
+  input size.
+- A malformed/corrupt stored hash fails verification cleanly (returns
+  `false`) instead of panicking — tested.
 
-## 12. Password reset
-
-Employee → contacts company IT → Administrator → `Users` → `Reset
-Password` → sets or generates a new temporary password → old hash is
-overwritten (never kept, never recoverable) → `mustChangePassword` set
-true (§11) → a `security_audit_events` row is written (actor = admin,
-target = the reset user, action = `password_reset`, no password
-material in the row, §25) → per policy (Session 2 decision, not fixed
-here): all of that user's existing sessions are invalidated
-immediately, since a reset implies the old password (and anything an
-attacker who had it could still do) should stop working the moment IT
-acts, not after natural session expiry. No public "forgot password"
-email flow exists or is planned.
-
----
-
-## 13. Login architecture
-
-```
-FormuLab starts
-  → security subsystem initializes (Session 1's users/sessions tables ready)
-  → check for an existing valid session (persisted session_id, see §14)
-  → valid → resume directly into the app
-  → none/invalid/expired → render Login screen
-```
-
-Login screen: FormuLab wordmark, **Username** text field, **Password**
-field (masked), **Sign in** button. No role selector. No sign-up link.
-No email field. No SMS. No social-login buttons. `Sign in` calls a
-single Tauri command, `login(username, password)`, which does the
-lookup + Argon2 verify + brute-force check (§17) entirely Rust-side and
-returns either a session or a generic failure (§17's "don't reveal
-which part was wrong"). On success: the returned session's `role`
-resolves through `rolePolicy.ts`'s `can()` for every subsequent
-authorization decision; the frontend never independently decides what
-the user's role "is."
+Administrator can **reset** (`update_password_hash` writes a new hash)
+but structurally **cannot view** an existing password — no code path
+ever reads `password_hash` back out as anything other than an opaque
+string fed into `verify_password`.
 
 ---
 
-## 14. Authenticated security context
+## 11. Identity database (implemented Session 1)
 
-```ts
-interface UserContext {
-  userId: string;
-  username: string;
-  displayName: string;
-  role: ApprovalRole;
-  sessionId: string;
-  accountStatus: "active" | "disabled";
-}
+**Path**: `app_private_dir(app, "identity").join("identity.db")` —
+reuses `backup.rs`'s existing `app_private_dir` helper
+(`app.path().app_data_dir()/identity/identity.db`, e.g.
+`%APPDATA%\com.formulab.app\identity\identity.db` on Windows). Not a
+developer-machine hardcoded path — resolved through Tauri's own
+per-install app-data directory, same mechanism `.FormuLab/runs.db`,
+`automatic_backup_state.json`, and every other app-private file already
+use. Deliberately **not** `.FormuLab/runs.db` (that lives inside the
+*relocatable* data root — identity/security should not move just
+because a user relocates their formulation data), not formulation/lab/
+project/session data, not any `.formulab-backup` payload.
+
+**Tables** (`CREATE TABLE` DDL in `identity.rs`'s `MIGRATIONS` constant):
+
+```sql
+users (id, username, normalized_username UNIQUE, display_name,
+       password_hash, role, status, department, employee_reference,
+       must_change_password, failed_login_count, locked_until,
+       created_at, created_by, updated_at, last_login_at)
+
+authenticated_sessions (id, user_id REFERENCES users, created_at,
+       expires_at, last_seen_at, revoked_at)
+
+login_attempts (id, username_normalized, at, outcome, device_context)
+
+security_audit_events (id, at, actor_user_id, target_user_id, action,
+       outcome, detail)
 ```
 
-No `permissions: string[]` array is persisted or shipped to the
-frontend — permissions are **derived**, on demand, by calling
-`can(context.role, area, capability)` against the single canonical
-policy (§7). This directly answers phase-brief §14/§15's question:
-because the business requirement is "role fully determines access, no
-per-user overrides," there is no need for a `permissions` table, a
-`role_permissions` join table, or `user_permission_overrides` — that
-would be modeling a generic IAM system the product does not want
-(phase brief §"CRITICAL RBAC DESIGN DECISION" and §15 are explicit
-about this). If a genuine, unavoidable need for a per-user override
-surfaces later, it gets its own dedicated design and its own explicit
-sign-off — it is **not** part of this architecture, and nothing here
-should make adding it look like a natural next step.
-
----
-
-## 15. Database model
-
-```
-users                    (see §2)
-authenticated_sessions   (session_id PK, user_id FK, created_at, expires_at, last_seen_at, revoked_at?)
-login_attempts           (id PK, username_normalized, at, outcome: success|bad_password|unknown_user|locked, ip/device context N/A for a local desktop app — see note)
-security_audit_events    (id PK, at, actor_user_id, target_user_id?, action, outcome, detail?)
-```
-
-No `roles` table (the six roles are fixed application policy, not
-database rows — phase brief §15 is explicit: "do not create editable
-database role definitions unless there is a concrete need"). No
+No `roles` table (fixed application policy, not database rows — §1). No
 `permissions`/`role_permissions`/`user_permission_overrides` tables
-(§14). `project_access` is deliberately **not** in this list — §20
-below recommends deferring it to its own session once the fixed-role
-system is live, rather than bundling two different access models into
-one migration.
+(§14 confirms this isn't needed given the business requirement).
 
-This lives in the same on-disk area as the rest of FormuLab's local
-data (an app-private SQLite file under `app_data_dir()`, following the
-existing precedent of `runs_index.rs`'s own database — a **new**,
-dedicated file, e.g. `identity.db`, not reused/shared with `runs.db` or
-any `.formulab-backup` content, so identity data has its own backup/
-restore lifecycle independent of formulation data). Exact migration
-mechanics (versioned schema, `schema_meta` reuse from the existing
-`migration.rs` infrastructure) are a Session 1 task, not designed here
-beyond confirming the existing migration framework is the right tool
-(it is — `migration.rs` already exists and already solves "safe,
-versioned schema evolution" for this app).
+### 11.1 Migration architecture
 
-*Note on `login_attempts`*: a "device/workstation context" column is
-included per phase-brief §25's audit-record shape, but on a
-standalone desktop app there is no meaningful network-identifiable
-device beyond the machine FormuLab is already running on — this column
-is reserved for the Model-B (company-local shared identity, §24) case
-where a login attempt genuinely originates from a *different*
-workstation, and is null/unused under Model A.
+`migration.rs` (the existing framework) was evaluated and **not**
+reused — it tracks *data-root* JSON-format schema compatibility
+(`schema_meta.json` + a migration journal, for formulation data), a
+different concern from SQL DDL evolution inside one SQLite file.
+Reusing it would mean bending a JSON-schema tool to run SQL migrations.
+Instead, `identity.rs` uses SQLite's own native `PRAGMA user_version`
+— each entry in a `MIGRATIONS: &[&str]` array is one versioned,
+idempotent SQL batch, applied in order inside `run_migrations`, which
+compares the current `user_version` against `MIGRATIONS.len()` and
+applies only what's missing. Reopening an already-current database is
+a verified no-op (tested:
+`migrations_are_idempotent_reopening_an_existing_database_does_not_error_or_duplicate`
+— seeds a user, reopens, confirms the row and the schema version both
+survive unchanged). This is arguably a more direct reuse of "existing
+tooling" than adapting `migration.rs` would have been — it uses
+SQLite's own built-in versioning primitive rather than building a
+parallel bookkeeping table.
 
 ---
 
-## 16. SQL injection assessment
+## 12. Project/resource access — confirmed out of scope for Phase 13
 
-Every current database write path in `src-tauri/src` already uses
-`rusqlite` (via `runs_index.rs`) or hand-rolled JSON-file writes
-(`masterdata.rs`, `formulations.rs`) — **no current code string-concatenates
-SQL**, confirmed by reading every `rusqlite` call site in `runs_index.rs`
-(all parameterized, `?1`/named-param style). This phase's new
-identity tables must hold to the same standard as a hard requirement,
-not a preference: every query (`username` lookup, password verify,
-account creation, password reset, account status change, role change,
-login-attempt insert, session insert/lookup, audit-event insert) uses
-`rusqlite`'s parameter binding exclusively. Session 1/6 add dedicated
-regression tests feeding hostile-looking strings as pure *data* — quote
-characters, SQL-comment sequences (`--`, `/* */`), boolean-injection
-shapes (`' OR '1'='1`), Unicode edge cases (RTL override characters,
-zero-width joiners, homoglyphs relevant to the username-normalization
-rule in §3), excessive lengths (beyond the 64-char username bound, beyond
-a generous password-length bound), and unusual whitespace — asserting
-each one is rejected by validation *or* safely stored/compared as inert
-data, never executed as SQL. No test in this suite ever runs against
-real user data (§17/§26 of the phase brief) — all against disposable
-temp databases, matching this codebase's existing test convention
-(`tmp_dir()` helpers already used throughout `src-tauri`'s test modules).
+Per explicit instruction: project-level ACL/membership restriction is
+**out of scope for Phase 13**. All authenticated users may see all
+projects. Visibility does not grant modification authority — every
+create/edit/delete/submit/approve/reject/verify/supersede/release/
+export/administer action stays controlled by role + workflow state +
+required-approval gates + trusted authenticated identity (§14's four
+layers). No project memberships, project ACLs, per-project user
+assignments, or department ACLs are built at this stage. This
+directly matches Session 0's own recommendation, now confirmed rather
+than merely proposed.
 
 ---
 
-## 17. Login brute-force protection
+## 13. Administration → Users UI (designed, not yet implemented — Session 5)
 
-Design (implemented Session 6, decided now so §2/§15's schema already
-supports it): every login attempt, success or failure, is a row in
-`login_attempts`. On failure, `User.failedLoginCount` increments; at a
-threshold (Session 6 picks the exact number against real usability
-testing — a starting point of 5, doubling backoff, is a reasonable
-default, not fixed here), `lockedUntil` is set and further attempts are
-refused with the same generic message until it elapses. **The login
-error is always exactly**: `"Invalid username or password."` — never
-different text for "unknown username" vs "wrong password" vs "account
-locked" (a distinct locked-account message would itself leak that the
-username exists, so it stays generic too, per phase-brief §17's
-explicit instruction). Every attempt, whatever the outcome, writes a
-`security_audit_events` row.
+Unchanged from Session 0's design: list (username, display name, role,
+department, status, last login), actions (Create, Edit, Change Role,
+Reset Password, Activate/Disable, View Security History), role
+selection as a plain `<select>` of the 12 fixed roles, a read-only
+"Role capabilities" view rendered from the canonical policy (once
+`rolePolicy.ts` exists, Session 3) — no permission-checkbox grid
+anywhere.
 
 ---
 
-## 18. Account deactivation
+## 14. Four distinct authorization concepts (Session 1 — required by explicit instruction, informs every later session)
 
-Administrator → `Users` → `Disable`. A disabled account: cannot start a
-new login (checked first, before password verify, so a disabled
-account never even reaches the "is the password right" branch — no
-information leak either way), cannot use an existing session (every
-session-validating command re-checks `User.status == "active"`, not
-just at login time — §12's reset-triggers-invalidation logic reuses
-this same check), gets its active `authenticated_sessions` rows revoked
-immediately on disable. **Historical action attribution is
-never deleted** — `Approval Record.approvedBy`, `provenance.jsonl`
-entries, `security_audit_events` rows all keep referencing the
-disabled `User.id`/name exactly as they do today for any other
-historical record; disabling a user is reversible (`Enable` restores
-login) and never triggers a delete of the user row or anything it's
-attributed to.
+An action is allowed only when **all** of the following pass —
+authentication/RBAC alone (Sessions 1-4's identity/role layer) is not
+sufficient by itself:
 
----
+1. **Visibility** — can the user see the project/record at all?
+   (Phase 13: yes, for every authenticated user — §12.)
+2. **Role capability** — is this role allowed to perform this *type*
+   of action at all? (§6's matrix; §7's `can()`, Session 3.)
+3. **Workflow state** — is the record currently at a stage where the
+   action is allowed? (Existing `ALLOWED_NEXT`/lifecycle logic in
+   `status.ts`/`lifecycle.ts`, extended per §15's workflow model.)
+4. **Required approval/gate** — have the required upstream approvals
+   actually completed? (§15's gate model — "work completed" and
+   "manager approved" are different states; a worker's own completion
+   can never satisfy their manager's required approval.)
 
-## 19. Role change
+Conceptually:
+`authenticated AND account_active AND role_capability_allows(action) AND workflow_state_allows(action) AND required_approvals_satisfied`
 
-Administrator → `Users` → change role (e.g. `chemist` → `quality`).
-Effective immediately: `User.role` is updated, a `security_audit_events`
-row records old→new role + which admin changed it, and — because
-`UserContext.role` is looked up fresh (not cached client-side beyond a
-session's lifetime) — every *subsequent* authorization check for that
-user's existing session immediately uses the new role. Whether an
-*already-open* session must be forcibly re-validated mid-use (vs. just
-naturally reflecting the new role on its next command) is a Session 2/4
-implementation decision; the safe default recommended here is: the
-Rust side resolves role fresh from `users` on every privileged command
-(not once at login and cached), so there is no window where a
-demoted user keeps old-role access simply because their session token
-is still valid. Historical attribution (§18) is unaffected by a role
-change — a past approval stays attributed to the person and the role
-they held *at the time*, recorded in the `ApprovalRecord` itself
-(already true today, unrelated to this phase).
+These four are deliberately **not** collapsed into one generic
+`permission` flag — `rolePolicy.ts` (Session 3) answers only #2; #3/#4
+are a separate workflow-policy concern (§15), combined with #2 only at
+the point of actually authorizing a specific action (Session 4).
+
+No persisted `permissions: string[]` array, and no
+`role_permissions`/`user_permission_overrides` tables — permissions
+are derived on demand from role (#2) and combined with live record
+state (#3/#4) at authorization time, never pre-computed and stored per
+user. This directly answers the phase brief's own question: the fixed-
+role requirement makes a generic, editable IAM permission schema
+unnecessary.
 
 ---
 
-## 20. Project/resource access — recommendation
+## 15. Workflow foundation architecture (designed Session 1, enforced Session 4+)
 
-**Recommendation: defer to its own session (proposed Session 4, folded
-into "application-wide role enforcement"), do not conflate with the
-fixed-role model in this document.** Role answers "what kind of
-operations"; project membership answers "on which projects." Given
-today's app has *zero* existing project-membership concept (confirmed,
-§1), and the phase brief explicitly says "Session 0 must determine
-whether FormuLab needs [it]" rather than mandating it — the
-recommendation is: ship Session 0-3 (fixed roles, authentication, RBAC
-enforcement) with **all-authenticated-users-see-all-projects** as the
-Phase 13 baseline (matching today's actual behavior, so nothing
-regresses), and treat assigned-project/department-scoped access as a
-distinct, explicitly-scoped follow-up once real customers report they
-need it — building it speculatively now risks exactly the
-over-engineering the phase brief repeatedly warns against. This is
-flagged as an open decision for the user to confirm or override, not
-silently assumed.
+### 15.1 Core model
 
----
+```
+WORK → DEPARTMENT WORK → DEPARTMENT REVIEW / REQUIRED APPROVAL → GATE PASSES → NEXT AUTHORIZED STAGE
+```
 
-## 21. Administration → Users UI
+A worker completing their own work never automatically satisfies a
+required manager approval. This is not a UI convention — it must be
+enforced at the trusted backend/domain layer (Session 4), the same way
+`canTransitionTo` already enforces the two existing approval gates
+today. A downstream role must never be able to bypass an unmet upstream
+gate — not by using their own role's access, not by a direct Tauri
+command call, not by changing React state, not by a modified frontend
+role value. The authoritative workflow state and approval record are
+the only things Session 4's enforcement may trust.
 
-List columns: username, display name, role, department, status, last
-login. Row actions: Edit, Change Role, Reset Password, Activate/
-Disable, View Security History. `Create User` opens the same field set
-as Edit (§5) with role as a plain `<select>` of the six fixed roles —
-no permission checkbox grid anywhere in this UI. A separate, read-only
-**"Role capabilities"** view (linked from the Create/Edit form, e.g. "What
-can a Chemist do?") renders §6's matrix straight from `rolePolicy.ts`
-(§7) — informational only, no edit controls, so IT can understand a
-role without ever being tempted to hand-tune it.
+### 15.2 Vocabulary (for the workflow engine a later session builds)
 
----
+- **Stage** — a named point in a record's lifecycle (reuses
+  `FormulaStatus`'s existing values where a stage already exists;
+  extends them where §15.3's matrix identifies a gap not yet modeled).
+- **Stage owner role(s)** — who does the work at this stage (§6's
+  employee-tier "prepares" cells).
+- **Required reviewer/approver role(s)** — who must sign off before the
+  stage can be left (§6's manager-tier "A,Rj" cells; §6.2 for the two
+  gates that already exist).
+- **Allowed transitions** — reuses `ALLOWED_NEXT` (`status.ts`) as the
+  proven pattern; a real workflow engine (not built in Session 1)
+  generalizes this per-area.
+- **Rejected/returned state** — an explicit, distinct outcome from
+  "not yet reviewed" — `rejected` already exists as a real
+  `FormulaStatus`; the pattern generalizes.
+- **Approval record** — reuses the existing `ApprovalRecord` concept
+  (actor/user attribution, timestamp, reason/justification, immutable
+  once written) — not reinvented.
+- **Downstream gate rule** — a stage transition that requires a
+  specific upstream stage to already be in an approved (not merely
+  "worked on") state.
+- **Immutable/auditable transition history** — every transition
+  (worked, reviewed, approved, rejected, returned) is an audit-log-
+  worthy event, mirroring `security_audit_events`' design (§ Session
+  0's §25, unchanged) for the workflow domain specifically.
 
-## 22. Role capability descriptions (human-readable, for the UI and admin docs)
+"Work completed" and "manager approved" are explicitly different
+states in this vocabulary — never conflated, never inferred from each
+other.
 
-- **Researcher** — Early-stage/experimental work: browse and start
-  projects, view formulation/lab/stability/regulatory content, no
-  editing or approval authority.
-- **Chemist** — Formulation and laboratory development: create/edit
-  formulations, trials, test methods; can grant `pilot_approved`
-  (matches `APPROVAL_AUTHORITY` today).
-- **Quality** — Quality review and approval: can grant both
-  `pilot_approved` and `production_approved`; creates/edits lab and
-  stability records for QA purposes.
-- **Regulatory** — Regulatory review and verification: owns the
-  regulatory dossier/claims/labels workflow; can grant
-  `production_approved`.
-- **Production** — Production-facing access: view across the
-  formulation/lab/regulatory chain, create/edit laboratory records
-  relevant to manufacturing handoff, can grant `production_approved`.
-- **Administrator** — User and system administration: full user
-  lifecycle, security history, application settings; deliberately
-  **not** a scientific-content editor (view-only across
-  Formulation/Laboratory/Stability/Optimization) — see §6.1 for why it
-  still carries approval authority on both gates.
+### 15.3 Proposed canonical FormuLab workflow matrix (for later implementation)
 
-These mirror `APPROVAL_AUTHORITY`/current domain reality where one
-already exists (approval gates); everything else is this session's
-first proposal, explicitly flagged for domain-expert review (§ Risks).
+| Domain/workspace | Who works | Who reviews/approves | What unlocks next | On rejection | Downstream blocked until |
+|---|---|---|---|---|---|
+| Formulation | researcher | research_manager | `pilot_candidate`→ lab work | returns to researcher, stays `rejected`/`concept` | research_manager approval |
+| Laboratory trials | researcher | research_manager | stability testing | returns to researcher | research_manager approval |
+| Laboratory test results | researcher, quality | research_manager, quality_manager | pilot readiness | returns to preparer | manager-tier sign-off |
+| Stability | researcher, quality | research_manager, quality_manager | pilot_approved eligibility | returns to preparer | manager-tier sign-off |
+| Raw materials | raw_material | quality (verify) | usable in a formulation's dossier | raw_material corrects | quality verification *(gap — see below)* |
+| Supplier/procurement docs | procurement | quality or regulatory (as applicable) | usable as dossier evidence | procurement corrects | verification *(gap — see below)* |
+| Quality (QA/QC) | quality | quality_manager | `pilot_approved`/`production_approved` eligibility | returns to quality | quality_manager approval (existing gate, §6.2) |
+| Regulatory | regulatory | regulatory (unsplit) | `production_approved` eligibility | `rejected` (existing) | regulatory's own sign-off (existing gate, §6.2) |
+| Dossier/evidence | researcher, raw_material, regulatory | regulatory (verify/confirm) | submission-ready dossier | evidence revoked/superseded (existing) | regulatory confirmation (existing, `regulatoryReviews.ts`) |
+| Production engineering / scale-up | production_engineering | production_manager | production readiness | returns to production_engineering | production_manager approval *(gap — see below)* |
+| Production | production | production_manager | batch release eligibility | returns to production | production_manager approval *(gap — see below)* |
+| Production approval/release | production, quality | production_manager, quality_manager, regulatory | `production_approved` (existing gate, §6.2) | `rejected` (existing) | manager-tier + regulatory sign-off (existing) |
+| Document control/publication | document_control | document_control (self, or per policy) | published/distributed document | document held back | package completeness — *not* a scientific gate |
 
----
-
-## 23. Offline operation
-
-No requirement in this design touches the network. `bootstrap`,
-`login`, password verify/reset, session validation, and every RBAC
-check are Rust-side, local-SQLite-backed operations. No FormuLab cloud,
-no email provider, no SMS provider, no external OAuth, no public
-identity service — none exist today (§1) and none are introduced by
-this design. A standalone, air-gapped workstation is a fully supported
-deployment, not a degraded one.
-
----
-
-## 24. Multi-workstation architecture
-
-**Model A — Standalone workstation** (Phase 13's initial target,
-Sessions 0-7): each installation's `identity.db` is authoritative for
-that machine only. IT creates users locally per workstation. Fits
-today's single-machine desktop-app architecture with zero new
-infrastructure.
-
-**Model B — Company-local shared identity** (explicitly a *future*
-upgrade path, not built in Phase 13): a company-run, on-premise/
-local-network identity service multiple FormuLab installations point
-at, so IT creates a user once, not per-machine. Must never require a
-public cloud service (matches §23). Recommended shape when it's
-actually needed: keep `identity.db`'s schema/API-shape stable enough
-that a later "remote identity backend" implementation can satisfy the
-same `login`/`bootstrap_status`/user-management command surface without
-changing anything above the Rust command layer — i.e., design the Tauri
-command boundary now so Model B is a swappable *implementation* behind
-it later, not a rewrite. Not designed further here — building Model B
-without a concrete customer need would be exactly the over-engineering
-the phase brief warns against.
+**Gaps explicitly marked, not silently assumed solved**: raw-material
+verification, supplier-document verification, production-engineering→
+production-manager approval, and production→production-manager
+approval do **not** have a corresponding `FormulaStatus`/gate in the
+current domain model — the current app has no representation for
+"raw material technically verified" or "scale-up approved" as a
+workflow state at all. Building these is real, unimplemented Phase 13
+work (Session 4 or a dedicated workflow session), not something Session
+1 invented a gate for. Rows without a "(gap)" note reuse a gate that
+already exists and works today.
 
 ---
 
-## 25. Audit logging
+## 16. SQL injection safety (implemented + tested Session 1)
 
-`security_audit_events` records: login success, login failure, logout,
-account creation, account disable, account enable, password reset,
-password change (self-service, post-`mustChangePassword`), role
-change, account lock, account unlock, permission denied (a role check
-that failed — valuable for spotting probing/misconfiguration), every
-privileged administrator action (user create/edit, role change,
-reset, enable/disable). Each row: timestamp, actor user id, target
-user/resource (nullable), action, outcome, and workstation/device
-context where meaningful (§15's note — mostly unused under Model A).
-**Never** recorded: plaintext password, password hash, API key,
-session secret/token value (the session *id* may be logged for
-correlation; the value an attacker could replay never is).
-
----
-
-## 26. Security test matrix
-
-See `docs/PHASE13_SECURITY_TEST_MATRIX.md` (companion document — full
-enumerated test list, one test class per phase-brief §26 category).
+Confirmed **zero string-concatenated SQL** anywhere in
+`identity.rs` — every query uses `rusqlite`'s `params![...]`
+placeholder binding. Hostile-input regression test
+(`hostile_strings_are_rejected_by_validation_or_stored_inertly_as_data_never_executed`)
+feeds: `admin'--`, `' OR '1'='1`, `'; DROP TABLE users;--`, a
+boolean-injection username matching a real seeded user, mixed quote
+characters, an inline SQL comment, a `#` comment marker, an RTL-override
+Unicode string, and a zero-width-joiner Unicode string — asserting in
+every case that either validation rejects the input outright (most of
+these, since they contain disallowed characters) or it's accepted and
+stored as a completely inert, literal value — never a query bypass, a
+dropped table, or a false-positive login match. Separately tested:
+excessively long input (10,000 chars) is rejected by validation before
+ever reaching SQL, and unusual whitespace (tab, non-breaking space,
+newline) is rejected. 4 dedicated SQL-injection tests, all passing, run
+only against disposable temp databases (`std::env::temp_dir()`-based,
+unique per test, cleaned up), never real user data.
 
 ---
 
-## 27. Proposed Phase 13 sessions
+## 17. Login brute-force protection (implemented Session 1, not yet wired to a login command)
 
-1. **Session 1** — User database + migrations (`identity.db`, `users`,
-   `authenticated_sessions`, `login_attempts`, `security_audit_events`)
-   + Argon2id password subsystem + SQL-injection regression tests for
-   every new query.
-2. **Session 2** — Administrator bootstrap screen + `login`/`logout`
-   Tauri commands + authenticated session lifecycle (creation,
-   persistence across restarts, expiration/idle timeout).
-3. **Session 3** — `rolePolicy.ts` (canonical `can()`) + wire
-   `UserContext` through the app (React context/provider) + parity
-   test between the TS policy and whatever Rust-side mirror Session 3
-   settles on.
-4. **Session 4** — Application-wide enforcement: every Tauri command
-   that performs a role-gated action resolves role server-side and
-   calls `can()`; every nav/button in the frontend uses the same
-   `can()` for visibility. Project/resource access decision from §20
-   revisited here if a concrete need has surfaced.
-5. **Session 5** — `Administration → Users` UI: list, create, edit,
-   role change, reset password, activate/disable, security-history
-   view, read-only role-capabilities view.
-6. **Session 6** — Brute-force/lockout, full audit-event coverage,
-   the complete SQL-injection + privilege-escalation regression suite
-   (§17/§26).
-7. **Session 7** — Native Windows multi-user acceptance testing,
-   full security regression pass, Phase 13 closure documentation.
-
-Sessions may be re-scoped if implementation reveals a safer/shorter
-path — this order is a recommendation, not a contract.
+`identity::update_login_state(conn, user_id, success, threshold,
+lock_secs)` — increments `failed_login_count` on failure, resets it on
+success, sets `locked_until` once `threshold` is reached.
+`threshold`/`lock_secs` are caller-supplied, not hardcoded, so Session
+2/6 can tune them against real usability testing without touching this
+function. Tested with `threshold=5`: 4 failures leave the account
+unlocked, the 5th locks it, and a subsequent success fully resets both
+the counter and the lock. `record_login_attempt` persists every
+attempt (success or failure) to `login_attempts` regardless of outcome.
+**Not yet decided** (Session 2): the exact default threshold/backoff
+curve, and the generic `"Invalid username or password."` error text is
+designed but not yet wired to any command (no login command exists
+yet).
 
 ---
 
-## Risks and open decisions (explicit, not silently resolved)
+## 18. Account deactivation (implemented Session 1: storage primitive; UI is Session 5)
 
-1. **§6's matrix beyond the Approval rows is this session's first
-   draft**, built from current navigation/routes, not signed off by a
-   lab/QA/regulatory domain expert. Must be reviewed before Session 4
-   wires enforcement against it.
-2. **§6.1 — should Administrator really keep approval authority?**
-   Inherited from existing `APPROVAL_AUTHORITY` to avoid weakening
-   current enforcement; flagged for an explicit human decision rather
-   than silently accepted as "obviously right."
-3. **§20 — project/resource access deferred.** If real customer
-   deployments need per-project restriction sooner than expected, this
-   pushes into Session 4's scope earlier than planned.
-4. **§10 — exact Argon2id parameters** (memory/iterations/parallelism)
-   are a Session 1 decision against real hardware constraints
-   (standalone Windows workstations, possibly modest specs), not fixed
-   here.
-5. **§17 — exact lockout threshold/backoff curve** is a Session 6
-   usability/security tradeoff, not fixed here.
-6. **§24 Model B** is explicitly out of scope for Phase 13's
-   implementation sessions — only its *influence on the command-boundary
-   shape* is considered now, so it doesn't require a rewrite later.
+`update_account_status(conn, user_id, active)` — setting `active:
+false` also revokes every currently-open session for that user
+immediately (tested:
+`update_account_status_disabling_revokes_every_open_session` — creates
+a session, disables the user, confirms `validate_session` now returns
+`None`). Historical attribution is untouched by design — disabling a
+user only ever changes the `users` row and revokes sessions; nothing
+about `security_audit_events`, `login_attempts`, or (once it exists)
+`ApprovalRecord`/provenance history referencing that user's id is
+deleted or altered.
+
+---
+
+## 19. Role change (implemented Session 1: storage primitive; UI is Session 5)
+
+`update_role(conn, user_id, role)` — takes effect immediately in
+storage (tested:
+`update_role_changes_effective_role_immediately`). Because
+`validate_session`/any future role-resolving command reads `users.role`
+fresh on every call rather than caching it in the session, a role
+change is visible to the very next privileged action for that session
+— no window where a demoted user keeps old-role access because their
+session token is still technically valid. Auditing the change itself
+(`security_audit_events` row, old role → new role, which admin changed
+it) is designed (§ Session 0's §25) but not yet wired to a command,
+since no role-change command exists yet.
+
+---
+
+## 20. Role capability descriptions
+
+See §1.1 — merged into the main role list this session rather than
+duplicated in a separate section, so there is exactly one place
+describing what each role means.
+
+---
+
+## 21. Offline operation
+
+Unchanged from Session 0: confirmed by design, not just absence of
+counter-evidence — `identity.rs` performs every operation
+(hash/verify/create/find/update, session/audit persistence) against a
+local SQLite file with zero network calls anywhere in the module.
+
+---
+
+## 22. Multi-workstation architecture
+
+Unchanged from Session 0: **Model A** (standalone workstation, each
+install's `identity.db` authoritative for that machine) is Phase 13's
+implemented target. **Model B** (company-local shared identity) stays
+an explicitly future, not-built-now upgrade path — Session 1's Tauri-
+command-boundary-shape consideration (keep the eventual `login`/
+`bootstrap_status`/user-management command surface swappable behind a
+different backend later) still applies once those commands exist
+(Session 2).
+
+---
+
+## 23. Audit logging (implemented Session 1: storage primitive; not yet called from any command)
+
+`record_security_audit_event(conn, actor_user_id, target_user_id,
+action, outcome, detail)` — tested to persist correctly and to never
+contain password material (`security_audit_events_persist_without_ever_storing_password_material`
+explicitly asserts no stored `detail` field contains the test user's
+password hash). The full event-class list (login success/failure,
+logout, account lifecycle, password reset/change, role change, lock/
+unlock, permission denied, privileged admin actions) from Session 0's
+design is unchanged — Session 2+ calls this function at each of those
+points as the corresponding commands are built.
+
+---
+
+## 24. Security test matrix
+
+See `docs/PHASE13_SECURITY_TEST_MATRIX.md` — updated this session with
+Session 1's actual 28 identity-layer tests (was a plan; now also a
+report of what exists and passes).
+
+---
+
+## 25. Proposed Phase 13 sessions (Session 1 complete; renumbered plan unchanged in shape from Session 0)
+
+1. ~~User database + migrations + password subsystem~~ **DONE, this session.**
+2. Administrator bootstrap + `login`/`logout` Tauri commands +
+   authenticated session lifecycle (creation, persistence across
+   restarts, expiration/idle timeout), using the 12-role model.
+3. `rolePolicy.ts` (canonical `can()` covering all of §6's matrix, not
+   just the two approval gates) + wire `UserContext` through the app +
+   a Rust/TypeScript role-vocabulary parity test.
+4. Application-wide enforcement: every Tauri command performing a
+   role-gated action resolves role server-side and calls `can()`; every
+   nav/button uses the same `can()`. Fixes the confirmed
+   `save_approval_record` bypass (§2). Begins real workflow-gate
+   enforcement per §15 for the gates that already have a
+   `FormulaStatus` representation; flags the §15.3 gaps as their own
+   follow-up rather than inventing new `FormulaStatus` values
+   mid-session.
+5. `Administration → Users` UI: list, create, edit, role change, reset
+   password, activate/disable, security-history view, read-only role-
+   capabilities view.
+6. Brute-force/lockout wiring, full audit-event coverage from real
+   commands, the complete SQL-injection + privilege-escalation
+   regression suite against the wired-up commands (not just the
+   storage layer, which Session 1 already covers).
+7. Native Windows multi-user acceptance testing, full security
+   regression pass, Phase 13 closure documentation.
+
+---
+
+## Risks and open decisions (updated Session 1)
+
+1. **§6's full matrix is Session 1's first draft**, built from current
+   navigation/routes and §1.1's role intent, not domain-expert-
+   reviewed. Must be reviewed before Session 4 wires enforcement.
+2. **§9 — Administrator's retained approval authority** is explicit and
+   user-approved for this phase; still worth a final human confirmation
+   before Session 4 makes it load-bearing in enforcement.
+3. **§12 — project/resource access is confirmed (not just
+   recommended) out of scope for Phase 13** — no longer an open
+   question, closed this session.
+4. **§15.3's four gaps** (raw-material verification, supplier-document
+   verification, production-engineering→production-manager approval,
+   production→production-manager approval) have no `FormulaStatus`
+   representation in the current domain model — real, unimplemented
+   work, not a Session 1 oversight.
+5. **§10 — Argon2 parameters are crate defaults**, not hand-tuned
+   against real target hardware — revisit only if a genuine performance
+   problem surfaces on real desktop specs.
+6. **§17 — exact lockout threshold/backoff curve** deferred to Session
+   2/6, same as Session 0's plan.
+7. **§22 Model B** remains explicitly out of Phase 13's implementation
+   scope.

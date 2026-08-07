@@ -145,15 +145,15 @@ describe("TestMethodDrawer — authorization", () => {
     render(<TestMethodDrawer definition={DEFINITION} onClose={() => {}} />);
     await screen.findByText("ISO-4316");
     await userEvent.selectOptions(screen.getByLabelText("Acting role"), "researcher");
-    expect(await screen.findByText(/Only chemist, quality or administrator roles may create an internal method/)).toBeInTheDocument();
+    expect(await screen.findByText(/Only research manager, quality manager or administrator roles may create an internal method/)).toBeInTheDocument();
     const makePrimary = screen.getByRole("button", { name: "Make primary" });
     expect(makePrimary).toBeDisabled();
     const describedById = makePrimary.getAttribute("aria-describedby");
     const explanation = document.getElementById(describedById!);
-    expect(explanation).toHaveTextContent("chemist, quality, administrator");
+    expect(explanation).toHaveTextContent("research_manager, quality_manager, administrator");
   });
 
-  it("an authorized chemist sees Make primary on the alternative", async () => {
+  it("an authorized research manager sees Make primary on the alternative", async () => {
     mockRecords([ACTIVE_STANDARD, SUPERSEDED_STANDARD], [PRIMARY_METHOD, ALTERNATIVE_SUPERSEDED_METHOD]);
     render(<TestMethodDrawer definition={DEFINITION} onClose={() => {}} />);
     await screen.findByText("ISO-4316");

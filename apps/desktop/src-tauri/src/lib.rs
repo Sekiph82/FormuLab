@@ -16,6 +16,7 @@ mod masterdata;
 mod materials;
 mod migration;
 mod git_snapshot;
+mod identity;
 mod compute;
 mod jupyter;
 mod kernel;

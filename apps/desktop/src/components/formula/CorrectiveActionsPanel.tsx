@@ -22,7 +22,7 @@ import { cn } from "@/lib/cn";
 import { downloadText } from "@/lib/download";
 import { AttachmentField } from "./AttachmentField";
 
-const LOCAL_HUMAN: Actor = { kind: "human", role: "chemist", userId: "local" };
+const LOCAL_HUMAN: Actor = { kind: "human", role: "researcher", userId: "local" };
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 

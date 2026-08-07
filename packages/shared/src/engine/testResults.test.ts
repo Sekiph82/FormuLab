@@ -92,7 +92,7 @@ function baseResult(over: Partial<TestResult> = {}): TestResult {
 describe("applyResultOverride", () => {
   it("records a full override with actor, reason and both evaluations", () => {
     const result = baseResult({ passFail: "fail" });
-    const overridden = applyResultOverride(result, { kind: "human", role: "chemist", userId: "alice" }, {
+    const overridden = applyResultOverride(result, { kind: "human", role: "researcher", userId: "alice" }, {
       reason: "Instrument miscalibration confirmed after the fact.",
       overriddenEvaluation: "pass",
     });

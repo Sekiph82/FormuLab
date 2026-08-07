@@ -4,8 +4,8 @@ import type { ApprovalReadiness } from "./approvalReadiness";
 import type { Actor } from "../schemas/status";
 import type { AuditEvent, FormulationVersion } from "../schemas/formulation";
 
-const CHEMIST: Actor = { kind: "human", role: "chemist", userId: "u1" };
-const QUALITY: Actor = { kind: "human", role: "quality", userId: "u2" };
+const RESEARCH_MANAGER: Actor = { kind: "human", role: "research_manager", userId: "u1" };
+const QUALITY_MANAGER: Actor = { kind: "human", role: "quality_manager", userId: "u2" };
 const RESEARCHER: Actor = { kind: "human", role: "researcher", userId: "u3" };
 const AGENT: Actor = { kind: "agent", runId: "run-1" };
 const SYSTEM: Actor = { kind: "system", reason: "migration" };
@@ -67,30 +67,30 @@ describe("effectiveStatus", () => {
 
 describe("attemptLifecycleTransition", () => {
   it("allows a human to retire an approved version", () => {
-    const r = attemptLifecycleTransition("pilot_approved", "retired", CHEMIST);
+    const r = attemptLifecycleTransition("pilot_approved", "retired", RESEARCH_MANAGER);
     expect(r.allowed).toBe(true);
     expect(r.action).toBe("version.retired");
   });
 
   it("allows a human to reject a candidate version", () => {
-    const r = attemptLifecycleTransition("chemist_review", "rejected", CHEMIST);
+    const r = attemptLifecycleTransition("chemist_review", "rejected", RESEARCH_MANAGER);
     expect(r.allowed).toBe(true);
     expect(r.action).toBe("version.rejected");
   });
 
   it("allows a human to reopen a rejected version back to concept", () => {
-    const r = attemptLifecycleTransition("rejected", "concept", CHEMIST);
+    const r = attemptLifecycleTransition("rejected", "concept", RESEARCH_MANAGER);
     expect(r.allowed).toBe(true);
     expect(r.action).toBe("version.reopened");
   });
 
   it("refuses an invalid transition (production_approved cannot reject)", () => {
-    const r = attemptLifecycleTransition("production_approved", "rejected", CHEMIST);
+    const r = attemptLifecycleTransition("production_approved", "rejected", RESEARCH_MANAGER);
     expect(r.allowed).toBe(false);
   });
 
   it("refuses reopening a version that is not rejected", () => {
-    const r = attemptLifecycleTransition("concept", "concept", CHEMIST);
+    const r = attemptLifecycleTransition("concept", "concept", RESEARCH_MANAGER);
     expect(r.allowed).toBe(false);
   });
 
@@ -102,19 +102,19 @@ describe("attemptLifecycleTransition", () => {
 
 describe("attemptApprovalTransition", () => {
   it("grants pilot_approved to an authorized, ready human with an approval record", () => {
-    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", CHEMIST, READY, { hasApprovalRecord: true });
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", RESEARCH_MANAGER, READY, { hasApprovalRecord: true });
     expect(r.allowed).toBe(true);
     expect(r.action).toBe("version.approved.pilot_approved");
   });
 
   it("grants production_approved to an authorized, ready human with an approval record", () => {
-    const r = attemptApprovalTransition("pilot_approved", "production_approved", QUALITY, READY, { hasApprovalRecord: true });
+    const r = attemptApprovalTransition("pilot_approved", "production_approved", QUALITY_MANAGER, READY, { hasApprovalRecord: true });
     expect(r.allowed).toBe(true);
     expect(r.action).toBe("version.approved.production_approved");
   });
 
   it("blocks when readiness is not ready, even for an authorized human with a record", () => {
-    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", CHEMIST, NOT_READY, { hasApprovalRecord: true });
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", RESEARCH_MANAGER, NOT_READY, { hasApprovalRecord: true });
     expect(r.allowed).toBe(false);
     expect(r.code).toBe("NOT_READY_FOR_APPROVAL");
   });
@@ -126,7 +126,7 @@ describe("attemptApprovalTransition", () => {
   });
 
   it("blocks without an approval record even when ready and authorized", () => {
-    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", CHEMIST, READY, { hasApprovalRecord: false });
+    const r = attemptApprovalTransition("pilot_candidate", "pilot_approved", RESEARCH_MANAGER, READY, { hasApprovalRecord: false });
     expect(r.allowed).toBe(false);
     expect(r.code).toBe("APPROVAL_RECORD_REQUIRED");
   });
@@ -150,7 +150,7 @@ describe("attemptApprovalTransition", () => {
   });
 
   it("rejects an invalid status graph edge before readiness is even considered", () => {
-    const r = attemptApprovalTransition("concept", "production_approved", QUALITY, READY, { hasApprovalRecord: true });
+    const r = attemptApprovalTransition("concept", "production_approved", QUALITY_MANAGER, READY, { hasApprovalRecord: true });
     expect(r.allowed).toBe(false);
     expect(r.code).toBe("NOT_A_VALID_TRANSITION");
   });
@@ -163,7 +163,7 @@ describe("attemptStageAdvance", () => {
     for (let i = 0; i < 10; i++) {
       const next: StageAdvanceStatus | undefined = STAGE_ADVANCE_NEXT[status];
       if (!next) break;
-      const r = attemptStageAdvance(status, next, CHEMIST);
+      const r = attemptStageAdvance(status, next, RESEARCH_MANAGER);
       expect(r.allowed).toBe(true);
       expect(r.action).toBe(`version.advanced.${next}`);
       status = next;
@@ -174,15 +174,15 @@ describe("attemptStageAdvance", () => {
   });
 
   it("refuses skipping a stage (concept cannot advance straight to lab_candidate)", () => {
-    const r = attemptStageAdvance("concept", "lab_candidate", CHEMIST);
+    const r = attemptStageAdvance("concept", "lab_candidate", RESEARCH_MANAGER);
     expect(r.allowed).toBe(false);
     expect(r.code).toBe("NOT_A_VALID_TRANSITION");
   });
 
   it("refuses advancing a retired/rejected/approved version", () => {
-    expect(attemptStageAdvance("retired", "chemist_review", CHEMIST).allowed).toBe(false);
-    expect(attemptStageAdvance("rejected", "chemist_review", CHEMIST).allowed).toBe(false);
-    expect(attemptStageAdvance("pilot_approved", "chemist_review", CHEMIST).allowed).toBe(false);
+    expect(attemptStageAdvance("retired", "chemist_review", RESEARCH_MANAGER).allowed).toBe(false);
+    expect(attemptStageAdvance("rejected", "chemist_review", RESEARCH_MANAGER).allowed).toBe(false);
+    expect(attemptStageAdvance("pilot_approved", "chemist_review", RESEARCH_MANAGER).allowed).toBe(false);
   });
 
   it("allows an agent or system actor to advance a stage — none of these are HUMAN_ONLY_STATUSES", () => {

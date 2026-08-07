@@ -6,7 +6,7 @@ const humans = {
   regulatory: { kind: "human", role: "regulatory", userId: "alice" } satisfies Actor,
   quality: { kind: "human", role: "quality", userId: "quinn" } satisfies Actor,
   administrator: { kind: "human", role: "administrator", userId: "root" } satisfies Actor,
-  chemist: { kind: "human", role: "chemist", userId: "bob" } satisfies Actor,
+  rawMaterial: { kind: "human", role: "raw_material", userId: "bob" } satisfies Actor,
   researcher: { kind: "human", role: "researcher", userId: "rae" } satisfies Actor,
   production: { kind: "human", role: "production", userId: "pat" } satisfies Actor,
 };
@@ -28,7 +28,7 @@ describe("isAuthorizedRegulatoryActor", () => {
   });
 
   it("rejects every other human role", () => {
-    expect(isAuthorizedRegulatoryActor(humans.chemist)).toBe(false);
+    expect(isAuthorizedRegulatoryActor(humans.rawMaterial)).toBe(false);
     expect(isAuthorizedRegulatoryActor(humans.researcher)).toBe(false);
     expect(isAuthorizedRegulatoryActor(humans.production)).toBe(false);
   });
@@ -46,7 +46,7 @@ describe("requireAuthorizedRegulatoryActor", () => {
   });
 
   it("throws an explanatory error naming the required roles for every unauthorized actor", () => {
-    for (const actor of [humans.chemist, humans.researcher, humans.production, agent, system, importActor]) {
+    for (const actor of [humans.rawMaterial, humans.researcher, humans.production, agent, system, importActor]) {
       expect(() => requireAuthorizedRegulatoryActor(actor, "do the thing")).toThrow(/Only an authorized regulatory, quality or administrator role may/);
     }
   });

@@ -74,7 +74,7 @@ export function TestMethodDrawer({ definition, onClose }: { definition: TestDefi
   const [standards, setStandards] = useState<LaboratoryStandard[]>([]);
   const [methods, setMethods] = useState<LaboratoryTestMethod[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [actingRole, setActingRole] = useState<ApprovalRole>("chemist");
+  const [actingRole, setActingRole] = useState<ApprovalRole>("research_manager");
   const [actingUserId, setActingUserId] = useState("");
   const [acknowledgedSupersededId, setAcknowledgedSupersededId] = useState<string | null>(null);
   const [showCreateInternal, setShowCreateInternal] = useState(false);

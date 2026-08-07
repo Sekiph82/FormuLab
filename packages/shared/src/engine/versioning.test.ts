@@ -238,7 +238,7 @@ describe("approval cannot be inherited or automated", () => {
     const r = canTransitionTo(
       "pilot_approved",
       "production_approved",
-      { kind: "human", role: "quality", userId: "u1" },
+      { kind: "human", role: "quality_manager", userId: "u1" },
       { hasApprovalRecord: false },
     );
     expect(r.allowed).toBe(false);
@@ -255,11 +255,22 @@ describe("approval cannot be inherited or automated", () => {
     expect(r.code).toBe("ROLE_NOT_AUTHORIZED");
   });
 
-  it("an authorized human with a record may approve", () => {
+  it("role-model regression: the employee-tier 'quality' role does not inherit its manager's production approval", () => {
     const r = canTransitionTo(
       "pilot_approved",
       "production_approved",
       { kind: "human", role: "quality", userId: "u1" },
+      { hasApprovalRecord: true },
+    );
+    expect(r.allowed).toBe(false);
+    expect(r.code).toBe("ROLE_NOT_AUTHORIZED");
+  });
+
+  it("an authorized human with a record may approve", () => {
+    const r = canTransitionTo(
+      "pilot_approved",
+      "production_approved",
+      { kind: "human", role: "quality_manager", userId: "u1" },
       { hasApprovalRecord: true },
     );
     expect(r.allowed).toBe(true);

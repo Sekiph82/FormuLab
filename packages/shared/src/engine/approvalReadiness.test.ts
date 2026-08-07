@@ -5,8 +5,8 @@ import type { ValidationFinding } from "./formula";
 import type { CompatibilityFinding } from "../schemas/compatibility";
 import type { SafetyFinding } from "../schemas/safety";
 
-const CHEMIST: Actor = { kind: "human", role: "chemist", userId: "u1" };
-const QUALITY: Actor = { kind: "human", role: "quality", userId: "u2" };
+const RESEARCH_MANAGER: Actor = { kind: "human", role: "research_manager", userId: "u1" };
+const QUALITY_MANAGER: Actor = { kind: "human", role: "quality_manager", userId: "u2" };
 const AGENT: Actor = { kind: "agent", runId: "run-1" };
 const SYSTEM: Actor = { kind: "system", reason: "batch job" };
 const IMPORT: Actor = { kind: "import", source: "supplier.csv" };
@@ -230,7 +230,7 @@ describe("canTransitionWithReadiness — bypass attempts", () => {
   const READY: ApprovalReadiness = { ready: true, blockers: [], warnings: [] };
 
   it("blocks a human approver when readiness says not ready, even with an approval record", () => {
-    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", CHEMIST, NOT_READY, {
+    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", RESEARCH_MANAGER, NOT_READY, {
       hasApprovalRecord: true,
     });
     expect(r.allowed).toBe(false);
@@ -238,7 +238,7 @@ describe("canTransitionWithReadiness — bypass attempts", () => {
   });
 
   it("allows a human approver through once readiness is clear", () => {
-    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", CHEMIST, READY, {
+    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", RESEARCH_MANAGER, READY, {
       hasApprovalRecord: true,
     });
     expect(r.allowed).toBe(true);
@@ -268,7 +268,7 @@ describe("canTransitionWithReadiness — bypass attempts", () => {
   });
 
   it("production approval is also gated by readiness", () => {
-    const r = canTransitionWithReadiness("pilot_approved", "production_approved", QUALITY, NOT_READY, {
+    const r = canTransitionWithReadiness("pilot_approved", "production_approved", QUALITY_MANAGER, NOT_READY, {
       hasApprovalRecord: true,
     });
     expect(r.allowed).toBe(false);
@@ -427,7 +427,7 @@ describe("assessApprovalReadiness — lab/stability bypass attempts", () => {
   });
 
   it("a human is still blocked until the underlying lab state actually changes", () => {
-    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", CHEMIST, BLOCKED_BY_LAB, { hasApprovalRecord: true });
+    const r = canTransitionWithReadiness("pilot_candidate", "pilot_approved", RESEARCH_MANAGER, BLOCKED_BY_LAB, { hasApprovalRecord: true });
     expect(r.allowed).toBe(false);
     expect(r.code).toBe("NOT_READY_FOR_APPROVAL");
   });

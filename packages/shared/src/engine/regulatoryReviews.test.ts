@@ -17,7 +17,6 @@ import type { RegulatoryReview, RegulatoryRule } from "../schemas/regulatory";
 const REGULATORY_ACTOR: Actor = { kind: "human", role: "regulatory", userId: "alice" };
 const QUALITY_ACTOR: Actor = { kind: "human", role: "quality", userId: "quinn" };
 const ADMIN_ACTOR: Actor = { kind: "human", role: "administrator", userId: "root" };
-const CHEMIST_ACTOR: Actor = { kind: "human", role: "chemist", userId: "bob" };
 const RESEARCHER_ACTOR: Actor = { kind: "human", role: "researcher", userId: "rae" };
 const AGENT_ACTOR: Actor = { kind: "agent", runId: "run-1" };
 const SYSTEM_ACTOR: Actor = { kind: "system", reason: "scheduled sync" };
@@ -100,7 +99,6 @@ describe("recordRegulatoryReview", () => {
   });
 
   it("refuses a human without an authorized regulatory/quality/administrator role", () => {
-    expect(() => recordRegulatoryReview(RECORD_INPUT, CHEMIST_ACTOR)).toThrow();
     expect(() => recordRegulatoryReview(RECORD_INPUT, RESEARCHER_ACTOR)).toThrow();
   });
 
@@ -132,7 +130,6 @@ describe("recordRegulatoryReview", () => {
 
 describe("revokeRegulatoryReview", () => {
   it("refuses a non-regulatory human", () => {
-    expect(() => revokeRegulatoryReview("review-1", CHEMIST_ACTOR, "Mistake.")).toThrow();
     expect(() => revokeRegulatoryReview("review-1", RESEARCHER_ACTOR, "Mistake.")).toThrow();
   });
 
@@ -285,8 +282,7 @@ describe("evidence confirmations", () => {
   });
 
   it("refuses a human without an authorized regulatory/quality/administrator role", () => {
-    expect(() => recordEvidenceConfirmation(CONFIRM_INPUT, CHEMIST_ACTOR)).toThrow(/authorized regulatory, quality or administrator/);
-    expect(() => recordEvidenceConfirmation(CONFIRM_INPUT, RESEARCHER_ACTOR)).toThrow();
+    expect(() => recordEvidenceConfirmation(CONFIRM_INPUT, RESEARCHER_ACTOR)).toThrow(/authorized regulatory, quality or administrator/);
   });
 
   it("regulatory, quality and administrator roles may each confirm evidence", () => {
@@ -303,14 +299,14 @@ describe("evidence confirmations", () => {
   });
 
   it("no confirmation record is produced when authorization fails", () => {
-    expect(() => recordEvidenceConfirmation(CONFIRM_INPUT, CHEMIST_ACTOR)).toThrow();
+    expect(() => recordEvidenceConfirmation(CONFIRM_INPUT, RESEARCHER_ACTOR)).toThrow();
     // The throw happens before any record is built — there is nothing a
     // caller could have persisted even if it ignored the exception.
   });
 
   it("revoking requires an authorized regulatory/quality/administrator actor and a reason", () => {
     expect(() => revokeEvidenceConfirmation("c1", AGENT_ACTOR, "reason")).toThrow();
-    expect(() => revokeEvidenceConfirmation("c1", CHEMIST_ACTOR, "reason")).toThrow();
+    expect(() => revokeEvidenceConfirmation("c1", RESEARCHER_ACTOR, "reason")).toThrow();
     expect(() => revokeEvidenceConfirmation("c1", REGULATORY_ACTOR, "")).toThrow();
     const revocation = revokeEvidenceConfirmation("c1", REGULATORY_ACTOR, "Document was actually missing.");
     expect(revocation.revokesConfirmationId).toBe("c1");
@@ -332,11 +328,8 @@ describe("regulatory review equivalence", () => {
 
   it("refuses a human without an authorized regulatory/quality/administrator role", () => {
     expect(() =>
-      declareRegulatoryReviewEquivalence({ formulationId: "p1", targetVersionId: "v1", sourceVersionId: "v0", jurisdiction: "KE", justification: "x" }, CHEMIST_ACTOR),
-    ).toThrow(/authorized regulatory, quality or administrator/);
-    expect(() =>
       declareRegulatoryReviewEquivalence({ formulationId: "p1", targetVersionId: "v1", sourceVersionId: "v0", jurisdiction: "KE", justification: "x" }, RESEARCHER_ACTOR),
-    ).toThrow();
+    ).toThrow(/authorized regulatory, quality or administrator/);
   });
 
   it("regulatory, quality and administrator roles may each declare an equivalence", () => {
@@ -354,7 +347,7 @@ describe("regulatory review equivalence", () => {
       { formulationId: "p1", targetVersionId: "v1", sourceVersionId: "v0", jurisdiction: "KE", justification: "Only fragrance changed." },
       REGULATORY_ACTOR,
     );
-    expect(() => revokeRegulatoryReviewEquivalence(equivalence, CHEMIST_ACTOR, "Reconsidered.")).toThrow();
+    expect(() => revokeRegulatoryReviewEquivalence(equivalence, RESEARCHER_ACTOR, "Reconsidered.")).toThrow();
     expect(() => revokeRegulatoryReviewEquivalence(equivalence, AGENT_ACTOR, "Reconsidered.")).toThrow();
   });
 

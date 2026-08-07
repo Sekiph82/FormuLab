@@ -59,7 +59,7 @@ import { AttachmentField } from "./AttachmentField";
 import { ExclusionExplorer } from "./ExclusionExplorer";
 import { ResultHistoryBrowser } from "./ResultHistoryBrowser";
 
-const LOCAL_HUMAN: Actor = { kind: "human", role: "chemist", userId: "local" };
+const LOCAL_HUMAN: Actor = { kind: "human", role: "researcher", userId: "local" };
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 

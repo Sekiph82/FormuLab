@@ -17,7 +17,7 @@ import type { FormulationLine } from "../schemas/formulation";
 import type { LaboratoryTrial, TrialDeviation, TrialMaterialUsage, TrialProcessStep } from "../schemas/laboratory";
 import type { TestResult } from "../schemas/testDefinitions";
 
-const HUMAN: Actor = { kind: "human", role: "chemist", userId: "alice" };
+const HUMAN: Actor = { kind: "human", role: "researcher", userId: "alice" };
 const AGENT: Actor = { kind: "agent", runId: "run-1" };
 
 function line(over: Partial<FormulationLine> & { id: string; displayName: string; percent: string }): FormulationLine {

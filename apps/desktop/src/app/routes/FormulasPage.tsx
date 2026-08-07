@@ -286,7 +286,7 @@ export function FormulasPage() {
   const onLifecycleAction = async (version: FormulationVersion, to: "retired" | "rejected" | "concept", reason: string) => {
     if (!active) return;
     const current = effectiveStatus(version, auditLog);
-    const actor: Actor = { kind: "human", role: "chemist", userId: "local" };
+    const actor: Actor = { kind: "human", role: "researcher", userId: "local" };
     const result = attemptLifecycleTransition(current, to, actor);
     if (!result.allowed || !result.action) {
       setError(result.message ?? t("builder.lifecycle.notAllowed"));

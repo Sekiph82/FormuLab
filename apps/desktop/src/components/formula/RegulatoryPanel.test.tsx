@@ -374,7 +374,7 @@ describe("RegulatoryPanel — human review", () => {
 });
 
 describe("RegulatoryPanel — authorization", () => {
-  it("disables Save review and shows the unauthorized-role hint once the reviewer role is switched to chemist", async () => {
+  it("disables Save review and shows the unauthorized-role hint once the reviewer role is switched to researcher", async () => {
     const user = userEvent.setup();
     renderPanel();
     await screen.findByText("Laundry detergent");
@@ -382,7 +382,7 @@ describe("RegulatoryPanel — authorization", () => {
     await user.click(screen.getByRole("button", { name: "Reviews" }));
     expect(screen.getByRole("button", { name: "Save review" })).not.toBeDisabled();
 
-    await user.selectOptions(screen.getByLabelText("Reviewer role"), "chemist");
+    await user.selectOptions(screen.getByLabelText("Reviewer role"), "researcher");
 
     expect(screen.getByRole("button", { name: "Save review" })).toBeDisabled();
     expect(screen.getAllByText("Only a regulatory, quality or administrator role may perform this action.").length).toBeGreaterThan(0);
@@ -394,7 +394,7 @@ describe("RegulatoryPanel — authorization", () => {
     await screen.findByText("Laundry detergent");
     await selectVersion(user);
     await user.click(screen.getByRole("button", { name: "Reviews" }));
-    await user.selectOptions(screen.getByLabelText("Reviewer role"), "chemist");
+    await user.selectOptions(screen.getByLabelText("Reviewer role"), "researcher");
     expect(screen.getByRole("button", { name: "Save review" })).toBeDisabled();
 
     await user.selectOptions(screen.getByLabelText("Reviewer role"), "quality");
@@ -418,7 +418,7 @@ describe("RegulatoryPanel — authorization", () => {
           outcome: "compliant",
           notes: "Notes.",
         },
-        { kind: "human", role: "chemist", userId: "bob" },
+        { kind: "human", role: "researcher", userId: "bob" },
       ),
     ).toThrow(/authorized regulatory, quality or administrator/);
   });

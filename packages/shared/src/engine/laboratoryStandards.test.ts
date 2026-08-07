@@ -16,7 +16,7 @@ import type { Actor } from "../schemas/status";
 import type { LaboratoryStandard, LaboratoryTestMethod } from "../schemas/laboratoryStandards";
 import type { TestDefinition } from "../schemas/testDefinitions";
 
-const CHEMIST: Actor = { kind: "human", role: "chemist", userId: "alice" };
+const RESEARCH_MANAGER: Actor = { kind: "human", role: "research_manager", userId: "alice" };
 const RESEARCHER: Actor = { kind: "human", role: "researcher", userId: "bob" };
 const AGENT: Actor = { kind: "agent", runId: "run-1" };
 
@@ -58,14 +58,14 @@ function method(over: Partial<LaboratoryTestMethod> = {}): LaboratoryTestMethod 
 }
 
 describe("authorization", () => {
-  it("accepts chemist/quality/administrator, rejects researcher and non-human actors", () => {
-    expect(isAuthorizedLaboratoryMethodActor(CHEMIST)).toBe(true);
+  it("accepts research_manager/quality_manager/administrator, rejects researcher and non-human actors", () => {
+    expect(isAuthorizedLaboratoryMethodActor(RESEARCH_MANAGER)).toBe(true);
     expect(isAuthorizedLaboratoryMethodActor(RESEARCHER)).toBe(false);
     expect(isAuthorizedLaboratoryMethodActor(AGENT)).toBe(false);
   });
 
   it("requireAuthorizedLaboratoryMethodActor throws with a stated reason", () => {
-    expect(() => requireAuthorizedLaboratoryMethodActor(RESEARCHER, "supersede a standard")).toThrow(/chemist, quality or administrator/);
+    expect(() => requireAuthorizedLaboratoryMethodActor(RESEARCHER, "supersede a standard")).toThrow(/research manager, quality manager, or administrator/);
     expect(() => requireAuthorizedLaboratoryMethodActor(AGENT, "supersede a standard")).toThrow();
   });
 });
@@ -89,7 +89,7 @@ describe("assertUniqueStandardCode", () => {
 
 describe("createInternalStandard", () => {
   it("creates a status:internal standard when authorized", () => {
-    const s = createInternalStandard(CHEMIST, { standardCode: "FORMULAB-SOP-014", title: "In-house viscosity SOP", issuingOrganization: "FormuLab" }, []);
+    const s = createInternalStandard(RESEARCH_MANAGER, { standardCode: "FORMULAB-SOP-014", title: "In-house viscosity SOP", issuingOrganization: "FormuLab" }, []);
     expect(s.status).toBe("internal");
     expect(s.createdBy).toBe("alice");
   });
@@ -106,7 +106,7 @@ describe("assignMethodToTest — per-test isolation", () => {
       method({ id: "m2", testDefinitionCode: "TEST-PH", standardId: "std-2", assignmentType: "alternative" }),
       method({ id: "m3", testDefinitionCode: "TEST-VISCOSITY", assignmentType: "primary" }),
     ];
-    const result = assignMethodToTest(methods, "m2", "primary", CHEMIST);
+    const result = assignMethodToTest(methods, "m2", "primary", RESEARCH_MANAGER);
     expect(result.find((m) => m.id === "m1")?.assignmentType).toBe("alternative");
     expect(result.find((m) => m.id === "m2")?.assignmentType).toBe("primary");
     // A different test's rows are untouched — object identity preserved.
@@ -115,7 +115,7 @@ describe("assignMethodToTest — per-test isolation", () => {
 
   it("changing one test's assignment never mutates another test's rows", () => {
     const methods = [method({ id: "m1", testDefinitionCode: "TEST-PH" }), method({ id: "m2", testDefinitionCode: "TEST-DENSITY", assignmentType: "alternative" })];
-    const result = assignMethodToTest(methods, "m1", "alternative", CHEMIST);
+    const result = assignMethodToTest(methods, "m1", "alternative", RESEARCH_MANAGER);
     expect(result.find((m) => m.id === "m2")).toBe(methods[1]);
   });
 
@@ -125,7 +125,7 @@ describe("assignMethodToTest — per-test isolation", () => {
   });
 
   it("throws on an unknown method id", () => {
-    expect(() => assignMethodToTest([method()], "missing", "primary", CHEMIST)).toThrow(/Unknown/);
+    expect(() => assignMethodToTest([method()], "missing", "primary", RESEARCH_MANAGER)).toThrow(/Unknown/);
   });
 });
 
@@ -164,7 +164,7 @@ describe("assertMethodEditable", () => {
 
   it("requires an authorized role to edit an active method", () => {
     expect(() => assertMethodEditable(method({ status: "active" }), RESEARCHER)).toThrow();
-    expect(() => assertMethodEditable(method({ status: "active" }), CHEMIST)).not.toThrow();
+    expect(() => assertMethodEditable(method({ status: "active" }), RESEARCH_MANAGER)).not.toThrow();
   });
 });
 

@@ -1044,7 +1044,7 @@
       "internalStandardTitle": "Title",
       "internalIssuingOrg": "Issuing organization",
       "copyrightNotice": "FormuLab summaries and internal procedures do not replace the official licensed standard. Consult the current official publication before performing regulated testing.",
-      "disabledReason": "Only chemist, quality or administrator roles may change or create standards/methods.",
+      "disabledReason": "Only research manager, quality manager or administrator roles may change or create standards/methods.",
       "actingRole": "Acting role",
       "actingUserId": "Your name/ID",
       "legacyReference": "Legacy free-text reference: {{ref}} (unresolved)",
@@ -1076,7 +1076,7 @@
       "snapshotInfoTitle": "Historical snapshots",
       "snapshotInfoBody": "Recording a test result can capture an immutable copy of the method actually used. Editing a standard or method later never changes an already-recorded result's snapshot.",
       "supersededBlockReason": "This standard is superseded. Acknowledge it below before making it primary.",
-      "createInternalHiddenReason": "Only chemist, quality or administrator roles may create an internal method."
+      "createInternalHiddenReason": "Only research manager, quality manager or administrator roles may create an internal method."
     }
   },
   "stability": {

@@ -42,7 +42,7 @@ import type { RegulatoryFinding, RegulatoryJurisdiction, RegulatoryRule } from "
 const REGULATORY_ACTOR: Actor = { kind: "human", role: "regulatory", userId: "alice" };
 const QUALITY_ACTOR: Actor = { kind: "human", role: "quality", userId: "quinn" };
 const ADMIN_ACTOR: Actor = { kind: "human", role: "administrator", userId: "root" };
-const CHEMIST_ACTOR: Actor = { kind: "human", role: "chemist", userId: "bob" };
+const RESEARCHER_ACTOR: Actor = { kind: "human", role: "researcher", userId: "bob" };
 const AGENT_ACTOR: Actor = { kind: "agent", runId: "run-1" };
 const IMPORT_ACTOR: Actor = { kind: "import", source: "spreadsheet.csv" };
 
@@ -161,15 +161,15 @@ describe("createDossier", () => {
   });
 
   it("refuses an empty formula version id (rejects working-draft dossiers)", () => {
-    expect(() => createDossier({ ...input, jurisdictions: ["KE"], formulaVersionId: "" }, CHEMIST_ACTOR)).toThrow();
+    expect(() => createDossier({ ...input, jurisdictions: ["KE"], formulaVersionId: "" }, RESEARCHER_ACTOR)).toThrow();
   });
 
   it("refuses an empty jurisdiction list", () => {
-    expect(() => createDossier({ ...input, jurisdictions: [] }, CHEMIST_ACTOR)).toThrow();
+    expect(() => createDossier({ ...input, jurisdictions: [] }, RESEARCHER_ACTOR)).toThrow();
   });
 
   it("any human role may create a dossier, bound to the exact version", () => {
-    const d = createDossier({ ...input, jurisdictions: ["KE"] }, CHEMIST_ACTOR);
+    const d = createDossier({ ...input, jurisdictions: ["KE"] }, RESEARCHER_ACTOR);
     expect(d.formulaVersionId).toBe("version-1");
     expect(d.status).toBe("draft");
     expect(d.revision).toBe(1);
@@ -284,7 +284,7 @@ describe("manual requirement actions", () => {
 
   it("refuses an unauthorized actor for manual add", () => {
     expect(() =>
-      addManualRequirement({ id: "dossier-1", revision: 1 }, { ...base, title: "manual" }, CHEMIST_ACTOR, "reason"),
+      addManualRequirement({ id: "dossier-1", revision: 1 }, { ...base, title: "manual" }, RESEARCHER_ACTOR, "reason"),
     ).toThrow();
   });
 
@@ -302,7 +302,7 @@ describe("manual requirement actions", () => {
   });
 
   it("refuses an unauthorized actor for exclusion", () => {
-    expect(() => excludeRequirement(base, CHEMIST_ACTOR, "not relevant")).toThrow();
+    expect(() => excludeRequirement(base, RESEARCHER_ACTOR, "not relevant")).toThrow();
     expect(() => excludeRequirement(base, AGENT_ACTOR, "not relevant")).toThrow();
   });
 
@@ -359,25 +359,25 @@ describe("evidence lifecycle", () => {
   };
 
   it("any human may add draft evidence; a non-human may not", () => {
-    const e = addDraftEvidence(draftInput, CHEMIST_ACTOR);
+    const e = addDraftEvidence(draftInput, RESEARCHER_ACTOR);
     expect(e.status).toBe("present_unverified");
     expect(() => addDraftEvidence(draftInput, AGENT_ACTOR)).toThrow();
     expect(() => addDraftEvidence(draftInput, IMPORT_ACTOR)).toThrow();
   });
 
   it("refuses evidence with no formula version id", () => {
-    expect(() => addDraftEvidence({ ...draftInput, formulaVersionId: "" }, CHEMIST_ACTOR)).toThrow();
+    expect(() => addDraftEvidence({ ...draftInput, formulaVersionId: "" }, RESEARCHER_ACTOR)).toThrow();
   });
 
   it("with no attachments yet, evidence starts as draft", () => {
-    const e = addDraftEvidence({ ...draftInput, attachmentIds: [] }, CHEMIST_ACTOR);
+    const e = addDraftEvidence({ ...draftInput, attachmentIds: [] }, RESEARCHER_ACTOR);
     expect(e.status).toBe("draft");
   });
 
   describe("verifyEvidence authorization", () => {
-    const e = addDraftEvidence(draftInput, CHEMIST_ACTOR);
-    it("refuses chemist, AI and import", () => {
-      expect(() => verifyEvidence(e, CHEMIST_ACTOR)).toThrow();
+    const e = addDraftEvidence(draftInput, RESEARCHER_ACTOR);
+    it("refuses researcher, AI and import", () => {
+      expect(() => verifyEvidence(e, RESEARCHER_ACTOR)).toThrow();
       expect(() => verifyEvidence(e, AGENT_ACTOR)).toThrow();
       expect(() => verifyEvidence(e, IMPORT_ACTOR)).toThrow();
     });
@@ -387,23 +387,23 @@ describe("evidence lifecycle", () => {
       expect(verified.verifiedBy).toBe("alice");
     });
     it("refuses verification with no attachment", () => {
-      const noAttachment = addDraftEvidence({ ...draftInput, attachmentIds: [] }, CHEMIST_ACTOR);
+      const noAttachment = addDraftEvidence({ ...draftInput, attachmentIds: [] }, RESEARCHER_ACTOR);
       expect(() => verifyEvidence(noAttachment, REGULATORY_ACTOR)).toThrow();
     });
   });
 
   it("rejectEvidence/revokeEvidence require an authorized actor and a reason", () => {
-    const e = addDraftEvidence(draftInput, CHEMIST_ACTOR);
-    expect(() => rejectEvidence(e, CHEMIST_ACTOR, "reason")).toThrow();
+    const e = addDraftEvidence(draftInput, RESEARCHER_ACTOR);
+    expect(() => rejectEvidence(e, RESEARCHER_ACTOR, "reason")).toThrow();
     expect(() => rejectEvidence(e, REGULATORY_ACTOR, "")).toThrow();
     expect(rejectEvidence(e, REGULATORY_ACTOR, "Wrong document.").status).toBe("rejected");
-    expect(() => revokeEvidence(e, CHEMIST_ACTOR, "reason")).toThrow();
+    expect(() => revokeEvidence(e, RESEARCHER_ACTOR, "reason")).toThrow();
     expect(revokeEvidence(e, ADMIN_ACTOR, "Superseded by newer SDS.").status).toBe("revoked");
   });
 
   it("replaceEvidence supersedes the old item and links the new one via supersedesEvidenceId — any human may do it", () => {
-    const original = addDraftEvidence(draftInput, CHEMIST_ACTOR);
-    const { superseded, replacement } = replaceEvidence(original, { evidenceType: "sds", title: "Updated SDS", attachmentIds: draftInput.attachmentIds }, CHEMIST_ACTOR);
+    const original = addDraftEvidence(draftInput, RESEARCHER_ACTOR);
+    const { superseded, replacement } = replaceEvidence(original, { evidenceType: "sds", title: "Updated SDS", attachmentIds: draftInput.attachmentIds }, RESEARCHER_ACTOR);
     expect(superseded.status).toBe("superseded");
     expect(superseded.id).toBe(original.id);
     expect(replacement.supersedesEvidenceId).toBe(original.id);
@@ -411,16 +411,16 @@ describe("evidence lifecycle", () => {
   });
 
   it("deriveEvidenceStatus reports superseded once a later item points back, regardless of stored status", () => {
-    const original = addDraftEvidence(draftInput, CHEMIST_ACTOR);
-    const { replacement } = replaceEvidence(original, { evidenceType: "sds", title: "v2", attachmentIds: draftInput.attachmentIds }, CHEMIST_ACTOR);
+    const original = addDraftEvidence(draftInput, RESEARCHER_ACTOR);
+    const { replacement } = replaceEvidence(original, { evidenceType: "sds", title: "v2", attachmentIds: draftInput.attachmentIds }, RESEARCHER_ACTOR);
     const staleOriginal = { ...original, status: "verified" as const }; // as if not yet updated in storage
     expect(deriveEvidenceStatus(staleOriginal, [replacement])).toBe("superseded");
   });
 
   it("resolveEvidenceRevisionChain walks back through every replaced version, none deleted", () => {
-    const v1 = addDraftEvidence(draftInput, CHEMIST_ACTOR);
-    const { replacement: v2 } = replaceEvidence(v1, { evidenceType: "sds", title: "v2", attachmentIds: draftInput.attachmentIds }, CHEMIST_ACTOR);
-    const { replacement: v3 } = replaceEvidence(v2, { evidenceType: "sds", title: "v3", attachmentIds: draftInput.attachmentIds }, CHEMIST_ACTOR);
+    const v1 = addDraftEvidence(draftInput, RESEARCHER_ACTOR);
+    const { replacement: v2 } = replaceEvidence(v1, { evidenceType: "sds", title: "v2", attachmentIds: draftInput.attachmentIds }, RESEARCHER_ACTOR);
+    const { replacement: v3 } = replaceEvidence(v2, { evidenceType: "sds", title: "v3", attachmentIds: draftInput.attachmentIds }, RESEARCHER_ACTOR);
     const chain = resolveEvidenceRevisionChain(v3, [v1, v2, v3]);
     expect(chain.map((e) => e.title)).toEqual(["v3", "v2", "SDS for surfactant"]);
   });
@@ -459,7 +459,7 @@ describe("evaluateEvidenceEligibility", () => {
 describe("requirement <-> evidence links", () => {
   it("proposeEvidenceLink starts as proposed and requires a human", () => {
     expect(() => proposeEvidenceLink({ dossierId: "d1", requirementId: "r1", evidenceItemId: "e1" }, AGENT_ACTOR)).toThrow();
-    const l = proposeEvidenceLink({ dossierId: "d1", requirementId: "r1", evidenceItemId: "e1" }, CHEMIST_ACTOR);
+    const l = proposeEvidenceLink({ dossierId: "d1", requirementId: "r1", evidenceItemId: "e1" }, RESEARCHER_ACTOR);
     expect(l.linkStatus).toBe("proposed");
   });
 
@@ -472,20 +472,20 @@ describe("requirement <-> evidence links", () => {
   });
 
   it("an accepted link to verified, eligible evidence satisfies the requirement", () => {
-    const accepted = acceptEvidenceLink(link({ linkStatus: "proposed" }), CHEMIST_ACTOR);
+    const accepted = acceptEvidenceLink(link({ linkStatus: "proposed" }), RESEARCHER_ACTOR);
     const row = evaluateRequirementSatisfaction(requirement(), [accepted], [evidence()], { formulaVersionId: "version-1", jurisdiction: "KE" });
     expect(row.satisfaction).toBe("satisfied_verified");
   });
 
   it("a rejected link never satisfies", () => {
-    const rejected = rejectEvidenceLink(link({ linkStatus: "proposed" }), CHEMIST_ACTOR, "Wrong document type.");
+    const rejected = rejectEvidenceLink(link({ linkStatus: "proposed" }), RESEARCHER_ACTOR, "Wrong document type.");
     const row = evaluateRequirementSatisfaction(requirement(), [rejected], [evidence()], { formulaVersionId: "version-1", jurisdiction: "KE" });
     expect(row.satisfaction).not.toBe("satisfied_verified");
   });
 
   it("a revoked link never satisfies, even if it was previously accepted", () => {
     const accepted = link({ linkStatus: "accepted" });
-    const revoked = revokeEvidenceLink(accepted, CHEMIST_ACTOR, "Evidence turned out to be for a different SKU.");
+    const revoked = revokeEvidenceLink(accepted, RESEARCHER_ACTOR, "Evidence turned out to be for a different SKU.");
     const active = activeLinksForDossier([accepted, revoked], "dossier-1");
     expect(active).toHaveLength(0);
   });
@@ -506,7 +506,7 @@ describe("requirement <-> evidence links", () => {
 
   it("revoking requires a reason and a human actor", () => {
     expect(() => revokeEvidenceLink(link(), AGENT_ACTOR, "reason")).toThrow();
-    expect(() => revokeEvidenceLink(link(), CHEMIST_ACTOR, "")).toThrow();
+    expect(() => revokeEvidenceLink(link(), RESEARCHER_ACTOR, "")).toThrow();
   });
 });
 
@@ -606,7 +606,7 @@ describe("dossier reviews", () => {
   };
 
   it("refuses an unauthorized actor", () => {
-    expect(() => recordDossierReview(reviewInput, CHEMIST_ACTOR)).toThrow();
+    expect(() => recordDossierReview(reviewInput, RESEARCHER_ACTOR)).toThrow();
     expect(() => recordDossierReview(reviewInput, AGENT_ACTOR)).toThrow();
   });
 
@@ -628,7 +628,7 @@ describe("dossier reviews", () => {
 
   it("revocation requires an authorized actor and a reason, and is append-only", () => {
     const review = recordDossierReview(reviewInput, REGULATORY_ACTOR);
-    expect(() => revokeDossierReview(review.id, CHEMIST_ACTOR, "reason")).toThrow();
+    expect(() => revokeDossierReview(review.id, RESEARCHER_ACTOR, "reason")).toThrow();
     expect(() => revokeDossierReview(review.id, REGULATORY_ACTOR, "")).toThrow();
     const revocation = revokeDossierReview(review.id, ADMIN_ACTOR, "Recorded against the wrong revision.");
     expect(revocation.revokesReviewId).toBe(review.id);
@@ -645,7 +645,7 @@ describe("dossier submissions", () => {
   const submissionInput = { dossierId: "dossier-1", dossierRevision: 1, jurisdiction: "KE" as const };
 
   it("refuses an unauthorized actor", () => {
-    expect(() => recordDossierSubmission(submissionInput, CHEMIST_ACTOR)).toThrow();
+    expect(() => recordDossierSubmission(submissionInput, RESEARCHER_ACTOR)).toThrow();
   });
 
   it("records a submission as a tracking entry only, starting as prepared", () => {
@@ -656,7 +656,7 @@ describe("dossier submissions", () => {
 
   it("status updates require an authorized actor", () => {
     const s = recordDossierSubmission(submissionInput, REGULATORY_ACTOR);
-    expect(() => updateDossierSubmissionStatus(s, "submitted", CHEMIST_ACTOR)).toThrow();
+    expect(() => updateDossierSubmissionStatus(s, "submitted", RESEARCHER_ACTOR)).toThrow();
     const updated = updateDossierSubmissionStatus(s, "withdrawn", ADMIN_ACTOR, "Formula changed.");
     expect(updated.status).toBe("withdrawn");
   });

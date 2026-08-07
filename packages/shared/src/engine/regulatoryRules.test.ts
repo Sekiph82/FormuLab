@@ -294,7 +294,7 @@ describe("regulatory rule lifecycle — human-only, append-only revisions", () =
 });
 
 const REGULATORY_HUMAN: Actor = { kind: "human", role: "regulatory", userId: "carol" };
-const CHEMIST_HUMAN: Actor = { kind: "human", role: "chemist", userId: "dave" };
+const RESEARCHER_HUMAN: Actor = { kind: "human", role: "researcher", userId: "dave" };
 
 describe("regulatory rule source-verification workflow", () => {
   it("refuses to verify a rule with no source authority or reference", () => {
@@ -316,9 +316,9 @@ describe("regulatory rule source-verification workflow", () => {
     expect(revision.changeType).toBe("verified");
   });
 
-  it("only a regulatory/quality/administrator role may verify — not a chemist, not AI, not import", () => {
+  it("only a regulatory/quality/administrator role may verify — not a researcher, not AI, not import", () => {
     const sourced = rule({ sourceAuthority: "KEBS", sourceReference: "Gazette 1" });
-    expect(() => verifyRule(sourced, CHEMIST_HUMAN)).toThrow();
+    expect(() => verifyRule(sourced, RESEARCHER_HUMAN)).toThrow();
     expect(() => verifyRule(sourced, AGENT)).toThrow();
     expect(() => verifyRule(sourced, IMPORT)).toThrow();
     expect(() => verifyRule(sourced, SYSTEM)).toThrow();
@@ -332,7 +332,7 @@ describe("regulatory rule source-verification workflow", () => {
   });
 
   it("only a regulatory/quality/administrator role may reject a verification", () => {
-    expect(() => rejectRuleVerification(rule(), CHEMIST_HUMAN, "reason")).toThrow();
+    expect(() => rejectRuleVerification(rule(), RESEARCHER_HUMAN, "reason")).toThrow();
   });
 
   it("supersedes a previously verified rule, deactivating it — neither expired nor superseded satisfies a current-verified-rules gate", () => {
@@ -345,7 +345,7 @@ describe("regulatory rule source-verification workflow", () => {
 
   it("supersedeRule requires a reason and an authorized role", () => {
     expect(() => supersedeRule(rule(), REGULATORY_HUMAN, "")).toThrow();
-    expect(() => supersedeRule(rule(), CHEMIST_HUMAN, "reason")).toThrow();
+    expect(() => supersedeRule(rule(), RESEARCHER_HUMAN, "reason")).toThrow();
   });
 
   it("seed rules remain not_verified until explicitly verified", () => {

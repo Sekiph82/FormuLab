@@ -12,7 +12,7 @@ import {
 import type { Actor } from "../schemas/status";
 import type { FormulationVersion } from "../schemas/formulation";
 
-const HUMAN: Actor = { kind: "human", role: "chemist", userId: "alice" };
+const HUMAN: Actor = { kind: "human", role: "researcher", userId: "alice" };
 const AGENT: Actor = { kind: "agent", runId: "run-1" };
 
 function newAction() {

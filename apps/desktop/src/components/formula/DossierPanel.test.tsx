@@ -188,7 +188,7 @@ describe("DossierPanel — authorization", () => {
     // Regulatory (the default acting-as role) is authorized.
     expect(screen.getByRole("button", { name: /Add manual requirement/i })).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Acting as"), "chemist");
+    await user.selectOptions(screen.getByLabelText("Acting as"), "researcher");
     expect(screen.queryByRole("button", { name: /Add manual requirement/i })).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("Acting as"), "regulatory");
@@ -634,7 +634,7 @@ describe("DossierPanel — PDF/DOCX export (Phase 8)", () => {
   it("shows the export buttons disabled with a structured reason for an unauthorized role, instead of hiding them (Phase 10 Session 3)", async () => {
     const user = userEvent.setup();
     await createAndOpenDossier(user);
-    await user.selectOptions(screen.getByLabelText("Acting as"), "chemist");
+    await user.selectOptions(screen.getByLabelText("Acting as"), "researcher");
 
     const exportPdf = screen.getByRole("button", { name: "Export PDF" });
     expect(exportPdf).toBeDisabled();
@@ -798,7 +798,7 @@ describe("DossierPanel — PDF/DOCX export (Phase 8)", () => {
   it("shows the export buttons disabled (not hidden) for an unauthorized role, and never creates a history record (Phase 10 Session 3: was hide-only before)", async () => {
     const user = userEvent.setup();
     await createAndOpenDossier(user);
-    await user.selectOptions(screen.getByLabelText("Acting as"), "chemist");
+    await user.selectOptions(screen.getByLabelText("Acting as"), "researcher");
 
     const exportPdf = screen.getByRole("button", { name: "Export PDF" });
     const exportDocx = screen.getByRole("button", { name: "Export DOCX" });

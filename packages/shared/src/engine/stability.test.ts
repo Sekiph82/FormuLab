@@ -12,7 +12,7 @@ import type { Actor } from "../schemas/status";
 import type { StabilityCondition, StabilityFailure, StabilityResult, StabilityStudy, StabilityTimePoint } from "../schemas/stability";
 import type { TestDefinition } from "../schemas/testDefinitions";
 
-const HUMAN: Actor = { kind: "human", role: "chemist", userId: "alice" };
+const HUMAN: Actor = { kind: "human", role: "researcher", userId: "alice" };
 const AGENT: Actor = { kind: "agent", runId: "run-1" };
 
 describe("canTransitionStability", () => {

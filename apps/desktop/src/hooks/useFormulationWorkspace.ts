@@ -213,7 +213,7 @@ export function useFormulationWorkspace(formulationId: string | null) {
     async (version: FormulationVersion, to: "retired" | "rejected" | "concept", reason: string) => {
       if (!project) return;
       const current = effectiveStatus(version, auditLog);
-      const actor: Actor = { kind: "human", role: "chemist", userId: "local" };
+      const actor: Actor = { kind: "human", role: "researcher", userId: "local" };
       const result = attemptLifecycleTransition(current, to, actor);
       if (!result.allowed || !result.action) {
         setError(result.message ?? "That transition is not allowed.");
@@ -230,7 +230,7 @@ export function useFormulationWorkspace(formulationId: string | null) {
     async (version: FormulationVersion, to: StageAdvanceStatus) => {
       if (!project) return;
       const current = effectiveStatus(version, auditLog);
-      const actor: Actor = { kind: "human", role: "chemist", userId: "local" };
+      const actor: Actor = { kind: "human", role: "researcher", userId: "local" };
       const result = attemptStageAdvance(current, to, actor);
       if (!result.allowed || !result.action) {
         setError(result.message ?? "That transition is not allowed.");

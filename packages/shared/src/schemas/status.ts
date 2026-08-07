@@ -24,20 +24,45 @@ export type Actor =
    */
   | { kind: "import"; source: string };
 
+/**
+ * Phase 13 Session 1 — the fixed 12-role enterprise model (superseded the
+ * original 6-role set: `chemist` was folded into `researcher`, and
+ * `quality`/`production` each split into an employee tier plus a manager
+ * tier that alone holds approval authority). See
+ * docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md §1 for the full role
+ * intent and §9 for exactly how APPROVAL_AUTHORITY below was re-derived.
+ */
 export const APPROVAL_ROLES = [
   "researcher",
-  "chemist",
+  "research_manager",
   "quality",
+  "quality_manager",
   "regulatory",
+  "raw_material",
+  "procurement",
+  "production_engineering",
   "production",
+  "production_manager",
+  "document_control",
   "administrator",
 ] as const;
 export type ApprovalRole = (typeof APPROVAL_ROLES)[number];
 
-/** Which roles may sign off which approval gate. */
+/**
+ * Which roles may sign off which approval gate.
+ *
+ * Deliberately manager-tier only for `pilot_approved`/`production_approved`:
+ * a worker completing their own work (researcher, quality, production) must
+ * never be able to grant the approval that's supposed to be their manager's
+ * sign-off — that would silently reintroduce self-approval under a new role
+ * name. `administrator` keeps broad approval authority (a user-approved,
+ * explicit exception, so IT can exercise every workflow gate while testing)
+ * and `regulatory` keeps its own authority unsplit (Phase 13 keeps
+ * Regulatory as one fixed role, not employee/manager tiers).
+ */
 export const APPROVAL_AUTHORITY: Record<FormulaStatus, readonly ApprovalRole[]> = {
-  pilot_approved: ["chemist", "quality", "administrator"],
-  production_approved: ["quality", "regulatory", "production", "administrator"],
+  pilot_approved: ["research_manager", "quality_manager", "administrator"],
+  production_approved: ["quality_manager", "regulatory", "production_manager", "administrator"],
   // Everything else is a working state, not an approval.
   concept: [],
   literature_candidate: [],
@@ -45,8 +70,8 @@ export const APPROVAL_AUTHORITY: Record<FormulaStatus, readonly ApprovalRole[]> 
   lab_candidate: [],
   stability_testing: [],
   pilot_candidate: [],
-  retired: ["chemist", "quality", "administrator"],
-  rejected: ["chemist", "quality", "regulatory", "administrator"],
+  retired: ["research_manager", "quality_manager", "administrator"],
+  rejected: ["research_manager", "quality_manager", "regulatory", "administrator"],
 };
 
 const ALLOWED_NEXT: Record<FormulaStatus, readonly FormulaStatus[]> = {

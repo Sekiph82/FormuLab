@@ -414,7 +414,7 @@ export function ApprovalPanel({
   const [managingPolicies, setManagingPolicies] = useState(false);
   const [managingEquivalence, setManagingEquivalence] = useState(false);
 
-  const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("chemist");
+  const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("research_manager");
   const [reviewerDisplayName, setReviewerDisplayName] = useState("");
   const [reviewerUserId, setReviewerUserId] = useState("local");
   const [reason, setReason] = useState("");

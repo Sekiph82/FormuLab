@@ -18,13 +18,15 @@ import type { TestDefinition } from "../schemas/testDefinitions";
 /**
  * Assigning/activating/superseding a standard or method is gated the same
  * way approving a formula's `pilot_approved` status is (`APPROVAL_AUTHORITY`
- * in schemas/status.ts) — a chemist owns lab method decisions, quality and
- * administrator can too. Any human may still VIEW, and any human may create
- * or edit a DRAFT method (preparation work), mirroring the
- * `requireHumanActor`/`requireAuthorizedRegulatoryActor` two-tier split
+ * in schemas/status.ts) — manager-tier only (Phase 13 Session 1's 12-role
+ * model: `research_manager`/`quality_manager` own lab method decisions,
+ * `administrator` can too — the plain `researcher`/`quality` employee tiers
+ * cannot, same reasoning as pilot approval). Any human may still VIEW, and
+ * any human may create or edit a DRAFT method (preparation work), mirroring
+ * the `requireHumanActor`/`requireAuthorizedRegulatoryActor` two-tier split
  * `regulatoryAuthorization.ts` already established. No second role system.
  */
-export const LABORATORY_METHOD_MANAGER_ROLES = ["chemist", "quality", "administrator"] as const;
+export const LABORATORY_METHOD_MANAGER_ROLES = ["research_manager", "quality_manager", "administrator"] as const;
 export type LaboratoryMethodManagerRole = (typeof LABORATORY_METHOD_MANAGER_ROLES)[number];
 
 export function isAuthorizedLaboratoryMethodActor(
@@ -38,7 +40,7 @@ export function requireAuthorizedLaboratoryMethodActor(
   action: string,
 ): asserts actor is Extract<Actor, { kind: "human" }> & { role: LaboratoryMethodManagerRole } {
   if (!isAuthorizedLaboratoryMethodActor(actor)) {
-    throw new Error(`Only an authorized chemist, quality or administrator role may ${action}.`);
+    throw new Error(`Only an authorized research manager, quality manager, or administrator role may ${action}.`);
   }
 }
 
