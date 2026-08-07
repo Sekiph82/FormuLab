@@ -1,6 +1,27 @@
 # Phase 13 — Enterprise Identity, Authentication, Fixed RBAC & Application Security
 
-## Status: SESSION 1 (identity database, password subsystem, final 12-role model) COMPLETE. No login/bootstrap UI, no Administration → Users UI, no application-wide enforcement — those are later sessions. Full design in `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`, test report in `docs/PHASE13_SECURITY_TEST_MATRIX.md`. Runs in parallel with Phase 12's still-open SignPath thread (`docs/handoffs/PHASE12_CURRENT.md`) — unrelated, does not block or get blocked by it.
+## Status: SESSION 1 CLOSED — identity database, password subsystem, final 12-role model, and the Production Manager workflow-gate decision are all committed. No login/bootstrap UI, no Administration → Users UI, no application-wide enforcement — those are later sessions. Full design in `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`, test report in `docs/PHASE13_SECURITY_TEST_MATRIX.md`. Runs in parallel with Phase 12's still-open SignPath thread (`docs/handoffs/PHASE12_CURRENT.md`) — unrelated, does not block or get blocked by it.
+
+## Session 1 closure addendum: Production Manager gate decision
+
+The user resolved all four workflow gaps Session 1 originally left open
+(architecture doc §15.3). All four are now **`production_manager`**
+gates — one explicit product decision, not four:
+
+| Gate | Worker(s) whose completion doesn't satisfy it | Approver |
+|---|---|---|
+| Raw material verification | `raw_material` | `production_manager` |
+| Supplier document verification | `procurement` | `production_manager` |
+| Production Engineering → production handoff | `production_engineering` | `production_manager` |
+| Production completion → release | `production` | `production_manager` |
+
+Documentation-only change: no `FormulaStatus`/gate exists yet for any
+of the four (unchanged fact from Session 1), so no source code or tests
+changed for this closure — see architecture doc §15.4 for full
+reasoning, including why `APPROVAL_AUTHORITY` (§6.2) itself needed no
+edit (it's keyed by `FormulaStatus`, and none of these four have one
+yet). Existing Research Manager / Quality Manager / Regulatory gate
+ownership is unchanged.
 
 ## Session 1 summary
 
@@ -106,11 +127,11 @@ vocabulary.
    on both gates (currently yes, explicit and user-approved, but worth
    reconfirming before it becomes load-bearing in Session 4's
    enforcement).
-3. §15.3's 4 workflow gaps (raw-material verification, supplier-
-   document verification, production-engineering→production-manager
-   approval, production→production-manager approval) have no
-   `FormulaStatus` today — real future work, sequencing TBD (Session 4
-   or a dedicated workflow session).
+3. ~~§15.3's 4 workflow gaps~~ **RESOLVED this closure**: approval
+   authority for all four is `production_manager` (§15.4). They still
+   have no `FormulaStatus` today — real future implementation work,
+   sequencing TBD (Session 4 or a dedicated workflow session), but the
+   *who approves* question is no longer open.
 
 ## Exact next session
 

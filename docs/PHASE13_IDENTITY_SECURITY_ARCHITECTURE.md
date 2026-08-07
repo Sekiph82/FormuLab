@@ -4,6 +4,8 @@
 
 **Session 1 correction, superseding Session 0's role list**: Session 0 shipped a first-draft 6-role model. After reviewing the real FormuLab dossier/evidence/document workflow, the user approved a final, authoritative **12-role** model (§1). Every "6 roles" statement in the original Session 0 text has been rewritten below — nowhere in this document should you find a claim that FormuLab has 6 fixed roles.
 
+**Session 1 closure addendum (this update)**: the user has resolved all four workflow gaps §15.3 originally flagged as open. All four now-approved manager gates (raw-material verification, supplier-document verification, production-engineering→production handoff, production release) are owned by **`production_manager`** — an explicit, user-approved architecture decision, not an open question. See §15.4. This addendum is documentation only: no `FormulaStatus` values or enforcement code exist yet for these four gates (unchanged from Session 1's original finding) — they are recorded as decided *authority*, with implementation still real, unimplemented future work.
+
 ## 0. Why this phase exists
 
 FormuLab today is a single-user local desktop app: every "who did this"
@@ -74,7 +76,9 @@ sides (`researcher`, `research_manager`, `quality`, `quality_manager`,
   role: raw-material records, specifications, SDS/TDS/COA/certificates,
   raw-material technical status, material suitability information,
   material-related records used by formulation/dossier workflows. Does
-  **not** automatically get Procurement authority.
+  **not** automatically get Procurement authority. Completing
+  raw-material work does not satisfy the raw-material verification
+  gate — that gate is owned by `production_manager` (§15.4).
 - **`procurement`** — Procurement / Supplier Management: supplier
   information/documentation, obtaining supplier/manufacturer
   documents, supplier declarations, received SDS/TDS/COA/certificates,
@@ -82,24 +86,32 @@ sides (`researcher`, `research_manager`, `quality`, `quality_manager`,
   completeness. Collecting a document is **not** the same as
   scientifically verifying or approving it — collection, technical
   verification, quality approval, and regulatory approval stay
-  separate concepts, never conflated under one role.
+  separate concepts, never conflated under one role. Collecting supplier
+  documentation does not satisfy the supplier-document verification
+  gate — that gate is owned by `production_manager` (§15.4).
 - **`production_engineering`** — Scale-up/industrialization: production
   readiness engineering, manufacturing process preparation, process
   parameters, routing/process linkage, technical transfer from
   development toward manufacturing, production feasibility, engineering
   changes, manufacturing instructions where supported. Must not bypass
   upstream required approvals — technical accessibility is not
-  production approval.
+  production approval. Completing scale-up work does not authorize the
+  downstream production handoff — that gate is owned by
+  `production_manager` (§15.4).
 - **`production`** — Production operational role: production execution,
   batch/process records, manufacturing operational entries,
   production-stage data, permitted shop-floor actions. Does not grant
   manager-level production approval unless the role matrix explicitly
-  says so.
+  says so. Completing production work does not authorize production
+  release — that gate is owned by `production_manager` (§15.4).
 - **`production_manager`** — Production managerial authority:
   production-stage review, approval/rejection, release decisions,
   management-level manufacturing signoff, returns production work for
   correction. Where configured as a required gate, downstream work
-  stays blocked until it passes.
+  stays blocked until it passes. **User-approved this closure**: also
+  the sole approval authority for the raw-material verification,
+  supplier-document verification, and production-engineering handoff
+  gates (§15.4) — not just the production-release gate.
 - **`document_control`** — Document Control / Technical Documentation —
   **not** a scientific approval role by default: document package
   completeness, revision control, correct released-document version,
@@ -604,26 +616,84 @@ other.
 | Laboratory trials | researcher | research_manager | stability testing | returns to researcher | research_manager approval |
 | Laboratory test results | researcher, quality | research_manager, quality_manager | pilot readiness | returns to preparer | manager-tier sign-off |
 | Stability | researcher, quality | research_manager, quality_manager | pilot_approved eligibility | returns to preparer | manager-tier sign-off |
-| Raw materials | raw_material | quality (verify) | usable in a formulation's dossier | raw_material corrects | quality verification *(gap — see below)* |
-| Supplier/procurement docs | procurement | quality or regulatory (as applicable) | usable as dossier evidence | procurement corrects | verification *(gap — see below)* |
+| Raw materials | raw_material | **production_manager** (verification gate, §15.4) | usable in a formulation's dossier | raw_material corrects | production_manager approval *(authority decided, no `FormulaStatus` yet — see §15.4)* |
+| Supplier/procurement docs | procurement | **production_manager** (verification gate, §15.4); quality/regulatory retain their own independent checks where the domain separately requires them | usable as dossier evidence | procurement corrects | production_manager approval *(authority decided, no `FormulaStatus` yet — see §15.4)* |
 | Quality (QA/QC) | quality | quality_manager | `pilot_approved`/`production_approved` eligibility | returns to quality | quality_manager approval (existing gate, §6.2) |
 | Regulatory | regulatory | regulatory (unsplit) | `production_approved` eligibility | `rejected` (existing) | regulatory's own sign-off (existing gate, §6.2) |
 | Dossier/evidence | researcher, raw_material, regulatory | regulatory (verify/confirm) | submission-ready dossier | evidence revoked/superseded (existing) | regulatory confirmation (existing, `regulatoryReviews.ts`) |
-| Production engineering / scale-up | production_engineering | production_manager | production readiness | returns to production_engineering | production_manager approval *(gap — see below)* |
-| Production | production | production_manager | batch release eligibility | returns to production | production_manager approval *(gap — see below)* |
+| Production engineering / scale-up | production_engineering | **production_manager** (handoff gate, §15.4) | production readiness | returns to production_engineering | production_manager approval *(authority decided, no `FormulaStatus` yet — see §15.4)* |
+| Production | production | **production_manager** (release gate, §15.4) | batch release eligibility | returns to production | production_manager approval *(authority decided, no `FormulaStatus` yet — see §15.4)* |
 | Production approval/release | production, quality | production_manager, quality_manager, regulatory | `production_approved` (existing gate, §6.2) | `rejected` (existing) | manager-tier + regulatory sign-off (existing) |
 | Document control/publication | document_control | document_control (self, or per policy) | published/distributed document | document held back | package completeness — *not* a scientific gate |
 
-**Gaps explicitly marked, not silently assumed solved**: raw-material
+**Gate *authority* resolved for all four rows above, this closure
+update — not silently assumed solved as *implementation***: raw-material
 verification, supplier-document verification, production-engineering→
-production-manager approval, and production→production-manager
-approval do **not** have a corresponding `FormulaStatus`/gate in the
-current domain model — the current app has no representation for
-"raw material technically verified" or "scale-up approved" as a
-workflow state at all. Building these is real, unimplemented Phase 13
-work (Session 4 or a dedicated workflow session), not something Session
-1 invented a gate for. Rows without a "(gap)" note reuse a gate that
-already exists and works today.
+production handoff, and production release are now decided
+architecture (§15.4: `production_manager` approves all four). None of
+the four has a corresponding `FormulaStatus`/gate in the current domain
+model yet — the app still has no representation for "raw material
+verified" or "scale-up approved" as a workflow state. Building that
+representation and wiring real enforcement is real, unimplemented Phase
+13 work (Session 4 or a dedicated workflow session); this update decides
+*who* approves once it exists, it does not build the gate itself. Rows
+without an "(authority decided, no `FormulaStatus` yet)" note reuse a
+gate that already exists and works today.
+
+### 15.4 USER-APPROVED: Production Manager gate resolution (Session 1 closure)
+
+The user has resolved all four gaps left open by §15.3's first draft.
+Approval authority for all four is **`production_manager`** — a single,
+explicit product decision, not four independent ones:
+
+| # | Gate | Worker role(s) whose completion does **not** satisfy it | Approval authority |
+|---|---|---|---|
+| 1 | Raw material verification | `raw_material` | `production_manager` |
+| 2 | Supplier document verification | `procurement` | `production_manager` |
+| 3 | Production Engineering → downstream production handoff | `production_engineering` | `production_manager` |
+| 4 | Production completion / production release | `production` | `production_manager` |
+
+**Worker completion ≠ manager approval, restated per-gate**:
+- `raw_material` may prepare/complete raw-material records; this does
+  not satisfy the raw-material verification gate.
+- `procurement` may collect/complete supplier documentation; this does
+  not satisfy the supplier-document verification gate.
+- `production_engineering` may complete scale-up/manufacturing-
+  readiness work; this does not authorize the downstream production
+  handoff.
+- `production` may complete manufacturing/operational work; this does
+  not authorize production release.
+
+None of `raw_material`, `procurement`, `production_engineering`, or
+`production` gains any new approval capability from this decision — the
+gate stays owned exclusively by `production_manager`. No worker role may
+approve its own manager gate. `administrator` retains its existing,
+user-approved broad approval/testing authority (§9) and can exercise
+all four gates once they're implemented, on the same explicit-exception
+basis as every other gate in this document — this decision does not
+grant `administrator` anything it didn't already have.
+
+**Does not touch already-approved gate ownership**: Research/Laboratory
+work still gates through `research_manager`; Quality work still gates
+through `quality_manager`; `regulatory` keeps its own independent,
+unsplit authority (§8, §6.2). This decision resolves only the four
+gates listed above — it is not a general reassignment of approval
+authority to `production_manager`. Where an existing check is genuinely
+independent (e.g. a Quality or Regulatory verification the domain
+already requires separately from these four gates), that check is
+preserved unchanged, not silently folded into `production_manager`.
+
+**Impact on `APPROVAL_AUTHORITY` (§6.2)**: none. `APPROVAL_AUTHORITY` is
+keyed by `FormulaStatus` value (`pilot_approved`, `production_approved`,
+`retired`, `rejected`), and none of these four gates has a
+`FormulaStatus` representation yet — there is nothing in `status.ts` to
+add `production_manager` to. This is an intentional non-change, not an
+oversight: adding entries for statuses that don't exist would be
+inventing enforcement the domain model doesn't support yet, which this
+closure explicitly avoids. When Session 4 (or a dedicated workflow
+session) adds real `FormulaStatus`/gate representations for these four
+stages, `production_manager` is now the pre-decided approval role to
+wire in — no further product decision needed at that point.
 
 ---
 
@@ -752,7 +822,7 @@ report of what exists and passes).
 
 ## 25. Proposed Phase 13 sessions (Session 1 complete; renumbered plan unchanged in shape from Session 0)
 
-1. ~~User database + migrations + password subsystem~~ **DONE, this session.**
+1. ~~User database + migrations + password subsystem~~ **DONE.** ~~Production Manager gate authority for the four §15.3 gaps~~ **DECIDED (§15.4), this closure — implementation still Session 4/dedicated workflow session.**
 2. Administrator bootstrap + `login`/`logout` Tauri commands +
    authenticated session lifecycle (creation, persistence across
    restarts, expiration/idle timeout), using the 12-role model.
@@ -790,11 +860,14 @@ report of what exists and passes).
 3. **§12 — project/resource access is confirmed (not just
    recommended) out of scope for Phase 13** — no longer an open
    question, closed this session.
-4. **§15.3's four gaps** (raw-material verification, supplier-document
-   verification, production-engineering→production-manager approval,
-   production→production-manager approval) have no `FormulaStatus`
-   representation in the current domain model — real, unimplemented
-   work, not a Session 1 oversight.
+4. **§15.3's four gaps — authority resolved, implementation still
+   open.** Raw-material verification, supplier-document verification,
+   production-engineering→production handoff, and production release
+   are now decided as `production_manager` gates (§15.4, user-approved,
+   this closure). They still have no `FormulaStatus` representation in
+   the current domain model — building that and wiring real enforcement
+   is real, unimplemented work (Session 4 or a dedicated workflow
+   session), not a Session 1 oversight.
 5. **§10 — Argon2 parameters are crate defaults**, not hand-tuned
    against real target hardware — revisit only if a genuine performance
    problem surfaces on real desktop specs.

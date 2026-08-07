@@ -1919,7 +1919,15 @@ normalization, and repository primitives for users/sessions/login-
 attempts/audit events. 28 Rust tests, all passing; full crate suite
 216/216; full frontend suite (shared 1254 + desktop 1173) 2427/2427.
 No Tauri command exposes any of this yet — no login, no bootstrap, no
-Administration → Users UI. Full design:
+Administration → Users UI.
+
+Session 1 closure: the user resolved the four workflow gates Session 1
+had left open — raw-material verification, supplier-document
+verification, production-engineering→production handoff, and
+production release are now all **`production_manager`** gates, one
+explicit decision (architecture doc §15.4). No `FormulaStatus`/gate
+exists yet for any of the four, so this is a documentation-only
+decision — no source code or tests changed. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`; test report:
 `docs/PHASE13_SECURITY_TEST_MATRIX.md`; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`.

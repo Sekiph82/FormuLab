@@ -13,6 +13,18 @@ G is new this session: it records the 28 identity-layer tests actually
 implemented and passing in `identity.rs`, as a factual report rather
 than a plan.
 
+**Session 1 closure note**: the four workflow gates §15.3 of the
+architecture doc left open (raw-material verification, supplier-document
+verification, production-engineering→production handoff, production
+release) are now decided as `production_manager` gates — architecture
+doc §15.4, user-approved. This is a documentation-only decision: no
+`FormulaStatus`/gate exists yet for any of the four, so there is no new
+test to add in this closure. When Session 4 (or a dedicated workflow
+session) implements real enforcement for these gates, its tests should
+assert `production_manager` approves and `raw_material`/`procurement`/
+`production_engineering`/`production` are each refused their own gate —
+the same shape as the existing B3/B4 role-model-regression tests below.
+
 ## A. Authentication
 
 | # | Test | Session |
