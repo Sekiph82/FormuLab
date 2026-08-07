@@ -209,7 +209,17 @@ async function runExitBackupWithTimeout(): Promise<void> {
  *  raise the identical Tauri `CloseRequested` event and go through this
  *  exact same sequence: unsaved-work check → optional exit backup (bounded)
  *  → close. Minimize/maximize use separate window APIs entirely and are
- *  untouched by any of this. */
+ *  untouched by any of this.
+ *
+ *  Ends with `win.destroy()`, not `win.close()`. `close()` re-emits
+ *  `closeRequested` (documented Tauri behavior — it's how a close can be
+ *  intercepted at all), re-entering this exact handler; live testing
+ *  against the real WebView2 window showed that second cycle never
+ *  actually resolves, permanently hanging the window with the title bar
+ *  merely losing focus. `destroy()` is Tauri's documented non-recursive
+ *  force-close — "behaves like close but forces the window close instead
+ *  of emitting a closeRequested event" — so there is no second cycle to
+ *  guard against. */
 export function installAutomaticBackupLifecycle(): () => void {
   if (!isTauri) return () => {};
 
@@ -227,13 +237,17 @@ export function installAutomaticBackupLifecycle(): () => void {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const win = getCurrentWindow();
     const unlisten = await win.onCloseRequested(async (event) => {
-      if (closing) return; // this app-initiated re-close already ran the flow once — let it through
+      if (closing) return; // a decision is already in flight for this window; ignore a duplicate request
+      closing = true;
       event.preventDefault();
 
       try {
         if (hasUnsavedWork()) {
           const choice = await requestUnsavedCloseDecision();
-          if (choice === "cancel") return; // stays open; preventDefault above already blocked this attempt
+          if (choice === "cancel") {
+            closing = false; // window stays open; a later close attempt must run the flow again
+            return;
+          }
           if (choice === "save") {
             await saveAllUnsavedWork(); // logs its own per-draft failures; never rejects
           }
@@ -251,8 +265,14 @@ export function installAutomaticBackupLifecycle(): () => void {
         void logDebug(`window close: unexpected error in close flow, closing anyway: ${e instanceof Error ? e.message : String(e)}`);
       }
 
-      closing = true;
-      await win.close();
+      try {
+        await win.destroy();
+      } catch (e) {
+        // A denied/failed destroy() must not leave the app permanently
+        // stuck with closing=true and every further close request ignored.
+        void logDebug(`window close: win.destroy() failed: ${e instanceof Error ? e.message : String(e)}`);
+        closing = false;
+      }
     });
     if (cancelled) unlisten();
     else unlistenClose = unlisten;

@@ -1,5 +1,23 @@
 # Phase 12 — Commercial Distribution
 
+## Correction: the window-close fix committed as `5429647` did not actually work
+
+Live testing (real `pnpm tauri dev` app, real OS `WM_CLOSE` sent to the
+actual window handle) showed the title-bar X still hung after `5429647`.
+Root cause: `win.close()` re-emits `closeRequested` (documented Tauri
+behavior) and that second cycle never resolved in the real WebView2
+window; switching to the documented non-recursive `win.destroy()` then
+hit a SECOND real bug — Tauri's capability system denied it
+(`core:window:allow-destroy` was never granted). Both fixed:
+`apps/desktop/src/lib/automaticBackup.ts` now ends with `win.destroy()`
+and resets its `closing` guard on failure instead of getting stuck;
+`apps/desktop/src-tauri/capabilities/default.json` grants
+`core:window:allow-destroy`. Reproduced live on a fresh build after the
+fix: `WM_CLOSE` → process actually exits, confirmed via `Get-Process`.
+Full detail, including why the unit tests passed despite the real bug
+(they mock the exact Tauri window API whose real behavior was wrong),
+in the external Phase 12 log.
+
 ## Maintenance fixes (2026-08-07, outside the SignPath session track)
 
 Two bugfixes done in parallel with the SignPath approval wait — neither

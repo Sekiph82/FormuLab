@@ -3,6 +3,14 @@
 // X, Alt+F4, and a fullscreen window's close button all raise the identical
 // Tauri `CloseRequested` event and are indistinguishable to this code, so
 // one set of handler-level tests covers all three trigger paths.
+//
+// Ends with `win.destroy()`, not `win.close()` — confirmed by live testing
+// against the real WebView2 window: `close()` re-emits `closeRequested`
+// (documented Tauri behavior) and that second cycle never actually
+// resolved, permanently hanging the window with the title bar merely
+// losing focus. `destroy()` is Tauri's documented non-recursive
+// force-close, so there is no second cycle for this code to guard
+// against.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AutomaticBackupConfig, AutomaticBackupRunRecord, AutomaticBackupState } from "./tauri";
 
@@ -32,7 +40,7 @@ type CloseRequestedHandler = (event: { preventDefault: () => void }) => void | P
 
 const win = {
   onCloseRequested: vi.fn<(handler: CloseRequestedHandler) => Promise<() => void>>(),
-  close: vi.fn<() => Promise<void>>(),
+  destroy: vi.fn<() => Promise<void>>(),
 };
 
 vi.mock("@tauri-apps/api/window", () => ({
@@ -77,7 +85,7 @@ beforeEach(() => {
   bridge.runAutomaticBackup.mockReset();
   bridge.logDebug.mockReset().mockResolvedValue(undefined);
   win.onCloseRequested.mockReset();
-  win.close.mockReset().mockResolvedValue(undefined);
+  win.destroy.mockReset().mockResolvedValue(undefined);
   useAutomaticBackupStore.setState({
     config: DEFAULT_AUTOMATIC_BACKUP_CONFIG,
     lastDailyAt: null,
@@ -98,7 +106,7 @@ describe("window close — no unsaved work, exit backup disabled", () => {
   it("closes immediately (default close behavior)", async () => {
     const cleanup = await installAndCaptureHandler();
     await fireCloseRequest();
-    expect(win.close).toHaveBeenCalledTimes(1);
+    expect(win.destroy).toHaveBeenCalledTimes(1);
     expect(bridge.runAutomaticBackup).not.toHaveBeenCalled();
     cleanup();
   });
@@ -114,8 +122,25 @@ describe("window close — unsaved formulation draft", () => {
     resolvePendingUnsavedClose("cancel");
     await closePromise;
 
-    expect(win.close).not.toHaveBeenCalled();
+    expect(win.destroy).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it("a subsequent close attempt after Cancel runs the flow again (not permanently ignored)", async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    registerUnsavedWork("test-formulation", { save });
+    const cleanup = await installAndCaptureHandler();
+
+    let closePromise = fireCloseRequest();
+    resolvePendingUnsavedClose("cancel");
+    await closePromise;
+    expect(win.destroy).not.toHaveBeenCalled();
+
+    closePromise = fireCloseRequest();
+    resolvePendingUnsavedClose("discard");
+    await closePromise;
+    expect(win.destroy).toHaveBeenCalledTimes(1);
     cleanup();
   });
 
@@ -129,17 +154,17 @@ describe("window close — unsaved formulation draft", () => {
     await closePromise;
 
     expect(save).not.toHaveBeenCalled();
-    expect(win.close).toHaveBeenCalledTimes(1);
+    expect(win.destroy).toHaveBeenCalledTimes(1);
     cleanup();
   });
 
-  it("save and close invokes the save callback before closing", async () => {
+  it("save and close invokes the save callback before destroying the window", async () => {
     const order: string[] = [];
     const save = vi.fn().mockImplementation(async () => {
       order.push("save");
     });
-    win.close.mockImplementation(async () => {
-      order.push("close");
+    win.destroy.mockImplementation(async () => {
+      order.push("destroy");
     });
     registerUnsavedWork("test-formulation", { save });
     const cleanup = await installAndCaptureHandler();
@@ -148,7 +173,7 @@ describe("window close — unsaved formulation draft", () => {
     resolvePendingUnsavedClose("save");
     await closePromise;
 
-    expect(order).toEqual(["save", "close"]);
+    expect(order).toEqual(["save", "destroy"]);
     cleanup();
   });
 
@@ -160,7 +185,7 @@ describe("window close — unsaved formulation draft", () => {
     resolvePendingUnsavedClose("save");
     await closePromise;
 
-    expect(win.close).toHaveBeenCalledTimes(1);
+    expect(win.destroy).toHaveBeenCalledTimes(1);
     expect(bridge.logDebug).toHaveBeenCalledWith(expect.stringContaining("saving unsaved work (test-formulation) failed"));
     cleanup();
   });
@@ -178,7 +203,7 @@ describe("window close — automatic exit backup", () => {
 
     await fireCloseRequest();
 
-    expect(win.close).toHaveBeenCalledTimes(1);
+    expect(win.destroy).toHaveBeenCalledTimes(1);
     expect(bridge.logDebug).toHaveBeenCalledWith(expect.stringContaining("automatic exit backup failed"));
     cleanup();
   });
@@ -195,7 +220,7 @@ describe("window close — automatic exit backup", () => {
     await vi.advanceTimersByTimeAsync(10_000);
     await closePromise;
 
-    expect(win.close).toHaveBeenCalledTimes(1);
+    expect(win.destroy).toHaveBeenCalledTimes(1);
     expect(bridge.logDebug).toHaveBeenCalledWith(expect.stringContaining("did not finish within"));
     cleanup();
   });
@@ -210,21 +235,44 @@ describe("window close — automatic exit backup", () => {
     await fireCloseRequest();
 
     expect(bridge.runAutomaticBackup).toHaveBeenCalledWith("daily");
-    expect(win.close).toHaveBeenCalledTimes(1);
+    expect(win.destroy).toHaveBeenCalledTimes(1);
     cleanup();
   });
 });
 
-describe("window close — a second close request after this app's own re-close", () => {
-  it("does not re-run the flow (no double dialog, no double backup)", async () => {
+describe("window close — win.destroy() itself fails (live-reproduced: a denied permission)", () => {
+  it("logs the failure and does not permanently ignore future close attempts", async () => {
+    win.destroy.mockRejectedValueOnce(
+      new Error("window.destroy not allowed. Permissions associated with this command: core:window:allow-destroy"),
+    );
     const cleanup = await installAndCaptureHandler();
-    await fireCloseRequest();
-    expect(win.close).toHaveBeenCalledTimes(1);
 
-    // `win.close()` itself raises a fresh native close request; the
-    // `closing` guard must let that second one straight through.
     await fireCloseRequest();
-    expect(win.close).toHaveBeenCalledTimes(1);
+    expect(bridge.logDebug).toHaveBeenCalledWith(expect.stringContaining("win.destroy() failed"));
+
+    // Without resetting `closing` on failure, this second attempt would be
+    // silently ignored forever — exactly the live bug this test guards
+    // against (found via a real WebView2 permission denial, see
+    // capabilities/default.json's core:window:allow-destroy grant).
+    win.destroy.mockResolvedValue(undefined);
+    await fireCloseRequest();
+    expect(win.destroy).toHaveBeenCalledTimes(2);
+    cleanup();
+  });
+});
+
+describe("window close — a duplicate close request while one is already in flight", () => {
+  it("ignores the duplicate (no double dialog, no double backup)", async () => {
+    const cleanup = await installAndCaptureHandler();
+    win.destroy.mockImplementation(() => new Promise(() => {})); // never resolves, so the first request stays "in flight"
+
+    void fireCloseRequest();
+    await vi.waitFor(() => expect(win.destroy).toHaveBeenCalledTimes(1));
+
+    // A second close signal arriving while the first hasn't resolved yet
+    // must not re-run the flow.
+    await fireCloseRequest();
+    expect(win.destroy).toHaveBeenCalledTimes(1);
     cleanup();
   });
 });
