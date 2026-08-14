@@ -1,0 +1,16 @@
+{
+  "roles": [
+    "researcher",
+    "research_manager",
+    "quality",
+    "quality_manager",
+    "regulatory",
+    "raw_material",
+    "procurement",
+    "production_engineering",
+    "production",
+    "production_manager",
+    "document_control",
+    "administrator"
+  ]
+}

@@ -2421,6 +2421,7 @@
     "account": {
       "logout": "Se déconnecter",
       "signedInAs": "Connecté en tant que {{name}}"
-    }
+    },
+    "actingAsTrusted": "Agissant en tant que {{name}} ({{role}})"
   }
 }

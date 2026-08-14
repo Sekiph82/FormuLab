@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ArrowLeft, FileCheck2, History, Plus, RotateCcw, ShieldCheck, Tags } from "lucide-react";
+import { useTrustedActor } from "@/lib/currentActor";
 import {
   assembleDossierExportSnapshot,
   DOSSIER_EVIDENCE_CANDIDATE_SOURCE_KINDS,
@@ -230,6 +231,9 @@ export function DossierPanel({
     hasAttachment: false,
   });
 
+  // Phase 13 Session 3: prefer the trusted authenticated user over the
+  // freely-editable local selector — see `useTrustedActor`'s doc comment.
+  const trusted = useTrustedActor();
   const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("regulatory");
   // Phase 8 — PDF/DOCX document export. Never more than one format
   // generating at a time; a failure is surfaced, never silently dropped.
@@ -242,7 +246,11 @@ export function DossierPanel({
   const [jurisdictionFilter, setJurisdictionFilter] = useState<string>("");
   const [matrixFilter, setMatrixFilter] = useState(DEFAULT_MATRIX_FILTER);
 
-  const actor: Actor = useMemo(() => ({ kind: "human", role: reviewerRole, userId: "local" }), [reviewerRole]);
+  const effectiveReviewerRole = trusted?.role ?? reviewerRole;
+  const actor: Actor = useMemo(
+    () => ({ kind: "human", role: effectiveReviewerRole, userId: trusted?.userId ?? "local" }),
+    [effectiveReviewerRole, trusted?.userId],
+  );
   // The backend throws regardless — this only hides/disables buttons so an
   // unauthorized reviewer role doesn't see actions it can never perform.
   const canActRegulatory = isAuthorizedRegulatoryActor(actor);
@@ -1150,16 +1158,22 @@ export function DossierPanel({
         <FileCheck2 size={14} className="text-accent" />
         <h2 className="text-[14px] font-medium text-text">{t("dossier.heading")}</h2>
         <div className="flex-1" />
-        <label className="flex items-center gap-1 text-[10px] text-muted">
-          {t("dossier.actingAsRole")}
-          <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]">
-            {APPROVAL_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {role}
-              </option>
-            ))}
-          </select>
-        </label>
+        {trusted ? (
+          <p className="text-[10px] text-muted" data-testid="trusted-actor-badge">
+            {t("auth.actingAsTrusted", { name: trusted.displayName, role: trusted.role })}
+          </p>
+        ) : (
+          <label className="flex items-center gap-1 text-[10px] text-muted">
+            {t("dossier.actingAsRole")}
+            <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]">
+              {APPROVAL_ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {error && (

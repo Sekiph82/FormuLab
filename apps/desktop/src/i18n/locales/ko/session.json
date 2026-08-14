@@ -2421,6 +2421,7 @@
     "account": {
       "logout": "로그아웃",
       "signedInAs": "{{name}}(으)로 로그인됨"
-    }
+    },
+    "actingAsTrusted": "{{name}}({{role}})(으)로 작업 중"
   }
 }

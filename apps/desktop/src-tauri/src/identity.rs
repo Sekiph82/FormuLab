@@ -849,6 +849,32 @@ mod tests {
         assert_ne!(Role::Production.as_str(), Role::ProductionManager.as_str());
     }
 
+    /// Phase 13 Session 3 — the Rust half of the Rust/TypeScript role-
+    /// vocabulary parity mechanism. `packages/shared/src/engine/
+    /// roleVocabulary.json` is a single fixture both languages check
+    /// *themselves* against: this test asserts `Role::ALL` (in `as_str()`
+    /// order) is exactly the fixture's `roles` array; the TypeScript side
+    /// (`rolePolicy.roleVocabularyParity.test.ts`) asserts `APPROVAL_ROLES`
+    /// against the same file. Neither side hand-copies the other's 12
+    /// strings into a third list — see `rolePolicy.ts`'s module doc comment.
+    #[test]
+    fn role_vocabulary_matches_the_shared_json_fixture() {
+        const FIXTURE: &str =
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../packages/shared/src/engine/roleVocabulary.json"));
+        let parsed: serde_json::Value = serde_json::from_str(FIXTURE).expect("fixture must be valid JSON");
+        let fixture_roles: Vec<String> = parsed["roles"]
+            .as_array()
+            .expect("fixture must have a top-level \"roles\" array")
+            .iter()
+            .map(|v| v.as_str().expect("every fixture role must be a string").to_string())
+            .collect();
+        let rust_roles: Vec<&str> = Role::ALL.iter().map(|r| r.as_str()).collect();
+        assert_eq!(
+            fixture_roles, rust_roles,
+            "identity.rs's Role::ALL must match packages/shared/src/engine/roleVocabulary.json exactly, in order"
+        );
+    }
+
     // -------------------------------------------------------- username ---
 
     #[test]

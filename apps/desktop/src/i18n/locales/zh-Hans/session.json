@@ -2421,6 +2421,7 @@
     "account": {
       "logout": "退出登录",
       "signedInAs": "已登录：{{name}}"
-    }
+    },
+    "actingAsTrusted": "以 {{name}}（{{role}}）身份操作"
   }
 }

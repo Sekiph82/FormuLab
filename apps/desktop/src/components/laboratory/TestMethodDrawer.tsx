@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { X, ShieldAlert } from "lucide-react";
+import { useTrustedActor } from "@/lib/currentActor";
 import {
   APPROVAL_ROLES,
   LABORATORY_METHOD_MANAGER_ROLES,
@@ -74,6 +75,9 @@ export function TestMethodDrawer({ definition, onClose }: { definition: TestDefi
   const [standards, setStandards] = useState<LaboratoryStandard[]>([]);
   const [methods, setMethods] = useState<LaboratoryTestMethod[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Phase 13 Session 3: prefer the trusted authenticated user over the
+  // freely-editable local selector — see `useTrustedActor`'s doc comment.
+  const trusted = useTrustedActor();
   const [actingRole, setActingRole] = useState<ApprovalRole>("research_manager");
   const [actingUserId, setActingUserId] = useState("");
   const [acknowledgedSupersededId, setAcknowledgedSupersededId] = useState<string | null>(null);
@@ -106,7 +110,12 @@ export function TestMethodDrawer({ definition, onClose }: { definition: TestDefi
     });
   }, []);
 
-  const actor: Actor = useMemo(() => ({ kind: "human", role: actingRole, userId: actingUserId || "unknown" }), [actingRole, actingUserId]);
+  const effectiveActingRole = trusted?.role ?? actingRole;
+  const effectiveActingUserId = trusted?.userId ?? (actingUserId || "unknown");
+  const actor: Actor = useMemo(
+    () => ({ kind: "human", role: effectiveActingRole, userId: effectiveActingUserId }),
+    [effectiveActingRole, effectiveActingUserId],
+  );
   const authorized = isAuthorizedLaboratoryMethodActor(actor);
 
   const testMethods = methods.filter((m) => m.testDefinitionCode === definition.code);
@@ -171,22 +180,28 @@ export function TestMethodDrawer({ definition, onClose }: { definition: TestDefi
             </p>
           )}
 
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-[10px] text-muted">{t("tests.method.actingRole")}</span>
-              <select value={actingRole} onChange={(e) => setActingRole(e.target.value as ApprovalRole)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text">
-                {APPROVAL_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[10px] text-muted">{t("tests.method.actingUserId")}</span>
-              <input value={actingUserId} onChange={(e) => setActingUserId(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
-            </label>
-          </div>
+          {trusted ? (
+            <p className="mb-3 text-[11px] text-muted" data-testid="trusted-actor-badge">
+              {t("auth.actingAsTrusted", { name: trusted.displayName, role: trusted.role })}
+            </p>
+          ) : (
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-muted">{t("tests.method.actingRole")}</span>
+                <select value={actingRole} onChange={(e) => setActingRole(e.target.value as ApprovalRole)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text">
+                  {APPROVAL_ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-muted">{t("tests.method.actingUserId")}</span>
+                <input value={actingUserId} onChange={(e) => setActingUserId(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
+              </label>
+            </div>
+          )}
           {/* Per-action disabled reasons (e.g. "Make primary") are shown next
               to their own button via DisabledActionButton below — this note
               only covers the "Create internal method" action, which is

@@ -2421,6 +2421,7 @@
     "account": {
       "logout": "サインアウト",
       "signedInAs": "{{name}} としてサインイン中"
-    }
+    },
+    "actingAsTrusted": "{{name}}（{{role}}）として操作中"
   }
 }

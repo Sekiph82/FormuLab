@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, FlaskConical, Grid3x3, History, Plus, Sparkles, Target } from "lucide-react";
+import { useTrustedActor } from "@/lib/currentActor";
 import {
   APPROVAL_ROLES,
   DOE_CONSTRAINT_SEVERITIES,
@@ -335,6 +336,9 @@ export function DoePanel({
 
   const [topSection, setTopSection] = useState<TopSection>("studies");
   const [selectedStudyId, setSelectedStudyId] = useState<string | null>(null);
+  // Phase 13 Session 3: prefer the trusted authenticated user over the
+  // freely-editable local selector — see `useTrustedActor`'s doc comment.
+  const trusted = useTrustedActor();
   const [actorRole, setActorRole] = useState<ApprovalRole>("researcher");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -344,7 +348,11 @@ export function DoePanel({
   const [selectedResponseId, setSelectedResponseId] = useState<string | null>(null);
   const [selectedAnalysisType, setSelectedAnalysisType] = useState<"main_effects" | "factorial" | "quadratic_response_surface" | "mixture_model">("factorial");
 
-  const actor: Actor = useMemo(() => ({ kind: "human", role: actorRole, userId: "local" }), [actorRole]);
+  const effectiveActorRole = trusted?.role ?? actorRole;
+  const actor: Actor = useMemo(
+    () => ({ kind: "human", role: effectiveActorRole, userId: trusted?.userId ?? "local" }),
+    [effectiveActorRole, trusted?.userId],
+  );
 
   const load = async () => {
     const [st, fa, co, re, de, ru, ob, an, ca, tr] = await Promise.all([
@@ -702,16 +710,22 @@ export function DoePanel({
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted">
-          {t("doe.actorRole")}
-          <select value={actorRole} onChange={(e) => setActorRole(e.target.value as ApprovalRole)} className="rounded-input border border-border bg-surface px-1.5 py-0.5 text-[11px] text-text">
-            {APPROVAL_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
+        {trusted ? (
+          <p className="text-[11px] text-muted" data-testid="trusted-actor-badge">
+            {t("auth.actingAsTrusted", { name: trusted.displayName, role: trusted.role })}
+          </p>
+        ) : (
+          <label className="flex items-center gap-1.5 text-[11px] text-muted">
+            {t("doe.actorRole")}
+            <select value={actorRole} onChange={(e) => setActorRole(e.target.value as ApprovalRole)} className="rounded-input border border-border bg-surface px-1.5 py-0.5 text-[11px] text-text">
+              {APPROVAL_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {topSection === "studies" && (

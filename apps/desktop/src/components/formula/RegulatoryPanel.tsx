@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Download, FileCheck2, History, Plus, RotateCcw, Scale, ShieldCheck, Tags, Upload } from "lucide-react";
+import { useTrustedActor } from "@/lib/currentActor";
 import {
   buildEvidenceMatrix,
   buildKenyaCatalog,
@@ -149,11 +150,18 @@ export function RegulatoryPanel({
   );
   const [packagingSkuCode, setPackagingSkuCode] = useState<string>(formulation.targetSkuCodes[0] ?? "");
   const [selectedVersionId, setSelectedVersionId] = useState<string>("");
+  // Phase 13 Session 3: prefer the trusted authenticated user over the
+  // freely-editable local selector — see `useTrustedActor`'s doc comment.
+  const trusted = useTrustedActor();
   const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("regulatory");
   const [section, setSection] = useState<(typeof SECTIONS)[number]>("findings");
   const [error, setError] = useState<string | null>(null);
 
-  const actor: Actor = useMemo(() => ({ kind: "human", role: reviewerRole, userId: "local" }), [reviewerRole]);
+  const effectiveReviewerRole = trusted?.role ?? reviewerRole;
+  const actor: Actor = useMemo(
+    () => ({ kind: "human", role: effectiveReviewerRole, userId: trusted?.userId ?? "local" }),
+    [effectiveReviewerRole, trusted?.userId],
+  );
   // The backend throws regardless (`requireAuthorizedRegulatoryActor`) —
   // this only hides/disables the buttons so an unauthorized reviewer role
   // doesn't see actions it can never actually perform. Never the only
@@ -1033,16 +1041,22 @@ export function RegulatoryPanel({
           <div className="mb-3 rounded-card border border-border p-2.5">
             <p className="mb-2 text-[11px] font-medium text-muted">{t("regulatory.recordReview")}</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-[10px] text-muted">{t("regulatory.reviewerRoleLabel")}</span>
-                <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]">
-                  {APPROVAL_ROLES.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {trusted ? (
+                <p className="text-[10px] text-muted" data-testid="trusted-actor-badge">
+                  {t("auth.actingAsTrusted", { name: trusted.displayName, role: trusted.role })}
+                </p>
+              ) : (
+                <label className="block">
+                  <span className="mb-1 block text-[10px] text-muted">{t("regulatory.reviewerRoleLabel")}</span>
+                  <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="w-full rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]">
+                    {APPROVAL_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="block">
                 <span className="mb-1 block text-[10px] text-muted">{t("regulatory.outcomeLabel")}</span>
                 <select

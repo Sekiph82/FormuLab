@@ -17,6 +17,7 @@ import { buildDataExchangeWorkbookBlob, dataExchangeXlsxFileName } from "@/lib/d
 import { loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
 import { listRecords, upsertRecords, nowIso } from "@/lib/masterdata";
 import { DataExchangeImportDialog } from "@/components/dataExchange/DataExchangeImportDialog";
+import { useTrustedActor } from "@/lib/currentActor";
 import { cn } from "@/lib/cn";
 
 type Section = "templates" | "exports" | "imports" | "validation" | "history" | "schemas" | "help";
@@ -46,7 +47,11 @@ async function existingRowsFor(templateCode: string) {
 export function DataExchangePage() {
   const { t } = useTranslation(["session", "common"]);
   const [section, setSection] = useState<Section>("templates");
+  // Phase 13 Session 3: prefer the trusted authenticated user over the
+  // freely-editable local selector — see `useTrustedActor`'s doc comment.
+  const trusted = useTrustedActor();
   const [actorRole, setActorRole] = useState<ApprovalRole>("administrator");
+  const effectiveActorRole = trusted?.role ?? actorRole;
   const [moduleFilter, setModuleFilter] = useState<string>("all");
   const [uploadTemplate, setUploadTemplate] = useState<DataExchangeTemplateDefinition | null>(null);
   const [jobs, setJobs] = useState<DataExchangeImportJob[]>([]);
@@ -71,7 +76,7 @@ export function DataExchangePage() {
       exportType: kind,
       fileType,
       rowCount: 0,
-      requestedBy: actorRole,
+      requestedBy: effectiveActorRole,
       requestedAt: nowIso(),
     };
     await upsertRecords("data_exchange_export_jobs", [job]);
@@ -140,16 +145,22 @@ export function DataExchangePage() {
             </button>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-2 text-[12px] text-muted">
-          {t("dataExchange.actorRole")}
-          <select value={actorRole} onChange={(e) => setActorRole(e.target.value as ApprovalRole)} className="rounded-input border border-border bg-surface px-1.5 py-0.5 text-text">
-            {APPROVAL_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
+        {trusted ? (
+          <p className="ml-auto text-[12px] text-muted" data-testid="trusted-actor-badge">
+            {t("auth.actingAsTrusted", { name: trusted.displayName, role: trusted.role })}
+          </p>
+        ) : (
+          <div className="ml-auto flex items-center gap-2 text-[12px] text-muted">
+            {t("dataExchange.actorRole")}
+            <select value={actorRole} onChange={(e) => setActorRole(e.target.value as ApprovalRole)} className="rounded-input border border-border bg-surface px-1.5 py-0.5 text-text">
+              {APPROVAL_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -260,7 +271,7 @@ export function DataExchangePage() {
         <DataExchangeImportDialog
           key={uploadTemplate.templateCode}
           template={uploadTemplate}
-          actorRole={actorRole}
+          actorRole={effectiveActorRole}
           // eslint-disable-next-line i18next/no-literal-string -- internal actor id, not display text
           actorUserId="local"
           onCancel={() => {

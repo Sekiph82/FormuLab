@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, ExternalLink, Shield, XCircle } from "lucide-react";
+import { useTrustedActor } from "@/lib/currentActor";
 import {
   APPROVAL_AUTHORITY,
   APPROVAL_ROLES,
@@ -414,9 +415,16 @@ export function ApprovalPanel({
   const [managingPolicies, setManagingPolicies] = useState(false);
   const [managingEquivalence, setManagingEquivalence] = useState(false);
 
+  // Phase 13 Session 3: the trusted authenticated user, when there is one,
+  // is who is actually approving — the role/user-id fields below are only
+  // ever the effective local fallback (see `useTrustedActor`'s doc comment).
+  const trusted = useTrustedActor();
   const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("research_manager");
   const [reviewerDisplayName, setReviewerDisplayName] = useState("");
   const [reviewerUserId, setReviewerUserId] = useState("local");
+  const effectiveReviewerRole = trusted?.role ?? reviewerRole;
+  const effectiveReviewerUserId = trusted?.userId ?? (reviewerUserId.trim() || "local");
+  const effectiveReviewerDisplayName = trusted?.displayName ?? reviewerDisplayName;
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -825,7 +833,7 @@ export function ApprovalPanel({
   const allWarnings: (ApprovalWarning | DisplayFinding)[] = readiness.warnings;
   const effectiveReady = readiness.ready && !costBlocker && !conflictBlocker && regulatoryAssessment.ready && dossierReadinessResult.ready && claimsLabelReadinessResult.ready;
 
-  const canApprove = !!selectedVersion && targetOptions.includes(targetStatus) && APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole);
+  const canApprove = !!selectedVersion && targetOptions.includes(targetStatus) && APPROVAL_AUTHORITY[targetStatus].includes(effectiveReviewerRole);
 
   // Built from the exact booleans the Approve button's own `disabled` prop
   // already used — never a separately invented reason.
@@ -843,7 +851,7 @@ export function ApprovalPanel({
           relatedTopicId: "approval",
           resolvable: true,
         }
-      : !APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole)
+      : !APPROVAL_AUTHORITY[targetStatus].includes(effectiveReviewerRole)
         ? {
             code: "approval_role_not_authorized",
             messageKey: "approval.reasons.roleNotAuthorized",
@@ -851,7 +859,7 @@ export function ApprovalPanel({
             relatedTopicId: "approval",
             resolvable: false,
           }
-        : !reviewerDisplayName.trim() || !reason.trim()
+        : !effectiveReviewerDisplayName.trim() || !reason.trim()
           ? {
               code: "approval_missing_fields",
               messageKey: "approval.reasons.missingFields",
@@ -874,7 +882,7 @@ export function ApprovalPanel({
     onNavigate(target);
   };
 
-  const policyActor: Actor = { kind: "human", role: reviewerRole, userId: reviewerUserId.trim() || "local" };
+  const policyActor: Actor = { kind: "human", role: effectiveReviewerRole, userId: effectiveReviewerUserId };
 
   const persistPolicyChange = async ({ policy, revision }: { policy: ApprovalPolicy; revision: ApprovalPolicyRevision }) => {
     await upsertRecords("approval_policies", [policy]);
@@ -934,7 +942,7 @@ export function ApprovalPanel({
     setBusy(true);
     setError(null);
     try {
-      const actor: Actor = { kind: "human", role: reviewerRole, userId: reviewerUserId.trim() || "local" };
+      const actor: Actor = { kind: "human", role: effectiveReviewerRole, userId: effectiveReviewerUserId };
       const snapshot = buildReadinessSnapshot();
       const regulatorySnapshot = buildRegulatorySnapshot();
       const dossierSnapshot = buildDossierSnapshot();
@@ -952,20 +960,20 @@ export function ApprovalPanel({
         );
         if (!result.allowed || !result.action) {
           await saveApprovalRecord(
-            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason || result.message || "blocked", snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
+            buildApprovalRecord(approvalId, "blocked", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, effectiveReviewerDisplayName, reason || result.message || "blocked", snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
           );
           await appendAudit(auditEvent(formulation.id, "approval.blocked", { versionId: selectedVersion.id, detail: result.message }));
           setError(result.message ?? t("approval.blockedGeneric"));
           return;
         }
         await saveApprovalRecord(
-          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
+          buildApprovalRecord(approvalId, "approved", formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, effectiveReviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
         );
         await appendAudit(auditEvent(formulation.id, result.action, { versionId: selectedVersion.id, detail: reason }));
         await appendAudit(auditEvent(formulation.id, "approval.granted", { versionId: selectedVersion.id, detail: approvalId }));
       } else {
         await saveApprovalRecord(
-          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, reviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
+          buildApprovalRecord(approvalId, decision, formulation.id, selectedVersion.id, currentStatus, targetStatus, actor, effectiveReviewerDisplayName, reason, snapshot, now, regulatorySnapshot, dossierSnapshot, claimsLabelSnapshot),
         );
         await appendAudit(auditEvent(formulation.id, `approval.${decision}`, { versionId: selectedVersion.id, detail: reason }));
       }
@@ -1208,31 +1216,37 @@ export function ApprovalPanel({
       </div>
 
       <Section title={t("approval.decisionHeading")}>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerRole")}</span>
-            <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text">
-              {APPROVAL_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerDisplayName")}</span>
-            <input value={reviewerDisplayName} onChange={(e) => setReviewerDisplayName(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerUserId")}</span>
-            <input value={reviewerUserId} onChange={(e) => setReviewerUserId(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
-          </label>
-        </div>
+        {trusted ? (
+          <p className="mb-2 text-[11px] text-muted" data-testid="trusted-actor-badge">
+            {t("auth.actingAsTrusted", { name: trusted.displayName, role: trusted.role })}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerRole")}</span>
+              <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text">
+                {APPROVAL_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerDisplayName")}</span>
+              <input value={reviewerDisplayName} onChange={(e) => setReviewerDisplayName(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[10px] text-muted">{t("approval.reviewerUserId")}</span>
+              <input value={reviewerUserId} onChange={(e) => setReviewerUserId(e.target.value)} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
+            </label>
+          </div>
+        )}
         <label className="mt-2 block">
           <span className="mb-1 block text-[10px] text-muted">{t("approval.reason")}</span>
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className="w-full rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text" />
         </label>
-        {!APPROVAL_AUTHORITY[targetStatus].includes(reviewerRole) && (
+        {!APPROVAL_AUTHORITY[targetStatus].includes(effectiveReviewerRole) && (
           <p className="mt-1 text-[10px] text-error">{t("approval.roleNotAuthorized")}</p>
         )}
         <div className="mt-2 flex flex-wrap gap-2">
@@ -1246,7 +1260,7 @@ export function ApprovalPanel({
           </DisabledActionButton>
           <button
             onClick={() => void record("rejected")}
-            disabled={busy || !reviewerDisplayName.trim() || !reason.trim()}
+            disabled={busy || !effectiveReviewerDisplayName.trim() || !reason.trim()}
             className="rounded-input border border-error/40 px-3 py-1.5 text-xs text-error hover:bg-error/10 disabled:opacity-40"
           >
             {t("approval.rejectButton")}

@@ -574,6 +574,7 @@ export * from "./engine/dataExchangeRegistry";
 export * from "./engine/dataExchangeCsv";
 export * from "./engine/dataExchangeValidation";
 export * from "./catalog/regulatoryRules";
+export * from "./engine/rolePolicy";
 export {
   PRECISION,
   CURRENCY_DP,

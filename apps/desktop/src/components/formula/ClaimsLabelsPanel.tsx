@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ClipboardCheck, History, Plus, ShieldAlert, Tags, Upload } from "lucide-react";
+import { useTrustedActor } from "@/lib/currentActor";
 import {
   APPROVAL_ROLES,
   CLAIM_CATEGORIES,
@@ -231,11 +232,18 @@ export function ClaimsLabelsPanel({
   const [labelReviews, setLabelReviews] = useState<LabelReview[]>([]);
   const [labelReviewRevocations, setLabelReviewRevocations] = useState<LabelReviewRevocation[]>([]);
 
+  // Phase 13 Session 3: prefer the trusted authenticated user over the
+  // freely-editable local selector — see `useTrustedActor`'s doc comment.
+  const trusted = useTrustedActor();
   const [reviewerRole, setReviewerRole] = useState<ApprovalRole>("regulatory");
   const [topSection, setTopSection] = useState<TopSection>("claims");
   const [error, setError] = useState<string | null>(null);
 
-  const actor: Actor = useMemo(() => ({ kind: "human", role: reviewerRole, userId: "local" }), [reviewerRole]);
+  const effectiveReviewerRole = trusted?.role ?? reviewerRole;
+  const actor: Actor = useMemo(
+    () => ({ kind: "human", role: effectiveReviewerRole, userId: trusted?.userId ?? "local" }),
+    [effectiveReviewerRole, trusted?.userId],
+  );
   const canActRegulatory = isAuthorizedRegulatoryActor(actor);
 
   const load = async () => {
@@ -1125,16 +1133,22 @@ export function ClaimsLabelsPanel({
           ))}
         </div>
         <div className="flex-1" />
-        <label className="flex items-center gap-1 text-[10px] text-muted">
-          {t("claimsLabels.actingAsRole")}
-          <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]">
-            {APPROVAL_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {role}
-              </option>
-            ))}
-          </select>
-        </label>
+        {trusted ? (
+          <p className="text-[10px] text-muted" data-testid="trusted-actor-badge">
+            {t("auth.actingAsTrusted", { name: trusted.displayName, role: trusted.role })}
+          </p>
+        ) : (
+          <label className="flex items-center gap-1 text-[10px] text-muted">
+            {t("claimsLabels.actingAsRole")}
+            <select value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value as ApprovalRole)} className="rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]">
+              {APPROVAL_ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {error && (

@@ -2421,6 +2421,7 @@
     "account": {
       "logout": "Sign out",
       "signedInAs": "Signed in as {{name}}"
-    }
+    },
+    "actingAsTrusted": "Acting as {{name}} ({{role}})"
   }
 }
