@@ -312,6 +312,246 @@
       "needMaterials": "설정 → 일반에서 원료 가격표를 가져오면 원가를 계산할 수 있습니다."
     }
   },
+  "formulationRequest": {
+    "title": "New Formulation Request",
+    "subtitle": "Describe what you need in natural language and FormuLab will develop the most suitable formulation for you.",
+    "select": "Select…",
+    "exampleFullRequest": "Develop an effective sulfate-free anti-dandruff shampoo for a sensitive scalp. Target pH 5.0–5.5, silicone-free, with good foam and easy combing. Keep the target cost at a medium level.",
+    "exampleProductType": "Shampoo",
+    "exampleExcluded": "sulfates, silicones",
+    "exampleClaims": "anti-dandruff, sulfate-free",
+    "exampleRequestsButton": "Example Requests",
+    "describe": {
+      "title": "Describe Your Need",
+      "helper": "Describe the product, desired properties, targets and constraints in your own words."
+    },
+    "product": {
+      "title": "Product Information",
+      "category": "Product Category",
+      "type": "Target Product Type",
+      "typePlaceholder": "e.g. Shampoo, Conditioner, Serum, Cream…",
+      "market": "Target Market / Country",
+      "marketPlaceholder": "e.g. Kenya, EU, USA…",
+      "categories": {
+        "hairCare": "Hair Care",
+        "skinCare": "Skin Care",
+        "homeCare": "Home Care",
+        "laundry": "Laundry",
+        "oralCare": "Oral Care",
+        "industrial": "Industrial",
+        "other": "Other"
+      }
+    },
+    "constraints": {
+      "title": "Constraints & Preferences",
+      "excluded": "Excluded Ingredients",
+      "excludedPlaceholder": "e.g. sulfates, parabens, silicones…",
+      "preferred": "Preferred Ingredients",
+      "preferredPlaceholder": "e.g. natural ingredients, specific supplier materials…",
+      "ph": "Target pH Range",
+      "phMin": "Min pH",
+      "phMax": "Max pH",
+      "viscosity": "Target Viscosity",
+      "viscosityPlaceholder": "e.g. 2000 – 5000 cP",
+      "activeMatter": "Target Active Matter",
+      "activeMatterPlaceholder": "e.g. 8% – 12%",
+      "costLevel": "Target Cost Level",
+      "costLevels": {
+        "economy": "Economy",
+        "medium": "Medium",
+        "premium": "Premium"
+      },
+      "claims": "Claims",
+      "claimsPlaceholder": "e.g. anti-dandruff, sulfate-free…",
+      "packaging": "Packaging Type (Optional)",
+      "packagingPlaceholder": "e.g. pump bottle, tube…"
+    },
+    "production": {
+      "title": "Production Information",
+      "batchSize": "Estimated Batch Size",
+      "batchSizePlaceholder": "e.g. 1000 kg",
+      "equipment": "Available Equipment",
+      "equipmentPlaceholder": "e.g. homogenizer, anchor mixer…",
+      "rawMaterials": "Available Raw Materials (Optional)",
+      "rawMaterialsPlaceholder": "e.g. SLES 70%, CAPB 30%…"
+    },
+    "evidenceBanner": {
+      "heading": "Evidence-Based & Transparent Process",
+      "body": "FormuLab combines scientific literature, compatibility, safety, regulatory and production intelligence to develop and explain every formulation it proposes.",
+      "badges": {
+        "literature": "Scientific Literature",
+        "evidenceBase": "Evidence Base",
+        "safety": "Safety Check",
+        "regulatory": "Regulatory Compliance",
+        "production": "Production-Aware"
+      }
+    },
+    "actions": {
+      "saveDraft": "Save Draft",
+      "start": "Start Formulation Request"
+    }
+  },
+  "formulationResult": {
+    "heading": "Formulation Result",
+    "noCandidate": "No candidate formula is available for this version.",
+    "actions": {
+      "downloadReport": "Download Report",
+      "share": "Share"
+    },
+    "originalRequest": {
+      "heading": "Original Request (Fixed)",
+      "unavailable": "The original request text is not available for this session.",
+      "edit": "Edit Request"
+    },
+    "versions": {
+      "heading": "Formulation Versions",
+      "selected": "Selected",
+      "noSummary": "No summary available for this candidate.",
+      "scoreNotYetAvailable": "Score: not yet available — evidence-based scoring is a later Phase 14 session"
+    },
+    "comparison": {
+      "heading": "Version Comparison",
+      "body": "Compare versions in detail.",
+      "open": "Open Comparison",
+      "notYetAvailable": "The detailed comparison view is not yet implemented."
+    },
+    "tabs": {
+      "formula": "Formula",
+      "process": "Manufacturing Procedure",
+      "critical": "Critical Parameters",
+      "equipment": "Equipment",
+      "safety": "Safety",
+      "regulatory": "Regulatory",
+      "evidence": "Evidence & Sources",
+      "alternatives": "Alternatives",
+      "summary": "Summary"
+    },
+    "formula": {
+      "untitled": "Untitled formula",
+      "totalIngredients": "{{count}} ingredients",
+      "totalWeight": "{{pct}}% w/w accounted for",
+      "totalWeightUnavailable": "Total weight not computed",
+      "citationCount": "{{count}} citation(s)",
+      "columns": {
+        "ingredient": "Ingredient / INCI",
+        "function": "Function",
+        "weightPct": "% (w/w)",
+        "evidence": "Evidence",
+        "evidenceClass": "Evidence Class"
+      },
+      "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is a later Phase 14 session — not yet available",
+      "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence"
+    },
+    "evidencePanel": {
+      "heading": "Ingredient Evidence",
+      "selectPrompt": "Select an ingredient row in the Formula tab to see its evidence.",
+      "selectedConcentration": "Selected Concentration",
+      "whyThisIngredient": "Why This Ingredient?",
+      "functionRationale": "Included for its {{function}} role in this formulation.",
+      "rationaleNotItemized": "A per-ingredient rationale is not yet itemized for this candidate.",
+      "whyThisConcentration": "Why {{pct}}?",
+      "insufficientEvidence": "Insufficient comparable evidence. Laboratory validation required.",
+      "decisionFactors": "FormuLab Decision Factors",
+      "decisionFactorsNotComputed": "Decision factors are not yet computed for individual ingredients.",
+      "supportingSources": "Supporting Scientific Sources",
+      "sourcesScopeNote": "These sources support the formulation as a whole; per-ingredient linkage is not yet available.",
+      "unknownAuthor": "Unknown author",
+      "noDoi": "not available",
+      "sourceLine": "{{author}} {{year}} — DOI: {{doi}}",
+      "noSources": "No scientific sources are recorded for this formula.",
+      "relatedConstraints": "Related Constraints & Notes",
+      "constraintsNotAvailable": "Constraints and notes for this ingredient are not yet available."
+    },
+    "safety": {
+      "overallStatus": "Overall Safety Status",
+      "statuses": {
+        "fail": "FAIL",
+        "incomplete": "DATA INCOMPLETE"
+      },
+      "formulaLevel": "Formula-Level Safety",
+      "noDeterministicFindings": "No deterministic rule violations were found for this formula.",
+      "ingredientLevel": "Ingredient Safety",
+      "manufacturing": "Manufacturing Safety",
+      "notYetEvaluated": "Not yet evaluated — a later Phase 14 session wires the full safety engine to generated formulas."
+    },
+    "regulatory": {
+      "overallStatus": "Overall Regulatory Status",
+      "statuses": {
+        "incomplete": "DATA INCOMPLETE"
+      },
+      "notYetEvaluated": "Regulatory evaluation against the target market is not yet available — a later Phase 14 session wires the regulatory engine to generated formulas."
+    },
+    "evidenceTab": {
+      "summary": "Evidence Summary",
+      "summaryBody": "{{count}} citation(s) recorded for this formula.",
+      "qualityDistribution": "Evidence Quality Distribution",
+      "qualityNotYetClassified": "Evidence-class (A–E) classification is not yet computed.",
+      "sources": "Scientific Sources",
+      "noSources": "No scientific sources are recorded for this formula.",
+      "columns": {
+        "author": "Author",
+        "year": "Year",
+        "doi": "DOI"
+      },
+      "gaps": "Evidence Gaps",
+      "gapsBody": "Explicit gap analysis is not yet computed for this formula."
+    },
+    "summary": {
+      "strategy": "Version Strategy",
+      "strategyUnavailable": "No strategy description is available for this candidate.",
+      "characteristics": "Key Formula Characteristics",
+      "ingredientCount": "{{count}} ingredients",
+      "performance": "Performance Expectations",
+      "cost": "Cost",
+      "costNotAvailable": "Not yet calculated — use Cost Analysis with an imported material price list.",
+      "confidence": "Evidence Confidence",
+      "confidenceNotYetComputed": "Not yet computed — a later Phase 14 session builds evidence-based confidence scoring.",
+      "risks": "Key Risks",
+      "validationRequired": "Validation Required",
+      "validationChecklist": [
+        "Laboratory batch",
+        "Appearance",
+        "pH",
+        "Viscosity",
+        "Stability",
+        "Compatibility",
+        "Performance testing",
+        "Packaging compatibility"
+      ],
+      "nextAction": "Recommended Next Action",
+      "nextActionSuggestion": "Resolve the flagged formula-level findings before proceeding to a laboratory trial."
+    },
+    "quickActions": {
+      "heading": "Quick Actions",
+      "addNote": "Add Formula Note",
+      "createTrial": "Create Laboratory Trial",
+      "planStability": "Plan Stability Test",
+      "costAnalysis": "Cost Analysis",
+      "saveFormula": "Save Formula",
+      "querySupplier": "Query Supplier"
+    },
+    "versionSummary": {
+      "heading": "{{version}} Summary",
+      "totalIngredients": "Total Ingredients",
+      "estimatedCost": "Estimated Cost",
+      "activeMatter": "Active Matter",
+      "overallScore": "Overall Score",
+      "notAvailable": "Not available",
+      "notYetScored": "Not yet scored"
+    },
+    "process": {
+      "notAvailable": "A real, evidence-sourced manufacturing procedure for this formula is not yet generated — Phase 14 Session 5 builds this. No generic or invented process steps are shown in its place."
+    },
+    "critical": {
+      "notAvailable": "Critical process parameters are not yet generated for this formula — Phase 14 Session 5 builds this."
+    },
+    "equipment": {
+      "notAvailable": "Required equipment is not yet derived for this formula — Phase 14 Session 5 builds this."
+    },
+    "alternatives": {
+      "notAvailable": "Ingredient/process alternatives for this version are not yet generated — a later Phase 14 session builds this."
+    }
+  },
   "builder": {
     "addLine": "행 추가",
     "batch": "배치",

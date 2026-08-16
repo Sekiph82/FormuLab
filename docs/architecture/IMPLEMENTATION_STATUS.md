@@ -2203,7 +2203,7 @@ automatable scope to re-test. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`. **No Phase 13 session planned.**
 
-### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 0) — PIPELINE AUDIT, CANONICALPAPER SCHEMA, ADAPTER BOUNDARY DESIGNED
+### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 0) — PIPELINE AUDIT, CANONICALPAPER SCHEMA, ADAPTER BOUNDARY DESIGNED, PLUS REQUEST/RESULT SCREENS BUILT OUT OF SEQUENCE
 
 Phase number and full approved product-decision scope registered
 while Phase 13 was active (Session 4A), documentation only — no code
@@ -2253,15 +2253,48 @@ access confirmed unavailable to this installation by direct inspection
 code-level decision (`canonical_paper.SOURCE_AVAILABILITY`) Session 1
 must respect. Two approved UI visual references (a formulation-request
 screen and a formulation-result screen) were registered as documentation
-in `docs/assets/phase14/` and cited in the architecture doc §7/§8 —
-not implemented this session, no frontend file touched. Python:
+in `docs/assets/phase14/` and cited in the architecture doc §7/§8, then
+expanded into a full field-by-field specification,
+`docs/PHASE14_FRONTEND_UI_SPECIFICATION.md`. Python:
 `python -m pytest runtime/pipeline -q` — 94/94 passing (71 baseline +
-23 new), zero regressions in the unchanged, already-live pipeline. Full
-design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §11a;
-handoff: `docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase 14 Session
-1** (Literature Search Orchestrator + Findpapers adapter + native
+23 new), zero regressions in the unchanged, already-live pipeline.
+
+**Frontend screens built out of sequence, same day, at the user's
+explicit direct instruction** ("please do these now, it is not a
+future reference" — overriding the earlier documentation-only framing
+for these two screens specifically; §12's Session 1 was not started,
+and no other Phase 14 backend scope was pulled forward): the request
+screen (`apps/desktop/src/app/routes/NewFormulationRequestPage.tsx`,
+`/formulation-request`) and the result screen
+(`FormulationResultPage.tsx`, `/formulation-result/:sessionId`, all
+nine spec'd tabs plus the right-hand per-ingredient evidence panel)
+were implemented directly from that specification. Both call the
+existing, unchanged `generateFormulation()`/`readSession()` bridge —
+no pipeline or Tauri-command behavior change. Every field shows real
+pipeline data (real violations, real references, real selected-
+ingredient concentration) or an explicit "not yet available" notice —
+never a fabricated score, evidence class, process step, or regulatory
+determination, since Sessions 1/2/5/6 are what will eventually produce
+that real data. The reply screenshot's own sulfate inconsistency
+(flagged above) is not reproduced; `rules.py`'s deterministic
+ingredient-exclusion enforcement is unchanged and still authoritative.
+Sidebar's "New" entry and the saved-session list now route to these
+two screens; the pre-existing `/live` split-pane workspace is
+untouched and still reachable, just no longer the default entry point.
+8 new frontend tests added; i18n extended across all 8 shipped
+locales; `src/lib/help/registry.ts` extended for route coverage.
+Full frontend suite: `pnpm vitest run` — 136 files / 1205 tests, all
+passing, zero regressions. `pnpm tauri build` rebuilt the release
+binary with this code included; the Desktop `FormuLab.lnk` shortcut
+was re-verified (`WScript.Shell`/`Test-Path`) to resolve to that fresh
+executable.
+
+Full design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md`
+§11a (Session 0) and §13 (frontend implementation); handoff:
+`docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase 14 Session 1**
+(Literature Search Orchestrator + Findpapers adapter + native
 CORE/DOAJ/Europe PMC/BASE/Unpaywall adapters — not started
-automatically by this session).
+automatically by this session or the frontend round after it).
 
 ## Not yet started
 

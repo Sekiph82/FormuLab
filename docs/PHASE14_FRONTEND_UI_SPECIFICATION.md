@@ -1,14 +1,23 @@
 # Phase 14 — Frontend UI Specification (New Formulation Request + Formulation Result)
 
-**Status: APPROVED SPECIFICATION, NOT YET IMPLEMENTED.** Registered
-during Phase 14 Session 0 (a backend/design-only session — see
-`docs/handoffs/PHASE14_CURRENT.md`). This document is the authoritative
-frontend implementation reference for whichever future session builds
-these two screens (§12's proposed breakdown: the request screen is
-Session 3, the result screen is Session 4) — not built now, not a
-Session 0 deliverable, registered ahead of time so the implementing
-session has a complete, unambiguous spec to work from rather than
-re-deriving one.
+**Status: IMPLEMENTED**, at the user's explicit direction, during the
+same run that registered this specification — ahead of §12's originally
+proposed sequencing (request screen: Session 3; result screen: Session
+4). Real files: `apps/desktop/src/app/routes/NewFormulationRequestPage.tsx`
+(Screen 1) and `apps/desktop/src/app/routes/FormulationResultPage.tsx`
+(Screen 2), routed at `/formulation-request` and `/formulation-
+result/:sessionId`, reachable from the sidebar's "New Request" entry and
+the saved-formulations history list. Both call the existing, unchanged
+`generate_formulation`/`read_session` commands — no new backend command,
+no change to `runtime/pipeline/`'s generation behavior. Every field
+either shows real data returned by that pipeline (ingredients,
+functions, weight %, references, purpose, warnings, the deterministic
+`violations` list) or an explicit, visible "not yet available" notice —
+never a fabricated score, evidence-class, process step, or regulatory
+determination, per this document's own "Scientific data rules" below,
+which the implementation follows to the letter. See the architecture
+doc §11a/§13 for the full account of what is and isn't backed by real
+data at this stage, and why.
 
 ## Approved visual references (source of truth for layout/visual design)
 
@@ -471,11 +480,15 @@ available.
 ## Phase discipline
 
 This specification was registered during **Session 0** (backend/design
-scope only — see `docs/handoffs/PHASE14_CURRENT.md`). No frontend file
-was created or modified to produce this document; it is documentation
-only. Per the architecture doc §12's proposed breakdown, the request
-screen is Session 3's scope and the result screen is Session 4's — this
-document does not change that sequencing, and no later Phase 14 session
-is started automatically by registering it. When the correct frontend
-session arrives, it implements directly from this approved
-specification rather than re-deriving one from the screenshots alone.
+scope only — see `docs/handoffs/PHASE14_CURRENT.md`), then implemented
+in the same run at the user's explicit, direct instruction ("please do
+these now, it is not a future reference") — an intentional, disclosed
+departure from §12's proposed sequencing (request screen: Session 3;
+result screen: Session 4), not a silent scope change. The implementation
+follows this specification directly; see the architecture doc §13 for
+the full closure record, including what remains honestly unavailable
+(evidence-class ranking, manufacturing-process generation, safety/
+regulatory engine wiring, real formula-version scoring) because the
+backend work that would compute it (Sessions 1/2/5/6) has not happened
+yet. No later Phase 14 session (the orchestrator/adapter work) was
+started automatically by building these two screens.

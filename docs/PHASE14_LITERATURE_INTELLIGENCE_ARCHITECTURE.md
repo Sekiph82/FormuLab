@@ -625,9 +625,20 @@ begins:
    new evidence model underneath it — a deliberate intermediate step
    before building the 3-alternative UI.
 4. **Session 3** — multi-alternative (V1/V2/V3+) formulation synthesis
-   + the new "Yeni Formülasyon Talebi" query screen.
+   + the new "Yeni Formülasyon Talebi" query screen. **The screen
+   itself was built out of sequence, in Session 0, at the user's
+   explicit direct instruction — see §13.** What remains genuinely
+   Session 3's own work: true multi-alternative synthesis grounded in
+   the (not-yet-built) evidence model, not the current pipeline's
+   already-existing `n`-candidates-in-one-call generation.
 5. **Session 4** — the new result screen: version cards, the 9-tab
-   layout, version-scoped evidence context (§9).
+   layout, version-scoped evidence context (§9). **The screen itself
+   was built out of sequence, in Session 0, at the user's explicit
+   direct instruction — see §13.** What remains genuinely Session 4's
+   own work: wiring the tabs to real evidence-class rankings, process
+   intelligence, and safety/regulatory determinations once Sessions
+   1/2/5/6 build them — today's screen shows honest "not yet
+   available" notices in every one of those places instead.
 6. **Session 5** — manufacturing process intelligence (İşlem Reçetesi/
    Kritik Parametreler/Ekipman, §6).
 7. **Session 6** — full traceability persistence (§10) across every
@@ -636,6 +647,89 @@ begins:
 Each session above gets its own real handoff/architecture-doc update
 when it actually starts, exactly like every other phase in this
 project.
+
+---
+
+## 13. Frontend implementation — New Formulation Request + Formulation Result screens (DONE, built out of sequence at explicit user instruction)
+
+Session 0's own scope (§11a) is backend/design-only, and this document
+said so in every place that matters. Mid-session, the user provided the
+two approved screenshots (§7/§8) and a complete field-by-field
+specification (`docs/PHASE14_FRONTEND_UI_SPECIFICATION.md`), initially
+registered as documentation for §12's Session 3/Session 4 slots — then
+explicitly instructed "please do these now, it is not a future
+reference." Built in the same run, disclosed here rather than silently
+absorbed into "Session 0."
+
+**What was built**: `apps/desktop/src/app/routes/
+NewFormulationRequestPage.tsx` (Screen 1, routed `/formulation-
+request`) and `apps/desktop/src/app/routes/FormulationResultPage.tsx`
+(Screen 2, routed `/formulation-result/:sessionId`), matching the
+approved screenshots' layout, section order, card structure, and the
+9-tab result layout as closely as this codebase's existing design
+tokens/components allow, in English. The sidebar's "New" button and the
+saved-formulations history list now point at these two screens instead
+of the pre-existing `/live`/`/live/:sessionId` split-pane workspace
+(`FormulationWorkspaceV2.tsx`) — which is **not removed**, still
+routed, still fully functional, simply no longer the sidebar's default
+entry point.
+
+**What is real, and what is honestly not**: both screens call the
+existing, completely unchanged `generate_formulation`/`read_session`
+commands — no new backend command, no change to `runtime/pipeline/`'s
+generation behavior at all. Every field on screen either shows real
+data the pipeline already returns (ingredient list, function, weight
+%, the formula's `purpose`/`name`/`how_it_works`/`warnings`, its
+references' author/year/DOI, and the deterministic `violations` list
+from `rules.py::validate`) or an explicit, visible "not yet available"
+notice, per this document's own §5/§6 fabrication-avoidance rule,
+applied consistently: no invented formula-version score (the version
+cards show "Score: not yet available" rather than a fake 87/100 — this
+document's own §8 mockup example, explicitly flagged as illustrative,
+not a real number to reproduce), no per-ingredient evidence
+class/observed-range/median/confidence (the right-side evidence panel
+shows "Insufficient comparable evidence. Laboratory validation
+required." exactly as §5 anticipates), no manufacturing procedure,
+critical parameters, or equipment list (Tabs 2-4 show honest "not yet
+generated" notices — Session 5's job), no safety/regulatory
+determination beyond the one real, deterministic signal that already
+exists (`rules.py`'s hard-avoid-list `violations`, shown as real
+Formula-Level Safety findings; everything else in those two tabs is
+marked "DATA INCOMPLETE," never a fabricated PASS).
+
+**Structured request fields with no dedicated backend slot**: the
+request screen's excluded/preferred ingredients, target pH/viscosity/
+active-matter/cost-level, claims, packaging, batch size, equipment, and
+available-raw-materials fields have no corresponding field in
+`rules.py::derive_constraints`'s deterministic engine — they are
+forwarded as extra keys on the `brief` object `generate_formulation`
+already passes through to Python as opaque JSON, reaching the LLM as
+"PRODUCT BRIEF" context (soft influence) but **not** enforced by the
+deterministic hard-rule engine the way `target`/`category`/`market`/
+`audience`/`performance` already are. This is disclosed in
+`formulationV2.ts`'s own type-comment, not silently implied to be a
+guaranteed constraint channel.
+
+**Tests**: `NewFormulationRequestPage.test.tsx` (3 tests) and
+`FormulationResultPage.test.tsx` (5 tests) — rendering, the primary-
+field-gates-submission rule, version-card/ingredient-table rendering
+from real mock session data, evidence-panel selection scoped to the
+real selected ingredient, evidence context clearing on version switch
+(§9's own hard requirement), and a direct assertion that no score is
+ever fabricated. `src/lib/help/registry.ts`'s existing "sessions" help
+topic was extended to cover both new routes (a pre-existing test,
+`registry.test.ts`, requires every real route to resolve to a help
+topic or a documented exclusion — a real, caught regression, not a new
+test written to match the code).
+
+**i18n**: all new copy lives under `session.json`'s new
+`formulationRequest`/`formulationResult` keys, in every one of the 8
+shipped locales — English is the authoritative copy (matching the
+screenshots' own approved English-language directive); the other 7
+locales carry the same English text for these new keys, the same
+disclosed-gap precedent already established for other sections of this
+codebase (confirmed key-set parity, not translation-value parity, is
+what `parity.test.ts` actually checks).
 
 ---
 

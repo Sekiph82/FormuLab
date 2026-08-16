@@ -11,6 +11,7 @@ import {
   ChevronRight,
   FileBarChart2,
   FileCheck2,
+  FilePlus2,
   FlaskConical,
   FlaskRound,
   FolderKanban,
@@ -151,6 +152,7 @@ export function Sidebar() {
   const navItems: NavItem[] = useMemo(
     () => [
       { type: "leaf", key: "home", icon: Home, label: t("workspacesNav.home"), path: "/home" },
+      { type: "leaf", key: "newRequest", icon: FilePlus2, label: t("workspacesNav.newRequest"), path: "/formulation-request" },
       { type: "leaf", key: "projects", icon: FolderKanban, label: t("workspacesNav.projects"), path: "/projects" },
       {
         type: "group",
@@ -320,7 +322,7 @@ export function Sidebar() {
               <NavRow
                 icon={<Plus size={16} />}
                 label={t("items.new")}
-                onClick={() => navigate("/live")}
+                onClick={() => navigate("/formulation-request")}
               />
             </div>
 
@@ -408,7 +410,7 @@ export function Sidebar() {
                 <>
                   <div className="flex max-h-64 flex-col overflow-y-auto">
                     {(showAllSessions ? formulations : formulations.slice(0, SESSIONS_PREVIEW_COUNT)).map((s) => {
-                      const to = `/live/${s.id}`;
+                      const to = `/formulation-result/${s.id}`;
                       const title = s.brief?.target ?? s.id;
                       return (
                         <div key={s.id} className="group relative">
@@ -431,7 +433,7 @@ export function Sidebar() {
                             onClick={async () => {
                               await deleteFormulationSession(s.id).catch(() => {});
                               refresh();
-                              if (location.pathname === to) navigate("/live");
+                              if (location.pathname === to) navigate("/formulation-request");
                             }}
                             aria-label={t("history.deleteAria", { title })}
                             className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded p-1 text-muted hover:bg-border hover:text-error group-hover:block"

@@ -19,6 +19,31 @@ export interface FormulationBrief {
    *  classification before literature discovery proceeds. */
   human_review_acknowledged?: boolean;
   human_review_by?: string;
+  // Phase 14 — "New Formulation Request" screen's structured fields
+  // (docs/PHASE14_FRONTEND_UI_SPECIFICATION.md). `generate_formulation`'s
+  // Rust command forwards the whole `brief` object to Python as opaque
+  // JSON (`GenerateRequest.brief: serde_json::Value`), so these extra keys
+  // reach `pipeline.py::run()` untouched — visible to the LLM as part of
+  // "PRODUCT BRIEF" context, exactly like `target`/`category`/`market`
+  // already are, but NOT read by `rules.py::derive_constraints`'s
+  // deterministic hard-rule engine (that engine's own keyword triggers on
+  // `target`/`category`/`market`/`audience`/`performance` are what's
+  // actually enforced server-side). Honest framing for the UI: these are
+  // the natural-language request's *complementary* structured context,
+  // not a second guaranteed-enforced constraint channel.
+  targetProductType?: string;
+  excludedIngredients?: string;
+  preferredIngredients?: string;
+  targetPhMin?: string;
+  targetPhMax?: string;
+  targetViscosity?: string;
+  targetActiveMatter?: string;
+  targetCostLevel?: string;
+  claims?: string;
+  packagingType?: string;
+  estimatedBatchSize?: string;
+  availableEquipment?: string;
+  availableRawMaterials?: string;
 }
 
 /** Mirrors PRODUCT_SAFETY_CLASSIFICATIONS in packages/shared/src/schemas/safety.ts. */

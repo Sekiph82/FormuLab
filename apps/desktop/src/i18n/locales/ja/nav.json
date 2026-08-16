@@ -23,6 +23,7 @@
   "workspacesNav": {
     "home": "Home",
     "projects": "Projects",
+    "newRequest": "新規リクエスト",
     "formulation": "Formulation",
     "laboratory": "Laboratory",
     "stability": "Stability",

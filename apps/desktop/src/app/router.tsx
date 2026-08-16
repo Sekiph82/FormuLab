@@ -12,6 +12,8 @@ import { SettingsPage } from "./routes/SettingsPage";
 import { HomePage } from "./routes/HomePage";
 import { ProjectsPage } from "./routes/ProjectsPage";
 import { FormulationPage } from "./routes/FormulationPage";
+import { NewFormulationRequestPage } from "./routes/NewFormulationRequestPage";
+import { FormulationResultPage } from "./routes/FormulationResultPage";
 import { LaboratoryPage } from "./routes/LaboratoryPage";
 import { StabilityPage } from "./routes/StabilityPage";
 import { OptimizationPage } from "./routes/OptimizationPage";
@@ -45,6 +47,8 @@ export const routes: RouteObject[] = [
       { path: "home", element: <HomePage /> },
       { path: "projects", element: <ProjectsPage /> },
       { path: "formulation", element: <FormulationPage /> },
+      { path: "formulation-request", element: <NewFormulationRequestPage /> },
+      { path: "formulation-result/:sessionId", element: <FormulationResultPage /> },
       { path: "laboratory", element: <LaboratoryPage /> },
       { path: "stability", element: <StabilityPage /> },
       { path: "optimization", element: <OptimizationPage /> },

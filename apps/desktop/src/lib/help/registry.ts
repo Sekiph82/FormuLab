@@ -444,6 +444,11 @@ export const HELP_TOPICS: HelpTopic[] = [
     routes: [
       { path: "/live", mode: "prefix" },
       { path: "/example/:sessionId" },
+      // Phase 14 — the new "New Formulation Request"/"Formulation Result"
+      // screens are a redesigned front door onto the same generation
+      // session concept this topic already covers, not a second workflow.
+      { path: "/formulation-request" },
+      { path: "/formulation-result/:sessionId" },
     ],
     titleKey: "sessions.title",
     summaryKey: "sessions.summary",

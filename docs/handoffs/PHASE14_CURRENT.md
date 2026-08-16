@@ -1,6 +1,43 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: SESSION 0 COMPLETE — discovery-pipeline audit, `CanonicalPaper` schema + deduplication algorithm, Findpapers-adapter boundary, and the IEEE/Scopus/Web of Science/Google Scholar availability decision. Full design and every approved product decision: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §11a for this session's write-up, everything else for the still-unbuilt overall design. Phase 13 closed (implementation-complete) immediately before this session started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+## Status: SESSION 0 COMPLETE, PLUS the New Formulation Request/Formulation Result screens (built out of sequence, at the user's explicit direct instruction). Discovery-pipeline audit, `CanonicalPaper` schema + deduplication algorithm, Findpapers-adapter boundary, and the IEEE/Scopus/Web of Science/Google Scholar availability decision: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §11a. The two frontend screens (§12's Session 3/Session 4 slots, built early — see §13): `docs/PHASE14_FRONTEND_UI_SPECIFICATION.md` and architecture doc §13. Phase 13 closed (implementation-complete) immediately before this session started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+
+## Frontend screens built out of sequence (this same run, at explicit user instruction)
+
+After Session 0's own backend/design work (below) and after the two
+approved screenshots + full UI specification were registered as
+documentation, the user explicitly instructed building them immediately
+rather than deferring to §12's Session 3/Session 4: "please do these
+now, it is not a future reference." Built:
+
+- `apps/desktop/src/app/routes/NewFormulationRequestPage.tsx` —
+  Screen 1, routed `/formulation-request`.
+- `apps/desktop/src/app/routes/FormulationResultPage.tsx` — Screen 2,
+  routed `/formulation-result/:sessionId`.
+- Both call the existing, unchanged `generate_formulation`/
+  `read_session` commands — no backend/pipeline behavior change. Every
+  field shows real pipeline data or an explicit "not yet available"
+  notice (no fabricated scores, evidence classes, process steps, or
+  safety/regulatory determinations — Sessions 1/2/5/6 build the data
+  that would back those).
+- Sidebar's "New" entry and the saved-formulations history list now
+  point at these two screens; the pre-existing `/live` split-pane
+  workspace is unchanged and still fully routed, just no longer the
+  default entry point.
+- 8 new frontend tests (`NewFormulationRequestPage.test.tsx`,
+  `FormulationResultPage.test.tsx`); `src/lib/help/registry.ts`
+  extended so both new routes have help coverage (a pre-existing test
+  caught the gap, not a new test written to match).
+- i18n: new `formulationRequest`/`formulationResult` keys in all 8
+  shipped locales (English is the approved-screenshot language;
+  the other 7 carry the same English text for these new keys, this
+  codebase's existing disclosed-gap precedent).
+- Full desktop app rebuilt (`pnpm tauri build`) and the Desktop
+  `FormuLab.lnk` shortcut re-verified against the fresh binary.
+
+Full write-up: architecture doc §13. See `docs/
+PHASE14_FRONTEND_UI_SPECIFICATION.md` for the complete approved spec
+these screens were built from.
 
 ## Session 0 summary
 
@@ -109,10 +146,6 @@ touched this session.
   behavior at all — confirmed by the unchanged 71/71 baseline test
   count for those files, plus the fact that nothing imports the new
   module yet.
-- Did not build the new query screen or result screen — no frontend
-  file was touched. The two approved visual references were
-  *registered* as documentation, a separate action from implementing
-  them.
 - Did not implement evidence extraction, evidence-class ranking,
   manufacturing-process generation, or traceability persistence —
   Sessions 2, 2, 5, and 6 respectively, per the proposed breakdown.
