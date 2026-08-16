@@ -34,6 +34,10 @@ const F_FULLTEXT: &str = include_str!("../../../../runtime/pipeline/fulltext.py"
 // discard-based dedup) — it must be materialized alongside it or the
 // embedded pipeline fails with ImportError on every real run.
 const F_CANONICAL: &str = include_str!("../../../../runtime/pipeline/canonical_paper.py");
+// Phase 14 Session 2: pipeline.py now imports evidence.py directly (structured
+// evidence extraction/ranking feeding formula synthesis) — same requirement
+// as canonical_paper.py above, must be materialized alongside it.
+const F_EVIDENCE: &str = include_str!("../../../../runtime/pipeline/evidence.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -114,6 +118,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("run_cli.py", F_CLI),
         ("fulltext.py", F_FULLTEXT),
         ("canonical_paper.py", F_CANONICAL),
+        ("evidence.py", F_EVIDENCE),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }

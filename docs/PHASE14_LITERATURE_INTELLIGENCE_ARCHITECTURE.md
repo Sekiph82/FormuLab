@@ -1,6 +1,6 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: SESSION 1 COMPLETE — Literature Search Orchestrator, Findpapers adapter, native OA adapters (DOAJ/Unpaywall/Semantic Scholar), CanonicalPaper cross-source dedup wired into the real pipeline (§14). Session 0 (§11a): pipeline audit, CanonicalPaper schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence in the same run as Session 0) had a real data-contract bug between their build and this round — fixed, see §13a. Both the new screens and the pre-existing `/live` workspace remain available; see §13a for the disclosed dual-flow state.
+## Status: SESSION 2 COMPLETE — structured evidence extraction, A-E classification, explainable ranking, and formula-synthesis integration, all deterministic and rule-based, wired into the real pipeline (§15). Session 1 (§14): Literature Search Orchestrator, Findpapers adapter, native OA adapters (DOAJ/Unpaywall/Semantic Scholar), CanonicalPaper cross-source dedup. Session 0 (§11a): pipeline audit, CanonicalPaper schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence in the same run as Session 0) had a real data-contract bug — fixed, see §13a. Both the new screens and the pre-existing `/live` workspace remain available; see §13a for the disclosed dual-flow state.
 
 This document registers Phase 14 and records the approved product
 decisions it must implement. Session 0 (§11a) is the first real
@@ -624,11 +624,13 @@ begins:
    adapters; DOAJ and Unpaywall were built and confirmed working instead,
    plus Semantic Scholar (via both a native fetcher and the Findpapers
    adapter) as a real but non-default, rate-limited source.
-3. **Session 2** — structured evidence extraction + evidence-class
+3. ~~**Session 2** — structured evidence extraction + evidence-class
    (A-E) assignment + ranking, wired to the existing formula-synthesis
    step. Still produces one formula (current behavior), now with the
    new evidence model underneath it — a deliberate intermediate step
-   before building the 3-alternative UI.
+   before building the 3-alternative UI.~~ **DONE** — see §15. Concentration
+   statistics (median/observed range) deliberately not computed, per this
+   item's own conditional scope (comparability grouping not built yet).
 4. **Session 3** — multi-alternative (V1/V2/V3+) formulation synthesis
    + the new "Yeni Formülasyon Talebi" query screen. **The screen
    itself was built out of sequence, in Session 0, at the user's
@@ -996,6 +998,244 @@ and `FormuLab.lnk` re-verified against the fresh binary.
 evidence extraction + evidence-class (A-E) assignment + ranking, wired to
 the existing formula-synthesis step (§12 item 3). Not started
 automatically by this session.
+
+---
+
+## 15. Session 2 — structured evidence extraction, A-E classification, ranking, formula-synthesis integration (DONE)
+
+Per §12 item 3: "structured evidence extraction + evidence-class (A-E)
+assignment + ranking, wired to the existing formula-synthesis step. Still
+produces one formula per version (current behavior), now with the new
+evidence model underneath it." Paper discovery alone is not evidence — a
+paper only becomes evidence once real content was extracted from it that
+supports a specific formulation decision.
+
+### Deterministic, rule-based extraction — not a second LLM call
+
+New module `runtime/pipeline/evidence.py`. "Build a deterministic/
+traceable evidence layer" is this session's own brief, and a model-based
+extractor would satisfy neither word — it would also carry its own
+fabrication risk, the exact failure mode this whole phase exists to guard
+against. Every field is either read verbatim from the source text (a regex
+match with a real character position, a section title) or left
+`None`/unknown; nothing is inferred.
+
+**`KNOWN_INGREDIENTS`**: a real but intentionally not-exhaustive vocabulary
+(60 entries), seeded from `rules.py`'s own `SULFATES`/`HARSH_PRESERVATIVES`/
+`MILD_SURFACTANTS`/`CHELATORS`/`FRAGRANCE` groups plus a modest list of
+common anti-dandruff actives and functional cosmetic ingredients. A mention
+of an ingredient outside this list produces no evidence record for it —
+silence, the honest outcome, never a wrong or invented one. Growing this
+list is real, disclosed future work.
+
+**`detect_ingredient_mentions`**: longest-surface-form-first, word-boundary
+matched, so "sodium laureth sulfate" is never shadowed by a shorter partial
+match. Two chemically distinct sulfates (SLS vs. SLES) normalize to two
+different keys and are never merged (`normalize_ingredient_key` — a
+conservative, deterministic key comparison, no fuzzy matching).
+
+**Concentration attribution — a real bug found and fixed by testing this
+session's own extractor against a realistic sentence.** The obvious
+approach (nearest concentration number by raw character distance) gets a
+paper that reads "X at 5.0%, Y at 8.0%, Z at 1.0%" systematically wrong:
+once mid-name character counts are folded in, a symmetric-distance search
+attaches each ingredient's own reported number to its NEIGHBOR instead.
+Fixed with a directional, span-aware rule: prefer a number immediately
+AFTER the mention (the dominant "ingredient at X%" phrasing), reject it if
+another mention's start falls between this one's end and that number
+(the number belongs to the closer, later ingredient); fall back to
+BEFORE with the same no-intervening-mention guard, plus a second guard
+against a trailing clause re-claiming a number that was already
+immediately after a different mention. Verified directly: `Cocamidopropyl
+Betaine at 5.0 wt%, Decyl Glucoside at 8.0%, ... Piroctone Olamine at
+1.0%, along with Glycerin and Citric Acid ...` now attributes exactly the
+right number to each of the three actives and correctly leaves Glycerin
+and Citric Acid with `None` (no number is ever reported for either) —
+this exact sentence is now a regression test
+(`test_evidence.py::ConcentrationExtractionTests`).
+
+**Full-text-first, honest fallback**: `gather_evidence` determines
+`source_depth` per paper — `fulltext.excerpt_for` (already-downloaded PDF/
+XML/Markdown) when available, else the paper's own `abstract` field
+(`abstract_only`), else `metadata_only`. `classify_evidence` floors
+`metadata_only` at Class E unconditionally and requires `full_text` (never
+`abstract_only`) for Class A — an abstract cannot carry enough detail to
+earn the strongest tier, matching this session's own §4 brief exactly.
+
+### Evidence classes A-E — content-based, never provider-based
+
+`classify_evidence` reads only `source_depth`/`is_full_formulation`/
+`is_review`/`has_concentration`/`has_outcome`/`domain_match` — it never
+reads which source(s) found the paper. A paper is never Class A merely for
+containing an ingredient name (a dedicated regression test asserts this
+directly): A requires real full text, a genuine complete-formulation
+paper (>= 3 recognized ingredients + a formulation-shape term like "wt%"),
+an actual extracted concentration, AND a reported outcome. Verified
+end-to-end against a LIVE paper this session (see Verification below): a
+real post-surgical-scab-removal shampoo study's own methods/results text
+produced a real Class-A-eligible record with `salicylic acid, concentration
+2.0%` and the paper's own verbatim outcome sentence.
+
+**Domain-match (Class D) uses an explicit signal list, not keyword overlap
+against the request.** A first version compared the paper's own text
+against the request's wording (e.g. "anti-dandruff shampoo") and wrongly
+demoted a real antifungal-efficacy study (which discusses "Malassezia," the
+organism actually implicated in dandruff, but never literally says
+"shampoo") to Class D. Fixed: `_domain_matches` defaults to relevant
+UNLESS the text carries an explicit OTHER-domain signal (paint, coating,
+industrial, textile, agricultural, …) with no personal-care/cosmetic
+counter-signal (skin, scalp, hair, dermal, cosmetic, …) — Class D is for a
+real, positively-identified mismatch (verified with a genuine "industrial
+paint coatings" example), never a fallback for "didn't use my exact
+category word."
+
+### Deduplication rule — one CanonicalPaper, one study, however many records
+
+`study_count()` counts unique papers by DOI (or normalized title when no
+DOI exists), never by provider or by record count. A paper found by 5
+providers still counts as 1 study; a paper genuinely reporting 2 distinct
+findings (2 different actives) produces 2 `EvidenceRecord`s that both
+still count as 1 study. Both are direct regression tests. A related, real
+display bug found while testing this against LIVE data: `literature_cache`
+(Session 1)'s own `provenance_sources` can legitimately repeat one
+provider's name (the same source found via multiple query angles) —
+harmless for `unique_source_count` (a `set()`-based count, already
+correct) but confusing to DISPLAY as `["europepmc", "europepmc",
+"europepmc"]`. Fixed at the evidence layer (deduped, order-preserved, when
+building each `EvidenceRecord`) rather than touching Session 1's already-
+tested `literature_cache.py`.
+
+### Ranking — every factor named, provider count structurally excluded
+
+`EvidenceScore` (`class_weight`, `full_text_bonus`, `experimental_data_
+bonus`, `domain_comparability`, `consistency_bonus`, `total`) — no single
+opaque number; `score.total` is always exactly the sum of the other
+fields (a direct regression test asserts this). `unique_source_count` is
+not a field on `EvidenceScore` at all — structurally, not just by
+convention, it cannot be read for scoring. A dedicated test builds two
+otherwise-identical records differing ONLY in `unique_source_count` (1 vs.
+5) and asserts their scores are exactly equal.
+
+### Formula-synthesis integration — augmented, not rewritten
+
+`pipeline.py::run()` calls `evidence.gather_evidence()` on the SAME
+already-deduplicated `papers` list `literature_cache.gather()` returns —
+never a second discovery pass — ranks the result, and builds a `FACT FROM
+EVIDENCE` / `FORMULAB INFERENCE` / `MISSING` block
+(`evidence.build_evidence_context_block`) inserted into the existing
+`user` message ahead of the raw literature dump. `_system_prompt` gained
+one new paragraph instructing the model to treat that block as
+authoritative for anything it cites, and to mark an uncovered decision as
+"Laboratory validation required" in the card's own warnings rather than
+inventing a value — the exact three-way distinction §11 requires, made
+explicit in both the system prompt and the block's own structure rather
+than left for the model to infer. `render_card`/`archive_formulas`/the
+`cards` list's own shape (`{version, markdown, formula, violations}`) are
+completely untouched — Rust's `read_session`/`read_cards` (Session 1's own
+fix) and both frontend UIs need no change and received none this session.
+
+### Traceability and persistence
+
+Every `EvidenceRecord` carries `paper_doi`/`paper_title`/`paper_year`/
+`paper_authors`/`paper_venue`/`unique_source_count`/`provenance_sources`/
+`evidence_class`/`evidence_text`/`source_location` — everything §12
+requires for a future Ingredient Evidence panel to query, not built this
+session (§12's own scope note: "Do not build that final rich UI wiring
+unless Session 2 handoff explicitly includes it" — it does not).
+`formula_version_id` exists on every record and is always `None` at
+extraction time — the field is there so a later session can attach real
+version-specific evidence without a schema migration (§13's own
+requirement), not a decision engine built now.
+
+Two persistence layers, mirroring `literature_cache.py`'s own established
+convention: a shared LIBRARY-level cache (`evidence_cache.json`, keyed by
+paper key) so a paper already extracted in a previous session is never
+re-extracted; a session-local copy (`<session>/literature/evidence.json`)
+alongside the existing `papers.json`/`papers.csv`.
+
+### Concentration statistics — deliberately NOT computed this session
+
+Individual `ConcentrationValue` records are preserved with their own
+value/range/unit/basis; no median/observed-range/aggregate statistic is
+computed across records. This session's own brief is explicit: only after
+strict comparability grouping (same ingredient, same basis, same product
+context) exists does aggregating become safe, and that grouping work is
+not built here. A future session's job, not silently skipped — recorded
+as a real gap below.
+
+### Existing safety/regulatory rules — unchanged, still authoritative
+
+Nothing in this session touches `rules.py::derive_constraints`/`validate`'s
+deterministic hard-avoid-list or the `violations` list already shown on
+the Safety tab. Literature evidence feeds the prompt's rationale/context
+only; it cannot override a hard constraint — the deterministic engine runs
+exactly as it did before this session, on the model's OUTPUT, independent
+of anything in the evidence block.
+
+### Verification
+
+`python -m pytest runtime/pipeline -q`: **151/151 passing** (122 baseline
++ 27 new `test_evidence.py` tests covering every item in this session's own
+brief — full-text/abstract-only/metadata-only extraction depth, concentration
+attribution and the range/missing cases, all five evidence classes with a
+dedicated example each, the "never Class A merely for a name" guard, one-
+CanonicalPaper-one-study dedup (single paper via 5 providers, and 2
+findings from 1 paper), the provenance-sources dedup fix, ranking preferring
+real experimental evidence, provider count NOT multiplying score (both a
+behavioral test and a structural test that the field doesn't exist on
+`EvidenceScore`), ingredient-normalization non-merging, evidence-gap
+messaging, and cache round-tripping — plus 2 new `test_pipeline.py`
+integration tests proving the synthesis prompt actually receives the
+`FACT FROM EVIDENCE`/`FORMULAB INFERENCE` block and that ordinary
+generation still works with the evidence layer active). Zero regressions.
+
+**Real, live verification, not just mocked unit tests**: a disposable local
+generation (mocked LLM only; real network calls to OpenAlex/OpenAIRE/
+Europe PMC/Crossref) for "anti-dandruff shampoo" produced 9 real evidence
+records from 2 unique studies, including a genuine Class-A-eligible record
+— `salicylic acid, concentration 2.0%` — extracted from a real 2026 paper
+on post-surgical scab removal with a shampoo containing 2% salicylic acid,
+with the paper's own verbatim outcome sentence attached and its real DOI.
+Test data (session + library directories under this session's own scratch
+temp directory) deleted immediately after inspection; no real
+`.FormuLab/runs.db` or business data touched.
+
+`apps/desktop/src-tauri/src/formulation_v2.rs` now also embeds
+`evidence.py` — `pipeline.py` hard-imports it as of this session, so it
+must be materialized alongside `canonical_paper.py` or the embedded
+desktop app would fail with `ImportError` on every real run (the exact
+class of bug Session 1 already hit once with `canonical_paper.py`, caught
+here before it shipped by re-running the same embedded-layout-simulation
+check). `cargo check --release`: clean. `pnpm tauri build`: succeeded;
+`FormuLab.lnk` re-verified against the fresh binary. No frontend file
+touched this session — both formulation UIs are unaffected structurally
+(the `cards` list's own shape is unchanged) and were not re-tested beyond
+confirming no frontend file appears in this session's diff.
+
+### Known gaps, explicitly deferred
+
+- Concentration/observed-range/median statistics across multiple records
+  (deliberately deferred — see above).
+- Per-ingredient evidence UI wiring (the right-side Ingredient Evidence
+  panel querying this data) — not built, per §12's own scope note.
+- Formula-version-specific evidence (`formulaVersionId` attachment) — the
+  data model supports it (`formula_version_id` field, always `None`
+  today); the decision engine that would populate it is not built.
+- `KNOWN_INGREDIENTS` vocabulary coverage — real, disclosed, not
+  exhaustive; growing it is future work.
+- Manufacturing-process synthesis from the structured `ProcessObservation`
+  data extracted this session — Session 5's own scope, not started.
+- Safety/regulatory evidence-class integration into the Safety/Regulatory
+  tabs — still shows only the deterministic `violations` list; evidence-
+  backed rationale for those tabs is later work.
+
+**Exact next Phase 14 session**: **Session 3** — multi-alternative
+(V1/V2/V3+) formulation synthesis grounded in this evidence model, per
+§12 item 4 (the request/result screens themselves were already built out
+of sequence in an earlier round — what remains is true evidence-grounded
+multi-alternative synthesis, not the current pipeline's existing
+`n`-candidates-in-one-call generation). Not started automatically by this
+session.
 
 ---
 

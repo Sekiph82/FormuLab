@@ -1,6 +1,72 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: SESSION 1 COMPLETE. Literature Search Orchestrator + Findpapers adapter + native OA adapters (DOAJ/Unpaywall/Semantic Scholar) + real `canonical_paper.py` cross-source dedup, all wired into the live pipeline and verified against real APIs — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §14. A real data-contract bug in the New Formulation Request/Formulation Result screens (built out of sequence in an earlier round) was found and fixed first — §13a of that same doc. Session 0 (pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision): §11a. Both formulation UIs (`/live` and the new request/result flow) remain available — temporary, disclosed dual-flow state, §13a. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+## Status: SESSION 2 COMPLETE. Structured evidence extraction, A-E classification, explainable ranking, and formula-synthesis integration — deterministic, rule-based, wired into the real pipeline — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §15. Session 1 (§14): Literature Search Orchestrator + Findpapers adapter + native OA adapters (DOAJ/Unpaywall/Semantic Scholar) + real `canonical_paper.py` cross-source dedup, verified against real APIs. Session 0 (§11a): pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence) had a real data-contract bug — fixed in an earlier round, §13a. Both formulation UIs (`/live` and the new request/result flow) remain available — temporary, disclosed dual-flow state, §13a. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+
+## Session 2 summary — structured evidence extraction, A-E classification, ranking, formula-synthesis integration
+
+New module `runtime/pipeline/evidence.py`: deterministic, rule-based
+extraction (never a second LLM call — "deterministic/traceable" was the
+session's own explicit brief) of `EvidenceRecord`s from the SAME already-
+deduplicated papers Session 1's orchestrator returns. Recognizes a real
+but intentionally not-exhaustive 60-entry ingredient vocabulary seeded
+from `rules.py`'s own groups; a mention outside it produces no record —
+silence, not a guess. `source_depth` (`full_text`/`abstract_only`/
+`metadata_only`) determined from `fulltext.excerpt_for`/the paper's own
+abstract/neither. Evidence classes A-E assigned by content only (never by
+which provider found the paper) — Class A requires real full text, a
+genuine complete-formulation paper, an actual extracted concentration,
+AND a reported outcome; `metadata_only` floors at E unconditionally.
+
+Two real extraction bugs found and fixed by testing against a realistic
+sentence during this session (not hypothetical): a naive nearest-number
+search attached each ingredient's concentration to its NEIGHBOR instead
+of itself in a list like "X at 5.0%, Y at 8.0%, Z at 1.0%" (fixed with a
+directional, span-aware, no-intervening-mention rule); a naive keyword-
+overlap domain check wrongly demoted a real antifungal-efficacy study to
+Class D for never literally saying "shampoo" (fixed with an explicit
+other-domain-signal list instead of overlap-against-the-request-wording).
+A related Session-1 display bug (`provenance_sources` can legitimately
+repeat one provider found via multiple query angles) was fixed at the
+evidence layer (deduped on read) rather than touching Session 1's already
+-tested `literature_cache.py`.
+
+Ranking (`EvidenceScore`: class_weight/full_text_bonus/experimental_data_
+bonus/domain_comparability/consistency_bonus/total) has no field for
+provider count — structurally, not just by convention, it cannot multiply
+scoring weight. `study_count()` counts unique papers by DOI/normalized
+title, never by provider or record count — proven with a paper found by 5
+providers (1 study) and a paper with 2 distinct findings (1 study, 2
+records).
+
+`pipeline.py::run()` wired: calls `evidence.gather_evidence()` on the
+existing `papers` list (no second discovery pass), ranks, persists
+(`<session>/literature/evidence.json` + a shared library-level cache), and
+inserts a `FACT FROM EVIDENCE`/`FORMULAB INFERENCE`/`MISSING` block into
+the existing prompt ahead of the raw literature dump — augmented, not
+rewritten; `render_card`/the `cards` list's own shape is completely
+unchanged, so Rust's `read_session` and both frontend UIs needed no
+change and received none. `rules.py`'s deterministic safety engine is
+untouched and remains authoritative over anything in the evidence block.
+
+Verified against LIVE data, not just mocks: a disposable local generation
+found 9 real evidence records from 2 unique studies, including a genuine
+Class-A record (`salicylic acid, concentration 2.0%`, real outcome
+sentence, real DOI) extracted from an actual 2026 paper. Test data deleted
+immediately after inspection.
+
+`apps/desktop/src-tauri/src/formulation_v2.rs` now also embeds
+`evidence.py` (`pipeline.py` hard-imports it) — caught and fixed before
+building, via the same embedded-layout-simulation check that would have
+caught Session 1's equivalent `canonical_paper.py` gap.
+
+Python: `python -m pytest runtime/pipeline -q` — **151/151 passing** (122
+baseline + 27 new `test_evidence.py` + 2 new `test_pipeline.py`
+integration tests), zero regressions. No frontend file touched.
+`git diff --check`: clean.
+
+Concentration/observed-range statistics deliberately NOT computed this
+session (§15's own conditional scope: only safe after comparability
+grouping, not built here). Full write-up: architecture doc §15.
 
 ## Session round: frontend data-contract repair + dual-flow state (this round, before Session 1)
 
@@ -291,12 +357,10 @@ touched this session.
 
 ## Exact next Phase 14 session
 
-**Session 2** (per the architecture doc §12's proposed breakdown, not
-redesigned): structured evidence extraction + evidence-class (A-E)
-assignment + ranking, wired to the existing formula-synthesis step. Still
-produces one formula per version (current behavior), now with the new
-evidence model underneath it — a deliberate intermediate step before the
-already-built result screen's evidence panel/Evidence tab can show real
-observed ranges, medians, confidence, and evidence classes instead of their
-current honest "not yet available" notices. No UI changes to the request/
-result screens themselves. Not started automatically by this round.
+**Session 3** (per the architecture doc §12's proposed breakdown, not
+redesigned): true multi-alternative (V1/V2/V3+) formulation synthesis
+grounded in Session 2's evidence model — the request/result screens
+themselves were already built out of sequence in an earlier round, so what
+remains is genuinely evidence-grounded multi-alternative generation, not
+the current pipeline's existing `n`-candidates-in-one-call mechanism. Not
+started automatically by this round.

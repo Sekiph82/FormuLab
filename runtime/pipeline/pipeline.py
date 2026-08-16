@@ -16,6 +16,7 @@ import re
 import time
 from typing import Any, Callable, Dict, List
 
+import evidence
 import fulltext
 import llm
 import literature_cache
@@ -223,6 +224,16 @@ evidence-based candidate formulas for the product. Return STRICT JSON only.
 Ground the formulas in what the sources actually report: prefer ingredients, concentrations and
 pH values that appear in the FULL TEXT entries, and cite the DOI you drew each choice from. Do
 not invent a DOI — cite only DOIs listed below.
+
+Below the raw literature you will also see a FACT FROM EVIDENCE section — structured, ranked
+findings this pipeline already extracted (ingredient, concentration, outcome, evidence class)
+from the same papers, deterministically, before this prompt was built. Treat that section as the
+authoritative source for any concentration/outcome you cite from it. Any concentration or process
+detail you choose that is NOT in that section is your own FORMULAB INFERENCE from general
+formulation science — do not attach a DOI to it, and do not present it as if the literature
+reported it. Where neither the evidence section nor your own general knowledge supports a
+decision, say so in the formula's own warnings — MISSING / REQUIRES LAB VALIDATION — rather than
+inventing a plausible-looking value.
 
 HARD RULES (must be obeyed in every formula):
 - Region: {p['display']} — water hardness {p['water_hardness']}, climate {p['climate']}, {p['notes']}
@@ -503,11 +514,30 @@ def run(
     )
     log(f"literature ready: {len(papers)} papers")
 
+    # Phase 14 Session 2: structured evidence extraction, ranked, ON TOP of
+    # the same already-deduplicated `papers` list — never a second discovery
+    # pass. Cache-first (`evidence.gather_evidence` checks the shared
+    # library-level cache before re-extracting a paper this installation has
+    # already processed), same convention `literature_cache.gather()` itself
+    # already uses for discovery.
+    pdf_dir = os.path.join(lit_dir, "pdfs")
+    evidence_records = evidence.gather_evidence(papers, pdf_dir, library, product_context=anchor)
+    ranked_evidence = evidence.rank_evidence(evidence_records)
+    evidence.save_session_evidence(lit_dir, ranked_evidence)
+    studies = evidence.study_count(evidence_records)
+    class_counts: Dict[str, int] = {}
+    for r in evidence_records:
+        class_counts[r.evidence_class.value] = class_counts.get(r.evidence_class.value, 0) + 1
+    log(f"evidence: {len(evidence_records)} record(s) from {studies} unique studies "
+        f"(classes: {class_counts or 'none'})")
+
     system = _system_prompt(constraints, n)
-    context = _paper_context(papers, os.path.join(lit_dir, "pdfs"))
+    context = _paper_context(papers, pdf_dir)
     full = context.count("--- FULL TEXT:")
     log(f"evidence: {full} full text(s) read, {len(papers) - full} abstract-only")
+    evidence_block = evidence.build_evidence_context_block(ranked_evidence)
     user = (f"PRODUCT BRIEF: {json.dumps(brief, ensure_ascii=False)}\n\n"
+            f"{evidence_block}\n\n"
             f"OPEN-ACCESS LITERATURE (full text where we could obtain it, "
             f"otherwise the abstract):\n{context}")
 

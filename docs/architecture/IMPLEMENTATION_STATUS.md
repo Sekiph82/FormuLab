@@ -2203,7 +2203,7 @@ automatable scope to re-test. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`. **No Phase 13 session planned.**
 
-### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 1) — LITERATURE SEARCH ORCHESTRATOR, FINDPAPERS ADAPTER, NATIVE OA ADAPTERS, CANONICALPAPER DEDUP WIRED — PLUS A REAL DATA-CONTRACT BUGFIX FOR THE OUT-OF-SEQUENCE REQUEST/RESULT SCREENS
+### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 2) — STRUCTURED EVIDENCE EXTRACTION, A-E CLASSIFICATION, EXPLAINABLE RANKING, FORMULA-SYNTHESIS INTEGRATION
 
 Phase number and full approved product-decision scope registered
 while Phase 13 was active (Session 4A), documentation only — no code
@@ -2333,13 +2333,45 @@ access remain separate stages; no paywall bypass). Python:
 the release binary with all of the above; `FormuLab.lnk` re-verified
 against the fresh executable.
 
+**Session 2**: new `runtime/pipeline/evidence.py` — deterministic,
+rule-based structured evidence extraction (never a second LLM call),
+evidence-class A-E assignment (content-based, never provider-based;
+Class A requires real full text + a genuine complete-formulation paper +
+an actual extracted concentration + a reported outcome), and explainable
+ranking (`EvidenceScore` — class weight, full-text bonus, experimental-
+data bonus, domain comparability, consistency — provider count
+structurally absent from the score, cannot multiply weight). Two real
+extraction bugs found and fixed by testing against a realistic sentence
+this session: a naive nearest-number search attributed each ingredient's
+own reported concentration to its NEIGHBOR in a list like "X at 5.0%, Y
+at 8.0%, Z at 1.0%" (fixed with a directional, span-aware, no-
+intervening-mention rule); a keyword-overlap domain check wrongly
+demoted a real antifungal-efficacy study to Class D for never literally
+saying "shampoo" (fixed with an explicit other-domain-signal list).
+`study_count()` counts unique papers by DOI/title, never by provider or
+record count — one paper found by 5 providers is 1 study; one paper with
+2 distinct findings is 1 study, 2 records. `pipeline.py::run()` wired:
+calls the same already-deduplicated `papers` list (no second discovery
+pass), ranks, persists (`evidence.json` + a shared library-level cache),
+and inserts a FACT FROM EVIDENCE / FORMULAB INFERENCE / MISSING block
+into the existing prompt — augmented, not rewritten; `cards`' own shape
+is unchanged, so neither Rust nor either frontend UI needed a change.
+Verified against LIVE data: a disposable run produced 9 real evidence
+records from 2 unique studies including a genuine Class-A record
+(salicylic acid, 2.0%, real outcome sentence, real DOI) from an actual
+2026 paper. `formulation_v2.rs` now also embeds `evidence.py` (a new
+hard dependency of `pipeline.py`), caught before building via the same
+embedded-layout-simulation check that would have caught Session 1's
+equivalent gap. Python: 151/151 passing (122 baseline + 29 new). No
+frontend file touched. `pnpm tauri build` rebuilt the release binary;
+`FormuLab.lnk` re-verified.
+
 Full design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md`
 §11a (Session 0), §13 (frontend implementation), §13a (data-contract
-repair + dual-flow state), §14 (Session 1); handoff:
-`docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase 14 Session 2**
-(structured evidence extraction + evidence-class A-E assignment +
-ranking, wired to the existing formula-synthesis step — not started
-automatically by this round).
+repair + dual-flow state), §14 (Session 1), §15 (Session 2); handoff:
+`docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase 14 Session 3**
+(true multi-alternative V1/V2/V3+ formulation synthesis grounded in
+Session 2's evidence model — not started automatically by this round).
 
 ## Not yet started
 

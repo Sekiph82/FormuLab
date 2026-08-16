@@ -78,6 +78,56 @@ class PipelineTests(unittest.TestCase):
                 persisted_brief = json.load(fh)
             self.assertEqual(persisted_brief["brief"]["target"], "anti-dandruff shampoo")
 
+    # --- Phase 14 Session 2: structured evidence reaches formula synthesis ---
+
+    def test_synthesis_prompt_receives_the_ranked_evidence_block(self):
+        captured = {}
+
+        def capturing_llm(**kwargs):
+            captured.update(kwargs)
+            return json.dumps({"formulas": [
+                {"name": "Test", "purpose": "p",
+                 "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"}]},
+            ]})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=1,
+                download_fulltexts=False, llm_call=capturing_llm,
+            )
+            self.assertEqual(res["status"], "ok")
+            self.assertIn("FACT FROM EVIDENCE", captured["user"])
+            self.assertIn("FORMULAB INFERENCE", captured["user"])
+            self.assertIn("FACT FROM EVIDENCE", captured["system"])
+
+            # Session-local evidence.json was written, and it is real
+            # (traceable to the seeded papers' own DOIs), not empty filler.
+            evidence_path = os.path.join(out, "literature", "evidence.json")
+            self.assertTrue(os.path.isfile(evidence_path))
+            with open(evidence_path, encoding="utf-8") as fh:
+                persisted_evidence = json.load(fh)
+            self.assertTrue(persisted_evidence)
+            self.assertTrue(all(r["paper_doi"].startswith("10.1/") for r in persisted_evidence))
+
+    def test_formulation_generation_still_works_with_evidence_wiring_active(self):
+        # Regression: Session 2 must not have broken ordinary generation.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=2,
+                download_fulltexts=False, llm_call=mock_llm([
+                    {"name": "A", "purpose": "p", "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"}]},
+                    {"name": "B", "purpose": "p", "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"}]},
+                ]),
+            )
+            self.assertEqual(res["status"], "ok")
+            self.assertEqual(len(res["cards"]), 2)
+
     def test_validation_flags_sulfate_in_antidandruff(self):
         with tempfile.TemporaryDirectory() as tmp:
             lib = os.path.join(tmp, "library"); seed_library(lib)
