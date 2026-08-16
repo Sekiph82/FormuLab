@@ -585,6 +585,92 @@ def study_count(records: List[EvidenceRecord]) -> int:
     return len(seen)
 
 
+# ------------------------------------------ strict comparability grouping --
+
+@dataclass(frozen=True)
+class ComparableConcentrationStats:
+    """Phase 14 Session 4 — only ever built from a STRICTLY comparable
+    evidence group (architecture doc §8's own requirement): the same
+    normalized ingredient, the same reported unit AND basis (never mixing
+    w/w with active-matter, or an unlabeled basis with a labeled one), and
+    at least 2 records from at least 2 UNIQUE studies (`study_count`, never
+    provider count) — a single data point is a fact, not a "range", and two
+    mentions of the same study are not independent corroboration. Anything
+    short of this returns `None` from `compute_comparable_stats` below,
+    never a fabricated range/median built by silently pooling incompatible
+    or under-supported data."""
+
+    observed_min: float
+    observed_max: float
+    median: float
+    unique_study_count: int
+    unit: str
+    basis: str
+    confidence: str
+    """`"low"` (2 studies), `"medium"` (3-4), `"high"` (5+) — a documented,
+    inspectable rule, never an opaque number."""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+def _confidence_for_study_count(n: int) -> str:
+    if n >= 5:
+        return "high"
+    if n >= 3:
+        return "medium"
+    return "low"
+
+
+def strictly_comparable_group(records: List[EvidenceRecord], ingredient_key: str) -> List[EvidenceRecord]:
+    """Every record in the SAME ingredient, WITH a concentration, grouped by
+    `(unit, basis)` — returns only the largest such group (the most common,
+    most comparable measurement convention actually present in the
+    evidence), never a group formed by mixing two different bases. An empty
+    or unlabeled `basis` is still its own group — never silently merged
+    with a labeled one, since "unlabeled" is not known to mean the same
+    thing as any specific labeled basis."""
+    candidates = [r for r in records if r.ingredient_key == ingredient_key and r.concentration]
+    if not candidates:
+        return []
+    groups: Dict[tuple, List[EvidenceRecord]] = {}
+    for r in candidates:
+        key = (r.concentration.unit, r.concentration.basis)
+        groups.setdefault(key, []).append(r)
+    best_key = max(groups, key=lambda k: len(groups[k]))
+    return groups[best_key]
+
+
+def compute_comparable_stats(records: List[EvidenceRecord], ingredient_key: str) -> Optional[ComparableConcentrationStats]:
+    """`None` ("Insufficient comparable evidence") unless the strictly
+    comparable group (same ingredient, same unit+basis) has real values
+    from at least 2 UNIQUE studies — never a range/median computed across
+    incompatible bases, unrelated ingredients, or a single study's own
+    repeated mentions of itself."""
+    group = strictly_comparable_group(records, ingredient_key)
+    if len(group) < 2:
+        return None
+    studies = study_count(group)
+    if studies < 2:
+        return None
+    values = sorted(r.concentration.value for r in group)
+    unit, basis = group[0].concentration.unit, group[0].concentration.basis
+    return ComparableConcentrationStats(
+        observed_min=values[0], observed_max=values[-1],
+        median=round(_median(values), 4),
+        unique_study_count=studies, unit=unit, basis=basis,
+        confidence=_confidence_for_study_count(studies),
+    )
+
+
+def _median(values: List[float]) -> float:
+    n = len(values)
+    mid = n // 2
+    if n % 2:
+        return values[mid]
+    return (values[mid - 1] + values[mid]) / 2
+
+
 # ---------------------------------------------------------------- ranking ---
 
 @dataclass(frozen=True)

@@ -2203,7 +2203,7 @@ automatable scope to re-test. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`. **No Phase 13 session planned.**
 
-### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 3) — EVIDENCE-GROUNDED, REQUEST-AWARE MULTI-ALTERNATIVE FORMULATION SYNTHESIS
+### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 4) — INGREDIENT EVIDENCE INTELLIGENCE, LITERATURE CORPUS GUARANTEE, FORMULA PROVENANCE AUDIT, RICH EVIDENCE UI
 
 Phase number and full approved product-decision scope registered
 while Phase 13 was active (Session 4A), documentation only — no code
@@ -2402,14 +2402,82 @@ Frontend: 136 files/1210 tests (1205 baseline + 5 new), zero
 regressions. `pnpm tauri build` rebuilt the release binary; `FormuLab.lnk`
 re-verified.
 
+**Session 4**: §1 audit — one real code path (`llm.py::call()`)
+produces every formula, zero mock/test-leakage into production, API
+keys never logged at any layer (proven with a deliberately fake key
+string, grepped absent from every output file). New
+`runtime/pipeline/provenance.py` — `GenerationProvenance` persisted
+only after a real successful `llm_call`; `IngredientOrigin`
+classification (`scientific_evidence`/`deterministic_rule`/
+`user_required`/`ai_formulation_inference` real+emitted;
+`supplier_data`/`internal_formulab_data` real+reserved, never
+fabricated since no live masterdata connection exists in the
+generation path) — a real double-labeling bug found and fixed
+(`classify_ingredient_origin()` now checks user-preferred ingredients
+first, excluding them from the deterministic-rule check, since
+`rules.py` folds preferred ingredients into its own `prefer` list).
+Real corpus-shrinking bug found and fixed in
+`literature_cache.py::gather()`: `fetch_pdfs(candidates,
+target=target)` stopped early once `target` full texts were obtained,
+silently dropping relevant abstract-only candidates from the 15-source
+corpus; fixed by fixing the corpus (`selected = candidates[:target]`)
+BEFORE any download attempt, then calling `fetch_pdfs(selected,
+target=0)` purely for its in-place full-text-annotation side effect,
+never again as the corpus-defining filter — a genuine shortfall is now
+reported honestly, never padded. New `ResearchCorpusSummary`
+(`summarize_research_corpus()`) persists raw/qualifying/target/
+full-text/abstract-only/metadata-only/evidence-record/unique-study
+counts as explicitly separate fields (disclosed gap:
+`raw_candidate_count` currently equals `qualifying_count` pending
+`pipeline.py` passing the wider pre-ranking pool through). New
+`evidence.strictly_comparable_group()`/`compute_comparable_stats()` —
+same ingredient key AND same `(unit, basis)` tuple, ≥2 unique studies
+required, else "insufficient comparable evidence"; proven to exclude
+incompatible bases, unrelated ingredients, and provider duplication.
+The exact reported "129.5% w/w accounted for" bug found and fixed in
+TWO places: `generatedFormula.ts::parsePercent()`'s regex matched the
+literal "100" inside "q.s. 100" (fixed with a new `isQsIngredient()`
+check); no authoritative deterministic calculation existed anywhere
+(added `provenance.compute_mass_balance()` — explicit ingredients
+summed, q.s. closes to exactly 100%, ambiguous/negative/malformed q.s.
+states flagged — frontend now prefers this over its own client sum).
+New `provenance.assess_quality()` — documented, never-hard-reject
+`QualityGateFinding` list, every factor named in
+`QUALITY_GATE_FACTORS`, no hidden thresholds. `FormulationResultPage.
+tsx`: always-visible Origin badges per ingredient, an explicit
+AI-only-inference disclosure banner, the Evidence & Sources tab
+rewritten to show the FULL research corpus (new Rust
+`read_literature()` command reading `papers.json`, backward-compatible
+empty-array fallback) with 6 real separate counters and a real table,
+the Ingredient Evidence panel's "Why this concentration" now shows
+real observed-range/median/confidence when strictly comparable
+evidence exists, "Decision Factors" lists real origins instead of the
+old generic placeholder. All Session 1-3 systems preserved unchanged
+(`CanonicalPaper` dedup, hybrid providers, OA/full-text safety,
+evidence extraction/A-E classification/ranking, request-aware
+strategies, per-version validation, diversity validation, version-
+scoped evidence, explainable scores, dual formulation-UI state);
+Manufacturing Procedure/Critical Parameters/Equipment/full Safety/
+Regulatory intelligence deliberately not built — remains Session 5/6
+scope. Verified against LIVE data: a disposable multi-constraint
+network smoke test achieved the full 15/15 target unique relevant
+document corpus (14 abstract-only correctly retained, 1 full text),
+28 evidence records from 7 unique studies. No real LLM provider is
+configured in this session's own environment (confirmed by direct
+inspection, not guessed) — documented honestly rather than assumed.
+Python: 213/213 passing (180 baseline + 33 new). Rust: 7/7 (2 new).
+Frontend: 137 files/1231 tests (1210 baseline + 21 new), zero
+regressions. `pnpm tauri build` rebuilt the release binary;
+`FormuLab.lnk` re-verified.
+
 Full design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md`
 §11a (Session 0), §13 (frontend implementation), §13a (data-contract
 repair + dual-flow state), §14 (Session 1), §15 (Session 2), §16
-(Session 3); handoff: `docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase
-14 Session 4** (Ingredient Evidence panel's remaining rich statistics —
-observed range/median/confidence — plus the 9-tab result screen's
-remaining not-yet-available tabs, which still depend on Sessions 5/6 —
-not started automatically by this round).
+(Session 3), §17 (Session 4); handoff: `docs/handoffs/
+PHASE14_CURRENT.md`. **Next: Phase 14 Session 5** (manufacturing-
+process intelligence — Manufacturing Procedure/Critical Parameters/
+Equipment tabs; full Safety/Regulatory evidence integration remains
+Session 6 — not started automatically by this round).
 
 ## Not yet started
 

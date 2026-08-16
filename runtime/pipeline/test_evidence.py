@@ -297,5 +297,69 @@ class PersistenceCacheTests(unittest.TestCase):
             self.assertEqual(cache_before, cache_after)
 
 
+# --- Phase 14 Session 4: strict comparability grouping + rich statistics ---
+
+def _study(doi, pct, unit="%", basis=""):
+    p = {"doi": doi, "title": f"study {doi}", "year": "2021", "authors": "A", "venue": "J",
+         "unique_source_count": 1, "provenance_sources": ["openalex"]}
+    text = f"Piroctone Olamine at {pct}{unit} reduced flaking significantly in this trial."
+    return ev.extract_evidence_from_paper(p, text, "full_text", "full_text:RESULTS")
+
+
+class ComparableStatsTests(unittest.TestCase):
+    def test_observed_range_and_median_from_genuinely_comparable_evidence(self):
+        records = _study("10.1/a", 1.0) + _study("10.1/b", 1.2) + _study("10.1/c", 0.8)
+        stats = ev.compute_comparable_stats(records, "piroctone-olamine")
+        self.assertIsNotNone(stats)
+        self.assertEqual(stats.observed_min, 0.8)
+        self.assertEqual(stats.observed_max, 1.2)
+        self.assertEqual(stats.median, 1.0)
+        self.assertEqual(stats.unique_study_count, 3)
+
+    def test_single_study_is_insufficient_comparable_evidence(self):
+        records = _study("10.1/a", 1.0)
+        self.assertIsNone(ev.compute_comparable_stats(records, "piroctone-olamine"))
+
+    def test_confidence_scales_with_unique_study_count(self):
+        two = ev.compute_comparable_stats(_study("10.1/a", 1.0) + _study("10.1/b", 1.1), "piroctone-olamine")
+        five = ev.compute_comparable_stats(
+            _study("10.1/a", 1.0) + _study("10.1/b", 1.1) + _study("10.1/c", 0.9)
+            + _study("10.1/d", 1.0) + _study("10.1/e", 1.2),
+            "piroctone-olamine",
+        )
+        self.assertEqual(two.confidence, "low")
+        self.assertEqual(five.confidence, "high")
+
+    def test_incompatible_bases_are_excluded_from_the_statistic(self):
+        # Two "%" records (comparable) plus one "wt%" outlier (a different
+        # basis) — the wt% record must never be pooled into the same range.
+        records = _study("10.1/a", 1.0, unit="%") + _study("10.1/b", 1.2, unit="%") + _study("10.1/c", 5.0, unit="wt%")
+        group = ev.strictly_comparable_group(records, "piroctone-olamine")
+        self.assertTrue(all(r.concentration.unit == "%" for r in group))
+        stats = ev.compute_comparable_stats(records, "piroctone-olamine")
+        self.assertEqual(stats.observed_max, 1.2)  # never 5.0
+
+    def test_provider_duplication_never_inflates_the_unique_study_count(self):
+        # The same study, found by 5 providers, is still 1 study — reuses
+        # Session 1's own CanonicalPaper dedup guarantee, unaffected by
+        # this session's new statistics layer.
+        p = {"doi": "10.1/multi", "title": "t", "year": "2021", "authors": "A", "venue": "J",
+             "unique_source_count": 5, "provenance_sources": ["openalex", "openaire", "europepmc", "crossref", "doaj"]}
+        text = "Piroctone Olamine at 1.0% reduced flaking. Piroctone Olamine at 1.0% also reduced itching."
+        many_records_one_study = ev.extract_evidence_from_paper(p, text, "full_text", "full_text:RESULTS")
+        another_study = _study("10.1/other", 1.1)
+        stats = ev.compute_comparable_stats(many_records_one_study + another_study, "piroctone-olamine")
+        self.assertEqual(stats.unique_study_count, 2)  # not 3, not 6
+
+    def test_unrelated_ingredient_never_pollutes_the_group(self):
+        piroctone = _study("10.1/a", 1.0)
+        zinc = ev.extract_evidence_from_paper(
+            {"doi": "10.1/z", "title": "t", "year": "2021", "authors": "A", "venue": "J"},
+            "Zinc Pyrithione at 2.0% also showed antifungal efficacy.", "full_text", "full_text:RESULTS",
+        )
+        group = ev.strictly_comparable_group(piroctone + zinc, "piroctone-olamine")
+        self.assertTrue(all(r.ingredient_key == "piroctone-olamine" for r in group))
+
+
 if __name__ == "__main__":
     unittest.main()

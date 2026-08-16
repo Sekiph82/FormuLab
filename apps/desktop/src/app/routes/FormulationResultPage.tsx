@@ -19,7 +19,7 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { readSession, type FormulationCard, type SessionDetail } from "@/lib/formulationV2";
+import { readSession, type FormulationCard, type LiteratureDocument, type SessionDetail } from "@/lib/formulationV2";
 import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
 import { cn } from "@/lib/cn";
 
@@ -139,6 +139,7 @@ export function FormulationResultPage() {
               tab={tab}
               card={card}
               formula={formula}
+              literature={session.literature ?? []}
               selectedIngredient={selectedIngredient}
               onSelectIngredient={setSelectedIngredient}
               t={t}
@@ -317,6 +318,7 @@ function TabContent({
   tab,
   card,
   formula,
+  literature,
   selectedIngredient,
   onSelectIngredient,
   t,
@@ -324,6 +326,7 @@ function TabContent({
   tab: ResultTab;
   card: FormulationCard | undefined;
   formula: GeneratedFormula | undefined;
+  literature: LiteratureDocument[];
   selectedIngredient: number | null;
   onSelectIngredient: (i: number) => void;
   t: TFunction<readonly ["session", "common"]>;
@@ -344,7 +347,7 @@ function TabContent({
     case "regulatory":
       return <RegulatoryTab t={t} />;
     case "evidence":
-      return <EvidenceTab formula={formula} t={t} />;
+      return <EvidenceTab card={card} formula={formula} literature={literature} t={t} />;
     case "alternatives":
       return <NotYetAvailableTab icon={<ClipboardList size={16} />} title={t("formulationResult.tabs.alternatives")} body={t("formulationResult.alternatives.notAvailable")} />;
     case "summary":
@@ -400,7 +403,15 @@ function FormulaTab({
   t: TFunction<readonly ["session", "common"]>;
 }) {
   const ingredients = formula?.ingredients ?? [];
-  const total = totalWeightPct(formula);
+  // Phase 14 Session 4: prefer the deterministic, authoritative
+  // `card.mass_balance` (`provenance.py::compute_mass_balance()`) — this IS
+  // the fix for the "129.5% w/w accounted for" bug (q.s.-to-100 closing the
+  // formula, never double-counted as an additional 100%). Falls back to the
+  // client-side (now also bug-fixed) `totalWeightPct` for a pre-Session-4
+  // session that has no `mass_balance` at all.
+  const mb = card.mass_balance;
+  const total = mb?.final_total ?? totalWeightPct(formula);
+  const massBalanceOk = mb ? mb.status === "complete" : undefined;
   return (
     <div className="rounded-card border border-border bg-surface p-4">
       <div className="mb-2 flex items-center gap-2">
@@ -409,9 +420,18 @@ function FormulaTab({
       </div>
       <div className="mb-3 flex flex-wrap gap-3 text-[11px] text-muted">
         <span>{t("formulationResult.formula.totalIngredients", { count: ingredients.length })}</span>
-        <span>{total !== undefined ? t("formulationResult.formula.totalWeight", { pct: total }) : t("formulationResult.formula.totalWeightUnavailable")}</span>
+        <span className={massBalanceOk === false ? "font-medium text-error" : undefined}>
+          {total !== undefined ? t("formulationResult.formula.totalWeight", { pct: total }) : t("formulationResult.formula.totalWeightUnavailable")}
+        </span>
         {formula?.references?.length ? <span>{t("formulationResult.formula.citationCount", { count: formula.references.length })}</span> : null}
       </div>
+
+      {mb && mb.status !== "complete" && (
+        <div className="mb-3 rounded-input border border-error/40 bg-error/10 px-3 py-2 text-[11px] text-error">
+          {t(`formulationResult.formula.massBalance.${mb.status}`)}
+          {mb.issues.length > 0 ? ` — ${mb.issues.join("; ")}` : ""}
+        </div>
+      )}
 
       {card.violations && card.violations.length > 0 && (
         <div className="mb-3 rounded-input border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning">
@@ -429,18 +449,21 @@ function FormulaTab({
               <th className="py-1.5 pr-2">{t("formulationResult.formula.columns.weightPct")}</th>
               <th className="py-1.5 pr-2">{t("formulationResult.formula.columns.evidence")}</th>
               <th className="py-1.5 pr-2">{t("formulationResult.formula.columns.evidenceClass")}</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.formula.columns.origin")}</th>
             </tr>
           </thead>
           <tbody>
             {ingredients.map((ing, i) => {
-              // Phase 14 Session 3 — real per-ingredient evidence, when this
-              // session has it; falls back to the honest "—"/not-yet-linked
-              // placeholder for a pre-Session-3 session exactly as before.
+              // Phase 14 Session 3/4 — real per-ingredient evidence and
+              // origin, when this session has them; falls back to the
+              // honest "—"/not-yet-linked placeholder for a pre-Session-3/4
+              // session exactly as before.
               const key = normalizeIngredientKey(ing.inci);
               const rowLinks = (card.evidence_links ?? []).filter((l) => l.ingredient_key === key);
               const strongestClass = rowLinks.length > 0
                 ? rowLinks.map((l) => l.evidence_class).sort((a, b) => CLASS_RANK[a] - CLASS_RANK[b])[0]
                 : undefined;
+              const origins = card.ingredient_origins?.[key] ?? [];
               return (
                 <tr
                   key={ingredientId(i, ing)}
@@ -469,6 +492,17 @@ function FormulaTab({
                       </td>
                     </>
                   )}
+                  <td className="py-1.5 pr-2">
+                    {origins.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {origins.map((o) => (
+                          <OriginBadge key={o} origin={o} t={t} />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted">{"—"}</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -513,6 +547,13 @@ function IngredientEvidencePanel({
   const links = (card?.evidence_links ?? []).filter((l) => l.ingredient_key === key);
   const alignment = card?.concentration_alignment?.[key];
   const strongest = links.length > 0 ? links.slice().sort((a, b) => CLASS_RANK[a.evidence_class] - CLASS_RANK[b.evidence_class])[0] : undefined;
+  // Phase 14 Session 4 — real, strictly-comparable statistics
+  // (`evidence.py::compute_comparable_stats()`) when the session has them;
+  // `null`/absent means the pipeline itself judged the evidence not
+  // strictly comparable enough (§8) — never a fabricated range.
+  const stats = card?.comparable_stats?.[key];
+  const origins = card?.ingredient_origins?.[key] ?? [];
+  const isAiOnly = origins.length === 1 && origins[0] === "ai_formulation_inference";
 
   return (
     <div className="rounded-card border border-border bg-surface p-4">
@@ -533,6 +574,22 @@ function IngredientEvidencePanel({
         <div className="text-[18px] font-semibold text-text">{ing.weight_pct || "—"}</div>
       </div>
 
+      {isAiOnly && (
+        <div className="mb-3 rounded-input border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] leading-relaxed text-warning">
+          {t("formulationResult.evidencePanel.aiInferenceOnly")}
+        </div>
+      )}
+
+      {origins.length > 0 && (
+        <EvidenceSection title={t("formulationResult.evidencePanel.origin")}>
+          <div className="flex flex-wrap gap-1">
+            {origins.map((o) => (
+              <OriginBadge key={o} origin={o} t={t} />
+            ))}
+          </div>
+        </EvidenceSection>
+      )}
+
       <EvidenceSection title={t("formulationResult.evidencePanel.whyThisIngredient")}>
         <p className="text-[11.5px] leading-relaxed text-muted">
           {ing.function
@@ -542,7 +599,28 @@ function IngredientEvidencePanel({
       </EvidenceSection>
 
       <EvidenceSection title={t("formulationResult.evidencePanel.whyThisConcentration", { pct: ing.weight_pct || "—" })}>
-        {alignment === "evidence_supported" && strongest ? (
+        {stats ? (
+          <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-text">
+              <div>
+                <span className="text-muted">{t("formulationResult.evidencePanel.observedRange")}: </span>
+                {stats.observed_min}–{stats.observed_max}{stats.unit}
+              </div>
+              <div>
+                <span className="text-muted">{t("formulationResult.evidencePanel.median")}: </span>
+                {stats.median}{stats.unit}
+              </div>
+              <div>
+                <span className="text-muted">{t("formulationResult.evidencePanel.studyCount")}: </span>
+                {stats.unique_study_count}
+              </div>
+              <div>
+                <span className="text-muted">{t("formulationResult.evidencePanel.confidence")}: </span>
+                {t(`formulationResult.evidencePanel.confidenceLevels.${stats.confidence}`)}
+              </div>
+            </div>
+          </div>
+        ) : alignment === "evidence_supported" && strongest ? (
           <p className="text-[11.5px] leading-relaxed text-text">
             {t("formulationResult.evidencePanel.evidenceSupported", {
               class: strongest.evidence_class,
@@ -557,7 +635,15 @@ function IngredientEvidencePanel({
       </EvidenceSection>
 
       <EvidenceSection title={t("formulationResult.evidencePanel.decisionFactors")}>
-        <p className="text-[11.5px] text-muted">{t("formulationResult.evidencePanel.decisionFactorsNotComputed")}</p>
+        {origins.length > 0 ? (
+          <ul className="list-disc space-y-0.5 pl-4 text-[11.5px] text-muted">
+            {origins.map((o) => (
+              <li key={o}>{t(`formulationResult.formula.origins.${o}`, { defaultValue: o })}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[11.5px] text-muted">{t("formulationResult.evidencePanel.decisionFactorsNotComputed")}</p>
+        )}
       </EvidenceSection>
 
       <EvidenceSection title={t("formulationResult.evidencePanel.supportingSources")}>
@@ -610,6 +696,25 @@ function IngredientEvidencePanel({
 /** Lower rank = stronger evidence, for picking the single strongest linked
  *  record to summarize in "Why this concentration?" above. */
 const CLASS_RANK: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+
+/** Phase 14 Session 4 §11 — a compact origin/support badge, so an
+ *  evidence-free AI-selected ingredient no longer looks identical to an
+ *  evidence-supported one in the Formula table. Never hidden behind a
+ *  tooltip only — the label itself is always visible text. */
+function OriginBadge({ origin, t }: { origin: string; t: TFunction<readonly ["session", "common"]> }) {
+  const isAiOnly = origin === "ai_formulation_inference";
+  return (
+    <span
+      className={cn(
+        "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+        isAiOnly ? "bg-warning/15 text-warning" : "bg-surface-2 text-muted",
+      )}
+      title={t(`formulationResult.formula.origins.${origin}`, { defaultValue: origin })}
+    >
+      {t(`formulationResult.formula.originsShort.${origin}`, { defaultValue: origin })}
+    </span>
+  );
+}
 
 function EvidenceSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -672,10 +777,39 @@ function RegulatoryTab({ t }: { t: TFunction<readonly ["session", "common"]> }) 
 
 // ------------------------------------------------------------ Tab 7 ---
 
-function EvidenceTab({ formula, t }: { formula: GeneratedFormula | undefined; t: TFunction<readonly ["session", "common"]> }) {
+function EvidenceTab({
+  card,
+  formula,
+  literature,
+  t,
+}: {
+  card: FormulationCard;
+  formula: GeneratedFormula | undefined;
+  literature: LiteratureDocument[];
+  t: TFunction<readonly ["session", "common"]>;
+}) {
   const refs = formula?.references ?? [];
+  const corpus = card.research_corpus;
+  // Phase 14 Session 4 §7: the FULL research corpus, not merely the 2-3
+  // papers linked to this version's own selected ingredients — a 15-
+  // provider-hit count must never be presented as "15 studies" (§7's own
+  // explicit warning), so this table shows the real, already-deduplicated
+  // `literature` list `read_session` now returns, each row's own
+  // `unique_source_count` visible rather than implied.
+  const linkedDois = new Set((card.evidence_links ?? []).map((l) => l.paper_doi).filter(Boolean));
   return (
     <div className="rounded-card border border-border bg-surface p-4">
+      {corpus && (
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <CorpusCounter label={t("formulationResult.evidenceTab.counters.researchSources")} value={`${corpus.qualifying_count} / ${corpus.target_count}`} />
+          <CorpusCounter label={t("formulationResult.evidenceTab.counters.uniqueStudies")} value={String(corpus.unique_evidence_study_count)} />
+          <CorpusCounter label={t("formulationResult.evidenceTab.counters.fullText")} value={String(corpus.full_text_count)} />
+          <CorpusCounter label={t("formulationResult.evidenceTab.counters.abstractOnly")} value={String(corpus.abstract_only_count)} />
+          <CorpusCounter label={t("formulationResult.evidenceTab.counters.evidenceRecords")} value={String(corpus.evidence_record_count)} />
+          <CorpusCounter label={t("formulationResult.evidenceTab.counters.formulaLinked")} value={String(linkedDois.size)} />
+        </div>
+      )}
+
       <EvidenceSection title={t("formulationResult.evidenceTab.summary")}>
         <p className="text-[11.5px] text-muted">{t("formulationResult.evidenceTab.summaryBody", { count: refs.length })}</p>
       </EvidenceSection>
@@ -683,7 +817,42 @@ function EvidenceTab({ formula, t }: { formula: GeneratedFormula | undefined; t:
         <p className="text-[11.5px] text-muted">{t("formulationResult.evidenceTab.qualityNotYetClassified")}</p>
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.evidenceTab.sources")}>
-        {refs.length > 0 ? (
+        {literature.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-[11.5px]">
+              <thead>
+                <tr className="border-b border-border-faint text-left text-[10px] uppercase text-muted">
+                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.title")}</th>
+                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.author")}</th>
+                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.year")}</th>
+                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.doi")}</th>
+                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.fullText")}</th>
+                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.providers")}</th>
+                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.usedByVersion")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {literature.map((doc, i) => (
+                  <tr key={i} className="border-b border-border-faint/60">
+                    <td className="py-1 pr-2 text-text">{doc.title || "—"}</td>
+                    <td className="py-1 pr-2 text-muted">{doc.authors || "—"}</td>
+                    <td className="py-1 pr-2 text-muted">{doc.year || "—"}</td>
+                    <td className="py-1 pr-2 text-muted">{doc.doi || "—"}</td>
+                    <td className="py-1 pr-2 text-muted">
+                      {doc.pdf_file
+                        ? t("formulationResult.evidenceTab.fullTextYes")
+                        : doc.fulltext || t("formulationResult.evidenceTab.fullTextNo")}
+                    </td>
+                    <td className="py-1 pr-2 text-muted">{(doc.provenance_sources ?? [doc.source_db]).join(", ")}</td>
+                    <td className="py-1 pr-2 text-muted">
+                      {linkedDois.has(doc.doi) ? card.version?.toUpperCase() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : refs.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[480px] border-collapse text-[11.5px]">
               <thead>
@@ -709,8 +878,21 @@ function EvidenceTab({ formula, t }: { formula: GeneratedFormula | undefined; t:
         )}
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.evidenceTab.gaps")}>
-        <p className="text-[11.5px] text-muted">{t("formulationResult.evidenceTab.gapsBody")}</p>
+        <p className="text-[11.5px] text-muted">
+          {corpus && corpus.qualifying_count < corpus.target_count
+            ? t("formulationResult.evidenceTab.corpusShortfall", { found: corpus.qualifying_count, target: corpus.target_count })
+            : t("formulationResult.evidenceTab.gapsBody")}
+        </p>
       </EvidenceSection>
+    </div>
+  );
+}
+
+function CorpusCounter({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-input border border-border bg-surface-2/50 p-2">
+      <div className="text-[9px] uppercase tracking-wide text-muted">{label}</div>
+      <div className="text-[15px] font-semibold text-text">{value}</div>
     </div>
   );
 }
@@ -744,8 +926,34 @@ function SummaryTab({ card, formula, t }: { card: FormulationCard; formula: Gene
         <p className="text-[11.5px] text-muted">{t("formulationResult.summary.costNotAvailable")}</p>
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.summary.confidence")}>
-        <p className="text-[11.5px] text-muted">{t("formulationResult.summary.confidenceNotYetComputed")}</p>
+        {card.score ? (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11.5px] text-text">
+            <div><span className="text-muted">{t("formulationResult.summary.scoreFactors.hardConstraintCompliance")}: </span>{Math.round(card.score.hard_constraint_compliance * 100)}%</div>
+            <div><span className="text-muted">{t("formulationResult.summary.scoreFactors.evidenceStrength")}: </span>{Math.round(card.score.evidence_strength * 100)}%</div>
+            <div><span className="text-muted">{t("formulationResult.summary.scoreFactors.formulationCompleteness")}: </span>{Math.round(card.score.formulation_completeness * 100)}%</div>
+            <div><span className="text-muted">{t("formulationResult.summary.scoreFactors.evidenceGapPenalty")}: </span>{Math.round(card.score.evidence_gap_penalty * 100)}%</div>
+          </div>
+        ) : (
+          <p className="text-[11.5px] text-muted">{t("formulationResult.summary.confidenceNotYetComputed")}</p>
+        )}
       </EvidenceSection>
+      {card.quality_gate && card.quality_gate.length > 0 && (
+        <EvidenceSection title={t("formulationResult.summary.qualityNotes")}>
+          <ul className="space-y-1">
+            {card.quality_gate.map((f, i) => (
+              <li
+                key={i}
+                className={cn(
+                  "rounded-input px-2.5 py-1.5 text-[11.5px]",
+                  f.severity === "warning" ? "border border-warning/30 bg-warning/5 text-warning" : "text-muted",
+                )}
+              >
+                {f.message}
+              </li>
+            ))}
+          </ul>
+        </EvidenceSection>
+      )}
       {formula?.warnings && formula.warnings.length > 0 && (
         <EvidenceSection title={t("formulationResult.summary.risks")}>
           <ul className="space-y-1">

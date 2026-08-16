@@ -11,9 +11,17 @@ even after a real, successful generation — see the architecture doc §13a
 for the full trace and fix. A later Session 3 round (architecture doc
 §16) wired real strategy titles/rationale/scores into the version cards
 and real evidence-class/DOI/outcome data into the Formula tab and the
-Ingredient Evidence panel — both minimum real wiring, not the full
-observed-range/median/confidence statistics build-out, which remains
-explicitly deferred. Both this new flow and the pre-existing `/live`
+Ingredient Evidence panel — minimum real wiring at that point, not yet
+the full statistics build-out. Session 4 (architecture doc §17) closed
+that gap: real observed-range/median/unique-study-count/confidence
+statistics (from strict same-ingredient/same-basis comparability
+grouping) now appear in the Ingredient Evidence panel when comparable
+evidence exists; the Formula tab shows always-visible per-ingredient
+Origin badges and a deterministic mass-balance total (fixing a real
+q.s.-double-counting display bug); the Evidence & Sources tab now shows
+the full research corpus with real, separate counters (never conflating
+corpus size with evidence-record count) instead of just 2-3 formula-
+linked papers. Both this new flow and the pre-existing `/live`
 workspace remain available (temporary, disclosed dual-flow state, §13a).
 Real files: `apps/desktop/src/app/routes/NewFormulationRequestPage.tsx`
 (Screen 1) and `apps/desktop/src/app/routes/FormulationResultPage.tsx`

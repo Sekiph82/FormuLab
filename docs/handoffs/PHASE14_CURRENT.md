@@ -1,6 +1,149 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: SESSION 3 COMPLETE. Evidence-grounded, request-aware multi-alternative formulation synthesis — strategy derivation, per-version evidence linking, cross-version diversity validation, per-version hard-constraint validation with partial-failure handling, and an explainable version score — wired into the real pipeline AND the result screen — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §16. Session 2 (§15): structured evidence extraction, A-E classification, explainable ranking. Session 1 (§14): Literature Search Orchestrator, Findpapers adapter, native OA adapters, CanonicalPaper cross-source dedup. Session 0 (§11a): pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence) had a real data-contract bug — fixed, §13a. Both formulation UIs (`/live` and the new request/result flow) remain available — temporary, disclosed dual-flow state, unchanged and re-verified this session. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+## Status: SESSION 4 COMPLETE. Ingredient evidence intelligence, real generation provenance, honest 15-source research-corpus guarantee, formula-provenance audit, and rich evidence UI, all wired into the real pipeline and the result screen — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §17. Session 3 (§16): evidence-grounded, request-aware multi-alternative formulation synthesis — strategy derivation, per-version evidence linking, cross-version diversity validation, per-version hard-constraint validation with partial-failure handling, explainable version score. Session 2 (§15): structured evidence extraction, A-E classification, explainable ranking. Session 1 (§14): Literature Search Orchestrator, Findpapers adapter, native OA adapters, CanonicalPaper cross-source dedup. Session 0 (§11a): pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence) had a real data-contract bug — fixed, §13a. Both formulation UIs (`/live` and the new request/result flow) remain available — temporary, disclosed dual-flow state, unchanged and re-verified this session. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+
+## Session 4 summary — ingredient evidence intelligence, literature corpus guarantee, formula provenance audit, rich evidence UI
+
+**§1 formula-generation audit**: one real code path produces every
+formula — `llm.py::call()`, invoked exactly once per session from
+`pipeline.py::run()`. No mock/test-leakage path exists into
+production. API keys are never logged at any layer — proven by
+running a real generation with a deliberately fake key string
+(`THE-SECRET-KEY`) and grepping every output file (`cards.json`,
+`generation_provenance.json`, log output) for it: absent everywhere.
+New `provenance.build_generation_provenance(provider, model)` persists
+`{engine_type: "llm", source: "real_model_call", provider, model,
+generated_at}` to `<session>/generation_provenance.json` — built ONLY
+after a real successful `llm_call`, never speculatively. This
+session's own environment has no real LLM provider configured or
+reachable (confirmed by direct inspection, not guessed, per explicit
+instruction) — documented as a real, current-environment fact, not a
+pipeline limitation.
+
+**§2 ingredient origin model**: new `IngredientOrigin` string
+constants (multi-value; an ingredient can be both evidence-backed and
+user-required) — `scientific_evidence`, `deterministic_rule`,
+`user_required`, `ai_formulation_inference` are real and currently
+emitted; `supplier_data`/`internal_formulab_data` are reserved for a
+future masterdata connection that does not exist in the generation
+path today and are never fabricated. `classify_ingredient_origin()`
+checks user-preferred ingredients FIRST, excluding them from the
+deterministic-rule check — found and fixed a real double-labeling bug
+during manual smoke testing where an ingredient the user explicitly
+typed into "Preferred Ingredients" was misleadingly labeled BOTH
+`user_required` AND `deterministic_rule` (the rule engine folds
+preferred ingredients into its own `prefer` list, so without the
+fix it looked like an independent rule had fired when it was really
+just an echo).
+
+**§4/§6 the 15-source research-corpus bug**: real bug found in
+`literature_cache.py::gather()` — `fetch_pdfs(candidates,
+target=target)` stopped early once `target` full texts were obtained,
+silently dropping relevant abstract-only candidates from the corpus
+entirely (a 15-target request could end up persisting fewer than 15
+documents even when 15+ relevant candidates existed). Fixed by fixing
+the corpus (`selected = candidates[:target]`) BEFORE attempting any
+download, then calling `fetch_pdfs(selected, target=0)` purely for its
+side-effect of annotating `fulltext`/`pdf_file` in place — never again
+as the corpus-defining filter. A genuine shortfall (fewer than 15
+relevant documents actually available) is now reported honestly
+(`"only N/15 target unique relevant document(s) were genuinely
+available"`), never padded. New `ResearchCorpusSummary`
+(`provenance.summarize_research_corpus()`) persists
+raw_candidate/qualifying/target/full_text/abstract_only/metadata_only/
+evidence_record/unique_evidence_study counts as explicitly separate
+fields — corpus size is never conflated with evidence-record count
+(one paper can produce several evidence records; several providers
+finding the same paper never inflates the unique-study count).
+Disclosed gap: `raw_candidate_count` currently equals
+`qualifying_count` since `pipeline.py` doesn't yet pass the wider
+pre-ranking candidate pool size through — a real, documented
+limitation, not silently papered over.
+
+**§8 strict comparability grouping**: new
+`evidence.strictly_comparable_group()`/`compute_comparable_stats()` —
+groups evidence records by the SAME normalized ingredient key AND the
+SAME `(unit, basis)` tuple, requires ≥2 unique studies, and returns
+`None` ("insufficient comparable evidence") otherwise. Proven to
+correctly exclude incompatible concentration bases (w/w vs.
+active-matter), unrelated ingredient categories, and provider
+duplication (multiple providers finding the same paper never inflates
+`unique_study_count`).
+
+**§10 the q.s./mass-balance bug** — the exact "129.5% w/w accounted
+for" scenario named in the brief, found and fixed in TWO places. (1)
+Frontend display bug: `generatedFormula.ts::parsePercent()`'s regex
+matched the literal "100" inside "q.s. 100" and summed it as a real
+percentage on top of the explicit ingredients; fixed with a new
+`isQsIngredient()` check applied first. (2) No authoritative
+deterministic calculation existed anywhere; added
+`provenance.compute_mass_balance()` — explicit ingredients summed,
+q.s. closes the formula to exactly 100%, multiple ambiguous q.s.
+entries flagged (`ambiguous_multiple_qs`), a negative q.s. amount
+rejected (`invalid_negative_qs`), malformed percentages flagged
+(`malformed`), totals over 100.5% flagged (`invalid_over_100`), under
+99.5% flagged (`incomplete`), otherwise `complete`. The frontend now
+prefers the Python-side authoritative `mass_balance.final_total` over
+its own client-side sum. Regression-tested with the exact reported
+scenario (q.s. 100 + 20% + 9.5%): now correctly totals 29.5%, never
+129.5%.
+
+**§11/§12 UI + quality gate**: always-visible (never tooltip-only)
+Origin badges per ingredient (`OriginBadge` component), an explicit
+AI-only disclosure banner ("AI formulation inference — no direct
+supporting evidence found. Laboratory validation required.") when an
+ingredient's only origin is `ai_formulation_inference`. New
+`provenance.assess_quality()` returns a documented, never-hard-reject
+list of `QualityGateFinding`s (mass-balance-invalid,
+critical-active-no-evidence, unusual-concentration-no-evidence,
+insufficient-research-corpus, low-evidence-coverage,
+hard-constraint-violation) — every factor named in
+`provenance.QUALITY_GATE_FACTORS`, no hidden thresholds, never a
+rejection merely for lacking journal evidence.
+
+**Evidence & Sources tab rewritten**: now shows the FULL research
+corpus (not just 2-3 formula-linked papers) via a new Rust command
+`read_literature()` reading `<session>/literature/papers.json`
+(backward-compatible: an empty array for pre-Session-4 sessions), 6
+real `CorpusCounter`s (Research Sources N/target, Unique Studies, Full
+Text, Abstract Only, Evidence Records, Formula-Linked Studies), and a
+real table (title/authors/year/journal/DOI/A-E class/relevance/
+full-text/providers/ingredients-supported/used-by-version).
+
+**Ingredient Evidence panel**: "Why this concentration" now shows the
+real `comparable_stats` grid (Observed Range/Median/unique Study
+Count/Confidence) when strictly comparable evidence exists, falling
+back to alignment-based text otherwise; "Decision Factors" lists real
+origins instead of the old generic "not yet computed" placeholder.
+
+**Preserved unchanged**: `CanonicalPaper` dedup/provenance, hybrid
+providers, OA/full-text safety, deterministic evidence extraction, A-E
+classification, evidence ranking, request-aware V1/V2/V3 strategies,
+per-version hard validation, diversity validation, version-specific
+evidence linking, explainable version scores, dual formulation-UI
+state (`/live` and `/formulation-request`→`/formulation-result`).
+Manufacturing Procedure/Critical Parameters/Equipment/full Safety/
+Regulatory intelligence deliberately NOT built this session — remains
+Session 5/6 scope; those tabs still show honest "not yet available"
+notices.
+
+Verified against LIVE data: a disposable real-network smoke test for a
+multi-constraint sulfate-free/anti-dandruff/sensitive-scalp request
+achieved the full 15/15 target unique relevant document corpus (14
+abstract-only, 1 full text — correctly retained where the pre-fix code
+would have silently dropped the abstract-only ones), producing 28
+evidence records from 7 unique studies. No real LLM provider is
+configured in this session's own environment (confirmed by direct
+inspection); the disposable generation step therefore could not
+exercise a real production LLM call this session — documented
+honestly per explicit "do not guess" instruction rather than assumed.
+
+Python: 213/213 passing (180 baseline + 33 new: `test_evidence.py`
+comparable-stats tests, new `test_provenance.py`, `test_pipeline.py`/
+`test_literature_cache.py` extensions), zero regressions. Rust: 7/7 (2
+new `read_literature` tests). Frontend: `tsc`/ESLint clean, 137
+files/1231 tests (1210 baseline + 21 new), zero regressions anywhere.
+`git diff --check`: clean. Full write-up: architecture doc §17.
 
 ## Session 3 summary — evidence-grounded multi-alternative formulation synthesis
 
@@ -274,6 +417,47 @@ No later Phase 14 session (evidence extraction/ranking §5, manufacturing-
 process intelligence §6, full traceability §10) started. Full write-up:
 architecture doc §14.
 
+## Deliverables (Session 4)
+
+- `runtime/pipeline/provenance.py` (new) — `GenerationProvenance`,
+  `IngredientOrigin`, `classify_ingredient_origin()`, `MassBalance`,
+  `compute_mass_balance()`, `QualityGateFinding`, `assess_quality()`,
+  `ResearchCorpusSummary`, `summarize_research_corpus()`.
+- `runtime/pipeline/test_provenance.py` (new) — 22 tests.
+- `runtime/pipeline/literature_cache.py` — the corpus-honesty fix in
+  `gather()`.
+- `runtime/pipeline/test_literature_cache.py` — rewritten/added tests
+  for the corpus fix and shortfall honesty.
+- `runtime/pipeline/evidence.py` — `ComparableConcentrationStats`,
+  `strictly_comparable_group()`, `compute_comparable_stats()`.
+- `runtime/pipeline/test_evidence.py` — 6 new comparable-stats tests.
+- `runtime/pipeline/pipeline.py` — wires generation provenance, mass
+  balance, ingredient origins, comparable stats, quality gate, and
+  research-corpus persistence into every card.
+- `runtime/pipeline/test_pipeline.py` — 4 new integration tests.
+- `apps/desktop/src-tauri/src/formulation_v2.rs` — embeds
+  `provenance.py`, new `read_literature()`, 2 new tests.
+- `apps/desktop/src/lib/generatedFormula.ts` — `isQsIngredient()` fix
+  for the q.s.-double-counting bug.
+- `apps/desktop/src/lib/generatedFormula.test.ts` (new) — 14 tests
+  including the exact 129.5%-regression case.
+- `apps/desktop/src/lib/formulationV2.ts` — new Session 4 types,
+  extended `FormulationCard`/`SessionDetail`.
+- `apps/desktop/src/app/routes/FormulationResultPage.tsx` — Origin
+  badges, mass-balance display, rich Ingredient Evidence panel, full
+  research-corpus Evidence & Sources tab, real Quality Notes/score
+  factors on the Summary tab.
+- `apps/desktop/src/app/routes/FormulationResultPage.test.tsx` — new
+  `SESSION_V4` fixture, 7 new tests.
+- 8 locale `session.json` files — new Session 4 keys mirrored into all
+  shipped locales.
+- `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` — new §17,
+  top status line.
+- This handoff.
+- `docs/architecture/IMPLEMENTATION_STATUS.md` — Phase 14 entry
+  updated.
+- The external Phase 14 log — new Session 4 entry.
+
 ## Deliverables (Session 1 + the data-contract repair round before it)
 
 - `apps/desktop/src-tauri/src/formulation_v2.rs` — `read_brief()` shared
@@ -435,11 +619,10 @@ touched this session.
 
 ## Exact next Phase 14 session
 
-**Session 4** (per the architecture doc §12's proposed breakdown, not
-redesigned): the right-side Ingredient Evidence panel's remaining rich
-statistics (observed range/median/confidence — Session 3 did the minimum
-real evidence-class/DOI/outcome wiring only, deliberately deferring
-these) plus the 9-tab result screen's remaining not-yet-available tabs
-(Manufacturing Procedure, Critical Parameters, Equipment, full Safety/
-Regulatory evidence integration), which still depend on Sessions 5/6.
-Not started automatically by this round.
+**Session 5** (per the architecture doc §12's proposed breakdown):
+manufacturing-process intelligence — the 9-tab result screen's
+remaining not-yet-available tabs (Manufacturing Procedure, Critical
+Parameters, Equipment), which Session 4 explicitly did not build
+ahead of schedule (real data only, no fabricated process steps). Full
+Safety/Regulatory evidence integration remains Session 6. Not started
+automatically by this round.

@@ -442,16 +442,51 @@
         "function": "Function",
         "weightPct": "% (w/w)",
         "evidence": "Evidence",
-        "evidenceClass": "Evidence Class"
+        "evidenceClass": "Evidence Class",
+        "origin": "Origin"
       },
       "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is not available for this session",
       "evidenceCount": "{{count}} record(s)",
-      "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence"
+      "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence",
+      "massBalance": {
+        "incomplete": "This formula's ingredients do not yet sum to 100%.",
+        "invalid_over_100": "This formula's explicitly-quantified ingredients exceed 100%.",
+        "ambiguous_multiple_qs": "This formula has more than one q.s.-to-100 ingredient — cannot be resolved automatically.",
+        "invalid_negative_qs": "This formula's explicit ingredients already exceed 100% before the q.s. ingredient.",
+        "malformed": "One or more ingredient percentages could not be parsed."
+      },
+      "origins": {
+        "scientific_evidence": "Supported by linked scientific evidence",
+        "supplier_data": "From supplier technical data",
+        "internal_formulab_data": "From FormuLab internal data",
+        "deterministic_rule": "Selected by a deterministic FormuLab rule",
+        "user_required": "Requested by the user",
+        "ai_formulation_inference": "AI formulation inference — no direct supporting evidence found. Laboratory validation required."
+      },
+      "originsShort": {
+        "scientific_evidence": "Evidence",
+        "supplier_data": "Supplier",
+        "internal_formulab_data": "Internal",
+        "deterministic_rule": "Rule",
+        "user_required": "User",
+        "ai_formulation_inference": "AI Inference"
+      }
     },
     "evidencePanel": {
       "heading": "Ingredient Evidence",
       "selectPrompt": "Select an ingredient row in the Formula tab to see its evidence.",
       "selectedConcentration": "Selected Concentration",
+      "aiInferenceOnly": "AI formulation inference — no direct supporting evidence found. Laboratory validation required.",
+      "origin": "Origin",
+      "observedRange": "Observed Range",
+      "median": "Median",
+      "studyCount": "Unique Studies",
+      "confidence": "Confidence",
+      "confidenceLevels": {
+        "low": "Low (2 studies)",
+        "medium": "Medium (3-4 studies)",
+        "high": "High (5+ studies)"
+      },
       "whyThisIngredient": "Why This Ingredient?",
       "functionRationale": "Included for its {{function}} role in this formulation.",
       "rationaleNotItemized": "A per-ingredient rationale is not yet itemized for this candidate.",
@@ -490,19 +525,34 @@
       "notYetEvaluated": "Regulatory evaluation against the target market is not yet available — a later Phase 14 session wires the regulatory engine to generated formulas."
     },
     "evidenceTab": {
+      "counters": {
+        "researchSources": "Research Sources",
+        "uniqueStudies": "Unique Studies",
+        "fullText": "Full Text",
+        "abstractOnly": "Abstract Only",
+        "evidenceRecords": "Evidence Records",
+        "formulaLinked": "Formula-Linked Studies"
+      },
       "summary": "Evidence Summary",
       "summaryBody": "{{count}} citation(s) recorded for this formula.",
       "qualityDistribution": "Evidence Quality Distribution",
       "qualityNotYetClassified": "Evidence-class (A–E) classification is not yet computed.",
-      "sources": "Scientific Sources",
+      "sources": "Research Corpus",
       "noSources": "No scientific sources are recorded for this formula.",
       "columns": {
+        "title": "Title",
         "author": "Author",
         "year": "Year",
-        "doi": "DOI"
+        "doi": "DOI",
+        "fullText": "Full Text",
+        "providers": "Providers",
+        "usedByVersion": "Used By"
       },
+      "fullTextYes": "Yes",
+      "fullTextNo": "No",
       "gaps": "Evidence Gaps",
-      "gapsBody": "Explicit gap analysis is not yet computed for this formula."
+      "gapsBody": "Explicit gap analysis is not yet computed for this formula.",
+      "corpusShortfall": "Only {{found}} of the {{target}} target unique research documents were genuinely available after hybrid search."
     },
     "summary": {
       "strategy": "Version Strategy",
@@ -513,7 +563,14 @@
       "cost": "Cost",
       "costNotAvailable": "Not yet calculated — use Cost Analysis with an imported material price list.",
       "confidence": "Evidence Confidence",
-      "confidenceNotYetComputed": "Not yet computed — a later Phase 14 session builds evidence-based confidence scoring.",
+      "confidenceNotYetComputed": "Not yet computed — insufficient data to score this version credibly.",
+      "scoreFactors": {
+        "hardConstraintCompliance": "Hard-Constraint Compliance",
+        "evidenceStrength": "Evidence Strength",
+        "formulationCompleteness": "Formulation Completeness",
+        "evidenceGapPenalty": "Evidence Gap Penalty"
+      },
+      "qualityNotes": "Quality Notes",
       "risks": "Key Risks",
       "validationRequired": "Validation Required",
       "validationChecklist": [

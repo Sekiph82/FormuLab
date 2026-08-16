@@ -224,6 +224,91 @@ class PipelineTests(unittest.TestCase):
                 diversity_persisted = json.load(fh)
             self.assertIn("sufficiently_diverse", diversity_persisted)
 
+    # --- Phase 14 Session 4: provenance, origin, mass balance, quality gate ---
+
+    def test_generation_provenance_persists_with_no_secret(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                provider="mock", model="test-model", api_key="THE-SECRET-KEY",
+                library=lib, out_dir=out, n=1, download_fulltexts=False,
+                llm_call=mock_llm([{"name": "A", "purpose": "p", "ingredients": [
+                    {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                ]}]),
+            )
+            self.assertEqual(res["status"], "ok")
+            card = res["cards"][0]
+            self.assertEqual(card["generation_provenance"]["engine_type"], "llm")
+            self.assertEqual(card["generation_provenance"]["source"], "real_model_call")
+            self.assertEqual(card["generation_provenance"]["provider"], "mock")
+            self.assertEqual(card["generation_provenance"]["model"], "test-model")
+            with open(os.path.join(out, "generation_provenance.json"), encoding="utf-8") as fh:
+                persisted = fh.read()
+            self.assertNotIn("THE-SECRET-KEY", persisted)
+            with open(os.path.join(out, "cards.json"), encoding="utf-8") as fh:
+                cards_blob = fh.read()
+            self.assertNotIn("THE-SECRET-KEY", cards_blob)
+
+    def test_research_corpus_separate_from_evidence_record_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=1,
+                download_fulltexts=False,
+                llm_call=mock_llm([{"name": "A", "purpose": "p", "ingredients": [
+                    {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                    {"inci": "Piroctone Olamine", "function": "Active", "weight_pct": "1.0"},
+                ]}]),
+            )
+            corpus = res["cards"][0]["research_corpus"]
+            self.assertEqual(corpus["target_count"], 15)
+            self.assertIn("qualifying_count", corpus)
+            self.assertIn("evidence_record_count", corpus)
+            self.assertIn("unique_evidence_study_count", corpus)
+            # These are genuinely different numbers, not aliases of each other.
+            with open(os.path.join(out, "literature", "research_corpus.json"), encoding="utf-8") as fh:
+                persisted_corpus = json.load(fh)
+            self.assertEqual(persisted_corpus["qualifying_count"], corpus["qualifying_count"])
+
+    def test_mass_balance_persists_and_closes_correctly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=1,
+                download_fulltexts=False,
+                llm_call=mock_llm([{"name": "A", "purpose": "p", "ingredients": [
+                    {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                    {"inci": "SLES", "function": "Surfactant", "weight_pct": "10.0"},
+                ]}]),
+            )
+            mb = res["cards"][0]["mass_balance"]
+            self.assertEqual(mb["status"], "complete")
+            self.assertEqual(mb["final_total"], 100.0)
+
+    def test_ingredient_origins_and_quality_gate_persist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=1,
+                download_fulltexts=False,
+                llm_call=mock_llm([{"name": "A", "purpose": "p", "ingredients": [
+                    {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                    {"inci": "Mystery Active", "function": "Active", "weight_pct": "2.0"},
+                ]}]),
+            )
+            card = res["cards"][0]
+            self.assertIn("water-aqua", card["ingredient_origins"])
+            self.assertIn("mystery-active", card["ingredient_origins"])
+            self.assertTrue(any(f["factor"] == "critical_active_no_evidence" for f in card["quality_gate"]))
+
     def test_validation_flags_sulfate_in_antidandruff(self):
         with tempfile.TemporaryDirectory() as tmp:
             lib = os.path.join(tmp, "library"); seed_library(lib)

@@ -218,3 +218,151 @@ describe("FormulationResultPage — Session 3 strategy/score/evidence/failure wi
     expect(screen.getAllByText(/10\.1\/real-paper/).length).toBeGreaterThanOrEqual(2);
   });
 });
+
+// --- Phase 14 Session 4: mass balance, origin badges, corpus counters, rich stats ---
+
+const SESSION_V4 = {
+  status: "ok" as const,
+  id: "2026-01-01-1400-test",
+  brief: { target: "A sulfate-free anti-dandruff shampoo for a sensitive scalp." },
+  cards: [
+    {
+      version: "v1",
+      status: "ok" as const,
+      markdown: "# Formulation Card: Balanced",
+      formula: {
+        name: "Balanced",
+        purpose: "p",
+        ingredients: [
+          { inci: "Water (Aqua)", function: "Solvent", weight_pct: "q.s. 100" },
+          { inci: "Sodium Laureth Sulfate", function: "Surfactant", weight_pct: "20.0" },
+          { inci: "Piroctone Olamine", function: "Active", weight_pct: "1.0" },
+        ],
+      },
+      violations: [],
+      strategy: {
+        formula_version_id: "v1", label: "V1", strategy_type: "balanced",
+        title: "Balanced", rationale: "r",
+        primary_priorities: [], secondary_priorities: [], tradeoffs_accepted: [], tradeoffs_forbidden: [],
+      },
+      mass_balance: {
+        explicit_subtotal: 21.0, qs_ingredient_keys: ["Water (Aqua)"], qs_amount: 79.0,
+        final_total: 100.0, status: "complete", issues: [],
+      },
+      ingredient_origins: {
+        "water-aqua": ["ai_formulation_inference"],
+        "sodium-laureth-sulfate": ["ai_formulation_inference"],
+        "piroctone-olamine": ["scientific_evidence"],
+      },
+      comparable_stats: {
+        "piroctone-olamine": {
+          observed_min: 0.8, observed_max: 1.2, median: 1.0,
+          unique_study_count: 3, unit: "%", basis: "", confidence: "medium",
+        },
+      },
+      quality_gate: [
+        { factor: "unusual_concentration_no_evidence", severity: "info", message: "Sodium Laureth Sulfate at 20.0 has no evidence support." },
+      ],
+      research_corpus: {
+        raw_candidate_count: 120, qualifying_count: 12, target_count: 15,
+        full_text_count: 8, abstract_only_count: 4, metadata_only_count: 0,
+        evidence_record_count: 22, unique_evidence_study_count: 9,
+      },
+      evidence_links: [
+        {
+          formula_version_id: "v1", ingredient_key: "piroctone-olamine", ingredient_raw: "Piroctone Olamine",
+          evidence_class: "A", source_depth: "full_text", paper_doi: "10.1/corpus-paper",
+          paper_title: "A real corpus paper", paper_year: "2021", paper_authors: "Doe J", paper_venue: "J",
+          unique_source_count: 2, provenance_sources: ["openalex", "crossref"],
+          evidence_text: "text", concentration: { value: 1.0, value_max: null, unit: "%", basis: "" },
+        },
+      ],
+    },
+  ],
+  literature: [
+    {
+      source_db: "openalex", title: "A real corpus paper", year: "2021", authors: "Doe J", venue: "J",
+      doi: "10.1/corpus-paper", is_oa: true, oa_url: "", cited_by: 3, pdf_file: "corpus-paper.md",
+      unique_source_count: 2, provenance_sources: ["openalex", "crossref"],
+    },
+    {
+      source_db: "europepmc", title: "Another corpus paper, abstract only", year: "2020", authors: "Smith A",
+      venue: "J2", doi: "10.1/abstract-only", is_oa: true, oa_url: "", cited_by: 1,
+      fulltext: "open access but no file link published", unique_source_count: 1, provenance_sources: ["europepmc"],
+    },
+  ],
+  read_only: true as const,
+};
+
+function renderPageV4() {
+  readSession.mockReset();
+  readSession.mockResolvedValue(SESSION_V4);
+  return render(
+    <MemoryRouter initialEntries={["/formulation-result/2026-01-01-1400-test"]}>
+      <Routes>
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("FormulationResultPage — Session 4 provenance/origin/mass-balance/corpus wiring", () => {
+  it("shows the deterministic mass-balance total, never the double-counted q.s. bug", async () => {
+    renderPageV4();
+    await screen.findByText("Piroctone Olamine");
+    // 100% (Session 4's real mass_balance.final_total), never 121% (21 + 100 q.s. bug).
+    expect(screen.getByText("100% w/w accounted for")).not.toBeNull();
+  });
+
+  it("shows an origin badge per ingredient, distinguishing evidence-backed from AI-only", async () => {
+    renderPageV4();
+    await screen.findByText("Piroctone Olamine");
+    expect(screen.getAllByText("Evidence").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("AI Inference").length).toBeGreaterThan(0);
+  });
+
+  it("selecting an AI-only ingredient discloses the explicit AI-inference warning", async () => {
+    renderPageV4();
+    await screen.findByText("Sodium Laureth Sulfate");
+    await userEvent.click(screen.getByText("Sodium Laureth Sulfate"));
+    // The warning legitimately appears twice — once as the panel's own
+    // dedicated AI-inference banner, once in the Decision Factors list
+    // (both real, both expected, since this ingredient's only origin is
+    // ai_formulation_inference).
+    await waitFor(() =>
+      expect(screen.getAllByText(/AI formulation inference — no direct supporting evidence found/).length).toBeGreaterThanOrEqual(2),
+    );
+  });
+
+  it("selecting an evidence-backed ingredient shows the real observed range/median/confidence", async () => {
+    renderPageV4();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByText("Piroctone Olamine"));
+    await waitFor(() => expect(screen.getByText("0.8–1.2%")).not.toBeNull());
+    expect(screen.getByText("1%")).not.toBeNull();
+  });
+
+  it("Evidence & Sources tab shows real, separate corpus counters — never conflating corpus size with evidence-record count", async () => {
+    renderPageV4();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByRole("tab", { name: "Evidence & Sources" }));
+    expect(screen.getByText("12 / 15")).not.toBeNull(); // research sources
+    expect(screen.getByText("9")).not.toBeNull(); // unique studies
+    expect(screen.getByText("22")).not.toBeNull(); // evidence records — a DIFFERENT number
+  });
+
+  it("Evidence & Sources tab lists the full research corpus, not just formula-linked papers", async () => {
+    renderPageV4();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByRole("tab", { name: "Evidence & Sources" }));
+    expect(screen.getByText("A real corpus paper")).not.toBeNull();
+    expect(screen.getByText("Another corpus paper, abstract only")).not.toBeNull();
+  });
+
+  it("Summary tab shows the real decomposed score factors and quality notes", async () => {
+    renderPageV4();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    expect(screen.getByText(/no evidence support/)).not.toBeNull();
+  });
+});

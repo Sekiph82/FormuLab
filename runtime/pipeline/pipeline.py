@@ -20,6 +20,7 @@ import evidence
 import fulltext
 import llm
 import literature_cache
+import provenance
 import strategy
 from rules import derive_constraints, validate
 
@@ -537,6 +538,19 @@ def run(
     log(f"evidence: {len(evidence_records)} record(s) from {studies} unique studies "
         f"(classes: {class_counts or 'none'})")
 
+    # Phase 14 Session 4 §5: the research corpus (unique relevant documents)
+    # and structured evidence (extracted findings) are NOT interchangeable
+    # numbers — persisted and logged separately, never collapsed into one
+    # "sources" figure. `papers` is already the real, honest corpus fixed by
+    # `literature_cache.gather()`'s own §4 fix (relevant candidates kept
+    # regardless of full-text success; never padded with duplicates).
+    corpus = provenance.summarize_research_corpus(papers, evidence_records, target_count=15)
+    with open(os.path.join(lit_dir, "research_corpus.json"), "w", encoding="utf-8") as fh:
+        json.dump(corpus.to_dict(), fh, ensure_ascii=False, indent=2)
+    log(f"research corpus: {corpus.qualifying_count}/{corpus.target_count} target unique document(s) "
+        f"({corpus.full_text_count} full text, {corpus.abstract_only_count} abstract-only, "
+        f"{corpus.metadata_only_count} metadata-only)")
+
     # Phase 14 Session 3: request-aware strategy derivation — never a fixed
     # V1/V2/V3 enum. `len(strategies)` becomes the real formula count
     # requested (it can be < n when fewer than n strategies genuinely apply
@@ -561,6 +575,15 @@ def run(
         data = llm.parse_json(raw)
     except Exception as e:
         return {"status": "error", "message": f"model call failed: {e}"}
+
+    # Phase 14 Session 4 §1: built ONLY after `llm_call` has actually
+    # returned successfully — there is no other real generation path in
+    # this codebase today (audited directly: `run_cli.py` never overrides
+    # `llm_call`, so production always reaches this exact line). Contains
+    # no secret — `provider`/`model` only, never `api_key`.
+    generation_provenance = provenance.build_generation_provenance(provider, model)
+    with open(os.path.join(out_dir, "generation_provenance.json"), "w", encoding="utf-8") as fh:
+        json.dump(generation_provenance.to_dict(), fh, ensure_ascii=False, indent=2)
 
     formulas = data.get("formulas") or ([data] if data.get("ingredients") else [])
     if not formulas:
@@ -618,6 +641,32 @@ def run(
         alignment = strategy.concentration_alignment(f, version_links)
         score = strategy.compute_version_score(f, violations, version_links)
 
+        # Phase 14 Session 4: deterministic mass balance (never LLM
+        # arithmetic, never a second, inconsistent recomputation on the
+        # frontend — §10's own fix for the "129.5% w/w accounted for" bug),
+        # per-ingredient origin classification (§2 — every ingredient must
+        # have a traceable origin, never an evidence-free AI choice shown as
+        # if literature selected it), strictly-comparable evidence
+        # statistics (§8 — computed against the FULL session evidence pool,
+        # since "what does the literature say about this ingredient" does
+        # not depend on which version happened to choose it), and a
+        # transparent quality-gate pass (§12 — every factor named in
+        # `provenance.QUALITY_GATE_FACTORS`, never a hidden threshold).
+        mass_balance = provenance.compute_mass_balance(f.get("ingredients", []))
+        ingredient_origins = {
+            evidence.normalize_ingredient_key(i.get("inci", "")):
+                provenance.classify_ingredient_origin(i.get("inci", ""), brief, constraints, version_links)
+            for i in f.get("ingredients", []) if i.get("inci")
+        }
+        comparable_stats = {
+            key: (stats.to_dict() if (stats := evidence.compute_comparable_stats(ranked_evidence, key)) else None)
+            for key in ingredient_origins
+        }
+        quality_gate = provenance.assess_quality(
+            f, violations, version_links, mass_balance,
+            corpus_qualifying_count=corpus.qualifying_count, corpus_target_count=corpus.target_count,
+        )
+
         md = render_card(f, violations, strat.to_dict())
         with open(os.path.join(out_dir, card_filename(session_id, version)), "w", encoding="utf-8") as fh:
             fh.write(md)
@@ -627,6 +676,12 @@ def run(
             "evidence_links": version_links,
             "concentration_alignment": alignment,
             "score": score.to_dict() if score else None,
+            "generation_provenance": generation_provenance.to_dict(),
+            "mass_balance": mass_balance.to_dict(),
+            "ingredient_origins": ingredient_origins,
+            "comparable_stats": comparable_stats,
+            "quality_gate": [qf.to_dict() for qf in quality_gate],
+            "research_corpus": corpus.to_dict(),
         })
 
     # Cross-version diversity validation (architecture doc §9). Marks rather

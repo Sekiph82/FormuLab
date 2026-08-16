@@ -123,6 +123,82 @@ export interface EvidenceLink {
  *  normalized ingredient key `EvidenceLink.ingredient_key` uses. */
 export type ConcentrationAlignment = Record<string, "evidence_supported" | "evidence_context_only" | "formulab_inference">;
 
+/** Phase 14 Session 4 — `provenance.py::GenerationProvenance.to_dict()`.
+ *  `engine_type`/`source` are always `"llm"`/`"real_model_call"` in this
+ *  build (the only real generation path this codebase has — audited
+ *  directly, see `provenance.py`'s own module docstring); the type keeps
+ *  the wider string so a genuinely different future generation path never
+ *  needs a breaking type change. Never contains an API key. */
+export interface GenerationProvenance {
+  engine_type: string;
+  source: string;
+  provider: string;
+  model: string;
+  generated_at: string;
+}
+
+/** `provenance.py::MassBalance.to_dict()` — the deterministic,
+ *  authoritative mass-balance calculation. Prefer this over any client-side
+ *  recomputation from `formula.ingredients` when present (this IS the fix
+ *  for the "129.5% w/w accounted for" bug: q.s.-to-100 is closed, not
+ *  double-counted). Absent on a pre-Session-4 session. */
+export interface MassBalance {
+  explicit_subtotal: number;
+  qs_ingredient_keys: string[];
+  qs_amount: number | null;
+  final_total: number | null;
+  status: "complete" | "incomplete" | "invalid_over_100" | "ambiguous_multiple_qs" | "invalid_negative_qs" | "malformed";
+  issues: string[];
+}
+
+/** `provenance.py::IngredientOrigin` values — an ingredient can legitimately
+ *  carry more than one. `supplier_data`/`internal_formulab_data` are real,
+ *  reserved categories never actually emitted this session (no live
+ *  masterdata/supplier connection is wired into generation yet) — kept in
+ *  the type for forward compatibility, not because the UI should expect to
+ *  see them today. Keyed by `formulationV2.ts`'s own
+ *  `normalizeIngredientKey()`. */
+export type IngredientOriginMap = Record<string, string[]>;
+
+/** `evidence.py::ComparableConcentrationStats.to_dict()` — built ONLY from
+ *  strictly comparable evidence (same ingredient, same unit+basis, >= 2
+ *  unique studies). `null`/absent means "Insufficient comparable evidence",
+ *  never a fabricated range. Keyed by normalized ingredient key. */
+export interface ComparableStats {
+  observed_min: number;
+  observed_max: number;
+  median: number;
+  unique_study_count: number;
+  unit: string;
+  basis: string;
+  confidence: "low" | "medium" | "high";
+}
+export type ComparableStatsMap = Record<string, ComparableStats | null>;
+
+/** `provenance.py::QualityGateFinding.to_dict()` — `factor` is always one of
+ *  the named, documented keys in `provenance.QUALITY_GATE_FACTORS`; never a
+ *  hard reject, only a transparent warning/info note. */
+export interface QualityGateFinding {
+  factor: string;
+  severity: "warning" | "info";
+  message: string;
+}
+
+/** `provenance.py::ResearchCorpusSummary.to_dict()` — the research corpus
+ *  (unique relevant documents) and structured evidence (extracted
+ *  findings) are deliberately separate counts, never interchangeable
+ *  (architecture doc §5). */
+export interface ResearchCorpusSummary {
+  raw_candidate_count: number;
+  qualifying_count: number;
+  target_count: number;
+  full_text_count: number;
+  abstract_only_count: number;
+  metadata_only_count: number;
+  evidence_record_count: number;
+  unique_evidence_study_count: number;
+}
+
 export interface FormulationCard {
   version: string; // "v1", "v2", …
   /** "ok" | "generation_failed" — absent on a pre-Session-3 session (treat
@@ -139,6 +215,12 @@ export interface FormulationCard {
   evidence_links?: EvidenceLink[];
   concentration_alignment?: ConcentrationAlignment;
   score?: VersionScore | null;
+  generation_provenance?: GenerationProvenance;
+  mass_balance?: MassBalance;
+  ingredient_origins?: IngredientOriginMap;
+  comparable_stats?: ComparableStatsMap;
+  quality_gate?: QualityGateFinding[];
+  research_corpus?: ResearchCorpusSummary;
 }
 
 export interface GenerateResult {
@@ -161,11 +243,34 @@ export interface SessionSummary {
   card_count: number;
 }
 
+/** Phase 14 Session 4 — one entry from the session's real
+ *  `literature/papers.json` (`literature_cache.gather()`'s own corpus,
+ *  post-dedup — the Evidence & Sources tab's real research corpus, never
+ *  the same number as an evidence-record count). Always present for a
+ *  session that reached literature retrieval; `[]` for one that didn't
+ *  (or a pre-Session-4 session). */
+export interface LiteratureDocument {
+  source_db: string;
+  title: string;
+  year: string | number;
+  authors: string;
+  venue: string;
+  doi: string;
+  is_oa: boolean;
+  oa_url: string;
+  cited_by: number;
+  pdf_file?: string;
+  fulltext?: string;
+  unique_source_count?: number;
+  provenance_sources?: string[];
+}
+
 export interface SessionDetail {
   status: "ok";
   id: string;
   brief: FormulationBrief | null;
   cards: FormulationCard[];
+  literature?: LiteratureDocument[];
   read_only: true;
 }
 

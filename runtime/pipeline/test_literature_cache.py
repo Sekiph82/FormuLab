@@ -186,10 +186,16 @@ class CacheTests(unittest.TestCase):
         self.assertIsNone(lc.sniff_fulltext(b'<?xml version="1.0"?><!DOCTYPE html><html>'))
         self.assertIsNone(lc.sniff_fulltext(b"{}", "text/html; charset=utf-8"))
 
-    def test_session_contains_only_papers_we_downloaded(self):
-        # The session IS the evidence list: a candidate whose full text cannot be
-        # fetched is not listed at all, and the pool is searched until `target`
-        # readable papers are in hand.
+    def test_research_corpus_keeps_relevant_candidates_even_without_full_text(self):
+        # Phase 14 Session 4: the research corpus is the top `target`
+        # genuinely relevant, deduplicated candidates — full-text
+        # availability is a QUALITY DIMENSION of the corpus (`fulltext`/
+        # `pdf_file` per entry), never a filter that silently shrinks a
+        # relevant 5-document corpus down to however many happen to be
+        # full-text-downloadable. A real, relevant, paywalled/blocked
+        # abstract-only candidate still belongs in the corpus (it can still
+        # contribute weaker evidence, Session 2's own `source_depth` model)
+        # — this is the exact bug fix this session's own brief describes.
         with tempfile.TemporaryDirectory() as tmp:
             lib = os.path.join(tmp, "library")
             lc.save_index(lib, [])
@@ -222,16 +228,48 @@ class CacheTests(unittest.TestCase):
             finally:
                 lc._load_fetchers, lc._download_fulltext = orig_f, orig_d
 
+            # The full target corpus size is reached — relevant candidates
+            # are kept regardless of downloadability.
             self.assertEqual(len(got), 5)
-            # Every listed paper has a file, and the files are really there.
-            self.assertTrue(all(p.get("pdf_file") for p in got))
+            with_files = [p for p in got if p.get("pdf_file")]
+            without_files = [p for p in got if not p.get("pdf_file")]
+            self.assertTrue(with_files, "at least the downloadable ones must have a real file")
+            self.assertTrue(without_files, "non-downloadable candidates must still be IN the corpus")
+            # Every non-downloaded entry says WHY, in words — never silent.
+            self.assertTrue(all(p.get("fulltext") for p in without_files))
+            # Only the genuinely-downloaded files exist on disk.
             files = os.listdir(os.path.join(out, "pdfs"))
-            self.assertEqual(len(files), 5)
-            # papers.csv lists exactly those five, nothing skipped.
+            self.assertEqual(len(files), len(with_files))
+            # papers.csv lists the WHOLE corpus, not just the downloaded slice.
             with open(os.path.join(out, "papers.csv"), encoding="utf-8-sig") as fh:
                 rows = list(csv.DictReader(fh))
             self.assertEqual(len(rows), 5)
-            self.assertTrue(all(r["pdf_file"] for r in rows))
+
+    def test_corpus_shortfall_is_reported_not_padded(self):
+        # Fewer than `target` genuinely relevant candidates exist -> the
+        # corpus is honestly short, never padded with duplicates/irrelevant
+        # filler to reach the number.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+
+            class FakeDiscover:
+                FETCHERS = {"openalex": lambda q, n: [fake_paper(i, q) for i in range(3)]}
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig = lc._load_fetchers
+            lc._load_fetchers = lambda: FakeDiscover
+            try:
+                got = lc.gather(["a very narrow niche query"], out, lib,
+                                target=15, sources="openalex", download_pdfs=False)
+            finally:
+                lc._load_fetchers = orig
+
+            self.assertEqual(len(got), 3)
+            self.assertEqual(len({p["doi"] for p in got}), 3, "no padding/duplication")
 
     def test_off_domain_papers_are_rejected(self):
         # A physics preprint that merely contains the word "formulation" must not

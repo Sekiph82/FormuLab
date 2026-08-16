@@ -583,24 +583,38 @@ def gather(
                     candidates.append(p)
                     have.add(paper_key(p))
 
+    # Phase 14 Session 4: the RESEARCH CORPUS is the top `target` genuinely
+    # relevant, already-deduplicated candidates — full-text availability is
+    # a quality DIMENSION of the corpus, never a filter that silently
+    # shrinks it. The previous behavior called `fetch_pdfs(candidates,
+    # target=target)`, which STOPS once `target` full texts are obtained —
+    # meaning a real, relevant, abstract-only candidate (paywalled/blocked
+    # download) was dropped from the corpus entirely rather than kept as a
+    # weaker (but real) source, silently shrinking a 15-relevant-document
+    # corpus down to however many happened to be full-text-downloadable.
+    # Fixing this at the source is what makes the "target >= 15 UNIQUE
+    # relevant documents" requirement honest: the corpus size now reflects
+    # genuine relevance/uniqueness, not incidental full-text luck.
+    selected = candidates[:target]
     if download_pdfs:
-        backfill_oa_via_unpaywall(candidates, log=log)
-
-    # The session is the papers we can actually read. Candidates whose full text
-    # we cannot obtain are not written anywhere: a reference we never read does
-    # not belong in the evidence list.
-    if download_pdfs:
-        log(f"{len(candidates)} candidates -> downloading until {target} full texts")
+        backfill_oa_via_unpaywall(selected, log=log)
+        # `target=0` = attempt every one of the ALREADY-fixed `selected`
+        # candidates (never stop early) — `fetch_pdfs` mutates each
+        # candidate dict's own `fulltext`/`pdf_file` fields in place and
+        # copies whatever it obtains into the session's own pdfs/ dir; its
+        # return value (the subset it actually got) is not used here on
+        # purpose — `selected` itself, now annotated, IS the corpus,
+        # full-text or not.
         try:
-            selected = fetch_pdfs(candidates, library, out_dir, target=target, log=log)
+            fetch_pdfs(selected, library, out_dir, target=0, log=log)
         except Exception as e:
             log(f"[warn] full-text download failed: {e}")
-            selected = []
-        if len(selected) < target:
-            log(f"[note] only {len(selected)} of {target} could be obtained in full "
-                f"— the rest of the candidates are paywalled or blocked")
-    else:
-        selected = candidates[:target]
+        obtained = sum(1 for p in selected if p.get("pdf_file"))
+        log(f"corpus: {len(selected)} relevant unique document(s) "
+            f"({obtained} full text, {len(selected) - obtained} metadata/abstract-only)")
+    if len(selected) < target:
+        log(f"[note] research corpus: only {len(selected)}/{target} target unique "
+            f"relevant document(s) were genuinely available after hybrid search")
 
     save_index(library, index)
 

@@ -43,6 +43,11 @@ const F_EVIDENCE: &str = include_str!("../../../../runtime/pipeline/evidence.py"
 // version-specific evidence linking, scoring) — same requirement as
 // canonical_paper.py/evidence.py above, must be materialized alongside them.
 const F_STRATEGY: &str = include_str!("../../../../runtime/pipeline/strategy.py");
+// Phase 14 Session 4: pipeline.py now imports provenance.py directly
+// (generation provenance, ingredient-origin classification, deterministic
+// mass-balance validation, quality gate) — same requirement as
+// canonical_paper.py/evidence.py/strategy.py above.
+const F_PROVENANCE: &str = include_str!("../../../../runtime/pipeline/provenance.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -125,6 +130,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("canonical_paper.py", F_CANONICAL),
         ("evidence.py", F_EVIDENCE),
         ("strategy.py", F_STRATEGY),
+        ("provenance.py", F_PROVENANCE),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }
@@ -354,8 +360,25 @@ pub async fn read_session(
         "id": id,
         "brief": read_brief(&dir),
         "cards": read_cards(&dir),
+        "literature": read_literature(&dir),
         "read_only": true,
     }))
+}
+
+/// Phase 14 Session 4: the session's real research corpus —
+/// `literature_cache.gather()` already writes `literature/papers.json`
+/// (every field per document: source_db/title/year/authors/venue/doi/
+/// is_oa/oa_url/cited_by/concepts/pdf_file/fulltext/unique_source_count/
+/// provenance_sources) for every session that reached literature
+/// retrieval — this just reads it back verbatim, the same generic
+/// `serde_json::Value` passthrough `read_cards`/`read_brief` already use.
+/// Empty array (never an error) for a session written before this field
+/// existed, or one whose literature step failed/was skipped.
+fn read_literature(dir: &std::path::Path) -> serde_json::Value {
+    std::fs::read_to_string(dir.join("literature").join("papers.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .unwrap_or(serde_json::Value::Array(Vec::new()))
 }
 
 /// Delete one saved session.
@@ -489,6 +512,42 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
         std::fs::create_dir_all(&tmp).unwrap();
         assert!(read_brief(&tmp).is_null());
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// Phase 14 Session 4: the Evidence & Sources tab's real research
+    /// corpus comes from `literature/papers.json` — `literature_cache.
+    /// gather()` already writes this for every session; `read_literature`
+    /// just passes it through.
+    #[test]
+    fn read_literature_returns_the_real_research_corpus() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        let lit = tmp.join("literature");
+        std::fs::create_dir_all(&lit).unwrap();
+        let papers = serde_json::json!([
+            {"source_db": "openalex", "title": "A real paper", "year": 2021, "doi": "10.1/x",
+             "is_oa": true, "pdf_file": "x.md", "unique_source_count": 2,
+             "provenance_sources": ["openalex", "crossref"]},
+        ]);
+        std::fs::write(lit.join("papers.json"), serde_json::to_string(&papers).unwrap()).unwrap();
+
+        let result = read_literature(&tmp);
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["title"], "A real paper");
+        assert_eq!(arr[0]["unique_source_count"], 2);
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// A session written before this field existed (or whose literature
+    /// step never ran) must not error — an empty corpus, never a crash.
+    #[test]
+    fn read_literature_is_an_empty_array_when_papers_json_is_missing() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let result = read_literature(&tmp);
+        assert_eq!(result.as_array().unwrap().len(), 0);
         std::fs::remove_dir_all(&tmp).ok();
     }
 
