@@ -367,7 +367,7 @@ export function CardsView({
         ) : (
           /* print-area: the only thing that reaches paper (see index.css). */
           <div className="print-area min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <AgentMessage markdown={card.markdown} />
+            <AgentMessage markdown={card.markdown ?? ""} />
             {card.formula ? <CostingPanel formula={card.formula} /> : null}
           </div>
         )}

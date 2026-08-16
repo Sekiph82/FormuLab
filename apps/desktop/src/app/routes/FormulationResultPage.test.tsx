@@ -98,3 +98,123 @@ describe("FormulationResultPage", () => {
     expect(screen.getAllByText(/not yet available/i).length).toBeGreaterThan(0);
   });
 });
+
+// --- Phase 14 Session 3: real strategy metadata, scoring, evidence, failure handling ---
+
+const SESSION_V3 = {
+  status: "ok" as const,
+  id: "2026-01-01-1300-test",
+  brief: { target: "A sulfate-free anti-dandruff shampoo for a sensitive scalp." },
+  cards: [
+    {
+      version: "v1",
+      status: "ok" as const,
+      markdown: "# Formulation Card: Balanced",
+      formula: {
+        name: "Balanced",
+        purpose: "p",
+        ingredients: [
+          { inci: "Piroctone Olamine", function: "Active", weight_pct: "1.0" },
+        ],
+      },
+      violations: [],
+      strategy: {
+        formula_version_id: "v1", label: "V1", strategy_type: "balanced",
+        title: "Balanced / Recommended",
+        rationale: "Always offered as the baseline strategy.",
+        primary_priorities: [], secondary_priorities: [], tradeoffs_accepted: [], tradeoffs_forbidden: [],
+      },
+      evidence_links: [
+        {
+          formula_version_id: "v1", ingredient_key: "piroctone-olamine", ingredient_raw: "Piroctone Olamine",
+          evidence_class: "A", source_depth: "full_text", paper_doi: "10.1/real-paper",
+          paper_title: "t", paper_year: "2021", paper_authors: "Doe J", paper_venue: "J",
+          unique_source_count: 1, provenance_sources: ["openalex"],
+          evidence_text: "Piroctone Olamine at 1.0% reduced flaking.",
+          concentration: { value: 1.0, value_max: null, unit: "%", basis: "" },
+          outcome: "reduced flaking significantly",
+        },
+      ],
+      concentration_alignment: { "piroctone-olamine": "evidence_supported" },
+      score: { hard_constraint_compliance: 1, evidence_strength: 1, formulation_completeness: 1, evidence_gap_penalty: 0, total: 0.8234 },
+    },
+    {
+      version: "v2",
+      status: "generation_failed" as const,
+      failure_reason: "the model did not return a formula for this strategy slot",
+      strategy: {
+        formula_version_id: "v2", label: "V2", strategy_type: "cost_optimized",
+        title: "Cost Optimized", rationale: "The request explicitly targets an economy cost level.",
+        primary_priorities: [], secondary_priorities: [], tradeoffs_accepted: [], tradeoffs_forbidden: [],
+      },
+    },
+  ],
+  read_only: true as const,
+};
+
+function renderPageV3() {
+  readSession.mockReset();
+  readSession.mockResolvedValue(SESSION_V3);
+  return render(
+    <MemoryRouter initialEntries={["/formulation-result/2026-01-01-1300-test"]}>
+      <Routes>
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("FormulationResultPage — Session 3 strategy/score/evidence/failure wiring", () => {
+  it("shows the real strategy title and rationale, not the model's own name/purpose", async () => {
+    renderPageV3();
+    await screen.findByText("Balanced / Recommended");
+    expect(screen.getByText("Always offered as the baseline strategy.")).not.toBeNull();
+  });
+
+  it("shows a real computed score instead of the not-yet-available placeholder", async () => {
+    renderPageV3();
+    await screen.findByText("Balanced / Recommended");
+    expect(screen.getByText("Score: 82%")).not.toBeNull();
+  });
+
+  it("defaults to the first successfully-generated version when v1 failed", async () => {
+    // Re-mock with v1 failed, v2 ok, proving the page doesn't open on a dead tab.
+    const reordered = {
+      ...SESSION_V3,
+      cards: [
+        { ...SESSION_V3.cards[1], version: "v1" },
+        { ...SESSION_V3.cards[0], version: "v2" },
+      ],
+    };
+    readSession.mockReset();
+    readSession.mockResolvedValue(reordered);
+    render(
+      <MemoryRouter initialEntries={["/formulation-result/2026-01-01-1300-test"]}>
+        <Routes>
+          <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText("Balanced / Recommended");
+    // The Formula tab must show the real (v2) formula, not a failure notice.
+    expect(screen.getByText("Piroctone Olamine")).not.toBeNull();
+  });
+
+  it("shows the real failure reason for a failed version instead of a fabricated formula", async () => {
+    renderPageV3();
+    await screen.findByText("Balanced / Recommended");
+    await userEvent.click(screen.getByText("Cost Optimized"));
+    expect(screen.getByText("the model did not return a formula for this strategy slot")).not.toBeNull();
+  });
+
+  it("evidence panel shows the real linked evidence class and DOI, not a canned insufficient-evidence notice", async () => {
+    renderPageV3();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByText("Piroctone Olamine"));
+    await waitFor(() => expect(screen.getByText(/Supported by Class A evidence/)).not.toBeNull());
+    // The DOI legitimately appears twice — once in the "Why this
+    // concentration?" summary line, once in the Supporting Scientific
+    // Sources list entry — both real, both expected.
+    expect(screen.getAllByText(/10\.1\/real-paper/).length).toBeGreaterThanOrEqual(2);
+  });
+});

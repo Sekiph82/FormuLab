@@ -65,3 +65,13 @@ export function totalWeightPct(formula: GeneratedFormula | undefined): number | 
 export function ingredientId(index: number, ingredient: GeneratedIngredient): string {
   return `${index}:${(ingredient.inci ?? "ingredient").toLowerCase().replace(/\s+/g, "-")}`;
 }
+
+/** Phase 14 Session 3 — the EXACT same normalization
+ *  `evidence.py::normalize_ingredient_key()` uses, so a formula ingredient's
+ *  `inci` string matches the `ingredient_key` Python already computed for
+ *  `EvidenceLink`/`ConcentrationAlignment` entries. Deliberately mirrors the
+ *  Python regex character-for-character (`[^a-z0-9]+` -> "-", trimmed) —
+ *  keep both in sync if either changes. */
+export function normalizeIngredientKey(raw: string | undefined): string {
+  return (raw ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}

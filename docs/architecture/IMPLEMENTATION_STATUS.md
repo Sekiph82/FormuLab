@@ -2203,7 +2203,7 @@ automatable scope to re-test. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`. **No Phase 13 session planned.**
 
-### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 2) — STRUCTURED EVIDENCE EXTRACTION, A-E CLASSIFICATION, EXPLAINABLE RANKING, FORMULA-SYNTHESIS INTEGRATION
+### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 3) — EVIDENCE-GROUNDED, REQUEST-AWARE MULTI-ALTERNATIVE FORMULATION SYNTHESIS
 
 Phase number and full approved product-decision scope registered
 while Phase 13 was active (Session 4A), documentation only — no code
@@ -2366,12 +2366,50 @@ equivalent gap. Python: 151/151 passing (122 baseline + 29 new). No
 frontend file touched. `pnpm tauri build` rebuilt the release binary;
 `FormuLab.lnk` re-verified.
 
+**Session 3**: new `runtime/pipeline/strategy.py` — request-aware
+strategy derivation (`derive_strategies()`, never a fixed V1/V2/V3 enum;
+a sensitive/sulfate-free request gets Sensitive Skin, a premium request
+gets Premium Sensory, etc.), kept the existing single-model-call
+architecture with a strategy-explicit prompt rather than `n` isolated
+calls (documented tradeoff: preserves cost/latency and full backward
+compatibility — all 151 pre-existing tests pass unmodified). Explainable
+`diversity_report()` (ingredient overlap + concentration similarity +
+surfactant match, conjunctive so legitimate same-chemistry variants
+aren't falsely flagged) marks rather than silently regenerates
+insufficient diversity. Hard-constraint validation now runs per strategy
+SLOT — a missing/ingredient-less slot is marked `generation_failed` with
+a real reason, every other slot still generates/validates/scores
+independently (no repair/retry architecture exists; disclosed future
+work). `link_evidence_to_version()`/`concentration_alignment()` give
+real, per-version evidence association (the same ingredient can carry
+different evidence across versions) and honest concentration labeling —
+no DOI ever attached to an inferred value. `compute_version_score()` —
+four named factors, `unique_source_count` structurally unreadable by the
+scorer, `None` when not credibly computable, kept separate from
+deterministic safety/regulatory PASS-FAIL. `FormulationResultPage.tsx`:
+real strategy title/rationale/score in version cards, a dedicated
+failure notice for a failed version, real evidence-class/DOI/outcome
+data in the Formula tab and Ingredient Evidence panel (minimum real
+wiring, not the full statistics build-out) — `cards.json` stays a flat
+array, every new field purely additive, `formulation_v2.rs` needed ZERO
+Rust logic changes (proven by a new backward-compat test); one real fix
+to the pre-existing `/live` workspace (`card.markdown` now optional).
+Verified against LIVE data: a multi-constraint disposable generation
+correctly derived real request-specific strategies and produced three
+genuinely different formulas with three different real computed scores.
+Python: 180/180 passing (151 baseline + 29 new). Rust: 5/5 (1 new).
+Frontend: 136 files/1210 tests (1205 baseline + 5 new), zero
+regressions. `pnpm tauri build` rebuilt the release binary; `FormuLab.lnk`
+re-verified.
+
 Full design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md`
 §11a (Session 0), §13 (frontend implementation), §13a (data-contract
-repair + dual-flow state), §14 (Session 1), §15 (Session 2); handoff:
-`docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase 14 Session 3**
-(true multi-alternative V1/V2/V3+ formulation synthesis grounded in
-Session 2's evidence model — not started automatically by this round).
+repair + dual-flow state), §14 (Session 1), §15 (Session 2), §16
+(Session 3); handoff: `docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase
+14 Session 4** (Ingredient Evidence panel's remaining rich statistics —
+observed range/median/confidence — plus the 9-tab result screen's
+remaining not-yet-available tabs, which still depend on Sessions 5/6 —
+not started automatically by this round).
 
 ## Not yet started
 

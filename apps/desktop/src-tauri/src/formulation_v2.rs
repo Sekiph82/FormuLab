@@ -38,6 +38,11 @@ const F_CANONICAL: &str = include_str!("../../../../runtime/pipeline/canonical_p
 // evidence extraction/ranking feeding formula synthesis) — same requirement
 // as canonical_paper.py above, must be materialized alongside it.
 const F_EVIDENCE: &str = include_str!("../../../../runtime/pipeline/evidence.py");
+// Phase 14 Session 3: pipeline.py now imports strategy.py directly
+// (request-aware multi-alternative synthesis, diversity validation,
+// version-specific evidence linking, scoring) — same requirement as
+// canonical_paper.py/evidence.py above, must be materialized alongside them.
+const F_STRATEGY: &str = include_str!("../../../../runtime/pipeline/strategy.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -119,6 +124,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("fulltext.py", F_FULLTEXT),
         ("canonical_paper.py", F_CANONICAL),
         ("evidence.py", F_EVIDENCE),
+        ("strategy.py", F_STRATEGY),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }
@@ -400,6 +406,37 @@ mod tests {
         let ingredients = result[0]["formula"]["ingredients"].as_array().unwrap();
         assert_eq!(ingredients.len(), 2, "real ingredients must survive a reopen, not be dropped");
         assert_eq!(result[0]["violations"].as_array().unwrap().len(), 0);
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// Phase 14 Session 3 added `strategy`/`status`/`evidence_links`/`score`/
+    /// `concentration_alignment` fields to NEW cards.json entries — this
+    /// proves an OLDER session's cards.json (Session 1/2 shape, none of
+    /// those keys present) still reads through `read_cards` completely
+    /// unchanged: `read_cards` is a generic `serde_json::Value` passthrough,
+    /// never a fixed struct, so no Rust code needed to change for this.
+    #[test]
+    fn read_cards_tolerates_a_pre_session_3_card_missing_strategy_fields() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let cards = serde_json::json!([
+            {
+                "version": "v1",
+                "markdown": "# Formulation Card: Legacy",
+                "formula": {"name": "Legacy Formula", "ingredients": [
+                    {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                ]},
+                "violations": [],
+            }
+        ]);
+        std::fs::write(tmp.join("cards.json"), serde_json::to_string(&cards).unwrap()).unwrap();
+
+        let result = read_cards(&tmp);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["formula"]["name"], "Legacy Formula");
+        assert!(result[0].get("strategy").is_none(), "no strategy field on a pre-Session-3 card — must not be fabricated");
+        assert!(result[0].get("status").is_none());
 
         std::fs::remove_dir_all(&tmp).ok();
     }

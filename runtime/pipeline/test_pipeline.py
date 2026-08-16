@@ -128,6 +128,102 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(res["status"], "ok")
             self.assertEqual(len(res["cards"]), 2)
 
+    # --- Phase 14 Session 3: strategy-aware multi-alternative synthesis ---
+
+    def test_cards_carry_real_strategy_metadata_matched_by_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "a sulfate-free anti-dandruff shampoo for sensitive scalp", "category": "shampoo",
+                 "targetCostLevel": "economy"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=3,
+                download_fulltexts=False, llm_call=mock_llm([
+                    {"name": "A", "purpose": "p", "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"}]},
+                    {"name": "B", "purpose": "p", "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"}]},
+                    {"name": "C", "purpose": "p", "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"}]},
+                ]),
+            )
+            self.assertEqual(res["status"], "ok")
+            for card in res["cards"]:
+                self.assertIn("strategy", card)
+                self.assertTrue(card["strategy"]["title"])
+                self.assertEqual(card["status"], "ok")
+            # Request-aware: this sensitive/economy request must include those
+            # two real strategies, not a hardcoded fixed set.
+            types = {c["strategy"]["strategy_type"] for c in res["cards"]}
+            self.assertIn("sensitive_skin", types)
+            self.assertIn("cost_optimized", types)
+
+    def test_partial_generation_failure_preserves_valid_siblings_and_reason(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=3,
+                download_fulltexts=False, llm_call=mock_llm([
+                    {"name": "A", "purpose": "p", "ingredients": [{"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"}]},
+                    {"name": "B", "purpose": "p", "ingredients": []},  # no ingredients -> must fail, not fake success
+                    # third slot entirely missing from the model's response
+                ]),
+            )
+            self.assertEqual(res["status"], "ok")  # partial success is still an overall "ok"
+            statuses = {c["version"]: c["status"] for c in res["cards"]}
+            self.assertEqual(statuses["v1"], "ok")
+            self.assertEqual(statuses["v2"], "generation_failed")
+            self.assertEqual(statuses["v3"], "generation_failed")
+            v2 = next(c for c in res["cards"] if c["version"] == "v2")
+            self.assertIn("no ingredients", v2["failure_reason"])
+            self.assertNotIn("formula", v2)  # never a fabricated formula for a failed slot
+
+    def test_diversity_report_flags_near_identical_versions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+
+            def near_identical(pct):
+                return {"name": "X", "purpose": "p", "ingredients": [
+                    {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                    {"inci": "Sodium Laureth Sulfate", "function": "Surfactant", "weight_pct": str(pct)},
+                ]}
+
+            res = pipeline.run(
+                {"target": "a daily shampoo", "category": "shampoo"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=2,
+                download_fulltexts=False,
+                llm_call=mock_llm([near_identical(10.0), near_identical(10.1)]),
+            )
+            self.assertFalse(res["diversity"]["sufficiently_diverse"])
+            self.assertTrue(any("Diversity check" in w for w in res["cards"][0]["formula"]["warnings"]))
+
+    def test_version_specific_evidence_and_score_persist_to_cards_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library(lib)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                provider="mock", model="m", api_key="", library=lib, out_dir=out, n=1,
+                download_fulltexts=False, llm_call=mock_llm([
+                    {"name": "A", "purpose": "p", "ingredients": [
+                        {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                        {"inci": "Piroctone Olamine", "function": "Active", "weight_pct": "1.0"},
+                    ]},
+                ]),
+            )
+            self.assertEqual(res["status"], "ok")
+            card = res["cards"][0]
+            self.assertIn("evidence_links", card)
+            self.assertIn("concentration_alignment", card)
+            self.assertIn("score", card)
+            with open(os.path.join(out, "cards.json"), encoding="utf-8") as fh:
+                persisted = json.load(fh)
+            self.assertIn("strategy", persisted[0])
+            self.assertIn("evidence_links", persisted[0])
+            with open(os.path.join(out, "diversity.json"), encoding="utf-8") as fh:
+                diversity_persisted = json.load(fh)
+            self.assertIn("sufficiently_diverse", diversity_persisted)
+
     def test_validation_flags_sulfate_in_antidandruff(self):
         with tempfile.TemporaryDirectory() as tmp:
             lib = os.path.join(tmp, "library"); seed_library(lib)

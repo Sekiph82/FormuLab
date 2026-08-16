@@ -1,6 +1,84 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: SESSION 2 COMPLETE. Structured evidence extraction, A-E classification, explainable ranking, and formula-synthesis integration — deterministic, rule-based, wired into the real pipeline — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §15. Session 1 (§14): Literature Search Orchestrator + Findpapers adapter + native OA adapters (DOAJ/Unpaywall/Semantic Scholar) + real `canonical_paper.py` cross-source dedup, verified against real APIs. Session 0 (§11a): pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence) had a real data-contract bug — fixed in an earlier round, §13a. Both formulation UIs (`/live` and the new request/result flow) remain available — temporary, disclosed dual-flow state, §13a. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+## Status: SESSION 3 COMPLETE. Evidence-grounded, request-aware multi-alternative formulation synthesis — strategy derivation, per-version evidence linking, cross-version diversity validation, per-version hard-constraint validation with partial-failure handling, and an explainable version score — wired into the real pipeline AND the result screen — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §16. Session 2 (§15): structured evidence extraction, A-E classification, explainable ranking. Session 1 (§14): Literature Search Orchestrator, Findpapers adapter, native OA adapters, CanonicalPaper cross-source dedup. Session 0 (§11a): pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence) had a real data-contract bug — fixed, §13a. Both formulation UIs (`/live` and the new request/result flow) remain available — temporary, disclosed dual-flow state, unchanged and re-verified this session. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+
+## Session 3 summary — evidence-grounded multi-alternative formulation synthesis
+
+New module `runtime/pipeline/strategy.py`. Architecture decision
+(documented in full in the module's own docstring): kept the existing
+ONE-model-call architecture with a much more structured, strategy-
+explicit prompt, rather than switching to `n` isolated calls per version
+— preserves this pipeline's own "single request/response" design
+principle, its cost/latency profile, and full backward compatibility
+with the existing `llm_call` contract and every test built on it (all
+151 pre-existing tests pass unmodified). A post-generation diversity
+validator is required regardless of call architecture anyway, which is
+what makes the extra cost of `n` calls not worth it.
+
+`derive_strategies(brief, constraints, n)` — deterministic, request-
+aware: a sensitive/sulfate-free request gets Sensitive Skin/Mildness
+Focused, a premium request gets Premium Sensory, a request with a short
+stated raw-materials list gets Low Raw-Material Count, etc. — never a
+fixed V1/V2/V3 enum. Every strategy's `tradeoffs_forbidden` always
+includes the same three universal entries (excluded ingredients,
+deterministic safety/regulatory rules, required functions) — no strategy
+may override a hard constraint.
+
+`diversity_report()` — explainable (ingredient overlap, concentration
+similarity, primary-surfactant match — never an opaque embedding
+score), conjunctive (flags a pair only when BOTH ingredient AND
+concentration profiles are near-identical, so legitimate same-chemistry-
+different-concentration strategies are correctly NOT flagged). Marks
+insufficiently-diverse results with an explicit warning rather than
+silently regenerating (no repair/retry architecture exists in this
+pipeline — real, disclosed future work).
+
+Per-version hard-constraint validation now runs per STRATEGY SLOT, not
+per trusted-complete list item: a missing or ingredient-less slot is
+marked `status: "generation_failed"` with a real, specific reason,
+carrying no fabricated formula — every other slot still generates,
+validates, and scores independently (proven directly: 2 of 3 slots
+failing for different reasons, the 3rd still a complete real card).
+
+`link_evidence_to_version()`/`concentration_alignment()` — real, per-
+version evidence association (the same ingredient across two versions
+can carry different linked evidence) and honest concentration labeling
+(`evidence_supported`/`evidence_context_only`/`formulab_inference` — no
+DOI ever attached to an inferred value). No median/observed-range
+statistic computed anywhere (Session 2's own deferral, unchanged).
+
+`compute_version_score()` — `VersionScore` with four named factors,
+`total` always exactly their weighted sum, `unique_source_count` not a
+field the scorer can read (structurally, not just by convention) —
+proven both behaviorally and structurally. Returns `None` ("not yet
+available") when there's nothing credible to score. Kept entirely
+separate from `violations`/deterministic safety-regulatory PASS-FAIL.
+
+`FormulationResultPage.tsx`: real strategy title/rationale/score in the
+version cards, a dedicated failure notice for a `generation_failed`
+version (disabled in the card row; the page now opens on the first
+successfully-generated version, never a dead tab), real evidence-class/
+DOI/outcome data in the Formula tab and the Ingredient Evidence panel —
+minimum real wiring, not the full statistics build-out. `cards.json`
+stays a flat JSON array (Rust's own requirement); every new field is
+purely additive; `formulation_v2.rs` needed ZERO Rust logic changes
+(proven by a new test loading a pre-Session-3-shaped card through the
+unchanged `read_cards`). One real fix to the pre-existing `/live`
+workspace: `card.markdown` became optional, so
+`<AgentMessage markdown={card.markdown} />` needed a `?? ""` fallback.
+
+Verified against LIVE data: a disposable generation for a multi-
+constraint sulfate-free/anti-dandruff/sensitive-scalp/pH/medium-cost
+request correctly derived Balanced/Sensitive Skin/Cost Optimized as its
+real strategies, retrieved 120 real candidates with 39 genuine cross-
+source duplicates merged, extracted 8 real evidence records, and
+produced three genuinely different formulas with three different real
+computed scores (0.562/0.603/0.5).
+
+Python: 180/180 passing (151 baseline + 29 new). Rust: 5/5 (1 new).
+Frontend: `tsc`/ESLint clean, 136 files/1210 tests (1205 baseline + 5
+new), zero regressions anywhere. `git diff --check`: clean. Full
+write-up: architecture doc §16.
 
 ## Session 2 summary — structured evidence extraction, A-E classification, ranking, formula-synthesis integration
 
@@ -357,10 +435,11 @@ touched this session.
 
 ## Exact next Phase 14 session
 
-**Session 3** (per the architecture doc §12's proposed breakdown, not
-redesigned): true multi-alternative (V1/V2/V3+) formulation synthesis
-grounded in Session 2's evidence model — the request/result screens
-themselves were already built out of sequence in an earlier round, so what
-remains is genuinely evidence-grounded multi-alternative generation, not
-the current pipeline's existing `n`-candidates-in-one-call mechanism. Not
-started automatically by this round.
+**Session 4** (per the architecture doc §12's proposed breakdown, not
+redesigned): the right-side Ingredient Evidence panel's remaining rich
+statistics (observed range/median/confidence — Session 3 did the minimum
+real evidence-class/DOI/outcome wiring only, deliberately deferring
+these) plus the 9-tab result screen's remaining not-yet-available tabs
+(Manufacturing Procedure, Critical Parameters, Equipment, full Safety/
+Regulatory evidence integration), which still depend on Sessions 5/6.
+Not started automatically by this round.

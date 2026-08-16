@@ -65,11 +65,80 @@ export type SafetyClassification =
   | "prohibited_request"
   | "human_review_required";
 
+/** Phase 14 Session 3 — `strategy.py::VersionStrategy.to_dict()`'s exact
+ *  shape. Always Python-derived, matched to its card by index — never
+ *  something the LLM could fabricate or omit. Absent on a pre-Session-3
+ *  session's cards.json (optional, never assumed present). */
+export interface VersionStrategy {
+  formula_version_id: string;
+  label: string;
+  strategy_type: string;
+  title: string;
+  rationale: string;
+  primary_priorities: string[];
+  secondary_priorities: string[];
+  tradeoffs_accepted: string[];
+  tradeoffs_forbidden: string[];
+}
+
+/** `strategy.py::VersionScore.to_dict()` — every factor named; `total` is
+ *  always exactly their weighted sum, never an opaque number. Absent
+ *  (`undefined`) when the pipeline itself judged a score not credibly
+ *  computable — the UI must show "not yet available", never fabricate one. */
+export interface VersionScore {
+  hard_constraint_compliance: number;
+  evidence_strength: number;
+  formulation_completeness: number;
+  evidence_gap_penalty: number;
+  total: number;
+}
+
+/** One `evidence.py::EvidenceRecord.to_dict()`, with `formula_version_id`
+ *  set by `strategy.py::link_evidence_to_version()` — real, traceable
+ *  provenance for this SPECIFIC version's use of this SPECIFIC ingredient,
+ *  never assumed to apply equally across versions (architecture doc §7). */
+export interface EvidenceLink {
+  formula_version_id: string;
+  ingredient_key: string;
+  ingredient_raw: string;
+  evidence_class: "A" | "B" | "C" | "D" | "E";
+  source_depth: "full_text" | "abstract_only" | "metadata_only";
+  paper_doi: string;
+  paper_title: string;
+  paper_year: string;
+  paper_authors: string;
+  paper_venue: string;
+  unique_source_count: number;
+  provenance_sources: string[];
+  evidence_text: string;
+  concentration?: { value: number; value_max: number | null; unit: string; basis: string } | null;
+  outcome?: string;
+}
+
+/** `"evidence_supported"` a linked record reports a comparable concentration;
+ *  `"evidence_context_only"` evidence exists for the ingredient but not a
+ *  comparable concentration; `"formulab_inference"` no linked evidence at
+ *  all — the model's own choice, never mislabeled as literature-backed
+ *  (`strategy.py::concentration_alignment()`). Keyed by the SAME
+ *  normalized ingredient key `EvidenceLink.ingredient_key` uses. */
+export type ConcentrationAlignment = Record<string, "evidence_supported" | "evidence_context_only" | "formulab_inference">;
+
 export interface FormulationCard {
   version: string; // "v1", "v2", …
-  markdown: string;
+  /** "ok" | "generation_failed" — absent on a pre-Session-3 session (treat
+   *  as "ok" when `formula` is present, matching the old, still-supported
+   *  shape). A failed slot has NO `formula`/`markdown` — never a fabricated
+   *  placeholder formula. */
+  status?: "ok" | "generation_failed";
+  /** Only present when `status === "generation_failed"`. */
+  failure_reason?: string;
+  markdown?: string;
   formula?: unknown;
   violations?: string[];
+  strategy?: VersionStrategy;
+  evidence_links?: EvidenceLink[];
+  concentration_alignment?: ConcentrationAlignment;
+  score?: VersionScore | null;
 }
 
 export interface GenerateResult {

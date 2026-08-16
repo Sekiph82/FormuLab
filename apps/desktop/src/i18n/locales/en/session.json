@@ -406,8 +406,13 @@
     "versions": {
       "heading": "Formulation Versions",
       "selected": "Selected",
+      "failed": "Failed",
       "noSummary": "No summary available for this candidate.",
-      "scoreNotYetAvailable": "Score: not yet available — evidence-based scoring is a later Phase 14 session"
+      "score": "Score: {{pct}}%",
+      "scoreNotYetAvailable": "Score: not yet available — insufficient data to score this version credibly"
+    },
+    "generationFailed": {
+      "heading": "{{version}} — Generation Failed"
     },
     "comparison": {
       "heading": "Version Comparison",
@@ -439,7 +444,8 @@
         "evidence": "Evidence",
         "evidenceClass": "Evidence Class"
       },
-      "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is a later Phase 14 session — not yet available",
+      "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is not available for this session",
+      "evidenceCount": "{{count}} record(s)",
       "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence"
     },
     "evidencePanel": {
@@ -450,6 +456,8 @@
       "functionRationale": "Included for its {{function}} role in this formulation.",
       "rationaleNotItemized": "A per-ingredient rationale is not yet itemized for this candidate.",
       "whyThisConcentration": "Why {{pct}}?",
+      "evidenceSupported": "Supported by Class {{class}} evidence (DOI: {{doi}}).",
+      "evidenceContextOnly": "Evidence exists for this ingredient, but not at a directly comparable concentration. FormuLab inference — laboratory validation required.",
       "insufficientEvidence": "Insufficient comparable evidence. Laboratory validation required.",
       "decisionFactors": "FormuLab Decision Factors",
       "decisionFactorsNotComputed": "Decision factors are not yet computed for individual ingredients.",

@@ -20,6 +20,7 @@ import evidence
 import fulltext
 import llm
 import literature_cache
+import strategy
 from rules import derive_constraints, validate
 
 # Hazardous / illicit classes the app must refuse (safety gate).
@@ -209,7 +210,7 @@ def build_queries(brief: Dict[str, Any], constraints: Dict[str, Any] | None = No
     return out[:6]
 
 
-def _system_prompt(constraints: Dict[str, Any], n: int) -> str:
+def _system_prompt(constraints: Dict[str, Any], n: int, strategy_section: str = "") -> str:
     p = constraints["profile"]
     avoid = ", ".join(constraints["avoid"]) or "none"
     prefer = ", ".join(constraints["prefer"]) or "none"
@@ -235,7 +236,7 @@ reported it. Where neither the evidence section nor your own general knowledge s
 decision, say so in the formula's own warnings — MISSING / REQUIRES LAB VALIDATION — rather than
 inventing a plausible-looking value.
 
-HARD RULES (must be obeyed in every formula):
+HARD RULES (must be obeyed in EVERY formula, regardless of strategy — no strategy below may override these):
 - Region: {p['display']} — water hardness {p['water_hardness']}, climate {p['climate']}, {p['notes']}
 - MUST NOT contain any of these (excluded ingredients): {avoid}
 - Required functions present: {req}
@@ -247,6 +248,8 @@ Each formula MUST be complete for the product class (e.g. a shampoo: cleansing s
 rheology, preservative, chelator, pH control, water q.s. to 100). Give a SINGLE EXACT weight-%
 per ingredient (not a range); the column sums to 100 with Water (Aqua) as "q.s. 100".
 
+{strategy_section}
+
 JSON schema:
 {{"formulas": [{{
   "name": "...", "purpose": "one sentence with key claims",
@@ -257,7 +260,7 @@ JSON schema:
   "usage": ["step 1", "step 2"],
   "warnings": ["...", "..."]
 }}]}}
-Make the {n} formulas genuinely different (e.g. different active systems), each obeying every hard rule."""
+Return exactly {n} entries in "formulas", one per strategy above, in the same order."""
 
 
 def _paper_context(papers: List[Dict[str, Any]], pdf_dir: str = "", limit: int = 15) -> str:
@@ -339,8 +342,11 @@ def verify_references(formula: Dict[str, Any], papers: List[Dict[str, Any]]) -> 
     return notes
 
 
-def render_card(formula: Dict[str, Any], violations: List[str]) -> str:
+def render_card(formula: Dict[str, Any], violations: List[str], strat: Dict[str, Any] | None = None) -> str:
     md = [f"# Formulation Card: {formula.get('name','Candidate')}", ""]
+    if strat:
+        md.append(f"**Strategy:** {strat.get('title','')} — {strat.get('rationale','')}")
+        md.append("")
     md.append(f"**Purpose:** {formula.get('purpose','')}")
     md.append("")
     refs = "; ".join(
@@ -531,7 +537,16 @@ def run(
     log(f"evidence: {len(evidence_records)} record(s) from {studies} unique studies "
         f"(classes: {class_counts or 'none'})")
 
-    system = _system_prompt(constraints, n)
+    # Phase 14 Session 3: request-aware strategy derivation — never a fixed
+    # V1/V2/V3 enum. `len(strategies)` becomes the real formula count
+    # requested (it can be < n when fewer than n strategies genuinely apply
+    # to this brief — architecture doc §4's own instruction to say so
+    # explicitly rather than invent an alternative).
+    strategies = strategy.derive_strategies(brief, constraints, n=n)
+    log(f"strategies: {', '.join(s.title for s in strategies)}")
+    strategy_section = strategy.build_strategy_prompt_section(strategies)
+
+    system = _system_prompt(constraints, len(strategies), strategy_section)
     context = _paper_context(papers, pdf_dir)
     full = context.count("--- FULL TEXT:")
     log(f"evidence: {full} full text(s) read, {len(papers) - full} abstract-only")
@@ -561,8 +576,26 @@ def run(
     # The session folder's own name identifies every card written from this run.
     session_id = os.path.basename(out_dir.rstrip("/\\"))
 
-    cards = []
-    for idx, f in enumerate(formulas[:n], 1):
+    # One model call, but each of `strategies`' own slots is validated,
+    # scored, and linked to evidence INDEPENDENTLY (architecture doc §10:
+    # "a valid V1 does not make V2/V3 valid"). No repair/retry architecture
+    # exists in this pipeline (checked directly, none has ever been built) —
+    # a missing or ingredient-less slot is marked failed with a real reason,
+    # never silently retried or replaced with a fabricated success.
+    cards: List[Dict[str, Any]] = []
+    for idx, strat in enumerate(strategies, 1):
+        version = f"v{idx}"
+        f = formulas[idx - 1] if idx - 1 < len(formulas) else None
+        if not f or not f.get("ingredients"):
+            reason = ("the model did not return a formula for this strategy slot" if not f
+                       else "the returned formula had no ingredients")
+            log(f"[warn] {version} ({strat.title}) generation failed: {reason}")
+            cards.append({
+                "version": version, "status": "generation_failed", "failure_reason": reason,
+                "strategy": strat.to_dict(),
+            })
+            continue
+
         ingredients = [str(i.get("inci", "")) for i in f.get("ingredients", [])]
         violations = validate(ingredients, constraints)
         # Citations are checked against the retrieved set, never taken on trust.
@@ -576,32 +609,67 @@ def run(
                 "NOT grounded in retrieved sources, and any references shown "
                 "should be verified independently.",
             ]
-        md = render_card(f, violations)
-        version = f"v{idx}"
+
+        # Version-specific evidence association (architecture doc §7): which
+        # of the already-ranked evidence records are actually about an
+        # ingredient THIS version uses, keyed by `formulaVersionId +
+        # ingredient` — never assumed to apply equally across versions.
+        version_links = strategy.link_evidence_to_version(version, f, ranked_evidence)
+        alignment = strategy.concentration_alignment(f, version_links)
+        score = strategy.compute_version_score(f, violations, version_links)
+
+        md = render_card(f, violations, strat.to_dict())
         with open(os.path.join(out_dir, card_filename(session_id, version)), "w", encoding="utf-8") as fh:
             fh.write(md)
-        cards.append({"version": version, "markdown": md, "formula": f, "violations": violations})
+        cards.append({
+            "version": version, "status": "ok", "markdown": md, "formula": f, "violations": violations,
+            "strategy": strat.to_dict(),
+            "evidence_links": version_links,
+            "concentration_alignment": alignment,
+            "score": score.to_dict() if score else None,
+        })
+
+    # Cross-version diversity validation (architecture doc §9). Marks rather
+    # than silently regenerates: regeneration would need its own retry/loop-
+    # safety design this session does not build (see the module-level note
+    # in strategy.py on why no repair/retry architecture exists yet).
+    diversity = strategy.diversity_report(cards)
+    log(f"diversity: {'sufficient' if diversity.sufficiently_diverse else 'INSUFFICIENT'} — {diversity.explanation}")
+    if not diversity.sufficiently_diverse:
+        for card in cards:
+            if card.get("status") == "ok":
+                card["formula"]["warnings"] = list(card["formula"].get("warnings") or []) + [
+                    f"Diversity check: {diversity.explanation}",
+                ]
 
     with open(os.path.join(out_dir, "brief.json"), "w", encoding="utf-8") as fh:
         json.dump({"brief": brief, "constraints_reasons": constraints["reasons"]}, fh, ensure_ascii=False, indent=2)
 
     # The markdown files are for a person to read; `cards.json` is the same
-    # data (version/markdown/formula/violations) structured so `read_session`
-    # can return the real formula object and violations list on reopen — not
-    # just the rendered markdown. Session-local only, not archived to the
-    # formula library (archive_formulas keeps its own index.json for that).
+    # data structured so `read_session` can return the real formula object,
+    # violations, strategy metadata, per-version evidence links, and score on
+    # reopen — not just the rendered markdown. Session-local only, not
+    # archived to the formula library (archive_formulas keeps its own
+    # index.json for that). Stays a flat JSON ARRAY at the top level —
+    # formulation_v2.rs::read_cards requires that shape.
     with open(os.path.join(out_dir, "cards.json"), "w", encoding="utf-8") as fh:
         json.dump(cards, fh, ensure_ascii=False, indent=2)
 
+    # Session-local, additive — never read by the existing Rust bridge, so
+    # this cannot break backward compatibility with any old session.
+    with open(os.path.join(out_dir, "diversity.json"), "w", encoding="utf-8") as fh:
+        json.dump(diversity.to_dict(), fh, ensure_ascii=False, indent=2)
+
     slug = _slug(target)
     archived: List[str] = []
+    ok_cards = [c for c in cards if c.get("status") == "ok"]
     if formulas_dir:
         try:
-            archived = archive_formulas(formulas_dir, cards, brief, slug, session_id)
+            archived = archive_formulas(formulas_dir, ok_cards, brief, slug, session_id)
             log(f"archived {len(archived)} formula(s) to the library")
         except Exception as e:
             # The library is a convenience copy — never fail a good run over it.
             log(f"[warn] could not archive to the formula library: {e}")
 
     return {"status": "ok", "cards": cards, "slug": slug,
-            "papers": len(papers), "archived": archived}
+            "papers": len(papers), "archived": archived, "diversity": diversity.to_dict()}

@@ -20,7 +20,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { readSession, type FormulationCard, type SessionDetail } from "@/lib/formulationV2";
-import { asGeneratedFormula, ingredientId, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
+import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
 import { cn } from "@/lib/cn";
 
 /**
@@ -62,7 +62,11 @@ export function FormulationResultPage() {
       .then((s) => {
         if (cancelled) return;
         setSession(s);
-        setActiveVersion(0);
+        // Default to the first successfully-generated version — a session
+        // whose v1 failed but v2/v3 succeeded must not open on a dead tab
+        // (architecture doc §16's partial-failure handling).
+        const firstOk = s.cards.findIndex((c) => c.status !== "generation_failed");
+        setActiveVersion(firstOk === -1 ? 0 : firstOk);
         setSelectedIngredient(null);
       })
       .catch((e) => !cancelled && setError(String(e)));
@@ -144,7 +148,7 @@ export function FormulationResultPage() {
           <div className="flex flex-col gap-4">
             {tab === "formula" && (
               <IngredientEvidencePanel
-                version={card?.version}
+                card={card}
                 formula={formula}
                 selectedIndex={selectedIngredient}
                 onClose={() => setSelectedIngredient(null)}
@@ -214,12 +218,20 @@ function OriginalRequestBanner({
 
 // ------------------------------------------------------- version cards ---
 
-/** A short, real strategy label derived from the model's OWN generated
- *  `name`/`purpose` — never a hardcoded enum. Falls back to the raw
- *  version id when the formula itself is missing (a malformed/failed
- *  candidate), never a fabricated label. */
-function strategyLabel(formula: GeneratedFormula | undefined, fallback: string): string {
-  return formula?.name?.trim() || fallback;
+/** Phase 14 Session 3 — real, Python-derived strategy title when the
+ *  session carries one (`card.strategy.title`, matched by index in
+ *  `pipeline.py::run()`, never something the model itself could invent).
+ *  Falls back to the model's OWN generated `name` for a pre-Session-3
+ *  session, then the raw version id when even that is missing (a
+ *  malformed/failed candidate) — never a fabricated label. */
+function strategyLabel(card: FormulationCard, formula: GeneratedFormula | undefined, fallback: string): string {
+  return card.strategy?.title || formula?.name?.trim() || fallback;
+}
+
+/** Real rationale when this session has one; otherwise the model's own
+ *  `purpose` text (pre-Session-3 sessions), never a fabricated summary. */
+function strategyDescription(card: FormulationCard, formula: GeneratedFormula | undefined): string | undefined {
+  return card.strategy?.rationale || formula?.purpose || undefined;
 }
 
 function VersionCards({
@@ -240,26 +252,38 @@ function VersionCards({
       </div>
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
         {cards.map((c, i) => {
+          const failed = c.status === "generation_failed";
           const formula = asGeneratedFormula(c.formula);
           const isActive = i === active;
           return (
             <button
               key={c.version}
               onClick={() => onSelect(i)}
+              disabled={failed}
               className={cn(
                 "rounded-card border p-3 text-left transition-colors",
-                isActive ? "border-accent bg-accent/5" : "border-border bg-surface hover:bg-surface-2",
+                failed ? "cursor-not-allowed border-error/30 bg-error/5 opacity-70"
+                  : isActive ? "border-accent bg-accent/5" : "border-border bg-surface hover:bg-surface-2",
               )}
             >
               <div className="flex items-center justify-between">
                 <span className="rounded-input bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text">
                   {c.version}
                 </span>
-                {isActive && <span className="text-[10px] font-medium text-accent">{t("formulationResult.versions.selected")}</span>}
+                {isActive && !failed && <span className="text-[10px] font-medium text-accent">{t("formulationResult.versions.selected")}</span>}
+                {failed && <span className="text-[10px] font-medium text-error">{t("formulationResult.versions.failed")}</span>}
               </div>
-              <div className="mt-1.5 text-[12.5px] font-medium text-text">{strategyLabel(formula, c.version.toUpperCase())}</div>
-              <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{formula?.purpose || t("formulationResult.versions.noSummary")}</p>
-              <div className="mt-2 text-[10px] text-muted">{t("formulationResult.versions.scoreNotYetAvailable")}</div>
+              <div className="mt-1.5 text-[12.5px] font-medium text-text">{strategyLabel(c, formula, c.version.toUpperCase())}</div>
+              <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">
+                {failed ? c.failure_reason : strategyDescription(c, formula) || t("formulationResult.versions.noSummary")}
+              </p>
+              {!failed && (
+                <div className="mt-2 text-[10px] text-muted">
+                  {c.score
+                    ? t("formulationResult.versions.score", { pct: Math.round(c.score.total * 100) })
+                    : t("formulationResult.versions.scoreNotYetAvailable")}
+                </div>
+              )}
             </button>
           );
         })}
@@ -305,6 +329,7 @@ function TabContent({
   t: TFunction<readonly ["session", "common"]>;
 }) {
   if (!card) return <EmptyNotice t={t} />;
+  if (card.status === "generation_failed") return <GenerationFailedNotice card={card} t={t} />;
   switch (tab) {
     case "formula":
       return <FormulaTab card={card} formula={formula} selectedIngredient={selectedIngredient} onSelectIngredient={onSelectIngredient} t={t} />;
@@ -331,6 +356,20 @@ function TabContent({
 
 function EmptyNotice({ t }: { t: TFunction<readonly ["session", "common"]> }) {
   return <div className="rounded-card border border-border bg-surface p-5 text-[12px] text-muted">{t("formulationResult.noCandidate")}</div>;
+}
+
+/** A version that failed to generate (architecture doc §16: preserve the
+ *  real failure reason, never a fabricated formula in its place). */
+function GenerationFailedNotice({ card, t }: { card: FormulationCard; t: TFunction<readonly ["session", "common"]> }) {
+  return (
+    <div className="rounded-card border border-error/30 bg-error/5 p-5">
+      <div className="flex items-center gap-2 text-[13px] font-medium text-error">
+        <AlertTriangle size={16} />
+        {t("formulationResult.generationFailed.heading", { version: card.version.toUpperCase() })}
+      </div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted">{card.failure_reason}</p>
+    </div>
+  );
 }
 
 function NotYetAvailableTab({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
@@ -393,27 +432,46 @@ function FormulaTab({
             </tr>
           </thead>
           <tbody>
-            {ingredients.map((ing, i) => (
-              <tr
-                key={ingredientId(i, ing)}
-                onClick={() => onSelectIngredient(i)}
-                className={cn(
-                  "cursor-pointer border-b border-border-faint/60 hover:bg-surface-2",
-                  selectedIngredient === i && "bg-accent/10",
-                )}
-              >
-                <td className="py-1.5 pr-2 text-muted">{i + 1}</td>
-                <td className="py-1.5 pr-2 text-text">{ing.inci || "—"}</td>
-                <td className="py-1.5 pr-2 text-muted">{ing.function || "—"}</td>
-                <td className="py-1.5 pr-2 tabular-nums text-text">{ing.weight_pct || "—"}</td>
-                <td className="py-1.5 pr-2 text-muted" title={t("formulationResult.formula.perIngredientEvidenceNotYetLinked")}>
-                  {"—"}
-                </td>
-                <td className="py-1.5 pr-2 text-muted" title={t("formulationResult.formula.perIngredientEvidenceNotYetLinked")}>
-                  {"—"}
-                </td>
-              </tr>
-            ))}
+            {ingredients.map((ing, i) => {
+              // Phase 14 Session 3 — real per-ingredient evidence, when this
+              // session has it; falls back to the honest "—"/not-yet-linked
+              // placeholder for a pre-Session-3 session exactly as before.
+              const key = normalizeIngredientKey(ing.inci);
+              const rowLinks = (card.evidence_links ?? []).filter((l) => l.ingredient_key === key);
+              const strongestClass = rowLinks.length > 0
+                ? rowLinks.map((l) => l.evidence_class).sort((a, b) => CLASS_RANK[a] - CLASS_RANK[b])[0]
+                : undefined;
+              return (
+                <tr
+                  key={ingredientId(i, ing)}
+                  onClick={() => onSelectIngredient(i)}
+                  className={cn(
+                    "cursor-pointer border-b border-border-faint/60 hover:bg-surface-2",
+                    selectedIngredient === i && "bg-accent/10",
+                  )}
+                >
+                  <td className="py-1.5 pr-2 text-muted">{i + 1}</td>
+                  <td className="py-1.5 pr-2 text-text">{ing.inci || "—"}</td>
+                  <td className="py-1.5 pr-2 text-muted">{ing.function || "—"}</td>
+                  <td className="py-1.5 pr-2 tabular-nums text-text">{ing.weight_pct || "—"}</td>
+                  {rowLinks.length > 0 ? (
+                    <>
+                      <td className="py-1.5 pr-2 text-text">{t("formulationResult.formula.evidenceCount", { count: rowLinks.length })}</td>
+                      <td className="py-1.5 pr-2 text-text">{strongestClass}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="py-1.5 pr-2 text-muted" title={t("formulationResult.formula.perIngredientEvidenceNotYetLinked")}>
+                        {"—"}
+                      </td>
+                      <td className="py-1.5 pr-2 text-muted" title={t("formulationResult.formula.perIngredientEvidenceNotYetLinked")}>
+                        {"—"}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -425,13 +483,13 @@ function FormulaTab({
 // ------------------------------------------------------ right panel ---
 
 function IngredientEvidencePanel({
-  version,
+  card,
   formula,
   selectedIndex,
   onClose,
   t,
 }: {
-  version: string | undefined;
+  card: FormulationCard | undefined;
   formula: GeneratedFormula | undefined;
   selectedIndex: number | null;
   onClose: () => void;
@@ -446,13 +504,23 @@ function IngredientEvidencePanel({
     );
   }
   const ing = formula.ingredients[selectedIndex];
+  // Phase 14 Session 3 — real per-version evidence, when this session has
+  // it (`strategy.py::link_evidence_to_version()`), keyed by the SAME
+  // normalized ingredient key Python computed. Absent on a pre-Session-3
+  // session — every section below falls back to its honest "not yet
+  // available" wording exactly as before, never fabricated.
+  const key = normalizeIngredientKey(ing.inci);
+  const links = (card?.evidence_links ?? []).filter((l) => l.ingredient_key === key);
+  const alignment = card?.concentration_alignment?.[key];
+  const strongest = links.length > 0 ? links.slice().sort((a, b) => CLASS_RANK[a.evidence_class] - CLASS_RANK[b.evidence_class])[0] : undefined;
+
   return (
     <div className="rounded-card border border-border bg-surface p-4">
       <div className="mb-2 flex items-start justify-between">
         <div>
           <div className="text-[12px] font-medium text-text">{t("formulationResult.evidencePanel.heading")}</div>
           <div className="text-[11px] text-muted">
-            {version?.toUpperCase()} &gt; {ing.inci || "—"}
+            {card?.version?.toUpperCase()} &gt; {ing.inci || "—"}
           </div>
         </div>
         <button onClick={onClose} aria-label={t("common:actions.close", { defaultValue: "Close" })} className="text-muted hover:text-text">
@@ -474,7 +542,18 @@ function IngredientEvidencePanel({
       </EvidenceSection>
 
       <EvidenceSection title={t("formulationResult.evidencePanel.whyThisConcentration", { pct: ing.weight_pct || "—" })}>
-        <p className="text-[11.5px] leading-relaxed text-warning">{t("formulationResult.evidencePanel.insufficientEvidence")}</p>
+        {alignment === "evidence_supported" && strongest ? (
+          <p className="text-[11.5px] leading-relaxed text-text">
+            {t("formulationResult.evidencePanel.evidenceSupported", {
+              class: strongest.evidence_class,
+              doi: strongest.paper_doi || t("formulationResult.evidencePanel.noDoi"),
+            })}
+          </p>
+        ) : alignment === "evidence_context_only" ? (
+          <p className="text-[11.5px] leading-relaxed text-warning">{t("formulationResult.evidencePanel.evidenceContextOnly")}</p>
+        ) : (
+          <p className="text-[11.5px] leading-relaxed text-warning">{t("formulationResult.evidencePanel.insufficientEvidence")}</p>
+        )}
       </EvidenceSection>
 
       <EvidenceSection title={t("formulationResult.evidencePanel.decisionFactors")}>
@@ -482,7 +561,26 @@ function IngredientEvidencePanel({
       </EvidenceSection>
 
       <EvidenceSection title={t("formulationResult.evidencePanel.supportingSources")}>
-        {formula.references && formula.references.length > 0 ? (
+        {links.length > 0 ? (
+          <>
+            <p className="mb-1.5 text-[10px] text-muted">{t("formulationResult.evidencePanel.sourcesScopeNote")}</p>
+            <ul className="space-y-1.5">
+              {links.slice(0, 5).map((l, i) => (
+                <li key={i} className="text-[11px] text-text">
+                  <span className="mr-1 rounded-input bg-surface-2 px-1 py-0.5 text-[9px] font-semibold uppercase text-muted">
+                    {l.evidence_class}
+                  </span>
+                  {t("formulationResult.evidencePanel.sourceLine", {
+                    author: l.paper_authors || t("formulationResult.evidencePanel.unknownAuthor"),
+                    year: l.paper_year || "",
+                    doi: l.paper_doi || t("formulationResult.evidencePanel.noDoi"),
+                  })}
+                  {l.outcome && <p className="mt-0.5 text-[10.5px] text-muted">{l.outcome}</p>}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : formula.references && formula.references.length > 0 ? (
           <>
             <p className="mb-1.5 text-[10px] text-muted">{t("formulationResult.evidencePanel.sourcesScopeNote")}</p>
             <ul className="space-y-1">
@@ -508,6 +606,10 @@ function IngredientEvidencePanel({
     </div>
   );
 }
+
+/** Lower rank = stronger evidence, for picking the single strongest linked
+ *  record to summarize in "Why this concentration?" above. */
+const CLASS_RANK: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
 
 function EvidenceSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (

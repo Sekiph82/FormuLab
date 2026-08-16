@@ -8,19 +8,27 @@ fixed two real Rust-side bugs (`formulation_v2.rs`'s `read_session` — a
 brief-unwrap bug and a missing structured-formula sidecar) that made the
 result screen show an unavailable original request and 0 ingredients
 even after a real, successful generation — see the architecture doc §13a
-for the full trace and fix. Both this new flow and the pre-existing
-`/live` workspace remain available (temporary, disclosed dual-flow
-state, §13a). Real files: `apps/desktop/src/app/routes/NewFormulationRequestPage.tsx`
+for the full trace and fix. A later Session 3 round (architecture doc
+§16) wired real strategy titles/rationale/scores into the version cards
+and real evidence-class/DOI/outcome data into the Formula tab and the
+Ingredient Evidence panel — both minimum real wiring, not the full
+observed-range/median/confidence statistics build-out, which remains
+explicitly deferred. Both this new flow and the pre-existing `/live`
+workspace remain available (temporary, disclosed dual-flow state, §13a).
+Real files: `apps/desktop/src/app/routes/NewFormulationRequestPage.tsx`
 (Screen 1) and `apps/desktop/src/app/routes/FormulationResultPage.tsx`
 (Screen 2), routed at `/formulation-request` and `/formulation-
 result/:sessionId`, reachable from the sidebar's "New Request" entry and
 the saved-formulations history list. Both call the existing, unchanged
-`generate_formulation`/`read_session` commands — no new backend command,
-no change to `runtime/pipeline/`'s generation behavior. Every field
-either shows real data returned by that pipeline (ingredients,
-functions, weight %, references, purpose, warnings, the deterministic
-`violations` list) or an explicit, visible "not yet available" notice —
-never a fabricated score, evidence-class, process step, or regulatory
+`generate_formulation`/`read_session` commands — no new backend command
+was added; `runtime/pipeline/`'s generation behavior evolved (Sessions
+2/3) but the command surface and session-file contract stayed additive/
+backward-compatible throughout. Every field either shows real data
+returned by that pipeline (ingredients, functions, weight %, references,
+purpose, warnings, the deterministic `violations` list, and — as of
+Session 3 — real strategy/score/evidence-class data where available) or
+an explicit, visible "not yet available" notice — never a fabricated
+process step, or regulatory
 determination, per this document's own "Scientific data rules" below,
 which the implementation follows to the letter. See the architecture
 doc §11a/§13 for the full account of what is and isn't backed by real

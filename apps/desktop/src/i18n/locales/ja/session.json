@@ -406,8 +406,10 @@
     "versions": {
       "heading": "Formulation Versions",
       "selected": "Selected",
+      "failed": "Failed",
       "noSummary": "No summary available for this candidate.",
-      "scoreNotYetAvailable": "Score: not yet available — evidence-based scoring is a later Phase 14 session"
+      "score": "Score: {{pct}}%",
+      "scoreNotYetAvailable": "Score: not yet available — insufficient data to score this version credibly"
     },
     "comparison": {
       "heading": "Version Comparison",
@@ -439,8 +441,9 @@
         "evidence": "Evidence",
         "evidenceClass": "Evidence Class"
       },
-      "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is a later Phase 14 session — not yet available",
-      "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence"
+      "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is not available for this session",
+      "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence",
+      "evidenceCount": "{{count}} record(s)"
     },
     "evidencePanel": {
       "heading": "Ingredient Evidence",
@@ -460,7 +463,9 @@
       "sourceLine": "{{author}} {{year}} — DOI: {{doi}}",
       "noSources": "No scientific sources are recorded for this formula.",
       "relatedConstraints": "Related Constraints & Notes",
-      "constraintsNotAvailable": "Constraints and notes for this ingredient are not yet available."
+      "constraintsNotAvailable": "Constraints and notes for this ingredient are not yet available.",
+      "evidenceSupported": "Supported by Class {{class}} evidence (DOI: {{doi}}).",
+      "evidenceContextOnly": "Evidence exists for this ingredient, but not at a directly comparable concentration. FormuLab inference — laboratory validation required."
     },
     "safety": {
       "overallStatus": "Overall Safety Status",
@@ -550,6 +555,9 @@
     },
     "alternatives": {
       "notAvailable": "Ingredient/process alternatives for this version are not yet generated — a later Phase 14 session builds this."
+    },
+    "generationFailed": {
+      "heading": "{{version}} — Generation Failed"
     }
   },
   "builder": {
