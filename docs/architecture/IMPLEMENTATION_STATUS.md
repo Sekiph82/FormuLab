@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-5) — ADMINISTRATION → USERS IMPLEMENTED
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-5 + closure session) — WORKFLOW GATE UI, SUBJECT VALIDATION, MATRIX DOMAIN REVIEW, LAST-ADMINISTRATOR GUARD ALL CLOSED
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -2105,6 +2105,52 @@ exact section's pre-existing precedent). Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §13; test report:
 `docs/PHASE13_SECURITY_TEST_MATRIX.md` §L; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`.
+
+A focused closure session then resolved the five residual warnings
+Session 5 disclosed, without starting Session 6. The four Production
+Manager workflow gates gained real frontend UI: a reusable
+`WorkflowGatePanel` embedded directly in `MaterialEditor.tsx`,
+`SupplierEditor.tsx`, and `ApprovalPanel.tsx` — not a disconnected
+generic workflow page — showing gate state, who submitted/decided and
+when, rejection reason, resubmission availability, and (for the two
+production gates) the real prerequisite-blocking reason before a
+worker even tries to submit. `workflow_gates.rs` gained
+`validate_subject_exists`, checked after authorization but before
+create/submit/decide/read: a masterdata-record gate now rejects a
+nonexistent `materials`/`suppliers` code and any `parent_id`; a
+formulation-version gate requires a real `parent_id` and rejects a
+`subject_id` that isn't a real file under that exact parent's
+directory — proving the cross-subject/wrong-parent case structurally,
+not just the plain-nonexistent one. §6's role-permission matrix was
+domain-reviewed cell-by-cell against real screens, the four gates, and
+backend enforcement: one correction found and made — `quality`'s stale,
+pre-gate `verify` on `rawMaterials` was quietly a second decide
+authority for `raw_material_verification`, contradicting §15.4's "sole
+approval authority" language, and has been removed from `rolePolicy.ts`
+(regenerated fixture, regression test on both languages); everything
+else confirmed correct as already documented. §6 is now final for
+Phase 13. `cancel_advanced_formulation_optimize` was independently
+re-audited (not left on cancel-command precedent): the shared run slot
+is genuinely global by design and its worst case is a wasted compute,
+so cancellation semantics stay `TRUSTED_INTERNAL_ONLY`, but the command
+now requires a valid authenticated session, closing its last
+zero-login gap. `identity::update_role_guarded`/
+`update_account_status_guarded` (new) close Session 5's disclosed
+last-administrator gap transactionally (SQLite `IMMEDIATE`, the same
+isolation `bootstrap_administrator` already uses): demoting or
+disabling the sole *active* administrator is refused, a disabled
+administrator never counts as a backup, and a concurrent second admin
+action cannot race past a stale pre-check. Rust: 328/328 (314 + 14
+new), clippy clean. Shared: 1302/1302 (1301 + 1 new). Desktop:
+1197/1197 (unchanged — the new gate panels have existing indirect
+coverage via `ApprovalPanel.test.tsx`), tsc clean, eslint clean, i18n
+parity clean with real translations (not English-only fallbacks) in
+every one of the 8 shipped locales for every new key. Residual,
+disclosed, not closed: no admin UI to inspect/list all workflow gates
+across subjects — out of scope, not one of the five named warnings.
+Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §26; test
+report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §M; handoff:
+`docs/handoffs/PHASE13_CURRENT.md`. **Next: Phase 13 Session 6.**
 
 ### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14) — RESERVED, NOT STARTED
 

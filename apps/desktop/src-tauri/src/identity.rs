@@ -508,6 +508,96 @@ pub(crate) fn update_role(conn: &Connection, user_id: &str, role: Role) -> Resul
     Ok(())
 }
 
+fn no_such_user(e: rusqlite::Error) -> String {
+    if matches!(e, rusqlite::Error::QueryReturnedNoRows) {
+        "no such user".to_string()
+    } else {
+        e.to_string()
+    }
+}
+
+/// Every active administrator other than `user_id`. Disabled/non-active
+/// administrators never count as a "backup" — an installation with one
+/// active administrator and three disabled ones still has exactly one
+/// active administrator, and this is what both guards below check.
+fn other_active_administrators(tx: &rusqlite::Transaction, user_id: &str) -> Result<i64, String> {
+    tx.query_row(
+        "SELECT count(*) FROM users WHERE role = ?1 AND status = 'active' AND id != ?2",
+        params![Role::Administrator.as_str(), user_id],
+        |r| r.get(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Phase 13 closure session — the last-active-administrator guard for role
+/// changes. Runs entirely inside one `IMMEDIATE` transaction (same pattern
+/// `bootstrap_administrator` already uses) so two concurrent role changes
+/// against the sole active administrator cannot both read "another active
+/// admin exists" before either writes — `IMMEDIATE` takes the write lock
+/// up front, so the second transaction blocks until the first commits or
+/// rolls back, and then re-reads the now-current count itself. No-op-safe:
+/// only blocks a change that would actually *remove* administrator
+/// authority from a currently *active* administrator; changing a
+/// non-administrator's role, or a disabled administrator's role, is never
+/// touched by this guard. On denial, no row is written at all — the
+/// transaction is dropped without `commit()`, which rolls it back.
+pub(crate) fn update_role_guarded(conn: &mut Connection, user_id: &str, new_role: Role) -> Result<(), String> {
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| e.to_string())?;
+    let (current_role, current_status): (String, String) = tx
+        .query_row("SELECT role, status FROM users WHERE id = ?1", params![user_id], |r| Ok((r.get(0)?, r.get(1)?)))
+        .map_err(no_such_user)?;
+    let removes_admin_authority = current_role == Role::Administrator.as_str() && new_role != Role::Administrator;
+    if removes_admin_authority && current_status == "active" && other_active_administrators(&tx, user_id)? == 0 {
+        return Err("cannot change this role: it is the last active administrator".into());
+    }
+    tx.execute(
+        "UPDATE users SET role = ?1, updated_at = ?2 WHERE id = ?3",
+        params![new_role.as_str(), now_iso(), user_id],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Phase 13 closure session — the last-active-administrator guard for
+/// account disable. Same `IMMEDIATE`-transaction shape as
+/// `update_role_guarded`, for the same concurrency reason. Activating an
+/// account never needs this guard (it can only increase the active-
+/// administrator count); only `active == false` is checked. Disabling
+/// still revokes every open session, unchanged from the ungated
+/// `update_account_status` (Session 1).
+pub(crate) fn update_account_status_guarded(conn: &mut Connection, user_id: &str, active: bool) -> Result<(), String> {
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| e.to_string())?;
+    if !active {
+        let (role, status): (String, String) = tx
+            .query_row("SELECT role, status FROM users WHERE id = ?1", params![user_id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(no_such_user)?;
+        if role == Role::Administrator.as_str() && status == "active" && other_active_administrators(&tx, user_id)? == 0 {
+            return Err("cannot disable the last active administrator".into());
+        }
+    }
+    let status_str = if active { "active" } else { "disabled" };
+    let n = tx
+        .execute("UPDATE users SET status = ?1, updated_at = ?2 WHERE id = ?3", params![status_str, now_iso(), user_id])
+        .map_err(|e| e.to_string())?;
+    if n == 0 {
+        return Err("no such user".into());
+    }
+    if !active {
+        tx.execute(
+            "UPDATE authenticated_sessions SET revoked_at = ?1 WHERE user_id = ?2 AND revoked_at IS NULL",
+            params![now_iso(), user_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Called after a login attempt: on success, resets the failure counter
 /// and stamps `last_login_at`; on failure, increments it and — once
 /// `threshold` is reached — sets `locked_until`. `threshold`/`lock_secs`

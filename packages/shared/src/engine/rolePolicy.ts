@@ -152,11 +152,14 @@ const NONE: Capability[] = [];
 /**
  * The full role/area/capability matrix — a direct, cell-by-cell
  * transcription of architecture doc §6's table (Session 1's first full
- * draft, "not yet domain-expert-reviewed" per that doc's own flag,
- * carried forward unchanged here) with three explicit, documented
- * additions beyond the literal §6 cells, all directly instructed by
- * either this module's own Session 3 brief or the later, user-approved
- * §15.4/§25 gate-authority decision §6's table itself predates:
+ * draft), reviewed and finalized in the Phase 13 closure session against
+ * real screens, the four workflow gates, and backend command enforcement
+ * — see docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md §6 for the closing
+ * note. Four explicit, documented deviations from the literal §6 cells
+ * survive that review, three additions and one removal, each directly
+ * instructed by either this module's own Session 3 brief, the later,
+ * user-approved §15.4/§25 gate-authority decision §6's table predates, or
+ * a real conflict the closure session's own domain review found:
  *
  * 1. `production_manager` gains `verify` on `rawMaterials` and
  *    `supplierDocuments` — §6's literal cells for `production_manager` on
@@ -193,6 +196,23 @@ const NONE: Capability[] = [];
  *    wins). Grants only the four gates' own decide capabilities, not
  *    view/create/edit — administrator still cannot see or modify the
  *    underlying records, only decide the four gates themselves.
+ * 4. `quality` loses `verify` on `rawMaterials` (closure-session domain
+ *    review finding) — §6's literal cell for `quality` here is `V,Vf`,
+ *    predating the raw_material_verification workflow gate. Nothing in the
+ *    codebase ever checked `("rawMaterials", "verify")` for any purpose
+ *    other than that gate's decide-capability
+ *    (`workflow_gates.rs::decide_capability`), so the untouched literal
+ *    cell was quietly acting as a *second* gate-decide authority for
+ *    `quality` — directly contradicting addition #1's own premise
+ *    (§15.4: production_manager, plus administrator per addition #3, is
+ *    the *sole* approval authority for this gate) and the Phase 13
+ *    closure-session brief's explicit role assignment ("production_manager
+ *    decides approve/reject" for raw_material_verification). No live
+ *    feature used or depended on `quality` holding this capability — it is
+ *    removed as a correction, not a new restriction on anything working
+ *    today. `quality`'s `supplierDocuments` cell was already `V` (no `Vf`
+ *    to begin with), so the equivalent leak never existed for the sibling
+ *    gate.
  *
  * No other cell deviates from §6's literal table. Everywhere §6 shows "—"
  * (and neither addition above applies), the role has zero capabilities on
@@ -280,10 +300,19 @@ const MATRIX: CapabilityGrid = {
   ]),
 
   // Addition #1 (see module doc comment): production_manager -> ["view", "verify"] instead of §6's literal [].
+  // Correction #4 (see module doc comment): quality -> V instead of §6's
+  // literal ["view", "verify"] — §6's own "Vf" cell for quality here
+  // predates the raw_material_verification workflow gate and was never a
+  // deliberate grant of gate-decide authority to `quality`; nothing else in
+  // the codebase ever checked ("rawMaterials", "verify") for any purpose
+  // other than that gate, so the literal cell was quietly acting as a
+  // second approval authority the closure session's own brief and §15.4
+  // both say is production_manager's (plus administrator's) *sole*
+  // authority. Corrected, not silently — see Phase 13 closure session notes.
   rawMaterials: row([
     V,
     V,
-    ["view", "verify"],
+    V,
     ["view", "approve"],
     V,
     ["view", "create", "edit"],

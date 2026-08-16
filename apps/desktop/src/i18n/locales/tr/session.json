@@ -656,6 +656,8 @@
     "notes": "Notlar",
     "activeRecord": "Etkin kayıt",
     "deactivateHint": "Silmek yerine devre dışı bırakın: mevcut formüller ve maliyet anlık görüntüleri hâlâ bu hammaddeye referans veriyor.",
+    "verificationHeading": "Doğrulama",
+    "verificationGate": "Hammadde Doğrulama",
     "importTitle": "{{what}} içe aktar",
     "chooseFile": "Bir CSV veya Excel (.xlsx) dosyası seçin",
     "fileUnreadable": "Bu dosya okunamadı. Bozuk, parola korumalı veya geçerli bir CSV/.xlsx dosyası olmayabilir.",
@@ -771,6 +773,7 @@
     "linkMaterial": "Hammadde bağla",
     "selectMaterial": "Bir hammadde seçin…",
     "priceHistory": "Fiyat geçmişi",
+    "verificationGate": "Tedarikçi Belge Doğrulama",
     "reviewerName": "İnceleyen adı",
     "resolutionReason": "Neden"
   },
@@ -1212,6 +1215,9 @@
     "rejectButton": "Reddet",
     "cancelButton": "Girişimi iptal et",
     "blockedGeneric": "Bu onay girişimi engellendi.",
+    "workflowGatesHeading": "Üretim İş Akışı Geçitleri",
+    "handoffGate": "Üretim Mühendisliği Devri",
+    "releaseGate": "Üretim Sürümü",
     "historyHeading": "Onay geçmişi",
     "noHistory": "Henüz kaydedilmiş bir onay girişimi yok.",
     "managePolicies": "Politikaları yönet",
@@ -1270,6 +1276,31 @@
       "missingFields": "Onaylamadan önce adınızı ve bir gerekçe girin.",
       "stateInfoTitle": "Onay durumu",
       "stateInfoBody": "pilot_approved ve production_approved, her biri adı belirtilmiş, yetkili bir insan rolü gerektirir — hiçbir otomatik aktör (ajan, sistem veya içe aktarma) bir formül sürümünü onaylayamaz."
+    }
+  },
+  "workflowGate": {
+    "states": {
+      "pending": "Henüz gönderilmedi",
+      "submitted": "Gönderildi",
+      "approved": "Onaylandı",
+      "rejected": "Reddedildi"
+    },
+    "submittedBy": "{{role}} tarafından gönderildi",
+    "approvedBy": "{{role}} tarafından onaylandı",
+    "rejectedBy": "{{role}} tarafından reddedildi",
+    "resubmitAvailable": "Yeniden gönderim yapılabilir.",
+    "reasonPlaceholder": "Not (isteğe bağlı)",
+    "submit": "Doğrulama için gönder",
+    "resubmit": "Yeniden gönder",
+    "approve": "Onayla",
+    "reject": "Reddet",
+    "reasons": {
+      "handoffPrerequisite": "Engellendi: formülasyon sürümü önce \"production_approved\" olmalıdır (şu anda \"{{status}}\").",
+      "releasePrerequisite": "Engellendi: üretim mühendisliği devri önce onaylanmalıdır.",
+      "terminal": "Onaylandı — başka işlem yapılamaz.",
+      "noSession": "Bu geçitte işlem yapmak için oturum açın.",
+      "awaitingDecision": "Üretim Müdürü kararı bekleniyor.",
+      "wrongRole": "Rolünüz bu geçitte işlem yapamaz."
     }
   },
   "attachments": {

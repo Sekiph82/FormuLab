@@ -654,6 +654,8 @@
     "notes": "Notes",
     "activeRecord": "Active record",
     "deactivateHint": "Deactivate rather than delete: existing formulas and cost snapshots still reference this material.",
+    "verificationHeading": "Vérification",
+    "verificationGate": "Vérification de la matière première",
     "importTitle": "Import {{what}}",
     "chooseFile": "Choose a CSV file",
     "willCreate": "Create",
@@ -771,6 +773,7 @@
     "linkMaterial": "Link material",
     "selectMaterial": "Select a material…",
     "priceHistory": "Price history",
+    "verificationGate": "Vérification des documents fournisseur",
     "reviewerName": "Reviewer name",
     "resolutionReason": "Reason"
   },
@@ -1212,6 +1215,9 @@
     "rejectButton": "Reject",
     "cancelButton": "Cancel attempt",
     "blockedGeneric": "This approval attempt was blocked.",
+    "workflowGatesHeading": "Portes du flux de production",
+    "handoffGate": "Remise à l'ingénierie de production",
+    "releaseGate": "Libération de production",
     "historyHeading": "Approval history",
     "noHistory": "No approval attempts recorded yet.",
     "managePolicies": "Manage policies",
@@ -1270,6 +1276,31 @@
       "missingFields": "Saisissez votre nom et un motif avant d'approuver.",
       "stateInfoTitle": "État d'approbation",
       "stateInfoBody": "pilot_approved et production_approved nécessitent chacun un rôle humain nommé et autorisé — aucun acteur automatisé (agent, système ou import) ne peut jamais approuver une version de formule."
+    }
+  },
+  "workflowGate": {
+    "states": {
+      "pending": "Pas encore soumis",
+      "submitted": "Soumis",
+      "approved": "Approuvé",
+      "rejected": "Rejeté"
+    },
+    "submittedBy": "Soumis par {{role}}",
+    "approvedBy": "Approuvé par {{role}}",
+    "rejectedBy": "Rejeté par {{role}}",
+    "resubmitAvailable": "La resoumission est possible.",
+    "reasonPlaceholder": "Remarque (facultatif)",
+    "submit": "Soumettre pour vérification",
+    "resubmit": "Resoumettre",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "reasons": {
+      "handoffPrerequisite": "Bloqué : la version de la formulation doit d'abord être « production_approved » (actuellement « {{status}} »).",
+      "releasePrerequisite": "Bloqué : la remise à l'ingénierie de production doit d'abord être approuvée.",
+      "terminal": "Approuvé — aucune autre action disponible.",
+      "noSession": "Connectez-vous pour agir sur cette porte.",
+      "awaitingDecision": "En attente d'une décision du responsable de production.",
+      "wrongRole": "Votre rôle ne peut pas agir sur cette porte."
     }
   },
   "attachments": {

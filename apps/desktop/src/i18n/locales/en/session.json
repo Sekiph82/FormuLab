@@ -656,6 +656,8 @@
     "notes": "Notes",
     "activeRecord": "Active record",
     "deactivateHint": "Deactivate rather than delete: existing formulas and cost snapshots still reference this material.",
+    "verificationHeading": "Verification",
+    "verificationGate": "Raw Material Verification",
     "importTitle": "Import {{what}}",
     "chooseFile": "Choose a CSV or Excel (.xlsx) file",
     "fileUnreadable": "This file could not be read. It may be corrupted, password-protected, or not a valid CSV/.xlsx file.",
@@ -771,6 +773,7 @@
     "linkMaterial": "Link material",
     "selectMaterial": "Select a material…",
     "priceHistory": "Price history",
+    "verificationGate": "Supplier Document Verification",
     "reviewerName": "Reviewer name",
     "resolutionReason": "Reason"
   },
@@ -1215,6 +1218,9 @@
     "rejectButton": "Reject",
     "cancelButton": "Cancel attempt",
     "blockedGeneric": "This approval attempt was blocked.",
+    "workflowGatesHeading": "Production Workflow Gates",
+    "handoffGate": "Production Engineering Handoff",
+    "releaseGate": "Production Release",
     "historyHeading": "Approval history",
     "noHistory": "No approval attempts recorded yet.",
     "scopeAll": "All",
@@ -1270,6 +1276,31 @@
       "missingFields": "Enter your name and a reason before approving.",
       "stateInfoTitle": "Approval state",
       "stateInfoBody": "pilot_approved and production_approved each require a named, authorized human role — no automated actor (agent, system, or import) can ever approve a formula version."
+    }
+  },
+  "workflowGate": {
+    "states": {
+      "pending": "Not yet submitted",
+      "submitted": "Submitted",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "submittedBy": "Submitted by {{role}}",
+    "approvedBy": "Approved by {{role}}",
+    "rejectedBy": "Rejected by {{role}}",
+    "resubmitAvailable": "Resubmission is available.",
+    "reasonPlaceholder": "Note (optional)",
+    "submit": "Submit for verification",
+    "resubmit": "Resubmit",
+    "approve": "Approve",
+    "reject": "Reject",
+    "reasons": {
+      "handoffPrerequisite": "Blocked: the formulation version must be \"production_approved\" first (currently \"{{status}}\").",
+      "releasePrerequisite": "Blocked: production engineering handoff must be approved first.",
+      "terminal": "Approved — no further action available.",
+      "noSession": "Sign in to act on this gate.",
+      "awaitingDecision": "Awaiting a Production Manager decision.",
+      "wrongRole": "Your role cannot act on this gate."
     }
   },
   "attachments": {

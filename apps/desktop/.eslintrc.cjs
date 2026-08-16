@@ -82,6 +82,13 @@ module.exports = {
             "learnMoreTopicId",
             "relatedTopicId",
             "wrapperClassName",
+            // "gateType" (WorkflowGatePanel's own discriminated-union tag,
+            // e.g. "raw_material_verification" | "production_release") is
+            // the same technical, non-translatable kind of prop as
+            // "variant"/"tone"/"kind" above — it selects which backend
+            // workflow_gates.rs gate the panel talks to, never text shown
+            // to anyone.
+            "gateType",
           ],
         },
         "object-properties": {

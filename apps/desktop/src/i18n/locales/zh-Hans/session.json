@@ -654,6 +654,8 @@
     "notes": "Notes",
     "activeRecord": "Active record",
     "deactivateHint": "Deactivate rather than delete: existing formulas and cost snapshots still reference this material.",
+    "verificationHeading": "验证",
+    "verificationGate": "原料验证",
     "importTitle": "Import {{what}}",
     "chooseFile": "Choose a CSV file",
     "willCreate": "Create",
@@ -771,6 +773,7 @@
     "linkMaterial": "Link material",
     "selectMaterial": "Select a material…",
     "priceHistory": "Price history",
+    "verificationGate": "供应商文件验证",
     "reviewerName": "Reviewer name",
     "resolutionReason": "Reason"
   },
@@ -1212,6 +1215,9 @@
     "rejectButton": "Reject",
     "cancelButton": "Cancel attempt",
     "blockedGeneric": "This approval attempt was blocked.",
+    "workflowGatesHeading": "生产工作流关卡",
+    "handoffGate": "生产工程交接",
+    "releaseGate": "生产发布",
     "historyHeading": "Approval history",
     "noHistory": "No approval attempts recorded yet.",
     "managePolicies": "Manage policies",
@@ -1270,6 +1276,31 @@
       "missingFields": "批准前请输入姓名和理由。",
       "stateInfoTitle": "批准状态",
       "stateInfoBody": "pilot_approved 和 production_approved 均需要指定的、经授权的人工角色——任何自动化行为者（代理、系统或导入）都不能批准配方版本。"
+    }
+  },
+  "workflowGate": {
+    "states": {
+      "pending": "尚未提交",
+      "submitted": "已提交",
+      "approved": "已批准",
+      "rejected": "已拒绝"
+    },
+    "submittedBy": "由{{role}}提交",
+    "approvedBy": "由{{role}}批准",
+    "rejectedBy": "由{{role}}拒绝",
+    "resubmitAvailable": "可以重新提交。",
+    "reasonPlaceholder": "备注（可选）",
+    "submit": "提交以进行核实",
+    "resubmit": "重新提交",
+    "approve": "批准",
+    "reject": "拒绝",
+    "reasons": {
+      "handoffPrerequisite": "已阻止：配方版本必须先处于“production_approved”状态（当前为“{{status}}”）。",
+      "releasePrerequisite": "已阻止：生产工程交接必须先获得批准。",
+      "terminal": "已批准 — 无需进一步操作。",
+      "noSession": "请登录以操作此关卡。",
+      "awaitingDecision": "正在等待生产经理的决定。",
+      "wrongRole": "您的角色无法操作此关卡。"
     }
   },
   "attachments": {

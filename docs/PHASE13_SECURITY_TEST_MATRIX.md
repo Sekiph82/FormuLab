@@ -65,6 +65,17 @@ new `role_policy.rs` test, 9 new `admin.rs` tests, 8 new
 `UsersPanel.tsx` tests, and one stale `Workspaces.test.tsx` assertion
 replaced with a real one.
 
+**Phase 13 closure session note**: the five residual warnings disclosed
+at Session 5's close are resolved — the four workflow gates have real
+frontend UI, gate-subject existence is validated server-side, §6's
+matrix is domain-reviewed and finalized (one correction), `cancel_
+advanced_formulation_optimize` has a final independent authorization
+decision, and a transactional last-administrator guard now protects
+`Administration → Users`. Section M is new: 9 new `workflow_gates.rs`
+tests, 1 new `role_policy.rs` test, 7 new `identity.rs`/`admin.rs`
+tests, 1 new `formulation_advanced.rs` test, 1 new
+`rolePolicy.test.ts` regression test.
+
 ## A. Authentication
 
 | # | Test | Status | Session |
@@ -146,6 +157,7 @@ Session 5+ work, once Administration → Users commands accept them.
 | E3 | Non-admin cannot reset another user's password | **Done, Session 5** — `reset_administered_user_password` gated `administrationUsers`/`administer`. |
 | E4 | A disabled administrator account cannot authenticate, including to perform admin actions | **Done** (Session 2's `login_logic` + Session 5's `set_administered_user_account_status` sharing `identity::update_account_status`, which revokes every open session on disable — `admin::tests::set_account_status_disabled_revokes_open_sessions`). |
 | E5 | Every admin action in D1-D4 above, and every action in this section, writes a `security_audit_events` row | **Done, Session 5**, for Session 5's own four mutations (`admin_user_created`/`admin_user_role_changed`/`admin_user_activated`\|`admin_user_disabled`/`admin_user_password_reset`) — a project-wide fuzz/property scan across every audit-writing command in the codebase is still Session 6. |
+| E6 | A user-management mutation can never leave the installation with zero active administrators — demoting or disabling the sole active administrator is refused; two active administrators allow either to be demoted/disabled; a disabled/non-active administrator never counts as a backup; no partial mutation occurs on denial | **Done, Phase 13 closure session** — `admin::tests::the_sole_active_administrator_cannot_be_demoted`/`...cannot_be_disabled`/`with_two_active_administrators_one_may_be_demoted`/`...one_may_be_disabled`/`a_disabled_administrator_does_not_count_as_a_backup`/`denying_a_last_administrator_change_is_audited_without_leaking_secrets`/`a_non_administrator_role_change_is_never_touched_by_the_last_admin_guard` (§M.3), guarded transactionally in `identity::update_role_guarded`/`update_account_status_guarded` — same SQLite `IMMEDIATE` isolation `bootstrap_administrator` already uses, so a concurrent second admin action cannot race past a stale pre-check. |
 
 ## F. Audit
 
@@ -681,3 +693,116 @@ as a disclosed, precedented gap (the exact convention already present
 for this section's pre-existing keys before this session touched it —
 confirmed by inspecting those files before writing). `git diff --check`:
 clean.
+
+## M. Phase 13 closure session — gate UI, subject validation, matrix domain review, cancel-command justification, last-administrator guard tests actually implemented and passing
+
+### M.1 `workflow_gates.rs` (9 new tests, on top of Session 4A's 19 — 24 total in this module)
+
+**Parent-id shape rule (2)**: a masterdata-record gate
+(`raw_material_verification`/`supplier_document_verification`) accepts
+no `parent_id` and rejects any; a formulation-version gate
+(`production_engineering_handoff`/`production_release`) requires a
+`parent_id` and rejects its absence.
+
+**Subject-existence, the `Path`-taking pure half (7)**: a real version
+file under its own formulation is found by id, a nonexistent version id
+under the same directory is not; the identical, genuinely-real version
+id is *not found* when checked against a *different* formulation's
+versions directory — the direct proof of the cross-subject/wrong-parent
+case, since a real id under the wrong parent collapses to the same
+file-not-found outcome as a fabricated one; a malformed id
+(`../../etc/passwd`, empty string) is rejected before any filesystem
+check runs at all, twice (both malformed shapes). The `AppHandle`-
+reading glue itself (`validate_subject_exists`, `collection_has_code`)
+is untested directly, matching this file's own established convention
+(`check_prerequisite`/`formulation_version_status` are equally
+untested) — this codebase does not mock an `AppHandle` in tests
+(`automatic_backup.rs`'s doc comment: `app_data_dir()` resolves
+unpredictably under `tauri::test::mock_app()`).
+
+**Total**: 9 tests, 9 passing.
+
+### M.2 `role_policy.rs` (1 new test)
+
+`quality_does_not_hold_the_raw_material_gate_decide_capability`: the
+direct regression proof for the §6 domain-review correction —
+`quality`'s `("rawMaterials", "verify")` is now `false` (it retains
+`view`), closing the accidental second decide-authority for
+`raw_material_verification` the matrix used to grant.
+
+**Total**: 1 test, 1 passing.
+
+### M.3 `identity.rs`/`admin.rs` — last-administrator guard (7 new tests)
+
+All in `admin.rs`, exercising `identity::update_role_guarded`/
+`update_account_status_guarded` through `admin.rs`'s own
+`change_user_role_logic`/`set_user_account_status_logic`: the sole
+active administrator cannot be demoted; cannot be disabled; with two
+active administrators, one may be demoted; one may be disabled (the
+other remains a valid backup either way); a *disabled* administrator
+does not count as a backup for a second, still-active administrator's
+own demotion/disable check; denying a last-administrator change still
+writes a `security_audit_events` row (`reason=last_active_
+administrator`) with no password/hash/token value anywhere in it; a
+role change for a *non*-administrator account is never touched by the
+guard at all (no other-active-administrators query even runs for it).
+
+**Total**: 7 tests, 7 passing.
+
+### M.4 `formulation_advanced.rs` (1 new test — first `#[cfg(test)]` block in this file)
+
+`cancelling_when_nothing_is_running_is_a_safe_no_op`: calling cancel
+twice with no run in progress returns `false` both times without
+panicking — the baseline safety property the re-audit's authorization
+decision (§26.4 of the architecture doc) rests on: the worst case of
+this command, cross-session or not, is a wasted compute, never a panic
+or corrupted state.
+
+**Total**: 1 test, 1 passing.
+
+### M.5 Shared package — `rolePolicy.test.ts` (1 new regression test)
+
+`quality cannot perform the raw-material Production Manager
+verification gate (Phase 13 closure-session correction)`: mirrors
+M.2 at the TypeScript layer — `can("quality", "rawMaterials",
+"verify")` is `false`, `can("quality", "rawMaterials", "view")` stays
+`true`. `rolePolicy.matrixParity.test.ts` (existing, re-run) confirms
+the regenerated `rolePolicyMatrix.generated.json` fixture still matches
+`fullMatrixSnapshot()` exactly after the correction.
+
+**Total**: 1 test, 1 passing.
+
+### M.6 Frontend — `WorkflowGatePanel.tsx` (no dedicated new test file; existing suites re-verified unaffected)
+
+The four gate panels are exercised indirectly through
+`ApprovalPanel.test.tsx`'s existing 20 tests (all pass unchanged with
+the two new production-gate panels rendered inside the workspace) —
+`isTauri` is `false` under `vitest`, so `readWorkflowGate` resolves
+`null` immediately and each panel renders its `pending`/no-role state,
+the same fallback pattern `useTrustedActor()` sites have used since
+Session 3. No `MaterialEditor.test.tsx`/`SupplierEditor.test.tsx` exist
+yet in this codebase (pre-dating this session) for the two masterdata
+gate panels to be exercised through directly; a dedicated
+`WorkflowGatePanel.test.tsx` is left for a future UI-focused session,
+not fabricated here just to produce a passing count.
+
+### M.7 Full-suite confirmation
+
+`cargo build --lib`: clean. `cargo test --lib`: 328/328 passing
+(Session 5's 314 + 14 new — §M.1-§M.4). `cargo clippy --lib -- -D
+warnings`: clean. Shared package: `tsc --noEmit` clean; `vitest run`:
+1302/1302 passing (Session 5's 1301 + 1 new, §M.5), including
+`rolePolicy.matrixParity.test.ts` confirming the regenerated fixture.
+Desktop frontend: `tsc --noEmit` clean; `vitest run` (full suite):
+1197/1197 passing — unchanged from Session 5's count (§M.6: existing
+coverage, no new frontend test file). `eslint` clean on every touched
+frontend file (`workflowGates.ts`, `WorkflowGatePanel.tsx`,
+`MaterialEditor.tsx`, `SupplierEditor.tsx`, `ApprovalPanel.tsx`,
+`MaterialsPage.tsx`) — `gateType` added to `.eslintrc.cjs`'s
+technical-prop exclude list, the same category as `variant`/`tone`/
+`kind`. i18n parity (`parity.test.ts`, 23 tests): passing — all 8
+shipped locales carry real translations (not English-only fallbacks)
+for every new `workflowGate.*`/`materials.verification*`/
+`supplier.verificationGate`/`approval.workflowGates*` key this session
+introduced. `git diff --check`: clean (line-ending-normalization
+warnings only, no actual whitespace/conflict errors).

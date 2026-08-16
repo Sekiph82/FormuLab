@@ -654,6 +654,8 @@
     "notes": "Notes",
     "activeRecord": "Active record",
     "deactivateHint": "Deactivate rather than delete: existing formulas and cost snapshots still reference this material.",
+    "verificationHeading": "Verifizierung",
+    "verificationGate": "Rohstoffverifizierung",
     "importTitle": "Import {{what}}",
     "chooseFile": "Choose a CSV file",
     "willCreate": "Create",
@@ -771,6 +773,7 @@
     "linkMaterial": "Link material",
     "selectMaterial": "Select a material…",
     "priceHistory": "Price history",
+    "verificationGate": "Lieferantendokumentenverifizierung",
     "reviewerName": "Reviewer name",
     "resolutionReason": "Reason"
   },
@@ -1212,6 +1215,9 @@
     "rejectButton": "Reject",
     "cancelButton": "Cancel attempt",
     "blockedGeneric": "This approval attempt was blocked.",
+    "workflowGatesHeading": "Produktions-Workflow-Gates",
+    "handoffGate": "Übergabe an die Produktionstechnik",
+    "releaseGate": "Produktionsfreigabe",
     "historyHeading": "Approval history",
     "noHistory": "No approval attempts recorded yet.",
     "managePolicies": "Manage policies",
@@ -1270,6 +1276,31 @@
       "missingFields": "Geben Sie vor der Genehmigung Ihren Namen und einen Grund ein.",
       "stateInfoTitle": "Genehmigungsstatus",
       "stateInfoBody": "pilot_approved und production_approved erfordern jeweils eine namentlich genannte, autorisierte menschliche Rolle — kein automatisierter Akteur (Agent, System oder Import) kann eine Formelversion genehmigen."
+    }
+  },
+  "workflowGate": {
+    "states": {
+      "pending": "Noch nicht eingereicht",
+      "submitted": "Eingereicht",
+      "approved": "Genehmigt",
+      "rejected": "Abgelehnt"
+    },
+    "submittedBy": "Eingereicht von {{role}}",
+    "approvedBy": "Genehmigt von {{role}}",
+    "rejectedBy": "Abgelehnt von {{role}}",
+    "resubmitAvailable": "Erneute Einreichung ist möglich.",
+    "reasonPlaceholder": "Anmerkung (optional)",
+    "submit": "Zur Prüfung einreichen",
+    "resubmit": "Erneut einreichen",
+    "approve": "Genehmigen",
+    "reject": "Ablehnen",
+    "reasons": {
+      "handoffPrerequisite": "Gesperrt: Die Formulierungsversion muss zuerst „production_approved\" sein (aktuell „{{status}}\").",
+      "releasePrerequisite": "Gesperrt: Die Produktionstechnik-Übergabe muss zuerst genehmigt werden.",
+      "terminal": "Genehmigt — keine weitere Aktion möglich.",
+      "noSession": "Zum Bearbeiten dieses Gates bitte anmelden.",
+      "awaitingDecision": "Wartet auf Entscheidung des Produktionsleiters.",
+      "wrongRole": "Ihre Rolle kann bei diesem Gate nichts unternehmen."
     }
   },
   "attachments": {

@@ -208,7 +208,8 @@ export async function runAdvancedFormulationOptimize(
 export async function cancelAdvancedFormulationOptimize(): Promise<boolean> {
   if (!isTauri) return false;
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<boolean>("cancel_advanced_formulation_optimize");
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<boolean>("cancel_advanced_formulation_optimize", { token: currentSessionToken() });
 }
 
 /** Auto-start Jupyter on launch when it was enabled before. Silent no-op otherwise. */

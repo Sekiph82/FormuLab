@@ -60,13 +60,63 @@ fn kill_current(state: &AdvancedOptimizerState) {
     }
 }
 
+fn cancel_current_logic(state: &AdvancedOptimizerState) -> bool {
+    let was_running = state.0.lock().map(|g| g.is_some()).unwrap_or(false);
+    kill_current(state);
+    was_running
+}
+
+/// Phase 13 closure session — re-audited per explicit instruction not to
+/// leave this ungated "only because other cancel commands are ungated."
+/// The finding is different from a data-mutating command, and the decision
+/// follows from it, not from precedent:
+///
+/// `AdvancedOptimizerState` is one global `Mutex<Option<Child>>` for the
+/// whole running app process — "one run at a time," by design (the doc
+/// comment above, unchanged since before Phase 13): starting a new run
+/// already implicitly cancels whatever was running, from any caller, no
+/// ownership check anywhere in that path either. There is no per-user or
+/// per-session run identity anywhere in this module to check against —
+/// building one (a new "who started this run" field, tracked separately
+/// from the single global slot) would be inventing a run-ownership system
+/// the actual architecture doesn't have, which the session brief
+/// explicitly says not to do unless required.
+///
+/// Is it required? The worst case of a cross-session cancel is a wasted,
+/// interrupted CPU computation — `cancel_current_logic` only kills a
+/// spawned child process and clears the slot; it never touches persisted
+/// data, `identity.db`, or any regulated collection. The solve's *result*
+/// only ever reaches whichever frontend `run_advanced_formulation_optimize`
+/// returns to directly — nothing about a cancelled run leaks to, or
+/// corrupts state for, a different user, because nothing is shared except
+/// "is a solve currently running," which is exactly what this command is
+/// for. So: TRUSTED_INTERNAL_ONLY for the *cancellation semantics*
+/// themselves — no run-ownership system invented — but no longer
+/// authentication-free: a caller must at least be a currently valid
+/// session, closing the "any raw `invoke()` with zero login at all" gap
+/// this command had before, same bar every other Phase 13 command now
+/// clears at minimum.
 #[tauri::command(async)]
 pub async fn cancel_advanced_formulation_optimize(
+    app: AppHandle,
+    token: String,
     state: State<'_, AdvancedOptimizerState>,
 ) -> Result<bool, String> {
-    let was_running = state.0.lock().map(|g| g.is_some()).unwrap_or(false);
-    kill_current(&state);
-    Ok(was_running)
+    crate::authz::current_actor_app(&app, &token)?;
+    Ok(cancel_current_logic(&state))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancelling_when_nothing_is_running_is_a_safe_no_op() {
+        let state = AdvancedOptimizerState::default();
+        assert!(!cancel_current_logic(&state), "nothing was running");
+        // Idempotent: calling it again must not panic or misreport.
+        assert!(!cancel_current_logic(&state));
+    }
 }
 
 /// One spawn-write-wait-read cycle. `Ok(Ok(value))` is a clean run whose

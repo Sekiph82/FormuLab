@@ -654,6 +654,8 @@
     "notes": "Notes",
     "activeRecord": "Active record",
     "deactivateHint": "Deactivate rather than delete: existing formulas and cost snapshots still reference this material.",
+    "verificationHeading": "検証",
+    "verificationGate": "原材料検証",
     "importTitle": "Import {{what}}",
     "chooseFile": "Choose a CSV file",
     "willCreate": "Create",
@@ -771,6 +773,7 @@
     "linkMaterial": "Link material",
     "selectMaterial": "Select a material…",
     "priceHistory": "Price history",
+    "verificationGate": "サプライヤー書類検証",
     "reviewerName": "Reviewer name",
     "resolutionReason": "Reason"
   },
@@ -1212,6 +1215,9 @@
     "rejectButton": "Reject",
     "cancelButton": "Cancel attempt",
     "blockedGeneric": "This approval attempt was blocked.",
+    "workflowGatesHeading": "生産ワークフローゲート",
+    "handoffGate": "生産技術への引き継ぎ",
+    "releaseGate": "生産リリース",
     "historyHeading": "Approval history",
     "noHistory": "No approval attempts recorded yet.",
     "managePolicies": "Manage policies",
@@ -1270,6 +1276,31 @@
       "missingFields": "承認する前に氏名と理由を入力してください。",
       "stateInfoTitle": "承認状態",
       "stateInfoBody": "pilot_approvedとproduction_approvedはそれぞれ、指名された認可済みの人間の役割を必要とします — 自動化されたアクター（エージェント、システム、インポート）が配合バージョンを承認することはできません。"
+    }
+  },
+  "workflowGate": {
+    "states": {
+      "pending": "未提出",
+      "submitted": "提出済み",
+      "approved": "承認済み",
+      "rejected": "却下"
+    },
+    "submittedBy": "{{role}}が提出",
+    "approvedBy": "{{role}}が承認",
+    "rejectedBy": "{{role}}が却下",
+    "resubmitAvailable": "再提出できます。",
+    "reasonPlaceholder": "メモ（任意）",
+    "submit": "検証のために提出",
+    "resubmit": "再提出",
+    "approve": "承認",
+    "reject": "却下",
+    "reasons": {
+      "handoffPrerequisite": "ブロック中: 処方バージョンは先に「production_approved」である必要があります（現在「{{status}}」）。",
+      "releasePrerequisite": "ブロック中: 生産技術への引き継ぎが先に承認されている必要があります。",
+      "terminal": "承認済み — これ以上の操作はできません。",
+      "noSession": "このゲートを操作するにはサインインしてください。",
+      "awaitingDecision": "生産マネージャーの決定待ちです。",
+      "wrongRole": "あなたの役割ではこのゲートを操作できません。"
     }
   },
   "attachments": {

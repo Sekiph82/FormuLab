@@ -654,6 +654,8 @@
     "notes": "Notes",
     "activeRecord": "Active record",
     "deactivateHint": "Deactivate rather than delete: existing formulas and cost snapshots still reference this material.",
+    "verificationHeading": "검증",
+    "verificationGate": "원자재 검증",
     "importTitle": "Import {{what}}",
     "chooseFile": "Choose a CSV file",
     "willCreate": "Create",
@@ -771,6 +773,7 @@
     "linkMaterial": "Link material",
     "selectMaterial": "Select a material…",
     "priceHistory": "Price history",
+    "verificationGate": "공급업체 문서 검증",
     "reviewerName": "Reviewer name",
     "resolutionReason": "Reason"
   },
@@ -1212,6 +1215,9 @@
     "rejectButton": "Reject",
     "cancelButton": "Cancel attempt",
     "blockedGeneric": "This approval attempt was blocked.",
+    "workflowGatesHeading": "생산 워크플로 게이트",
+    "handoffGate": "생산 엔지니어링 인계",
+    "releaseGate": "생산 릴리스",
     "historyHeading": "Approval history",
     "noHistory": "No approval attempts recorded yet.",
     "managePolicies": "Manage policies",
@@ -1270,6 +1276,31 @@
       "missingFields": "승인하기 전에 이름과 사유를 입력하세요.",
       "stateInfoTitle": "승인 상태",
       "stateInfoBody": "pilot_approved 및 production_approved는 각각 지정된 승인된 인간 역할이 필요합니다 — 자동화된 행위자(에이전트, 시스템, 가져오기)는 절대 배합 버전을 승인할 수 없습니다."
+    }
+  },
+  "workflowGate": {
+    "states": {
+      "pending": "아직 제출되지 않음",
+      "submitted": "제출됨",
+      "approved": "승인됨",
+      "rejected": "거부됨"
+    },
+    "submittedBy": "{{role}}이(가) 제출함",
+    "approvedBy": "{{role}}이(가) 승인함",
+    "rejectedBy": "{{role}}이(가) 거부함",
+    "resubmitAvailable": "재제출이 가능합니다.",
+    "reasonPlaceholder": "메모(선택 사항)",
+    "submit": "검증을 위해 제출",
+    "resubmit": "재제출",
+    "approve": "승인",
+    "reject": "거부",
+    "reasons": {
+      "handoffPrerequisite": "차단됨: 제형 버전이 먼저 \"production_approved\" 상태여야 합니다(현재 \"{{status}}\").",
+      "releasePrerequisite": "차단됨: 생산 엔지니어링 인계가 먼저 승인되어야 합니다.",
+      "terminal": "승인됨 — 추가 작업이 없습니다.",
+      "noSession": "이 게이트를 처리하려면 로그인하세요.",
+      "awaitingDecision": "생산 관리자의 결정을 기다리는 중입니다.",
+      "wrongRole": "귀하의 역할로는 이 게이트를 처리할 수 없습니다."
     }
   },
   "attachments": {

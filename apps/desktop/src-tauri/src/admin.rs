@@ -166,8 +166,16 @@ pub async fn update_administered_user_profile(
 /// bootstrap's "only the very first administrator" restriction is a
 /// bootstrap-specific rule, §5, not a general one). No custom role, no
 /// per-user permission, is accepted — `Role::parse` rejects anything else.
+///
+/// Phase 13 closure session: routes through `identity::update_role_guarded`
+/// (an `IMMEDIATE` transaction, not a plain `UPDATE`) so this can never
+/// leave the installation with zero active administrators — see that
+/// function's own doc comment for the concurrency reasoning. A denial is
+/// still audited (`admin_user_role_change_denied`), using the *real*
+/// authenticated actor, same as every other authorization denial in this
+/// codebase.
 pub(crate) fn change_user_role_logic(
-    conn: &Connection,
+    conn: &mut Connection,
     actor: &authz::TrustedActor,
     user_id: &str,
     role: &str,
@@ -175,7 +183,17 @@ pub(crate) fn change_user_role_logic(
     let new_role = Role::parse(role)?;
     let existing = identity::find_user_by_id(conn, user_id)?.ok_or("no such user")?;
     let previous_role = existing.role.as_str().to_string();
-    identity::update_role(conn, user_id, new_role)?;
+    if let Err(e) = identity::update_role_guarded(conn, user_id, new_role) {
+        let _ = identity::record_security_audit_event(
+            conn,
+            Some(&actor.user_id),
+            Some(user_id),
+            "admin_user_role_change_denied",
+            "denied",
+            Some(&format!("from={previous_role} to={} reason=last_active_administrator", new_role.as_str())),
+        );
+        return Err(e);
+    }
     let _ = identity::record_security_audit_event(
         conn,
         Some(&actor.user_id),
@@ -195,26 +213,39 @@ pub async fn change_administered_user_role(
     user_id: String,
     role: String,
 ) -> Result<SafeUser, String> {
-    let conn = identity::open_identity_db(&app)?;
+    let mut conn = identity::open_identity_db(&app)?;
     let actor = authz::authorize(&conn, &token, AREA, "edit")?;
-    change_user_role_logic(&conn, &actor, &user_id, &role)
+    change_user_role_logic(&mut conn, &actor, &user_id, &role)
 }
 
 // ------------------------------------------------------------- status ---
 
 /// Disabling revokes every open session immediately
-/// (`identity::update_account_status`, unchanged since Session 1) — the
+/// (`identity::update_account_status_guarded`, same session-revocation
+/// behavior Session 1's plain `update_account_status` always had) — the
 /// same "fresh session validation" mechanism every other Phase 13 role/
 /// status change relies on, not a second enforcement path built for this
-/// screen.
+/// screen. Phase 13 closure session: also guarded against disabling the
+/// last active administrator, same `IMMEDIATE`-transaction shape and
+/// audit-on-denial pattern as `change_user_role_logic`.
 pub(crate) fn set_user_account_status_logic(
-    conn: &Connection,
+    conn: &mut Connection,
     actor: &authz::TrustedActor,
     user_id: &str,
     active: bool,
 ) -> Result<SafeUser, String> {
     let existing = identity::find_user_by_id(conn, user_id)?.ok_or("no such user")?;
-    identity::update_account_status(conn, user_id, active)?;
+    if let Err(e) = identity::update_account_status_guarded(conn, user_id, active) {
+        let _ = identity::record_security_audit_event(
+            conn,
+            Some(&actor.user_id),
+            Some(user_id),
+            "admin_user_status_change_denied",
+            "denied",
+            Some(&format!("username={} requested_active={active} reason=last_active_administrator", existing.username)),
+        );
+        return Err(e);
+    }
     let _ = identity::record_security_audit_event(
         conn,
         Some(&actor.user_id),
@@ -234,9 +265,9 @@ pub async fn set_administered_user_account_status(
     user_id: String,
     active: bool,
 ) -> Result<SafeUser, String> {
-    let conn = identity::open_identity_db(&app)?;
+    let mut conn = identity::open_identity_db(&app)?;
     let actor = authz::authorize(&conn, &token, AREA, "administer")?;
-    set_user_account_status_logic(&conn, &actor, &user_id, active)
+    set_user_account_status_logic(&mut conn, &actor, &user_id, active)
 }
 
 // ------------------------------------------------------ password reset ---
@@ -391,10 +422,10 @@ mod tests {
 
     #[test]
     fn change_user_role_logic_updates_the_stored_role_and_audits_from_and_to() {
-        let conn = tmp_conn("role-change");
+        let mut conn = tmp_conn("role-change");
         let user = seed_user(&conn, "role.target", Role::Researcher);
         let admin = actor("admin-1", "administrator");
-        let updated = change_user_role_logic(&conn, &admin, &user.id, "quality_manager").unwrap();
+        let updated = change_user_role_logic(&mut conn, &admin, &user.id, "quality_manager").unwrap();
         assert_eq!(updated.role, "quality_manager");
         let detail: String = conn
             .query_row("SELECT detail FROM security_audit_events WHERE action = 'admin_user_role_changed'", [], |r| r.get(0))
@@ -405,12 +436,12 @@ mod tests {
 
     #[test]
     fn set_account_status_disabled_revokes_open_sessions() {
-        let conn = tmp_conn("disable-revokes");
+        let mut conn = tmp_conn("disable-revokes");
         let user = seed_user(&conn, "disable.target", Role::Researcher);
         let session = identity::create_session(&conn, &user.id, 3600).unwrap();
         assert!(identity::validate_session(&conn, &session.token, 0).unwrap().is_some());
         let admin = actor("admin-1", "administrator");
-        set_user_account_status_logic(&conn, &admin, &user.id, false).unwrap();
+        set_user_account_status_logic(&mut conn, &admin, &user.id, false).unwrap();
         assert!(identity::validate_session(&conn, &session.token, 0).unwrap().is_none(), "disabling must revoke the open session immediately");
     }
 
@@ -452,15 +483,107 @@ mod tests {
 
     #[test]
     fn list_users_and_list_security_audit_events_round_trip() {
-        let conn = tmp_conn("list-round-trip");
+        let mut conn = tmp_conn("list-round-trip");
         let user = seed_user(&conn, "list.target", Role::Researcher);
         let admin = actor("admin-1", "administrator");
-        change_user_role_logic(&conn, &admin, &user.id, "quality").unwrap();
+        change_user_role_logic(&mut conn, &admin, &user.id, "quality").unwrap();
         let users = identity::list_users(&conn).unwrap();
         assert!(users.iter().any(|u| u.id == user.id));
         let events = identity::list_security_audit_events(&conn, Some(&user.id), 10).unwrap();
         assert!(events.iter().any(|e| e.action == "admin_user_role_changed"));
         let all_events = identity::list_security_audit_events(&conn, None, 10).unwrap();
         assert!(all_events.len() >= events.len());
+    }
+
+    // ------------------------------------------- last-administrator guard ---
+
+    #[test]
+    fn the_sole_active_administrator_cannot_be_demoted() {
+        let mut conn = tmp_conn("last-admin-demote-denied");
+        let sole_admin = seed_user(&conn, "sole.admin", Role::Administrator);
+        let admin = actor(&sole_admin.id, "administrator");
+        let err = change_user_role_logic(&mut conn, &admin, &sole_admin.id, "researcher").unwrap_err();
+        assert!(err.contains("last active administrator"));
+        // No partial mutation: the role is still administrator.
+        let refreshed = identity::find_user_by_id(&conn, &sole_admin.id).unwrap().unwrap();
+        assert_eq!(refreshed.role, Role::Administrator);
+    }
+
+    #[test]
+    fn the_sole_active_administrator_cannot_be_disabled() {
+        let mut conn = tmp_conn("last-admin-disable-denied");
+        let sole_admin = seed_user(&conn, "sole.admin", Role::Administrator);
+        let admin = actor(&sole_admin.id, "administrator");
+        let err = set_user_account_status_logic(&mut conn, &admin, &sole_admin.id, false).unwrap_err();
+        assert!(err.contains("last active administrator"));
+        let refreshed = identity::find_user_by_id(&conn, &sole_admin.id).unwrap().unwrap();
+        assert_eq!(refreshed.status, "active");
+    }
+
+    #[test]
+    fn with_two_active_administrators_one_may_be_demoted() {
+        let mut conn = tmp_conn("two-admins-demote-ok");
+        let admin_a = seed_user(&conn, "admin.a", Role::Administrator);
+        let _admin_b = seed_user(&conn, "admin.b", Role::Administrator);
+        let actor_a = actor(&admin_a.id, "administrator");
+        let updated = change_user_role_logic(&mut conn, &actor_a, &admin_a.id, "researcher").unwrap();
+        assert_eq!(updated.role, "researcher");
+    }
+
+    #[test]
+    fn with_two_active_administrators_one_may_be_disabled() {
+        let mut conn = tmp_conn("two-admins-disable-ok");
+        let admin_a = seed_user(&conn, "admin.a", Role::Administrator);
+        let _admin_b = seed_user(&conn, "admin.b", Role::Administrator);
+        let actor_a = actor(&admin_a.id, "administrator");
+        let updated = set_user_account_status_logic(&mut conn, &actor_a, &admin_a.id, false).unwrap();
+        assert_eq!(updated.account_status, "disabled");
+    }
+
+    #[test]
+    fn a_disabled_administrator_does_not_count_as_a_backup() {
+        let mut conn = tmp_conn("disabled-admin-not-a-backup");
+        let active_admin = seed_user(&conn, "active.admin", Role::Administrator);
+        let disabled_admin = seed_user(&conn, "disabled.admin", Role::Administrator);
+        identity::update_account_status(&conn, &disabled_admin.id, false).unwrap();
+        let actor_a = actor(&active_admin.id, "administrator");
+        // Only one ACTIVE administrator remains (the other is disabled) —
+        // demoting/disabling the active one must still be refused.
+        let err = change_user_role_logic(&mut conn, &actor_a, &active_admin.id, "researcher").unwrap_err();
+        assert!(err.contains("last active administrator"));
+        let err2 = set_user_account_status_logic(&mut conn, &actor_a, &active_admin.id, false).unwrap_err();
+        assert!(err2.contains("last active administrator"));
+    }
+
+    #[test]
+    fn denying_a_last_administrator_change_is_audited_without_leaking_secrets() {
+        let mut conn = tmp_conn("last-admin-denial-audited");
+        let sole_admin = seed_user(&conn, "sole.admin", Role::Administrator);
+        let admin = actor(&sole_admin.id, "administrator");
+        let _ = change_user_role_logic(&mut conn, &admin, &sole_admin.id, "researcher");
+        let detail: String = conn
+            .query_row(
+                "SELECT detail FROM security_audit_events WHERE action = 'admin_user_role_change_denied'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(detail.contains("reason=last_active_administrator"));
+        let stored_hash: String = conn
+            .query_row("SELECT password_hash FROM users WHERE id = ?1", rusqlite::params![sole_admin.id], |r| r.get(0))
+            .unwrap();
+        assert!(!detail.contains(&stored_hash));
+    }
+
+    #[test]
+    fn a_non_administrator_role_change_is_never_touched_by_the_last_admin_guard() {
+        let mut conn = tmp_conn("non-admin-role-change-unaffected");
+        let sole_admin = seed_user(&conn, "sole.admin", Role::Administrator);
+        let researcher = seed_user(&conn, "plain.researcher", Role::Researcher);
+        let admin = actor(&sole_admin.id, "administrator");
+        // Changing a non-administrator's role must never be blocked, even
+        // though this installation has only one administrator overall.
+        let updated = change_user_role_logic(&mut conn, &admin, &researcher.id, "quality").unwrap();
+        assert_eq!(updated.role, "quality");
     }
 }

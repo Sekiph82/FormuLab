@@ -498,6 +498,7 @@ export function MaterialsPage() {
           suppliers={suppliers}
           onCancel={() => setEditing(null)}
           onSave={saveMaterial}
+          isExisting={materials.some((m) => m.code === editing.code)}
         />
       )}
 
@@ -510,6 +511,7 @@ export function MaterialsPage() {
           onCancel={() => setEditingSupplier(null)}
           onSave={saveSupplier}
           onLinksChanged={load}
+          isExisting={suppliers.some((s) => s.code === editingSupplier.code)}
         />
       )}
 

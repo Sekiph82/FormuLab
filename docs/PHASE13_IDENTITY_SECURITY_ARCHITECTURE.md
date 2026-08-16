@@ -310,11 +310,49 @@ administrator, per §6.2) can approve/reject at a required gate.
 | Administration → Security history | — | — | — | — | — | — | — | — | — | — | — | V,Ad |
 | Administration → App settings | — | — | — | — | — | — | — | — | — | — | — | V,E,Ad |
 
-This is Session 1's first full-matrix draft against current navigation
-and the role intent in §1.1 — **not yet domain-expert-reviewed**,
-flagged again here exactly as in Session 0 (§ Risks). Session 4 must
-not wire enforcement against this matrix until a human with real lab/
-QA/regulatory/production workflow experience has walked through it.
+This is Session 1's first full-matrix draft, frozen above exactly as
+originally transcribed — deviations from it are documented as prose
+corrections, never silently edited into the table itself, so the table
+always shows what §6 originally said and every departure from it has a
+recorded reason.
+
+**Domain-reviewed and finalized, Phase 13 closure session.** The table
+was walked cell-by-cell against real screens/actions, the four
+Production Manager workflow gates, `APPROVAL_AUTHORITY`, raw-material/
+procurement/production responsibilities, administrator's restrictions,
+and every backend command that enforces a cell (`authz.rs`,
+`workflow_gates.rs`, `materials.rs`, `masterdata.rs`). Findings:
+
+- The three additions already recorded in `rolePolicy.ts`'s own module
+  doc comment (production_manager's rawMaterials/supplierDocuments
+  `verify`; quality's and administrator's regulatory `verify`;
+  administrator's four-gate decide capabilities) all check out against
+  §15.4 and the code that actually uses them — confirmed, not changed.
+- One real discrepancy found and corrected: this table's own **quality
+  = `V,Vf`** cell on Raw material records predates the
+  raw_material_verification workflow gate. Nothing in the codebase ever
+  checked `("rawMaterials", "verify")` for anything *other* than that
+  gate's decide-capability, so the untouched cell was quietly giving
+  `quality` a second gate-decide authority — contradicting §15.4's own
+  "production_manager is the *sole* approval authority" language and
+  this closure session's own role assignment. Corrected in
+  `rolePolicy.ts` (`quality`'s rawMaterials cell is now `V` — see that
+  file's "Correction #4" doc comment), the generated JSON fixture, and
+  both languages' test suites. This markdown table's cell is left as
+  `V,Vf` deliberately, per the "frozen historical draft" convention
+  above — the correction lives in `rolePolicy.ts`, the one canonical
+  source, not duplicated here.
+- §9.3.5's "only `researcher` can write formulation content" and
+  §9.3.5/§9.3.6's "only `administrator` can `delete` anything" findings
+  were re-examined and confirmed as intended, not gaps: administrator
+  stays view-only on scientific create/edit by explicit design (§9),
+  and no working-tier role has an operational need for `delete` that
+  the architecture has ever named — broadening either would be adding
+  authority no approved decision calls for, not closing a real gap.
+  §9.3.6's masterdata collection->area grouping was walked the same way
+  and found consistent with the areas it maps to.
+
+No other cell required correction. §6 is final for Phase 13.
 
 ### 6.2 `APPROVAL_AUTHORITY` — re-derived for the 12-role model (implemented, `status.ts`)
 
@@ -503,7 +541,7 @@ at all. None do — Session 2 already established that no command outside
 size and categorize the gap Session 4 inherits, not to re-discover its
 existence.
 
-| Category | Representative commands | Should be gated by (once §6 is domain-reviewed, §Risks item 1) | Current server-side role check |
+| Category | Representative commands | Should be gated by (§6, domain-reviewed and finalized in the Phase 13 closure session) | Current server-side role check |
 |---|---|---|---|
 | Approval gates | `formulations::save_approval_record` | `APPROVAL_AUTHORITY[targetStatus]` | **None** — confirmed Session 0, unchanged (§2, evidence above) |
 | Formulation content writes | `formulations::save_formulation`, `save_formulation_version`, `delete_formulation`, `save_formulation_draft`, `discard_formulation_draft` | §6 Formulation area create/edit/delete | **None** — any caller can write/delete any formulation regardless of role |
@@ -520,7 +558,8 @@ role-checked": §6's matrix, as drafted, has no Administration/System
 area covering backup, restore, data-location moves, or migration at
 all — Session 4 cannot enforce a matrix cell that does not exist yet,
 so drafting that area is prerequisite work, not just wiring `can()`
-into existing rows. Flagged for the domain review in Risks item 1.
+into existing rows. Domain-reviewed and confirmed correct in the Phase
+13 closure session (§6) — administrator-only, no other role named.
 
 ### 9.3 Session 4: application-wide server-side enforcement
 
@@ -651,8 +690,11 @@ manager separation) at the guard layer.
 — per §6's literal matrix, that's `researcher` alone; every other role
 (including `administrator`, deliberately view-only on scientific
 content, §9) is refused. This is a real, load-bearing consequence of
-enforcing §6 as transcribed, not a bug — flagged for the domain review
-(Risks item 1) since it may be stricter than intended in practice.
+enforcing §6 as transcribed, not a bug — re-examined in the Phase 13
+closure session's domain review (§6) and confirmed intended:
+administrator's view-only restriction on scientific content is explicit
+architecture (§9), and no approved decision names any other role for
+formulation writes.
 
 **A second, more structural finding**: no role has the `delete`
 capability in *any* domain content area (`rawMaterials`/`formulation`/
@@ -664,9 +706,10 @@ against their own domain area's `delete` would make deletion
 unreachable for everyone — not a safety win, a broken feature. Both
 therefore gate against `projects`/`delete` instead (administrator-
 only) — a deliberate, documented Session 4 choice using the one real
-`delete` grant that exists, not a matrix change. Flagged for the
-domain review: should any area grant `delete` to a working-tier role
-directly?
+`delete` grant that exists, not a matrix change. Domain-reviewed in the
+Phase 13 closure session (§6) and confirmed: no working-tier role has
+an operational need for `delete` that the approved architecture names,
+so administrator-only stays as-is.
 
 #### 9.3.6 Generic masterdata CRUD — the widest gap, closed with a real domain mapping
 
@@ -685,8 +728,9 @@ every_allow_listed_collection_has_a_policy_area_mapping` asserts
 100% coverage as a loud, intentional finding if it ever regresses.
 Upsert/raw-write require `create` OR `edit` on the mapped area; delete
 uses the `projects`/`delete` grant, same reasoning as §9.3.5. This
-grouping is a first-draft judgment call, same as §6 itself — flagged
-for the domain review, not presented as final.
+grouping was walked collection-by-collection in the Phase 13 closure
+session's domain review (§6) alongside §6 itself and found consistent
+with the areas it maps to — final for Phase 13.
 
 #### 9.3.7 Audit-actor spoofing, closed
 
@@ -928,23 +972,36 @@ real. `masterdata.rs`'s pre-existing Session 4 tests (unchanged) now
 exercise the delegator and still pass — a third, incidental proof the
 refactor preserved behavior exactly.
 
-### 9.4.6 Residual gaps after Session 4A
+### 9.4.6 Residual gaps after Session 4A (items 1-4 closed in the Phase 13 closure session, §26)
 
-1. No frontend UI/wrapper for the three workflow-gate commands (§9.4.3).
-2. `formulation_advanced::cancel_advanced_formulation_optimize` remains
-   ungated (§9.4.1) — low-risk, consistent with the existing
+1. ~~No frontend UI/wrapper for the three workflow-gate commands
+   (§9.4.3).~~ **CLOSED, Phase 13 closure session** (§26.1): all four
+   gates (not three — production_release included) now have a real UI
+   embedded in the screen each belongs to.
+2. ~~`formulation_advanced::cancel_advanced_formulation_optimize`
+   remains ungated (§9.4.1) — low-risk, consistent with the existing
    cancel-command precedent, but not independently re-justified beyond
-   that precedent.
-3. §6's matrix is still Session 1's first draft — Session 4A's
+   that precedent.~~ **CLOSED, Phase 13 closure session** (§26.4):
+   independently re-audited, not merely left on precedent; now requires
+   a valid authenticated session.
+3. ~~§6's matrix is still Session 1's first draft — Session 4A's
    administrator addition (§9.4.2) is a third discrepancy-resolution on
-   top of it, not a domain-expert review. Still needed (Risks item 1).
-4. Gate subject existence is not validated — `submit_workflow_gate`
+   top of it, not a domain-expert review. Still needed (Risks item
+   1).~~ **CLOSED, Phase 13 closure session** (§6, §26.3): domain-
+   reviewed, one correction made (quality's stale rawMaterials `verify`
+   removed), final for Phase 13.
+4. ~~Gate subject existence is not validated — `submit_workflow_gate`
    does not check that the `materials`/`suppliers` code or
    `formulationId`/`versionId` given actually exists before creating a
    gate record. Not a security gap (authorization is unaffected), but a
-   data-integrity one a future session should close.
+   data-integrity one a future session should close.~~ **CLOSED, Phase
+   13 closure session** (§26.2): `validate_subject_exists` rejects a
+   nonexistent, malformed, or wrong-parent subject before any of
+   submit/decide/read proceeds.
 5. No admin UI to inspect/list all gates across subjects — only
-   `read_workflow_gate` for one subject at a time.
+   `read_workflow_gate` for one subject at a time. Still open; out of
+   scope for the closure session (not one of its five named residual
+   warnings).
 
 ---
 
@@ -1645,22 +1702,154 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## Risks and open decisions (updated Session 5)
+## 26. Phase 13 closure session — gate UI, subject validation, matrix domain review, cancel-command justification, last-administrator guard
 
-1. **§6's full matrix is Session 1's first draft**, built from current
+A focused closure session, starting from Session 5's close, resolving
+the five residual warnings §9.4.6/Risks disclosed rather than starting
+Session 6. Does not implement Phase 14.
+
+**26.1 Frontend UI for the four workflow gates.** A single reusable
+`WorkflowGatePanel` component (`components/workflow/WorkflowGatePanel.tsx`,
+backed by `lib/workflowGates.ts`'s thin bridge to `submit_workflow_gate`/
+`decide_workflow_gate`/`read_workflow_gate`) is embedded directly in the
+screen each gate belongs to, not a disconnected generic workflow page:
+`raw_material_verification` in `MaterialEditor.tsx` (existing/persisted
+materials only — a new draft has no real subject yet), and
+`supplier_document_verification` in `SupplierEditor.tsx` the same way;
+`production_engineering_handoff`/`production_release` in
+`ApprovalPanel.tsx`'s new "Production Workflow Gates" section, scoped to
+the selected formulation version. The panel shows current gate state,
+who submitted and when, who approved/rejected and when, the rejection
+reason, whether resubmission is available (`rejected -> submitted` is
+the same `submit` action, not a second code path), and — for the two
+production gates specifically — the real prerequisite-blocking reason
+before a worker even tries to submit (the parent version's status for
+`production_engineering_handoff`; the upstream gate's approval state for
+`production_release`). Button visibility is computed from `can()` (the
+same canonical `rolePolicy.ts` matrix, imported from `@formulab/shared`)
+so a worker only sees Submit and a manager only sees Approve/Reject —
+UX only; `authz::authorize_app` on the Rust side remains the actual
+boundary.
+
+**26.2 Gate subject-existence validation.** `workflow_gates.rs` gained a
+`SubjectKind` on each `GateSpec` (`MasterdataRecord(collection)` for the
+two masterdata gates, `FormulationVersion` for the two production gates)
+and `validate_subject_exists()`, called after authorization but before
+any of `submit_workflow_gate`/`decide_workflow_gate`/`read_workflow_gate`
+proceeds — unauthorized callers cannot probe subject existence, since
+the authorization check still runs first. A masterdata-record gate
+rejects a `subject_id` that isn't a real code in `materials`/`suppliers`
+(`masterdata::collection_has_code`) and rejects any `parent_id` at all
+(these gates have no parent concept). A formulation-version gate
+requires a `parent_id` and rejects a `subject_id` that isn't a real file
+under that exact parent's `versions/` directory — the same check
+structurally proves the cross-subject/wrong-parent case, since a real
+version id under the *wrong* formulation is a file-not-found exactly
+like a fabricated one. `formulation_version_exists_at` (the Path-taking
+half of that check) and `validate_subject_shape` (the parent-id shape
+rule) are both split out pure, testable functions, in this codebase's
+established AppHandle-free-testing convention; 6 new tests cover a real
+version found under its own formulation, the identical version id
+*not* found under a different formulation's directory (the wrong-parent
+case), a malformed id rejected before any filesystem check, and the
+parent-id shape rule for both `SubjectKind`s. Malformed ids
+(path-traversal, empty) were already rejected structurally by `safe_id`
+before this session.
+
+**26.3 Role-permission matrix domain review.** §6 was walked
+cell-by-cell against real screens, the four gates, `APPROVAL_AUTHORITY`,
+and every backend command that enforces a cell — full findings in §6's
+own closing note. One correction: `quality`'s stale, pre-gate `verify`
+grant on `rawMaterials` was quietly acting as a second decide authority
+for `raw_material_verification`, contradicting §15.4's "production_manager
+is the *sole* approval authority" — removed from `rolePolicy.ts`
+(`quality`'s rawMaterials cell is now `V`), the generated JSON fixture
+regenerated, and a regression test added on both sides
+(`rolePolicy.test.ts`, `role_policy.rs`) proving `quality` no longer
+holds `("rawMaterials", "verify")`. Everything else — the three
+Session-3/4A discrepancy-resolution additions, the formulation-write and
+`delete` findings, the masterdata collection grouping — was confirmed
+correct as already documented, not changed. §6 is final for Phase 13;
+the "not yet domain-expert-reviewed" flag is retired.
+
+**26.4 `cancel_advanced_formulation_optimize` re-audited, not left on
+precedent.** `AdvancedOptimizerState` is one global
+`Mutex<Option<Child>>` for the whole running process by design — "one
+run at a time," unchanged since before Phase 13 — so there is no
+per-user or per-session run identity anywhere in this module to check
+against; building one would invent a run-ownership system the actual
+architecture doesn't have. The command's worst case is a wasted,
+interrupted compute — `cancel_current_logic` only kills a spawned child
+and clears the slot, it never touches `identity.db` or any regulated
+collection, and nothing about a cancelled run leaks to or corrupts state
+for a different user. Decision: `TRUSTED_INTERNAL_ONLY` for the
+cancellation semantics themselves (no run-ownership system invented),
+but no longer authentication-free — the command now requires
+`authz::current_actor_app` to resolve a valid session, closing the "any
+raw `invoke()` with zero login" gap it had before, the same minimum bar
+every other Phase 13 command clears. See `formulation_advanced.rs`'s own
+doc comment for the full reasoning, and its new test proving
+cancel-with-nothing-running is a safe, idempotent no-op.
+
+**26.5 Last-administrator protection.** `identity::update_role_guarded`/
+`update_account_status_guarded` (new) run inside a SQLite `IMMEDIATE`
+transaction — the same isolation `bootstrap_administrator` already
+uses — that reads the target's current role/status and, only when the
+change would remove administrator authority from an *active*
+administrator, counts other *active* administrators before allowing the
+mutation; zero others denies the change entirely, atomically, so a
+concurrent second admin action cannot both pass a stale pre-check.
+`admin.rs`'s `change_user_role_logic`/`set_user_account_status_logic`
+call the guarded versions and audit a denial (`admin_user_role_change_
+denied`/`admin_user_status_change_denied`, reason
+`last_active_administrator`) without leaking any value beyond that
+reason. A disabled/non-active administrator never counts as a backup.
+7 new tests cover: the sole active administrator cannot be demoted;
+cannot be disabled; with two active administrators, one may be demoted;
+one may be disabled; a disabled administrator doesn't count as a
+backup; the denial is audited without leaking secrets; a non-
+administrator role change is never touched by the guard at all. Frontend
+messaging: `Administration → Users`' existing generic error display
+(`role="alert"`, `UsersPanel.tsx`) already surfaces the guard's own
+descriptive denial message verbatim — no new frontend code needed for
+this specific gap, since the backend's error string was the missing
+piece, not the display mechanism.
+
+**Verification**: full Rust `cargo test --lib` (328/328), `cargo clippy
+--lib -- -D warnings` (clean), `@formulab/shared` vitest (1302/1302,
+including `rolePolicy.matrixParity.test.ts`), desktop `tsc --noEmit`
+(clean), `eslint` on every touched frontend file (clean), i18n parity
+(23/23, all 8 shipped locales carry real `workflowGate.*`/
+`materials.verification*`/`supplier.verificationGate`/
+`approval.workflowGates*` translations, not English-only fallbacks),
+`ApprovalPanel.test.tsx` (20/20, unaffected by the new gate panels).
+
+**Residual, disclosed, not closed this session**: no admin UI to
+inspect/list all workflow gates across subjects (§9.4.6 item 5) — out
+of scope, not one of the five named residual warnings. Next session:
+**Phase 13 Session 6**, per the original session numbering — this
+closure session does not begin it.
+
+---
+
+## Risks and open decisions (updated Phase 13 closure session)
+
+1. ~~§6's full matrix is Session 1's first draft~~, built from current
    navigation/routes and §1.1's role intent, not domain-expert-
-   reviewed — now actually enforced (§9.3) for the priority command
-   set, which makes this review more urgent, not less: Session 4 found
-   enforcing it literally means only `researcher` can write formulation
-   content (§9.3.5) and no role can delete anything outside
-   `administrator` on `projects` (§9.3.5/§9.3.6) — both real,
-   load-bearing consequences now, not abstract gaps. The
-   `systemAdministration` area Session 4 drafted (§9.3.2) and the
-   masterdata collection->area mapping (§9.3.6) are both first-draft
-   judgment calls needing the same review.
-2. **§9 — Administrator's retained approval authority** is explicit and
-   user-approved for this phase; still worth a final human confirmation
-   before Session 4 makes it load-bearing in enforcement.
+   reviewed. **DOMAIN-REVIEWED AND FINALIZED, Phase 13 closure session**
+   (§6, §26.3): walked cell-by-cell against real screens, the four
+   workflow gates, and backend enforcement. The formulation-write and
+   `projects`/`delete` findings (§9.3.5/§9.3.6) were confirmed intended,
+   not gaps; the `systemAdministration` area and masterdata
+   collection->area mapping were confirmed consistent. One real
+   correction: `quality`'s stale `verify` on `rawMaterials` removed
+   (§6's closing note). §6 is final for Phase 13.
+2. ~~§9 — Administrator's retained approval authority~~ is explicit and
+   user-approved for this phase. **RE-CONFIRMED, Phase 13 closure
+   session** (§26.3): the domain review specifically re-checked
+   administrator's restrictions and its narrow, explicit gate-decide
+   exceptions against real backend enforcement — no broadening found or
+   made.
 3. **§12 — project/resource access is confirmed (not just
    recommended) out of scope for Phase 13** — no longer an open
    question, closed in Session 1's closure.
@@ -1700,52 +1889,70 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
     `DEFERRED_WITH_REASON` backlog too** (§9.4.1) — every command from
     the Session 3 inventory now has a final disposition, none remain
     deferred without a stated, concrete reason. Phase 13 is **still
-    not** claimed fully secure — §9.4.6's residual-gap list (no gate UI,
-    `cancel_advanced_formulation_optimize` ungated by precedent, §6's
-    matrix still first-draft, gate-subject existence unvalidated) is
-    what's left, kept as a live list rather than declared closed.
-11. **§9.3.5's formulation-write finding may be stricter than
-    intended.** Enforcing §6's literal matrix means only `researcher`
+    not** claimed fully secure — the Phase 13 closure session (§26)
+    closed §9.4.6's four residual gaps (no gate UI, `cancel_advanced_
+    formulation_optimize` ungated by precedent, §6's matrix
+    first-draft, gate-subject existence unvalidated) plus the last-
+    administrator gap; §9.4.6 item 5 (no admin UI to list all gates
+    across subjects) is what's left, kept as a live list rather than
+    declared closed.
+11. ~~§9.3.5's formulation-write finding may be stricter than
+    intended.~~ Enforcing §6's literal matrix means only `researcher`
     can create/edit formulation content — `research_manager` (view/
     approve/reject only), `administrator` (view-only by explicit
-    design, §9), and every other role are all refused. If this proves
-    too strict in real use, the fix is a matrix correction (Risks item
-    1's domain review), not loosening `authz.rs`'s guard itself.
+    design, §9), and every other role are all refused. **CONFIRMED
+    INTENDED, Phase 13 closure session** (§6, §26.3): this is explicit
+    architecture, not an oversight — if it ever proves too strict in
+    real use, the fix is a fresh matrix decision, not loosening
+    `authz.rs`'s guard itself.
 12. ~~§9.3.6's masterdata collection->area mapping is Rust-only~~
     **RESOLVED, Session 4A** (§9.4.5): `masterdataPolicyAreas.ts` is
     now the shared canonical source, parity-tested against Rust's
     `masterdata_area_for()` the same way the role matrix and
     transition graph already are.
 13. **`run_automatic_backup` stays deliberately unauthenticated**
-    (§9.3.9) — correct per this session's explicit instruction, but
-    worth re-confirming during the domain review: does *any* backup
-    class ever need to be administrator-gated even when
+    (§9.3.9) — correct per this session's explicit instruction. Open
+    question, unrelated to and not answered by the Phase 13 closure
+    session's role-matrix domain review (§26.3 was scoped to
+    `rolePolicy.ts`, not backup authentication policy): does *any*
+    backup class ever need to be administrator-gated even when
     system-triggered (e.g. a `preMigration` class run outside an
     interactive migration flow)? Not a known issue, just an open
-    question this session didn't need to answer.
-14. **The four workflow gates (§9.4.3) have no frontend UI** — the
+    question for a future session to answer.
+14. ~~The four workflow gates (§9.4.3) have no frontend UI~~ — the
     backend commands exist and are tested, but nothing in the app calls
-    them yet. A worker/manager cannot actually use these gates until a
-    UI session wires them in.
-15. **Gate-subject existence is unvalidated** (§9.4.6 item 4) —
+    them yet. **CLOSED, Phase 13 closure session** (§26.1): a
+    `WorkflowGatePanel` component is embedded in `MaterialEditor.tsx`,
+    `SupplierEditor.tsx`, and `ApprovalPanel.tsx` (both production
+    gates) — a worker/manager can now submit/decide every gate from the
+    screen it belongs to.
+15. ~~Gate-subject existence is unvalidated~~ (§9.4.6 item 4) —
     `submit_workflow_gate` will happily create a gate record for a
     `materials`/`suppliers` code, or a `formulationId`/`versionId` pair,
-    that doesn't exist. Not an authorization gap; a data-integrity one.
-16. **`cancel_advanced_formulation_optimize` remains ungated** (§9.4.1)
-    — consistent with the existing cancel-command precedent (Session 4
-    never gated `cancel_backup`/`cancel_restore`/`cancel_data_move`
-    either), not independently re-justified beyond that precedent this
-    session.
-17. **No "last administrator" guard.** Session 5's
-    `change_administered_user_role` will happily demote the only
+    that doesn't exist. **CLOSED, Phase 13 closure session** (§26.2):
+    `validate_subject_exists` rejects a nonexistent, malformed, or
+    wrong-parent subject before create/submit/decide/read proceeds.
+16. ~~`cancel_advanced_formulation_optimize` remains ungated~~ (§9.4.1)
+    — was consistent with the existing cancel-command precedent
+    (Session 4 never gated `cancel_backup`/`cancel_restore`/
+    `cancel_data_move` either) but not independently re-justified.
+    **CLOSED, Phase 13 closure session** (§26.4): independently
+    re-audited on its own facts (a global, not per-user, run slot whose
+    worst case is a wasted compute), not left on precedent alone; now
+    requires a valid authenticated session.
+17. ~~No "last administrator" guard.~~ Session 5's
+    `change_administered_user_role` would happily demote the only
     existing administrator to another role — bootstrap (§5) prevents a
-    *second* bootstrap administrator, but nothing prevents the sole
+    *second* bootstrap administrator, but nothing prevented the sole
     administrator from losing that role afterward via ordinary role
     management, which would leave the installation with no one able to
     reach `administrationUsers`/`administrationSecurity`/
-    `systemAdministration` at all. Not implemented because Session 5's
-    brief did not ask for it — a real, disclosed gap for a future
-    session to decide whether to close.
+    `systemAdministration` at all. **CLOSED, Phase 13 closure session**
+    (§26.5): `identity::update_role_guarded`/
+    `update_account_status_guarded` block demoting or disabling the
+    last *active* administrator, transactionally (SQLite `IMMEDIATE`),
+    so a concurrent second admin action cannot race past a stale
+    pre-check.
 18. **Session 5's account-management audit events are per-action, not
     yet covered by a dedicated fuzz/property test** (F2, test matrix)
     scanning every row for password-hash-shaped strings — `admin.rs`'s

@@ -226,6 +226,17 @@ mod tests {
     }
 
     #[test]
+    fn quality_does_not_hold_the_raw_material_gate_decide_capability() {
+        // Phase 13 closure-session correction (rolePolicy.ts's own
+        // "Correction #4" doc comment): production_manager (plus
+        // administrator) is this gate's sole decide authority — `quality`'s
+        // stale pre-gate `verify` grant on `rawMaterials` quietly acted as
+        // a second one and has been removed from the canonical matrix.
+        assert!(!can("quality", "rawMaterials", "verify"));
+        assert!(can("quality", "rawMaterials", "view"));
+    }
+
+    #[test]
     fn regulatory_verify_extends_to_quality_and_administrator() {
         // architecture doc §8 — AUTHORIZED_REGULATORY_ROLES-derived addition.
         for role in ["regulatory", "quality", "administrator"] {

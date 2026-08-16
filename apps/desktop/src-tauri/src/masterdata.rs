@@ -479,6 +479,18 @@ fn row_key(row: &serde_json::Value) -> Option<String> {
     None
 }
 
+/// Phase 13 closure session — the gate-subject-existence check
+/// `workflow_gates.rs` uses for `raw_material_verification`/
+/// `supplier_document_verification`: does a real row with this `code`/`id`
+/// exist in this allow-listed collection? `collection` must already be one
+/// of the 90 real names (`collection_spec` rejects anything else, same
+/// default-deny discipline as every other collection lookup in this file).
+pub(crate) fn collection_has_code(app: &AppHandle, collection: &str, code: &str) -> Result<bool, String> {
+    let (name, _) = collection_spec(collection)?;
+    let path = collection_path(app, name)?;
+    Ok(read_array(&path).iter().any(|row| row_key(row).as_deref() == Some(code)))
+}
+
 #[tauri::command(async)]
 pub async fn list_master_records(
     app: AppHandle,

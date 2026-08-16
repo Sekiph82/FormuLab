@@ -9,6 +9,7 @@ import {
 } from "@formulab/shared";
 import { nowIso, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
+import { WorkflowGatePanel } from "@/components/workflow/WorkflowGatePanel";
 
 const QUALITY_STATUSES = ["approved", "conditional", "under_review", "suspended", "not_assessed"] as const;
 
@@ -27,6 +28,7 @@ export function SupplierEditor({
   onCancel,
   onSave,
   onLinksChanged,
+  isExisting,
 }: {
   supplier: Supplier;
   materials: RawMaterial[];
@@ -35,6 +37,11 @@ export function SupplierEditor({
   onCancel: () => void;
   onSave: (s: Supplier) => Promise<void> | void;
   onLinksChanged: () => Promise<void> | void;
+  /** True once `supplier.code` is a persisted record — mirrors
+   *  `MaterialEditor`'s `isExisting`: the supplier_document_verification
+   *  gate needs a real subject to validate against, so it is withheld from
+   *  an unsaved draft. */
+  isExisting?: boolean;
 }) {
   const { t } = useTranslation(["session", "common"]);
   const [draft, setDraft] = useState<Supplier>(supplier);
@@ -214,6 +221,17 @@ export function SupplierEditor({
               </ul>
             )}
           </section>
+
+          {isExisting && (
+            <section className="mt-4 border-t border-border-faint pt-3">
+              <h3 className="mb-2 text-[12px] font-medium text-text">{t("materials.verificationHeading", { defaultValue: "Verification" })}</h3>
+              <WorkflowGatePanel
+                gateType="supplier_document_verification"
+                subjectId={supplier.code}
+                heading={t("supplier.verificationGate", { defaultValue: "Supplier Document Verification" })}
+              />
+            </section>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">

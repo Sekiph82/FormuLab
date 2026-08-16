@@ -94,6 +94,15 @@ describe("rolePolicy — worker/manager separation", () => {
     expect(can("production_engineering", "productionEngineering", "approve")).toBe(false);
     expect(can("production_engineering", "productionEngineering", "edit")).toBe(true);
   });
+
+  it("quality cannot perform the raw-material Production Manager verification gate (Phase 13 closure-session correction)", () => {
+    // production_manager (plus administrator) is the gate's *sole*
+    // decide authority — §6's literal `quality` cell here predated the
+    // gate and quietly granted a second one; see rolePolicy.ts's own
+    // "Correction #4" doc comment for the full finding.
+    expect(can("quality", "rawMaterials", "verify")).toBe(false);
+    expect(can("quality", "rawMaterials", "view")).toBe(true);
+  });
 });
 
 describe("rolePolicy — manager authority", () => {

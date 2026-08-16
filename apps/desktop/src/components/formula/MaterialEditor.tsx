@@ -9,6 +9,7 @@ import {
   type Supplier,
 } from "@formulab/shared";
 import { cn } from "@/lib/cn";
+import { WorkflowGatePanel } from "@/components/workflow/WorkflowGatePanel";
 
 /**
  * Create or edit a raw material.
@@ -26,11 +27,18 @@ export function MaterialEditor({
   suppliers,
   onCancel,
   onSave,
+  isExisting,
 }: {
   material: RawMaterial;
   suppliers: Supplier[];
   onCancel: () => void;
   onSave: (m: RawMaterial) => Promise<void> | void;
+  /** True once `material.code` is a persisted record, not still an unsaved
+   *  draft — the raw_material_verification gate has a real subject to
+   *  validate against server-side only from that point on, so the panel is
+   *  withheld from brand-new drafts rather than letting a worker submit a
+   *  gate for a code that does not exist yet. */
+  isExisting?: boolean;
 }) {
   const { t } = useTranslation(["session", "common"]);
   const [draft, setDraft] = useState<RawMaterial>(material);
@@ -328,6 +336,16 @@ export function MaterialEditor({
             </label>
             <p className="text-[11px] text-muted">{t("materials.deactivateHint")}</p>
           </Section>
+
+          {isExisting && (
+            <Section title={t("materials.verificationHeading", { defaultValue: "Verification" })}>
+              <WorkflowGatePanel
+                gateType="raw_material_verification"
+                subjectId={material.code}
+                heading={t("materials.verificationGate", { defaultValue: "Raw Material Verification" })}
+              />
+            </Section>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-border px-5 py-3">

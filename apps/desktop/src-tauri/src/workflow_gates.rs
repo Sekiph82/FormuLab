@@ -74,6 +74,28 @@ struct GateSpec {
     /// `FormulaStatus` equals this value — production_engineering_handoff
     /// requires `production_approved` (the upstream approval gate, §6.2/§9.3.4).
     requires_formula_status: Option<&'static str>,
+    /// What `subject_id` (and, where applicable, `parent_id`) must actually
+    /// refer to — the gate-subject-existence/integrity check (closure
+    /// session): a gate can never be created against a fake, malformed, or
+    /// wrong-parent subject, regardless of role/capability.
+    subject_kind: SubjectKind,
+}
+
+/// The two real shapes a gate's subject can have. Not a free-form string —
+/// every gate maps to exactly one of these, checked by
+/// `validate_subject_exists` before the subject is trusted for anything.
+#[derive(Clone, Copy)]
+enum SubjectKind {
+    /// `subject_id` must be a real `code`/`id` in this allow-listed
+    /// masterdata collection (`masterdata::collection_has_code`).
+    /// `parent_id` must be absent — these gates have no parent concept.
+    MasterdataRecord(&'static str),
+    /// `subject_id` must be a real, existing `FormulationVersion` id, and
+    /// `parent_id` must be the real formulation id it actually belongs to
+    /// — the version file's own path (`formulation_dir(parent)/versions/
+    /// subject.json`) is inherently parent-scoped, so "wrong parent" and
+    /// "doesn't exist" collapse into the same file-not-found check.
+    FormulationVersion,
 }
 
 fn gate_spec(gate_type: &str) -> Option<GateSpec> {
@@ -84,6 +106,7 @@ fn gate_spec(gate_type: &str) -> Option<GateSpec> {
             unified_decide_capability: Some("verify"),
             requires_gate_approved: None,
             requires_formula_status: None,
+            subject_kind: SubjectKind::MasterdataRecord("materials"),
         }),
         "supplier_document_verification" => Some(GateSpec {
             area: "supplierDocuments",
@@ -91,6 +114,7 @@ fn gate_spec(gate_type: &str) -> Option<GateSpec> {
             unified_decide_capability: Some("verify"),
             requires_gate_approved: None,
             requires_formula_status: None,
+            subject_kind: SubjectKind::MasterdataRecord("suppliers"),
         }),
         "production_engineering_handoff" => Some(GateSpec {
             area: "productionEngineering",
@@ -98,6 +122,7 @@ fn gate_spec(gate_type: &str) -> Option<GateSpec> {
             unified_decide_capability: None,
             requires_gate_approved: None,
             requires_formula_status: Some("production_approved"),
+            subject_kind: SubjectKind::FormulationVersion,
         }),
         "production_release" => Some(GateSpec {
             area: "production",
@@ -105,6 +130,7 @@ fn gate_spec(gate_type: &str) -> Option<GateSpec> {
             unified_decide_capability: None,
             requires_gate_approved: Some("production_engineering_handoff"),
             requires_formula_status: None,
+            subject_kind: SubjectKind::FormulationVersion,
         }),
         _ => None,
     }
@@ -193,6 +219,65 @@ fn formulation_version_status(app: &AppHandle, formulation_id: &str, version_id:
         .map_err(|_| format!("formulation version not found: {formulation_id}/{version_id}"))?;
     let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     Ok(value.get("status").and_then(|v| v.as_str()).unwrap_or("concept").to_string())
+}
+
+/// Closure session — gate-subject-existence/integrity validation.
+/// Rejects a gate operation outright when `subject_id`/`parent_id` don't
+/// refer to a real record of the right type, before authorization's result
+/// is trusted for anything else: role capability and workflow-prerequisite
+/// checks both operate on the *claim* that a subject exists — this is what
+/// makes the claim true. Malformed ids (path traversal, empty, etc.) are
+/// already rejected by `safe_id`/`gate_path`'s own validation before this
+/// runs; this function closes the remaining case — a syntactically valid
+/// id that simply doesn't name a real record, or names one of the wrong
+/// type/parent.
+/// The parent-id shape rule alone (no filesystem access) — split out so it
+/// is directly unit-testable, matching this file's existing
+/// pure-function/`AppHandle`-wrapper split (e.g. `prerequisite_satisfied`
+/// vs `check_prerequisite`).
+fn validate_subject_shape(spec: &GateSpec, parent_id: Option<&str>) -> Result<(), String> {
+    match spec.subject_kind {
+        SubjectKind::MasterdataRecord(_) if parent_id.is_some() => {
+            Err("this gate's subject does not take a parent id".to_string())
+        }
+        SubjectKind::FormulationVersion if parent_id.is_none() => {
+            Err("this gate requires a parent formulation id".to_string())
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Given the specific formulation's already-resolved `versions/` directory
+/// (never a generic "all formulations" root), does `version_id` exist under
+/// it? Deliberately takes a `Path`, not an `AppHandle` + parent id, so the
+/// "wrong parent" case is exercisable directly: call it with a *different*
+/// formulation's versions dir than the one that actually owns the file and
+/// this returns `Ok(false)`, not `Ok(true)` — a real version id is never
+/// enough on its own, it only counts under its own parent's directory.
+fn formulation_version_exists_at(versions_dir: &std::path::Path, version_id: &str) -> Result<bool, String> {
+    Ok(versions_dir.join(format!("{}.json", safe_id(version_id)?)).is_file())
+}
+
+fn validate_subject_exists(app: &AppHandle, spec: &GateSpec, subject_id: &str, parent_id: Option<&str>) -> Result<(), String> {
+    validate_subject_shape(spec, parent_id)?;
+    match spec.subject_kind {
+        SubjectKind::MasterdataRecord(collection) => {
+            if !crate::masterdata::collection_has_code(app, collection, subject_id)? {
+                return Err(format!("no {collection} record with code \"{subject_id}\" exists"));
+            }
+            Ok(())
+        }
+        SubjectKind::FormulationVersion => {
+            let parent = parent_id.expect("validate_subject_shape already required Some");
+            let versions_dir = crate::formulations::formulation_dir(app, parent)?.join("versions");
+            if !formulation_version_exists_at(&versions_dir, subject_id)? {
+                return Err(format!(
+                    "no formulation version \"{subject_id}\" exists under formulation \"{parent}\""
+                ));
+            }
+            Ok(())
+        }
+    }
 }
 
 /// The pure downstream-blocking check (§9.4.4), split from
@@ -375,6 +460,7 @@ pub async fn submit_workflow_gate(
 ) -> Result<WorkflowGateRecord, String> {
     let spec = gate_spec(&gate_type).ok_or_else(|| format!("\"{gate_type}\" is not a recognized workflow gate"))?;
     let actor = authz::authorize_app(&app, &token, spec.area, spec.worker_capability)?;
+    validate_subject_exists(&app, &spec, &subject_id, parent_id.as_deref())?;
     check_prerequisite(&app, &spec, &subject_id, parent_id.as_deref())?;
 
     let path = gate_path(&app, &gate_type, &subject_id, parent_id.as_deref())?;
@@ -402,6 +488,7 @@ pub async fn decide_workflow_gate(
     let spec = gate_spec(&gate_type).ok_or_else(|| format!("\"{gate_type}\" is not a recognized workflow gate"))?;
     let capability = decide_capability(&spec, &decision);
     let actor = authz::authorize_app(&app, &token, spec.area, capability)?;
+    validate_subject_exists(&app, &spec, &subject_id, parent_id.as_deref())?;
 
     let path = gate_path(&app, &gate_type, &subject_id, parent_id.as_deref())?;
     let existing = read_gate(&path).ok_or("no submitted gate found for this subject")?;
@@ -422,7 +509,8 @@ pub async fn read_workflow_gate(
     parent_id: Option<String>,
 ) -> Result<Option<WorkflowGateRecord>, String> {
     authz::current_actor_app(&app, &token)?;
-    gate_spec(&gate_type).ok_or_else(|| format!("\"{gate_type}\" is not a recognized workflow gate"))?;
+    let spec = gate_spec(&gate_type).ok_or_else(|| format!("\"{gate_type}\" is not a recognized workflow gate"))?;
+    validate_subject_exists(&app, &spec, &subject_id, parent_id.as_deref())?;
     let path = gate_path(&app, &gate_type, &subject_id, parent_id.as_deref())?;
     Ok(read_gate(&path))
 }
@@ -554,6 +642,76 @@ mod tests {
         assert!(prerequisite_satisfied(&release, None, Some("submitted")).is_err());
         assert!(prerequisite_satisfied(&release, None, Some("rejected")).is_err());
         assert!(prerequisite_satisfied(&release, None, Some("approved")).is_ok());
+    }
+
+    // ------------------------------------------- validate_subject_shape ---
+    // (the AppHandle-reading half of gate-subject-existence validation,
+    // `validate_subject_exists`, is untested here for the same reason
+    // `check_prerequisite`/`collection_has_code` are: this codebase's
+    // established convention of not mocking an AppHandle. This proves the
+    // shape rule that decides which `SubjectKind` accepts a `parent_id` at
+    // all — a masterdata-record gate given a parent, or a
+    // formulation-version gate missing one, is rejected before any
+    // filesystem lookup even runs.)
+
+    #[test]
+    fn masterdata_record_gates_reject_a_parent_id() {
+        let raw = gate_spec("raw_material_verification").unwrap();
+        assert!(validate_subject_shape(&raw, None).is_ok());
+        assert!(validate_subject_shape(&raw, Some("some-parent")).is_err());
+        let sup = gate_spec("supplier_document_verification").unwrap();
+        assert!(validate_subject_shape(&sup, None).is_ok());
+        assert!(validate_subject_shape(&sup, Some("some-parent")).is_err());
+    }
+
+    #[test]
+    fn formulation_version_gates_require_a_parent_id() {
+        let handoff = gate_spec("production_engineering_handoff").unwrap();
+        assert!(validate_subject_shape(&handoff, None).is_err());
+        assert!(validate_subject_shape(&handoff, Some("form-1")).is_ok());
+        let release = gate_spec("production_release").unwrap();
+        assert!(validate_subject_shape(&release, None).is_err());
+        assert!(validate_subject_shape(&release, Some("form-1")).is_ok());
+    }
+
+    // ------------------------------------- formulation_version_exists_at ---
+
+    #[test]
+    fn a_real_version_file_under_its_own_formulation_is_found() {
+        let tmp = std::env::temp_dir().join(format!("formulab-gate-subject-found-test-{}", std::process::id()));
+        let versions_dir = tmp.join("form-A").join("versions");
+        std::fs::create_dir_all(&versions_dir).unwrap();
+        std::fs::write(versions_dir.join("v1.json"), "{}").unwrap();
+
+        assert!(formulation_version_exists_at(&versions_dir, "v1").unwrap());
+        assert!(!formulation_version_exists_at(&versions_dir, "v2").unwrap(), "nonexistent version id");
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn a_version_id_belonging_to_a_different_formulation_is_not_found() {
+        // Cross-subject misuse: v1.json is real, but only under form-A. A
+        // caller claiming it belongs to form-B must be rejected — a real
+        // version id is not enough on its own, the parent must match too.
+        let tmp = std::env::temp_dir().join(format!("formulab-gate-subject-wrong-parent-test-{}", std::process::id()));
+        let form_a_versions = tmp.join("form-A").join("versions");
+        let form_b_versions = tmp.join("form-B").join("versions");
+        std::fs::create_dir_all(&form_a_versions).unwrap();
+        std::fs::create_dir_all(&form_b_versions).unwrap();
+        std::fs::write(form_a_versions.join("v1.json"), "{}").unwrap();
+
+        assert!(formulation_version_exists_at(&form_a_versions, "v1").unwrap());
+        assert!(!formulation_version_exists_at(&form_b_versions, "v1").unwrap(), "v1 does not belong to form-B");
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn a_malformed_version_id_is_rejected_before_any_filesystem_check() {
+        let tmp = std::env::temp_dir();
+        assert!(formulation_version_exists_at(&tmp, "../../etc/passwd").is_err());
+        assert!(formulation_version_exists_at(&tmp, "").is_err());
     }
 
     // -------------------------------------------------- apply_submit ---

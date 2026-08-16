@@ -154,6 +154,7 @@ import { InfoTooltip } from "@/components/help/InfoTooltip";
 import type { DisabledReason } from "@/lib/help/disabledReason";
 import { PolicyEditor } from "./PolicyEditor";
 import { EquivalenceWorkflow } from "./EquivalenceWorkflow";
+import { WorkflowGatePanel } from "@/components/workflow/WorkflowGatePanel";
 
 type SimpleT = (key: string, opts?: Record<string, unknown>) => string;
 
@@ -1272,6 +1273,24 @@ export function ApprovalPanel({
           >
             {t("approval.cancelButton")}
           </button>
+        </div>
+      </Section>
+
+      <Section title={t("approval.workflowGatesHeading", { defaultValue: "Production Workflow Gates" })}>
+        <div className="space-y-3">
+          <WorkflowGatePanel
+            gateType="production_engineering_handoff"
+            subjectId={selectedVersion.id}
+            parentId={formulation.id}
+            heading={t("approval.handoffGate", { defaultValue: "Production Engineering Handoff" })}
+            formulaStatus={currentStatus}
+          />
+          <WorkflowGatePanel
+            gateType="production_release"
+            subjectId={selectedVersion.id}
+            parentId={formulation.id}
+            heading={t("approval.releaseGate", { defaultValue: "Production Release" })}
+          />
         </div>
       </Section>
 
