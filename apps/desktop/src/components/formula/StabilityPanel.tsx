@@ -49,6 +49,7 @@ import {
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
+import { useTrustedActor } from "@/lib/currentActor";
 import { InfoTooltip } from "@/components/help/InfoTooltip";
 import { AttachmentField } from "./AttachmentField";
 import { ExclusionExplorer } from "./ExclusionExplorer";
@@ -98,6 +99,13 @@ export function StabilityPanel({
 }) {
   const { t: tRaw } = useTranslation(["session", "common"]);
   const t = tRaw as SimpleT;
+  // Phase 13 Session 3: the trusted authenticated user, when there is one,
+  // is who actually performed these lab actions — LOCAL_HUMAN/"local" are
+  // only ever the effective local fallback (see `useTrustedActor`'s doc
+  // comment).
+  const trusted = useTrustedActor();
+  const actor: Actor = trusted ? { kind: "human", role: trusted.role, userId: trusted.userId } : LOCAL_HUMAN;
+  const actorId = trusted?.userId ?? "local";
   const [studies, setStudies] = useState<StabilityStudy[]>([]);
   const [samples, setSamples] = useState<StabilitySample[]>([]);
   const [results, setResults] = useState<StabilityResult[]>([]);
@@ -202,7 +210,7 @@ export function StabilityPanel({
         capturedAt: now,
       },
       title: newTitle.trim(),
-      owner: "local",
+      owner: actorId,
       status: "planned",
       conditionIds: [...selectedConditionIds],
       timePointIds: [...selectedTimePointIds],
@@ -211,7 +219,7 @@ export function StabilityPanel({
       replicatesPerPullPoint: 1,
       hasOpenCriticalFailure: false,
       createdAt: now,
-      createdBy: "local",
+      createdBy: actorId,
       updatedAt: now,
     };
     await persistStudy(study);
@@ -222,7 +230,7 @@ export function StabilityPanel({
 
   const transitionStudy = async (study: StabilityStudy, to: StabilityStudyStatus) => {
     setError(null);
-    const result = canTransitionStability(study.status, to, LOCAL_HUMAN, { openCriticalFailures: studyFailures });
+    const result = canTransitionStability(study.status, to, actor, { openCriticalFailures: studyFailures });
     if (!result.allowed) {
       setError(result.message ?? t("stability.transitionRejected"));
       return;
@@ -318,7 +326,7 @@ export function StabilityPanel({
       stats,
       passFail,
       unit: definition.unit,
-      performedBy: "local",
+      performedBy: actorId,
       performedAt: now,
       createdAt: now,
       updatedAt: now,
@@ -370,7 +378,7 @@ export function StabilityPanel({
           parentRecordType: "stability_result",
           parentRecordId: result.id,
           reason: t("attachments.replaceReason"),
-          replacedBy: "local",
+          replacedBy: actorId,
           replacedAt: now,
           oldChecksum: oldAttachment.checksumSha256 ?? "",
           newChecksum: newAttachment.checksumSha256 ?? "",
@@ -387,7 +395,7 @@ export function StabilityPanel({
 
   const resolveFailure = async (failure: StabilityFailure, notes: string) => {
     if (!notes.trim()) return;
-    const updated = resolveStabilityFailure(failure, LOCAL_HUMAN, notes.trim());
+    const updated = resolveStabilityFailure(failure, actor, notes.trim());
     await upsertRecords("stability_failures", [updated]);
     setFailures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
     if (selectedStudy) {
@@ -399,8 +407,8 @@ export function StabilityPanel({
   const createFailureCorrectiveAction = async (failure: StabilityFailure, title: string, problemStatement: string) => {
     if (!title.trim() || !problemStatement.trim() || !selectedStudy) return;
     const action = createCorrectiveAction(
-      { projectId: formulation.id, sourceType: "stability_failure", sourceRecordId: selectedStudy.id, deviationOrFailureId: failure.id, title: title.trim(), problemStatement: problemStatement.trim(), actionType: "other", owner: "local" },
-      LOCAL_HUMAN,
+      { projectId: formulation.id, sourceType: "stability_failure", sourceRecordId: selectedStudy.id, deviationOrFailureId: failure.id, title: title.trim(), problemStatement: problemStatement.trim(), actionType: "other", owner: actorId },
+      actor,
     );
     await upsertRecords("corrective_actions", [action]);
     setCorrectiveActions((prev) => (prev.some((a) => a.id === action.id) ? prev : [...prev, action]));
@@ -540,7 +548,7 @@ export function StabilityPanel({
                 onCorrectiveActions={() => exportCorrectiveActionsCsv(selectedStudy)}
                 onErpDraft={() => exportErpDraftCsv(selectedStudy)}
               />
-              {STABILITY_STUDY_STATUSES.filter((s) => canTransitionStability(selectedStudy.status, s, LOCAL_HUMAN, { openCriticalFailures: studyFailures }).allowed).map((s) => (
+              {STABILITY_STUDY_STATUSES.filter((s) => canTransitionStability(selectedStudy.status, s, actor, { openCriticalFailures: studyFailures }).allowed).map((s) => (
                 <button key={s} onClick={() => void transitionStudy(selectedStudy, s)} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
                   {t("trials.moveTo", { status: s })}
                 </button>

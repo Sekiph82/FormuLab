@@ -20,6 +20,7 @@ import {
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 import { downloadText } from "@/lib/download";
+import { useTrustedActor } from "@/lib/currentActor";
 import { AttachmentField } from "./AttachmentField";
 
 const LOCAL_HUMAN: Actor = { kind: "human", role: "researcher", userId: "local" };
@@ -39,6 +40,11 @@ export function CorrectiveActionsPanel({
 }) {
   const { t: tRaw } = useTranslation(["session", "common"]);
   const t = tRaw as SimpleT;
+  // Phase 13 Session 3: the trusted authenticated user, when there is one,
+  // is who actually performed these lab actions — LOCAL_HUMAN is only ever
+  // the effective local fallback (see `useTrustedActor`'s doc comment).
+  const trusted = useTrustedActor();
+  const actor: Actor = trusted ? { kind: "human", role: trusted.role, userId: trusted.userId } : LOCAL_HUMAN;
   const [actions, setActions] = useState<CorrectiveAction[]>([]);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -103,37 +109,37 @@ export function CorrectiveActionsPanel({
             />
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {action.status === "open" && (
-                <button onClick={() => void persist(markInProgress(action, LOCAL_HUMAN))} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
+                <button onClick={() => void persist(markInProgress(action, actor))} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
                   {t("correctiveActions.startProgress")}
                 </button>
               )}
               {(action.status === "open" || action.status === "in_progress") && (
-                <button onClick={() => void persist(markAwaitingVerification(action, inputs[action.id] ?? t("correctiveActions.defaultResolution"), LOCAL_HUMAN))} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
+                <button onClick={() => void persist(markAwaitingVerification(action, inputs[action.id] ?? t("correctiveActions.defaultResolution"), actor))} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
                   {t("correctiveActions.markComplete")}
                 </button>
               )}
               {action.status === "awaiting_verification" && (
                 <>
-                  <button onClick={() => void persist(verifyEffectiveness(action, LOCAL_HUMAN, { effective: true, notes: inputs[action.id] }))} className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
+                  <button onClick={() => void persist(verifyEffectiveness(action, actor, { effective: true, notes: inputs[action.id] }))} className="rounded-input border border-accent px-2 py-1 text-[11px] text-accent hover:bg-accent/10">
                     {t("correctiveActions.verifyEffective")}
                   </button>
-                  <button onClick={() => void persist(verifyEffectiveness(action, LOCAL_HUMAN, { effective: false, notes: inputs[action.id] }))} className="rounded-input border border-error/40 px-2 py-1 text-[11px] text-error hover:bg-error/10">
+                  <button onClick={() => void persist(verifyEffectiveness(action, actor, { effective: false, notes: inputs[action.id] }))} className="rounded-input border border-error/40 px-2 py-1 text-[11px] text-error hover:bg-error/10">
                     {t("correctiveActions.verifyIneffective")}
                   </button>
                 </>
               )}
               {(action.status === "effective" || action.status === "ineffective") && (
-                <button onClick={() => void persist(reopenCorrectiveAction(action, LOCAL_HUMAN, inputs[action.id] ?? t("correctiveActions.defaultReopenReason")))} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
+                <button onClick={() => void persist(reopenCorrectiveAction(action, actor, inputs[action.id] ?? t("correctiveActions.defaultReopenReason")))} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
                   {t("correctiveActions.reopen")}
                 </button>
               )}
               {action.status !== "cancelled" && action.status !== "effective" && (
-                <button onClick={() => void persist(cancelCorrectiveAction(action, LOCAL_HUMAN, inputs[action.id] ?? t("correctiveActions.defaultCancelReason")))} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2">
+                <button onClick={() => void persist(cancelCorrectiveAction(action, actor, inputs[action.id] ?? t("correctiveActions.defaultCancelReason")))} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2">
                   {t("correctiveActions.cancel")}
                 </button>
               )}
               {action.owner && (
-                <button onClick={() => void persist(assignOwner(action, action.owner === "local" ? "chemist" : "local", LOCAL_HUMAN))} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2">
+                <button onClick={() => void persist(assignOwner(action, action.owner === "local" ? "chemist" : "local", actor))} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2">
                   {t("correctiveActions.reassign")}: {action.owner}
                 </button>
               )}

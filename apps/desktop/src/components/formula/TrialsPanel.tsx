@@ -55,6 +55,7 @@ import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
 import { downloadBlob, downloadText } from "@/lib/download";
 import { buildXlsxBlob } from "@/lib/xlsx";
+import { useTrustedActor } from "@/lib/currentActor";
 import { AttachmentField } from "./AttachmentField";
 import { ExclusionExplorer } from "./ExclusionExplorer";
 import { ResultHistoryBrowser } from "./ResultHistoryBrowser";
@@ -90,6 +91,13 @@ export function TrialsPanel({
 }) {
   const { t: tRaw } = useTranslation(["session", "common"]);
   const t = tRaw as SimpleT;
+  // Phase 13 Session 3: the trusted authenticated user, when there is one,
+  // is who actually performed these lab actions — LOCAL_HUMAN/"local" are
+  // only ever the effective local fallback (see `useTrustedActor`'s doc
+  // comment).
+  const trusted = useTrustedActor();
+  const actor: Actor = trusted ? { kind: "human", role: trusted.role, userId: trusted.userId } : LOCAL_HUMAN;
+  const actorId = trusted?.userId ?? "local";
   const [trials, setTrials] = useState<LaboratoryTrial[]>([]);
   const [deviations, setDeviations] = useState<TrialDeviation[]>([]);
   const [testDefinitions, setTestDefinitions] = useState<TestDefinition[]>([]);
@@ -177,7 +185,7 @@ export function TrialsPanel({
         }),
         hasOpenCriticalDeviation: false,
         createdAt: now,
-        createdBy: "local",
+        createdBy: actorId,
         updatedAt: now,
       };
       await persistTrial(trial);
@@ -190,7 +198,7 @@ export function TrialsPanel({
 
   const transitionTrial = async (trial: LaboratoryTrial, to: TrialStatus) => {
     setError(null);
-    const result = canTransitionTrial(trial.status, to, LOCAL_HUMAN, { openCriticalDeviations: trialDeviations });
+    const result = canTransitionTrial(trial.status, to, actor, { openCriticalDeviations: trialDeviations });
     if (!result.allowed) {
       setError(result.message ?? t("trials.transitionRejected"));
       return;
@@ -211,7 +219,7 @@ export function TrialsPanel({
     if (!selectedTrial) return;
     const updated: LaboratoryTrial = {
       ...selectedTrial,
-      materialUsage: selectedTrial.materialUsage.map((u) => (u.id === usageId ? { ...u, actualWeight, weighedBy: "local", timestamp: new Date().toISOString() } : u)),
+      materialUsage: selectedTrial.materialUsage.map((u) => (u.id === usageId ? { ...u, actualWeight, weighedBy: actorId, timestamp: new Date().toISOString() } : u)),
       updatedAt: new Date().toISOString(),
     };
     await persistTrial(updated);
@@ -251,7 +259,7 @@ export function TrialsPanel({
       ...selectedTrial,
       observations: [
         ...selectedTrial.observations,
-        { id: newId("obs"), type, description: description.trim(), observedBy: "local", observedAt: new Date().toISOString(), attachments: [] },
+        { id: newId("obs"), type, description: description.trim(), observedBy: actorId, observedAt: new Date().toISOString(), attachments: [] },
       ],
       updatedAt: new Date().toISOString(),
     });
@@ -282,7 +290,7 @@ export function TrialsPanel({
       severity,
       status: "open",
       description: description.trim(),
-      detectedBy: "local",
+      detectedBy: actorId,
       detectedAt: now,
       correctiveActionIds: [],
       createdAt: now,
@@ -297,7 +305,7 @@ export function TrialsPanel({
 
   const resolveDeviation = async (deviation: TrialDeviation, resolution: string) => {
     if (!resolution.trim()) return;
-    const updated = resolveTrialDeviation(deviation, LOCAL_HUMAN, resolution.trim());
+    const updated = resolveTrialDeviation(deviation, actor, resolution.trim());
     await upsertRecords("trial_deviations", [updated]);
     setDeviations((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
     if (selectedTrial) {
@@ -308,7 +316,7 @@ export function TrialsPanel({
 
   const acceptDeviation = async (deviation: TrialDeviation, justification: string) => {
     if (!justification.trim()) return;
-    const updated = acceptDeviationWithJustification(deviation, LOCAL_HUMAN, justification.trim());
+    const updated = acceptDeviationWithJustification(deviation, actor, justification.trim());
     await upsertRecords("trial_deviations", [updated]);
     setDeviations((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
   };
@@ -316,8 +324,8 @@ export function TrialsPanel({
   const createCorrectiveActionForDeviation = async (deviation: TrialDeviation, title: string, problemStatement: string) => {
     if (!title.trim() || !problemStatement.trim() || !selectedTrial) return;
     const action = createCorrectiveAction(
-      { projectId: formulation.id, sourceType: "trial_deviation", sourceRecordId: selectedTrial.id, deviationOrFailureId: deviation.id, title: title.trim(), problemStatement: problemStatement.trim(), actionType: "other", owner: "local" },
-      LOCAL_HUMAN,
+      { projectId: formulation.id, sourceType: "trial_deviation", sourceRecordId: selectedTrial.id, deviationOrFailureId: deviation.id, title: title.trim(), problemStatement: problemStatement.trim(), actionType: "other", owner: actorId },
+      actor,
     );
     await upsertRecords("corrective_actions", [action]);
     setCorrectiveActions((prev) => (prev.some((a) => a.id === action.id) ? prev : [...prev, action]));
@@ -345,7 +353,7 @@ export function TrialsPanel({
       stats,
       passFail,
       unit: definition.unit,
-      performedBy: "local",
+      performedBy: actorId,
       performedAt: now,
       createdAt: now,
       updatedAt: now,
@@ -373,7 +381,7 @@ export function TrialsPanel({
           parentRecordType: "test_result",
           parentRecordId: result.id,
           reason: t("attachments.replaceReason"),
-          replacedBy: "local",
+          replacedBy: actorId,
           replacedAt: now,
           oldChecksum: oldAttachment.checksumSha256 ?? "",
           newChecksum: newAttachment.checksumSha256 ?? "",
@@ -564,7 +572,7 @@ export function TrialsPanel({
                 onCorrectiveActions={() => exportTrialCorrectiveActionsCsv(selectedTrial)}
                 onErpDraft={() => exportTrialErpDraftCsv(selectedTrial)}
               />
-              {TRIAL_STATUSES.filter((s) => canTransitionTrial(selectedTrial.status, s, LOCAL_HUMAN, { openCriticalDeviations: trialDeviations }).allowed).map((s) => (
+              {TRIAL_STATUSES.filter((s) => canTransitionTrial(selectedTrial.status, s, actor, { openCriticalDeviations: trialDeviations }).allowed).map((s) => (
                 <button key={s} onClick={() => void transitionTrial(selectedTrial, s)} className="rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2">
                   {t("trials.moveTo", { status: s })}
                 </button>

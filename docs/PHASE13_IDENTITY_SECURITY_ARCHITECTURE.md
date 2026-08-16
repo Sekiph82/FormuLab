@@ -168,8 +168,8 @@ every `rusqlite` call site, and every Rust file for `password`/`login`/
 | Role storage (trusted) | **IMPLEMENTED** (Session 2: `current_session`/`login`/`bootstrap_create_administrator` are now the trusted source every session-derived role comes from) | `identity.rs` + `auth.rs` |
 | Role assignment (by admin) | **MISSING** | No admin UI |
 | Role enforcement (domain-level) | **PARTIAL** | `canTransitionTo` (`status.ts`) is real, tested, working enforcement, now re-derived for the 12-role model (§6) |
-| Role enforcement (backend/Rust) | **UNSAFE** (unchanged from Session 0/1) | `save_approval_record` performs no role check at all — still true, not yet fixed (Session 4). The new `login`/`current_session` commands never accept a caller-supplied role (§9.1), but nothing outside `auth.rs` itself consumes their output yet. |
-| UI role selection | **UNSAFE** (unchanged from Session 0/1) | `reviewerRole`/`actorRole`/`actingRole` are still plain, freely-editable `useState`s, structurally independent of the new `AuthProvider`/`UserContext` (§20.1) — Session 4's job is wiring them together |
+| Role enforcement (backend/Rust) | **UNSAFE** (unchanged — Session 3 inventoried, did not fix) | `save_approval_record` still performs no role check at all; Session 3's full command inventory (§9.2) found the gap is wider still — generic masterdata CRUD and every system-administration command (backup/restore/migration/data-location) are equally unchecked, and system-administration has no §6 matrix area to enforce yet at all. Fixing this is Session 4's job. |
+| UI role selection | **PARTIAL** (Session 3: the 10 current-user *selector* sites are fixed; the underlying writes are not) | `useTrustedActor()` (§9.2) now sources `reviewerRole`-equivalent state from the authenticated session at `ApprovalPanel`/`ClaimsLabelsPanel`/`DossierPanel`/`RegulatoryPanel`/`DoePanel`/`TestMethodDrawer`/`DataExchangePage`/`TrialsPanel`/`StabilityPanel`/`CorrectiveActionsPanel` — a logged-in user can no longer self-select an unearned role at these 10 sites in the real app. The commands these actors feed into still perform no server-side check (row above) — Session 4's job is closing that, not this one. |
 | Project/resource access | **NOT_APPLICABLE (confirmed out of scope for Phase 13)** | See §12 |
 | Audit logging (security events) | **PARTIAL** (Session 2: bootstrap/login-success/login-failure/lockout/logout now call `record_security_audit_event` for real, §23; admin-action events remain Session 5/6) | `auth.rs` |
 | SQLite/user database | **IMPLEMENTED** (Session 1) | `identity.db`, app-private, §11 |
@@ -382,16 +382,32 @@ gates, so no manager-tier redesign applied here).
 `APPROVAL_ROLES`/`APPROVAL_AUTHORITY` in `packages/shared/src/schemas/
 status.ts` is the canonical role vocabulary and approval-gate policy —
 implemented Session 1. The broader `can(role, area, capability)` module
-(`rolePolicy.ts`, covering all of §6's matrix, not just the two
-approval gates) remains a Session 3 task, per the original Session 0
-plan — Session 1 deliberately stayed inside the identity/database layer
-plus the minimum TypeScript-side role-vocabulary correction needed to
-avoid ever having identity.db (12 roles) and `status.ts` (was 6 roles)
-disagree, even temporarily. `identity::Role` (Rust) is the equivalent
-canonical source on the storage side; a cross-language parity test
-(asserting the Rust and TypeScript role-string lists are byte-identical
-against a shared fixture) is a Session 3 task, once `rolePolicy.ts`
-exists to anchor it to.
+is now **implemented, Session 3**:
+`packages/shared/src/engine/rolePolicy.ts` transcribes §6's full
+permission matrix (default-deny — a role/area/capability triple with no
+explicit `true` entry resolves to refused, not silently allowed) with
+two documented discrepancy-resolutions between §6's prose and its own
+table (`production_manager` verify authority on
+`rawMaterials`/`supplierDocuments` per §15.4; `quality` +
+`administrator` verify authority on `regulatory` per
+`AUTHORIZED_REGULATORY_ROLES`, §8). `approve`/`reject` capabilities are
+derived live from `APPROVAL_AUTHORITY` rather than re-typed, so
+approval-gate parity with `status.ts` is structural, not a manually
+maintained duplicate that could drift. 32 tests
+(`rolePolicy.test.ts`).
+
+The cross-language parity test also shipped Session 3:
+`packages/shared/src/engine/roleVocabulary.json` is now the one shared
+fixture both `rolePolicy.roleVocabularyParity.test.ts` (TypeScript, 5
+tests) and `identity.rs`'s
+`role_vocabulary_matches_the_shared_json_fixture` (Rust, 1 test) check
+themselves against — neither language's own list is asserted against a
+third, independently hand-copied list, so the two can never silently
+diverge from a shared source that itself goes stale.
+
+`identity::Role` (Rust) remains the canonical source on the storage
+side, now provably in lockstep with `rolePolicy.ts`'s vocabulary via
+the fixture above.
 
 ---
 
@@ -443,6 +459,68 @@ exercise/test every workflow gate. System administration and
 scientific/business approval authority are otherwise kept separate,
 exactly as the phase brief asks — the one exception is named, not
 accidental.
+
+### 9.2 Session 3: frontend selector wiring, and the privileged-command inventory for Session 4
+
+**Frontend selector wiring (closes the "consuming" half of §9.1's
+`useTrustedActor` sourcing — not the backend enforcement)**: a new hook,
+`apps/desktop/src/lib/currentActor.ts`'s `useTrustedActor()`, sources
+`{role, userId, displayName}` from `AuthProvider`'s trusted
+`UserContext` when there is one, returning `null` only when there is no
+`AuthProvider` ancestor at all (this codebase's existing test suite
+renders components via `renderAt()`, bypassing `main.tsx`'s real
+provider — the same reason `useOptionalAuth()` exists, §17.4). Wired
+into every site Session 0/2/3 flagged as a current-user role selector a
+logged-in user could freely self-report: `ApprovalPanel`,
+`ClaimsLabelsPanel`, `DossierPanel`, `RegulatoryPanel`, `DoePanel`,
+`TestMethodDrawer`, `DataExchangePage`, `TrialsPanel`, `StabilityPanel`,
+`CorrectiveActionsPanel` — 10 sites total. Each falls back to its
+pre-Session-3 local `useState` selector only when `useTrustedActor()`
+returns `null`, so the existing test suite (none of which mounts a real
+`AuthProvider`) keeps passing unchanged, while the real running app —
+which always has one — no longer offers any of these panels a way to
+construct an `Actor` with an unearned role. `StabilityPanel`'s
+`manualInclusionReviewer` free-text field was deliberately **not**
+touched — it records who authorized a manual out-of-applicability test
+inclusion as a named reviewer/reason pair, not a "which role am I"
+selector, so it is out of this session's scope, not an oversight.
+
+This closes the *frontend selector* half of the "current user can claim
+any role" gap for the sites wired to it. It does **not** make the
+underlying write trusted end-to-end: every Tauri command these actors'
+writes eventually reach still performs no server-side role check at
+all (§9.1, unchanged) — a raw `invoke()` bypassing the UI entirely is
+just as unguarded after this session as before it. That server-side
+half is Session 4's job, and it is bigger than `save_approval_record`
+alone, per the inventory below.
+
+**Privileged-command inventory (audit only — no command's behavior
+changed this session)**: every `#[tauri::command]` registered in
+`lib.rs` (110 commands) was reviewed for whether it performs a
+role-gated business action and, if so, whether it currently checks role
+at all. None do — Session 2 already established that no command outside
+`auth.rs` itself resolves a session's role (§9.1); this pass exists to
+size and categorize the gap Session 4 inherits, not to re-discover its
+existence.
+
+| Category | Representative commands | Should be gated by (once §6 is domain-reviewed, §Risks item 1) | Current server-side role check |
+|---|---|---|---|
+| Approval gates | `formulations::save_approval_record` | `APPROVAL_AUTHORITY[targetStatus]` | **None** — confirmed Session 0, unchanged (§2, evidence above) |
+| Formulation content writes | `formulations::save_formulation`, `save_formulation_version`, `delete_formulation`, `save_formulation_draft`, `discard_formulation_draft` | §6 Formulation area create/edit/delete | **None** — any caller can write/delete any formulation regardless of role |
+| Generic masterdata CRUD | `masterdata::upsert_master_records`, `delete_master_record`, `write_master_collection_raw` | §6, per-collection (materials/suppliers/raw-materials/regulatory data all route through the same three commands, keyed only by a `collection: String` the caller supplies) | **None**, and structurally the widest gap found: unlike `save_approval_record`, these commands carry no actor field of any kind to even audit against — no name, no role, nothing |
+| Audit trail | `formulations::append_audit_event`, `read_audit_log` | Write should require the same authority as the action being audited | **None** on write — any caller can append an arbitrary audit event, including one misattributed to someone else |
+| Attachments | `attachments::copy_attachment_into_project`, `open_attachment` | §6 per-area attachment rights | **None** |
+| System administration (backup/restore/migration/data-location) | `backup::restore_backup`, `migration::create_pre_migration_backup`, `data_location_manager::move_data_location`, `automatic_backup::write_automatic_backup_config` | Should plausibly require `administrator` — §6 does not yet name a System-Administration area at all | **None** — not yet even *designed* in §6, a gap in the matrix itself, not just its enforcement |
+| Auth commands | `auth::login`, `bootstrap_create_administrator`, `logout`, `current_session` | N/A by design | Correctly role-parameter-free (§9.1) — these are the one category already right |
+| Local dev/infra tooling | `workspace::*`, `jupyter::*`, `kernel::*`, `compute::*`, `modal::modal_status`, `preview_server::preview_url`, `tools::detect_tools`, `updates::check_for_update`, `debug_log::log_debug` | Out of scope — local machine configuration, not regulated business data | N/A |
+
+The System-Administration row is the one genuinely new finding this
+session adds beyond "Session 2 already knew commands aren't
+role-checked": §6's matrix, as drafted, has no Administration/System
+area covering backup, restore, data-location moves, or migration at
+all — Session 4 cannot enforce a matrix cell that does not exist yet,
+so drafting that area is prerequisite work, not just wiring `can()`
+into existing rows. Flagged for the domain review in Risks item 1.
 
 ---
 
@@ -1017,24 +1095,29 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## 25. Proposed Phase 13 sessions (Sessions 1-2 complete; renumbered plan unchanged in shape from Session 0)
+## 25. Proposed Phase 13 sessions (Sessions 1-3 complete; renumbered plan unchanged in shape from Session 0)
 
 1. ~~User database + migrations + password subsystem~~ **DONE.** ~~Production Manager gate authority for the four §15.3 gaps~~ **DECIDED (§15.4), Session 1 closure — implementation still Session 4/dedicated workflow session.**
 2. ~~Administrator bootstrap + `login`/`logout` Tauri commands +
    authenticated session lifecycle (creation, persistence across
    restarts, expiration/idle timeout), using the 12-role model.~~
-   **DONE, this session** (§5, §15.5, §17).
-3. `rolePolicy.ts` (canonical `can()` covering all of §6's matrix, not
+   **DONE, Session 2** (§5, §15.5, §17).
+3. ~~`rolePolicy.ts` (canonical `can()` covering all of §6's matrix, not
    just the two approval gates) + wire `UserContext` through the app +
-   a Rust/TypeScript role-vocabulary parity test.
+   a Rust/TypeScript role-vocabulary parity test.~~ **DONE, this
+   session** (§7, §9.2) — plus a privileged-command inventory (§9.2)
+   sizing Session 4's actual scope, not part of the original plan text
+   but required to make Session 4 tractable.
 4. Application-wide enforcement: every Tauri command performing a
    role-gated action resolves role server-side and calls `can()`; every
    nav/button uses the same `can()`. Fixes the confirmed
-   `save_approval_record` bypass (§2). Begins real workflow-gate
-   enforcement per §15 for the gates that already have a
-   `FormulaStatus` representation; flags the §15.3 gaps as their own
-   follow-up rather than inventing new `FormulaStatus` values
-   mid-session.
+   `save_approval_record` bypass (§2) and the wider masterdata-CRUD gap
+   (§9.2). Drafts a System-Administration area in §6 (does not exist
+   today, §9.2) before enforcing backup/restore/migration/data-location
+   commands. Begins real workflow-gate enforcement per §15 for the
+   gates that already have a `FormulaStatus` representation; flags the
+   §15.3 gaps as their own follow-up rather than inventing new
+   `FormulaStatus` values mid-session.
 5. `Administration → Users` UI: list, create, edit, role change, reset
    password, activate/disable, security-history view, read-only role-
    capabilities view.
@@ -1047,11 +1130,15 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## Risks and open decisions (updated Session 2)
+## Risks and open decisions (updated Session 3)
 
 1. **§6's full matrix is Session 1's first draft**, built from current
    navigation/routes and §1.1's role intent, not domain-expert-
-   reviewed. Must be reviewed before Session 4 wires enforcement.
+   reviewed. Must be reviewed before Session 4 wires enforcement. Session
+   3 adds one concrete finding to this item: the matrix has **no
+   System-Administration area at all** — backup/restore/migration/
+   data-location commands (§9.2) have nothing to enforce against yet,
+   so drafting that area is part of this review, not a separate task.
 2. **§9 — Administrator's retained approval authority** is explicit and
    user-approved for this phase; still worth a final human confirmation
    before Session 4 makes it load-bearing in enforcement.
@@ -1087,3 +1174,9 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
    bound** (`auth::validate_new_password`) — deliberately not inventing
    uppercase/digit/symbol rules the brief never asked for; revisit only
    if a real compliance requirement demands it.
+10. **Session 3's privileged-command inventory (§9.2) is audit-only** —
+    it sizes and categorizes the server-side enforcement gap, it does
+    not close any of it. Every row in that table's "current server-side
+    role check" column reads "None" going into Session 4 exactly as it
+    did coming out of Session 2; the only thing that changed is how
+    precisely the gap's shape is now documented.

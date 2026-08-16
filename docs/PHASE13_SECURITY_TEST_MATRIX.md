@@ -32,6 +32,14 @@ report (Status column added). Section H is new: it records the 63 Rust
 (`identity.rs` + `auth.rs`) and 12 frontend (`AuthProvider`) tests this
 session actually implemented and passing.
 
+**Session 3 note**: `rolePolicy.ts`'s `can()` and the Rust/TypeScript
+role-vocabulary parity test are now real, implemented, tested — B1/B2
+are corrected to mark the *policy layer* done (application-layer
+enforcement stays Session 4). Section I is new: it records the 38 new
+tests (32 `rolePolicy.test.ts` + 6 role-vocabulary-parity) this session
+actually implemented and passing, plus why the 10-panel trusted-actor
+frontend wiring needed no new test file of its own.
+
 ## A. Authentication
 
 | # | Test | Status | Session |
@@ -60,8 +68,8 @@ test suite and the doc cannot silently drift apart:
 
 | # | Test | Session |
 |---|---|---|
-| B1 | Every `ALLOWED` cell: the corresponding operation succeeds for that role | 4 |
-| B2 | Every `DENIED` cell: the corresponding operation fails for that role, with a clear, non-leaky error | 4 |
+| B1 | Every `ALLOWED` cell: the corresponding operation succeeds for that role | Policy layer: **done, Session 3** (`rolePolicy.test.ts`, §I). Application layer (a real command actually refuses/allows accordingly): 4 |
+| B2 | Every `DENIED` cell: the corresponding operation fails for that role, with a clear, non-leaky error | Policy layer: **done, Session 3** (`rolePolicy.test.ts`, default-deny asserted directly, §I). Application layer: 4 |
 | B3 | `pilot_approved`/`production_approved` gates specifically re-assert `APPROVAL_AUTHORITY`'s Session 1 12-role mapping (manager-tier + regulatory + administrator only) — already implemented and passing in `status.test.ts`/`versioning.test.ts`, re-run here at the application-enforcement layer once it exists | 1 (shared-engine layer, done) / 4 (application layer) |
 | B4 | Role-model regression: an employee-tier role (`researcher`, `quality`) never inherits its manager's approval authority, even with a valid approval record — implemented and passing (`status.test.ts`, `versioning.test.ts`) | 1 (done) |
 
@@ -283,3 +291,73 @@ unlike some earlier sessions' narrower role-string corrections).
 package (`packages/shared`) untouched this session — its own
 typecheck/test suite was not re-run, per the instruction to scope
 verification to what actually changed.
+
+## I. Session 3 — `rolePolicy.ts`, role-vocabulary parity, trusted-actor wiring tests actually implemented and passing
+
+### I.1 `packages/shared/src/engine/rolePolicy.test.ts` (32 new tests)
+
+One `describe` block per §6 area (Home, Projects, Formulation,
+Laboratory, Stability, Optimization, Regulatory, Approval, Reports,
+Administration, Data Exchange) exercising representative `ALLOWED`/
+`DENIED` cells for a sample of roles per area, plus: default-deny for
+an area/capability pair with no explicit matrix entry; the two
+documented discrepancy-resolutions (`production_manager` verify on
+`rawMaterials`/`supplierDocuments`; `quality`+`administrator` verify on
+`regulatory`) each get a direct assertion, not just incidental
+coverage; `approve`/`reject` on both approval gates are asserted
+identical to `APPROVAL_AUTHORITY[status].includes(role)` for every one
+of the 12 roles, proving the derivation is structural, not a
+separately-typed duplicate that happened to match at commit time.
+
+**Total**: 32 tests, 32 passing.
+
+### I.2 Role-vocabulary parity (6 new tests: 5 TypeScript + 1 Rust)
+
+`packages/shared/src/engine/rolePolicy.roleVocabularyParity.test.ts`
+(5): the 12 roles in `roleVocabulary.json` are exactly `APPROVAL_ROLES`
+(no extra, none missing, both directions asserted separately so a
+one-sided drift can't hide); the JSON fixture has no duplicate entries;
+every `rolePolicy.ts` area/capability pair referenced against a role not
+in the fixture is unreachable (a compile-time/structural check, not
+just a runtime one). `identity.rs`'s new
+`role_vocabulary_matches_the_shared_json_fixture` (1): parses the same
+`roleVocabulary.json` file from Rust and asserts its 12 entries are
+byte-identical, in the same order, to `identity::Role`'s `as_str()`
+output for every variant — the two languages check themselves against
+one shared file, never against each other's hand-copied list.
+
+**Total**: 6 tests, 6 passing.
+
+### I.3 Frontend — trusted-actor wiring (no new test files; existing suites re-verified unaffected)
+
+`useTrustedActor()` (`apps/desktop/src/lib/currentActor.ts`) has no
+dedicated test file of its own — it is a thin, 3-line-bodied
+composition of the already-tested `useOptionalAuth()`
+(`AuthProvider.test.tsx`, §H.3) with no independent logic to unit-test.
+Its correctness is instead demonstrated by every existing test file for
+the 10 wired panels continuing to pass unchanged (they render outside
+an `AuthProvider`, so `useTrustedActor()` returns `null` and each panel
+falls through to its pre-Session-3 local selector state, exercising the
+exact same code paths those tests already covered) — a regression in
+the fallback would have shown up as a failure in these suites, and none
+occurred.
+
+**Total**: 0 new tests; 15 pre-existing `TrialsPanel.test.tsx`/
+`StabilityPanel.test.tsx` tests re-run and still passing (§I.4); the
+7-panel `ApprovalPanel`/`ClaimsLabelsPanel`/`DossierPanel`/
+`RegulatoryPanel`/`DoePanel`/`TestMethodDrawer`/`DataExchangePage` wiring
+landed in the prior (checkpoint) commit this same session and is
+included in the same full-suite run below.
+
+### I.4 Full-suite confirmation
+
+`cargo build --lib`: clean. `cargo test --lib`: 252/252 passing
+(Session 2's 251 + 1 net new — the role-vocabulary parity test),
+confirming nothing else in the crate regressed. `cargo clippy --lib --
+-D warnings`: clean. Shared package: `tsc --noEmit` clean; `vitest run`:
+1291/1291 passing (Session 2's 1254 + 37 net new — 32 `rolePolicy.test.ts`
++ 5 `rolePolicy.roleVocabularyParity.test.ts`). Desktop frontend:
+`tsc --noEmit` clean; `vitest run` (full suite): 1185/1185 passing —
+unchanged from Session 2's count, since this session's frontend change
+is a wiring/fallback change with existing coverage (§I.3), not new
+behavior needing new tests. `git diff --check`: clean.

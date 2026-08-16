@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-2) — BOOTSTRAP/LOGIN/LOGOUT/SESSION LIFECYCLE IMPLEMENTED, APPLICATION-WIDE ENFORCEMENT NOT YET WIRED
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-3) — CANONICAL ROLE POLICY + FRONTEND SELECTOR WIRING IMPLEMENTED, APPLICATION-WIDE SERVER-SIDE ENFORCEMENT NOT YET WIRED
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -1952,7 +1952,44 @@ shipped 12 new tests. Full Rust suite: 251/251. Full desktop frontend
 suite: 1185/1185 (shared package unchanged this session, still
 1254/1254 from Session 1). Still no `Administration → Users` UI, no
 `rolePolicy.ts`, and no privileged command outside `auth.rs` itself
-resolves role from a session yet (Session 4's job). Full design:
+resolves role from a session yet (Session 4's job).
+
+Session 3 shipped the canonical policy module Session 4 will call from
+every privileged action, without adding enforcement anywhere itself.
+`packages/shared/src/engine/rolePolicy.ts` (new) is `can(role, area,
+capability)` covering all of architecture doc §6's matrix, not just the
+two approval gates `APPROVAL_AUTHORITY` already handled — default-deny,
+with `approve`/`reject` derived live from `APPROVAL_AUTHORITY` so the
+two modules structurally can't drift. 32 tests. A shared JSON fixture
+(`roleVocabulary.json`) is now checked by both languages
+(`rolePolicy.roleVocabularyParity.test.ts`, 5 tests; `identity.rs`'s new
+`role_vocabulary_matches_the_shared_json_fixture`, 1 test) so neither
+side's role list is trusted as authoritative over the other's — both
+answer to the same file. A new hook, `useTrustedActor()`
+(`apps/desktop/src/lib/currentActor.ts`), sources the current user's
+role/userId/displayName from the authenticated session when one exists,
+falling back to each site's pre-existing local selector only outside a
+real `AuthProvider` (i.e. only in this codebase's existing test suite) —
+wired into all 10 sites previously flagged as spoofable current-user
+role selectors (`ApprovalPanel`, `ClaimsLabelsPanel`, `DossierPanel`,
+`RegulatoryPanel`, `DoePanel`, `TestMethodDrawer`, `DataExchangePage`,
+`TrialsPanel`, `StabilityPanel`, `CorrectiveActionsPanel`): a logged-in
+user can no longer self-select an unearned role at any of them in the
+real app. This closes only the *frontend selector* half of the gap —
+every Tauri command these actors' writes reach still performs zero
+server-side role check, exactly as before. A full privileged-command
+inventory (all 110 registered Tauri commands, architecture doc §9.2)
+sized that remaining gap precisely: approval gates, formulation content
+writes, generic masterdata CRUD (the widest gap — its commands carry no
+actor field of any kind to even audit against), the audit-event write
+path, attachments, and system administration (backup/restore/migration/
+data-location) are all currently unchecked, and system administration
+has no §6 matrix area drafted for it at all yet — a prerequisite finding
+for Session 4, not just a longer TODO list. Rust: 252/252 (Session 2's
+251 + 1 new), clippy clean. Shared: 1291/1291 (Session 2's 1254 + 37
+new), tsc clean. Desktop: tsc clean; full suite 1185/1185, unchanged
+from Session 2 since this session's frontend change has existing test
+coverage via its fallback path. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`; test report:
 `docs/PHASE13_SECURITY_TEST_MATRIX.md`; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`.
