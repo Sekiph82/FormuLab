@@ -188,6 +188,37 @@ mod tests {
     }
 
     #[test]
+    fn administrator_never_holds_create_or_edit_on_any_scientific_content_area() {
+        // Session 6 (privilege-escalation / authorization-bypass suite):
+        // the direct, positive-denial proof of architecture doc §9's
+        // "administrator is view-only on scientific content by explicit
+        // design" rule — not merely inferred from the absence of a
+        // positive grant elsewhere. Every area below is scientific/
+        // business content administrator must never create or edit,
+        // regardless of the narrow, explicit gate-decide exceptions
+        // (verify/approve/reject) §15.4 grants on four of them.
+        for area in [
+            "formulation",
+            "laboratory",
+            "stability",
+            "optimization",
+            "rawMaterials",
+            "supplierDocuments",
+            "regulatory",
+            "productionEngineering",
+            "production",
+        ] {
+            for capability in ["create", "edit"] {
+                assert!(
+                    !can("administrator", area, capability),
+                    "administrator must never hold {capability} on {area} — view-only by explicit design (§9)"
+                );
+            }
+            assert!(can("administrator", area, "view"), "administrator should still view {area}");
+        }
+    }
+
+    #[test]
     fn approval_pilot_approve_matches_the_known_manager_tier_plus_administrator() {
         for role in ["research_manager", "quality_manager", "administrator"] {
             assert!(can(role, "approvalPilot", "approve"), "{role} should approve pilot_approved");

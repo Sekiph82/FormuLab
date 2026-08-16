@@ -836,7 +836,7 @@ disposition — none remain deferred without a concrete, stated reason:
 | `materials::list_materials` | **AUTHENTICATED_READ** | Read-only. |
 | `formulation::run_formulation_optimize` | **AUTHENTICATED_READ** | Compute-only — persistence happens separately through the already-gated `formulations::` commands. |
 | `formulation_advanced::run_advanced_formulation_optimize` | **AUTHENTICATED_READ** | Same reasoning. |
-| `formulation_advanced::cancel_advanced_formulation_optimize` | **TRUSTED_INTERNAL_ONLY** | Kills the caller's own already-running process; no `AppHandle` in its signature to gate against, and cancelling a run someone else started has no exploitable effect beyond stopping it. Same precedent as `cancel_backup`/`cancel_restore`/`cancel_data_move` (Session 4, never gated). |
+| `formulation_advanced::cancel_advanced_formulation_optimize` | **TRUSTED_INTERNAL_ONLY, session-gated** (updated, Phase 13 closure session §26.4) | Cancellation semantics stay `TRUSTED_INTERNAL_ONLY` — one global run slot, no per-user ownership to check, cancelling a run someone else started has no exploitable effect beyond stopping it — but the command now takes `app: AppHandle, token: String` and calls `authz::current_actor_app` before proceeding, closing the "zero login at all" gap this row's original Session 4A reasoning ("no `AppHandle` in its signature to gate against") no longer describes. See §26.4 for the full re-audit. |
 | `formulation_v2::generate_formulation` | **AUTHENTICATED_READ** | Generates candidate formulas into its own session store, not a shared regulated collection. |
 | `formulation_v2::{list_sessions, read_session}` | **AUTHENTICATED_READ** | Read-only, own-session-store scoped. |
 | `formulation_v2::delete_session` | **AUTHENTICATED_READ** | Deletes the user's own scratch AI-generation session, not regulated business data — a valid session is the proportionate bar, not a `rolePolicy` capability that doesn't conceptually apply to this store. |
@@ -1639,7 +1639,16 @@ the stored password hash, the raw bearer session token, or the
 plaintext password used in the test. Remaining event classes from
 Session 0's design (account lifecycle beyond login/logout, password
 reset/change, role change, permission denied, privileged admin actions)
-stay Session 5/6, once the commands that would trigger them exist.
+stayed Session 5/6, once the commands that would trigger them existed
+— now **DONE**: account activate/disable, password reset, role change,
+and every privileged admin action (Session 5, `admin.rs`);
+permission-denied/authorization-failure (Session 4, `authz.rs`'s
+generic `authorization_denied`, used by every privileged command
+since); System Administration mutations — backup/restore/data-location/
+migration, the one real remaining category with zero coverage — closed
+Session 6 (§27.2). Business-content mutations (formulation/masterdata/
+approval/workflow-gate) deliberately use their own established,
+actor-attributed audit trails instead of this table — see §27.2.
 
 ---
 
@@ -1693,12 +1702,29 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
    Session 4/4A `authz::authorize` mechanism (`admin.rs`, 7 commands),
    no permission-checkbox grid, no second authorization path. Did not
    add a "last administrator" self-demotion guard (Risks, new item).
-6. Brute-force/lockout wiring, full audit-event coverage from real
+6. ~~Brute-force/lockout wiring, full audit-event coverage from real
    commands, the complete SQL-injection + privilege-escalation
    regression suite against the wired-up commands (not just the
-   storage layer, which Session 1 already covers).
-7. Native Windows multi-user acceptance testing, full security
-   regression pass, Phase 13 closure documentation.
+   storage layer, which Session 1 already covers).~~ **DONE, Session 6**
+   (§27): the real login command path re-confirmed end to end plus one
+   new defense-in-depth test; System Administration's real audit-trail
+   gap (backup/restore/data-location/migration — 11 commands, zero
+   coverage before) closed; the F2 full-surface secret-leak scan
+   written; new hostile-input coverage at the admin command boundary
+   (`display_name`/`department`/`employee_reference`/`user_id`); new
+   direct proofs of administrator's view-only boundary and the
+   unauthenticated-cancel rejection.
+7. **Native Windows multi-user acceptance testing, full security
+   regression pass, Phase 13 closure documentation** — partially done,
+   Session 6 (§27.5): every named acceptance flow's backend logic is
+   proven via the full Rust regression suite using real production code
+   paths across multiple simulated accounts; the compiled application
+   binary (not just the library) builds cleanly. **True interactive
+   native-GUI acceptance testing — launching the compiled app, clicking
+   through as different local accounts, visually confirming role-based
+   UI — was not executed**: no tool available to this session can drive
+   or inspect a native Windows GUI window. Disclosed as a genuine,
+   still-open manual acceptance item, not claimed complete.
 
 ---
 
@@ -1832,7 +1858,162 @@ closure session does not begin it.
 
 ---
 
-## Risks and open decisions (updated Phase 13 closure session)
+## 27. Phase 13 Session 6 — brute-force/lockout confirmation, full audit coverage, SQL-injection + privilege-escalation regression, native acceptance
+
+Per the closure session's own "exact next session" line and the §25
+session plan's items 6-7. Starting point: the closure session's close
+(HEAD `3fb13fb`). Does not implement Phase 14. Does not revisit already-
+closed Session 4A/5/closure-session work except where this session's own
+testing found a real, provable gap (two did: §27.1, §27.2).
+
+**27.1 Brute-force/lockout — confirmed, one real gap found and closed.**
+The real login command path (`auth.rs::login_logic`, not just
+`identity.rs`'s storage primitives) was re-read and re-verified end to
+end: 5-attempt lockout, lockout surviving a database reopen, all four
+failure shapes (unknown username/wrong password/disabled/locked)
+returning the identical generic string, an expired lock allowing login
+again, session expiry/idle-timeout/revocation, and role-change taking
+effect on the very next session check were all already correctly
+proven by existing tests — no policy or behavior change was needed or
+made. One genuine coverage gap found: `identity::validate_session`
+independently re-checks the account's live `status` on every call, not
+only session revocation — a real defense-in-depth layer (if disable
+ever changes status without also revoking, this is what still closes
+the door) that had never been directly exercised on its own, only
+incidentally through the revocation side effect. New test,
+`identity::tests::validate_session_independently_rechecks_account_
+status_not_just_revocation`, disables an account's `status` directly
+via SQL — bypassing `update_account_status`'s own revocation entirely
+— and proves the session is still refused.
+
+**27.2 Full security-audit coverage — one real, systemic gap found and
+closed.** Every call site of `identity::record_security_audit_event`
+was inventoried, then cross-referenced against every module that calls
+`authz::authorize*` (10 files). Finding: System Administration mutations
+— `backup::{create_backup, restore_backup}`, `data_location_manager::
+{move_data_location, use_existing_data_location, restore_default_
+data_location, resume_interrupted_data_move, cleanup_old_data_
+location}`, `migration::create_pre_migration_backup`,
+`automatic_backup::{write_automatic_backup_config, apply_pre_migration_
+retention}` — 11 commands total, every one already role-gated
+(`systemAdministration`/`administer`) — wrote **zero** `security_audit_
+events` rows on success, including `restore_backup`, this codebase's
+own "single highest-risk system-administration command" by its own doc
+comment. An unauthorized *attempt* was already caught by `authz::
+authorize`'s generic `authorization_denied` audit (used everywhere), but
+a *successful* backup restore, data-location move, or schema migration
+left no trace at all in the security-history view. Closed: all 11
+commands now open `identity.db` once (`identity::open_identity_db` +
+`authz::authorize`, the exact `admin.rs` pattern, replacing the
+`authz::authorize_app` convenience call that discarded its connection)
+and record a `success`/`failure` audit row using the resolved actor's
+real identity, with a non-secret detail (a path, a count, a run id —
+never a password/hash/token). Business-content mutations (formulation
+saves, masterdata edits, approval decisions, the four workflow gates)
+were deliberately **not** touched — each already has its own
+established, adequate, actor-attributed audit trail (`audit.jsonl`,
+`WorkflowGateRecord.history`, `ApprovalRecord`'s own history), a
+settled Session 4/4A/closure-session architectural decision this
+session's brief explicitly says not to re-litigate absent a proven
+regression; duplicating them into `security_audit_events` would be the
+noisy, unjustified spam the brief separately warns against. Also
+closed: F2 (test matrix) — a genuine single-pass, full-write-surface
+fuzz/property test (`admin::tests::no_security_audit_or_login_attempt_
+row_ever_contains_a_secret_across_the_full_write_surface`) exercising
+bootstrap, login success/failure/lockout, and every admin mutation with
+nine distinct secret values, scanning every row produced against all of
+them plus both real stored hashes and a raw session token — broader
+than the existing per-action spot checks, not a duplicate of them.
+
+**27.3 SQL-injection regression — confirmed parameterized everywhere;
+two new command-boundary tests.** Every `format!`/string-built SQL
+statement in the identity/admin/security surface was inventoried
+directly (`identity.rs`'s three hits all interpolate a compile-time
+column-list constant, never a parameter — confirmed safe by reading,
+not inferred) — no raw string-concatenated SQL exists anywhere in this
+surface. `username` is already covered exhaustively (`identity.rs`'s
+own hostile-string battery, `auth.rs`'s full-login-path battery) — not
+repeated. Two genuinely new query boundaries this file's own commands
+introduce got their first hostile-input tests:
+`admin::tests::admin_profile_fields_are_inert_against_hostile_input_
+never_executed` (`display_name`/`department`/`employee_reference` —
+free-text columns with no charset restriction, so most of the battery
+actually reaches SQL as literal data instead of being pre-filtered by
+validation, a stronger proof than `username`'s own battery gives) and
+`admin::tests::admin_commands_treat_a_hostile_or_malformed_user_id_as_
+simply_not_found` (the `UPDATE users SET ... WHERE id = ?` shape every
+admin mutation and `list_security_audit_events`'s `target_user_id`
+scoping share, never exercised before). Both confirm: hostile input is
+stored/matched as inert literal data or cleanly rejected by validation
+(an oversized `display_name` specifically, re-confirming D5/§H.2's
+"excessive length" property at this command boundary) — never a query
+bypass, a dropped table, or an affected row beyond the ones the test
+itself created.
+
+**27.4 Privilege-escalation / authorization-bypass suite — the checklist
+walked item by item; two real, previously-unproven properties given
+direct tests.** Every item on the session brief's adversarial list was
+checked against existing coverage: role/identity spoofing, cross-role
+action attempts, stale/revoked/expired/malformed tokens, cross-subject
+gate misuse, last-administrator bypass, the `quality` correction — all
+already proven, several freshly re-confirmed by §27.1/§27.2's new tests
+along the way. Two items had no direct, standalone test before this
+session, only strong structural inference:
+`role_policy::tests::administrator_never_holds_create_or_edit_on_any_
+scientific_content_area` (new) is the first *positive denial* proof —
+not merely "no cell grants it" — that administrator lacks `create`/
+`edit` on every one of the nine scientific/business-content areas,
+across all 12 roles' worth of matrix cells, in one assertion.
+`formulation_advanced::tests::cancel_is_refused_without_a_valid_
+session_no_matter_what_token_shape_is_sent` (new) is the first test of
+`cancel_advanced_formulation_optimize`'s *own* authentication check
+specifically — the closure session's `cancelling_when_nothing_is_
+running_is_a_safe_no_op` test only ever exercised `cancel_current_
+logic`, never the command's `authz::current_actor` gate in front of it.
+Closing this required a small, low-risk refactor identical in shape to
+every other Phase 13 command: extracting `cancel_advanced_formulation_
+optimize_logic(conn: &Connection, ...)` from the `#[tauri::command]`
+wrapper, so the authentication check is testable without an `AppHandle`
+— no behavior change, `cancel_current_logic` itself untouched.
+
+**27.5 Native Windows multi-user acceptance testing — partial, honestly
+scoped.** See §25 item 7 above for the full disclosure: every named
+acceptance flow's *backend logic* is proven, end to end, through the
+real production Rust code paths this session's tests (and every prior
+session's) exercise across multiple simulated accounts and roles; the
+full application binary (`cargo build`, not `cargo build --lib`) was
+confirmed to compile cleanly. Interactive native-GUI click-through —
+launching the compiled `.exe`, creating/switching between real local
+accounts through the live UI, visually confirming role-based visibility
+and denial messaging — was **not attempted**: this session has no tool
+that can drive or observe a native Windows application window (the
+available browser-automation tooling only reaches web pages in Chrome,
+not a Tauri webview process). Not claimed complete.
+
+**Verification**: full Rust `cargo test --lib` (335/335, up from the
+closure session's 328 — 7 new tests: 1 `identity.rs`, 3 `admin.rs`,
+1 `role_policy.rs`, 2 `formulation_advanced.rs`), `cargo build` (the
+full binary, not just `--lib`) clean, `cargo clippy --lib -- -D
+warnings` clean. `@formulab/shared`: `tsc --noEmit` clean, vitest
+1302/1302 (unchanged — no shared-package file touched this session).
+`apps/desktop`: `tsc --noEmit` clean, full vitest suite 1197/1197
+(unchanged — no frontend file touched this session), i18n parity
+23/23 (unaffected, confirmed run anyway). `git diff --check`: clean
+(line-ending-normalization warnings only).
+
+**Residual, disclosed, not closed this session**: no admin UI to
+inspect/list all workflow gates across subjects (§9.4.6 item 5, carried
+forward unchanged — still not in scope). Interactive native Windows GUI
+acceptance testing (§27.5) — a genuine, still-open manual item, not a
+security gap. Next session: **Phase 13 Session 7** — or, if the human
+reviewer judges the disclosed native-acceptance gap acceptable to carry
+forward rather than close, Phase 13 may be considered ready for
+whatever the next phase of work is; this session does not make that
+call unilaterally.
+
+---
+
+## Risks and open decisions (updated Phase 13 Session 6)
 
 1. ~~§6's full matrix is Session 1's first draft~~, built from current
    navigation/routes and §1.1's role intent, not domain-expert-
@@ -1953,9 +2134,14 @@ closure session does not begin it.
     last *active* administrator, transactionally (SQLite `IMMEDIATE`),
     so a concurrent second admin action cannot race past a stale
     pre-check.
-18. **Session 5's account-management audit events are per-action, not
-    yet covered by a dedicated fuzz/property test** (F2, test matrix)
-    scanning every row for password-hash-shaped strings — `admin.rs`'s
-    own tests (`audit_detail_never_contains_a_password_or_hash`) check
-    the specific fields this session's commands write, which is
-    narrower than F2's eventual full-coverage scan (Session 6).
+18. ~~Session 5's account-management audit events are per-action, not
+    yet covered by a dedicated fuzz/property test~~ (F2, test matrix).
+    **CLOSED, Session 6** (§27.2): `admin::tests::no_security_audit_or_
+    login_attempt_row_ever_contains_a_secret_across_the_full_write_
+    surface` exercises bootstrap, login success/failure/lockout, and
+    every admin mutation (create/reset/role-change/disable) with nine
+    distinct, deliberately unique secret values in one continuous run,
+    then scans every `security_audit_events` and `login_attempts` row
+    produced against all of them plus both real stored password hashes
+    and the raw session token — the single-pass, full-surface scan F2
+    asked for, not another per-action spot check.

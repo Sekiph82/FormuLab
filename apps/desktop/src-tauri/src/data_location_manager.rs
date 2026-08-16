@@ -693,7 +693,8 @@ fn restore_pointer(pointer_path: &Path, previous: Option<&str>) {
 /// gated `systemAdministration`/`administer`, administrator-only.
 #[tauri::command(async)]
 pub async fn move_data_location(app: AppHandle, token: String, state: State<'_, BackupState>, destination: String) -> Result<DataMoveResult, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
@@ -713,6 +714,14 @@ pub async fn move_data_location(app: AppHandle, token: String, state: State<'_, 
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
         *guard = None;
     }
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "data_location_moved",
+        if result.is_ok() { "success" } else { "failure" },
+        Some(&format!("destination={destination}")),
+    );
     result
 }
 
@@ -787,7 +796,8 @@ fn try_use_existing(app: &AppHandle, dest: &Path, cancel: &Arc<AtomicBool>, run_
 
 #[tauri::command(async)]
 pub async fn use_existing_data_location(app: AppHandle, token: String, state: State<'_, BackupState>, path: String) -> Result<DataMoveResult, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
@@ -803,6 +813,14 @@ pub async fn use_existing_data_location(app: AppHandle, token: String, state: St
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
         *guard = None;
     }
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "data_location_existing_used",
+        if result.is_ok() { "success" } else { "failure" },
+        Some(&format!("path={path}")),
+    );
     result
 }
 
@@ -823,13 +841,22 @@ pub struct RestoreDefaultResult {
 /// than silently deleted.
 #[tauri::command(async)]
 pub async fn restore_default_data_location(app: AppHandle, token: String) -> Result<RestoreDefaultResult, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let pointer_path = crate::workspace::base_workspace_file(&app)?;
     let pointer_removed = pointer_path.exists();
     if pointer_removed {
         std::fs::remove_file(&pointer_path).map_err(|e| e.to_string())?;
     }
     let r = resolve_data_root(&app)?;
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "data_location_restored_to_default",
+        "success",
+        Some(&format!("pointer_removed={pointer_removed}")),
+    );
     Ok(RestoreDefaultResult {
         status: to_status(r),
         pointer_removed,
@@ -949,7 +976,8 @@ fn resume_inner(app: &AppHandle, started: &DataMoveJournalEntry, entries: &[Data
 /// gated identically (architecture doc §9.4.1).
 #[tauri::command(async)]
 pub async fn resume_interrupted_data_move(app: AppHandle, token: String, state: State<'_, BackupState>) -> Result<DataMoveRecoveryResult, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let entries = read_journal(&app);
     let Some(started) = find_interrupted_move(&entries) else {
         return Err("no interrupted move found".to_string());
@@ -966,6 +994,14 @@ pub async fn resume_interrupted_data_move(app: AppHandle, token: String, state: 
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
         *guard = None;
     }
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "data_location_move_resumed",
+        if result.is_ok() { "success" } else { "failure" },
+        Some(&format!("run_id={}", started.run_id)),
+    );
     result
 }
 
@@ -987,7 +1023,8 @@ pub(crate) fn is_cleanup_safe(old_root: &Path, active_root: &Path) -> bool {
 /// data that is actually in use right now.
 #[tauri::command(async)]
 pub async fn cleanup_old_data_location(app: AppHandle, token: String, old_root: String) -> Result<(), String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let old_path = PathBuf::from(&old_root);
     let active = resolve_data_root(&app)?.path;
     if !is_cleanup_safe(&old_path, &active) {
@@ -996,7 +1033,16 @@ pub async fn cleanup_old_data_location(app: AppHandle, token: String, old_root: 
     if !old_path.is_dir() {
         return Err("the old location is not a directory (nothing to clean up)".to_string());
     }
-    std::fs::remove_dir_all(&old_path).map_err(|e| e.to_string())
+    let result = std::fs::remove_dir_all(&old_path).map_err(|e| e.to_string());
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "data_location_old_cleaned_up",
+        if result.is_ok() { "success" } else { "failure" },
+        Some(&format!("old_root={old_root}")),
+    );
+    result
 }
 
 #[cfg(test)]

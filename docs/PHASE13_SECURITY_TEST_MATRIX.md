@@ -76,6 +76,18 @@ tests, 1 new `role_policy.rs` test, 7 new `identity.rs`/`admin.rs`
 tests, 1 new `formulation_advanced.rs` test, 1 new
 `rolePolicy.test.ts` regression test.
 
+**Session 6 note**: brute-force/lockout re-confirmed (one real
+defense-in-depth gap closed); System Administration's real audit-trail
+gap (11 commands, zero coverage before) closed, plus the F2
+full-surface secret-leak fuzz test; new SQL-injection coverage at the
+admin command boundary (profile fields, `user_id` lookups); two new
+direct privilege-escalation proofs (administrator's view-only
+boundary, unauthenticated-cancel rejection); native Windows GUI
+acceptance testing honestly disclosed as not executed (no tool
+available). Section N is new: 7 new tests total across `identity.rs`
+(1), `admin.rs` (3), `role_policy.rs` (1), and `formulation_advanced.rs`
+(2, plus a small refactor making its authentication check testable).
+
 ## A. Authentication
 
 | # | Test | Status | Session |
@@ -163,9 +175,10 @@ Session 5+ work, once Administration → Users commands accept them.
 
 | # | Test | Session |
 |---|---|---|
-| F1 | Every event class in the architecture doc's §25 list produces exactly one audit row per real occurrence | 6 |
-| F2 | No audit row ever contains a plaintext password, password hash, API key, or session secret value — a fuzz/property test scans every inserted row's serialized form for password-hash-shaped strings and fails if one appears | 6 |
-| F3 | Audit rows survive account disable/enable and role change (historical attribution intact, per architecture doc §18/§19) | 6 |
+| F1 | Every identity/access-control and System Administration event class produces exactly one audit row per real occurrence; business-content mutations (formulation/masterdata/approval/workflow-gate) use their own established, actor-attributed audit trails by deliberate design, not this table | **Done, Session 6** (§N.6) for the identity/access/System-Administration surface — see architecture doc §23/§27.2 for the full scope reasoning |
+| F2 | No audit row ever contains a plaintext password, password hash, API key, or session secret value — a fuzz/property test scans every inserted row's serialized form for password-hash-shaped strings and fails if one appears | **Done, Session 6** (§N.2) — `admin::tests::no_security_audit_or_login_attempt_row_ever_contains_a_secret_across_the_full_write_surface`, a single-pass scan across bootstrap/login/every admin mutation with nine distinct secret values, broader than the pre-existing per-action spot checks |
+| F3 | Audit rows survive account disable/enable and role change (historical attribution intact, per architecture doc §18/§19) | **Already proven** — `admin::tests::list_users_and_list_security_audit_events_round_trip` (Session 5) and `admin::tests::the_sole_active_administrator_cannot_be_demoted`/`...disabled` (closure session) all read back audit rows attributed to accounts that were subsequently role-changed/disabled; no dedicated Session 6 test needed |
+| F4 | System Administration mutations (backup create/restore, data-location move/use-existing/restore-default/resume/cleanup, pre-migration backup create, automatic-backup config write/retention) write a `success`/`failure` audit row using the resolved actor's real identity — previously zero coverage, the one real gap this session's audit-coverage inventory found | **Done, Session 6** (§N.6) |
 
 ## G. Session 1 — identity-layer tests actually implemented and passing (28/28)
 
@@ -806,3 +819,163 @@ for every new `workflowGate.*`/`materials.verification*`/
 `supplier.verificationGate`/`approval.workflowGates*` key this session
 introduced. `git diff --check`: clean (line-ending-normalization
 warnings only, no actual whitespace/conflict errors).
+
+## N. Phase 13 Session 6 — brute-force/lockout confirmation, full audit coverage, SQL-injection + privilege-escalation regression, native acceptance
+
+### N.1 `identity.rs` (1 new test)
+
+`validate_session_independently_rechecks_account_status_not_just_
+revocation`: disables an account's `status` directly via raw SQL —
+bypassing `update_account_status`'s own session-revocation side effect
+entirely, so the session row itself stays un-revoked — and proves
+`validate_session` still refuses it. The defense-in-depth layer
+`update_account_status_disabling_revokes_every_open_session` (Session
+1) never isolated on its own, only incidentally exercised through
+revocation.
+
+**Total**: 1 test, 1 passing.
+
+### N.2 `admin.rs` — full-surface secret-leak fuzz test (1 new test)
+
+`no_security_audit_or_login_attempt_row_ever_contains_a_secret_across_
+the_full_write_surface` (F2, closing it): bootstrap, login success,
+login failure, login lockout (5 attempts), admin-created initial
+password, admin password reset — nine distinct, deliberately unique
+secret values threaded through six different write paths — then a
+single scan of every `security_audit_events` and `login_attempts` row
+the whole run produced against all nine secrets plus both real stored
+password hashes and a raw session token. Broader than the pre-existing
+per-action spot checks (`audit_detail_never_contains_a_password_or_
+hash`, `no_audit_row_or_login_attempt_row_ever_contains_a_password_
+hash_or_raw_session_token`), which this test does not duplicate or
+replace — those still cover their own specific scenarios.
+
+**Total**: 1 test, 1 passing.
+
+### N.3 `admin.rs` — SQL-injection at the admin command boundary (2 new tests)
+
+`admin_profile_fields_are_inert_against_hostile_input_never_executed`:
+a 6-entry hostile-string battery (quotes, `DROP TABLE`, boolean
+injection, SQL comments, RTL-override/zero-width unicode) plus a
+separate oversized-value case, run through `display_name`/`department`/
+`employee_reference` on both `create_administered_user_logic` (INSERT)
+and `update_user_profile_logic` (UPDATE) — free-text columns with no
+charset restriction, unlike `username`, so most of this battery
+actually reaches SQL as literal parameterized data instead of being
+pre-filtered by validation. Every value round-trips byte-for-byte;
+the `users` table is never dropped; no row is created or destroyed
+beyond the ones the test itself explicitly created. A companion
+assertion confirms an oversized `display_name` specifically is
+rejected by its own length policy before reaching SQL at all (D5/§H.2's
+"excessive length" property, re-confirmed at this boundary, not a new
+finding).
+
+`admin_commands_treat_a_hostile_or_malformed_user_id_as_simply_not_
+found`: a 6-entry hostile `user_id` battery (boolean injection, `DROP
+TABLE`, a real id with a trailing SQL-comment suffix, an oversized
+string, an empty string) run through every admin mutation
+(`update_user_profile_logic`, `change_user_role_logic`,
+`reset_user_password_logic`, `set_user_account_status_logic`) and
+`list_security_audit_events`'s `target_user_id` scoping — the
+`WHERE id = ?`/`WHERE target_user_id = ?` query shape no existing test
+exercised. Every hostile id is refused (or, for the audit query, simply
+matches nothing) — the real, pre-existing victim account's role,
+status, and display name are unchanged afterward.
+
+**Total**: 2 tests, 2 passing.
+
+### N.4 `role_policy.rs` — administrator's view-only boundary, proven directly (1 new test)
+
+`administrator_never_holds_create_or_edit_on_any_scientific_content_
+area`: the first *positive-denial* proof (not inferred from the
+absence of a positive grant) that administrator lacks `create`/`edit`
+on all nine scientific/business-content areas (`formulation`,
+`laboratory`, `stability`, `optimization`, `rawMaterials`,
+`supplierDocuments`, `regulatory`, `productionEngineering`,
+`production`) while retaining `view` on each — architecture doc §9's
+rule, checked directly at the policy layer in one assertion covering
+every area at once.
+
+**Total**: 1 test, 1 passing.
+
+### N.5 `formulation_advanced.rs` — cancel command's own authentication check (2 new tests, plus a small testability refactor)
+
+`cancel_advanced_formulation_optimize_logic(conn: &Connection, token,
+state)` was extracted from the `#[tauri::command]` wrapper — identical
+in shape to every other Phase 13 command's logic/wrapper split, no
+behavior change, `cancel_current_logic` itself untouched — specifically
+so the command's `authz::current_actor` gate is testable without an
+`AppHandle`. The closure session's own `cancelling_when_nothing_is_
+running_is_a_safe_no_op` test only ever exercised `cancel_current_
+logic` directly, never proving the authentication check in front of it
+actually runs.
+
+`cancel_is_refused_without_a_valid_session_no_matter_what_token_shape_
+is_sent`: an empty string, a plain garbage string, a SQL-injection-
+shaped string, and a 10,000-character string are all refused before
+`cancel_current_logic` is ever reached. `cancel_succeeds_for_a_caller_
+with_a_genuinely_valid_session`: a real bootstrapped user with a real
+session token succeeds (returning `false` since nothing was actually
+running) — proving the gate isn't simply refusing everything.
+
+**Total**: 2 tests, 2 passing.
+
+### N.6 System Administration audit coverage (no new Rust tests — see N.1/N.2's existing coverage; a code change, not a test gap)
+
+11 commands across `backup.rs` (`create_backup`, `restore_backup`),
+`data_location_manager.rs` (`move_data_location`, `use_existing_data_
+location`, `restore_default_data_location`, `resume_interrupted_data_
+move`, `cleanup_old_data_location`), `migration.rs`
+(`create_pre_migration_backup`), and `automatic_backup.rs`
+(`write_automatic_backup_config`, `apply_pre_migration_retention`) —
+every one already `systemAdministration`/`administer`-gated — now open
+`identity.db` once and call `authz::authorize` (replacing the
+`authz::authorize_app` convenience call that opened and discarded its
+own connection), so the resolved actor is available to write a
+`success`/`failure` `security_audit_events` row after the operation,
+using a non-secret detail (a path, a count, a run id). No dedicated new
+Rust test was added for this specific wiring: these commands take an
+`AppHandle` and have never had direct command-level tests in this
+codebase (the established convention — no `tauri::test::mock_app()`,
+`automatic_backup.rs`'s own doc comment) applies here exactly as it
+already does to every other System Administration command Session 4
+gated without a dedicated test of its own; the underlying primitives
+this wiring composes (`identity::open_identity_db`, `authz::authorize`,
+`identity::record_security_audit_event`) are each independently and
+extensively tested elsewhere (§J.2, §L.2, this section's own N.2).
+
+### N.7 Full-suite confirmation
+
+`cargo build --lib`: clean. `cargo build` (the full application binary,
+not just the library — confirms the actual shippable Windows app still
+compiles after this session's changes): clean. `cargo test --lib`:
+335/335 passing (the closure session's 328 + 7 new — §N.1-§N.5).
+`cargo clippy --lib -- -D warnings`: clean. Shared package: `tsc
+--noEmit` clean; `vitest run`: 1302/1302 passing — unchanged (no
+shared-package file touched this session). Desktop frontend: `tsc
+--noEmit` clean; `vitest run` (full suite): 1197/1197 passing —
+unchanged (no frontend file touched this session); i18n parity
+(`parity.test.ts`, 23 tests) re-run and passing regardless, since this
+was a cross-cutting security session. `git diff --check`: clean
+(line-ending-normalization warnings only).
+
+### N.8 Native Windows multi-user acceptance — honestly scoped, not fully executed
+
+Every named acceptance flow's *backend logic* — login/logout across
+accounts, role-specific allow/deny for all 12 roles, admin user
+management, role-change/disable taking effect on the very next session
+check, worker-submit/manager-decide gate state machine with
+resubmission, production prerequisite blocking, last-administrator
+protection (single- and two-administrator scenarios), unauthenticated-
+cancel rejection — is proven through the real production Rust code
+paths by the 335-test suite above and every prior session's tests it
+builds on, none of it a parallel test-only model. `cargo build`
+confirms the actual application binary compiles cleanly. **Interactive
+native-GUI acceptance testing was not executed**: launching the
+compiled `.exe`, creating and switching between real local accounts
+through the live application, and visually confirming role-based UI
+visibility/denial messaging all require driving and observing a native
+Windows GUI window, which no tool available to this session can do
+(the browser-automation tooling present only reaches web pages loaded
+in Chrome, not a Tauri webview process). This is recorded as a genuine,
+disclosed, still-open manual acceptance item — not claimed complete.

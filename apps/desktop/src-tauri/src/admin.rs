@@ -482,6 +482,241 @@ mod tests {
     }
 
     #[test]
+    fn no_security_audit_or_login_attempt_row_ever_contains_a_secret_across_the_full_write_surface() {
+        // Session 6 (F2, security test matrix): the per-scenario secret
+        // checks above (and auth.rs's own) each prove the property for one
+        // action at a time. This is the broader, single-pass fuzz/property
+        // scan F2 actually asks for — every action class that touches a
+        // password, checked together against every row the whole run
+        // produced, not just the one action that wrote it. Nine distinct,
+        // deliberately unique secret values are threaded through nine
+        // different write paths (bootstrap, login success/failure/lockout,
+        // admin-created initial password, admin password reset, and the two
+        // stored hashes those produce) so a scan finding zero matches is a
+        // real negative, not a coincidence of every value being the same
+        // string.
+        let mut conn = tmp_conn("fuzz-full-surface");
+
+        let bootstrap = auth::bootstrap_create_administrator_logic(
+            &mut conn,
+            "fuzz.admin",
+            "Fuzz Admin",
+            "bootstrap-secret-alpha-1",
+            "bootstrap-secret-alpha-1",
+        )
+        .unwrap();
+        let admin_actor = actor(&bootstrap.user.user_id, "administrator");
+
+        let _ = auth::login_logic(&conn, "fuzz.admin", "bootstrap-secret-alpha-1").unwrap();
+        let _ = auth::login_logic(&conn, "fuzz.admin", "wrong-guess-secret-beta-2");
+        for _ in 0..auth::LOGIN_LOCKOUT_THRESHOLD {
+            let _ = auth::login_logic(&conn, "fuzz.admin", "another-wrong-secret-gamma-3");
+        }
+        // Unlock directly so the rest of the surface below isn't blocked by
+        // the lockout this same test deliberately triggered.
+        conn.execute(
+            "UPDATE users SET locked_until = NULL, failed_login_count = 0 WHERE id = ?1",
+            rusqlite::params![admin_actor.user_id],
+        )
+        .unwrap();
+
+        let created = create_administered_user_logic(
+            &conn,
+            &admin_actor,
+            "fuzz.worker",
+            "Fuzz Worker",
+            "worker-initial-secret-delta-4",
+            "worker-initial-secret-delta-4",
+            "researcher",
+            None,
+            None,
+        )
+        .unwrap();
+        let _ = reset_user_password_logic(
+            &conn,
+            &admin_actor,
+            &created.user_id,
+            "reset-secret-epsilon-5",
+            "reset-secret-epsilon-5",
+        )
+        .unwrap();
+        let _ = change_user_role_logic(&mut conn, &admin_actor, &created.user_id, "quality").unwrap();
+        let _ = set_user_account_status_logic(&mut conn, &admin_actor, &created.user_id, false).unwrap();
+
+        // A raw session token that must never leak, alongside the two real
+        // stored password hashes (bootstrap admin's and the reset worker's).
+        let session = identity::create_session(&conn, &admin_actor.user_id, 3600).unwrap();
+        identity::revoke_session(&conn, &session.token).unwrap();
+        let admin_hash: String = conn
+            .query_row("SELECT password_hash FROM users WHERE id = ?1", rusqlite::params![admin_actor.user_id], |r| r.get(0))
+            .unwrap();
+        let worker_hash: String = conn
+            .query_row("SELECT password_hash FROM users WHERE id = ?1", rusqlite::params![created.user_id], |r| r.get(0))
+            .unwrap();
+
+        let secrets: [&str; 5] = [
+            "bootstrap-secret-alpha-1",
+            "wrong-guess-secret-beta-2",
+            "another-wrong-secret-gamma-3",
+            "worker-initial-secret-delta-4",
+            "reset-secret-epsilon-5",
+        ];
+
+        let mut audit_stmt = conn.prepare("SELECT action, outcome, detail FROM security_audit_events").unwrap();
+        let audit_rows: Vec<(String, String, Option<String>)> =
+            audit_stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap().map(|r| r.unwrap()).collect();
+        assert!(audit_rows.len() >= 8, "expected this surface to have produced multiple audit rows, got {}", audit_rows.len());
+
+        let mut attempt_stmt = conn.prepare("SELECT username_normalized, outcome, device_context FROM login_attempts").unwrap();
+        let attempt_rows: Vec<(String, String, Option<String>)> =
+            attempt_stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap().map(|r| r.unwrap()).collect();
+        assert!(!attempt_rows.is_empty());
+
+        for (action, outcome, detail) in &audit_rows {
+            for haystack in [action.as_str(), outcome.as_str(), detail.as_deref().unwrap_or("")] {
+                for secret in secrets {
+                    assert!(!haystack.contains(secret), "security_audit_events row leaked a secret: {haystack:?}");
+                }
+                assert!(!haystack.contains(&admin_hash), "security_audit_events row leaked the admin's password hash: {haystack:?}");
+                assert!(!haystack.contains(&worker_hash), "security_audit_events row leaked the worker's password hash: {haystack:?}");
+                assert!(!haystack.contains(&session.token), "security_audit_events row leaked a raw session token: {haystack:?}");
+            }
+        }
+        for (username, outcome, device_context) in &attempt_rows {
+            for haystack in [username.as_str(), outcome.as_str(), device_context.as_deref().unwrap_or("")] {
+                for secret in secrets {
+                    assert!(!haystack.contains(secret), "login_attempts row leaked a secret: {haystack:?}");
+                }
+                assert!(!haystack.contains(&admin_hash), "login_attempts row leaked the admin's password hash: {haystack:?}");
+            }
+        }
+    }
+
+    // -------------------------------------------------- SQL injection ---
+    //
+    // `username` is already covered exhaustively at the storage layer
+    // (`identity.rs`'s own hostile-string battery) and the full login
+    // command path (`auth.rs`) — not repeated here. These two tests cover
+    // the query boundaries genuinely new to this file: `display_name`/
+    // `department`/`employee_reference` (free-text `TEXT` columns with NO
+    // charset restriction, unlike `username` — most of this battery
+    // actually reaches SQL as literal data instead of being pre-filtered
+    // by validation, a stronger proof parameterization itself holds) and
+    // `user_id` lookups (`UPDATE users SET ... WHERE id = ?`, a query
+    // shape `identity.rs`'s own battery never exercises).
+
+    #[test]
+    fn admin_profile_fields_are_inert_against_hostile_input_never_executed() {
+        let conn = tmp_conn("sqli-profile-fields");
+        let admin = actor("admin-1", "administrator");
+        let victim = seed_user(&conn, "profile.sqli.victim", Role::Researcher);
+
+        // Every value here fits within `display_name`'s own 200-character
+        // policy limit (unrelated to SQL — validation, not the database, is
+        // what would reject an oversized one; that interaction is its own
+        // assertion below) so each one genuinely reaches the INSERT/UPDATE
+        // as literal parameterized data, not pre-filtered away.
+        let hostile = [
+            "quotes'\"`",
+            "'; DROP TABLE users;--",
+            "' OR '1'='1",
+            "/* comment */ department",
+            "admin'#",
+            "\u{202e}reversed\u{200b}",
+        ];
+        for (i, value) in hostile.iter().enumerate() {
+            let username = format!("sqli.profile.{i}");
+            let created = create_administered_user_logic(
+                &conn, &admin, &username, value, "a-fine-password-1", "a-fine-password-1", "researcher", Some((*value).to_string()), Some((*value).to_string()),
+            )
+            .unwrap();
+            // Stored and read back byte-for-byte as inert literal data —
+            // never interpreted, never truncated, never dropped a row.
+            let round_tripped = identity::find_user_by_id(&conn, &created.user_id).unwrap().unwrap();
+            assert_eq!(&round_tripped.display_name, value);
+            assert_eq!(round_tripped.department.as_deref(), Some(*value));
+            assert_eq!(round_tripped.employee_reference.as_deref(), Some(*value));
+
+            // Also exercise the UPDATE-shaped query with the same hostile
+            // value, against the pre-existing victim account.
+            let _ = update_user_profile_logic(&conn, &admin, &victim.id, "Profile Sqli Victim", Some((*value).to_string()), Some((*value).to_string()));
+        }
+
+        // `department`/`employee_reference` have no length policy at all
+        // (unlike `display_name`) — an oversized value must still reach SQL
+        // as inert parameterized data, never truncated or misinterpreted.
+        let oversized = "y".repeat(5000);
+        let oversized_created = create_administered_user_logic(
+            &conn, &admin, "sqli.profile.oversized", "Oversized Fields", "a-fine-password-1", "a-fine-password-1", "researcher", Some(oversized.clone()), Some(oversized.clone()),
+        )
+        .unwrap();
+        let oversized_round_tripped = identity::find_user_by_id(&conn, &oversized_created.user_id).unwrap().unwrap();
+        assert_eq!(oversized_round_tripped.department.as_deref(), Some(oversized.as_str()));
+        assert_eq!(oversized_round_tripped.employee_reference.as_deref(), Some(oversized.as_str()));
+
+        // An oversized `display_name` specifically is cleanly rejected by
+        // its own validation before ever reaching SQL — not a security
+        // gap, the correct, deliberate boundary (§H.2/D5's same "excessive
+        // length" property, re-confirmed at this command boundary).
+        let oversized_display_err =
+            create_administered_user_logic(&conn, &admin, "sqli.profile.oversized2", &oversized, "a-fine-password-1", "a-fine-password-1", "researcher", None, None)
+                .unwrap_err();
+        assert!(oversized_display_err.contains("display name"));
+
+        let table_exists: i64 = conn
+            .query_row("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(table_exists, 1, "SQL injection through profile fields must not have dropped the users table");
+        let victim_still_there = identity::find_user_by_id(&conn, &victim.id).unwrap();
+        assert!(victim_still_there.is_some(), "the pre-existing victim row must be unaffected");
+        let user_count: i64 = conn.query_row("SELECT count(*) FROM users", [], |r| r.get(0)).unwrap();
+        assert_eq!(
+            user_count as usize,
+            hostile.len() + 2,
+            "no row must have been created or destroyed beyond the ones this test explicitly created \
+             (victim + one per hostile display_name/department/employee_reference value + one oversized-fields row; \
+             the final rejected-oversized-display-name attempt created no row at all)"
+        );
+    }
+
+    #[test]
+    fn admin_commands_treat_a_hostile_or_malformed_user_id_as_simply_not_found() {
+        let mut conn = tmp_conn("sqli-user-id");
+        let admin = actor("admin-1", "administrator");
+        let real = seed_user(&conn, "user.id.sqli.victim", Role::Researcher);
+
+        let hostile_ids = [
+            "' OR '1'='1",
+            "'; DROP TABLE users;--",
+            "usr_real' OR id IS NOT NULL--",
+            &format!("{}' --", real.id),
+            &"z".repeat(5000),
+            "",
+        ];
+        for hostile_id in hostile_ids {
+            assert!(update_user_profile_logic(&conn, &admin, hostile_id, "Someone", None, None).is_err());
+            assert!(change_user_role_logic(&mut conn, &admin, hostile_id, "quality").is_err());
+            assert!(reset_user_password_logic(&conn, &admin, hostile_id, "a-fine-password-2", "a-fine-password-2").is_err());
+            assert!(set_user_account_status_logic(&mut conn, &admin, hostile_id, false).is_err());
+        }
+
+        // The real user is completely untouched by any of the above — still
+        // the original role, still active, still the original display name.
+        let unaffected = identity::find_user_by_id(&conn, &real.id).unwrap().unwrap();
+        assert_eq!(unaffected.role, Role::Researcher);
+        assert_eq!(unaffected.status, "active");
+        assert_eq!(unaffected.display_name, "Seed User");
+
+        // The target_user_id lookup on the audit-history query is the same
+        // shape of `WHERE ... = ?` boundary — a hostile id is just a
+        // literal that matches nothing, never a scope-widening bypass.
+        for hostile_id in hostile_ids {
+            let events = identity::list_security_audit_events(&conn, Some(hostile_id), 200).unwrap();
+            assert!(events.is_empty(), "a hostile target_user_id must never match any real row");
+        }
+    }
+
+    #[test]
     fn list_users_and_list_security_audit_events_round_trip() {
         let mut conn = tmp_conn("list-round-trip");
         let user = seed_user(&conn, "list.target", Role::Researcher);

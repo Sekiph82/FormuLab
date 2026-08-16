@@ -1183,6 +1183,40 @@ mod tests {
     }
 
     #[test]
+    fn validate_session_independently_rechecks_account_status_not_just_revocation() {
+        // Session 6 (brute-force/lockout wiring confirmation): `disable`
+        // today always revokes every open session (the test above) — this
+        // proves the *second*, independent layer also holds: `validate_
+        // session` itself re-reads the account's live status on every
+        // call and refuses a non-active account even for a session row
+        // that was never explicitly revoked. Defense in depth — if any
+        // future code path ever changes `status` without going through
+        // `update_account_status`, this is what still closes the door.
+        let (_p, conn) = tmp_db("status-recheck");
+        let user = seeded_user(&conn, "defense.depth", Role::Researcher);
+        let session = create_session(&conn, &user.id, 3600).unwrap();
+        assert!(validate_session(&conn, &session.token, 0).unwrap().is_some());
+
+        // Disable status directly, bypassing `update_account_status`'s own
+        // revocation side effect entirely — the session row itself is
+        // still live (`revoked_at IS NULL`).
+        conn.execute("UPDATE users SET status = 'disabled' WHERE id = ?1", params![user.id]).unwrap();
+        let (revoked_at,): (Option<String>,) = conn
+            .query_row(
+                "SELECT revoked_at FROM authenticated_sessions WHERE user_id = ?1",
+                params![user.id],
+                |r| Ok((r.get(0)?,)),
+            )
+            .unwrap();
+        assert!(revoked_at.is_none(), "the session row itself must still be un-revoked for this test to prove anything");
+
+        assert!(
+            validate_session(&conn, &session.token, 0).unwrap().is_none(),
+            "a disabled account's session must be refused even when the session row was never revoked"
+        );
+    }
+
+    #[test]
     fn update_role_changes_effective_role_immediately() {
         let (_p, conn) = tmp_db("role-change");
         let user = seeded_user(&conn, "someone", Role::Researcher);

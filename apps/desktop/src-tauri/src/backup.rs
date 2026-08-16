@@ -929,7 +929,8 @@ pub async fn create_backup(
     state: State<'_, BackupState>,
     destination: String,
 ) -> Result<BackupManifest, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
@@ -950,6 +951,14 @@ pub async fn create_backup(
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
         *guard = None;
     }
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "system_backup_created",
+        if result.is_ok() { "success" } else { "failure" },
+        Some(&format!("destination={destination}")),
+    );
     result
 }
 
@@ -1278,7 +1287,8 @@ pub async fn restore_backup(
     state: State<'_, BackupState>,
     source: String,
 ) -> Result<RestoreResult, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
@@ -1296,6 +1306,14 @@ pub async fn restore_backup(
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
         *guard = None;
     }
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "system_backup_restored",
+        if result.is_ok() { "success" } else { "failure" },
+        Some(&format!("source={source}")),
+    );
     result
 }
 

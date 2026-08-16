@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-5 + closure session) — WORKFLOW GATE UI, SUBJECT VALIDATION, MATRIX DOMAIN REVIEW, LAST-ADMINISTRATOR GUARD ALL CLOSED
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-6) — BACKEND SECURITY REGRESSION COMPLETE; NATIVE GUI ACCEPTANCE STILL MANUAL
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -2150,7 +2150,48 @@ disclosed, not closed: no admin UI to inspect/list all workflow gates
 across subjects — out of scope, not one of the five named warnings.
 Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §26; test
 report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §M; handoff:
-`docs/handoffs/PHASE13_CURRENT.md`. **Next: Phase 13 Session 6.**
+`docs/handoffs/PHASE13_CURRENT.md`.
+
+**Session 6** re-confirmed brute-force/lockout end to end (one real
+defense-in-depth gap closed: `validate_session`'s own independent
+live-status recheck, previously only exercised incidentally through
+session revocation) and closed the one real, systemic audit-coverage
+gap the session's command-surface inventory found: 11 System
+Administration commands (backup create/restore, data-location move/
+use-existing/restore-default/resume/cleanup, pre-migration backup
+create, automatic-backup config write/retention) — every one already
+role-gated — wrote zero `security_audit_events` rows on success,
+including `restore_backup`, this codebase's own "single highest-risk
+system-administration command." All 11 now audit success/failure with
+the resolved actor's real identity; business-content mutations
+(formulation/masterdata/approval/workflow-gate) were deliberately left
+on their own existing, adequate audit trails, not duplicated. F2's
+full-surface secret-leak fuzz test was written (bootstrap/login/every
+admin mutation, nine distinct secrets, one scan). Two new SQL-injection
+tests cover query boundaries no existing test reached
+(`display_name`/`department`/`employee_reference`'s free-text columns;
+the `WHERE id = ?` shape every admin mutation shares). Two new
+privilege-escalation tests close previously-inferred-only properties:
+administrator's positive denial of `create`/`edit` on every scientific
+area, and `cancel_advanced_formulation_optimize`'s own authentication
+check (required extracting a `&Connection`-taking logic function,
+identical in shape to every other Phase 13 command, no behavior
+change). Rust: 335/335 (328 + 7 new), clippy clean, the full
+application binary (not just the library) builds cleanly. Shared/
+desktop: unchanged (1302/1302, 1197/1197) — no file in either touched
+this session. **Native Windows multi-user GUI acceptance testing was
+not executed** — every named flow's backend logic is proven through
+the real production code paths this session's and every prior
+session's tests exercise, and the compiled binary builds, but no tool
+available to this session can drive or observe a native Windows
+window; honestly recorded as a still-open manual acceptance item, not
+claimed complete. Full design:
+`docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §27; test report:
+`docs/PHASE13_SECURITY_TEST_MATRIX.md` §N; handoff:
+`docs/handoffs/PHASE13_CURRENT.md`. **Next: Phase 13 Session 7** (or,
+if a human reviewer accepts the disclosed native-acceptance gap as
+carry-forward rather than blocking, Phase 13 may be considered ready
+for whatever comes next — not this session's call to make).
 
 ### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14) — RESERVED, NOT STARTED
 

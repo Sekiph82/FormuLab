@@ -219,7 +219,8 @@ pub(crate) fn find_interrupted_run(entries: &[MigrationJournalEntry]) -> Option<
 /// `systemAdministration`/`administer`.
 #[tauri::command(async)]
 pub async fn create_pre_migration_backup(app: AppHandle, token: String) -> Result<String, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let dir = app_private_dir(&app, "backups")?;
     let dest = dir.join(format!("pre-migration-{}.formulab-backup", now_secs()));
     let tmp = PathBuf::from(format!("{}.tmp", dest.to_string_lossy()));
@@ -228,6 +229,14 @@ pub async fn create_pre_migration_backup(app: AppHandle, token: String) -> Resul
     if result.is_err() {
         let _ = std::fs::remove_file(&tmp);
     }
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "pre_migration_backup_created",
+        if result.is_ok() { "success" } else { "failure" },
+        None,
+    );
     result?;
     Ok(dest.to_string_lossy().to_string())
 }

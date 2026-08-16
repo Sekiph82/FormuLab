@@ -129,11 +129,21 @@ pub async fn write_automatic_backup_config(
     token: String,
     config: AutomaticBackupConfig,
 ) -> Result<AutomaticBackupState, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let path = state_path(&app)?;
     let mut state = read_state_at(&path);
     state.config = config;
-    write_state_at(&path, &state)?;
+    let result = write_state_at(&path, &state);
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "automatic_backup_config_changed",
+        if result.is_ok() { "success" } else { "failure" },
+        None,
+    );
+    result?;
     Ok(state)
 }
 
@@ -390,9 +400,19 @@ pub async fn run_automatic_backup(
 /// from manually if automatic rollback also failed.
 #[tauri::command(async)]
 pub async fn apply_pre_migration_retention(app: AppHandle, token: String, keep: u32) -> Result<Vec<String>, String> {
-    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
+    let conn = crate::identity::open_identity_db(&app)?;
+    let actor = crate::authz::authorize(&conn, &token, "systemAdministration", "administer")?;
     let dir = app_private_dir(&app, "backups")?;
-    Ok(apply_retention(&dir, class_file_prefix("preMigration"), keep))
+    let deleted = apply_retention(&dir, class_file_prefix("preMigration"), keep);
+    let _ = crate::identity::record_security_audit_event(
+        &conn,
+        Some(&actor.user_id),
+        Some(&actor.user_id),
+        "pre_migration_backup_retention_applied",
+        "success",
+        Some(&format!("deleted_count={}", deleted.len())),
+    );
+    Ok(deleted)
 }
 
 #[derive(Serialize, Clone)]

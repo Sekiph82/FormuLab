@@ -96,14 +96,29 @@ fn cancel_current_logic(state: &AdvancedOptimizerState) -> bool {
 /// session, closing the "any raw `invoke()` with zero login at all" gap
 /// this command had before, same bar every other Phase 13 command now
 /// clears at minimum.
+/// The `&Connection`-taking half of the command above, split out (this
+/// codebase's established `auth.rs`/`admin.rs` pattern) specifically so
+/// the authentication check itself — not just `cancel_current_logic`'s
+/// process-killing behavior — is directly unit-testable without an
+/// `AppHandle`. `authz::current_actor` (not `current_actor_app`) takes a
+/// plain `&Connection`, so this needs no Tauri test harness.
+fn cancel_advanced_formulation_optimize_logic(
+    conn: &rusqlite::Connection,
+    token: &str,
+    state: &AdvancedOptimizerState,
+) -> Result<bool, String> {
+    crate::authz::current_actor(conn, token)?;
+    Ok(cancel_current_logic(state))
+}
+
 #[tauri::command(async)]
 pub async fn cancel_advanced_formulation_optimize(
     app: AppHandle,
     token: String,
     state: State<'_, AdvancedOptimizerState>,
 ) -> Result<bool, String> {
-    crate::authz::current_actor_app(&app, &token)?;
-    Ok(cancel_current_logic(&state))
+    let conn = crate::identity::open_identity_db(&app)?;
+    cancel_advanced_formulation_optimize_logic(&conn, &token, &state)
 }
 
 #[cfg(test)]
@@ -116,6 +131,50 @@ mod tests {
         assert!(!cancel_current_logic(&state), "nothing was running");
         // Idempotent: calling it again must not panic or misreport.
         assert!(!cancel_current_logic(&state));
+    }
+
+    // Session 6 (privilege-escalation / authorization-bypass suite): the
+    // explicit, previously-untested property this command's own
+    // authorization decision (§26.4 of the architecture doc) rests on —
+    // an unauthenticated caller cannot reach `cancel_current_logic` at
+    // all, regardless of whether anything is actually running.
+    fn tmp_conn(tag: &str) -> rusqlite::Connection {
+        let dir = std::env::temp_dir().join(format!("formulab-cancel-optimize-test-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        crate::identity::open_at(&dir.join("identity.db")).unwrap()
+    }
+
+    #[test]
+    fn cancel_is_refused_without_a_valid_session_no_matter_what_token_shape_is_sent() {
+        let conn = tmp_conn("no-session");
+        let state = AdvancedOptimizerState::default();
+        for hostile_token in ["", "not-a-real-token", "' OR '1'='1", &"a".repeat(10_000)] {
+            let err = cancel_advanced_formulation_optimize_logic(&conn, hostile_token, &state).unwrap_err();
+            assert!(!err.is_empty());
+        }
+    }
+
+    #[test]
+    fn cancel_succeeds_for_a_caller_with_a_genuinely_valid_session() {
+        let conn = tmp_conn("valid-session");
+        let user = crate::identity::create_user(
+            &conn,
+            crate::identity::NewUser {
+                username: "cancel.optimizer.user",
+                display_name: "Cancel Optimizer User",
+                password_hash: &crate::identity::hash_password("correct horse battery staple").unwrap(),
+                role: crate::identity::Role::Researcher,
+                department: None,
+                employee_reference: None,
+                created_by: None,
+            },
+        )
+        .unwrap();
+        let session = crate::identity::create_session(&conn, &user.id, 3600).unwrap();
+        let state = AdvancedOptimizerState::default();
+        let was_running = cancel_advanced_formulation_optimize_logic(&conn, &session.token, &state).unwrap();
+        assert!(!was_running, "nothing was actually running, but the call itself must succeed for a valid session");
     }
 }
 
