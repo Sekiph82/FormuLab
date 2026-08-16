@@ -1,21 +1,30 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: RESERVED, NOT STARTED
+## Status: SESSION 0 COMPLETE — pipeline audit, CanonicalPaper schema, adapter boundary, source-availability decision (§11a)
 
 This document registers Phase 14 and records the approved product
-decisions it must implement. **No code for this phase has been
-written.** It is captured now, ahead of implementation, so Phase 13
-(the current active phase) and Phase 14 never get numbered or scoped
-ambiguously against each other. See `docs/handoffs/PHASE14_CURRENT.md`
-for the one-line pointer every other phase's handoff follows, and
-`docs/architecture/IMPLEMENTATION_STATUS.md`'s own Phase 14 entry for
-where this sits in the overall roadmap.
+decisions it must implement. Session 0 (§11a) is the first real
+implementation work — a dormant, unwired `runtime/pipeline/
+canonical_paper.py` module plus 23 new tests — everything else in this
+document below §11a is still the original reservation-time design
+record, not yet built. See `docs/handoffs/PHASE14_CURRENT.md` for the
+current session pointer, and `docs/architecture/IMPLEMENTATION_STATUS.md`'s
+own Phase 14 entry for where this sits in the overall roadmap.
 
-**Phase numbering**: Phase 13 (Enterprise Identity, Authentication,
-Fixed RBAC & Application Security) is the current active phase, at
-Session 4A as of this reservation. Phase 14 is the first genuinely
-unused phase number — no prior phase, session, or in-flight work
-claims it.
+**Approved UI visual references** (registered, not yet implemented —
+see §7/§8): `docs/assets/phase14/formulation-request-screen.png` and
+`docs/assets/phase14/formulation-reply-screen.png`, with a full
+field-by-field, tab-by-tab implementation specification in
+`docs/PHASE14_FRONTEND_UI_SPECIFICATION.md` for whichever future
+session (Session 3 for the request screen, Session 4 for the result
+screen, per §12) implements them.
+
+**Phase numbering**: Phase 14 began its first real session only after
+Phase 13 (Enterprise Identity, Authentication, Fixed RBAC & Application
+Security) closed as implementation-complete (Phase 13 architecture doc
+§28) — Phase 13's own remaining native-GUI acceptance item was carried
+into `docs/RELEASE_MANUAL_ACCEPTANCE_CHECKLIST.md` as a release-
+preparation item, not a Phase 13 blocker, by explicit human decision.
 
 ---
 
@@ -284,6 +293,24 @@ independently-maintained second equipment list.
 
 ## 7. New query screen — "Yeni Formülasyon Talebi"
 
+**Approved visual reference** (registered outside any single session,
+authoritative for whichever future session implements this screen):
+`docs/assets/phase14/formulation-request-screen.png` (original filename
+`formulation request screen.png`, approved by the user). **Full,
+field-by-field implementation specification**:
+`docs/PHASE14_FRONTEND_UI_SPECIFICATION.md` — English copy, exact field
+list, sidebar contents, and section-by-section detail beyond what this
+summary repeats. Preserve its
+overall visual language, hierarchy, spacing, dark premium FormuLab
+style, section grouping, sidebar relationship, CTA placement, and
+natural-language-first workflow — this is the approved replacement for
+the old multi-part formulation request flow, not a starting sketch to
+redesign from. The screenshot is a **visual/UX reference only**: no
+illustrative field value shown in it is real data, and none should be
+copied as such into any implementation. If a real technical constraint
+forces a deviation from it later, that implementing session must
+document the reason, not silently redesign the screen.
+
 Replaces the current three-part formulation-request experience with
 one page. Main interaction: a large natural-language request field
 (evolved from the current Part-2 free-request experience — reused
@@ -307,6 +334,41 @@ natural-language request.
 ---
 
 ## 8. New result screen — version cards, not side-by-side formulas
+
+**Approved visual reference** (same status as §7's): `docs/assets/
+phase14/formulation-reply-screen.png` (original filename `formulation
+reply screen.png`, approved by the user). **Full, tab-by-tab
+implementation specification**: `docs/PHASE14_FRONTEND_UI_SPECIFICATION.md`
+— every result tab's exact field list (Formula/Manufacturing
+Procedure/Critical Parameters/Equipment/Safety/Regulatory/Evidence &
+Sources/Alternatives/Summary), the right-side evidence panel's exact
+structure, quick actions, and the version-summary/comparison cards, in
+English, well beyond what this summary repeats. Preserve the approved
+structure it shows: fixed original request pinned at top; V1/V2/V3
+selector cards; only one selected formulation shown at a time; a
+selected-ingredient evidence panel on the right; version-scoped tabs
+(the screenshot shows all nine of this section's own fixed tab set
+below, confirming the design, not adding to it); the formula table;
+a summary/quick-actions panel; scores and evidence context. Switching
+versions must update all version-dependent content, exactly as this
+section already requires.
+
+**The screenshot's own content is illustrative UX filler, not real
+data — do not copy it.** In particular: the reference's V2 formula
+table lists "Sodium Coco-Sulfate (SCS)" as the top ingredient, while
+the same screenshot's pinned original request explicitly asks for a
+"sülfatsız" (sulfate-free) product — a real, visible inconsistency in
+the mockup's own illustrative content. A real implementation must
+never reproduce this: every ingredient, concentration, evidence count,
+citation, and score shown on this screen must come from the actual
+Phase 14 evidence/formulation pipeline (§5/§10), which itself already
+excludes sulfates for a sensitive/sulfate-free request via
+`rules.py::derive_constraints`/`validate` (`runtime/pipeline/rules.py`,
+unchanged by Phase 14, reused as-is) — the mockup's inconsistency is a
+reference-image artifact, not a product requirement to preserve. If a
+real technical constraint forces a structural deviation from this
+reference later, that implementing session must document the reason,
+not silently redesign the screen.
 
 The original user request stays fixed and visible at the top of the
 result screen at all times.
@@ -415,6 +477,105 @@ gate.
 
 ---
 
+## 11a. Session 0 — pipeline audit, CanonicalPaper schema, adapter boundary, source-availability decision (DONE)
+
+Phase 13 closed (its own architecture doc §28) before this session
+started; Phase 14 Session 0 is the first real Phase 14 work. Scope per
+§12 item 1 below, exactly, not redesigned: audit the existing discovery
+pipeline in detail, design the `CanonicalPaper` schema and deduplication
+algorithm concretely, design the Findpapers-adapter boundary, confirm
+real access to IEEE Xplore/Scopus/Web of Science/Google Scholar. No UI
+work — none of §7/§8's screens were touched by this session (their
+approved visual references were registered as documentation, a separate
+action from implementing them — see §7/§8's own notes).
+
+**Pipeline audit — one material finding.** `discover.py`/`pipeline.py`/
+`literature_cache.py` were read in full. §0/§1's own premise above —
+"today it retrieves ... from exactly three sources — OpenAlex, Europe
+PMC, arXiv" — describes `discover.py`'s CLI default
+(`--sources openalex,europepmc,arxiv`), not the real production path.
+`literature_cache.gather()` — what `pipeline.py::run()`, and therefore
+the live `generate_formulation` Tauri command, actually calls — defaults
+to `"openalex,openaire,europepmc,crossref"`: **four** sources, with
+arXiv deliberately excluded by that function's own comment ("indexes
+physics/CS/math preprints and holds essentially no consumer-formulation
+literature"). Two already-working native fetchers this document never
+named exist today: `discover.fetch_crossref` (§3 lists Crossref under
+Findpapers' own coverage — Session 1 should decide keep-vs-replace, not
+assume it needs building) and `discover.fetch_openaire` (not in §3's
+source list at all, anywhere — should be added to the native-adapter
+list, not silently dropped when Session 1 wires the real orchestrator).
+Also confirmed while auditing `pipeline.py`: it already generates `n`
+candidate formulas (default 3) in one LLM call and writes `v1`/`v2`/`v3`
+cards — §1's "Formula output: one synthesized candidate → at least
+three alternatives" slightly overstates the gap at the generation-count
+level; the real, still-open gap is the version-card UI (§8), per-
+ingredient evidence querying (§9), and the CanonicalPaper/provenance
+model (§4) — not the raw count of formulas the pipeline can produce.
+
+**`CanonicalPaper` schema + deduplication algorithm — designed and
+implemented, not yet wired.** New module,
+`runtime/pipeline/canonical_paper.py` (the file itself is the
+authoritative field list — not reproduced here to avoid a second copy
+this document would have to keep in sync by hand): a
+`CanonicalPaper` dataclass (`title`/`year`/`authors`/`venue`/`doi`/
+`is_oa`/`oa_url`/`abstract`/`sources`) mirroring `discover.py::_row()`'s
+existing field set, plus `sources: List[ProvenanceEntry]` — the part
+§4 requires and today's flat `paper_key()`-based dedup in
+`literature_cache.py` does not have (deduplication today silently
+discards the losing duplicate's row entirely; nothing is preserved). A
+concrete, three-tier `deduplicate()` function implements §4's priority
+order: Tier 1 exact normalized-DOI match; Tier 2 (no DOI on either
+side) exact normalized-title match AND at least one overlapping author
+surname — two weak signals combined, deliberately never trusting either
+alone; Tier 3 the documented fallback §4 explicitly leaves open —
+anything clearing neither tier stays its own distinct `CanonicalPaper`,
+a deliberate bias toward a missed merge (safe) over a wrong one (would
+silently inflate an evidence count or corrupt a concentration range,
+§5's own explicit warning). 23 new tests, `runtime/pipeline/
+test_canonical_paper.py`, all passing — dedup correctness (both tiers,
+positive and negative cases), provenance never discarded, representative-
+record selection, result determinism, and the source-availability/
+adapter-boundary items below. **Not imported by, and does not change
+the behavior of, `discover.py`/`pipeline.py`/`literature_cache.py`** —
+Session 1 wires real adapters and the orchestrator through this
+contract; this module only defines and proves the contract itself.
+
+**Findpapers-adapter boundary — designed.** A `runtime_checkable`
+`LiteratureAdapter` `Protocol` (`canonical_paper.py`) names the existing
+`_row()`-shaped `List[Dict]` return shape `discover.py`'s five current
+fetchers already produce as the one contract every future adapter — the
+single Findpapers-wrapping one and every native one — must satisfy
+before touching `deduplicate()` or any other FormuLab business logic
+(§3's "Adapter boundary rule"). This reuses the existing shape rather
+than inventing a new one to migrate onto.
+
+**Source availability — confirmed, not assumed** (§Risks items 1-2).
+Checked directly: no IEEE Xplore, Scopus, or Web of Science API key,
+base URL, or institutional-proxy configuration exists anywhere in this
+codebase (`llm.py`'s provider table is the only external-API credential
+registry this pipeline has, and none of the three appear in it); no
+Google Scholar integration — scraping-based or otherwise — exists
+either. Decision, recorded as a real, code-level artifact Session 1 can
+consult (`canonical_paper.SOURCE_AVAILABILITY`), not just prose: all
+four stay `"unavailable"` until real credentials or a legitimate
+integration path actually exist; Session 1 must not build adapters for
+them on assumption. The orchestrator must work correctly with all four
+absent — already required by §3 for Google Scholar specifically, now
+explicit for the institutional three as well.
+
+**Verification**: `python -m pytest runtime/pipeline -q` — 94/94
+passing (71 baseline + 23 new), zero regressions in the untouched,
+already-live pipeline. `git diff --check`: clean.
+
+**Residual for Session 1**: keep-vs-replace decision for
+`fetch_crossref`/`fetch_openaire` vs. Findpapers' own coverage of the
+same sources; the actual Findpapers install + adapter wiring; the
+native CORE/DOAJ/BASE/Unpaywall adapters (§3); wiring `canonical_paper.
+deduplicate()` into the real orchestrator so `literature_cache.gather()`
+starts producing `CanonicalPaper`s with real provenance instead of its
+current flat, provenance-discarding dedup.
+
 ## 11. Explicit non-goals for THIS reservation
 
 Per the explicit instruction this phase is documentation-only right
@@ -442,12 +603,18 @@ session plan (Session 0 audits/designs before anything is built) —
 subject to revision once Phase 13 closes and a real Phase 14 Session 0
 begins:
 
-1. **Session 0** — audit the existing discovery pipeline in detail
+1. ~~**Session 0** — audit the existing discovery pipeline in detail
    (`discover.py`/`pipeline.py`/`literature_cache.py`), design the
    `CanonicalPaper` schema and deduplication algorithm concretely,
    design the Findpapers-adapter boundary, confirm which of IEEE
    Xplore/Scopus/Web of Science/Google Scholar are realistically
-   available to this installation before committing to them.
+   available to this installation before committing to them.~~ **DONE**
+   — see §11a for the full write-up: one material audit finding (the
+   live pipeline already defaults to four sources, not three, and two
+   of them — Crossref, OpenAIRE — aren't in this document's own §3
+   list), `canonical_paper.py`'s schema/dedup/adapter-boundary/source-
+   availability artifacts (dormant, not yet wired), 23 new passing
+   tests.
 2. **Session 1** — Literature Search Orchestrator + Findpapers adapter
    + the native CORE/DOAJ/Europe PMC/BASE/Unpaywall adapters,
    producing deduplicated `CanonicalPaper`s with full provenance. No

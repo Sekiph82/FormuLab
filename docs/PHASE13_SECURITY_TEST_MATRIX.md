@@ -6,6 +6,15 @@ codebase's existing `tmp_dir()` convention in `src-tauri`'s test
 modules), never real user data. Implemented across Sessions 1-6 per
 the architecture doc's session plan, not all in Session 0.
 
+**Phase 13 is closed as implementation-complete** (architecture doc
+§28) — every test below reflects real, passing coverage as of Session
+6's close. The one item this matrix cannot cover — interactive native
+Windows GUI multi-user acceptance testing — was never claimed passing
+here and is tracked separately, by explicit human decision, as a
+release-preparation manual acceptance item in
+`docs/RELEASE_MANUAL_ACCEPTANCE_CHECKLIST.md` §1, not a Phase 13 test
+gap.
+
 **Session 1 note**: the role model is now the final **12 fixed roles**
 (§1 of the architecture doc), superseding the 6-role draft this matrix
 originally referenced — every section below has been corrected. Section

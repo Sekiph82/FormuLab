@@ -1,6 +1,14 @@
 # Phase 13 — Enterprise Identity, Authentication, Fixed RBAC & Application Security
 
-**Status: Session 2 (Administrator bootstrap, username/password login/logout, authenticated session lifecycle) complete. No Administration → Users UI, no `rolePolicy.ts`, no application-wide role enforcement yet — those are later Phase 13 sessions. This document is the design they build against.**
+**Status: PHASE 13 CLOSED, implementation-complete (§28).** The line
+below is a stale Session-2-era snapshot, kept as historical record rather
+than rewritten — every session's own section (§5 onward) is the accurate,
+dated account of what changed when. One item was carried out of Phase 13
+into `docs/RELEASE_MANUAL_ACCEPTANCE_CHECKLIST.md` §1 as a release-
+preparation manual acceptance item, by explicit human decision, not a
+Phase 13 blocker (§28).
+
+~~Status: Session 2 (Administrator bootstrap, username/password login/logout, authenticated session lifecycle) complete. No Administration → Users UI, no `rolePolicy.ts`, no application-wide role enforcement yet — those are later Phase 13 sessions. This document is the design they build against.~~
 
 **Session 2 summary**: wired `identity.rs`'s Session 1 storage primitives to real Tauri commands (`bootstrap_status`, `bootstrap_create_administrator`, `login`, `logout`, `current_session`) via a new orchestration module, `auth.rs`, that owns the actual lockout/session/timing policy Session 1 deliberately left as caller-supplied parameters. Session tokens are now hashed before storage (§15.5), idle-timeout is implemented (§17.1), and a full Administrator Setup / Login screen pair gates the whole application at startup (§17.2-§17.4). See the Session 2 sections below (§5, §15.5, §16.1, §17.1-§17.5) for what changed; every Session 0/1 design decision not called out as changed is unchanged.
 
@@ -2010,6 +2018,50 @@ reviewer judges the disclosed native-acceptance gap acceptable to carry
 forward rather than close, Phase 13 may be considered ready for
 whatever the next phase of work is; this session does not make that
 call unilaterally.
+
+---
+
+## 28. Phase 13 closure
+
+**Human decision** (recorded verbatim in scope, not paraphrased away):
+accept the remaining native Windows GUI multi-user acceptance test as a
+**release-preparation manual acceptance item** rather than a Phase 13
+development blocker. On this basis:
+
+**Phase 13 is CLOSED as implementation-complete.** Every automatable
+scope item across Sessions 0-6 and the closure session is done and
+regression-tested (335 Rust tests, full application binary build,
+`@formulab/shared` 1302 tests, `apps/desktop` 1197 tests, i18n parity
+across all 8 shipped locales, as of Session 6's close). No Session 7 was
+opened to re-run automated testing already completed — there was nothing
+left in Phase 13's automatable scope to re-test.
+
+**The native-GUI acceptance test is not claimed executed.** It was not
+run by this closure step, by Session 6, or by any prior session — no
+tool available to any of them can drive or observe a native Windows
+application window. It is recorded, with concrete checkable steps, in
+`docs/RELEASE_MANUAL_ACCEPTANCE_CHECKLIST.md` §1 — a human executes it
+on a real Windows machine with disposable test data before a build
+ships, independent of and not blocking Phase 13's own closure.
+
+**The gate-listing admin UI** (§9.4.6 item 5 — one central Administration
+screen listing every workflow gate across every subject, instead of each
+gate's own domain-local panel) **remains a future UX enhancement, not a
+Phase 13 blocker.** The four gates already have real, working, domain-
+local UI (§26.1) — this item is a convenience improvement for an
+administrator auditing many gates at once, never a missing security
+control; nothing about authorization or the gates' own correctness
+depends on it.
+
+**Nothing else changed.** No code in this closure step — it is a
+documentation-only closure recording an already-made human decision, not
+new development. Every Session 0-6 finding, correction, and test stands
+exactly as recorded in §9-§27 above.
+
+**Next Phase 13 session**: none planned. Phase 13 is closed. If a future
+need reopens it (e.g. the domain-expert review of §6's matrix is
+revisited, or a real regression is found), it resumes as a numbered
+session continuing from Session 6, not a fresh Session 0.
 
 ---
 

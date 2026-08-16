@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-6) — BACKEND SECURITY REGRESSION COMPLETE; NATIVE GUI ACCEPTANCE STILL MANUAL
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-6) — CLOSED, IMPLEMENTATION-COMPLETE
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -2188,12 +2188,22 @@ window; honestly recorded as a still-open manual acceptance item, not
 claimed complete. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §27; test report:
 `docs/PHASE13_SECURITY_TEST_MATRIX.md` §N; handoff:
-`docs/handoffs/PHASE13_CURRENT.md`. **Next: Phase 13 Session 7** (or,
-if a human reviewer accepts the disclosed native-acceptance gap as
-carry-forward rather than blocking, Phase 13 may be considered ready
-for whatever comes next — not this session's call to make).
+`docs/handoffs/PHASE13_CURRENT.md`.
 
-### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14) — RESERVED, NOT STARTED
+**Phase 13 is now CLOSED, implementation-complete.** The human reviewer
+made the call Session 6 left open: the native Windows GUI multi-user
+acceptance item is accepted as a release-preparation manual acceptance
+item, not a Phase 13 blocker — moved to the new
+`docs/RELEASE_MANUAL_ACCEPTANCE_CHECKLIST.md` §1, with concrete
+checkable steps, not claimed executed. The gate-listing admin UI
+(§9.4.6 item 5) is recorded as a future UX enhancement, not a blocker —
+the four gates' own domain-local UI already provides real, working
+coverage. No Session 7 was opened: there was nothing left in Phase 13's
+automatable scope to re-test. Full design:
+`docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28; handoff:
+`docs/handoffs/PHASE13_CURRENT.md`. **No Phase 13 session planned.**
+
+### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 0) — PIPELINE AUDIT, CANONICALPAPER SCHEMA, ADAPTER BOUNDARY DESIGNED
 
 Phase number and full approved product-decision scope registered
 while Phase 13 was active (Session 4A), documentation only — no code
@@ -2218,8 +2228,40 @@ bypasses FormuLab's existing laboratory/stability/approval/production
 workflow (Phase 1-13, including Phase 13's role/workflow-gate
 enforcement) — a Phase-14-generated formula enters the same lifecycle
 a manually-authored one does. Full design + a proposed 7-session
-breakdown (also not started): `docs/PHASE14_LITERATURE_INTELLIGENCE_
+breakdown: `docs/PHASE14_LITERATURE_INTELLIGENCE_
 ARCHITECTURE.md`; handoff: `docs/handoffs/PHASE14_CURRENT.md`.
+
+**Session 0** (started only after Phase 13 closed, above) audited the
+existing pipeline in detail and found a real discrepancy the
+architecture doc's own premise had wrong: the live `literature_cache.
+gather()` path — what `generate_formulation` actually calls — already
+defaults to **four** sources (OpenAlex, OpenAIRE, Europe PMC, Crossref),
+not the three the architecture doc named, with arXiv deliberately
+excluded by design; two working native fetchers (`fetch_crossref`,
+`fetch_openaire`) already exist, one of them (OpenAIRE) unlisted in the
+architecture doc's own source table entirely. New module,
+`runtime/pipeline/canonical_paper.py` — a `CanonicalPaper` dataclass
+with full per-source provenance (today's dedup silently discards a
+duplicate's row entirely; this preserves it), a concrete three-tier
+deduplication algorithm (DOI exact match, then title+author-overlap,
+then a documented conservative fallback), and a `LiteratureAdapter`
+`Protocol` naming the existing adapter-boundary contract — dormant, not
+imported by or changing the behavior of any live pipeline file; Session
+1's job to wire it in. IEEE Xplore/Scopus/Web of Science/Google Scholar
+access confirmed unavailable to this installation by direct inspection
+(no credentials/integration of any kind exist), recorded as a real
+code-level decision (`canonical_paper.SOURCE_AVAILABILITY`) Session 1
+must respect. Two approved UI visual references (a formulation-request
+screen and a formulation-result screen) were registered as documentation
+in `docs/assets/phase14/` and cited in the architecture doc §7/§8 —
+not implemented this session, no frontend file touched. Python:
+`python -m pytest runtime/pipeline -q` — 94/94 passing (71 baseline +
+23 new), zero regressions in the unchanged, already-live pipeline. Full
+design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §11a;
+handoff: `docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase 14 Session
+1** (Literature Search Orchestrator + Findpapers adapter + native
+CORE/DOAJ/Europe PMC/BASE/Unpaywall adapters — not started
+automatically by this session).
 
 ## Not yet started
 
