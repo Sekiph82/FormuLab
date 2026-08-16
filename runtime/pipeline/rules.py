@@ -50,17 +50,35 @@ def _contains(hay: str, needles: List[str]) -> bool:
     return any(n in hay for n in needles)
 
 
+def _split_terms(raw: str) -> List[str]:
+    """A free-text comma/semicolon/slash-separated field ("sulfates, parabens")
+    into individual trimmed terms. Used for the New Formulation Request
+    screen's Excluded/Preferred Ingredients fields (docs/
+    PHASE14_FRONTEND_UI_SPECIFICATION.md §C) — each term is matched the same
+    way a named ingredient in `SULFATES`/`HARSH_PRESERVATIVES` already is."""
+    return [t.strip() for t in re.split(r"[,;/]", raw or "") if t.strip()]
+
+
 def derive_constraints(brief: Dict[str, Any]) -> Dict[str, Any]:
     """Turn a brief into a fixed constraint set applied to every run.
 
     brief keys (all optional except target): target, category, audience, market,
-    performance, materials.
+    performance, materials. Phase 14's New Formulation Request screen also
+    supplies excludedIngredients/preferredIngredients/claims/targetProductType/
+    targetPhMin/targetPhMax (docs/PHASE14_FRONTEND_UI_SPECIFICATION.md §C) —
+    wired into this same deterministic engine below, not just forwarded as
+    opaque LLM context. targetViscosity/targetActiveMatter/targetCostLevel/
+    packagingType/estimatedBatchSize/availableEquipment/availableRawMaterials
+    have no deterministic-rule equivalent yet and stay opaque-context-only
+    (see formulationV2.ts's own FormulationBrief doc comment).
     """
     target = str(brief.get("target", ""))
     audience = str(brief.get("audience", "")).lower()
     performance = str(brief.get("performance", ""))
     category = str(brief.get("category", "")).lower()
-    hay = f"{target} {performance} {category}".lower()
+    claims = str(brief.get("claims", ""))
+    product_type = str(brief.get("targetProductType", ""))
+    hay = f"{target} {performance} {category} {claims} {product_type}".lower()
 
     profile = resolve(brief.get("market"))
 
@@ -71,6 +89,17 @@ def derive_constraints(brief: Dict[str, Any]) -> Dict[str, Any]:
     require_functions: List[str] = []
     prefer: List[str] = []
     reasons: List[str] = []
+
+    user_excluded = _split_terms(str(brief.get("excludedIngredients", "")))
+    if user_excluded:
+        avoid += user_excluded
+        reasons.append(
+            "User-specified excluded ingredients honored (New Formulation "
+            "Request screen): " + ", ".join(user_excluded) + "."
+        )
+    user_preferred = _split_terms(str(brief.get("preferredIngredients", "")))
+    if user_preferred:
+        prefer += user_preferred
 
     if sensitive:
         avoid += SULFATES + HARSH_PRESERVATIVES
@@ -102,7 +131,13 @@ def derive_constraints(brief: Dict[str, Any]) -> Dict[str, Any]:
             "load: use a robust, broad-spectrum preservative system and confirm with a challenge test."
         )
 
-    target_ph = _target_ph(category, hay)
+    ph_min = str(brief.get("targetPhMin", "")).strip()
+    ph_max = str(brief.get("targetPhMax", "")).strip()
+    if ph_min and ph_max:
+        target_ph = f"{ph_min}-{ph_max}"
+        reasons.append(f"User-specified target pH range honored: {target_ph}.")
+    else:
+        target_ph = _target_ph(category, hay)
 
     # De-dup while preserving order.
     def uniq(xs: List[str]) -> List[str]:

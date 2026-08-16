@@ -1,6 +1,32 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: SESSION 0 COMPLETE, PLUS the New Formulation Request/Formulation Result screens (built out of sequence, at the user's explicit direct instruction). Discovery-pipeline audit, `CanonicalPaper` schema + deduplication algorithm, Findpapers-adapter boundary, and the IEEE/Scopus/Web of Science/Google Scholar availability decision: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §11a. The two frontend screens (§12's Session 3/Session 4 slots, built early — see §13): `docs/PHASE14_FRONTEND_UI_SPECIFICATION.md` and architecture doc §13. Phase 13 closed (implementation-complete) immediately before this session started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+## Status: SESSION 1 COMPLETE. Literature Search Orchestrator + Findpapers adapter + native OA adapters (DOAJ/Unpaywall/Semantic Scholar) + real `canonical_paper.py` cross-source dedup, all wired into the live pipeline and verified against real APIs — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §14. A real data-contract bug in the New Formulation Request/Formulation Result screens (built out of sequence in an earlier round) was found and fixed first — §13a of that same doc. Session 0 (pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision): §11a. Both formulation UIs (`/live` and the new request/result flow) remain available — temporary, disclosed dual-flow state, §13a. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+
+## Session round: frontend data-contract repair + dual-flow state (this round, before Session 1)
+
+Traced the real runtime chain (`NewFormulationRequestPage` ->
+`generateFormulation()` -> Tauri -> Python pipeline -> persisted session ->
+`readSession()` -> `generatedFormula.ts` -> `FormulationResultPage`) after a
+report that the result screen showed an unavailable original request, V1/V2/
+V3 cards with no summaries, and 0 ingredients despite the pipeline producing
+real candidates. Two real bugs in `apps/desktop/src-tauri/src/
+formulation_v2.rs`, not the frontend: `read_session`'s `brief` field returned
+brief.json's whole wrapper object instead of the inner `brief` (fixed via a
+shared `read_brief()` helper); `read_cards` only ever scanned rendered
+markdown, since `pipeline.py::run()` had never persisted the structured
+`formula`/`violations` object anywhere (fixed: `run()` now also writes
+`cards.json`; `read_cards` prefers it, falls back to markdown-only for
+sessions written before the fix). Both bugs affected the pre-existing `/live`
+workspace identically (same `readSession()` bridge, same `card.formula`
+reliance) — fixing `formulation_v2.rs` once repaired both flows. Also wired
+the New Formulation Request screen's `excludedIngredients`/
+`preferredIngredients`/`claims`/`targetProductType`/`targetPhMin`/
+`targetPhMax` fields into `rules.py::derive_constraints`'s deterministic
+engine (previously forwarded as opaque LLM context only). **Both flows —
+`/live` and the new request/result screens — are explicitly kept available,
+temporarily**: the old flow is a fallback because it works, the new flow is
+the intended target; removal of the old flow is a future session's decision,
+not this one's. Full write-up: architecture doc §13a.
 
 ## Frontend screens built out of sequence (this same run, at explicit user instruction)
 
@@ -38,6 +64,104 @@ now, it is not a future reference." Built:
 Full write-up: architecture doc §13. See `docs/
 PHASE14_FRONTEND_UI_SPECIFICATION.md` for the complete approved spec
 these screens were built from.
+
+## Session 1 summary — Literature Search Orchestrator, adapters, CanonicalPaper wiring
+
+Per §12's proposed breakdown, not redesigned. `literature_cache.gather()`'s
+inner collection loop previously discarded a same-run duplicate outright the
+instant a second source returned it; it now records every duplicate under
+its shared key and, after collection, runs each group through
+`canonical_paper.deduplicate()` (Session 0's module, wired for real for the
+first time) — one `CanonicalPaper` per study, full provenance preserved,
+flattened back to the exact existing flat-row shape plus two additive
+fields (`unique_source_count`, `provenance_sources`) so no downstream
+consumer needed to change. Verified against the LIVE APIs, not just mocks:
+a real disposable local generation found 120 raw candidates and merged 36
+cross-source duplicates correctly.
+
+Discovery sources, confirmed by direct live testing this session (same
+evidentiary standard as Session 0): **DOAJ** and **Unpaywall** built and
+confirmed working, keyless — DOAJ added to the default `sources` string,
+Unpaywall wired as the OA-location resolver it actually is (never a search
+source), capped at 20 lookups/run. **Semantic Scholar** built and reachable
+but rate-limited on an unauthenticated first call — kept opt-in, not
+default. **CORE** and **BASE** tested live and found genuinely unavailable
+(CORE needs a key this installation lacks; BASE denied the request outright)
+— not built as dead-code adapters, recorded `"unavailable"` with the
+concrete finding, same treatment as IEEE/Scopus/Web of Science. OpenAlex/
+OpenAIRE/Europe PMC/Crossref/arXiv unchanged — OpenAIRE not accidentally
+dropped, Crossref kept native (not replaced by Findpapers) since a proven
+zero-dependency fetcher already exists.
+
+`runtime/pipeline/findpapers_adapter.py` (new): a real
+`LiteratureAdapter`-conforming adapter, lazily importing `findpapers` so its
+absence never breaks anything. **Not embedded into the desktop app** — a
+real, disclosed architectural constraint: `formulation_v2.rs`'s
+`materialize_pipeline()` embeds pure-stdlib `.py` files via `include_str!`,
+and `findpapers` pulls in its own third-party dependency tree that packaging
+model cannot accommodate without a much larger change. Confirmed `findpapers`
+is not installed in this environment. Scoped to Semantic Scholar only (own
+doc comment records why OpenAlex/Crossref/arXiv/IEEE/Scopus/WoS/PubMed are
+each excluded from its scope).
+
+OA/full-text safety unchanged: Unpaywall backfill only supplies a candidate
+URL before the existing, untouched `fetch_pdfs`/`sniff_fulltext` machinery
+does the actual (still landing-page-rejecting, still paywall-respecting)
+download. Provider isolation preserved: every new fetcher sits behind the
+same try/except every existing one does; a bad Unpaywall lookup is caught
+per-candidate.
+
+`apps/desktop/src-tauri/src/formulation_v2.rs` now also embeds
+`canonical_paper.py` (`literature_cache.py` hard-imports it as of this
+session — required, or the embedded desktop app would fail with
+`ImportError` on every real run). Verified by materializing the exact
+embedded file layout in isolation and importing `pipeline`/`literature_cache`
+/`canonical_paper` successfully.
+
+Python: `python -m pytest runtime/pipeline -q` — **122/122 passing** (94
+Session-0 baseline + 28 new across this round: 7 `rules.py` constraint-
+wiring, 9 `test_discover_fetchers.py`, 6 `test_literature_cache.py`
+dedup/backfill, 6 `test_findpapers_adapter.py`), zero regressions. Rust:
+`cargo test --release formulation_v2::` — 4/4 new (this file had no tests
+before). Frontend: unaffected by Session 1 itself, full suite still
+136 files/1205 tests passing. `git diff --check`: clean.
+
+No later Phase 14 session (evidence extraction/ranking §5, manufacturing-
+process intelligence §6, full traceability §10) started. Full write-up:
+architecture doc §14.
+
+## Deliverables (Session 1 + the data-contract repair round before it)
+
+- `apps/desktop/src-tauri/src/formulation_v2.rs` — `read_brief()` shared
+  helper (brief-unwrap fix), `read_cards` prefers structured `cards.json`
+  with markdown fallback, embeds `canonical_paper.py`, new `mod tests`
+  (4 tests, this file had none before).
+- `runtime/pipeline/pipeline.py` — `run()` also writes `cards.json`.
+- `runtime/pipeline/rules.py` — `excludedIngredients`/`preferredIngredients`/
+  `claims`/`targetProductType`/`targetPhMin`/`targetPhMax` wired into
+  `derive_constraints`; 7 new tests.
+- `runtime/pipeline/literature_cache.py` — canonical cross-source dedup
+  wired into `gather()`'s collection loop, `backfill_oa_via_unpaywall()`,
+  default `sources` gains `doaj`; 6 new tests.
+- `runtime/skills/core/formulation-discovery/discover.py` —
+  `fetch_doaj`/`fetch_semantic_scholar`/`resolve_unpaywall_oa`, both
+  fetchers added to `FETCHERS`; 9 new tests
+  (`runtime/pipeline/test_discover_fetchers.py`).
+- `runtime/pipeline/findpapers_adapter.py` (new) — `FindpapersAdapter`;
+  6 new tests (`test_findpapers_adapter.py`).
+- `runtime/pipeline/canonical_paper.py` — `SOURCE_AVAILABILITY` updated
+  with this session's live-tested findings (DOAJ/Unpaywall confirmed
+  working, CORE/BASE confirmed unavailable, Semantic Scholar confirmed
+  rate-limited, Findpapers confirmed not installed).
+- `apps/desktop/src/lib/formulationV2.ts` — `FormulationBrief` doc comment
+  updated to reflect which structured fields are now actually enforced.
+- `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` — new §13a
+  (data-contract repair + dual-flow state) and §14 (Session 1); top
+  status line, §12 item 2.
+- `docs/PHASE14_FRONTEND_UI_SPECIFICATION.md` — status line updated.
+- This handoff.
+- The external Phase 14 log (new entries for both rounds).
+- `docs/architecture/IMPLEMENTATION_STATUS.md` — Phase 14 entry updated.
 
 ## Session 0 summary
 
@@ -167,9 +291,12 @@ touched this session.
 
 ## Exact next Phase 14 session
 
-**Session 1** (per the architecture doc §12's proposed breakdown, not
-redesigned): Literature Search Orchestrator + Findpapers adapter + the
-native CORE/DOAJ/Europe PMC/BASE/Unpaywall adapters, producing real
-deduplicated `CanonicalPaper`s with full provenance by wiring
-`canonical_paper.py`'s contract into the actual pipeline. No UI
-changes. Not started automatically by this session.
+**Session 2** (per the architecture doc §12's proposed breakdown, not
+redesigned): structured evidence extraction + evidence-class (A-E)
+assignment + ranking, wired to the existing formula-synthesis step. Still
+produces one formula per version (current behavior), now with the new
+evidence model underneath it — a deliberate intermediate step before the
+already-built result screen's evidence panel/Evidence tab can show real
+observed ranges, medians, confidence, and evidence classes instead of their
+current honest "not yet available" notices. No UI changes to the request/
+result screens themselves. Not started automatically by this round.

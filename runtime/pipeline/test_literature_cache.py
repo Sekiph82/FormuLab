@@ -279,6 +279,131 @@ class CacheTests(unittest.TestCase):
             with open(os.path.join(lib, "index.json"), encoding="utf-8") as fh:
                 self.assertEqual(len(json.load(fh)), 1)
 
+    # --- Phase 14 Session 1: canonical cross-source dedup with provenance ---
+
+    def test_same_doi_from_two_sources_merges_into_one_paper_with_provenance(self):
+        # The exact bug the architecture doc's §4 flags: today's dedup
+        # silently discards the losing duplicate's row entirely. This proves
+        # the fix: one paper appears in `got`, not two, and its provenance
+        # names BOTH sources that actually found it.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+
+            def openalex_row(i, terms):
+                p = fake_paper(i, terms)
+                p["source_db"] = "openalex"
+                p["doi"] = "10.1/shared-paper"
+                return p
+
+            def crossref_row(i, terms):
+                p = fake_paper(i, terms)
+                p["source_db"] = "crossref"
+                p["doi"] = "10.1/shared-paper"  # same real paper, different source
+                return p
+
+            class FakeDiscover:
+                FETCHERS = {
+                    "openalex": lambda q, n: [openalex_row(1, q)] + [fake_paper(f"oa-{i}", q) for i in range(2, n)],
+                    "crossref": lambda q, n: [crossref_row(1, q)] + [fake_paper(f"cr-{i}", q) for i in range(2, n)],
+                }
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig = lc._load_fetchers
+            lc._load_fetchers = lambda: FakeDiscover
+            try:
+                got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
+                                target=5, sources="openalex,crossref", download_pdfs=False)
+            finally:
+                lc._load_fetchers = orig
+
+            shared = [p for p in got if p["doi"] == "10.1/shared-paper"]
+            self.assertEqual(len(shared), 1, "the same DOI from two sources must be ONE paper, not two")
+            self.assertEqual(shared[0]["unique_source_count"], 2)
+            self.assertEqual(set(shared[0]["provenance_sources"]), {"openalex", "crossref"})
+            # Never double-counted: the shared paper occupies exactly one of
+            # the returned slots, not two.
+            self.assertEqual(len({p["doi"] for p in got}), len(got))
+
+    def test_single_source_paper_still_has_provenance_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+
+            class FakeDiscover:
+                FETCHERS = {"openalex": lambda q, n: [fake_paper(i, q) for i in range(n)]}
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig = lc._load_fetchers
+            lc._load_fetchers = lambda: FakeDiscover
+            try:
+                got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
+                                target=3, sources="openalex", download_pdfs=False)
+            finally:
+                lc._load_fetchers = orig
+
+            self.assertTrue(all(p["unique_source_count"] == 1 for p in got))
+            self.assertTrue(all(p["provenance_sources"] == ["openalex"] for p in got))
+
+    # --- Phase 14 Session 1: Unpaywall OA-location backfill ---
+
+    def test_unpaywall_backfill_fills_a_genuine_gap(self):
+        candidates = [
+            {"doi": "10.1/needs-help", "oa_url": ""},
+            {"doi": "10.1/already-has-a-link", "oa_url": "https://example.org/already.pdf"},
+            {"doi": "", "oa_url": ""},  # no DOI at all — nothing to resolve
+        ]
+
+        def fake_resolve(doi):
+            if doi == "10.1/needs-help":
+                return {"is_oa": True, "oa_url": "https://example.org/resolved.pdf"}
+            return None
+
+        improved = lc.backfill_oa_via_unpaywall(candidates, resolve=fake_resolve)
+        self.assertEqual(improved, 1)
+        self.assertEqual(candidates[0]["oa_url"], "https://example.org/resolved.pdf")
+        self.assertTrue(candidates[0]["is_oa"])
+        # Never touched — it already had a usable link.
+        self.assertEqual(candidates[1]["oa_url"], "https://example.org/already.pdf")
+
+    def test_unpaywall_backfill_respects_the_cap(self):
+        candidates = [{"doi": f"10.1/{i}", "oa_url": ""} for i in range(10)]
+        calls = []
+
+        def fake_resolve(doi):
+            calls.append(doi)
+            return None
+
+        lc.backfill_oa_via_unpaywall(candidates, cap=3, resolve=fake_resolve)
+        self.assertEqual(len(calls), 3)
+
+    def test_unpaywall_backfill_tolerates_a_resolver_failure(self):
+        candidates = [{"doi": "10.1/x", "oa_url": ""}, {"doi": "10.1/y", "oa_url": ""}]
+
+        def flaky_resolve(doi):
+            if doi == "10.1/x":
+                raise RuntimeError("network error")
+            return {"is_oa": True, "oa_url": "https://example.org/y.pdf"}
+
+        # Must not raise — one provider failure cannot crash discovery.
+        improved = lc.backfill_oa_via_unpaywall(candidates, resolve=flaky_resolve)
+        self.assertEqual(improved, 1)
+        self.assertEqual(candidates[1]["oa_url"], "https://example.org/y.pdf")
+
+    def test_default_sources_include_doaj_not_semantic_scholar(self):
+        import inspect
+        default = inspect.signature(lc.gather).parameters["sources"].default
+        self.assertIn("doaj", default)
+        self.assertNotIn("semantic_scholar", default)
+        self.assertNotIn("core", default)
+        self.assertNotIn("base", default)
+
 
 if __name__ == "__main__":
     unittest.main()

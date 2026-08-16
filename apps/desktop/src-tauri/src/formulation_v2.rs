@@ -29,6 +29,11 @@ const F_RULES: &str = include_str!("../../../../runtime/pipeline/rules.py");
 const F_REGION: &str = include_str!("../../../../runtime/pipeline/region_profiles.py");
 const F_CLI: &str = include_str!("../../../../runtime/pipeline/run_cli.py");
 const F_FULLTEXT: &str = include_str!("../../../../runtime/pipeline/fulltext.py");
+// Phase 14 Session 1: literature_cache.py now imports canonical_paper.py
+// directly (real cross-source dedup with provenance, replacing the old
+// discard-based dedup) — it must be materialized alongside it or the
+// embedded pipeline fails with ImportError on every real run.
+const F_CANONICAL: &str = include_str!("../../../../runtime/pipeline/canonical_paper.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -108,6 +113,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("region_profiles.py", F_REGION),
         ("run_cli.py", F_CLI),
         ("fulltext.py", F_FULLTEXT),
+        ("canonical_paper.py", F_CANONICAL),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }
@@ -207,9 +213,26 @@ pub async fn generate_formulation(
     }
 }
 
-/// Read the saved cards of one session directory (sorted v1..vN). Returns the
-/// markdown only — NO model call, ever. Opening a past session is read-only.
+/// Read the saved cards of one session directory (sorted v1..vN) — NO model
+/// call, ever, opening a past session is read-only. Prefers the structured
+/// `cards.json` `pipeline.py::run()` writes (`{version, markdown, formula,
+/// violations}` per card, the real generated ingredients/references/
+/// violations, not just rendered text); falls back to a markdown-only scan
+/// (`version`/`markdown` alone, `formula`/`violations` absent) for sessions
+/// written before `cards.json` existed, so old sessions still open instead
+/// of erroring, honestly short of their structured data rather than faking it.
 fn read_cards(dir: &std::path::Path) -> Vec<serde_json::Value> {
+    if let Ok(raw) = std::fs::read_to_string(dir.join("cards.json")) {
+        if let Ok(serde_json::Value::Array(cards)) = serde_json::from_str(&raw) {
+            if !cards.is_empty() {
+                return cards;
+            }
+        }
+    }
+    read_cards_from_markdown(dir)
+}
+
+fn read_cards_from_markdown(dir: &std::path::Path) -> Vec<serde_json::Value> {
     let mut files: Vec<PathBuf> = match std::fs::read_dir(dir) {
         Ok(rd) => rd
             .filter_map(|e| e.ok().map(|e| e.path()))
@@ -248,6 +271,19 @@ fn read_cards(dir: &std::path::Path) -> Vec<serde_json::Value> {
         .collect()
 }
 
+/// brief.json's own top-level shape is `{brief: {...}, constraints_reasons:
+/// [...]}` (written by `pipeline.py::run()`) — every caller wants the inner
+/// `brief` object (what the frontend's `SessionDetail.brief`/`SessionSummary.
+/// brief` types expect), never the wrapper. Shared by `list_sessions` and
+/// `read_session` so this unwrap only lives in one place.
+fn read_brief(dir: &std::path::Path) -> serde_json::Value {
+    std::fs::read_to_string(dir.join("brief.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.get("brief").cloned())
+        .unwrap_or(serde_json::Value::Null)
+}
+
 /// List saved sessions (successful runs only — failed ones were never kept),
 /// newest first. Each entry carries enough for the sidebar without re-running.
 #[tauri::command(async)]
@@ -265,11 +301,7 @@ pub async fn list_sessions(app: AppHandle, token: String) -> Result<serde_json::
             // Ids start with "YYYY-MM-DD-HHMM", which sorts chronologically as
             // text — so the name itself is the sort key, newest first.
             let created: String = id.chars().take(15).collect();
-            let brief = std::fs::read_to_string(path.join("brief.json"))
-                .ok()
-                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-                .and_then(|v| v.get("brief").cloned())
-                .unwrap_or(serde_json::Value::Null);
+            let brief = read_brief(&path);
             let card_count = read_cards(&path).len();
             if card_count == 0 {
                 continue; // not a real result — skip
@@ -306,14 +338,10 @@ pub async fn read_session(
     if !dir.is_dir() {
         return Err(format!("session not found: {id}"));
     }
-    let brief = std::fs::read_to_string(dir.join("brief.json"))
-        .ok()
-        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-        .unwrap_or(serde_json::Value::Null);
     Ok(serde_json::json!({
         "status": "ok",
         "id": id,
-        "brief": brief,
+        "brief": read_brief(&dir),
         "cards": read_cards(&dir),
         "read_only": true,
     }))
@@ -331,4 +359,103 @@ pub async fn delete_session(app: AppHandle, token: String, id: String) -> Result
         std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The real bug this fix addresses: `read_session`'s Formula tab showed
+    /// 0 ingredients on every reopened session because `read_cards` only
+    /// ever scanned markdown files (`{version, markdown}`), discarding the
+    /// structured `formula`/`violations` `pipeline.py::run()` actually
+    /// produces. `cards.json` (added alongside this test) is what fixes it.
+    #[test]
+    fn read_cards_prefers_structured_cards_json_over_markdown_scan() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let cards = serde_json::json!([
+            {
+                "version": "v1",
+                "markdown": "# Formulation Card: Test",
+                "formula": {
+                    "name": "Test Formula",
+                    "ingredients": [
+                        {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                        {"inci": "Decyl Glucoside", "function": "Surfactant", "weight_pct": "12.0"},
+                    ],
+                },
+                "violations": [],
+            }
+        ]);
+        std::fs::write(tmp.join("cards.json"), serde_json::to_string(&cards).unwrap()).unwrap();
+
+        let result = read_cards(&tmp);
+        assert_eq!(result.len(), 1);
+        let ingredients = result[0]["formula"]["ingredients"].as_array().unwrap();
+        assert_eq!(ingredients.len(), 2, "real ingredients must survive a reopen, not be dropped");
+        assert_eq!(result[0]["violations"].as_array().unwrap().len(), 0);
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// Sessions written before `cards.json` existed must still open — short
+    /// of structured `formula`/`violations` data (honestly absent, per this
+    /// codebase's no-fabrication rule), never an error.
+    #[test]
+    fn read_cards_falls_back_to_markdown_scan_when_cards_json_is_absent() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(
+            tmp.join("Formulation_Card_2026-01-01-0000-test_v1.md"),
+            "# Formulation Card: Legacy",
+        )
+        .unwrap();
+
+        let result = read_cards(&tmp);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["version"], "v1");
+        assert!(result[0].get("formula").is_none(), "legacy sessions have no structured formula — must not fabricate one");
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// The other real bug this fix addresses: `read_session` returned
+    /// brief.json's whole `{brief, constraints_reasons}` wrapper instead of
+    /// the inner `brief` object, so the Original Request banner always
+    /// showed "unavailable" even though the exact request was on disk.
+    #[test]
+    fn read_brief_unwraps_the_inner_brief_object() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let on_disk = serde_json::json!({
+            "brief": {"target": "A sulfate-free anti-dandruff shampoo.", "category": "hairCare"},
+            "constraints_reasons": ["some reason"],
+        });
+        std::fs::write(tmp.join("brief.json"), serde_json::to_string(&on_disk).unwrap()).unwrap();
+
+        let brief = read_brief(&tmp);
+        assert_eq!(brief["target"], "A sulfate-free anti-dandruff shampoo.");
+        assert_eq!(brief["category"], "hairCare");
+        assert!(brief.get("constraints_reasons").is_none(), "must not leak the wrapper's sibling key");
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn read_brief_is_null_when_brief_json_is_missing() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        assert!(read_brief(&tmp).is_null());
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// A tiny process-unique suffix so parallel `cargo test` runs never
+    /// collide on the same temp directory name — this module has no other
+    /// dependency worth pulling in a real UUID crate for.
+    fn uuid_like() -> String {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        format!("{nanos}-{:?}", std::thread::current().id())
+    }
 }

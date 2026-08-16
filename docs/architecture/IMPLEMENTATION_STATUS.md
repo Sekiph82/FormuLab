@@ -2203,7 +2203,7 @@ automatable scope to re-test. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`. **No Phase 13 session planned.**
 
-### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 0) — PIPELINE AUDIT, CANONICALPAPER SCHEMA, ADAPTER BOUNDARY DESIGNED, PLUS REQUEST/RESULT SCREENS BUILT OUT OF SEQUENCE
+### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14, Session 1) — LITERATURE SEARCH ORCHESTRATOR, FINDPAPERS ADAPTER, NATIVE OA ADAPTERS, CANONICALPAPER DEDUP WIRED — PLUS A REAL DATA-CONTRACT BUGFIX FOR THE OUT-OF-SEQUENCE REQUEST/RESULT SCREENS
 
 Phase number and full approved product-decision scope registered
 while Phase 13 was active (Session 4A), documentation only — no code
@@ -2289,12 +2289,57 @@ binary with this code included; the Desktop `FormuLab.lnk` shortcut
 was re-verified (`WScript.Shell`/`Test-Path`) to resolve to that fresh
 executable.
 
+**Data-contract repair round**: the request/result screens above shipped
+with two real Rust bugs, not just honest "not yet available" gaps —
+`formulation_v2.rs::read_session` returned brief.json's whole wrapper
+object instead of the inner `brief` (Original Request always showed
+"unavailable"), and `read_cards` only ever scanned rendered markdown
+since `pipeline.py::run()` never persisted the structured `formula`/
+`violations` object anywhere (0 ingredients on every reopen). Both fixed
+— `read_brief()` shared helper; `run()` now also writes `cards.json`,
+`read_cards` prefers it with a markdown fallback for legacy sessions.
+Both bugs, and both fixes, applied equally to the pre-existing `/live`
+workspace (same `readSession()` bridge) — proving the two flows already
+share one backend/session store. Both flows kept available, by explicit
+instruction — temporary, disclosed dual-flow state, not a target
+architecture. `rules.py::derive_constraints` also gained real enforcement
+of `excludedIngredients`/`preferredIngredients`/`claims`/
+`targetProductType`/`targetPhMin`/`targetPhMax` (previously opaque LLM
+context only).
+
+**Session 1**: `literature_cache.gather()`'s discard-based cross-source
+dedup replaced with real `canonical_paper.deduplicate()` wiring — a
+duplicate found by a second source in one run is now merged into one
+`CanonicalPaper` with full provenance instead of silently dropped;
+verified against the live APIs (120 real candidates, 36 genuine
+cross-source duplicates correctly merged in a disposable test run, not
+just mocks). DOAJ and Unpaywall built and confirmed working live,
+keyless (DOAJ added to the default source list; Unpaywall wired as the
+OA-location resolver it actually is, not a search source). Semantic
+Scholar built and reachable but rate-limited unauthenticated — kept
+opt-in. CORE and BASE tested live and found genuinely unavailable to
+this installation (no key; access denied) — recorded, not built as
+dead-code adapters, same evidentiary standard as Session 0's IEEE/
+Scopus/Web of Science finding. `findpapers_adapter.py` (new): a real,
+protocol-conforming adapter that lazily imports `findpapers`; NOT
+embedded into the desktop app (a real, disclosed constraint —
+`formulation_v2.rs`'s embedded pipeline files are pure-stdlib by design,
+`findpapers` is not). `formulation_v2.rs` now also embeds
+`canonical_paper.py` (a new hard dependency of `literature_cache.py` as
+of this session). OA/full-text safety unchanged (discovery and full-text
+access remain separate stages; no paywall bypass). Python:
+122/122 passing (94 baseline + 28 new). Rust: 4/4 new
+(`formulation_v2.rs` had no tests before). `pnpm tauri build` rebuilt
+the release binary with all of the above; `FormuLab.lnk` re-verified
+against the fresh executable.
+
 Full design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md`
-§11a (Session 0) and §13 (frontend implementation); handoff:
-`docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase 14 Session 1**
-(Literature Search Orchestrator + Findpapers adapter + native
-CORE/DOAJ/Europe PMC/BASE/Unpaywall adapters — not started
-automatically by this session or the frontend round after it).
+§11a (Session 0), §13 (frontend implementation), §13a (data-contract
+repair + dual-flow state), §14 (Session 1); handoff:
+`docs/handoffs/PHASE14_CURRENT.md`. **Next: Phase 14 Session 2**
+(structured evidence extraction + evidence-class A-E assignment +
+ranking, wired to the existing formula-synthesis step — not started
+automatically by this round).
 
 ## Not yet started
 

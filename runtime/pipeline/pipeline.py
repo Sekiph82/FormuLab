@@ -555,6 +555,14 @@ def run(
     with open(os.path.join(out_dir, "brief.json"), "w", encoding="utf-8") as fh:
         json.dump({"brief": brief, "constraints_reasons": constraints["reasons"]}, fh, ensure_ascii=False, indent=2)
 
+    # The markdown files are for a person to read; `cards.json` is the same
+    # data (version/markdown/formula/violations) structured so `read_session`
+    # can return the real formula object and violations list on reopen — not
+    # just the rendered markdown. Session-local only, not archived to the
+    # formula library (archive_formulas keeps its own index.json for that).
+    with open(os.path.join(out_dir, "cards.json"), "w", encoding="utf-8") as fh:
+        json.dump(cards, fh, ensure_ascii=False, indent=2)
+
     slug = _slug(target)
     archived: List[str] = []
     if formulas_dir:

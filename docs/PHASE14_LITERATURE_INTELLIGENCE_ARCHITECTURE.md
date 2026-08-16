@@ -1,6 +1,6 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: SESSION 0 COMPLETE — pipeline audit, CanonicalPaper schema, adapter boundary, source-availability decision (§11a)
+## Status: SESSION 1 COMPLETE — Literature Search Orchestrator, Findpapers adapter, native OA adapters (DOAJ/Unpaywall/Semantic Scholar), CanonicalPaper cross-source dedup wired into the real pipeline (§14). Session 0 (§11a): pipeline audit, CanonicalPaper schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence in the same run as Session 0) had a real data-contract bug between their build and this round — fixed, see §13a. Both the new screens and the pre-existing `/live` workspace remain available; see §13a for the disclosed dual-flow state.
 
 This document registers Phase 14 and records the approved product
 decisions it must implement. Session 0 (§11a) is the first real
@@ -615,10 +615,15 @@ begins:
    list), `canonical_paper.py`'s schema/dedup/adapter-boundary/source-
    availability artifacts (dormant, not yet wired), 23 new passing
    tests.
-2. **Session 1** — Literature Search Orchestrator + Findpapers adapter
+2. ~~**Session 1** — Literature Search Orchestrator + Findpapers adapter
    + the native CORE/DOAJ/Europe PMC/BASE/Unpaywall adapters,
    producing deduplicated `CanonicalPaper`s with full provenance. No
-   UI changes.
+   UI changes.~~ **DONE** — see §14. One disclosed deviation: CORE and
+   BASE were tested live and found genuinely unavailable to this
+   installation (no API key; access denied), not built as dead-code
+   adapters; DOAJ and Unpaywall were built and confirmed working instead,
+   plus Semantic Scholar (via both a native fetcher and the Findpapers
+   adapter) as a real but non-default, rate-limited source.
 3. **Session 2** — structured evidence extraction + evidence-class
    (A-E) assignment + ranking, wired to the existing formula-synthesis
    step. Still produces one formula (current behavior), now with the
@@ -730,6 +735,267 @@ locales carry the same English text for these new keys, the same
 disclosed-gap precedent already established for other sections of this
 codebase (confirmed key-set parity, not translation-value parity, is
 what `parity.test.ts` actually checks).
+
+---
+
+## 13a. Frontend data-contract repair, and the temporary dual-flow state (DONE)
+
+A later round found the §13 screens shipped with a real runtime bug, not a
+data-availability gap the "not yet available" honesty rule was meant to
+cover: the Formulation Result screen could show "Original Request
+(Fixed): unavailable", V1/V2/V3 cards with no summaries, and a Formula
+tab with 0 ingredients — even immediately after a real, successful
+generation, not just on reopening a saved session.
+
+**Root cause, traced end to end (`NewFormulationRequestPage` ->
+`generateFormulation()` -> Tauri `generate_formulation` -> Python pipeline
+-> persisted session -> `readSession()` -> `generatedFormula.ts` ->
+`FormulationResultPage`), two real bugs in `formulation_v2.rs`, not the
+frontend**:
+
+1. `read_session`'s `brief` field returned brief.json's whole top-level
+   wrapper (`{brief: {...}, constraints_reasons: [...]}`) instead of the
+   inner `brief` object `list_sessions` already correctly unwrapped —
+   `session.brief.target` was always `undefined` on reopen. Fixed by a
+   shared `read_brief()` helper both commands now call.
+2. `read_cards` only ever scanned the rendered `.md` files
+   (`{version, markdown}`) — `pipeline.py::run()` had never persisted the
+   structured `formula`/`violations` object anywhere on disk, so there was
+   nothing else to read. Fixed on both sides: `pipeline.py::run()` now
+   also writes `cards.json` (`[{version, markdown, formula, violations}]`,
+   session-local, not archived to the formula library) alongside the
+   markdown files; `read_cards` prefers it, falling back to the old
+   markdown-only scan for sessions written before this fix existed (opens
+   fine, honestly short of structured data, never an error).
+
+Both bugs affected the pre-existing `/live` (`FormulationWorkspaceV2`)
+workspace identically — it calls the same `readSession()` bridge and
+already reads `card.formula` for its own Edit tab and cost panel. Fixing
+`formulation_v2.rs` once repairs both flows simultaneously, which is the
+concrete proof requested that they "share the same underlying generation
+engine and persisted sessions" — they always did; the shared bug is what
+revealed it.
+
+**Constraint wiring** (previously honest-but-unenforced structured
+fields): `rules.py::derive_constraints` now reads `excludedIngredients`
+(reaches the hard avoid-list and therefore `validate()`'s post-generation
+check, not just the LLM prompt), `preferredIngredients` (soft prefer
+list), `claims`/`targetProductType` (folded into the same trigger-phrase
+text `target`/`category`/`performance` already are — a "sulfate-free"
+claim entered only in the Claims field now still fires the sensitive-
+ingredient exclusion), and `targetPhMin`/`targetPhMax` (overrides the
+category-derived pH range when both are set). `targetViscosity`/
+`targetActiveMatter`/`targetCostLevel`/`packagingType`/
+`estimatedBatchSize`/`availableEquipment`/`availableRawMaterials` still
+have no deterministic-rule equivalent and remain LLM-context-only, per
+`rules.py`'s own updated doc comment.
+
+**Dual-flow state, explicitly temporary**: the pre-existing `/live` split-
+pane workspace (`FormulationWorkspaceV2.tsx`) and the new `/formulation-
+request` -> `/formulation-result/:sessionId` flow are BOTH available and
+routed today, by explicit instruction — the old flow is a fallback kept
+around because it works, not a target to build toward; the new flow is
+the intended future UI. Neither is hidden, and no navigation was
+repointed away from `/live` beyond what the earlier §13 round already
+did (sidebar's default entry points at the new flow; `/live` is still
+fully reachable and functional). Both call the exact same
+`generate_formulation`/`read_session` commands — one backend, one session
+store, two front doors. This state is temporary: only after the new flow
+is proven stable in a later session may the old flow be considered for
+removal (not this session, and not automatically).
+
+**Tests**: Python — `test_pipeline.py` asserts `cards.json`/`brief.json`
+round-trip real structured ingredient data; `test_rules.py` gained 7 tests
+for the newly-wired structured fields. Rust — `formulation_v2.rs` gained
+a `#[cfg(test)] mod tests` (this file had none before) proving
+`read_cards` prefers `cards.json`, falls back to markdown for legacy
+sessions, and `read_brief` unwraps correctly / returns null when absent.
+Frontend: the existing `FormulationResultPage.test.tsx` fixture already
+matched the CORRECT (post-fix) shape — it was passing throughout, which
+is exactly why this bug was invisible to the existing test suite and had
+to be traced through the real Rust/Python layers instead of trusted from
+mocks alone. Full suites: Python 122/122, Rust 4/4 new (335 pre-existing
+filtered out by name, all still green), frontend 136 files/1205 tests —
+zero regressions across all three.
+
+---
+
+## 14. Session 1 — Literature Search Orchestrator, Findpapers adapter, native OA adapters, CanonicalPaper wiring (DONE)
+
+Per §12's proposed breakdown, not redesigned: "Literature Search
+Orchestrator + Findpapers adapter + the native CORE/DOAJ/Europe PMC/
+BASE/Unpaywall adapters, producing deduplicated `CanonicalPaper`s with
+full provenance. No UI changes." Delivered with one real, disclosed
+deviation from the literal source list, below.
+
+### Canonical dedup wired into the real pipeline — the actual Session 1 deliverable
+
+`literature_cache.gather()`'s inner collection loop previously discarded
+a duplicate outright the instant a second source returned the same paper
+in one run (`if k in lib_keys or k in new_keys: continue` — the losing
+row simply vanished, no provenance, no record it was ever found twice).
+That loop now records every duplicate row under its shared key
+(`provenance_by_key`) instead of dropping it, and after collection each
+key's row group is passed through `canonical_paper.deduplicate()` — the
+Session 0 module, wired for real for the first time — producing one
+`CanonicalPaper` per real study (almost always; `deduplicate()`'s own
+documented conservative Tier-2 bias can rarely keep two DOI-less,
+non-overlapping-author rows separate, which this wiring respects rather
+than forcing a merge). Each result is flattened back to the exact
+existing `_row()`-shaped flat dict every downstream consumer
+(`papers.csv`'s fixed field list, `pipeline.py::_paper_context`/
+`verify_references`, `fulltext.py`) already expects — plus two additive
+fields, `unique_source_count` and `provenance_sources`, so nothing
+downstream needed to change. `new`'s own length/order/per-source quota
+accounting is untouched by this — the same candidates are selected as
+before, they just now carry their real cross-source corroboration
+instead of losing it. Verified against the LIVE APIs this session (not
+just mocks): a real disposable local generation for "anti-dandruff
+shampoo" found 120 raw candidate rows across openalex/openaire/
+europepmc/crossref and **36 of them were the same paper found by more
+than one source** — each became one `CanonicalPaper` with
+`unique_source_count == 2`+ and both/all contributing source names
+preserved in `provenance_sources`, not silently discarded or double-
+counted.
+
+### Discovery sources — confirmed by direct, live testing, not assumed (same evidentiary standard as Session 0)
+
+- **DOAJ** — built (`discover.fetch_doaj`), confirmed working live and
+  keyless against the real API this session. Added to
+  `literature_cache.gather()`'s default `sources`
+  (`openalex,openaire,europepmc,crossref,doaj` — was
+  `openalex,openaire,europepmc,crossref`). Every DOAJ result is, by
+  construction, from a fully open-access journal.
+- **Unpaywall** — built (`discover.resolve_unpaywall_oa`), confirmed
+  working live and keyless. Wired as what it actually is — an
+  OA-location RESOLVER, not a search index (Session 1 brief's own
+  explicit correction) — `literature_cache.backfill_oa_via_unpaywall()`
+  calls it only for a candidate that already has a DOI but no usable
+  `oa_url`, capped at 20 lookups per `gather()` call, never overwriting a
+  link a source already supplied. Never added to `FETCHERS` (it is not a
+  query-based source).
+- **Semantic Scholar** — built (`discover.fetch_semantic_scholar`),
+  confirmed REACHABLE live, but a live unauthenticated test hit HTTP 429
+  on the first call — kept OFF the default `sources` (no request key is
+  configured; `llm.py`'s provider table remains this pipeline's only
+  credential registry and does not have one), available as an explicit
+  opt-in for a caller that can tolerate/retry a 429.
+- **CORE** — tested live this session: an unauthenticated request to
+  `api.core.ac.uk/v3` fails outright (connection refused). CORE v3
+  requires an API key this installation does not have. Not built as a
+  `FETCHERS` entry (would be dead code that always fails); recorded
+  `"unavailable"` in `canonical_paper.SOURCE_AVAILABILITY` with this
+  session's concrete finding, same as IEEE/Scopus/Web of Science.
+- **BASE** — tested live this session, twice (with and without a
+  descriptive User-Agent): `api.base-search.net` returns `"Access denied
+  for IP address ... and user agent ..."` for an unauthenticated
+  request — this installation is not registered/allow-listed. Not built;
+  recorded `"unavailable"` with this concrete finding.
+- **Europe PMC** — unchanged, already covers PubMed/MED records; a
+  separate native PubMed adapter was NOT built this session either
+  (Session 0's own caution stands: a real incremental-coverage
+  comparison against Europe PMC's existing coverage hasn't been done).
+- **OpenAlex/OpenAIRE/Crossref** — unchanged, kept native (Session 0's
+  own "decide keep-vs-replace" question for Crossref: decided KEEP — a
+  proven, zero-dependency native fetcher already exists; routing it
+  through Findpapers instead would add a dependency for no functional
+  gain). **OpenAIRE is not accidentally dropped** — still present in
+  `gather()`'s default `sources` string, exactly as it was.
+- **arXiv** — unchanged, still deliberately excluded from the default
+  set.
+
+### Findpapers adapter — built, real, honestly not bundled into the desktop app
+
+New module `runtime/pipeline/findpapers_adapter.py`: a
+`FindpapersAdapter` class implementing `canonical_paper.LiteratureAdapter`
+(`search(query, max_results) -> List[Dict]`, `_row()`-shaped, verified
+`isinstance(FindpapersAdapter(), LiteratureAdapter)` is `True`), lazily
+`import findpapers` inside `search()` so its absence never breaks
+anything importing this module. **A real, disclosed architectural
+constraint, found this session, not assumed**: `apps/desktop/src-tauri/
+src/formulation_v2.rs`'s `materialize_pipeline()` embeds this pipeline's
+`.py` files via `include_str!` into an app-private directory — a
+deliberately pure-stdlib design with no `pip install` step for that
+embedded copy. `findpapers` is a real PyPI package with its own
+dependency tree (requests, lxml, xylose, fake-useragent, …), so it cannot
+be added to the embedded set without a fundamentally different packaging
+model — out of this session's scope, not silently assumed to work.
+Confirmed directly: `import findpapers` raises `ModuleNotFoundError` in
+this environment. The adapter therefore activates only for a caller
+running against a full Python environment that happens to have it
+pip-installed (`kernel::python_bin()` resolves to the user's own
+interpreter, not a bundled one — a real, reachable path for a dev/CLI
+run, never the shipped desktop bundle). Scoped to Semantic Scholar only
+(the module's own doc comment records the reasoning: OpenAlex/Crossref/
+arXiv already have preferred native fetchers; IEEE/Scopus/Web of Science
+stay recorded unavailable regardless of what Findpapers itself might
+attempt; PubMed's incremental value over Europe PMC is unconfirmed) —
+and Semantic Scholar itself already has its own native fetcher too, so
+this adapter's concrete value today is proving the boundary works, not
+reaching an otherwise-unreachable source.
+
+### OA/full-text safety — preserved, not weakened
+
+Discovery and full-text access remain separate stages, exactly as
+before: `backfill_oa_via_unpaywall()` only ever supplies a candidate URL;
+the existing `fetch_pdfs`/`_download_fulltext`/`sniff_fulltext` machinery
+(unchanged) still does the actual fetch, and still rejects anything that
+isn't a real PDF or JATS XML article body — a landing page is still
+never saved, paywalled work is still never touched. Unpaywall backfill
+runs strictly BEFORE `fetch_pdfs`, supplying candidate metadata, never
+downloading anything itself.
+
+### Provider failure isolation
+
+Every new fetcher (`fetch_doaj`, `fetch_semantic_scholar`) sits behind
+the same `try/except` the existing per-`(source, angle)` loop already
+wraps every `FETCHERS[src](...)` call in — one source failing (rate
+limit, timeout, malformed response) logs a warning and the loop moves on
+to the next pair, exactly as OpenAlex/Crossref/etc. already do.
+`backfill_oa_via_unpaywall()` catches a per-candidate resolver failure
+individually so one bad DOI lookup cannot abort the batch.
+
+### Pipeline compatibility — unchanged
+
+`pipeline.py`'s formula-generation logic, `rules.py`'s deterministic
+engine (beyond §13a's additive constraint wiring), and `discover.py`'s
+five original fetchers are otherwise untouched. No later Phase 14 session
+(evidence extraction/ranking §5, manufacturing-process intelligence §6,
+full traceability §10) was started.
+
+### Verification
+
+`python -m pytest runtime/pipeline -q`: **122/122 passing** (94 Session-0
+baseline + 7 new `rules.py` constraint-wiring tests + 9 new
+`test_discover_fetchers.py` tests (DOAJ/Semantic Scholar/Unpaywall,
+mocked HTTP) + 6 new `test_literature_cache.py` cross-source-dedup/
+Unpaywall-backfill tests + 6 new `test_findpapers_adapter.py` tests + 2
+new assertions in the existing end-to-end pipeline test), zero
+regressions. Plus the real, live disposable local generation described
+above (network calls to the actual OpenAlex/OpenAIRE/Europe PMC/
+Crossref/Unpaywall APIs, mocked LLM only) — not just mocked-HTTP unit
+tests. `git diff --check`: clean. Rust: `cargo check --release` and
+`cargo test --release formulation_v2::` both clean (§13a's 4 new tests).
+Frontend: full suite unaffected (no frontend file touched this section),
+136 files/1205 tests still passing.
+
+### Closure
+
+Files changed: `runtime/pipeline/literature_cache.py` (canonical dedup
+wiring, Unpaywall backfill, default-sources update), `runtime/skills/
+core/formulation-discovery/discover.py` (DOAJ/Semantic Scholar fetchers,
+Unpaywall resolver, both added to `FETCHERS`), `runtime/pipeline/
+findpapers_adapter.py` (new), `runtime/pipeline/canonical_paper.py`
+(`SOURCE_AVAILABILITY` updated with this session's live findings),
+`apps/desktop/src-tauri/src/formulation_v2.rs` (embeds
+`canonical_paper.py` — required, `literature_cache.py` now hard-imports
+it), 3 new/expanded test files. Desktop app rebuilt (`pnpm tauri build`)
+and `FormuLab.lnk` re-verified against the fresh binary.
+
+**Exact next Phase 14 session, unchanged**: **Session 2** — structured
+evidence extraction + evidence-class (A-E) assignment + ranking, wired to
+the existing formula-synthesis step (§12 item 3). Not started
+automatically by this session.
 
 ---
 

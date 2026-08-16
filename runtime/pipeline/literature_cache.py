@@ -3,9 +3,17 @@
 Every paper we retrieve is kept in ONE shared library (metadata index + OA PDFs),
 separate from any session. On a new query we search that library FIRST; only if
 it can't supply the target number of relevant sources do we hit the open APIs
-(OpenAlex + Europe PMC + arXiv) for the shortfall, then fold the new papers back
-into both the shared library and the session. This makes repeat/related queries
-fast and offline-friendly, and cuts API load.
+(default: OpenAlex, OpenAIRE, Europe PMC, Crossref, DOAJ — arXiv and Semantic
+Scholar are real, working sources kept OFF by default, see `gather()`'s own
+doc comment for why) for the shortfall, then fold the new papers back into both
+the shared library and the session. This makes repeat/related queries fast and
+offline-friendly, and cuts API load.
+
+Cross-source duplicates (the same real paper returned by more than one source
+in one `gather()` call) are merged into one `CanonicalPaper` with full
+per-source provenance preserved (`canonical_paper.py`, wired in Phase 14
+Session 1) — never silently discarded, and never double-counted as two
+independent pieces of evidence for the same study.
 
 Layout (LIBRARY dir, shared):
     index.json        # list of paper dicts (dedup by DOI or normalized title)
@@ -28,6 +36,7 @@ import urllib.request
 from typing import Any, Callable, Dict, List
 
 import fulltext
+from canonical_paper import deduplicate as _canonical_deduplicate
 
 # Reuse the retrieval fetchers + relevance filter from the discovery script.
 _DISCOVERY = os.path.join(
@@ -49,6 +58,48 @@ def norm_title(t: str) -> str:
 
 def paper_key(p: Dict[str, Any]) -> str:
     return (p.get("doi") or "").lower().strip() or norm_title(p.get("title", ""))
+
+
+def _flatten_canonical(rep_row: Dict[str, Any], group: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """One `_row()`-shaped flat dict for a group of raw rows already confirmed
+    to share one `paper_key()` (architecture doc §4/§10, `canonical_paper.py`
+    Session 0's own dedup contract, wired into the real pipeline this
+    session). `group` of length 1 is the common case (no cross-source
+    duplicate this run) and returns `rep_row` itself, unmodified but for the
+    two additive fields below — cheap, and avoids ever needing to call
+    `deduplicate()` for the overwhelming majority of rows.
+
+    Every existing downstream consumer (`papers.csv`'s fixed `fields` list,
+    `pipeline.py::_paper_context`/`verify_references`, `fulltext.py`) reads
+    this by the SAME keys `discover.py::_row()` has always produced — this
+    function only ADDS `unique_source_count`/`provenance_sources`, it never
+    renames or drops an existing key, so nothing downstream needs to change.
+    """
+    if len(group) == 1:
+        out = dict(rep_row)
+        out.setdefault("unique_source_count", 1)
+        out.setdefault("provenance_sources", [rep_row.get("source_db", "")])
+        return out
+    canonical = _canonical_deduplicate(group, source_key="source_db")
+    # Tier 1 (shared DOI) always merges a paper_key-matched group into exactly
+    # one CanonicalPaper. Tier 2 (title+author overlap) can, rarely, decide two
+    # DOI-less rows sharing a normalized title are NOT the same study (no
+    # author overlap) — canonical_paper.py's own documented conservative bias.
+    # That is a real, tier-confirmed judgment, not a bug: this function still
+    # returns exactly one flattened row (so `new`'s cardinality/budget
+    # accounting in `gather()` above is never disturbed by it), using the
+    # first CanonicalPaper — the same `_merge_group` representative-selection
+    # rule (richest abstract) canonical_paper.py already applies internally.
+    cp = canonical[0]
+    base = dict(cp.sources[0].raw) if cp.sources else dict(rep_row)
+    base.update({
+        "title": cp.title, "year": cp.year, "authors": cp.authors,
+        "venue": cp.venue, "doi": cp.doi, "is_oa": cp.is_oa,
+        "oa_url": cp.oa_url, "abstract": cp.abstract,
+    })
+    base["unique_source_count"] = cp.unique_source_count
+    base["provenance_sources"] = cp.source_names
+    return base
 
 
 # ------------------------------------------------------------- shared index ---
@@ -227,6 +278,62 @@ def _download_fulltext(url: str, dest: str, timeout: int = 30) -> tuple[str | No
     return dest, "full text saved"
 
 
+# How many candidates one gather() call may ask Unpaywall about. Unpaywall's
+# own usage policy is generous (their public dataset dump is meant for bulk
+# use; the live API is fine for this), but this is a per-DOI lookup, not a
+# batch endpoint — bounding it keeps one gather() call's worst case sane
+# rather than firing a request per candidate in a large pool.
+UNPAYWALL_BACKFILL_CAP = 20
+
+
+def backfill_oa_via_unpaywall(
+    candidates: List[Dict[str, Any]],
+    cap: int = UNPAYWALL_BACKFILL_CAP,
+    resolve: Callable[[str], Dict[str, Any] | None] | None = None,
+    log: Callable[[str], None] = lambda m: None,
+) -> int:
+    """Discovery and full-text access are separate stages (architecture doc
+    §K/Session 1 brief): a source finding a paper's metadata does not by
+    itself mean a legal OA copy is known. This fills that specific gap —
+    ONLY for a candidate that already has a DOI but no usable `oa_url` — by
+    asking Unpaywall (the OA-location resolver, not a search source) for a
+    better location, exactly as its own real purpose is. Never touches a
+    candidate that already has a usable link: this backfills a genuine gap,
+    it never second-guesses a source that already answered. Mutates
+    `candidates` in place (`is_oa`/`oa_url`) and returns how many were
+    actually improved. A resolver failure for one candidate (network error,
+    unknown DOI) is caught and skipped — it must never abort the batch
+    (Session 1 brief §I: one provider's failure cannot crash discovery).
+    """
+    if resolve is None:
+        discover = _load_fetchers()
+        resolve = getattr(discover, "resolve_unpaywall_oa", None)
+        if resolve is None:
+            return 0  # e.g. a test double standing in for discover.py — never crash
+    improved = 0
+    asked = 0
+    for p in candidates:
+        if asked >= cap:
+            break
+        doi = (p.get("doi") or "").strip()
+        oa_url = (p.get("oa_url") or "").strip()
+        if not doi or oa_url.lower().startswith("http"):
+            continue  # nothing to resolve, or already has a usable link
+        asked += 1
+        try:
+            result = resolve(doi)
+        except Exception as e:
+            log(f"  [warn] unpaywall lookup failed for {doi}: {e}")
+            continue
+        if result and result.get("oa_url"):
+            p["oa_url"] = result["oa_url"]
+            p["is_oa"] = bool(result.get("is_oa"))
+            improved += 1
+    if asked:
+        log(f"unpaywall: resolved {improved}/{asked} OA-location gap(s)")
+    return improved
+
+
 def fetch_pdfs(
     candidates: List[Dict[str, Any]],
     library: str,
@@ -311,11 +418,19 @@ def gather(
     # preprints and holds essentially no consumer-formulation literature, so it
     # contributes noise that merely shares a word: a "limescale remover" query
     # pulls back image-inpainting "object remover" and watermark-removal papers.
-    # The four defaults each cover a different slice: OpenAlex the chemistry,
+    # The five defaults each cover a different slice: OpenAlex the chemistry,
     # OpenAIRE the European open-access repositories (green-OA copies that are
-    # actually downloadable), Europe PMC the biomedical side plus patents, and
-    # Crossref essentially every remaining DOI.
-    sources: str = "openalex,openaire,europepmc,crossref",
+    # actually downloadable), Europe PMC the biomedical side plus patents,
+    # Crossref essentially every remaining DOI, and DOAJ every fully-open-access
+    # journal article (added Phase 14 Session 1 — confirmed keyless and working
+    # against the live API, unlike CORE/BASE, see canonical_paper.
+    # SOURCE_AVAILABILITY for that same session's concrete access findings on
+    # the sources still NOT defaulted on: Semantic Scholar is real but
+    # aggressively rate-limits unauthenticated traffic (opt in via `sources`
+    # if a caller can tolerate/retry a 429); CORE needs an API key this
+    # installation does not have; BASE denied this installation's IP/user
+    # agent outright when tested live this session.
+    sources: str = "openalex,openaire,europepmc,crossref,doaj",
     anchor: str = "",
     download_pdfs: bool = True,
     log: Callable[[str], None] = lambda m: None,
@@ -350,6 +465,13 @@ def gather(
         lib_keys = {paper_key(p) for p in index}
         new: List[Dict[str, Any]] = []
         new_keys: set = set()
+        # Phase 14 Session 1: every raw row sharing a key is kept here (not just
+        # the first one) so a paper found by more than one source in this same
+        # run keeps its full provenance instead of the loser being silently
+        # discarded — canonical_paper.deduplicate() below turns each group into
+        # exactly one CanonicalPaper (almost always) with every contributing
+        # source preserved, never inflating `new`'s own cardinality/budget.
+        provenance_by_key: Dict[str, List[Dict[str, Any]]] = {}
 
         # Spread the budget over the ANGLES, not over the sources: the point is
         # to cover different questions, and the sources are NOT equally
@@ -366,7 +488,8 @@ def gather(
         # carries downloadable links), Europe PMC adds biomed + patents, and
         # Crossref is broadest but deposits an abstract only about a third of
         # the time. arXiv sits last and is off by default.
-        priority = {"openalex": 0, "openaire": 1, "europepmc": 2, "crossref": 3, "arxiv": 9}
+        priority = {"openalex": 0, "openaire": 1, "europepmc": 2, "crossref": 3,
+                    "doaj": 4, "semantic_scholar": 5, "arxiv": 9}
         srcs.sort(key=lambda s: priority.get(s, 99))
         pairs = [(q, src) for src in srcs for q in queries]
         # No single database may supply the whole quota. Each indexes a
@@ -409,7 +532,17 @@ def gather(
                     if per_source.get(src, 0) >= cap:
                         break
                     k = paper_key(row)
-                    if not k or k in lib_keys or k in new_keys:
+                    if not k or k in lib_keys:
+                        continue
+                    if k in new_keys:
+                        # Same study already collected this run, from another
+                        # source or angle — record it as additional provenance
+                        # (canonical_paper.deduplicate() below merges the group
+                        # into one CanonicalPaper) instead of dropping it, which
+                        # is what silently threw away cross-source corroboration
+                        # before this session. Does not consume this source's
+                        # quota — it is not a new candidate.
+                        provenance_by_key.setdefault(k, []).append(row)
                         continue
                     # NOTE: discover.is_relevant is deliberately NOT used here.
                     # It asks "does this contain formulation jargon?", which
@@ -422,11 +555,20 @@ def gather(
                         continue
                     new.append(row)
                     new_keys.add(k)
+                    provenance_by_key[k] = [row]
                     index.append(row)  # grow the shared library
                     taken += 1
                     per_source[src] = per_source.get(src, 0) + 1
         spread = ", ".join(f"{s}:{n}" for s, n in sorted(per_source.items())) or "none"
         log(f"fetched {len(new)} new papers across {len(queries)} angles ({spread})")
+        multi = sum(1 for k, g in provenance_by_key.items() if k in new_keys and len(g) > 1)
+        if multi:
+            log(f"canonical dedup: {multi} paper(s) corroborated by more than one source this run")
+        # One CanonicalPaper per paper_key group, full provenance preserved —
+        # replaces `new`'s rows in place, never changing `new`'s own length/
+        # order/quota accounting above (architecture doc §4: never count the
+        # same paper once per database).
+        new = [_flatten_canonical(row, provenance_by_key.get(paper_key(row), [row])) for row in new]
         # Fresh-preferred, but always deliver up to `target`: if the deduped
         # fresh batch is short (the APIs returned mostly already-cached work),
         # top up from the ranked cache so the session never has FEWER sources
@@ -440,6 +582,9 @@ def gather(
                 if paper_key(p) not in have:
                     candidates.append(p)
                     have.add(paper_key(p))
+
+    if download_pdfs:
+        backfill_oa_via_unpaywall(candidates, log=log)
 
     # The session is the papers we can actually read. Candidates whose full text
     # we cannot obtain are not written anywhere: a reference we never read does

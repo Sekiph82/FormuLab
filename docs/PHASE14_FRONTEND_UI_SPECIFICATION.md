@@ -1,9 +1,16 @@
 # Phase 14 — Frontend UI Specification (New Formulation Request + Formulation Result)
 
-**Status: IMPLEMENTED**, at the user's explicit direction, during the
-same run that registered this specification — ahead of §12's originally
-proposed sequencing (request screen: Session 3; result screen: Session
-4). Real files: `apps/desktop/src/app/routes/NewFormulationRequestPage.tsx`
+**Status: IMPLEMENTED, and its data contract repaired.** Built at the
+user's explicit direction, during the same run that registered this
+specification — ahead of §12's originally proposed sequencing (request
+screen: Session 3; result screen: Session 4). A later round found and
+fixed two real Rust-side bugs (`formulation_v2.rs`'s `read_session` — a
+brief-unwrap bug and a missing structured-formula sidecar) that made the
+result screen show an unavailable original request and 0 ingredients
+even after a real, successful generation — see the architecture doc §13a
+for the full trace and fix. Both this new flow and the pre-existing
+`/live` workspace remain available (temporary, disclosed dual-flow
+state, §13a). Real files: `apps/desktop/src/app/routes/NewFormulationRequestPage.tsx`
 (Screen 1) and `apps/desktop/src/app/routes/FormulationResultPage.tsx`
 (Screen 2), routed at `/formulation-request` and `/formulation-
 result/:sessionId`, reachable from the sidebar's "New Request" entry and

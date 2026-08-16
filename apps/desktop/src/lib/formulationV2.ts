@@ -22,15 +22,23 @@ export interface FormulationBrief {
   // Phase 14 — "New Formulation Request" screen's structured fields
   // (docs/PHASE14_FRONTEND_UI_SPECIFICATION.md). `generate_formulation`'s
   // Rust command forwards the whole `brief` object to Python as opaque
-  // JSON (`GenerateRequest.brief: serde_json::Value`), so these extra keys
-  // reach `pipeline.py::run()` untouched — visible to the LLM as part of
-  // "PRODUCT BRIEF" context, exactly like `target`/`category`/`market`
-  // already are, but NOT read by `rules.py::derive_constraints`'s
-  // deterministic hard-rule engine (that engine's own keyword triggers on
-  // `target`/`category`/`market`/`audience`/`performance` are what's
-  // actually enforced server-side). Honest framing for the UI: these are
-  // the natural-language request's *complementary* structured context,
-  // not a second guaranteed-enforced constraint channel.
+  // JSON (`GenerateRequest.brief: serde_json::Value`); `pipeline.py::run()`
+  // -> `rules.py::derive_constraints` now DOES enforce a subset of these
+  // deterministically (wired in the UI-repair round that followed this
+  // screen's initial build): `excludedIngredients` reaches the hard
+  // avoid-list (and therefore `validate()`'s post-generation check, not
+  // just the LLM prompt); `preferredIngredients` reaches the soft prefer
+  // list; `claims`/`targetProductType` are folded into the same trigger-
+  // phrase text `target`/`category`/`performance` already are, so e.g. a
+  // "sulfate-free" claim entered ONLY in the Claims field (not restated in
+  // the natural-language request) still fires the sensitive-ingredient
+  // exclusion; `targetPhMin`/`targetPhMax`, when both set, override the
+  // category-derived target pH range. `targetViscosity`/`targetActiveMatter`/
+  // `targetCostLevel`/`packagingType`/`estimatedBatchSize`/
+  // `availableEquipment`/`availableRawMaterials` still have no deterministic-
+  // rule equivalent — they reach the LLM as "PRODUCT BRIEF" context only
+  // (soft influence), same as before. See `rules.py::derive_constraints`'s
+  // own doc comment for the authoritative, code-level list.
   targetProductType?: string;
   excludedIngredients?: string;
   preferredIngredients?: string;

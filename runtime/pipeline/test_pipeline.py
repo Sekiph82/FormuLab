@@ -59,6 +59,25 @@ class PipelineTests(unittest.TestCase):
             # No banned ingredient -> no violations.
             self.assertEqual(res["cards"][0]["violations"], [])
 
+            # cards.json is what formulation_v2.rs::read_session reads back on
+            # reopen — it must carry the real structured formula (ingredients,
+            # not just the rendered markdown), or the Formulation Result screen
+            # shows 0 ingredients on every reopened session.
+            with open(os.path.join(out, "cards.json"), encoding="utf-8") as fh:
+                persisted_cards = json.load(fh)
+            self.assertEqual(len(persisted_cards), 2)
+            self.assertEqual(persisted_cards[0]["version"], "v1")
+            self.assertEqual(len(persisted_cards[0]["formula"]["ingredients"]), 3)
+            self.assertEqual(persisted_cards[0]["formula"]["ingredients"][1]["inci"], "Decyl Glucoside")
+            self.assertEqual(persisted_cards[0]["violations"], [])
+
+            # brief.json's inner `brief` object is what formulation_v2.rs::
+            # read_session unwraps and returns as SessionDetail.brief — the
+            # exact original natural-language request must round-trip.
+            with open(os.path.join(out, "brief.json"), encoding="utf-8") as fh:
+                persisted_brief = json.load(fh)
+            self.assertEqual(persisted_brief["brief"]["target"], "anti-dandruff shampoo")
+
     def test_validation_flags_sulfate_in_antidandruff(self):
         with tempfile.TemporaryDirectory() as tmp:
             lib = os.path.join(tmp, "library"); seed_library(lib)

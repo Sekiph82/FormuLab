@@ -313,12 +313,106 @@ def fetch_openaire(query, max_results):
     return out
 
 
+# ------------------------------------------------------------------- DOAJ ----
+
+def fetch_doaj(query, max_results):
+    """Directory of Open Access Journals — every result is, by construction,
+    from a fully open-access journal (unlike OpenAlex/Crossref/Europe PMC,
+    which mix OA and paywalled records and filter afterward). Confirmed
+    working, keyless, directly against the live API (Phase 14 Session 1):
+    `bibjson.identifier` carries the DOI (`type == "doi"`), `bibjson.link`
+    the fulltext URL, `bibjson.author` a list of `{"name": ...}`."""
+    url = (f"https://doaj.org/api/search/articles/{urllib.parse.quote(query)}"
+           f"?pageSize={min(100, max_results)}")
+    data = json.loads(_get(url))
+    out = []
+    for r in data.get("results", []):
+        b = r.get("bibjson") or {}
+        doi = ""
+        for ident in b.get("identifier") or []:
+            if ident.get("type") == "doi":
+                doi = ident.get("id", "")
+                break
+        link = ""
+        for l in b.get("link") or []:
+            if l.get("url"):
+                link = l["url"]
+                if l.get("type") == "fulltext":
+                    break
+        out.append(_row(
+            "doaj", b.get("title"), b.get("year"),
+            "; ".join(a.get("name", "") for a in (b.get("author") or []) if a.get("name")),
+            (b.get("journal") or {}).get("title", ""),
+            doi, True, link, 0, "", b.get("abstract", ""),
+        ))
+        if len(out) >= max_results:
+            break
+    return out
+
+
+# --------------------------------------------------------- Semantic Scholar ---
+
+def fetch_semantic_scholar(query, max_results):
+    """Semantic Scholar's Graph API. Confirmed reachable this session
+    (Phase 14 Session 1) — unauthenticated requests are real but share a
+    low, aggressively-enforced rate limit (a live test during this session
+    hit HTTP 429 within the first call), so this is NOT a default source
+    (literature_cache.gather()'s default `sources` intentionally omits it) —
+    available for a caller that opts in and can tolerate/retry a 429,
+    exactly like a keyed source would be. A request key raises the limit
+    substantially; none is configured for this installation (llm.py's
+    provider table is this pipeline's only credential registry, and this
+    is not in it)."""
+    params = {"query": query, "limit": str(min(100, max_results)),
+              "fields": "title,year,authors,venue,externalIds,abstract,openAccessPdf"}
+    url = f"https://api.semanticscholar.org/graph/v1/paper/search?{urllib.parse.urlencode(params)}"
+    data = json.loads(_get(url))
+    out = []
+    for w in data.get("data", []) or []:
+        ext = w.get("externalIds") or {}
+        oa = w.get("openAccessPdf") or {}
+        out.append(_row(
+            "semantic_scholar", w.get("title"), w.get("year"),
+            "; ".join(a.get("name", "") for a in (w.get("authors") or []) if a.get("name")),
+            w.get("venue", ""), ext.get("DOI"), bool(oa.get("url")), oa.get("url", ""),
+            0, "", w.get("abstract") or "",
+        ))
+    return out[:max_results]
+
+
+# --------------------------------------------------------------- Unpaywall ---
+
+def resolve_unpaywall_oa(doi, email=MAILTO, timeout=15):
+    """Unpaywall is an OA-LOCATION RESOLVER, not a search index (architecture
+    doc §K/Session 1 brief) — given a DOI it already knows about, it answers
+    "is there a legal open-access copy, and where," never a query-based
+    discovery source. Confirmed working, keyless, against the live API this
+    session. Returns `{"is_oa": bool, "oa_url": str}` — `oa_url` is `""`
+    when Unpaywall has no better location than what was already known (the
+    caller is expected to only call this to fill a GAP, never to overwrite a
+    working link with a worse one). Returns `None` on any failure (network,
+    unknown DOI, malformed response) — a resolver failure must never crash
+    the batch it is backfilling (Session 1 brief §I)."""
+    if not doi:
+        return None
+    try:
+        url = f"https://api.unpaywall.org/v2/{urllib.parse.quote(doi)}?email={urllib.parse.quote(email)}"
+        data = json.loads(_get(url, tries=1, accept="application/json"))
+    except Exception:
+        return None
+    best = data.get("best_oa_location") or {}
+    oa_url = best.get("url_for_pdf") or best.get("url") or ""
+    return {"is_oa": bool(data.get("is_oa")), "oa_url": oa_url}
+
+
 FETCHERS = {
     "openalex": fetch_openalex,
     "crossref": fetch_crossref,
     "europepmc": fetch_europepmc,
     "openaire": fetch_openaire,
     "arxiv": fetch_arxiv,
+    "doaj": fetch_doaj,
+    "semantic_scholar": fetch_semantic_scholar,
 }
 
 

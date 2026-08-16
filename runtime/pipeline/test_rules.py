@@ -55,6 +55,47 @@ class RulesTests(unittest.TestCase):
         formula = ["Water (Aqua)", "Decyl Glucoside", "Cocamidopropyl Betaine", "Piroctone Olamine"]
         self.assertEqual(validate(formula, c), [])
 
+    # --- Phase 14 New Formulation Request screen's structured fields ------
+
+    def test_excluded_ingredients_field_reaches_avoid_list(self):
+        c = derive_constraints({"target": "everyday cleansing shampoo", "excludedIngredients": "silicones, parabens"})
+        avoid = [a.lower() for a in c["avoid"]]
+        self.assertIn("silicones", avoid)
+        self.assertIn("parabens", avoid)
+
+    def test_excluded_ingredients_field_is_enforced_by_validate(self):
+        c = derive_constraints({"target": "everyday cleansing shampoo", "excludedIngredients": "dimethicone"})
+        v = validate(["Water (Aqua)", "Dimethicone", "Cocamidopropyl Betaine"], c)
+        self.assertTrue(v)
+        self.assertIn("dimethicone", v[0].lower())
+
+    def test_preferred_ingredients_field_reaches_prefer_list(self):
+        c = derive_constraints({"target": "everyday cleansing shampoo", "preferredIngredients": "aloe vera, panthenol"})
+        prefer = [p.lower() for p in c["prefer"]]
+        self.assertIn("aloe vera", prefer)
+        self.assertIn("panthenol", prefer)
+
+    def test_claims_field_alone_triggers_sensitive_without_natural_language_mention(self):
+        # The claim lives only in the structured Claims field, not in `target`.
+        c = derive_constraints({"target": "a daily shampoo", "claims": "sulfate-free, anti-dandruff"})
+        self.assertTrue(c["sensitive"])
+        self.assertIn("sles", " ".join(c["avoid"]).lower())
+
+    def test_target_product_type_field_alone_triggers_category_detection(self):
+        c = derive_constraints({"target": "a gentle cleansing product", "targetProductType": "Shampoo", "claims": "sensitive"})
+        # is_rinse_off_hair (and therefore the fragrance exclusion) keys off
+        # "shampoo"/"hair" appearing in category+hay — here only via targetProductType.
+        self.assertTrue(c["sensitive"])
+        self.assertIn("parfum", " ".join(c["avoid"]).lower())
+
+    def test_explicit_ph_range_overrides_category_default(self):
+        c = derive_constraints({"target": "shampoo", "targetPhMin": "6.0", "targetPhMax": "6.5"})
+        self.assertEqual(c["target_ph"], "6.0-6.5")
+
+    def test_no_explicit_ph_falls_back_to_category_default(self):
+        c = derive_constraints({"target": "shampoo"})
+        self.assertEqual(c["target_ph"], "4.5-5.5")
+
 
 if __name__ == "__main__":
     unittest.main()
