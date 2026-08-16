@@ -55,7 +55,7 @@ pub(crate) const GENERIC_LOGIN_ERROR: &str = "Invalid username or password.";
 const MAX_LOGIN_PASSWORD_LEN: usize = 512;
 const MIN_NEW_PASSWORD_LEN: usize = 8;
 const MAX_NEW_PASSWORD_LEN: usize = 512;
-const MAX_DISPLAY_NAME_LEN: usize = 200;
+pub(crate) const MAX_DISPLAY_NAME_LEN: usize = 200;
 
 // ------------------------------------------------------------- wire types ---
 
@@ -121,7 +121,7 @@ pub(crate) fn bootstrap_status_logic(conn: &Connection) -> Result<BootstrapStatu
 /// Users' admin-set passwords in Session 5) — never to a login attempt's
 /// input, which must always be checked against the stored hash regardless
 /// of whether it happens to satisfy this policy.
-fn validate_new_password(password: &str) -> Result<(), String> {
+pub(crate) fn validate_new_password(password: &str) -> Result<(), String> {
     let len = password.chars().count();
     if len < MIN_NEW_PASSWORD_LEN {
         return Err(format!("password must be at least {MIN_NEW_PASSWORD_LEN} characters"));

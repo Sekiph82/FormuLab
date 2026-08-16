@@ -1,5 +1,6 @@
 // FormuLab — Tauri 2 entry. Hosts the React frontend and supervises the
 // bundled OpenCode sidecar (isolated config/data + dedicated port; killed on exit).
+mod admin;
 mod artifact_file;
 mod attachments;
 mod auth;
@@ -196,7 +197,14 @@ pub fn run() {
             diagnostics::open_log_folder,
             workflow_gates::submit_workflow_gate,
             workflow_gates::decide_workflow_gate,
-            workflow_gates::read_workflow_gate
+            workflow_gates::read_workflow_gate,
+            admin::list_administered_users,
+            admin::create_administered_user,
+            admin::update_administered_user_profile,
+            admin::change_administered_user_role,
+            admin::set_administered_user_account_status,
+            admin::reset_administered_user_password,
+            admin::read_security_audit_history
         ])
         .build(tauri::generate_context!())
         .expect("error while building FormuLab")

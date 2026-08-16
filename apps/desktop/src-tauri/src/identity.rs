@@ -469,6 +469,32 @@ pub(crate) fn update_account_status(conn: &Connection, user_id: &str, active: bo
     Ok(())
 }
 
+/// Phase 13 Session 5 — updates the metadata fields `Administration →
+/// Users`' edit form exposes: display name, department, employee
+/// reference. Deliberately separate from `update_role`/
+/// `update_account_status`/`update_password_hash` — each of those four is
+/// its own dedicated primitive with its own audit action name, never one
+/// combined "update user" call that would blur which specific change
+/// happened in the security-history view.
+pub(crate) fn update_user_profile(
+    conn: &Connection,
+    user_id: &str,
+    display_name: &str,
+    department: Option<&str>,
+    employee_reference: Option<&str>,
+) -> Result<(), String> {
+    let n = conn
+        .execute(
+            "UPDATE users SET display_name = ?1, department = ?2, employee_reference = ?3, updated_at = ?4 WHERE id = ?5",
+            params![display_name, department, employee_reference, now_iso(), user_id],
+        )
+        .map_err(|e| e.to_string())?;
+    if n == 0 {
+        return Err("no such user".into());
+    }
+    Ok(())
+}
+
 pub(crate) fn update_role(conn: &Connection, user_id: &str, role: Role) -> Result<(), String> {
     let n = conn
         .execute(
@@ -759,6 +785,74 @@ pub(crate) fn record_security_audit_event(
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Phase 13 Session 5 — every account, newest-created first, for
+/// `Administration → Users`' list view. No pagination: a real-world
+/// installation's user count is small (named individuals at one company,
+/// not a public user base), so a single unbounded list matches every
+/// other small-scale admin list already in this codebase (e.g.
+/// `masterdata::list_master_collections`).
+pub(crate) fn list_users(conn: &Connection) -> Result<Vec<User>, String> {
+    let mut stmt = conn
+        .prepare(&format!("SELECT {USER_COLUMNS} FROM users ORDER BY created_at DESC"))
+        .map_err(|e| e.to_string())?;
+    let rows = stmt.query_map([], row_to_user).map_err(|e| e.to_string())?;
+    rows.collect::<rusqlite::Result<Vec<User>>>().map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecurityAuditEvent {
+    pub id: i64,
+    pub at: String,
+    pub actor_user_id: Option<String>,
+    pub target_user_id: Option<String>,
+    pub action: String,
+    pub outcome: String,
+    pub detail: Option<String>,
+}
+
+fn row_to_audit_event(row: &rusqlite::Row) -> rusqlite::Result<SecurityAuditEvent> {
+    Ok(SecurityAuditEvent {
+        id: row.get("id")?,
+        at: row.get("at")?,
+        actor_user_id: row.get("actor_user_id")?,
+        target_user_id: row.get("target_user_id")?,
+        action: row.get("action")?,
+        outcome: row.get("outcome")?,
+        detail: row.get("detail")?,
+    })
+}
+
+/// Phase 13 Session 5 — the security-history view's data source. `detail`
+/// (the only free-text field) is `record_security_audit_event`'s own
+/// caller-controlled string, which — by the same rule that function's doc
+/// comment already states — must never contain a password, hash, API key,
+/// or session-secret value; this function reads it back verbatim, it
+/// doesn't re-sanitize, since sanitizing here would just be a second,
+/// weaker copy of the write-side discipline that's already load-bearing.
+/// `target_user_id`, when `Some`, scopes to one user's history; `None`
+/// returns every event (an administrator's global security-history view).
+pub(crate) fn list_security_audit_events(
+    conn: &Connection,
+    target_user_id: Option<&str>,
+    limit: i64,
+) -> Result<Vec<SecurityAuditEvent>, String> {
+    let mut stmt = match target_user_id {
+        Some(_) => conn
+            .prepare("SELECT id, at, actor_user_id, target_user_id, action, outcome, detail FROM security_audit_events WHERE target_user_id = ?1 ORDER BY id DESC LIMIT ?2")
+            .map_err(|e| e.to_string())?,
+        None => conn
+            .prepare("SELECT id, at, actor_user_id, target_user_id, action, outcome, detail FROM security_audit_events ORDER BY id DESC LIMIT ?1")
+            .map_err(|e| e.to_string())?,
+    };
+    let rows = match target_user_id {
+        Some(target) => stmt.query_map(params![target, limit], row_to_audit_event),
+        None => stmt.query_map(params![limit], row_to_audit_event),
+    }
+    .map_err(|e| e.to_string())?;
+    rows.collect::<rusqlite::Result<Vec<SecurityAuditEvent>>>().map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

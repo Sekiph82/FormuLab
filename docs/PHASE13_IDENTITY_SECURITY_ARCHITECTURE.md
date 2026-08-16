@@ -155,18 +155,18 @@ every `rusqlite` call site, and every Rust file for `password`/`login`/
 | Capability | Status | Evidence |
 |---|---|---|
 | User accounts | **IMPLEMENTED** (Session 2: bootstrap creates the first; ordinary admin-created users are Session 5) | `identity.rs` + `auth.rs` |
-| Administrator-created users | **MISSING** (bootstrap creates only the first Administrator) | Administration → Users is Session 5 |
+| Administrator-created users | **IMPLEMENTED, Session 5** | `admin::create_administered_user`, gated `administrationUsers`/`create` |
 | Username login | **IMPLEMENTED** (Session 2) | `auth::login`, `LoginScreen.tsx` |
 | Password authentication | **IMPLEMENTED** (Session 2) | `auth::login_logic` calls `identity::verify_password` |
 | Logout | **IMPLEMENTED** (Session 2) | `auth::logout`, session revoked backend-side |
 | Password hashing | **IMPLEMENTED** (Session 1) | Argon2id, `identity.rs` |
-| Account enable/disable | **PARTIAL** (Session 1: `update_account_status` implemented + tested, incl. session revocation and login refusal, §24; no admin UI yet) | `identity.rs` |
-| Administrator password reset | **PARTIAL** (Session 1: `update_password_hash` implemented + tested; no admin UI) | `identity.rs` |
+| Account enable/disable | **IMPLEMENTED, Session 5 UI** (Session 1: `update_account_status`, session revocation and login refusal, §24 — now reachable from `Administration → Users`) | `identity.rs` + `admin::set_administered_user_account_status` |
+| Administrator password reset | **IMPLEMENTED, Session 5 UI** (Session 1: `update_password_hash` forces a change on next login — now reachable from `Administration → Users`) | `identity.rs` + `admin::reset_administered_user_password` |
 | Brute-force protection / login throttling | **IMPLEMENTED** (Session 2: final policy — 5 attempts, 15-minute lock, §17.1) | `auth.rs` |
 | Authenticated session | **IMPLEMENTED** (Session 2: hashed bearer tokens, §15.5) | `auth.rs`, `identity.rs` |
 | Session expiration / idle timeout | **IMPLEMENTED** (Session 2: 12h absolute / 60min idle, §17.1) | `identity::validate_session`, `auth.rs` |
 | Role storage (trusted) | **IMPLEMENTED** (Session 2: `current_session`/`login`/`bootstrap_create_administrator` are now the trusted source every session-derived role comes from) | `identity.rs` + `auth.rs` |
-| Role assignment (by admin) | **MISSING** | No admin UI |
+| Role assignment (by admin) | **IMPLEMENTED, Session 5** | `admin::change_administered_user_role`, gated `administrationUsers`/`edit`, `Role::parse` rejects any non-canonical value |
 | Role enforcement (domain-level) | **PARTIAL** | `canTransitionTo` (`status.ts`) is real, tested, working enforcement, now re-derived for the 12-role model (§6) |
 | Role enforcement (backend/Rust) | **PARTIAL** (Session 4: the priority set from Session 3's inventory is enforced; the rest is classified, not enforced, §9.3.10) | `save_approval_record`, formulation writes, generic masterdata CRUD, attachments, and every System Administration command now resolve role from the authenticated session and call `role_policy::can()` (`authz.rs`, §9.3.3). Commands classified `DEFERRED_WITH_REASON` (§9.3.10) — e.g. `resume_interrupted_data_move`, `materials::import_materials` — remain unchecked, a disclosed gap, not a claim of completeness. |
 | UI role selection | **PARTIAL** (Session 3: the 10 current-user *selector* sites are fixed; Session 4 makes the underlying writes authoritative too, for the priority set) | `useTrustedActor()` (§9.2) sources session-backed state at 10 frontend sites; Session 4 (§9.3.4-§9.3.9) makes the Rust commands those actors feed into actually check role server-side for the priority set, closing the "frontend selector fixed, backend still trusts anything" gap `save_approval_record`/masterdata/attachments/formulation writes had. Commands outside that priority set (§9.3.10's DEFERRED_WITH_REASON row) still don't check. |
@@ -1054,15 +1054,49 @@ than merely proposed.
 
 ---
 
-## 13. Administration → Users UI (designed, not yet implemented — Session 5)
+## 13. Administration → Users UI (implemented, Session 5)
 
-Unchanged from Session 0's design: list (username, display name, role,
-department, status, last login), actions (Create, Edit, Change Role,
-Reset Password, Activate/Disable, View Security History), role
-selection as a plain `<select>` of the 12 fixed roles, a read-only
-"Role capabilities" view rendered from the canonical policy (once
-`rolePolicy.ts` exists, Session 3) — no permission-checkbox grid
-anywhere.
+Session 0's design, built as designed: list (username, display name,
+role, status, "must change password" flag), actions (Create, Edit
+profile, Change Role, Reset Password, Activate/Disable, View Security
+History), role selection as a plain `<select>` of the 12 fixed roles, a
+read-only "Role capabilities" view rendered directly from `rolePolicy.ts`'s
+`areasFor`/`capabilitiesFor` — no permission-checkbox grid anywhere, no
+second hand-maintained capability description.
+
+**Extends the existing `AdministrationPage.tsx`** (a new "Users" tab,
+`UsersPanel.tsx`) rather than a second, disconnected administration
+surface — the same page that already links to Materials/Regulatory/
+Approval/Data Exchange/Settings now also hosts Users directly, matching
+how it already hosts Test Definitions directly.
+
+**Backend**: a new `admin.rs` module, seven commands
+(`list_administered_users`, `create_administered_user`,
+`update_administered_user_profile`, `change_administered_user_role`,
+`set_administered_user_account_status`, `reset_administered_user_password`,
+`read_security_audit_history`), every one gated through
+`authz::authorize` against `administrationUsers`/`administrationSecurity`
+— per §6's matrix, administrator-only, proven directly
+(`role_policy::tests::only_administrator_can_manage_users_or_view_
+security_history`). No second authorization mechanism: the exact same
+guard every other Phase 13 privileged command uses. Password policy,
+password reset forcing a change on next login, and account-disable
+revoking every open session are all the existing `identity.rs`
+primitives (Sessions 1-2), reused, not reimplemented for this screen.
+Each of the four "important" mutations (create/role-change/status-
+change/password-reset) writes its own named
+`security_audit_events` row (`admin_user_created`,
+`admin_user_role_changed`, `admin_user_activated`/`admin_user_disabled`,
+`admin_user_password_reset`), never a combined generic "user updated"
+entry — the security-history view can distinguish exactly what
+happened, and `admin.rs`'s tests prove no such row ever contains a
+password or its hash.
+
+**Ordinary administrator-created users may hold the `administrator`
+role too** — bootstrap's "only the very first administrator, ever"
+restriction (§5) is bootstrap-specific, not general; `Administration →
+Users`' create/role-change commands accept all 12 roles via `Role::parse`,
+which rejects anything else.
 
 ---
 
@@ -1562,7 +1596,7 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## 25. Proposed Phase 13 sessions (Sessions 1-4A complete; renumbered plan unchanged in shape from Session 0)
+## 25. Proposed Phase 13 sessions (Sessions 1-5 complete; renumbered plan unchanged in shape from Session 0)
 
 1. ~~User database + migrations + password subsystem~~ **DONE.** ~~Production Manager gate authority for the four §15.3 gaps~~ **DECIDED (§15.4), Session 1 closure — implementation still Session 4/dedicated workflow session.**
 2. ~~Administrator bootstrap + `login`/`logout` Tauri commands +
@@ -1595,9 +1629,13 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
    collection->area mapping now has TypeScript parity too (§9.4.5), not
    Rust-only. No frontend UI for the four gates yet (§9.4.6) — Session 5
    or a dedicated UI session's job.
-5. `Administration → Users` UI: list, create, edit, role change, reset
-   password, activate/disable, security-history view, read-only role-
-   capabilities view.
+5. ~~`Administration → Users` UI: list, create, edit, role change,
+   reset password, activate/disable, security-history view, read-only
+   role-capabilities view.~~ **DONE, this session** (§13): extends the
+   existing `AdministrationPage.tsx`, gated through the exact
+   Session 4/4A `authz::authorize` mechanism (`admin.rs`, 7 commands),
+   no permission-checkbox grid, no second authorization path. Did not
+   add a "last administrator" self-demotion guard (Risks, new item).
 6. Brute-force/lockout wiring, full audit-event coverage from real
    commands, the complete SQL-injection + privilege-escalation
    regression suite against the wired-up commands (not just the
@@ -1607,7 +1645,7 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## Risks and open decisions (updated Session 4A)
+## Risks and open decisions (updated Session 5)
 
 1. **§6's full matrix is Session 1's first draft**, built from current
    navigation/routes and §1.1's role intent, not domain-expert-
@@ -1698,3 +1736,19 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
     never gated `cancel_backup`/`cancel_restore`/`cancel_data_move`
     either), not independently re-justified beyond that precedent this
     session.
+17. **No "last administrator" guard.** Session 5's
+    `change_administered_user_role` will happily demote the only
+    existing administrator to another role — bootstrap (§5) prevents a
+    *second* bootstrap administrator, but nothing prevents the sole
+    administrator from losing that role afterward via ordinary role
+    management, which would leave the installation with no one able to
+    reach `administrationUsers`/`administrationSecurity`/
+    `systemAdministration` at all. Not implemented because Session 5's
+    brief did not ask for it — a real, disclosed gap for a future
+    session to decide whether to close.
+18. **Session 5's account-management audit events are per-action, not
+    yet covered by a dedicated fuzz/property test** (F2, test matrix)
+    scanning every row for password-hash-shaped strings — `admin.rs`'s
+    own tests (`audit_detail_never_contains_a_password_or_hash`) check
+    the specific fields this session's commands write, which is
+    narrower than F2's eventual full-coverage scan (Session 6).

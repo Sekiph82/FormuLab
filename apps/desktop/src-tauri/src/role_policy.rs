@@ -154,6 +154,28 @@ mod tests {
     }
 
     #[test]
+    fn only_administrator_can_manage_users_or_view_security_history() {
+        // Phase 13 Session 5 — the structural proof "non-admin cannot
+        // manage users" rests on: no other role has ANY capability in
+        // either administration area.
+        for role in roles() {
+            let expected_admin_only = role == "administrator";
+            for capability in ["view", "create", "edit", "administer"] {
+                assert_eq!(
+                    can(role, "administrationUsers", capability),
+                    expected_admin_only,
+                    "administrationUsers/{capability} must be administrator-only, got role={role}"
+                );
+            }
+            assert_eq!(
+                can(role, "administrationSecurity", "view"),
+                expected_admin_only,
+                "administrationSecurity/view must be administrator-only, got role={role}"
+            );
+        }
+    }
+
+    #[test]
     fn only_administrator_has_any_capability_on_system_administration() {
         for role in roles() {
             let expected_admin_only = role == "administrator";

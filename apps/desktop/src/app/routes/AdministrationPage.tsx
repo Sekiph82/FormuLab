@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { ArrowLeftRight, Boxes, ClipboardList, ExternalLink, Scale, Settings, ShieldCheck } from "lucide-react";
+import { ArrowLeftRight, Boxes, ClipboardList, ExternalLink, Scale, Settings, ShieldCheck, Users } from "lucide-react";
 import { TestDefinitionsPanel } from "@/components/formula/TestDefinitionsPanel";
+import { UsersPanel } from "@/components/administration/UsersPanel";
 import { cn } from "@/lib/cn";
 
-type Section = "overview" | "testDefinitions";
+type Section = "overview" | "testDefinitions" | "users";
 // Bound before the JSX for the same reason as LaboratoryPage.tsx.
 const SECTION_OVERVIEW: Section = "overview";
 const SECTION_TEST_DEFINITIONS: Section = "testDefinitions";
+const SECTION_USERS: Section = "users";
 
 const LINKS = [
   { key: "materials", icon: Boxes, href: "/materials", titleKey: "administration.links.materials.title", descKey: "administration.links.materials.description" },
@@ -25,9 +27,11 @@ const LINKS = [
  * verification/import-export lives in the Regulatory workspace; approval
  * policies live in the Approval workspace. This page links to each rather
  * than re-implementing them, and hosts the one genuinely global,
- * prop-less editor (test definitions) directly. There is no user-management
- * backend in this codebase yet, so no "Users and roles" section is shown —
- * inventing one is out of scope. See docs/WORKSPACES.md.
+ * prop-less editor (test definitions) directly.
+ *
+ * Phase 13 Session 5 — Users and roles now live here too (`UsersPanel`),
+ * extending this existing page rather than a second, disconnected
+ * administration surface. See docs/WORKSPACES.md.
  */
 export function AdministrationPage() {
   const { t } = useTranslation("session");
@@ -44,6 +48,9 @@ export function AdministrationPage() {
           </SectionTab>
           <SectionTab active={section === "testDefinitions"} onClick={() => setSection(SECTION_TEST_DEFINITIONS)} icon={<ClipboardList size={13} />}>
             {t("builder.tabTests")}
+          </SectionTab>
+          <SectionTab active={section === "users"} onClick={() => setSection(SECTION_USERS)} icon={<Users size={13} />}>
+            {t("administration.users.heading")}
           </SectionTab>
         </nav>
       </header>
@@ -66,10 +73,10 @@ export function AdministrationPage() {
                 </li>
               ))}
             </ul>
-            <p className="mt-4 text-[11px] text-muted">{t("administration.noUserManagement")}</p>
           </div>
         )}
         {section === "testDefinitions" && <TestDefinitionsPanel />}
+        {section === "users" && <UsersPanel />}
       </div>
     </div>
   );

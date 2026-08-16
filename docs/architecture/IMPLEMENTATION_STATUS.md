@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-4A) — DEFERRED-COMMAND BACKLOG CLOSED, ALL FOUR PRODUCTION MANAGER WORKFLOW GATES IMPLEMENTED, MASTERDATA POLICY MAPPING PARITY-TESTED
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-5) — ADMINISTRATION → USERS IMPLEMENTED
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -2072,11 +2072,67 @@ Rust-only hand-typed `match`. Rust: 304/304 (281 + 23 new), clippy
 clean. Shared: 1301/1301 (1296 + 5 new), tsc clean. Desktop: 1188/1188
 (unchanged — wiring only, existing coverage), tsc clean, eslint clean.
 **Still not claimed fully secure** — no frontend UI exists for the
-four gates yet, gate-subject existence is unvalidated, and §6's matrix
-is still Session 1's first draft, now three discrepancy-resolutions
-deep. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`
-§9.4; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §K; handoff:
+four workflow gates yet, gate-subject existence is unvalidated, and
+§6's matrix is still Session 1's first draft, now three discrepancy-
+resolutions deep. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`
+§9.4; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §K.
+
+Session 5 implemented `Administration → Users`: list, create, edit
+profile, change role (one of the 12 fixed roles), activate/disable,
+reset password, security-history view, and a read-only role-
+capabilities view generated directly from `rolePolicy.ts`. Extends the
+existing `AdministrationPage.tsx` (a new "Users" tab) rather than a
+second administration surface. Backend: a new `admin.rs`, 7 commands,
+every one gated through the exact Session 4/4A `authz::authorize`
+mechanism against `administrationUsers`/`administrationSecurity`
+(administrator-only, proven directly at the policy layer for all 12
+roles) — no new authorization path. Reuses existing primitives rather
+than reimplementing them: password policy, password-reset-forces-
+change-on-next-login, and disable-revokes-every-open-session are all
+Sessions 1-2's identity.rs code, unchanged. Each of the four "important"
+mutations writes its own named audit action
+(`admin_user_created`/`admin_user_role_changed`/
+`admin_user_activated`\|`admin_user_disabled`/`admin_user_password_reset`),
+tested directly to never contain a password or its hash. No custom
+roles, per-user permissions, or permission grid — role assignment is
+still exactly one of the 12 fixed roles, validated server-side. Known,
+disclosed gap: no "last administrator" self-demotion guard. Rust:
+314/314 (304 + 10 new), clippy clean. Shared: unchanged, 1301/1301.
+Desktop: 1197/1197 (1188 + 9 new), tsc clean, eslint clean, i18n parity
+clean across all 8 shipped locales (Turkish fully translated; the other
+6 non-English locales carry the new strings in English, matching this
+exact section's pre-existing precedent). Full design:
+`docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §13; test report:
+`docs/PHASE13_SECURITY_TEST_MATRIX.md` §L; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`.
+
+### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14) — RESERVED, NOT STARTED
+
+Phase number and full approved product-decision scope registered
+while Phase 13 was active (Session 4A), documentation only — no code
+written. Evolves the existing OpenAlex/Europe PMC/arXiv formulation-
+discovery pipeline (`runtime/skills/core/formulation-discovery/
+discover.py`, reachable via `formulation_v2.rs`'s `generate_formulation`)
+into a multi-source (Findpapers-backed + native CORE/DOAJ/Europe PMC/
+BASE/Unpaywall adapters, optional last-resort Google Scholar),
+deduplicated (`CanonicalPaper`, one record per real study regardless
+of source count), fully-explainable (every ingredient/concentration
+answers "why this chemical, why this %" from real, class-A-through-E
+graded, never-fabricated evidence) literature engine. Feeds a
+redesigned single-page request screen ("Yeni Formülasyon Talebi"), a
+redesigned result screen (selectable V1/V2/V3+ version cards across 9
+tabs, never side-by-side formulas), version-scoped per-ingredient
+evidence (`formulaVersionId` + `ingredientId` + concentration as one
+unambiguous context key), and — new — a sourced manufacturing-process
+recipe (İşlem Reçetesi/Kritik Parametreler/Ekipman) that shows
+"Laboratory validation required" rather than inventing an unsupported
+value. Literature evidence improves formulation quality; it never
+bypasses FormuLab's existing laboratory/stability/approval/production
+workflow (Phase 1-13, including Phase 13's role/workflow-gate
+enforcement) — a Phase-14-generated formula enters the same lifecycle
+a manually-authored one does. Full design + a proposed 7-session
+breakdown (also not started): `docs/PHASE14_LITERATURE_INTELLIGENCE_
+ARCHITECTURE.md`; handoff: `docs/handoffs/PHASE14_CURRENT.md`.
 
 ## Not yet started
 

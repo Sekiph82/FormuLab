@@ -1,142 +1,116 @@
 # Phase 13 — Enterprise Identity, Authentication, Fixed RBAC & Application Security
 
-## Status: SESSION 4A COMPLETE — the three residual gaps Session 4 explicitly disclosed are closed. Every command from the Session 3 privileged-command inventory now has a final disposition — none remain `DEFERRED_WITH_REASON` without a stated, concrete justification. All four Production Manager workflow gates (raw-material verification, supplier-document verification, production-engineering handoff, production release) are implemented as real, auditable workflow-state records with role- and state-machine-enforced worker/manager separation and downstream blocking — deliberately not forced into `FormulaStatus`. The masterdata collection->PolicyArea mapping now has TypeScript parity, closing Session 4's Rust-only gap. Phase 13 is **still not** claimed fully secure — architecture doc §9.4.6 tracks the live residual list (no frontend UI for the four gates, gate-subject existence unvalidated, `cancel_advanced_formulation_optimize` ungated by precedent, §6's matrix still first-draft). Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §9.4; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §K.
+## Status: SESSION 5 COMPLETE — `Administration → Users` is implemented: list, create, edit profile, change role (exactly one of the 12 fixed roles), activate/disable, reset password, security-history view, and a read-only role-capabilities view generated directly from `rolePolicy.ts`. Extends the existing `AdministrationPage.tsx` rather than a second administration surface. Every mutation is authorized server-side through the exact Session 4/4A `authz::authorize` mechanism — no new authorization path. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §13; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §L.
 
-## Session 4A summary
+## Session 5 summary
 
-**Deferred-command backlog closed** (architecture doc §9.4.1): every
-Session-3-inventoried command now has a final category.
-`resume_interrupted_data_move` is gated identically to its sibling
-data-location commands (`systemAdministration`/`administer`).
-`materials::import_materials` is gated `rawMaterials` create-or-edit
-(a wholesale list replace, same category as `upsert_master_records`).
-Seven compute/read commands across `materials.rs`/`formulation.rs`/
-`formulation_advanced.rs`/`formulation_v2.rs` now require a valid
-session (AUTHENTICATED_READ) — no persistence to a shared collection
-happens in any of them; that already goes through the Session-4-gated
-`formulations::` commands. `provenance::record_provenance`/
-`runs::record_run` are reclassified as genuinely non-privileged — this
-app's separate notebook/agent-runtime workspace-tracking subsystem, not
-FormuLab lab/business records, no `rolePolicy` area applies.
-`cancel_advanced_formulation_optimize` stays ungated, consistent with
-the existing cancel-command precedent (`cancel_backup`/`cancel_restore`/
-`cancel_data_move`, none gated since Session 4).
+**Backend — `admin.rs` (new), 7 commands**, all gated through
+`authz::authorize` against `administrationUsers`/`administrationSecurity`
+(administrator-only per §6's matrix, proven directly at the policy
+layer): `list_administered_users`, `create_administered_user`,
+`update_administered_user_profile`, `change_administered_user_role`,
+`set_administered_user_account_status`, `reset_administered_user_password`,
+`read_security_audit_history`. No caller-supplied role/identity is ever
+trusted — the acting administrator is resolved from the session, same
+as every other Phase 13 privileged command.
 
-**Administrator gains the four gates' decide capability** (§9.4.2): a
-third documented discrepancy-resolution in `rolePolicy.ts`, alongside
-Session 3's first two — §15.4 is explicit that administrator exercises
-all four gates on the same explicit-exception basis as every other
-gate, which §6's literal view-only cells for administrator on those
-four areas contradicted.
+**Reuses, doesn't reinvent, existing primitives**: password policy
+(`auth::validate_new_password`), password-reset-forces-change-on-
+next-login (`identity::update_password_hash`), disable-revokes-every-
+open-session (`identity::update_account_status`, unchanged since
+Session 1). Two new `identity.rs` primitives were needed:
+`list_users` (all accounts) and `list_security_audit_events`
+(global or per-user). `Role::parse` (unchanged) rejects any non-
+canonical role string — no custom roles, no per-user permissions, no
+permission grid anywhere in this session's work.
 
-**The four Production Manager workflow gates are real** (§9.4.3/§9.4.4):
-a new module, `workflow_gates.rs`, and a new mutable-record-per-subject
-storage pattern (`data/workflow_gates/<gateType>/`), not embedded
-fields on `RawMaterial`/`Supplier`/`FormulationVersion` — versions are
-immutable once written, so an in-place-progressing gate cannot live
-inside one. Each gate: `pending -> submitted -> approved|rejected`,
-`rejected -> submitted` again for the worker to fix and resubmit. Two
-commands cover all four (`submit_workflow_gate`, `decide_workflow_gate`)
-plus a read command. Worker/manager separation is structural: a worker
-role never holds the decide capability in `role_policy.rs`'s real
-matrix, proven directly against it, not a mock. Downstream blocking is
-real: `production_engineering_handoff` is blocked until the
-formulation version's status is `production_approved`;
-`production_release` is blocked until `production_engineering_handoff`
-is `approved` for the same version — checked *before* a worker can even
-submit, not just before a manager can approve.
+**Every important mutation is individually audited**: `admin_user_created`,
+`admin_user_role_changed` (recording both `from` and `to`),
+`admin_user_activated`/`admin_user_disabled`, `admin_user_password_reset`
+— never a combined generic "user updated" row, so the security-history
+view can distinguish exactly what happened. Tested directly that no
+audit row ever contains a password or its hash.
 
-**Masterdata collection->PolicyArea mapping now has TypeScript parity**
-(§9.4.5): `masterdataPolicyAreas.ts` is the new canonical source (a
-`Record<MasterdataCollection, PolicyArea>` that makes a missing entry a
-compile error), generated to a JSON fixture Rust's `role_policy.rs`
-reads — the same shared-fixture mechanism the role matrix and
-transition graph already use. `masterdata.ts`'s `Collection` type now
-derives from the shared list instead of declaring a second hand-typed
-union. `masterdata.rs`'s `area_for_collection()` is now a one-line
-delegator, not a hand-typed `match`.
+**Frontend — `UsersPanel.tsx` (new)**, wired into the existing
+`AdministrationPage.tsx` as a new "Users" tab. Hidden (UX only, backend
+already authoritative) for a non-administrator, same
+`useTrustedActor()`/`can()` convention `SettingsPage.tsx`'s System
+Administration cards already use since Session 4. Role-capabilities
+view renders straight from `@formulab/shared`'s `areasFor`/
+`capabilitiesFor` — no second, hand-maintained capability description.
 
-Rust: 304/304 (Session 4's 281 + 23 new), clippy clean. Shared:
-1301/1301 (1296 + 5 new), tsc clean. Desktop: 1188/1188 (unchanged —
-no new frontend behavior, only wiring with existing coverage), tsc
-clean, eslint clean.
+Rust: 314/314 (Session 4A's 304 + 10 new), clippy clean. Shared:
+1301/1301 (unchanged — no shared-package file touched). Desktop:
+1197/1197 (1188 + 9 new), tsc clean, eslint clean, i18n parity clean
+across all 8 shipped locales.
 
 ## Deliverables (this session)
 
-- `apps/desktop/src-tauri/src/workflow_gates.rs` (new) — the four
-  Production Manager gates. 19 tests.
-- `apps/desktop/src-tauri/src/role_policy.rs` — `masterdata_area_for()`
-  reading the new shared fixture, replacing `masterdata.rs`'s hand-typed
-  match. 4 new tests.
-- `packages/shared/src/engine/masterdataPolicyAreas.ts` (new) — the
-  canonical collection->area contract.
-- `packages/shared/src/engine/masterdataPolicyAreas.parity.test.ts`
-  (new, 5 tests) + `masterdataCollectionAreas.generated.json` (new).
-- `packages/shared/scripts/generate-role-policy-matrix.ts` — extended
-  to also emit the masterdata-areas fixture.
-- `packages/shared/src/engine/rolePolicy.ts` — third discrepancy-
-  resolution (administrator on the four gates' areas).
-- `apps/desktop/src-tauri/src/masterdata.rs` — `area_for_collection()`
-  now a one-line delegator.
-- `apps/desktop/src-tauri/src/data_location_manager.rs`,
-  `materials.rs`, `formulation.rs`, `formulation_advanced.rs`,
-  `formulation_v2.rs` — the 9 previously-deferred commands gated.
-- `apps/desktop/src-tauri/src/formulations.rs` — `formulation_dir`
-  widened to `pub(crate)` for `workflow_gates.rs`'s read access.
-- `apps/desktop/src-tauri/src/lib.rs` — registers `mod workflow_gates;`
-  + its 3 commands.
-- `apps/desktop/src/lib/masterdata.ts` — `Collection` type now derives
-  from `@formulab/shared`.
-- `apps/desktop/src/lib/formulationV2.ts`, `tauri.ts` — token wiring
-  for the 9 newly-gated commands.
-- `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` — new §9.4 (6
-  subsections); §15.4 Session 4A status note; §25/Risks updated.
-- `docs/PHASE13_SECURITY_TEST_MATRIX.md` — new §K.
+- `apps/desktop/src-tauri/src/admin.rs` (new) — the 7 commands. 9 tests.
+- `apps/desktop/src-tauri/src/identity.rs` — `list_users`,
+  `list_security_audit_events`, `update_user_profile`,
+  `SecurityAuditEvent` (new).
+- `apps/desktop/src-tauri/src/auth.rs` — `validate_new_password`,
+  `MAX_DISPLAY_NAME_LEN` widened to `pub(crate)` for reuse.
+- `apps/desktop/src-tauri/src/role_policy.rs` — new
+  administrationUsers/administrationSecurity admin-only test.
+- `apps/desktop/src-tauri/src/lib.rs` — registers `mod admin;` + its 7
+  commands.
+- `apps/desktop/src/lib/admin.ts` (new) — thin command bridge.
+- `apps/desktop/src/components/administration/UsersPanel.tsx` (new) +
+  its test file (8 tests).
+- `apps/desktop/src/app/routes/AdministrationPage.tsx` — new Users tab.
+- `apps/desktop/src/app/routes/Workspaces.test.tsx` — stale
+  "no user-management backend" assertion replaced with a real one.
+- `apps/desktop/src/i18n/locales/*/session.json` (all 8 shipped
+  locales) — new `administration.users.*` keys (46 keys); `tr` fully
+  translated, the other 6 non-English locales carry the English text
+  as a disclosed gap, matching this exact section's own pre-existing
+  precedent in those files.
+- `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` — §13 implemented;
+  §2's user-management rows updated; §25/Risks updated.
+- `docs/PHASE13_SECURITY_TEST_MATRIX.md` — E1-E5 corrected; new §L.
 - This handoff.
 - External log:
   `C:\Users\sekip\Desktop\FormuLab-Phase13-Identity-Security-Log.md`,
-  Session 4A entry appended.
+  Session 5 entry appended.
 
-## What Session 4A deliberately did NOT do
+## What Session 5 deliberately did NOT do
 
-- No frontend UI or wrapper for the three workflow-gate commands —
-  backend-then-UI sequencing, same as this phase's established pattern.
-- No gate-subject existence validation (a `materials`/`suppliers` code
-  or `formulationId`/`versionId` that doesn't exist can still get a
-  gate record created against it) — a data-integrity gap, not an
-  authorization one.
-- Did not gate `cancel_advanced_formulation_optimize` — consistent
-  with, not independently re-justified beyond, the existing
-  cancel-command precedent.
-- Did not re-review §6's matrix itself — Session 4A's administrator
-  addition is a third discrepancy-resolution layered on top of it, not
-  the domain-expert review Risks item 1 still calls for.
-- Did not touch `Administration → Users` (still Session 5), brute-force/
-  lockout policy, or full audit-event coverage beyond what `authz.rs`
-  and `workflow_gates.rs` already log.
+- No custom roles, per-user permissions, permission checkboxes,
+  `role_permissions`/`user_permission_overrides` tables.
+- No public signup, email/SMS verification, social login, email-based
+  password recovery, project ACLs.
+- No "last administrator" self-demotion guard — `change_administered_
+  user_role` will demote the sole administrator if asked to. Not in
+  Session 5's brief; a real, disclosed gap (Risks item 17).
+- No project-wide audit-log fuzz/property scan (F2/E5's full-coverage
+  form) — only Session 5's own four mutations are directly tested for
+  secret-free audit rows; Session 6's job for the rest of the codebase.
+- Did not touch the four Session 4A workflow gates' (still) nonexistent
+  frontend UI, or Session 4A's other residual notes (gate-subject
+  existence validation, the still-first-draft §6 matrix) — carried
+  forward unchanged, not blockers to Session 5.
 
-## Open decisions requiring a human answer before Session 5
+## Open decisions requiring a human answer before Session 6
 
-1. §6's full role-permission matrix — now three discrepancy-resolutions
-   deep (production_manager's original two, administrator's new one for
-   the four gates). Needs the domain-expert review every session since
-   Session 1 has flagged.
-2. Are the four gates' storage locations (masterdata codes for two,
-   formulation-version-scoped records for the other two) the right
-   long-term model, or should a future session promote them to
-   first-class collections with their own masterdata entries?
-3. Should gate-subject existence be validated before allowing a submit?
-4. Does `run_automatic_backup` (still unauthenticated) or
-   `cancel_advanced_formulation_optimize` (still ungated) need
-   revisiting once real usage patterns are observed?
+1. Should a "last administrator" guard be added to
+   `change_administered_user_role`/`set_administered_user_account_status`
+   (Risks item 17)?
+2. §6's role-permission matrix domain-expert review — still open,
+   unchanged by this session, now covering `administrationUsers`'s
+   real production use too.
+3. Should the 6 English-fallback locales' `administration.users.*`
+   strings get real translations before Phase 13 closure, or stay a
+   disclosed gap indefinitely (matching this section's pre-existing
+   convention)?
 
 ## Exact next session
 
-**Phase 13 Session 5: `Administration → Users` UI** — list, create,
-edit, role change, reset password, activate/disable, security-history
-view, read-only role-capabilities view (rendered from `rolePolicy.ts`).
-Per the original plan's shape, unchanged by this session. A UI for the
-four workflow gates is real, disclosed follow-up work but not named as
-Session 5 itself — whichever session builds it should reuse
-`submit_workflow_gate`/`decide_workflow_gate`/`read_workflow_gate`
-as-is, no backend changes anticipated.
+**Phase 13 Session 6**: brute-force/lockout wiring confirmation, full
+audit-event coverage from every real command (not just Session 5's
+own), the complete SQL-injection + privilege-escalation regression
+suite against the now-fully-wired-up command surface (not just the
+storage layer, which Session 1 already covers), and — if the domain
+review from Risks item 1 has landed by then — the §6 matrix
+corrections it produces.

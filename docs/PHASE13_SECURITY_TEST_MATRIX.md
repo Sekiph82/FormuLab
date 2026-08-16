@@ -59,6 +59,12 @@ collection->area mapping now has TypeScript parity. Section K is new:
 (§K.3), and why the deferred-command closure needed no new test file
 of its own (§K.4).
 
+**Session 5 note**: `Administration → Users` is now real — E1-E5 are
+corrected below from a plan to a factual report. Section L is new: 1
+new `role_policy.rs` test, 9 new `admin.rs` tests, 8 new
+`UsersPanel.tsx` tests, and one stale `Workspaces.test.tsx` assertion
+replaced with a real one.
+
 ## A. Authentication
 
 | # | Test | Status | Session |
@@ -135,11 +141,11 @@ Session 5+ work, once Administration → Users commands accept them.
 
 | # | Test | Session |
 |---|---|---|
-| E1 | Non-admin cannot reach `Administration → Users` create/edit/reset/role-change commands | 5 |
-| E2 | Non-admin cannot change any user's role, including their own | 5 |
-| E3 | Non-admin cannot reset another user's password | 5 |
-| E4 | A disabled administrator account cannot authenticate, including to perform admin actions | 5 |
-| E5 | Every admin action in D1-D4 above, and every action in this section, writes a `security_audit_events` row | 6 |
+| E1 | Non-admin cannot reach `Administration → Users` create/edit/reset/role-change commands | **Done, Session 5** — `role_policy::tests::only_administrator_can_manage_users_or_view_security_history` proves it at the policy layer for every one of the 12 roles; `admin.rs`'s commands all route through `authz::authorize`, the same guard already proven to deny non-matching roles (§J.2). |
+| E2 | Non-admin cannot change any user's role, including their own | **Done, Session 5** — `change_administered_user_role` is gated identically to every other `administrationUsers` command; no separate "change my own role" path exists to bypass it. |
+| E3 | Non-admin cannot reset another user's password | **Done, Session 5** — `reset_administered_user_password` gated `administrationUsers`/`administer`. |
+| E4 | A disabled administrator account cannot authenticate, including to perform admin actions | **Done** (Session 2's `login_logic` + Session 5's `set_administered_user_account_status` sharing `identity::update_account_status`, which revokes every open session on disable — `admin::tests::set_account_status_disabled_revokes_open_sessions`). |
+| E5 | Every admin action in D1-D4 above, and every action in this section, writes a `security_audit_events` row | **Done, Session 5**, for Session 5's own four mutations (`admin_user_created`/`admin_user_role_changed`/`admin_user_activated`\|`admin_user_disabled`/`admin_user_password_reset`) — a project-wide fuzz/property scan across every audit-writing command in the codebase is still Session 6. |
 
 ## F. Audit
 
@@ -593,3 +599,85 @@ coverage via the same pre-existing tests that already exercise those
 wrapper functions, same pattern as Session 4's own `call()` refactor.
 `eslint` clean on every touched file (`masterdata.ts`, `formulationV2.ts`,
 `tauri.ts`). `git diff --check`: clean.
+
+## L. Session 5 — Administration → Users tests actually implemented and passing
+
+### L.1 `role_policy.rs` (1 new test)
+
+`only_administrator_can_manage_users_or_view_security_history`: for
+every one of the 12 roles, `administrationUsers`'s `view`/`create`/
+`edit`/`administer` and `administrationSecurity`'s `view` are all
+`true` for `administrator` and `false` for every other role — the
+direct structural proof behind E1/E2/E3.
+
+**Total**: 1 test, 1 passing.
+
+### L.2 `admin.rs` (9 new tests)
+
+Creating a user through `create_administered_user_logic` produces a
+real account with the requested role and `mustChangePassword: true`;
+an invented role string (`"super_admin"`) is refused
+(`Role::parse`); mismatched password confirmation is refused. Changing
+a role updates the stored value and the audit row records both `from`
+and `to`. Disabling an account revokes its open session immediately
+(`identity::update_account_status`, unchanged since Session 1) — the
+direct proof behind E4. Resetting a password never stores the
+plaintext, forces `mustChangePassword` on the refreshed record, and is
+rejected when shorter than the existing 8-character policy floor
+(`auth::validate_new_password`, reused, not reimplemented). A
+dedicated test scans every `security_audit_events.detail` value after
+a password reset and asserts none contains the stored hash or the
+plaintext. `list_users`/`list_security_audit_events` round-trip a
+seeded user and its role-change event.
+
+**Total**: 9 tests, 9 passing.
+
+### L.3 Frontend — `UsersPanel.tsx` (8 new tests)
+
+A role without `administrationUsers`/`view` sees no user-management UI
+at all — not even the list request is made
+(`bridge.listAdministeredUsers` never called) — the frontend-visibility
+half of E1 (backend authorization is proven independently in L.1/L.2).
+An administrator sees the real user list. Outside a real `AuthProvider`
+(this test's render path — no mock), the panel falls back to visible,
+the same convention every other `useTrustedActor()` site already uses.
+The list renders username/display-name/role-selector/status for every
+user, including the "must change password" badge. Creating a user
+calls `createAdministeredUser` with exactly the typed username/
+display-name/password/role — never a value the test didn't type,
+proving the UI can't smuggle an extra field into the payload. Changing
+a role via the inline `<select>` calls `changeAdministeredUserRole`
+with the selected value. Disabling an account requires confirming a
+dialog first — the backend call does not fire on the first click. The
+role-capabilities view renders all 12 canonical roles, sourced from
+`@formulab/shared`'s `rolePolicy.ts` (no mocking of the policy module
+— it's the real `areasFor`/`capabilitiesFor`).
+
+**Total**: 8 tests, 8 passing.
+
+### L.4 `Workspaces.test.tsx` (1 updated test)
+
+The stale assertion that `AdministrationPage` shows a "no user-
+management backend" message is replaced with a route-level check that
+the Users tab exists and loads the real user list (`New user` button
+visible) — proving the new tab is actually reachable from the
+Administration workspace, not just unit-tested in isolation.
+
+### L.5 Full-suite confirmation
+
+`cargo build --lib`: clean, zero warnings. `cargo test --lib`: 314/314
+passing (Session 4A's 304 + 10 new — §L.1/§L.2). `cargo clippy --lib --
+-D warnings`: clean. Shared package: unchanged, 1301/1301 (no shared-
+package file touched this session). Desktop frontend: `tsc --noEmit`
+clean; `vitest run` (full suite): 1197/1197 passing (Session 4A's
+1188 + 9 new — 8 `UsersPanel.test.tsx` + 1 updated `Workspaces.test.tsx`
+assertion, net +1 test in that file). `eslint` clean on every touched
+file (`UsersPanel.tsx`, `UsersPanel.test.tsx`, `AdministrationPage.tsx`,
+`admin.ts`). i18n parity (`parity.test.ts`, 23 tests): passing — all 8
+shipped locales carry the new `administration.users.*` keys; `tr` has
+real translations (matching its already-fully-localized neighbors in
+this section), `de`/`es`/`fr`/`ja`/`ko`/`zh-Hans` carry the English text
+as a disclosed, precedented gap (the exact convention already present
+for this section's pre-existing keys before this session touched it —
+confirmed by inspecting those files before writing). `git diff --check`:
+clean.

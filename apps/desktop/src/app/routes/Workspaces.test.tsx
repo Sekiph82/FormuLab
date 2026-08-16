@@ -68,7 +68,17 @@ describe("Administration workspace", () => {
     expect(screen.getByRole("link", { name: /^Regulatory rules/ })).toHaveAttribute("href", "/regulatory");
     expect(screen.getByRole("link", { name: /^Approval policies/ })).toHaveAttribute("href", "/approval");
     expect(screen.getByRole("link", { name: /^Application settings/ })).toHaveAttribute("href", "/settings");
-    expect(screen.getByText(/no user-management backend/i)).toBeInTheDocument();
+  });
+
+  it("Phase 13 Session 5: has a Users tab (Administration → Users)", async () => {
+    const user = userEvent.setup();
+    renderAt("/administration");
+    await screen.findByRole("heading", { name: "Administration" });
+    await user.click(screen.getByRole("button", { name: "Users" }));
+    // Outside a real AuthProvider (this test's render path), useTrustedActor()
+    // returns null and UsersPanel falls back to visible, the same convention
+    // every other useTrustedActor() site uses — so the real user list loads.
+    expect(await screen.findByText("New user")).toBeInTheDocument();
   });
 });
 
