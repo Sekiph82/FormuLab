@@ -37,7 +37,8 @@ export const MIGRATION_REGISTRY: MigrationRegistry = {};
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   if (!isTauri) throw new Error("not-desktop");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<T>(cmd, { token: currentSessionToken(), ...args });
 }
 
 export interface SchemaMeta {

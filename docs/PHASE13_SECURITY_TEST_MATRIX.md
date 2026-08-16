@@ -40,6 +40,17 @@ tests (32 `rolePolicy.test.ts` + 6 role-vocabulary-parity) this session
 actually implemented and passing, plus why the 10-panel trusted-actor
 frontend wiring needed no new test file of its own.
 
+**Session 4 note**: application-wide server-side enforcement (the
+architecture doc's §9.3) is now real for the Session 3 inventory's
+priority set — B1/B2's application layer, C1-C5, and D's command-layer
+follow-up are all corrected below from a plan to a factual report,
+scoped honestly to that priority set (not every command — §9.3.10).
+Section J is new: it records the 29 new Rust tests (10 `role_policy.rs`
++ 8 `authz.rs` + 4 `masterdata.rs` + 7 `formulations.rs`) this session
+actually implemented and passing, plus the 5 new shared-package parity
+tests and why the frontend needed only one small new test file
+(`sessionToken.test.ts`) despite 6 wrapper files changing.
+
 ## A. Authentication
 
 | # | Test | Status | Session |
@@ -68,21 +79,21 @@ test suite and the doc cannot silently drift apart:
 
 | # | Test | Session |
 |---|---|---|
-| B1 | Every `ALLOWED` cell: the corresponding operation succeeds for that role | Policy layer: **done, Session 3** (`rolePolicy.test.ts`, §I). Application layer (a real command actually refuses/allows accordingly): 4 |
-| B2 | Every `DENIED` cell: the corresponding operation fails for that role, with a clear, non-leaky error | Policy layer: **done, Session 3** (`rolePolicy.test.ts`, default-deny asserted directly, §I). Application layer: 4 |
-| B3 | `pilot_approved`/`production_approved` gates specifically re-assert `APPROVAL_AUTHORITY`'s Session 1 12-role mapping (manager-tier + regulatory + administrator only) — already implemented and passing in `status.test.ts`/`versioning.test.ts`, re-run here at the application-enforcement layer once it exists | 1 (shared-engine layer, done) / 4 (application layer) |
+| B1 | Every `ALLOWED` cell: the corresponding operation succeeds for that role | Policy layer: **done, Session 3** (`rolePolicy.test.ts`, §I). Application layer: **done for the priority set, Session 4** (`authz::tests::an_authorized_role_and_capability_returns_the_trusted_actor`, `role_change_takes_effect`, §J) — every command outside the priority set (§9.3.10) is not yet covered here. |
+| B2 | Every `DENIED` cell: the corresponding operation fails for that role, with a clear, non-leaky error | Policy layer: **done, Session 3** (`rolePolicy.test.ts`, default-deny asserted directly, §I). Application layer: **done for the priority set, Session 4** (`authz::tests::a_role_lacking_the_capability_is_denied_and_audited_with_the_real_identity`, `formulations::tests::an_invalid_transition_is_denied_even_though_the_role_check_already_passed`, §J). |
+| B3 | `pilot_approved`/`production_approved` gates specifically re-assert `APPROVAL_AUTHORITY`'s Session 1 12-role mapping (manager-tier + regulatory + administrator only) — already implemented and passing in `status.test.ts`/`versioning.test.ts`, re-run here at the application-enforcement layer once it exists | 1 (shared-engine layer, done). Application layer: **done, Session 4** — `role_policy::tests::approval_pilot_approve_matches_the_known_manager_tier_plus_administrator`/`approval_production_approve_matches_the_known_authority_set` assert the exact role sets at the layer `save_approval_record` actually calls (§J). |
 | B4 | Role-model regression: an employee-tier role (`researcher`, `quality`) never inherits its manager's approval authority, even with a valid approval record — implemented and passing (`status.test.ts`, `versioning.test.ts`) | 1 (done) |
 
 ## C. Privilege escalation
 
 | # | Test | Session |
 |---|---|---|
-| C1 | A logged-in user cannot change their own `role` via any exposed command | 4 |
-| C2 | A forged `role` value passed directly as a Tauri command argument (bypassing the UI) is ignored — the command resolves role from the session server-side, never from caller-supplied input | 4 |
-| C3 | A `role`/`reviewerRole`-shaped value edited directly in `localStorage`/app state has no effect on what a privileged command will do | 4 |
-| C4 | Calling a privileged command directly (simulating devtools-console `invoke()`, bypassing every React component) with a valid session but the wrong role fails exactly like the UI path would | 4 |
-| C5 | A modified/hand-crafted JSON payload for `save_approval_record` (or its Phase 13 successor) cannot smuggle an unauthorized approval — regression test anchored directly to the real gap found in Session 0's audit | 4 |
-| C6 | Changing a route/URL parameter to reference another user's resource does not bypass project/resource access (once §20 is implemented) | 4 (or later, per §20) |
+| C1 | A logged-in user cannot change their own `role` via any exposed command | No command to change one's own role exists at all yet (Session 5, Administration → Users) — not applicable until then |
+| C2 | A forged `role` value passed directly as a Tauri command argument (bypassing the UI) is ignored — the command resolves role from the session server-side, never from caller-supplied input | **Done, Session 4** — structural: `authz::authorize`/`current_actor` take `(conn, token, area, capability)`, no role/userId/displayName parameter exists anywhere for a caller to supply (`authz::tests::current_actor_never_trusts_a_caller_supplied_identity_there_is_no_such_parameter`), and `save_approval_record`'s `finalize_approval_record` overwrites any identity fields present in the payload regardless (`formulations::tests::caller_supplied_identity_fields_are_never_trusted_even_when_absent`). |
+| C3 | A `role`/`reviewerRole`-shaped value edited directly in `localStorage`/app state has no effect on what a privileged command will do | **Done, Session 4**, by the same structural argument as C2 — `localStorage` only ever holds the opaque bearer token (`SESSION_TOKEN_KEY`, unchanged since Session 2), and `currentSessionToken()` reads only that key; there is no `role`/`reviewerRole` value in `localStorage` for a modification to target in the first place. |
+| C4 | Calling a privileged command directly (simulating devtools-console `invoke()`, bypassing every React component) with a valid session but the wrong role fails exactly like the UI path would | **Done, Session 4** — every `PRIVILEGED_ENFORCED` command (§9.3.10) authorizes from the session token alone; the frontend component that normally calls it has no bearing on the check. Proven at the guard layer by `authz::tests::a_role_lacking_the_capability_is_denied_and_audited_with_the_real_identity`. |
+| C5 | A modified/hand-crafted JSON payload for `save_approval_record` cannot smuggle an unauthorized approval | **Done, Session 4** — the exact regression test the Session 0 finding asked for: `formulations::tests::a_valid_transition_succeeds_and_the_trusted_identity_overwrites_every_caller_supplied_identity_field` and `an_invalid_transition_is_denied_even_though_the_role_check_already_passed`. |
+| C6 | Changing a route/URL parameter to reference another user's resource does not bypass project/resource access (once §20 is implemented) | Not applicable — §12/§20 confirm project/resource ACLs are out of Phase 13's scope entirely, not deferred to a later session |
 
 ## D. Database security (SQL injection) — implemented Session 1, storage layer
 
@@ -361,3 +372,119 @@ confirming nothing else in the crate regressed. `cargo clippy --lib --
 unchanged from Session 2's count, since this session's frontend change
 is a wiring/fallback change with existing coverage (§I.3), not new
 behavior needing new tests. `git diff --check`: clean.
+
+## J. Session 4 — application-wide server-side enforcement tests actually implemented and passing
+
+### J.1 `role_policy.rs` (10 new tests)
+
+Default-deny for an unknown area/role/capability; every role has `view`
+on `home`; `systemAdministration`/`administer` is administrator-only
+across all 12 roles (one assertion per role, not just a positive
+check); `approvalPilot`/`approvalProduction` `approve` matches the
+exact known authority sets (both directions — every authorized role
+passes, every unauthorized role is explicitly asserted refused);
+worker-tier `researcher`/`quality` have `submit` but never `approve`/
+`reject` (the direct worker/manager-separation proof at the policy
+layer); `production_manager`'s `verify` on `rawMaterials`/
+`supplierDocuments` and `regulatory`'s `verify` extension to `quality`/
+`administrator` (both §7's discrepancy-resolutions, re-verified at the
+Rust layer, not just trusted from the TypeScript side); the transition
+graph allows known valid edges and denies invalid ones, including
+default-deny for an unrecognized status; the fixture's vocabularies
+have the expected shape (12 roles, `systemAdministration`/`formulation`
+present as areas).
+
+**Total**: 10 tests, 10 passing.
+
+### J.2 `authz.rs` (8 new tests)
+
+An authorized role+capability returns the trusted actor; a role
+lacking the capability is denied AND the audit row attributes the
+*real* authenticated user, never a caller claim; an invalid token is
+denied and never returns an actor; a revoked session is denied; an
+expired session is denied; a disabled account is denied even with an
+otherwise-valid token; a role change takes effect on the very next
+authorization check for the same still-valid session (mirrors Session
+2's `current_session` role-change test, one layer up); a structural
+test asserting `current_actor`/`authorize` have no
+role/userId/displayName parameter for a caller to supply in the first
+place.
+
+**Total**: 8 tests, 8 passing.
+
+### J.3 `masterdata.rs` (4 new tests)
+
+Every one of the 90 allow-listed collections has a policy-area mapping
+(100% coverage, asserted directly against `COLLECTIONS`, not a sample);
+an unknown collection name has no policy area; representative
+collections map to the expected domain area (materials ->
+rawMaterials, stability_studies -> stability, test_results ->
+laboratory, regulatory_rules/product_claims -> regulatory, doe_studies
+-> optimization, data_exchange_import_jobs -> dataExchange,
+generated_document_records -> documentControl); the write-capability
+check accepts a role with either `create` or `edit` and rejects a
+view-only role (`raw_material`/`procurement` both pass on
+`rawMaterials`, `regulatory` is rejected).
+
+**Total**: 4 tests, 4 passing.
+
+### J.4 `formulations.rs` (7 new tests)
+
+`approval_area_for` maps the two real gates and denies every other
+status string, including empty; `approval_capability_for` matches
+decision to capability; a valid transition succeeds and the trusted
+identity overwrites every one of the four caller-supplied identity
+fields (`approvedBy`/`approvedByRole`/`reviewerUserId`/`reviewerRole`);
+an invalid transition (`concept -> pilot_approved`) is denied even
+though the role check already passed — the exact "role capability
+alone is not sufficient" proof the session brief asked for; a rejected
+decision does not require transition validity (nothing moves); missing/
+whitespace-only justification is denied; a record with NO identity
+fields at all still ends up correctly attributed from the trusted
+actor, not a fallback used only when the caller forgot to spoof
+something.
+
+**Total**: 7 tests, 7 passing.
+
+### J.5 Shared package — cross-layer parity (5 new tests)
+
+`rolePolicy.matrixParity.test.ts` (3): the fixture's areas/roles/
+capabilities vocabularies match `rolePolicy.ts` exactly; the fixture's
+matrix is exactly what `fullMatrixSnapshot()` computes right now (the
+test that fails on drift if `MATRIX` changes without regenerating the
+fixture); no area/role cell is missing from the fixture.
+`status.transitionParity.test.ts` (2): the fixture's statuses match
+`FORMULA_STATUSES` exactly, including order; the fixture's
+`allowedNext` is exactly `ALLOWED_NEXT` right now.
+
+**Total**: 5 tests, 5 passing.
+
+### J.6 Frontend — `sessionToken.ts` (3 new tests; no other new test files)
+
+`sessionToken.test.ts`: returns the persisted token; returns an empty
+string when nothing is persisted; reads the exact key `AuthProvider.tsx`
+exports (`SESSION_TOKEN_KEY`), not a second hardcoded string. No other
+frontend file gained a new test file this session — `formulations.ts`/
+`masterdata.ts`/`tauri.ts`/`migrationRunner.ts`'s `call()`-helper token
+injection is exercised indirectly by every existing test that already
+calls these wrapper functions (all 1185 pre-existing tests continued
+passing unchanged, §J.7), and `SettingsPage.tsx`'s new
+`canAdministerSystem` gate degrades to "show everything" outside a real
+`AuthProvider` — the same fallback `useTrustedActor()` sites have used
+since Session 3 — so the existing `SettingsPage.i18n.test.tsx` suite
+already exercises that branch without modification.
+
+### J.7 Full-suite confirmation
+
+`cargo build --lib`: clean, zero warnings. `cargo test --lib`: 281/281
+passing (Session 3's 252 + 29 new — §J.1-§J.4). `cargo clippy --lib --
+-D warnings`: clean. Shared package: `tsc --noEmit` clean; `vitest
+run`: 1296/1296 passing (Session 3's 1291 + 5 new, §J.5). Desktop
+frontend: `tsc --noEmit` clean; `vitest run` (full suite): 1188/1188
+passing (Session 3's 1185 + 3 new, §J.6) — every pre-existing test that
+exercises a now-token-carrying command wrapper continued passing with
+no changes required, confirming the token-injection refactor is
+transparent to existing callers. `eslint` clean on every touched file
+(`formulations.ts`, `masterdata.ts`, `tauri.ts`, `migrationRunner.ts`,
+`sessionToken.ts`, `AuthProvider.tsx`, `SettingsPage.tsx`,
+`TrialsPanel.tsx`). `git diff --check`: clean.

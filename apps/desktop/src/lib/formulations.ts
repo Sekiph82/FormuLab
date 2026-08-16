@@ -18,11 +18,20 @@ import type {
 } from "@formulab/shared";
 import { newId } from "@formulab/shared";
 import { isTauri } from "./tauri";
+import { currentSessionToken } from "./sessionToken";
 
+/**
+ * Phase 13 Session 4: every command in this file is now authorized
+ * server-side from the caller's session token (`authz::authorize`/
+ * `current_actor`, architecture doc §9.3) — `token` is attached here, once,
+ * rather than at each of this file's 15+ call sites, so there's no site
+ * that could forget it. The token itself carries no authority by being
+ * sent; Rust re-validates it against `identity.db` on every call.
+ */
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   if (!isTauri) throw new Error("not-desktop");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  return invoke<T>(cmd, { token: currentSessionToken(), ...args });
 }
 
 export interface FormulationWithVersions {

@@ -212,8 +212,14 @@ pub(crate) fn find_interrupted_run(entries: &[MigrationJournalEntry]) -> Option<
 /// — there is exactly one backup-creation code path in this codebase, used
 /// by manual backup, restore's safety backup, and this pre-migration
 /// backup alike.
+/// Phase 13 Session 4: reached only from `SchemaMigrationCard.tsx` inside
+/// the authenticated Settings UI (never at pre-login startup), so — unlike
+/// `automatic_backup::run_automatic_backup` — this is a real interactive,
+/// user-initiated action, not an unattended background job. Gated
+/// `systemAdministration`/`administer`.
 #[tauri::command(async)]
-pub async fn create_pre_migration_backup(app: AppHandle) -> Result<String, String> {
+pub async fn create_pre_migration_backup(app: AppHandle, token: String) -> Result<String, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let dir = app_private_dir(&app, "backups")?;
     let dest = dir.join(format!("pre-migration-{}.formulab-backup", now_secs()));
     let tmp = PathBuf::from(format!("{}.tmp", dest.to_string_lossy()));

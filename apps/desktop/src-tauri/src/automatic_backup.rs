@@ -118,11 +118,18 @@ pub async fn read_automatic_backup_state(app: AppHandle) -> Result<AutomaticBack
     Ok(read_state_at(&state_path(&app)?))
 }
 
+/// Phase 13 Session 4: changing the automatic-backup policy (enabled
+/// classes, schedule, destination, retention) is System Administration
+/// configuration — gated `systemAdministration`/`administer`. Distinct from
+/// `run_automatic_backup` below, which stays unauthenticated on purpose: a
+/// non-admin user's own session still needs their scheduled backups to run.
 #[tauri::command(async)]
 pub async fn write_automatic_backup_config(
     app: AppHandle,
+    token: String,
     config: AutomaticBackupConfig,
 ) -> Result<AutomaticBackupState, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let path = state_path(&app)?;
     let mut state = read_state_at(&path);
     state.config = config;
@@ -316,6 +323,13 @@ fn run_automatic_backup_inner(
 /// manual backup, a restore, or another automatic run; it reports that as
 /// a normal failed `AutomaticBackupRunRecord`, not an exception (a
 /// scheduling collision is an expected, recoverable condition, not a bug).
+// Phase 13 Session 4 — TRUSTED_INTERNAL_ONLY, deliberately NOT gated:
+// reliability of a user's own configured automatic backups must not depend
+// on that user holding systemAdministration authority — the session brief
+// is explicit that "trusted internal background functions must not be
+// broken merely because they do not have an interactive user session." The
+// *policy* this obeys (write_automatic_backup_config, above) is gated; the
+// scheduled/triggered run itself is not.
 #[tauri::command(async)]
 pub async fn run_automatic_backup(
     app: AppHandle,
@@ -375,7 +389,8 @@ pub async fn run_automatic_backup(
 /// failed run's own pre-migration backup is what a user would restore
 /// from manually if automatic rollback also failed.
 #[tauri::command(async)]
-pub async fn apply_pre_migration_retention(app: AppHandle, keep: u32) -> Result<Vec<String>, String> {
+pub async fn apply_pre_migration_retention(app: AppHandle, token: String, keep: u32) -> Result<Vec<String>, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let dir = app_private_dir(&app, "backups")?;
     Ok(apply_retention(&dir, class_file_prefix("preMigration"), keep))
 }

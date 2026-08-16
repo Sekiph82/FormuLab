@@ -1,0 +1,706 @@
+{
+  "areas": [
+    "home",
+    "projects",
+    "formulation",
+    "laboratory",
+    "stability",
+    "optimization",
+    "rawMaterials",
+    "supplierDocuments",
+    "regulatory",
+    "approvalPilot",
+    "approvalProduction",
+    "productionEngineering",
+    "production",
+    "documentControl",
+    "reports",
+    "dataExchange",
+    "administrationUsers",
+    "administrationSecurity",
+    "administrationSettings",
+    "systemAdministration"
+  ],
+  "roles": [
+    "researcher",
+    "research_manager",
+    "quality",
+    "quality_manager",
+    "regulatory",
+    "raw_material",
+    "procurement",
+    "production_engineering",
+    "production",
+    "production_manager",
+    "document_control",
+    "administrator"
+  ],
+  "capabilities": [
+    "view",
+    "create",
+    "edit",
+    "delete",
+    "submit",
+    "approve",
+    "reject",
+    "verify",
+    "supersede",
+    "release",
+    "export",
+    "administer"
+  ],
+  "matrix": {
+    "home": {
+      "researcher": [
+        "view"
+      ],
+      "research_manager": [
+        "view"
+      ],
+      "quality": [
+        "view"
+      ],
+      "quality_manager": [
+        "view"
+      ],
+      "regulatory": [
+        "view"
+      ],
+      "raw_material": [
+        "view"
+      ],
+      "procurement": [
+        "view"
+      ],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [
+        "view"
+      ],
+      "production_manager": [
+        "view"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view"
+      ]
+    },
+    "projects": {
+      "researcher": [
+        "view",
+        "create"
+      ],
+      "research_manager": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "quality": [
+        "view"
+      ],
+      "quality_manager": [
+        "view"
+      ],
+      "regulatory": [
+        "view"
+      ],
+      "raw_material": [
+        "view"
+      ],
+      "procurement": [
+        "view"
+      ],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [
+        "view"
+      ],
+      "production_manager": [
+        "view"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view",
+        "create",
+        "edit",
+        "delete"
+      ]
+    },
+    "formulation": {
+      "researcher": [
+        "view",
+        "create",
+        "edit",
+        "submit"
+      ],
+      "research_manager": [
+        "view",
+        "approve",
+        "reject"
+      ],
+      "quality": [
+        "view"
+      ],
+      "quality_manager": [
+        "view"
+      ],
+      "regulatory": [
+        "view"
+      ],
+      "raw_material": [
+        "view"
+      ],
+      "procurement": [],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [
+        "view"
+      ],
+      "production_manager": [
+        "view"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view"
+      ]
+    },
+    "laboratory": {
+      "researcher": [
+        "view",
+        "create",
+        "edit",
+        "submit"
+      ],
+      "research_manager": [
+        "view",
+        "approve",
+        "reject",
+        "supersede"
+      ],
+      "quality": [
+        "view",
+        "create"
+      ],
+      "quality_manager": [
+        "view",
+        "approve",
+        "reject",
+        "supersede"
+      ],
+      "regulatory": [
+        "view"
+      ],
+      "raw_material": [
+        "view"
+      ],
+      "procurement": [],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [
+        "view"
+      ],
+      "production_manager": [
+        "view"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view",
+        "supersede"
+      ]
+    },
+    "stability": {
+      "researcher": [
+        "view",
+        "create",
+        "edit",
+        "submit"
+      ],
+      "research_manager": [
+        "view",
+        "approve",
+        "reject"
+      ],
+      "quality": [
+        "view",
+        "create"
+      ],
+      "quality_manager": [
+        "view",
+        "approve",
+        "reject"
+      ],
+      "regulatory": [
+        "view"
+      ],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [],
+      "production_manager": [
+        "view"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view"
+      ]
+    },
+    "optimization": {
+      "researcher": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "research_manager": [
+        "view"
+      ],
+      "quality": [
+        "view"
+      ],
+      "quality_manager": [
+        "view"
+      ],
+      "regulatory": [
+        "view"
+      ],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [],
+      "production_manager": [],
+      "document_control": [],
+      "administrator": [
+        "view"
+      ]
+    },
+    "rawMaterials": {
+      "researcher": [
+        "view"
+      ],
+      "research_manager": [
+        "view"
+      ],
+      "quality": [
+        "view",
+        "verify"
+      ],
+      "quality_manager": [
+        "view",
+        "approve"
+      ],
+      "regulatory": [
+        "view"
+      ],
+      "raw_material": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "procurement": [
+        "view",
+        "create"
+      ],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [],
+      "production_manager": [
+        "view",
+        "verify"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view"
+      ]
+    },
+    "supplierDocuments": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [
+        "view"
+      ],
+      "quality_manager": [
+        "view"
+      ],
+      "regulatory": [
+        "view"
+      ],
+      "raw_material": [
+        "view"
+      ],
+      "procurement": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "production_engineering": [],
+      "production": [],
+      "production_manager": [
+        "view",
+        "verify"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view"
+      ]
+    },
+    "regulatory": {
+      "researcher": [
+        "view"
+      ],
+      "research_manager": [
+        "view"
+      ],
+      "quality": [
+        "view",
+        "verify"
+      ],
+      "quality_manager": [
+        "view"
+      ],
+      "regulatory": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "reject",
+        "verify"
+      ],
+      "raw_material": [
+        "view"
+      ],
+      "procurement": [
+        "view"
+      ],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [],
+      "production_manager": [],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view",
+        "verify"
+      ]
+    },
+    "approvalPilot": {
+      "researcher": [
+        "submit"
+      ],
+      "research_manager": [
+        "approve",
+        "reject"
+      ],
+      "quality": [
+        "submit"
+      ],
+      "quality_manager": [
+        "approve",
+        "reject"
+      ],
+      "regulatory": [],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [],
+      "production": [],
+      "production_manager": [],
+      "document_control": [],
+      "administrator": [
+        "approve",
+        "reject"
+      ]
+    },
+    "approvalProduction": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [
+        "submit"
+      ],
+      "quality_manager": [
+        "approve",
+        "reject"
+      ],
+      "regulatory": [
+        "approve",
+        "reject"
+      ],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [],
+      "production": [
+        "submit"
+      ],
+      "production_manager": [
+        "approve",
+        "reject"
+      ],
+      "document_control": [],
+      "administrator": [
+        "approve",
+        "reject"
+      ]
+    },
+    "productionEngineering": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [],
+      "quality_manager": [],
+      "regulatory": [],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "production": [
+        "view"
+      ],
+      "production_manager": [
+        "view",
+        "approve",
+        "reject"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view"
+      ]
+    },
+    "production": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [],
+      "quality_manager": [],
+      "regulatory": [],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [
+        "view"
+      ],
+      "production": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "production_manager": [
+        "view",
+        "approve",
+        "reject",
+        "release"
+      ],
+      "document_control": [
+        "view"
+      ],
+      "administrator": [
+        "view"
+      ]
+    },
+    "documentControl": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [],
+      "quality_manager": [],
+      "regulatory": [],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [],
+      "production": [],
+      "production_manager": [],
+      "document_control": [
+        "view",
+        "create",
+        "edit",
+        "export",
+        "administer"
+      ],
+      "administrator": [
+        "view"
+      ]
+    },
+    "reports": {
+      "researcher": [
+        "view",
+        "export"
+      ],
+      "research_manager": [
+        "view",
+        "export"
+      ],
+      "quality": [
+        "view",
+        "export"
+      ],
+      "quality_manager": [
+        "view",
+        "export"
+      ],
+      "regulatory": [
+        "view",
+        "export"
+      ],
+      "raw_material": [
+        "view",
+        "export"
+      ],
+      "procurement": [
+        "view",
+        "export"
+      ],
+      "production_engineering": [
+        "view",
+        "export"
+      ],
+      "production": [
+        "view",
+        "export"
+      ],
+      "production_manager": [
+        "view",
+        "export"
+      ],
+      "document_control": [
+        "view",
+        "export"
+      ],
+      "administrator": [
+        "view",
+        "export"
+      ]
+    },
+    "dataExchange": {
+      "researcher": [
+        "view",
+        "create"
+      ],
+      "research_manager": [
+        "view",
+        "create"
+      ],
+      "quality": [
+        "view",
+        "create"
+      ],
+      "quality_manager": [
+        "view",
+        "create"
+      ],
+      "regulatory": [
+        "view",
+        "create"
+      ],
+      "raw_material": [
+        "view",
+        "create"
+      ],
+      "procurement": [
+        "view",
+        "create"
+      ],
+      "production_engineering": [],
+      "production": [],
+      "production_manager": [],
+      "document_control": [],
+      "administrator": [
+        "view",
+        "create",
+        "administer"
+      ]
+    },
+    "administrationUsers": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [],
+      "quality_manager": [],
+      "regulatory": [],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [],
+      "production": [],
+      "production_manager": [],
+      "document_control": [],
+      "administrator": [
+        "view",
+        "create",
+        "edit",
+        "administer"
+      ]
+    },
+    "administrationSecurity": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [],
+      "quality_manager": [],
+      "regulatory": [],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [],
+      "production": [],
+      "production_manager": [],
+      "document_control": [],
+      "administrator": [
+        "view",
+        "administer"
+      ]
+    },
+    "administrationSettings": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [],
+      "quality_manager": [],
+      "regulatory": [],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [],
+      "production": [],
+      "production_manager": [],
+      "document_control": [],
+      "administrator": [
+        "view",
+        "edit",
+        "administer"
+      ]
+    },
+    "systemAdministration": {
+      "researcher": [],
+      "research_manager": [],
+      "quality": [],
+      "quality_manager": [],
+      "regulatory": [],
+      "raw_material": [],
+      "procurement": [],
+      "production_engineering": [],
+      "production": [],
+      "production_manager": [],
+      "document_control": [],
+      "administrator": [
+        "view",
+        "administer"
+      ]
+    }
+  }
+}

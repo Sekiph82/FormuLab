@@ -168,8 +168,8 @@ every `rusqlite` call site, and every Rust file for `password`/`login`/
 | Role storage (trusted) | **IMPLEMENTED** (Session 2: `current_session`/`login`/`bootstrap_create_administrator` are now the trusted source every session-derived role comes from) | `identity.rs` + `auth.rs` |
 | Role assignment (by admin) | **MISSING** | No admin UI |
 | Role enforcement (domain-level) | **PARTIAL** | `canTransitionTo` (`status.ts`) is real, tested, working enforcement, now re-derived for the 12-role model (§6) |
-| Role enforcement (backend/Rust) | **UNSAFE** (unchanged — Session 3 inventoried, did not fix) | `save_approval_record` still performs no role check at all; Session 3's full command inventory (§9.2) found the gap is wider still — generic masterdata CRUD and every system-administration command (backup/restore/migration/data-location) are equally unchecked, and system-administration has no §6 matrix area to enforce yet at all. Fixing this is Session 4's job. |
-| UI role selection | **PARTIAL** (Session 3: the 10 current-user *selector* sites are fixed; the underlying writes are not) | `useTrustedActor()` (§9.2) now sources `reviewerRole`-equivalent state from the authenticated session at `ApprovalPanel`/`ClaimsLabelsPanel`/`DossierPanel`/`RegulatoryPanel`/`DoePanel`/`TestMethodDrawer`/`DataExchangePage`/`TrialsPanel`/`StabilityPanel`/`CorrectiveActionsPanel` — a logged-in user can no longer self-select an unearned role at these 10 sites in the real app. The commands these actors feed into still perform no server-side check (row above) — Session 4's job is closing that, not this one. |
+| Role enforcement (backend/Rust) | **PARTIAL** (Session 4: the priority set from Session 3's inventory is enforced; the rest is classified, not enforced, §9.3.10) | `save_approval_record`, formulation writes, generic masterdata CRUD, attachments, and every System Administration command now resolve role from the authenticated session and call `role_policy::can()` (`authz.rs`, §9.3.3). Commands classified `DEFERRED_WITH_REASON` (§9.3.10) — e.g. `resume_interrupted_data_move`, `materials::import_materials` — remain unchecked, a disclosed gap, not a claim of completeness. |
+| UI role selection | **PARTIAL** (Session 3: the 10 current-user *selector* sites are fixed; Session 4 makes the underlying writes authoritative too, for the priority set) | `useTrustedActor()` (§9.2) sources session-backed state at 10 frontend sites; Session 4 (§9.3.4-§9.3.9) makes the Rust commands those actors feed into actually check role server-side for the priority set, closing the "frontend selector fixed, backend still trusts anything" gap `save_approval_record`/masterdata/attachments/formulation writes had. Commands outside that priority set (§9.3.10's DEFERRED_WITH_REASON row) still don't check. |
 | Project/resource access | **NOT_APPLICABLE (confirmed out of scope for Phase 13)** | See §12 |
 | Audit logging (security events) | **PARTIAL** (Session 2: bootstrap/login-success/login-failure/lockout/logout now call `record_security_audit_event` for real, §23; admin-action events remain Session 5/6) | `auth.rs` |
 | SQLite/user database | **IMPLEMENTED** (Session 1) | `identity.db`, app-private, §11 |
@@ -522,6 +522,255 @@ all — Session 4 cannot enforce a matrix cell that does not exist yet,
 so drafting that area is prerequisite work, not just wiring `can()`
 into existing rows. Flagged for the domain review in Risks item 1.
 
+### 9.3 Session 4: application-wide server-side enforcement
+
+Everything §9.1/§9.2 flagged as open — "nothing outside `auth.rs` asks
+who's logged in," "the consuming half stays Session 4's job" — is now
+closed for the priority set the Session 3 inventory named. The
+frontend's `can()` (§7) is UX only; every enforcement decision below is
+re-made, independently, in Rust from the authenticated session.
+
+#### 9.3.1 One cross-layer policy contract, not two hand-typed matrices
+
+`role_policy.rs` (Rust, new) holds **no permission matrix or workflow-
+transition graph of its own**. `packages/shared/scripts/
+generate-role-policy-matrix.ts` serializes `rolePolicy.ts`'s fully-
+resolved `MATRIX` (via a new `fullMatrixSnapshot()`) to
+`rolePolicyMatrix.generated.json`, and `status.ts`'s `ALLOWED_NEXT`
+graph to `formulaStatusTransitions.json` — both checked into the repo,
+exactly `roleVocabulary.json`'s existing convention (Session 3), not a
+new one. `role_policy.rs` reads both via `include_str!` at first use and
+implements two generic, data-driven functions:
+
+- `can(role, area, capability) -> bool` — the Rust mirror of
+  `rolePolicy.ts`'s `can()`. Default-deny: an unrecognized area, role,
+  or capability all fall through to `false` via a `HashMap` lookup —
+  there is no "allow unless denied" branch.
+- `is_valid_transition(from, to) -> bool` — the Rust mirror of
+  `canTransitionTo`'s `ALLOWED_NEXT` check, for `save_approval_record`'s
+  workflow-transition validity requirement (§9.3.3).
+
+**Parity is enforced, not promised.** `rolePolicy.matrixParity.test.ts`
+(TypeScript, new) asserts the checked-in JSON is byte-for-byte what
+`fullMatrixSnapshot()` computes *right now* — a developer who edits
+`MATRIX` and forgets to regenerate the fixture fails this test.
+`status.transitionParity.test.ts` does the same for `ALLOWED_NEXT`.
+`role_policy.rs`'s own `#[cfg(test)]` block spot-checks representative
+cells (default-deny, `systemAdministration` administrator-only, both
+approval gates' role sets, the two §7 discrepancy-resolutions, several
+transition-graph edges) against the same facts `rolePolicy.test.ts`
+already asserts at the TypeScript layer — not a coincidence, a
+deliberate cross-check that the shared-fixture mechanism is actually
+producing the intended data. Neither language holds a matrix the other
+doesn't also, provably, agree with.
+
+#### 9.3.2 A new `systemAdministration` policy area
+
+§6's matrix had no area for backup/restore/migration/data-location —
+the Session 3 finding (§9.2). Added to `rolePolicy.ts`'s
+`POLICY_AREAS`/`MATRIX` (and therefore the generated fixture and
+`role_policy.rs`): a single new row, `administrator: ["view",
+"administer"]`, every other role `[]`. Per explicit Session 4
+instruction — "system-level destructive/configuration mutations should
+be Administrator-only unless the current approved architecture proves
+otherwise" — and nothing in the approved architecture names any other
+role for this authority, so administrator-only is not a placeholder,
+it's the considered answer.
+
+#### 9.3.3 The trusted backend guard (`authz.rs`, new)
+
+One reusable authorization path every privileged command calls:
+
+```
+session token -> validate_session -> active account -> stored role
+-> role_policy::can(role, area, capability) -> allow/deny
+```
+
+`authz::current_actor(conn, token)` resolves `TrustedActor {user_id,
+role, display_name}` from `identity::validate_session` — no role/area/
+capability check, just "is there a currently valid, active,
+authenticated user behind this token." `authz::authorize(conn, token,
+area, capability)` adds the `role_policy::can()` check on top.
+`authorize_any`/`authorize_any_app` accept several capabilities (a
+masterdata upsert can insert or update in the same call, so "has
+`create` OR `edit`" is the real gate, not an artificial single-
+capability split). **There is no role/userId/displayName parameter
+anywhere in any of these signatures** — a caller cannot supply an
+identity for the guard to trust, structurally, not by convention.
+Every denial is recorded to `security_audit_events` using the
+*resolved* trusted actor's real id (or `None`/`None` when there wasn't
+even a valid session), never anything the caller's payload claimed.
+Fails closed at every step: no token, an unknown/expired/idle-timed-
+out/revoked token, or a disabled account all deny, matching
+`validate_session`'s own Session 2 semantics exactly — this module
+never second-guesses or works around them. A role/status change is
+live on the very next `authorize()` call for that session, same
+guarantee Session 2 already proved for `current_session` (§17.4).
+
+#### 9.3.4 `save_approval_record` — the Session 0 bypass, closed
+
+The confirmed, exploitable gap named in every session since Session 0:
+a direct `invoke("save_approval_record", {...})` wrote a permanent
+approval record with any name and no role check, because
+`canTransitionTo`'s role gate only ever ran in the *frontend*. Now:
+
+1. `requestedStatus` selects the policy area (`pilot_approved` ->
+   `approvalPilot`, `production_approved` -> `approvalProduction`) —
+   anything else is refused outright, before authorization is even
+   attempted.
+2. `decision` selects the capability (`approved` -> `approve`,
+   anything else -> `reject`).
+3. `authz::authorize_app` resolves the trusted actor and checks
+   `role_policy::can(role, area, capability)` — the actual gate.
+4. For an "approved" decision (the only one that moves real state),
+   `role_policy::is_valid_transition(previousStatus, requestedStatus)`
+   must hold — **a manager with real `approve` authority still cannot
+   approve `concept -> pilot_approved` directly**, proving role
+   capability and workflow-transition validity are both required, not
+   either alone (this session's explicit brief, §6 of it).
+5. `approvedBy`/`approvedByRole`/`reviewerUserId`/`reviewerRole` are
+   overwritten with the trusted actor's real identity, unconditionally
+   — whatever the caller sent for those fields is discarded, not merely
+   ignored for the authorization decision.
+
+`formulations::tests` (new, 7 tests) prove this directly against the
+pure `finalize_approval_record`/`approval_area_for`/
+`approval_capability_for` functions, split out specifically so this
+logic is unit-testable without a Tauri harness: a valid transition
+succeeds and every identity field is overwritten; `concept ->
+pilot_approved` is denied even for `research_manager`; a rejection
+doesn't require transition validity (nothing moves); a record with NO
+identity fields at all still ends up correctly attributed. `authz.rs`'s
+own tests (§9.3.3) independently prove the role-check half (worker vs.
+manager separation) at the guard layer.
+
+#### 9.3.5 Formulation content writes, and the "delete has no grant anywhere" finding
+
+`save_formulation`/`save_formulation_version`/`save_formulation_draft`/
+`discard_formulation_draft` require `create` OR `edit` on `formulation`
+— per §6's literal matrix, that's `researcher` alone; every other role
+(including `administrator`, deliberately view-only on scientific
+content, §9) is refused. This is a real, load-bearing consequence of
+enforcing §6 as transcribed, not a bug — flagged for the domain review
+(Risks item 1) since it may be stricter than intended in practice.
+
+**A second, more structural finding**: no role has the `delete`
+capability in *any* domain content area (`rawMaterials`/`formulation`/
+`laboratory`/`stability`/`regulatory`/`optimization`/`dataExchange`/
+`documentControl` all deny `delete` to all 12 roles). The only cell in
+the entire matrix that grants `delete` at all is `projects`/
+`administrator`. Gating `delete_formulation`/`delete_master_record`
+against their own domain area's `delete` would make deletion
+unreachable for everyone — not a safety win, a broken feature. Both
+therefore gate against `projects`/`delete` instead (administrator-
+only) — a deliberate, documented Session 4 choice using the one real
+`delete` grant that exists, not a matrix change. Flagged for the
+domain review: should any area grant `delete` to a working-tier role
+directly?
+
+#### 9.3.6 Generic masterdata CRUD — the widest gap, closed with a real domain mapping
+
+`upsert_master_records`/`delete_master_record`/
+`write_master_collection_raw` previously had no actor concept
+whatsoever. Now: `masterdata.rs`'s new `area_for_collection()` maps
+every one of the 90 allow-listed collections onto a `PolicyArea`,
+built from this file's own Phase-by-Phase domain-grouping doc comments
+and, where one already existed, `dataExchangeRegistry.ts`'s
+`targetCollection`/per-template `authorization` role lists (real,
+pre-existing domain judgment, reused rather than reinvented). **An
+unmapped name returns `None`, which is a hard deny** — a collection
+added to `COLLECTIONS` without a matching mapping arm is refused, never
+implicitly allowed; `masterdata::tests::
+every_allow_listed_collection_has_a_policy_area_mapping` asserts
+100% coverage as a loud, intentional finding if it ever regresses.
+Upsert/raw-write require `create` OR `edit` on the mapped area; delete
+uses the `projects`/`delete` grant, same reasoning as §9.3.5. This
+grouping is a first-draft judgment call, same as §6 itself — flagged
+for the domain review, not presented as final.
+
+#### 9.3.7 Audit-actor spoofing, closed
+
+`append_audit_event`'s `event.actor` previously came straight from the
+webview. Now requires a valid session (`authz::current_actor_app`) and,
+when `event.actorKind` is absent or `"human"` (the common, default
+case — a real person took this action), overwrites `event.actor` with
+the trusted session's display name. An explicit non-human `actorKind`
+(`"agent"`/`"system"`/`"import"` — already not identity-authoritative
+per `status.ts`'s own `Actor` union) is left as the caller set it,
+since those values never claimed to be a specific person in the first
+place — there is nothing to close there. Internal, genuinely
+system-generated audit rows (lockout/login/bootstrap events, §23) were
+already written from a dedicated Rust path (`identity::
+record_security_audit_event`, called directly by `auth.rs`) before this
+session and remain so — they were never reachable from the webview at
+all.
+
+#### 9.3.8 Attachments
+
+`copy_attachment_into_project` requires `create` OR `edit` on
+`formulation` — every attachment site (trial observations/deviations,
+stability results/failures, corrective actions) is reached from a
+formulation workspace, so the formulation is the real parent/domain
+context, not a placeholder. `open_attachment` requires only a valid
+session (reading an already-approved attachment isn't itself a
+privileged action).
+
+#### 9.3.9 System Administration commands
+
+Gated `systemAdministration`/`administer` (administrator-only):
+`backup::create_backup`, `backup::restore_backup`,
+`migration::create_pre_migration_backup`,
+`data_location_manager::{move_data_location, use_existing_data_location,
+restore_default_data_location, cleanup_old_data_location}`,
+`automatic_backup::{write_automatic_backup_config,
+apply_pre_migration_retention}`.
+
+**Deliberately NOT gated**: `automatic_backup::run_automatic_backup`.
+Per explicit Session 4 instruction — "trusted internal background
+functions must not be broken merely because they do not have an
+interactive user session" — restricting the scheduled/triggered backup
+run itself to administrators would silently stop a non-admin user's own
+configured automatic backups from ever running. The *policy* it obeys
+(`write_automatic_backup_config`) is gated; the run is not. This is the
+one command in the whole session deliberately left unauthenticated by
+design, not by oversight — every other command in this section is
+either gated or explicitly classified below (§9.3.10).
+
+#### 9.3.10 Privileged-command classification (extends the Session 3 inventory)
+
+| Category | This session | Representative commands |
+|---|---|---|
+| PRIVILEGED_ENFORCED | 17 commands gated this session | §9.3.4-§9.3.9 above |
+| AUTHENTICATED_READ | Valid session required, no capability check | `formulations::{list_formulations, read_formulation, read_formulation_draft, list_approval_records, read_audit_log}`, `masterdata::{list_master_records, backup_master_collection}`, `attachments::open_attachment` |
+| TRUSTED_INTERNAL_ONLY | Deliberately unauthenticated — background/system-triggered | `automatic_backup::run_automatic_backup` (§9.3.9); `auth::{bootstrap_status, bootstrap_create_administrator, login, logout, current_session}` (correctly role-parameter-free by design since Session 2, §9.1) |
+| READ_ONLY_NO_ROLE_GATE_NEEDED | Local machine config / static data, not regulated business data — unchanged from Session 3's own classification | `masterdata::list_master_collections`; `workspace::*`, `jupyter::*`, `kernel::*`, `compute::*`, `modal::modal_status`, `preview_server::preview_url`, `tools::detect_tools`, `updates::check_for_update`, `debug_log::log_debug`, `artifact_file::*`; `backup::{verify_backup, inspect_backup, pick_backup_destination, cancel_backup, cancel_restore}`; `data_location_manager::{check_interrupted_data_move, cancel_data_move, validate_data_move_destination}`; `automatic_backup::{read_automatic_backup_state, open_automatic_backup_destination}`; `migration::{read_schema_meta, write_schema_meta, check_schema_compatibility, append_migration_journal, read_migration_journal}`; `data_root::*` |
+| DEFERRED_WITH_REASON | Privileged-shaped, not reviewed this session — real, disclosed gap, not silently accepted | `data_location_manager::resume_interrupted_data_move` (completes-or-rolls-back an interrupted move — privileged in effect, but outside this session's explicit "4 data-location commands" scope); `materials::{import_materials, cost_formulation}`; `provenance::record_provenance`, `runs::record_run`; `formulation::run_formulation_optimize`, `formulation_advanced::*`, `formulation_v2::*` (compute/generation only — their persisted output goes through the now-gated `save_formulation_draft`/`save_formulation_version`, but the compute commands themselves weren't reviewed) |
+
+No privileged mutation from the Session 3 inventory is silently
+unclassified — every row above is a deliberate category, including
+"deferred," not an omission. §9.3.10's DEFERRED_WITH_REASON row is this
+session's own honest residual-gap disclosure, not a claim that Phase 13
+is finished (Risks item 10 continues this).
+
+#### 9.3.11 Frontend: `useTrustedActor()` + `can()` for visibility, backend stays authoritative
+
+`SettingsPage.tsx`'s four System-Administration cards (Active Data
+Location, Backup and Recovery, Automatic Backups, Schema Migration) are
+now hidden for a non-administrator — `can(trusted.role,
+"systemAdministration", "administer")`, same `useTrustedActor()` hook
+Session 3 built. This is UX only: every action those cards expose was
+already hard-denied server-side before this change; hiding them just
+avoids showing a button that always fails. Outside a real
+`AuthProvider` (this codebase's test suite), nothing is hidden — the
+same fallback convention every other `useTrustedActor()` site already
+uses. The 10 role-selector sites Session 3 wired were re-audited this
+session: no additional hardcoded-role/`"local"`-actor site was found
+needing closure; `StabilityPanel`'s `manualInclusionReviewer` remains
+deliberately untouched (legitimate reviewer-name metadata, not a role
+selector, §9.2). Project-level visibility restrictions were **not**
+implemented — out of scope, confirmed by explicit instruction; every
+authenticated user still sees every project.
+
 ---
 
 ## 10. Password security (implemented Session 1)
@@ -814,6 +1063,35 @@ session) adds real `FormulaStatus`/gate representations for these four
 stages, `production_manager` is now the pre-decided approval role to
 wire in — no further product decision needed at that point.
 
+**Session 4 status (explicit, per this session's brief item 7)**: still
+exactly what §15.4 describes above — no `FormulaStatus`, no gate
+command, no workflow transition exists for any of the four. Session 4
+did not fake enforcement of these gates with a bare permission check
+standing in for the missing workflow state; there is no
+`verify_raw_material`/`verify_supplier_document`/
+`approve_production_handoff`/`release_production` command to gate in
+the first place. What Session 4 did secure is the underlying record
+mutation boundary these four gates will eventually sit in front of:
+`materials`/`material_documents`/`suppliers` (raw-material gate #1) and
+the supplier-document collections (gate #2) now route through
+`masterdata::upsert_master_records`'s generic-CRUD authorization
+(§9.3.6, mapped to the `rawMaterials` policy area, which already
+carries `production_manager`'s `verify` capability from Session 3,
+§9.2/§7) — so the records a future verification gate would act on are
+no longer writable by an unauthorized role, even though the gate action
+itself still doesn't exist as a command. Gates #3 and #4 (production
+engineering handoff, production release) have no corresponding
+masterdata collection either — `productionEngineering`/`production` are
+formulation-lifecycle states, not master-data rows — so nothing in this
+session touches their storage boundary at all; they remain entirely
+unimplemented, exactly as before.
+
+Still explicitly tracked, not implemented, going into Session 5: all
+four `FormulaStatus`/gate representations, their exact transition-graph
+entries, and the dedicated Tauri commands (or extension of
+`save_approval_record`'s shape) that would let `production_manager`
+actually grant them.
+
 ### 15.5 Session token storage (implemented Session 2)
 
 Session 1's `authenticated_sessions.id` stored a plain `new_id("sess")` —
@@ -1095,7 +1373,7 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## 25. Proposed Phase 13 sessions (Sessions 1-3 complete; renumbered plan unchanged in shape from Session 0)
+## 25. Proposed Phase 13 sessions (Sessions 1-4 complete; renumbered plan unchanged in shape from Session 0)
 
 1. ~~User database + migrations + password subsystem~~ **DONE.** ~~Production Manager gate authority for the four §15.3 gaps~~ **DECIDED (§15.4), Session 1 closure — implementation still Session 4/dedicated workflow session.**
 2. ~~Administrator bootstrap + `login`/`logout` Tauri commands +
@@ -1108,16 +1386,21 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
    session** (§7, §9.2) — plus a privileged-command inventory (§9.2)
    sizing Session 4's actual scope, not part of the original plan text
    but required to make Session 4 tractable.
-4. Application-wide enforcement: every Tauri command performing a
+4. ~~Application-wide enforcement: every Tauri command performing a
    role-gated action resolves role server-side and calls `can()`; every
-   nav/button uses the same `can()`. Fixes the confirmed
-   `save_approval_record` bypass (§2) and the wider masterdata-CRUD gap
-   (§9.2). Drafts a System-Administration area in §6 (does not exist
-   today, §9.2) before enforcing backup/restore/migration/data-location
-   commands. Begins real workflow-gate enforcement per §15 for the
-   gates that already have a `FormulaStatus` representation; flags the
-   §15.3 gaps as their own follow-up rather than inventing new
-   `FormulaStatus` values mid-session.
+   nav/button uses the same `can()`.~~ **DONE, this session, for the
+   Session 3 inventory's priority set** (§9.3): `save_approval_record`
+   (§9.3.4), formulation writes (§9.3.5), generic masterdata CRUD
+   (§9.3.6), audit attribution (§9.3.7), attachments (§9.3.8), and every
+   System Administration command (§9.3.9) now resolve role server-side
+   via one shared guard (`authz.rs`, §9.3.3) built on a cross-language
+   policy contract with no hand-duplicated Rust matrix (§9.3.1). A new
+   `systemAdministration` policy area was drafted (§9.3.2) since §6 had
+   none. Commands outside the priority set are classified, not left
+   silently unreviewed (§9.3.10's 5-category taxonomy). The §15.3 gates
+   remain unimplemented by design (§15.4's Session 4 status note) — no
+   `FormulaStatus` exists for any of them, so there was nothing to wire
+   workflow-gate enforcement into yet.
 5. `Administration → Users` UI: list, create, edit, role change, reset
    password, activate/disable, security-history view, read-only role-
    capabilities view.
@@ -1130,15 +1413,19 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## Risks and open decisions (updated Session 3)
+## Risks and open decisions (updated Session 4)
 
 1. **§6's full matrix is Session 1's first draft**, built from current
    navigation/routes and §1.1's role intent, not domain-expert-
-   reviewed. Must be reviewed before Session 4 wires enforcement. Session
-   3 adds one concrete finding to this item: the matrix has **no
-   System-Administration area at all** — backup/restore/migration/
-   data-location commands (§9.2) have nothing to enforce against yet,
-   so drafting that area is part of this review, not a separate task.
+   reviewed — now actually enforced (§9.3) for the priority command
+   set, which makes this review more urgent, not less: Session 4 found
+   enforcing it literally means only `researcher` can write formulation
+   content (§9.3.5) and no role can delete anything outside
+   `administrator` on `projects` (§9.3.5/§9.3.6) — both real,
+   load-bearing consequences now, not abstract gaps. The
+   `systemAdministration` area Session 4 drafted (§9.3.2) and the
+   masterdata collection->area mapping (§9.3.6) are both first-draft
+   judgment calls needing the same review.
 2. **§9 — Administrator's retained approval authority** is explicit and
    user-approved for this phase; still worth a final human confirmation
    before Session 4 makes it load-bearing in enforcement.
@@ -1151,8 +1438,9 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
    are now decided as `production_manager` gates (§15.4, user-approved,
    Session 1 closure). They still have no `FormulaStatus` representation
    in the current domain model — building that and wiring real
-   enforcement is real, unimplemented work (Session 4 or a dedicated
-   workflow session).
+   enforcement is real, unimplemented work, unchanged by Session 4
+   (§15.4's Session 4 status note explains exactly what was and wasn't
+   touched) — still Session 5 or a dedicated workflow session.
 5. **§10 — Argon2 parameters are crate defaults**, not hand-tuned
    against real target hardware — revisit only if a genuine performance
    problem surfaces on real desktop specs.
@@ -1163,20 +1451,51 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
    strict/loose in practice.
 7. **§22 Model B** remains explicitly out of Phase 13's implementation
    scope.
-8. **`current_session` is not yet called per privileged action** —
-   Session 2 resolves it at startup and right after login/bootstrap
-   only. A role/status change made mid-session is only picked up the
-   next time something calls `current_session`/`validate_session` for
-   that token — correct today (nothing privileged checks per-action
-   yet), but Session 4 must make sure real enforcement calls it on every
-   authorization-relevant action, not just at login.
+8. ~~`current_session` is not yet called per privileged action~~
+   **RESOLVED for the priority set, this session.** Every
+   `PRIVILEGED_ENFORCED` command (§9.3.10) now calls
+   `validate_session` fresh, via `authz::authorize`, on every single
+   invocation — not once at login — so a role/status change is live on
+   the very next privileged action for that session
+   (`authz::tests::a_role_change_takes_effect_on_the_very_next_
+   authorization_check` proves this directly). Commands outside the
+   priority set (§9.3.10's other categories) don't call it at all yet —
+   narrower than "resolved everywhere," but the mechanism itself is
+   proven, not just designed.
 9. **No password-complexity policy beyond an 8-512 character length
    bound** (`auth::validate_new_password`) — deliberately not inventing
    uppercase/digit/symbol rules the brief never asked for; revisit only
    if a real compliance requirement demands it.
-10. **Session 3's privileged-command inventory (§9.2) is audit-only** —
-    it sizes and categorizes the server-side enforcement gap, it does
-    not close any of it. Every row in that table's "current server-side
-    role check" column reads "None" going into Session 4 exactly as it
-    did coming out of Session 2; the only thing that changed is how
-    precisely the gap's shape is now documented.
+10. ~~Session 3's privileged-command inventory (§9.2) is audit-only~~
+    **Session 4 closed the priority rows** (§9.3.4-§9.3.9); the
+    `DEFERRED_WITH_REASON` row (§9.3.10) is what's left — a smaller,
+    named, disclosed set (`resume_interrupted_data_move`,
+    `materials::{import_materials, cost_formulation}`,
+    `provenance::record_provenance`, `runs::record_run`,
+    `formulation*::` compute commands), not the whole original gap.
+    Phase 13 is **not** fully secure yet — this item tracks exactly
+    what remains, so "not yet reviewed" stays distinguishable from
+    "reviewed and found safe."
+11. **§9.3.5's formulation-write finding may be stricter than
+    intended.** Enforcing §6's literal matrix means only `researcher`
+    can create/edit formulation content — `research_manager` (view/
+    approve/reject only), `administrator` (view-only by explicit
+    design, §9), and every other role are all refused. If this proves
+    too strict in real use, the fix is a matrix correction (Risks item
+    1's domain review), not loosening `authz.rs`'s guard itself.
+12. **§9.3.6's masterdata collection->area mapping is Rust-only**, not
+    parity-tested against a TypeScript equivalent the way the role
+    matrix and transition graph are (§9.3.1) — there is no
+    `dataExchangeRegistry.ts`-shaped single source for "which
+    `PolicyArea` does collection X belong to" today. A future session
+    adding a TypeScript-side consumer of this same mapping (e.g. for
+    frontend masterdata-write button visibility) should either import
+    a shared mapping or accept the drift risk consciously, not
+    silently re-derive a second one.
+13. **`run_automatic_backup` stays deliberately unauthenticated**
+    (§9.3.9) — correct per this session's explicit instruction, but
+    worth re-confirming during the domain review: does *any* backup
+    class ever need to be administrator-gated even when
+    system-triggered (e.g. a `preMigration` class run outside an
+    interactive migration flow)? Not a known issue, just an open
+    question this session didn't need to answer.

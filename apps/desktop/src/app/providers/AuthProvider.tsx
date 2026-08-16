@@ -15,8 +15,14 @@ import { LoginScreen } from "@/components/auth/LoginScreen";
  *  displayName, or any other user detail. Every restart re-resolves the
  *  full user record from Rust via `currentSession`, so persisted frontend
  *  state is never trusted as authentication or role authority (architecture
- *  doc §14/§20; phase brief §22). */
-const SESSION_TOKEN_KEY = "formulab.auth.token";
+ *  doc §14/§20; phase brief §22).
+ *
+ *  Exported (Phase 13 Session 4) so `@/lib/sessionToken`'s
+ *  `currentSessionToken()` — the one accessor every privileged command
+ *  wrapper uses to attach the caller's bearer token — reads the exact same
+ *  key this provider persists to, rather than a second hardcoded string
+ *  that could silently drift from it. */
+export const SESSION_TOKEN_KEY = "formulab.auth.token";
 
 type AuthPhase = "resolving" | "bootstrapRequired" | "loginRequired" | "authenticated";
 

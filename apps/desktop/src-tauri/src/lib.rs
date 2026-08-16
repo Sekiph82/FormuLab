@@ -3,6 +3,7 @@
 mod artifact_file;
 mod attachments;
 mod auth;
+mod authz;
 mod automatic_backup;
 mod backup;
 mod data_location_manager;
@@ -25,6 +26,7 @@ mod large_file;
 mod modal;
 mod preview_server;
 mod provenance;
+mod role_policy;
 mod runs;
 mod runs_index;
 mod workspace;

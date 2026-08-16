@@ -1,0 +1,58 @@
+{
+  "statuses": [
+    "concept",
+    "literature_candidate",
+    "chemist_review",
+    "lab_candidate",
+    "stability_testing",
+    "pilot_candidate",
+    "pilot_approved",
+    "production_approved",
+    "retired",
+    "rejected"
+  ],
+  "allowedNext": {
+    "concept": [
+      "literature_candidate",
+      "chemist_review",
+      "rejected"
+    ],
+    "literature_candidate": [
+      "chemist_review",
+      "rejected"
+    ],
+    "chemist_review": [
+      "lab_candidate",
+      "concept",
+      "rejected"
+    ],
+    "lab_candidate": [
+      "stability_testing",
+      "chemist_review",
+      "rejected"
+    ],
+    "stability_testing": [
+      "pilot_candidate",
+      "chemist_review",
+      "rejected"
+    ],
+    "pilot_candidate": [
+      "pilot_approved",
+      "stability_testing",
+      "rejected"
+    ],
+    "pilot_approved": [
+      "production_approved",
+      "pilot_candidate",
+      "retired",
+      "rejected"
+    ],
+    "production_approved": [
+      "retired"
+    ],
+    "retired": [],
+    "rejected": [
+      "concept"
+    ]
+  }
+}

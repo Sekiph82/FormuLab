@@ -114,6 +114,8 @@ use std::path::PathBuf;
 
 use tauri::AppHandle;
 
+use crate::authz;
+
 /// Collections the UI may address, and whether history is preserved.
 ///
 /// An explicit allow-list rather than a free-text filename: the collection name
@@ -407,6 +409,108 @@ pub fn list_master_collections() -> Vec<(String, bool)> {
         .collect()
 }
 
+/// Phase 13 Session 4 — every mutable-collection command routes through
+/// `role_policy`'s canonical areas, never a second, collection-shaped
+/// permission list of its own. There is no dedicated `PolicyArea` per
+/// masterdata collection (§6's matrix is domain-shaped, not collection-
+/// shaped), so this maps each of the 90 allow-listed names onto the closest
+/// existing area, grouped the same way this file's own Phase-by-Phase doc
+/// comments (and, where one already exists,
+/// `dataExchangeRegistry.ts`'s `targetCollection`) already group them —
+/// reusing existing domain judgment rather than inventing a fresh one.
+/// `None` (an unmapped/unknown name) is a hard deny, never a fallback
+/// allow — the same default-deny discipline `role_policy::can` itself
+/// uses. This grouping is a first-draft judgment call, exactly like §6's
+/// own "not yet domain-expert-reviewed" matrix it builds on — flagged in
+/// architecture doc §9.3/Risks, not presented as final.
+fn area_for_collection(name: &str) -> Option<&'static str> {
+    match name {
+        // Raw-material / supplier master data (dataExchangeRegistry.ts's
+        // MASTER_DATA_ROLES/QUALITY_MASTER_DATA_ROLES-authorized templates,
+        // plus the same-domain collections that were never import targets).
+        "materials" | "suppliers" | "material_prices" | "inventory" | "packaging_components"
+        | "packaging_boms" | "material_suppliers" | "material_hazard_records"
+        | "material_documents" | "product_families" | "finished_products"
+        | "compatibility_rules" | "safety_rules" => Some("rawMaterials"),
+
+        // Formulation content/costing/safety-check-results (formula_bom,
+        // process_parameters, costing collections are all
+        // dataExchangeRegistry.ts's FORMULATION_ROLES/COST_ROLES; the
+        // safety/compatibility *results* of a check against a specific
+        // formula are formulation work, distinct from the *rule* data above).
+        "exchange_rates" | "factory_profiles" | "cost_snapshots" | "formula_cost_overrides"
+        | "process_parameters" | "compatibility_snapshots" | "safety_snapshots"
+        | "safety_resolutions" => Some("formulation"),
+
+        // Laboratory (trials, tests, deviations, corrective actions,
+        // standards/methods) — dataExchangeRegistry.ts's LAB_ROLES for the
+        // templated ones.
+        "laboratory_trials" | "test_definitions" | "test_results" | "trial_comparisons"
+        | "trial_deviations" | "corrective_actions" | "laboratory_standards"
+        | "laboratory_test_methods" | "analytical_composition_results"
+        | "formula_version_equivalences" => Some("laboratory"),
+
+        // Stability — its own rolePolicy area, distinct from laboratory.
+        "stability_studies" | "stability_samples" | "stability_results" | "stability_failures" => {
+            Some("stability")
+        }
+
+        // Approval policy configuration governs both approval gates;
+        // gated against the stricter/broader of the two (production).
+        "approval_policies" | "approval_policy_revisions" => Some("approvalProduction"),
+
+        // Regulatory (rules, dossiers/evidence, claims, labels) —
+        // dataExchangeRegistry.ts's REGULATORY_ROLES/DRAFT_CONTENT_ROLES,
+        // and rolePolicy.ts's own doc comment: "the approved §6 matrix
+        // models dossier/claims/labels work as part of the regulatory row."
+        "regulatory_rules" | "regulatory_rule_revisions" | "regulatory_reviews"
+        | "regulatory_review_revocations" | "regulatory_evidence_confirmations"
+        | "regulatory_evidence_confirmation_revocations" | "regulatory_review_equivalences"
+        | "regulatory_dossiers" | "regulatory_dossier_requirements" | "regulatory_evidence_items"
+        | "regulatory_requirement_evidence_links" | "regulatory_dossier_reviews"
+        | "regulatory_dossier_review_revocations" | "regulatory_dossier_submissions"
+        | "regulatory_dossier_manual_requirement_actions" | "product_claims"
+        | "claim_evidence_links" | "claim_reviews" | "claim_review_revocations"
+        | "product_labels" | "label_content_blocks" | "label_artworks" | "label_reviews"
+        | "label_review_revocations" => Some("regulatory"),
+
+        // Optimization (Advanced Optimizer, DOE, Reverse Formulation) — no
+        // dedicated rolePolicy area exists for DOE/Reverse-Formulation
+        // specifically; "optimization" is the closest existing area for
+        // this advanced-formula-design-engineering tooling.
+        "optimization_profiles" | "optimization_runs" | "optimization_scenarios"
+        | "substitution_runs" | "doe_studies" | "doe_factors" | "doe_constraints"
+        | "doe_responses" | "doe_designs" | "doe_runs" | "doe_observations" | "doe_analyses"
+        | "doe_candidates" | "doe_review_actions" | "reverse_formulation_studies"
+        | "benchmark_products" | "benchmark_evidence_items" | "ingredient_declaration_lines"
+        | "target_product_profiles" | "reverse_constraint_sets" | "ingredient_mappings"
+        | "substitution_rules" | "reverse_formula_candidates" | "candidate_score_explanations" => {
+            Some("optimization")
+        }
+
+        // Data Exchange Center's own bookkeeping.
+        "data_exchange_import_jobs" | "data_exchange_import_row_results"
+        | "data_exchange_export_jobs" | "data_exchange_schema_versions" => Some("dataExchange"),
+
+        // Document export history (Dossiers workspace generation records).
+        "generated_document_records" => Some("documentControl"),
+
+        // Anything not explicitly listed above is an unmapped collection —
+        // deny, never fall through to an implicit allow. If a new
+        // collection is ever added to `COLLECTIONS` without a matching arm
+        // here, this is exactly the case that must deny it.
+        _ => None,
+    }
+}
+
+/// The capability set `upsert_master_records`/`write_master_collection_raw`
+/// share: a single call can insert new rows and update existing ones in the
+/// same batch, so `authz::authorize_any` is used with both — a role with
+/// either `create` or `edit` on the mapped area may write, matching every
+/// area/role pair in `rolePolicy.ts`'s MATRIX where the two are granted
+/// together anyway (architecture doc §9.3).
+const WRITE_CAPABILITIES: [&str; 2] = ["create", "edit"];
+
 fn collection_spec(name: &str) -> Result<(&'static str, bool), String> {
     COLLECTIONS
         .iter()
@@ -459,8 +563,10 @@ fn row_key(row: &serde_json::Value) -> Option<String> {
 #[tauri::command(async)]
 pub async fn list_master_records(
     app: AppHandle,
+    token: String,
     collection: String,
 ) -> Result<serde_json::Value, String> {
+    authz::current_actor_app(&app, &token)?;
     let path = collection_path(&app, &collection)?;
     Ok(serde_json::Value::Array(read_array(&path)))
 }
@@ -469,13 +575,24 @@ pub async fn list_master_records(
 ///
 /// Idempotent: importing the same file twice leaves the same data, which is the
 /// difference between a re-runnable import and a duplicated material library.
+///
+/// Phase 13 Session 4: `collection` is untrusted webview input, so it is
+/// resolved to a real allow-listed name (`collection_spec`) BEFORE being
+/// used to look up a policy area — never authorize against the caller's
+/// raw string. An unmapped (but otherwise allow-listed) collection is
+/// denied by `area_for_collection` returning `None`, same as an unknown
+/// role/area/capability triple in `role_policy::can` itself.
 #[tauri::command(async)]
 pub async fn upsert_master_records(
     app: AppHandle,
+    token: String,
     collection: String,
     records: Vec<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let (name, append_only) = collection_spec(&collection)?;
+    let area = area_for_collection(name)
+        .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
+    authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
     let path = collection_path(&app, name)?;
     let mut rows = read_array(&path);
 
@@ -527,13 +644,31 @@ pub async fn upsert_master_records(
 ///
 /// Materials are deactivated rather than deleted in the UI; this command exists
 /// for genuinely mistaken rows, and it snapshots the file first.
+/// Phase 13 Session 4 finding (architecture doc §9.3/Risks): §6's approved
+/// matrix, transcribed literally, grants the `delete` capability to no role
+/// in ANY domain content area (`rawMaterials`/`formulation`/`laboratory`/
+/// `stability`/`regulatory`/`optimization`/`dataExchange`/`documentControl`
+/// all deny `delete` to every one of the 12 roles, `administrator`
+/// included) — the only cell anywhere in the whole matrix that grants
+/// `delete` at all is `projects`/`administrator`. Gating this destructive,
+/// snapshot-first, "genuinely mistaken rows" operation (see its own doc
+/// comment below) against `rawMaterials`/`formulation`/etc. `delete` would
+/// make it unreachable for every role, including administrator — not a
+/// safety improvement, just a broken feature. Using the one real `delete`
+/// grant the approved matrix does contain (`projects`, administrator-only)
+/// instead is a deliberate, documented Session 4 choice, not a matrix
+/// change: it makes master-record deletion an administrative action until
+/// the domain review (Risks item 1) decides whether any area should grant
+/// `delete` to a working-tier role directly.
 #[tauri::command(async)]
 pub async fn delete_master_record(
     app: AppHandle,
+    token: String,
     collection: String,
     code: String,
 ) -> Result<serde_json::Value, String> {
     let (name, append_only) = collection_spec(&collection)?;
+    authz::authorize_app(&app, &token, "projects", "delete")?;
     if append_only {
         return Err(format!(
             "{name} is append-only: deleting a historical record would change what a \
@@ -553,8 +688,10 @@ pub async fn delete_master_record(
 #[tauri::command(async)]
 pub async fn backup_master_collection(
     app: AppHandle,
+    token: String,
     collection: String,
 ) -> Result<String, String> {
+    authz::current_actor_app(&app, &token)?;
     let (name, _) = collection_spec(&collection)?;
     backup_collection(&app, name)
 }
@@ -591,10 +728,14 @@ fn backup_collection(app: &AppHandle, name: &str) -> Result<String, String> {
 #[tauri::command(async)]
 pub async fn write_master_collection_raw(
     app: AppHandle,
+    token: String,
     collection: String,
     records: Vec<serde_json::Value>,
 ) -> Result<(), String> {
     let (name, _) = collection_spec(&collection)?;
+    let area = area_for_collection(name)
+        .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
+    authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
     let path = collection_path(&app, name)?;
     write_array(&path, &records)
 }
@@ -844,5 +985,55 @@ mod tests {
     fn missing_file_reads_as_an_empty_collection_rather_than_erroring() {
         let path = std::env::temp_dir().join("formulab-masterdata-test-does-not-exist.json");
         assert_eq!(read_array(&path), Vec::<serde_json::Value>::new());
+    }
+
+    // ------------------------------------------- Session 4: authorization ---
+
+    #[test]
+    fn every_allow_listed_collection_has_a_policy_area_mapping() {
+        // The generic-CRUD authorization gate is only as strong as this
+        // mapping's coverage — a collection present in COLLECTIONS but
+        // missing from area_for_collection would deny writes to it (safe),
+        // but this test exists to make an unmapped name a loud, intentional
+        // finding rather than a silently-discovered support ticket.
+        let unmapped: Vec<&str> = COLLECTIONS
+            .iter()
+            .map(|(name, _)| *name)
+            .filter(|name| area_for_collection(name).is_none())
+            .collect();
+        assert!(unmapped.is_empty(), "collections with no policy area mapping (writes to them are denied to everyone): {unmapped:?}");
+    }
+
+    #[test]
+    fn an_unknown_collection_name_has_no_policy_area() {
+        assert_eq!(area_for_collection("not_a_real_collection"), None);
+        assert_eq!(area_for_collection(""), None);
+    }
+
+    #[test]
+    fn representative_collections_map_to_the_expected_domain_area() {
+        assert_eq!(area_for_collection("materials"), Some("rawMaterials"));
+        assert_eq!(area_for_collection("stability_studies"), Some("stability"));
+        assert_eq!(area_for_collection("test_results"), Some("laboratory"));
+        assert_eq!(area_for_collection("regulatory_rules"), Some("regulatory"));
+        assert_eq!(area_for_collection("product_claims"), Some("regulatory"));
+        assert_eq!(area_for_collection("doe_studies"), Some("optimization"));
+        assert_eq!(area_for_collection("data_exchange_import_jobs"), Some("dataExchange"));
+        assert_eq!(area_for_collection("generated_document_records"), Some("documentControl"));
+    }
+
+    #[test]
+    fn write_capability_check_accepts_create_or_edit_and_rejects_view_only() {
+        // raw_material has create+edit on rawMaterials; procurement has
+        // only create (no edit) on rawMaterials per the approved matrix —
+        // both must pass the OR check. regulatory has only view on
+        // rawMaterials and must be rejected.
+        for role in ["raw_material", "procurement"] {
+            assert!(
+                WRITE_CAPABILITIES.iter().any(|cap| crate::role_policy::can(role, "rawMaterials", cap)),
+                "{role} should be able to write rawMaterials"
+            );
+        }
+        assert!(!WRITE_CAPABILITIES.iter().any(|cap| crate::role_policy::can("regulatory", "rawMaterials", cap)));
     }
 }

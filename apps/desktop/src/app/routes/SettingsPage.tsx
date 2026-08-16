@@ -20,6 +20,8 @@ import {
   workspaceBase,
   type PythonInterpreter,
 } from "@/lib/tauri";
+import { can } from "@formulab/shared";
+import { useTrustedActor } from "@/lib/currentActor";
 import { useSetupStore } from "@/lib/setup";
 import { RemoteComputeCard } from "@/components/settings/RemoteComputeCard";
 import { BackupRecoveryCard } from "@/components/settings/BackupRecoveryCard";
@@ -49,6 +51,16 @@ import { cn } from "@/lib/cn";
 export function SettingsPage() {
   // Which settings section is on screen — the sidebar is the navigation.
   const section = resolveSection(useParams().section);
+  // Phase 13 Session 4 (architecture doc §9.2/§9.3): the backend now hard-
+  // denies every action these four cards expose to anyone without
+  // `systemAdministration`/`administer` — showing buttons that always fail
+  // server-side would be worse UX than hiding them, so they're hidden for
+  // a non-administrator. Outside a real `AuthProvider` (this codebase's
+  // existing test suite, which renders `SettingsPage` directly) there's no
+  // trusted actor to check, so nothing is hidden — the same fallback
+  // `useTrustedActor()`'s own doc comment already establishes elsewhere.
+  const trusted = useTrustedActor();
+  const canAdministerSystem = !trusted || can(trusted.role, "systemAdministration", "administer");
   const theme = useUiStore((s) => s.theme);
   const setTheme = useUiStore((s) => s.setTheme);
   const locale = useUiStore((s) => s.locale);
@@ -165,16 +177,16 @@ export function SettingsPage() {
         )}
 
         {/* ---- Active Data Location ---- */}
-        {section === "general" && <ActiveDataLocationCard />}
+        {section === "general" && canAdministerSystem && <ActiveDataLocationCard />}
 
         {/* ---- Backup and Recovery ---- */}
-        {section === "general" && <BackupRecoveryCard />}
+        {section === "general" && canAdministerSystem && <BackupRecoveryCard />}
 
         {/* ---- Automatic Backups ---- */}
-        {section === "general" && <AutomaticBackupCard />}
+        {section === "general" && canAdministerSystem && <AutomaticBackupCard />}
 
         {/* ---- Schema Migration ---- */}
-        {section === "general" && <SchemaMigrationCard />}
+        {section === "general" && canAdministerSystem && <SchemaMigrationCard />}
 
         {/* ---- Diagnostics ---- */}
         {section === "general" && <DiagnosticsCard />}

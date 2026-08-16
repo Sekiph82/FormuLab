@@ -918,12 +918,18 @@ pub(crate) fn try_create_backup(
     Ok(manifest)
 }
 
+/// Phase 13 Session 4 (architecture doc §9.2/§9.3 "System Administration"):
+/// a manual, user-initiated full backup is a system-administration action —
+/// gated `systemAdministration`/`administer`, administrator-only per the
+/// approved matrix.
 #[tauri::command(async)]
 pub async fn create_backup(
     app: AppHandle,
+    token: String,
     state: State<'_, BackupState>,
     destination: String,
 ) -> Result<BackupManifest, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
@@ -1261,12 +1267,18 @@ pub async fn inspect_backup(source: String) -> Result<BackupManifest, String> {
     read_manifest_from_archive(&mut archive)
 }
 
+/// Phase 13 Session 4: the single highest-risk system-administration
+/// command in the Session 3 inventory — restoring overwrites real project
+/// data wholesale. Gated `systemAdministration`/`administer`,
+/// administrator-only.
 #[tauri::command(async)]
 pub async fn restore_backup(
     app: AppHandle,
+    token: String,
     state: State<'_, BackupState>,
     source: String,
 ) -> Result<RestoreResult, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;

@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-3) — CANONICAL ROLE POLICY + FRONTEND SELECTOR WIRING IMPLEMENTED, APPLICATION-WIDE SERVER-SIDE ENFORCEMENT NOT YET WIRED
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-4) — APPLICATION-WIDE SERVER-SIDE ENFORCEMENT WIRED FOR THE PRIORITY COMMAND SET; NOT EVERY COMMAND YET REVIEWED
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -1989,9 +1989,54 @@ for Session 4, not just a longer TODO list. Rust: 252/252 (Session 2's
 251 + 1 new), clippy clean. Shared: 1291/1291 (Session 2's 1254 + 37
 new), tsc clean. Desktop: tsc clean; full suite 1185/1185, unchanged
 from Session 2 since this session's frontend change has existing test
-coverage via its fallback path. Full design:
-`docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`; test report:
-`docs/PHASE13_SECURITY_TEST_MATRIX.md`; handoff:
+coverage via its fallback path.
+
+Session 4 turned that inventory into real enforcement for its priority
+set. `role_policy.rs` (new) implements `can()`/`is_valid_transition()`
+in Rust with **no hand-typed matrix or transition graph of its own** —
+both are read via `include_str!` from JSON fixtures
+(`rolePolicyMatrix.generated.json`, `formulaStatusTransitions.json`)
+`packages/shared/scripts/generate-role-policy-matrix.ts` serializes
+from `rolePolicy.ts`'s `MATRIX`/`status.ts`'s `ALLOWED_NEXT`, with new
+TypeScript parity tests failing on drift — the same shared-fixture
+mechanism Session 3's `roleVocabulary.json` established. A new
+`systemAdministration` policy area (administrator-only) was drafted,
+closing the Session 3 finding that none existed. `authz.rs` (new) is
+the one reusable trusted-backend guard — session token ->
+`validate_session` -> active account -> stored role -> `can()` ->
+allow/deny — with no role/userId/displayName parameter anywhere for a
+caller to supply; denials are audited using the resolved actor's real
+identity. `save_approval_record`'s confirmed Session 0 bypass is
+closed: role, identity, and (for a granted approval) transition
+validity are all checked server-side, and every caller-supplied
+identity field is overwritten with the trusted session's. Generic
+masterdata CRUD (`upsert_master_records`/`delete_master_record`/
+`write_master_collection_raw`) is domain-authorized via a new 90-
+collection->PolicyArea mapping (100%-coverage-tested; unmapped is a
+hard deny) built from this file's own domain groupings and
+`dataExchangeRegistry.ts`'s existing `targetCollection` data — not
+invented fresh. One structural finding: no role has `delete` in any
+domain content area at all, only `projects`/`administrator`, so both
+delete commands gate against that instead. Formulation writes,
+attachments, audit-event attribution, and every System Administration
+command (backup/restore/migration/data-location/automatic-backup
+config) are gated the same way; `run_automatic_backup` is deliberately
+left unauthenticated so a non-admin's own scheduled backups keep
+running. Frontend: `currentSessionToken()` (new) is attached once per
+command-wrapper file's shared `call()` helper, not at each of 26 call
+sites; `SettingsPage.tsx`'s four System Administration cards are
+hidden for non-administrators (UX only, backend was already
+authoritative). Rust: 281/281 (Session 3's 252 + 29 new), clippy
+clean. Shared: 1296/1296 (1291 + 5 new), tsc clean. Desktop: tsc
+clean, eslint clean; full suite 1188/1188 (1185 + 3 new) — every
+pre-existing test exercising a now-token-carrying wrapper passed
+unchanged. **Not every Session-3-inventoried command is enforced** —
+commands outside the priority set are classified
+(AUTHENTICATED_READ/TRUSTED_INTERNAL_ONLY/
+READ_ONLY_NO_ROLE_GATE_NEEDED/DEFERRED_WITH_REASON), not silently
+unreviewed, but classified is not secured; Phase 13 is not fully
+secure yet. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`
+§9.3; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §J; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`.
 
 ## Not yet started

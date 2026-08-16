@@ -689,8 +689,11 @@ fn restore_pointer(pointer_path: &Path, previous: Option<&str>) {
     }
 }
 
+/// Phase 13 Session 4: data-location changes are System Administration —
+/// gated `systemAdministration`/`administer`, administrator-only.
 #[tauri::command(async)]
-pub async fn move_data_location(app: AppHandle, state: State<'_, BackupState>, destination: String) -> Result<DataMoveResult, String> {
+pub async fn move_data_location(app: AppHandle, token: String, state: State<'_, BackupState>, destination: String) -> Result<DataMoveResult, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
@@ -783,7 +786,8 @@ fn try_use_existing(app: &AppHandle, dest: &Path, cancel: &Arc<AtomicBool>, run_
 }
 
 #[tauri::command(async)]
-pub async fn use_existing_data_location(app: AppHandle, state: State<'_, BackupState>, path: String) -> Result<DataMoveResult, String> {
+pub async fn use_existing_data_location(app: AppHandle, token: String, state: State<'_, BackupState>, path: String) -> Result<DataMoveResult, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut guard = state.0.lock().map_err(|_| "backup state unavailable".to_string())?;
@@ -818,7 +822,8 @@ pub struct RestoreDefaultResult {
 /// still wins after this call, surfaced as a resolution warning rather
 /// than silently deleted.
 #[tauri::command(async)]
-pub async fn restore_default_data_location(app: AppHandle) -> Result<RestoreDefaultResult, String> {
+pub async fn restore_default_data_location(app: AppHandle, token: String) -> Result<RestoreDefaultResult, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let pointer_path = crate::workspace::base_workspace_file(&app)?;
     let pointer_removed = pointer_path.exists();
     if pointer_removed {
@@ -976,7 +981,8 @@ pub(crate) fn is_cleanup_safe(old_root: &Path, active_root: &Path) -> bool {
 /// to) the CURRENT active root, so a confused caller can never delete the
 /// data that is actually in use right now.
 #[tauri::command(async)]
-pub async fn cleanup_old_data_location(app: AppHandle, old_root: String) -> Result<(), String> {
+pub async fn cleanup_old_data_location(app: AppHandle, token: String, old_root: String) -> Result<(), String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let old_path = PathBuf::from(&old_root);
     let active = resolve_data_root(&app)?.path;
     if !is_cleanup_safe(&old_path, &active) {

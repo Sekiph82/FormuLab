@@ -74,7 +74,16 @@ export const APPROVAL_AUTHORITY: Record<FormulaStatus, readonly ApprovalRole[]> 
   rejected: ["research_manager", "quality_manager", "regulatory", "administrator"],
 };
 
-const ALLOWED_NEXT: Record<FormulaStatus, readonly FormulaStatus[]> = {
+/**
+ * Phase 13 Session 4: exported (was module-private) so
+ * `scripts/generate-role-policy-matrix.ts` can serialize it to
+ * `formulaStatusTransitions.json` — the shared fixture `role_policy.rs`
+ * (Rust) reads to give `save_approval_record` a real, non-duplicated
+ * workflow-transition-validity check server-side (architecture doc §9.3).
+ * Widening this from `const` to `export const` changes nothing about its
+ * behavior or any existing caller.
+ */
+export const ALLOWED_NEXT: Record<FormulaStatus, readonly FormulaStatus[]> = {
   concept: ["literature_candidate", "chemist_review", "rejected"],
   literature_candidate: ["chemist_review", "rejected"],
   chemist_review: ["lab_candidate", "concept", "rejected"],

@@ -1,0 +1,208 @@
+// `areas()`/`roles()` are public introspection helpers (mirroring
+// `rolePolicy.ts`'s own `POLICY_AREAS`/`ROLES` exports) exercised by this
+// module's own tests but not yet consumed elsewhere in the crate — same
+// module-level `#[allow(dead_code)]` convention `identity.rs` already uses
+// for primitives ahead of their first non-test caller.
+#![allow(dead_code)]
+// Phase 13 Session 4 — the Rust half of the canonical, cross-language
+// authorization policy. This module holds no hand-typed permission matrix
+// and no hand-typed workflow-transition graph of its own: both are read at
+// first use, via `include_str!`, from the exact same JSON fixtures
+// `packages/shared/src/engine/rolePolicy.ts`'s
+// `scripts/generate-role-policy-matrix.ts` generates from `MATRIX`/
+// `ALLOWED_NEXT` — the identical mechanism `identity.rs`'s
+// `role_vocabulary_matches_the_shared_json_fixture` test already uses for
+// the 12-role vocabulary (Session 3). A change to `rolePolicy.ts`'s MATRIX
+// that isn't followed by regenerating the fixture fails
+// `rolePolicy.matrixParity.test.ts` on the TypeScript side, not silently
+// here — this file has nothing to independently drift.
+//
+// See docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md §7/§9.3.
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+use serde::Deserialize;
+
+const MATRIX_FIXTURE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../packages/shared/src/engine/rolePolicyMatrix.generated.json"
+));
+const TRANSITIONS_FIXTURE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../packages/shared/src/engine/formulaStatusTransitions.json"
+));
+
+#[derive(Debug, Deserialize)]
+struct MatrixFixture {
+    areas: Vec<String>,
+    roles: Vec<String>,
+    #[allow(dead_code)] // parsed for completeness; can() only needs `matrix`
+    capabilities: Vec<String>,
+    matrix: HashMap<String, HashMap<String, Vec<String>>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TransitionsFixture {
+    #[allow(dead_code)]
+    statuses: Vec<String>,
+    #[serde(rename = "allowedNext")]
+    allowed_next: HashMap<String, Vec<String>>,
+}
+
+fn matrix() -> &'static MatrixFixture {
+    static MATRIX: OnceLock<MatrixFixture> = OnceLock::new();
+    MATRIX.get_or_init(|| {
+        serde_json::from_str(MATRIX_FIXTURE)
+            .expect("rolePolicyMatrix.generated.json must be valid JSON matching MatrixFixture")
+    })
+}
+
+fn transitions() -> &'static TransitionsFixture {
+    static TRANSITIONS: OnceLock<TransitionsFixture> = OnceLock::new();
+    TRANSITIONS.get_or_init(|| {
+        serde_json::from_str(TRANSITIONS_FIXTURE)
+            .expect("formulaStatusTransitions.json must be valid JSON matching TransitionsFixture")
+    })
+}
+
+/// May `role` ever perform `capability` in `area`? Default-deny, exactly
+/// mirroring `rolePolicy.ts`'s `can()`: an unrecognized area, an
+/// unrecognized role, or a capability absent from that role's grants in
+/// that area all fall through to `false` via plain `HashMap` lookups — there
+/// is no "allow unless denied" branch anywhere in this function.
+pub fn can(role: &str, area: &str, capability: &str) -> bool {
+    matrix()
+        .matrix
+        .get(area)
+        .and_then(|roles| roles.get(role))
+        .map(|caps| caps.iter().any(|c| c == capability))
+        .unwrap_or(false)
+}
+
+/// Every fixed policy area name, for validating an area string before using
+/// it elsewhere (e.g. the masterdata collection -> area mapping).
+pub fn areas() -> &'static [String] {
+    &matrix().areas
+}
+
+/// Every fixed role name — the Rust-side mirror of `rolePolicy.ts`'s
+/// `ROLES`, sourced from the same fixture `identity::Role` is already
+/// checked against (Session 3's `roleVocabulary.json` parity mechanism).
+pub fn roles() -> &'static [String] {
+    &matrix().roles
+}
+
+/// May a `FormulaStatus` move from `from` to `to`? Default-deny: an
+/// unrecognized `from` or a `to` not present in its allowed-next list both
+/// return `false`. Mirrors `status.ts`'s `ALLOWED_NEXT` graph via the shared
+/// fixture — no independently-typed copy of the state machine.
+pub fn is_valid_transition(from: &str, to: &str) -> bool {
+    transitions()
+        .allowed_next
+        .get(from)
+        .map(|next| next.iter().any(|s| s == to))
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_deny_for_unknown_area_role_or_capability() {
+        assert!(!can("administrator", "not_a_real_area", "view"));
+        assert!(!can("not_a_real_role", "formulation", "view"));
+        assert!(!can("administrator", "formulation", "not_a_real_capability"));
+        assert!(!can("", "", ""));
+    }
+
+    #[test]
+    fn every_role_has_view_on_home() {
+        for role in roles() {
+            assert!(can(role, "home", "view"), "{role} should have view on home");
+        }
+    }
+
+    #[test]
+    fn only_administrator_has_any_capability_on_system_administration() {
+        for role in roles() {
+            let expected_admin_only = role == "administrator";
+            assert_eq!(
+                can(role, "systemAdministration", "administer"),
+                expected_admin_only,
+                "systemAdministration/administer must be administrator-only, got role={role}"
+            );
+        }
+    }
+
+    #[test]
+    fn approval_pilot_approve_matches_the_known_manager_tier_plus_administrator() {
+        for role in ["research_manager", "quality_manager", "administrator"] {
+            assert!(can(role, "approvalPilot", "approve"), "{role} should approve pilot_approved");
+        }
+        for role in ["researcher", "quality", "regulatory", "raw_material", "procurement", "production_engineering", "production", "production_manager", "document_control"] {
+            assert!(!can(role, "approvalPilot", "approve"), "{role} must NOT approve pilot_approved");
+        }
+    }
+
+    #[test]
+    fn approval_production_approve_matches_the_known_authority_set() {
+        for role in ["quality_manager", "regulatory", "production_manager", "administrator"] {
+            assert!(can(role, "approvalProduction", "approve"), "{role} should approve production_approved");
+        }
+        for role in ["researcher", "research_manager", "quality", "raw_material", "procurement", "production_engineering", "production", "document_control"] {
+            assert!(!can(role, "approvalProduction", "approve"), "{role} must NOT approve production_approved");
+        }
+    }
+
+    #[test]
+    fn worker_tier_cannot_approve_even_though_it_can_submit() {
+        // The exact worker/manager separation Session 4's brief requires
+        // proof of: a worker role has `submit` but never `approve`/`reject`.
+        assert!(can("researcher", "approvalPilot", "submit"));
+        assert!(!can("researcher", "approvalPilot", "approve"));
+        assert!(!can("researcher", "approvalPilot", "reject"));
+        assert!(can("quality", "approvalProduction", "submit"));
+        assert!(!can("quality", "approvalProduction", "approve"));
+    }
+
+    #[test]
+    fn production_manager_verify_on_raw_materials_and_supplier_documents_session1_closure_gates() {
+        // architecture doc §15.4 — the discrepancy-resolution addition.
+        assert!(can("production_manager", "rawMaterials", "verify"));
+        assert!(can("production_manager", "supplierDocuments", "verify"));
+    }
+
+    #[test]
+    fn regulatory_verify_extends_to_quality_and_administrator() {
+        // architecture doc §8 — AUTHORIZED_REGULATORY_ROLES-derived addition.
+        for role in ["regulatory", "quality", "administrator"] {
+            assert!(can(role, "regulatory", "verify"), "{role} should verify regulatory evidence");
+        }
+        assert!(!can("researcher", "regulatory", "verify"));
+    }
+
+    #[test]
+    fn transition_graph_allows_known_valid_moves_and_denies_invalid_ones() {
+        assert!(is_valid_transition("pilot_candidate", "pilot_approved"));
+        assert!(is_valid_transition("pilot_approved", "production_approved"));
+        assert!(is_valid_transition("concept", "rejected"));
+        assert!(is_valid_transition("rejected", "concept"));
+        // Not adjacent: concept cannot jump straight to pilot_approved.
+        assert!(!is_valid_transition("concept", "pilot_approved"));
+        // production_approved's only forward move is retired.
+        assert!(!is_valid_transition("production_approved", "pilot_candidate"));
+        assert!(is_valid_transition("production_approved", "retired"));
+        // retired is terminal.
+        assert!(!is_valid_transition("retired", "concept"));
+        // Unknown statuses default-deny.
+        assert!(!is_valid_transition("not_a_real_status", "concept"));
+    }
+
+    #[test]
+    fn fixture_vocabularies_have_the_expected_shape() {
+        assert_eq!(roles().len(), 12);
+        assert!(areas().contains(&"systemAdministration".to_string()));
+        assert!(areas().contains(&"formulation".to_string()));
+    }
+}

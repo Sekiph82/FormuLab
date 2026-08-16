@@ -70,6 +70,7 @@ export const POLICY_AREAS = [
   "administrationUsers",
   "administrationSecurity",
   "administrationSettings",
+  "systemAdministration",
 ] as const;
 export type PolicyArea = (typeof POLICY_AREAS)[number];
 
@@ -97,6 +98,8 @@ export const POLICY_AREA_LABELS: Record<PolicyArea, string> = {
   administrationUsers: "Administration → Users",
   administrationSecurity: "Administration → Security history",
   administrationSettings: "Administration → App settings",
+  systemAdministration:
+    "System administration (backup, restore, schema migration, data-location changes)",
 };
 
 /**
@@ -472,6 +475,30 @@ const MATRIX: CapabilityGrid = {
     NONE,
     ["view", "edit", "administer"],
   ]),
+
+  // Phase 13 Session 4 addition (architecture doc §9.2/§9.3): §6's original
+  // table has no System-Administration row at all — Session 3's privileged-
+  // command inventory found backup/restore/migration/data-location commands
+  // with nothing to enforce against. Per explicit Session 4 instruction,
+  // "system-level destructive/configuration mutations should be
+  // Administrator-only unless the current approved architecture proves
+  // otherwise" — nothing in the approved architecture grants any other role
+  // this authority, so `administrator` is the only role with any capability
+  // here, exactly like `administrationUsers`/`administrationSecurity` above.
+  systemAdministration: row([
+    NONE,
+    NONE,
+    NONE,
+    NONE,
+    NONE,
+    NONE,
+    NONE,
+    NONE,
+    NONE,
+    NONE,
+    NONE,
+    ["view", "administer"],
+  ]),
 };
 
 // Every grant below is derived from an existing, independent authority
@@ -539,4 +566,27 @@ export function areasFor(role: Role): readonly PolicyArea[] {
  *  production_approved" for an audit/introspection view. */
 export function rolesWithCapability(area: PolicyArea, capability: Capability): readonly Role[] {
   return ROLES.filter((role) => MATRIX[area][role].includes(capability));
+}
+
+/**
+ * Phase 13 Session 4 — the full, fully-resolved (post-derivation-loop)
+ * matrix as a plain, JSON-serializable object: `{ [area]: { [role]:
+ * capability[] } }`. This is the one function that turns `MATRIX` — an
+ * internal, TypeScript-typed data structure — into the shared contract
+ * `scripts/generate-role-policy-matrix.ts` serializes to
+ * `rolePolicyMatrix.generated.json`, which `role_policy.rs` (Rust) then
+ * reads via `include_str!` to implement its own `can()`. Rust holds no
+ * hand-typed permission matrix of its own; this snapshot, generated from
+ * this file, is Rust's only source for one. See architecture doc §7/§9.3.
+ */
+export function fullMatrixSnapshot(): Record<PolicyArea, Record<Role, readonly Capability[]>> {
+  const out = {} as Record<PolicyArea, Record<Role, readonly Capability[]>>;
+  for (const area of POLICY_AREAS) {
+    const roleGrants = {} as Record<Role, readonly Capability[]>;
+    for (const role of ROLES) {
+      roleGrants[role] = MATRIX[area][role];
+    }
+    out[area] = roleGrants;
+  }
+  return out;
 }

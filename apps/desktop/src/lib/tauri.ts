@@ -416,7 +416,8 @@ export interface DataMoveResult {
 export async function moveDataLocation(destination: string): Promise<DataMoveResult> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<DataMoveResult>("move_data_location", { destination });
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<DataMoveResult>("move_data_location", { token: currentSessionToken(), destination });
 }
 
 /** Request cancellation of a running move (best-effort, checked between steps). */
@@ -454,7 +455,8 @@ export async function watchDataMoveProgress(cb: (p: DataMoveProgress) => void): 
 export async function activateExistingDataLocation(path: string): Promise<DataMoveResult> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<DataMoveResult>("use_existing_data_location", { path });
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<DataMoveResult>("use_existing_data_location", { token: currentSessionToken(), path });
 }
 
 export interface RestoreDefaultResult {
@@ -469,7 +471,8 @@ export interface RestoreDefaultResult {
 export async function restoreDefaultDataLocation(): Promise<RestoreDefaultResult> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<RestoreDefaultResult>("restore_default_data_location");
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<RestoreDefaultResult>("restore_default_data_location", { token: currentSessionToken() });
 }
 
 export interface DataMoveJournalEntry {
@@ -510,7 +513,8 @@ export async function resumeInterruptedDataMove(): Promise<DataMoveRecoveryResul
 export async function cleanupOldDataLocation(oldRoot: string): Promise<void> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("cleanup_old_data_location", { oldRoot });
+  const { currentSessionToken } = await import("./sessionToken");
+  await invoke("cleanup_old_data_location", { token: currentSessionToken(), oldRoot });
 }
 
 /** A project: a named workspace folder under the base dir, marked by its
@@ -805,7 +809,8 @@ export async function pickBackupSource(): Promise<string | null> {
 export async function createBackup(destination: string): Promise<BackupManifest> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<BackupManifest>("create_backup", { destination });
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<BackupManifest>("create_backup", { token: currentSessionToken(), destination });
 }
 
 /** Request cancellation of a running backup (best-effort, checked between steps). */
@@ -836,7 +841,8 @@ export async function inspectBackup(source: string): Promise<BackupManifest> {
 export async function restoreBackup(source: string): Promise<RestoreResult> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<RestoreResult>("restore_backup", { source });
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<RestoreResult>("restore_backup", { token: currentSessionToken(), source });
 }
 
 /** Request cancellation of a running restore (best-effort). */
@@ -944,7 +950,8 @@ export async function readAutomaticBackupState(): Promise<AutomaticBackupState> 
 export async function writeAutomaticBackupConfig(config: AutomaticBackupConfig): Promise<AutomaticBackupState> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<AutomaticBackupState>("write_automatic_backup_config", { config });
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<AutomaticBackupState>("write_automatic_backup_config", { token: currentSessionToken(), config });
 }
 
 /** Runs one automatic backup of `cls`, verifying it before it counts as
@@ -964,7 +971,8 @@ export async function runAutomaticBackup(cls: AutomaticBackupClass): Promise<Aut
 export async function applyPreMigrationRetention(keep: number): Promise<string[]> {
   if (!isTauri) return [];
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<string[]>("apply_pre_migration_retention", { keep });
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<string[]>("apply_pre_migration_retention", { token: currentSessionToken(), keep });
 }
 
 /** Reveals the configured automatic-backup destination folder — an

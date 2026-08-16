@@ -19,6 +19,7 @@ use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 
 use crate::artifact_file::{mime_for, os_open, resolve_under};
+use crate::authz;
 
 const CATEGORY_EXTENSIONS: &[(&str, &[&str])] = &[
     ("image", &["png", "jpg", "jpeg", "gif", "webp", "bmp", "heic", "tif", "tiff"]),
@@ -62,12 +63,21 @@ fn attachments_dir(app: &AppHandle, formulation_id: &str) -> Result<PathBuf, Str
 /// and anything that isn't a regular, absolute-path file (a picker result
 /// really is absolute; a relative string here would mean the caller is
 /// feeding through untrusted renderer text instead of a picker result).
+///
+/// Phase 13 Session 4: an attachment's real domain context is the
+/// formulation it's attached to (`formulation_id`) — every attachment site
+/// (trial observations/deviations, stability results/failures, corrective
+/// actions) is reached from a formulation workspace, so gating against
+/// `formulation`'s write capability is the parent-context check the
+/// session brief asks for, not a placeholder.
 #[tauri::command(async)]
 pub async fn copy_attachment_into_project(
     app: AppHandle,
+    token: String,
     formulation_id: String,
     source_path: String,
 ) -> Result<serde_json::Value, String> {
+    authz::authorize_any_app(&app, &token, "formulation", &["create", "edit"])?;
     let source = PathBuf::from(&source_path);
     if !source.is_absolute() {
         return Err("attachment source must be an absolute path chosen via the file picker".into());
@@ -119,7 +129,8 @@ pub async fn copy_attachment_into_project(
 /// location naming a file outside `attachments/` is refused, not silently
 /// widened.
 #[tauri::command(async)]
-pub async fn open_attachment(app: AppHandle, formulation_id: String, location: String) -> Result<(), String> {
+pub async fn open_attachment(app: AppHandle, token: String, formulation_id: String, location: String) -> Result<(), String> {
+    authz::current_actor_app(&app, &token)?;
     let root = formulation_root_dir(&app, &formulation_id)?;
     let full = resolve_under(&root, &location)?;
     os_open(&full)
