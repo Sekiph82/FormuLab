@@ -185,7 +185,8 @@ export async function runFormulationOptimize(
 ): Promise<FormulationResult | null> {
   if (!isTauri) return null;
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<FormulationResult>("run_formulation_optimize", { input });
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<FormulationResult>("run_formulation_optimize", { token: currentSessionToken(), input });
 }
 
 /** Solve an Advanced Optimizer `FormulationProblem` (`@formulab/shared`'s
@@ -197,7 +198,8 @@ export async function runAdvancedFormulationOptimize(
 ): Promise<unknown | null> {
   if (!isTauri) return null;
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke("run_advanced_formulation_optimize", { input });
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke("run_advanced_formulation_optimize", { token: currentSessionToken(), input });
 }
 
 /** Kill whatever Advanced Optimizer solve is currently running, if any.
@@ -504,7 +506,8 @@ export interface DataMoveRecoveryResult {
 export async function resumeInterruptedDataMove(): Promise<DataMoveRecoveryResult> {
   if (!isTauri) throw new Error("not running in the desktop app");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<DataMoveRecoveryResult>("resume_interrupted_data_move");
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<DataMoveRecoveryResult>("resume_interrupted_data_move", { token: currentSessionToken() });
 }
 
 /** Deletes the old location entirely — never called automatically, only

@@ -329,7 +329,8 @@
         "view"
       ],
       "administrator": [
-        "view"
+        "view",
+        "verify"
       ]
     },
     "supplierDocuments": {
@@ -362,7 +363,8 @@
         "view"
       ],
       "administrator": [
-        "view"
+        "view",
+        "verify"
       ]
     },
     "regulatory": {
@@ -488,7 +490,9 @@
         "view"
       ],
       "administrator": [
-        "view"
+        "view",
+        "approve",
+        "reject"
       ]
     },
     "production": {
@@ -517,7 +521,9 @@
         "view"
       ],
       "administrator": [
-        "view"
+        "view",
+        "approve",
+        "reject"
       ]
     },
     "documentControl": {

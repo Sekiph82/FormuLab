@@ -51,6 +51,14 @@ actually implemented and passing, plus the 5 new shared-package parity
 tests and why the frontend needed only one small new test file
 (`sessionToken.test.ts`) despite 6 wrapper files changing.
 
+**Session 4A note**: the Session 4 `DEFERRED_WITH_REASON` backlog is
+closed, all four Production Manager workflow gates are implemented as
+real auditable state (not `FormulaStatus` values), and the masterdata
+collection->area mapping now has TypeScript parity. Section K is new:
+29 new Rust tests (§K.1/§K.2) + 5 new shared-package parity tests
+(§K.3), and why the deferred-command closure needed no new test file
+of its own (§K.4).
+
 ## A. Authentication
 
 | # | Test | Status | Session |
@@ -488,3 +496,100 @@ transparent to existing callers. `eslint` clean on every touched file
 (`formulations.ts`, `masterdata.ts`, `tauri.ts`, `migrationRunner.ts`,
 `sessionToken.ts`, `AuthProvider.tsx`, `SettingsPage.tsx`,
 `TrialsPanel.tsx`). `git diff --check`: clean.
+
+## K. Session 4A — deferred-command closure, Production Manager workflow gates, masterdata parity tests actually implemented and passing
+
+### K.1 `role_policy.rs` — masterdata parity (4 new tests)
+
+All 90 collections resolve to a policy area via `masterdata_area_for`;
+an unknown/empty/path-traversal-shaped name resolves to `None`;
+representative collections match the expected area; every resolved
+area is a real, recognized `PolicyArea`.
+
+**Total**: 4 tests, 4 passing.
+
+### K.2 `workflow_gates.rs` (19 new tests)
+
+**Pure specs (7)**: the 4-state lifecycle allows exactly `pending ->
+submitted -> approved|rejected` and `rejected -> submitted`, denying
+every other pair including `pending -> approved` directly (a worker
+cannot skip straight to approved) and `approved -> anything` (terminal);
+all four gate types have a spec, an unknown gate type does not;
+raw-material/supplier-document gates use one `verify` capability for
+both approve and reject; production-engineering/production gates use
+distinct `approve`/`reject` capabilities; `production_release`'s spec
+names `production_engineering_handoff` as its required upstream gate;
+`production_engineering_handoff`'s spec names `production_approved` as
+its required `FormulaStatus`; every gate's worker capability is `edit`.
+
+**Prerequisite logic (3)**: a gate with no prerequisite is always
+satisfied; `production_engineering_handoff` is blocked for every
+status except `production_approved`, including no status at all;
+`production_release` is blocked unless the upstream gate's state is
+exactly `approved` (`pending`/`submitted`/`rejected`/absent all denied).
+
+**State-machine behavior — the actual `apply_submit`/`apply_decision`
+logic, not just its specs (6)**: a first submission creates a
+`pending -> submitted` record with one history entry and no stale
+approve/reject fields; submitting an already-submitted gate is refused;
+**a rejected gate becomes actionable again via resubmission and the
+resubmission clears the previous cycle's rejection attribution** — the
+direct proof of the session brief's "a rejected/returned item must
+become actionable again"; deciding a gate that was never submitted
+(still `pending`) is refused; approving a submitted gate records the
+deciding actor and is terminal (a further decision on an approved gate
+fails); administrator decides a gate exactly like production_manager
+(§15.4/§9.4.2).
+
+**Role-policy structural proofs (2)**: none of the four worker roles
+(`raw_material`/`procurement`/`production_engineering`/`production`)
+holds its own gate's decide capability — asserted directly against
+`role_policy::can()`, the real matrix, not a mock; `production_manager`
+and `administrator` both hold every decide capability across all four
+gates.
+
+**Storage key (1)**: `gate_key` is stable for an unparented subject,
+combines parent+subject for a parented one, and two different parents
+with the same subject id never collide.
+
+**Total**: 19 tests, 19 passing.
+
+### K.3 Shared package — masterdata parity (5 new tests)
+
+`masterdataPolicyAreas.parity.test.ts`: the fixture's collection list
+matches `MASTERDATA_COLLECTIONS` exactly, including order; exactly 90
+collections; the fixture's area map is exactly
+`MASTERDATA_COLLECTION_POLICY_AREAS` right now (fails on drift); every
+collection has exactly one mapping, none missing, none extra; every
+mapped area is a real, recognized `PolicyArea`.
+
+**Total**: 5 tests, 5 passing.
+
+### K.4 Deferred-command closure and administrator-gate-authority extension (no new tests; existing/extended coverage)
+
+The 9 previously-`DEFERRED_WITH_REASON` commands gated this session
+(`resume_interrupted_data_move`, `import_materials`, plus 7
+AUTHENTICATED_READ commands) reuse `authz::authorize_app`/
+`current_actor_app` — already covered by `authz.rs`'s existing 8 tests
+(§J.2); no new Rust test file needed for the gating itself, only the
+call sites changed. The administrator-gate-authority extension
+(rolePolicy.ts §9.4.2) is covered by `role_policy.rs`'s new
+`production_manager_and_administrator_hold_every_decide_capability`
+test (§K.2) and `rolePolicy.test.ts`'s existing matrix-shape assertions
+(re-run, unchanged pass) — no dedicated new test needed since the
+change is additive to an already-tested structure.
+
+### K.5 Full-suite confirmation
+
+`cargo build --lib`: clean, zero warnings. `cargo test --lib`: 304/304
+passing (Session 4's 281 + 23 new — §K.1/§K.2). `cargo clippy --lib --
+-D warnings`: clean. Shared package: `tsc --noEmit` clean; `vitest
+run`: 1301/1301 passing (Session 4's 1296 + 5 new, §K.3). Desktop
+frontend: `tsc --noEmit` clean; `vitest run` (full suite): 1188/1188
+passing — unchanged from Session 4's count, since this session's
+frontend changes (masterdata.ts's `Collection` type now importing from
+`@formulab/shared`, token-injection at 9 more call sites) have existing
+coverage via the same pre-existing tests that already exercise those
+wrapper functions, same pattern as Session 4's own `call()` refactor.
+`eslint` clean on every touched file (`masterdata.ts`, `formulationV2.ts`,
+`tauri.ts`). `git diff --check`: clean.

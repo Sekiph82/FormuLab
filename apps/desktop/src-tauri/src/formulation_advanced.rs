@@ -185,12 +185,16 @@ fn run_once(
     }
 }
 
+/// Phase 13 Session 4A: was `DEFERRED_WITH_REASON`. Compute-only, same
+/// reasoning as `formulation::run_formulation_optimize`.
 #[tauri::command(async)]
 pub async fn run_advanced_formulation_optimize(
     app: AppHandle,
+    token: String,
     state: State<'_, AdvancedOptimizerState>,
     input: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    crate::authz::current_actor_app(&app, &token)?;
     let script = materialize_core(&app)?;
     let (python, _source) = crate::kernel::python_bin(&app)?;
     let input_json = serde_json::to_string(&input).map_err(|e| e.to_string())?;

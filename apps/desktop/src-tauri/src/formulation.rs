@@ -105,11 +105,18 @@ pub(crate) async fn install_pulp(app: &AppHandle, python: &str) -> Result<(), St
 
 /// Solve a formulation problem. `input` is the JSON payload the core expects
 /// (`{materials, constraints}`); the resolved result JSON is returned as-is.
+///
+/// Phase 13 Session 4A: was `DEFERRED_WITH_REASON`. Compute-only — no
+/// persistence happens here (the caller separately saves a draft/version
+/// through the already-gated `formulations::` commands) — so this requires
+/// only a valid session (AUTHENTICATED_READ/compute), not a capability.
 #[tauri::command(async)]
 pub async fn run_formulation_optimize(
     app: AppHandle,
+    token: String,
     input: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    crate::authz::current_actor_app(&app, &token)?;
     let script = materialize_core(&app)?;
     let (python, _source) = crate::kernel::python_bin(&app)?;
     let input_json = serde_json::to_string(&input).map_err(|e| e.to_string())?;

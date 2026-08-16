@@ -149,10 +149,14 @@ export function loadKeyFor(provider: string): string {
 
 // ------------------------------------------------------------------ invoke ----
 
+/** Phase 13 Session 4A: every command in this file now requires a valid
+ *  session (`authz::current_actor_app`) — `token` is attached here, once,
+ *  same pattern `formulations.ts`/`masterdata.ts`'s `call()` helpers use. */
 async function call<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   if (!isTauri) throw new Error("not-desktop");
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+  const { currentSessionToken } = await import("./sessionToken");
+  return invoke<T>(cmd, { token: currentSessionToken(), ...args });
 }
 
 export async function generateFormulation(

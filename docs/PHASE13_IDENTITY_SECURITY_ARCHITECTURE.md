@@ -773,6 +773,181 @@ authenticated user still sees every project.
 
 ---
 
+## 9.4 Session 4A: residual authorization + Production Manager workflow gate closure
+
+Closes the three gaps Session 4 explicitly disclosed rather than fixed
+(§9.3.10's `DEFERRED_WITH_REASON` row, the four §15.3/§15.4 gates'
+total non-implementation, and §9.3.6's Rust-only masterdata mapping).
+
+### 9.4.1 Deferred-command disposition
+
+Every command Session 4 marked `DEFERRED_WITH_REASON` now has a final
+disposition — none remain deferred without a concrete, stated reason:
+
+| Command | Disposition | Reasoning |
+|---|---|---|
+| `data_location_manager::resume_interrupted_data_move` | **PRIVILEGED_ENFORCED** | Completes-or-rolls-back an interrupted move — the same action `move_data_location` performs, gated identically: `systemAdministration`/`administer`. |
+| `materials::import_materials` | **PRIVILEGED_ENFORCED** | Wholesale-replaces the stored material list — same category as `masterdata::upsert_master_records` on `materials`. Gated `rawMaterials` create-or-edit. |
+| `materials::cost_formulation` | **AUTHENTICATED_READ** | Pure arithmetic against already-stored data, no persistence. Requires a valid session, no capability. |
+| `materials::list_materials` | **AUTHENTICATED_READ** | Read-only. |
+| `formulation::run_formulation_optimize` | **AUTHENTICATED_READ** | Compute-only — persistence happens separately through the already-gated `formulations::` commands. |
+| `formulation_advanced::run_advanced_formulation_optimize` | **AUTHENTICATED_READ** | Same reasoning. |
+| `formulation_advanced::cancel_advanced_formulation_optimize` | **TRUSTED_INTERNAL_ONLY** | Kills the caller's own already-running process; no `AppHandle` in its signature to gate against, and cancelling a run someone else started has no exploitable effect beyond stopping it. Same precedent as `cancel_backup`/`cancel_restore`/`cancel_data_move` (Session 4, never gated). |
+| `formulation_v2::generate_formulation` | **AUTHENTICATED_READ** | Generates candidate formulas into its own session store, not a shared regulated collection. |
+| `formulation_v2::{list_sessions, read_session}` | **AUTHENTICATED_READ** | Read-only, own-session-store scoped. |
+| `formulation_v2::delete_session` | **AUTHENTICATED_READ** | Deletes the user's own scratch AI-generation session, not regulated business data — a valid session is the proportionate bar, not a `rolePolicy` capability that doesn't conceptually apply to this store. |
+| `provenance::record_provenance`, `runs::record_run` | **Reclassified: genuinely non-privileged** | Workspace/agent file-provenance and code-run tracking for this app's separate notebook/agent-runtime subsystem — not FormuLab lab/business records, no `rolePolicy` area applies. Same bucket as `artifact_file::*`/`kernel::*` (READ_ONLY_NO_ROLE_GATE_NEEDED-equivalent for a write, since there's no privileged distinction to enforce here at all). Not code-changed. |
+
+### 9.4.2 Administrator authority extended to the four gates (§15.4)
+
+§15.4 is explicit that administrator "can exercise all four gates once
+they're implemented, on the same explicit-exception basis as every
+other gate in this document." `rolePolicy.ts`'s `MATRIX` had no
+administrator grant on `rawMaterials`/`supplierDocuments`/
+`productionEngineering`/`production` beyond `view` (§9's general
+view-only-on-scientific-content rule). A third documented
+discrepancy-resolution (alongside Session 3's first two, same doc
+comment) grants administrator `verify` on the first two areas and
+`approve`/`reject` on the last two — nothing else, so administrator
+still cannot see or edit the underlying records, only decide these
+four gates.
+
+### 9.4.3 The four gates as real workflow state, not a permission check standing in for one
+
+Per explicit instruction not to force all four into `FormulaStatus`:
+each gate is its own small, mutable, auditable record — the same
+one-file-per-record pattern `formulations.rs`'s approvals already use,
+not a new storage mechanism, in a new module (`workflow_gates.rs`) and
+directory (`data/workflow_gates/<gateType>/`). A `WorkflowGateRecord`
+carries `state` (`pending -> submitted -> approved | rejected`,
+`rejected -> submitted` again), `submittedBy`/`submittedByRole`/
+`submittedAt`, `approvedBy`/`approvedByRole`/`approvedAt`,
+`rejectedBy`/`rejectedByRole`/`rejectedAt`, an optional `reason`, and a
+full `history` of every transition (id, from, to, actor id/role/
+display name, timestamp, reason) — every field the session brief's
+minimum list asked for.
+
+**Where each gate's subject lives** (per explicit instruction to use
+whatever domain model actually fits, not force everything into one
+shape):
+
+| Gate | Subject | Where the record's identity comes from |
+|---|---|---|
+| Raw material verification | a `materials` collection code | the material record's own `code` |
+| Supplier document verification | a `suppliers` collection code | the supplier record's own `code` |
+| Production Engineering handoff | a `FormulationVersion` | `formulationId` (`parentId`) + `versionId` (`subjectId`) |
+| Production release | the same `FormulationVersion` | same, keyed separately by gate type so the two gates never collide |
+
+Gate records are **not** embedded fields on `RawMaterial`/`Supplier`/
+`FormulationVersion` — versions are immutable once written
+(`save_formulation_version` refuses to overwrite), so a gate that needs
+to progress `pending -> submitted -> approved` over time cannot live
+inside one. A separate, purpose-built, mutable record referencing its
+subject by id is the same shape `CorrectiveAction`/`TrialDeviation`
+already use to reference the trial/formulation they're about.
+
+**Two Tauri commands cover all four gates** — `submit_workflow_gate`
+(worker moves `pending`/`rejected` -> `submitted`) and
+`decide_workflow_gate` (`production_manager`/administrator moves
+`submitted` -> `approved`/`rejected`) — plus `read_workflow_gate`
+(AUTHENTICATED_READ). A `gate_type` parameter selects the gate; a
+`GateSpec` lookup (Rust, `workflow_gates.rs`) resolves the
+`role_policy` area and required capability from it — `raw_material_
+verification`/`supplier_document_verification` use `verify` for both
+approve and reject (Session 3 granted one capability for the whole
+verification decision); `production_engineering_handoff`/
+`production_release` use distinct `approve`/`reject` capabilities
+(both already exist on those two areas per §6's matrix).
+
+### 9.4.4 Downstream blocking is real, not just role capability
+
+"Role capability alone must never substitute for missing upstream
+workflow approval" is enforced by a `prerequisite_satisfied` check —
+pure, no `AppHandle`, directly unit-tested — run *before* a worker can
+even `submit` a gate, not just before a manager can approve one:
+
+- `production_engineering_handoff` requires the subject
+  `FormulationVersion`'s `status` to already equal
+  `production_approved` — read directly from the same version JSON
+  `save_formulation_version` writes, no second copy of `FormulaStatus`.
+- `production_release` requires `production_engineering_handoff`, for
+  the *same* subject, to already be `approved`.
+- Raw-material and supplier-document verification have no upstream
+  gate prerequisite — they are the first gates in their own chains.
+
+A worker completing their own work never satisfies a gate by itself:
+`submit_workflow_gate` only ever reaches `submitted`, never `approved`
+— the state machine (`is_valid_gate_transition`) has no edge from
+`pending`/`submitted` directly to `approved`/`rejected` except via the
+decide command, which requires the decide capability no worker role
+holds (`worker_roles_cannot_decide_their_own_gate_the_capability_does_
+not_exist_for_them`, a direct structural proof against `role_policy`'s
+real matrix, not a mocked one).
+
+A rejected gate becomes actionable again exactly as required: calling
+`submit_workflow_gate` again is a valid `rejected -> submitted`
+transition, and doing so clears the stale `rejectedBy`/`rejectedAt`
+attribution from the previous cycle (proven directly:
+`a_rejected_gate_becomes_actionable_again_via_resubmission_and_clears_
+stale_decision_fields`).
+
+**What Session 4A did not build**: no frontend UI or wrapper for these
+three commands. Matches this phase's established backend-then-UI
+sequencing (identity/auth primitives existed since Session 1 with no
+UI until Session 2's login screen; `Administration → Users`' backend
+primitives from Session 1 still have no UI, Session 5's job). A future
+UI session calls these three commands directly; the enforcement they
+need already exists and is tested independently of any UI.
+
+### 9.4.5 Masterdata collection->PolicyArea: one shared contract, not two
+
+Session 4's `area_for_collection()` was Rust-only. Now, exactly the
+same shared-fixture mechanism §9.3.1 already established:
+`packages/shared/src/engine/masterdataPolicyAreas.ts` is the single
+canonical source — `MASTERDATA_COLLECTIONS` (the 90 names, now also
+what `apps/desktop/src/lib/masterdata.ts`'s `Collection` type derives
+from, instead of declaring a second hand-typed union) and
+`MASTERDATA_COLLECTION_POLICY_AREAS: Record<MasterdataCollection,
+PolicyArea>` (a mapping so complete `Record<...>` makes a missing entry
+a **compile error**, not just a test failure). The generation script
+now also emits `masterdataCollectionAreas.generated.json`, and
+`role_policy.rs`'s new `masterdata_area_for()` reads it via
+`include_str!`, replacing the Session 4 `match`. `masterdata.rs`'s own
+`area_for_collection()` is now a one-line delegator. The grouping
+itself is **unchanged** from Session 4 (inspection found no error to
+correct) — this closes the parity gap, it does not revisit the
+domain judgment.
+
+Parity is proven the same way as the other two fixtures:
+`masterdataPolicyAreas.parity.test.ts` (TypeScript, 5 tests) asserts
+the checked-in fixture matches a fresh read of
+`MASTERDATA_COLLECTION_POLICY_AREAS` right now; `role_policy.rs`'s new
+tests (4) assert all 90 collections are mapped, an unknown name is
+denied, representative collections match, and every mapped area is
+real. `masterdata.rs`'s pre-existing Session 4 tests (unchanged) now
+exercise the delegator and still pass — a third, incidental proof the
+refactor preserved behavior exactly.
+
+### 9.4.6 Residual gaps after Session 4A
+
+1. No frontend UI/wrapper for the three workflow-gate commands (§9.4.3).
+2. `formulation_advanced::cancel_advanced_formulation_optimize` remains
+   ungated (§9.4.1) — low-risk, consistent with the existing
+   cancel-command precedent, but not independently re-justified beyond
+   that precedent.
+3. §6's matrix is still Session 1's first draft — Session 4A's
+   administrator addition (§9.4.2) is a third discrepancy-resolution on
+   top of it, not a domain-expert review. Still needed (Risks item 1).
+4. Gate subject existence is not validated — `submit_workflow_gate`
+   does not check that the `materials`/`suppliers` code or
+   `formulationId`/`versionId` given actually exists before creating a
+   gate record. Not a security gap (authorization is unaffected), but a
+   data-integrity one a future session should close.
+5. No admin UI to inspect/list all gates across subjects — only
+   `read_workflow_gate` for one subject at a time.
+
+---
+
 ## 10. Password security (implemented Session 1)
 
 **Argon2id** via the `argon2` crate (v0.5), with `rand_core`'s
@@ -1086,11 +1261,25 @@ formulation-lifecycle states, not master-data rows — so nothing in this
 session touches their storage boundary at all; they remain entirely
 unimplemented, exactly as before.
 
-Still explicitly tracked, not implemented, going into Session 5: all
-four `FormulaStatus`/gate representations, their exact transition-graph
-entries, and the dedicated Tauri commands (or extension of
-`save_approval_record`'s shape) that would let `production_manager`
-actually grant them.
+**Session 4A status**: implemented (§9.4.3/§9.4.4) — deliberately
+**not** as `FormulaStatus` values (per this session's own explicit
+instruction not to force them there). Each gate is its own small,
+mutable, auditable `WorkflowGateRecord` (`workflow_gates.rs`), not a
+new `FormulaStatus` enum entry: `production_engineering_handoff`/
+`production_release` reference a `FormulationVersion` by
+`formulationId`/`versionId` rather than living inside one (versions are
+immutable once written, so an in-place-progressing gate cannot be an
+embedded field on one). `raw_material_verification`/
+`supplier_document_verification` reference a `materials`/`suppliers`
+collection code the same way. All four: `pending -> submitted ->
+approved | rejected`, `rejected -> submitted` again, worker submits
+(never approves), `production_manager`/administrator decides,
+downstream-blocked by real prerequisite checks (§9.4.4) — not the "bare
+permission check standing in for the missing workflow state" this
+session was explicitly told not to build. No `Administration → Users`-
+style UI yet (§9.4.3's residual-gap note) — the enforcement exists and
+is tested independently of any UI, same backend-then-UI sequencing this
+phase has followed throughout.
 
 ### 15.5 Session token storage (implemented Session 2)
 
@@ -1373,7 +1562,7 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## 25. Proposed Phase 13 sessions (Sessions 1-4 complete; renumbered plan unchanged in shape from Session 0)
+## 25. Proposed Phase 13 sessions (Sessions 1-4A complete; renumbered plan unchanged in shape from Session 0)
 
 1. ~~User database + migrations + password subsystem~~ **DONE.** ~~Production Manager gate authority for the four §15.3 gaps~~ **DECIDED (§15.4), Session 1 closure — implementation still Session 4/dedicated workflow session.**
 2. ~~Administrator bootstrap + `login`/`logout` Tauri commands +
@@ -1397,10 +1586,15 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
    policy contract with no hand-duplicated Rust matrix (§9.3.1). A new
    `systemAdministration` policy area was drafted (§9.3.2) since §6 had
    none. Commands outside the priority set are classified, not left
-   silently unreviewed (§9.3.10's 5-category taxonomy). The §15.3 gates
-   remain unimplemented by design (§15.4's Session 4 status note) — no
-   `FormulaStatus` exists for any of them, so there was nothing to wire
-   workflow-gate enforcement into yet.
+   silently unreviewed (§9.3.10's 5-category taxonomy). ~~The §15.3
+   gates remain unimplemented~~ **Session 4A closes this**: the
+   Session 4 `DEFERRED_WITH_REASON` backlog is resolved (§9.4.1), and
+   all four §15.3/§15.4 gates are implemented as real, auditable
+   workflow-state records with downstream blocking (§9.4.3/§9.4.4) —
+   deliberately not as `FormulaStatus` values. The masterdata
+   collection->area mapping now has TypeScript parity too (§9.4.5), not
+   Rust-only. No frontend UI for the four gates yet (§9.4.6) — Session 5
+   or a dedicated UI session's job.
 5. `Administration → Users` UI: list, create, edit, role change, reset
    password, activate/disable, security-history view, read-only role-
    capabilities view.
@@ -1413,7 +1607,7 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 
 ---
 
-## Risks and open decisions (updated Session 4)
+## Risks and open decisions (updated Session 4A)
 
 1. **§6's full matrix is Session 1's first draft**, built from current
    navigation/routes and §1.1's role intent, not domain-expert-
@@ -1432,15 +1626,12 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
 3. **§12 — project/resource access is confirmed (not just
    recommended) out of scope for Phase 13** — no longer an open
    question, closed in Session 1's closure.
-4. **§15.3's four gaps — authority resolved, implementation still
-   open.** Raw-material verification, supplier-document verification,
-   production-engineering→production handoff, and production release
-   are now decided as `production_manager` gates (§15.4, user-approved,
-   Session 1 closure). They still have no `FormulaStatus` representation
-   in the current domain model — building that and wiring real
-   enforcement is real, unimplemented work, unchanged by Session 4
-   (§15.4's Session 4 status note explains exactly what was and wasn't
-   touched) — still Session 5 or a dedicated workflow session.
+4. ~~§15.3's four gaps — authority resolved, implementation still
+   open.~~ **IMPLEMENTED, Session 4A** (§9.4.3/§9.4.4/§15.4's Session 4A
+   status note): all four are real, auditable `WorkflowGateRecord`s with
+   role+state-machine+downstream-prerequisite enforcement, deliberately
+   not `FormulaStatus` values. Residual: no frontend UI (§9.4.6 item 1),
+   no subject-existence validation (§9.4.6 item 4).
 5. **§10 — Argon2 parameters are crate defaults**, not hand-tuned
    against real target hardware — revisit only if a genuine performance
    problem surfaces on real desktop specs.
@@ -1467,15 +1658,14 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
    uppercase/digit/symbol rules the brief never asked for; revisit only
    if a real compliance requirement demands it.
 10. ~~Session 3's privileged-command inventory (§9.2) is audit-only~~
-    **Session 4 closed the priority rows** (§9.3.4-§9.3.9); the
-    `DEFERRED_WITH_REASON` row (§9.3.10) is what's left — a smaller,
-    named, disclosed set (`resume_interrupted_data_move`,
-    `materials::{import_materials, cost_formulation}`,
-    `provenance::record_provenance`, `runs::record_run`,
-    `formulation*::` compute commands), not the whole original gap.
-    Phase 13 is **not** fully secure yet — this item tracks exactly
-    what remains, so "not yet reviewed" stays distinguishable from
-    "reviewed and found safe."
+    ~~Session 4 closed the priority rows~~ **Session 4A closed the
+    `DEFERRED_WITH_REASON` backlog too** (§9.4.1) — every command from
+    the Session 3 inventory now has a final disposition, none remain
+    deferred without a stated, concrete reason. Phase 13 is **still
+    not** claimed fully secure — §9.4.6's residual-gap list (no gate UI,
+    `cancel_advanced_formulation_optimize` ungated by precedent, §6's
+    matrix still first-draft, gate-subject existence unvalidated) is
+    what's left, kept as a live list rather than declared closed.
 11. **§9.3.5's formulation-write finding may be stricter than
     intended.** Enforcing §6's literal matrix means only `researcher`
     can create/edit formulation content — `research_manager` (view/
@@ -1483,15 +1673,11 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
     design, §9), and every other role are all refused. If this proves
     too strict in real use, the fix is a matrix correction (Risks item
     1's domain review), not loosening `authz.rs`'s guard itself.
-12. **§9.3.6's masterdata collection->area mapping is Rust-only**, not
-    parity-tested against a TypeScript equivalent the way the role
-    matrix and transition graph are (§9.3.1) — there is no
-    `dataExchangeRegistry.ts`-shaped single source for "which
-    `PolicyArea` does collection X belong to" today. A future session
-    adding a TypeScript-side consumer of this same mapping (e.g. for
-    frontend masterdata-write button visibility) should either import
-    a shared mapping or accept the drift risk consciously, not
-    silently re-derive a second one.
+12. ~~§9.3.6's masterdata collection->area mapping is Rust-only~~
+    **RESOLVED, Session 4A** (§9.4.5): `masterdataPolicyAreas.ts` is
+    now the shared canonical source, parity-tested against Rust's
+    `masterdata_area_for()` the same way the role matrix and
+    transition graph already are.
 13. **`run_automatic_backup` stays deliberately unauthenticated**
     (§9.3.9) — correct per this session's explicit instruction, but
     worth re-confirming during the domain review: does *any* backup
@@ -1499,3 +1685,16 @@ additions for hashed tokens/idle-timeout/lockout/bootstrap; §H:
     system-triggered (e.g. a `preMigration` class run outside an
     interactive migration flow)? Not a known issue, just an open
     question this session didn't need to answer.
+14. **The four workflow gates (§9.4.3) have no frontend UI** — the
+    backend commands exist and are tested, but nothing in the app calls
+    them yet. A worker/manager cannot actually use these gates until a
+    UI session wires them in.
+15. **Gate-subject existence is unvalidated** (§9.4.6 item 4) —
+    `submit_workflow_gate` will happily create a gate record for a
+    `materials`/`suppliers` code, or a `formulationId`/`versionId` pair,
+    that doesn't exist. Not an authorization gap; a data-integrity one.
+16. **`cancel_advanced_formulation_optimize` remains ungated** (§9.4.1)
+    — consistent with the existing cancel-command precedent (Session 4
+    never gated `cancel_backup`/`cancel_restore`/`cancel_data_move`
+    either), not independently re-justified beyond that precedent this
+    session.

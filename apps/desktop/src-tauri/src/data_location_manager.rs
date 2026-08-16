@@ -943,8 +943,13 @@ fn resume_inner(app: &AppHandle, started: &DataMoveJournalEntry, entries: &[Data
     }
 }
 
+/// Phase 13 Session 4A: was `DEFERRED_WITH_REASON` in Session 4's
+/// inventory — inspection confirms it completes-or-rolls-back an
+/// interrupted move exactly like `move_data_location` itself, so it's
+/// gated identically (architecture doc §9.4.1).
 #[tauri::command(async)]
-pub async fn resume_interrupted_data_move(app: AppHandle, state: State<'_, BackupState>) -> Result<DataMoveRecoveryResult, String> {
+pub async fn resume_interrupted_data_move(app: AppHandle, token: String, state: State<'_, BackupState>) -> Result<DataMoveRecoveryResult, String> {
+    crate::authz::authorize_app(&app, &token, "systemAdministration", "administer")?;
     let entries = read_journal(&app);
     let Some(started) = find_interrupted_move(&entries) else {
         return Err("no interrupted move found".to_string());

@@ -10,6 +10,8 @@ use std::process::Stdio;
 
 use tauri::AppHandle;
 
+use crate::authz;
+
 const F_MATERIALS: &str = include_str!("../../../../runtime/pipeline/materials.py");
 const F_MATERIALS_CLI: &str = include_str!("../../../../runtime/pipeline/materials_cli.py");
 
@@ -69,24 +71,35 @@ fn run(app: &AppHandle, mut request: serde_json::Value) -> Result<serde_json::Va
 
 /// Import a raw-material list (CSV/TSV) the user picked. Replaces the stored
 /// list: it is the customer's current price file, not an append-only log.
+///
+/// Phase 13 Session 4A: was `DEFERRED_WITH_REASON` in Session 4's
+/// inventory. A wholesale replace of the material list is the same
+/// category of action as `masterdata::upsert_master_records` on
+/// `materials` — gated identically (`rawMaterials` create-or-edit).
 #[tauri::command(async)]
-pub async fn import_materials(app: AppHandle, path: String) -> Result<serde_json::Value, String> {
+pub async fn import_materials(app: AppHandle, token: String, path: String) -> Result<serde_json::Value, String> {
+    authz::authorize_any_app(&app, &token, "rawMaterials", &["create", "edit"])?;
     run(&app, serde_json::json!({ "action": "import", "path": path }))
 }
 
 /// The stored material list (empty until the user imports one).
 #[tauri::command(async)]
-pub async fn list_materials(app: AppHandle) -> Result<serde_json::Value, String> {
+pub async fn list_materials(app: AppHandle, token: String) -> Result<serde_json::Value, String> {
+    authz::current_actor_app(&app, &token)?;
     run(&app, serde_json::json!({ "action": "list" }))
 }
 
 /// Cost one formula against the stored materials at a given batch size.
+/// Pure arithmetic, no persistence — requires only a valid session
+/// (AUTHENTICATED_READ/compute), not a specific capability.
 #[tauri::command(async)]
 pub async fn cost_formulation(
     app: AppHandle,
+    token: String,
     formula: serde_json::Value,
     batch_kg: f64,
 ) -> Result<serde_json::Value, String> {
+    authz::current_actor_app(&app, &token)?;
     run(&app, serde_json::json!({
         "action": "cost", "formula": formula, "batch_kg": batch_kg,
     }))

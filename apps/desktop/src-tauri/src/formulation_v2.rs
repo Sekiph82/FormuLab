@@ -119,11 +119,17 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// Run the pipeline: materialize, invoke run_cli.py with the request on stdin,
 /// return the parsed result JSON. Keeps the session only on `status == "ok"`.
+/// Phase 13 Session 4A: was `DEFERRED_WITH_REASON`. Generates candidate
+/// formulas and saves its own session record — not a shared regulated
+/// collection, so a valid session (not a specific capability) is the
+/// right bar, same as `formulation::run_formulation_optimize`.
 #[tauri::command(async)]
 pub async fn generate_formulation(
     app: AppHandle,
+    token: String,
     request: GenerateRequest,
 ) -> Result<serde_json::Value, String> {
+    crate::authz::current_actor_app(&app, &token)?;
     let pipe = materialize_pipeline(&app)?;
     let cli = pipe.join("run_cli.py");
     let (python, _source) = crate::kernel::python_bin(&app)?;
@@ -245,7 +251,8 @@ fn read_cards(dir: &std::path::Path) -> Vec<serde_json::Value> {
 /// List saved sessions (successful runs only — failed ones were never kept),
 /// newest first. Each entry carries enough for the sidebar without re-running.
 #[tauri::command(async)]
-pub async fn list_sessions(app: AppHandle) -> Result<serde_json::Value, String> {
+pub async fn list_sessions(app: AppHandle, token: String) -> Result<serde_json::Value, String> {
+    crate::authz::current_actor_app(&app, &token)?;
     let sessions = data_dir(&app, &["data", "sessions"])?;
     let mut items: Vec<serde_json::Value> = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&sessions) {
@@ -287,8 +294,10 @@ pub async fn list_sessions(app: AppHandle) -> Result<serde_json::Value, String> 
 #[tauri::command(async)]
 pub async fn read_session(
     app: AppHandle,
+    token: String,
     id: String,
 ) -> Result<serde_json::Value, String> {
+    crate::authz::current_actor_app(&app, &token)?;
     // Guard against path traversal: the id must be a single path component.
     if id.contains('/') || id.contains('\\') || id.contains("..") {
         return Err("invalid session id".into());
@@ -312,7 +321,8 @@ pub async fn read_session(
 
 /// Delete one saved session.
 #[tauri::command(async)]
-pub async fn delete_session(app: AppHandle, id: String) -> Result<(), String> {
+pub async fn delete_session(app: AppHandle, token: String, id: String) -> Result<(), String> {
+    crate::authz::current_actor_app(&app, &token)?;
     if id.contains('/') || id.contains('\\') || id.contains("..") {
         return Err("invalid session id".into());
     }

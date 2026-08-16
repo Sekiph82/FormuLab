@@ -409,98 +409,17 @@ pub fn list_master_collections() -> Vec<(String, bool)> {
         .collect()
 }
 
-/// Phase 13 Session 4 — every mutable-collection command routes through
-/// `role_policy`'s canonical areas, never a second, collection-shaped
-/// permission list of its own. There is no dedicated `PolicyArea` per
-/// masterdata collection (§6's matrix is domain-shaped, not collection-
-/// shaped), so this maps each of the 90 allow-listed names onto the closest
-/// existing area, grouped the same way this file's own Phase-by-Phase doc
-/// comments (and, where one already exists,
-/// `dataExchangeRegistry.ts`'s `targetCollection`) already group them —
-/// reusing existing domain judgment rather than inventing a fresh one.
-/// `None` (an unmapped/unknown name) is a hard deny, never a fallback
-/// allow — the same default-deny discipline `role_policy::can` itself
-/// uses. This grouping is a first-draft judgment call, exactly like §6's
-/// own "not yet domain-expert-reviewed" matrix it builds on — flagged in
-/// architecture doc §9.3/Risks, not presented as final.
+/// Phase 13 Session 4A: this used to be a hand-typed Rust `match` over all
+/// 90 collection names (Session 4). It is now a thin delegator to
+/// `role_policy::masterdata_area_for`, which reads the same generated JSON
+/// fixture (`masterdataCollectionAreas.generated.json`) TypeScript's
+/// `masterdataPolicyAreas.ts` is parity-tested against — closing the
+/// Session 4 finding that this mapping had no TypeScript equivalent to
+/// stay in sync with (architecture doc §9.3.6/§9.4.5). `None` (an
+/// unmapped/unknown name) is a hard deny, never a fallback allow — the
+/// same default-deny discipline `role_policy::can` itself uses.
 fn area_for_collection(name: &str) -> Option<&'static str> {
-    match name {
-        // Raw-material / supplier master data (dataExchangeRegistry.ts's
-        // MASTER_DATA_ROLES/QUALITY_MASTER_DATA_ROLES-authorized templates,
-        // plus the same-domain collections that were never import targets).
-        "materials" | "suppliers" | "material_prices" | "inventory" | "packaging_components"
-        | "packaging_boms" | "material_suppliers" | "material_hazard_records"
-        | "material_documents" | "product_families" | "finished_products"
-        | "compatibility_rules" | "safety_rules" => Some("rawMaterials"),
-
-        // Formulation content/costing/safety-check-results (formula_bom,
-        // process_parameters, costing collections are all
-        // dataExchangeRegistry.ts's FORMULATION_ROLES/COST_ROLES; the
-        // safety/compatibility *results* of a check against a specific
-        // formula are formulation work, distinct from the *rule* data above).
-        "exchange_rates" | "factory_profiles" | "cost_snapshots" | "formula_cost_overrides"
-        | "process_parameters" | "compatibility_snapshots" | "safety_snapshots"
-        | "safety_resolutions" => Some("formulation"),
-
-        // Laboratory (trials, tests, deviations, corrective actions,
-        // standards/methods) — dataExchangeRegistry.ts's LAB_ROLES for the
-        // templated ones.
-        "laboratory_trials" | "test_definitions" | "test_results" | "trial_comparisons"
-        | "trial_deviations" | "corrective_actions" | "laboratory_standards"
-        | "laboratory_test_methods" | "analytical_composition_results"
-        | "formula_version_equivalences" => Some("laboratory"),
-
-        // Stability — its own rolePolicy area, distinct from laboratory.
-        "stability_studies" | "stability_samples" | "stability_results" | "stability_failures" => {
-            Some("stability")
-        }
-
-        // Approval policy configuration governs both approval gates;
-        // gated against the stricter/broader of the two (production).
-        "approval_policies" | "approval_policy_revisions" => Some("approvalProduction"),
-
-        // Regulatory (rules, dossiers/evidence, claims, labels) —
-        // dataExchangeRegistry.ts's REGULATORY_ROLES/DRAFT_CONTENT_ROLES,
-        // and rolePolicy.ts's own doc comment: "the approved §6 matrix
-        // models dossier/claims/labels work as part of the regulatory row."
-        "regulatory_rules" | "regulatory_rule_revisions" | "regulatory_reviews"
-        | "regulatory_review_revocations" | "regulatory_evidence_confirmations"
-        | "regulatory_evidence_confirmation_revocations" | "regulatory_review_equivalences"
-        | "regulatory_dossiers" | "regulatory_dossier_requirements" | "regulatory_evidence_items"
-        | "regulatory_requirement_evidence_links" | "regulatory_dossier_reviews"
-        | "regulatory_dossier_review_revocations" | "regulatory_dossier_submissions"
-        | "regulatory_dossier_manual_requirement_actions" | "product_claims"
-        | "claim_evidence_links" | "claim_reviews" | "claim_review_revocations"
-        | "product_labels" | "label_content_blocks" | "label_artworks" | "label_reviews"
-        | "label_review_revocations" => Some("regulatory"),
-
-        // Optimization (Advanced Optimizer, DOE, Reverse Formulation) — no
-        // dedicated rolePolicy area exists for DOE/Reverse-Formulation
-        // specifically; "optimization" is the closest existing area for
-        // this advanced-formula-design-engineering tooling.
-        "optimization_profiles" | "optimization_runs" | "optimization_scenarios"
-        | "substitution_runs" | "doe_studies" | "doe_factors" | "doe_constraints"
-        | "doe_responses" | "doe_designs" | "doe_runs" | "doe_observations" | "doe_analyses"
-        | "doe_candidates" | "doe_review_actions" | "reverse_formulation_studies"
-        | "benchmark_products" | "benchmark_evidence_items" | "ingredient_declaration_lines"
-        | "target_product_profiles" | "reverse_constraint_sets" | "ingredient_mappings"
-        | "substitution_rules" | "reverse_formula_candidates" | "candidate_score_explanations" => {
-            Some("optimization")
-        }
-
-        // Data Exchange Center's own bookkeeping.
-        "data_exchange_import_jobs" | "data_exchange_import_row_results"
-        | "data_exchange_export_jobs" | "data_exchange_schema_versions" => Some("dataExchange"),
-
-        // Document export history (Dossiers workspace generation records).
-        "generated_document_records" => Some("documentControl"),
-
-        // Anything not explicitly listed above is an unmapped collection —
-        // deny, never fall through to an implicit allow. If a new
-        // collection is ever added to `COLLECTIONS` without a matching arm
-        // here, this is exactly the case that must deny it.
-        _ => None,
-    }
+    crate::role_policy::masterdata_area_for(name)
 }
 
 /// The capability set `upsert_master_records`/`write_master_collection_raw`

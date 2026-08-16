@@ -1,178 +1,142 @@
 # Phase 13 — Enterprise Identity, Authentication, Fixed RBAC & Application Security
 
-## Status: SESSION 4 COMPLETE — Application-wide server-side authorization is real for the Session 3 privileged-command inventory's priority set. Every privileged command in that set now resolves role from the authenticated session (never a caller-supplied claim) and calls the canonical `role_policy::can()` before acting. The `save_approval_record` bypass is closed. Generic masterdata CRUD, audit attribution, attachments, and every System Administration command are gated. A new `systemAdministration` policy area exists. Commands outside the priority set are classified (not silently unreviewed), not enforced — Phase 13 is **not** fully secure yet; §9.3.10/Risks track exactly what remains. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §9.3; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §J. Runs in parallel with Phase 12's still-open SignPath thread — unrelated.
+## Status: SESSION 4A COMPLETE — the three residual gaps Session 4 explicitly disclosed are closed. Every command from the Session 3 privileged-command inventory now has a final disposition — none remain `DEFERRED_WITH_REASON` without a stated, concrete justification. All four Production Manager workflow gates (raw-material verification, supplier-document verification, production-engineering handoff, production release) are implemented as real, auditable workflow-state records with role- and state-machine-enforced worker/manager separation and downstream blocking — deliberately not forced into `FormulaStatus`. The masterdata collection->PolicyArea mapping now has TypeScript parity, closing Session 4's Rust-only gap. Phase 13 is **still not** claimed fully secure — architecture doc §9.4.6 tracks the live residual list (no frontend UI for the four gates, gate-subject existence unvalidated, `cancel_advanced_formulation_optimize` ungated by precedent, §6's matrix still first-draft). Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §9.4; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §K.
 
-## Session 4 summary
+## Session 4A summary
 
-**One cross-layer policy contract, not two hand-typed matrices.**
-`role_policy.rs` (Rust, new) holds no permission matrix or workflow-
-transition graph of its own. `packages/shared/scripts/
-generate-role-policy-matrix.ts` serializes `rolePolicy.ts`'s fully-
-resolved `MATRIX` and `status.ts`'s `ALLOWED_NEXT` to two checked-in
-JSON fixtures (`rolePolicyMatrix.generated.json`,
-`formulaStatusTransitions.json`), which `role_policy.rs` reads via
-`include_str!` — the exact mechanism Session 3's `roleVocabulary.json`
-already established. Two new TypeScript parity tests
-(`rolePolicy.matrixParity.test.ts`, `status.transitionParity.test.ts`)
-fail loudly if the checked-in fixture and a fresh computation disagree.
-Neither language holds a matrix the other doesn't provably agree with.
+**Deferred-command backlog closed** (architecture doc §9.4.1): every
+Session-3-inventoried command now has a final category.
+`resume_interrupted_data_move` is gated identically to its sibling
+data-location commands (`systemAdministration`/`administer`).
+`materials::import_materials` is gated `rawMaterials` create-or-edit
+(a wholesale list replace, same category as `upsert_master_records`).
+Seven compute/read commands across `materials.rs`/`formulation.rs`/
+`formulation_advanced.rs`/`formulation_v2.rs` now require a valid
+session (AUTHENTICATED_READ) — no persistence to a shared collection
+happens in any of them; that already goes through the Session-4-gated
+`formulations::` commands. `provenance::record_provenance`/
+`runs::record_run` are reclassified as genuinely non-privileged — this
+app's separate notebook/agent-runtime workspace-tracking subsystem, not
+FormuLab lab/business records, no `rolePolicy` area applies.
+`cancel_advanced_formulation_optimize` stays ungated, consistent with
+the existing cancel-command precedent (`cancel_backup`/`cancel_restore`/
+`cancel_data_move`, none gated since Session 4).
 
-**A new `systemAdministration` policy area** — administrator-only,
-since §6's original table had none and nothing in the approved
-architecture names any other role for backup/restore/migration/
-data-location authority.
+**Administrator gains the four gates' decide capability** (§9.4.2): a
+third documented discrepancy-resolution in `rolePolicy.ts`, alongside
+Session 3's first two — §15.4 is explicit that administrator exercises
+all four gates on the same explicit-exception basis as every other
+gate, which §6's literal view-only cells for administrator on those
+four areas contradicted.
 
-**One reusable trusted backend guard, `authz.rs`** — session token ->
-`validate_session` -> active account -> stored role ->
-`role_policy::can()` -> allow/deny, with no role/userId/displayName
-parameter anywhere for a caller to supply. Denials are audited using
-the *resolved* trusted actor's real identity, never a caller's claim.
-Fails closed at every step, matching `validate_session`'s existing
-Session 2 semantics exactly.
+**The four Production Manager workflow gates are real** (§9.4.3/§9.4.4):
+a new module, `workflow_gates.rs`, and a new mutable-record-per-subject
+storage pattern (`data/workflow_gates/<gateType>/`), not embedded
+fields on `RawMaterial`/`Supplier`/`FormulationVersion` — versions are
+immutable once written, so an in-place-progressing gate cannot live
+inside one. Each gate: `pending -> submitted -> approved|rejected`,
+`rejected -> submitted` again for the worker to fix and resubmit. Two
+commands cover all four (`submit_workflow_gate`, `decide_workflow_gate`)
+plus a read command. Worker/manager separation is structural: a worker
+role never holds the decide capability in `role_policy.rs`'s real
+matrix, proven directly against it, not a mock. Downstream blocking is
+real: `production_engineering_handoff` is blocked until the
+formulation version's status is `production_approved`;
+`production_release` is blocked until `production_engineering_handoff`
+is `approved` for the same version — checked *before* a worker can even
+submit, not just before a manager can approve.
 
-**`save_approval_record`'s Session 0 bypass is closed**: role and
-identity now come from the authenticated session, capability is
-derived from `requestedStatus`/`decision`, and — the requirement the
-session brief was explicit about — an "approved" decision also
-requires the transition itself to be a real edge in the shared
-`ALLOWED_NEXT` graph, so a manager with real approve authority still
-cannot approve `concept -> pilot_approved` directly.
+**Masterdata collection->PolicyArea mapping now has TypeScript parity**
+(§9.4.5): `masterdataPolicyAreas.ts` is the new canonical source (a
+`Record<MasterdataCollection, PolicyArea>` that makes a missing entry a
+compile error), generated to a JSON fixture Rust's `role_policy.rs`
+reads — the same shared-fixture mechanism the role matrix and
+transition graph already use. `masterdata.ts`'s `Collection` type now
+derives from the shared list instead of declaring a second hand-typed
+union. `masterdata.rs`'s `area_for_collection()` is now a one-line
+delegator, not a hand-typed `match`.
 
-**Generic masterdata CRUD is domain-authorized.** All 90 allow-listed
-collections are mapped to a `PolicyArea` (built from this file's own
-domain-grouping doc comments and `dataExchangeRegistry.ts`'s existing
-`targetCollection` groupings, not invented fresh); an unmapped
-collection is a hard deny, and a test asserts 100% coverage. One
-structural finding surfaced along the way: no role has `delete` in any
-domain content area at all — only `projects`/`administrator` — so
-`delete_master_record`/`delete_formulation` both gate against that
-instead, a deliberate choice, not a workaround.
-
-**Audit-actor spoofing is closed** for human-attributed events;
-non-human `actorKind` values are left alone since they were never
-identity-authoritative in the first place.
-
-**System Administration commands are gated**: `create_backup`,
-`restore_backup`, `create_pre_migration_backup`, all four
-data-location-change commands, `write_automatic_backup_config`,
-`apply_pre_migration_retention`. `run_automatic_backup` is deliberately
-**not** gated — per explicit instruction, a non-admin's own configured
-automatic backups must keep running unattended.
-
-**Frontend**: `currentSessionToken()` (new) is the one accessor every
-command wrapper's `call()` helper uses to attach the caller's bearer
-token — added once per wrapper file, not at 26 individual call sites.
-`SettingsPage.tsx`'s four System Administration cards are now hidden
-for a non-administrator (`useTrustedActor()` + `can()`, UX only — the
-backend was already authoritative). The 10 Session-3 role-selector
-sites were re-audited; no new hardcoded-role site was found.
-
-Rust: 281/281 (Session 3's 252 + 29 new), clippy clean. Shared:
-1296/1296 (1291 + 5 new), tsc clean. Desktop: 1188/1188 (1185 + 3 new),
-tsc clean, eslint clean — every pre-existing test that exercises a
-now-token-carrying wrapper continued passing unchanged.
+Rust: 304/304 (Session 4's 281 + 23 new), clippy clean. Shared:
+1301/1301 (1296 + 5 new), tsc clean. Desktop: 1188/1188 (unchanged —
+no new frontend behavior, only wiring with existing coverage), tsc
+clean, eslint clean.
 
 ## Deliverables (this session)
 
-- `apps/desktop/src-tauri/src/role_policy.rs` (new) — cross-language
-  policy contract, no hand-typed matrix. 10 tests.
-- `apps/desktop/src-tauri/src/authz.rs` (new) — the trusted backend
-  guard. 8 tests.
-- `packages/shared/scripts/generate-role-policy-matrix.ts` (new) +
-  `packages/shared/src/engine/rolePolicyMatrix.generated.json` (new) +
-  `packages/shared/src/engine/formulaStatusTransitions.json` (new).
-- `packages/shared/src/engine/rolePolicy.ts` — new `systemAdministration`
-  area, `fullMatrixSnapshot()` export.
-- `packages/shared/src/schemas/status.ts` — `ALLOWED_NEXT` exported.
-- `packages/shared/src/engine/rolePolicy.matrixParity.test.ts` (new, 3
-  tests) + `packages/shared/src/schemas/status.transitionParity.test.ts`
-  (new, 2 tests).
-- `apps/desktop/src-tauri/src/formulations.rs` — `save_approval_record`
-  role+transition+identity enforcement; formulation writes, drafts,
-  delete, audit-event attribution, and every read gated. 7 new tests.
-- `apps/desktop/src-tauri/src/masterdata.rs` — collection->area mapping
-  (`area_for_collection`), upsert/delete/raw-write/backup/list gated.
-  4 new tests.
-- `apps/desktop/src-tauri/src/attachments.rs` — both commands gated.
-- `apps/desktop/src-tauri/src/backup.rs`,
-  `apps/desktop/src-tauri/src/migration.rs`,
-  `apps/desktop/src-tauri/src/data_location_manager.rs`,
-  `apps/desktop/src-tauri/src/automatic_backup.rs` — System
-  Administration commands gated (`run_automatic_backup` deliberately
-  not).
-- `apps/desktop/src-tauri/src/lib.rs` — registers `mod authz;`/
-  `mod role_policy;`.
-- `apps/desktop/src/lib/sessionToken.ts` (new) — `currentSessionToken()`.
-  3 tests.
-- `apps/desktop/src/app/providers/AuthProvider.tsx` —
-  `SESSION_TOKEN_KEY` exported.
-- `apps/desktop/src/lib/formulations.ts`, `masterdata.ts`, `tauri.ts`,
-  `migrationRunner.ts` — every changed command's wrapper now attaches
-  the session token.
-- `apps/desktop/src/app/routes/SettingsPage.tsx` — System
-  Administration cards hidden for non-administrators.
-- `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` — new §9.3 (11
-  subsections: cross-layer contract, `systemAdministration` area, the
-  guard, each closed gap, the classification table, frontend); §15.4
-  Session 4 status note; §2/§25/Risks updated.
-- `docs/PHASE13_SECURITY_TEST_MATRIX.md` — B1-B3/C1-C6 corrected to
-  factual reports; new §J.
+- `apps/desktop/src-tauri/src/workflow_gates.rs` (new) — the four
+  Production Manager gates. 19 tests.
+- `apps/desktop/src-tauri/src/role_policy.rs` — `masterdata_area_for()`
+  reading the new shared fixture, replacing `masterdata.rs`'s hand-typed
+  match. 4 new tests.
+- `packages/shared/src/engine/masterdataPolicyAreas.ts` (new) — the
+  canonical collection->area contract.
+- `packages/shared/src/engine/masterdataPolicyAreas.parity.test.ts`
+  (new, 5 tests) + `masterdataCollectionAreas.generated.json` (new).
+- `packages/shared/scripts/generate-role-policy-matrix.ts` — extended
+  to also emit the masterdata-areas fixture.
+- `packages/shared/src/engine/rolePolicy.ts` — third discrepancy-
+  resolution (administrator on the four gates' areas).
+- `apps/desktop/src-tauri/src/masterdata.rs` — `area_for_collection()`
+  now a one-line delegator.
+- `apps/desktop/src-tauri/src/data_location_manager.rs`,
+  `materials.rs`, `formulation.rs`, `formulation_advanced.rs`,
+  `formulation_v2.rs` — the 9 previously-deferred commands gated.
+- `apps/desktop/src-tauri/src/formulations.rs` — `formulation_dir`
+  widened to `pub(crate)` for `workflow_gates.rs`'s read access.
+- `apps/desktop/src-tauri/src/lib.rs` — registers `mod workflow_gates;`
+  + its 3 commands.
+- `apps/desktop/src/lib/masterdata.ts` — `Collection` type now derives
+  from `@formulab/shared`.
+- `apps/desktop/src/lib/formulationV2.ts`, `tauri.ts` — token wiring
+  for the 9 newly-gated commands.
+- `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` — new §9.4 (6
+  subsections); §15.4 Session 4A status note; §25/Risks updated.
+- `docs/PHASE13_SECURITY_TEST_MATRIX.md` — new §K.
 - This handoff.
 - External log:
   `C:\Users\sekip\Desktop\FormuLab-Phase13-Identity-Security-Log.md`,
-  Session 4 entry appended.
+  Session 4A entry appended.
 
-## What Session 4 deliberately did NOT do
+## What Session 4A deliberately did NOT do
 
-- Did **not** enforce every one of the 110 Session-3-inventoried
-  commands — only the priority set §5 of the session brief named.
-  Everything else is classified (§9.3.10's 5-category taxonomy:
-  AUTHENTICATED_READ / TRUSTED_INTERNAL_ONLY /
-  READ_ONLY_NO_ROLE_GATE_NEEDED / DEFERRED_WITH_REASON), not silently
-  skipped — but classified is not the same as secured.
-- Did **not** implement any of the four §15.3 workflow gates (raw-
-  material verification, supplier-document verification, production-
-  engineering handoff, production release) — no `FormulaStatus`, no
-  gate command exists for any of them, exactly as before. Secured the
-  underlying masterdata mutation boundary those gates will eventually
-  sit in front of (§15.4's Session 4 status note), nothing more.
-- Did **not** touch `Administration → Users` (Session 5), brute-force/
-  lockout policy, or full audit-event coverage beyond the denial-event
-  logging `authz.rs` itself adds.
-- Did **not** add a TypeScript-side consumer of the masterdata
-  collection->area mapping — it exists only in Rust, un-parity-tested
-  against an equivalent TypeScript source (Risks item 12).
-- Did **not** gate `resume_interrupted_data_move`,
-  `materials::{import_materials, cost_formulation}`, or the
-  formulation compute/generation commands — real, disclosed gaps
-  (§9.3.10's DEFERRED_WITH_REASON row).
+- No frontend UI or wrapper for the three workflow-gate commands —
+  backend-then-UI sequencing, same as this phase's established pattern.
+- No gate-subject existence validation (a `materials`/`suppliers` code
+  or `formulationId`/`versionId` that doesn't exist can still get a
+  gate record created against it) — a data-integrity gap, not an
+  authorization one.
+- Did not gate `cancel_advanced_formulation_optimize` — consistent
+  with, not independently re-justified beyond, the existing
+  cancel-command precedent.
+- Did not re-review §6's matrix itself — Session 4A's administrator
+  addition is a third discrepancy-resolution layered on top of it, not
+  the domain-expert review Risks item 1 still calls for.
+- Did not touch `Administration → Users` (still Session 5), brute-force/
+  lockout policy, or full audit-event coverage beyond what `authz.rs`
+  and `workflow_gates.rs` already log.
 
 ## Open decisions requiring a human answer before Session 5
 
-1. Is the full §6 role-permission matrix correct for a real lab/QA/
-   regulatory/production workflow? Now more urgent: Session 4 found
-   enforcing it literally means only `researcher` can write formulation
-   content and only `administrator` can delete anything. Confirm or
-   correct before this becomes any more load-bearing.
-2. Should any domain content area grant `delete` to a working-tier
-   role directly, or should `projects`/`administrator`-only stay the
-   permanent answer for destructive record deletion?
-3. Is the masterdata collection->area mapping (§9.3.6, 90 collections)
-   correct? First-draft judgment, same caveat as §6 itself.
-4. §15.4's four Production Manager gates — authority decided, still
-   entirely unimplemented. Sequencing (Session 5 or a dedicated
-   workflow session) unchanged.
-5. Does any automatic-backup class ever need administrator gating even
-   when system-triggered? Not a known issue — `run_automatic_backup`
-   is deliberately unauthenticated today per explicit instruction.
+1. §6's full role-permission matrix — now three discrepancy-resolutions
+   deep (production_manager's original two, administrator's new one for
+   the four gates). Needs the domain-expert review every session since
+   Session 1 has flagged.
+2. Are the four gates' storage locations (masterdata codes for two,
+   formulation-version-scoped records for the other two) the right
+   long-term model, or should a future session promote them to
+   first-class collections with their own masterdata entries?
+3. Should gate-subject existence be validated before allowing a submit?
+4. Does `run_automatic_backup` (still unauthenticated) or
+   `cancel_advanced_formulation_optimize` (still ungated) need
+   revisiting once real usage patterns are observed?
 
 ## Exact next session
 
 **Phase 13 Session 5: `Administration → Users` UI** — list, create,
 edit, role change, reset password, activate/disable, security-history
-view, read-only role-capabilities view (rendered from `rolePolicy.ts`,
-never a second hand-maintained display). Per the original plan's
-shape, unchanged by this session. Session 4's residual gaps
-(§9.3.10's DEFERRED_WITH_REASON row, the four §15.3 gates, the
-masterdata mapping's missing TypeScript parity) remain open follow-up
-work, not blockers to Session 5 specifically.
+view, read-only role-capabilities view (rendered from `rolePolicy.ts`).
+Per the original plan's shape, unchanged by this session. A UI for the
+four workflow gates is real, disclosed follow-up work but not named as
+Session 5 itself — whichever session builds it should reuse
+`submit_workflow_gate`/`decide_workflow_gate`/`read_workflow_gate`
+as-is, no backend changes anticipated.

@@ -42,7 +42,7 @@ pub(crate) fn safe_id(id: &str) -> Result<&str, String> {
     }
 }
 
-fn formulation_dir(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+pub(crate) fn formulation_dir(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
     Ok(formulations_root(app)?.join(safe_id(id)?))
 }
 

@@ -29,6 +29,7 @@ mod provenance;
 mod role_policy;
 mod runs;
 mod runs_index;
+mod workflow_gates;
 mod workspace;
 mod tools;
 #[cfg(target_os = "macos")]
@@ -192,7 +193,10 @@ pub fn run() {
             diagnostics::diagnostics_summary,
             diagnostics::export_support_bundle,
             diagnostics::pick_support_bundle_destination,
-            diagnostics::open_log_folder
+            diagnostics::open_log_folder,
+            workflow_gates::submit_workflow_gate,
+            workflow_gates::decide_workflow_gate,
+            workflow_gates::read_workflow_gate
         ])
         .build(tauri::generate_context!())
         .expect("error while building FormuLab")

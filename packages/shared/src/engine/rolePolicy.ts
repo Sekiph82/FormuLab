@@ -153,10 +153,10 @@ const NONE: Capability[] = [];
  * The full role/area/capability matrix — a direct, cell-by-cell
  * transcription of architecture doc §6's table (Session 1's first full
  * draft, "not yet domain-expert-reviewed" per that doc's own flag,
- * carried forward unchanged here) with two explicit, documented additions
- * beyond the literal §6 cells, both directly instructed by this Session 3
- * brief and by the later, user-approved §15.4/§25 gate-authority decision
- * §6's table itself predates:
+ * carried forward unchanged here) with three explicit, documented
+ * additions beyond the literal §6 cells, all directly instructed by
+ * either this module's own Session 3 brief or the later, user-approved
+ * §15.4/§25 gate-authority decision §6's table itself predates:
  *
  * 1. `production_manager` gains `verify` on `rawMaterials` and
  *    `supplierDocuments` — §6's literal cells for `production_manager` on
@@ -182,6 +182,17 @@ const NONE: Capability[] = [];
  *    (only `regulatory`'s own cell already listed `Vf`); this fixes that
  *    omission against the real, already-enforced authority, it does not
  *    add new authority the app doesn't already have.
+ * 3. `administrator` gains `verify` on `rawMaterials`/`supplierDocuments`
+ *    and `approve`/`reject` on `productionEngineering`/`production`
+ *    (Session 4A) — §15.4 is explicit that administrator "can exercise
+ *    all four gates once they're implemented, on the same
+ *    explicit-exception basis as every other gate in this document,"
+ *    which contradicts §6's literal view-only cells for administrator on
+ *    those four rows, the same shape of discrepancy as addition #1 above
+ *    and resolved the same way (§15.4 is later and user-approved, so it
+ *    wins). Grants only the four gates' own decide capabilities, not
+ *    view/create/edit — administrator still cannot see or modify the
+ *    underlying records, only decide the four gates themselves.
  *
  * No other cell deviates from §6's literal table. Everywhere §6 shows "—"
  * (and neither addition above applies), the role has zero capabilities on
@@ -514,6 +525,33 @@ for (const role of LABORATORY_METHOD_MANAGER_ROLES) {
 for (const role of AUTHORIZED_REGULATORY_ROLES) {
   if (!MATRIX.regulatory[role].includes("verify")) {
     MATRIX.regulatory[role] = [...MATRIX.regulatory[role], "verify"];
+  }
+}
+// Phase 13 Session 4A addition (architecture doc §9.4.2), the third
+// documented discrepancy-resolution alongside the two in the module doc
+// comment above: §15.4 is explicit — "administrator retains its existing,
+// user-approved broad approval/testing authority (§9) and can exercise all
+// four [Production Manager] gates once they're implemented, on the same
+// explicit-exception basis as every other gate in this document." §6's
+// literal cells leave administrator view-only on rawMaterials/
+// supplierDocuments/productionEngineering/production (§9's general rule),
+// which contradicts §15.4's later, explicit, user-approved decision — same
+// resolution shape as `production_manager`'s own §15.4 addition above:
+// §15.4 wins because it is chronologically later and explicitly
+// user-approved. Grants only the verify/approve/reject capabilities the
+// four gates actually use, not view/create/edit — administrator still
+// cannot see or modify the underlying raw-material/supplier/production
+// records themselves, only decide these four gates.
+for (const area of ["rawMaterials", "supplierDocuments"] as const) {
+  if (!MATRIX[area].administrator.includes("verify")) {
+    MATRIX[area].administrator = [...MATRIX[area].administrator, "verify"];
+  }
+}
+for (const area of ["productionEngineering", "production"] as const) {
+  for (const cap of ["approve", "reject"] as const) {
+    if (!MATRIX[area].administrator.includes(cap)) {
+      MATRIX[area].administrator = [...MATRIX[area].administrator, cap];
+    }
   }
 }
 for (const role of APPROVAL_AUTHORITY.pilot_approved) {

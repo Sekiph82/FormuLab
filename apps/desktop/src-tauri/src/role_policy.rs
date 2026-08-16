@@ -31,6 +31,10 @@ const TRANSITIONS_FIXTURE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../packages/shared/src/engine/formulaStatusTransitions.json"
 ));
+const MASTERDATA_AREAS_FIXTURE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../packages/shared/src/engine/masterdataCollectionAreas.generated.json"
+));
 
 #[derive(Debug, Deserialize)]
 struct MatrixFixture {
@@ -49,6 +53,13 @@ struct TransitionsFixture {
     allowed_next: HashMap<String, Vec<String>>,
 }
 
+#[derive(Debug, Deserialize)]
+struct MasterdataAreasFixture {
+    #[allow(dead_code)]
+    collections: Vec<String>,
+    areas: HashMap<String, String>,
+}
+
 fn matrix() -> &'static MatrixFixture {
     static MATRIX: OnceLock<MatrixFixture> = OnceLock::new();
     MATRIX.get_or_init(|| {
@@ -63,6 +74,25 @@ fn transitions() -> &'static TransitionsFixture {
         serde_json::from_str(TRANSITIONS_FIXTURE)
             .expect("formulaStatusTransitions.json must be valid JSON matching TransitionsFixture")
     })
+}
+
+fn masterdata_areas() -> &'static MasterdataAreasFixture {
+    static AREAS: OnceLock<MasterdataAreasFixture> = OnceLock::new();
+    AREAS.get_or_init(|| {
+        serde_json::from_str(MASTERDATA_AREAS_FIXTURE).expect(
+            "masterdataCollectionAreas.generated.json must be valid JSON matching MasterdataAreasFixture",
+        )
+    })
+}
+
+/// Phase 13 Session 4A (architecture doc §9.3.6/§9.4): the masterdata
+/// collection -> `PolicyArea` mapping, read from the same shared fixture
+/// `masterdataPolicyAreas.ts`'s `MASTERDATA_COLLECTION_POLICY_AREAS`
+/// generates — replaces Session 4's hand-typed Rust `match` with a single
+/// source both languages read. Default-deny: an unmapped or unrecognized
+/// collection name returns `None`, never a fallback area.
+pub fn masterdata_area_for(collection: &str) -> Option<&'static str> {
+    masterdata_areas().areas.get(collection).map(|s| s.as_str())
 }
 
 /// May `role` ever perform `capability` in `area`? Default-deny, exactly
@@ -204,5 +234,45 @@ mod tests {
         assert_eq!(roles().len(), 12);
         assert!(areas().contains(&"systemAdministration".to_string()));
         assert!(areas().contains(&"formulation".to_string()));
+    }
+
+    // -------------------------------------------- masterdata_area_for ---
+
+    #[test]
+    fn masterdata_area_for_has_all_90_collections_mapped() {
+        assert_eq!(masterdata_areas().collections.len(), 90);
+        for collection in &masterdata_areas().collections {
+            assert!(
+                masterdata_area_for(collection).is_some(),
+                "{collection} has no policy area mapping"
+            );
+        }
+    }
+
+    #[test]
+    fn masterdata_area_for_denies_an_unknown_collection() {
+        assert_eq!(masterdata_area_for("not_a_real_collection"), None);
+        assert_eq!(masterdata_area_for(""), None);
+        assert_eq!(masterdata_area_for("../../etc/passwd"), None);
+    }
+
+    #[test]
+    fn masterdata_area_for_matches_representative_collections() {
+        assert_eq!(masterdata_area_for("materials"), Some("rawMaterials"));
+        assert_eq!(masterdata_area_for("stability_studies"), Some("stability"));
+        assert_eq!(masterdata_area_for("test_results"), Some("laboratory"));
+        assert_eq!(masterdata_area_for("regulatory_rules"), Some("regulatory"));
+        assert_eq!(masterdata_area_for("doe_studies"), Some("optimization"));
+        assert_eq!(masterdata_area_for("data_exchange_import_jobs"), Some("dataExchange"));
+        assert_eq!(masterdata_area_for("generated_document_records"), Some("documentControl"));
+    }
+
+    #[test]
+    fn every_masterdata_area_is_a_real_policy_area() {
+        let known: std::collections::HashSet<&str> = areas().iter().map(|s| s.as_str()).collect();
+        for collection in &masterdata_areas().collections {
+            let area = masterdata_area_for(collection).unwrap();
+            assert!(known.contains(area), "{collection} -> {area} is not a real PolicyArea");
+        }
     }
 }

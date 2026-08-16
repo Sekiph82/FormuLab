@@ -1882,7 +1882,7 @@ detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 SignPath submission attempt genuinely blocked externally). Next:
 Session 4B (SignPath Application Retry).**
 
-### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-4) — APPLICATION-WIDE SERVER-SIDE ENFORCEMENT WIRED FOR THE PRIORITY COMMAND SET; NOT EVERY COMMAND YET REVIEWED
+### Enterprise Identity, Authentication, Fixed RBAC & Application Security (Phase 13, Sessions 0-4A) — DEFERRED-COMMAND BACKLOG CLOSED, ALL FOUR PRODUCTION MANAGER WORKFLOW GATES IMPLEMENTED, MASTERDATA POLICY MAPPING PARITY-TESTED
 
 Runs in parallel with Phase 12, unrelated to it. Session 0 audited
 current identity/authorization state and found: no authentication of
@@ -2035,8 +2035,47 @@ commands outside the priority set are classified
 (AUTHENTICATED_READ/TRUSTED_INTERNAL_ONLY/
 READ_ONLY_NO_ROLE_GATE_NEEDED/DEFERRED_WITH_REASON), not silently
 unreviewed, but classified is not secured; Phase 13 is not fully
-secure yet. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`
-§9.3; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §J; handoff:
+secure yet.
+
+Session 4A closed the three gaps Session 4 disclosed rather than
+fixed. Every `DEFERRED_WITH_REASON` command now has a final
+disposition: `resume_interrupted_data_move` and
+`materials::import_materials` are gated (`systemAdministration`/
+`rawMaterials` respectively); seven compute/read commands across
+`materials.rs`/`formulation*.rs` require a valid session
+(AUTHENTICATED_READ); `provenance::record_provenance`/
+`runs::record_run` are reclassified as genuinely non-privileged
+(this app's separate notebook/agent-runtime workspace tracking, not
+FormuLab business records). All four Production Manager workflow gates
+(raw-material verification, supplier-document verification,
+production-engineering handoff, production release) are now real,
+auditable state — a new module, `workflow_gates.rs`, storing one
+mutable record per `(gateType, subjectId)` under
+`data/workflow_gates/`, deliberately **not** forced into
+`FormulaStatus` per explicit instruction. Each gate:
+`pending -> submitted -> approved|rejected`, `rejected -> submitted`
+again. Worker/manager separation is structural — a worker role never
+holds the decide capability in `role_policy.rs`'s real matrix, proven
+directly against it. Downstream blocking is real:
+`production_engineering_handoff` requires the formulation version's
+status to already be `production_approved`; `production_release`
+requires `production_engineering_handoff` already `approved` for the
+same version — checked before a worker can even submit, not just
+before a manager decides. Administrator gained the four gates' decide
+capability (§15.4's explicit instruction, a third documented
+discrepancy-resolution in `rolePolicy.ts`). The masterdata
+collection->PolicyArea mapping (90 collections) now has TypeScript
+parity too — `masterdataPolicyAreas.ts` is the new canonical source
+(a `Record` type that makes a missing entry a compile error),
+generated to a JSON fixture Rust reads, replacing Session 4's
+Rust-only hand-typed `match`. Rust: 304/304 (281 + 23 new), clippy
+clean. Shared: 1301/1301 (1296 + 5 new), tsc clean. Desktop: 1188/1188
+(unchanged — wiring only, existing coverage), tsc clean, eslint clean.
+**Still not claimed fully secure** — no frontend UI exists for the
+four gates yet, gate-subject existence is unvalidated, and §6's matrix
+is still Session 1's first draft, now three discrepancy-resolutions
+deep. Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md`
+§9.4; test report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §K; handoff:
 `docs/handoffs/PHASE13_CURRENT.md`.
 
 ## Not yet started
