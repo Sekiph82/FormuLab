@@ -48,9 +48,9 @@ None. FVL-02.001 is unblocked and ready to start.
 
 ## Latest commit SHA
 
-See `git log` for the exact current HEAD — this file is updated again once
-the full-text-gate correction (FVL-01.005) and this tracker's own creation
-are both committed and pushed to `origin/feature/laboratory-stability`.
+`67fc94aeff716257b966ce2b0127f630b28cce79` (pushed to
+`origin/feature/laboratory-stability`) — the full/partial/insufficient
+full-text-gate correction (FVL-01.005).
 
 ## Reminder
 
