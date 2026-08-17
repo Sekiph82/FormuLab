@@ -13,22 +13,60 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
 ## Current work package
 
-**FVL-02 — Dynamic 3-7 Formula Alternatives** — ON PROCESS, 23/24 tasks
-COMPLETED. FVL-01 remains CLOSED (21/21); FVL-03 sits at 6/18
-(FVL-03.013-018).
+**FVL-02 — Dynamic 3-7 Formula Alternatives** — **CLOSED, 24/24 tasks
+COMPLETED (2026-08-17).** FVL-01 remains CLOSED (21/21); FVL-03 sits at
+6/18 (FVL-03.013-018).
 
 ## Current task
 
-**`FVL-02.009`** — ON PROCESS (the one remaining blocking subtask).
+**`FVL-03.001`** — blank, NOT STARTED. FVL-02's own closure resolved its
+one remaining subtask this session (`FVL-02.009` — see below); FVL-03.001
+is the next frozen task in the tracker's own default execution order.
+Deliberately not begun this session per the standing "do not start
+FVL-03" instruction that governed the FVL-02 closure work itself.
+
+## FVL-02.009 resolution (this session)
+
 "Below-3-defensible-alternatives behavior: mark result incomplete/
-insufficient rather than fabricate." No distinct `status` value exists
-for `actual_formula_count` < 3 specifically — only the generic
-`alternative_shortfall`/`shortfall_reason` pair, applied uniformly
-regardless of how low `actual` goes. In every acceptance run performed
-so far `actual` has never gone below 2 (`balanced`/`max_performance`
-both apply unconditionally), so the literal "mark incomplete/
-insufficient" signal for that specific edge remains unverified — left
-ON PROCESS rather than assumed complete.
+insufficient rather than fabricate." Added `engine.FORMULA_ALTERNATIVES_
+SUFFICIENT`/`FORMULA_ALTERNATIVES_INSUFFICIENT` and a new top-level
+`formula_alternatives_status` field on `pipeline.run()`'s return —
+**independent** of `status` (which stays entirely about research-corpus
+completeness): `"sufficient"` when `actual_formula_count >=
+MIN_FORMULA_ALTERNATIVES` (3), `"insufficient_formula_alternatives"`
+otherwise. The real alternatives already produced are always returned
+as-is either way — never discarded, never padded to reach the minimum.
+Proven with 8 new tests (`test_formula_alternatives_status.py`), including
+both signals held true simultaneously (`ok_partial_research` + `insufficient_
+formula_alternatives`) without either overwriting the other. **Real,
+disclosed finding**: under the CURRENT strategy library, `actual <
+MIN_FORMULA_ALTERNATIVES` is not reachable through genuine strategy
+scarcity for any real brief — `balanced` + one of `cost_optimized`/
+`premium_sensory` (mutually exclusive but jointly exhaustive over every
+`targetCostLevel` value) + the unconditional `max_performance` fallback
+together guarantee at least 3 applicable strategies, and the deterministic
+engine never fails a slot once a strategy is chosen (no `generation_failed`
+path exists in the current engine). The tests prove the SIGNAL is correct
+by truncating `strategy.derive_strategies()`'s own real output (never
+fabricating a strategy) — a defensive correctness proof for a case that
+is not reachable today but could become reachable if the strategy library
+is ever narrowed.
+
+**Also found and fixed while preparing the rebuild** (not part of
+FVL-02.009 itself, but a real, pre-existing packaging defect uncovered by
+it): `apps/desktop/src-tauri/src/formulation_v2.rs`'s `materialize_
+pipeline()` embedded-files list was missing `architecture_portfolio.py`
+entirely — `pipeline.py` has imported it since an earlier FVL-02 session,
+so the SHIPPED desktop binary would have failed with `ImportError` on
+every real generation attempt despite every Python-level test passing (the
+test suite always runs against the live repo checkout, never the
+materialized/embedded copy, so this gap was invisible to `pytest`). Fixed
+by adding the missing `include_str!`/materialize-list entry. Verified
+directly: reproduced the exact Rust materialization list in a disposable
+temp directory, ran `run_cli.py` against it — clean JSON response, no
+`ImportError`, reached real pipeline business logic
+(`research_corpus_incomplete`, the correct/expected outcome for a sandbox
+with no live literature-retrieval network access).
 
 ## Immediately preceding completed work (this session)
 

@@ -546,6 +546,16 @@ export interface GenerateResult {
   actual_formula_count?: number;
   alternative_shortfall?: number;
   shortfall_reason?: string;
+  /** FormuLab v1 (FVL-02.009) — DISTINCT from `status` above (which is
+   *  entirely about research-corpus completeness, e.g. `"ok_partial_
+   *  research"`). `"sufficient"` when `actual_formula_count >= 3`;
+   *  `"insufficient_formula_alternatives"` when it fell below that real
+   *  minimum — the alternatives that WERE produced are still returned
+   *  as-is either way, never discarded, never padded. The two signals
+   *  can be true simultaneously (e.g. `status: "ok_partial_research"` +
+   *  `formula_alternatives_status: "insufficient_formula_alternatives"`)
+   *  — neither ever overwrites the other. */
+  formula_alternatives_status?: "sufficient" | "insufficient_formula_alternatives";
 }
 
 /** FormuLab v1 (FVL-02) — the one authoritative source of truth for the

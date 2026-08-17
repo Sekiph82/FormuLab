@@ -1048,8 +1048,26 @@ def run(
             )
         log(f"[note] alternative shortfall: requested {n}, delivered {actual_formula_count} — {shortfall_reason}")
 
+    # FormuLab v1 (FVL-02.009) — a distinct, independent signal from the
+    # generic shortfall above: whether the delivered count itself fell
+    # below the real minimum a "3-7 alternatives" request promises, never
+    # conflated with (or overwriting) `status`'s own research-corpus
+    # meaning. The real alternatives already built above are returned
+    # exactly as-is either way — this never discards or pads them.
+    formula_alternatives_status = (
+        engine.FORMULA_ALTERNATIVES_SUFFICIENT
+        if actual_formula_count >= engine.MIN_FORMULA_ALTERNATIVES
+        else engine.FORMULA_ALTERNATIVES_INSUFFICIENT
+    )
+    if formula_alternatives_status == engine.FORMULA_ALTERNATIVES_INSUFFICIENT:
+        log(f"[note] formula_alternatives_status=insufficient_formula_alternatives: "
+            f"only {actual_formula_count} of a minimum {engine.MIN_FORMULA_ALTERNATIVES} "
+            f"defensible alternative(s) were produced — real formulas returned as-is, "
+            f"never padded to reach the minimum.")
+
     return {"status": "ok_partial_research" if partial_research else "ok", "cards": cards, "slug": slug,
             "papers": len(papers), "archived": archived, "diversity": diversity.to_dict(),
             "scientific_formulation_summary": scientific_formulation_summary,
             "requested_formula_count": n, "actual_formula_count": actual_formula_count,
-            "alternative_shortfall": alternative_shortfall, "shortfall_reason": shortfall_reason}
+            "alternative_shortfall": alternative_shortfall, "shortfall_reason": shortfall_reason,
+            "formula_alternatives_status": formula_alternatives_status}

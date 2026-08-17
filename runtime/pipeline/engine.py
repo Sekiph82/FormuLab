@@ -943,6 +943,19 @@ MIN_FORMULA_ALTERNATIVES = 3
 MAX_FORMULA_ALTERNATIVES = 7
 DEFAULT_FORMULA_ALTERNATIVES = 3
 
+# FormuLab v1 (FVL-02.009) — a SEPARATE signal from `pipeline.run()`'s own
+# top-level `status` (`"ok"`/`"ok_partial_research"`, which is entirely
+# about research-corpus completeness — see `provenance.py`'s `CORPUS_*`).
+# `actual_formula_count` falling below `MIN_FORMULA_ALTERNATIVES` is a
+# real, distinct, independent condition — a session can be simultaneously
+# `ok_partial_research` (corpus) AND `insufficient_formula_alternatives`
+# (count), or `ok` (corpus) AND `insufficient_formula_alternatives`
+# (count); neither ever overwrites the other. Never blocks the run or
+# discards the real alternatives that WERE produced — those are honest,
+# valid formulas, still returned as-is.
+FORMULA_ALTERNATIVES_SUFFICIENT = "sufficient"
+FORMULA_ALTERNATIVES_INSUFFICIENT = "insufficient_formula_alternatives"
+
 FORMULA_COMPLETE = "complete"
 FORMULA_COMPLETE_WITH_VALIDATION_REQUIRED = "complete_with_validation_required"
 FORMULA_INCOMPLETE_MISSING_EVIDENCE = "incomplete_missing_evidence"

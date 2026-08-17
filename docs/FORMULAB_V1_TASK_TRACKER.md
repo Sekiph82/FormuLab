@@ -60,7 +60,7 @@ subjective percentages.
 | Work package | GitHub issue | Total tasks | COMPLETED | ON PROCESS | blank |
 |---|---|---|---|---|---|
 | FVL-01 | [#2](https://github.com/Sekiph82/FormuLab/issues/2) (closed) | 21 | 21 | 0 | 0 |
-| FVL-02 | [#3](https://github.com/Sekiph82/FormuLab/issues/3) | 24 | 23 | 1 | 0 |
+| FVL-02 | [#3](https://github.com/Sekiph82/FormuLab/issues/3) (closed) | 24 | 24 | 0 | 0 |
 | FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) | 18 | 6 | 0 | 12 |
 | FVL-04 | [#5](https://github.com/Sekiph82/FormuLab/issues/5) | 12 | 0 | 0 | 12 |
 | FVL-05 | [#6](https://github.com/Sekiph82/FormuLab/issues/6) | 14 | 0 | 0 | 14 |
@@ -153,7 +153,7 @@ anti-dandruff shampoo) — commit `8bfc11b04142fa30c623c37ca8d7b01d58d0797b`.
 
 ---
 
-## FVL-02 — Dynamic 3–7 Formula Alternatives
+## FVL-02 — Dynamic 3–7 Formula Alternatives — CLOSED (24/24, 2026-08-17)
 
 Purpose: implement the frozen requirement in `FORMULAB_V1_FINAL_SCOPE.md`
 §1. Must never fabricate alternatives to hit a requested count.
@@ -172,7 +172,7 @@ Purpose: implement the frozen requirement in `FORMULAB_V1_FINAL_SCOPE.md`
 | FVL-02.006 | Generalize `strategy.diversity_report()`/`distinct_architecture_count` to operate over N alternatives, not assume 3 | FVL-02.005 | YES | COMPLETED |
 | FVL-02.007 | Architecture-uniqueness enforcement for N (never pad with a near-duplicate to hit count) | FVL-02.006 | YES | COMPLETED |
 | FVL-02.008 | Insufficient-defensible-alternatives behavior: return M honestly when M < requested N (M ≥ 3 normal case) | FVL-02.006 | YES | COMPLETED |
-| FVL-02.009 | Below-3-defensible-alternatives behavior: mark result incomplete/insufficient rather than fabricate. Blocker: no distinct `status` signal exists for `actual_formula_count` < 3 specifically — only the generic `alternative_shortfall`/`shortfall_reason` pair, applied uniformly regardless of how low actual goes. `balanced`/`max_performance` both apply unconditionally so actual has never been observed below 2 in any acceptance run, but the literal "mark incomplete/insufficient" signal is unverified for that edge. | FVL-02.008 | YES | ON PROCESS |
+| FVL-02.009 | Below-3-defensible-alternatives behavior: mark result incomplete/insufficient rather than fabricate | FVL-02.008 | YES | COMPLETED — new `engine.FORMULA_ALTERNATIVES_SUFFICIENT`/`FORMULA_ALTERNATIVES_INSUFFICIENT` constants and a top-level `formula_alternatives_status` field on `pipeline.run()`'s return, independent of `status` (research-corpus completeness) — real alternatives always returned as-is, never discarded/padded. 8 new tests (`test_formula_alternatives_status.py`), including both signals held simultaneously (partial corpus + below-minimum count) without either overwriting the other. Note: under the current strategy library `actual_formula_count < 3` is not reachable through genuine strategy scarcity (`balanced` + one of `cost_optimized`/`premium_sensory` + the unconditional `max_performance` fallback jointly guarantee 3) — tests prove the signal via a real `strategy.derive_strategies()` output truncation, not fabrication. |
 | FVL-02.010 | `formulaVersionId`/card collection refactor: remove hardcoded v1/v2/v3 branching wherever it exists in `pipeline.py`/`engine.py` | FVL-02.004 | YES | COMPLETED |
 | FVL-02.011 | Session persistence: `cards.json`/session directory representation supports N cards (3–7) | FVL-02.010 | YES | COMPLETED |
 | FVL-02.012 | Rust bridge (`formulation_v2.rs`): remove any 3-card assumption, pass through N cards generically | FVL-02.011 | YES | COMPLETED — was already a generic `serde_json::Value` passthrough with no fixed struct/enum; proven directly with a new 7-card round-trip test (`read_cards_round_trips_all_seven_alternatives`) |

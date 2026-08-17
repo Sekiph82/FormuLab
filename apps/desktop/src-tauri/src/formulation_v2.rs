@@ -70,6 +70,14 @@ const F_SAFETY: &str = include_str!("../../../../runtime/pipeline/safety.py");
 const F_REGULATORY: &str = include_str!("../../../../runtime/pipeline/regulatory.py");
 const F_VALIDATION_PLAN: &str = include_str!("../../../../runtime/pipeline/validation_plan.py");
 const F_SCIENTIFIC_FORMULATION: &str = include_str!("../../../../runtime/pipeline/scientific_formulation.py");
+// FormuLab v1 (FVL-02) — pipeline.py now imports architecture_portfolio.py
+// directly (the global scientific-architecture portfolio selector) — same
+// requirement as every module above: must be materialized alongside them
+// or the embedded desktop app fails with ImportError on every real run.
+// (Found missing from this list while closing FVL-02.009 — a real,
+// pre-existing packaging defect from the session that created the module;
+// fixed here rather than shipped broken.)
+const F_ARCHITECTURE_PORTFOLIO: &str = include_str!("../../../../runtime/pipeline/architecture_portfolio.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -165,6 +173,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("regulatory.py", F_REGULATORY),
         ("validation_plan.py", F_VALIDATION_PLAN),
         ("scientific_formulation.py", F_SCIENTIFIC_FORMULATION),
+        ("architecture_portfolio.py", F_ARCHITECTURE_PORTFOLIO),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }
