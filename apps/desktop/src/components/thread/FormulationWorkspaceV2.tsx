@@ -74,11 +74,11 @@ export function FormulationWorkspaceV2() {
   const busy = view.mode === "loading";
 
   const onSubmit = async (brief: FormulationBrief) => {
+    // Phase 15 zero-LLM round: formulation generation is the deterministic
+    // engine — no provider/model/API key is required, so this no longer
+    // blocks submission (`cfg` is still read/forwarded for the settings
+    // surface's own sake, but `run_cli.py` ignores it).
     const cfg = loadProviderConfig(); // chosen in Settings → Model
-    if (cfg.provider !== "ollama" && !cfg.apiKey.trim()) {
-      setView({ mode: "error", message: t("studio.result.needKey") });
-      return;
-    }
     setActive(0);
     setView({ mode: "loading" });
     // A new run must not append to an opened past session.
@@ -112,11 +112,6 @@ export function FormulationWorkspaceV2() {
   const acknowledgeAndContinue = async (brief: FormulationBrief, reviewerName: string) => {
     await onSubmit({ ...brief, human_review_acknowledged: true, human_review_by: reviewerName });
   };
-
-  // Provider config lives in Settings → Model; read it to tell the user when a
-  // key is still missing rather than letting Generate fail.
-  const cfg = loadProviderConfig();
-  const keyMissing = cfg.provider !== "ollama" && cfg.apiKey.trim().length === 0;
 
   return (
     <div className="flex h-full min-w-0">
@@ -162,7 +157,6 @@ export function FormulationWorkspaceV2() {
             view={view}
             active={active}
             setActive={setActive}
-            keyMissing={keyMissing}
             t={t}
             onAcknowledge={acknowledgeAndContinue}
           />
@@ -176,14 +170,12 @@ function ResultBody({
   view,
   active,
   setActive,
-  keyMissing,
   t,
   onAcknowledge,
 }: {
   view: View;
   active: number;
   setActive: (i: number) => void;
-  keyMissing: boolean;
   t: TFunction<readonly ["session", "common"]>;
   onAcknowledge: (brief: FormulationBrief, reviewerName: string) => Promise<void>;
 }) {
@@ -230,9 +222,7 @@ function ResultBody({
         <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-surface-2 text-muted ring-1 ring-border">
           <FileText size={18} />
         </div>
-        {keyMissing
-          ? t("studio.result.needKey")
-          : t("studio.result.empty")}
+        {t("studio.result.empty")}
       </div>
     </div>
   );

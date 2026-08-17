@@ -366,3 +366,149 @@ describe("FormulationResultPage — Session 4 provenance/origin/mass-balance/cor
     expect(screen.getByText(/no evidence support/)).not.toBeNull();
   });
 });
+
+// --- Phase 14 Session 5 (Phase 15 zero-LLM round): manufacturing wiring ---
+
+const SESSION_V5 = {
+  status: "ok" as const,
+  id: "2026-01-01-1500-test",
+  brief: { target: "A sulfate-free anti-dandruff shampoo for a sensitive scalp." },
+  cards: [
+    {
+      version: "v1",
+      status: "ok" as const,
+      markdown: "# Formulation Card: Balanced",
+      formula: {
+        name: "Balanced", purpose: "p",
+        ingredients: [{ inci: "Water (Aqua)", function: "Solvent", weight_pct: "q.s. 100" }],
+      },
+      violations: [],
+      strategy: {
+        formula_version_id: "v1", label: "V1", strategy_type: "balanced",
+        title: "Balanced", rationale: "r",
+        primary_priorities: [], secondary_priorities: [], tradeoffs_accepted: [], tradeoffs_forbidden: [],
+      },
+      manufacturing: {
+        ready: true, not_ready_reason: "",
+        batch_scale: "pilot" as const,
+        steps: [
+          {
+            order: 1, phase: "Aqueous Phase Preparation", role: "solvent", ingredients: ["Water (Aqua)"],
+            instruction: "Charge the solvent (water) to the main mixing vessel first.",
+            equipment: "", mixing_method: "Not established — laboratory validation required",
+            temperature_c: null, time_minutes: null,
+            endpoint: "Uniform dispersion, no visible undissolved material.",
+            basis: "deterministic_rule", evidence_doi: "", confidence: "not_established" as const,
+          },
+          {
+            order: 2, phase: "Surfactant Addition", role: "primary_surfactant", ingredients: ["Decyl Glucoside"],
+            instruction: "Add the primary surfactant under moderate agitation.",
+            equipment: "", mixing_method: "homogenized", temperature_c: 40, time_minutes: 15,
+            endpoint: "Per reported method: homogenized.",
+            basis: "scientific_evidence", evidence_doi: "10.1/real-process-paper", confidence: "established" as const,
+          },
+        ],
+        critical_parameters: [
+          {
+            parameter: "Total batch mass balance", param_type: "critical_limit" as const,
+            range_or_limit: "100.0% w/w", source_type: "deterministic_rule",
+            why_it_matters: "Batch quantities and ingredient ratios are only correct if the formula sums to 100% w/w.",
+            consequence_if_violated: "Under- or over-filled batch; every ingredient's real proportion is wrong.",
+            confidence: "established" as const, evidence_doi: "",
+          },
+          {
+            parameter: "pH", param_type: "target" as const,
+            range_or_limit: "5.0-5.5", source_type: "user_required",
+            why_it_matters: "Affects skin/scalp compatibility, active/surfactant stability, and preservative efficacy.",
+            consequence_if_violated: "Irritation risk, reduced preservative efficacy, potential instability.",
+            confidence: "established" as const, evidence_doi: "",
+          },
+        ],
+        equipment: [
+          {
+            equipment: "Main Mixing Vessel", purpose: "Hold and mix the aqueous base and the finished batch.",
+            requirement_level: "required" as const, suggested_capacity: "Pilot scale — exact capacity depends on the facility's own pilot vessel.",
+            key_capabilities: ["agitation"], used_in_steps: ["Aqueous Phase Preparation"],
+            available_in_facility: "yes" as const, basis: "deterministic_rule", confidence: "established" as const,
+          },
+          {
+            equipment: "Calibrated pH Meter", purpose: "Verify and adjust pH against the target range.",
+            requirement_level: "required" as const, suggested_capacity: "Pilot scale — exact capacity depends on the facility's own pilot vessel.",
+            key_capabilities: ["pH measurement"], used_in_steps: ["pH Adjustment"],
+            available_in_facility: "missing" as const, basis: "deterministic_rule", confidence: "established" as const,
+          },
+        ],
+      },
+    },
+    {
+      version: "v2",
+      status: "ok" as const,
+      markdown: "# Formulation Card: Invalid",
+      formula: {
+        name: "Invalid", purpose: "p",
+        ingredients: [{ inci: "Water (Aqua)", function: "Solvent", weight_pct: "150.0" }],
+      },
+      violations: [],
+      strategy: {
+        formula_version_id: "v2", label: "V2", strategy_type: "cost_optimized",
+        title: "Cost Optimized", rationale: "r",
+        primary_priorities: [], secondary_priorities: [], tradeoffs_accepted: [], tradeoffs_forbidden: [],
+      },
+      manufacturing: {
+        ready: false,
+        not_ready_reason: "This formula version's state is 'invalid_mass_balance' — manufacturing process planning requires a valid formula first.",
+        steps: [], critical_parameters: [], equipment: [], batch_scale: "not_specified" as const,
+      },
+    },
+  ],
+  read_only: true as const,
+};
+
+function renderPageV5() {
+  readSession.mockReset();
+  readSession.mockResolvedValue(SESSION_V5);
+  return render(
+    <MemoryRouter initialEntries={["/formulation-result/2026-01-01-1500-test"]}>
+      <Routes>
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("FormulationResultPage — Session 5 manufacturing wiring", () => {
+  it("Manufacturing Procedure tab shows real, role-ordered steps with their real basis", async () => {
+    renderPageV5();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Manufacturing Procedure" }));
+    expect(screen.getByText("Charge the solvent (water) to the main mixing vessel first.")).not.toBeNull();
+    expect(screen.getByText("Add the primary surfactant under moderate agitation.")).not.toBeNull();
+    expect(screen.getByText("40°C")).not.toBeNull();
+  });
+
+  it("Critical Parameters tab distinguishes Target from Critical Limit", async () => {
+    renderPageV5();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Critical Parameters" }));
+    expect(screen.getByText("Total batch mass balance")).not.toBeNull();
+    expect(screen.getByText("Critical Limit")).not.toBeNull();
+    expect(screen.getByText("Target")).not.toBeNull();
+  });
+
+  it("Equipment tab shows real availability against the user's own equipment text", async () => {
+    renderPageV5();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Equipment" }));
+    expect(screen.getByText("Main Mixing Vessel")).not.toBeNull();
+    expect(screen.getByText("Available")).not.toBeNull();
+    expect(screen.getByText("Missing")).not.toBeNull();
+  });
+
+  it("shows a not-ready notice instead of a fabricated plan for an invalid formula version", async () => {
+    renderPageV5();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByText("Cost Optimized"));
+    await userEvent.click(screen.getByRole("tab", { name: "Manufacturing Procedure" }));
+    expect(screen.getByText(/requires a valid formula/)).not.toBeNull();
+  });
+});

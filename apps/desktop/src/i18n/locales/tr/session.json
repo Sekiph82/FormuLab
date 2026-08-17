@@ -615,6 +615,52 @@
     },
     "generationFailed": {
       "heading": "{{version}} — Generation Failed"
+    },
+    "manufacturing": {
+      "notReady": "This formula version is not ready for manufacturing process planning.",
+      "columns": {
+        "phase": "Phase",
+        "ingredients": "Ingredient(s)",
+        "instruction": "Instruction",
+        "mixing": "Mixing Method",
+        "temperature": "Temperature",
+        "time": "Time",
+        "endpoint": "Endpoint",
+        "basis": "Basis"
+      },
+      "scale": {
+        "laboratory": "Laboratory scale",
+        "pilot": "Pilot scale",
+        "production": "Production scale",
+        "not_specified": "Batch scale not specified"
+      },
+      "basis": {
+        "scientific_evidence": "Scientific Evidence",
+        "supplier_data": "Supplier Data",
+        "internal_formulab_data": "Internal Data",
+        "deterministic_rule": "Engineering Rule"
+      },
+      "confidence": {
+        "established": "Established",
+        "not_established": "Not established — laboratory validation required"
+      },
+      "paramType": {
+        "target": "Target",
+        "critical_limit": "Critical Limit"
+      },
+      "whyItMatters": "Why it matters",
+      "consequence": "Consequence if violated",
+      "requirementLevel": {
+        "required": "Required",
+        "preferred": "Preferred",
+        "optional": "Optional"
+      },
+      "availability": {
+        "yes": "Available",
+        "missing": "Missing",
+        "partially_suitable": "Partially suitable",
+        "not_specified": "Not specified"
+      }
     }
   },
   "builder": {

@@ -23,7 +23,6 @@ use tauri::{AppHandle, Manager};
 
 // Embedded pipeline package + its one external dependency (discover.py).
 const F_PIPELINE: &str = include_str!("../../../../runtime/pipeline/pipeline.py");
-const F_LLM: &str = include_str!("../../../../runtime/pipeline/llm.py");
 const F_CACHE: &str = include_str!("../../../../runtime/pipeline/literature_cache.py");
 const F_RULES: &str = include_str!("../../../../runtime/pipeline/rules.py");
 const F_REGION: &str = include_str!("../../../../runtime/pipeline/region_profiles.py");
@@ -48,6 +47,19 @@ const F_STRATEGY: &str = include_str!("../../../../runtime/pipeline/strategy.py"
 // mass-balance validation, quality gate) — same requirement as
 // canonical_paper.py/evidence.py/strategy.py above.
 const F_PROVENANCE: &str = include_str!("../../../../runtime/pipeline/provenance.py");
+// Phase 15 zero-LLM round: pipeline.py now imports engine.py (the
+// deterministic formulation engine that replaced llm.py::call() in the
+// normal generation path) and materials.py (the real supplier/masterdata
+// candidate-pool source) directly — same requirement as every module
+// above: must be materialized alongside them or the embedded desktop app
+// fails with ImportError on every real run.
+const F_ENGINE: &str = include_str!("../../../../runtime/pipeline/engine.py");
+const F_MATERIALS: &str = include_str!("../../../../runtime/pipeline/materials.py");
+// Phase 14 Session 5 (Phase 15 zero-LLM round): pipeline.py now imports
+// manufacturing.py directly (Manufacturing Procedure/Critical Parameters/
+// Equipment intelligence, zero LLM) — same requirement as every module
+// above.
+const F_MANUFACTURING: &str = include_str!("../../../../runtime/pipeline/manufacturing.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -121,7 +133,11 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
     let pipe = pipeline_dir(app)?;
     for (name, src) in [
         ("pipeline.py", F_PIPELINE),
-        ("llm.py", F_LLM),
+        // llm.py is deliberately NOT embedded here as of the Phase 15
+        // zero-LLM round: pipeline.py no longer imports it, and nothing
+        // else in this embedded package needs it — the normal
+        // formulation-generation path this app ships must not carry a
+        // reachable model-call code path at all, not merely an unused one.
         ("literature_cache.py", F_CACHE),
         ("rules.py", F_RULES),
         ("region_profiles.py", F_REGION),
@@ -131,6 +147,9 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("evidence.py", F_EVIDENCE),
         ("strategy.py", F_STRATEGY),
         ("provenance.py", F_PROVENANCE),
+        ("engine.py", F_ENGINE),
+        ("materials.py", F_MATERIALS),
+        ("manufacturing.py", F_MANUFACTURING),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }
@@ -160,9 +179,21 @@ pub async fn generate_formulation(
     let library = data_dir(&app, &["data", "literature"])?; // shared cache + pdfs
     let formulas = data_dir(&app, &["formulas"])?; // flat library of every card
     let sessions = data_dir(&app, &["data", "sessions"])?;
+    // The same `data/` directory `materials.rs`'s own `import_materials`/
+    // `list_materials` commands already read and write `materials.json`
+    // under (Phase 15 zero-LLM round: the deterministic engine's real
+    // supplier-candidate source — see `engine.py::build_candidate_pool`).
+    // Simply has no materials to contribute when the user has never
+    // imported a raw-material list — never an error.
+    let materials_root = data_dir(&app, &["data"])?;
 
     // Python names the session folder (it has date formatting) as
     // YYYY-MM-DD-HHMM-<slug> and reports the path back.
+    //
+    // `provider`/`model`/`api_key` are still accepted from the frontend
+    // (a settings UI carried over from the legacy `/live` flow) but are
+    // read and ignored by `run_cli.py` as of the Phase 15 zero-LLM round —
+    // the deterministic engine requires no model credential of any kind.
     let payload = serde_json::json!({
         "brief": request.brief,
         "provider": request.provider,
@@ -171,6 +202,7 @@ pub async fn generate_formulation(
         "library_dir": library.to_string_lossy(),
         "formulas_dir": formulas.to_string_lossy(),
         "sessions_dir": sessions.to_string_lossy(),
+        "materials_dir": materials_root.to_string_lossy(),
         "n": request.n,
     });
     let input_json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;

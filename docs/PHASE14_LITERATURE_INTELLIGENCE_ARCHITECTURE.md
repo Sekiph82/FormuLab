@@ -1,6 +1,6 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: SESSION 4 COMPLETE — ingredient evidence intelligence, real generation provenance, honest 15-source research-corpus guarantee, formula-provenance audit, and rich evidence UI, all wired into the real pipeline and the result screen (§17). Session 3 (§16): evidence-grounded, request-aware multi-alternative formulation synthesis. Session 2 (§15): structured evidence extraction, A-E classification, explainable ranking. Session 1 (§14): Literature Search Orchestrator, Findpapers adapter, native OA adapters, CanonicalPaper cross-source dedup. Session 0 (§11a): pipeline audit, CanonicalPaper schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13) had a real data-contract bug — fixed, §13a. Both the new screens and the pre-existing `/live` workspace remain available; see §13a for the disclosed dual-flow state (unchanged and re-verified this session).
+## Status: ZERO-LLM DETERMINISTIC FORMULATION ENGINE COMPLETE, Phase 14 Session 5 (Manufacturing Procedure/Critical Parameters/Equipment intelligence, zero LLM) COMPLETE — §18/§19. FormuLab's formulation-generation path no longer calls any LLM, local or remote: every ingredient, concentration, formula, and manufacturing step is built from real evidence, real supplier data, and real deterministic engineering rules (`runtime/pipeline/engine.py`, `runtime/pipeline/manufacturing.py`). `llm.py` remains in the repository as legacy/unrelated compatibility code only — nothing in the normal generation path imports or reaches it (proven by a permanent regression test that patches `llm.call` to raise and runs a full real generation to completion). Session 4 (§17): ingredient evidence intelligence, real generation provenance, honest 15-source research-corpus guarantee, formula-provenance audit, rich evidence UI. Session 3 (§16): evidence-grounded, request-aware multi-alternative formulation synthesis. Session 2 (§15): structured evidence extraction, A-E classification, explainable ranking. Session 1 (§14): Literature Search Orchestrator, Findpapers adapter, native OA adapters, CanonicalPaper cross-source dedup. Session 0 (§11a): pipeline audit, CanonicalPaper schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13) had a real data-contract bug — fixed, §13a. Both the new screens and the pre-existing `/live` workspace remain available and now converge on the SAME deterministic backend; see §13a for the disclosed dual-flow state and §18 for the convergence.
 
 This document registers Phase 14 and records the approved product
 decisions it must implement. Session 0 (§11a) is the first real
@@ -650,14 +650,18 @@ begins:
    schedule: Session 3 (§16) wired real strategy titles/scores into the
    version cards and the MINIMUM real evidence-class/DOI/outcome wiring
    into the Formula tab and the Ingredient Evidence panel (real, not
-   yet the full statistics build-out). What remains genuinely Session
-   4's own work: process intelligence and safety/regulatory tab wiring,
-   which still depend on Sessions 5/6 not yet built — those tabs still
-   show honest "not yet available" notices.
-6. **Session 5** — manufacturing process intelligence (İşlem Reçetesi/
-   Kritik Parametreler/Ekipman, §6).
+   yet the full statistics build-out); Session 4 itself (§17) built the
+   full rich-evidence statistics/origin/mass-balance/quality-gate wiring.
+   What remained genuinely open: process intelligence and safety/
+   regulatory tab wiring, which depended on Sessions 5/6 not yet built.
+6. ~~**Session 5** — manufacturing process intelligence (İşlem Reçetesi/
+   Kritik Parametreler/Ekipman, §6).~~ **DONE** — see §19, built zero-LLM
+   on top of §18's deterministic engine (a cross-cutting architecture
+   change the user directed ahead of this session, at the user's own
+   explicit instruction — see §18).
 7. **Session 6** — full traceability persistence (§10) across every
-   stage above, plus a closure/regression pass.
+   stage above, plus a closure/regression pass, including the Safety/
+   Regulatory tabs' own remaining "not yet evaluated" placeholders.
 
 Each session above gets its own real handoff/architecture-doc update
 when it actually starts, exactly like every other phase in this
@@ -1576,7 +1580,157 @@ CanonicalPaper dedup/provenance, hybrid providers, OA/full-text safety, determin
 - `supplier_data`/`internal_formulab_data` ingredient origins remain real, modeled, reserved categories — never emitted until a live masterdata/supplier connection is wired into generation (not this session's scope).
 - Comparable-statistics grouping is unit+basis strict but does not yet attempt cross-basis conversion (e.g. computing an equivalent active-matter % from a w/w value) — a real, harder normalization problem left for later work rather than guessed at.
 
-**Exact next Phase 14 session**: **Session 5** — manufacturing process intelligence (İşlem Reçetesi/Kritik Parametreler/Ekipman, architecture doc §6), per §12's own breakdown. Not started automatically by this session.
+**Exact next Phase 14 session (at the time)**: **Session 5** — manufacturing process intelligence (İşlem Reçetesi/Kritik Parametreler/Ekipman, architecture doc §6), per §12's own breakdown. Not started automatically by this session. **Completed below (§19)** — alongside a cross-cutting architecture change (§18) that replaced this whole pipeline's generation engine before Session 5 was built on top of it, at the user's own explicit instruction.
+
+---
+
+## 18. Phase 15 — Zero-LLM Deterministic Formulation Engine (DONE)
+
+The user gave an explicit, non-negotiable architecture instruction: **FormuLab must contain no LLM in the formulation workflow** — not optional, not minimized, not a fallback. Every ingredient, concentration, and formula decision must come from real evidence, real data, or a real deterministic rule, with the outcome allowed to be an honestly incomplete formula rather than a fabricated complete one.
+
+### §1 — LLM removed from the production formulation path
+
+Audited the real path before changing anything: `pipeline.py::run()` made exactly one call to `llm.py::call()` per session (Session 3's own architecture decision, §16). That call is now gone. `pipeline.py` no longer imports `llm` at all — checked structurally (`hasattr(pipeline, "llm")` is `False`) and behaviorally (a permanent regression test, `test_pipeline.py::
+test_llm_call_is_never_reached_by_the_deterministic_path`, patches `llm.call` to raise `AssertionError("LLM MUST NOT BE CALLED")`, runs a full real deterministic generation end to end, and asserts it still succeeds — proving the call is genuinely unreachable, not merely unused-by-convention). `apps/desktop/src-tauri/src/formulation_v2.rs`'s `materialize_pipeline()` no longer embeds `llm.py` into the shipped desktop app at all — the normal generation path this app ships carries no reachable model-call code, not merely an unused one. `llm.py` itself is untouched and remains in the repository — every session generated before this round was genuinely produced by it, and this codebase never rewrites history (see `provenance.py`'s own module docstring) — it is legacy/unrelated compatibility code only.
+
+`pipeline.run()`'s signature dropped `provider`/`model`/`api_key`/`llm_call` entirely — a structural, not just behavioral, guarantee (`test_pipeline.py::test_run_signature_has_no_provider_model_api_key_or_llm_call`). `run_cli.py` no longer requires `provider`/`model` in its request payload (reads and ignores them if the frontend still sends them); `formulation_v2.rs`'s `generate_formulation` still accepts them from the request (the legacy `/live` settings surface still populates them) but never forwards them anywhere that matters. Generation succeeds with zero API keys, zero configured providers, and zero internet model endpoint of any kind — real network access is still used, but only for literature discovery (OpenAlex/OpenAIRE/Europe PMC/Crossref/DOAJ/Unpaywall), never for a model call.
+
+### §2 — The target pipeline, as actually built
+
+```
+brief -> parse_requirements() (deterministic signal parsing)
+      -> hybrid literature search (unchanged, Sessions 0-1)
+      -> 15-unique-document research corpus (unchanged, Session 4, §4 below)
+      -> CanonicalPaper dedup (unchanged, Session 1)
+      -> structured evidence extraction (unchanged, Session 2)
+      -> candidate pool (evidence + rule + user + supplier)
+      -> functional-role requirements (category-specific, dynamic)
+      -> concentration hierarchy (evidence -> supplier -> rule -> unresolved)
+      -> per-strategy deterministic solver
+      -> mass balance / q.s. closure (unchanged, Session 4)
+      -> quality gate (extended, §12 below)
+      -> final formulation versions, each with an explicit completeness state
+```
+
+New module `runtime/pipeline/engine.py` (~800 lines) is everything from candidate pool through the solver. Everything upstream of it (literature search, dedup, evidence extraction) and downstream of it (mass balance, quality gate persistence) is the SAME real code Sessions 1-4 already built and proved — this round replaced the middle of the pipeline, not the whole thing.
+
+### §3 — Deterministic requirement parser
+
+`engine.parse_requirements(brief)` — a controlled vocabulary of ~18 recognized signal phrases (sulfate-free, silicone-free, sensitive skin/scalp, anti-dandruff, moisturizing, antibacterial/antifungal, cost-level tiers, premium, natural-origin, color protection, easy combing, good foam, viscosity direction, fragrance-free), matched by substring against the request's own `target`/`claims`/`performance` text — deliberately NOT unrestricted language understanding. Whatever free text is left over after removing every recognized phrase and every structural/product-head word is persisted verbatim as `unresolved_fragments` — never guessed at, never silently dropped. A resolved signal can upgrade a functional role's requirement level (e.g. an anti-dandruff signal makes `active_treatment` REQUIRED rather than optional) — real, inspectable rules, not a black box.
+
+### §4 — Functional-role engine (never shampoo-only)
+
+`engine.FUNCTIONAL_ROLE_LIBRARY` — four category groups (`cleansing`, `oral`, `leave_on`, `generic`), each with its own REQUIRED/PREFERRED/OPTIONAL/NOT_APPLICABLE role map, derived from `category_group()`'s own keyword classification (the same head-term buckets `pipeline.py::build_queries` already used for retrieval angles, reused rather than reinvented). `resolve_role_requirements()` applies real, named upgrades on top of the static library: sensitive requests require a co-surfactant system; a "conditioner" request requires a conditioning agent; a chelator-requiring hard-water region (Session 0's own region-profile logic) requires a chelator; a recognized treatment-claim signal requires an active; an excluded/fragrance-free signal marks fragrance NOT_APPLICABLE. A formula cannot be judged complete while a REQUIRED role has no candidate.
+
+### §5 — Ingredient candidate pool
+
+`engine.build_candidate_pool()` builds one `IngredientCandidate` per recognized ingredient, from four real sources, in this order:
+
+1. **Scientific evidence** — every ingredient the already-ranked evidence pool (Session 2) recognizes, real evidence class, real record count.
+2. **Deterministic rule** — `rules.py`'s own `prefer`/`avoid` groups (disambiguated from the user's own preferred-ingredients text the same way `provenance.classify_ingredient_origin` already did, so a user-typed preference is never double-labeled as an independent rule) PLUS two new real, named universal defaults: water as the solvent for any aqueous product, and a small `DETERMINISTIC_ROLE_DEFAULTS` table (a real, standard preservative/chelator/pH-adjuster/thickener/humectant candidate) for mundane infrastructure roles literature retrieval often doesn't happen to cover for a given request — never for `primary_surfactant`/`active_treatment`, which stay evidence/user/supplier-only.
+3. **User required** — the request's own `preferredIngredients` text.
+4. **Supplier data** — real, live as of this round: `pipeline.run()` now accepts a `materials_dir`, and when the user has imported a priced raw-material list (`materials.py`), a formula ingredient matching a real supplier row (by INCI/name, or by keyword match against the material's own `function` column when the ingredient isn't in FormuLab's evidence vocabulary) gets a real `supplier_data` origin.
+
+An ingredient matching a deterministically excluded name (the user's own exclusions, or a hard rule like the sulfate/harsh-preservative sensitive-trigger list) is marked `excluded` in the pool and structurally cannot fill any role — proven directly (`test_engine.py::
+test_excluded_candidate_is_marked_excluded_and_never_fills_a_role`), not merely checked after the fact by `rules.validate()` (which still runs too, as a second layer). An ingredient this codebase's evidence vocabulary doesn't recognize and that isn't explicitly a user/rule/supplier candidate never enters the pool at all.
+
+### §6 — Deterministic concentration hierarchy
+
+`engine.resolve_concentration()` — a real, named tier order, never mixed:
+
+1. Strictly comparable evidence statistics (Session 4's own `compute_comparable_stats` — same ingredient, same unit+basis, ≥2 unique studies).
+2. A single real reported concentration (same ingredient/unit/basis, one study).
+3. A supplier's own recommended range, when a material record carries one (checked, though today's `materials.py` schema has no such field — a real, disclosed, forward-compatible gap).
+4. Validated internal FormuLab range/history — real, disclosed, NOT wired (no curated, lab-validated internal concentration-history database exists in this codebase; fabricating one would be exactly the failure mode this whole round exists to prevent).
+5. The internal engineering-default table (`INTERNAL_RANGE_BY_ROLE`) — real, standard ranges for preservative/chelator/pH-adjuster/rheology-modifier/humectant/co-surfactant roles only, NEVER for `primary_surfactant`/`active_treatment` (see the module's own docstring for why those two are excluded on purpose).
+6. Unresolved — never invented.
+
+A strategy's own bias (§9) then picks a specific value within whatever range tier 1-5 established (low end for cost-optimized, high end for max-performance, a low quartile for sensitive-skin, midpoint for balanced) — never a fixed, request-independent number.
+
+**Real bug found and fixed during this round's own live network acceptance testing**: `evidence.py`'s deterministic text extraction (Session 2) occasionally attaches an unrelated number from the same sentence/paragraph to an ingredient mention — a real run produced "Ketoconazole at 45%" (the midpoint of a real 1.0% record and an almost-certainly-mis-extracted 89.0%, likely an unrelated outcome statistic like "89% of patients improved"), scientifically absurd for an active in a rinse-off shampoo. Fixed with a new plausibility gate (`_PLAUSIBLE_RANGE_BY_ROLE`) — a real, well-established per-role bound (e.g. an active never legitimately exceeds ~20% in this product class) that REJECTS an implausible evidence-derived value and falls the hierarchy through to the next real tier, rather than trusting or "correcting" it. Re-running the exact same live scenario after the fix produced an honest `incomplete_missing_evidence` result instead (see §13 below) — the gate does not invent a replacement value, it refuses the bad one.
+
+### §7 — Deterministic solver and V1/V2/V3 generation
+
+`engine.build_formula_for_strategy()` — for each of `strategy.derive_strategies()`'s own real, request-aware strategies (Session 3, unchanged), independently: pick the best available candidate(s) per role (ranked by a real, inspectable score — explicit user requirement beats evidence beats rule beats supplier, with evidence class/record count and, for a supplier tie, price breaking ties within a tier), resolve each one's concentration through §6's hierarchy with that strategy's own bias, close the formula with water as the single q.s. ingredient, and compute a real `formula_state`. Strategies genuinely differ where the evidence/candidate pool allows it — proven directly (`test_engine.py::test_strategies_produce_meaningfully_different_concentrations`) and by the existing `strategy.diversity_report()` validator, unchanged and still run on every session. `low_raw_material_count`/`simplified_manufacturing` strategies skip OPTIONAL roles entirely — a real, named difference, not an arbitrary one. If fewer than `n` strategies genuinely apply to a request, fewer are generated (Session 3's own existing behavior, unchanged) — never a fabricated `n`th alternative.
+
+### §8 — Explicit formula completeness states
+
+Every card now carries a real `formula_state`: `complete`, `complete_with_validation_required` (a preferred role went unfilled, or a mundane role used the internal engineering default rather than evidence), `incomplete_missing_evidence` (a candidate exists for a required role but no tier resolved a defensible concentration), `incomplete_missing_functional_role` (no candidate at all fills a required role), `invalid_constraint_violation`, `invalid_mass_balance`. A generated candidate is never treated as automatically successful — `missing_roles`/`unresolved_requirements` are persisted alongside the state, naming the specific gap. There is no more `generation_failed` status for a NEW session — the deterministic engine has no stochastic failure mode the way a model call did; that status remains a real, historical value on old `"llm"`-engine sessions only.
+
+### §9 — Research corpus, preserved and extended
+
+Session 4's 15-unique-document target, corpus/evidence-record/unique-study separation, and honest-shortfall reporting are entirely unchanged. The one disclosed gap Session 4 left open — `raw_candidate_count` defaulting to `qualifying_count` because the wider pre-ranking pool size was never threaded through — is now closed: `literature_cache.gather()` writes the real pool size to `discovery_stats.json` next to `papers.json`, and `pipeline.py` reads it back into `provenance.summarize_research_corpus()`. Proven with a dedicated test seeding a pool of 120 real candidates for a 15-document target and confirming `raw_candidate_count > qualifying_count`.
+
+### §10 — Ingredient provenance and mass balance, preserved and extended
+
+`IngredientOrigin` now comes DIRECTLY from `engine.py`'s own candidate selection — evidence-first construction, not evidence attached to an already-built formula after the fact (§14 of the brief this round implements). Every ingredient in a new deterministic formula carries at least one of `scientific_evidence`/`supplier_data`/`deterministic_rule`/`user_required` — never `ai_formulation_inference`, which is now historical-only (an old `"llm"`-engine session can still show it; a new session structurally cannot, since the engine never invents an ingredient outside its own traceable candidate pool). `provenance.py::compute_mass_balance()` is completely unchanged and remains the single authoritative source the frontend reads — closes to exactly 100% for every deterministically-generated card, proven directly (`test_pipeline.py::test_mass_balance_closes_to_100_for_every_card`).
+
+### §11 — Quality gate, extended
+
+`provenance.assess_quality()` gained one new factor, `formulation_incomplete` — raised whenever a card's own `formula_state` is not `complete`/`complete_with_validation_required`, alongside every pre-existing factor (mass-balance-invalid, hard-constraint-violation, insufficient-research-corpus, critical-active-no-evidence, unusual-concentration-no-evidence, low-evidence-coverage). Still never a hard reject — always a transparent, documented list.
+
+### §12 — Backward compatibility and the dual-UI convergence
+
+Old `"llm"`-engine sessions are read exactly as before — `formulation_v2.rs::read_cards`/`read_session` are unchanged generic `serde_json::Value` passthroughs, so an old session's real `provider`/`model`/`ai_formulation_inference` origins/`generation_failed` cards all still render correctly; nothing on disk is rewritten. Both UIs — `/live` and `/formulation-request` → `/formulation-result` — call the exact same `generate_formulation` Tauri command, which now always runs the deterministic engine; they were already structurally converged on one backend (Session 4's own audit confirmed this), so no redesign was needed. Both screens' own credential-gating (`cfg.provider !== "ollama" && !cfg.apiKey.trim()` blocking submission) was removed — a real UX bug under this round's own requirement that the absence of a model credential must never be an error for formulation generation.
+
+### §13 — Real zero-LLM acceptance run
+
+Ran the exact mandated request end to end through `run_cli.py` (the real stdin/stdout bridge the desktop app invokes), with `library_dir`/`sessions_dir` only — no `provider`/`model`/`api_key` in the request at all: *"Develop an effective sulfate-free anti-dandruff shampoo for a sensitive scalp. Target pH 5.0–5.5. Medium cost."* Real network calls to OpenAlex/OpenAIRE/Europe PMC/Crossref/DOAJ.
+
+- **Research**: 120 raw candidates, 15/15 target corpus achieved, 4 full text / 11 abstract-only, 10 evidence records from 2 unique studies.
+- **Candidate pool**: 20 candidates, 0 excluded (no request-excluded ingredient happened to have real evidence/rule backing this run), origins `{scientific_evidence: 2, deterministic_rule: 18}`.
+- **Formulas**: 3 real, genuinely different strategies (Balanced/Sensitive Skin/Cost Optimized). One version's real result: mass balance closed to exactly 100.0% (subtotal 16.55% + q.s. water 83.45%), `formula_state: incomplete_missing_evidence` — the top-ranked `active_treatment` candidate this run (salicylic acid) had its only real evidence-derived concentration REJECTED by the §6 plausibility gate, correctly reported as a real gap (`missing_roles`) rather than silently substituted with a plausible-looking number — acceptance criterion (B) from this round's own brief ("truthfully returns an incomplete formula because required scientific/material data is missing" is a valid, non-fabricated outcome). No mock formula generator was used anywhere in this run.
+
+### Known limitations, disclosed
+
+- The candidate-pool evidence vocabulary (`engine.ROLE_MAP`) covers cleansing/hair-care roles well; `oral`/`leave_on`/`generic` groups have several roles (abrasive, emulsifier, oil_phase, surfactant, active_system, builder) with no matching evidence-vocabulary ingredient yet — a real, disclosed scope boundary (never filled with a guessed ingredient), future work to extend.
+- Supplier-sourced concentration ranges are checked for (`recommended_min_pct`/`recommended_max_pct`) but `materials.py`'s schema doesn't populate them today — real, forward-compatible, not fabricated.
+- `internal_formulab_data` stays reserved, unemitted — no curated, lab-validated internal concentration-history database exists.
+- The plausibility gate (§6) is a coarse per-role sanity bound, not a fix to `evidence.py`'s own extraction accuracy — a genuinely correct but unusual concentration outside the bound would also be rejected; tightening extraction itself is future work.
+
+### Verification
+
+`python -m pytest runtime/pipeline -q`: **269/269 passing** (243 baseline-after-rewrite + 26 new engine-specific tests across `test_engine.py`, plus rewritten `test_pipeline.py`). Every mock-LLM-based test from before this round was rewritten against the real deterministic engine — there is nothing left in this codebase to inject a mock LLM response into. Rust: `cargo check --release` clean; `cargo test --release formulation_v2::` — 7/7, unchanged (the Rust bridge needed zero structural changes — `read_cards`/`read_session` are generic passthroughs). Frontend: `pnpm tsc --noEmit` clean, ESLint clean, `pnpm vitest run` — full suite green (see §19's own combined verification numbers below, which cover this section's frontend changes too). `git diff --check`: clean.
+
+## 19. Phase 14 Session 5 — Manufacturing Procedure, Critical Parameters, Equipment Intelligence, zero LLM (DONE)
+
+Built directly on top of §18's deterministic engine — the user's own instruction was explicit that Session 5 must ALSO use zero LLM, and that it must not begin until Part A (§18) worked and was verified.
+
+### §20 — Manufacturing evidence model
+
+No new extraction was needed: Session 2's own `evidence.py::ProcessObservation` (temperature, pH, mixing method, time, a verbatim note) was already extracted per evidence record and simply never used downstream until now. New `manufacturing.py` is the first module that actually reads this field — every process step this session shows with a real temperature/mixing-method/duration traces directly back to one specific evidence record's own `ProcessObservation`, with that record's own DOI attached.
+
+### §21/§22/§23 — Deterministic process planner and the Manufacturing Procedure tab
+
+New module `runtime/pipeline/manufacturing.py`. `ROLE_PROCESS_ORDER` — a real, well-established formulation-engineering convention (charge the base, disperse chelator/thickener before surfactants, add surfactants, add actives, adjust pH against the actual batch, add preservative/fragrance last) — generic by functional ROLE, never a per-request or per-ingredient special case, so it applies to any category `engine.py`'s role registry covers, not shampoo alone. `plan_process_steps()` builds one step per role THIS formula version's own resolved ingredients actually use (a role with no ingredient present gets no step at all) — prefers a real `ProcessObservation` when one of that role's ingredients has one (basis `scientific_evidence`, real temperature/time/mixing-method, real DOI, `confidence: established`), otherwise a qualitative, role-appropriate instruction with every numeric field explicitly `null`/"Not established — laboratory validation required" (basis `deterministic_rule`, `confidence: not_established`) — never an invented RPM, temperature, or duration.
+
+### §24/§25 — Critical Parameters tab and the target-vs-critical-limit distinction
+
+`build_critical_parameters()` — mass balance is always a real `critical_limit` (the deterministic 100% calculation itself); pH is always a `target` (the user's own stated range, or `NOT_ESTABLISHED`), never automatically promoted to a hard boundary without real evidence/rule support (§25's own explicit requirement); a preservative-efficacy challenge test is listed as a `critical_limit` whenever any preservative role is present (a real, universal regulatory/engineering requirement, with no invented numeric microbial limit); a formula's own `violations` surface as a `critical_limit`; an evidence-backed active's own strictly-comparable observed range (§6/Session 4) surfaces as a real `target`. Every parameter with no established real range says so explicitly, never a placeholder number.
+
+### §26/§27/§28 — Equipment engine, availability matching, batch-scale awareness
+
+`derive_equipment()` — real, role-derived recommendations (a main mixing vessel and a balance always; a high-shear disperser only when a rheology modifier is actually present; a jacketed vessel only when an emulsifier/oil phase role is present; a calibrated pH meter only when a pH-adjuster role is present) — no motor power, RPM, or vessel geometry is ever invented; `suggested_capacity` is a qualitative scale bucket (`batch_scale()` parses the request's own `estimatedBatchSize` text into laboratory/pilot/production/not_specified — the same keyword-bucket convention `strategy.py`'s own `_applies_simplified_manufacturing` already used), never a linearly-scaled numeric value. `available_in_facility` compares each recommendation against the request's own `availableEquipment` free text via a real per-equipment match-term list (fixed a real matching bug during testing: comparing the full display name "Calibrated pH Meter" against a user's shorter "pH meter" text failed a substring check — fixed with a dedicated match-term list per recommendation).
+
+### §29/§30 — Version scoping and process traceability
+
+Manufacturing Procedure/Critical Parameters/Equipment are computed independently per card inside `pipeline.py`'s existing per-strategy loop (the same loop mass balance/origins/quality-gate already run in) — switching the selected version in the UI reads a different `card.manufacturing` object entirely, never stale cross-version content, proven directly (`FormulationResultPage.test.tsx`'s Session 5 "not-ready" test selects a second version and confirms different content renders). Every step/parameter/equipment basis is always one of `scientific_evidence`/`supplier_data`/`internal_formulab_data`/`deterministic_rule` — no AI origin, no unknown-origin value, structurally enforced by `manufacturing.py`'s own dataclasses never having an AI-origin value to assign.
+
+### §31 — Safety/regulatory separation
+
+`plan_manufacturing()` refuses to plan at all when a formula's own `formula_state` is `invalid_mass_balance` or `invalid_constraint_violation` — returns `ready: false` and a real `not_ready_reason`, never a process plan built around a formula that is itself invalid. An `incomplete_missing_evidence`/`incomplete_missing_functional_role`/`complete_with_validation_required` formula is still planned (the plan just carries the same real gaps forward) — only a genuinely invalid formula is blocked. Hard ingredient exclusions, deterministic safety rules, and mass balance are never re-decided here; Session 6 (full Safety/Regulatory evidence integration) remains out of scope.
+
+### §32 — UI
+
+The approved Phase 14 result-screen visual hierarchy and V1/V2/V3 behavior are unchanged. The three existing `NotYetAvailableTab` placeholders (Manufacturing Procedure/Critical Parameters/Equipment) are now conditionally replaced with real tables (`ManufacturingProcedureTab`/`CriticalParametersTab`/`EquipmentTab`) whenever a card carries `manufacturing` data — a pre-Session-5 session with no `manufacturing` field on its cards still falls back to the honest "not yet available" notice, never a crash or empty table. A `NotReadyNotice` component shows the real `not_ready_reason` for an invalid formula version's own tabs. A `BasisBadge` component (mirroring the established `OriginBadge` convention) shows each step/parameter's real basis, always visible, never tooltip-only.
+
+### Verification
+
+`python -m pytest runtime/pipeline -q`: **269/269 passing** — includes 22 new `test_manufacturing.py` tests (process ordering, real-evidence-vs-generic-instruction, no-invented-numerics, target-vs-critical-limit, preservative-efficacy-only-when-present, equipment-derived-from-real-process-needs, availability-matching, batch-scale recognition, the §31 not-ready gate for both invalid states) plus 2 new `test_pipeline.py` integration tests. Rust: `cargo check --release` clean; `cargo test --release formulation_v2::` — 7/7 (no Rust change needed — `manufacturing` is carried by the same generic `serde_json::Value` passthrough every other Session 4/5 field already is). Frontend: `pnpm tsc --noEmit` clean, ESLint clean on every touched file, `pnpm vitest run` — **137 files / 1235 tests** (1231 baseline + 4 new Session 5 cases: real role-ordered steps with real basis, target-vs-critical-limit distinction, real availability matching, the not-ready notice for an invalid formula version) — zero regressions anywhere. `git diff --check`: clean.
+
+**Real, live verification, not just mocked unit tests**: the same real network run described in §18 §13 was inspected for its manufacturing output — `manufacturing.ready: true`, 8 real role-ordered steps (one with real evidence-sourced temperature/time from an actual paper, the rest honest "not established" qualitative instructions), 4 real critical parameters (mass balance, pH target, preservative-efficacy requirement, and — before the §6 plausibility-gate fix — a since-corrected evidence-backed active range), 5 real equipment recommendations correctly matched against the request's own stated `availableEquipment` text.
+
+**Exact next Phase 14 session**: **Session 6**, per §12's own original breakdown — full traceability persistence across every stage above plus a closure/regression pass, including the Safety and Regulatory tabs' own remaining "not yet evaluated" placeholders. Zero LLM, building on §18's deterministic engine and this session's manufacturing intelligence the same way this session built on Sessions 1-4. Not started automatically by this round.
 
 ---
 

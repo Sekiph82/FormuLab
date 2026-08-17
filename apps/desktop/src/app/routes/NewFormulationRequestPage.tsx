@@ -97,11 +97,12 @@ export function NewFormulationRequestPage() {
 
   const submit = async () => {
     if (!request.trim() || busy) return;
+    // Phase 15 zero-LLM round: formulation generation is now the
+    // deterministic engine — no provider/model/API key is required, so
+    // this screen no longer blocks submission on one being configured
+    // (`cfg` is still read/forwarded for the legacy `/live` settings
+    // surface's own sake, but `run_cli.py` ignores it).
     const cfg = loadProviderConfig();
-    if (cfg.provider !== "ollama" && !cfg.apiKey.trim()) {
-      setError(t("studio.result.needKey"));
-      return;
-    }
     setBusy(true);
     setError(null);
     const brief: FormulationBrief = {

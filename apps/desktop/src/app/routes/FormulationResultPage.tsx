@@ -19,7 +19,7 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { readSession, type FormulationCard, type LiteratureDocument, type SessionDetail } from "@/lib/formulationV2";
+import { readSession, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type SessionDetail } from "@/lib/formulationV2";
 import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
 import { cn } from "@/lib/cn";
 
@@ -337,11 +337,17 @@ function TabContent({
     case "formula":
       return <FormulaTab card={card} formula={formula} selectedIngredient={selectedIngredient} onSelectIngredient={onSelectIngredient} t={t} />;
     case "process":
-      return <NotYetAvailableTab icon={<Cog size={16} />} title={t("formulationResult.tabs.process")} body={t("formulationResult.process.notAvailable")} />;
+      return card.manufacturing
+        ? <ManufacturingProcedureTab plan={card.manufacturing} t={t} />
+        : <NotYetAvailableTab icon={<Cog size={16} />} title={t("formulationResult.tabs.process")} body={t("formulationResult.process.notAvailable")} />;
     case "critical":
-      return <NotYetAvailableTab icon={<AlertTriangle size={16} />} title={t("formulationResult.tabs.critical")} body={t("formulationResult.critical.notAvailable")} />;
+      return card.manufacturing
+        ? <CriticalParametersTab plan={card.manufacturing} t={t} />
+        : <NotYetAvailableTab icon={<AlertTriangle size={16} />} title={t("formulationResult.tabs.critical")} body={t("formulationResult.critical.notAvailable")} />;
     case "equipment":
-      return <NotYetAvailableTab icon={<Wrench size={16} />} title={t("formulationResult.tabs.equipment")} body={t("formulationResult.equipment.notAvailable")} />;
+      return card.manufacturing
+        ? <EquipmentTab plan={card.manufacturing} t={t} />
+        : <NotYetAvailableTab icon={<Wrench size={16} />} title={t("formulationResult.tabs.equipment")} body={t("formulationResult.equipment.notAvailable")} />;
     case "safety":
       return <SafetyTab card={card} t={t} />;
     case "regulatory":
@@ -771,6 +777,151 @@ function RegulatoryTab({ t }: { t: TFunction<readonly ["session", "common"]> }) 
         <StatusBadge tone="muted" label={t("formulationResult.regulatory.statuses.incomplete")} />
       </div>
       <p className="text-[11.5px] leading-relaxed text-muted">{t("formulationResult.regulatory.notYetEvaluated")}</p>
+    </div>
+  );
+}
+
+// -------------------------------------------------- Tabs 2-4 (Session 5) ---
+
+/** Phase 14 Session 5 — a compact, always-visible basis/confidence badge,
+ *  the same "never hidden behind a tooltip only" convention `OriginBadge`
+ *  already established. */
+function BasisBadge({ basis, confidence, t }: { basis: string; confidence: string; t: TFunction<readonly ["session", "common"]> }) {
+  const established = confidence === "established";
+  return (
+    <span
+      className={cn(
+        "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+        established ? "bg-surface-2 text-muted" : "bg-warning/15 text-warning",
+      )}
+      title={t(`formulationResult.manufacturing.confidence.${confidence}`, { defaultValue: confidence })}
+    >
+      {t(`formulationResult.manufacturing.basis.${basis}`, { defaultValue: basis })}
+    </span>
+  );
+}
+
+function NotReadyNotice({ reason, t }: { reason: string; t: TFunction<readonly ["session", "common"]> }) {
+  return (
+    <div className="rounded-card border border-warning/40 bg-warning/10 p-4">
+      <div className="mb-1 flex items-center gap-2 text-[13px] font-medium text-warning">
+        <AlertTriangle size={16} />
+        {t("formulationResult.manufacturing.notReady")}
+      </div>
+      <p className="text-[11.5px] leading-relaxed text-warning">{reason}</p>
+    </div>
+  );
+}
+
+function ManufacturingProcedureTab({ plan, t }: { plan: ManufacturingPlan; t: TFunction<readonly ["session", "common"]> }) {
+  if (!plan.ready) return <NotReadyNotice reason={plan.not_ready_reason} t={t} />;
+  if (plan.steps.length === 0) {
+    return <NotYetAvailableTab icon={<Cog size={16} />} title={t("formulationResult.tabs.process")} body={t("formulationResult.process.notAvailable")} />;
+  }
+  return (
+    <div className="rounded-card border border-border bg-surface p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Cog size={16} className="text-accent" />
+        <span className="text-[13px] font-medium text-text">{t("formulationResult.tabs.process")}</span>
+        <span className="text-[10px] text-muted">{t(`formulationResult.manufacturing.scale.${plan.batch_scale}`)}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[860px] border-collapse text-[12px]">
+          <thead>
+            <tr className="border-b border-border-faint text-left text-[10px] uppercase tracking-wide text-muted">
+              <th className="py-1.5 pr-2">#</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.manufacturing.columns.phase")}</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.manufacturing.columns.ingredients")}</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.manufacturing.columns.instruction")}</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.manufacturing.columns.mixing")}</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.manufacturing.columns.temperature")}</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.manufacturing.columns.time")}</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.manufacturing.columns.endpoint")}</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.manufacturing.columns.basis")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plan.steps.map((s) => (
+              <tr key={s.order} className="border-b border-border-faint/60 align-top">
+                <td className="py-1.5 pr-2 text-muted">{s.order}</td>
+                <td className="py-1.5 pr-2 text-text">{s.phase}</td>
+                <td className="py-1.5 pr-2 text-text">{s.ingredients.join(", ")}</td>
+                <td className="py-1.5 pr-2 text-text">{s.instruction}</td>
+                <td className="py-1.5 pr-2 text-muted">{s.mixing_method}</td>
+                <td className="py-1.5 pr-2 tabular-nums text-text">{s.temperature_c !== null ? `${s.temperature_c}°C` : "—"}</td>
+                <td className="py-1.5 pr-2 tabular-nums text-text">{s.time_minutes !== null ? `${s.time_minutes} min` : "—"}</td>
+                <td className="py-1.5 pr-2 text-muted">{s.endpoint}</td>
+                <td className="py-1.5 pr-2"><BasisBadge basis={s.basis} confidence={s.confidence} t={t} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CriticalParametersTab({ plan, t }: { plan: ManufacturingPlan; t: TFunction<readonly ["session", "common"]> }) {
+  if (!plan.ready) return <NotReadyNotice reason={plan.not_ready_reason} t={t} />;
+  return (
+    <div className="rounded-card border border-border bg-surface p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <AlertTriangle size={16} className="text-accent" />
+        <span className="text-[13px] font-medium text-text">{t("formulationResult.tabs.critical")}</span>
+      </div>
+      <div className="space-y-2">
+        {plan.critical_parameters.map((p, i) => (
+          <div key={i} className="rounded-input border border-border-faint p-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-medium text-text">{p.parameter}</span>
+              <StatusBadge tone={p.param_type === "critical_limit" ? "error" : "muted"}
+                           label={t(`formulationResult.manufacturing.paramType.${p.param_type}`)} />
+              <BasisBadge basis={p.source_type} confidence={p.confidence} t={t} />
+            </div>
+            <div className="mt-1 text-[11.5px] text-text">{p.range_or_limit}</div>
+            <div className="mt-1 text-[10.5px] text-muted">{t("formulationResult.manufacturing.whyItMatters")}: {p.why_it_matters}</div>
+            <div className="text-[10.5px] text-muted">{t("formulationResult.manufacturing.consequence")}: {p.consequence_if_violated}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EquipmentTab({ plan, t }: { plan: ManufacturingPlan; t: TFunction<readonly ["session", "common"]> }) {
+  if (!plan.ready) return <NotReadyNotice reason={plan.not_ready_reason} t={t} />;
+  return (
+    <div className="rounded-card border border-border bg-surface p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Wrench size={16} className="text-accent" />
+        <span className="text-[13px] font-medium text-text">{t("formulationResult.tabs.equipment")}</span>
+        <span className="text-[10px] text-muted">{t(`formulationResult.manufacturing.scale.${plan.batch_scale}`)}</span>
+      </div>
+      <div className="space-y-2">
+        {plan.equipment.map((e, i) => (
+          <div key={i} className="rounded-input border border-border-faint p-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-medium text-text">{e.equipment}</span>
+              <StatusBadge tone={e.requirement_level === "required" ? "error" : "muted"}
+                           label={t(`formulationResult.manufacturing.requirementLevel.${e.requirement_level}`)} />
+              <span className={cn(
+                "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                e.available_in_facility === "yes" ? "bg-success/10 text-success"
+                  : e.available_in_facility === "missing" ? "bg-error/10 text-error" : "bg-surface-2 text-muted",
+              )}>
+                {t(`formulationResult.manufacturing.availability.${e.available_in_facility}`)}
+              </span>
+            </div>
+            <div className="mt-1 text-[11.5px] text-text">{e.purpose}</div>
+            <div className="mt-1 text-[10.5px] text-muted">{e.suggested_capacity}</div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {e.key_capabilities.map((c) => (
+                <span key={c} className="rounded-input bg-surface-2 px-1.5 py-0.5 text-[9.5px] text-muted">{c}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

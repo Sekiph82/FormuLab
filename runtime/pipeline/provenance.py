@@ -1,38 +1,36 @@
-"""Phase 14 Session 4 — generation provenance, ingredient-origin
-classification, deterministic mass-balance validation, and a transparent
-formulation quality gate.
+"""Phase 14 Session 4 (generation provenance, ingredient-origin
+classification, deterministic mass-balance validation, a transparent
+formulation quality gate) + Phase 15 zero-LLM round (generation-provenance
+model extended for a deterministic engine).
 
-**Real formula-generation path, audited this session (not guessed)**:
-`NewFormulationRequestPage.tsx`/`FormulationWorkspaceV2.tsx` ->
-`formulationV2.ts::generateFormulation()` -> Tauri `generate_formulation`
-(`formulation_v2.rs`) -> `run_cli.py` (stdin/stdout bridge) ->
-`pipeline.py::run()` -> `llm.py::call()` — ONE real code path, no mock/test
-double anywhere in it (`run_cli.py` never overrides `pipeline.run()`'s
-`llm_call` parameter, which defaults to the real `llm.call`; every
-`mock_llm`/test double in this codebase lives only inside `test_*.py`
-files, never imported by production code). `llm.py::call()` makes one real
-HTTP request to whichever provider the user configured in Settings
-(`loadProviderConfig()`, `apps/desktop/src/lib/formulationV2.ts` —
-localStorage-backed, never sent anywhere but the provider's own API and
-this pipeline). No local model exists other than the optional Ollama
-provider (`http://127.0.0.1:11434`, no key required, only used if the user
-selects it and a local Ollama server is actually running). No automatic
-fallback exists between providers — a failed call returns
-`{"status": "error", ...}`, never a silently-substituted result. The
-frontend itself blocks submission when no API key is set for a non-Ollama
-provider (`NewFormulationRequestPage.tsx::submit()`), so the pipeline is
-never invoked at all in that case — there is no "no provider configured"
-code path inside `pipeline.py`/`run_cli.py` to audit, because the frontend
-already prevents reaching it.
+**Real formula-generation path, re-audited for the Phase 15 zero-LLM
+round.** As of that round: `NewFormulationRequestPage.tsx`/
+`FormulationWorkspaceV2.tsx` -> `formulationV2.ts::generateFormulation()`
+-> Tauri `generate_formulation` (`formulation_v2.rs`) -> `run_cli.py`
+(stdin/stdout bridge) -> `pipeline.py::run()` -> `engine.py`'s deterministic
+candidate-pool/role/concentration/solver pipeline — ONE real code path,
+and it contains no model call anywhere in it (audited directly: `engine.py`
+imports nothing from `llm.py`, and `pipeline.py` no longer imports `llm`
+at all — see the mandatory `test_pipeline.py::
+test_llm_call_is_never_reached_by_the_deterministic_path` regression
+guard, which patches `llm.call` to raise and asserts the full pipeline
+still runs to completion). `llm.py::call()` remains in the repository —
+`Session 3/4`'s own historical sessions were genuinely produced by it, and
+this codebase never rewrites history — but it is legacy/unrelated
+compatibility code as of this round, reachable from nothing the normal
+formulation-generation path executes. No provider/model credential, API
+key, or internet model endpoint is required, checked, or read anywhere in
+`engine.py`'s own path; a machine with none of those configured runs
+formulation generation identically to one that has them (see
+`build_deterministic_provenance` below).
 
-**API keys are never logged.** `formulation_v2.rs` pipes the request
-(including `api_key`) to the Python process over stdin only, never through
-any logging macro. `pipeline.py`'s own `log()` calls carry only query
-counts, source names, evidence counts, and strategy titles — never the key
-or raw prompt text. `llm.py::call()` uses the key only in the
-`Authorization` header of the outbound HTTP request. Diagnostics export
-(`diagnostics.rs::redact_text()`) independently masks any long token-like
-string before any log content ever leaves the machine, as a second layer.
+**API keys are never logged**, unchanged from Session 4's own audit
+(reproduced here since `llm.py`/its API-key handling still exist in the
+repository as legacy code, even though the normal path no longer reaches
+them): `formulation_v2.rs` piped the request over stdin only, never through
+a logging macro; `llm.py::call()` used the key only in the outbound HTTP
+`Authorization` header; `diagnostics.rs::redact_text()` independently masks
+any long token-like string as a second layer.
 """
 
 from __future__ import annotations
@@ -51,36 +49,60 @@ SCHEMA_VERSION = 1
 
 @dataclass(frozen=True)
 class GenerationProvenance:
-    """Persisted once per session (one real model call produces every
-    version, per Session 3's own architecture decision) — never ambiguous
-    about who/what produced a formula."""
+    """Persisted once per session — never ambiguous about who/what produced
+    a formula.
+
+    `engine_type`: `"llm"` (historical only — every session generated
+    before the Phase 15 zero-LLM round; this codebase never rewrites that
+    history) or `"deterministic"` (every session generated from this round
+    onward, by `engine.py`, with no model call anywhere in the path).
+    `"imported_formula"` remains reserved for a future import flow that
+    does not exist yet.
+
+    `source`: `"real_model_call"` (historical `"llm"` sessions only) or
+    `"formulab_deterministic_engine"` (every `"deterministic"` session).
+
+    `provider`/`model` are REQUIRED for an `"llm"`-engine session and
+    intentionally blank (`""`) for a `"deterministic"` one — a deterministic
+    session has no provider/model to report, and leaving the fields blank
+    rather than omitting them keeps every `GenerationProvenance` on disk the
+    same shape regardless of which engine produced it."""
 
     engine_type: str
-    """`"llm"` — the only real value in production today. `"deterministic_
-    logic"`/`"imported_formula"` are reserved values for a future
-    generation path this session does not build (no deterministic-only or
-    import flow exists yet) — modeled honestly as reserved, not invented as
-    if already real."""
     source: str
-    """`"real_model_call"` — the only real value today, set only after
-    `llm_call` actually returns successfully. Never set to a value implying
-    a mock/deterministic/imported origin when the real model path ran."""
-    provider: str
-    model: str
-    generated_at: str
-    """ISO 8601 UTC timestamp of the successful model call."""
+    provider: str = ""
+    model: str = ""
+    generated_at: str = ""
+    """ISO 8601 UTC timestamp of the successful generation."""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
 def build_generation_provenance(provider: str, model: str) -> GenerationProvenance:
-    """Called only immediately after `llm_call` succeeds — never
-    speculatively, never before the real call is confirmed to have
-    happened. Contains no secret: `provider`/`model` are plain identifiers
-    (e.g. "gemini"/"gemini-3.1-flash"), never the API key."""
+    """LEGACY — the `"llm"`-engine variant. No longer called anywhere in
+    `pipeline.py`'s normal formulation-generation path as of the Phase 15
+    zero-LLM round (that path is `build_deterministic_provenance` below);
+    kept only because it documents the shape every historical `"llm"`
+    session's own `generation_provenance.json` already has on disk, and
+    because `llm.py` itself remains in the repository for legacy/unrelated
+    compatibility (see that module's own docstring). Contains no secret:
+    `provider`/`model` are plain identifiers, never the API key."""
     return GenerationProvenance(
         engine_type="llm", source="real_model_call", provider=provider, model=model,
+        generated_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    )
+
+
+def build_deterministic_provenance() -> GenerationProvenance:
+    """The real generation-provenance value for every session produced by
+    the Phase 15 zero-LLM deterministic engine (`engine.py`). No
+    provider/model credential is required, checked, or reported — a
+    deterministic session never contacts any model endpoint, local or
+    remote, so there is nothing to name."""
+    return GenerationProvenance(
+        engine_type="deterministic", source="formulab_deterministic_engine",
+        provider="", model="",
         generated_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
 
@@ -91,24 +113,37 @@ class IngredientOrigin:
     """String constants, not an Enum — a formula ingredient can legitimately
     carry MORE THAN ONE origin at once (e.g. both `DETERMINISTIC_RULE` and
     `SCIENTIFIC_EVIDENCE`), so callers work with a `List[str]`, not a single
-    value. `SUPPLIER_DATA`/`INTERNAL_FORMULAB_DATA` are real, documented
-    categories in this model but NOT YET WIRED into generation this
-    session — `pipeline.py::run()` has no live connection to the user's
-    priced materials list (`materials.py`, a separate Tauri command/data
-    directory never passed into `pipeline.run()`) or to any supplier
-    technical-data source. Classifying an ingredient into either of those
-    two categories without a real, live data source behind it would be
-    exactly the fabrication this whole model exists to prevent — so
-    `classify_ingredient_origin` below never emits them. Real, disclosed
-    scope boundary; wiring a live masterdata/supplier connection into
-    generation is future work."""
+    value.
+
+    `SUPPLIER_DATA` is real and live as of the Phase 15 zero-LLM round:
+    `pipeline.run()` now accepts a `materials_dir` and, when the user has
+    imported a priced raw-material list (`materials.py`), `engine.py`'s own
+    candidate-pool builder matches formula ingredients against it directly
+    — no LLM guess stands between a real supplier row and this origin.
+
+    `INTERNAL_FORMULAB_DATA` stays reserved, still not emitted: no curated,
+    lab-validated internal concentration-history database exists anywhere
+    in this codebase. Classifying an ingredient into it without a real data
+    source behind it would be exactly the fabrication this whole model
+    exists to prevent.
+
+    `AI_FORMULATION_INFERENCE` is HISTORICAL ONLY as of the Phase 15
+    zero-LLM round: `classify_ingredient_origin` below (the LLM-era
+    classifier) can still emit it when re-describing an old `"llm"`-engine
+    session, but the deterministic engine (`engine.py`) never invents an
+    ingredient outside its own traceable candidate pool, so it structurally
+    cannot produce this origin for a new `"deterministic"`-engine session —
+    every ingredient in a new deterministic formula carries at least one of
+    `SCIENTIFIC_EVIDENCE`/`SUPPLIER_DATA`/`DETERMINISTIC_RULE`/
+    `USER_REQUIRED` instead. Old sessions that already have
+    `ai_formulation_inference` on disk are never rewritten."""
 
     SCIENTIFIC_EVIDENCE = "scientific_evidence"
-    SUPPLIER_DATA = "supplier_data"  # reserved — not live this session
-    INTERNAL_FORMULAB_DATA = "internal_formulab_data"  # reserved — not live this session
+    SUPPLIER_DATA = "supplier_data"
+    INTERNAL_FORMULAB_DATA = "internal_formulab_data"  # reserved — no live source exists
     DETERMINISTIC_RULE = "deterministic_rule"
     USER_REQUIRED = "user_required"
-    AI_FORMULATION_INFERENCE = "ai_formulation_inference"
+    AI_FORMULATION_INFERENCE = "ai_formulation_inference"  # historical (llm-engine sessions) only
 
 
 def _split_terms(raw: str) -> List[str]:
@@ -283,6 +318,7 @@ QUALITY_GATE_FACTORS: Dict[str, str] = {
     "hard_constraint_violation": "The formula contains a deterministically excluded ingredient (`rules.py::validate`).",
     "insufficient_research_corpus": "Fewer than the target 15 unique relevant research documents were genuinely available for this request.",
     "low_evidence_coverage": "Fewer than half of this formula's ingredients have any linked evidence, of any class.",
+    "formulation_incomplete": "The deterministic engine could not resolve every required functional role or concentration for this strategy — see `missing_roles`/`unresolved_requirements` on the card.",
 }
 
 
@@ -293,10 +329,14 @@ def assess_quality(
     mass_balance: MassBalance,
     corpus_qualifying_count: Optional[int] = None,
     corpus_target_count: int = 15,
+    formula_state: Optional[str] = None,
 ) -> List[QualityGateFinding]:
     findings: List[QualityGateFinding] = []
     ingredients = formula.get("ingredients") or []
     linked_keys = {l.get("ingredient_key") for l in version_links}
+
+    if formula_state and formula_state not in ("complete", "complete_with_validation_required"):
+        findings.append(QualityGateFinding("formulation_incomplete", "warning", QUALITY_GATE_FACTORS["formulation_incomplete"]))
 
     if mass_balance.status != "complete":
         findings.append(QualityGateFinding("mass_balance_invalid", "warning", QUALITY_GATE_FACTORS["mass_balance_invalid"]))

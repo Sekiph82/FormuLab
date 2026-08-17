@@ -21,8 +21,25 @@ Origin badges and a deterministic mass-balance total (fixing a real
 q.s.-double-counting display bug); the Evidence & Sources tab now shows
 the full research corpus with real, separate counters (never conflating
 corpus size with evidence-record count) instead of just 2-3 formula-
-linked papers. Both this new flow and the pre-existing `/live`
-workspace remain available (temporary, disclosed dual-flow state, §13a).
+linked papers. A cross-cutting architecture round then replaced the
+generation engine entirely (architecture doc §18 — zero LLM, a
+deterministic engine builds every formula from real evidence/supplier/
+rule data instead) without changing this screen's own contract at all
+(`generate_formulation`/`read_session` are unchanged commands; a card's
+own shape only gained new, additive fields — `formula_state`,
+`missing_roles`, `unresolved_requirements`, `manufacturing`). Session 5
+(architecture doc §19) then populated the three remaining `NotYetAvailableTab`
+placeholders — Manufacturing Procedure, Critical Parameters, Equipment —
+with real, zero-LLM tables (real role-ordered process steps with their
+real basis, a Target-vs-Critical-Limit distinction, real equipment
+availability matched against the request's own stated equipment),
+falling back to the same honest placeholder for a pre-Session-5
+session. Both this new flow and the pre-existing `/live` workspace
+remain available and now converge on the identical deterministic
+backend (temporary, disclosed dual-flow state, §13a) — both screens'
+own credential-gating (blocking submission without an API key) was
+removed as a real UX bug, since no credential is required or used by
+generation anymore.
 Real files: `apps/desktop/src/app/routes/NewFormulationRequestPage.tsx`
 (Screen 1) and `apps/desktop/src/app/routes/FormulationResultPage.tsx`
 (Screen 2), routed at `/formulation-request` and `/formulation-

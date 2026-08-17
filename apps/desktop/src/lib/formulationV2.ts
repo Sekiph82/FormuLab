@@ -123,14 +123,15 @@ export interface EvidenceLink {
  *  normalized ingredient key `EvidenceLink.ingredient_key` uses. */
 export type ConcentrationAlignment = Record<string, "evidence_supported" | "evidence_context_only" | "formulab_inference">;
 
-/** Phase 14 Session 4 — `provenance.py::GenerationProvenance.to_dict()`.
- *  `engine_type`/`source` are always `"llm"`/`"real_model_call"` in this
- *  build (the only real generation path this codebase has — audited
- *  directly, see `provenance.py`'s own module docstring); the type keeps
- *  the wider string so a genuinely different future generation path never
- *  needs a breaking type change. Never contains an API key. */
+/** `provenance.py::GenerationProvenance.to_dict()`. As of the Phase 15
+ *  zero-LLM round every NEW session has `engine_type: "deterministic"`,
+ *  `source: "formulab_deterministic_engine"`, and blank `provider`/`model`
+ *  (no credential is used or reported). A session generated before that
+ *  round still reads back `engine_type: "llm"`, `source:
+ *  "real_model_call"`, and a real provider/model — old sessions are never
+ *  rewritten, see `provenance.py`'s own module docstring. */
 export interface GenerationProvenance {
-  engine_type: string;
+  engine_type: "deterministic" | "llm" | string;
   source: string;
   provider: string;
   model: string;
@@ -152,13 +153,34 @@ export interface MassBalance {
 }
 
 /** `provenance.py::IngredientOrigin` values — an ingredient can legitimately
- *  carry more than one. `supplier_data`/`internal_formulab_data` are real,
- *  reserved categories never actually emitted this session (no live
- *  masterdata/supplier connection is wired into generation yet) — kept in
- *  the type for forward compatibility, not because the UI should expect to
- *  see them today. Keyed by `formulationV2.ts`'s own
+ *  carry more than one. As of the Phase 15 zero-LLM round, a NEW
+ *  deterministic session's ingredients carry only `scientific_evidence`/
+ *  `supplier_data`/`deterministic_rule`/`user_required` — never
+ *  `ai_formulation_inference` (the deterministic engine cannot invent an
+ *  ingredient outside its own traceable candidate pool). A session
+ *  generated before that round can still show `ai_formulation_inference` —
+ *  old sessions are never rewritten. `internal_formulab_data` stays
+ *  reserved (no curated, lab-validated internal concentration-history
+ *  database exists). Keyed by `formulationV2.ts`'s own
  *  `normalizeIngredientKey()`. */
 export type IngredientOriginMap = Record<string, string[]>;
+
+/** `engine.py`'s own explicit completeness states — never treat every
+ *  generated candidate as a successful formulation (§10). */
+export type FormulaState =
+  | "complete"
+  | "complete_with_validation_required"
+  | "incomplete_missing_evidence"
+  | "incomplete_missing_material"
+  | "incomplete_missing_functional_role"
+  | "invalid_constraint_violation"
+  | "invalid_mass_balance";
+
+export interface MissingRole {
+  role: string;
+  level: string;
+  reason: string;
+}
 
 /** `evidence.py::ComparableConcentrationStats.to_dict()` — built ONLY from
  *  strictly comparable evidence (same ingredient, same unit+basis, >= 2
@@ -199,6 +221,71 @@ export interface ResearchCorpusSummary {
   unique_evidence_study_count: number;
 }
 
+/** `manufacturing.py::ProcessStep.to_dict()` — one manufacturing step for
+ *  this formula version. `basis` is always one of `"scientific_evidence"`/
+ *  `"supplier_data"`/`"internal_formulab_data"`/`"deterministic_rule"` —
+ *  never an AI/unknown origin. `temperature_c`/`time_minutes` are `null`
+ *  and `mixing_method` reads "Not established — laboratory validation
+ *  required" whenever no real process data backs them — never an invented
+ *  number. */
+export interface ProcessStep {
+  order: number;
+  phase: string;
+  role: string;
+  ingredients: string[];
+  instruction: string;
+  equipment: string;
+  mixing_method: string;
+  temperature_c: number | null;
+  time_minutes: number | null;
+  endpoint: string;
+  basis: string;
+  evidence_doi: string;
+  confidence: "established" | "not_established";
+}
+
+/** `manufacturing.py::CriticalParameter.to_dict()`. `param_type` is either
+ *  `"target"` or `"critical_limit"` — a target is never automatically
+ *  treated as a hard boundary (§25). */
+export interface CriticalParameter {
+  parameter: string;
+  param_type: "target" | "critical_limit";
+  range_or_limit: string;
+  source_type: string;
+  why_it_matters: string;
+  consequence_if_violated: string;
+  confidence: "established" | "not_established";
+  evidence_doi: string;
+}
+
+/** `manufacturing.py::EquipmentRecommendation.to_dict()`. */
+export interface EquipmentRecommendation {
+  equipment: string;
+  purpose: string;
+  requirement_level: "required" | "preferred" | "optional";
+  suggested_capacity: string;
+  key_capabilities: string[];
+  used_in_steps: string[];
+  available_in_facility: "yes" | "missing" | "partially_suitable" | "not_specified";
+  basis: string;
+  confidence: "established" | "not_established";
+}
+
+/** `manufacturing.py::ManufacturingPlan.to_dict()`. `ready: false` means
+ *  this formula version's own state was invalid (bad mass balance or a
+ *  hard-constraint violation) and process planning was correctly skipped
+ *  rather than planned around a nonsensical formula (§31) —
+ *  `not_ready_reason` explains why; every other field is empty in that
+ *  case, never a partial or fabricated plan. */
+export interface ManufacturingPlan {
+  ready: boolean;
+  not_ready_reason: string;
+  steps: ProcessStep[];
+  critical_parameters: CriticalParameter[];
+  equipment: EquipmentRecommendation[];
+  batch_scale: "laboratory" | "pilot" | "production" | "not_specified";
+}
+
 export interface FormulationCard {
   version: string; // "v1", "v2", …
   /** "ok" | "generation_failed" — absent on a pre-Session-3 session (treat
@@ -221,6 +308,10 @@ export interface FormulationCard {
   comparable_stats?: ComparableStatsMap;
   quality_gate?: QualityGateFinding[];
   research_corpus?: ResearchCorpusSummary;
+  formula_state?: FormulaState;
+  missing_roles?: MissingRole[];
+  unresolved_requirements?: string[];
+  manufacturing?: ManufacturingPlan;
 }
 
 export interface GenerateResult {

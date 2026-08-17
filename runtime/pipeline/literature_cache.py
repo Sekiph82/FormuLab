@@ -595,6 +595,19 @@ def gather(
     # Fixing this at the source is what makes the "target >= 15 UNIQUE
     # relevant documents" requirement honest: the corpus size now reflects
     # genuine relevance/uniqueness, not incidental full-text luck.
+    # Phase 15 zero-LLM round: close the previously-disclosed
+    # `raw_candidate_count` gap (Session 4's `provenance.
+    # summarize_research_corpus` defaulted it to `len(papers)`, identical to
+    # `qualifying_count`, because this real, wider pre-ranking pool size was
+    # never threaded through). `candidates` here IS that real pool — every
+    # relevant-or-not row considered before ranking down to `target` — so it
+    # is written once, next to `papers.json`, for `pipeline.py` to read back
+    # rather than changing `gather()`'s own return type (which every existing
+    # call site — production and tests alike — already depends on being a
+    # plain list of the selected corpus).
+    with open(os.path.join(out_dir, "discovery_stats.json"), "w", encoding="utf-8") as fh:
+        json.dump({"raw_candidate_count": len(candidates)}, fh, ensure_ascii=False, indent=2)
+
     selected = candidates[:target]
     if download_pdfs:
         backfill_oa_via_unpaywall(selected, log=log)

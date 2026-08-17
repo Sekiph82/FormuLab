@@ -245,6 +245,43 @@ class CacheTests(unittest.TestCase):
                 rows = list(csv.DictReader(fh))
             self.assertEqual(len(rows), 5)
 
+    def test_raw_candidate_count_reflects_the_real_wider_pool(self):
+        # Phase 15 zero-LLM round: closes the disclosed
+        # `raw_candidate_count` gap (Session 4's `provenance.
+        # summarize_research_corpus` defaulted it to `len(papers)`, i.e.
+        # `qualifying_count`, since nothing threaded the real wider
+        # pre-ranking pool through). With `download_pdfs=True` the pool is
+        # `target * POOL_FACTOR` (120 for target=15) — more candidates are
+        # considered than the 15 that end up in the final corpus, and
+        # `discovery_stats.json` must say so honestly.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+
+            class FakeDiscover:
+                FETCHERS = {"openalex": lambda q, n: [fake_paper(f"wide-{q}-{i}", q) for i in range(n)]}
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig_f = lc._load_fetchers
+            orig_backfill, orig_fetch = lc.backfill_oa_via_unpaywall, lc.fetch_pdfs
+            lc._load_fetchers = lambda: FakeDiscover
+            lc.backfill_oa_via_unpaywall = lambda *a, **k: None
+            lc.fetch_pdfs = lambda *a, **k: []
+            try:
+                got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
+                                target=15, sources="openalex", download_pdfs=True)
+            finally:
+                lc._load_fetchers = orig_f
+                lc.backfill_oa_via_unpaywall, lc.fetch_pdfs = orig_backfill, orig_fetch
+
+            self.assertEqual(len(got), 15)  # the final corpus still respects target
+            with open(os.path.join(out, "discovery_stats.json"), encoding="utf-8") as fh:
+                stats = json.load(fh)
+            self.assertGreater(stats["raw_candidate_count"], 15)
+
     def test_corpus_shortfall_is_reported_not_padded(self):
         # Fewer than `target` genuinely relevant candidates exist -> the
         # corpus is honestly short, never padded with duplicates/irrelevant

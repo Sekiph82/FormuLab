@@ -1,8 +1,17 @@
 """FormuLab v2 orchestrator — direct pipeline, no OpenCode agent loop.
 
 brief -> safety gate -> deterministic constraints -> cache-first retrieval ->
-ONE LLM call (N candidate formulas as JSON) -> validate each against the hard
-avoid-list -> optional cost-optimize -> render N formulation cards (v1..vN).
+structured evidence extraction -> the Phase 15 zero-LLM deterministic
+formulation engine (N candidate formulas, one independently-built per
+request-aware strategy) -> validate each against the hard avoid-list ->
+render N formulation cards (v1..vN).
+
+**Zero LLM.** No generative model, local or remote, sits anywhere in this
+path — `engine.py` builds every formula from real evidence, real supplier
+data, and real deterministic rules. `llm.py` remains in the repository for
+legacy/historical compatibility only (old sessions were genuinely produced
+by it) and is not imported here; see `engine.py`'s and `provenance.py`'s
+own module docstrings for the full audit.
 
 No sidecar, no SSE, no tool loop: a single request/response the desktop app
 invokes and renders.
@@ -16,10 +25,11 @@ import re
 import time
 from typing import Any, Callable, Dict, List
 
+import engine
 import evidence
-import fulltext
-import llm
 import literature_cache
+import manufacturing
+import materials
 import provenance
 import strategy
 from rules import derive_constraints, validate
@@ -211,79 +221,6 @@ def build_queries(brief: Dict[str, Any], constraints: Dict[str, Any] | None = No
     return out[:6]
 
 
-def _system_prompt(constraints: Dict[str, Any], n: int, strategy_section: str = "") -> str:
-    p = constraints["profile"]
-    avoid = ", ".join(constraints["avoid"]) or "none"
-    prefer = ", ".join(constraints["prefer"]) or "none"
-    req = ", ".join(constraints["require_functions"]) or "none"
-    ph = constraints["target_ph"] or "appropriate for the product class"
-    rules_txt = " ".join(constraints["reasons"])
-    return f"""You are a formulation chemist. Using the provided open-access literature —
-entries marked FULL TEXT carry the paper's own methods and results, entries marked ABSTRACT ONLY
-carry only a summary — plus established cosmetic/detergent science, propose {n} DISTINCT,
-evidence-based candidate formulas for the product. Return STRICT JSON only.
-
-Ground the formulas in what the sources actually report: prefer ingredients, concentrations and
-pH values that appear in the FULL TEXT entries, and cite the DOI you drew each choice from. Do
-not invent a DOI — cite only DOIs listed below.
-
-Below the raw literature you will also see a FACT FROM EVIDENCE section — structured, ranked
-findings this pipeline already extracted (ingredient, concentration, outcome, evidence class)
-from the same papers, deterministically, before this prompt was built. Treat that section as the
-authoritative source for any concentration/outcome you cite from it. Any concentration or process
-detail you choose that is NOT in that section is your own FORMULAB INFERENCE from general
-formulation science — do not attach a DOI to it, and do not present it as if the literature
-reported it. Where neither the evidence section nor your own general knowledge supports a
-decision, say so in the formula's own warnings — MISSING / REQUIRES LAB VALIDATION — rather than
-inventing a plausible-looking value.
-
-HARD RULES (must be obeyed in EVERY formula, regardless of strategy — no strategy below may override these):
-- Region: {p['display']} — water hardness {p['water_hardness']}, climate {p['climate']}, {p['notes']}
-- MUST NOT contain any of these (excluded ingredients): {avoid}
-- Required functions present: {req}
-- Prefer where suitable: {prefer}
-- Target pH: {ph}
-- {rules_txt}
-
-Each formula MUST be complete for the product class (e.g. a shampoo: cleansing system, actives,
-rheology, preservative, chelator, pH control, water q.s. to 100). Give a SINGLE EXACT weight-%
-per ingredient (not a range); the column sums to 100 with Water (Aqua) as "q.s. 100".
-
-{strategy_section}
-
-JSON schema:
-{{"formulas": [{{
-  "name": "...", "purpose": "one sentence with key claims",
-  "references": [{{"author":"...","year":"...","doi":"..."}}],
-  "ingredients": [{{"inci":"Water (Aqua)","function":"Solvent","weight_pct":"q.s. 100"}}, ...],
-  "how_it_works": [{{"title":"...","text":"... with citations ..."}}],
-  "avoid": [{{"item":"...","reason":"..."}}],
-  "usage": ["step 1", "step 2"],
-  "warnings": ["...", "..."]
-}}]}}
-Return exactly {n} entries in "formulas", one per strategy above, in the same order."""
-
-
-def _paper_context(papers: List[Dict[str, Any]], pdf_dir: str = "", limit: int = 15) -> str:
-    """Build the evidence block the model reasons over.
-
-    Papers whose full text we downloaded are quoted at length — that is the
-    point of downloading them. The rest contribute their abstract. Each entry
-    says which it is, so the model can weigh a full methods section differently
-    from a 600-character summary.
-    """
-    lines = []
-    for p in papers[:limit]:
-        head = (f"[{p.get('source_db','')}] {p.get('title','')} "
-                f"(DOI:{p.get('doi','')}, {p.get('year','')})")
-        body = fulltext.excerpt_for(p, pdf_dir) if pdf_dir else ""
-        if body:
-            lines.append(f"--- FULL TEXT: {head}\n{body}")
-        else:
-            lines.append(f"--- ABSTRACT ONLY: {head}\n{(p.get('abstract') or '')[:600]}")
-    return "\n\n".join(lines)
-
-
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (text or "product").lower()).strip("-")[:48] or "product"
 
@@ -455,15 +392,12 @@ def archive_formulas(
 
 def run(
     brief: Dict[str, Any],
-    provider: str,
-    model: str,
-    api_key: str,
     library: str,
     out_dir: str,
     n: int = 3,
     formulas_dir: str | None = None,
+    materials_dir: str | None = None,
     download_fulltexts: bool = True,
-    llm_call: Callable[..., str] = llm.call,
     log: Callable[[str], None] = lambda m: None,
 ) -> Dict[str, Any]:
     """Run the full pipeline. Returns {status, cards:[{version, markdown, formula}], ...}."""
@@ -544,7 +478,20 @@ def run(
     # "sources" figure. `papers` is already the real, honest corpus fixed by
     # `literature_cache.gather()`'s own §4 fix (relevant candidates kept
     # regardless of full-text success; never padded with duplicates).
-    corpus = provenance.summarize_research_corpus(papers, evidence_records, target_count=15)
+    # Close the disclosed `raw_candidate_count` gap: `literature_cache.gather()`
+    # now writes the real, wider pre-ranking candidate-pool size next to
+    # `papers.json` (see that function's own comment) — read back here rather
+    # than defaulting to `len(papers)` (identical to `qualifying_count`,
+    # which is what made the gap worth disclosing in the first place).
+    raw_candidate_count = None
+    try:
+        with open(os.path.join(lit_dir, "discovery_stats.json"), encoding="utf-8") as fh:
+            raw_candidate_count = json.load(fh).get("raw_candidate_count")
+    except OSError:
+        pass
+    corpus = provenance.summarize_research_corpus(
+        papers, evidence_records, target_count=15, raw_candidate_count=raw_candidate_count,
+    )
     with open(os.path.join(lit_dir, "research_corpus.json"), "w", encoding="utf-8") as fh:
         json.dump(corpus.to_dict(), fh, ensure_ascii=False, indent=2)
     log(f"research corpus: {corpus.qualifying_count}/{corpus.target_count} target unique document(s) "
@@ -558,40 +505,33 @@ def run(
     # explicitly rather than invent an alternative).
     strategies = strategy.derive_strategies(brief, constraints, n=n)
     log(f"strategies: {', '.join(s.title for s in strategies)}")
-    strategy_section = strategy.build_strategy_prompt_section(strategies)
 
-    system = _system_prompt(constraints, len(strategies), strategy_section)
-    context = _paper_context(papers, pdf_dir)
-    full = context.count("--- FULL TEXT:")
-    log(f"evidence: {full} full text(s) read, {len(papers) - full} abstract-only")
-    evidence_block = evidence.build_evidence_context_block(ranked_evidence)
-    user = (f"PRODUCT BRIEF: {json.dumps(brief, ensure_ascii=False)}\n\n"
-            f"{evidence_block}\n\n"
-            f"OPEN-ACCESS LITERATURE (full text where we could obtain it, "
-            f"otherwise the abstract):\n{context}")
-
-    try:
-        raw = llm_call(provider=provider, model=model, api_key=api_key, system=system, user=user)
-        data = llm.parse_json(raw)
-    except Exception as e:
-        return {"status": "error", "message": f"model call failed: {e}"}
-
-    # Phase 14 Session 4 §1: built ONLY after `llm_call` has actually
-    # returned successfully — there is no other real generation path in
-    # this codebase today (audited directly: `run_cli.py` never overrides
-    # `llm_call`, so production always reaches this exact line). Contains
-    # no secret — `provider`/`model` only, never `api_key`.
-    generation_provenance = provenance.build_generation_provenance(provider, model)
+    # Phase 15 zero-LLM round: no prompt, no model call, no provider/model
+    # credential of any kind. `engine.py` builds every formula directly from
+    # real evidence, real supplier data, and real deterministic rules — see
+    # that module's own docstring for the full pipeline this replaces.
+    generation_provenance = provenance.build_deterministic_provenance()
     with open(os.path.join(out_dir, "generation_provenance.json"), "w", encoding="utf-8") as fh:
         json.dump(generation_provenance.to_dict(), fh, ensure_ascii=False, indent=2)
 
-    formulas = data.get("formulas") or ([data] if data.get("ingredients") else [])
-    if not formulas:
-        return {"status": "error", "message": "model returned no formulas"}
+    parsed_requirements = engine.parse_requirements(brief)
+    group = engine.category_group(str(brief.get("category", "")), target)
+    role_requirements = engine.resolve_role_requirements(group, brief, constraints, parsed_requirements)
+    materials_list: List[Dict[str, Any]] = []
+    if materials_dir:
+        try:
+            materials_list = materials.load_materials(materials_dir).get("materials", [])
+        except OSError:
+            materials_list = []
+    pool = engine.build_candidate_pool(brief, constraints, ranked_evidence, materials_list)
+    log(f"candidate pool: {pool.to_diagnostics()}")
+    if parsed_requirements.unresolved_fragments:
+        log(f"[note] unresolved request fragments (no assumption made): "
+            f"{', '.join(parsed_requirements.unresolved_fragments)}")
 
     # A card is only "evidence-based" if evidence was actually retrieved. When
-    # retrieval comes back empty the formula rests on the model's general
-    # knowledge alone — say so on the card instead of implying citations exist.
+    # retrieval comes back empty every formula rests on rule/supplier data
+    # alone — say so on the card instead of implying literature backing.
     unevidenced = not papers
     if unevidenced:
         log("[warn] no literature retrieved — cards will be marked as not literature-grounded")
@@ -599,38 +539,36 @@ def run(
     # The session folder's own name identifies every card written from this run.
     session_id = os.path.basename(out_dir.rstrip("/\\"))
 
-    # One model call, but each of `strategies`' own slots is validated,
-    # scored, and linked to evidence INDEPENDENTLY (architecture doc §10:
-    # "a valid V1 does not make V2/V3 valid"). No repair/retry architecture
-    # exists in this pipeline (checked directly, none has ever been built) —
-    # a missing or ingredient-less slot is marked failed with a real reason,
-    # never silently retried or replaced with a fabricated success.
+    # Every strategy slot is built, validated, scored, and linked to
+    # evidence INDEPENDENTLY (architecture doc §10: "a valid V1 does not
+    # make V2/V3 valid"). The deterministic engine has no stochastic failure
+    # mode — it never fails to "return" a formula the way a model call
+    # could — so there is no more `generation_failed` status for a new
+    # session; a genuinely incomplete result is instead a real, explicit
+    # `formula_state` on an otherwise-normal card (§10 of the brief this
+    # round implements: "the UI should show the real state").
     cards: List[Dict[str, Any]] = []
     for idx, strat in enumerate(strategies, 1):
         version = f"v{idx}"
-        f = formulas[idx - 1] if idx - 1 < len(formulas) else None
-        if not f or not f.get("ingredients"):
-            reason = ("the model did not return a formula for this strategy slot" if not f
-                       else "the returned formula had no ingredients")
-            log(f"[warn] {version} ({strat.title}) generation failed: {reason}")
-            cards.append({
-                "version": version, "status": "generation_failed", "failure_reason": reason,
-                "strategy": strat.to_dict(),
-            })
-            continue
+        result = engine.build_formula_for_strategy(
+            strat, group, role_requirements, pool, ranked_evidence, constraints, parsed_requirements,
+        )
+        f = result.formula
 
         ingredients = [str(i.get("inci", "")) for i in f.get("ingredients", [])]
         violations = validate(ingredients, constraints)
-        # Citations are checked against the retrieved set, never taken on trust.
+        # Citations are real (built directly from the evidence records
+        # behind this formula's own ingredients — see `engine.py`'s own
+        # reference-building) but still checked against the retrieved set,
+        # never taken on trust.
         for note in verify_references(f, papers):
             log(f"citation: {note}")
         if unevidenced:
-            f = dict(f)
             f["warnings"] = list(f.get("warnings") or []) + [
                 "No open-access literature was found for this product, so this "
-                "formulation reflects general formulation science only — it is "
-                "NOT grounded in retrieved sources, and any references shown "
-                "should be verified independently.",
+                "formulation reflects supplier/rule data and general formulation "
+                "engineering practice only — it is NOT grounded in retrieved "
+                "sources.",
             ]
 
         # Version-specific evidence association (architecture doc §7): which
@@ -641,30 +579,48 @@ def run(
         alignment = strategy.concentration_alignment(f, version_links)
         score = strategy.compute_version_score(f, violations, version_links)
 
-        # Phase 14 Session 4: deterministic mass balance (never LLM
+        # Deterministic mass balance (§15 of this round: never client-side
         # arithmetic, never a second, inconsistent recomputation on the
-        # frontend — §10's own fix for the "129.5% w/w accounted for" bug),
-        # per-ingredient origin classification (§2 — every ingredient must
-        # have a traceable origin, never an evidence-free AI choice shown as
-        # if literature selected it), strictly-comparable evidence
-        # statistics (§8 — computed against the FULL session evidence pool,
-        # since "what does the literature say about this ingredient" does
-        # not depend on which version happened to choose it), and a
-        # transparent quality-gate pass (§12 — every factor named in
-        # `provenance.QUALITY_GATE_FACTORS`, never a hidden threshold).
+        # frontend). Ingredient origins now come DIRECTLY from `engine.py`'s
+        # own candidate selection (§14: evidence-first construction, not
+        # evidence attached after the fact) — every ingredient in a new
+        # deterministic formula therefore carries a real, non-AI origin by
+        # construction, never `ai_formulation_inference` (§11).
         mass_balance = provenance.compute_mass_balance(f.get("ingredients", []))
-        ingredient_origins = {
-            evidence.normalize_ingredient_key(i.get("inci", "")):
-                provenance.classify_ingredient_origin(i.get("inci", ""), brief, constraints, version_links)
-            for i in f.get("ingredients", []) if i.get("inci")
-        }
+        ingredient_origins = {s.key: list(s.origins) for s in result.ingredients}
         comparable_stats = {
             key: (stats.to_dict() if (stats := evidence.compute_comparable_stats(ranked_evidence, key)) else None)
             for key in ingredient_origins
         }
+        formula_state = result.state
+        if mass_balance.status != "complete" and formula_state in (
+            engine.FORMULA_COMPLETE, engine.FORMULA_COMPLETE_WITH_VALIDATION_REQUIRED,
+        ):
+            formula_state = engine.FORMULA_INVALID_MASS_BALANCE
         quality_gate = provenance.assess_quality(
             f, violations, version_links, mass_balance,
             corpus_qualifying_count=corpus.qualifying_count, corpus_target_count=corpus.target_count,
+            formula_state=formula_state,
+        )
+
+        # Phase 14 Session 5 (Phase 15 zero-LLM round): Manufacturing
+        # Procedure / Critical Parameters / Equipment — zero LLM, built
+        # directly from this version's own resolved ingredients (real
+        # process evidence when a linked record carries one, a small
+        # generic role-ordered engineering rule table otherwise), never
+        # planned at all for a formula whose own state is invalid.
+        manufacturing_ingredients = [
+            {
+                "key": s.key, "display_name": s.display_name, "role": s.role,
+                "process": (s.best_evidence_record.process.__dict__
+                            if s.best_evidence_record and not s.best_evidence_record.process.is_empty()
+                            else None),
+                "evidence_doi": s.best_evidence_record.paper_doi if s.best_evidence_record else "",
+            }
+            for s in result.ingredients
+        ]
+        manufacturing_plan = manufacturing.plan_manufacturing(
+            formula_state, manufacturing_ingredients, brief, mass_balance.to_dict(), violations, comparable_stats,
         )
 
         md = render_card(f, violations, strat.to_dict())
@@ -682,6 +638,10 @@ def run(
             "comparable_stats": comparable_stats,
             "quality_gate": [qf.to_dict() for qf in quality_gate],
             "research_corpus": corpus.to_dict(),
+            "formula_state": formula_state,
+            "missing_roles": result.missing_roles,
+            "unresolved_requirements": result.unresolved_requirements,
+            "manufacturing": manufacturing_plan.to_dict(),
         })
 
     # Cross-version diversity validation (architecture doc §9). Marks rather
