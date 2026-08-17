@@ -859,3 +859,76 @@ describe("FormulationResultPage — scientific formulation architecture (FVL-03)
     expect(screen.getByText(/viscosity_cp/)).not.toBeNull();
   });
 });
+
+// --- FormuLab v1 (FVL-02): dynamic 3-7 result version selector ---
+
+function makeCard(version: string, name: string) {
+  return {
+    version,
+    markdown: `# Formulation Card: ${name}`,
+    formula: {
+      name,
+      purpose: `${name} purpose.`,
+      ingredients: [
+        { inci: "Water (Aqua)", function: "Solvent", weight_pct: "q.s. 100" },
+        { inci: `${name} Active`, function: "Active", weight_pct: "1.00" },
+      ],
+    },
+    violations: [],
+  };
+}
+
+function sessionWithCards(count: number) {
+  return {
+    status: "ok" as const,
+    id: "2026-01-01-1300-test",
+    brief: { target: "A test request for dynamic version rendering." },
+    cards: Array.from({ length: count }, (_, i) => makeCard(`v${i + 1}`, `Version ${i + 1}`)),
+    read_only: true as const,
+  };
+}
+
+function renderResultPage() {
+  return render(
+    <MemoryRouter initialEntries={["/formulation-result/2026-01-01-1300-test"]}>
+      <Routes>
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("FormulationResultPage — dynamic 3-7 version selector", () => {
+  beforeEach(() => {
+    readSession.mockReset();
+  });
+
+  it.each([3, 4, 5, 6, 7])("renders exactly %i version cards, each showing its own formula", async (count) => {
+    readSession.mockResolvedValue(sessionWithCards(count));
+    renderResultPage();
+    await waitFor(() => expect(screen.getAllByText("Version 1").length).toBeGreaterThanOrEqual(2));
+    for (let i = 1; i <= count; i++) {
+      expect(screen.getAllByText(`Version ${i}`).length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("switching from V1 to V7 updates the active formula and clears stale selected-ingredient state", async () => {
+    readSession.mockResolvedValue(sessionWithCards(7));
+    renderResultPage();
+    await waitFor(() => expect(screen.getAllByText("Version 1").length).toBeGreaterThanOrEqual(2));
+    await userEvent.click(screen.getByText("Version 1 Active"));
+    await screen.findByText("Selected Concentration");
+
+    await userEvent.click(screen.getAllByText("Version 7")[0]);
+    await waitFor(() => expect(screen.queryByText("Selected Concentration")).toBeNull());
+    await waitFor(() => expect(screen.getAllByText("Version 7").length).toBeGreaterThanOrEqual(2));
+  });
+
+  it("keeps exactly one version active at a time for a 7-version session", async () => {
+    readSession.mockResolvedValue(sessionWithCards(7));
+    renderResultPage();
+    await waitFor(() => expect(screen.getAllByText("Version 1").length).toBeGreaterThanOrEqual(2));
+    const selectedBadges = screen.getAllByText("Selected");
+    expect(selectedBadges.length).toBe(1);
+  });
+});

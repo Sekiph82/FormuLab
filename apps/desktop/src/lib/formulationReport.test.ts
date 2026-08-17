@@ -142,4 +142,19 @@ describe("buildReportHtml", () => {
     expect(html).toContain("F1");
     expect(html).toContain("F2");
   });
+
+  it("FormuLab v1 (FVL-02): includes all seven formula versions for a 7-alternative session, independent of any current UI tab", () => {
+    const names = ["Decyl Glucoside", "Cocamidopropyl Betaine", "Sodium Cocoyl Isethionate",
+      "Coco-Glucoside", "Lauryl Glucoside", "Disodium Laureth Sulfosuccinate", "Sodium Lauroyl Sarcosinate"];
+    const cards = names.map((inci, i) => card(`v${i + 1}`, inci));
+    const session: SessionDetail = { ...SESSION, cards };
+    const html = buildReportHtml(session, "2026-01-01-test");
+    for (let i = 1; i <= 7; i++) {
+      expect(html).toContain(`V${i}`);
+    }
+    for (const inci of names) {
+      expect(html).toContain(inci);
+    }
+    expect((html.match(/Manufacturing Procedure/g) ?? []).length).toBe(7);
+  });
 });

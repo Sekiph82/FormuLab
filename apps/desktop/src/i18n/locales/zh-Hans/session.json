@@ -342,6 +342,10 @@
         "other": "Other"
       }
     },
+    "alternatives": {
+      "title": "Number of Formulation Alternatives",
+      "helper": "FormuLab generates up to this many distinct, evidence-based alternatives — fewer only when fewer are genuinely defensible."
+    },
     "constraints": {
       "title": "Constraints & Preferences",
       "excluded": "Excluded Ingredients",
@@ -690,7 +694,8 @@
       "selected": "Selected Architectures",
       "rejectedScientific": "Rejected Scientific Architectures",
       "allRuleOnlyDespiteApplicable": "Every selected version used a deterministic-rule architecture despite an applicable scientific formulation being available.",
-      "noScientificData": "No scientific formulation data is available for this session."
+      "noScientificData": "No scientific formulation data is available for this session.",
+      "retainedAddedRemoved": "{{retained}} retained from seed · {{added}} completed from the generic pool · {{removed}} removed/substituted"
     },
     "generationFailed": {
       "heading": "{{version}} — Generation Failed"

@@ -143,7 +143,7 @@ class PipelineTests(unittest.TestCase):
             out = os.path.join(tmp, "session")
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo"},
-                library=lib, out_dir=out, n=1, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, download_fulltexts=False,
             )
             self.assertEqual(res["status"], "ok")
 
@@ -155,7 +155,7 @@ class PipelineTests(unittest.TestCase):
             out = os.path.join(tmp, "session")
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo"},
-                library=lib, out_dir=out, n=1, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, download_fulltexts=False,
             )
             self.assertEqual(res["status"], "ok")
             card = res["cards"][0]
@@ -175,7 +175,7 @@ class PipelineTests(unittest.TestCase):
             out = os.path.join(tmp, "session")
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo"},
-                library=lib, out_dir=out, n=1, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, download_fulltexts=False,
             )
             corpus = res["cards"][0]["research_corpus"]
             self.assertEqual(corpus["target_count"], 15)
@@ -202,7 +202,7 @@ class PipelineTests(unittest.TestCase):
             out = os.path.join(tmp, "session")
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo"},
-                library=lib, out_dir=out, n=1, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, download_fulltexts=False,
             )
             corpus = res["cards"][0]["research_corpus"]
             self.assertIsInstance(corpus["raw_candidate_count"], int)
@@ -381,7 +381,7 @@ class PipelineTests(unittest.TestCase):
             res = pipeline.run(
                 {"target": "a sulfate-free anti-dandruff shampoo for a sensitive scalp",
                  "category": "shampoo"},
-                library=lib, out_dir=out, n=2, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, download_fulltexts=False,
             )
             for card in res["cards"]:
                 for origins in card["ingredient_origins"].values():
@@ -402,7 +402,7 @@ class PipelineTests(unittest.TestCase):
             out = os.path.join(tmp, "session")
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo"},
-                library=lib, out_dir=out, n=1, download_fulltexts=False, materials_dir=mat_dir,
+                library=lib, out_dir=out, n=3, download_fulltexts=False, materials_dir=mat_dir,
             )
             self.assertEqual(res["status"], "ok")
             origins = res["cards"][0]["ingredient_origins"]
@@ -436,7 +436,7 @@ class PipelineTests(unittest.TestCase):
             out = os.path.join(tmp, "session")
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo"},
-                library=lib, out_dir=out, n=1, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, download_fulltexts=False,
             )
             self.assertEqual(res["status"], "ok")
             card = res["cards"][0]
@@ -463,7 +463,7 @@ class PipelineTests(unittest.TestCase):
             try:
                 res = pipeline.run(
                     {"target": "a completely novel niche cosmetic base", "category": "cleanser"},
-                    library=lib, out_dir=out, n=1, download_fulltexts=False,
+                    library=lib, out_dir=out, n=3, download_fulltexts=False,
                 )
             finally:
                 lc.gather = orig
@@ -489,7 +489,7 @@ class PipelineTests(unittest.TestCase):
             try:
                 res = pipeline.run(
                     {"target": "a completely novel niche cosmetic base", "category": "cleanser"},
-                    library=lib, out_dir=out, n=1, download_fulltexts=False,
+                    library=lib, out_dir=out, n=3, download_fulltexts=False,
                 )
             finally:
                 lc.gather = orig
@@ -505,7 +505,7 @@ class PipelineTests(unittest.TestCase):
             out = os.path.join(tmp, "session")
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo"},
-                library=lib, out_dir=out, n=1, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, download_fulltexts=False,
             )
             card = res["cards"][0]
             self.assertIn("manufacturing", card)
@@ -524,7 +524,7 @@ class PipelineTests(unittest.TestCase):
             res = pipeline.run(
                 {"target": "a sulfate-free anti-dandruff shampoo for a sensitive scalp",
                  "category": "shampoo"},
-                library=lib, out_dir=out, n=1, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, download_fulltexts=False,
             )
             card = res["cards"][0]
             formula_names = {i["inci"] for i in card["formula"]["ingredients"]}
@@ -603,7 +603,7 @@ class PipelineTests(unittest.TestCase):
             formulas = os.path.join(tmp, "formulas")
             res = pipeline.run(
                 {"target": "mild shampoo", "category": "shampoo", "market": "eu"},
-                library=lib, out_dir=out, n=2, formulas_dir=formulas, download_fulltexts=False,
+                library=lib, out_dir=out, n=3, formulas_dir=formulas, download_fulltexts=False,
             )
             self.assertEqual(res["status"], "ok")
             self.assertEqual(len(res["archived"]), len(res["cards"]))
@@ -647,7 +647,7 @@ class PipelineTests(unittest.TestCase):
             try:
                 res = pipeline.run(
                     {"target": "obscure niche product", "category": "cleaner"},
-                    library=lib, out_dir=out, n=1, download_fulltexts=False,
+                    library=lib, out_dir=out, n=3, download_fulltexts=False,
                 )
             finally:
                 lc.gather = orig

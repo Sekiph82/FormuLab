@@ -25,6 +25,7 @@ import re
 import time
 from typing import Any, Callable, Dict, List
 
+import architecture_portfolio
 import engine
 import evidence
 import fulltext
@@ -433,6 +434,21 @@ def run(
     if not target:
         return {"status": "error", "message": "no target product given"}
 
+    # FormuLab v1 (FVL-02) §2: reject an explicit out-of-range requested
+    # count rather than silently clamping it — the user's own request is
+    # never quietly changed. `n` IS the real `requestedFormulaCount`
+    # request-contract field (already threaded end-to-end from the
+    # frontend's own count control through the Rust bridge/`run_cli.py`
+    # as a first-class request parameter, not part of `brief`).
+    if not (engine.MIN_FORMULA_ALTERNATIVES <= n <= engine.MAX_FORMULA_ALTERNATIVES):
+        return {
+            "status": "error",
+            "message": (
+                f"requestedFormulaCount must be between {engine.MIN_FORMULA_ALTERNATIVES} "
+                f"and {engine.MAX_FORMULA_ALTERNATIVES} (got {n})."
+            ),
+        }
+
     classification, decision = safety_decision(target)
     reviewer = str(brief.get("human_review_by", "")).strip()
     acknowledged = bool(brief.get("human_review_acknowledged")) and bool(reviewer)
@@ -527,12 +543,14 @@ def run(
     # excerpt destroys a table's row/column layout).
     scientific_formulations: List[Dict[str, Any]] = []
     scientific_outcomes: List[Dict[str, Any]] = []
+    pdf_lines_by_doi: Dict[str, List[str]] = {}
     for paper in papers:
         pdf_lines = fulltext.pdf_lines_for(paper, pdf_dir)
         if not pdf_lines:
             continue
         canonical_id = (paper.get("doi") or "").lower().strip() or re.sub(
             r"[^a-z0-9]+", " ", (paper.get("title") or "").lower()).strip()
+        pdf_lines_by_doi[paper.get("doi") or ""] = pdf_lines
         records, outcomes = scientific_formulation.extract_scientific_formulations(
             pdf_lines, canonical_paper_id=canonical_id, doi=paper.get("doi") or "",
             title=paper.get("title") or "", year=str(paper.get("year") or ""),
@@ -633,12 +651,52 @@ def run(
 
     group = engine.category_group(str(brief.get("category", "")), target)
     role_requirements = engine.resolve_role_requirements(group, brief, constraints, parsed_requirements)
-    pool = engine.build_candidate_pool(
+
+    # FormuLab v1 correction (FVL-02) §6-20: a GLOBAL scientific-
+    # architecture portfolio decision, made ONCE across every requested
+    # slot, before any version's own candidate pool is built — replacing
+    # the prior round's own bug (every version built its pool from the
+    # SAME full `scientific_formulations` list, so whichever formulation's
+    # shared support ingredients ranked highest always won every slot).
+    # See `architecture_portfolio.py`'s own module docstring for the full
+    # account, including the real discovery that this specific reference
+    # paper's own F1-F4 are concentration-only variants of ONE real
+    # architecture (collapsed here via a real functional-role fingerprint,
+    # never penalized merely for sharing a DOI — §17).
+    avoid_keys = {evidence.normalize_ingredient_key(a) for a in constraints.get("avoid", [])}
+    # §6/§7: the generic fallback's own `functional_completeness` must come
+    # from the REAL current-request candidate universe, never an assumed
+    # 1.0 — built here from a scientific-formulation-free pool (the same
+    # generic evidence/supplier/deterministic-rule candidates every version
+    # already has access to) so a request with no real coverage for e.g.
+    # `active_treatment` produces a fallback that honestly reflects that.
+    generic_pool = engine.build_candidate_pool(
         brief, constraints, ranked_evidence, materials_list,
-        scent_character=parsed_requirements.scent_character,
-        scientific_formulations=scientific_formulations,
+        scent_character=parsed_requirements.scent_character, scientific_formulations=[],
     )
-    log(f"candidate pool: {pool.to_diagnostics()}")
+    required_roles_for_fallback = [r for r, level in role_requirements.items() if level == "required"]
+    generic_covered = engine.covered_roles(generic_pool, required_roles_for_fallback)
+    fallback_completeness = (
+        (len(generic_covered) / len(required_roles_for_fallback)) if required_roles_for_fallback else 1.0
+    )
+    architecture_candidates = architecture_portfolio.build_candidates(
+        scientific_formulations, scientific_outcomes, engine.ROLE_MAP, role_requirements,
+        avoid_keys, brief, engine.MAJOR_SYSTEM_ROLES, pdf_lines_by_doi,
+        fallback_completeness=fallback_completeness,
+    )
+    portfolio_assignments, architectures_rejected = architecture_portfolio.select_portfolio(
+        architecture_candidates, slot_count=len(strategies),
+    )
+    log(f"architecture portfolio: {len(architecture_candidates)} candidate(s) "
+        f"({sum(1 for c in architecture_candidates if c.architecture_origin == 'scientific_formulation')} scientific), "
+        f"{len(portfolio_assignments)} slot(s) assigned, {len(architectures_rejected)} rejected")
+    with open(os.path.join(lit_dir, "architecture_portfolio.json"), "w", encoding="utf-8") as fh:
+        json.dump({
+            "candidates": [c.to_dict() for c in architecture_candidates],
+            "assignments": [a.to_dict() for a in portfolio_assignments],
+            "rejected": architectures_rejected,
+        }, fh, ensure_ascii=False, indent=2)
+
     if parsed_requirements.unresolved_fragments:
         log(f"[note] unresolved request fragments (no assumption made): "
             f"{', '.join(parsed_requirements.unresolved_fragments)}")
@@ -673,6 +731,35 @@ def run(
     cards: List[Dict[str, Any]] = []
     for idx, strat in enumerate(strategies, 1):
         version = f"v{idx}"
+        # Per-VERSION candidate pool. FormuLab v1 (FVL-02) correction: the
+        # global portfolio decision above answers "which scientific
+        # architecture gets PRIORITY / SEED STATUS for this slot", never
+        # "should this slot see scientific data at all" — `engine.
+        # build_candidate_pool()` has never treated scientific-formulation
+        # and generic evidence/rule candidates as mutually exclusive (it
+        # merges every origin into one pool, role-by-role), so gating the
+        # whole `scientific_formulations` list to a single record here
+        # would falsely block the assigned architecture from being
+        # completed by the normal generic candidate universe. Every
+        # version still sees every extracted formulation (§3); only the
+        # portfolio-assigned one gets `preferred_source_formulation_id`
+        # priority (`engine._selection_score`'s own `is_preferred_
+        # architecture` boost) — real per-slot diversity without
+        # restoring the original bug (every version silently converging
+        # on whichever formulation was first in extraction order).
+        assignment = portfolio_assignments[idx - 1] if idx - 1 < len(portfolio_assignments) else None
+        assigned_candidate = assignment.candidate if assignment else None
+        preferred_source_formulation_id = (
+            (assigned_candidate.canonical_paper_id, assigned_candidate.source_formulation_id)
+            if assigned_candidate and assigned_candidate.architecture_origin == architecture_portfolio.ORIGIN_SCIENTIFIC
+            else None
+        )
+        pool = engine.build_candidate_pool(
+            brief, constraints, ranked_evidence, materials_list,
+            scent_character=parsed_requirements.scent_character,
+            scientific_formulations=scientific_formulations,
+            preferred_source_formulation_id=preferred_source_formulation_id,
+        )
         result = engine.build_formula_for_strategy(
             strat, group, role_requirements, pool, ranked_evidence, constraints, parsed_requirements,
             avoid_major_role_keys=major_role_used_keys,
@@ -837,6 +924,7 @@ def run(
             "trace_events": [e.to_dict() for e in result.trace_events],
             "evidence_gaps": evidence_gaps,
             "architecture_basis": result.architecture_basis,
+            "portfolio_assignment": assignment.to_dict() if assignment else None,
         })
 
     # Cross-version diversity validation (architecture doc §9). Marks rather
@@ -936,6 +1024,32 @@ def run(
             # The library is a convenience copy — never fail a good run over it.
             log(f"[warn] could not archive to the formula library: {e}")
 
+    # FormuLab v1 (FVL-02) §3: the requested count is a TARGET, never
+    # permission to fabricate. `actual_formula_count` is the real number
+    # of cards actually produced (one per genuinely-applicable strategy —
+    # `strategy.derive_strategies()` itself already refuses to invent a
+    # strategy with no real triggering signal, §5's own instruction); a
+    # shortfall against `n` is disclosed with a real, specific reason,
+    # never silently absorbed.
+    actual_formula_count = len(cards)
+    alternative_shortfall = max(0, n - actual_formula_count)
+    shortfall_reason = ""
+    if alternative_shortfall > 0:
+        if len(strategies) < n:
+            shortfall_reason = (
+                f"Only {len(strategies)} of {n} requested strategies genuinely apply to this "
+                f"request (`strategy.derive_strategies()` — no strategy is invented without a "
+                f"real triggering signal in the brief/constraints)."
+            )
+        else:
+            shortfall_reason = (
+                "No defensible architecture (scientific or general evidence/deterministic-rule) "
+                "remained for one or more requested slots after diversity adjustment."
+            )
+        log(f"[note] alternative shortfall: requested {n}, delivered {actual_formula_count} — {shortfall_reason}")
+
     return {"status": "ok_partial_research" if partial_research else "ok", "cards": cards, "slug": slug,
             "papers": len(papers), "archived": archived, "diversity": diversity.to_dict(),
-            "scientific_formulation_summary": scientific_formulation_summary}
+            "scientific_formulation_summary": scientific_formulation_summary,
+            "requested_formula_count": n, "actual_formula_count": actual_formula_count,
+            "alternative_shortfall": alternative_shortfall, "shortfall_reason": shortfall_reason}

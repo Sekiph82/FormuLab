@@ -511,6 +511,15 @@ class IngredientCandidate:
     row this ingredient came from, when `ORIGIN_SCIENTIFIC_FORMULATION` is
     among `origins` — real paper DOI, real `source_formulation_id` (e.g.
     `"F4"`), real reported amount/unit. `None` otherwise."""
+    is_preferred_architecture: bool = False
+    """FormuLab v1 (FVL-02) — true when this candidate's own
+    `scientific_formulation_ref` matches THIS version's own portfolio-
+    assigned architecture seed (`build_candidate_pool()`'s own
+    `preferred_source_formulation_id`). Real, deterministic per-version
+    priority signal — never a global exclusion of every OTHER scientific
+    formulation's ingredients (§2/§3: the portfolio layer answers "which
+    architecture gets priority for this slot", never "should this slot
+    even see the generic/other-formulation candidate universe")."""
 
     def best_evidence_class(self) -> Optional[str]:
         if not self.evidence_records:
@@ -565,7 +574,22 @@ def build_candidate_pool(
     materials: List[Dict[str, Any]],
     scent_character: str = "",
     scientific_formulations: Optional[List[Dict[str, Any]]] = None,
+    preferred_source_formulation_id: Optional[Tuple[str, str]] = None,
 ) -> CandidatePool:
+    """`preferred_source_formulation_id` — FormuLab v1 (FVL-02):
+    `(canonical_paper_id, source_formulation_id)` of THIS version's own
+    global-portfolio-assigned architecture seed, or `None`. This never
+    excludes any other scientific formulation's ingredients from the pool
+    (§2/§3) — every formulation passed in `scientific_formulations` still
+    contributes real candidates for whatever role it resolves. It only
+    breaks the otherwise-arbitrary first-in-list-wins tie (e.g. glycerin
+    reported identically across F1-F4) in favor of the assigned seed, and
+    gives that seed's own distinct ingredients real role-selection
+    priority over a DIFFERENT, non-assigned formulation's ingredient
+    competing for the same role — the real, deterministic mechanism that
+    lets different versions materialize different scientific architectures
+    instead of every version converging on whichever formulation happened
+    to be first in extraction order."""
     avoid_keys = {normalize_ingredient_key(a) for a in constraints.get("avoid", [])}
     user_preferred = {
         normalize_ingredient_key(t)
@@ -597,6 +621,9 @@ def build_candidate_pool(
     #    turned into a role-filling candidate this engine cannot justify).
     for sf in (scientific_formulations or []):
         total_declared = sf.get("total_declared", "")
+        is_preferred_sf = preferred_source_formulation_id is not None and (
+            sf.get("canonical_paper_id", ""), sf.get("source_formulation_id", "")
+        ) == preferred_source_formulation_id
         for row in sf.get("ingredients", []):
             key = row.get("normalized_key")
             if not key or key not in ROLE_MAP:
@@ -605,7 +632,17 @@ def build_candidate_pool(
             if ORIGIN_SCIENTIFIC_FORMULATION not in c.origins:
                 c.origins.append(ORIGIN_SCIENTIFIC_FORMULATION)
             existing = c.scientific_formulation_ref
-            if existing is None or sf.get("evidence_class", "E") < existing.get("evidence_class", "E"):
+            # The assigned seed always wins this ingredient's own attributed
+            # provenance over a same-or-worse-class rival (never over a
+            # genuinely BETTER evidence class — real quality still wins);
+            # once attributed to the seed, a later non-seed formulation can
+            # never displace it.
+            better_class = existing is None or sf.get("evidence_class", "E") < existing.get("evidence_class", "E")
+            should_replace = (
+                (is_preferred_sf and not c.is_preferred_architecture)
+                or (better_class and not (c.is_preferred_architecture and not is_preferred_sf))
+            )
+            if should_replace:
                 c.scientific_formulation_ref = {
                     "canonical_paper_id": sf.get("canonical_paper_id", ""),
                     "doi": sf.get("doi", ""),
@@ -617,6 +654,7 @@ def build_candidate_pool(
                     "source_value_text": row.get("value_text", ""),
                     "source_unit": row.get("unit", ""),
                 }
+                c.is_preferred_architecture = is_preferred_sf
             mark_excluded_if_needed(c)
 
     # 1. Scientific evidence — every recognized ingredient mention the
@@ -897,6 +935,14 @@ def resolve_concentration(
 
 # -------------------------------------------------------------- solver ----
 
+# FormuLab v1 (FVL-02) — the one authoritative source of truth for the
+# requestable formula-alternative count. Every other module (pipeline.py's
+# own validation, the frontend's request-count control) reads these
+# instead of repeating the numbers 3/7.
+MIN_FORMULA_ALTERNATIVES = 3
+MAX_FORMULA_ALTERNATIVES = 7
+DEFAULT_FORMULA_ALTERNATIVES = 3
+
 FORMULA_COMPLETE = "complete"
 FORMULA_COMPLETE_WITH_VALIDATION_REQUIRED = "complete_with_validation_required"
 FORMULA_INCOMPLETE_MISSING_EVIDENCE = "incomplete_missing_evidence"
@@ -917,6 +963,13 @@ def _selection_score(candidate: IngredientCandidate) -> float:
         class_weight = {"A": 1.0, "B": 0.6, "C": 0.3, "D": 0.15, "E": 0.05}
         cls = (candidate.scientific_formulation_ref or {}).get("evidence_class", "E")
         score += 700.0 + class_weight.get(cls, 0.0) * 100.0
+        if candidate.is_preferred_architecture:
+            # FormuLab v1 (FVL-02): this version's own portfolio-assigned
+            # architecture seed real deterministic priority over a
+            # DIFFERENT scientific formulation's ingredient competing for
+            # the same role — bounded well under an explicit user
+            # requirement (1000), never a magic/unexplained jump.
+            score += 50.0
     if ORIGIN_SCIENTIFIC_EVIDENCE in candidate.origins:
         class_weight = {"A": 1.0, "B": 0.7, "C": 0.4, "D": 0.25, "E": 0.1}
         best = candidate.best_evidence_class() or "E"
@@ -934,6 +987,17 @@ def _selection_score(candidate: IngredientCandidate) -> float:
 def _candidates_for_role(pool: CandidatePool, role: str) -> List[IngredientCandidate]:
     matches = [c for c in pool.candidates.values() if role in c.roles and not c.excluded]
     return sorted(matches, key=_selection_score, reverse=True)
+
+
+def covered_roles(pool: CandidatePool, roles: List[str]) -> set:
+    """Real, non-excluded candidate coverage per role from an already-built
+    pool. FormuLab v1 (FVL-02) §6/§7: used by `architecture_portfolio.py`
+    to compute a REAL generic-fallback completeness figure (how many
+    required roles the current request's actual evidence/supplier/rule
+    candidate universe can cover) instead of assuming a flat 1.0 — a
+    fallback with no eligible candidate for `active_treatment` must not be
+    scored as if it were complete."""
+    return {role for role in roles if any(not c.excluded for c in _candidates_for_role(pool, role))}
 
 
 @dataclass

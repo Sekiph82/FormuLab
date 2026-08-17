@@ -289,7 +289,17 @@ function VersionCards({
       <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
         {t("formulationResult.versions.heading")}
       </div>
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+      {/* FormuLab v1 (FVL-02): up to 3 alternatives read comfortably as a
+          fixed 3-column grid; 4-7 switch to a horizontally scrollable strip
+          with a real minimum card width, so seven versions never collapse
+          into unreadable postage stamps — see §16 of the frozen scope. */}
+      <div
+        className={cn(
+          cards.length <= 3
+            ? "grid grid-cols-1 gap-2.5 sm:grid-cols-3"
+            : "flex gap-2.5 overflow-x-auto pb-1",
+        )}
+      >
         {cards.map((c, i) => {
           const failed = c.status === "generation_failed";
           const formula = asGeneratedFormula(c.formula);
@@ -301,6 +311,7 @@ function VersionCards({
               disabled={failed}
               className={cn(
                 "rounded-card border p-3 text-left transition-colors",
+                cards.length > 3 && "w-[200px] shrink-0",
                 failed ? "cursor-not-allowed border-error/30 bg-error/5 opacity-70"
                   : isActive ? "border-accent bg-accent/5" : "border-border bg-surface hover:bg-surface-2",
               )}
@@ -1529,6 +1540,9 @@ function AlternativesTab({
               <div key={c.version} className="rounded-input border border-border-faint p-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-input bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text">{c.version}</span>
+                  {c.strategy && (
+                    <span className="text-[11.5px] font-medium text-text">{c.strategy.title}</span>
+                  )}
                   {basis && (
                     <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-muted">
                       {t(`formulationResult.formula.architecture.origins.${basis.origin}`, { defaultValue: basis.origin })}
@@ -1540,7 +1554,18 @@ function AlternativesTab({
                     {basis.source_paper_doi || basis.source_title}{basis.source_formulation_id ? ` — ${basis.source_formulation_id}` : ""}
                   </div>
                 )}
+                {basis && (basis.retained > 0 || basis.added > 0) && (
+                  <div className="mt-1 text-[11px] text-muted">
+                    {t("formulationResult.alternatives.retainedAddedRemoved", {
+                      defaultValue: "{{retained}} retained from seed · {{added}} completed from the generic pool · {{removed}} removed/substituted",
+                      retained: basis.retained, added: basis.added, removed: basis.removed,
+                    })}
+                  </div>
+                )}
                 {basis?.reason && <div className="mt-1 text-[11px] text-muted">{basis.reason}</div>}
+                {c.strategy?.rationale && (
+                  <div className="mt-1 text-[11px] text-muted">{c.strategy.rationale}</div>
+                )}
               </div>
             );
           })}

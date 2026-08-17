@@ -533,7 +533,34 @@ export interface GenerateResult {
    *  show the real shortfall (X/15 full text) rather than just a message. */
   research_corpus?: Record<string, unknown>;
   scientific_formulation_summary?: ScientificFormulationSummary;
+  /** FormuLab v1 (FVL-02) — `pipeline.py::run()`'s own real, honest 3-7
+   *  formula-count contract. `requested_formula_count` is the caller's own
+   *  `n`; `actual_formula_count` is `cards.length` — they may differ (a
+   *  genuine shortfall), never silently padded to match. `alternative_
+   *  shortfall`/`shortfall_reason` are only meaningful when actual <
+   *  requested; `shortfall_reason` states the REAL cause (too few
+   *  applicable strategies, or no defensible architecture remained for a
+   *  slot) — never "no version selected it" alone. Present on `"ok"`/
+   *  `"ok_partial_research"` only. */
+  requested_formula_count?: number;
+  actual_formula_count?: number;
+  alternative_shortfall?: number;
+  shortfall_reason?: string;
 }
+
+/** FormuLab v1 (FVL-02) — the one authoritative source of truth for the
+ *  requestable formula-alternative count on the frontend, mirroring
+ *  `engine.py`'s own `MIN_FORMULA_ALTERNATIVES`/`MAX_FORMULA_ALTERNATIVES`/
+ *  `DEFAULT_FORMULA_ALTERNATIVES`. Every UI surface that offers this
+ *  choice (`NewFormulationRequestPage`) reads these instead of repeating
+ *  the numbers 3/7/3. */
+export const MIN_FORMULA_ALTERNATIVES = 3;
+export const MAX_FORMULA_ALTERNATIVES = 7;
+export const DEFAULT_FORMULA_ALTERNATIVES = 3;
+export const FORMULA_ALTERNATIVE_COUNTS = Array.from(
+  { length: MAX_FORMULA_ALTERNATIVES - MIN_FORMULA_ALTERNATIVES + 1 },
+  (_, i) => MIN_FORMULA_ALTERNATIVES + i,
+);
 
 export interface SessionSummary {
   id: string;
@@ -682,7 +709,7 @@ async function call<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
 export async function generateFormulation(
   brief: FormulationBrief,
   cfg: ProviderConfig,
-  n = 3,
+  n: number = DEFAULT_FORMULA_ALTERNATIVES,
 ): Promise<GenerateResult> {
   return call<GenerateResult>("generate_formulation", {
     request: {

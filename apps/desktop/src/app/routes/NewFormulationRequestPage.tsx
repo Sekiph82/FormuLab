@@ -19,6 +19,8 @@ import {
   generateFormulation,
   loadProviderConfig,
   notifySessionsChanged,
+  DEFAULT_FORMULA_ALTERNATIVES,
+  FORMULA_ALTERNATIVE_COUNTS,
   type FormulationBrief,
 } from "@/lib/formulationV2";
 import { cn } from "@/lib/cn";
@@ -61,6 +63,7 @@ export function NewFormulationRequestPage() {
   const [batchSize, setBatchSize] = useState("");
   const [equipment, setEquipment] = useState("");
   const [rawMaterials, setRawMaterials] = useState("");
+  const [formulaCount, setFormulaCount] = useState(DEFAULT_FORMULA_ALTERNATIVES);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +85,7 @@ export function NewFormulationRequestPage() {
     setBatchSize("");
     setEquipment("");
     setRawMaterials("");
+    setFormulaCount(DEFAULT_FORMULA_ALTERNATIVES);
   };
 
   const applyExample = () => {
@@ -126,7 +130,7 @@ export function NewFormulationRequestPage() {
       materials: preferred || undefined,
     };
     try {
-      const res = await generateFormulation(brief, cfg, 3);
+      const res = await generateFormulation(brief, cfg, formulaCount);
       if ((res.status === "ok" || res.status === "ok_partial_research") && res.session_id) {
         notifySessionsChanged();
         navigate(`/formulation-result/${res.session_id}`);
@@ -214,6 +218,37 @@ export function NewFormulationRequestPage() {
             </Field>
             <Field label={t("formulationRequest.product.market")}>
               <input value={market} onChange={(e) => setMarket(e.target.value)} className={inputClass} placeholder={t("formulationRequest.product.marketPlaceholder", { defaultValue: "e.g. Kenya, EU, USA…" })} />
+            </Field>
+            <Field label={t("formulationRequest.alternatives.title", { defaultValue: "Number of Formulation Alternatives" })}>
+              <div
+                role="radiogroup"
+                aria-label={t("formulationRequest.alternatives.title", { defaultValue: "Number of Formulation Alternatives" })}
+                data-testid="formula-count-control"
+                className="inline-flex overflow-hidden rounded-input border border-border"
+              >
+                {FORMULA_ALTERNATIVE_COUNTS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    role="radio"
+                    aria-checked={formulaCount === n}
+                    data-testid={`formula-count-${n}`}
+                    onClick={() => setFormulaCount(n)}
+                    className={cn(
+                      "w-8 py-1.5 text-[12px] font-medium outline-none",
+                      "border-r border-border last:border-r-0",
+                      formulaCount === n ? "bg-accent text-accent-fg" : "bg-surface text-text hover:bg-surface-2",
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] text-muted">
+                {t("formulationRequest.alternatives.helper", {
+                  defaultValue: "FormuLab generates up to this many distinct, evidence-based alternatives — fewer only when fewer are genuinely defensible.",
+                })}
+              </p>
             </Field>
           </RequestCard>
         </div>

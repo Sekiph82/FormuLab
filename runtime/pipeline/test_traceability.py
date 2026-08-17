@@ -27,7 +27,7 @@ def seed_library(lib):
     lc.save_index(lib, idx)
 
 
-def run_session(brief, n=2):
+def run_session(brief, n=3):
     tmp = tempfile.mkdtemp()
     lib = os.path.join(tmp, "library")
     seed_library(lib)
@@ -108,7 +108,7 @@ class TraceabilityIntegrityTests(unittest.TestCase):
         self.assertLessEqual(corpus["unique_evidence_study_count"], corpus["evidence_record_count"] or corpus["unique_evidence_study_count"])
 
     def test_cross_version_trace_does_not_leak(self):
-        res, _ = run_session({"target": "anti-dandruff shampoo", "category": "shampoo"}, n=2)
+        res, _ = run_session({"target": "anti-dandruff shampoo", "category": "shampoo"}, n=3)
         v1_ids = {e["decision_id"] for e in res["cards"][0]["trace_events"]}
         v2_ids = {e["decision_id"] for e in res["cards"][1]["trace_events"]}
         self.assertEqual(v1_ids & v2_ids, set())

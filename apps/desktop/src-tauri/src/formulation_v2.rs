@@ -508,6 +508,39 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
     }
 
+    /// FormuLab v1 (FVL-02) — `read_cards` is a generic `serde_json::Value`
+    /// passthrough with no fixed struct/enum for the version set, so a
+    /// session with the new 3-7 alternative count must round-trip exactly
+    /// as-is: proven directly here with a real 7-card `cards.json`, not
+    /// just asserted from the (accurate) claim that the code has no
+    /// `V1`/`V2`/`V3`-only branch.
+    #[test]
+    fn read_cards_round_trips_all_seven_alternatives() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let cards: Vec<serde_json::Value> = (1..=7)
+            .map(|i| {
+                serde_json::json!({
+                    "version": format!("v{i}"),
+                    "markdown": format!("# Formulation Card: V{i}"),
+                    "formula": {"name": format!("Version {i}"), "ingredients": [
+                        {"inci": "Water (Aqua)", "function": "Solvent", "weight_pct": "q.s. 100"},
+                    ]},
+                    "violations": [],
+                })
+            })
+            .collect();
+        std::fs::write(tmp.join("cards.json"), serde_json::to_string(&cards).unwrap()).unwrap();
+
+        let result = read_cards(&tmp);
+        assert_eq!(result.len(), 7, "all 7 alternatives must survive a reopen — none dropped, none fabricated");
+        for (i, c) in result.iter().enumerate() {
+            assert_eq!(c["version"], format!("v{}", i + 1));
+        }
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
     /// Phase 14 Session 3 added `strategy`/`status`/`evidence_links`/`score`/
     /// `concentration_alignment` fields to NEW cards.json entries — this
     /// proves an OLDER session's cards.json (Session 1/2 shape, none of
