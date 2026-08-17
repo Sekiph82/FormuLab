@@ -1817,6 +1817,98 @@ A later Claude Code run resumed this repository from the exact uncommitted state
 - `INTERNAL_FORMULAB_DATA` origin remains reserved/unemitted.
 - The plausibility gate remains a coarse per-role sanity bound, not an extraction-accuracy fix.
 
+**Exact next Phase 14 session (superseded, see §22)**: none scheduled at the
+time. Not started automatically.
+
+---
+
+## 22. Targeted correction — full/partial/insufficient research-corpus policy (2026-08-17, same day)
+
+§21's own hard gate (`< 15 full texts → zero formulas`) was too strict in
+real use: a real run landing at `14/15` produced no formula at all, even
+though 14 genuinely usable full texts is real, substantial evidence. Per
+explicit user instruction, replaced with a three-state policy — one
+authoritative source of truth, `provenance.py::RESEARCH_FULL_TEXT_TARGET =
+15` / `RESEARCH_FULL_TEXT_MINIMUM = 10`, and `research_corpus_status()`:
+
+- **full** (≥ 15 full texts) — normal generation, `status: "ok"`, unchanged
+  from §21.
+- **partial** (10–14 full texts) — generation **allowed**. `pipeline.run()`
+  returns `status: "ok_partial_research"` with real cards; the corpus's own
+  `status: "partial"` rides on every card's `research_corpus` field. The
+  existing `insufficient_full_text` evidence gap (unchanged, already fired
+  for any shortfall) discloses the exact shortfall on every card. The
+  Formulation Result page shows a page-level "Partial research corpus"
+  notice (`PartialResearchNotice`, new) — a real banner, never the error
+  page — and the Download Report's Research section states `Research
+  Corpus Status: partial`, the successful full-text count, the preferred
+  target, and the same disclosure sentence.
+- **insufficient** (< 10 full texts) — unchanged from §21: blocked,
+  `status: "research_corpus_incomplete"`, zero cards.
+
+15 remains the preferred target the acquisition budget genuinely searches
+for — `literature_cache.gather()`'s own deeper-search behavior (search the
+remaining candidate pool for more downloadable documents when short) is
+untouched by this correction; it already continues past both the 10th and
+the 14th successful full text, stopping only once 15 is reached or the
+candidate pool is exhausted.
+
+**A real bug found and fixed while wiring this through**: `formulation_v2.rs`
+kept a session directory only on `status == "ok"` literally — under the new
+`"ok_partial_research"` status this would have deleted a real, successful
+partial-corpus session's own saved cards. Fixed to keep the session on
+either `"ok"` or `"ok_partial_research"`.
+
+No scientific rule was weakened: concentration evidence hierarchy, the
+plausibility gate, hard exclusions, compatibility/safety/regulatory rules,
+mass balance, and diversity validation are all identical under a partial
+corpus — a concentration a partial corpus cannot justify is still left
+unresolved, never invented (proven directly by
+`test_partial_corpus_never_weakens_concentration_evidence_hierarchy`).
+
+**Verification.** `python -m pytest runtime/pipeline -q`: **326/326**
+(320 baseline + 5 new full/partial/insufficient state tests replacing the
+old single hard-block test, plus a mass-balance-under-partial-corpus test
+and a persisted-corpus-status round-trip test). Rust: `cargo check
+--release` clean, `cargo test --release` (full workspace) — **342/342**.
+Frontend: `tsc --noEmit` clean, ESLint clean, `pnpm vitest run` — **138
+files / 1252 tests** (1248 baseline + 3 partial-corpus-notice tests + 1
+report-disclosure test) — zero regressions. `git diff --check`: clean.
+
+**Live acceptance.** Re-ran both of the correction gate's own mandated
+real network requests against a fresh disposable scratch library (never
+the real `%APPDATA%\com.formulab.app` cache): hand soap with rosemary
+scent landed at `9/15` full-text; sulfate-free anti-dandruff shampoo
+landed at `8/15`. Both are genuinely below the new minimum (10) and were
+correctly, honestly blocked — real network/cold-cache variance (§21's own
+disclosed constraint), not a defect in this correction. The `insufficient`
+path is therefore proven live; the `partial`-generates-formulas path (the
+actual behavior change this correction makes) is proven by the
+deterministic offline suite above at 10, 12, and 14 full texts exactly,
+using the same code path a live run would take (a faked discovery layer
+supplying an exact, controlled number of genuinely downloadable
+candidates, not a shortcut around `pipeline.run()` itself).
+
+Files changed: `provenance.py` (constants, `research_corpus_status()`,
+`ResearchCorpusSummary.status`), `pipeline.py` (three-state gate,
+`ok_partial_research` status), `test_pipeline.py` (5 new state tests + 2
+new integrity tests, replacing the old single hard-block test),
+`formulation_v2.rs` (session-keep fix for the new status),
+`formulation_v2.ts` (new status literal, `ResearchCorpusSummary.status`,
+exported target/minimum constants), `NewFormulationRequestPage.tsx`/
+`FormulationWorkspaceV2.tsx` (treat `ok_partial_research` as success),
+`FormulationResultPage.tsx` (`PartialResearchNotice`),
+`FormulationResultPage.test.tsx` (3 new tests), `formulationReport.ts`
+(partial-corpus disclosure), `formulationReport.test.ts` (1 new test), all
+8 shipped locales' `session.json` (new `partialResearch.*` keys,
+English-mirrored per this codebase's existing precedent), this
+architecture doc (§22), `docs/handoffs/PHASE14_CURRENT.md`,
+`docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-01.005 note — this is a bug-fix
+correction to an already-COMPLETED FVL-01 task, not new v1 scope).
+
+**Phase 14 closure status**: unchanged, still implementation-complete —
+this correction narrows §21's own behavior, it does not reopen Phase 14.
+
 **Exact next Phase 14 session**: none scheduled. Not started automatically.
 
 ---

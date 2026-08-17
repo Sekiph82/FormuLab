@@ -127,7 +127,7 @@ export function NewFormulationRequestPage() {
     };
     try {
       const res = await generateFormulation(brief, cfg, 3);
-      if (res.status === "ok" && res.session_id) {
+      if ((res.status === "ok" || res.status === "ok_partial_research") && res.session_id) {
         notifySessionsChanged();
         navigate(`/formulation-result/${res.session_id}`);
       } else if (res.status === "refused" || res.status === "human_review_required") {

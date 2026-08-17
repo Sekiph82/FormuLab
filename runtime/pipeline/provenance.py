@@ -379,6 +379,31 @@ def assess_quality(
 
 # -------------------------------------------------------- corpus summary ---
 
+# Single authoritative source of truth for the full-text acquisition policy
+# (2026-08-17 correction: 15 remains the preferred target, but is no longer
+# an absolute prerequisite for generating formulas — see
+# `research_corpus_status()` below). Every other module reads these two
+# constants rather than repeating the numbers 15/10.
+RESEARCH_FULL_TEXT_TARGET = 15
+RESEARCH_FULL_TEXT_MINIMUM = 10
+
+CORPUS_FULL = "full"
+CORPUS_PARTIAL = "partial"
+CORPUS_INSUFFICIENT = "insufficient"
+
+
+def research_corpus_status(full_text_count: int) -> str:
+    """`full` at/above the preferred target, `partial` between the real
+    minimum and the target (formulation generation allowed, shortfall
+    disclosed), `insufficient` below the real minimum (formulation
+    generation blocked). Never a fourth, silently-invented state."""
+    if full_text_count >= RESEARCH_FULL_TEXT_TARGET:
+        return CORPUS_FULL
+    if full_text_count >= RESEARCH_FULL_TEXT_MINIMUM:
+        return CORPUS_PARTIAL
+    return CORPUS_INSUFFICIENT
+
+
 @dataclass(frozen=True)
 class ResearchCorpusSummary:
     """Phase 14 Session 4 §5's own explicit requirement: the research
@@ -404,6 +429,11 @@ class ResearchCorpusSummary:
     `False` is an honest, real outcome, not an error; the corpus itself
     still keeps every relevant document, full text or not (Session 4's
     own guarantee, unchanged)."""
+    status: str = CORPUS_INSUFFICIENT
+    """2026-08-17 correction: `research_corpus_status(full_text_count)` —
+    `full`/`partial`/`insufficient`. Only `insufficient` blocks formulation
+    synthesis in a real run; `partial` is disclosed but never blocking on
+    its own."""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -412,7 +442,7 @@ class ResearchCorpusSummary:
 def summarize_research_corpus(
     papers: List[Dict[str, Any]],
     evidence_records: List[Any],
-    target_count: int = 15,
+    target_count: int = RESEARCH_FULL_TEXT_TARGET,
     raw_candidate_count: Optional[int] = None,
     full_text_gate_met: Optional[bool] = None,
 ) -> ResearchCorpusSummary:
@@ -430,4 +460,5 @@ def summarize_research_corpus(
         evidence_record_count=len(evidence_records),
         unique_evidence_study_count=study_count(evidence_records),
         full_text_gate_met=full_text_gate_met if full_text_gate_met is not None else (full_text >= target_count),
+        status=research_corpus_status(full_text),
     )

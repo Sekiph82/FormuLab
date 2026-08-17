@@ -403,6 +403,11 @@
       "unavailable": "The original request text is not available for this session.",
       "edit": "Edit Request"
     },
+    "partialResearch": {
+      "badge": "Partial research corpus",
+      "counter": "FULL-TEXT SOURCES: {{acquired}} / {{target}}",
+      "body": "The target was {{target}} usable full-text sources. {{acquired}} were acquired after the available search budget was exhausted. Formulations were generated from the available evidence and may contain additional evidence gaps."
+    },
     "versions": {
       "heading": "Formulation Versions",
       "selected": "Selected",

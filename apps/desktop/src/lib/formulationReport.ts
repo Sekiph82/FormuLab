@@ -122,7 +122,13 @@ export function buildReportHtml(session: SessionDetail, sessionId: string): stri
     `<h1>FormuLab — Formulation Report</h1>`,
     `<p class="muted">Generated ${esc(generatedAt)} — Session ${esc(sessionId)}</p>`,
     section("Original Request", `<p>${esc(session.brief?.target ?? "—")}</p>`),
-    corpus ? section("Research", `<p>Full-text sources: ${esc(corpus.full_text_count)}/${esc(corpus.target_count)} &nbsp; Relevant candidates: ${esc(corpus.qualifying_count)}/${esc(corpus.target_count)} &nbsp; Evidence records: ${esc(corpus.evidence_record_count)} &nbsp; Unique studies: ${esc(corpus.unique_evidence_study_count)}</p>`) : "",
+    corpus ? section("Research", [
+      `<p>Research Corpus Status: <strong>${esc(corpus.status ?? "unknown (pre-2026-08-17 session)")}</strong> &nbsp; Successful Full Texts: ${esc(corpus.full_text_count)} &nbsp; Preferred Target: ${esc(corpus.target_count)}</p>`,
+      `<p>Relevant candidates: ${esc(corpus.qualifying_count)}/${esc(corpus.target_count)} &nbsp; Evidence records: ${esc(corpus.evidence_record_count)} &nbsp; Unique studies: ${esc(corpus.unique_evidence_study_count)}</p>`,
+      corpus.status === "partial"
+        ? `<p class="muted">The target was ${esc(corpus.target_count)} usable full-text sources. ${esc(corpus.full_text_count)} were acquired after the available search budget was exhausted. Formulations were generated from the available evidence and may contain additional evidence gaps.</p>`
+        : "",
+    ].join("")) : "",
     section("Version Overview", table(
       ["Version", "Strategy", "State", "Mass Balance"],
       session.cards.map((c) => [c.version, c.strategy?.title ?? "—", c.formula_state ?? c.status, c.mass_balance?.status ?? "—"]),

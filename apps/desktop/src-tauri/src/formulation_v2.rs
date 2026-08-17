@@ -173,7 +173,11 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// Run the pipeline: materialize, invoke run_cli.py with the request on stdin,
-/// return the parsed result JSON. Keeps the session only on `status == "ok"`.
+/// return the parsed result JSON. Keeps the session on `status == "ok"` or
+/// `"ok_partial_research"` (2026-08-17 correction: a partial research
+/// corpus of 10-14 full texts still produces real, saved formula cards —
+/// only `"refused"`/`"error"`/`"human_review_required"`/
+/// `"research_corpus_incomplete"` remove the session directory).
 /// Phase 13 Session 4A: was `DEFERRED_WITH_REASON`. Generates candidate
 /// formulas and saves its own session record — not a shared regulated
 /// collection, so a valid session (not a specific capability) is the
@@ -262,7 +266,8 @@ pub async fn generate_formulation(
         .get("session_dir")
         .and_then(|s| s.as_str())
         .map(PathBuf::from);
-    let ok = result.get("status").and_then(|s| s.as_str()) == Some("ok");
+    let status = result.get("status").and_then(|s| s.as_str());
+    let ok = matches!(status, Some("ok") | Some("ok_partial_research"));
     if ok {
         Ok(result)
     } else {
@@ -271,7 +276,7 @@ pub async fn generate_formulation(
                 let _ = std::fs::remove_dir_all(&dir);
             }
         }
-        Ok(result) // status: "refused" | "error" — surfaced to the UI, no session kept
+        Ok(result) // status: "refused" | "error" | "research_corpus_incomplete" — surfaced to the UI, no session kept
     }
 }
 

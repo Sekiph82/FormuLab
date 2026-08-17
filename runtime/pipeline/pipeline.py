@@ -526,35 +526,49 @@ def run(
     except OSError:
         pass
     corpus = provenance.summarize_research_corpus(
-        papers, evidence_records, target_count=15, raw_candidate_count=raw_candidate_count,
-        full_text_gate_met=full_text_gate_met,
+        papers, evidence_records, target_count=provenance.RESEARCH_FULL_TEXT_TARGET,
+        raw_candidate_count=raw_candidate_count, full_text_gate_met=full_text_gate_met,
     )
     with open(os.path.join(lit_dir, "research_corpus.json"), "w", encoding="utf-8") as fh:
         json.dump(corpus.to_dict(), fh, ensure_ascii=False, indent=2)
     log(f"research corpus: {corpus.qualifying_count}/{corpus.target_count} target unique document(s) "
         f"({corpus.full_text_count} full text, {corpus.abstract_only_count} abstract-only, "
-        f"{corpus.metadata_only_count} metadata-only)")
+        f"{corpus.metadata_only_count} metadata-only) — status: {corpus.status}")
 
-    # Phase 14 Session 6 correction gate §9: the 15-full-text requirement is
-    # a HARD gate for a real run, not a quality-gate warning a formula can
-    # carry alongside an otherwise-successful `status: "ok"`. Only enforced
-    # when this run actually attempted full-text acquisition
-    # (`download_fulltexts=True`) — a `download_fulltexts=False` run (every
-    # offline/unit-test caller, and any deliberate metadata-only dry run)
-    # never attempted the gate in the first place, so there is nothing
-    # honest to block on. No formula synthesis, no cards, no fabricated
-    # evidence — the session stops here and reports the real shortfall.
-    if download_fulltexts and corpus.full_text_count < corpus.target_count:
-        message = (
-            f"Research corpus incomplete: {corpus.full_text_count}/{corpus.target_count} "
-            f"required full-text sources acquired."
-        )
-        log(f"[blocked] {message}")
-        return {
-            "status": "research_corpus_incomplete",
-            "message": message,
-            "research_corpus": corpus.to_dict(),
-        }
+    # 2026-08-17 correction to the Session 6 correction gate's own §9: 15
+    # full texts remains the PREFERRED target (searched for hard — see
+    # `literature_cache.gather()`'s own deeper-search behavior, unchanged
+    # by this correction), but is no longer an absolute prerequisite for
+    # generating formulas. Three real states, one authoritative source of
+    # truth (`provenance.research_corpus_status()`):
+    #   full (>= RESEARCH_FULL_TEXT_TARGET)         -> normal generation
+    #   partial (>= RESEARCH_FULL_TEXT_MINIMUM)      -> generation allowed,
+    #                                                    shortfall disclosed
+    #   insufficient (< RESEARCH_FULL_TEXT_MINIMUM)  -> blocked, as before
+    # Only enforced when this run actually attempted full-text acquisition
+    # (`download_fulltexts=True`) — a `download_fulltexts=False` run never
+    # attempted the gate in the first place, so there is nothing honest to
+    # block on.
+    partial_research = False
+    if download_fulltexts:
+        if corpus.status == provenance.CORPUS_INSUFFICIENT:
+            message = (
+                f"Research corpus incomplete: {corpus.full_text_count}/"
+                f"{provenance.RESEARCH_FULL_TEXT_MINIMUM} minimum required full-text "
+                f"sources acquired (preferred target {provenance.RESEARCH_FULL_TEXT_TARGET})."
+            )
+            log(f"[blocked] {message}")
+            return {
+                "status": "research_corpus_incomplete",
+                "message": message,
+                "research_corpus": corpus.to_dict(),
+            }
+        partial_research = corpus.status == provenance.CORPUS_PARTIAL
+        if partial_research:
+            log(f"[partial] research corpus below the preferred target: "
+                f"{corpus.full_text_count}/{provenance.RESEARCH_FULL_TEXT_TARGET} full-text "
+                f"sources (>= minimum {provenance.RESEARCH_FULL_TEXT_MINIMUM}) — "
+                f"formulation generation proceeds, shortfall disclosed")
 
     # Phase 14 Session 3: request-aware strategy derivation — never a fixed
     # V1/V2/V3 enum. `len(strategies)` becomes the real formula count
@@ -834,5 +848,5 @@ def run(
             # The library is a convenience copy — never fail a good run over it.
             log(f"[warn] could not archive to the formula library: {e}")
 
-    return {"status": "ok", "cards": cards, "slug": slug,
+    return {"status": "ok_partial_research" if partial_research else "ok", "cards": cards, "slug": slug,
             "papers": len(papers), "archived": archived, "diversity": diversity.to_dict()}

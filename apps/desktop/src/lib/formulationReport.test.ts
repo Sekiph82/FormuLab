@@ -89,4 +89,21 @@ describe("buildReportHtml", () => {
     const html = buildReportHtml(SESSION, "2026-01-01-test");
     expect(html).toContain("hand soap with rosemary scent");
   });
+
+  it("discloses a partial research-corpus status explicitly (2026-08-17 correction)", () => {
+    const partialCard = card("v1", "Decyl Glucoside");
+    (partialCard as unknown as { research_corpus: Record<string, unknown> }).research_corpus = {
+      raw_candidate_count: 120, qualifying_count: 21, target_count: 15,
+      full_text_count: 14, abstract_only_count: 7, metadata_only_count: 0,
+      evidence_record_count: 10, unique_evidence_study_count: 5,
+      full_text_gate_met: false, status: "partial",
+    };
+    const session: SessionDetail = { ...SESSION, cards: [partialCard, card("v2", "b"), card("v3", "c")] };
+    const html = buildReportHtml(session, "2026-01-01-test");
+    expect(html).toContain("Research Corpus Status");
+    expect(html).toContain("partial");
+    expect(html).toContain("Successful Full Texts: 14");
+    expect(html).toContain("Preferred Target: 15");
+    expect(html).toContain("search budget was exhausted");
+  });
 });

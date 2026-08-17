@@ -116,11 +116,30 @@ baseline every later package depends on.
 **FVL-01.005 note (2026-08-17, same-day correction)**: the recovery round
 that closed this package added a hard `< 15 full texts → zero formulas`
 gate. A same-day follow-up correction replaced that with the three-state
-`full`/`partial`/`insufficient` policy (`RESEARCH_FULL_TEXT_TARGET = 15`,
-`RESEARCH_FULL_TEXT_MINIMUM = 10`) per explicit user instruction — see this
-task's own commit history for the exact change. This is a bug-fix/behavior
-correction to an already-COMPLETED FVL-01 task, not new v1 scope, per the
-scope-change policy §1 rule 3.
+`full`/`partial`/`insufficient` policy — `provenance.py::
+RESEARCH_FULL_TEXT_TARGET = 15`, `RESEARCH_FULL_TEXT_MINIMUM = 10`, the one
+authoritative source of truth every other module reads. `full` (≥15) is
+normal generation (`status: "ok"`); `partial` (10–14) still generates real
+formulas with the shortfall visibly disclosed (`status:
+"ok_partial_research"`, a page-level notice, an `insufficient_full_text`
+evidence gap, and the Download Report); `insufficient` (<10) still blocks
+(`status: "research_corpus_incomplete"`, zero cards). This is a bug-fix/
+behavior correction to an already-COMPLETED FVL-01 task, not new v1 scope,
+per the scope-change policy §1 rule 3.
+
+Regression: `python -m pytest runtime/pipeline -q` — 326/326 (offline,
+deterministic tests at 15/15 full, 14/15 partial, 10/15 partial, 9/15
+insufficient, 0/15 insufficient, plus mass-balance-under-partial-corpus and
+persistence-round-trip checks). Frontend: `pnpm vitest run` — 138
+files/1252 tests. Rust: `cargo test --release` — 342/342. `tsc`/ESLint
+clean. Live acceptance: two real disposable-library network runs (hand
+soap w/ rosemary scent → 9/15; sulfate-free anti-dandruff shampoo → 8/15)
+both landed below the minimum and were correctly, honestly blocked — cold
+disposable-cache full-text acquisition for these narrow queries continues
+to land under 10 within this round's time budget (consistent with prior
+sessions' own findings), so the live acceptance exercised the
+`insufficient` path for real while the `partial`-generates-formulas path
+is proven by the deterministic offline suite above.
 
 **Verification evidence**: `python -m pytest runtime/pipeline -q` — 320/320
 (pre-correction baseline; see FVL-01.005 note for the corrected count).

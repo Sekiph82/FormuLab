@@ -650,3 +650,74 @@ describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wir
     expect(screen.getByText(/user requested sulfate-free/)).not.toBeNull();
   });
 });
+
+// 2026-08-17 correction: a partial research corpus (10-14 full texts) no
+// longer blocks formulation — the result screen opens normally, never the
+// error page, with a visible disclosure.
+const SESSION_PARTIAL_RESEARCH = {
+  status: "ok" as const,
+  id: "2026-01-02-0900-test",
+  brief: { target: "Anti-dandruff shampoo" },
+  cards: [
+    {
+      version: "v1",
+      status: "ok" as const,
+      markdown: "# Formulation Card: Balanced",
+      formula: {
+        name: "Balanced", purpose: "p",
+        ingredients: [{ inci: "Water (Aqua)", function: "Solvent", weight_pct: "q.s. 100" }],
+      },
+      violations: [],
+      strategy: {
+        formula_version_id: "v1", label: "V1", strategy_type: "balanced",
+        title: "Balanced", rationale: "r",
+        primary_priorities: [], secondary_priorities: [], tradeoffs_accepted: [], tradeoffs_forbidden: [],
+      },
+      formula_state: "complete" as const,
+      research_corpus: {
+        raw_candidate_count: 120, qualifying_count: 21, target_count: 15,
+        full_text_count: 14, abstract_only_count: 7, metadata_only_count: 0,
+        evidence_record_count: 10, unique_evidence_study_count: 5,
+        full_text_gate_met: false, status: "partial" as const,
+      },
+      evidence_gaps: [
+        { category: "insufficient_full_text", gap: "Full-text sources: 14/15 target — 7 abstract-only, 0 metadata-only." },
+      ],
+    },
+  ],
+  read_only: true as const,
+};
+
+function renderPagePartial() {
+  readSession.mockReset();
+  readSession.mockResolvedValue(SESSION_PARTIAL_RESEARCH);
+  return render(
+    <MemoryRouter initialEntries={["/formulation-result/2026-01-02-0900-test"]}>
+      <Routes>
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("FormulationResultPage — partial research corpus (2026-08-17 correction)", () => {
+  it("opens the real formula result, never the error page, for a partial-corpus session", async () => {
+    renderPagePartial();
+    await screen.findByText("Water (Aqua)");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("shows a visible partial-research-corpus notice with the real counter", async () => {
+    renderPagePartial();
+    await screen.findByText("Water (Aqua)");
+    expect(screen.getByText("Partial research corpus")).not.toBeNull();
+    expect(screen.getByText(/14 \/ 15/)).not.toBeNull();
+  });
+
+  it("still shows the real insufficient_full_text evidence gap alongside the notice", async () => {
+    renderPagePartial();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    expect(screen.getByText(/14\/15 target/)).not.toBeNull();
+  });
+});

@@ -85,7 +85,7 @@ export function FormulationWorkspaceV2() {
     if (sessionId) navigate("/live");
     try {
       const res = await generateFormulation(brief, cfg, 3);
-      if (res.status === "ok" && res.cards?.length) {
+      if ((res.status === "ok" || res.status === "ok_partial_research") && res.cards?.length) {
         setView({ mode: "cards", cards: res.cards, readOnly: false, papers: res.papers, slug: res.slug });
         notifySessionsChanged(); // refresh the sidebar's saved list
       } else if (res.status === "refused") {

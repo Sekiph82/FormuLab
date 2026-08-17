@@ -19,7 +19,7 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { readSession, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type SessionDetail } from "@/lib/formulationV2";
+import { readSession, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type ResearchCorpusSummary, type SessionDetail } from "@/lib/formulationV2";
 import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
 import { openAndPrintReport } from "@/lib/formulationReport";
 import { cn } from "@/lib/cn";
@@ -111,6 +111,7 @@ export function FormulationResultPage() {
       <TopBar session={session} sessionId={sessionId} t={t} />
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <OriginalRequestBanner brief={session.brief} sessionId={sessionId} navigate={navigate} t={t} />
+        <PartialResearchNotice corpus={card?.research_corpus} t={t} />
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_260px]">
           <VersionCards cards={cards} active={activeVersion} onSelect={selectVersion} t={t} />
@@ -190,6 +191,35 @@ function TopBar({ session, sessionId, t }: { session: SessionDetail; sessionId: 
 }
 
 // --------------------------------------------------- original request ---
+
+/** 2026-08-17 correction: a partial research corpus (10-14 full texts)
+ *  still produces real formulas — this is a visible notice, never the
+ *  error page, and never hidden inside the Evidence tab alone. */
+function PartialResearchNotice({
+  corpus,
+  t,
+}: {
+  corpus: ResearchCorpusSummary | undefined;
+  t: TFunction<readonly ["session", "common"]>;
+}) {
+  if (!corpus || corpus.status !== "partial") return null;
+  return (
+    <div className="mt-3 rounded-card border border-warning/40 bg-warning/10 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <AlertTriangle size={14} className="shrink-0 text-warning" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-warning">
+          {t("formulationResult.partialResearch.badge")}
+        </span>
+        <span className="text-[11px] text-muted">
+          {t("formulationResult.partialResearch.counter", { acquired: corpus.full_text_count, target: corpus.target_count })}
+        </span>
+      </div>
+      <p className="mt-1 text-[12px] leading-relaxed text-text">
+        {t("formulationResult.partialResearch.body", { acquired: corpus.full_text_count, target: corpus.target_count })}
+      </p>
+    </div>
+  );
+}
 
 function OriginalRequestBanner({
   brief,

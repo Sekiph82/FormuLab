@@ -224,7 +224,21 @@ export interface ResearchCorpusSummary {
    *  texts were actually obtained after searching deeper into the
    *  candidate pool. `false` is an honest outcome, not an error. */
   full_text_gate_met?: boolean;
+  /** 2026-08-17 correction — `provenance.py::research_corpus_status()`.
+   *  `"full"` (>= 15 full texts) is normal generation; `"partial"` (10-14)
+   *  still generates formulas with the shortfall disclosed; `"insufficient"`
+   *  (< 10) blocks generation entirely (`GenerateResult.status ===
+   *  "research_corpus_incomplete"`, no card ever reaches the UI). */
+  /** Absent on a pre-2026-08-17 session (never retroactively computed —
+   *  historical sessions stay readable, they just carry no status). */
+  status?: "full" | "partial" | "insufficient";
 }
+
+/** Preferred full-text target = 15, minimum corpus allowed for
+ *  formulation = 10 — mirrors `provenance.RESEARCH_FULL_TEXT_TARGET`/
+ *  `RESEARCH_FULL_TEXT_MINIMUM`, the one authoritative source of truth. */
+export const RESEARCH_FULL_TEXT_TARGET = 15;
+export const RESEARCH_FULL_TEXT_MINIMUM = 10;
 
 /** `manufacturing.py::ProcessStep.to_dict()` — one manufacturing step for
  *  this formula version. `basis` is always one of `"scientific_evidence"`/
@@ -419,7 +433,7 @@ export interface FormulationCard {
 }
 
 export interface GenerateResult {
-  status: "ok" | "refused" | "error" | "human_review_required" | "research_corpus_incomplete";
+  status: "ok" | "ok_partial_research" | "refused" | "error" | "human_review_required" | "research_corpus_incomplete";
   message?: string;
   cards?: FormulationCard[];
   slug?: string;
