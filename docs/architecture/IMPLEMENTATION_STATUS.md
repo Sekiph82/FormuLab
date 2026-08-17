@@ -1,5 +1,13 @@
 # Implementation Status
 
+> **Forward-looking roadmap notice (2026-08-17):** the authoritative,
+> frozen plan for everything remaining to reach FormuLab v1 is
+> [`docs/FORMULAB_V1_FINAL_SCOPE.md`](../FORMULAB_V1_FINAL_SCOPE.md) and
+> [`docs/FORMULAB_V1_TASK_TRACKER.md`](../FORMULAB_V1_TASK_TRACKER.md).
+> This document remains the honest historical record of what was built
+> phase by phase and is not rewritten — but do not follow any "Exact next
+> session" line below as a live roadmap; follow the tracker instead.
+
 Honest state of the Kenya R&D platform transformation. "Done" here means
 implemented, wired in and covered by a passing test — not scaffolded.
 

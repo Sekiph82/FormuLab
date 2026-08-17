@@ -1,0 +1,412 @@
+# FormuLab v1 — Task Tracker
+
+Authoritative operational source of truth for FormuLab v1 completion.
+Scope is frozen by [`docs/FORMULAB_V1_FINAL_SCOPE.md`](FORMULAB_V1_FINAL_SCOPE.md).
+Current execution pointer: [`docs/handoffs/FORMULAB_V1_CURRENT.md`](handoffs/FORMULAB_V1_CURRENT.md).
+
+## Status values
+
+Only three literal values are used. Never `TODO`/`PARTIAL`/`REVIEW`/
+`BLOCKED`/`READY`/`DONE`/`IN PROGRESS`.
+
+- **(blank)** — not started
+- **ON PROCESS** — actively being implemented in the current session
+- **COMPLETED** — implemented, tested, acceptance criteria met, committed
+
+A dependency may explain why a blank task cannot begin yet; its status
+still reads blank until work actually starts.
+
+## Tracker update protocol (mandatory for every future session)
+
+At the **start** of every implementation session:
+1. Read `FORMULAB_V1_FINAL_SCOPE.md`, this tracker, and
+   `handoffs/FORMULAB_V1_CURRENT.md`.
+2. Inspect `git status`.
+3. Select the exact next eligible blank task (respecting `Depends on`).
+4. Change **only** that task's status to `ON PROCESS`.
+5. Update `handoffs/FORMULAB_V1_CURRENT.md`.
+6. Synchronize the task's GitHub issue/checklist status.
+7. Then begin implementation.
+
+**During implementation:**
+8. Bugs required for the selected task to work are documented and fixed
+   under that same task — never a new top-level work package.
+9. Genuinely unrelated discoveries go in that task's Notes only; they are
+   not added to frozen v1 scope and are not implemented unless required.
+10. Never silently change another task to `ON PROCESS`.
+
+**At task completion:**
+11. Run the task's required tests.
+12. Run regression tests proportional to the change.
+13. Record exact test results in the task's Evidence field.
+14. Record acceptance evidence.
+15. Commit the implementation.
+16. Record the commit SHA in the task.
+17. Change status to `COMPLETED`.
+18. Synchronize the GitHub issue/checklist.
+19. Update `handoffs/FORMULAB_V1_CURRENT.md` to the next exact task.
+20. Push normally to `origin/feature/laboratory-stability`.
+21. Never force-push or rewrite history.
+
+A task is **not** COMPLETED merely because code exists — it requires
+implementation + tests + acceptance criteria satisfied + tracker evidence +
+commit + successful push where expected.
+
+## Completion percentage (derived, not guessed)
+
+Recompute from the counts below whenever tasks change. Do not use
+subjective percentages.
+
+| Work package | GitHub issue | Total tasks | COMPLETED | ON PROCESS | blank |
+|---|---|---|---|---|---|
+| FVL-01 | [#2](https://github.com/Sekiph82/FormuLab/issues/2) (closed) | 21 | 21 | 0 | 0 |
+| FVL-02 | [#3](https://github.com/Sekiph82/FormuLab/issues/3) | 24 | 0 | 0 | 24 |
+| FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) | 12 | 0 | 0 | 12 |
+| FVL-04 | [#5](https://github.com/Sekiph82/FormuLab/issues/5) | 12 | 0 | 0 | 12 |
+| FVL-05 | [#6](https://github.com/Sekiph82/FormuLab/issues/6) | 14 | 0 | 0 | 14 |
+| FVL-06 | [#7](https://github.com/Sekiph82/FormuLab/issues/7) | 10 | 0 | 0 | 10 |
+| FVL-07 | [#8](https://github.com/Sekiph82/FormuLab/issues/8) | 16 | 0 | 0 | 16 |
+| FVL-08 | [#9](https://github.com/Sekiph82/FormuLab/issues/9) | 8 | 0 | 0 | 8 |
+| FVL-09 | [#10](https://github.com/Sekiph82/FormuLab/issues/10) | 10 | 0 | 0 | 10 |
+| FVL-10 | [#11](https://github.com/Sekiph82/FormuLab/issues/11) | 10 | 0 | 0 | 10 |
+| FVL-11 | [#12](https://github.com/Sekiph82/FormuLab/issues/12) | 14 | 0 | 0 | 14 |
+| **Total** | milestone [#1](https://github.com/Sekiph82/FormuLab/milestone/1) | **151** | **21** | **0** | **130** |
+
+Overall: **21 / 151 tasks completed (13.9%)**. FVL-01 is the only fully
+closed package (100%, 21/21).
+
+---
+
+## FVL-01 — Phase 14 Closure Baseline
+
+Freeze the completed Phase 14 implementation as the baseline the remaining
+v1 work builds on. Audited directly against source, tests, and the latest
+external log
+(`C:\Users\sekip\Desktop\FormuLab-Phase14-Literature-Formulation-Intelligence-Log.md`)
+on 2026-08-17. Any regression discovered later attaches to the task that
+exposes it — Phase 14 is not redone to generate work.
+
+**Existing dependency / baseline capability**: none — this package *is* the
+baseline every later package depends on.
+
+| Task ID | Title | Status |
+|---|---|---|
+| FVL-01.001 | Zero-LLM formulation generation (no provider/model/api_key/llm_call in `pipeline.run()`) | COMPLETED |
+| FVL-01.002 | Deterministic requirement parsing (`engine.parse_requirements`, controlled vocabulary, scent-character extraction) | COMPLETED |
+| FVL-01.003 | Hybrid literature discovery (OpenAlex/OpenAIRE/Europe PMC/Crossref/DOAJ, Unpaywall OA resolution) | COMPLETED |
+| FVL-01.004 | CanonicalPaper dedup/provenance (`canonical_paper.py`, `provenance_sources`) | COMPLETED |
+| FVL-01.005 | Full-text acquisition gate (`literature_cache.gather`, `discovery_stats.json::full_text_gate_met`) | COMPLETED — policy corrected 2026-08-17, see FVL-01.005 note below |
+| FVL-01.006 | Evidence extraction / A-E classes (`evidence.py`) | COMPLETED |
+| FVL-01.007 | Concentration evidence (six-tier resolution hierarchy, plausibility gate) | COMPLETED |
+| FVL-01.008 | Multi-alternative architecture generation (historical fixed-3, diversity pressure) | COMPLETED — superseded going forward by dynamic 3–7, see FVL-02 |
+| FVL-01.009 | Manufacturing Procedure generation | COMPLETED |
+| FVL-01.010 | Critical Parameters (target vs. hard limit distinction) | COMPLETED |
+| FVL-01.011 | Equipment derivation + availability matching | COMPLETED |
+| FVL-01.012 | Deterministic Safety intelligence (`safety.py`) | COMPLETED |
+| FVL-01.013 | Deterministic Regulatory intelligence (`regulatory.py`) | COMPLETED |
+| FVL-01.014 | Decision traceability (`traceability.py` + UI) | COMPLETED |
+| FVL-01.015 | Structured evidence-gap analysis | COMPLETED |
+| FVL-01.016 | Evidence & Sources UI (fixed columns, expandable rows, Evidence Class/Records) | COMPLETED |
+| FVL-01.017 | Dedicated report generation (`formulationReport.ts`) | COMPLETED |
+| FVL-01.018 | Historical session compatibility (pre-Session-6 cards degrade safely) | COMPLETED |
+| FVL-01.019 | Full regression suite (pytest/cargo/vitest) green | COMPLETED |
+| FVL-01.020 | Fresh desktop build + shortcut verification | COMPLETED |
+| FVL-01.021 | GitHub commit/push state (`8bfc11b`, pushed) | COMPLETED |
+
+**FVL-01.005 note (2026-08-17, same-day correction)**: the recovery round
+that closed this package added a hard `< 15 full texts → zero formulas`
+gate. A same-day follow-up correction replaced that with the three-state
+`full`/`partial`/`insufficient` policy (`RESEARCH_FULL_TEXT_TARGET = 15`,
+`RESEARCH_FULL_TEXT_MINIMUM = 10`) per explicit user instruction — see this
+task's own commit history for the exact change. This is a bug-fix/behavior
+correction to an already-COMPLETED FVL-01 task, not new v1 scope, per the
+scope-change policy §1 rule 3.
+
+**Verification evidence**: `python -m pytest runtime/pipeline -q` — 320/320
+(pre-correction baseline; see FVL-01.005 note for the corrected count).
+Rust: `cargo check --release` clean, `cargo test --release` — 342/342.
+Frontend: `pnpm tsc --noEmit` clean, ESLint clean, `pnpm vitest run` — 138
+files/1248 tests. `git diff --check` clean. Real live acceptance: two
+disposable network requests (hand soap w/ rosemary scent; sulfate-free
+anti-dandruff shampoo) — commit `8bfc11b04142fa30c623c37ca8d7b01d58d0797b`.
+**Commit**: `8bfc11b04142fa30c623c37ca8d7b01d58d0797b`. **Completed**: 2026-08-17.
+
+---
+
+## FVL-02 — Dynamic 3–7 Formula Alternatives
+
+Purpose: implement the frozen requirement in `FORMULAB_V1_FINAL_SCOPE.md`
+§1. Must never fabricate alternatives to hit a requested count.
+
+**Existing dependency / baseline capability**: fixed-3 diversity pressure
+(`strategy.diversity_report`, `engine.build_formula_for_strategy`,
+`avoid_major_role_keys`) from FVL-01.008 — generalized, not rebuilt.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-02.001 | Define request/data contract: `requestedFormulaCount` (or equivalent) on `FormulationBrief`, min 3 / max 7 / default 3 | — | YES | |
+| FVL-02.002 | Python: validate/clamp requested count in `pipeline.run()` (reject/clamp policy for <3 and >7, documented) | FVL-02.001 | YES | |
+| FVL-02.003 | Generalize `strategy.derive_strategies()` from fixed `n=3` to requested N (reuse existing strategy library only, no new categories) | FVL-02.002 | YES | |
+| FVL-02.004 | Generalize deterministic solver loop (`pipeline.py` per-strategy loop) to N cards instead of hardcoded 3 | FVL-02.003 | YES | |
+| FVL-02.005 | Generalize cross-formula diversity pressure (`avoid_major_role_keys`) across N versions | FVL-02.004 | YES | |
+| FVL-02.006 | Generalize `strategy.diversity_report()`/`distinct_architecture_count` to operate over N alternatives, not assume 3 | FVL-02.005 | YES | |
+| FVL-02.007 | Architecture-uniqueness enforcement for N (never pad with a near-duplicate to hit count) | FVL-02.006 | YES | |
+| FVL-02.008 | Insufficient-defensible-alternatives behavior: return M honestly when M < requested N (M ≥ 3 normal case) | FVL-02.006 | YES | |
+| FVL-02.009 | Below-3-defensible-alternatives behavior: mark result incomplete/insufficient rather than fabricate | FVL-02.008 | YES | |
+| FVL-02.010 | `formulaVersionId`/card collection refactor: remove hardcoded v1/v2/v3 branching wherever it exists in `pipeline.py`/`engine.py` | FVL-02.004 | YES | |
+| FVL-02.011 | Session persistence: `cards.json`/session directory representation supports N cards (3–7) | FVL-02.010 | YES | |
+| FVL-02.012 | Rust bridge (`formulation_v2.rs`): remove any 3-card assumption, pass through N cards generically | FVL-02.011 | YES | |
+| FVL-02.013 | TypeScript types (`formulationV2.ts`): `cards: FormulationCard[]` already generic — audit and fix any `[0]`/`[1]`/`[2]`-indexed assumption | FVL-02.012 | YES | |
+| FVL-02.014 | Frontend: dynamic version selector (replaces implicit V1/V2/V3 tab set) driven by real returned card count | FVL-02.013 | YES | |
+| FVL-02.015 | Frontend: responsive handling of 3–7 version selector entries (no layout break, no giant side-by-side table — preserve one-formula-at-a-time UX) | FVL-02.014 | YES | |
+| FVL-02.016 | Frontend: version switching + selected-ingredient reset generalized to N | FVL-02.014 | YES | |
+| FVL-02.017 | Frontend: every version-scoped tab (Manufacturing, Critical Parameters, Equipment, Safety, Regulatory, Evidence & Sources, Alternatives, Summary) reads the active card generically, not `card[0..2]` | FVL-02.014 | YES | |
+| FVL-02.018 | Frontend: Download Report generalized to N formulas (loop, not V1/V2/V3 literals) in `formulationReport.ts` | FVL-02.011 | YES | |
+| FVL-02.019 | Backward compatibility: existing 3-version historical sessions still open and render correctly | FVL-02.017 | YES | |
+| FVL-02.020 | Tests: pytest parametrized for N = 3, 4, 5, 6, 7 (strategy count, diversity, persistence) | FVL-02.009 | YES | |
+| FVL-02.021 | Tests: request > 7 clamped/rejected per FVL-02.002 policy; request < 3 handled per same policy | FVL-02.002 | YES | |
+| FVL-02.022 | Tests: fewer-than-requested scientifically-defensible case (e.g. request 5, only 4 defensible) | FVL-02.008 | YES | |
+| FVL-02.023 | Tests: frontend Vitest for dynamic selector at N=3 and N=7, backward-compat session render | FVL-02.019 | YES | |
+| FVL-02.024 | Real, disposable, zero-LLM network acceptance test at a non-default N (e.g. 5) | FVL-02.020 | YES | |
+
+---
+
+## FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines
+
+Integrate the Phase 14 deterministic pipeline with already-existing FormuLab
+platform capabilities. Do not build replacements.
+
+**Existing dependency / baseline capability** (verified present in
+`docs/architecture/IMPLEMENTATION_STATUS.md`): Cost Engine (§"Cost engine",
+landed cost, exchange rates, inventory records), Advanced Optimizer,
+material substitution/system substitution, Compatibility Engine, Safety
+Engine (product-level), Kenya/EAC Regulatory Engine, Material Master +
+supplier records + price history.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-03.001 | Audit exact integration seam: Material Master ↔ `engine.build_candidate_pool()` (what's read today via `materials_dir`, what's missing) | FVL-01 | YES | |
+| FVL-03.002 | Wire supplier records + price history into candidate concentration/cost basis (one source of truth, no duplicated cost formula) | FVL-03.001 | YES | |
+| FVL-03.003 | Wire landed cost + exchange rates into a real cost-oriented strategy (reuse existing Cost Engine, no reimplementation) | FVL-03.002 | YES | |
+| FVL-03.004 | Wire inventory/raw-material availability into candidate feasibility (missing data stays missing, never assumed available) | FVL-03.001 | NO | |
+| FVL-03.005 | Wire Advanced Optimizer as an optional post-generation refinement of a selected alternative (existing optimizer, not a new solver) | FVL-03.003 | NO | |
+| FVL-03.006 | Wire material substitution engine for an ingredient the candidate pool cannot resolve | FVL-03.001 | NO | |
+| FVL-03.007 | Wire system substitution engine at the formula level where applicable | FVL-03.006 | NO | |
+| FVL-03.008 | Wire Compatibility Engine as an additional hard-constraint check alongside `rules.validate()` (no duplicated compatibility logic) | FVL-03.001 | YES | |
+| FVL-03.009 | Reconcile product-level Safety Engine with Phase 14's `safety.py` — one authoritative safety verdict per formula version, not two disagreeing ones | FVL-03.008 | YES | |
+| FVL-03.010 | Reconcile Kenya/EAC Regulatory Engine with Phase 14's `regulatory.py` — one authoritative regulatory verdict per market, no duplicated rule universe | FVL-03.009 | YES | |
+| FVL-03.011 | Supplier/material provenance remains traceable end-to-end (extends `traceability.py`'s existing model, does not fork it) | FVL-03.002 | YES | |
+| FVL-03.012 | Integration regression suite + real acceptance covering at least one cost-constrained and one substitution-triggered request | FVL-03.005, FVL-03.007, FVL-03.010 | YES | |
+
+---
+
+## FVL-04 — Data Onboarding Through Existing Data Exchange
+
+Use the existing Data Exchange Center (24-template registry). No crawler,
+no parallel import framework.
+
+**Existing dependency / baseline capability**: Data Exchange Center (Phase
+6) — template registry, CSV/XLSX generation, validation/preview engine,
+commit layer, import history — already implemented and tested.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-04.001 | Confirm material master import template covers fields Phase 14's candidate pool needs | — | YES | |
+| FVL-04.002 | Confirm supplier import + supplier-material link templates are sufficient for FVL-03's provenance needs | FVL-04.001 | YES | |
+| FVL-04.003 | Confirm TDS metadata/document import path (existing template or genuinely missing field) | — | NO | |
+| FVL-04.004 | Confirm SDS metadata/document import path | — | NO | |
+| FVL-04.005 | Confirm specifications import path | — | NO | |
+| FVL-04.006 | Confirm price history import feeds FVL-03.002/003 correctly | FVL-04.002 | YES | |
+| FVL-04.007 | Confirm inventory import feeds FVL-03.004 correctly | FVL-04.002 | NO | |
+| FVL-04.008 | Confirm exchange-rate import feeds FVL-03.003 correctly | FVL-04.006 | NO | |
+| FVL-04.009 | Confirm process-parameter import path relevant to Manufacturing Procedure | — | NO | |
+| FVL-04.010 | Regulatory rule/evidence content import: verify `not_verified` seed status is preserved on import, never silently upgraded | — | YES | |
+| FVL-04.011 | Extend the existing template registry only where a genuinely necessary field mapping is proven missing (no new import framework) | FVL-04.001–010 | NO | |
+| FVL-04.012 | Real sample file acceptance test per confirmed/extended template, using disposable fixtures | FVL-04.011 | YES | |
+
+---
+
+## FVL-05 — Historical Experiment Dataset Builder
+
+A derived, versioned dataset builder over existing source-of-truth records.
+Not a duplicate knowledge base. No mutation of source records.
+
+**Existing dependency / baseline capability**: Formula versions, Laboratory
+Trials, TestResult, Stability Studies, DOE studies/runs, corrective
+actions, cost snapshots — all already implemented per
+`IMPLEMENTATION_STATUS.md`.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-05.001 | Define dataset schema version + feature schema version (explicit, incrementable) | FVL-02, FVL-03 | YES | |
+| FVL-05.002 | Row/entity lineage model: every dataset row cites its exact source record IDs | FVL-05.001 | YES | |
+| FVL-05.003 | Extractor: formula version + exact composition + materials + material properties + product family | FVL-05.002 | YES | |
+| FVL-05.004 | Extractor: process plan + actual process observations (from Manufacturing Procedure / real trial records) | FVL-05.002 | YES | |
+| FVL-05.005 | Extractor: LaboratoryTrial + TestResult | FVL-05.002 | YES | |
+| FVL-05.006 | Extractor: stability studies/results | FVL-05.002 | NO | |
+| FVL-05.007 | Extractor: DOE studies/runs/observations | FVL-05.002 | NO | |
+| FVL-05.008 | Extractor: corrective actions when relevant, cost snapshots, packaging/context, environmental/test conditions | FVL-05.002 | NO | |
+| FVL-05.009 | Normalization: units, categorical, numeric — missing values stay missing, no missing-to-zero unless mathematically/domain-explicitly valid | FVL-05.003–008 | YES | |
+| FVL-05.010 | Exact target-variable definitions (per product family / measured response) | FVL-05.009 | YES | |
+| FVL-05.011 | Dataset hash/fingerprint + reproducible rebuild from source records | FVL-05.009 | YES | |
+| FVL-05.012 | Train/validation/test partition rules with leakage prevention (no same-formula-version rows split across partitions) | FVL-05.010 | YES | |
+| FVL-05.013 | Immutable historical linkage — dataset build never mutates a source record | FVL-05.003–008 | YES | |
+| FVL-05.014 | Regression tests: rebuild determinism, missing-value handling, leakage checks, lineage round-trip | FVL-05.011, FVL-05.012 | YES | |
+
+---
+
+## FVL-06 — Instrument & Performance Result Ingestion
+
+Extends the existing Laboratory/TestResult/Data Exchange architecture. Not
+a second lab platform.
+
+**Existing dependency / baseline capability**: Laboratory Trials + Stability
+Studies (spec §9), Data Exchange import/commit layer.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-06.001 | Define structured measured-response schema (pH, viscosity, foam, density, active matter, and only product-family-specific responses with real documented definitions) | FVL-04 | YES | |
+| FVL-06.002 | Spectrophotometric/detergent-performance metric schema (device, method, metric, unit, substrate/fabric, stain type, pretreatment, wash/test conditions, control/reference, replicate) | FVL-06.001 | YES | |
+| FVL-06.003 | Raw measurement + normalized-performance field (only when a deterministic, documented normalization exists — otherwise leave raw-only) | FVL-06.002 | YES | |
+| FVL-06.004 | Raw-file attachment/provenance linkage | FVL-06.002 | NO | |
+| FVL-06.005 | Linkage fields: `formulaVersionId`, `trialId`, `sampleId`, `testDefinitionId`, timestamps | FVL-06.001 | YES | |
+| FVL-06.006 | CSV/Excel instrument import routed through existing Data Exchange (no new import path) | FVL-06.001–005 | YES | |
+| FVL-06.007 | Validation rules for instrument imports (unit consistency, required linkage fields present) | FVL-06.006 | YES | |
+| FVL-06.008 | Import history / commit behavior reuses existing Data Exchange job lifecycle | FVL-06.006 | NO | |
+| FVL-06.009 | Feed instrument/performance data into FVL-05's dataset extractors | FVL-06.001–005, FVL-05.005 | YES | |
+| FVL-06.010 | Real sample instrument-export acceptance test (disposable fixture) | FVL-06.006 | YES | |
+
+---
+
+## FVL-07 — Predictive Performance Engine
+
+Supervised ML, **not** an LLM. Learns from real historical formulation +
+experiment data (FVL-05/FVL-06) to predict measurable performance.
+
+**Existing dependency / baseline capability**: none — this is genuinely new,
+built strictly on top of FVL-05's dataset builder.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-07.001 | Eligibility: minimum dataset size + minimum target observations per product family/target | FVL-05 | YES | |
+| FVL-07.002 | Eligibility: missing-data rules, applicability-domain requirements | FVL-07.001 | YES | |
+| FVL-07.003 | Eligibility: explicit `INSUFFICIENT_DATA` outcome (never trains/serves below threshold) | FVL-07.001, FVL-07.002 | YES | |
+| FVL-07.004 | Feature generation: composition + material/property features, with provenance | FVL-05.003 | YES | |
+| FVL-07.005 | Feature generation: process + test-context + product-family features | FVL-05.004, FVL-06 | YES | |
+| FVL-07.006 | Feature generation: optional interaction features, only when reproducible | FVL-07.004, FVL-07.005 | NO | |
+| FVL-07.007 | Baseline models first (simple deterministic/statistical baseline before any ML candidate) | FVL-07.004–006 | YES | |
+| FVL-07.008 | Candidate model comparison (deterministic/statistical/ML), train/validation/test split, cross-validation where appropriate, recorded random seeds | FVL-07.007 | YES | |
+| FVL-07.009 | Hyperparameter recording — no fabricated result | FVL-07.008 | YES | |
+| FVL-07.010 | Evaluation: appropriate metrics (RMSE/MAE/R² only where mathematically suitable), held-out performance vs. baseline, failure thresholds, acceptance policy | FVL-07.008 | YES | |
+| FVL-07.011 | Model registry: ID/version, dataset hash, feature-schema version, training date, algorithm, params, metrics, target definition, applicability domain, uncertainty method, artifact checksum, status | FVL-07.009, FVL-07.010 | YES | |
+| FVL-07.012 | Prediction API: exact formula/version lineage in, predicted target + uncertainty/CI where supported | FVL-07.011 | YES | |
+| FVL-07.013 | Applicability-domain warning / out-of-domain refusal | FVL-07.012 | YES | |
+| FVL-07.014 | No regulatory/safety override by prediction (hard rule, tested) | FVL-07.012 | YES | |
+| FVL-07.015 | Per-product-family, per-target model training — never one universal model claiming to predict everything | FVL-07.001, FVL-07.011 | YES | |
+| FVL-07.016 | Regression + acceptance tests: eligibility gate, baseline-vs-candidate comparison, registry round-trip, out-of-domain refusal | FVL-07.003, FVL-07.011, FVL-07.013 | YES | |
+
+---
+
+## FVL-08 — Performance Ranking + Existing Optimizer Integration
+
+Rank feasible alternatives using FVL-07's predictions. No single opaque AI
+score.
+
+**Existing dependency / baseline capability**: Advanced Optimizer, Cost
+Engine — reused, not duplicated.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-08.001 | Ranking data model: predicted performance, uncertainty, cost, material availability, compatibility, safety, regulatory, manufacturing feasibility, evidence completeness — kept separately visible, never collapsed into one score | FVL-07.012, FVL-03 | YES | |
+| FVL-08.002 | Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance | FVL-08.001 | YES | |
+| FVL-08.003 | Missing prediction never silently becomes zero; out-of-domain prediction never looks equivalent to a validated one | FVL-08.001, FVL-07.013 | YES | |
+| FVL-08.004 | Cost dimension sourced from the existing Cost Engine (FVL-03.003), never recomputed independently | FVL-08.001 | YES | |
+| FVL-08.005 | Optimization pass uses the existing Advanced Optimizer where applicable (FVL-03.005), not a new solver | FVL-08.001 | NO | |
+| FVL-08.006 | UI: result screen exposes why one alternative ranks differently (per-dimension breakdown, not a single number) | FVL-08.001 | YES | |
+| FVL-08.007 | Persistence + audit trail for every ranking input | FVL-08.001 | YES | |
+| FVL-08.008 | Regression + acceptance test: a Safety-FAIL alternative never outranks a passing one regardless of predicted performance | FVL-08.002 | YES | |
+
+---
+
+## FVL-09 — Active Learning / Next Best Experiment
+
+Uncertainty-aware experiment recommendation over the existing DOE +
+Laboratory architecture. Does not replace the DOE engine.
+
+**Existing dependency / baseline capability**: DOE engine (spec §5),
+Laboratory Trials.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-09.001 | Candidate experiment space definition over the existing formula/DOE model | FVL-07, FVL-02 | YES | |
+| FVL-09.002 | Feasibility filtering (materials, manufacturing) | FVL-09.001, FVL-03 | YES | |
+| FVL-09.003 | Safety/regulatory filtering (hard exclusion, never overridden) | FVL-09.001 | YES | |
+| FVL-09.004 | Uncertainty + defensible acquisition criterion (expected information gain or equivalent, named and documented) | FVL-07.012 | YES | |
+| FVL-09.005 | Diversity + estimated experiment cost where real cost data exists | FVL-09.004, FVL-03.003 | NO | |
+| FVL-09.006 | DOE integration: recommendation ranking + rationale surfaced through the existing DOE UI/workflow | FVL-09.004, FVL-09.002, FVL-09.003 | YES | |
+| FVL-09.007 | Human selection required — no automatic lab execution | FVL-09.006 | YES | |
+| FVL-09.008 | Creation/linkage of a real LaboratoryTrial/DOE run from an accepted recommendation | FVL-09.007 | YES | |
+| FVL-09.009 | Completed-experiment ingestion triggers model retraining (versioned, per FVL-07.011) | FVL-09.008, FVL-07.011 | YES | |
+| FVL-09.010 | Regression test: an unperformed recommendation is never presented/labeled as validated | FVL-09.007 | YES | |
+
+---
+
+## FVL-10 — Closed Laboratory Feedback Loop
+
+Close and trace the full lineage: Generated Formula → Saved Version →
+Laboratory Trial → Actual Process Data → Test Results → Stability Results →
+DOE Observation → Historical Dataset → Model Training → Prediction → Active
+Learning Recommendation → Next Trial → New Data → Retraining.
+
+**Existing dependency / baseline capability**: every individual stage above
+already exists as a FormuLab record type; this package closes the
+traceable chain between them.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-10.001 | ID/provenance model spanning every transition in the chain (extends `traceability.py`'s existing convention) | FVL-03.011, FVL-05.002 | YES | |
+| FVL-10.002 | Immutable references — a later stage cites, never rewrites, an earlier one | FVL-10.001 | YES | |
+| FVL-10.003 | Version relationships across the chain (formula version ↔ trial ↔ result ↔ dataset row ↔ model ↔ prediction ↔ recommendation) | FVL-10.001 | YES | |
+| FVL-10.004 | Corrective-action-derived draft linkage | FVL-10.001 | NO | |
+| FVL-10.005 | DOE-derived draft linkage | FVL-09.008 | NO | |
+| FVL-10.006 | Phase-14-generated draft linkage (formula version ↔ its own generation session) | FVL-10.001 | YES | |
+| FVL-10.007 | Prediction source-model linkage (which exact model version produced a shown prediction) | FVL-07.012, FVL-10.001 | YES | |
+| FVL-10.008 | Retraining lineage (which new data triggered which model version) | FVL-09.009 | YES | |
+| FVL-10.009 | UI navigation across the full chain + audit trail view | FVL-10.003 | YES | |
+| FVL-10.010 | Failure/retry behavior + human gates at each transition; hard rule: no model may rewrite a laboratory result | FVL-10.002 | YES | |
+
+---
+
+## FVL-11 — Final Integrated Acceptance & FormuLab v1 Closure
+
+Closure only — no new feature development.
+
+**Existing dependency / baseline capability**: every prior FVL package.
+
+| Task ID | Title | Depends on | Blocking | Status |
+|---|---|---|---|---|
+| FVL-11.001 | Acceptance matrix design across several genuinely different product families | FVL-02–FVL-10 | YES | |
+| FVL-11.002 | Full-chain acceptance run 1: request → literature → full-text gate → evidence → 3–7 alternatives → materials/masterdata → supplier → cost → optimization → compatibility → safety → regulatory → manufacturing → report | FVL-11.001 | YES | |
+| FVL-11.003 | Full-chain acceptance run 2 (second product family) covering the same chain plus lab trial → measured performance → stability → DOE → historical dataset → predictive model → alternative ranking → active learning → next experiment → retraining → traceability | FVL-11.001 | YES | |
+| FVL-11.004 | Backward compatibility: historical sessions (including pre-dynamic-count V1/V2/V3 sessions) still open correctly | FVL-02.019 | YES | |
+| FVL-11.005 | Old vs. new formulation UI decision — made only after the new UI is proven stable across FVL-11.002/003 | FVL-11.002, FVL-11.003 | YES | |
+| FVL-11.006 | Authorization/role gates + approval gates re-verified end to end; no AI auto-approval anywhere in the chain | FVL-11.002 | YES | |
+| FVL-11.007 | Zero-LLM formulation regression re-confirmed (permanent guard test still passes) | FVL-11.002 | YES | |
+| FVL-11.008 | Data integrity + backup/restore re-verified where relevant to new record types (dataset, model registry, predictions, recommendations) | FVL-10 | YES | |
+| FVL-11.009 | Full regression suite: `runtime/pipeline` pytest, Rust workspace, frontend Vitest, tsc, ESLint, `git diff --check` | FVL-11.002, FVL-11.003 | YES | |
+| FVL-11.010 | Installer build: fresh `formulab.exe`, MSI/NSIS bundles | FVL-11.009 | YES | |
+| FVL-11.011 | `C:\Users\sekip\Desktop\FormuLab.lnk` verification against the fresh build | FVL-11.010 | YES | |
+| FVL-11.012 | GitHub branch state confirmed (local HEAD == `origin/feature/laboratory-stability`, no outstanding blocking issue) | FVL-11.010 | YES | |
+| FVL-11.013 | `docs/handoffs/FORMULAB_V1_CURRENT.md` updated to closure state | FVL-11.012 | YES | |
+| FVL-11.014 | Explicit **FormuLab v1 COMPLETE** declaration recorded, only after every task above is COMPLETED | FVL-11.001–013 | YES | |
+
+---
+
+## Validation
+
+Run `python scripts/validate_v1_tracker.py` before every commit that
+touches this file or `FORMULAB_V1_FINAL_SCOPE.md`. It checks: unique task
+IDs, only allowed status literals, every dependency references a real task
+ID, all eleven `FVL-01`..`FVL-11` packages present and no `FVL-12`+, and
+every task belongs to exactly one package. See that script's own header for
+usage.
