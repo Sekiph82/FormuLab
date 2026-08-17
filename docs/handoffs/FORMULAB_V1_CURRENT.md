@@ -97,39 +97,43 @@ clean) — see the Desktop external log for the complete session account.
 
 ## Exact next task
 
-**`FVL-02.009`** — determine and implement (or explicitly decide against,
-with a recorded reason) a distinct result signal for
-`actual_formula_count` < 3, then close FVL-02. After that: fresh desktop
-build, shortcut update, commit, push, GitHub issue #3 sync. FVL-03's own
-remaining blank tasks (FVL-03.001-012, Cost Engine/Optimizer/
-substitution/Compatibility/Safety/Regulatory integration) remain
-eligible and unblocked once FVL-02 formally closes — not started this
-session.
+**`FVL-03.001`** — blank, NOT STARTED (see above). Cost Engine
+integration — the first blank task in FVL-03's own default execution
+order. Not begun this session.
 
 ## Known blockers
 
-`FVL-02.009` (above) — the only remaining blocking FVL-02 subtask.
+None. FVL-02 is fully closed (24/24).
 
 ## Most recent relevant tests
 
-- `python -m pytest runtime/pipeline -q` — 366 passed, 5 subtests passed.
-- `cargo test --release formulation_v2` — 10/10 (full workspace
-  `cargo test --release` not re-run this session — no bridge/persistence
-  logic changed, only a new test added).
-- `pnpm vitest run` — 138 files / 1274 tests, all passing.
-- `pnpm tsc --noEmit` / `pnpm lint` (ESLint) — clean.
+- `python -m pytest runtime/pipeline -q` — 374 passed, 5 subtests passed.
+- `cargo check --release` — clean. `cargo test --release formulation_v2`
+  — 10/10 (full workspace `cargo test --release` not re-run this
+  session — only `formulation_v2.rs` changed).
+- `pnpm tsc --noEmit` / `pnpm lint` (ESLint) — clean. Targeted `pnpm
+  vitest run` on every file touching `formulationV2.ts`'s types
+  (`FormulationResultPage`/`NewFormulationRequestPage`/
+  `formulationReport` test files) — 63/63 passing; full `pnpm vitest
+  run` (138 files / 1274 tests) last run clean in the immediately prior
+  session, not re-run in full this session since the only frontend
+  change was one additive optional type field.
 - `git diff --check` — clean.
 - Real acceptance: the user's own actual downloaded PDF
   (`10.20431_2455-1538.0402005.pdf`) — 5 scientific formulations
   extracted, requested 5 / actual 4 (honest strategy-applicability
   shortfall), zero SLS in the sulfate-free case, real adaptation trace.
+- Materialized-pipeline reproduction (disposable temp dir, exact Rust
+  embed list) — clean `run_cli.py` execution, no `ImportError`, reached
+  real business logic.
 
 ## Latest commit SHA
 
-`cbda3db59a3dbdd10d2561f1e848ead504ded66f` (== current
-`origin/feature/laboratory-stability`) — this session's FVL-02 work is
-**not yet committed**; see the Desktop external log for the exact file
-list staged for the next commit.
+`d2f5813840df435a74ecd602d88bdde66c50c16c` (pushed to and matching
+`origin/feature/laboratory-stability`) — "fix(v1): close FVL-02
+minimum-alternative status". Previous: `85d4d48aa2bf70eb1d6f893a16acfb077bf552bb`
+— "feat(v1): dynamic 3-7 scientific formulation portfolio selection
+(FVL-02)".
 
 ## Reminder
 
