@@ -453,6 +453,22 @@
       "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is not available for this session",
       "evidenceCount": "{{count}} record(s)",
       "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence",
+      "architecture": {
+        "basis": "Architecture Basis",
+        "source": "Source",
+        "retained": "Retained: {{count}}",
+        "modified": "Modified: {{count}}",
+        "added": "Added: {{count}}",
+        "removed": "Removed: {{count}}",
+        "origins": {
+          "scientific_formulation": "Scientific Formulation",
+          "scientific_formulation_adapted": "Scientific Formulation (Adapted)",
+          "supplier_formulation": "Supplier Formulation",
+          "internal_validated_formula": "Internal Validated Formula",
+          "evidence_assembled": "Evidence-Assembled",
+          "deterministic_rule": "Deterministic Rule"
+        }
+      },
       "massBalance": {
         "incomplete": "This formula's ingredients do not yet sum to 100%.",
         "invalid_over_100": "This formula's explicitly-quantified ingredients exceed 100%.",
@@ -575,7 +591,26 @@
         "discoveredVia": "Discovered Via",
         "resolvedVia": "Resolved Via",
         "evidenceClass": "Evidence Class",
-        "evidenceRecords": "Evidence Records"
+        "evidenceRecords": "Evidence Records",
+        "scientificFormulations": "Sci. Formulations"
+      },
+      "detail": {
+        "identity": "Identity",
+        "discovery": "Discovery",
+        "providerCount": "Provider Count",
+        "fullText": "Full Text",
+        "evidence": "Evidence",
+        "scientificFormulations": "Extracted Formulations",
+        "formulabUsage": "FormuLab Usage",
+        "notUsedThisVersion": "Not used by this version",
+        "unlabeledFormulation": "Unlabeled formulation",
+        "ingredientCount": "{{count}} ingredient(s)",
+        "hasResults": "experimental results available",
+        "ingredient": "Ingredient",
+        "amount": "Amount",
+        "materialMatch": "Material Match",
+        "unresolvedMaterial": "Unresolved material identity",
+        "experimentalResults": "Experimental Results"
       },
       "fullTextYes": "Yes",
       "fullTextNo": "No",
@@ -654,7 +689,11 @@
       "notAvailable": "Required equipment is not yet derived for this formula — Phase 14 Session 5 builds this."
     },
     "alternatives": {
-      "notAvailable": "Ingredient/process alternatives for this version are not yet generated — a later Phase 14 session builds this."
+      "notAvailable": "Ingredient/process alternatives for this version are not yet generated — a later Phase 14 session builds this.",
+      "selected": "Selected Architectures",
+      "rejectedScientific": "Rejected Scientific Architectures",
+      "allRuleOnlyDespiteApplicable": "Every selected version used a deterministic-rule architecture despite an applicable scientific formulation being available.",
+      "noScientificData": "No scientific formulation data is available for this session."
     },
     "manufacturing": {
       "notReady": "This formula version is not ready for manufacturing process planning.",

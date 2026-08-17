@@ -73,10 +73,27 @@ SCHEMA_VERSION = 1
 # "evidence-first, not evidence-attached-afterward" requirement.
 
 ORIGIN_SCIENTIFIC_EVIDENCE = "scientific_evidence"
+ORIGIN_SCIENTIFIC_FORMULATION = "scientific_formulation"
+"""FormuLab v1 correction (FVL-03): distinct from `ORIGIN_SCIENTIFIC_EVIDENCE`
+— this ingredient's role AND concentration come from a real, complete
+formulation architecture a paper reported (`scientific_formulation.py`'s
+own `ScientificFormulationRecord`), not merely an isolated mention. See
+`_ARCHITECTURE_ROLE_LABELS`/`_selection_score`/`resolve_concentration`'s
+own Tier 0 below for exactly how this outranks a bare mention."""
 ORIGIN_SUPPLIER_DATA = "supplier_data"
 ORIGIN_INTERNAL_FORMULAB_DATA = "internal_formulab_data"  # reserved — see module docstring
 ORIGIN_DETERMINISTIC_RULE = "deterministic_rule"
 ORIGIN_USER_REQUIRED = "user_required"
+
+# Real, deterministic architecture-source classification for a whole
+# GENERATED formula version (§11/§25) — never a per-ingredient origin,
+# a whole-formula-level summary of where its architecture came from.
+ARCHITECTURE_SCIENTIFIC_DIRECT = "scientific_formulation"
+ARCHITECTURE_SCIENTIFIC_ADAPTED = "scientific_formulation_adapted"
+ARCHITECTURE_SUPPLIER_FORMULATION = "supplier_formulation"
+ARCHITECTURE_INTERNAL_VALIDATED = "internal_validated_formula"
+ARCHITECTURE_EVIDENCE_ASSEMBLED = "evidence_assembled"
+ARCHITECTURE_DETERMINISTIC_RULE = "deterministic_rule"
 
 
 # --------------------------------------------------- deterministic parser ---
@@ -489,6 +506,11 @@ class IngredientCandidate:
     supplier_material: Optional[Dict[str, Any]] = None
     excluded: bool = False
     exclusion_reason: str = ""
+    scientific_formulation_ref: Optional[Dict[str, Any]] = None
+    """The best (highest-confidence) `ScientificFormulationRecord.to_dict()`
+    row this ingredient came from, when `ORIGIN_SCIENTIFIC_FORMULATION` is
+    among `origins` — real paper DOI, real `source_formulation_id` (e.g.
+    `"F4"`), real reported amount/unit. `None` otherwise."""
 
     def best_evidence_class(self) -> Optional[str]:
         if not self.evidence_records:
@@ -515,12 +537,34 @@ class CandidatePool:
         }
 
 
+def _formulation_amount_pct(row: Dict[str, Any], total_declared: str) -> Optional[float]:
+    """A real, disclosed, narrow convention this class of lab-scale paper
+    uses: a batch made up to a declared `Total` of ~100 (mL/g) means each
+    component's own stated amount already numerically approximates its
+    %w/w or %v/v. Only applied when the source's own declared total is
+    genuinely ~100 — never assumed, never applied to a batch scaled to
+    any other real total."""
+    if row.get("value") is None or row.get("qs"):
+        return None
+    m = re.match(r"^(\d+\.?\d*)", total_declared or "")
+    if not m:
+        return None
+    try:
+        total = float(m.group(1))
+    except ValueError:
+        return None
+    if abs(total - 100.0) > 1.0:
+        return None
+    return float(row["value"])
+
+
 def build_candidate_pool(
     brief: Dict[str, Any],
     constraints: Dict[str, Any],
     ranked_evidence: List[EvidenceRecord],
     materials: List[Dict[str, Any]],
     scent_character: str = "",
+    scientific_formulations: Optional[List[Dict[str, Any]]] = None,
 ) -> CandidatePool:
     avoid_keys = {normalize_ingredient_key(a) for a in constraints.get("avoid", [])}
     user_preferred = {
@@ -544,6 +588,36 @@ def build_candidate_pool(
             if c.key not in excluded_keys:
                 excluded_keys.append(c.key)
         return c.excluded
+
+    # 0. FormuLab v1 correction (FVL-03): a complete scientific formulation
+    #    architecture — its own resolved ingredients get real priority
+    #    (§8/§25) over an isolated evidence MENTION of the same ingredient,
+    #    never a role invented for an unresolved row (§6: unknown material
+    #    identity means the row is preserved for display, never silently
+    #    turned into a role-filling candidate this engine cannot justify).
+    for sf in (scientific_formulations or []):
+        total_declared = sf.get("total_declared", "")
+        for row in sf.get("ingredients", []):
+            key = row.get("normalized_key")
+            if not key or key not in ROLE_MAP:
+                continue
+            c = get(key, row.get("source_name") or key)
+            if ORIGIN_SCIENTIFIC_FORMULATION not in c.origins:
+                c.origins.append(ORIGIN_SCIENTIFIC_FORMULATION)
+            existing = c.scientific_formulation_ref
+            if existing is None or sf.get("evidence_class", "E") < existing.get("evidence_class", "E"):
+                c.scientific_formulation_ref = {
+                    "canonical_paper_id": sf.get("canonical_paper_id", ""),
+                    "doi": sf.get("doi", ""),
+                    "source_title": sf.get("source_title", ""),
+                    "source_formulation_id": sf.get("source_formulation_id", ""),
+                    "table_reference": sf.get("table_reference", ""),
+                    "evidence_class": sf.get("evidence_class", "E"),
+                    "source_amount_pct": _formulation_amount_pct(row, total_declared),
+                    "source_value_text": row.get("value_text", ""),
+                    "source_unit": row.get("unit", ""),
+                }
+            mark_excluded_if_needed(c)
 
     # 1. Scientific evidence — every recognized ingredient mention the
     #    already-ranked evidence pool carries, real origin, real class.
@@ -736,6 +810,28 @@ def resolve_concentration(
     ranked_evidence: List[EvidenceRecord],
     strategy_type: str,
 ) -> ConcentrationResolution:
+    # Tier 0 (FormuLab v1 correction, FVL-03): a real amount reported
+    # inside a complete scientific formulation architecture — real, whole-
+    # formula context Tier 1-3's own isolated evidence mentions do not
+    # carry. Only used when a real, source-derived percentage was actually
+    # computable (`_formulation_amount_pct`'s own honest total≈100 gate;
+    # see that function for why); never a range to "pick within" — the
+    # source reported exactly one real value for this exact ingredient in
+    # this exact architecture, so that value IS the resolution, still
+    # gated by the same `_is_plausible` sanity bound every other tier
+    # already uses.
+    ref = candidate.scientific_formulation_ref
+    if ref and ref.get("source_amount_pct") is not None:
+        pct = ref["source_amount_pct"]
+        if _is_plausible(role, pct, "%"):
+            label = ref.get("source_formulation_id") or "its own source formulation"
+            doi = ref.get("doi") or ref.get("source_title") or "the source paper"
+            return ConcentrationResolution(
+                value=pct, unit="%", basis="formulation", source_type="scientific_evidence",
+                note=f"as reported in {label} of {doi} — a complete scientific formulation "
+                     f"architecture, not an isolated evidence mention",
+            )
+
     # Tier 1-3: evidence. Strict comparable stats first (Session 4's own
     # multi-study statistic); a single real reported concentration next
     # (still a real fact, just not enough independent studies to average).
@@ -814,6 +910,13 @@ def _selection_score(candidate: IngredientCandidate) -> float:
     score = 0.0
     if ORIGIN_USER_REQUIRED in candidate.origins:
         score += 1000.0
+    if ORIGIN_SCIENTIFIC_FORMULATION in candidate.origins:
+        # §8/§25: a complete scientific formulation architecture outranks
+        # a bare ingredient-mention (below) — real whole-formula context,
+        # never enough to outrank an explicit user requirement above.
+        class_weight = {"A": 1.0, "B": 0.6, "C": 0.3, "D": 0.15, "E": 0.05}
+        cls = (candidate.scientific_formulation_ref or {}).get("evidence_class", "E")
+        score += 700.0 + class_weight.get(cls, 0.0) * 100.0
     if ORIGIN_SCIENTIFIC_EVIDENCE in candidate.origins:
         class_weight = {"A": 1.0, "B": 0.7, "C": 0.4, "D": 0.25, "E": 0.1}
         best = candidate.best_evidence_class() or "E"
@@ -842,6 +945,7 @@ class SolvedIngredient:
     concentration: ConcentrationResolution
     evidence_class: Optional[str]
     best_evidence_record: Optional[EvidenceRecord] = None
+    scientific_formulation_ref: Optional[Dict[str, Any]] = None
 
 
 def _best_record(candidate: IngredientCandidate) -> Optional[EvidenceRecord]:
@@ -860,6 +964,66 @@ class FormulaResult:
     state: str
     formula: Dict[str, Any]  # rendered {"name","purpose","ingredients":[...],"warnings":[...]}
     trace_events: List[Any] = field(default_factory=list)  # traceability.TraceEvent
+    architecture_basis: Dict[str, Any] = field(default_factory=dict)
+    """FormuLab v1 correction (FVL-03) — real, computed whole-formula
+    architecture provenance. See `_classify_architecture()`'s own
+    docstring for exactly how `origin`/`retained`/`modified`/`added`/
+    `removed` are derived (never a subjective judgement)."""
+
+
+def _classify_architecture(solved: List[SolvedIngredient], pool: CandidatePool) -> Dict[str, Any]:
+    """§11/§25 — a whole-formula-level architecture-source summary, real
+    and computed, never a per-ingredient origin badge. The DOMINANT
+    scientific formulation is the one the most SELECTED ingredients trace
+    back to (`ORIGIN_SCIENTIFIC_FORMULATION`); `retained`/`removed` count
+    that dominant source's own ROLE_MAP-resolved ingredients that did/did
+    not survive into this version's final selection; `added` counts every
+    selected ingredient that did NOT come from it (any other origin —
+    evidence, supplier, rule); `modified` mirrors `removed` (a source
+    ingredient that had to be functionally replaced still shows up as one
+    real removal from the source architecture, whatever filled its role
+    instead)."""
+    refs = [s.scientific_formulation_ref for s in solved if s.scientific_formulation_ref]
+    if not refs:
+        excluded_sci = [pool.candidates[k].scientific_formulation_ref
+                         for k in pool.excluded_keys
+                         if pool.candidates.get(k) and pool.candidates[k].scientific_formulation_ref]
+        reason = "No applicable scientific formulation architecture was available for this request."
+        if excluded_sci:
+            ref = excluded_sci[0]
+            reason = (f"A scientific formulation architecture was available "
+                      f"({ref.get('source_formulation_id') or 'unlabeled'} of "
+                      f"{ref.get('doi') or ref.get('source_title') or 'a retrieved paper'}), "
+                      f"but at least one of its own ingredients was hard-excluded and no "
+                      f"majority of this version's own selected ingredients trace back to it.")
+        return {"origin": ARCHITECTURE_DETERMINISTIC_RULE, "reason": reason,
+                "source_paper_doi": "", "source_title": "", "source_formulation_id": "",
+                "retained": 0, "modified": 0, "added": 0, "removed": 0}
+
+    counts: Dict[tuple, int] = {}
+    for ref in refs:
+        key = (ref.get("doi") or "", ref.get("source_title") or "", ref.get("source_formulation_id") or "")
+        counts[key] = counts.get(key, 0) + 1
+    dominant_doi, dominant_title, dominant_flabel = max(counts, key=lambda k: counts[k])
+
+    dominant_source_keys = {
+        c.key for c in pool.candidates.values()
+        if c.scientific_formulation_ref
+        and (c.scientific_formulation_ref.get("doi") or "") == dominant_doi
+        and (c.scientific_formulation_ref.get("source_title") or "") == dominant_title
+        and (c.scientific_formulation_ref.get("source_formulation_id") or "") == dominant_flabel
+    }
+    solved_keys = {s.key for s in solved}
+    retained = len(dominant_source_keys & solved_keys)
+    removed = len(dominant_source_keys - solved_keys)
+    added = len([s for s in solved if s.key not in dominant_source_keys])
+    origin = ARCHITECTURE_SCIENTIFIC_DIRECT if removed == 0 else ARCHITECTURE_SCIENTIFIC_ADAPTED
+    return {
+        "origin": origin, "reason": "",
+        "source_paper_doi": dominant_doi, "source_title": dominant_title,
+        "source_formulation_id": dominant_flabel,
+        "retained": retained, "modified": removed, "added": added, "removed": removed,
+    }
 
 
 def _display_name(key: str, fallback: str) -> str:
@@ -927,9 +1091,14 @@ def build_formula_for_strategy(
         for excluded_key in pool.excluded_keys:
             ec = pool.candidates.get(excluded_key)
             if ec and role in ec.roles:
+                reason = f"excluded: {ec.exclusion_reason}"
+                if ec.scientific_formulation_ref:
+                    ref = ec.scientific_formulation_ref
+                    reason += (f" — removed from the scientific formulation architecture "
+                               f"{ref.get('source_formulation_id') or ''} ({ref.get('doi') or ref.get('source_title') or 'source paper'})")
                 trace_events.append(traceability.rejected_event(
                     version_id, role, ec.display_name,
-                    f"excluded: {ec.exclusion_reason}", source_type="deterministic_rule",
+                    reason, source_type="deterministic_rule",
                     rule_id="hard_exclusion",
                 ))
         picked_any = False
@@ -966,6 +1135,7 @@ def build_formula_for_strategy(
                 key=c.key, display_name=_display_name(c.key, c.display_name), role=role,
                 origins=list(c.origins), concentration=resolution,
                 evidence_class=c.best_evidence_class(), best_evidence_record=_best_record(c),
+                scientific_formulation_ref=c.scientific_formulation_ref,
             ))
             trace_events.append(traceability.selected_event(
                 version_id, role, c.display_name, list(c.origins),
@@ -1085,5 +1255,5 @@ def build_formula_for_strategy(
     return FormulaResult(
         strategy=strat, ingredients=solved, missing_roles=missing_roles,
         unresolved_requirements=unresolved_requirements, state=state, formula=formula,
-        trace_events=trace_events,
+        trace_events=trace_events, architecture_basis=_classify_architecture(solved, pool),
     )

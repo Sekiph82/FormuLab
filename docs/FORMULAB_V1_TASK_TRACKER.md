@@ -61,7 +61,7 @@ subjective percentages.
 |---|---|---|---|---|---|
 | FVL-01 | [#2](https://github.com/Sekiph82/FormuLab/issues/2) (closed) | 21 | 21 | 0 | 0 |
 | FVL-02 | [#3](https://github.com/Sekiph82/FormuLab/issues/3) | 24 | 0 | 0 | 24 |
-| FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) | 12 | 0 | 0 | 12 |
+| FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) | 18 | 6 | 0 | 12 |
 | FVL-04 | [#5](https://github.com/Sekiph82/FormuLab/issues/5) | 12 | 0 | 0 | 12 |
 | FVL-05 | [#6](https://github.com/Sekiph82/FormuLab/issues/6) | 14 | 0 | 0 | 14 |
 | FVL-06 | [#7](https://github.com/Sekiph82/FormuLab/issues/7) | 10 | 0 | 0 | 10 |
@@ -70,10 +70,11 @@ subjective percentages.
 | FVL-09 | [#10](https://github.com/Sekiph82/FormuLab/issues/10) | 10 | 0 | 0 | 10 |
 | FVL-10 | [#11](https://github.com/Sekiph82/FormuLab/issues/11) | 10 | 0 | 0 | 10 |
 | FVL-11 | [#12](https://github.com/Sekiph82/FormuLab/issues/12) | 14 | 0 | 0 | 14 |
-| **Total** | milestone [#1](https://github.com/Sekiph82/FormuLab/milestone/1) | **151** | **21** | **0** | **130** |
+| **Total** | milestone [#1](https://github.com/Sekiph82/FormuLab/milestone/1) | **157** | **27** | **0** | **130** |
 
-Overall: **21 / 151 tasks completed (13.9%)**. FVL-01 is the only fully
-closed package (100%, 21/21).
+Overall: **27 / 157 tasks completed (17.2%)**. FVL-01 is the only fully
+closed package (100%, 21/21). FVL-03 is 6/18 (33.3%) after the scientific
+full-formulation architecture correction (FVL-03.013-018).
 
 ---
 
@@ -216,6 +217,26 @@ supplier records + price history.
 | FVL-03.010 | Reconcile Kenya/EAC Regulatory Engine with Phase 14's `regulatory.py` — one authoritative regulatory verdict per market, no duplicated rule universe | FVL-03.009 | YES | |
 | FVL-03.011 | Supplier/material provenance remains traceable end-to-end (extends `traceability.py`'s existing model, does not fork it) | FVL-03.002 | YES | |
 | FVL-03.012 | Integration regression suite + real acceptance covering at least one cost-constrained and one substitution-triggered request | FVL-03.005, FVL-03.007, FVL-03.010 | YES | |
+| FVL-03.013 | Scientific Full-Formulation Extraction — `fulltext.pdf_lines()` (real, standard-library-only, positional PDF text reconstruction) + `scientific_formulation.py`'s deterministic F1..Fn composition-table extractor | FVL-01 | YES | COMPLETED |
+| FVL-03.014 | Scientific Formulation Experimental Outcome Linking — `ExperimentalOutcome` records tied to the correct `source_formulation_id`, both row-indexed (RPM/time tables) and F-labeled-row (results tables) shapes | FVL-03.013 | YES | COMPLETED |
+| FVL-03.015 | Scientific Architecture Candidate Seeding — `engine.build_candidate_pool()`/`resolve_concentration()` Tier 0, `ORIGIN_SCIENTIFIC_FORMULATION`, real priority over a bare evidence mention, never overriding hard constraints | FVL-03.013 | YES | COMPLETED |
+| FVL-03.016 | Scientific Architecture Adaptation Traceability — `engine._classify_architecture()` (`architecture_basis`: origin/source/retained/modified/added/removed), enriched `hard_exclusion` trace events naming the source architecture | FVL-03.015 | YES | COMPLETED |
+| FVL-03.017 | Scientific-vs-Rule Architecture Selection — `pipeline.py`'s session-wide `scientific_formulation_summary` (architectures used/rejected, `rule_only_despite_applicable_scientific_formulation` with a real reason) | FVL-03.015 | YES | COMPLETED |
+| FVL-03.018 | Evidence & Sources Scientific Formulation Detail UI — redesigned compact primary table + full-width detail panel (never clipped/ellipsized), extracted-formulation ingredient/outcome drill-down, Formula-tab Architecture Basis, Alternatives tab (selected/rejected architectures) | FVL-03.013 | YES | COMPLETED |
+
+**Verification (FVL-03.013-018)**: real acceptance against the user's own
+actual downloaded PDF (`10.20431_2455-1538.0402005.pdf`, a real F1-F5
+herbal anti-dandruff shampoo composition table), copied read-only into a
+disposable fixture per this project's own standing data-safety rule — 5
+formulations extracted, 61 experimental outcomes linked, SLS present at
+20/15/10/5/-% across F1-F5 exactly matching the source. `python -m pytest
+runtime/pipeline -q`: 349/349 (23 new: `test_scientific_formulation.py`
+14 + `ScientificFormulationPriorityTests` 9). Rust: `cargo check
+--release` clean, `cargo test --release formulation_v2::` — 9/9 (2 new),
+full workspace `cargo test --release` — 344/344 (2 new). Frontend: `pnpm
+tsc --noEmit` clean, ESLint clean, `pnpm vitest run` — 138 files/1258
+tests (1252 baseline + 6 new: 5 `FormulationResultPage.test.tsx` +
+1 `formulationReport.test.ts`), zero regressions.
 
 ---
 

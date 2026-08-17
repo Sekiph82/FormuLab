@@ -359,14 +359,14 @@ describe("FormulationResultPage — Session 4 provenance/origin/mass-balance/cor
     expect(screen.getByText("Another corpus paper, abstract only")).not.toBeNull();
   });
 
-  it("Evidence & Sources tab shows discovered-via and resolved-via provenance separately, and expands row detail on click", async () => {
+  it("Evidence & Sources tab shows discovered-via and resolved-via provenance in the expanded source detail", async () => {
     renderPageV4();
     await screen.findByText("Piroctone Olamine");
     await userEvent.click(screen.getByRole("tab", { name: "Evidence & Sources" }));
-    expect(screen.getByText("openalex + crossref")).not.toBeNull();
-    expect(screen.getByText("unpaywall")).not.toBeNull();
     await userEvent.click(screen.getByText("A real corpus paper"));
     expect(screen.getAllByText("A real corpus paper").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("openalex + crossref")).not.toBeNull();
+    expect(screen.getByText("unpaywall")).not.toBeNull();
   });
 
   it("Summary tab shows the real decomposed score factors and quality notes", async () => {
@@ -719,5 +719,143 @@ describe("FormulationResultPage — partial research corpus (2026-08-17 correcti
     await screen.findByText("Water (Aqua)");
     await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
     expect(screen.getByText(/14\/15 target/)).not.toBeNull();
+  });
+});
+
+// FormuLab v1 correction (FVL-03): scientific formulation architecture
+// priority, adaptation traceability, and the redesigned Evidence &
+// Sources UI (compact primary table + full-width detail panel).
+const LONG_TITLE = "Formulation and Evaluation of a Real, Genuinely Long Academic Paper Title That Must Never Be Ellipsized Beyond Recognition in the Primary Sources Table";
+
+const SESSION_SCIENTIFIC = {
+  status: "ok" as const,
+  id: "2026-08-17-1800-test",
+  brief: { target: "anti-dandruff shampoo" },
+  cards: [
+    {
+      version: "v1",
+      status: "ok" as const,
+      markdown: "# Formulation Card",
+      formula: {
+        name: "Adapted", purpose: "p",
+        ingredients: [
+          { inci: "Water (Aqua)", function: "Solvent", weight_pct: "q.s. 100" },
+          { inci: "Piroctone Olamine", function: "Active Treatment", weight_pct: "1.0" },
+        ],
+      },
+      violations: [],
+      strategy: {
+        formula_version_id: "v1", label: "V1", strategy_type: "balanced",
+        title: "Adapted", rationale: "r",
+        primary_priorities: [], secondary_priorities: [], tradeoffs_accepted: [], tradeoffs_forbidden: [],
+      },
+      formula_state: "complete" as const,
+      architecture_basis: {
+        origin: "scientific_formulation_adapted" as const,
+        reason: "", source_paper_doi: "10.20431/2455-1538.0402005", source_title: LONG_TITLE,
+        source_formulation_id: "F1", retained: 3, modified: 1, added: 2, removed: 1,
+      },
+      trace_events: [
+        {
+          decision_id: "trace-v1-0001", formula_version_id: "v1", decision_type: "ingredient_rejected",
+          subject_type: "ingredient" as const, subject: "Sodium Lauryl Sulfate", result: "rejected" as const,
+          rationale: "excluded: matches a deterministically excluded ingredient — removed from the scientific formulation architecture F1 (10.20431/2455-1538.0402005)",
+          source_type: "deterministic_rule",
+        },
+      ],
+    },
+  ],
+  literature: [{
+    source_db: "openalex", title: LONG_TITLE, year: "2017", authors: "A. Author",
+    venue: "ARC Journal", doi: "10.20431/2455-1538.0402005", is_oa: true, oa_url: "",
+    cited_by: 3, pdf_file: "10.20431_2455-1538.0402005.pdf", provenance_sources: ["openalex"],
+  }],
+  scientific_formulations: {
+    formulations: [{
+      id: "cp1:F1", canonical_paper_id: "cp1", doi: "10.20431/2455-1538.0402005",
+      source_title: LONG_TITLE, source_year: "2017", source_authors: "A. Author",
+      table_reference: "Table1. Formulation of Herbal Anti-Dandruff Shampoo",
+      source_formulation_id: "F1", product_type: "shampoo", formulation_title: "",
+      ingredients: [
+        { source_name: "Neem oil", value: 0.5, value_text: "0.5", unit: "", qs: false, order: 0, normalized_key: null, material_id: null, identity_status: "unresolved_material_identity" as const },
+        { source_name: "Sodium Lauryl Sulfate", value: 20, value_text: "20", unit: "g", qs: false, order: 1, normalized_key: "sodium-lauryl-sulfate", material_id: null, identity_status: "resolved_known_ingredient" as const },
+      ],
+      total_declared: "100ml", evidence_class: "A" as const, extraction_confidence: "high" as const,
+      missing_fields: [], unresolved_rows: [],
+    }],
+    outcomes: [
+      { source_formulation_id: "F1", metric: "viscosity_cp", value: 95733.33, unit: "", condition: "0.3", raw_text: "0.3 95733.33" },
+    ],
+    summary: {
+      extracted_count: 5, with_outcomes_count: 5,
+      architectures_used: [{ doi: "10.20431/2455-1538.0402005", source_title: LONG_TITLE, source_formulation_id: "F1" }],
+      architectures_rejected: [],
+      all_selected_versions_rule_only: false,
+      rule_only_despite_applicable_scientific_formulation: false,
+    },
+  },
+  read_only: true as const,
+};
+
+function renderPageScientific() {
+  readSession.mockReset();
+  readSession.mockResolvedValue(SESSION_SCIENTIFIC);
+  return render(
+    <MemoryRouter initialEntries={["/formulation-result/2026-08-17-1800-test"]}>
+      <Routes>
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("FormulationResultPage — scientific formulation architecture (FVL-03)", () => {
+  it("Formula tab shows the real architecture basis: source, formulation ID, and adaptation counts", async () => {
+    renderPageScientific();
+    await screen.findByText("Piroctone Olamine");
+    expect(screen.getByText("Scientific Formulation (Adapted)")).not.toBeNull();
+    expect(screen.getByText(/10.20431\/2455-1538.0402005/)).not.toBeNull();
+    expect(screen.getByText(/F1/)).not.toBeNull();
+    expect(screen.getByText("Retained: 3")).not.toBeNull();
+    expect(screen.getByText("Modified: 1")).not.toBeNull();
+    expect(screen.getByText("Added: 2")).not.toBeNull();
+    expect(screen.getByText("Removed: 1")).not.toBeNull();
+  });
+
+  it("Summary tab traceability shows the real adaptation rejection referencing the source architecture", async () => {
+    renderPageScientific();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    expect(screen.getByText(/removed from the scientific formulation architecture F1/)).not.toBeNull();
+  });
+
+  it("Evidence & Sources primary table never ellipsizes a long real title", async () => {
+    renderPageScientific();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByRole("tab", { name: "Evidence & Sources" }));
+    const titleEl = screen.getByText(LONG_TITLE);
+    expect(titleEl).not.toBeNull();
+    expect(titleEl.className).not.toMatch(/truncate/);
+  });
+
+  it("Alternatives tab shows the real selected architecture, never the not-yet-available placeholder", async () => {
+    renderPageScientific();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByRole("tab", { name: "Alternatives" }));
+    expect(screen.getByText("Selected Architectures")).not.toBeNull();
+    expect(screen.getAllByText("Scientific Formulation (Adapted)").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/not yet generated/)).toBeNull();
+  });
+
+  it("Evidence & Sources source detail shows extracted scientific formulations with ingredients and results", async () => {
+    renderPageScientific();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByRole("tab", { name: "Evidence & Sources" }));
+    await userEvent.click(screen.getByText(LONG_TITLE));
+    expect(screen.getByText("Extracted Formulations")).not.toBeNull();
+    await userEvent.click(screen.getByText("F1"));
+    expect(screen.getByText("Neem oil")).not.toBeNull();
+    expect(screen.getByText("Sodium Lauryl Sulfate")).not.toBeNull();
+    expect(screen.getByText(/viscosity_cp/)).not.toBeNull();
   });
 });

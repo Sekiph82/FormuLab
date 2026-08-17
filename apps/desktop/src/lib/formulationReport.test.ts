@@ -106,4 +106,40 @@ describe("buildReportHtml", () => {
     expect(html).toContain("Preferred Target: 15");
     expect(html).toContain("search budget was exhausted");
   });
+
+  it("includes architecture basis and scientific formulation usage (FVL-03 correction)", () => {
+    const scientificCard = card("v1", "Sodium Lauryl Sulfate");
+    (scientificCard as unknown as { architecture_basis: Record<string, unknown> }).architecture_basis = {
+      origin: "scientific_formulation_adapted", reason: "", source_paper_doi: "10.20431/2455-1538.0402005",
+      source_title: "A real paper", source_formulation_id: "F1", retained: 3, modified: 1, added: 2, removed: 1,
+    };
+    const session: SessionDetail = {
+      ...SESSION,
+      cards: [scientificCard, card("v2", "b"), card("v3", "c")],
+      scientific_formulations: {
+        formulations: [{
+          id: "cp1:F1", canonical_paper_id: "cp1", doi: "10.20431/2455-1538.0402005",
+          source_title: "A real paper", source_year: "2017", source_authors: "A",
+          table_reference: "Table1", source_formulation_id: "F1", product_type: "shampoo",
+          formulation_title: "", ingredients: [], total_declared: "100ml",
+          evidence_class: "A", extraction_confidence: "high", missing_fields: [], unresolved_rows: [],
+        }],
+        outcomes: [],
+        summary: {
+          extracted_count: 5, with_outcomes_count: 3,
+          architectures_used: [{ doi: "10.20431/2455-1538.0402005", source_title: "A real paper", source_formulation_id: "F1" }],
+          architectures_rejected: [{ doi: "10.20431/2455-1538.0402005", source_title: "A real paper", source_formulation_id: "F2" }],
+          all_selected_versions_rule_only: false,
+          rule_only_despite_applicable_scientific_formulation: false,
+        },
+      },
+    };
+    const html = buildReportHtml(session, "2026-01-01-test");
+    expect(html).toContain("Architecture Basis");
+    expect(html).toContain("scientific_formulation_adapted");
+    expect(html).toContain("Retained: 3");
+    expect(html).toContain("Scientific Formulation Usage");
+    expect(html).toContain("F1");
+    expect(html).toContain("F2");
+  });
 });

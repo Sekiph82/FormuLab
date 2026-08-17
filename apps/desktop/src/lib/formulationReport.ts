@@ -4,7 +4,7 @@
 // string directly from the already-loaded `SessionDetail` (the same data
 // the result screen itself renders), never from the live app DOM — this is
 // what makes it complete regardless of what the user currently has open.
-import type { FormulationCard, LiteratureDocument, SessionDetail } from "./formulationV2";
+import type { FormulationCard, LiteratureDocument, ScientificFormulationRecord, SessionDetail } from "./formulationV2";
 import { asGeneratedFormula } from "./generatedFormula";
 
 function esc(value: unknown): string {
@@ -36,6 +36,16 @@ function versionSection(card: FormulationCard): string {
   parts.push(`<h3>${esc(card.version.toUpperCase())} — ${esc(card.strategy?.title ?? "")}</h3>`);
   parts.push(`<p class="muted">${esc(card.strategy?.rationale ?? "")}</p>`);
   parts.push(`<p><strong>Formula state:</strong> ${esc(card.formula_state ?? "—")} &nbsp; <strong>Mass balance:</strong> ${esc(card.mass_balance?.status ?? "—")} (${esc(card.mass_balance?.final_total ?? "—")}%)</p>`);
+  if (card.architecture_basis) {
+    const ab = card.architecture_basis;
+    const isScientific = ab.origin === "scientific_formulation" || ab.origin === "scientific_formulation_adapted";
+    parts.push(`<p><strong>Architecture Basis:</strong> ${esc(ab.origin)}${isScientific
+      ? ` — Source: ${esc(ab.source_paper_doi || ab.source_title)}${ab.source_formulation_id ? ` (${esc(ab.source_formulation_id)})` : ""}`
+      + (ab.origin === "scientific_formulation_adapted"
+        ? ` — Retained: ${esc(ab.retained)}, Modified: ${esc(ab.modified)}, Added: ${esc(ab.added)}, Removed: ${esc(ab.removed)}`
+        : "")
+      : (ab.reason ? ` — ${esc(ab.reason)}` : "")}</p>`);
+  }
   parts.push(table(["Ingredient", "Function", "Weight %", "Origin"], rows));
 
   if (card.quality_gate && card.quality_gate.length > 0) {
@@ -90,16 +100,35 @@ function versionSection(card: FormulationCard): string {
   return parts.join("\n");
 }
 
-function sourcesTable(literature: LiteratureDocument[]): string {
+function sourcesTable(literature: LiteratureDocument[], formulations: ScientificFormulationRecord[]): string {
+  const countByDoi = new Map<string, number>();
+  for (const f of formulations) countByDoi.set(f.doi, (countByDoi.get(f.doi) ?? 0) + 1);
   return table(
-    ["Title", "Authors", "Year", "DOI", "Full Text", "Discovered Via", "Resolved Via"],
+    ["Title", "Authors", "Year", "DOI", "Full Text", "Discovered Via", "Resolved Via", "Scientific Formulations"],
     literature.map((d) => [
       d.title, d.authors, d.year, d.doi,
       d.pdf_file ? "Yes" : (d.fulltext || "No"),
       (d.provenance_sources ?? [d.source_db]).join(" + "),
       d.resolved_via || "—",
+      countByDoi.get(d.doi) ?? 0,
     ]),
   );
+}
+
+function scientificFormulationUsageSection(summary: SessionDetail["scientific_formulations"]): string {
+  if (!summary?.summary) return "";
+  const s = summary.summary;
+  const parts = [
+    `<p>Extracted: ${esc(s.extracted_count)} &nbsp; With Experimental Outcomes: ${esc(s.with_outcomes_count)}</p>`,
+    `<h4>Used</h4>`,
+    table(["Source Formulation", "Title/DOI"], s.architectures_used.map((a) => [a.source_formulation_id || "—", a.source_title || a.doi])),
+    `<h4>Rejected</h4>`,
+    table(["Source Formulation", "Title/DOI"], s.architectures_rejected.map((a) => [a.source_formulation_id || "—", a.source_title || a.doi])),
+  ];
+  if (s.rule_only_despite_applicable_scientific_formulation) {
+    parts.push(`<p class="muted">Every selected version used a deterministic-rule architecture despite an applicable scientific formulation being available.</p>`);
+  }
+  return parts.join("\n");
 }
 
 export function buildReportHtml(session: SessionDetail, sessionId: string): string {
@@ -134,7 +163,8 @@ export function buildReportHtml(session: SessionDetail, sessionId: string): stri
       session.cards.map((c) => [c.version, c.strategy?.title ?? "—", c.formula_state ?? c.status, c.mass_balance?.status ?? "—"]),
     )),
     ...session.cards.map((c) => section(`Formula ${c.version.toUpperCase()}`, versionSection(c))),
-    section("Evidence & Sources", sourcesTable(session.literature ?? [])),
+    section("Evidence & Sources", sourcesTable(session.literature ?? [], session.scientific_formulations?.formulations ?? [])),
+    session.scientific_formulations?.summary ? section("Scientific Formulation Usage", scientificFormulationUsageSection(session.scientific_formulations)) : "",
   ].join("\n");
   return `<!doctype html><html><head><meta charset="utf-8"><title>FormuLab Report — ${esc(sessionId)}</title><style>${style}</style></head><body>${body}</body></html>`;
 }

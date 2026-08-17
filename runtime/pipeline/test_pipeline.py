@@ -805,5 +805,173 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertEqual(decision, "refused")
 
 
+# ---------------------------------------------------------------------------
+# FormuLab v1 correction (FVL-03): scientific formulation architecture
+# priority. Fully offline/deterministic — the discovery layer is faked
+# (`lc._load_fetchers`/`lc._download_fulltext`) to hand `pipeline.run()` the
+# user's own REAL local anti-dandruff-shampoo PDF (a genuine F1-F5
+# composition table with 10 ingredient rows and SLS present), copied
+# read-only from the user's own local session directory per this project's
+# standing data-safety rule — never mutated, never referenced from
+# production code, skipped (not failed) when that local file is absent.
+# ---------------------------------------------------------------------------
+
+import shutil
+import unittest as _unittest
+
+_REAL_SHAMPOO_PDF = (
+    r"C:\Users\sekip\Desktop\FormuLab\data\data\sessions\2026-08-17-1706-anti-dandruff-shampoo"
+    r"\literature\pdfs\10.20431_2455-1538.0402005.pdf"
+)
+_FIXTURE_MARKER = "REALPDFFIXTURE"
+_FIXTURE_DOI = "10.20431/2455-1538.0402005"
+
+
+def _sci_fetch(q, n):
+    out = [{
+        "source_db": "openalex",
+        "title": "Formulation and Evaluation of Herbal Anti-Dandruff Shampoo from Bhringraj Leaves",
+        "year": 2017, "authors": "A. Author", "venue": "ARC Journal of Pharmaceutical Sciences",
+        "doi": _FIXTURE_DOI, "is_oa": True, "oa_url": f"https://example.org/{_FIXTURE_MARKER}.pdf",
+        "cited_by": 3, "concepts": "shampoo dandruff",
+        "abstract": "Formulation and evaluation of herbal anti-dandruff shampoo containing "
+                    "neem oil, lemon grass oil, bhringraj powder, henna oil, sodium lauryl sulfate.",
+    }]
+    out += [{
+        "source_db": "openalex", "title": f"Study {q}-{i} antidandruff shampoo surfactant",
+        "year": 2020, "authors": "A", "venue": "J", "doi": f"10.1/{abs(hash(q))}-{i}",
+        "is_oa": True, "oa_url": f"https://example.org/{abs(hash(q))}-{i}.xml",
+        "cited_by": i, "concepts": "shampoo",
+        "abstract": "antidandruff shampoo surfactant formulation piroctone olamine cocamidopropyl betaine",
+    } for i in range(max(n - 1, 0))]
+    return out
+
+
+def _sci_fake_dl(url, dest, timeout=30):
+    if _FIXTURE_MARKER in url:
+        shutil.copyfile(_REAL_SHAMPOO_PDF, dest)
+        return dest, "full text saved"
+    path = dest[:-4] + ".xml"
+    with open(path, "wb") as fh:
+        fh.write(b"<?xml version='1.0'?><article><body><sec><title>Methods</title>"
+                 b"<p>antidandruff shampoo surfactant formulation piroctone olamine 1.0%</p>"
+                 b"</sec></body></article>")
+    return path, "full text saved"
+
+
+class _SciFakeDiscover:
+    FETCHERS = {"openalex": _sci_fetch}
+
+    @staticmethod
+    def is_relevant(_row):
+        return True
+
+
+def _run_with_real_shampoo_pdf(target, category, extra_brief=None):
+    with tempfile.TemporaryDirectory() as tmp:
+        lib = os.path.join(tmp, "library")
+        out = os.path.join(tmp, "session")
+        brief = {"target": target, "category": category}
+        if extra_brief:
+            brief.update(extra_brief)
+        orig_f, orig_d = lc._load_fetchers, lc._download_fulltext
+        lc._load_fetchers = lambda: _SciFakeDiscover
+        lc._download_fulltext = _sci_fake_dl
+        try:
+            return pipeline.run(brief, library=lib, out_dir=out, n=3, download_fulltexts=True)
+        finally:
+            lc._load_fetchers, lc._download_fulltext = orig_f, orig_d
+
+
+@_unittest.skipUnless(os.path.isfile(_REAL_SHAMPOO_PDF), "real local PDF fixture not present on this machine")
+class ScientificFormulationPriorityTests(unittest.TestCase):
+    def test_A_applicable_scientific_formulation_is_extracted_and_considered(self):
+        res = _run_with_real_shampoo_pdf("anti-dandruff shampoo", "shampoo")
+        self.assertIn(res["status"], ("ok", "ok_partial_research"))
+        summary = res["scientific_formulation_summary"]
+        self.assertEqual(summary["extracted_count"], 5)
+        self.assertGreater(summary["with_outcomes_count"], 0)
+
+    def test_B_applicable_formulation_is_selected_as_architecture(self):
+        res = _run_with_real_shampoo_pdf("anti-dandruff shampoo", "shampoo")
+        origins = {c["architecture_basis"]["origin"] for c in res["cards"]}
+        self.assertTrue(origins & {"scientific_formulation", "scientific_formulation_adapted"})
+
+    def test_C_hard_constraint_violation_is_never_copied_unchanged(self):
+        res = _run_with_real_shampoo_pdf(
+            "sulfate-free anti-dandruff shampoo", "shampoo", {"excludedIngredients": "sulfate"},
+        )
+        self.assertIn(res["status"], ("ok", "ok_partial_research"))
+        for c in res["cards"]:
+            names = [i["inci"].lower() for i in c["formula"]["ingredients"]]
+            self.assertFalse(any("sulfate" in n or n == "sls" for n in names))
+
+    def test_D_adaptation_trace_exists_when_source_ingredient_is_removed(self):
+        res = _run_with_real_shampoo_pdf(
+            "sulfate-free anti-dandruff shampoo", "shampoo", {"excludedIngredients": "sulfate"},
+        )
+        for c in res["cards"]:
+            if c["architecture_basis"]["origin"] != "scientific_formulation_adapted":
+                continue
+            rejections = [e for e in c["trace_events"]
+                          if e["result"] == "rejected" and "sulfate" in e["subject"].lower()]
+            self.assertTrue(rejections)
+            self.assertIn("scientific formulation architecture", rejections[0]["rationale"])
+            self.assertEqual(c["architecture_basis"]["removed"], c["architecture_basis"]["modified"])
+            self.assertGreater(c["architecture_basis"]["removed"], 0)
+
+    def test_F_unresolved_source_ingredient_never_becomes_a_role_candidate(self):
+        # Neem oil / Bhringraj Powder have no ROLE_MAP entry — they must
+        # never silently appear as a chosen ingredient with an invented role.
+        res = _run_with_real_shampoo_pdf("anti-dandruff shampoo", "shampoo")
+        for c in res["cards"]:
+            names = [i["inci"] for i in c["formula"]["ingredients"]]
+            self.assertNotIn("Neem oil", names)
+            self.assertNotIn("Bhringraj Powder", names)
+
+    def test_G_multi_column_table_produces_five_formulation_records_one_paper(self):
+        res = _run_with_real_shampoo_pdf("anti-dandruff shampoo", "shampoo")
+        summary = res["scientific_formulation_summary"]
+        self.assertEqual(summary["extracted_count"], 5)
+        # A single downloaded paper's own composition table — never
+        # inflates the unique-study count reported by evidence classes.
+        for c in res["cards"]:
+            self.assertEqual(c["research_corpus"]["scientific_formulation_count"], 5)
+
+    def test_I_scientific_formulation_count_is_independent_of_study_count(self):
+        # Five formulation records from the SAME one paper must never be
+        # mistaken for five separate studies in the unrelated evidence
+        # study-count figure (architecture doc §4's own distinct-counts rule).
+        res = _run_with_real_shampoo_pdf("anti-dandruff shampoo", "shampoo")
+        corpus = res["cards"][0]["research_corpus"]
+        self.assertEqual(corpus["scientific_formulation_count"], 5)
+        self.assertNotEqual(corpus["scientific_formulation_count"], corpus["unique_evidence_study_count"])
+
+    def test_J_scientific_formulation_summary_persists_used_and_rejected_with_reasons(self):
+        res = _run_with_real_shampoo_pdf("anti-dandruff shampoo", "shampoo")
+        summary = res["scientific_formulation_summary"]
+        self.assertEqual(len(summary["architectures_used"]) + len(summary["architectures_rejected"]), 5)
+        self.assertIn("all_selected_versions_rule_only", summary)
+        self.assertIn("rule_only_despite_applicable_scientific_formulation", summary)
+
+    def test_3_to_7_compatibility_scientific_priority_still_honors_requested_n(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            out = os.path.join(tmp, "session")
+            orig_f, orig_d = lc._load_fetchers, lc._download_fulltext
+            lc._load_fetchers = lambda: _SciFakeDiscover
+            lc._download_fulltext = _sci_fake_dl
+            try:
+                res = pipeline.run(
+                    {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                    library=lib, out_dir=out, n=5, download_fulltexts=True,
+                )
+            finally:
+                lc._load_fetchers, lc._download_fulltext = orig_f, orig_d
+        self.assertIn(res["status"], ("ok", "ok_partial_research"))
+        self.assertLessEqual(len(res["cards"]), 5)
+        self.assertGreaterEqual(len(res["cards"]), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

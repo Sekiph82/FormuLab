@@ -1,10 +1,12 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
   AlertTriangle,
   Beaker,
+  ChevronDown,
+  ChevronRight,
   ClipboardList,
   Cog,
   FileDown,
@@ -19,7 +21,7 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { readSession, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type ResearchCorpusSummary, type SessionDetail } from "@/lib/formulationV2";
+import { readSession, type ArchitectureBasis, type ExperimentalOutcome, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type ResearchCorpusSummary, type ScientificFormulationRecord, type ScientificFormulationSummary, type SessionDetail } from "@/lib/formulationV2";
 import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
 import { openAndPrintReport } from "@/lib/formulationReport";
 import { cn } from "@/lib/cn";
@@ -140,8 +142,10 @@ export function FormulationResultPage() {
             <TabContent
               tab={tab}
               card={card}
+              allCards={cards}
               formula={formula}
               literature={session.literature ?? []}
+              scientificFormulations={session.scientific_formulations}
               selectedIngredient={selectedIngredient}
               onSelectIngredient={setSelectedIngredient}
               t={t}
@@ -351,16 +355,20 @@ function VersionComparisonCard({ t }: { t: TFunction<readonly ["session", "commo
 function TabContent({
   tab,
   card,
+  allCards,
   formula,
   literature,
+  scientificFormulations,
   selectedIngredient,
   onSelectIngredient,
   t,
 }: {
   tab: ResultTab;
   card: FormulationCard | undefined;
+  allCards: FormulationCard[];
   formula: GeneratedFormula | undefined;
   literature: LiteratureDocument[];
+  scientificFormulations: SessionDetail["scientific_formulations"];
   selectedIngredient: number | null;
   onSelectIngredient: (i: number) => void;
   t: TFunction<readonly ["session", "common"]>;
@@ -387,9 +395,9 @@ function TabContent({
     case "regulatory":
       return <RegulatoryTab card={card} t={t} />;
     case "evidence":
-      return <EvidenceTab card={card} formula={formula} literature={literature} t={t} />;
+      return <EvidenceTab card={card} formula={formula} literature={literature} scientificFormulations={scientificFormulations} t={t} />;
     case "alternatives":
-      return <NotYetAvailableTab icon={<ClipboardList size={16} />} title={t("formulationResult.tabs.alternatives")} body={t("formulationResult.alternatives.notAvailable")} />;
+      return <AlternativesTab cards={allCards} summary={scientificFormulations?.summary} t={t} />;
     case "summary":
       return <SummaryTab card={card} formula={formula} t={t} />;
     default:
@@ -458,6 +466,8 @@ function FormulaTab({
         <span className="rounded-input bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase text-text">{card.version}</span>
         <h3 className="text-[13px] font-medium text-text">{formula?.name || t("formulationResult.formula.untitled")}</h3>
       </div>
+      {card.architecture_basis && <ArchitectureBasisNotice basis={card.architecture_basis} t={t} />}
+
       <div className="mb-3 flex flex-wrap gap-3 text-[11px] text-muted">
         <span>{t("formulationResult.formula.totalIngredients", { count: ingredients.length })}</span>
         <span className={massBalanceOk === false ? "font-medium text-error" : undefined}>
@@ -550,6 +560,46 @@ function FormulaTab({
         </table>
       </div>
       <p className="mt-3 text-[10px] text-muted">{t("formulationResult.formula.evidenceLegend")}</p>
+    </div>
+  );
+}
+
+/** §19 — a compact, real, computed architecture-provenance area for this
+ *  formula version. Never generic text: a `deterministic_rule` origin
+ *  shows the real, specific `reason` `_classify_architecture()` computed;
+ *  a scientific origin shows the real source DOI/formulation ID and the
+ *  real retained/modified/added/removed counts. */
+function ArchitectureBasisNotice({ basis, t }: { basis: ArchitectureBasis; t: TFunction<readonly ["session", "common"]> }) {
+  const isScientific = basis.origin === "scientific_formulation" || basis.origin === "scientific_formulation_adapted";
+  return (
+    <div className="mb-3 rounded-input border border-border-faint bg-surface-2/40 p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">
+          {t("formulationResult.formula.architecture.basis")}
+        </span>
+        <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-medium text-text">
+          {t(`formulationResult.formula.architecture.origins.${basis.origin}`, { defaultValue: basis.origin })}
+        </span>
+      </div>
+      {isScientific ? (
+        <div className="mt-1.5 space-y-1 text-[11px] text-muted">
+          <div>
+            <span className="text-text">{t("formulationResult.formula.architecture.source")}: </span>
+            {basis.source_paper_doi || basis.source_title || "—"}
+            {basis.source_formulation_id ? ` — ${basis.source_formulation_id}` : ""}
+          </div>
+          {basis.origin === "scientific_formulation_adapted" && (
+            <div className="flex flex-wrap gap-3">
+              <span>{t("formulationResult.formula.architecture.retained", { count: basis.retained })}</span>
+              <span>{t("formulationResult.formula.architecture.modified", { count: basis.modified })}</span>
+              <span>{t("formulationResult.formula.architecture.added", { count: basis.added })}</span>
+              <span>{t("formulationResult.formula.architecture.removed", { count: basis.removed })}</span>
+            </div>
+          )}
+        </div>
+      ) : basis.reason ? (
+        <p className="mt-1.5 text-[11px] text-muted">{basis.reason}</p>
+      ) : null}
     </div>
   );
 }
@@ -1077,11 +1127,13 @@ function EvidenceTab({
   card,
   formula,
   literature,
+  scientificFormulations,
   t,
 }: {
   card: FormulationCard;
   formula: GeneratedFormula | undefined;
   literature: LiteratureDocument[];
+  scientificFormulations: SessionDetail["scientific_formulations"];
   t: TFunction<readonly ["session", "common"]>;
 }) {
   const refs = formula?.references ?? [];
@@ -1151,73 +1203,16 @@ function EvidenceTab({
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.evidenceTab.sources")}>
         {literature.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] table-fixed border-collapse text-[11.5px]">
-              <thead>
-                <tr className="border-b border-border-faint text-left text-[10px] uppercase text-muted">
-                  <th className="w-[26%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.title")}</th>
-                  <th className="w-[13%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.author")}</th>
-                  <th className="w-[6%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.year")}</th>
-                  <th className="w-[12%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.doi")}</th>
-                  <th className="w-[6%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.evidenceClass")}</th>
-                  <th className="w-[9%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.fullText")}</th>
-                  <th className="w-[12%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.discoveredVia")}</th>
-                  <th className="w-[9%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.resolvedVia")}</th>
-                  <th className="w-[7%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.evidenceRecords")}</th>
-                  <th className="w-[7%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.usedByVersion")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {literature.map((doc, i) => (
-                  <Fragment key={i}>
-                    <tr
-                      className="cursor-pointer border-b border-border-faint/60 hover:bg-surface-2"
-                      onClick={() => setExpanded(expanded === i ? null : i)}
-                    >
-                      <td className="truncate py-1 pr-2 text-text" title={doc.title}>{doc.title || "—"}</td>
-                      <td className="truncate py-1 pr-2 text-muted" title={doc.authors}>{doc.authors || "—"}</td>
-                      <td className="py-1 pr-2 text-muted">{doc.year || "—"}</td>
-                      <td className="truncate py-1 pr-2 text-muted" title={doc.doi}>{doc.doi || "—"}</td>
-                      <td className="py-1 pr-2 text-muted">{evidenceByDoi.get(doc.doi)?.bestClass ?? "—"}</td>
-                      <td className="truncate py-1 pr-2 text-muted">
-                        {doc.pdf_file
-                          ? t("formulationResult.evidenceTab.fullTextYes")
-                          : doc.fulltext || t("formulationResult.evidenceTab.fullTextNo")}
-                      </td>
-                      <td className="truncate py-1 pr-2 text-muted" title={(doc.provenance_sources ?? [doc.source_db]).join(", ")}>
-                        {(doc.provenance_sources ?? [doc.source_db]).join(" + ")}
-                      </td>
-                      <td className="truncate py-1 pr-2 text-muted">{doc.resolved_via || "—"}</td>
-                      <td className="py-1 pr-2 text-muted">{evidenceByDoi.get(doc.doi)?.count ?? 0}</td>
-                      <td className="py-1 pr-2 text-muted">
-                        {linkedDois.has(doc.doi) ? card.version?.toUpperCase() : "—"}
-                      </td>
-                    </tr>
-                    {expanded === i && (
-                      <tr className="border-b border-border-faint/60 bg-surface-2/40">
-                        <td colSpan={9} className="px-2 py-2 text-[11px] text-muted">
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.title")}</span><div className="text-text">{doc.title || "—"}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.author")}</span><div className="text-text">{doc.authors || "—"}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.venue")}</span><div className="text-text">{doc.venue || "—"}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.doi")}</span><div className="text-text">{doc.doi || "—"}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.discoveredVia")}</span><div className="text-text">{(doc.provenance_sources ?? [doc.source_db]).join(", ")}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.resolvedVia")}</span><div className="text-text">{doc.resolved_via || "—"}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.oaLabel")}</span><div className="text-text">{doc.is_oa ? t("formulationResult.evidenceTab.oaYes") : t("formulationResult.evidenceTab.oaNo")}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.fullText")}</span><div className="text-text">{doc.pdf_file ? t("formulationResult.evidenceTab.fullTextYes") : (doc.fulltext || t("formulationResult.evidenceTab.fullTextNo"))}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.citedBy")}</span><div className="text-text">{doc.cited_by ?? "—"}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.evidenceClass")}</span><div className="text-text">{evidenceByDoi.get(doc.doi)?.bestClass ?? "—"}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.evidenceRecords")}</span><div className="text-text">{evidenceByDoi.get(doc.doi)?.count ?? 0}</div></div>
-                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.usedByVersion")}</span><div className="text-text">{linkedDois.has(doc.doi) ? card.version?.toUpperCase() : "—"}</div></div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SourcesTable
+            literature={literature}
+            evidenceByDoi={evidenceByDoi}
+            linkedDois={linkedDois}
+            scientificFormulations={scientificFormulations}
+            cardVersion={card.version}
+            expanded={expanded}
+            onToggle={setExpanded}
+            t={t}
+          />
         ) : refs.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[480px] border-collapse text-[11.5px]">
@@ -1254,11 +1249,323 @@ function EvidenceTab({
   );
 }
 
+// FormuLab v1 correction (FVL-03) — Evidence & Sources UI redesign (§15/
+// §16/§17): a compact PRIMARY table (no ellipsized title, no cramped
+// 10-column squeeze) plus a full-width DETAIL PANEL rendered as a sibling
+// of the table (never a `colSpan` row constrained to the table's own
+// column widths — that constraint was the real, structural reason detail
+// content kept clipping). Only one source is expanded at a time; its
+// panel renders directly below the table, at the tab's own full content
+// width.
+function SourcesTable({
+  literature,
+  evidenceByDoi,
+  linkedDois,
+  scientificFormulations,
+  cardVersion,
+  expanded,
+  onToggle,
+  t,
+}: {
+  literature: LiteratureDocument[];
+  evidenceByDoi: Map<string, { count: number; bestClass: string }>;
+  linkedDois: Set<string>;
+  scientificFormulations: SessionDetail["scientific_formulations"];
+  cardVersion: string;
+  expanded: number | null;
+  onToggle: (i: number | null) => void;
+  t: TFunction<readonly ["session", "common"]>;
+}) {
+  const formulationsByDoi = new Map<string, ScientificFormulationRecord[]>();
+  for (const f of scientificFormulations?.formulations ?? []) {
+    const list = formulationsByDoi.get(f.doi) ?? [];
+    list.push(f);
+    formulationsByDoi.set(f.doi, list);
+  }
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-input border border-border-faint">
+        <table className="w-full border-collapse text-[11.5px]">
+          <thead>
+            <tr className="border-b border-border-faint bg-surface-2/60 text-left text-[10px] uppercase text-muted">
+              <th className="w-[36px] py-1.5 pl-2 pr-1">#</th>
+              <th className="py-1.5 pr-2">{t("formulationResult.evidenceTab.columns.title")}</th>
+              <th className="w-[52px] py-1.5 pr-2">{t("formulationResult.evidenceTab.columns.year")}</th>
+              <th className="w-[52px] py-1.5 pr-2">{t("formulationResult.evidenceTab.columns.evidenceClass")}</th>
+              <th className="w-[76px] py-1.5 pr-2">{t("formulationResult.evidenceTab.columns.fullText")}</th>
+              <th className="w-[110px] py-1.5 pr-2">{t("formulationResult.evidenceTab.columns.scientificFormulations")}</th>
+              <th className="w-[90px] py-1.5 pr-2">{t("formulationResult.evidenceTab.columns.usedByVersion")}</th>
+              <th className="w-[44px] py-1.5 pr-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {literature.map((doc, i) => {
+              const sciCount = (formulationsByDoi.get(doc.doi) ?? []).length;
+              const isOpen = expanded === i;
+              return (
+                <tr
+                  key={i}
+                  className={cn("cursor-pointer border-b border-border-faint/60 align-top hover:bg-surface-2", isOpen && "bg-surface-2/70")}
+                  onClick={() => onToggle(isOpen ? null : i)}
+                >
+                  <td className="py-1.5 pl-2 pr-1 text-muted">{i + 1}</td>
+                  <td className="whitespace-normal break-words py-1.5 pr-2 text-text">{doc.title || "—"}</td>
+                  <td className="py-1.5 pr-2 text-muted">{doc.year || "—"}</td>
+                  <td className="py-1.5 pr-2 text-muted">{evidenceByDoi.get(doc.doi)?.bestClass ?? "—"}</td>
+                  <td className="py-1.5 pr-2 text-muted">
+                    {doc.pdf_file
+                      ? t("formulationResult.evidenceTab.fullTextYes")
+                      : t("formulationResult.evidenceTab.fullTextNo")}
+                  </td>
+                  <td className="py-1.5 pr-2 text-muted">{sciCount > 0 ? sciCount : "—"}</td>
+                  <td className="py-1.5 pr-2 text-muted">
+                    {linkedDois.has(doc.doi) ? cardVersion?.toUpperCase() : "—"}
+                  </td>
+                  <td className="py-1.5 pr-2 text-right text-muted">
+                    {isOpen ? <ChevronDown size={13} className="inline" /> : <ChevronRight size={13} className="inline" />}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {expanded !== null && literature[expanded] && (
+        <SourceDetailPanel
+          doc={literature[expanded]}
+          evidence={evidenceByDoi.get(literature[expanded].doi)}
+          used={linkedDois.has(literature[expanded].doi)}
+          cardVersion={cardVersion}
+          formulations={formulationsByDoi.get(literature[expanded].doi) ?? []}
+          outcomes={scientificFormulations?.outcomes ?? []}
+          t={t}
+        />
+      )}
+    </div>
+  );
+}
+
+function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[9px] uppercase tracking-wide text-muted">{label}</div>
+      <div className="mt-0.5 break-words text-[11.5px] text-text">{value ?? "—"}</div>
+    </div>
+  );
+}
+
+function DetailGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-border-faint pt-2 first:border-t-0 first:pt-0">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">{title}</div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">{children}</div>
+    </div>
+  );
+}
+
+/** §17 — the full-width source detail: IDENTITY / DISCOVERY / FULL TEXT /
+ *  EVIDENCE / SCIENTIFIC FORMULATIONS / FORMULAB USAGE. No fabricated
+ *  relevance score — this data model carries no such field, so that
+ *  section is intentionally omitted rather than invented. */
+function SourceDetailPanel({
+  doc,
+  evidence,
+  used,
+  cardVersion,
+  formulations,
+  outcomes,
+  t,
+}: {
+  doc: LiteratureDocument;
+  evidence: { count: number; bestClass: string } | undefined;
+  used: boolean;
+  cardVersion: string;
+  formulations: ScientificFormulationRecord[];
+  outcomes: ExperimentalOutcome[];
+  t: TFunction<readonly ["session", "common"]>;
+}) {
+  const [openFormulation, setOpenFormulation] = useState<number | null>(null);
+  return (
+    <div className="mt-2 space-y-3 rounded-card border border-border bg-surface-2/30 p-3">
+      <DetailGroup title={t("formulationResult.evidenceTab.detail.identity")}>
+        <div className="col-span-2 sm:col-span-3"><DetailField label={t("formulationResult.evidenceTab.columns.title")} value={doc.title} /></div>
+        <DetailField label={t("formulationResult.evidenceTab.columns.author")} value={doc.authors} />
+        <DetailField label={t("formulationResult.evidenceTab.venue")} value={doc.venue} />
+        <DetailField label={t("formulationResult.evidenceTab.columns.year")} value={doc.year} />
+        <DetailField label={t("formulationResult.evidenceTab.columns.doi")} value={doc.doi} />
+        <DetailField label={t("formulationResult.evidenceTab.citedBy")} value={doc.cited_by} />
+      </DetailGroup>
+      <DetailGroup title={t("formulationResult.evidenceTab.detail.discovery")}>
+        <DetailField label={t("formulationResult.evidenceTab.columns.discoveredVia")} value={(doc.provenance_sources ?? [doc.source_db]).join(" + ")} />
+        <DetailField label={t("formulationResult.evidenceTab.detail.providerCount")} value={(doc.provenance_sources ?? [doc.source_db]).length} />
+      </DetailGroup>
+      <DetailGroup title={t("formulationResult.evidenceTab.detail.fullText")}>
+        <DetailField label={t("formulationResult.evidenceTab.columns.fullText")} value={doc.pdf_file ? t("formulationResult.evidenceTab.fullTextYes") : (doc.fulltext || t("formulationResult.evidenceTab.fullTextNo"))} />
+        <DetailField label={t("formulationResult.evidenceTab.columns.resolvedVia")} value={doc.resolved_via} />
+        <DetailField label={t("formulationResult.evidenceTab.oaLabel")} value={doc.is_oa ? t("formulationResult.evidenceTab.oaYes") : t("formulationResult.evidenceTab.oaNo")} />
+      </DetailGroup>
+      <DetailGroup title={t("formulationResult.evidenceTab.detail.evidence")}>
+        <DetailField label={t("formulationResult.evidenceTab.columns.evidenceClass")} value={evidence?.bestClass} />
+        <DetailField label={t("formulationResult.evidenceTab.columns.evidenceRecords")} value={evidence?.count ?? 0} />
+      </DetailGroup>
+      {formulations.length > 0 && (
+        <DetailGroup title={t("formulationResult.evidenceTab.detail.scientificFormulations")}>
+          <div className="col-span-2 sm:col-span-3 space-y-1.5">
+            {formulations.map((f, i) => {
+              const own = outcomes.filter((o) => o.source_formulation_id === f.source_formulation_id);
+              const isOpen = openFormulation === i;
+              return (
+                <div key={f.id} className="rounded-input border border-border-faint bg-surface p-2">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-2 text-left"
+                    onClick={() => setOpenFormulation(isOpen ? null : i)}
+                  >
+                    <span className="text-[11.5px] font-medium text-text">
+                      {f.source_formulation_id || t("formulationResult.evidenceTab.detail.unlabeledFormulation")}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] text-muted">
+                      {t("formulationResult.evidenceTab.detail.ingredientCount", { count: f.ingredients.length })}
+                      {own.length > 0 ? ` · ${t("formulationResult.evidenceTab.detail.hasResults")}` : ""}
+                      {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="mt-2 space-y-2">
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-[10.5px]">
+                          <thead>
+                            <tr className="border-b border-border-faint text-left uppercase text-muted">
+                              <th className="py-1 pr-2">{t("formulationResult.evidenceTab.detail.ingredient")}</th>
+                              <th className="py-1 pr-2">{t("formulationResult.evidenceTab.detail.amount")}</th>
+                              <th className="py-1 pr-2">{t("formulationResult.evidenceTab.detail.materialMatch")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {f.ingredients.map((row, ri) => (
+                              <tr key={ri} className="border-b border-border-faint/50">
+                                <td className="py-0.5 pr-2 text-text">{row.source_name}</td>
+                                <td className="py-0.5 pr-2 text-muted">{row.value_text}{row.unit ? ` ${row.unit}` : ""}</td>
+                                <td className="py-0.5 pr-2 text-muted">
+                                  {row.identity_status === "unresolved_material_identity"
+                                    ? t("formulationResult.evidenceTab.detail.unresolvedMaterial")
+                                    : (row.material_id || row.normalized_key || "—")}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {own.length > 0 && (
+                        <div>
+                          <div className="mb-1 text-[9px] uppercase tracking-wide text-muted">
+                            {t("formulationResult.evidenceTab.detail.experimentalResults")}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {own.slice(0, 12).map((o, oi) => (
+                              <span key={oi} className="rounded-input bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">
+                                {o.metric}{o.condition ? ` @ ${o.condition}` : ""}: {o.value ?? o.raw_text}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </DetailGroup>
+      )}
+      <DetailGroup title={t("formulationResult.evidenceTab.detail.formulabUsage")}>
+        <DetailField
+          label={t("formulationResult.evidenceTab.columns.usedByVersion")}
+          value={used ? cardVersion?.toUpperCase() : t("formulationResult.evidenceTab.detail.notUsedThisVersion")}
+        />
+      </DetailGroup>
+    </div>
+  );
+}
+
 function CorpusCounter({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-input border border-border bg-surface-2/50 p-2">
       <div className="text-[9px] uppercase tracking-wide text-muted">{label}</div>
       <div className="text-[15px] font-semibold text-text">{value}</div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ Tab 8 ---
+
+/** §20 — real, computed architecture selection audit: which architecture
+ *  each SELECTED version actually used (never generic text — each row is
+ *  this version's own real `architecture_basis`), and which scientific
+ *  formulation architectures existed but were not selected by ANY
+ *  version this run, with the real reason `pipeline.py`'s own
+ *  `scientific_formulation_summary` already computed. */
+function AlternativesTab({
+  cards,
+  summary,
+  t,
+}: {
+  cards: FormulationCard[];
+  summary: ScientificFormulationSummary | null | undefined;
+  t: TFunction<readonly ["session", "common"]>;
+}) {
+  const selected = cards.filter((c) => c.status !== "generation_failed");
+  return (
+    <div className="rounded-card border border-border bg-surface p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <ClipboardList size={16} className="text-accent" />
+        <span className="text-[13px] font-medium text-text">{t("formulationResult.tabs.alternatives")}</span>
+      </div>
+      <EvidenceSection title={t("formulationResult.alternatives.selected")}>
+        <div className="space-y-2">
+          {selected.map((c) => {
+            const basis = c.architecture_basis;
+            return (
+              <div key={c.version} className="rounded-input border border-border-faint p-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-input bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text">{c.version}</span>
+                  {basis && (
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-muted">
+                      {t(`formulationResult.formula.architecture.origins.${basis.origin}`, { defaultValue: basis.origin })}
+                    </span>
+                  )}
+                </div>
+                {basis && (basis.source_paper_doi || basis.source_formulation_id) && (
+                  <div className="mt-1 text-[11px] text-muted">
+                    {basis.source_paper_doi || basis.source_title}{basis.source_formulation_id ? ` — ${basis.source_formulation_id}` : ""}
+                  </div>
+                )}
+                {basis?.reason && <div className="mt-1 text-[11px] text-muted">{basis.reason}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </EvidenceSection>
+      {summary && summary.architectures_rejected.length > 0 && (
+        <EvidenceSection title={t("formulationResult.alternatives.rejectedScientific")}>
+          <div className="space-y-1.5">
+            {summary.architectures_rejected.map((r, i) => (
+              <div key={i} className="rounded-input border border-border-faint px-2.5 py-1.5 text-[11.5px]">
+                <span className="font-medium text-text">{r.source_formulation_id || "—"}</span>
+                <span className="text-muted"> — {r.source_title || r.doi}</span>
+              </div>
+            ))}
+          </div>
+        </EvidenceSection>
+      )}
+      {summary?.rule_only_despite_applicable_scientific_formulation && (
+        <div className="mt-3 rounded-input border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+          {t("formulationResult.alternatives.allRuleOnlyDespiteApplicable")}
+        </div>
+      )}
+      {!summary && (
+        <p className="mt-2 text-[11.5px] text-muted">{t("formulationResult.alternatives.noScientificData")}</p>
+      )}
     </div>
   );
 }

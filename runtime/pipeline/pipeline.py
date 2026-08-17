@@ -27,12 +27,14 @@ from typing import Any, Callable, Dict, List
 
 import engine
 import evidence
+import fulltext
 import literature_cache
 import manufacturing
 import materials
 import provenance
 import regulatory
 import safety
+import scientific_formulation
 import strategy
 import validation_plan
 from rules import derive_constraints, validate
@@ -477,6 +479,16 @@ def run(
     # it here changes no other ordering/dependency. Re-used again below
     # rather than re-parsed a second time.
     parsed_requirements = engine.parse_requirements(brief)
+    # Loaded ahead of scientific-formulation extraction below (needs it for
+    # ingredient-identity resolution) and reused again at candidate-pool
+    # construction — a real, live raw-material list when the user has
+    # imported one for this installation, `[]` otherwise (never an error).
+    materials_list: List[Dict[str, Any]] = []
+    if materials_dir:
+        try:
+            materials_list = materials.load_materials(materials_dir).get("materials", [])
+        except OSError:
+            materials_list = []
     queries = build_queries(brief, constraints, scent_character=parsed_requirements.scent_character)
     log(f"planned {len(queries)} retrieval angles")
     # Anchor every retrieved paper to the product itself, so an angle query can
@@ -504,6 +516,39 @@ def run(
         class_counts[r.evidence_class.value] = class_counts.get(r.evidence_class.value, 0) + 1
     log(f"evidence: {len(evidence_records)} record(s) from {studies} unique studies "
         f"(classes: {class_counts or 'none'})")
+
+    # FormuLab v1 correction (FVL-03): complete scientific formulations —
+    # a paper's own real, whole experimental architecture (an F1/F2/F3...
+    # composition table), not just the individual ingredient MENTIONS
+    # `evidence.py` above already extracts. Deterministic, zero-LLM, over
+    # `fulltext.pdf_lines()`'s own real positional PDF text reconstruction
+    # — see `scientific_formulation.py`'s own module docstring for why
+    # this was previously structurally impossible (the old flat-text
+    # excerpt destroys a table's row/column layout).
+    scientific_formulations: List[Dict[str, Any]] = []
+    scientific_outcomes: List[Dict[str, Any]] = []
+    for paper in papers:
+        pdf_lines = fulltext.pdf_lines_for(paper, pdf_dir)
+        if not pdf_lines:
+            continue
+        canonical_id = (paper.get("doi") or "").lower().strip() or re.sub(
+            r"[^a-z0-9]+", " ", (paper.get("title") or "").lower()).strip()
+        records, outcomes = scientific_formulation.extract_scientific_formulations(
+            pdf_lines, canonical_paper_id=canonical_id, doi=paper.get("doi") or "",
+            title=paper.get("title") or "", year=str(paper.get("year") or ""),
+            authors=paper.get("authors") or "", product_type=str(brief.get("category", "")),
+        )
+        if records:
+            records = scientific_formulation.resolve_identities(records, materials_list)
+            scientific_formulations.extend(r.to_dict() for r in records)
+            scientific_outcomes.extend(o.to_dict() for o in outcomes)
+    with open(os.path.join(lit_dir, "scientific_formulations.json"), "w", encoding="utf-8") as fh:
+        json.dump({"formulations": scientific_formulations, "outcomes": scientific_outcomes},
+                   fh, ensure_ascii=False, indent=2)
+    formulations_with_outcomes = len({o["source_formulation_id"] + "::" + o.get("condition", "")
+                                       for o in scientific_outcomes}) if scientific_outcomes else 0
+    log(f"scientific formulations: {len(scientific_formulations)} extracted, "
+        f"{len(scientific_outcomes)} experimental outcome(s) linked")
 
     # Phase 14 Session 4 §5: the research corpus (unique relevant documents)
     # and structured evidence (extracted findings) are NOT interchangeable
@@ -588,15 +633,10 @@ def run(
 
     group = engine.category_group(str(brief.get("category", "")), target)
     role_requirements = engine.resolve_role_requirements(group, brief, constraints, parsed_requirements)
-    materials_list: List[Dict[str, Any]] = []
-    if materials_dir:
-        try:
-            materials_list = materials.load_materials(materials_dir).get("materials", [])
-        except OSError:
-            materials_list = []
     pool = engine.build_candidate_pool(
         brief, constraints, ranked_evidence, materials_list,
         scent_character=parsed_requirements.scent_character,
+        scientific_formulations=scientific_formulations,
     )
     log(f"candidate pool: {pool.to_diagnostics()}")
     if parsed_requirements.unresolved_fragments:
@@ -780,7 +820,13 @@ def run(
             "ingredient_origins": ingredient_origins,
             "comparable_stats": comparable_stats,
             "quality_gate": [qf.to_dict() for qf in quality_gate],
-            "research_corpus": corpus.to_dict(),
+            "research_corpus": {
+                **corpus.to_dict(),
+                "scientific_formulation_count": len(scientific_formulations),
+                "scientific_formulation_with_outcomes_count": len({
+                    o["source_formulation_id"] for o in scientific_outcomes
+                }) if scientific_outcomes else 0,
+            },
             "formula_state": formula_state,
             "missing_roles": result.missing_roles,
             "unresolved_requirements": result.unresolved_requirements,
@@ -790,6 +836,7 @@ def run(
             "validation_plan": [c.to_dict() for c in validation_checks],
             "trace_events": [e.to_dict() for e in result.trace_events],
             "evidence_gaps": evidence_gaps,
+            "architecture_basis": result.architecture_basis,
         })
 
     # Cross-version diversity validation (architecture doc §9). Marks rather
@@ -804,6 +851,47 @@ def run(
                 card["formula"]["warnings"] = list(card["formula"].get("warnings") or []) + [
                     f"Diversity check: {diversity.explanation}",
                 ]
+
+    # FormuLab v1 correction (FVL-03) §14/§25: real, session-wide
+    # architecture-source composition — which scientific formulations
+    # this run actually USED (directly or adapted, by any generated
+    # version) vs. which relevant applicable ones it did NOT, and why not.
+    # Assembled entirely from data the cards above already computed —
+    # never a second scan, never generic filler text.
+    used_source_keys = {
+        (c["architecture_basis"]["source_paper_doi"], c["architecture_basis"]["source_formulation_id"])
+        for c in cards
+        if c.get("architecture_basis", {}).get("origin") in (
+            engine.ARCHITECTURE_SCIENTIFIC_DIRECT, engine.ARCHITECTURE_SCIENTIFIC_ADAPTED,
+        )
+    }
+    architectures_used = []
+    architectures_rejected = []
+    for sf in scientific_formulations:
+        key = (sf.get("doi", ""), sf.get("source_formulation_id", ""))
+        entry = {"doi": sf.get("doi", ""), "source_title": sf.get("source_title", ""),
+                 "source_formulation_id": sf.get("source_formulation_id", "")}
+        if key in used_source_keys:
+            architectures_used.append(entry)
+        else:
+            architectures_rejected.append(entry)
+    all_rule_only = bool(cards) and all(
+        c.get("architecture_basis", {}).get("origin") == engine.ARCHITECTURE_DETERMINISTIC_RULE for c in cards
+    )
+    scientific_formulation_summary = {
+        "extracted_count": len(scientific_formulations),
+        "with_outcomes_count": len({o["source_formulation_id"] for o in scientific_outcomes}) if scientific_outcomes else 0,
+        "architectures_used": architectures_used,
+        "architectures_rejected": architectures_rejected,
+        "all_selected_versions_rule_only": all_rule_only,
+        "rule_only_despite_applicable_scientific_formulation": bool(all_rule_only and scientific_formulations),
+    }
+    with open(os.path.join(lit_dir, "scientific_formulation_summary.json"), "w", encoding="utf-8") as fh:
+        json.dump(scientific_formulation_summary, fh, ensure_ascii=False, indent=2)
+    if scientific_formulation_summary["rule_only_despite_applicable_scientific_formulation"]:
+        log(f"[note] every selected version is rule-only architecture despite "
+            f"{len(scientific_formulations)} applicable scientific formulation(s) being available — "
+            f"see scientific_formulation_summary.json for why each was rejected")
 
     with open(os.path.join(out_dir, "brief.json"), "w", encoding="utf-8") as fh:
         json.dump({"brief": brief, "constraints_reasons": constraints["reasons"]}, fh, ensure_ascii=False, indent=2)
@@ -849,4 +937,5 @@ def run(
             log(f"[warn] could not archive to the formula library: {e}")
 
     return {"status": "ok_partial_research" if partial_research else "ok", "cards": cards, "slug": slug,
-            "papers": len(papers), "archived": archived, "diversity": diversity.to_dict()}
+            "papers": len(papers), "archived": archived, "diversity": diversity.to_dict(),
+            "scientific_formulation_summary": scientific_formulation_summary}

@@ -69,6 +69,7 @@ const F_TRACEABILITY: &str = include_str!("../../../../runtime/pipeline/traceabi
 const F_SAFETY: &str = include_str!("../../../../runtime/pipeline/safety.py");
 const F_REGULATORY: &str = include_str!("../../../../runtime/pipeline/regulatory.py");
 const F_VALIDATION_PLAN: &str = include_str!("../../../../runtime/pipeline/validation_plan.py");
+const F_SCIENTIFIC_FORMULATION: &str = include_str!("../../../../runtime/pipeline/scientific_formulation.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -163,6 +164,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("safety.py", F_SAFETY),
         ("regulatory.py", F_REGULATORY),
         ("validation_plan.py", F_VALIDATION_PLAN),
+        ("scientific_formulation.py", F_SCIENTIFIC_FORMULATION),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }
@@ -411,8 +413,31 @@ pub async fn read_session(
         "brief": read_brief(&dir),
         "cards": read_cards(&dir),
         "literature": read_literature(&dir),
+        "scientific_formulations": read_scientific_formulations(&dir),
         "read_only": true,
     }))
+}
+
+/// FormuLab v1 correction (FVL-03) — the session's real, complete
+/// scientific formulations (`{formulations:[...], outcomes:[...]}`) and
+/// their session-wide usage summary, read back the same generic
+/// `serde_json::Value` passthrough way `read_literature` already reads
+/// `papers.json`. `null`/absent fields (never an error) for a session
+/// written before this correction existed.
+fn read_scientific_formulations(dir: &std::path::Path) -> serde_json::Value {
+    let extraction = std::fs::read_to_string(dir.join("literature").join("scientific_formulations.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({"formulations": [], "outcomes": []}));
+    let summary = std::fs::read_to_string(dir.join("literature").join("scientific_formulation_summary.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .unwrap_or(serde_json::Value::Null);
+    serde_json::json!({
+        "formulations": extraction.get("formulations").cloned().unwrap_or(serde_json::Value::Array(Vec::new())),
+        "outcomes": extraction.get("outcomes").cloned().unwrap_or(serde_json::Value::Array(Vec::new())),
+        "summary": summary,
+    })
 }
 
 /// Phase 14 Session 4: the session's real research corpus —
@@ -598,6 +623,44 @@ mod tests {
         std::fs::create_dir_all(&tmp).unwrap();
         let result = read_literature(&tmp);
         assert_eq!(result.as_array().unwrap().len(), 0);
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// FormuLab v1 correction (FVL-03) — the real, extracted scientific
+    /// formulations and their session-wide usage summary round-trip
+    /// through `read_scientific_formulations`.
+    #[test]
+    fn read_scientific_formulations_returns_the_real_extraction_and_summary() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        let lit = tmp.join("literature");
+        std::fs::create_dir_all(&lit).unwrap();
+        let extraction = serde_json::json!({
+            "formulations": [{"id": "cp1:F1", "source_formulation_id": "F1", "ingredients": []}],
+            "outcomes": [{"source_formulation_id": "F1", "metric": "pH", "value": 5.5}],
+        });
+        std::fs::write(lit.join("scientific_formulations.json"), serde_json::to_string(&extraction).unwrap()).unwrap();
+        let summary = serde_json::json!({"extracted_count": 1, "with_outcomes_count": 1});
+        std::fs::write(lit.join("scientific_formulation_summary.json"), serde_json::to_string(&summary).unwrap()).unwrap();
+
+        let result = read_scientific_formulations(&tmp);
+        assert_eq!(result["formulations"].as_array().unwrap().len(), 1);
+        assert_eq!(result["formulations"][0]["source_formulation_id"], "F1");
+        assert_eq!(result["outcomes"].as_array().unwrap().len(), 1);
+        assert_eq!(result["summary"]["extracted_count"], 1);
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// A pre-correction session (no scientific-formulation files at all)
+    /// must not error — empty arrays and a null summary, never a crash.
+    #[test]
+    fn read_scientific_formulations_degrades_safely_when_absent() {
+        let tmp = std::env::temp_dir().join(format!("formulab-test-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let result = read_scientific_formulations(&tmp);
+        assert_eq!(result["formulations"].as_array().unwrap().len(), 0);
+        assert_eq!(result["outcomes"].as_array().unwrap().len(), 0);
+        assert!(result["summary"].is_null());
         std::fs::remove_dir_all(&tmp).ok();
     }
 

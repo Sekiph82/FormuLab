@@ -179,6 +179,132 @@ def markdown_excerpt(path: str, max_chars: int = 3000) -> str:
     return "\n".join(parts)[:max_chars].rstrip()
 
 
+# --------------------------------------------------- positional PDF lines ---
+# 2026-08-17 correction: `_pdf_text()` below joins every Tj/TJ show-text
+# string in a PDF with a single space, in raw content-stream order — real
+# wording for prose, but it structurally destroys a TABLE's own row/column
+# layout (a formulation table's "Neem oil 0.5 1.0 1.5 2.0 2.5" becomes
+# indistinguishable word-soup mixed in with the rest of the page). This
+# section adds a real, deterministic, standard-library-only alternative
+# that tracks the SAME PDF content-stream text-positioning operators every
+# real PDF renderer already relies on (`Td`/`TD`/`T*` relative moves and
+# `Tm` absolute matrix resets) to reconstruct each VISUAL LINE of the page
+# as its own line — good enough to keep a scientific formulation table's
+# own rows intact. No PDF-parsing dependency added (still stdlib-only,
+# `re`/`zlib`), no OCR, no language model of any kind.
+_TJ_OP_RE = re.compile(
+    rb"\((?:\\.|[^\\()])*+\)\s*Tj"
+    rb"|\[(?:\\.|[^\[\]])*+\]\s*TJ"
+    rb"|-?[\d.]++\s++-?[\d.]++\s++Td"
+    rb"|-?[\d.]++\s++-?[\d.]++\s++TD"
+    rb"|T\*"
+    rb"|-?[\d.]++\s++-?[\d.]++\s++-?[\d.]++\s++-?[\d.]++\s++-?[\d.]++\s++-?[\d.]++\s++Tm"
+)
+_PDF_STR_RE = re.compile(rb"\((?:\\.|[^\\()])*+\)")
+_TD_NUMS_RE = re.compile(rb"(-?[\d.]+)\s+(-?[\d.]+)\s+T[dD]$")
+_TM_NUMS_RE = re.compile(
+    rb"-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+(-?[\d.]+)\s+(-?[\d.]+)\s+Tm$"
+)
+
+
+def _decode_pdf_string(raw: bytes) -> str:
+    s = raw[1:-1]
+    s = re.sub(rb"\\([()\\])", rb"\1", s)
+    s = re.sub(rb"\\[0-7]{1,3}", lambda m: bytes([int(m.group(0)[1:], 8) & 0xFF]), s)
+    s = s.replace(rb"\n", b" ").replace(rb"\r", b" ").replace(rb"\t", b" ")
+    try:
+        return s.decode("utf-8", "ignore")
+    except Exception:
+        return ""
+
+
+def pdf_lines(path: str, max_chars: int = 400_000) -> List[str]:
+    """The PDF's own visual lines, row by row — real positional
+    reconstruction, not a flat word-soup join. A `TJ` array's own string
+    fragments (one per glyph/kerning run) are joined with no separator
+    (a real inter-word space is already its own `( )` fragment inside the
+    array); separate text-showing operators are joined with a single
+    space. A line boundary fires on a genuine vertical move: `Td`/`TD`'s
+    own (tx, ty) is RELATIVE, so `|ty| < 1` is a same-line horizontal
+    shift (e.g. aligning a table column) and anything else is a new row;
+    `T*` is always a new line; `Tm` is ABSOLUTE, so a new line fires only
+    when its own y differs from the previous text run's y. Encrypted or
+    purely scanned PDFs yield nothing, same honest fallback `_pdf_text()`
+    already has."""
+    try:
+        raw = open(path, "rb").read()
+    except Exception:
+        return []
+
+    lines: List[str] = []
+    for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", raw, re.S):
+        chunk = match.group(1)
+        try:
+            chunk = zlib.decompress(chunk)
+        except Exception:
+            continue
+        current: List[str] = []
+        last_y: float | None = None
+        for op in _TJ_OP_RE.finditer(chunk):
+            text = op.group(0)
+            if text.endswith(b"Tj"):
+                m = _PDF_STR_RE.search(text)
+                if m:
+                    s = _decode_pdf_string(m.group(0))
+                    if s.strip():
+                        current.append(s)
+            elif text.endswith(b"TJ"):
+                piece = "".join(_decode_pdf_string(m.group(0)) for m in _PDF_STR_RE.finditer(text))
+                if piece.strip():
+                    current.append(piece)
+            elif text.endswith(b"Td") or text.endswith(b"TD"):
+                nums = _TD_NUMS_RE.search(text)
+                same_line = False
+                if nums:
+                    try:
+                        same_line = abs(float(nums.group(2))) < 1.0
+                    except ValueError:
+                        pass
+                if current and not same_line:
+                    lines.append(" ".join(current))
+                    current = []
+            elif text == b"T*":
+                if current:
+                    lines.append(" ".join(current))
+                    current = []
+            elif text.endswith(b"Tm"):
+                nums = _TM_NUMS_RE.search(text)
+                if nums:
+                    try:
+                        y = float(nums.group(2))
+                        if last_y is not None and current and abs(y - last_y) > 0.5:
+                            lines.append(" ".join(current))
+                            current = []
+                        last_y = y
+                    except ValueError:
+                        pass
+        if current:
+            lines.append(" ".join(current))
+        if sum(len(l) for l in lines) > max_chars:
+            break
+
+    return [re.sub(r"\s+", " ", l).strip() for l in lines if l.strip()]
+
+
+def pdf_lines_for(paper: dict, pdf_dir: str, max_chars: int = 400_000) -> List[str]:
+    """`pdf_lines()` for a paper whose `pdf_file` we downloaded — `[]` for
+    anything that isn't a real, locally-downloaded PDF (an XML/Markdown
+    full text has its own real structure already; use `excerpt_for` for
+    those)."""
+    name = paper.get("pdf_file") or ""
+    if not name.endswith(".pdf"):
+        return []
+    path = os.path.join(pdf_dir, name)
+    if not os.path.isfile(path):
+        return []
+    return pdf_lines(path, max_chars)
+
+
 def _pdf_text(path: str, max_chars: int) -> str:
     """Pull readable text out of a PDF using only the standard library.
 

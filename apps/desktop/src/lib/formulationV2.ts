@@ -232,6 +232,12 @@ export interface ResearchCorpusSummary {
   /** Absent on a pre-2026-08-17 session (never retroactively computed —
    *  historical sessions stay readable, they just carry no status). */
   status?: "full" | "partial" | "insufficient";
+  /** FormuLab v1 correction (FVL-03) — complete scientific formulations
+   *  extracted from this card's own retrieved literature (never the same
+   *  number as `evidence_record_count` — a whole architecture vs. a
+   *  single ingredient mention). */
+  scientific_formulation_count?: number;
+  scientific_formulation_with_outcomes_count?: number;
 }
 
 /** Preferred full-text target = 15, minimum corpus allowed for
@@ -430,6 +436,85 @@ export interface FormulationCard {
   validation_plan?: ValidationCheck[];
   trace_events?: TraceEvent[];
   evidence_gaps?: EvidenceGap[];
+  architecture_basis?: ArchitectureBasis;
+}
+
+/** FormuLab v1 correction (FVL-03) — `engine.py::_classify_architecture()`,
+ *  a whole-formula-level, real, computed architecture-provenance summary.
+ *  Never a per-ingredient origin (see `IngredientOriginMap` for that). */
+export interface ArchitectureBasis {
+  origin: "scientific_formulation" | "scientific_formulation_adapted" | "supplier_formulation"
+    | "internal_validated_formula" | "evidence_assembled" | "deterministic_rule";
+  /** Populated only when `origin === "deterministic_rule"` — explains
+   *  WHY no scientific architecture was used, real and specific, never
+   *  generic filler text. */
+  reason: string;
+  source_paper_doi: string;
+  source_title: string;
+  /** The source table's own real column label, e.g. `"F4"`. */
+  source_formulation_id: string;
+  retained: number;
+  modified: number;
+  added: number;
+  removed: number;
+}
+
+/** `scientific_formulation.py::FormulationIngredientRow.to_dict()`. */
+export interface FormulationIngredientRow {
+  source_name: string;
+  value: number | null;
+  value_text: string;
+  unit: string;
+  qs: boolean;
+  order: number;
+  normalized_key: string | null;
+  material_id: string | null;
+  identity_status: "resolved_known_ingredient" | "resolved_supplier_material" | "unresolved_material_identity";
+}
+
+/** `scientific_formulation.py::ScientificFormulationRecord.to_dict()` —
+ *  one COMPLETE formulation architecture from a real paper's own table
+ *  (e.g. one `F4` column), never a single ingredient mention. */
+export interface ScientificFormulationRecord {
+  id: string;
+  canonical_paper_id: string;
+  doi: string;
+  source_title: string;
+  source_year: string;
+  source_authors: string;
+  table_reference: string;
+  source_formulation_id: string;
+  product_type: string;
+  formulation_title: string;
+  ingredients: FormulationIngredientRow[];
+  total_declared: string;
+  evidence_class: "A" | "B" | "C" | "D" | "E";
+  extraction_confidence: "high" | "low";
+  missing_fields: string[];
+  unresolved_rows: string[];
+}
+
+/** `scientific_formulation.py::ExperimentalOutcome.to_dict()` — a real,
+ *  source-reported measurement tied to ONE specific source formulation. */
+export interface ExperimentalOutcome {
+  source_formulation_id: string;
+  metric: string;
+  value: number | null;
+  unit: string;
+  condition: string;
+  raw_text: string;
+}
+
+/** `pipeline.py`'s own `scientific_formulation_summary` — session-wide,
+ *  which scientific formulations were actually used vs. rejected, and
+ *  why. Assembled from the cards already computed, never a second pass. */
+export interface ScientificFormulationSummary {
+  extracted_count: number;
+  with_outcomes_count: number;
+  architectures_used: { doi: string; source_title: string; source_formulation_id: string }[];
+  architectures_rejected: { doi: string; source_title: string; source_formulation_id: string }[];
+  all_selected_versions_rule_only: boolean;
+  rule_only_despite_applicable_scientific_formulation: boolean;
 }
 
 export interface GenerateResult {
@@ -447,6 +532,7 @@ export interface GenerateResult {
    *  — `provenance.py::ResearchCorpusSummary.to_dict()`, so the caller can
    *  show the real shortfall (X/15 full text) rather than just a message. */
   research_corpus?: Record<string, unknown>;
+  scientific_formulation_summary?: ScientificFormulationSummary;
 }
 
 export interface SessionSummary {
@@ -493,6 +579,11 @@ export interface SessionDetail {
   brief: FormulationBrief | null;
   cards: FormulationCard[];
   literature?: LiteratureDocument[];
+  scientific_formulations?: {
+    formulations: ScientificFormulationRecord[];
+    outcomes: ExperimentalOutcome[];
+    summary: ScientificFormulationSummary | null;
+  };
   read_only: true;
 }
 
