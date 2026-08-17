@@ -52,6 +52,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import evidence as evidence_mod
+import traceability
 from evidence import (
     EvidenceRecord,
     compute_comparable_stats,
@@ -121,6 +122,11 @@ _STRUCTURAL_STOPWORDS = {
     "a", "an", "the", "for", "with", "without", "and", "or", "of", "to", "in",
     "on", "shampoo", "conditioner", "cream", "lotion", "soap", "detergent",
     "cleanser", "wash", "gel", "toothpaste", "mouthwash", "product",
+    # Product-type qualifier words — the same structural role a product's
+    # own head word already plays ("hand soap", "body wash", "facial
+    # cleanser", "liquid soap", "bar soap", "laundry detergent").
+    "hand", "body", "face", "facial", "liquid", "bar", "dish", "dishwashing",
+    "surface", "glass", "laundry", "scent", "fragrance", "aroma",
     # Generic request-framing verbs/nouns that carry no formulation-relevant
     # meaning of their own — filtering these is not "guessing" at content,
     # it is recognizing structural filler common to how a request is
@@ -141,9 +147,23 @@ class RequirementParse:
 
     resolved: List[str]
     unresolved_fragments: List[str]
+    scent_character: str = ""
+    """The word immediately before "scent"/"fragrance"/"aroma" in the
+    request's own text (e.g. "rosemary" from "hand soap with rosemary
+    scent") — a narrow, structural pattern match, not language
+    understanding. `""` when no such phrase is present. A real matching
+    fragrance ingredient is looked up for this character in
+    `build_candidate_pool`; never fabricated when none exists."""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+# A real, narrow structural pattern — "<word> scent/fragrance/aroma" — not
+# unrestricted language understanding: it extracts exactly one adjacent
+# word, the same way a product-head or a claim keyword is matched
+# elsewhere in this module, never interprets the sentence around it.
+_SCENT_PATTERN = re.compile(r"\b([a-z][a-z\-]{2,})\s+(?:scent|fragrance|aroma)\b", re.I)
 
 
 def parse_requirements(brief: Dict[str, Any]) -> RequirementParse:
@@ -162,6 +182,12 @@ def parse_requirements(brief: Dict[str, Any]) -> RequirementParse:
                 consumed_spans.append((idx, idx + len(phrase)))
                 break
 
+    scent_character = ""
+    m = _SCENT_PATTERN.search(hay)
+    if m and m.group(1) not in _STRUCTURAL_STOPWORDS:
+        scent_character = m.group(1)
+        resolved.append("fragrance_requested")
+
     # What's left of `target` after removing every recognized phrase and
     # every structural/head word — real leftover content the parser could
     # not interpret, not a fabricated gap.
@@ -175,6 +201,12 @@ def parse_requirements(brief: Dict[str, Any]) -> RequirementParse:
                 for i in range(idx, idx + len(phrase)):
                     if i < len(masked):
                         masked[i] = " "
+    if scent_character:
+        idx = "".join(masked).find(m.group(0))
+        if idx != -1:
+            for i in range(idx, idx + len(m.group(0))):
+                if i < len(masked):
+                    masked[i] = " "
     leftover_words = [
         w for w in re.findall(r"[a-z0-9\-]+", "".join(masked))
         if w not in _STRUCTURAL_STOPWORDS and len(w) > 2
@@ -182,7 +214,8 @@ def parse_requirements(brief: Dict[str, Any]) -> RequirementParse:
     # De-dup, preserve order.
     unresolved = list(dict.fromkeys(leftover_words))
 
-    return RequirementParse(resolved=sorted(set(resolved)), unresolved_fragments=unresolved)
+    return RequirementParse(resolved=sorted(set(resolved)), unresolved_fragments=unresolved,
+                             scent_character=scent_character)
 
 
 # ------------------------------------------------------- functional roles ---
@@ -192,9 +225,10 @@ PREFERRED = "preferred"
 OPTIONAL = "optional"
 NOT_APPLICABLE = "not_applicable"
 
-_CLEANSING_HEAD = ("shampoo", "body wash", "bodywash", "bar soap", "dishwashing", "dish",
-                    "detergent", "surface cleaner", "glass cleaner", "hand wash", "handwash",
-                    "cleanser", "shower gel")
+_CLEANSING_HEAD = ("shampoo", "body wash", "bodywash", "bar soap", "hand soap", "liquid soap",
+                    "soap", "dishwashing", "dish", "detergent", "laundry", "surface cleaner",
+                    "glass cleaner", "hand wash", "handwash", "cleanser", "face wash",
+                    "facial cleanser", "shower gel")
 _ORAL_HEAD = ("toothpaste", "mouthwash")
 _LEAVE_ON_HEAD = ("cream", "lotion", "conditioner", "serum", "balm", "softener")
 
@@ -249,6 +283,19 @@ FUNCTIONAL_ROLE_LIBRARY: Dict[str, Dict[str, str]] = {
 # elsewhere: this is a bounded, testable solver, not a full mixture
 # optimizer.
 MAX_CANDIDATES_PER_ROLE: Dict[str, int] = {"mildness_cosurfactant": 2}
+
+# The roles that actually DEFINE a formulation's own architecture — the
+# same real distinction `strategy.py`'s own `_MAJOR_SYSTEM_ROLE_LABELS`
+# makes for diversity scoring, kept here as the snake_case role-key form.
+# When a later strategy has a genuine alternative candidate for one of
+# these roles, it is preferred over reusing an earlier version's own
+# choice — real architectural search, not a fixed best-candidate-always
+# solver (Phase 14 Session 6 correction gate).
+MAJOR_SYSTEM_ROLES = {
+    "primary_surfactant", "mildness_cosurfactant", "surfactant", "active_treatment",
+    "active_system", "rheology_modifier", "preservative", "conditioning_agent",
+    "emulsifier", "oil_phase", "abrasive",
+}
 
 
 def category_group(category: str, target: str) -> str:
@@ -473,6 +520,7 @@ def build_candidate_pool(
     constraints: Dict[str, Any],
     ranked_evidence: List[EvidenceRecord],
     materials: List[Dict[str, Any]],
+    scent_character: str = "",
 ) -> CandidatePool:
     avoid_keys = {normalize_ingredient_key(a) for a in constraints.get("avoid", [])}
     user_preferred = {
@@ -577,6 +625,19 @@ def build_candidate_pool(
             if ORIGIN_DETERMINISTIC_RULE not in c.origins:
                 c.origins.append(ORIGIN_DETERMINISTIC_RULE)
             mark_excluded_if_needed(c)
+
+    # A requested scent character ("rosemary scent") is matched against
+    # any REAL candidate already in the pool (from evidence, supplier
+    # data, or the deterministic rule library) whose own key contains it
+    # — never a fabricated ingredient. Boosting `roles` (not creating a
+    # new candidate) means an existing evidence/supplier-backed match
+    # becomes selectable for the fragrance role with its own real origin
+    # intact; if nothing matches, the pool is left exactly as it was and
+    # the solver reports the requirement honestly unresolved.
+    if scent_character:
+        for c in pool.values():
+            if scent_character in c.key and not c.excluded and "fragrance" not in c.roles:
+                c.roles.append("fragrance")
 
     return CandidatePool(candidates=pool, excluded_keys=excluded_keys)
 
@@ -798,6 +859,7 @@ class FormulaResult:
     unresolved_requirements: List[str]
     state: str
     formula: Dict[str, Any]  # rendered {"name","purpose","ingredients":[...],"warnings":[...]}
+    trace_events: List[Any] = field(default_factory=list)  # traceability.TraceEvent
 
 
 def _display_name(key: str, fallback: str) -> str:
@@ -815,7 +877,19 @@ def build_formula_for_strategy(
     constraints: Dict[str, Any],
     parsed: RequirementParse,
     max_candidates_per_role: Dict[str, int] = MAX_CANDIDATES_PER_ROLE,
+    avoid_major_role_keys: Optional[Dict[str, set]] = None,
 ) -> FormulaResult:
+    """`avoid_major_role_keys`: `{role: {already-used ingredient keys}}`,
+    accumulated by the caller (`pipeline.py`) across the versions already
+    built for this session. For a `MAJOR_SYSTEM_ROLES` role, a genuinely
+    different, non-excluded, non-worse-ranked-out-of-candidates candidate
+    is preferred over reusing an earlier version's own choice — real
+    architectural search across strategies, not a fixed best-candidate-
+    always solver (Phase 14 Session 6 correction gate). Never forces a
+    worse-than-unresolvable substitute: if no alternative exists for a
+    role, the same real candidate is reused and the true shortfall shows
+    up honestly in `strategy.diversity_report()` instead of being papered
+    over here."""
     strategy_type = getattr(strat, "strategy_type", "balanced")
     # Strategies that explicitly trade sensory/process richness for
     # simplicity skip OPTIONAL roles — a real, named difference between
@@ -826,6 +900,9 @@ def build_formula_for_strategy(
     solved: List[SolvedIngredient] = []
     missing_roles: List[Dict[str, str]] = []
     used_keys: set = set()
+    version_id = getattr(strat, "formula_version_id", "v?")
+    traceability.reset_id_counter(version_id)
+    trace_events: List[Any] = []
 
     ordered_roles = sorted(role_requirements.items(), key=lambda kv: {REQUIRED: 0, PREFERRED: 1, OPTIONAL: 2}.get(kv[1], 3))
     for role, level in ordered_roles:
@@ -834,9 +911,29 @@ def build_formula_for_strategy(
         if level == OPTIONAL and skip_optional:
             continue
         cap = max_candidates_per_role.get(role, 1)
-        candidates = [c for c in _candidates_for_role(pool, role) if c.key not in used_keys]
+        role_candidates = _candidates_for_role(pool, role)
+        candidates = [c for c in role_candidates if c.key not in used_keys]
+        if role in MAJOR_SYSTEM_ROLES and avoid_major_role_keys and avoid_major_role_keys.get(role):
+            already_used = avoid_major_role_keys[role]
+            alternative = [c for c in candidates if c.key not in already_used]
+            if alternative:
+                candidates = alternative
+            # else: no genuinely different candidate exists for this major
+            # role — honestly reuse; the resulting lack of diversity is
+            # what `strategy.diversity_report()` will correctly flag.
+        # Every candidate that could theoretically fill this role but was
+        # excluded (a hard rule/user exclusion) is a real, traceable
+        # rejection — never silently absent from the trace.
+        for excluded_key in pool.excluded_keys:
+            ec = pool.candidates.get(excluded_key)
+            if ec and role in ec.roles:
+                trace_events.append(traceability.rejected_event(
+                    version_id, role, ec.display_name,
+                    f"excluded: {ec.exclusion_reason}", source_type="deterministic_rule",
+                    rule_id="hard_exclusion",
+                ))
         picked_any = False
-        for c in candidates[:cap]:
+        for rank, c in enumerate(candidates[:cap]):
             # The solvent is always the q.s.-to-100 closing ingredient
             # (rendered below) — it structurally has no percentage to
             # "resolve" the way every other role's ingredient does, so it
@@ -856,6 +953,12 @@ def build_formula_for_strategy(
                                   f"supplier range, or applicable engineering default gives it a "
                                   f"defensible concentration",
                     })
+                trace_events.append(traceability.rejected_event(
+                    version_id, role, c.display_name,
+                    "no evidence, supplier range, or applicable engineering default gives a "
+                    "defensible concentration", source_type=(c.origins[0] if c.origins else ""),
+                    rule_id="concentration_unresolved",
+                ))
                 continue
             used_keys.add(c.key)
             picked_any = True
@@ -864,11 +967,36 @@ def build_formula_for_strategy(
                 origins=list(c.origins), concentration=resolution,
                 evidence_class=c.best_evidence_class(), best_evidence_record=_best_record(c),
             ))
+            trace_events.append(traceability.selected_event(
+                version_id, role, c.display_name, list(c.origins),
+                source_ids=([c.supplier_material.get("material_id", "")] if c.supplier_material else []),
+                evidence_ids=[r.paper_doi for r in c.evidence_records if r.paper_doi][:5],
+                rationale=f"highest-ranked non-excluded candidate for {role} "
+                          f"(origins: {', '.join(c.origins)})",
+                input_values={"role": role, "level": level},
+                output_values={"concentration": resolution.value, "unit": resolution.unit,
+                                "source_type": resolution.source_type},
+                status=resolution.source_type,
+            ))
+        # A candidate that filled the role's own candidate list but lost to
+        # the cap (e.g. a third co-surfactant when only two are used) is a
+        # real, named rejection too — never silently dropped from the trace.
+        for c in candidates[cap:]:
+            trace_events.append(traceability.rejected_event(
+                version_id, role, c.display_name,
+                f"role already filled by {cap} higher-ranked candidate(s)",
+                source_type=(c.origins[0] if c.origins else ""), rule_id="role_capacity_exceeded",
+            ))
         if not picked_any and level == REQUIRED and not any(m["role"] == role for m in missing_roles):
             missing_roles.append({
                 "role": role, "level": level,
                 "reason": "no non-excluded candidate in the pool fills this required role",
             })
+        trace_events.append(traceability.role_coverage_event(
+            version_id, role, level, covered=picked_any,
+            rationale=(f"filled by {sum(1 for s in solved if s.role == role)} ingredient(s)" if picked_any
+                       else f"no candidate available/resolvable for this {level} role"),
+        ))
 
     # The solvent is always the q.s.-to-100 closing ingredient — never given
     # an explicit percentage (its resolved concentration, if any, is
@@ -895,6 +1023,23 @@ def build_formula_for_strategy(
         warnings.append(
             "Could not deterministically interpret: " + ", ".join(unresolved_requirements)
             + " — no assumption was made; address explicitly if this affects the formulation."
+        )
+    # A generic fragrance ingredient (e.g. the real rules.py FRAGRANCE
+    # vocabulary — "perfume"/"parfum") satisfying the fragrance ROLE is
+    # not the same as satisfying a SPECIFIC requested scent character
+    # ("rosemary scent") — checked by key match, the same real signal
+    # `build_candidate_pool` used to boost a genuine match's own roles, so
+    # a generic fragrance placeholder is never mistaken for having
+    # resolved the actual request.
+    scent_satisfied = any(
+        s.role == "fragrance" and parsed.scent_character in s.key for s in solved
+    ) if parsed.scent_character else True
+    if parsed.scent_character and not scent_satisfied:
+        note = f"{parsed.scent_character} scent requirement unresolved"
+        unresolved_requirements.append(note)
+        warnings.append(
+            f"{note} — no matching fragrance material was found in evidence, supplier data, "
+            f"or the FormuLab fragrance rule library; no ingredient was invented to satisfy it."
         )
     for m in missing_roles:
         warnings.append(f"{m['role'].replace('_', ' ').title()}: {m['reason']}")
@@ -940,4 +1085,5 @@ def build_formula_for_strategy(
     return FormulaResult(
         strategy=strat, ingredients=solved, missing_roles=missing_roles,
         unresolved_requirements=unresolved_requirements, state=state, formula=formula,
+        trace_events=trace_events,
     )

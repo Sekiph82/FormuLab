@@ -38,6 +38,16 @@ class RequirementParserTests(unittest.TestCase):
         parsed = engine.parse_requirements(brief)
         self.assertTrue(any("quantum" in f or "crystal" in f for f in parsed.unresolved_fragments))
 
+    def test_scent_character_is_extracted_as_a_narrow_structural_pattern(self):
+        parsed = engine.parse_requirements({"target": "hand soap with rosemary scent"})
+        self.assertEqual(parsed.scent_character, "rosemary")
+        self.assertIn("fragrance_requested", parsed.resolved)
+        self.assertEqual(parsed.unresolved_fragments, [])
+
+    def test_no_scent_phrase_leaves_scent_character_empty(self):
+        parsed = engine.parse_requirements({"target": "a sulfate-free anti-dandruff shampoo"})
+        self.assertEqual(parsed.scent_character, "")
+
     def test_fully_recognized_request_has_no_unresolved_fragments(self):
         brief = {"target": "a sulfate-free anti-dandruff shampoo"}
         parsed = engine.parse_requirements(brief)
@@ -50,6 +60,24 @@ class FunctionalRoleTests(unittest.TestCase):
         self.assertEqual(engine.category_group("", "a fluoride toothpaste"), "oral")
         self.assertEqual(engine.category_group("", "a hand cream"), "leave_on")
         self.assertEqual(engine.category_group("", "a laundry detergent"), "cleansing")
+
+    def test_hand_soap_is_classified_cleansing_not_generic(self):
+        # Phase 14 Session 6 correction gate: a real runtime defect —
+        # "hand soap" matched neither "bar soap" nor "hand wash" in the
+        # old cleansing-head keyword list, so it fell through to
+        # "generic", whose own role library never requires a cleansing
+        # system at all. This is the exact root cause of a real hand-soap
+        # run producing a formula with no surfactant in it whatsoever.
+        for phrase in ("hand soap with rosemary scent", "liquid hand soap", "bar soap",
+                       "liquid dishwashing soap"):
+            self.assertEqual(engine.category_group("", phrase), "cleansing", phrase)
+
+    def test_cleansing_group_always_requires_a_primary_surfactant_role(self):
+        brief = {"target": "hand soap with rosemary scent"}
+        constraints = derive_constraints(brief)
+        parsed = engine.parse_requirements(brief)
+        roles = engine.resolve_role_requirements("cleansing", brief, constraints, parsed)
+        self.assertEqual(roles["primary_surfactant"], engine.REQUIRED)
         self.assertEqual(engine.category_group("", "an unusual novel product"), "generic")
 
     def test_sensitive_request_upgrades_cosurfactant_to_required(self):
@@ -138,6 +166,57 @@ class CandidatePoolTests(unittest.TestCase):
         c = pool.candidates[normalize_ingredient_key("Water (Aqua)")]
         self.assertIn("solvent", c.roles)
         self.assertIn(engine.ORIGIN_DETERMINISTIC_RULE, c.origins)
+
+    def test_matched_scent_character_is_never_a_fabricated_ingredient(self):
+        # No real "rosemary" candidate exists anywhere in the pool (no
+        # evidence, no supplier row, no rule default) — the scent request
+        # must never invent one.
+        brief = {"target": "hand soap with rosemary scent"}
+        constraints = derive_constraints(brief)
+        pool = engine.build_candidate_pool(brief, constraints, [], [], scent_character="rosemary")
+        self.assertFalse(any("rosemary" in k for k in pool.candidates))
+
+    def test_a_real_matching_scent_candidate_becomes_selectable_as_fragrance(self):
+        materials = [{"inci": "Rosemary Extract", "name": "Rosemary Extract", "function": "fragrance", "price": 10.0}]
+        brief = {"target": "hand soap with rosemary scent"}
+        constraints = derive_constraints(brief)
+        pool = engine.build_candidate_pool(brief, constraints, [], materials, scent_character="rosemary")
+        c = pool.candidates[normalize_ingredient_key("Rosemary Extract")]
+        self.assertIn("fragrance", c.roles)
+        self.assertIn(engine.ORIGIN_SUPPLIER_DATA, c.origins)
+
+    def test_a_generic_fragrance_ingredient_never_silently_satisfies_a_specific_scent_request(self):
+        # Real bug found during this round's own live network acceptance
+        # testing: a request for "rosemary scent" was satisfied by a
+        # generic "perfume" evidence mention (rules.py's own FRAGRANCE
+        # vocabulary) filling the fragrance ROLE, silently marking the
+        # SPECIFIC rosemary request as resolved even though nothing
+        # rosemary-specific was ever selected.
+        from evidence import EvidenceRecord as ER, ConcentrationValue, EvidenceClass, ProcessObservation
+        record = ER(
+            schema_version=1, paper_doi="10.1/x", paper_title="t", paper_year="2021",
+            paper_authors="A", paper_venue="J", unique_source_count=1, provenance_sources=["openalex"],
+            ingredient_key=normalize_ingredient_key("perfume"), ingredient_raw="perfume",
+            is_full_formulation=True, product_context="", concentration=None, function="",
+            outcome="", process=ProcessObservation(), evidence_text="perfume mentioned",
+            source_location="abstract", source_depth="abstract_only", evidence_class=EvidenceClass.E,
+            confidence=0.3,
+        )
+        brief = {"target": "hand soap with rosemary scent", "category": "hand soap"}
+        constraints = derive_constraints(brief)
+        parsed = engine.parse_requirements(brief)
+        self.assertEqual(parsed.scent_character, "rosemary")
+        group = "cleansing"
+        roles = {"fragrance": engine.OPTIONAL}
+        pool = engine.build_candidate_pool(brief, constraints, [record], [], scent_character=parsed.scent_character)
+        import strategy as strategy_mod
+        strat = strategy_mod.VersionStrategy(
+            formula_version_id="v1", label="V1", strategy_type="balanced", title="Balanced",
+            rationale="r", primary_priorities=[], secondary_priorities=[], tradeoffs_accepted=[],
+            tradeoffs_forbidden=[],
+        )
+        result = engine.build_formula_for_strategy(strat, group, roles, pool, [record], constraints, parsed)
+        self.assertIn("rosemary scent requirement unresolved", result.unresolved_requirements)
 
 
 class ConcentrationHierarchyTests(unittest.TestCase):
@@ -263,6 +342,40 @@ class SolverTests(unittest.TestCase):
         qs = [i for i in result.formula["ingredients"] if i["weight_pct"] == "q.s. 100"]
         self.assertEqual(len(qs), 1)
         self.assertEqual(qs[0]["inci"], "Water (Aqua)")
+
+    def test_avoid_major_role_keys_makes_the_solver_pick_a_real_alternative(self):
+        # Phase 14 Session 6 correction gate: when a real alternative
+        # candidate exists for a MAJOR role, a version told to avoid an
+        # already-used key must pick the alternative — real architectural
+        # search, not always the same highest-ranked candidate.
+        brief = {"target": "hand soap", "category": "hand soap"}
+        constraints = derive_constraints(brief)
+        parsed = engine.parse_requirements(brief)
+        group = "cleansing"
+        roles = {"preservative": engine.REQUIRED}
+        pool = engine.build_candidate_pool(brief, constraints, [], [])
+        v1 = engine.build_formula_for_strategy(self._strategy(), group, roles, pool, [], constraints, parsed)
+        v1_preservative_key = next(s.key for s in v1.ingredients if s.role == "preservative")
+        avoid = {"preservative": {v1_preservative_key}}
+        v2 = engine.build_formula_for_strategy(self._strategy(), group, roles, pool, [], constraints, parsed,
+                                                  avoid_major_role_keys=avoid)
+        v2_preservative_key = next(s.key for s in v2.ingredients if s.role == "preservative")
+        self.assertNotEqual(v1_preservative_key, v2_preservative_key)
+
+    def test_avoid_major_role_keys_never_forces_a_fake_alternative_when_none_exists(self):
+        brief = {"target": "hand soap", "category": "hand soap"}
+        constraints = derive_constraints(brief)
+        parsed = engine.parse_requirements(brief)
+        group = "cleansing"
+        roles = {"rheology_modifier": engine.REQUIRED}  # only one real default exists
+        pool = engine.build_candidate_pool(brief, constraints, [], [])
+        v1 = engine.build_formula_for_strategy(self._strategy(), group, roles, pool, [], constraints, parsed)
+        v1_key = next(s.key for s in v1.ingredients if s.role == "rheology_modifier")
+        avoid = {"rheology_modifier": {v1_key}}
+        v2 = engine.build_formula_for_strategy(self._strategy(), group, roles, pool, [], constraints, parsed,
+                                                  avoid_major_role_keys=avoid)
+        v2_key = next(s.key for s in v2.ingredients if s.role == "rheology_modifier")
+        self.assertEqual(v1_key, v2_key)  # honestly reused — no alternative existed
 
     def test_missing_required_role_produces_incomplete_functional_role_state(self):
         brief = {"target": "an entirely evidence-free novel product", "category": "cleanser"}

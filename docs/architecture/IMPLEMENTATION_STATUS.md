@@ -2567,12 +2567,32 @@ Full design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md`
 §11a (Session 0), §13 (frontend implementation), §13a (data-contract
 repair + dual-flow state), §14 (Session 1), §15 (Session 2), §16
 (Session 3), §17 (Session 4), §18 (zero-LLM deterministic engine), §19
-(Session 5); handoff: `docs/handoffs/PHASE14_CURRENT.md`. **Next:
-Phase 14 Session 6** (per the architecture doc §12's own original
-breakdown: full traceability persistence across every stage plus a
-closure/regression pass, including the Safety/Regulatory tabs' own
-remaining placeholders — zero LLM — not started automatically by this
-round).
+(Session 5); handoff: `docs/handoffs/PHASE14_CURRENT.md`.
+
+**Phase 14 Session 6** (full decision traceability + deterministic
+Safety/Regulatory intelligence) and a mid-session **Hybrid System
+Correction Gate** (true V1/V2/V3 architectural diversity, required
+functional roles per product family, rosemary-scent parsing, the
+15-full-text research-corpus gate, provider/resolver provenance, the
+Evidence & Sources UI, evidence-gap analysis, a dedicated Download
+Report) are both DONE — architecture doc §20. A later recovery/
+continuation round found §20's own correction gate had reasoned away
+rather than actually implemented the §9 HARD BLOCK on formulation
+synthesis when the live full-text gate falls short of 15, and fixed it
+for real; found and fixed a real query-planner bug that left "hand
+soap" out of the cleansing-product keyword list (so a "hand soap with
+rosemary scent" request never got a surfactant/mildness retrieval
+angle); added the missing Decision Traceability UI section and two
+missing Evidence & Sources columns (Evidence Class, Evidence Records);
+and re-verified both of the correction gate's own mandated real
+acceptance requests live, a second time, against a disposable scratch
+library — architecture doc §21 for the full account. **Phase 14 is
+(re-)confirmed implementation-complete.** `python -m pytest
+runtime/pipeline -q`: 320/320. `cargo check --release`/`cargo test
+--release formulation_v2::`: clean, 7/7 (full Rust workspace `cargo
+test --release`: 342/342). `pnpm vitest run`: 138 files/1248 tests,
+zero regressions. No further
+Phase 14 session is scheduled.
 
 ## Not yet started
 

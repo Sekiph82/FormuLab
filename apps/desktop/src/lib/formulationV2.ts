@@ -219,6 +219,11 @@ export interface ResearchCorpusSummary {
   metadata_only_count: number;
   evidence_record_count: number;
   unique_evidence_study_count: number;
+  /** Phase 14 Session 6 correction gate — real and separate from
+   *  `qualifying_count >= target_count`: whether `target_count` full
+   *  texts were actually obtained after searching deeper into the
+   *  candidate pool. `false` is an honest outcome, not an error. */
+  full_text_gate_met?: boolean;
 }
 
 /** `manufacturing.py::ProcessStep.to_dict()` — one manufacturing step for
@@ -286,6 +291,100 @@ export interface ManufacturingPlan {
   batch_scale: "laboratory" | "pilot" | "production" | "not_specified";
 }
 
+/** `safety.py::SafetyFinding.to_dict()`. */
+export interface SafetyFinding {
+  subject_type: "ingredient" | "formula" | "process_step";
+  subject: string;
+  status: "PASS" | "PASS_WITH_CONDITIONS" | "FAIL" | "DATA_INCOMPLETE";
+  rule_id: string;
+  source_type: string;
+  condition: string;
+  actual_value: string;
+  rationale: string;
+  required_action: string;
+}
+
+/** `safety.py::SafetyResult.to_dict()`. Computed independently per
+ *  version — a V1 PASS never implies a V2 PASS (§20). */
+export interface SafetyResult {
+  overall_status: "PASS" | "PASS_WITH_CONDITIONS" | "FAIL" | "DATA_INCOMPLETE";
+  findings: SafetyFinding[];
+}
+
+/** `regulatory.py::RegulatoryFinding.to_dict()`. */
+export interface RegulatoryFinding {
+  subject_type: "ingredient" | "formula" | "claim" | "label";
+  subject: string;
+  status: "COMPLIANT" | "COMPLIANT_WITH_CONDITIONS" | "NON_COMPLIANT" | "DATA_INCOMPLETE";
+  rule_id: string;
+  jurisdiction: string;
+  condition: string;
+  actual_value: string;
+  rationale: string;
+  required_action: string;
+}
+
+/** `regulatory.py::ClaimFinding.to_dict()` — §16's own three-way
+ *  distinction: a formulation-composition check, a market-specific
+ *  regulatory-eligibility check, or a claim that can never be satisfied by
+ *  composition alone and always requires real substantiation. */
+export interface ClaimFinding {
+  claim: string;
+  check_type: "formulation_condition" | "regulatory_eligibility" | "substantiation_required";
+  status: "COMPLIANT" | "COMPLIANT_WITH_CONDITIONS" | "NON_COMPLIANT" | "DATA_INCOMPLETE";
+  rationale: string;
+}
+
+/** `regulatory.py::RegulatoryResult.to_dict()`. `coverage: "unsupported"`
+ *  means this installation has NO real rule data for the requested market
+ *  — `overall_status` is always `DATA_INCOMPLETE` in that case, never
+ *  `COMPLIANT` (§13/§18). */
+export interface RegulatoryResult {
+  target_market: string;
+  jurisdiction: string;
+  coverage: "partial" | "unsupported";
+  overall_status: "COMPLIANT" | "COMPLIANT_WITH_CONDITIONS" | "NON_COMPLIANT" | "DATA_INCOMPLETE";
+  findings: RegulatoryFinding[];
+  claims: ClaimFinding[];
+  missing_coverage_note: string;
+}
+
+/** `validation_plan.py::ValidationCheck.to_dict()`. A recommended real
+ *  check, never a claimed result. */
+export interface ValidationCheck {
+  check: string;
+  rule_id: string;
+  reason: string;
+}
+
+/** `traceability.py::TraceEvent.to_dict()` — the real, structured
+ *  ingredient selection/rejection decision trace (§3/§4/§5). */
+export interface TraceEvent {
+  decision_id: string;
+  formula_version_id: string;
+  decision_type: "ingredient_selected" | "ingredient_rejected" | "role_coverage";
+  subject_type: "ingredient" | "role";
+  subject: string;
+  result: "selected" | "rejected" | "covered" | "missing";
+  rationale: string;
+  source_type: string;
+  source_ids: string[];
+  rule_id: string;
+  evidence_ids: string[];
+  input_values: Record<string, unknown>;
+  output_values: Record<string, unknown>;
+  status: string;
+  validation_required: boolean;
+}
+
+/** One real, structured evidence gap — assembled from data this card
+ *  already computed (`missing_roles`/`quality_gate`/corpus counts/safety-
+ *  regulatory DATA_INCOMPLETE findings), never generic filler text. */
+export interface EvidenceGap {
+  category: string;
+  gap: string;
+}
+
 export interface FormulationCard {
   version: string; // "v1", "v2", …
   /** "ok" | "generation_failed" — absent on a pre-Session-3 session (treat
@@ -312,10 +411,15 @@ export interface FormulationCard {
   missing_roles?: MissingRole[];
   unresolved_requirements?: string[];
   manufacturing?: ManufacturingPlan;
+  safety?: SafetyResult;
+  regulatory?: RegulatoryResult;
+  validation_plan?: ValidationCheck[];
+  trace_events?: TraceEvent[];
+  evidence_gaps?: EvidenceGap[];
 }
 
 export interface GenerateResult {
-  status: "ok" | "refused" | "error" | "human_review_required";
+  status: "ok" | "refused" | "error" | "human_review_required" | "research_corpus_incomplete";
   message?: string;
   cards?: FormulationCard[];
   slug?: string;
@@ -325,6 +429,10 @@ export interface GenerateResult {
   /** Present on "refused" and "human_review_required" — the deterministic
    *  pre-generation safety classification the request was given. */
   classification?: SafetyClassification;
+  /** Present on "research_corpus_incomplete" (Session 6 correction gate §9)
+   *  — `provenance.py::ResearchCorpusSummary.to_dict()`, so the caller can
+   *  show the real shortfall (X/15 full text) rather than just a message. */
+  research_corpus?: Record<string, unknown>;
 }
 
 export interface SessionSummary {
@@ -353,7 +461,16 @@ export interface LiteratureDocument {
   pdf_file?: string;
   fulltext?: string;
   unique_source_count?: number;
+  /** Which real hybrid provider(s) DISCOVERED this paper's metadata —
+   *  distinct from `resolved_via` below (Phase 14 Session 6 correction
+   *  gate: discovery and full-text resolution are separate real stages,
+   *  never conflated). */
   provenance_sources?: string[];
+  /** Which real mechanism actually produced the usable full-text URL —
+   *  `"unpaywall"` when the OA-location resolver found it, or the
+   *  discovering provider's own name when its own `oa_url` worked
+   *  directly. Absent when no full text was obtained. */
+  resolved_via?: string;
 }
 
 export interface SessionDetail {

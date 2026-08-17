@@ -106,10 +106,19 @@ class DiversityValidationTests(unittest.TestCase):
         report = st.diversity_report(cards)
         self.assertTrue(report.sufficiently_diverse)
 
-    def test_same_chemistry_with_legitimate_concentration_difference_is_allowed(self):
-        # Evidence may constrain both versions to the same defensible
-        # surfactant system — a real, legitimate outcome (§4's own
-        # exception), not something the validator should punish.
+    def test_identical_major_system_with_only_concentration_difference_is_flagged(self):
+        # Phase 14 Session 6 correction gate: this exact scenario — the
+        # SAME primary-surfactant ingredient in both versions, differing
+        # only in concentration (plus a minor humectant addition that
+        # doesn't touch a major-system role) — was Session 3's own
+        # documented exception (§4: "same defensible surfactant system,
+        # legitimate difference elsewhere"). A real runtime defect found
+        # during Session 6's own correction-gate testing proved this
+        # exception let three versions differ ONLY by concentration and
+        # still report as "sufficiently diverse", which is not a genuine
+        # architecture difference. The user's own explicit override:
+        # concentration-only variation must never satisfy diversity on its
+        # own — this is now the correct, current expected behavior.
         cards = [
             {"version": "v1", "status": "ok", "formula": formula(
                 ("Water (Aqua)", "Solvent", "q.s. 100"),
@@ -124,7 +133,23 @@ class DiversityValidationTests(unittest.TestCase):
             )},
         ]
         report = st.diversity_report(cards)
+        self.assertFalse(report.sufficiently_diverse)
+        self.assertEqual(report.pairs[0]["major_system_overlap"], 1.0)
+
+    def test_a_genuinely_different_major_system_ingredient_is_sufficiently_diverse(self):
+        cards = [
+            {"version": "v1", "status": "ok", "formula": formula(
+                ("Water (Aqua)", "Solvent", "q.s. 100"),
+                ("Sodium Laureth Sulfate", "Primary Surfactant", "12.0"),
+            )},
+            {"version": "v2", "status": "ok", "formula": formula(
+                ("Water (Aqua)", "Solvent", "q.s. 100"),
+                ("Decyl Glucoside", "Primary Surfactant", "10.0"),
+            )},
+        ]
+        report = st.diversity_report(cards)
         self.assertTrue(report.sufficiently_diverse)
+        self.assertLess(report.pairs[0]["major_system_overlap"], 1.0)
 
     def test_failed_versions_are_excluded_from_comparison(self):
         cards = [

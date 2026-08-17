@@ -328,6 +328,7 @@ def backfill_oa_via_unpaywall(
         if result and result.get("oa_url"):
             p["oa_url"] = result["oa_url"]
             p["is_oa"] = bool(result.get("is_oa"))
+            p["resolved_via"] = "unpaywall"
             improved += 1
     if asked:
         log(f"unpaywall: resolved {improved}/{asked} OA-location gap(s)")
@@ -404,6 +405,13 @@ def fetch_pdfs(
             continue
         p["pdf_file"] = name
         p["fulltext"] = reason
+        # `resolved_via` names WHICH real mechanism actually produced a
+        # usable full-text URL — distinct from `provenance_sources` (which
+        # DISCOVERED the paper's metadata). Only set here when
+        # `backfill_oa_via_unpaywall` didn't already tag it — the
+        # discovering provider's own `oa_url` is what worked otherwise.
+        if not p.get("resolved_via"):
+            p["resolved_via"] = p.get("source_db") or "provider"
         got.append(p)
     log(f"full texts: {len(got)} obtained from {len(jobs)} open-access candidate(s)")
     return got
@@ -605,10 +613,10 @@ def gather(
     # rather than changing `gather()`'s own return type (which every existing
     # call site — production and tests alike — already depends on being a
     # plain list of the selected corpus).
-    with open(os.path.join(out_dir, "discovery_stats.json"), "w", encoding="utf-8") as fh:
-        json.dump({"raw_candidate_count": len(candidates)}, fh, ensure_ascii=False, indent=2)
+    raw_candidate_count = len(candidates)
 
     selected = candidates[:target]
+    full_text_gate_met = False
     if download_pdfs:
         backfill_oa_via_unpaywall(selected, log=log)
         # `target=0` = attempt every one of the ALREADY-fixed `selected`
@@ -623,11 +631,43 @@ def gather(
         except Exception as e:
             log(f"[warn] full-text download failed: {e}")
         obtained = sum(1 for p in selected if p.get("pdf_file"))
+
+        # Phase 14 Session 6 correction gate: the full-text acquisition
+        # gate is a SEPARATE, real, honest requirement from the relevant-
+        # document corpus gate above — search deeper into the remaining
+        # candidate pool for MORE full-text-downloadable documents when
+        # short, rather than accepting the first `target` relevant
+        # candidates as final. This EXPANDS the corpus (never replaces or
+        # drops the already-selected relevant documents, preserving
+        # Session 4's own honesty guarantee) — bounded so one run cannot
+        # spend unbounded time/requests chasing an OA copy that does not
+        # exist. Both gates are reported separately; the corpus keeps
+        # every relevant candidate examined, full text or not.
+        if obtained < target:
+            backup_pool = candidates[target:target + max(target * 3, 30)]
+            backfill_oa_via_unpaywall(backup_pool, log=log)
+            try:
+                newly_fetched = fetch_pdfs(backup_pool, library, out_dir, target=target - obtained, log=log)
+            except Exception as e:
+                newly_fetched = []
+                log(f"[warn] full-text backfill search failed: {e}")
+            if newly_fetched:
+                selected.extend(newly_fetched)
+                obtained += len(newly_fetched)
+                log(f"full-text gate: searched {len(backup_pool)} additional candidate(s), "
+                    f"{len(newly_fetched)} more full text(s) obtained")
+
+        full_text_gate_met = obtained >= target
         log(f"corpus: {len(selected)} relevant unique document(s) "
-            f"({obtained} full text, {len(selected) - obtained} metadata/abstract-only)")
+            f"({obtained} full text, {len(selected) - obtained} metadata/abstract-only) — "
+            f"full-text gate: {obtained}/{target} {'MET' if full_text_gate_met else 'SHORTFALL'}")
     if len(selected) < target:
         log(f"[note] research corpus: only {len(selected)}/{target} target unique "
             f"relevant document(s) were genuinely available after hybrid search")
+
+    with open(os.path.join(out_dir, "discovery_stats.json"), "w", encoding="utf-8") as fh:
+        json.dump({"raw_candidate_count": raw_candidate_count, "full_text_gate_met": full_text_gate_met},
+                   fh, ensure_ascii=False, indent=2)
 
     save_index(library, index)
 

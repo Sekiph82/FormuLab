@@ -395,6 +395,15 @@ class ResearchCorpusSummary:
     metadata_only_count: int
     evidence_record_count: int
     unique_evidence_study_count: int
+    full_text_gate_met: bool = False
+    """Phase 14 Session 6 correction gate — real, separate from
+    `qualifying_count >= target_count`: whether `literature_cache.gather()`
+    actually obtained `target_count` genuinely downloaded, legally
+    accessible full texts (searching deeper into the candidate pool when
+    the first pass came up short — see that function's own comment).
+    `False` is an honest, real outcome, not an error; the corpus itself
+    still keeps every relevant document, full text or not (Session 4's
+    own guarantee, unchanged)."""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -405,6 +414,7 @@ def summarize_research_corpus(
     evidence_records: List[Any],
     target_count: int = 15,
     raw_candidate_count: Optional[int] = None,
+    full_text_gate_met: Optional[bool] = None,
 ) -> ResearchCorpusSummary:
     full_text = sum(1 for p in papers if p.get("pdf_file"))
     abstract_only = sum(1 for p in papers if not p.get("pdf_file") and p.get("abstract"))
@@ -419,4 +429,5 @@ def summarize_research_corpus(
         metadata_only_count=metadata_only,
         evidence_record_count=len(evidence_records),
         unique_evidence_study_count=study_count(evidence_records),
+        full_text_gate_met=full_text_gate_met if full_text_gate_met is not None else (full_text >= target_count),
     )

@@ -522,7 +522,24 @@
       "statuses": {
         "incomplete": "DATA INCOMPLETE"
       },
-      "notYetEvaluated": "Regulatory evaluation against the target market is not yet available — a later Phase 14 session wires the regulatory engine to generated formulas."
+      "notYetEvaluated": "Regulatory evaluation against the target market is not yet available — a later Phase 14 session wires the regulatory engine to generated formulas.",
+      "targetMarket": "Target Market",
+      "unspecified": "Unspecified",
+      "ingredientRestrictions": "Ingredient Restrictions",
+      "noFindings": "No matched findings for this version.",
+      "claimReview": "Claim Review",
+      "claimCheckType": {
+        "formulation_condition": "Formulation Check",
+        "regulatory_eligibility": "Regulatory Eligibility",
+        "substantiation_required": "Substantiation Required"
+      },
+      "noClaims": "No reviewable claims were found in this request.",
+      "labelInci": "Label / INCI Considerations",
+      "coverage": "Coverage / Missing Data",
+      "coverageLevels": {
+        "partial": "Partial (draft, not yet verified)",
+        "unsupported": "Unsupported — no data"
+      }
     },
     "evidenceTab": {
       "counters": {
@@ -531,7 +548,10 @@
         "fullText": "Full Text",
         "abstractOnly": "Abstract Only",
         "evidenceRecords": "Evidence Records",
-        "formulaLinked": "Formula-Linked Studies"
+        "formulaLinked": "Formula-Linked Studies",
+        "fullTextGate": "Full-Text Sources",
+        "rawCandidates": "Raw Candidates Considered",
+        "metadataOnly": "Metadata Only"
       },
       "summary": "Evidence Summary",
       "summaryBody": "{{count}} citation(s) recorded for this formula.",
@@ -546,13 +566,23 @@
         "doi": "DOI",
         "fullText": "Full Text",
         "providers": "Providers",
-        "usedByVersion": "Used By"
+        "usedByVersion": "Used By",
+        "discoveredVia": "Discovered Via",
+        "resolvedVia": "Resolved Via",
+        "evidenceClass": "Evidence Class",
+        "evidenceRecords": "Evidence Records"
       },
       "fullTextYes": "Yes",
       "fullTextNo": "No",
       "gaps": "Evidence Gaps",
       "gapsBody": "Explicit gap analysis is not yet computed for this formula.",
-      "corpusShortfall": "Only {{found}} of the {{target}} target unique research documents were genuinely available after hybrid search."
+      "corpusShortfall": "Only {{found}} of the {{target}} target unique research documents were genuinely available after hybrid search.",
+      "zeroEvidenceDespiteCorpus": "{{count}} relevant document(s) were retrieved, but 0 usable evidence records were extracted from them — this formula version's architecture is not evidence-driven for the roles that matter most.",
+      "venue": "Venue",
+      "citedBy": "Cited By",
+      "oaLabel": "Open Access",
+      "oaYes": "Yes",
+      "oaNo": "No"
     },
     "summary": {
       "strategy": "Version Strategy",
@@ -584,7 +614,12 @@
         "Packaging compatibility"
       ],
       "nextAction": "Recommended Next Action",
-      "nextActionSuggestion": "Resolve the flagged formula-level findings before proceeding to a laboratory trial."
+      "nextActionSuggestion": "Resolve the flagged formula-level findings before proceeding to a laboratory trial.",
+      "readiness": "Readiness",
+      "formulaState": "Formula State",
+      "evidenceGaps": "Evidence Gaps",
+      "noEvidenceGaps": "No structured evidence gaps were found for this formula version.",
+      "traceability": "Decision Traceability"
     },
     "quickActions": {
       "heading": "Quick Actions",

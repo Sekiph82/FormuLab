@@ -89,9 +89,13 @@ class PipelineTests(unittest.TestCase):
     def test_llm_call_is_never_reached_by_the_deterministic_path(self):
         """The permanent regression guard the brief this round implements
         explicitly requires: patch `llm.call` to raise, run a REAL
-        deterministic generation end to end, and prove the exception never
-        fires — the deterministic path must not import, invoke, depend on,
-        or require `llm.py::call()` at all."""
+        deterministic generation end to end — through formulation
+        generation, manufacturing planning, safety evaluation, regulatory
+        evaluation, and validation-plan generation, all in this one
+        `pipeline.run()` call — and prove the exception never fires. The
+        deterministic path must not import, invoke, depend on, or require
+        `llm.py::call()` at all, anywhere in that chain (Phase 14 Session 6,
+        §28)."""
         import llm as llm_module
 
         def boom(*args, **kwargs):
@@ -105,11 +109,19 @@ class PipelineTests(unittest.TestCase):
                 out = os.path.join(tmp, "session")
                 res = pipeline.run(
                     {"target": "a sulfate-free anti-dandruff shampoo for a sensitive scalp",
-                     "category": "shampoo"},
+                     "category": "shampoo", "market": "kenya"},
                     library=lib, out_dir=out, n=3, download_fulltexts=False,
                 )
-            self.assertEqual(res["status"], "ok")
-            self.assertGreater(len(res["cards"]), 0)
+                self.assertEqual(res["status"], "ok")
+                self.assertGreater(len(res["cards"]), 0)
+                card = res["cards"][0]
+                # Every Session 6 output was genuinely produced, LLM-free.
+                self.assertIn("safety", card)
+                self.assertIn("regulatory", card)
+                self.assertIn("validation_plan", card)
+                self.assertIn("trace_events", card)
+                self.assertTrue(card["trace_events"])
+                self.assertTrue(os.path.isfile(os.path.join(out, "traceability.json")))
         finally:
             llm_module.call = original
 
@@ -198,6 +210,50 @@ class PipelineTests(unittest.TestCase):
             with open(os.path.join(out, "literature", "discovery_stats.json"), encoding="utf-8") as fh:
                 stats = json.load(fh)
             self.assertEqual(stats["raw_candidate_count"], corpus["raw_candidate_count"])
+
+    def test_full_text_shortfall_blocks_normal_formulation(self):
+        # Phase 14 Session 6 correction gate §9: a real run
+        # (`download_fulltexts=True`) that cannot obtain 15 full texts must
+        # not synthesize a normal formula at all — never a card, never
+        # fabricated evidence. `lc._load_fetchers` is faked (same technique
+        # `test_literature_cache.py`'s own full-text-gate test already
+        # established) so every discovered candidate is real-shaped but
+        # genuinely non-downloadable (`oa_url=""`), keeping this test
+        # offline and deterministic rather than hitting live network.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+
+            def fetch(q, n):
+                return [{
+                    "source_db": "openalex", "title": f"Study {i} antidandruff shampoo surfactant",
+                    "year": 2020, "authors": "A", "venue": "J", "doi": f"10.1/{i}",
+                    "is_oa": False, "oa_url": "", "cited_by": i, "concepts": "shampoo",
+                    "abstract": "antidandruff shampoo surfactant formulation piroctone olamine",
+                } for i in range(n)]
+
+            class FakeDiscover:
+                FETCHERS = {"openalex": fetch}
+
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            orig_f = lc._load_fetchers
+            lc._load_fetchers = lambda: FakeDiscover
+            try:
+                res = pipeline.run(
+                    {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                    library=lib, out_dir=out, n=3, download_fulltexts=True,
+                )
+            finally:
+                lc._load_fetchers = orig_f
+
+            self.assertEqual(res["status"], "research_corpus_incomplete")
+            self.assertIn("0/15", res["message"])
+            self.assertNotIn("cards", res)
+            self.assertEqual(res["research_corpus"]["full_text_count"], 0)
 
     # --- mass balance ---
 
@@ -375,6 +431,68 @@ class PipelineTests(unittest.TestCase):
                 step_names = {n for s in card["manufacturing"]["steps"] for n in s["ingredients"]}
                 self.assertTrue(step_names.issubset(formula_names))
 
+    # --- Phase 14 Session 6 correction gate: hand-soap + true diversity ---
+
+    def test_hand_soap_request_gets_a_real_cleansing_system(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            idx = [{
+                "source_db": "openalex", "title": f"Study {i} hand soap surfactant cleansing formulation",
+                "year": 2020, "authors": "A", "venue": "J", "doi": f"10.1/{i}", "is_oa": True,
+                "oa_url": "", "cited_by": i, "concepts": "hand soap",
+                "abstract": ("hand soap formulation: cocamidopropyl betaine at 6.0% cleansing "
+                             "performance, decyl glucoside at 10.0% wt% mildness"),
+            } for i in range(15)]
+            lc.save_index(lib, idx)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run({"target": "hand soap with rosemary scent"}, library=lib, out_dir=out,
+                                n=3, download_fulltexts=False)
+            self.assertEqual(res["status"], "ok")
+            for card in res["cards"]:
+                names = [i["inci"].lower() for i in card["formula"]["ingredients"]]
+                self.assertTrue(any("glucoside" in n or "betaine" in n or "sulfate" in n for n in names),
+                                 f"no cleansing system in {names}")
+                self.assertIn("rosemary scent requirement unresolved", card["unresolved_requirements"])
+
+    def test_hand_soap_versions_seek_real_architectural_diversity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            idx = [{
+                "source_db": "openalex", "title": f"Study {i} hand soap surfactant cleansing formulation",
+                "year": 2020, "authors": "A", "venue": "J", "doi": f"10.1/{i}", "is_oa": True,
+                "oa_url": "", "cited_by": i, "concepts": "hand soap",
+                "abstract": ("hand soap formulation: cocamidopropyl betaine at 6.0% cleansing "
+                             "performance, decyl glucoside at 10.0% wt% mildness"),
+            } for i in range(15)]
+            lc.save_index(lib, idx)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run({"target": "hand soap with rosemary scent"}, library=lib, out_dir=out,
+                                n=3, download_fulltexts=False)
+            # The preservative role has two real deterministic defaults —
+            # the solver must use the second one for v2 rather than
+            # reusing v1's own choice.
+            v1_preservative = next(i["inci"] for i in res["cards"][0]["formula"]["ingredients"] if i["function"] == "Preservative")
+            v2_preservative = next(i["inci"] for i in res["cards"][1]["formula"]["ingredients"] if i["function"] == "Preservative")
+            self.assertNotEqual(v1_preservative, v2_preservative)
+
+    def test_diversity_report_names_real_distinct_architecture_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            idx = [{
+                "source_db": "openalex", "title": f"Study {i} hand soap surfactant cleansing formulation",
+                "year": 2020, "authors": "A", "venue": "J", "doi": f"10.1/{i}", "is_oa": True,
+                "oa_url": "", "cited_by": i, "concepts": "hand soap",
+                "abstract": ("hand soap formulation: cocamidopropyl betaine at 6.0% cleansing "
+                             "performance, decyl glucoside at 10.0% wt% mildness"),
+            } for i in range(15)]
+            lc.save_index(lib, idx)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run({"target": "hand soap with rosemary scent"}, library=lib, out_dir=out,
+                                n=3, download_fulltexts=False)
+            self.assertIn("distinct_architecture_count", res["diversity"])
+            self.assertGreaterEqual(res["diversity"]["distinct_architecture_count"], 1)
+            self.assertLessEqual(res["diversity"]["distinct_architecture_count"], 3)
+
     # --- archiving ---
 
     def test_archives_every_card_to_the_formula_library(self):
@@ -434,6 +552,19 @@ class PipelineTests(unittest.TestCase):
                 lc.gather = orig
             self.assertEqual(res["status"], "ok")
             self.assertIn("NOT grounded in retrieved sources", res["cards"][0]["markdown"])
+
+    def test_planner_covers_cleansing_function_angles_and_scent_character(self):
+        # Phase 14 Session 6 correction gate §10: a cleansing-family request
+        # must search mildness/viscosity angles, not just "surfactant" — and
+        # a real requested scent character gets its own dedicated angle,
+        # never collapsed into the generic head query.
+        from rules import derive_constraints
+        brief = {"target": "hand soap with rosemary scent", "category": "hand soap"}
+        qs = pipeline.build_queries(brief, derive_constraints(brief), scent_character="rosemary")
+        joined = " ".join(qs).lower()
+        self.assertIn("mildness", joined)
+        self.assertIn("viscosity", joined)
+        self.assertIn("rosemary fragrance", joined)
 
     def test_planner_adapts_to_product_class(self):
         qs = pipeline.build_queries({"target": "hand cream", "category": "hand cream"})

@@ -1,6 +1,8 @@
 # Phase 14 — Evidence-Driven Hybrid Literature & Formulation Intelligence
 
-## Status: ZERO-LLM DETERMINISTIC FORMULATION ENGINE + SESSION 5 (MANUFACTURING INTELLIGENCE) COMPLETE. FormuLab's formulation-generation path no longer calls any LLM — every ingredient, concentration, formula, and manufacturing step is built from real evidence, real supplier data, and real deterministic engineering rules (`runtime/pipeline/engine.py`, `runtime/pipeline/manufacturing.py`) — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §18 (zero-LLM engine) / §19 (Session 5 manufacturing intelligence). `llm.py` remains in the repository as legacy/unrelated compatibility code only, proven unreachable by a permanent regression test. Session 4 (§17): ingredient evidence intelligence, real generation provenance, honest 15-source research-corpus guarantee, formula-provenance audit, rich evidence UI. Session 3 (§16): evidence-grounded, request-aware multi-alternative formulation synthesis. Session 2 (§15): structured evidence extraction, A-E classification, explainable ranking. Session 1 (§14): Literature Search Orchestrator, Findpapers adapter, native OA adapters, CanonicalPaper cross-source dedup. Session 0 (§11a): pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence) had a real data-contract bug — fixed, §13a. Both formulation UIs (`/live` and the new request/result flow) remain available and now converge on the same deterministic backend — see §18. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
+## Status: PHASE 14 IMPLEMENTATION-COMPLETE (RE-CONFIRMED). Session 6 (full traceability, deterministic Safety/Regulatory intelligence) plus a mid-session Hybrid System Correction Gate were both completed — see `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §20. A later recovery/continuation round found that §20's own correction gate had left the 15-full-text requirement's §9 HARD BLOCK un-implemented (reasoned away in prose, not enforced in code) and fixed it for real, found and fixed a real query-planner bug that undercounted "hand soap" as a cleansing product, added the missing Decision Traceability UI and two missing Evidence & Sources columns, and re-verified live against a disposable scratch library (never the real app's own literature cache) — see architecture doc §21 for the full account, including why neither live re-run this round reached 15/15 (a real cold-cache constraint, not a bug) and how that differs honestly from §20's own `15/15` result. `python -m pytest runtime/pipeline -q`: 320/320. `pnpm vitest run`: 138 files/1248 tests. `cargo check --release`/`cargo test --release formulation_v2::`: clean, 7/7. Full Rust workspace (`cargo test --release`): 342/342.
+
+## Status (as of Session 5, before the above): ZERO-LLM DETERMINISTIC FORMULATION ENGINE + SESSION 5 (MANUFACTURING INTELLIGENCE) COMPLETE. FormuLab's formulation-generation path no longer calls any LLM — every ingredient, concentration, formula, and manufacturing step is built from real evidence, real supplier data, and real deterministic engineering rules (`runtime/pipeline/engine.py`, `runtime/pipeline/manufacturing.py`) — `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md` §18 (zero-LLM engine) / §19 (Session 5 manufacturing intelligence). `llm.py` remains in the repository as legacy/unrelated compatibility code only, proven unreachable by a permanent regression test. Session 4 (§17): ingredient evidence intelligence, real generation provenance, honest 15-source research-corpus guarantee, formula-provenance audit, rich evidence UI. Session 3 (§16): evidence-grounded, request-aware multi-alternative formulation synthesis. Session 2 (§15): structured evidence extraction, A-E classification, explainable ranking. Session 1 (§14): Literature Search Orchestrator, Findpapers adapter, native OA adapters, CanonicalPaper cross-source dedup. Session 0 (§11a): pipeline audit, `CanonicalPaper` schema, adapter boundary, source-availability decision. The New Formulation Request/Formulation Result screens (§13, built out of sequence) had a real data-contract bug — fixed, §13a. Both formulation UIs (`/live` and the new request/result flow) remain available and now converge on the same deterministic backend — see §18. Phase 13 closed (implementation-complete) before Session 0 started — see `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28 and `docs/handoffs/PHASE13_CURRENT.md`.
 
 ## Zero-LLM deterministic formulation engine summary (architecture doc §18)
 
@@ -800,7 +802,14 @@ touched this session.
    `literature_cache.gather()` once real deduplication exists to make
    arXiv noise less costly than it is today?
 
-## Exact next Phase 14 session
+## Exact next Phase 14 session (superseded)
+
+The paragraph below is Session 0's own original next-step note, left
+here unedited as the historical record it is (this trailer belongs to
+this handoff's oldest section, never rewritten as later sessions
+landed). It is superseded — Session 6 and the correction-gate
+continuation described in the Status line above are both done. See
+architecture doc §20/§21 for the real current state.
 
 **Session 6** (per the architecture doc §12's own original breakdown):
 full traceability persistence across every stage above plus a
@@ -808,3 +817,10 @@ closure/regression pass, including the Safety and Regulatory tabs' own
 remaining "not yet evaluated" placeholders. Zero LLM, building on the
 deterministic engine (§18) and Session 5's manufacturing intelligence
 (§19). Not started automatically by this round.
+
+## Exact next Phase 14 session (current)
+
+None scheduled. Phase 14 is implementation-complete (architecture doc
+§21). Any further work — broader query-angle relevance refinement, a
+curated `internal_formulab_data` source — is real, disclosed future
+work, not started automatically.

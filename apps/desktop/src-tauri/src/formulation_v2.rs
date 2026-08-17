@@ -60,6 +60,15 @@ const F_MATERIALS: &str = include_str!("../../../../runtime/pipeline/materials.p
 // Equipment intelligence, zero LLM) — same requirement as every module
 // above.
 const F_MANUFACTURING: &str = include_str!("../../../../runtime/pipeline/manufacturing.py");
+// Phase 14 Session 6: pipeline.py now imports traceability.py (decision-
+// trace events), safety.py (deterministic Safety intelligence),
+// regulatory.py (deterministic Regulatory intelligence), and
+// validation_plan.py (the deterministic validation-plan generator)
+// directly — same requirement as every module above.
+const F_TRACEABILITY: &str = include_str!("../../../../runtime/pipeline/traceability.py");
+const F_SAFETY: &str = include_str!("../../../../runtime/pipeline/safety.py");
+const F_REGULATORY: &str = include_str!("../../../../runtime/pipeline/regulatory.py");
+const F_VALIDATION_PLAN: &str = include_str!("../../../../runtime/pipeline/validation_plan.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -150,6 +159,10 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("engine.py", F_ENGINE),
         ("materials.py", F_MATERIALS),
         ("manufacturing.py", F_MANUFACTURING),
+        ("traceability.py", F_TRACEABILITY),
+        ("safety.py", F_SAFETY),
+        ("regulatory.py", F_REGULATORY),
+        ("validation_plan.py", F_VALIDATION_PLAN),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }

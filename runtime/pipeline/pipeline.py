@@ -31,7 +31,10 @@ import literature_cache
 import manufacturing
 import materials
 import provenance
+import regulatory
+import safety
 import strategy
+import validation_plan
 from rules import derive_constraints, validate
 
 # Hazardous / illicit classes the app must refuse (safety gate).
@@ -141,10 +144,16 @@ def _log_safety_decision(library: str, record: Dict[str, Any]) -> None:
 
 # Product classes whose "base system" is a cleansing/surfactant problem vs. a
 # different core technology — the retrieval angle differs accordingly.
-_CLEANSING = ("shampoo", "body wash", "bar soap", "dishwashing", "detergent",
-              "surface cleaner", "glass cleaner", "hand wash", "cleanser")
-_ORAL = ("toothpaste", "mouthwash")
-_LEAVE_ON = ("cream", "lotion", "conditioner", "serum", "balm", "softener")
+# Reuses `engine.py`'s own, wider `_CLEANSING_HEAD` vocabulary (Phase 14
+# Session 6 correction gate §10: a real bug found during this round's own
+# live acceptance testing — this list previously omitted "hand soap"/
+# "liquid soap"/"handwash", so a "hand soap with rosemary scent" request
+# never got a surfactant/mildness/viscosity retrieval angle at all, one
+# real, disclosed reason the live corpus for that request undershot 15).
+# Never drift the two lists apart again — one real source of truth.
+_CLEANSING = engine._CLEANSING_HEAD
+_ORAL = engine._ORAL_HEAD
+_LEAVE_ON = engine._LEAVE_ON_HEAD
 
 
 # Qualifiers that narrow a product name past what a literature index can match
@@ -159,7 +168,9 @@ def _head(name: str, max_words: int = 3) -> str:
     return " ".join(words[:max_words]) or "product"
 
 
-def build_queries(brief: Dict[str, Any], constraints: Dict[str, Any] | None = None) -> List[str]:
+def build_queries(
+    brief: Dict[str, Any], constraints: Dict[str, Any] | None = None, scent_character: str = "",
+) -> List[str]:
     """Plan several retrieval angles instead of one catch-all query.
 
     A single query ("<target> formulation ingredients") returns one narrow slice
@@ -199,6 +210,14 @@ def build_queries(brief: Dict[str, Any], constraints: Dict[str, Any] | None = No
     # 3. Preservation + shelf life.
     queries.append(f"{head} preservative")
 
+    # 3a. Cleansing-family products carry function-specific evidence
+    # (mildness, foam, rheology) a "surfactant"-only angle misses — Phase
+    # 14 Session 6 correction gate §10: never collapse a cleansing request
+    # into one generic angle.
+    if any(k in catl for k in _CLEANSING):
+        queries.append(f"{head} mildness")
+        queries.append(f"{head} viscosity")
+
     if constraints:
         p = constraints.get("profile") or {}
         # 4. The regional constraint that actually changes the formula.
@@ -210,6 +229,13 @@ def build_queries(brief: Dict[str, Any], constraints: Dict[str, Any] | None = No
         if constraints.get("sensitive"):
             queries.append(f"{head} skin irritation")
 
+    # 6. A real requested scent character ("rosemary" from "hand soap with
+    # rosemary scent") gets its own real retrieval angle (§10's own
+    # explicit REQUEST-SPECIFIC example) — never collapsed into the
+    # generic head query, which a fragrance-focused paper rarely matches.
+    if scent_character:
+        queries.append(f"{scent_character} fragrance")
+
     # Dedup, preserve order, keep the budget sane.
     seen: set = set()
     out: List[str] = []
@@ -218,7 +244,7 @@ def build_queries(brief: Dict[str, Any], constraints: Dict[str, Any] | None = No
         if k and k not in seen:
             seen.add(k)
             out.append(" ".join(q.split()))
-    return out[:6]
+    return out[:9]
 
 
 def _slug(text: str) -> str:
@@ -444,7 +470,14 @@ def run(
     constraints = derive_constraints(brief)
     os.makedirs(out_dir, exist_ok=True)
     lit_dir = os.path.join(out_dir, "literature")
-    queries = build_queries(brief, constraints)
+    # Parsed ahead of `build_queries()` (Phase 14 Session 6 correction gate
+    # §10) purely so a real requested scent character ("rosemary" from
+    # "hand soap with rosemary scent") can become its own retrieval angle —
+    # `parse_requirements()` is a pure function of `brief` alone, so calling
+    # it here changes no other ordering/dependency. Re-used again below
+    # rather than re-parsed a second time.
+    parsed_requirements = engine.parse_requirements(brief)
+    queries = build_queries(brief, constraints, scent_character=parsed_requirements.scent_character)
     log(f"planned {len(queries)} retrieval angles")
     # Anchor every retrieved paper to the product itself, so an angle query can
     # sharpen the search without drifting off-domain.
@@ -484,19 +517,44 @@ def run(
     # than defaulting to `len(papers)` (identical to `qualifying_count`,
     # which is what made the gap worth disclosing in the first place).
     raw_candidate_count = None
+    full_text_gate_met = None
     try:
         with open(os.path.join(lit_dir, "discovery_stats.json"), encoding="utf-8") as fh:
-            raw_candidate_count = json.load(fh).get("raw_candidate_count")
+            stats = json.load(fh)
+            raw_candidate_count = stats.get("raw_candidate_count")
+            full_text_gate_met = stats.get("full_text_gate_met")
     except OSError:
         pass
     corpus = provenance.summarize_research_corpus(
         papers, evidence_records, target_count=15, raw_candidate_count=raw_candidate_count,
+        full_text_gate_met=full_text_gate_met,
     )
     with open(os.path.join(lit_dir, "research_corpus.json"), "w", encoding="utf-8") as fh:
         json.dump(corpus.to_dict(), fh, ensure_ascii=False, indent=2)
     log(f"research corpus: {corpus.qualifying_count}/{corpus.target_count} target unique document(s) "
         f"({corpus.full_text_count} full text, {corpus.abstract_only_count} abstract-only, "
         f"{corpus.metadata_only_count} metadata-only)")
+
+    # Phase 14 Session 6 correction gate §9: the 15-full-text requirement is
+    # a HARD gate for a real run, not a quality-gate warning a formula can
+    # carry alongside an otherwise-successful `status: "ok"`. Only enforced
+    # when this run actually attempted full-text acquisition
+    # (`download_fulltexts=True`) — a `download_fulltexts=False` run (every
+    # offline/unit-test caller, and any deliberate metadata-only dry run)
+    # never attempted the gate in the first place, so there is nothing
+    # honest to block on. No formula synthesis, no cards, no fabricated
+    # evidence — the session stops here and reports the real shortfall.
+    if download_fulltexts and corpus.full_text_count < corpus.target_count:
+        message = (
+            f"Research corpus incomplete: {corpus.full_text_count}/{corpus.target_count} "
+            f"required full-text sources acquired."
+        )
+        log(f"[blocked] {message}")
+        return {
+            "status": "research_corpus_incomplete",
+            "message": message,
+            "research_corpus": corpus.to_dict(),
+        }
 
     # Phase 14 Session 3: request-aware strategy derivation — never a fixed
     # V1/V2/V3 enum. `len(strategies)` becomes the real formula count
@@ -514,7 +572,6 @@ def run(
     with open(os.path.join(out_dir, "generation_provenance.json"), "w", encoding="utf-8") as fh:
         json.dump(generation_provenance.to_dict(), fh, ensure_ascii=False, indent=2)
 
-    parsed_requirements = engine.parse_requirements(brief)
     group = engine.category_group(str(brief.get("category", "")), target)
     role_requirements = engine.resolve_role_requirements(group, brief, constraints, parsed_requirements)
     materials_list: List[Dict[str, Any]] = []
@@ -523,7 +580,10 @@ def run(
             materials_list = materials.load_materials(materials_dir).get("materials", [])
         except OSError:
             materials_list = []
-    pool = engine.build_candidate_pool(brief, constraints, ranked_evidence, materials_list)
+    pool = engine.build_candidate_pool(
+        brief, constraints, ranked_evidence, materials_list,
+        scent_character=parsed_requirements.scent_character,
+    )
     log(f"candidate pool: {pool.to_diagnostics()}")
     if parsed_requirements.unresolved_fragments:
         log(f"[note] unresolved request fragments (no assumption made): "
@@ -547,12 +607,25 @@ def run(
     # session; a genuinely incomplete result is instead a real, explicit
     # `formula_state` on an otherwise-normal card (§10 of the brief this
     # round implements: "the UI should show the real state").
+    # Phase 14 Session 6 correction gate: real cross-version diversity
+    # pressure. Each major-system role's already-used ingredient key(s)
+    # from every PRIOR version are accumulated here and passed into the
+    # next version's own solver call, so V2/V3 actively search for a
+    # genuinely different architecture rather than always re-selecting
+    # the same highest-ranked candidate (see `engine.build_formula_for_
+    # strategy`'s own docstring for the exact, honest fallback behavior
+    # when no real alternative exists).
+    major_role_used_keys: Dict[str, set] = {}
     cards: List[Dict[str, Any]] = []
     for idx, strat in enumerate(strategies, 1):
         version = f"v{idx}"
         result = engine.build_formula_for_strategy(
             strat, group, role_requirements, pool, ranked_evidence, constraints, parsed_requirements,
+            avoid_major_role_keys=major_role_used_keys,
         )
+        for s in result.ingredients:
+            if s.role in engine.MAJOR_SYSTEM_ROLES:
+                major_role_used_keys.setdefault(s.role, set()).add(s.key)
         f = result.formula
 
         ingredients = [str(i.get("inci", "")) for i in f.get("ingredients", [])]
@@ -623,6 +696,62 @@ def run(
             formula_state, manufacturing_ingredients, brief, mass_balance.to_dict(), violations, comparable_stats,
         )
 
+        # Phase 14 Session 6: deterministic Safety and Regulatory
+        # intelligence, computed independently for THIS version (a V1
+        # PASS/COMPLIANT never implies V2 PASS/COMPLIANT — different
+        # ingredient/concentration choices genuinely change both). Zero
+        # LLM — see safety.py/regulatory.py's own module docstrings for
+        # the full source model.
+        safety_result = safety.evaluate_safety(f, brief, violations, manufacturing_plan.to_dict())
+        regulatory_result = regulatory.evaluate_regulatory(f, brief, ingredient_origins)
+        validation_checks = validation_plan.build_validation_plan(
+            formula_state, group, manufacturing_plan.to_dict(), safety_result.overall_status,
+            regulatory_result.overall_status,
+        )
+
+        # Phase 14 Session 6 correction gate: real, structured evidence-gap
+        # analysis — assembled entirely from data this card ALREADY
+        # computed above (never a second extraction pass, never generic
+        # filler text). Each gap names its own real category.
+        evidence_gaps: List[Dict[str, str]] = []
+        for m in result.missing_roles:
+            evidence_gaps.append({"category": "missing_functional_role",
+                                   "gap": f"{m['role'].replace('_', ' ').title()}: {m['reason']}"})
+        for key, origins in ingredient_origins.items():
+            if origins == [provenance.IngredientOrigin.DETERMINISTIC_RULE] and key in comparable_stats and comparable_stats[key] is None:
+                evidence_gaps.append({"category": "rule_only_provenance",
+                                       "gap": f"{key.replace('-', ' ')}: only a deterministic engineering "
+                                              f"default backs this ingredient/concentration — no direct or "
+                                              f"comparable scientific evidence."})
+        if parsed_requirements.scent_character and any(
+            "scent requirement unresolved" in u for u in result.unresolved_requirements
+        ):
+            evidence_gaps.append({"category": "fragrance_unresolved",
+                                   "gap": f"{parsed_requirements.scent_character} scent requirement unresolved "
+                                          f"— no matching fragrance material found."})
+        if corpus.qualifying_count < corpus.target_count:
+            evidence_gaps.append({"category": "insufficient_research_corpus",
+                                   "gap": f"Research corpus: {corpus.qualifying_count}/{corpus.target_count} "
+                                          f"target unique relevant documents were genuinely available."})
+        if corpus.full_text_count < corpus.target_count:
+            evidence_gaps.append({"category": "insufficient_full_text",
+                                   "gap": f"Full-text sources: {corpus.full_text_count}/{corpus.target_count} "
+                                          f"target — {corpus.abstract_only_count} abstract-only, "
+                                          f"{corpus.metadata_only_count} metadata-only."})
+        if corpus.qualifying_count > 0 and corpus.evidence_record_count == 0:
+            evidence_gaps.append({"category": "zero_evidence_extracted",
+                                   "gap": f"{corpus.qualifying_count} relevant document(s) were retrieved but "
+                                          f"0 usable evidence records were extracted from them — this "
+                                          f"formula version's architecture is not evidence-driven."})
+        for qf in quality_gate:
+            if qf.factor in ("critical_active_no_evidence", "unusual_concentration_no_evidence"):
+                evidence_gaps.append({"category": qf.factor, "gap": qf.message})
+        for sf in safety_result.findings:
+            if sf["status"] == safety.DATA_INCOMPLETE:
+                evidence_gaps.append({"category": "safety_data_incomplete", "gap": f"{sf['subject']}: {sf['rationale']}"})
+        if regulatory_result.overall_status == regulatory.DATA_INCOMPLETE:
+            evidence_gaps.append({"category": "regulatory_data_incomplete", "gap": regulatory_result.missing_coverage_note})
+
         md = render_card(f, violations, strat.to_dict())
         with open(os.path.join(out_dir, card_filename(session_id, version)), "w", encoding="utf-8") as fh:
             fh.write(md)
@@ -642,6 +771,11 @@ def run(
             "missing_roles": result.missing_roles,
             "unresolved_requirements": result.unresolved_requirements,
             "manufacturing": manufacturing_plan.to_dict(),
+            "safety": safety_result.to_dict(),
+            "regulatory": regulatory_result.to_dict(),
+            "validation_plan": [c.to_dict() for c in validation_checks],
+            "trace_events": [e.to_dict() for e in result.trace_events],
+            "evidence_gaps": evidence_gaps,
         })
 
     # Cross-version diversity validation (architecture doc §9). Marks rather
@@ -674,6 +808,20 @@ def run(
     # this cannot break backward compatibility with any old session.
     with open(os.path.join(out_dir, "diversity.json"), "w", encoding="utf-8") as fh:
         json.dump(diversity.to_dict(), fh, ensure_ascii=False, indent=2)
+
+    # Phase 14 Session 6: the ONE genuinely new session-level artifact —
+    # ingredient selection/rejection decision events, keyed by version,
+    # exactly mirroring each card's own `trace_events` field so the same
+    # data is inspectable without opening `cards.json`. Deliberately NOT
+    # duplicated as separate `safety.json`/`regulatory.json` files — those
+    # results already live on each card (`card["safety"]`/
+    # `card["regulatory"]`), the same precedent `mass_balance`/
+    # `quality_gate`/`manufacturing` already established; a second file
+    # holding the identical data would be exactly the "same truth in
+    # multiple conflicting files" this session's own brief warns against.
+    with open(os.path.join(out_dir, "traceability.json"), "w", encoding="utf-8") as fh:
+        json.dump({"schema_version": 1, "versions": {c["version"]: c["trace_events"] for c in cards}},
+                   fh, ensure_ascii=False, indent=2)
 
     slug = _slug(target)
     archived: List[str] = []

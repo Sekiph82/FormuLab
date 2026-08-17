@@ -283,7 +283,7 @@ const SESSION_V4 = {
     {
       source_db: "openalex", title: "A real corpus paper", year: "2021", authors: "Doe J", venue: "J",
       doi: "10.1/corpus-paper", is_oa: true, oa_url: "", cited_by: 3, pdf_file: "corpus-paper.md",
-      unique_source_count: 2, provenance_sources: ["openalex", "crossref"],
+      unique_source_count: 2, provenance_sources: ["openalex", "crossref"], resolved_via: "unpaywall",
     },
     {
       source_db: "europepmc", title: "Another corpus paper, abstract only", year: "2020", authors: "Smith A",
@@ -357,6 +357,16 @@ describe("FormulationResultPage — Session 4 provenance/origin/mass-balance/cor
     await userEvent.click(screen.getByRole("tab", { name: "Evidence & Sources" }));
     expect(screen.getByText("A real corpus paper")).not.toBeNull();
     expect(screen.getByText("Another corpus paper, abstract only")).not.toBeNull();
+  });
+
+  it("Evidence & Sources tab shows discovered-via and resolved-via provenance separately, and expands row detail on click", async () => {
+    renderPageV4();
+    await screen.findByText("Piroctone Olamine");
+    await userEvent.click(screen.getByRole("tab", { name: "Evidence & Sources" }));
+    expect(screen.getByText("openalex + crossref")).not.toBeNull();
+    expect(screen.getByText("unpaywall")).not.toBeNull();
+    await userEvent.click(screen.getByText("A real corpus paper"));
+    expect(screen.getAllByText("A real corpus paper").length).toBeGreaterThanOrEqual(2);
   });
 
   it("Summary tab shows the real decomposed score factors and quality notes", async () => {
@@ -510,5 +520,133 @@ describe("FormulationResultPage — Session 5 manufacturing wiring", () => {
     await userEvent.click(screen.getByText("Cost Optimized"));
     await userEvent.click(screen.getByRole("tab", { name: "Manufacturing Procedure" }));
     expect(screen.getByText(/requires a valid formula/)).not.toBeNull();
+  });
+});
+
+// --- Phase 14 Session 6: Safety / Regulatory / evidence-gap wiring ---
+
+const SESSION_V6 = {
+  status: "ok" as const,
+  id: "2026-01-01-1600-test",
+  brief: { target: "Hand soap with rosemary scent" },
+  cards: [
+    {
+      version: "v1",
+      status: "ok" as const,
+      markdown: "# Formulation Card: Balanced",
+      formula: {
+        name: "Balanced", purpose: "p",
+        ingredients: [{ inci: "Water (Aqua)", function: "Solvent", weight_pct: "q.s. 100" }],
+      },
+      violations: [],
+      strategy: {
+        formula_version_id: "v1", label: "V1", strategy_type: "balanced",
+        title: "Balanced", rationale: "r",
+        primary_priorities: [], secondary_priorities: [], tradeoffs_accepted: [], tradeoffs_forbidden: [],
+      },
+      formula_state: "complete_with_validation_required" as const,
+      safety: {
+        overall_status: "PASS_WITH_CONDITIONS" as const,
+        findings: [
+          {
+            subject_type: "ingredient" as const, subject: "Sodium Hydroxide",
+            status: "PASS_WITH_CONDITIONS" as const, rule_id: "SAFETY-CORR-001",
+            source_type: "deterministic_rule", condition: "corrosive in concentrate form",
+            actual_value: "0.1", rationale: "Corrosive in concentrate form.",
+            required_action: "Use PPE.",
+          },
+        ],
+      },
+      regulatory: {
+        target_market: "kenya", jurisdiction: "KE", coverage: "partial" as const,
+        overall_status: "COMPLIANT_WITH_CONDITIONS" as const,
+        findings: [
+          {
+            subject_type: "label" as const, subject: "required label elements",
+            status: "COMPLIANT_WITH_CONDITIONS" as const, rule_id: "KE-REG-003", jurisdiction: "KE",
+            condition: "net content, batch code", actual_value: "", rationale: "KEBS label requirement.",
+            required_action: "Ensure label carries these elements.",
+          },
+        ],
+        claims: [
+          { claim: "rosemary", check_type: "formulation_condition" as const, status: "DATA_INCOMPLETE" as const, rationale: "not checked" },
+        ],
+        missing_coverage_note: "FormuLab has real but draft/not-yet-verified regulatory rule data for KE.",
+      },
+      evidence_gaps: [
+        { category: "missing_functional_role", gap: "Primary Surfactant: no non-excluded candidate in the pool fills this required role" },
+      ],
+      validation_plan: [
+        { check: "Laboratory batch", rule_id: "VAL-010", reason: "Baseline requirement for any newly generated formula." },
+      ],
+      trace_events: [
+        {
+          decision_id: "trace-v1-0001", formula_version_id: "v1", decision_type: "ingredient_rejected",
+          subject_type: "ingredient" as const, subject: "Sodium Laureth Sulfate", result: "rejected" as const,
+          rationale: "Excluded: user requested sulfate-free.", source_type: "deterministic_rule",
+        },
+      ],
+    },
+  ],
+  read_only: true as const,
+};
+
+function renderPageV6() {
+  readSession.mockReset();
+  readSession.mockResolvedValue(SESSION_V6);
+  return render(
+    <MemoryRouter initialEntries={["/formulation-result/2026-01-01-1600-test"]}>
+      <Routes>
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wiring", () => {
+  it("Safety tab shows real findings with a visible status and rule id", async () => {
+    renderPageV6();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Safety" }));
+    expect(screen.getByText("Sodium Hydroxide")).not.toBeNull();
+    expect(screen.getByText(/SAFETY-CORR-001/)).not.toBeNull();
+  });
+
+  it("Regulatory tab shows the real target market and coverage", async () => {
+    renderPageV6();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Regulatory" }));
+    expect(screen.getByText("kenya")).not.toBeNull();
+    expect(screen.getByText(/KE-REG-003/)).not.toBeNull();
+  });
+
+  it("Regulatory tab claim review shows the real check type", async () => {
+    renderPageV6();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Regulatory" }));
+    expect(screen.getByText("rosemary")).not.toBeNull();
+  });
+
+  it("Summary tab shows real evidence gaps, never generic filler text", async () => {
+    renderPageV6();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    expect(screen.getByText(/no non-excluded candidate/)).not.toBeNull();
+  });
+
+  it("Summary tab shows real safety/regulatory/formula-state readiness badges", async () => {
+    renderPageV6();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    expect(screen.getAllByText("PASS WITH CONDITIONS").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("COMPLIANT WITH CONDITIONS").length).toBeGreaterThan(0);
+  });
+
+  it("Summary tab shows real decision-traceability events, including rejected candidates", async () => {
+    renderPageV6();
+    await screen.findByText("Water (Aqua)");
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    expect(screen.getByText("Sodium Laureth Sulfate")).not.toBeNull();
+    expect(screen.getByText(/user requested sulfate-free/)).not.toBeNull();
   });
 });

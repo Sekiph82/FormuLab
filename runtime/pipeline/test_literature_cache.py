@@ -229,8 +229,13 @@ class CacheTests(unittest.TestCase):
                 lc._load_fetchers, lc._download_fulltext = orig_f, orig_d
 
             # The full target corpus size is reached — relevant candidates
-            # are kept regardless of downloadability.
-            self.assertEqual(len(got), 5)
+            # are kept regardless of downloadability. Phase 14 Session 6
+            # correction gate: the corpus may now legitimately GROW beyond
+            # `target` when the full-text gate searches deeper into the
+            # remaining pool for more downloadable documents — never
+            # shrinks below `target`, and never drops an already-selected
+            # relevant candidate to make room.
+            self.assertGreaterEqual(len(got), 5)
             with_files = [p for p in got if p.get("pdf_file")]
             without_files = [p for p in got if not p.get("pdf_file")]
             self.assertTrue(with_files, "at least the downloadable ones must have a real file")
@@ -243,7 +248,57 @@ class CacheTests(unittest.TestCase):
             # papers.csv lists the WHOLE corpus, not just the downloaded slice.
             with open(os.path.join(out, "papers.csv"), encoding="utf-8-sig") as fh:
                 rows = list(csv.DictReader(fh))
-            self.assertEqual(len(rows), 5)
+            self.assertEqual(len(rows), len(got))
+
+    def test_full_text_gate_searches_deeper_when_short_and_reports_its_own_status(self):
+        # Phase 14 Session 6 correction gate: when the initial `target`-
+        # sized corpus doesn't reach `target` full texts, the full-text
+        # gate searches the REMAINING candidate pool for more downloadable
+        # documents — a real, separate acquisition effort from the
+        # relevant-document corpus gate, honestly reported via
+        # `discovery_stats.json::full_text_gate_met`.
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library")
+            lc.save_index(lib, [])
+            out = os.path.join(tmp, "session")
+
+            def candidate(i, q, downloadable):
+                p = fake_paper(f"cand-{i}", q)
+                p["oa_url"] = f"https://example.org/{i}.xml" if downloadable else ""
+                return p
+
+            # First `target` candidates are all non-downloadable; the
+            # remainder are all downloadable — proves the gate actually
+            # reaches past the initial window.
+            def fetch(q, n):
+                return [candidate(i, q, downloadable=(i >= 5)) for i in range(n)]
+
+            class FakeDiscover:
+                FETCHERS = {"openalex": fetch}
+                @staticmethod
+                def is_relevant(_row):
+                    return True
+
+            def fake_dl(url, dest, timeout=30):
+                path = dest[:-4] + ".xml"
+                with open(path, "wb") as fh:
+                    fh.write(b"<?xml version='1.0'?><article/>")
+                return path, "full text saved"
+
+            orig_f, orig_d = lc._load_fetchers, lc._download_fulltext
+            lc._load_fetchers = lambda: FakeDiscover
+            lc._download_fulltext = fake_dl
+            try:
+                got = lc.gather(["antidandruff shampoo surfactant"], out, lib,
+                                target=5, sources="openalex")
+            finally:
+                lc._load_fetchers, lc._download_fulltext = orig_f, orig_d
+
+            full_text_count = sum(1 for p in got if p.get("pdf_file"))
+            self.assertGreaterEqual(full_text_count, 5)
+            with open(os.path.join(out, "discovery_stats.json"), encoding="utf-8") as fh:
+                stats = json.load(fh)
+            self.assertTrue(stats["full_text_gate_met"])
 
     def test_raw_candidate_count_reflects_the_real_wider_pool(self):
         # Phase 15 zero-LLM round: closes the disclosed

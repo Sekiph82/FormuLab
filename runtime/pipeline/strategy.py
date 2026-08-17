@@ -271,18 +271,47 @@ def derive_strategies(brief: Dict[str, Any], constraints: Dict[str, Any], n: int
 class DiversityReport:
     """Every factor named — never an opaque single similarity number.
     `pairs` holds one entry per compared version pair, each itself
-    decomposed (`ingredient_overlap`, `concentration_similarity`,
-    `primary_surfactant_match`)."""
+    decomposed (`ingredient_overlap`, `major_system_overlap`,
+    `concentration_similarity`, `primary_surfactant_match`).
+    `distinct_architecture_count` (Phase 14 Session 6 correction gate) is
+    the real number of genuinely different major-system architectures
+    among the compared versions — two versions whose major-system
+    ingredient sets are identical count as ONE architecture, however many
+    version slots they fill. Never silently padded: when this is less
+    than the number of versions requested, `explanation` says so
+    honestly."""
 
     pairs: List[Dict[str, Any]]
     sufficiently_diverse: bool
     explanation: str
+    distinct_architecture_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
 _SURFACTANT_KEYS = {normalize_ingredient_key(n) for group in (SULFATES, MILD_SURFACTANTS) for n in group}
+
+# Phase 14 Session 6 (correction gate): the functional roles that actually
+# DEFINE a formulation's own architecture — the same real distinction a
+# formulator means by "a different system", not a different trace-
+# ingredient dosage. Matched against `engine.py`'s own `function` label on
+# each rendered ingredient (`s.role.replace("_", " ").title()`) rather than
+# re-deriving role from the ingredient name, so this stays correct even for
+# an ingredient this module's own `_SURFACTANT_KEYS` doesn't happen to list.
+_MAJOR_SYSTEM_ROLE_LABELS = {
+    "primary surfactant", "mildness cosurfactant", "surfactant", "active treatment",
+    "active system", "rheology modifier", "preservative", "conditioning agent",
+    "emulsifier", "oil phase", "abrasive",
+}
+
+
+def _major_system_set(formula: Dict[str, Any]) -> set:
+    return {
+        normalize_ingredient_key(i.get("inci", ""))
+        for i in (formula.get("ingredients") or [])
+        if str(i.get("function", "")).strip().lower() in _MAJOR_SYSTEM_ROLE_LABELS and i.get("inci")
+    }
 
 
 def _ingredient_set(formula: Dict[str, Any]) -> set:
@@ -315,6 +344,10 @@ def _pair_diversity(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
     union = set_a | set_b
     overlap = len(set_a & set_b) / len(union) if union else 1.0
 
+    major_a, major_b = _major_system_set(a["formula"]), _major_system_set(b["formula"])
+    major_union = major_a | major_b
+    major_system_overlap = len(major_a & major_b) / len(major_union) if major_union else 1.0
+
     conc_a, conc_b = _concentration_map(a["formula"]), _concentration_map(b["formula"])
     shared = set(conc_a) & set(conc_b)
     if shared:
@@ -329,18 +362,58 @@ def _pair_diversity(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "a": a["version"], "b": b["version"],
         "ingredient_overlap": round(overlap, 3),
+        "major_system_overlap": round(major_system_overlap, 3),
         "concentration_similarity": round(conc_similarity, 3),
         "primary_surfactant_match": surfactant_match,
     }
 
 
-# A pair counts as "insufficiently diverse" only when BOTH the ingredient
-# set AND the concentration profile are near-identical — matching §4's own
-# explicit exception: identical chemistry with LEGITIMATE strategy
-# differences elsewhere (cost framing, process, sensory) must not be
-# flagged just for sharing a surfactant system evidence constrains them to.
+# Two independent, named ways a pair counts as "insufficiently diverse" —
+# never collapsed into one opaque score:
+#
+# 1. BOTH the whole ingredient set AND the concentration profile are near-
+#    identical — §4's own original exception: identical chemistry with
+#    LEGITIMATE strategy differences elsewhere (cost framing, process,
+#    sensory) must not be flagged just for sharing a surfactant system
+#    evidence constrains them to.
+# 2. The MAJOR-system ingredient set (the roles that actually define a
+#    formulation's own architecture — primary surfactant, co-surfactant,
+#    active, rheology modifier, preservative, conditioning/emulsifier
+#    system) is COMPLETELY identical between the two versions — a real
+#    runtime defect found during this round's own correction-gate testing:
+#    a request whose candidate pool only ever offered one real option per
+#    major role produced three versions differing ONLY in concentration,
+#    which must never pass as genuine diversity regardless of how
+#    different the concentrations look. This check fires independently of
+#    `concentration_similarity` — concentration-only variation can never
+#    satisfy it on its own.
 _OVERLAP_THRESHOLD = 0.85
 _CONC_SIMILARITY_THRESHOLD = 0.9
+_MAJOR_SYSTEM_IDENTICAL_THRESHOLD = 1.0
+
+
+def _count_distinct_architectures(ok_cards: List[Dict[str, Any]], pairs: List[Dict[str, Any]]) -> int:
+    """Union-find over the "identical major system" edges: two versions
+    whose major-system ingredient sets are completely identical collapse
+    into ONE real architecture, however many version slots they fill."""
+    parent = {c["version"]: c["version"] for c in ok_cards}
+
+    def find(v: str) -> str:
+        while parent[v] != v:
+            parent[v] = parent[parent[v]]
+            v = parent[v]
+        return v
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    for pair in pairs:
+        if pair["major_system_overlap"] >= _MAJOR_SYSTEM_IDENTICAL_THRESHOLD:
+            union(pair["a"], pair["b"])
+
+    return len({find(v) for v in parent}) if parent else 0
 
 
 def diversity_report(cards: List[Dict[str, Any]]) -> DiversityReport:
@@ -357,14 +430,27 @@ def diversity_report(cards: List[Dict[str, Any]]) -> DiversityReport:
                 flags.append(f"{pair['a']} and {pair['b']} are nearly identical "
                              f"(ingredient overlap {pair['ingredient_overlap']:.0%}, "
                              f"concentration similarity {pair['concentration_similarity']:.0%})")
+            elif pair["major_system_overlap"] >= _MAJOR_SYSTEM_IDENTICAL_THRESHOLD:
+                flags.append(f"{pair['a']} and {pair['b']} use the IDENTICAL major functional-"
+                             f"system ingredient set (same primary surfactant/co-surfactant/active/"
+                             f"rheology/preservative/conditioning choices) — concentration differences "
+                             f"alone are not a genuinely different formulation architecture")
+    distinct = _count_distinct_architectures(ok_cards, pairs)
     if len(ok_cards) < 2:
         return DiversityReport(pairs=pairs, sufficiently_diverse=True,
-                                explanation="Fewer than two successful versions — nothing to compare.")
+                                explanation="Fewer than two successful versions — nothing to compare.",
+                                distinct_architecture_count=distinct)
     if flags:
+        shortfall = (f" Only {distinct} scientifically defensible distinct formulation "
+                     f"architecture(s) could be generated from the available candidate pool for "
+                     f"this request, out of {len(ok_cards)} version slot(s) requested."
+                     if distinct < len(ok_cards) else "")
         return DiversityReport(pairs=pairs, sufficiently_diverse=False,
-                                explanation="; ".join(flags))
+                                explanation="; ".join(flags) + shortfall,
+                                distinct_architecture_count=distinct)
     return DiversityReport(pairs=pairs, sufficiently_diverse=True,
-                            explanation="Every version pair differs meaningfully in ingredient set and/or concentration profile.")
+                            explanation="Every version pair differs meaningfully in ingredient set and/or concentration profile.",
+                            distinct_architecture_count=distinct)
 
 
 # ---------------------------------------------------- version evidence ----

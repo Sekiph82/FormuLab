@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { readSession, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type SessionDetail } from "@/lib/formulationV2";
 import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
+import { openAndPrintReport } from "@/lib/formulationReport";
 import { cn } from "@/lib/cn";
 
 /**
@@ -107,7 +108,7 @@ export function FormulationResultPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <TopBar t={t} />
+      <TopBar session={session} sessionId={sessionId} t={t} />
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <OriginalRequestBanner brief={session.brief} sessionId={sessionId} navigate={navigate} t={t} />
 
@@ -167,12 +168,15 @@ export function FormulationResultPage() {
 
 // ------------------------------------------------------------- top bar ---
 
-function TopBar({ t }: { t: TFunction<readonly ["session", "common"]> }) {
+function TopBar({ session, sessionId, t }: { session: SessionDetail; sessionId: string | undefined; t: TFunction<readonly ["session", "common"]> }) {
   return (
     <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-3">
       <span className="text-[13px] font-medium uppercase tracking-wider text-muted">{t("formulationResult.heading")}</span>
       <div className="flex items-center gap-2">
-        <button onClick={() => window.print()} className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-[11px] text-text hover:bg-surface-2">
+        <button
+          onClick={() => openAndPrintReport(session, sessionId ?? session.id)}
+          className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-[11px] text-text hover:bg-surface-2"
+        >
           <FileDown size={13} className="text-muted" />
           {t("formulationResult.actions.downloadReport")}
         </button>
@@ -351,7 +355,7 @@ function TabContent({
     case "safety":
       return <SafetyTab card={card} t={t} />;
     case "regulatory":
-      return <RegulatoryTab t={t} />;
+      return <RegulatoryTab card={card} t={t} />;
     case "evidence":
       return <EvidenceTab card={card} formula={formula} literature={literature} t={t} />;
     case "alternatives":
@@ -733,34 +737,75 @@ function EvidenceSection({ title, children }: { title: string; children: React.R
 
 // ------------------------------------------------------------ Tab 5 ---
 
-function SafetyTab({ card, t }: { card: FormulationCard; t: TFunction<readonly ["session", "common"]> }) {
-  const violations = card.violations ?? [];
-  const status = violations.length > 0 ? "fail" : "incomplete";
+function SafetyFindingRow({ f }: { f: import("@/lib/formulationV2").SafetyFinding }) {
   return (
-    <div className="rounded-card border border-border bg-surface p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <ShieldCheck size={16} className={status === "fail" ? "text-error" : "text-muted"} />
-        <span className="text-[13px] font-medium text-text">{t("formulationResult.safety.overallStatus")}</span>
-        <StatusBadge tone={status === "fail" ? "error" : "muted"} label={t(`formulationResult.safety.statuses.${status}`)} />
+    <div className="rounded-input border border-border-faint p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px] font-medium text-text">{f.subject}</span>
+        <StatusBadge tone={statusTone(f.status)} label={f.status.replace(/_/g, " ")} />
       </div>
-      <EvidenceSection title={t("formulationResult.safety.formulaLevel")}>
+      {f.actual_value && <div className="mt-1 text-[11px] text-text">{f.actual_value}</div>}
+      <div className="mt-1 text-[10.5px] text-muted">{f.rationale}</div>
+      {f.required_action && <div className="text-[10.5px] text-muted">→ {f.required_action}</div>}
+      <div className="mt-1 text-[9.5px] uppercase tracking-wide text-muted">{f.rule_id}{f.source_type ? ` · ${f.source_type}` : ""}</div>
+    </div>
+  );
+}
+
+function SafetyTab({ card, t }: { card: FormulationCard; t: TFunction<readonly ["session", "common"]> }) {
+  const safety = card.safety;
+  if (!safety) {
+    const violations = card.violations ?? [];
+    const status = violations.length > 0 ? "fail" : "incomplete";
+    return (
+      <div className="rounded-card border border-border bg-surface p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <ShieldCheck size={16} className={status === "fail" ? "text-error" : "text-muted"} />
+          <span className="text-[13px] font-medium text-text">{t("formulationResult.safety.overallStatus")}</span>
+          <StatusBadge tone={status === "fail" ? "error" : "muted"} label={t(`formulationResult.safety.statuses.${status}`)} />
+        </div>
         {violations.length > 0 ? (
           <ul className="space-y-1">
             {violations.map((v, i) => (
-              <li key={i} className="rounded-input border border-error/30 bg-error/5 px-2.5 py-1.5 text-[11.5px] text-error">
-                {v}
-              </li>
+              <li key={i} className="rounded-input border border-error/30 bg-error/5 px-2.5 py-1.5 text-[11.5px] text-error">{v}</li>
             ))}
           </ul>
+        ) : (
+          <p className="text-[11.5px] text-muted">{t("formulationResult.safety.notYetEvaluated")}</p>
+        )}
+      </div>
+    );
+  }
+  const formulaFindings = safety.findings.filter((f) => f.subject_type === "formula");
+  const ingredientFindings = safety.findings.filter((f) => f.subject_type === "ingredient");
+  const processFindings = safety.findings.filter((f) => f.subject_type === "process_step");
+  return (
+    <div className="rounded-card border border-border bg-surface p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <ShieldCheck size={16} className={statusTone(safety.overall_status) === "error" ? "text-error" : "text-accent"} />
+        <span className="text-[13px] font-medium text-text">{t("formulationResult.safety.overallStatus")}</span>
+        <StatusBadge tone={statusTone(safety.overall_status)} label={safety.overall_status.replace(/_/g, " ")} />
+      </div>
+      <EvidenceSection title={t("formulationResult.safety.formulaLevel")}>
+        {formulaFindings.length > 0 ? (
+          <div className="space-y-1.5">{formulaFindings.map((f, i) => <SafetyFindingRow key={i} f={f} />)}</div>
         ) : (
           <p className="text-[11.5px] text-muted">{t("formulationResult.safety.noDeterministicFindings")}</p>
         )}
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.safety.ingredientLevel")}>
-        <p className="text-[11.5px] text-muted">{t("formulationResult.safety.notYetEvaluated")}</p>
+        {ingredientFindings.length > 0 ? (
+          <div className="space-y-1.5">{ingredientFindings.map((f, i) => <SafetyFindingRow key={i} f={f} />)}</div>
+        ) : (
+          <p className="text-[11.5px] text-muted">{t("formulationResult.safety.noDeterministicFindings")}</p>
+        )}
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.safety.manufacturing")}>
-        <p className="text-[11.5px] text-muted">{t("formulationResult.safety.notYetEvaluated")}</p>
+        {processFindings.length > 0 ? (
+          <div className="space-y-1.5">{processFindings.map((f, i) => <SafetyFindingRow key={i} f={f} />)}</div>
+        ) : (
+          <p className="text-[11.5px] text-muted">{t("formulationResult.safety.noDeterministicFindings")}</p>
+        )}
       </EvidenceSection>
     </div>
   );
@@ -768,15 +813,85 @@ function SafetyTab({ card, t }: { card: FormulationCard; t: TFunction<readonly [
 
 // ------------------------------------------------------------ Tab 6 ---
 
-function RegulatoryTab({ t }: { t: TFunction<readonly ["session", "common"]> }) {
+function RegulatoryFindingRow({ f }: { f: import("@/lib/formulationV2").RegulatoryFinding }) {
+  return (
+    <div className="rounded-input border border-border-faint p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px] font-medium text-text">{f.subject}</span>
+        <StatusBadge tone={statusTone(f.status)} label={f.status.replace(/_/g, " ")} />
+      </div>
+      <div className="mt-1 text-[11px] text-text">{f.condition}</div>
+      <div className="mt-1 text-[10.5px] text-muted">{f.rationale}</div>
+      {f.required_action && <div className="text-[10.5px] text-muted">→ {f.required_action}</div>}
+      <div className="mt-1 text-[9.5px] uppercase tracking-wide text-muted">{f.rule_id} · {f.jurisdiction}</div>
+    </div>
+  );
+}
+
+function RegulatoryTab({ card, t }: { card: FormulationCard; t: TFunction<readonly ["session", "common"]> }) {
+  const regulatory = card.regulatory;
+  if (!regulatory) {
+    return (
+      <div className="rounded-card border border-border bg-surface p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Scale size={16} className="text-muted" />
+          <span className="text-[13px] font-medium text-text">{t("formulationResult.regulatory.overallStatus")}</span>
+          <StatusBadge tone="muted" label={t("formulationResult.regulatory.statuses.incomplete")} />
+        </div>
+        <p className="text-[11.5px] leading-relaxed text-muted">{t("formulationResult.regulatory.notYetEvaluated")}</p>
+      </div>
+    );
+  }
+  const ingredientFindings = regulatory.findings.filter((f) => f.subject_type === "ingredient");
+  const labelFindings = regulatory.findings.filter((f) => f.subject_type === "label");
   return (
     <div className="rounded-card border border-border bg-surface p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <Scale size={16} className="text-muted" />
-        <span className="text-[13px] font-medium text-text">{t("formulationResult.regulatory.overallStatus")}</span>
-        <StatusBadge tone="muted" label={t("formulationResult.regulatory.statuses.incomplete")} />
+      <div className="mb-2 text-[11px] text-muted">
+        {t("formulationResult.regulatory.targetMarket")}: <span className="text-text">{regulatory.target_market || t("formulationResult.regulatory.unspecified")}</span>
       </div>
-      <p className="text-[11.5px] leading-relaxed text-muted">{t("formulationResult.regulatory.notYetEvaluated")}</p>
+      <div className="mb-3 flex items-center gap-2">
+        <Scale size={16} className={statusTone(regulatory.overall_status) === "error" ? "text-error" : "text-accent"} />
+        <span className="text-[13px] font-medium text-text">{t("formulationResult.regulatory.overallStatus")}</span>
+        <StatusBadge tone={statusTone(regulatory.overall_status)} label={regulatory.overall_status.replace(/_/g, " ")} />
+      </div>
+      <EvidenceSection title={t("formulationResult.regulatory.ingredientRestrictions")}>
+        {ingredientFindings.length > 0 ? (
+          <div className="space-y-1.5">{ingredientFindings.map((f, i) => <RegulatoryFindingRow key={i} f={f} />)}</div>
+        ) : (
+          <p className="text-[11.5px] text-muted">{t("formulationResult.regulatory.noFindings")}</p>
+        )}
+      </EvidenceSection>
+      <EvidenceSection title={t("formulationResult.regulatory.claimReview")}>
+        {regulatory.claims.length > 0 ? (
+          <div className="space-y-1.5">
+            {regulatory.claims.map((c, i) => (
+              <div key={i} className="rounded-input border border-border-faint p-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[12px] font-medium text-text">{c.claim}</span>
+                  <StatusBadge tone={statusTone(c.status)} label={c.status.replace(/_/g, " ")} />
+                  <span className="text-[9.5px] uppercase tracking-wide text-muted">{t(`formulationResult.regulatory.claimCheckType.${c.check_type}`)}</span>
+                </div>
+                <div className="mt-1 text-[10.5px] text-muted">{c.rationale}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11.5px] text-muted">{t("formulationResult.regulatory.noClaims")}</p>
+        )}
+      </EvidenceSection>
+      <EvidenceSection title={t("formulationResult.regulatory.labelInci")}>
+        {labelFindings.length > 0 ? (
+          <div className="space-y-1.5">{labelFindings.map((f, i) => <RegulatoryFindingRow key={i} f={f} />)}</div>
+        ) : (
+          <p className="text-[11.5px] text-muted">{t("formulationResult.regulatory.noFindings")}</p>
+        )}
+      </EvidenceSection>
+      <EvidenceSection title={t("formulationResult.regulatory.coverage")}>
+        <div className="mb-1.5">
+          <StatusBadge tone={regulatory.coverage === "partial" ? "warning" : "muted"} label={t(`formulationResult.regulatory.coverageLevels.${regulatory.coverage}`)} />
+        </div>
+        <p className="text-[11.5px] leading-relaxed text-muted">{regulatory.missing_coverage_note}</p>
+      </EvidenceSection>
     </div>
   );
 }
@@ -948,17 +1063,54 @@ function EvidenceTab({
   // `literature` list `read_session` now returns, each row's own
   // `unique_source_count` visible rather than implied.
   const linkedDois = new Set((card.evidence_links ?? []).map((l) => l.paper_doi).filter(Boolean));
+  // Phase 14 Session 6 — Evidence & Sources UI fix (§13/§14): per-source
+  // Evidence Class and Evidence Record count, aggregated from THIS card's
+  // own `evidence_links` (already version-scoped, never a second
+  // extraction pass) — the best (A > B > C > D > E) class actually linked
+  // to each DOI and how many records back it, never a fabricated relevance
+  // score this data doesn't carry.
+  const EVIDENCE_CLASS_RANK: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+  const evidenceByDoi = new Map<string, { count: number; bestClass: string }>();
+  for (const l of card.evidence_links ?? []) {
+    if (!l.paper_doi) continue;
+    const existing = evidenceByDoi.get(l.paper_doi);
+    if (!existing) {
+      evidenceByDoi.set(l.paper_doi, { count: 1, bestClass: l.evidence_class });
+    } else {
+      existing.count += 1;
+      if (EVIDENCE_CLASS_RANK[l.evidence_class] < EVIDENCE_CLASS_RANK[existing.bestClass]) {
+        existing.bestClass = l.evidence_class;
+      }
+    }
+  }
+  const [expanded, setExpanded] = useState<number | null>(null);
+  // Phase 14 Session 6 correction gate: the primary gate is FULL-TEXT
+  // sources against the 15-document target — never the qualifying
+  // (relevant-but-not-necessarily-full-text) count alone, which can read
+  // as "15/15 succeeded" even when 0 usable evidence was ever extracted
+  // from those documents. Every count stays separately visible — never
+  // collapsed into one figure.
+  const zeroEvidenceDespiteCorpus = !!corpus && corpus.qualifying_count > 0 && corpus.evidence_record_count === 0;
   return (
     <div className="rounded-card border border-border bg-surface p-4">
       {corpus && (
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <CorpusCounter label={t("formulationResult.evidenceTab.counters.researchSources")} value={`${corpus.qualifying_count} / ${corpus.target_count}`} />
-          <CorpusCounter label={t("formulationResult.evidenceTab.counters.uniqueStudies")} value={String(corpus.unique_evidence_study_count)} />
-          <CorpusCounter label={t("formulationResult.evidenceTab.counters.fullText")} value={String(corpus.full_text_count)} />
-          <CorpusCounter label={t("formulationResult.evidenceTab.counters.abstractOnly")} value={String(corpus.abstract_only_count)} />
-          <CorpusCounter label={t("formulationResult.evidenceTab.counters.evidenceRecords")} value={String(corpus.evidence_record_count)} />
-          <CorpusCounter label={t("formulationResult.evidenceTab.counters.formulaLinked")} value={String(linkedDois.size)} />
-        </div>
+        <>
+          <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <CorpusCounter label={t("formulationResult.evidenceTab.counters.fullTextGate")} value={`${corpus.full_text_count} / ${corpus.target_count}`} />
+            <CorpusCounter label={t("formulationResult.evidenceTab.counters.researchSources")} value={`${corpus.qualifying_count} / ${corpus.target_count}`} />
+            <CorpusCounter label={t("formulationResult.evidenceTab.counters.rawCandidates")} value={String(corpus.raw_candidate_count)} />
+            <CorpusCounter label={t("formulationResult.evidenceTab.counters.abstractOnly")} value={String(corpus.abstract_only_count)} />
+            <CorpusCounter label={t("formulationResult.evidenceTab.counters.metadataOnly")} value={String(corpus.metadata_only_count)} />
+            <CorpusCounter label={t("formulationResult.evidenceTab.counters.evidenceRecords")} value={String(corpus.evidence_record_count)} />
+            <CorpusCounter label={t("formulationResult.evidenceTab.counters.uniqueStudies")} value={String(corpus.unique_evidence_study_count)} />
+            <CorpusCounter label={t("formulationResult.evidenceTab.counters.formulaLinked")} value={String(linkedDois.size)} />
+          </div>
+          {zeroEvidenceDespiteCorpus && (
+            <div className="mb-3 rounded-input border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+              {t("formulationResult.evidenceTab.zeroEvidenceDespiteCorpus", { count: corpus.qualifying_count })}
+            </div>
+          )}
+        </>
       )}
 
       <EvidenceSection title={t("formulationResult.evidenceTab.summary")}>
@@ -970,35 +1122,68 @@ function EvidenceTab({
       <EvidenceSection title={t("formulationResult.evidenceTab.sources")}>
         {literature.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-[11.5px]">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-[11.5px]">
               <thead>
                 <tr className="border-b border-border-faint text-left text-[10px] uppercase text-muted">
-                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.title")}</th>
-                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.author")}</th>
-                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.year")}</th>
-                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.doi")}</th>
-                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.fullText")}</th>
-                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.providers")}</th>
-                  <th className="py-1 pr-2">{t("formulationResult.evidenceTab.columns.usedByVersion")}</th>
+                  <th className="w-[26%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.title")}</th>
+                  <th className="w-[13%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.author")}</th>
+                  <th className="w-[6%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.year")}</th>
+                  <th className="w-[12%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.doi")}</th>
+                  <th className="w-[6%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.evidenceClass")}</th>
+                  <th className="w-[9%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.fullText")}</th>
+                  <th className="w-[12%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.discoveredVia")}</th>
+                  <th className="w-[9%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.resolvedVia")}</th>
+                  <th className="w-[7%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.evidenceRecords")}</th>
+                  <th className="w-[7%] py-1 pr-2">{t("formulationResult.evidenceTab.columns.usedByVersion")}</th>
                 </tr>
               </thead>
               <tbody>
                 {literature.map((doc, i) => (
-                  <tr key={i} className="border-b border-border-faint/60">
-                    <td className="py-1 pr-2 text-text">{doc.title || "—"}</td>
-                    <td className="py-1 pr-2 text-muted">{doc.authors || "—"}</td>
-                    <td className="py-1 pr-2 text-muted">{doc.year || "—"}</td>
-                    <td className="py-1 pr-2 text-muted">{doc.doi || "—"}</td>
-                    <td className="py-1 pr-2 text-muted">
-                      {doc.pdf_file
-                        ? t("formulationResult.evidenceTab.fullTextYes")
-                        : doc.fulltext || t("formulationResult.evidenceTab.fullTextNo")}
-                    </td>
-                    <td className="py-1 pr-2 text-muted">{(doc.provenance_sources ?? [doc.source_db]).join(", ")}</td>
-                    <td className="py-1 pr-2 text-muted">
-                      {linkedDois.has(doc.doi) ? card.version?.toUpperCase() : "—"}
-                    </td>
-                  </tr>
+                  <Fragment key={i}>
+                    <tr
+                      className="cursor-pointer border-b border-border-faint/60 hover:bg-surface-2"
+                      onClick={() => setExpanded(expanded === i ? null : i)}
+                    >
+                      <td className="truncate py-1 pr-2 text-text" title={doc.title}>{doc.title || "—"}</td>
+                      <td className="truncate py-1 pr-2 text-muted" title={doc.authors}>{doc.authors || "—"}</td>
+                      <td className="py-1 pr-2 text-muted">{doc.year || "—"}</td>
+                      <td className="truncate py-1 pr-2 text-muted" title={doc.doi}>{doc.doi || "—"}</td>
+                      <td className="py-1 pr-2 text-muted">{evidenceByDoi.get(doc.doi)?.bestClass ?? "—"}</td>
+                      <td className="truncate py-1 pr-2 text-muted">
+                        {doc.pdf_file
+                          ? t("formulationResult.evidenceTab.fullTextYes")
+                          : doc.fulltext || t("formulationResult.evidenceTab.fullTextNo")}
+                      </td>
+                      <td className="truncate py-1 pr-2 text-muted" title={(doc.provenance_sources ?? [doc.source_db]).join(", ")}>
+                        {(doc.provenance_sources ?? [doc.source_db]).join(" + ")}
+                      </td>
+                      <td className="truncate py-1 pr-2 text-muted">{doc.resolved_via || "—"}</td>
+                      <td className="py-1 pr-2 text-muted">{evidenceByDoi.get(doc.doi)?.count ?? 0}</td>
+                      <td className="py-1 pr-2 text-muted">
+                        {linkedDois.has(doc.doi) ? card.version?.toUpperCase() : "—"}
+                      </td>
+                    </tr>
+                    {expanded === i && (
+                      <tr className="border-b border-border-faint/60 bg-surface-2/40">
+                        <td colSpan={9} className="px-2 py-2 text-[11px] text-muted">
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.title")}</span><div className="text-text">{doc.title || "—"}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.author")}</span><div className="text-text">{doc.authors || "—"}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.venue")}</span><div className="text-text">{doc.venue || "—"}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.doi")}</span><div className="text-text">{doc.doi || "—"}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.discoveredVia")}</span><div className="text-text">{(doc.provenance_sources ?? [doc.source_db]).join(", ")}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.resolvedVia")}</span><div className="text-text">{doc.resolved_via || "—"}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.oaLabel")}</span><div className="text-text">{doc.is_oa ? t("formulationResult.evidenceTab.oaYes") : t("formulationResult.evidenceTab.oaNo")}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.fullText")}</span><div className="text-text">{doc.pdf_file ? t("formulationResult.evidenceTab.fullTextYes") : (doc.fulltext || t("formulationResult.evidenceTab.fullTextNo"))}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.citedBy")}</span><div className="text-text">{doc.cited_by ?? "—"}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.evidenceClass")}</span><div className="text-text">{evidenceByDoi.get(doc.doi)?.bestClass ?? "—"}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.evidenceRecords")}</span><div className="text-text">{evidenceByDoi.get(doc.doi)?.count ?? 0}</div></div>
+                            <div><span className="text-[9px] uppercase">{t("formulationResult.evidenceTab.columns.usedByVersion")}</span><div className="text-text">{linkedDois.has(doc.doi) ? card.version?.toUpperCase() : "—"}</div></div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -1116,12 +1301,83 @@ function SummaryTab({ card, formula, t }: { card: FormulationCard; formula: Gene
           </ul>
         </EvidenceSection>
       )}
+      {(card.safety || card.regulatory) && (
+        <EvidenceSection title={t("formulationResult.summary.readiness")}>
+          <div className="flex flex-wrap gap-2">
+            {card.safety && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase text-muted">{t("formulationResult.safety.overallStatus")}</span>
+                <StatusBadge tone={statusTone(card.safety.overall_status)} label={card.safety.overall_status.replace(/_/g, " ")} />
+              </div>
+            )}
+            {card.regulatory && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase text-muted">{t("formulationResult.regulatory.overallStatus")}</span>
+                <StatusBadge tone={statusTone(card.regulatory.overall_status)} label={card.regulatory.overall_status.replace(/_/g, " ")} />
+              </div>
+            )}
+            {card.formula_state && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase text-muted">{t("formulationResult.summary.formulaState")}</span>
+                <StatusBadge tone={card.formula_state.startsWith("invalid") ? "error" : card.formula_state === "complete" ? "success" : "warning"} label={card.formula_state.replace(/_/g, " ")} />
+              </div>
+            )}
+          </div>
+        </EvidenceSection>
+      )}
+      {card.evidence_gaps && card.evidence_gaps.length > 0 ? (
+        <EvidenceSection title={t("formulationResult.summary.evidenceGaps")}>
+          <ul className="space-y-1">
+            {card.evidence_gaps.map((g, i) => (
+              <li key={i} className="rounded-input border border-warning/20 bg-warning/5 px-2 py-1 text-[11px] text-warning">
+                <span className="mr-1 text-[9px] uppercase tracking-wide text-muted">{g.category.replace(/_/g, " ")}</span>
+                {g.gap}
+              </li>
+            ))}
+          </ul>
+        </EvidenceSection>
+      ) : card.evidence_gaps ? (
+        <EvidenceSection title={t("formulationResult.summary.evidenceGaps")}>
+          <p className="text-[11.5px] text-success">{t("formulationResult.summary.noEvidenceGaps")}</p>
+        </EvidenceSection>
+      ) : null}
+      {card.trace_events && card.trace_events.length > 0 && (
+        <EvidenceSection title={t("formulationResult.summary.traceability")}>
+          <ul className="space-y-1">
+            {card.trace_events.map((ev, i) => (
+              <li
+                key={i}
+                className={cn(
+                  "rounded-input border px-2 py-1 text-[11px]",
+                  ev.result === "rejected" ? "border-border-faint text-muted"
+                    : ev.result === "missing" ? "border-warning/20 bg-warning/5 text-warning"
+                      : "border-border-faint text-text",
+                )}
+              >
+                <span className="mr-1 text-[9px] uppercase tracking-wide text-muted">{ev.result}</span>
+                <span className="font-medium">{ev.subject}</span>
+                {ev.rationale && <span className="text-muted"> — {ev.rationale}</span>}
+              </li>
+            ))}
+          </ul>
+        </EvidenceSection>
+      )}
       <EvidenceSection title={t("formulationResult.summary.validationRequired")}>
-        <ul className="list-disc space-y-0.5 pl-4 text-[11.5px] text-muted">
-          {(t("formulationResult.summary.validationChecklist", { returnObjects: true }) as string[]).map((item, i) => (
-            <li key={i}>{item}</li>
-          ))}
-        </ul>
+        {card.validation_plan && card.validation_plan.length > 0 ? (
+          <ul className="space-y-1">
+            {card.validation_plan.map((v, i) => (
+              <li key={i} className="text-[11.5px] text-muted">
+                <span className="font-medium text-text">{v.check}</span> — {v.reason}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="list-disc space-y-0.5 pl-4 text-[11.5px] text-muted">
+            {(t("formulationResult.summary.validationChecklist", { returnObjects: true }) as string[]).map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
+          </ul>
+        )}
       </EvidenceSection>
       {card.violations && card.violations.length > 0 && (
         <EvidenceSection title={t("formulationResult.summary.nextAction")}>
@@ -1188,7 +1444,7 @@ function VersionSummaryCard({ card, formula, t }: { card: FormulationCard | unde
   );
 }
 
-function StatusBadge({ tone, label }: { tone: "error" | "muted" | "success"; label: string }) {
+function StatusBadge({ tone, label }: { tone: "error" | "muted" | "success" | "warning"; label: string }) {
   return (
     <span
       className={cn(
@@ -1196,9 +1452,19 @@ function StatusBadge({ tone, label }: { tone: "error" | "muted" | "success"; lab
         tone === "error" && "bg-error/10 text-error",
         tone === "muted" && "bg-surface-2 text-muted",
         tone === "success" && "bg-success/10 text-success",
+        tone === "warning" && "bg-warning/15 text-warning",
       )}
     >
       {label}
     </span>
   );
+}
+
+/** Phase 14 Session 6 — the shared PASS/COMPLIANT-family status vocabulary
+ *  used by both the Safety and Regulatory tabs. */
+function statusTone(status: string): "error" | "muted" | "success" | "warning" {
+  if (status === "FAIL" || status === "NON_COMPLIANT") return "error";
+  if (status === "PASS_WITH_CONDITIONS" || status === "COMPLIANT_WITH_CONDITIONS") return "warning";
+  if (status === "PASS" || status === "COMPLIANT") return "success";
+  return "muted"; // DATA_INCOMPLETE
 }
