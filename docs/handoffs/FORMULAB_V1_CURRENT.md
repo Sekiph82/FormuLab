@@ -67,8 +67,9 @@ None.
 
 ## Latest commit SHA
 
-See `git log` for the exact current HEAD — recorded here once the
-scientific-formulation correction is committed and pushed.
+`862372d4d91b0de3a89b534f117baa19504ab64d` (pushed to
+`origin/feature/laboratory-stability`) — the scientific full-formulation
+architecture correction (FVL-03.013-018).
 
 ## Reminder
 
