@@ -133,11 +133,9 @@ no code change — see above).
 
 ## Latest commit SHA
 
-See the Desktop external log's most recent FVL-03.001 entry for the
-exact SHA pushed this session — this file is updated before the commit
-lands to keep the audit narrative and code change together in one
-commit; check `git log --oneline -5` on `origin/feature/laboratory-
-stability` for the authoritative current HEAD.
+`86e965a6f8ddbb2144e077f05fbe66a635a46bd0` (pushed to and matching
+`origin/feature/laboratory-stability`) — "docs(v1): close FVL-03.001
+material master integration-seam audit".
 
 ## Reminder
 
