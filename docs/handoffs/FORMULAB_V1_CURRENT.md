@@ -13,17 +13,56 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
 ## Current work package
 
-**FVL-02 — Dynamic 3-7 Formula Alternatives** — **CLOSED, 24/24 tasks
-COMPLETED (2026-08-17).** FVL-01 remains CLOSED (21/21); FVL-03 sits at
-6/18 (FVL-03.013-018).
+**FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
+ON PROCESS, 7/18 tasks COMPLETED (FVL-03.001, FVL-03.013-018). FVL-01
+remains CLOSED (21/21); FVL-02 remains CLOSED (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.001`** — blank, NOT STARTED. FVL-02's own closure resolved its
-one remaining subtask this session (`FVL-02.009` — see below); FVL-03.001
-is the next frozen task in the tracker's own default execution order.
-Deliberately not begun this session per the standing "do not start
-FVL-03" instruction that governed the FVL-02 closure work itself.
+**`FVL-03.002`** — blank, NOT STARTED. `FVL-03.001` closed this session
+(see below) — `FVL-03.002` ("wire supplier records + price history into
+candidate concentration/cost basis") is the next frozen task per the
+tracker's own dependency chain. Deliberately not begun this session.
+
+## FVL-03.001 resolution (this session, audit only)
+
+"Audit exact integration seam: Material Master ↔ `engine.
+build_candidate_pool()`." Full findings in
+`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`. Summary:
+
+- **Canonical Material Master**: `packages/shared/src/schemas/
+  materials.ts` (`RawMaterial`/`Supplier`/`MaterialSupplier`/
+  `MaterialPrice`/`InventoryRecord`), identity = `RawMaterial.code`.
+  Persisted as flat JSON arrays under `<project_root>/data/master/*.json`
+  (`apps/desktop/src-tauri/src/masterdata.rs`), read by the real
+  Materials screen (`MaterialsPage.tsx` → `listRecords("materials")`).
+- **What `build_candidate_pool()` actually consumes today: NOT the
+  canonical Material Master.** `runtime/pipeline/materials.py` is a
+  second, independent, much simpler representation — a single flat
+  `<materials_dir>/materials.json` (different path AND shape from the
+  canonical store), populated by a live, reachable, separate CSV-import
+  screen (`MaterialsCard.tsx`, Settings → General) — confirmed
+  disconnected from `MaterialsPage.tsx`'s own canonical path.
+- **Identity mismatch confirmed**: pool candidates key on
+  `normalize_ingredient_key(inci or name)` (derived text), never
+  `RawMaterial.code`. The legacy row's own `material_id` survives only
+  as trailing trace provenance, never as the actual pool key.
+- **Real, proven gap**: `resolve_concentration()`'s own Tier 4 (supplier
+  recommended range) is dead code on the current path — the legacy CSV
+  import can never produce `recommended_min_pct`/`recommended_max_pct`,
+  proven end-to-end with the REAL parser
+  (`test_material_master_seam.py`, 4 new tests, all passing).
+- **Cost Engine boundary documented, not implemented**:
+  `packages/shared/src/engine/cost.ts::costFormula()` (keyed on
+  `materialCode`, real landed cost/exchange-rate/missing-data handling,
+  673-line test suite) is the authoritative engine future FVL-03.003
+  must call. It is confirmed NOT called from the generation path today —
+  `materials.py::cost_formula()` is a separate, simpler, unrelated
+  reimplementation (flat price × kg, no landed cost, no exchange rate).
+- **No production code changed.** Audit/seam-definition only, per
+  FVL-03.001's own scope — explicitly did not implement supplier wiring
+  (FVL-03.002), cost wiring (FVL-03.003), or inventory wiring
+  (FVL-03.004).
 
 ## FVL-02.009 resolution (this session)
 
@@ -68,72 +107,37 @@ temp directory, ran `run_cli.py` against it — clean JSON response, no
 (`research_corpus_incomplete`, the correct/expected outcome for a sandbox
 with no live literature-retrieval network access).
 
-## Immediately preceding completed work (this session)
-
-Fixed the real portfolio-gating defect reported at the top of this
-session's own instructions: `architecture_portfolio.select_portfolio()`
-modeled "use this slot's scientific architecture" and "use the generic
-fallback" as mutually exclusive per slot; `engine.build_candidate_pool()`
-never worked that way (always merges origins, role-by-role). Fixed via
-`preferred_source_formulation_id`/`is_preferred_architecture` (a real,
-bounded +50 priority for the portfolio-assigned seed, never exceeding an
-explicit user requirement) plus a REAL fallback-completeness figure
-(`engine.covered_roles()` against a scientific-formulation-free pool,
-replacing the previous hardcoded `1.0`). 12 dedicated regression tests
-added (`test_architecture_portfolio.py`). Then completed the rest of
-FVL-02's frozen scope in the same session: Acceptance Cases A-E all
-verified and codified as real tests (`test_acceptance_formula_count.py`
-for C/D/E; `ScientificFormulationPriorityTests` for A/B against the real
-PDF); New Request UI count control (3-7, default 3, wired end to end
-through `formulationV2.ts` → Tauri → Rust → Python `n`, 11 new frontend
-tests); dynamic V1-V7 result selector (horizontally scrollable strip for
->3 cards, 7 new frontend tests); Alternatives tab enriched with strategy/
-retained-added-removed counts; report generator confirmed already
-N-generic, one new 7-version test added; Rust bridge confirmed already
-fully generic (`serde_json::Value` passthrough, no fixed struct), one new
-7-card round-trip test added. Full validation: Python 366/366 (+1 subtest
-group), Rust `formulation_v2::` 10/10, frontend 1274/1274 (`tsc`/ESLint
-clean) — see the Desktop external log for the complete session account.
-
 ## Exact next task
 
-**`FVL-03.001`** — blank, NOT STARTED (see above). Cost Engine
-integration — the first blank task in FVL-03's own default execution
-order. Not begun this session.
+**`FVL-03.002`** — blank, NOT STARTED (see above). Wire supplier records
++ price history into candidate concentration/cost basis, per the exact
+adapter/seam `FVL-03.001`'s own audit defined (`docs/
+FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`). One source of truth (the
+canonical `data/master/*.json` store), no duplicated cost formula. Not
+begun this session.
 
 ## Known blockers
 
-None. FVL-02 is fully closed (24/24).
+None. FVL-01/FVL-02 fully closed; FVL-03.001 fully closed (audit only,
+no code change — see above).
 
 ## Most recent relevant tests
 
-- `python -m pytest runtime/pipeline -q` — 374 passed, 5 subtests passed.
-- `cargo check --release` — clean. `cargo test --release formulation_v2`
-  — 10/10 (full workspace `cargo test --release` not re-run this
-  session — only `formulation_v2.rs` changed).
-- `pnpm tsc --noEmit` / `pnpm lint` (ESLint) — clean. Targeted `pnpm
-  vitest run` on every file touching `formulationV2.ts`'s types
-  (`FormulationResultPage`/`NewFormulationRequestPage`/
-  `formulationReport` test files) — 63/63 passing; full `pnpm vitest
-  run` (138 files / 1274 tests) last run clean in the immediately prior
-  session, not re-run in full this session since the only frontend
-  change was one additive optional type field.
+- `python -m pytest runtime/pipeline -q` — 378 passed, 5 subtests passed.
+- `packages/shared/src/engine/cost.test.ts` (existing Cost Engine suite,
+  re-verified untouched by this session's audit) — 44/44 passing.
 - `git diff --check` — clean.
-- Real acceptance: the user's own actual downloaded PDF
-  (`10.20431_2455-1538.0402005.pdf`) — 5 scientific formulations
-  extracted, requested 5 / actual 4 (honest strategy-applicability
-  shortfall), zero SLS in the sulfate-free case, real adaptation trace.
-- Materialized-pipeline reproduction (disposable temp dir, exact Rust
-  embed list) — clean `run_cli.py` execution, no `ImportError`, reached
-  real business logic.
+- No Rust/TypeScript/frontend production code changed this session (pure
+  audit + Python-side proof tests) — no rebuild performed, per the
+  standing "only rebuild when shipped code actually changes" policy.
 
 ## Latest commit SHA
 
-`d2f5813840df435a74ecd602d88bdde66c50c16c` (pushed to and matching
-`origin/feature/laboratory-stability`) — "fix(v1): close FVL-02
-minimum-alternative status". Previous: `85d4d48aa2bf70eb1d6f893a16acfb077bf552bb`
-— "feat(v1): dynamic 3-7 scientific formulation portfolio selection
-(FVL-02)".
+See the Desktop external log's most recent FVL-03.001 entry for the
+exact SHA pushed this session — this file is updated before the commit
+lands to keep the audit narrative and code change together in one
+commit; check `git log --oneline -5` on `origin/feature/laboratory-
+stability` for the authoritative current HEAD.
 
 ## Reminder
 

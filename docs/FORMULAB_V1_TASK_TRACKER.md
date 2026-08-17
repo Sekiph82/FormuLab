@@ -61,7 +61,7 @@ subjective percentages.
 |---|---|---|---|---|---|
 | FVL-01 | [#2](https://github.com/Sekiph82/FormuLab/issues/2) (closed) | 21 | 21 | 0 | 0 |
 | FVL-02 | [#3](https://github.com/Sekiph82/FormuLab/issues/3) (closed) | 24 | 24 | 0 | 0 |
-| FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) | 18 | 6 | 0 | 12 |
+| FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) | 18 | 7 | 0 | 11 |
 | FVL-04 | [#5](https://github.com/Sekiph82/FormuLab/issues/5) | 12 | 0 | 0 | 12 |
 | FVL-05 | [#6](https://github.com/Sekiph82/FormuLab/issues/6) | 14 | 0 | 0 | 14 |
 | FVL-06 | [#7](https://github.com/Sekiph82/FormuLab/issues/7) | 10 | 0 | 0 | 10 |
@@ -205,7 +205,7 @@ supplier records + price history.
 
 | Task ID | Title | Depends on | Blocking | Status |
 |---|---|---|---|---|
-| FVL-03.001 | Audit exact integration seam: Material Master ↔ `engine.build_candidate_pool()` (what's read today via `materials_dir`, what's missing) | FVL-01 | YES | |
+| FVL-03.001 | Audit exact integration seam: Material Master ↔ `engine.build_candidate_pool()` (what's read today via `materials_dir`, what's missing) | FVL-01 | YES | COMPLETED (2026-08-18) — full audit in `docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`. Confirmed by code: `build_candidate_pool()` consumes a SECOND, legacy material representation (`runtime/pipeline/materials.py`'s flat `<materials_dir>/materials.json`, populated by the live `MaterialsCard.tsx` CSV-import path), never the canonical `data/master/materials.json` (`masterdata.rs`) the real Materials screen uses. Identity mismatch confirmed: pool keys on normalized INCI/name text, never `RawMaterial.code`. `resolve_concentration()`'s own Tier 4 (supplier recommended range) is dead code on this path — proven end-to-end with a real CSV import (`test_material_master_seam.py`, 4 tests). Cost Engine boundary documented (`packages/shared/src/engine/cost.ts::costFormula()`, keyed on `materialCode`) — confirmed NOT called from the generation path; `materials.py::cost_formula()` is a separate, unrelated reimplementation. No production code changed — audit-only, per FVL-03.001's own scope. |
 | FVL-03.002 | Wire supplier records + price history into candidate concentration/cost basis (one source of truth, no duplicated cost formula) | FVL-03.001 | YES | |
 | FVL-03.003 | Wire landed cost + exchange rates into a real cost-oriented strategy (reuse existing Cost Engine, no reimplementation) | FVL-03.002 | YES | |
 | FVL-03.004 | Wire inventory/raw-material availability into candidate feasibility (missing data stays missing, never assumed available) | FVL-03.001 | NO | |
