@@ -488,7 +488,9 @@ fully closed (see above).
 
 ## Latest commit SHA
 
-_Pending — filled in by this session's closure-pointer follow-up commit._
+`4693041` (pushed to and matching `origin/feature/laboratory-stability`)
+— "feat(v1): integrate material substitution workflow". Prior:
+`0a32b83` — "docs: finalize FVL-03.005 closure pointer with commit SHA".
 
 ## Reminder
 
