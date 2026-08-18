@@ -409,7 +409,9 @@ closed (see above).
 
 ## Latest commit SHA
 
-_Pending — filled in by this session's closure-pointer follow-up commit._
+`f90f61d` (pushed to and matching `origin/feature/laboratory-stability`)
+— "feat(v1): integrate Advanced Optimizer refinement". Prior:
+`a12f509` — "docs: finalize FVL-03.004 closure pointer with commit SHA".
 
 ## Reminder
 
