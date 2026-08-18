@@ -280,9 +280,11 @@ above).
 
 ## Latest commit SHA
 
-(updated in the closure-pointer follow-up commit for this session).
-Prior: `fcb7cdcfbb0df3953708db942b5c94958d643c3c` — "docs: finalize
-FVL-03.002 closure pointer with commit SHA".
+`8fec21d2f6e020c149ba3b2728f60d03369d2dab` (pushed to and matching
+`origin/feature/laboratory-stability`) — "feat(v1): integrate
+authoritative Cost Engine into formulation pipeline". Prior:
+`fcb7cdcfbb0df3953708db942b5c94958d643c3c` — "docs: finalize FVL-03.002
+closure pointer with commit SHA".
 
 ## Reminder
 
