@@ -3,6 +3,7 @@ import type { CostSnapshot } from "@formulab/shared";
 import type { FormulationCard } from "./formulationV2";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
+import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 import { pickCheapestValidVersion } from "./costComparison";
 
 function compat(over: Partial<GeneratedFormulaCompatibility> & { formulaState: GeneratedFormulaCompatibility["formulaState"] }): GeneratedFormulaCompatibility {
@@ -11,6 +12,10 @@ function compat(over: Partial<GeneratedFormulaCompatibility> & { formulaState: G
 
 function safety(over: Partial<GeneratedFormulaSafety> & { formulaState: GeneratedFormulaSafety["formulaState"] }): GeneratedFormulaSafety {
   return { findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
+}
+
+function regulatory(over: Partial<GeneratedFormulaRegulatory> & { formulaState: GeneratedFormulaRegulatory["formulaState"] }): GeneratedFormulaRegulatory {
+  return { requestedMarket: "kenya", jurisdiction: "KE", findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
 }
 
 function card(over: Partial<FormulationCard> & { version: string }): FormulationCard {
@@ -157,5 +162,51 @@ describe("pickCheapestValidVersion — FVL-03.009 Acceptance E (safety exclusion
     const compatibilities = [compat({ formulaState: "blocked" }), compat({ formulaState: "compatible" }), compat({ formulaState: "compatible" })];
     const safeties = [safety({ formulaState: "safe" }), safety({ formulaState: "blocked" }), safety({ formulaState: "safe" })];
     expect(pickCheapestValidVersion(cards, snapshots, compatibilities, safeties)).toBe(2);
+  });
+});
+
+describe("pickCheapestValidVersion — FVL-03.010 Acceptance E (regulatory exclusion)", () => {
+  it("a regulatory-blocked formula is never crowned cheapest, even when it's the real cheapest price", () => {
+    const cards = [card({ version: "v1" }), card({ version: "v2" })];
+    const snapshots = [
+      snapshot({ totalManufacturingCost: "10" }), // cheapest, but regulatory-blocked
+      snapshot({ totalManufacturingCost: "40" }),
+    ];
+    const regulatories = [regulatory({ formulaState: "blocked" }), regulatory({ formulaState: "compliant" })];
+    expect(pickCheapestValidVersion(cards, snapshots, undefined, undefined, regulatories)).toBe(1);
+  });
+
+  it("a regulatory WARNING (missing_data, not a real violation) never excludes a version from cheapest-valid", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    const regulatories = [regulatory({ formulaState: "warning" })];
+    expect(pickCheapestValidVersion(cards, snapshots, undefined, undefined, regulatories)).toBe(0);
+  });
+
+  it("a regulatory UNKNOWN state (unresolved market or sparse coverage) never excludes a version from cheapest-valid", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    const regulatories = [regulatory({ formulaState: "unknown", jurisdiction: undefined })];
+    expect(pickCheapestValidVersion(cards, snapshots, undefined, undefined, regulatories)).toBe(0);
+  });
+
+  it("omitting the regulatories parameter entirely preserves the exact pre-FVL-03.010 behavior", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    expect(pickCheapestValidVersion(cards, snapshots)).toBe(0);
+  });
+
+  it("compatibility-blocked, safety-blocked, and regulatory-blocked are three independent exclusion gates", () => {
+    const cards = [card({ version: "v1" }), card({ version: "v2" }), card({ version: "v3" }), card({ version: "v4" })];
+    const snapshots = [
+      snapshot({ totalManufacturingCost: "5" }),
+      snapshot({ totalManufacturingCost: "8" }),
+      snapshot({ totalManufacturingCost: "12" }),
+      snapshot({ totalManufacturingCost: "40" }),
+    ];
+    const compatibilities = [compat({ formulaState: "blocked" }), compat({ formulaState: "compatible" }), compat({ formulaState: "compatible" }), compat({ formulaState: "compatible" })];
+    const safeties = [safety({ formulaState: "safe" }), safety({ formulaState: "blocked" }), safety({ formulaState: "safe" }), safety({ formulaState: "safe" })];
+    const regulatories = [regulatory({ formulaState: "compliant" }), regulatory({ formulaState: "compliant" }), regulatory({ formulaState: "blocked" }), regulatory({ formulaState: "compliant" })];
+    expect(pickCheapestValidVersion(cards, snapshots, compatibilities, safeties, regulatories)).toBe(3);
   });
 });

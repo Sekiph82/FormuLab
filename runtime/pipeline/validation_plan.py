@@ -2,9 +2,13 @@
 
 Recommends real laboratory/process checks based on this formula version's
 own real characteristics (category group, functional roles actually
-present, batch scale, safety/regulatory outcome) — never a fixed,
-one-size-fits-all checklist, and never a claimed test RESULT (this module
-recommends what to check, it never asserts a check passed).
+present, batch scale) — never a fixed, one-size-fits-all checklist, and
+never a claimed test RESULT (this module recommends what to check, it
+never asserts a check passed). FVL-03.009/.010: no longer takes a
+safety/regulatory outcome at all — both `safety.py` and `regulatory.py`
+were retired as duplicate final-verdict authorities; the real ones now
+live entirely client-side (`packages/shared/src/engine/safety.ts`/
+`regulatoryRules.ts`).
 """
 
 from __future__ import annotations
@@ -33,7 +37,6 @@ def build_validation_plan(
     formula_state: str,
     group: str,
     manufacturing_plan: Optional[Dict[str, Any]],
-    regulatory_overall: str,
 ) -> List[ValidationCheck]:
     checks: List[ValidationCheck] = []
 
@@ -53,18 +56,13 @@ def build_validation_plan(
             f"lab time on a candidate that will change.",
         ))
 
-    # FVL-03.009: the safety half of this check was removed along with
-    # `runtime/pipeline/safety.py`'s own retired `overall_status` — the
-    # authoritative safety verdict is no longer computed in Python at all
-    # (see `apps/desktop/src/lib/generatedFormulaSafety.ts`), so this
-    # advisory checklist entry can only honestly reference what Python
-    # itself still computes: regulatory.
-    if regulatory_overall == "NON_COMPLIANT":
-        checks.append(_check(
-            "Resolve the NON_COMPLIANT finding before proceeding", "VAL-002",
-            "A real regulatory NON_COMPLIANT finding exists on this version — resolve it before "
-            "committing lab resources to validation.",
-        ))
+    # FVL-03.009/.010: VAL-002 (a Safety/Regulatory NON_COMPLIANT advisory
+    # entry) was removed entirely — both `safety.py` and `regulatory.py`
+    # are now retired, and neither authoritative verdict is computed in
+    # Python at all any more (see `apps/desktop/src/lib/
+    # generatedFormulaSafety.ts`/`generatedFormulaRegulatory.ts`). This
+    # checklist generator now only recommends real, formula-shape-derived
+    # laboratory checks — it never re-derives a business verdict itself.
 
     checks.append(_check("Laboratory batch", "VAL-010",
                           "Baseline requirement for any newly generated formula before further testing."))

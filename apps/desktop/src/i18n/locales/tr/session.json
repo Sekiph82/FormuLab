@@ -1861,6 +1861,37 @@
   "regulatory": {
     "tabLabel": "Mevzuat",
     "heading": "Düzenleyici Motor (Kenya/EAC)",
+    "generated": {
+      "notYetAvailable": "Henüz kullanılamıyor — ana veriler hâlâ yükleniyor.",
+      "state": {
+        "compliant": "Mevzuata uygun",
+        "warning": "İnceleme gerektiriyor",
+        "blocked": "Mevzuat engeli",
+        "unknown": "Mevzuat kapsamı bilinmiyor"
+      },
+      "status": {
+        "compliant_with_rule": "Kurala uygun",
+        "non_compliant": "Uygun değil",
+        "missing_data": "Eksik veri",
+        "human_review_required": "İnsan incelemesi gerekli",
+        "not_applicable": "Geçerli değil",
+        "unknown": "Bilinmiyor"
+      },
+      "verification": {
+        "verified": "Doğrulandı",
+        "not_verified": "Doğrulanmadı",
+        "imported_unverified": "İçe aktarıldı, doğrulanmadı",
+        "human_review_required": "İnsan incelemesi gerekli",
+        "under_review": "İnceleniyor",
+        "rejected": "Doğrulama reddedildi",
+        "expired": "Doğrulama süresi doldu",
+        "superseded": "Yerini yeni bir kural aldı"
+      },
+      "marketUnresolved": "Bu kurulumda \"{{market}}\" için düzenleyici kural verisi yok — bu dürüst bir veri eksikliğidir, uygunluk kararı değildir.",
+      "marketUnspecified": "belirtilmemiş bir pazar",
+      "unresolvedMaterialCount": "{{count}} bileşen kanonik bir malzemeyle eşleştirilemedi — bunlar için düzenleyici kapsam yalnızca işlev/ad tabanlı kurallara dayanır, tam kural setine değil.",
+      "empty": "Bu kurulumun mevcut kural setinde bu formüle uygulanabilir bir düzenleyici bulgu eşleşmedi — bu, kurulumun kendi kapsamını yansıtır, doğrulanmış temiz bir sonucu değil."
+    },
     "section": {
       "findings": "Bulgular",
       "rules": "Kurallar",

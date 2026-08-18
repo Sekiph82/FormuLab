@@ -360,10 +360,19 @@ export interface ClaimFinding {
   rationale: string;
 }
 
-/** `regulatory.py::RegulatoryResult.to_dict()`. `coverage: "unsupported"`
- *  means this installation has NO real rule data for the requested market
- *  — `overall_status` is always `DATA_INCOMPLETE` in that case, never
- *  `COMPLIANT` (§13/§18). */
+/** LEGACY ONLY (FVL-03.010) — the shape `runtime/pipeline/regulatory.py`
+ *  (now deleted) used to emit as `card["regulatory"]`. Kept solely so a
+ *  historical session file saved before this retirement still parses
+ *  without error; no current code path reads or displays it — the
+ *  authoritative regulatory verdict for every session, old or new, is now
+ *  `evaluateRegulatory()` recomputed client-side from `card.formula` +
+ *  the session's own `brief.market`, see
+ *  `apps/desktop/src/lib/generatedFormulaRegulatory.ts`.
+ *
+ *  Formerly: `regulatory.py::RegulatoryResult.to_dict()`. `coverage:
+ *  "unsupported"` meant this installation had NO real rule data for the
+ *  requested market — `overall_status` was always `DATA_INCOMPLETE` in
+ *  that case, never `COMPLIANT`. */
 export interface RegulatoryResult {
   target_market: string;
   jurisdiction: string;

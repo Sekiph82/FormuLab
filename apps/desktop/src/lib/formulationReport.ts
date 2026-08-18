@@ -7,6 +7,7 @@
 import type { FormulationCard, LiteratureDocument, ScientificFormulationRecord, SessionDetail } from "./formulationV2";
 import { asGeneratedFormula } from "./generatedFormula";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
+import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 
 function esc(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => (
@@ -25,7 +26,7 @@ function table(headers: string[], rows: (string | number | undefined)[][]): stri
   return `<table>${thead}${tbody}</table>`;
 }
 
-function versionSection(card: FormulationCard, safety: GeneratedFormulaSafety | undefined): string {
+function versionSection(card: FormulationCard, safety: GeneratedFormulaSafety | undefined, regulatory: GeneratedFormulaRegulatory | undefined): string {
   const formula = asGeneratedFormula(card.formula);
   const ingredients = formula?.ingredients ?? [];
   const origins = card.ingredient_origins ?? {};
@@ -89,14 +90,21 @@ function versionSection(card: FormulationCard, safety: GeneratedFormulaSafety | 
       (safety?.findings ?? []).map((f) => [f.affectedMaterialIds.join(", ") || "Formula-level", f.severity, f.ruleId, f.message]),
     ));
   }
-  if (card.regulatory) {
-    parts.push(`<h4>Regulatory — Market: ${esc(card.regulatory.target_market || "unspecified")}, Overall: ${esc(card.regulatory.overall_status)} (${esc(card.regulatory.coverage)})</h4>`);
+  {
+    // FVL-03.010 — the authoritative Regulatory Engine result, the SAME
+    // computed object the Regulatory tab renders (never the retired
+    // `runtime/pipeline/regulatory.py` JSON `card.regulatory` used to
+    // carry) — the same split this task exists to prevent, closed the
+    // same way FVL-03.009 already closed it for Safety.
+    const market = regulatory?.jurisdiction ?? (regulatory ? `unresolved (requested "${regulatory.requestedMarket || "unspecified"}")` : "not available");
+    parts.push(`<h4>Regulatory — Market: ${esc(market)}, Overall: ${esc(regulatory ? regulatory.formulaState : "not available")}</h4>`);
+    if (regulatory && regulatory.unresolvedMaterialCount > 0) {
+      parts.push(`<p class="muted">${esc(regulatory.unresolvedMaterialCount)} ingredient(s) could not be matched to a canonical material.</p>`);
+    }
     parts.push(table(
-      ["Subject", "Status", "Rule", "Rationale"],
-      card.regulatory.findings.map((f) => [f.subject, f.status, f.rule_id, f.rationale]),
+      ["Affected material(s)", "Status", "Verification", "Rule", "Reason"],
+      (regulatory?.findings ?? []).map((f) => [f.affectedMaterialCodes.join(", ") || f.affectedClaim || "Formula-level", f.status, f.verificationStatus, f.ruleCode, f.reason]),
     ));
-    parts.push(`<h5>Claim Review</h5>`);
-    parts.push(table(["Claim", "Type", "Status"], card.regulatory.claims.map((c) => [c.claim, c.check_type, c.status])));
   }
   if (card.evidence_gaps && card.evidence_gaps.length > 0) {
     parts.push(`<h4>Evidence Gaps</h4>`);
@@ -144,6 +152,7 @@ export function buildReportHtml(
   session: SessionDetail,
   sessionId: string,
   safetyByVersion: Record<string, GeneratedFormulaSafety | undefined> = {},
+  regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined> = {},
 ): string {
   const generatedAt = new Date().toISOString();
   const corpus = session.cards[0]?.research_corpus;
@@ -175,7 +184,7 @@ export function buildReportHtml(
       ["Version", "Strategy", "State", "Mass Balance"],
       session.cards.map((c) => [c.version, c.strategy?.title ?? "—", c.formula_state ?? c.status, c.mass_balance?.status ?? "—"]),
     )),
-    ...session.cards.map((c) => section(`Formula ${c.version.toUpperCase()}`, versionSection(c, safetyByVersion[c.version]))),
+    ...session.cards.map((c) => section(`Formula ${c.version.toUpperCase()}`, versionSection(c, safetyByVersion[c.version], regulatoryByVersion[c.version]))),
     section("Evidence & Sources", sourcesTable(session.literature ?? [], session.scientific_formulations?.formulations ?? [])),
     session.scientific_formulations?.summary ? section("Scientific Formulation Usage", scientificFormulationUsageSection(session.scientific_formulations)) : "",
   ].join("\n");
@@ -188,8 +197,9 @@ export function openAndPrintReport(
   session: SessionDetail,
   sessionId: string,
   safetyByVersion: Record<string, GeneratedFormulaSafety | undefined> = {},
+  regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined> = {},
 ): void {
-  const html = buildReportHtml(session, sessionId, safetyByVersion);
+  const html = buildReportHtml(session, sessionId, safetyByVersion, regulatoryByVersion);
   const win = window.open("", "_blank");
   if (!win) return;
   win.document.open();

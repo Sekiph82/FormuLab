@@ -3,6 +3,7 @@ import type { FormulationCard } from "./formulationV2";
 import type { FormulaInventoryFeasibility } from "./generatedFormulaInventory";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
+import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 import { pickMostInventoryFeasibleVersion } from "./inventoryComparison";
 
 function card(over: Partial<FormulationCard> & { version: string }): FormulationCard {
@@ -19,6 +20,10 @@ function compat(formulaState: GeneratedFormulaCompatibility["formulaState"]): Ge
 
 function safety(formulaState: GeneratedFormulaSafety["formulaState"]): GeneratedFormulaSafety {
   return { formulaState, findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z" };
+}
+
+function regulatory(formulaState: GeneratedFormulaRegulatory["formulaState"]): GeneratedFormulaRegulatory {
+  return { formulaState, requestedMarket: "kenya", jurisdiction: "KE", findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z" };
 }
 
 describe("pickMostInventoryFeasibleVersion — FVL-03.004 Acceptance E/F", () => {
@@ -92,6 +97,28 @@ describe("pickMostInventoryFeasibleVersion — FVL-03.009 Acceptance F (safety e
   });
 
   it("omitting the safeties parameter entirely preserves the exact pre-FVL-03.009 behavior", () => {
+    const cards = [card({ version: "v1" })];
+    const feasibilities = [feasibility("feasible")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities)).toBe(0);
+  });
+});
+
+describe("pickMostInventoryFeasibleVersion — FVL-03.010 Acceptance F (regulatory exclusion)", () => {
+  it("a regulatory-blocked formula is never preferred even with the best inventory state", () => {
+    const cards = [card({ version: "v1" }), card({ version: "v2" })];
+    const feasibilities = [feasibility("feasible"), feasibility("feasible")];
+    const regulatories = [regulatory("blocked"), regulatory("compliant")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities, undefined, undefined, regulatories)).toBe(1);
+  });
+
+  it("a regulatory WARNING (missing_data, not a real violation) never excludes a version from inventory eligibility", () => {
+    const cards = [card({ version: "v1" })];
+    const feasibilities = [feasibility("feasible")];
+    const regulatories = [regulatory("warning")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities, undefined, undefined, regulatories)).toBe(0);
+  });
+
+  it("omitting the regulatories parameter entirely preserves the exact pre-FVL-03.010 behavior", () => {
     const cards = [card({ version: "v1" })];
     const feasibilities = [feasibility("feasible")];
     expect(pickMostInventoryFeasibleVersion(cards, feasibilities)).toBe(0);

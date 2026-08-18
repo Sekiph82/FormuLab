@@ -528,7 +528,7 @@ describe("FormulationResultPage — Session 5 manufacturing wiring", () => {
 const SESSION_V6 = {
   status: "ok" as const,
   id: "2026-01-01-1600-test",
-  brief: { target: "Hand soap with rosemary scent" },
+  brief: { target: "Hand soap with rosemary scent", market: "kenya" },
   cards: [
     {
       version: "v1",
@@ -626,19 +626,31 @@ describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wir
     expect((await screen.findAllByText("Safety warning")).length).toBeGreaterThanOrEqual(2);
   });
 
-  it("Regulatory tab shows the real target market and coverage", async () => {
+  it("FVL-03.010: Regulatory tab recomputes from the real authoritative engine, never the legacy card.regulatory JSON this fixture still carries", async () => {
     renderPageV6();
     await screen.findByText("Water (Aqua)");
     await userEvent.click(screen.getByRole("tab", { name: "Regulatory" }));
-    expect(screen.getByText("kenya")).not.toBeNull();
-    expect(screen.getByText(/KE-REG-003/)).not.toBeNull();
+    // This fixture's own `card.regulatory` (legacy runtime/pipeline/
+    // regulatory.py shape) claims a "COMPLIANT_WITH_CONDITIONS" overall
+    // status, a "rosemary" claim finding, and a "Sodium Hydroxide"-style
+    // subject text that never appears in this card's real
+    // `formula.ingredients`. The tab must show the REAL, recomputed
+    // result instead — never that legacy text — proving the retired
+    // module is genuinely not consulted.
+    expect(screen.queryByText("rosemary")).toBeNull();
+    // The real engine's own real KE-REG-003 (label_requirement, applies
+    // to every category, no manuallyConfirmedRuleIds on a generated
+    // session) legitimately fires a real `missing_data` finding here —
+    // a real, deterministic result, not the fabricated legacy one.
+    expect(await screen.findByText(/KE-REG-003/)).not.toBeNull();
+    expect((await screen.findAllByText("Regulatory review needed")).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("Regulatory tab claim review shows the real check type", async () => {
+  it("Regulatory tab discloses jurisdiction resolved from the session's own real brief.market text", async () => {
     renderPageV6();
     await screen.findByText("Water (Aqua)");
     await userEvent.click(screen.getByRole("tab", { name: "Regulatory" }));
-    expect(screen.getByText("rosemary")).not.toBeNull();
+    expect((await screen.findAllByText(/KE/)).length).toBeGreaterThanOrEqual(1);
   });
 
   it("Summary tab shows real evidence gaps, never generic filler text", async () => {
@@ -652,14 +664,17 @@ describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wir
     renderPageV6();
     await screen.findByText("Water (Aqua)");
     await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
-    // FVL-03.009: the safety readiness badge now shows the authoritative,
-    // client-recomputed state ("Safety warning" — real
-    // safety-flammable-solvent/safety-ventilation-reminder seed rules fire
-    // on this fixture's q.s.-to-100% solvent-function line), never the
-    // fixture's own legacy `card.safety.overall_status` ("PASS_WITH_
-    // CONDITIONS", a value that is no longer read anywhere).
+    // FVL-03.009/.010: both readiness badges now show the authoritative,
+    // client-recomputed states — "Safety warning" (real
+    // safety-flammable-solvent/safety-ventilation-reminder seed rules
+    // fire on this fixture's q.s.-to-100% solvent-function line) and
+    // "Regulatory review needed" (the real KE-REG-003 label_requirement
+    // rule fires a real `missing_data` finding for the "kenya" market
+    // this fixture's own real `brief.market` now carries) — never either
+    // fixture's own legacy `overall_status` field ("PASS_WITH_CONDITIONS"/
+    // "COMPLIANT_WITH_CONDITIONS", values no longer read anywhere).
     expect((await screen.findAllByText("Safety warning")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("COMPLIANT WITH CONDITIONS").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Regulatory review needed")).length).toBeGreaterThan(0);
   });
 
   it("Summary tab shows real decision-traceability events, including rejected candidates", async () => {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { SafetyFinding } from "@formulab/shared";
+import type { RegulatoryFinding, SafetyFinding } from "@formulab/shared";
 import { buildReportHtml } from "./formulationReport";
 import type { SessionDetail } from "./formulationV2";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
+import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 
 function card(version: string, inci: string) {
   return {
@@ -24,12 +25,12 @@ function card(version: string, inci: string) {
       equipment: [{ equipment: "Main Vessel", purpose: "mix", requirement_level: "required" as const, suggested_capacity: "lab", key_capabilities: [], used_in_steps: [], available_in_facility: "yes" as const, basis: "deterministic_rule", confidence: "established" as const }],
       batch_scale: "laboratory" as const,
     },
-    // FVL-03.009: `card.safety` (the retired runtime/pipeline/safety.py
-    // legacy shape) is deliberately NOT part of this fixture anymore —
-    // `versionSection`/`buildReportHtml` never read it; the authoritative
-    // result is passed in separately via `safetyByVersion`, proven by the
-    // dedicated FVL-03.009 describe block below.
-    regulatory: { target_market: "kenya", jurisdiction: "KE", coverage: "partial" as const, overall_status: "COMPLIANT_WITH_CONDITIONS" as const, findings: [], claims: [], missing_coverage_note: "note" },
+    // FVL-03.009/.010: `card.safety`/`card.regulatory` (the retired
+    // runtime/pipeline/safety.py + regulatory.py legacy shapes) are
+    // deliberately NOT part of this fixture anymore — `versionSection`/
+    // `buildReportHtml` never read either; the authoritative results are
+    // passed in separately via `safetyByVersion`/`regulatoryByVersion`,
+    // proven by the dedicated FVL-03.009/.010 describe blocks below.
     evidence_gaps: [{ category: "test_gap", gap: "a real gap" }],
     validation_plan: [{ check: "Laboratory batch", rule_id: "VAL-010", reason: "baseline" }],
     quality_gate: [],
@@ -200,5 +201,42 @@ describe("buildReportHtml — FVL-03.009 authoritative Safety source", () => {
   it("shows 'not available' rather than a fabricated verdict when no safety result was computed for a version", () => {
     const html = buildReportHtml(SESSION, "2026-01-01-test");
     expect(html).toContain("Safety — Overall: not available");
+  });
+});
+
+describe("buildReportHtml — FVL-03.010 authoritative Regulatory source", () => {
+  function regFinding(over: Partial<RegulatoryFinding> & Pick<RegulatoryFinding, "id" | "status" | "reason">): RegulatoryFinding {
+    return {
+      ruleId: "fixture-rule", ruleCode: "FIX-001", ruleVersion: 1, jurisdiction: "KE",
+      severity: "warning", affectedMaterialCodes: ["RM-A"], affectedLineIds: [],
+      evidenceRequired: [], verificationStatus: "verified",
+      ...over,
+    };
+  }
+
+  function regulatory(over: Partial<GeneratedFormulaRegulatory> & { formulaState: GeneratedFormulaRegulatory["formulaState"] }): GeneratedFormulaRegulatory {
+    return { requestedMarket: "kenya", jurisdiction: "KE", findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
+  }
+
+  it("uses the SAME computed regulatory result the UI tab uses — never a legacy card.regulatory verdict", () => {
+    const regulatoryByVersion = {
+      v1: regulatory({ formulaState: "blocked", findings: [regFinding({ id: "r1", status: "non_compliant", reason: "A real prohibited-ingredient violation." })] }),
+    };
+    const html = buildReportHtml(SESSION, "2026-01-01-test", {}, regulatoryByVersion);
+    expect(html).toContain("Regulatory — Market: KE, Overall: blocked");
+    expect(html).toContain("A real prohibited-ingredient violation.");
+    expect(html).toContain("RM-A");
+  });
+
+  it("discloses unresolved-material coverage honestly, never silently compliant", () => {
+    const regulatoryByVersion = { v1: regulatory({ formulaState: "unknown", unresolvedMaterialCount: 2 }) };
+    const html = buildReportHtml(SESSION, "2026-01-01-test", {}, regulatoryByVersion);
+    expect(html).toContain("Regulatory — Market: KE, Overall: unknown");
+    expect(html).toContain("2 ingredient(s) could not be matched");
+  });
+
+  it("shows 'not available' rather than a fabricated verdict when no regulatory result was computed for a version", () => {
+    const html = buildReportHtml(SESSION, "2026-01-01-test");
+    expect(html).toContain("Regulatory — Market: not available, Overall: not available");
   });
 });

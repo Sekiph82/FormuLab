@@ -294,10 +294,10 @@ Terminology going forward in all NEW roadmap/architecture wording: **"Determinis
 
 ### Duplicate-authority audit results
 
-**Confirmed real duplicate final-verdict engines (single-authority violations):**
+**Confirmed real duplicate final-verdict engines (single-authority violations, both now resolved):**
 
 - **Safety** — ~~`runtime/pipeline/safety.py::evaluate_safety()` independently computed its own `overall_status`~~ **RESOLVED (FVL-03.009, COMPLETED 2026-08-18)**: the module (and its own hazard tables — `_SENSITIZER_CLASS_INGREDIENTS`, GHS pH boundaries, rule IDs like `SAFETY-SENS-001`) was deleted entirely; `packages/shared/src/engine/safety.ts::evaluateSafety`/`classifyProductSafety` is now the single authoritative safety verdict for every consumer, generated-formula sessions included (via `apps/desktop/src/lib/generatedFormulaSafety.ts`). See the "Safety Engine boundary" section above for the full resolution.
-- **Regulatory** — targeted by FVL-03.010, not yet resolved: `runtime/pipeline/regulatory.py::evaluate_regulatory()` (called `pipeline.py:847`) is, per its own module docstring, "a direct, faithful port" of `packages/shared/src/catalog/regulatoryRules.ts`'s seed rule data into a second, independent Python evaluation engine (`SEED_REGULATORY_RULES`, `evaluate_rule()`) producing its own terminal `overall_status`. This remains the clearest outstanding single-authority violation — self-documented duplication, not accidental overlap.
+- **Regulatory** — ~~`runtime/pipeline/regulatory.py::evaluate_regulatory()` was, per its own module docstring, "a direct, faithful port" of `packages/shared/src/catalog/regulatoryRules.ts`'s seed rule data into a second, independent Python evaluation engine producing its own terminal `overall_status`~~ **RESOLVED (FVL-03.010, COMPLETED 2026-08-18)**: the module was deleted entirely — and was itself confirmed STALE before retirement, its own port carrying only 7 of the TS catalog's real 16 seed rules; `packages/shared/src/engine/regulatoryRules.ts::evaluateRegulatory`/`regulatoryClassification.ts` is now the single authoritative regulatory verdict for every consumer, generated-formula sessions included (via `apps/desktop/src/lib/generatedFormulaRegulatory.ts`). See the "Regulatory Engine boundary" section above for the full resolution.
 
 **Confirmed NOT a duplicate (legitimate, no change needed):**
 
@@ -314,7 +314,7 @@ Terminology going forward in all NEW roadmap/architecture wording: **"Determinis
 | `runtime/pipeline/materials.py::cost_formula()` / `render_costing_markdown()` | ~~Separate, simpler flat kg×price costing reimplementation~~ **DELETED** (FVL-03.003) | `packages/shared/src/engine/cost.ts::costFormula()`/`buildCostSnapshot()`, via `apps/desktop/src/lib/generatedFormulaCost.ts::costGeneratedFormula()` | FVL-03.003 | No — **retired**, code no longer exists | Done: `CostingPanel.tsx` redirected to the real engine first (this session), then this function and its own tests (`test_materials.py::CostingTests`) deleted once zero callers remained — confirmed by full `pytest`/`cargo check` regression |
 | `apps/desktop/src-tauri/src/materials.rs::cost_formulation` (+ `materials_cli.py`'s `"cost"` action, `apps/desktop/src/lib/formulationV2.ts::costFormulation()`/`CostSheet`/`CostLine`) | ~~Backs the legacy AI-session costing view~~ **DELETED** (FVL-03.003) | `packages/shared/src/engine/cost.ts`, called from `CostingPanel.tsx`/`FormulationResultPage.tsx` via `costGeneratedFormula()` | FVL-03.003 | No — **retired**, code no longer exists | Done — `cost_formulation` removed from `materials.rs` and `lib.rs`'s command list; `materials.rs::import_materials`/`list_materials` (a SEPARATE command family, Settings → General CSV-import) deliberately untouched, still live |
 | `runtime/pipeline/safety.py` | ~~Independent, competing final safety verdict (`overall_status`)~~ **DELETED** (FVL-03.009) | `packages/shared/src/engine/safety.ts::evaluateSafety`/`classifyProductSafety`, via `apps/desktop/src/lib/generatedFormulaSafety.ts::evaluateGeneratedFormulaSafety()` | FVL-03.009 | No — **retired**, code no longer exists | Done: no genuinely-useful preprocessing survived (the hazard-table lookups were themselves the competing verdict logic, not separable input prep) — the whole module and its own tests (`test_safety.py`, 9 tests) deleted; `pipeline.py`/`validation_plan.py`/`test_pipeline.py`/`test_traceability.py` updated to remove every caller/consumer of `card["safety"]`, confirmed by full `pytest` regression (376 passed, 5 subtests, down from 386+5 by exactly the 10 tests removed) |
-| `runtime/pipeline/regulatory.py` | Independent, self-documented "faithful port" of the TS regulatory rule catalog into a second evaluation engine | `packages/shared/src/engine/regulatoryRules.ts::evaluateRegulatory` + `regulatoryClassification.ts` | FVL-03.010 | Yes — same reasoning as safety.py; claim-review preprocessing may be retained/merged, the competing rule universe/verdict is what gets retired | Not deleted in this documentation-only session — code is in live use (`pipeline.py:847`). Consolidation happens in FVL-03.010's own implementation session |
+| `runtime/pipeline/regulatory.py` | ~~Independent, self-documented "faithful port" of the TS regulatory rule catalog into a second evaluation engine~~ **DELETED** (FVL-03.010) | `packages/shared/src/engine/regulatoryRules.ts::evaluateRegulatory`/`regulatoryClassification.ts`, via `apps/desktop/src/lib/generatedFormulaRegulatory.ts::evaluateGeneratedFormulaRegulatory()` | FVL-03.010 | No — **retired**, code no longer exists | Done: the module's own port was already confirmed STALE (7 of the TS catalog's real 16 seed rules) before retirement; the one genuinely distinct capability (`review_claims()`'s structural claim-vs-composition check) computed a real claim VERDICT, not inert preprocessing, so it was retired with the rest rather than kept as a disguised second claims authority — flagged for a possible future TS-side rule-type addition instead. Whole module + its own tests (`test_regulatory.py`, 14 tests) deleted; `pipeline.py`/`validation_plan.py`/`test_pipeline.py`/`test_traceability.py` updated to remove every caller/consumer of `card["regulatory"]`, confirmed by full `pytest` regression (361 passed, 5 subtests, down from 376+5 by exactly the 15 tests removed) |
 | `runtime/pipeline/rules.py::validate()`/`derive_constraints()` | Generation-request constraint enforcement (excluded ingredients, sulfate-free, pH bounds) | N/A — not a duplicate, stays as-is | N/A | Yes, permanently | Never — this is legitimate request-constraint logic, confirmed not to overlap the Compatibility Engine's rule-type surface |
 | `runtime/pipeline/materials.py`'s legacy `stock` field (`_ALIASES["stock"]`, parsed at row-build time) | Parsed and stored on the legacy CSV-import row; confirmed (FVL-03.004) read by nothing else anywhere in `runtime/pipeline/*.py` — stored-but-unused dead data | Canonical `InventoryRecord` (`data/master/inventory.json` via `masterdata.rs`), consumed client-side only via `apps/desktop/src/lib/generatedFormulaInventory.ts` | N/A — not a duplicate authority (never read back for any computation), stays as-is | Yes, permanently | Never — deleting a stored-but-unused legacy field is gratuitous churn on the legacy CSV-import path, out of scope; classified here so a future session doesn't mistake it for a live second inventory source |
 
@@ -965,6 +965,280 @@ test fixtures documenting the retirement, plus the unrelated
 pre-generation `hazardous_lawful_product` request-classification label in
 `pipeline.py::classify_target()` (confirmed out of scope, a request-time
 label, not a safety verdict).
+
+### Regulatory Engine boundary (FVL-03.010, COMPLETED 2026-08-18)
+
+Same conclusion pattern as FVL-03.009, but with a materially larger and
+more complex duplicate to retire: `evaluateRegulatory()`/
+`classifyProductRegulatory()` (`packages/shared/src/engine/
+regulatoryRules.ts`/`regulatoryClassification.ts`, fully specified across
+`docs/REGULATORY_ENGINE.md`/`REGULATORY_CLASSIFICATION.md`/
+`REGULATORY_RULES.md`) is already a complete, deterministic,
+versioned-rule Kenya/EAC engine — a real six-state finding vocabulary
+(`REGULATORY_FINDING_STATUSES`), a real eight-state rule/finding
+verification vocabulary (`REGULATORY_VERIFICATION_STATUSES`, `verified`
+reachable only through the human-only `verifyRule()` gate — never import,
+never an AI/system actor), 15 rule types across ingredient-, claim-, and
+product-level requirements, real market scoping (`REGULATORY_JURISDICTIONS`
+= KE/UG/TZ/RW/BI/SS/EAC, with EAC as an overlay bloc profile that applies
+alongside, not instead of, a member state's own rules). But
+`runtime/pipeline/regulatory.py::evaluate_regulatory()` was confirmed by
+audit to be a real, independently-computing SECOND final-verdict
+authority — its own module docstring literally called it "a direct,
+faithful port" of the TS catalog, with its own `_STATUS_PRECEDENCE`
+resolution producing its own `overall_status`
+(`COMPLIANT`/`COMPLIANT_WITH_CONDITIONS`/`NON_COMPLIANT`/
+`DATA_INCOMPLETE`), never consuming or deferring to the TS engine — and,
+confirmed by direct comparison of both rule catalogs, the Python port was
+itself STALE: it carried only 7 of the TS catalog's real 16 seed rules
+(missing, among others, KE-REG-001/002's registration/chlorine-
+concentration rules and every UG/TZ/BI/SS rule beyond one each), proving
+the duplication was already silently drifting out of sync with its own
+source of truth before this task even started.
+
+**Resolved by full retirement, not permanent reconciliation** (same
+Option-A precedent FVL-03.003/.009 already established): `regulatory.py`
+and `test_regulatory.py` (14 tests) deleted entirely. `pipeline.py` no
+longer imports `regulatory`, no longer computes `regulatory_result`, no
+longer emits `card["regulatory"]`, and no longer appends a
+`regulatory`-sourced `DATA_INCOMPLETE` entry to `evidence_gaps`.
+`validation_plan.py::build_validation_plan()` had its now-last remaining
+parameter (`regulatory_overall`, already reduced to this alone by
+FVL-03.009) removed entirely — VAL-002 (the last Safety/Regulatory
+advisory checklist entry) removed outright, since nothing it could
+honestly reference remains computed in Python; the checklist generator
+is now purely formula-shape-derived (category, functional roles, batch
+scale), never re-deriving a business verdict itself. `test_pipeline.py`'s
+zero-LLM guard now asserts `"regulatory" not in card` (alongside the
+`"safety" not in card` FVL-03.009 already added); `test_traceability.py`'s
+`test_every_regulatory_finding_has_a_source_or_rule` (reading the
+now-removed `card["regulatory"]["findings"]`) was deleted with an
+explanatory comment.
+
+**One genuinely useful Python-side capability was found and deliberately
+NOT ported, rather than kept as disguised duplicate business logic**:
+`regulatory.py::review_claims()`'s structural "formulation condition"
+check (verifying a "sulfate-free"/"silicone-free"/"fragrance-free" claim
+against the formula's own actually-resolved ingredients) has no TS-side
+equivalent rule type — `REGULATORY_RULE_TYPES`'s `claim_restriction`/
+`claim_evidence_requirement` match by keyword/evidence-on-file, not by
+re-deriving a structural fact from composition. This capability was
+retired along with the rest of the module rather than selectively kept —
+keeping it alone would have been exactly the "genuinely useful
+preprocessing survives, competing verdict computation retires" split
+the task allowed for, but this specific check computed a real
+`COMPLIANT`/`NON_COMPLIANT` claim VERDICT (feeding the same
+`_STATUS_PRECEDENCE` merge as everything else), not inert preprocessing
+— keeping it would have been a second, smaller claims-verdict authority
+surviving inside a supposedly-retired module. Flagged here, not silently
+dropped: a future session (out of FVL-03's own scope — this is a Claims/
+Labels capability, not a Regulatory Engine one) may want to add a real
+`ingredient_prohibition`-shaped structural claim-verification rule type
+to the TS catalog itself, the single-authority-correct way to gain this
+capability back.
+
+**Same "only a real hard finding excludes" convention, adapted to this
+engine's own real vocabulary — not the severity-based one, confirmed not
+to apply here**: unlike Compatibility/Safety (whose real blocking gate is
+`severity === "blocking"`), Regulatory's own already-established
+blocking convention — confirmed by audit at its one real live caller,
+`regulatoryApproval.ts::hasBlockingFinding`/`deriveRegulatoryReadiness`
+— is STATUS-based: `NON_BLOCKING_FINDING_STATUSES = ["compliant_with_rule",
+"not_applicable"]`; every other status, including `missing_data`/
+`human_review_required`, blocks a saved formula's own approval
+readiness. Reusing that exact convention verbatim for the NEW
+generated-formula eligibility question (§9's "hard regulatory failure
+remains a hard constraint") would make virtually EVERY generated formula
+"blocked," since a generated session never has a named human's
+`manuallyConfirmedRuleIds` — every empty-`productCategories` product-
+level requirement rule (label/language/market-identifier) would
+permanently read as blocking. That is real, honest incompleteness (needs
+review), never a proven violation, and collapsing the two would make the
+eligibility gate degenerate (always fires) rather than meaningful. New
+`formulaState` therefore narrows `"blocked"` specifically to a real
+`non_compliant` finding — the literal trigger every one of this task's
+own acceptance cases describes ("a formula violates a rule") — while
+`missing_data`/`human_review_required`/`unknown`-status findings surface
+as `"warning"` (visible, not hidden, not excluded). This is not a fourth
+invented taxonomy: both `"blocked"` and `"warning"` are derived
+exclusively from the engine's own real `REGULATORY_FINDING_STATUSES`
+values, just partitioned differently than the saved-formula approval
+gate partitions them — an eligibility question ("can this candidate be
+ranked as valid") is not the same question as an approval question ("is
+this exact reviewed version ready to ship"), and the engine's own schema
+already carries both meanings in one status enum without contradiction.
+
+**Zero findings is never `"compliant"`, deliberately preserving a real
+policy `regulatory.py`'s own module docstring stated before retirement**
+("Coverage itself, even with zero matched findings, is always surfaced —
+never silently implying a clean COMPLIANT from nothing having matched"):
+this installation's real rule catalog is inherently sparse per
+jurisdiction (as few as 2 rules for RW/SS), so an empty finding list far
+more often means "no rule in this installation's data happens to cover
+this yet" than "this product is confirmed clean." `formulaState` is
+`"unknown"` for both an unresolved market and a resolved-but-empty
+result — carried forward as the single authoritative place that policy
+now lives, since the module that used to state it is gone.
+
+**Market resolution — legitimate input preprocessing, not a second rule
+catalog**: `jurisdiction`/`category` are both REQUIRED, non-optional
+fields on `evaluateRegulatory()`'s own context — unlike Compatibility/
+Safety's optional context filters. A generated session's `brief.market`
+is free text ("kenya," not "KE"); a small, wrapper-local
+`MARKET_ALIASES` table in `generatedFormulaRegulatory.ts` — the exact
+same real-world alias set `regulatory.py::_MARKET_ALIASES` used, ported
+directly — resolves it to a real `RegulatoryJurisdiction` code or
+`undefined` (never guessed); `undefined` maps to `formulaState: "unknown"`
+with zero rules evaluated, honoring §6's "unknown market coverage must
+remain unknown" requirement exactly. `category` is deliberately always
+`"human_review_required"` — the same scope decision FVL-03.008/.009
+already made for `classifyProductCompatibility`-adjacent/
+`classifyProductSafety`: a generated session has no real `ProductFamily`
+record to classify against, and `"human_review_required"` is not an
+invented fallback but the REAL classifier's own admission-of-uncertainty
+category value, reused honestly. The practical effect is under-coverage,
+never fabrication: a `productCategories`-scoped rule (e.g. KE-REG-001's
+disinfectant/biocidal registration requirement) simply never fires for a
+generated formula, while an unrestricted rule (label/language/market-
+identifier) still evaluates normally.
+
+**Generated-formula evaluation seam — mirrors FVL-03.008/.009 exactly**:
+new pure `apps/desktop/src/lib/generatedFormulaRegulatory.ts::evaluateGeneratedFormulaRegulatory(formula, materials, rules, opts)`
+reshapes via `linesFromGeneratedFormula()`, resolves the jurisdiction as
+above, and hands the result to the real engine, computing nothing itself
+beyond the `formulaState`/`unresolvedMaterialCount` derivation described
+above. New `apps/desktop/src/hooks/useRegulatoryRules.ts` loads the LIVE,
+chemist-editable `regulatory_rules` masterdata collection
+(`listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES)`), not a
+frozen seed copy — mirroring `useSafetyRules.ts`/`useCompatibilityRules.ts`
+exactly.
+
+**Version eligibility, not a combined score**: `pickCheapestValidVersion()`/
+`pickMostInventoryFeasibleVersion()` each gained an optional 5th
+`regulatories` parameter — independent of, and additive to, the existing
+`compatibilities`/`safeties` gates (three separate eligibility checks,
+never merged into one opaque score). A regulatory-`"blocked"` version
+(a real `non_compliant` finding) can never be crowned cheapest-valid or
+most-inventory-feasible; `"warning"`/`"unknown"` never exclude; omitting
+the parameter preserves every pre-existing call site's behavior exactly.
+
+**UI/report — fully rewired off the legacy `card.regulatory` shape**: the
+old `RegulatoryTab`/`RegulatoryFindingRow` code that read the legacy
+Python-shaped fields (`subject_type`/`subject`/`rule_id`/`condition`/
+`rationale`/`overall_status`/`coverage`/`claims`/`missing_coverage_note`)
+was deleted outright and replaced with a rewritten `RegulatoryTab`
+rendering a new thin `GeneratedRegulatorySummary` presenter
+(`apps/desktop/src/components/regulatory/`) — showing state, resolved
+jurisdiction (or the honest "market unresolved" disclosure), per-finding
+status AND verification status side by side (a `not_verified` rule's
+finding is never shown as though it were a confirmed legal conclusion),
+affected materials/claims, rule code, and required action. A Regulatory
+section added to `SummaryTab`; a Regulatory row + red "blocked" banner
+added to `VersionSummaryCard`; the "Readiness" badges block's stale
+`card.regulatory.overall_status` reference (and the now-fully-dead
+shared `statusTone()` helper it was the last caller of) removed.
+`formulationReport.ts` rewired to accept a `regulatoryByVersion` map
+(the exact same computed result the UI renders) instead of reading the
+retired `card.regulatory` JSON — closing the same "Download Report"
+split-authority risk FVL-03.009 already closed for Safety, with an
+honest "not available" when no result was computed.
+`formulationV2.ts`'s `RegulatoryResult`/`RegulatoryFinding`/`ClaimFinding`
+interfaces kept, not deleted — doc comments now state plainly they are
+legacy-only, read by zero current code, kept solely so a historical
+session file saved before this retirement still parses without error.
+
+**Material Substitution — a real, new wiring, not merely an audit
+finding this time**: unlike Compatibility/Safety (already fully wired at
+this call site when FVL-03.008/.009 audited it), `SubstitutionPanel.tsx`'s
+one-to-one candidate scoring had NEVER populated
+`SubstitutionCandidateInput.regulatoryPermitted` — `substitution.ts`'s
+own `regulatory_status` scoring dimension already existed and was
+already tested (honestly scoring `undefined` as "unknown, not assumed
+permitted"), but nothing fed it a real value. This is now wired: for each
+candidate, `evaluateRegulatory()` re-runs against the real
+`SEED_REGULATORY_RULES` catalog, using the project's own real
+`formulation.targetMarkets[0]` (the same field/convention
+`RegulatoryPanel.tsx` already treats as the primary jurisdiction) and
+the same honest `"human_review_required"` category fallback described
+above; `regulatoryPermitted` is `false` only for a real `non_compliant`
+finding, `true` only when every applicable finding is genuinely clean
+(`NON_BLOCKING_FINDING_STATUSES`), `undefined` otherwise (jurisdiction
+unresolved, zero findings, or only a needs-review finding) — never
+assumed permitted. **Deliberately NOT done**: extending
+`buildCandidateRecord()`'s own exported `SubstitutionCandidate` schema
+with a new definite prohibited/permitted output field (it currently only
+ever exposes `regulatoryUncertain: boolean`, collapsing "definitely
+prohibited" and "definitely permitted" together) — that would be
+extending the shared engine's own schema, beyond "consuming
+authoritative data" into rewriting its output contract. Instead, the
+one real actionable fact this task needs — "never present a prohibited
+candidate as valid" — is satisfied by additionally excluding a
+regulatory-prohibited candidate from the existing `noBlockingOnly`
+UI filter, tracked locally by `materialCode` in
+`SubstitutionPanel.tsx` only, never persisted, never a second scoring
+source. With the REAL current seed catalog, this `false` branch cannot
+actually fire yet (no ingredient-based KE/UG/TZ/RW/BI/SS rule has an
+empty `productCategories`, so none can match a `"human_review_required"`
+candidate) — an honest, disclosed, structural limitation identical in
+kind to the generated-formula seam's own category-blindness, not a bug
+in this session's wiring.
+
+**Advanced Optimizer / System Substitution — confirmed by audit to be a
+genuine, pre-existing, DOCUMENTED "not yet implemented" boundary, not a
+duplicate-authority gap to close**: `packages/shared/src/schemas/
+optimization.ts::regulatoryOptimizationPolicySchema.mode` is hard-locked
+to the literal `"not_available"` — the solver ignores it and, per
+`docs/architecture/IMPLEMENTATION_STATUS.md`'s own pre-existing text,
+"honestly refuses `regulatory_uncertainty` rather than compute it from
+nothing." This is the SAME kind of deliberate no-fabrication choice the
+Compatibility/Safety `exclude_blocking`/`penalize` policies already make
+when they DO have enough identity to check — the Optimizer's own
+candidate material set has no reliable market/category resolution any
+more than the generated-formula seam's does, so refusing rather than
+guessing is the correct behavior, not a gap this task should force open.
+Wiring the optimizer's own solver to actually consume a regulatory
+policy would mean extending `runtime/formulation/advanced_optimizer.py`'s
+constraint model itself — real new solver logic, explicitly beyond this
+task's "smallest transport mapping" boundary. Only a stale doc comment
+(dated to before the Regulatory Engine itself existed, incorrectly
+implying the ENGINE was unimplemented rather than merely un-consumed
+here) was corrected, with zero schema/behavior change — verified by the
+full `packages/shared` test suite, unchanged count.
+`packages/shared/src/engine/systemSubstitution.ts` has zero regulatory
+references at all — confirmed by grep — since system-substitution
+candidate evaluation routes entirely through this same Optimizer
+(FVL-03.007's own established architecture), inheriting the identical,
+already-documented gap rather than adding a new one.
+
+**Compatibility and Safety confirmed to remain separate domains
+throughout** — no merged findings, no shared verdict field, no opaque
+combined score anywhere in this task's new code.
+
+**Historical sessions carrying the legacy `card.regulatory` JSON open
+without crashing, and the legacy payload never becomes current
+authority** — proven by two rewritten `FormulationResultPage.test.tsx`
+tests against the pre-existing SESSION_V6 fixture (which still carries a
+real legacy `card.regulatory` object with a fabricated "rosemary" claim
+finding and a "COMPLIANT_WITH_CONDITIONS" overall status): the Regulatory
+tab shows neither the legacy claim text nor that legacy status, only the
+freshly recomputed authoritative result — which, once the fixture's
+brief was given a real `market: "kenya"` field (a legitimate test-data
+completion, not a fixture rewrite to force a result), turned out to
+legitimately produce its own real `KE-REG-003` (label_requirement)
+`missing_data` finding via the exact same real, unmodified seed catalog
+mechanism FVL-03.009's own SESSION_V6 test discovered for Safety.
+
+**Closure-time single-authority grep re-audit (§25)**: `evaluate_regulatory`,
+`evaluateRegulatory`, `regulatory status`, `regulatory verdict`,
+`overall_status`, `compliance`, `not_verified`, `regulatoryClassification`,
+`regulatoryRules` searched across `runtime/pipeline`, `runtime/formulation`,
+`packages/shared/src`, `apps/desktop/src`, `apps/desktop/src-tauri/src`.
+Zero live-code hits outside the one authoritative TS engine and its
+already-confirmed-correct callers (`ApprovalPanel.tsx`/`RegulatoryPanel.tsx`,
+both pre-existing and unrelated to generated formulas; `claims.ts`'s own
+pre-existing, unrelated comment reference). The only remaining
+`card.regulatory`/`overall_status` matches anywhere are explanatory
+comments and disposable test fixtures documenting the retirement.
 
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 

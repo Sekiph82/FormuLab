@@ -32,16 +32,19 @@ import { evaluateGeneratedFormulaInventory, type FormulaInventoryFeasibility } f
 import { pickMostInventoryFeasibleVersion } from "@/lib/inventoryComparison";
 import { evaluateGeneratedFormulaCompatibility, type GeneratedFormulaCompatibility } from "@/lib/generatedFormulaCompatibility";
 import { evaluateGeneratedFormulaSafety, type GeneratedFormulaSafety } from "@/lib/generatedFormulaSafety";
+import { evaluateGeneratedFormulaRegulatory, type GeneratedFormulaRegulatory } from "@/lib/generatedFormulaRegulatory";
 import { buildPromotedFormulation, type PromotedFormulation } from "@/lib/promoteGeneratedFormula";
 import { saveFormulation, saveFormulationVersion } from "@/lib/formulations";
 import { useMasterCostData } from "@/hooks/useMasterCostData";
 import { useInventoryData } from "@/hooks/useInventoryData";
 import { useCompatibilityRules } from "@/hooks/useCompatibilityRules";
 import { useSafetyRules } from "@/hooks/useSafetyRules";
+import { useRegulatoryRules } from "@/hooks/useRegulatoryRules";
 import { CostSnapshotSummary } from "@/components/cost/CostSnapshotSummary";
 import { InventoryFeasibilitySummary } from "@/components/inventory/InventoryFeasibilitySummary";
 import { GeneratedCompatibilitySummary } from "@/components/compatibility/GeneratedCompatibilitySummary";
 import { GeneratedSafetySummary } from "@/components/safety/GeneratedSafetySummary";
+import { GeneratedRegulatorySummary } from "@/components/regulatory/GeneratedRegulatorySummary";
 import { cn } from "@/lib/cn";
 
 /**
@@ -93,6 +96,9 @@ export function FormulationResultPage() {
   // FVL-03.009: the live, chemist-editable safety rule set — same pattern
   // as compatibility, materials reused from `costData`, no second fetch.
   const safetyRulesData = useSafetyRules();
+  // FVL-03.010: the live, chemist-editable regulatory rule set — same
+  // pattern as compatibility/safety, materials reused from `costData`.
+  const regulatoryRulesData = useRegulatoryRules();
   // FVL-03.005/.006: both the Advanced Optimizer and the Material
   // Substitution Engine need a real projectId/FormulaVersion a generated
   // session card doesn't have — so promotion into a real Formulation/
@@ -203,7 +209,25 @@ export function FormulationResultPage() {
     ? cards.map(() => undefined)
     : cards.map((c) => (c.formula ? evaluateGeneratedFormulaSafety(c.formula, costData.materials, safetyRulesData.rules) : undefined));
 
-  const cheapestValidIndex = pickCheapestValidVersion(cards, costSnapshots, compatibilities, safeties);
+  // FVL-03.010: real, authoritative per-version regulatory verdict — the
+  // SOLE replacement for `runtime/pipeline/regulatory.py`'s former
+  // independent final-verdict role (retired; see docs/FVL03_PLATFORM_
+  // INTEGRATION_ARCHITECTURE.md's "Regulatory Engine boundary"). Computed
+  // read-only, no promotion needed (`evaluateRegulatory` is pure), same
+  // canonical materials + live rule set pattern as compatibility/safety.
+  // `market`/`claims` come from the session's own real brief text — never
+  // fabricated. Kept an entirely separate dimension (never merged into
+  // `compatibilities`/`safeties`), but IS an eligibility gate for
+  // `cheapestValid`/`mostFeasible` below — a `"blocked"` version (a real
+  // `non_compliant` finding) can never win either comparison merely
+  // because its price or stock looks good.
+  const regulatories: (GeneratedFormulaRegulatory | undefined)[] = costData.loading || regulatoryRulesData.loading
+    ? cards.map(() => undefined)
+    : cards.map((c) => (c.formula
+        ? evaluateGeneratedFormulaRegulatory(c.formula, costData.materials, regulatoryRulesData.rules, { market: session.brief?.market, claims: session.brief?.claims })
+        : undefined));
+
+  const cheapestValidIndex = pickCheapestValidVersion(cards, costSnapshots, compatibilities, safeties, regulatories);
 
   // FVL-03.004: same per-version, batch-shared computation pattern as
   // cost, kept as an entirely separate dimension (task §12) — never
@@ -211,7 +235,7 @@ export function FormulationResultPage() {
   const inventoryFeasibilities: (FormulaInventoryFeasibility | undefined)[] = inventoryData.loading
     ? cards.map(() => undefined)
     : cards.map((c) => (c.formula ? evaluateGeneratedFormulaInventory(c.formula, batchKg, inventoryData.records) : undefined));
-  const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities, compatibilities, safeties);
+  const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities, compatibilities, safeties, regulatories);
 
   // FVL-03.005/.006: promote the selected version (once per version,
   // cached) into a real, persisted Formulation/FormulationVersion. The
@@ -297,9 +321,17 @@ export function FormulationResultPage() {
     safetyByVersion[c.version] = safeties[i];
   });
 
+  // FVL-03.010: the SAME computed regulatory results, keyed by version,
+  // feed the "Download Report" export — same split-authority risk this
+  // task closes for Regulatory that FVL-03.009 already closed for Safety.
+  const regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined> = {};
+  cards.forEach((c, i) => {
+    regulatoryByVersion[c.version] = regulatories[i];
+  });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <TopBar session={session} sessionId={sessionId} safetyByVersion={safetyByVersion} t={t} />
+      <TopBar session={session} sessionId={sessionId} safetyByVersion={safetyByVersion} regulatoryByVersion={regulatoryByVersion} t={t} />
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <OriginalRequestBanner brief={session.brief} sessionId={sessionId} navigate={navigate} t={t} />
         <PartialResearchNotice corpus={card?.research_corpus} t={t} />
@@ -353,6 +385,7 @@ export function FormulationResultPage() {
               inventoryFeasibility={inventoryFeasibilities[Math.min(activeVersion, cards.length - 1)]}
               compatibility={compatibilities[Math.min(activeVersion, cards.length - 1)]}
               safety={safeties[Math.min(activeVersion, cards.length - 1)]}
+              regulatory={regulatories[Math.min(activeVersion, cards.length - 1)]}
               onFindSubstitute={card?.formula ? (i: number) => void onFindSubstitute(i) : undefined}
               substitutingIndex={substitutingIndex}
               onSystemSubstitution={card?.formula ? (indices: number[]) => void onSystemSubstitution(indices) : undefined}
@@ -390,6 +423,7 @@ export function FormulationResultPage() {
               isMostFeasible={mostFeasibleIndex === Math.min(activeVersion, cards.length - 1)}
               compatibility={compatibilities[Math.min(activeVersion, cards.length - 1)]}
               safety={safeties[Math.min(activeVersion, cards.length - 1)]}
+              regulatory={regulatories[Math.min(activeVersion, cards.length - 1)]}
             />
           </div>
         </div>
@@ -404,11 +438,13 @@ function TopBar({
   session,
   sessionId,
   safetyByVersion,
+  regulatoryByVersion,
   t,
 }: {
   session: SessionDetail;
   sessionId: string | undefined;
   safetyByVersion: Record<string, GeneratedFormulaSafety | undefined>;
+  regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined>;
   t: TFunction<readonly ["session", "common"]>;
 }) {
   return (
@@ -416,7 +452,7 @@ function TopBar({
       <span className="text-[13px] font-medium uppercase tracking-wider text-muted">{t("formulationResult.heading")}</span>
       <div className="flex items-center gap-2">
         <button
-          onClick={() => openAndPrintReport(session, sessionId ?? session.id, safetyByVersion)}
+          onClick={() => openAndPrintReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion)}
           className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-[11px] text-text hover:bg-surface-2"
         >
           <FileDown size={13} className="text-muted" />
@@ -630,6 +666,7 @@ function TabContent({
   inventoryFeasibility,
   compatibility,
   safety,
+  regulatory,
   onFindSubstitute,
   substitutingIndex,
   onSystemSubstitution,
@@ -652,6 +689,7 @@ function TabContent({
   inventoryFeasibility: FormulaInventoryFeasibility | undefined;
   compatibility: GeneratedFormulaCompatibility | undefined;
   safety: GeneratedFormulaSafety | undefined;
+  regulatory: GeneratedFormulaRegulatory | undefined;
   onFindSubstitute?: (ingredientIndex: number) => void;
   substitutingIndex?: number | null;
   onSystemSubstitution?: (ingredientIndices: number[]) => void;
@@ -688,7 +726,7 @@ function TabContent({
     case "safety":
       return <SafetyTab safety={safety} t={t} />;
     case "regulatory":
-      return <RegulatoryTab card={card} t={t} />;
+      return <RegulatoryTab regulatory={regulatory} t={t} />;
     case "evidence":
       return <EvidenceTab card={card} formula={formula} literature={literature} scientificFormulations={scientificFormulations} t={t} />;
     case "alternatives":
@@ -706,6 +744,7 @@ function TabContent({
           inventoryFeasibility={inventoryFeasibility}
           compatibility={compatibility}
           safety={safety}
+          regulatory={regulatory}
           onFindSubstitute={onFindSubstitute}
           substitutingIndex={substitutingIndex}
           t={t}
@@ -1204,85 +1243,26 @@ function SafetyTab({ safety, t }: { safety: GeneratedFormulaSafety | undefined; 
 
 // ------------------------------------------------------------ Tab 6 ---
 
-function RegulatoryFindingRow({ f }: { f: import("@/lib/formulationV2").RegulatoryFinding }) {
-  return (
-    <div className="rounded-input border border-border-faint p-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[12px] font-medium text-text">{f.subject}</span>
-        <StatusBadge tone={statusTone(f.status)} label={f.status.replace(/_/g, " ")} />
-      </div>
-      <div className="mt-1 text-[11px] text-text">{f.condition}</div>
-      <div className="mt-1 text-[10.5px] text-muted">{f.rationale}</div>
-      {f.required_action && <div className="text-[10.5px] text-muted">→ {f.required_action}</div>}
-      <div className="mt-1 text-[9.5px] uppercase tracking-wide text-muted">{f.rule_id} · {f.jurisdiction}</div>
-    </div>
-  );
-}
-
-function RegulatoryTab({ card, t }: { card: FormulationCard; t: TFunction<readonly ["session", "common"]> }) {
-  const regulatory = card.regulatory;
-  if (!regulatory) {
-    return (
-      <div className="rounded-card border border-border bg-surface p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <Scale size={16} className="text-muted" />
-          <span className="text-[13px] font-medium text-text">{t("formulationResult.regulatory.overallStatus")}</span>
-          <StatusBadge tone="muted" label={t("formulationResult.regulatory.statuses.incomplete")} />
-        </div>
-        <p className="text-[11.5px] leading-relaxed text-muted">{t("formulationResult.regulatory.notYetEvaluated")}</p>
-      </div>
-    );
-  }
-  const ingredientFindings = regulatory.findings.filter((f) => f.subject_type === "ingredient");
-  const labelFindings = regulatory.findings.filter((f) => f.subject_type === "label");
+/**
+ * FVL-03.010 — the Regulatory tab now renders the authoritative
+ * `evaluateRegulatory()` result directly (via `GeneratedRegulatorySummary`,
+ * the same read-only, client-side presenter used in the Summary tab),
+ * never `card.regulatory` (the retired `runtime/pipeline/regulatory.py`
+ * JSON — see docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md's
+ * "Regulatory Engine boundary"). Works identically for a historical
+ * session that only ever had legacy Python regulatory JSON (simply
+ * unread now) and a brand-new one — one authority, recomputed
+ * deterministically from `card.formula` + the session's own real
+ * `brief.market` either way, never two.
+ */
+function RegulatoryTab({ regulatory, t }: { regulatory: GeneratedFormulaRegulatory | undefined; t: TFunction<readonly ["session", "common"]> }) {
   return (
     <div className="rounded-card border border-border bg-surface p-4">
-      <div className="mb-2 text-[11px] text-muted">
-        {t("formulationResult.regulatory.targetMarket")}: <span className="text-text">{regulatory.target_market || t("formulationResult.regulatory.unspecified")}</span>
-      </div>
       <div className="mb-3 flex items-center gap-2">
-        <Scale size={16} className={statusTone(regulatory.overall_status) === "error" ? "text-error" : "text-accent"} />
+        <Scale size={16} className={regulatory?.formulaState === "blocked" ? "text-error" : "text-accent"} />
         <span className="text-[13px] font-medium text-text">{t("formulationResult.regulatory.overallStatus")}</span>
-        <StatusBadge tone={statusTone(regulatory.overall_status)} label={regulatory.overall_status.replace(/_/g, " ")} />
       </div>
-      <EvidenceSection title={t("formulationResult.regulatory.ingredientRestrictions")}>
-        {ingredientFindings.length > 0 ? (
-          <div className="space-y-1.5">{ingredientFindings.map((f, i) => <RegulatoryFindingRow key={i} f={f} />)}</div>
-        ) : (
-          <p className="text-[11.5px] text-muted">{t("formulationResult.regulatory.noFindings")}</p>
-        )}
-      </EvidenceSection>
-      <EvidenceSection title={t("formulationResult.regulatory.claimReview")}>
-        {regulatory.claims.length > 0 ? (
-          <div className="space-y-1.5">
-            {regulatory.claims.map((c, i) => (
-              <div key={i} className="rounded-input border border-border-faint p-2.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[12px] font-medium text-text">{c.claim}</span>
-                  <StatusBadge tone={statusTone(c.status)} label={c.status.replace(/_/g, " ")} />
-                  <span className="text-[9.5px] uppercase tracking-wide text-muted">{t(`formulationResult.regulatory.claimCheckType.${c.check_type}`)}</span>
-                </div>
-                <div className="mt-1 text-[10.5px] text-muted">{c.rationale}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[11.5px] text-muted">{t("formulationResult.regulatory.noClaims")}</p>
-        )}
-      </EvidenceSection>
-      <EvidenceSection title={t("formulationResult.regulatory.labelInci")}>
-        {labelFindings.length > 0 ? (
-          <div className="space-y-1.5">{labelFindings.map((f, i) => <RegulatoryFindingRow key={i} f={f} />)}</div>
-        ) : (
-          <p className="text-[11.5px] text-muted">{t("formulationResult.regulatory.noFindings")}</p>
-        )}
-      </EvidenceSection>
-      <EvidenceSection title={t("formulationResult.regulatory.coverage")}>
-        <div className="mb-1.5">
-          <StatusBadge tone={regulatory.coverage === "partial" ? "warning" : "muted"} label={t(`formulationResult.regulatory.coverageLevels.${regulatory.coverage}`)} />
-        </div>
-        <p className="text-[11.5px] leading-relaxed text-muted">{regulatory.missing_coverage_note}</p>
-      </EvidenceSection>
+      <GeneratedRegulatorySummary regulatory={regulatory} />
     </div>
   );
 }
@@ -1908,6 +1888,7 @@ function SummaryTab({
   inventoryFeasibility,
   compatibility,
   safety,
+  regulatory,
   onFindSubstitute,
   substitutingIndex,
   t,
@@ -1922,6 +1903,7 @@ function SummaryTab({
   inventoryFeasibility: FormulaInventoryFeasibility | undefined;
   compatibility: GeneratedFormulaCompatibility | undefined;
   safety: GeneratedFormulaSafety | undefined;
+  regulatory: GeneratedFormulaRegulatory | undefined;
   onFindSubstitute?: (ingredientIndex: number) => void;
   substitutingIndex?: number | null;
   t: TFunction<readonly ["session", "common"]>;
@@ -1990,6 +1972,9 @@ function SummaryTab({
       <EvidenceSection title={t("formulationResult.tabs.safety")}>
         <GeneratedSafetySummary safety={safety} />
       </EvidenceSection>
+      <EvidenceSection title={t("formulationResult.tabs.regulatory")}>
+        <GeneratedRegulatorySummary regulatory={regulatory} />
+      </EvidenceSection>
       <EvidenceSection title={t("formulationResult.summary.confidence")}>
         {card.score ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11.5px] text-text">
@@ -2030,7 +2015,7 @@ function SummaryTab({
           </ul>
         </EvidenceSection>
       )}
-      {(safety || card.regulatory) && (
+      {(safety || regulatory) && (
         <EvidenceSection title={t("formulationResult.summary.readiness")}>
           <div className="flex flex-wrap gap-2">
             {safety && (
@@ -2039,10 +2024,10 @@ function SummaryTab({
                 <StatusBadge tone={safety.formulaState === "blocked" ? "error" : safety.formulaState === "warning" ? "warning" : safety.formulaState === "unknown" ? "muted" : "success"} label={t(`safety.state.${safety.formulaState}`)} />
               </div>
             )}
-            {card.regulatory && (
+            {regulatory && (
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] uppercase text-muted">{t("formulationResult.regulatory.overallStatus")}</span>
-                <StatusBadge tone={statusTone(card.regulatory.overall_status)} label={card.regulatory.overall_status.replace(/_/g, " ")} />
+                <StatusBadge tone={regulatory.formulaState === "blocked" ? "error" : regulatory.formulaState === "warning" ? "warning" : regulatory.formulaState === "unknown" ? "muted" : "success"} label={t(`regulatory.generated.state.${regulatory.formulaState}`)} />
               </div>
             )}
             {card.formula_state && (
@@ -2176,6 +2161,7 @@ function VersionSummaryCard({
   isMostFeasible,
   compatibility,
   safety,
+  regulatory,
 }: {
   card: FormulationCard | undefined;
   formula: GeneratedFormula | undefined;
@@ -2187,6 +2173,7 @@ function VersionSummaryCard({
   isMostFeasible: boolean;
   compatibility: GeneratedFormulaCompatibility | undefined;
   safety: GeneratedFormulaSafety | undefined;
+  regulatory: GeneratedFormulaRegulatory | undefined;
 }) {
   const total = totalWeightPct(formula);
   const costValue = snapshot?.totalManufacturingCost
@@ -2201,12 +2188,16 @@ function VersionSummaryCard({
   const safetyValue = safety
     ? t(`safety.state.${safety.formulaState}`)
     : t("formulationResult.versionSummary.notAvailable");
+  const regulatoryValue = regulatory
+    ? t(`regulatory.generated.state.${regulatory.formulaState}`)
+    : t("formulationResult.versionSummary.notAvailable");
   const rows: [string, string][] = [
     [t("formulationResult.versionSummary.totalIngredients"), String(formula?.ingredients?.length ?? "—")],
     [t("formulationResult.versionSummary.estimatedCost"), costValue],
     [t("formulationResult.versionSummary.inventoryFeasibility"), inventoryValue],
     [t("formulationResult.versionSummary.compatibility"), compatibilityValue],
     [t("formulationResult.tabs.safety"), safetyValue],
+    [t("formulationResult.tabs.regulatory"), regulatoryValue],
     [t("formulationResult.versionSummary.activeMatter"), total !== undefined ? `${total}%` : "—"],
     [t("formulationResult.versionSummary.overallScore"), t("formulationResult.versionSummary.notYetScored")],
   ];
@@ -2223,6 +2214,11 @@ function VersionSummaryCard({
       {safety?.formulaState === "blocked" && (
         <div className="mb-2 rounded-input bg-error/10 px-2 py-1 text-[10.5px] font-medium text-error">
           {t("safety.state.blocked")}
+        </div>
+      )}
+      {regulatory?.formulaState === "blocked" && (
+        <div className="mb-2 rounded-input bg-error/10 px-2 py-1 text-[10.5px] font-medium text-error">
+          {t("regulatory.generated.state.blocked")}
         </div>
       )}
       {isCheapestValid && (
@@ -2261,13 +2257,4 @@ function StatusBadge({ tone, label }: { tone: "error" | "muted" | "success" | "w
       {label}
     </span>
   );
-}
-
-/** Phase 14 Session 6 — the shared PASS/COMPLIANT-family status vocabulary
- *  used by both the Safety and Regulatory tabs. */
-function statusTone(status: string): "error" | "muted" | "success" | "warning" {
-  if (status === "FAIL" || status === "NON_COMPLIANT") return "error";
-  if (status === "PASS_WITH_CONDITIONS" || status === "COMPLIANT_WITH_CONDITIONS") return "warning";
-  if (status === "PASS" || status === "COMPLIANT") return "success";
-  return "muted"; // DATA_INCOMPLETE
 }

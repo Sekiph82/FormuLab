@@ -129,6 +129,35 @@ describe("SubstitutionDialog — opens without exception", () => {
   });
 });
 
+describe("SubstitutionDialog — FVL-03.010 regulatory market scoping", () => {
+  it("resolves the project's own real targetMarkets[0] (KE) and still renders candidates normally — no crash, no fabricated verdict", async () => {
+    // FORMULATION.targetMarkets is ["KE"], a real supported jurisdiction —
+    // the one-to-one candidate list re-runs `evaluateRegulatory` against
+    // the real SEED_REGULATORY_RULES catalog for every candidate (same
+    // pattern already established for compatibility/safety at this exact
+    // call site) without throwing, and without excluding a candidate that
+    // never violated a real rule.
+    renderDialog();
+    expect(await screen.findByText(/Anionic C/)).toBeInTheDocument();
+    expect(await screen.findByText(/Preservative D/)).toBeInTheDocument();
+  });
+
+  it("an unresolvable targetMarkets value never fabricates a jurisdiction — candidates still render, regulatory coverage honestly unknown", async () => {
+    const unmapped: Formulation = { ...FORMULATION, targetMarkets: ["not-a-real-jurisdiction"] };
+    render(
+      <SubstitutionDialog
+        formulation={unmapped}
+        line={LINE_A}
+        allLines={ALL_LINES}
+        onApply={vi.fn()}
+        onApplySystem={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText(/Anionic C/)).toBeInTheDocument();
+  });
+});
+
 describe("SubstitutionDialog — FVL-03.007 initialExtraLineIds", () => {
   it("pre-checks the named extra lines on open, entering system mode without a manual click", async () => {
     renderDialog(vi.fn(), ["line-b"]);

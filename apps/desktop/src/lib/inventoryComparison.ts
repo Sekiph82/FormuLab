@@ -1,6 +1,7 @@
 import type { FormulaInventoryFeasibility } from "./generatedFormulaInventory";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
+import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 import type { FormulationCard } from "./formulationV2";
 
 /**
@@ -23,18 +24,20 @@ import type { FormulationCard } from "./formulationV2";
  * two separate dimensions into one opaque score, which task §12
  * explicitly forbids; a real multi-dimensional ranking is FVL-08's job.
  *
- * FVL-03.008/.009: `compatibilities`/`safeties` are optional so every
- * pre-existing call site keeps working unchanged; when passed, a version
- * the authoritative Compatibility or Safety Engine reports `"blocked"`
- * can never be crowned the preferred inventory-valid version merely
- * because its stock looks good (task §9/§12) — an extra eligibility gate,
- * not a combined score, same pattern as `pickCheapestValidVersion`.
+ * FVL-03.008/.009/.010: `compatibilities`/`safeties`/`regulatories` are
+ * optional so every pre-existing call site keeps working unchanged; when
+ * passed, a version the authoritative Compatibility, Safety, or
+ * Regulatory Engine reports `"blocked"` can never be crowned the
+ * preferred inventory-valid version merely because its stock looks good
+ * (task §9/§12) — an extra eligibility gate, not a combined score, same
+ * pattern as `pickCheapestValidVersion`.
  */
 export function pickMostInventoryFeasibleVersion(
   cards: FormulationCard[],
   feasibilities: (FormulaInventoryFeasibility | undefined)[],
   compatibilities?: (GeneratedFormulaCompatibility | undefined)[],
   safeties?: (GeneratedFormulaSafety | undefined)[],
+  regulatories?: (GeneratedFormulaRegulatory | undefined)[],
 ): number | undefined {
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i];
@@ -42,6 +45,7 @@ export function pickMostInventoryFeasibleVersion(
     if (card.formula_state?.startsWith("invalid")) continue;
     if (compatibilities?.[i]?.formulaState === "blocked") continue;
     if (safeties?.[i]?.formulaState === "blocked") continue;
+    if (regulatories?.[i]?.formulaState === "blocked") continue;
     if (feasibilities[i]?.formulaState === "feasible") return i;
   }
   return undefined;

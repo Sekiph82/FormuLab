@@ -90,9 +90,12 @@ class PipelineTests(unittest.TestCase):
         """The permanent regression guard the brief this round implements
         explicitly requires: patch `llm.call` to raise, run a REAL
         deterministic generation end to end — through formulation
-        generation, manufacturing planning, safety evaluation, regulatory
-        evaluation, and validation-plan generation, all in this one
-        `pipeline.run()` call — and prove the exception never fires. The
+        generation, manufacturing planning, and validation-plan
+        generation, all in this one `pipeline.run()` call — and prove the
+        exception never fires (Safety/Regulatory evaluation are no longer
+        part of this Python chain at all — FVL-03.009/.010 retired both
+        as Python-side authorities; the real evaluation now happens
+        client-side against the TS engines). The
         deterministic path must not import, invoke, depend on, or require
         `llm.py::call()` at all, anywhere in that chain (Phase 14 Session 6,
         §28)."""
@@ -116,12 +119,14 @@ class PipelineTests(unittest.TestCase):
                 self.assertGreater(len(res["cards"]), 0)
                 card = res["cards"][0]
                 # Every Session 6 output was genuinely produced, LLM-free.
-                # FVL-03.009: `card["safety"]` no longer exists — the
-                # retired `runtime/pipeline/safety.py` counterpart was
-                # removed; the authoritative safety verdict is computed
-                # client-side (see `generatedFormulaSafety.ts`).
+                # FVL-03.009/.010: `card["safety"]`/`card["regulatory"]`
+                # no longer exist — the retired `runtime/pipeline/
+                # safety.py`/`regulatory.py` counterparts were removed;
+                # both authoritative verdicts are computed client-side
+                # (see `generatedFormulaSafety.ts`/
+                # `generatedFormulaRegulatory.ts`).
                 self.assertNotIn("safety", card)
-                self.assertIn("regulatory", card)
+                self.assertNotIn("regulatory", card)
                 self.assertIn("validation_plan", card)
                 self.assertIn("trace_events", card)
                 self.assertTrue(card["trace_events"])

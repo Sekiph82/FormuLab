@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Wand2, XCircle } from "lucide-react";
 import {
+  NON_BLOCKING_FINDING_STATUSES,
+  REGULATORY_JURISDICTIONS,
   SEED_COMPATIBILITY_RULES,
+  SEED_REGULATORY_RULES,
   SEED_SAFETY_RULES,
   activeEquivalentPercent,
   blockingExclusionConstraints,
   buildCandidateRecord,
   buildSystemSubstitutionProblem,
   evaluateCompatibility,
+  evaluateRegulatory,
   evaluateSafety,
   generateSystemCandidates,
   newId,
@@ -26,6 +30,7 @@ import {
   type MaterialPrice,
   type OptimizationMaterial,
   type RawMaterial,
+  type RegulatoryJurisdiction,
   type RejectedSystemCandidate,
   type Supplier,
   type SubstitutionCandidate,
@@ -176,6 +181,18 @@ export function SubstitutionDialog({
     });
   };
 
+  // FVL-03.010 — the real jurisdiction this project's own canonical
+  // `targetMarkets` names (same field/convention `RegulatoryPanel.tsx`
+  // already treats as the primary market), never a fabricated default.
+  // `category` is honestly `"human_review_required"` — the same
+  // no-fabricated-identity call `generatedFormulaRegulatory.ts` makes,
+  // since this panel has no loaded `ProductFamily` record to classify
+  // against; a category-scoped rule simply never fires here, which is
+  // honest under-coverage, not a false negative.
+  const regulatoryJurisdiction = (REGULATORY_JURISDICTIONS as readonly string[]).includes(formulation.targetMarkets[0] ?? "")
+    ? (formulation.targetMarkets[0] as RegulatoryJurisdiction)
+    : undefined;
+
   const candidates = useMemo(() => {
     if (materials.length === 0) return [];
     const target = {
@@ -192,6 +209,15 @@ export function SubstitutionDialog({
     };
 
     const pool = materials.filter((m) => m.active && m.code !== line.materialCode);
+    // FVL-03.010 — `buildCandidateRecord`'s own persisted `SubstitutionCandidate`
+    // shape only ever exposes `regulatoryUncertain` (never a definite
+    // prohibited/permitted flag) — extending that exported shape would be
+    // rewriting the shared engine's own schema, beyond this task's "consume
+    // authoritative data" boundary. So the definite `false` (a real
+    // `non_compliant` finding) is tracked locally here, by materialCode, for
+    // the "no blocking" filter below only — never persisted, never a second
+    // scoring source.
+    const regulatoryProhibited = new Set<string>();
     const scored: SubstitutionCandidate[] = pool.map((m) => {
       const priceChoice = priceFor(prices, m.code, asOf);
       const stockRecords = inventory.filter((r) => r.materialCode === m.code);
@@ -202,6 +228,25 @@ export function SubstitutionDialog({
       const substitutedLines = allLines.map((l) => (l.id === line.id ? { ...l, materialCode: m.code, functions: m.functions } : l));
       const compatFindings = evaluateCompatibility(substitutedLines, SEED_COMPATIBILITY_RULES, { materials });
       const safetyFindings = evaluateSafety(substitutedLines, SEED_SAFETY_RULES, { materials });
+      // FVL-03.010 — same "consume the authoritative engine, add no new
+      // scoring" pattern as compatibility/safety above. `undefined` when
+      // the jurisdiction can't be resolved OR the applicable rule set
+      // could only confirm "needs review" (missing_data/human_review_
+      // required) — `substitution.ts`'s own `regulatory_status` dimension
+      // already treats `undefined` as honestly unknown, never assumed
+      // permitted. `false` only for a real `non_compliant` finding.
+      const regulatoryFindings = regulatoryJurisdiction
+        ? evaluateRegulatory(substitutedLines, SEED_REGULATORY_RULES, { jurisdiction: regulatoryJurisdiction, category: "human_review_required", materials })
+        : [];
+      const regulatoryNonCompliant = regulatoryFindings.some((f) => f.status === "non_compliant");
+      if (regulatoryNonCompliant) regulatoryProhibited.add(m.code);
+      const regulatoryPermitted = !regulatoryJurisdiction || regulatoryFindings.length === 0
+        ? undefined
+        : regulatoryNonCompliant
+          ? false
+          : regulatoryFindings.every((f) => NON_BLOCKING_FINDING_STATUSES.includes(f.status))
+            ? true
+            : undefined;
 
       const input: SubstitutionCandidateInput = {
         materialId: m.code,
@@ -225,6 +270,7 @@ export function SubstitutionDialog({
         hasBlockingCompatibilityFinding: compatFindings.some((f) => f.severity === "blocking"),
         safetyFindingIds: safetyFindings.map((f) => f.id),
         hasBlockingSafetyFinding: safetyFindings.some((f) => f.severity === "blocking"),
+        regulatoryPermitted,
       };
 
       const result = scoreCandidate(target, input);
@@ -234,11 +280,11 @@ export function SubstitutionDialog({
     let filtered = scored;
     if (inStockOnly) filtered = filtered.filter((c) => c.stockAvailable !== false);
     if (approvedOnly) filtered = filtered.filter((c) => !c.hasBlockingCompatibilityFinding); // approved-supplier proxy folded into ranking reason
-    if (noBlockingOnly) filtered = filtered.filter((c) => !c.hasBlockingCompatibilityFinding && !c.hasBlockingSafetyFinding);
+    if (noBlockingOnly) filtered = filtered.filter((c) => !c.hasBlockingCompatibilityFinding && !c.hasBlockingSafetyFinding && !regulatoryProhibited.has(c.materialCode ?? ""));
 
     return rankCandidates(filtered);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [materials, prices, inventory, suppliers, line, allLines, inStockOnly, approvedOnly, noBlockingOnly]);
+  }, [materials, prices, inventory, suppliers, line, allLines, inStockOnly, approvedOnly, noBlockingOnly, regulatoryJurisdiction]);
 
   const apply = async (candidate: SubstitutionCandidate) => {
     setApplying(true);

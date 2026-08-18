@@ -387,10 +387,20 @@ export const safetyOptimizationPolicySchema = z.object({
 });
 export type SafetyOptimizationPolicy = z.infer<typeof safetyOptimizationPolicySchema>;
 
-/** The Regulatory Engine (spec §13) is not implemented — see
- *  `docs/architecture/IMPLEMENTATION_STATUS.md`. This policy is accepted so
- *  a `FormulationProblem` has a stable place for it to plug into later, but
- *  `mode` can currently only be `"not_available"`; the solver ignores it. */
+/** FVL-03.010: the Regulatory Engine itself now exists and is
+ *  authoritative (`engine/regulatoryRules.ts::evaluateRegulatory`,
+ *  wired for generated formulas via `apps/desktop/src/lib/
+ *  generatedFormulaRegulatory.ts`) — what remains deliberately NOT
+ *  implemented is the Advanced Optimizer's OWN consumption of it. Unlike
+ *  compatibility/safety (real per-candidate `materialCode`/`function`
+ *  identity is enough to evaluate a rule), a real regulatory verdict also
+ *  needs a resolved market + product category the optimizer's own
+ *  candidate material set has no reliable way to supply yet — so this
+ *  policy is accepted so a `FormulationProblem` has a stable place for it
+ *  to plug into later, but `mode` can currently only be `"not_available"`;
+ *  the solver ignores it and honestly refuses `regulatory_uncertainty`
+ *  rather than compute it from nothing (see
+ *  `docs/architecture/IMPLEMENTATION_STATUS.md`). */
 export const regulatoryOptimizationPolicySchema = z.object({
   mode: z.literal("not_available").default("not_available"),
   notes: z.string().optional(),

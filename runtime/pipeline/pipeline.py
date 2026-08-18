@@ -33,7 +33,6 @@ import literature_cache
 import manufacturing
 import master_materials_adapter
 import provenance
-import regulatory
 import scientific_formulation
 import strategy
 import validation_plan
@@ -840,29 +839,26 @@ def run(
             formula_state, manufacturing_ingredients, brief, mass_balance.to_dict(), violations, comparable_stats,
         )
 
-        # Phase 14 Session 6: deterministic Regulatory intelligence,
-        # computed independently for THIS version (a V1 COMPLIANT never
-        # implies V2 COMPLIANT — different ingredient/concentration
-        # choices genuinely change it). Zero LLM — see regulatory.py's own
-        # module docstring for the full source model.
-        #
-        # FVL-03.009: this pipeline-local `safety.py` counterpart (its own
-        # independent `overall_status`, computed from a hardcoded
-        # ingredient-NAME hazard table, never consuming the real
-        # `packages/shared/src/engine/safety.ts::evaluateSafety`) has been
-        # retired — it is no longer an authoritative final safety verdict
-        # anywhere in the platform. The authoritative result is now
-        # computed read-only, client-side, post-generation, from real
-        # canonical materials + the live safety_rules collection (see
-        # apps/desktop/src/lib/generatedFormulaSafety.ts and
+        # FVL-03.009/.010: this pipeline-local `safety.py`/`regulatory.py`
+        # pair (each its own independent `overall_status` — safety from a
+        # hardcoded ingredient-NAME hazard table, regulatory from a
+        # partial, stale port of `packages/shared/src/catalog/
+        # regulatoryRules.ts` — neither ever consuming the real TS
+        # engines) has been retired entirely; neither is an authoritative
+        # final verdict anywhere in the platform any more. Both
+        # authoritative results are now computed read-only, client-side,
+        # post-generation, from real canonical materials + the live
+        # safety_rules/regulatory_rules collections (see
+        # apps/desktop/src/lib/generatedFormulaSafety.ts,
+        # apps/desktop/src/lib/generatedFormulaRegulatory.ts, and
         # docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md's "Safety Engine
-        # boundary") — exactly the same architecture already established
-        # for Cost/Inventory/Compatibility (Python cannot call
-        # packages/shared at all; `run_cli.py` is a one-shot subprocess
-        # with no back-channel). No `card["safety"]` is emitted here.
-        regulatory_result = regulatory.evaluate_regulatory(f, brief, ingredient_origins)
+        # boundary"/"Regulatory Engine boundary") — exactly the same
+        # architecture already established for Cost/Inventory/
+        # Compatibility (Python cannot call packages/shared at all;
+        # `run_cli.py` is a one-shot subprocess with no back-channel). No
+        # `card["safety"]`/`card["regulatory"]` is emitted here.
         validation_checks = validation_plan.build_validation_plan(
-            formula_state, group, manufacturing_plan.to_dict(), regulatory_result.overall_status,
+            formula_state, group, manufacturing_plan.to_dict(),
         )
 
         # Phase 14 Session 6 correction gate: real, structured evidence-gap
@@ -902,8 +898,6 @@ def run(
         for qf in quality_gate:
             if qf.factor in ("critical_active_no_evidence", "unusual_concentration_no_evidence"):
                 evidence_gaps.append({"category": qf.factor, "gap": qf.message})
-        if regulatory_result.overall_status == regulatory.DATA_INCOMPLETE:
-            evidence_gaps.append({"category": "regulatory_data_incomplete", "gap": regulatory_result.missing_coverage_note})
 
         md = render_card(f, violations, strat.to_dict())
         with open(os.path.join(out_dir, card_filename(session_id, version)), "w", encoding="utf-8") as fh:
@@ -930,7 +924,6 @@ def run(
             "missing_roles": result.missing_roles,
             "unresolved_requirements": result.unresolved_requirements,
             "manufacturing": manufacturing_plan.to_dict(),
-            "regulatory": regulatory_result.to_dict(),
             "validation_plan": [c.to_dict() for c in validation_checks],
             "trace_events": [e.to_dict() for e in result.trace_events],
             "evidence_gaps": evidence_gaps,
@@ -1014,14 +1007,14 @@ def run(
     # ingredient selection/rejection decision events, keyed by version,
     # exactly mirroring each card's own `trace_events` field so the same
     # data is inspectable without opening `cards.json`. Deliberately NOT
-    # duplicated as a separate `regulatory.json` file — that result
-    # already lives on each card (`card["regulatory"]`), the same
-    # precedent `mass_balance`/`quality_gate`/`manufacturing` already
-    # established; a second file holding the identical data would be
-    # exactly the "same truth in multiple conflicting files" this
-    # session's own brief warns against. (`card["safety"]` no longer
-    # exists at all — FVL-03.009 retired it; the authoritative safety
-    # result is computed client-side, see `generatedFormulaSafety.ts`.)
+    # duplicated as a separate file — the same precedent `mass_balance`/
+    # `quality_gate`/`manufacturing` already established; a second file
+    # holding the identical data would be exactly the "same truth in
+    # multiple conflicting files" this session's own brief warns against.
+    # (`card["safety"]`/`card["regulatory"]` no longer exist at all —
+    # FVL-03.009/.010 retired them; the authoritative safety/regulatory
+    # results are computed client-side, see `generatedFormulaSafety.ts`/
+    # `generatedFormulaRegulatory.ts`.)
     with open(os.path.join(out_dir, "traceability.json"), "w", encoding="utf-8") as fh:
         json.dump({"schema_version": 1, "versions": {c["version"]: c["trace_events"] for c in cards}},
                    fh, ensure_ascii=False, indent=2)

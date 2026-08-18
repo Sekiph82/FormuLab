@@ -85,11 +85,13 @@ class TraceabilityIntegrityTests(unittest.TestCase):
     # `generatedFormulaSafety.ts` and `packages/shared/src/engine/
     # safety.test.ts`'s own coverage of that same guarantee).
 
-    def test_every_regulatory_finding_has_a_source_or_rule(self):
-        res, _ = run_session({"target": "anti-dandruff shampoo", "category": "shampoo", "market": "kenya"})
-        card = res["cards"][0]
-        for f in card["regulatory"]["findings"]:
-            self.assertTrue(f["rule_id"], f)
+    # FVL-03.010: `test_every_regulatory_finding_has_a_source_or_rule`
+    # removed — `card["regulatory"]` no longer exists (the retired
+    # `runtime/pipeline/regulatory.py` counterpart was deleted; the
+    # authoritative regulatory verdict, with its own real `ruleCode` on
+    # every finding, is now computed client-side — see
+    # `generatedFormulaRegulatory.ts` and `packages/shared/src/engine/
+    # regulatoryRules.test.ts`'s own coverage of that same guarantee).
 
     def test_evidence_link_dois_point_to_real_retrieved_papers(self):
         res, out = run_session({"target": "anti-dandruff shampoo", "category": "shampoo"})

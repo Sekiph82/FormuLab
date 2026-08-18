@@ -15,19 +15,19 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 15/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
+ON PROCESS, 16/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
 FVL-03.004, FVL-03.005, FVL-03.006, FVL-03.007, FVL-03.008, FVL-03.009,
-FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
-(24/24, 2026-08-17).
+FVL-03.010, FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02
+remains CLOSED (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.010`** — blank, **NOT STARTED**. Not begun this session — hard
-boundary stated explicitly in this session's task brief. FVL-03.009 —
-retiring `runtime/pipeline/safety.py` and making the existing Safety
-Engine the single authoritative final safety verdict for generated
-formulas — COMPLETED this session (no subagents used, per explicit
-instruction).
+**`FVL-03.011`** — blank, **NOT STARTED**. Not begun this session — hard
+boundary stated explicitly in this session's task brief. FVL-03.010 —
+retiring `runtime/pipeline/regulatory.py` and making the existing
+Kenya/EAC Regulatory Engine the single authoritative final regulatory
+verdict for generated formulas — COMPLETED this session (no subagents
+used, per explicit instruction).
 
 ## FVL-04 scope expansion (2026-08-18, documentation/tracker session only)
 
@@ -53,7 +53,75 @@ as recorded above:
 
 **CURRENT IMPLEMENTATION TASK REMAINS: `FVL-03.009` — NOT STARTED.**
 
-## FVL-03.009 resolution (this session)
+## FVL-03.010 resolution (this session)
+
+"Make the EXISTING Kenya/EAC Regulatory Engine the single authoritative
+regulatory verdict for the formulation workflow — retire
+`runtime/pipeline/regulatory.py`, no new engine, no Python port." Full
+audit confirmed `regulatory.py::evaluate_regulatory()` was a real,
+independently-computing second final-verdict authority — and, by direct
+comparison, itself STALE against its own source (only 7 of the TS
+catalog's real 16 seed rules). **Resolved by full retirement** (same
+precedent as safety.py): `regulatory.py`/`test_regulatory.py` (14 tests)
+deleted; `pipeline.py`/`validation_plan.py` (whose last remaining
+`regulatory_overall` parameter — and VAL-002, the last Safety/Regulatory
+advisory entry — is now gone entirely)/`test_pipeline.py`/
+`test_traceability.py` updated. `review_claims()`'s structural
+claim-vs-composition check (the one distinct Python capability, no TS
+equivalent) was deliberately retired with the rest, not selectively
+kept, since it computed a real claim verdict — flagged for a possible
+future TS catalog addition instead.
+
+**New client-side seam**: `generatedFormulaRegulatory.ts::evaluateGeneratedFormulaRegulatory()`
+resolves `brief.market` free text into a real `RegulatoryJurisdiction`
+via a small wrapper-local alias table (ported from the retired module's
+own `_MARKET_ALIASES`); `formulaState` reuses the engine's own real
+`REGULATORY_FINDING_STATUSES`/`NON_BLOCKING_FINDING_STATUSES` — `blocked`
+reserved for a real `non_compliant` finding only (never the
+`missing_data`/`human_review_required` findings a generated,
+unconfirmed session will almost always carry, which surface as
+`warning` instead); zero findings is never `compliant`, preserving the
+retired module's own "sparse coverage ≠ clean" policy. `category` is
+always `"human_review_required"` (the classifier's own honest-
+uncertainty value, not an invented fallback) — same scope decision
+FVL-03.008/.009 made for Safety. New `useRegulatoryRules()` hook loads
+the LIVE `regulatory_rules` collection.
+
+**Downstream wiring**: `pickCheapestValidVersion()`/
+`pickMostInventoryFeasibleVersion()` gained an independent 5th
+`regulatories` eligibility gate. `FormulationResultPage.tsx`
+(RegulatoryTab/SummaryTab/VersionSummaryCard) and `formulationReport.ts`
+fully rewired off the legacy `card.regulatory` JSON — closing the same
+"Download Report" split-authority risk FVL-03.009 closed for Safety. The
+now-fully-dead `statusTone()` helper was removed. **Real new wiring, not
+just an audit finding**: `SubstitutionPanel.tsx`'s one-to-one candidate
+scoring had never populated `SubstitutionCandidateInput.regulatoryPermitted`
+even though `substitution.ts`'s own scoring dimension already existed —
+now wired per candidate against the project's own real
+`formulation.targetMarkets[0]`, with a locally-tracked `noBlockingOnly`
+filter exclusion for a real violation (never persisted, never extending
+the shared engine's own output schema). Advanced Optimizer/System
+Substitution confirmed to be a genuine, pre-existing, DOCUMENTED "not
+yet implemented" boundary (`regulatoryOptimizationPolicySchema.mode`
+hard-locked to `"not_available"`) — not a gap this task closes; only its
+now-stale doc comment was corrected, zero behavior change.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1416/1416 across 152
+files (32 new: 14 `generatedFormulaRegulatory.test.ts`, 8
+`GeneratedRegulatorySummary.test.tsx`, 5 `costComparison.test.ts`, 3
+`inventoryComparison.test.ts`, 3 `formulationReport.test.ts`, 2
+`SubstitutionPanel.test.tsx`; `FormulationResultPage.test.tsx` count
+unchanged, 3 tests corrected in place). `typecheck`/`lint` — clean.
+`pnpm --filter @formulab/shared test` — 1311/1311 (comment-only doc fix
+in `optimization.ts`, unchanged count). `python -m pytest
+runtime/pipeline -q` — 361 passed, 5 subtests (down from 376+5 by
+exactly the 15 tests removed with `regulatory.py`). `python scripts/
+validate_v1_tracker.py` — OK, 171 tasks, no drift. `git diff --check` —
+clean (LF/CRLF warnings only). No FVL-03.011+ work started; no new
+regulatory engine anywhere; no Python regulatory rule-matching logic
+remains.
+
+## FVL-03.009 resolution (prior session)
 
 "Make the EXISTING Safety Engine the single authoritative final safety
 verdict for the formulation workflow — retire `runtime/pipeline/
@@ -757,37 +825,44 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.010`** — blank, NOT STARTED (see above). Not begun this
+**`FVL-03.011`** — blank, NOT STARTED (see above). Not begun this
 session — explicit boundary in this session's task brief.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001-.009 fully closed (see
-above). Two disclosed, out-of-scope, non-blocking findings: (1) the
-existing Optimizer/Substitution compatibility re-run call sites use the
-hardcoded `SEED_COMPATIBILITY_RULES` constant rather than the live
-edited `compatibility_rules` collection; (2) the same three call sites'
-safety re-run uses the hardcoded `SEED_SAFETY_RULES` constant rather
-than the live edited `safety_rules` collection FVL-03.009's own new code
-correctly reads — both data-freshness gaps, not duplicate-authority
-issues; flagged for a future session.
+None. FVL-01/FVL-02 fully closed; FVL-03.001-.010 fully closed (see
+above). Disclosed, out-of-scope, non-blocking findings: (1)/(2) the
+existing Optimizer/Substitution compatibility/safety re-run call sites
+use the hardcoded `SEED_COMPATIBILITY_RULES`/`SEED_SAFETY_RULES`
+constants rather than the live edited collections; (3) Material
+Substitution's new regulatory wiring (`SubstitutionPanel.tsx`) cannot
+currently produce a real `false`/prohibited result with the actual seed
+catalog, since no ingredient-based KE/UG/TZ/RW/BI/SS rule has an empty
+`productCategories` that would match the honest `"human_review_required"`
+category fallback; (4) the Advanced Optimizer/System Substitution still
+carry a genuine, pre-existing, documented "regulatory not yet
+implemented" boundary (`regulatoryOptimizationPolicySchema.mode` locked
+to `"not_available"`) — none are duplicate-authority issues; all flagged
+for a future session.
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1381/1381 across 150 files (24
-  new: 9 `generatedFormulaSafety.test.ts`, 7
-  `GeneratedSafetySummary.test.tsx`, 5 `costComparison.test.ts`, 3
-  `inventoryComparison.test.ts`, 3 `formulationReport.test.ts`; 4 existing
-  `FormulationResultPage.test.tsx` tests corrected).
+- `pnpm --filter @formulab/desktop test` — 1416/1416 across 152 files (32
+  new: 14 `generatedFormulaRegulatory.test.ts`, 8
+  `GeneratedRegulatorySummary.test.tsx`, 5 `costComparison.test.ts`, 3
+  `inventoryComparison.test.ts`, 3 `formulationReport.test.ts`, 2
+  `SubstitutionPanel.test.tsx`; `FormulationResultPage.test.tsx` count
+  unchanged, 3 tests corrected in place).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
-- `python -m pytest runtime/pipeline -q` — 376 passed, 5 subtests (down
-  from 386+5 by exactly the 10 tests removed alongside `safety.py`).
-- `packages/shared`, `runtime/formulation`,
-  `apps/desktop/src-tauri/src/formulation*` confirmed untouched by `git
-  status`/diff this session — no shared/cargo sanity re-run performed
-  (nothing in those trees changed; prior baselines: `pnpm --filter
-  @formulab/shared test` 1311/1311, `cargo check` clean, both from the
-  FVL-03.004 session).
+- `pnpm --filter @formulab/shared test` — 1311/1311 (comment-only doc fix
+  in `optimization.ts`'s `regulatoryOptimizationPolicySchema`, unchanged
+  count).
+- `python -m pytest runtime/pipeline -q` — 361 passed, 5 subtests (down
+  from 376+5 by exactly the 15 tests removed alongside `regulatory.py`).
+- `runtime/formulation`, `apps/desktop/src-tauri/src/formulation*`
+  confirmed untouched by `git status`/diff this session — no cargo
+  sanity re-run performed (nothing in that tree changed; prior baseline:
+  `cargo check` clean, from the FVL-03.004 session).
 - `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
 - `git diff --check` — clean (LF/CRLF warnings only).
 - No desktop rebuild/installer performed (no Rust/shipped-runtime changes
@@ -798,9 +873,10 @@ issues; flagged for a future session.
 
 ## Latest commit SHA
 
-`c1374d0` (pushed to and matching `origin/feature/laboratory-stability`)
-— "feat(v1): consolidate authoritative Safety Engine". Prior: `0c0814d`
-— "feat(v1): integrate authoritative Compatibility Engine".
+Pending — this session's closure commit not yet pushed at the time this
+file was last edited. Prior: `860b57e` (pushed to and matching
+`origin/feature/laboratory-stability`) — "docs: finalize FVL-03.009
+closure pointer with commit SHA".
 
 ## Reminder
 

@@ -1861,6 +1861,37 @@
   "regulatory": {
     "tabLabel": "Regulatory",
     "heading": "Regulatory Engine (Kenya/EAC)",
+    "generated": {
+      "notYetAvailable": "Not yet available — master data is still loading.",
+      "state": {
+        "compliant": "Regulatory compliant",
+        "warning": "Regulatory review needed",
+        "blocked": "Regulatory blocked",
+        "unknown": "Regulatory coverage unknown"
+      },
+      "status": {
+        "compliant_with_rule": "Compliant with rule",
+        "non_compliant": "Non-compliant",
+        "missing_data": "Missing data",
+        "human_review_required": "Human review required",
+        "not_applicable": "Not applicable",
+        "unknown": "Unknown"
+      },
+      "verification": {
+        "verified": "Verified",
+        "not_verified": "Not verified",
+        "imported_unverified": "Imported, unverified",
+        "human_review_required": "Human review required",
+        "under_review": "Under review",
+        "rejected": "Verification rejected",
+        "expired": "Verification expired",
+        "superseded": "Superseded"
+      },
+      "marketUnresolved": "No regulatory rule data exists for \"{{market}}\" in this installation — this is an honest data gap, not a compliance determination.",
+      "marketUnspecified": "an unspecified market",
+      "unresolvedMaterialCount": "{{count}} ingredient(s) could not be matched to a canonical material — regulatory coverage for those relies only on function/name-based rules, not the full rule set.",
+      "empty": "No applicable regulatory findings matched this formula in this installation's current rule set — this reflects this installation's own coverage, not a confirmed clean result."
+    },
     "section": {
       "findings": "Findings",
       "rules": "Rules",
