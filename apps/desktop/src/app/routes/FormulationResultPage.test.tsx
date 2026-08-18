@@ -898,6 +898,99 @@ function renderResultPage() {
   );
 }
 
+// --- FVL-03.008: authoritative Compatibility Engine wiring ---
+
+const SESSION_COMPATIBILITY = {
+  status: "ok" as const,
+  id: "2026-01-01-1700-test",
+  brief: { target: "A disposable-fixture compatibility test formula." },
+  cards: [
+    {
+      version: "v1",
+      markdown: "# Formulation Card: Blocked",
+      formula: {
+        name: "Blocked",
+        purpose: "p",
+        ingredients: [
+          { inci: "Sodium Hypochlorite", function: "Bleaching Agent", weight_pct: "5.0" },
+          { inci: "Citric Acid", function: "pH Adjuster", weight_pct: "1.0" },
+        ],
+      },
+      violations: [],
+    },
+    {
+      version: "v2",
+      markdown: "# Formulation Card: Unresolved",
+      formula: {
+        name: "Unresolved",
+        purpose: "p",
+        // Deliberately a function label ("Special Additive") no seed rule
+        // is scoped to (via guessFunctions() or any nameKeywordsAny) and a
+        // display name matching no seed rule's name keywords — this
+        // ingredient should trigger ZERO findings, isolating the
+        // "unresolved materialCode, zero findings -> unknown" case from
+        // any real finding that would otherwise dominate the state.
+        ingredients: [{ inci: "Xylitol", function: "Special Additive", weight_pct: "0.5" }],
+      },
+      violations: [],
+    },
+  ],
+  read_only: true as const,
+};
+
+function renderPageCompat() {
+  readSession.mockReset();
+  readSession.mockResolvedValue(SESSION_COMPATIBILITY);
+  return render(
+    <MemoryRouter initialEntries={["/formulation-result/2026-01-01-1700-test"]}>
+      <Routes>
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("FormulationResultPage — FVL-03.008 authoritative compatibility wiring", () => {
+  it("Summary tab shows the real blocking finding from the authoritative Compatibility Engine, never a fabricated one", async () => {
+    renderPageCompat();
+    await screen.findByText("Sodium Hypochlorite");
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    // "Compatibility blocked" legitimately appears 3 times — the summary
+    // presenter's own state line, the version-card red banner, and the
+    // version-card's "Compatibility" data row — all real, all expected.
+    expect((await screen.findAllByText("Compatibility blocked")).length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText(/chlorine gas/)).toBeInTheDocument();
+  });
+
+  it("a version with an unresolved ingredient and zero findings shows unknown coverage, never silently compatible", async () => {
+    renderPageCompat();
+    await screen.findByText("Sodium Hypochlorite");
+    await userEvent.click(screen.getByText("Unresolved"));
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    expect((await screen.findAllByText("Compatibility coverage unknown")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/1 ingredient\(s\) could not be matched/)).toBeInTheDocument();
+  });
+
+  it("switching from the blocked version to the unresolved version never leaks the blocked state (version scoping)", async () => {
+    renderPageCompat();
+    await screen.findByText("Sodium Hypochlorite");
+    await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    await screen.findAllByText("Compatibility blocked");
+
+    await userEvent.click(screen.getByText("Unresolved"));
+    await waitFor(() => expect(screen.queryByText("Compatibility blocked")).toBeNull());
+    expect((await screen.findAllByText("Compatibility coverage unknown")).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("historical session without any stored compatibility metadata still opens normally (on-the-fly evaluation)", async () => {
+    readSession.mockReset();
+    readSession.mockResolvedValue(SESSION);
+    renderPage();
+    await screen.findByText("Cocamidopropyl Betaine");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
 // --- FVL-03.007: system substitution multi-select entry point ---
 
 describe("FormulationResultPage — FVL-03.007 system substitution selection", () => {

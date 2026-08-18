@@ -1,5 +1,6 @@
 import type { CostSnapshot } from "@formulab/shared";
 import type { FormulationCard } from "./formulationV2";
+import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 
 /**
  * FVL-03.003 — which generated alternative is the cheapest one that's
@@ -12,16 +13,26 @@ import type { FormulationCard } from "./formulationV2";
  * Eligible = the same "not invalid" convention `FormulationResultPage`
  * already uses for its status badge (`formula_state.startsWith("invalid")`)
  * AND a cost snapshot with zero `missingDataWarnings`.
+ *
+ * FVL-03.008: `compatibilities` is optional so every pre-existing call
+ * site keeps working unchanged; when passed, a version whose authoritative
+ * Compatibility Engine verdict is `"blocked"` can never be crowned
+ * cheapest merely because its price is attractive (task §9) — a warning
+ * or unknown compatibility state does NOT exclude a version, matching the
+ * real platform's own "only `blocking` is a hard block" semantics
+ * (confirmed by `blockingExclusionConstraints`/`SubstitutionPanel.tsx`).
  */
 export function pickCheapestValidVersion(
   cards: FormulationCard[],
   snapshots: (CostSnapshot | undefined)[],
+  compatibilities?: (GeneratedFormulaCompatibility | undefined)[],
 ): number | undefined {
   let best: number | undefined;
   let bestTotal: number | undefined;
   cards.forEach((card, i) => {
     if (card.status === "generation_failed") return;
     if (card.formula_state?.startsWith("invalid")) return;
+    if (compatibilities?.[i]?.formulaState === "blocked") return;
     const snapshot = snapshots[i];
     if (!snapshot || snapshot.missingDataWarnings.length > 0) return;
     if (!snapshot.totalManufacturingCost) return;

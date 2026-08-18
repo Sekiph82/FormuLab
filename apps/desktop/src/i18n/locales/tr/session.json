@@ -689,7 +689,8 @@
       "notYetScored": "Not yet scored",
       "cheapestValid": "Geçerli alternatifler arasında en düşük maliyet",
       "mostFeasible": "Envanter açısından en uygun alternatif",
-      "inventoryFeasibility": "Envanter uygunluğu"
+      "inventoryFeasibility": "Envanter uygunluğu",
+      "compatibility": "Uyumluluk"
     },
     "process": {
       "notAvailable": "A real, evidence-sourced manufacturing procedure for this formula is not yet generated — Phase 14 Session 5 builds this. No generic or invented process steps are shown in its place."
@@ -1157,7 +1158,15 @@
     "empty": "Mevcut formül ve kural seti için uyumluluk bulgusu yok.",
     "unknown": "bilinmiyor — veri eksik",
     "recommendedAction": "Önerilen eylem",
-    "verification": "Doğrulama"
+    "verification": "Doğrulama",
+    "state": {
+      "compatible": "Uyumlu",
+      "warning": "Uyumluluk uyarısı",
+      "blocked": "Uyumluluk engeli",
+      "unknown": "Uyumluluk kapsamı bilinmiyor"
+    },
+    "notYetAvailable": "Henüz kullanılamıyor — ana veriler hâlâ yükleniyor.",
+    "unresolvedMaterialCount": "{{count}} bileşen kanonik bir hammaddeyle eşleştirilemedi — bu bileşenler için uyumluluk kapsamı yalnızca işlev/ad tabanlı kurallara dayanır, tam kural setine değil."
   },
   "safety": {
     "snapshotSaved": "Güvenlik anlık görüntüsü kaydedildi.",

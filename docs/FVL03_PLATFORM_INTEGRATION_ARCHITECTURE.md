@@ -695,6 +695,121 @@ exists anywhere in the changed files. Only new `Formulation`/
 system-substitution apply step still only ever mutates the working
 draft, exactly as before this task.
 
+### Compatibility Engine boundary (FVL-03.008, COMPLETED 2026-08-18)
+
+Same conclusion pattern as every prior FVL-03 engine audit: **no
+engine/schema gap at all**. `evaluateCompatibility()`
+(`packages/shared/src/engine/compatibility.ts`) is already a complete,
+deterministic, rule-driven checker — no model in the loop — fully
+specified in `docs/COMPATIBILITY_ENGINE.md`. A `CompatibilityRule`
+(`compatibilityRuleSchema`) carries a real severity
+(`info`/`warning`/`error`/`blocking`), scope filters (`materialIds`,
+`casNumbers`, `functionGroups`, `ionicCharacters`, `productDomains`), and
+a `ruleType` (forbidden/warning combination, required co-ingredient,
+pH-/temperature-/concentration-dependent, order-of-addition, packaging/
+storage incompatibility). Missing data (no pH target on a `ph_dependent`
+rule, etc.) produces a finding with `dataIncomplete: true` — a blocking
+rule downgrades to `warning` under incomplete data rather than either
+silently passing or blocking on a guess. `matchLines`/`lineMatchesCondition`
+(`engine/ruleConditions.ts`) already join by real `materialCode` via
+`materialFor()`, with graceful (not fabricated) fallback to function/
+name-keyword matching for a line with no resolved material. **Zero
+engine/schema/Rust/Python changes were made or are needed.**
+
+**Real, already-battle-tested severity semantics — confirmed by audit,
+not invented here**: `packages/shared/src/engine/optimization.ts::blockingExclusionConstraints`
+and `SubstitutionPanel.tsx`'s own `hasBlockingCompatibilityFinding` both
+already treat ONLY `severity === "blocking"` as a hard exclusion;
+`info`/`warning`/`error` are all real, non-blocking findings (the
+optimizer's risk-objective scoring explicitly reuses them as signal, per
+`engine/optimization.ts`'s own comment: "already turns every `blocking`
+finding into a hard exclusion — this instead scores every non-blocking
+finding"). This session's own new code reuses that exact distinction —
+never invents a fourth-tier "this counts as blocking too" rule.
+
+**Read-only, no promotion needed — unlike FVL-03.005/.006/.007**:
+`evaluateCompatibility()` is pure, so a generated (not-yet-saved) card is
+evaluated directly, with zero persistence step. New pure
+`apps/desktop/src/lib/generatedFormulaCompatibility.ts::evaluateGeneratedFormulaCompatibility(formula, materials, rules, opts)`
+reshapes a card via `linesFromGeneratedFormula()` (the same helper every
+prior FVL-03 session already reuses) and hands it, unmodified, to the
+real engine. The rule set is a REQUIRED caller-supplied parameter —
+deliberately never hardcoded inside this new module — because the real
+authoritative rule library is the LIVE, chemist-editable
+`compatibility_rules` masterdata collection
+(`CompatibilityPanel.tsx::listRecordsSeeded("compatibility_rules",
+SEED_COMPATIBILITY_RULES)`), not the bare `SEED_COMPATIBILITY_RULES`
+constant. New `apps/desktop/src/hooks/useCompatibilityRules.ts` loads
+that live collection once, mirroring `useMasterCostData`/
+`useInventoryData`'s own established pattern.
+
+**`formulaState` — a fourth, honest coverage state, not invented
+severity**: `"compatible"` | `"warning"` | `"blocked"` | `"unknown"`.
+`"blocked"` iff any `blocking` finding fired; `"warning"` iff any
+non-blocking finding fired; otherwise `"unknown"` (never `"compatible"`)
+when at least one ingredient never resolved to a canonical `materialCode`
+— a materialCode-/CAS-scoped rule could never have fired against it, so
+reporting "compatible" would be a fabricated claim. `unresolvedMaterialCount`
+is always exposed separately and honestly alongside real findings,
+whatever the state — one fact never hides the other.
+
+**A real, pre-existing bug found and fixed by this session's own
+testing**: `apps/desktop/src/lib/masterdata.ts::listRecordsSeeded()`
+threw `"not-desktop"` outside Tauri (its `upsertRecords` call has no
+`isTauri` guard, unlike its sibling `listRecords()`) — a latent gap never
+previously exercised, since no existing test rendered a caller of it
+(`CompatibilityPanel.tsx` has no test file). Fixed with a one-line
+`!isTauri` early return of `seed`, mirroring `listRecords()`'s own
+established convention exactly; zero behavior change inside a real Tauri
+build (the fix only touches the previously-throwing `!isTauri` branch).
+
+**Version eligibility, not a combined score**: `pickCheapestValidVersion()`
+(`costComparison.ts`) and `pickMostInventoryFeasibleVersion()`
+(`inventoryComparison.ts`) both gained an optional `compatibilities`
+parameter — one more per-index eligibility gate in the same style as
+their existing `formula_state.startsWith("invalid")` check, not a merged
+opaque score (task §8 explicitly forbids that). A `"blocked"` version can
+never be crowned cheapest-valid or most-inventory-feasible merely because
+its price or stock looks attractive; `"warning"`/`"unknown"` never
+exclude a version, matching the real platform's own "only blocking is a
+hard block" semantics; omitting the parameter preserves every pre-existing
+call site's behavior exactly (proven by test).
+
+**UI — a thin presenter, not a second dashboard**: new
+`GeneratedCompatibilitySummary` (`apps/desktop/src/components/
+compatibility/`) renders a `GeneratedFormulaCompatibility` result as-is —
+no severity math, no rule matching, purely display — wired into the
+result page's Summary tab alongside the existing Cost/Inventory
+summaries, plus a compatibility data row and a red "blocked" banner on
+`VersionSummaryCard` (same visual pattern as the existing "cheapest
+valid"/"most feasible" banners). `CompatibilityPanel.tsx` (the
+project-bound, saved-version panel with pH/temperature inputs and a
+save-snapshot action) is untouched — this is a separate, generated-card-
+specific presenter, not a clone of it.
+
+**Optimizer/substitution/system-substitution reuse — confirmed by audit,
+not rewritten**: `AdvancedOptimizerPanel.tsx` already builds
+`blockingExclusionConstraints`/`compatibilityRiskScore` from the real
+engine; `SubstitutionPanel.tsx` already re-runs `evaluateCompatibility`
+per one-to-one candidate; system substitution already threads
+`blockingExclusionConstraints` into `buildSystemBasis()`. All three were
+confirmed unchanged and already correct — none needed a single line of
+new code for this task. **Disclosed, out-of-scope finding, not a
+duplicate-authority violation**: all three of those existing callers pass
+the hardcoded `SEED_COMPATIBILITY_RULES` constant, not the live edited
+`compatibility_rules` collection this task's own new
+`useCompatibilityRules()` correctly reads — a real data-freshness gap (a
+chemist's rule edit/addition via `RuleManager.tsx` would not be seen by
+those three re-run call sites), but NOT a second engine, second scoring
+function, or second rule-matching implementation — the same single
+`evaluateCompatibility()` is called every time, just fed a
+possibly-stale snapshot. Retrofitting those three already-closed
+FVL-03.005/.006/.007 call sites is out of this task's own boundary (they
+are correct, tested, and unrelated to "make the Compatibility Engine
+authoritative for generated formulas" — the actual FVL-03.008 scope);
+flagged here for a future session, not fixed silently as if it were part
+of this task.
+
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 
 - **FVL-05.003-.008** ("Extractor: ..." rows): read-only/"reuse existing schema, never fork it" guarantee lives only in the FVL-05 package intro and FVL-05.013, not restated per-row. Left as-is (package intro already covers it); flagged in case a future session edits these rows in isolation without the intro's context.

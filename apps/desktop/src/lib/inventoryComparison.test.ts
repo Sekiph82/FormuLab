@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FormulationCard } from "./formulationV2";
 import type { FormulaInventoryFeasibility } from "./generatedFormulaInventory";
+import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import { pickMostInventoryFeasibleVersion } from "./inventoryComparison";
 
 function card(over: Partial<FormulationCard> & { version: string }): FormulationCard {
@@ -9,6 +10,10 @@ function card(over: Partial<FormulationCard> & { version: string }): Formulation
 
 function feasibility(formulaState: FormulaInventoryFeasibility["formulaState"]): FormulaInventoryFeasibility {
   return { formulaState, lines: [], evaluatedAt: "2026-08-18T00:00:00Z" };
+}
+
+function compat(formulaState: GeneratedFormulaCompatibility["formulaState"]): GeneratedFormulaCompatibility {
+  return { formulaState, findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z" };
 }
 
 describe("pickMostInventoryFeasibleVersion — FVL-03.004 Acceptance E/F", () => {
@@ -41,5 +46,27 @@ describe("pickMostInventoryFeasibleVersion — FVL-03.004 Acceptance E/F", () =>
     ];
     const feasibilities = [undefined, feasibility("feasible")];
     expect(pickMostInventoryFeasibleVersion(cards, feasibilities)).toBe(1);
+  });
+});
+
+describe("pickMostInventoryFeasibleVersion — FVL-03.008 Acceptance F (compatibility exclusion)", () => {
+  it("a compatibility-blocked formula is never preferred even with the best inventory state", () => {
+    const cards = [card({ version: "v1" }), card({ version: "v2" })];
+    const feasibilities = [feasibility("feasible"), feasibility("feasible")];
+    const compatibilities = [compat("blocked"), compat("compatible")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities, compatibilities)).toBe(1);
+  });
+
+  it("a compatibility WARNING (not blocked) never excludes a version from inventory eligibility", () => {
+    const cards = [card({ version: "v1" })];
+    const feasibilities = [feasibility("feasible")];
+    const compatibilities = [compat("warning")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities, compatibilities)).toBe(0);
+  });
+
+  it("omitting the compatibilities parameter entirely preserves the exact pre-FVL-03.008 behavior", () => {
+    const cards = [card({ version: "v1" })];
+    const feasibilities = [feasibility("feasible")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities)).toBe(0);
   });
 });

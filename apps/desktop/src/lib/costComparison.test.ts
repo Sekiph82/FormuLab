@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { CostSnapshot } from "@formulab/shared";
 import type { FormulationCard } from "./formulationV2";
+import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import { pickCheapestValidVersion } from "./costComparison";
+
+function compat(over: Partial<GeneratedFormulaCompatibility> & { formulaState: GeneratedFormulaCompatibility["formulaState"] }): GeneratedFormulaCompatibility {
+  return { findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
+}
 
 function card(over: Partial<FormulationCard> & { version: string }): FormulationCard {
   return { status: "ok", formula: { ingredients: [] }, ...over };
@@ -71,5 +76,37 @@ describe("pickCheapestValidVersion — FVL-03.003 Acceptance E/F", () => {
     ];
     const snapshots = [undefined, snapshot({ totalManufacturingCost: "40" })];
     expect(pickCheapestValidVersion(cards, snapshots)).toBe(1);
+  });
+});
+
+describe("pickCheapestValidVersion — FVL-03.008 Acceptance E (compatibility exclusion)", () => {
+  it("a compatibility-blocked formula is never crowned cheapest, even when it's the real cheapest price", () => {
+    const cards = [card({ version: "v1" }), card({ version: "v2" })];
+    const snapshots = [
+      snapshot({ totalManufacturingCost: "10" }), // cheapest, but compatibility-blocked
+      snapshot({ totalManufacturingCost: "40" }),
+    ];
+    const compatibilities = [compat({ formulaState: "blocked" }), compat({ formulaState: "compatible" })];
+    expect(pickCheapestValidVersion(cards, snapshots, compatibilities)).toBe(1);
+  });
+
+  it("a compatibility WARNING (not blocked) never excludes a version from cheapest-valid", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    const compatibilities = [compat({ formulaState: "warning" })];
+    expect(pickCheapestValidVersion(cards, snapshots, compatibilities)).toBe(0);
+  });
+
+  it("a compatibility UNKNOWN state never excludes a version from cheapest-valid", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    const compatibilities = [compat({ formulaState: "unknown" })];
+    expect(pickCheapestValidVersion(cards, snapshots, compatibilities)).toBe(0);
+  });
+
+  it("omitting the compatibilities parameter entirely preserves the exact pre-FVL-03.008 behavior", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    expect(pickCheapestValidVersion(cards, snapshots)).toBe(0);
   });
 });

@@ -30,12 +30,15 @@ import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
 import { pickCheapestValidVersion } from "@/lib/costComparison";
 import { evaluateGeneratedFormulaInventory, type FormulaInventoryFeasibility } from "@/lib/generatedFormulaInventory";
 import { pickMostInventoryFeasibleVersion } from "@/lib/inventoryComparison";
+import { evaluateGeneratedFormulaCompatibility, type GeneratedFormulaCompatibility } from "@/lib/generatedFormulaCompatibility";
 import { buildPromotedFormulation, type PromotedFormulation } from "@/lib/promoteGeneratedFormula";
 import { saveFormulation, saveFormulationVersion } from "@/lib/formulations";
 import { useMasterCostData } from "@/hooks/useMasterCostData";
 import { useInventoryData } from "@/hooks/useInventoryData";
+import { useCompatibilityRules } from "@/hooks/useCompatibilityRules";
 import { CostSnapshotSummary } from "@/components/cost/CostSnapshotSummary";
 import { InventoryFeasibilitySummary } from "@/components/inventory/InventoryFeasibilitySummary";
+import { GeneratedCompatibilitySummary } from "@/components/compatibility/GeneratedCompatibilitySummary";
 import { cn } from "@/lib/cn";
 
 /**
@@ -80,6 +83,10 @@ export function FormulationResultPage() {
   // SAME batchKg control above so cost and inventory compare the same
   // requested batch. Python is never made inventory-aware.
   const inventoryData = useInventoryData();
+  // FVL-03.008: the live, chemist-editable compatibility rule set —
+  // materials come from the same `costData` load already in place (real
+  // canonical Material Master, no second fetch).
+  const compatibilityRulesData = useCompatibilityRules();
   // FVL-03.005/.006: both the Advanced Optimizer and the Material
   // Substitution Engine need a real projectId/FormulaVersion a generated
   // session card doesn't have — so promotion into a real Formulation/
@@ -164,7 +171,19 @@ export function FormulationResultPage() {
             })
           : undefined,
       );
-  const cheapestValidIndex = pickCheapestValidVersion(cards, costSnapshots);
+  // FVL-03.008: real, authoritative per-version compatibility — computed
+  // read-only, no promotion/persistence needed (`evaluateCompatibility` is
+  // pure), against the SAME canonical Material Master `costData.materials`
+  // already loaded and the live, chemist-editable rule set. Kept an
+  // entirely separate dimension from cost (never merged into
+  // `costSnapshots`), but IS an eligibility gate for both `cheapestValid`/
+  // `mostFeasible` below (task §9) — a `"blocked"` version can never win
+  // either comparison merely because its price or stock looks good.
+  const compatibilities: (GeneratedFormulaCompatibility | undefined)[] = costData.loading || compatibilityRulesData.loading
+    ? cards.map(() => undefined)
+    : cards.map((c) => (c.formula ? evaluateGeneratedFormulaCompatibility(c.formula, costData.materials, compatibilityRulesData.rules) : undefined));
+
+  const cheapestValidIndex = pickCheapestValidVersion(cards, costSnapshots, compatibilities);
 
   // FVL-03.004: same per-version, batch-shared computation pattern as
   // cost, kept as an entirely separate dimension (task §12) — never
@@ -172,7 +191,7 @@ export function FormulationResultPage() {
   const inventoryFeasibilities: (FormulaInventoryFeasibility | undefined)[] = inventoryData.loading
     ? cards.map(() => undefined)
     : cards.map((c) => (c.formula ? evaluateGeneratedFormulaInventory(c.formula, batchKg, inventoryData.records) : undefined));
-  const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities);
+  const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities, compatibilities);
 
   // FVL-03.005/.006: promote the selected version (once per version,
   // cached) into a real, persisted Formulation/FormulationVersion. The
@@ -303,6 +322,7 @@ export function FormulationResultPage() {
               onBatchKgChange={setBatchKg}
               onCurrencyChange={setCurrency}
               inventoryFeasibility={inventoryFeasibilities[Math.min(activeVersion, cards.length - 1)]}
+              compatibility={compatibilities[Math.min(activeVersion, cards.length - 1)]}
               onFindSubstitute={card?.formula ? (i: number) => void onFindSubstitute(i) : undefined}
               substitutingIndex={substitutingIndex}
               onSystemSubstitution={card?.formula ? (indices: number[]) => void onSystemSubstitution(indices) : undefined}
@@ -338,6 +358,7 @@ export function FormulationResultPage() {
               isCheapestValid={cheapestValidIndex === Math.min(activeVersion, cards.length - 1)}
               inventoryFeasibility={inventoryFeasibilities[Math.min(activeVersion, cards.length - 1)]}
               isMostFeasible={mostFeasibleIndex === Math.min(activeVersion, cards.length - 1)}
+              compatibility={compatibilities[Math.min(activeVersion, cards.length - 1)]}
             />
           </div>
         </div>
@@ -566,6 +587,7 @@ function TabContent({
   onBatchKgChange,
   onCurrencyChange,
   inventoryFeasibility,
+  compatibility,
   onFindSubstitute,
   substitutingIndex,
   onSystemSubstitution,
@@ -586,6 +608,7 @@ function TabContent({
   onBatchKgChange: (v: string) => void;
   onCurrencyChange: (v: string) => void;
   inventoryFeasibility: FormulaInventoryFeasibility | undefined;
+  compatibility: GeneratedFormulaCompatibility | undefined;
   onFindSubstitute?: (ingredientIndex: number) => void;
   substitutingIndex?: number | null;
   onSystemSubstitution?: (ingredientIndices: number[]) => void;
@@ -638,6 +661,7 @@ function TabContent({
           onBatchKgChange={onBatchKgChange}
           onCurrencyChange={onCurrencyChange}
           inventoryFeasibility={inventoryFeasibility}
+          compatibility={compatibility}
           onFindSubstitute={onFindSubstitute}
           substitutingIndex={substitutingIndex}
           t={t}
@@ -1889,6 +1913,7 @@ function SummaryTab({
   onBatchKgChange,
   onCurrencyChange,
   inventoryFeasibility,
+  compatibility,
   onFindSubstitute,
   substitutingIndex,
   t,
@@ -1901,6 +1926,7 @@ function SummaryTab({
   onBatchKgChange: (v: string) => void;
   onCurrencyChange: (v: string) => void;
   inventoryFeasibility: FormulaInventoryFeasibility | undefined;
+  compatibility: GeneratedFormulaCompatibility | undefined;
   onFindSubstitute?: (ingredientIndex: number) => void;
   substitutingIndex?: number | null;
   t: TFunction<readonly ["session", "common"]>;
@@ -1962,6 +1988,9 @@ function SummaryTab({
           onFindSubstitute={onFindSubstitute}
           substitutingIndex={substitutingIndex}
         />
+      </EvidenceSection>
+      <EvidenceSection title={t("formulationResult.versionSummary.compatibility")}>
+        <GeneratedCompatibilitySummary compatibility={compatibility} />
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.summary.confidence")}>
         {card.score ? (
@@ -2147,6 +2176,7 @@ function VersionSummaryCard({
   isCheapestValid,
   inventoryFeasibility,
   isMostFeasible,
+  compatibility,
 }: {
   card: FormulationCard | undefined;
   formula: GeneratedFormula | undefined;
@@ -2156,6 +2186,7 @@ function VersionSummaryCard({
   isCheapestValid: boolean;
   inventoryFeasibility: FormulaInventoryFeasibility | undefined;
   isMostFeasible: boolean;
+  compatibility: GeneratedFormulaCompatibility | undefined;
 }) {
   const total = totalWeightPct(formula);
   const costValue = snapshot?.totalManufacturingCost
@@ -2164,10 +2195,14 @@ function VersionSummaryCard({
   const inventoryValue = inventoryFeasibility
     ? t(`inventory.state.${inventoryFeasibility.formulaState}`)
     : t("formulationResult.versionSummary.notAvailable");
+  const compatibilityValue = compatibility
+    ? t(`compatibility.state.${compatibility.formulaState}`)
+    : t("formulationResult.versionSummary.notAvailable");
   const rows: [string, string][] = [
     [t("formulationResult.versionSummary.totalIngredients"), String(formula?.ingredients?.length ?? "—")],
     [t("formulationResult.versionSummary.estimatedCost"), costValue],
     [t("formulationResult.versionSummary.inventoryFeasibility"), inventoryValue],
+    [t("formulationResult.versionSummary.compatibility"), compatibilityValue],
     [t("formulationResult.versionSummary.activeMatter"), total !== undefined ? `${total}%` : "—"],
     [t("formulationResult.versionSummary.overallScore"), t("formulationResult.versionSummary.notYetScored")],
   ];
@@ -2176,6 +2211,11 @@ function VersionSummaryCard({
       <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
         {t("formulationResult.versionSummary.heading", { version: card?.version?.toUpperCase() ?? "" })}
       </div>
+      {compatibility?.formulaState === "blocked" && (
+        <div className="mb-2 rounded-input bg-error/10 px-2 py-1 text-[10.5px] font-medium text-error">
+          {t("compatibility.state.blocked")}
+        </div>
+      )}
       {isCheapestValid && (
         <div className="mb-2 rounded-input bg-accent/10 px-2 py-1 text-[10.5px] font-medium text-accent">
           {t("formulationResult.versionSummary.cheapestValid")}

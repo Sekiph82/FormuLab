@@ -1,4 +1,5 @@
 import type { FormulaInventoryFeasibility } from "./generatedFormulaInventory";
+import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { FormulationCard } from "./formulationV2";
 
 /**
@@ -20,15 +21,24 @@ import type { FormulationCard } from "./formulationV2";
  * Deliberately no further tie-break (e.g. by cost) — that would collapse
  * two separate dimensions into one opaque score, which task §12
  * explicitly forbids; a real multi-dimensional ranking is FVL-08's job.
+ *
+ * FVL-03.008: `compatibilities` is optional so every pre-existing call
+ * site keeps working unchanged; when passed, a version the authoritative
+ * Compatibility Engine reports `"blocked"` can never be crowned the
+ * preferred inventory-valid version merely because its stock looks good
+ * (task §9) — an extra eligibility gate, not a combined score, same
+ * pattern as `pickCheapestValidVersion`.
  */
 export function pickMostInventoryFeasibleVersion(
   cards: FormulationCard[],
   feasibilities: (FormulaInventoryFeasibility | undefined)[],
+  compatibilities?: (GeneratedFormulaCompatibility | undefined)[],
 ): number | undefined {
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i];
     if (card.status === "generation_failed") continue;
     if (card.formula_state?.startsWith("invalid")) continue;
+    if (compatibilities?.[i]?.formulaState === "blocked") continue;
     if (feasibilities[i]?.formulaState === "feasible") return i;
   }
   return undefined;

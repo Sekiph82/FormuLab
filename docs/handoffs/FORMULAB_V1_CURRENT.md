@@ -14,19 +14,103 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 13/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
-FVL-03.004, FVL-03.005, FVL-03.006, FVL-03.007, FVL-03.013-018). FVL-01
-remains CLOSED (21/21); FVL-02 remains CLOSED (24/24, 2026-08-17).
+ON PROCESS, 14/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
+FVL-03.004, FVL-03.005, FVL-03.006, FVL-03.007, FVL-03.008,
+FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
+(24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.008`** — blank, **NOT STARTED**. Not begun this session (see
-"Exact next task" below). FVL-03.007 — wiring the existing System
-Substitution Engine for a human-selected multi-ingredient functional
-system — COMPLETED this session (no subagents used, per explicit
-instruction).
+**`FVL-03.009`** — blank, **NOT STARTED**. Not begun this session (see
+"Exact next task" below). FVL-03.008 — wiring the existing Compatibility
+Engine as the authoritative compatibility verdict for generated formulas
+— COMPLETED this session (no subagents used, per explicit instruction).
 
-## FVL-03.007 resolution (this session)
+## FVL-03.008 resolution (this session)
+
+"Wire the EXISTING Compatibility Engine as the authoritative chemical/
+material compatibility hard-constraint verdict — no new engine, no
+duplicate rules in Python, `rules.py` stays request-constraint-only."
+Full audit (no subagents, per explicit instruction) found **zero engine/
+schema gap**: `evaluateCompatibility()`
+(`packages/shared/src/engine/compatibility.ts`) is already a complete,
+deterministic, rule-driven checker — real `RULE_SEVERITIES`
+(`info`/`warning`/`error`/`blocking`), real `materialCode` identity via
+`materialFor()`, honest `dataIncomplete` downgrade for missing pH/
+temperature data. Confirmed by audit that ONLY `severity === "blocking"`
+is a real hard block anywhere in this platform
+(`blockingExclusionConstraints`/`SubstitutionPanel.tsx`'s own
+`hasBlockingCompatibilityFinding`) — reused exactly, not invented.
+`runtime/pipeline/rules.py` re-confirmed request-constraint-only (zero
+chemistry/ionic/pH/cationic/anionic keyword hits). **Zero engine/schema/
+Rust/Python changes made.** Full detail in
+`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`'s new "Compatibility
+Engine boundary" section.
+
+**No promotion needed, unlike FVL-03.005/.006/.007**:
+`evaluateCompatibility()` is pure, so a generated card is evaluated
+read-only with zero persistence step. New pure
+`apps/desktop/src/lib/generatedFormulaCompatibility.ts::evaluateGeneratedFormulaCompatibility(formula, materials, rules, opts)`
+reshapes via the existing `linesFromGeneratedFormula()`. The rule set is
+a REQUIRED caller-supplied parameter, deliberately never hardcoded — the
+real authoritative rules live in the LIVE, chemist-editable
+`compatibility_rules` masterdata collection (same one
+`CompatibilityPanel.tsx` reads), not the bare `SEED_COMPATIBILITY_RULES`
+constant. New `useCompatibilityRules()` hook loads that live collection
+once, mirroring `useMasterCostData`/`useInventoryData`'s pattern.
+
+**`formulaState`**: `compatible`/`warning`/`blocked`/`unknown`.
+`"blocked"` iff a real blocking finding fired; `"warning"` iff any
+non-blocking finding fired; otherwise `"unknown"` (never `"compatible"`)
+when at least one ingredient never resolved to a canonical `materialCode`
+— reporting "compatible" there would be a fabricated claim.
+`unresolvedMaterialCount` always surfaced honestly alongside real
+findings, neither hides the other.
+
+**A real, pre-existing bug found and fixed by this session's own
+testing**: `masterdata.ts::listRecordsSeeded()` threw `"not-desktop"`
+outside Tauri (its `upsertRecords` call had no `isTauri` guard, unlike
+its sibling `listRecords()`) — never previously exercised since no test
+rendered a caller of it. Fixed with a one-line `!isTauri` early return of
+`seed`, mirroring `listRecords()`'s own convention; zero behavior change
+inside a real Tauri build.
+
+**Version eligibility, not a combined score**: `pickCheapestValidVersion()`/
+`pickMostInventoryFeasibleVersion()` gained an optional `compatibilities`
+eligibility-gate parameter (same style as their existing
+`formula_state.startsWith("invalid")` check) — a `"blocked"` version can
+never be crowned cheapest-valid or most-feasible merely because its
+price/stock looks good; `"warning"`/`"unknown"` never exclude; omitting
+the parameter preserves every pre-existing call site's behavior exactly.
+
+**UI — a thin presenter**: new `GeneratedCompatibilitySummary` renders
+the result as-is (no severity math, no rule matching) in the result
+page's Summary tab, plus a compatibility row/blocked-banner on
+`VersionSummaryCard`. `CompatibilityPanel.tsx` untouched.
+
+**Optimizer/substitution/system-substitution reuse — confirmed, not
+rewritten**: `AdvancedOptimizerPanel.tsx`, `SubstitutionPanel.tsx` (both
+one-to-one and system mode) already consume the real engine correctly;
+none needed a single line of new code. **Disclosed, out-of-scope
+finding**: all three pass the hardcoded `SEED_COMPATIBILITY_RULES`
+constant rather than the live edited collection this task's own new code
+reads — a real data-freshness gap, not a duplicate-authority violation
+(same single engine, same call, no second scoring logic) — flagged for a
+future session, out of this task's own boundary to retrofit.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1354/1354 across 148
+files (26 new: 9 `generatedFormulaCompatibility.test.ts`, 6
+`GeneratedCompatibilitySummary.test.tsx`, 4 `costComparison.test.ts`, 3
+`inventoryComparison.test.ts`, 4 `FormulationResultPage.test.tsx`).
+`typecheck`/`lint` — clean. `packages/shared`, `runtime/formulation`,
+`runtime/pipeline`, `apps/desktop/src-tauri/src/formulation*` confirmed
+untouched by `git status` diff — no Python/Rust/shared sanity suite
+re-run performed. `python scripts/validate_v1_tracker.py` — OK, 157
+tasks, no drift. `git diff --check` — clean (LF/CRLF warnings only). No
+FVL-03.009+ work started; no new compatibility engine anywhere; no
+Python compatibility logic added.
+
+## FVL-03.007 resolution (prior session)
 
 "Wire the EXISTING system substitution engine into the formulation
 workflow — no new system engine, no second scoring system, system
@@ -540,20 +624,25 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.008`** — blank, NOT STARTED (see above). Not begun this
+**`FVL-03.009`** — blank, NOT STARTED (see above). Not begun this
 session — explicit boundary in this session's task brief.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003/.004/.005/.006/.007
-fully closed (see above).
+None. FVL-01/FVL-02 fully closed; FVL-03.001-.008 fully closed (see
+above). One disclosed, out-of-scope, non-blocking finding: the existing
+Optimizer/Substitution compatibility re-run call sites use the hardcoded
+`SEED_COMPATIBILITY_RULES` constant rather than the live edited
+`compatibility_rules` collection FVL-03.008's own new code correctly
+reads — a data-freshness gap, not a duplicate-authority issue; flagged
+for a future session.
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1328/1328 across 146 files (7
-  new: 3 in `SubstitutionPanel.test.tsx`'s `initialExtraLineIds` block, 4
-  in `FormulationResultPage.test.tsx`'s system-substitution
-  selection/scoping block).
+- `pnpm --filter @formulab/desktop test` — 1354/1354 across 148 files (26
+  new: 9 `generatedFormulaCompatibility.test.ts`, 6
+  `GeneratedCompatibilitySummary.test.tsx`, 4 `costComparison.test.ts`, 3
+  `inventoryComparison.test.ts`, 4 `FormulationResultPage.test.tsx`).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
 - `packages/shared`, `runtime/formulation`, `runtime/pipeline`,
   `apps/desktop/src-tauri/src/formulation*` confirmed untouched by `git
@@ -572,9 +661,7 @@ fully closed (see above).
 
 ## Latest commit SHA
 
-`39c6ee7` (pushed to and matching `origin/feature/laboratory-stability`)
-— "feat(v1): integrate system substitution workflow". Prior:
-`6a92f6f` — "docs: finalize FVL-03.006 closure pointer with commit SHA".
+_Pending — filled in by this session's closure-pointer follow-up commit._
 
 ## Reminder
 

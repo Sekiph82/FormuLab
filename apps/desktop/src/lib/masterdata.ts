@@ -257,11 +257,18 @@ export async function backupCollection(collection: Collection): Promise<string> 
  * set on first run with no import step, but from that point on they live in
  * the project's own data and are editable — re-seeding never overwrites an
  * edit, because it only runs when the collection is still empty.
+ *
+ * Outside Tauri (a non-desktop context, e.g. a component test), there is no
+ * collection to persist into at all — `listRecords` already degrades to `[]`
+ * for exactly this reason. Mirror that here by returning `seed` directly
+ * rather than attempting `upsertRecords`, which would otherwise throw
+ * `"not-desktop"` (`call()`'s own guard) on every render.
  */
 export async function listRecordsSeeded<C extends Collection>(
   collection: C,
   seed: CollectionTypes[C][],
 ): Promise<CollectionTypes[C][]> {
+  if (!isTauri) return seed;
   const existing = await listRecords(collection);
   if (existing.length > 0 || seed.length === 0) return existing;
   await upsertRecords(collection, seed);

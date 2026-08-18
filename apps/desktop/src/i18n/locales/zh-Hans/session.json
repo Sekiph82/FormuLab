@@ -689,7 +689,8 @@
       "notYetScored": "Not yet scored",
       "cheapestValid": "Lowest cost among valid alternatives",
       "mostFeasible": "Most inventory-feasible alternative",
-      "inventoryFeasibility": "Inventory feasibility"
+      "inventoryFeasibility": "Inventory feasibility",
+      "compatibility": "Compatibility"
     },
     "process": {
       "notAvailable": "A real, evidence-sourced manufacturing procedure for this formula is not yet generated — Phase 14 Session 5 builds this. No generic or invented process steps are shown in its place."
@@ -1157,7 +1158,15 @@
     "empty": "No compatibility findings for the current formula and rule set.",
     "unknown": "unknown — data missing",
     "recommendedAction": "Recommended action",
-    "verification": "Verification"
+    "verification": "Verification",
+    "state": {
+      "compatible": "Compatible",
+      "warning": "Compatibility warning",
+      "blocked": "Compatibility blocked",
+      "unknown": "Compatibility coverage unknown"
+    },
+    "notYetAvailable": "Not yet available — master data is still loading.",
+    "unresolvedMaterialCount": "{{count}} ingredient(s) could not be matched to a canonical material — compatibility coverage for those relies only on function/name-based rules, not the full rule set."
   },
   "safety": {
     "snapshotSaved": "Safety snapshot saved.",
