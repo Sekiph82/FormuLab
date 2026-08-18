@@ -572,7 +572,9 @@ fully closed (see above).
 
 ## Latest commit SHA
 
-_Pending — filled in by this session's closure-pointer follow-up commit._
+`39c6ee7` (pushed to and matching `origin/feature/laboratory-stability`)
+— "feat(v1): integrate system substitution workflow". Prior:
+`6a92f6f` — "docs: finalize FVL-03.006 closure pointer with commit SHA".
 
 ## Reminder
 
