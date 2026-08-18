@@ -873,10 +873,9 @@ for a future session.
 
 ## Latest commit SHA
 
-Pending — this session's closure commit not yet pushed at the time this
-file was last edited. Prior: `860b57e` (pushed to and matching
-`origin/feature/laboratory-stability`) — "docs: finalize FVL-03.009
-closure pointer with commit SHA".
+`67ac343` (pushed to and matching `origin/feature/laboratory-stability`)
+— "feat(v1): consolidate authoritative Regulatory Engine". Prior:
+`860b57e` — "docs: finalize FVL-03.009 closure pointer with commit SHA".
 
 ## Reminder
 
