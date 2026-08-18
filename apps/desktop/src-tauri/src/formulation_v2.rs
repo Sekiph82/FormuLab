@@ -63,13 +63,18 @@ const F_MASTER_MATERIALS_ADAPTER: &str =
 // above.
 const F_MANUFACTURING: &str = include_str!("../../../../runtime/pipeline/manufacturing.py");
 // Phase 14 Session 6: pipeline.py now imports traceability.py (decision-
-// trace events), safety.py (deterministic Safety intelligence),
-// regulatory.py (deterministic Regulatory intelligence), and
-// validation_plan.py (the deterministic validation-plan generator)
-// directly — same requirement as every module above.
+// trace events) and validation_plan.py (the deterministic validation-plan
+// generator) directly — same requirement as every module above.
+// FVL-03.009/.010: safety.py/regulatory.py were retired as duplicate
+// final-verdict authorities (see docs/FVL03_PLATFORM_INTEGRATION_
+// ARCHITECTURE.md's "Safety Engine boundary"/"Regulatory Engine
+// boundary") — pipeline.py no longer imports either module, so their
+// F_SAFETY/F_REGULATORY embedded-file constants and materialize_pipeline()
+// entries are removed here too (found as a real, build-breaking
+// `cargo check` failure while closing FVL-03.012 — those two retirement
+// sessions correctly made no Rust changes and so never ran `cargo check`
+// themselves; fixed here rather than shipped broken).
 const F_TRACEABILITY: &str = include_str!("../../../../runtime/pipeline/traceability.py");
-const F_SAFETY: &str = include_str!("../../../../runtime/pipeline/safety.py");
-const F_REGULATORY: &str = include_str!("../../../../runtime/pipeline/regulatory.py");
 const F_VALIDATION_PLAN: &str = include_str!("../../../../runtime/pipeline/validation_plan.py");
 const F_SCIENTIFIC_FORMULATION: &str = include_str!("../../../../runtime/pipeline/scientific_formulation.py");
 // FormuLab v1 (FVL-02) — pipeline.py now imports architecture_portfolio.py
@@ -172,8 +177,6 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("master_materials_adapter.py", F_MASTER_MATERIALS_ADAPTER),
         ("manufacturing.py", F_MANUFACTURING),
         ("traceability.py", F_TRACEABILITY),
-        ("safety.py", F_SAFETY),
-        ("regulatory.py", F_REGULATORY),
         ("validation_plan.py", F_VALIDATION_PLAN),
         ("scientific_formulation.py", F_SCIENTIFIC_FORMULATION),
         ("architecture_portfolio.py", F_ARCHITECTURE_PORTFOLIO),

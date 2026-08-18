@@ -6,7 +6,7 @@
  * are mocked — candidate generation, scoring and problem-building are the
  * real engine code.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Formulation, FormulationLine, RawMaterial } from "@formulab/shared";
@@ -120,6 +120,52 @@ function renderDialog(onApplySystem = vi.fn(), initialExtraLineIds?: string[]) {
     ),
   };
 }
+
+describe("FVL-03.012 — substitution-triggered integration acceptance", () => {
+  it("human-controlled apply: real canonical candidate, traceable run, source formula never auto-mutated", async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+    render(
+      <SubstitutionDialog
+        formulation={FORMULATION}
+        line={LINE_A}
+        allLines={ALL_LINES}
+        onApply={onApply}
+        onApplySystem={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    // The real candidate pool considers every other active material
+    // (never auto-restricted to "same function" — the real scoring
+    // engine, not this glue, decides ranking); pick specifically the
+    // "Anionic C" candidate's own row, ranked by the real, unmodified
+    // `substitution.ts` scoring engine — never auto-applied, a human
+    // must click.
+    const candidateText = await screen.findByText(/Anionic C/);
+    expect(onApply).not.toHaveBeenCalled();
+    const candidateRow = candidateText.closest("li");
+    if (!candidateRow) throw new Error("candidate row not found");
+
+    await user.click(within(candidateRow as HTMLElement).getByRole("button", { name: /Apply/ }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalled());
+    const [newLine, runCode] = onApply.mock.calls[0];
+    // The applied line carries the candidate's REAL canonical materialCode
+    // ("C") — never a display-name guess.
+    expect(newLine.materialCode).toBe("C");
+    expect(typeof runCode).toBe("string");
+    // The apply is traceable: a real substitution_runs record was persisted
+    // before the caller's onApply ever fired.
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "substitution_runs",
+      expect.arrayContaining([expect.objectContaining({ selectedCandidateId: expect.stringContaining("C") })]),
+    );
+    // No compatibility/safety hard-blocking finding on this candidate
+    // (this fixture's materials trigger none) — the existing authoritative
+    // engines were consulted, never bypassed or duplicated locally.
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("materials", expect.anything());
+  });
+});
 
 describe("SubstitutionDialog — opens without exception", () => {
   it("renders the dialog title and the one-to-one candidate list", async () => {

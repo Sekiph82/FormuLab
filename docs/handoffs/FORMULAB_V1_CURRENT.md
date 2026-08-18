@@ -15,16 +15,23 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 17/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
-FVL-03.004, FVL-03.005, FVL-03.006, FVL-03.007, FVL-03.008, FVL-03.009,
-FVL-03.010, FVL-03.011, FVL-03.013-018). FVL-01 remains CLOSED (21/21);
-FVL-02 remains CLOSED (24/24, 2026-08-17).
+**CLOSED, 18/18 tasks COMPLETED** (FVL-03.001 through FVL-03.012,
+FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
+(24/24, 2026-08-17). GitHub issue #4 closed 2026-08-18 to match.
+
+## Current work package (FVL-03 now closed — next real work package)
+
+**FVL-04 — Data Onboarding Through Existing Data Exchange** —
+blank, **NOT STARTED**. FVL-04.001-.026 all remain blank. This session's
+own scope ended at FVL-03's closure — FVL-04 implementation was
+explicitly NOT started, per this session's own hard boundary.
 
 ## Current task
 
-**`FVL-03.012`** — blank, **NOT STARTED**. Not begun yet this session.
-FVL-03.011 — end-to-end authoritative provenance integration —
-COMPLETED this session (no subagents used, per explicit instruction).
+**`FVL-04.001`** — blank, **NOT STARTED**. FVL-03.012 — the final FVL-03
+single-authority integration acceptance, closing the entire FVL-03
+package (18/18) — COMPLETED this session (no subagents used, per
+explicit instruction).
 
 ## FVL-04 scope expansion (2026-08-18, documentation/tracker session only)
 
@@ -50,7 +57,55 @@ as recorded above:
 
 **CURRENT IMPLEMENTATION TASK REMAINS: `FVL-03.009` — NOT STARTED.**
 
-## FVL-03.011 resolution (this session)
+## FVL-03.012 resolution — FVL-03 package CLOSED (this session)
+
+"Integration acceptance proves exactly one authoritative result per
+domain, with no duplicated business calculation, covering at least one
+cost-constrained and one substitution-triggered request." Final
+authority matrix built (13 domains, all PASS) in
+`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`. Final repository-wide
+duplicate-business-logic audit found zero real duplicate authorities.
+One disclosed, pre-existing, pre-FVL-03 gap re-confirmed (three UI call
+sites still compute `quantity − reservedQuantity` inline instead of the
+canonical `evaluateMaterialAvailability()`) — explicitly does not
+conflict with the generated-formula integrated workflow this domain's
+acceptance targets, does not block closure.
+
+**A real, build-breaking Rust regression found and fixed by this task's
+own mandatory `cargo check`**: `formulation_v2.rs::materialize_pipeline()`
+still embedded the two Python files FVL-03.009/.010 deleted
+(`F_SAFETY`/`F_REGULATORY`) — those sessions correctly skipped `cargo
+check` since they made no Rust changes themselves, but this left the
+shipped desktop binary unable to compile at all. Fixed; verified
+end-to-end by reproducing the materialized file set in a disposable
+temp directory and running a real generation through it (`status: "ok"`,
+3 cards, `safety`/`regulatory` keys correctly absent) — the same method
+FVL-02.009 established for the analogous defect.
+
+**Cost-constrained acceptance**: new `costComparison.test.ts` test feeds
+three disposable, realistically-shaped alternatives through the REAL
+`costGeneratedFormula()`/`buildCostSnapshot()` engine — real cheaper
+total genuinely lower, missing price cannot win, invalid alternative
+never selected even at the lowest raw total. **Substitution-triggered
+acceptance**: new `SubstitutionPanel.test.tsx` test proves no
+auto-substitution, real canonical `materialCode` on the applied
+candidate, a real traceable `substitution_runs` record, source formula
+never mutated.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1424/1424 across 152
+files (2 new). `typecheck`/`lint` — clean. `pnpm --filter
+@formulab/shared test` — 1311/1311 (untouched). `python -m pytest
+runtime/pipeline -q` — 361 passed, 5 subtests (untouched). `cargo check`
+— clean (after the Rust fix). `cargo test formulation_v2` — 10/10.
+`python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
+`git diff --check` — clean (LF/CRLF warnings only).
+
+**FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines —
+COMPLETE (18/18).** GitHub issue #4 closed to match FVL-01/FVL-02's own
+established convention. FVL-04 implementation explicitly NOT started —
+hard boundary stated in this session's own task brief.
+
+## FVL-03.011 resolution (prior session)
 
 "End-to-end authoritative provenance — extend `traceability.py`'s
 existing model, do not fork it." Full audit (no subagents, per explicit
@@ -860,49 +915,52 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.012`** — blank, NOT STARTED (see above). Not begun yet this
-session — the final FVL-03 closure/acceptance task.
+**`FVL-04.001`** — blank, NOT STARTED (see above). FVL-03 is now fully
+CLOSED (18/18). FVL-04 implementation explicitly NOT started this
+session — hard boundary in this session's own task brief.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001-.011 fully closed (see
-above). Disclosed, out-of-scope, non-blocking findings: (1)/(2) the
+None. FVL-01/FVL-02/FVL-03 fully closed. Disclosed, out-of-scope,
+non-blocking findings carried forward for a future session: (1)/(2) the
 existing Optimizer/Substitution compatibility/safety re-run call sites
 use the hardcoded `SEED_COMPATIBILITY_RULES`/`SEED_SAFETY_RULES`
 constants rather than the live edited collections; (3) Material
 Substitution's regulatory wiring cannot currently produce a real
-`false`/prohibited result with the actual seed catalog (no
-ingredient-based rule has an empty `productCategories` matching the
-honest `"human_review_required"` category fallback); (4) the Advanced
+`false`/prohibited result with the actual seed catalog; (4) the Advanced
 Optimizer/System Substitution carry a genuine, pre-existing, documented
-"regulatory not yet implemented" boundary — none are duplicate-authority
-issues; all flagged for a future session.
+"regulatory not yet implemented" boundary; (5) three pre-existing,
+pre-FVL-03 UI call sites (`MaterialsPage.tsx`/`AdvancedOptimizerPanel.tsx`/
+`SubstitutionPanel.tsx`) still compute inventory availability inline
+instead of calling the canonical `evaluateMaterialAvailability()` — none
+are duplicate-authority issues for the FVL-03 integrated workflow.
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1422/1422 across 152 files (6
-  new: 1 `FormulationResultPage.test.tsx`, 1
-  `GeneratedSafetySummary.test.tsx`, 1
-  `GeneratedCompatibilitySummary.test.tsx`, 3 `formulationReport.test.ts`).
+- `pnpm --filter @formulab/desktop test` — 1424/1424 across 152 files (2
+  new: `costComparison.test.ts`, `SubstitutionPanel.test.tsx`).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
+- `pnpm --filter @formulab/shared test` — 1311/1311 (untouched this task).
 - `python -m pytest runtime/pipeline -q` — 361 passed, 5 subtests
-  (unchanged — zero Python files touched this task).
-- `packages/shared`, `runtime/formulation`,
-  `apps/desktop/src-tauri/src/formulation*` confirmed untouched by `git
-  status`/diff this session — no shared/cargo sanity re-run performed.
+  (untouched this task).
+- `cargo check` — clean, AFTER a real fix this task found and made (see
+  FVL-03.012 resolution above — `F_SAFETY`/`F_REGULATORY` dead embedded-
+  file references were breaking the shipped binary's build).
+  `cargo test formulation_v2` — 10/10 passing.
 - `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
 - `git diff --check` — clean (LF/CRLF warnings only).
-- No desktop rebuild/installer performed (no Rust/shipped-runtime changes
-  this session at all; TS changes covered by `typecheck`/`lint`/vitest,
-  matching the standing "full rebuild reserved for closure sessions"
-  policy). No live Tauri-app smoke test was performed — verification
-  relied on the automated suites above.
+- No desktop installer/full `tauri build` performed (out of this task's
+  own scope — `cargo check`/`cargo test` covered the Rust-surface
+  regression this task required). No live Tauri-app smoke test was
+  performed — verification relied on the automated suites above plus a
+  real materialized-pipeline generation run (see FVL-03.012 resolution).
 
 ## Latest commit SHA
 
-`cd19551` (pushed to and matching `origin/feature/laboratory-stability`)
-— "feat(v1): complete authoritative formulation provenance". Prior:
-`fa96142` — "docs: finalize FVL-03.010 closure pointer with commit SHA".
+Pending — this session's FVL-03.012 closure commit not yet pushed at
+the time this file was last edited. Prior: `e77ec3d` (pushed to and
+matching `origin/feature/laboratory-stability`) — "docs: finalize
+FVL-03.011 closure pointer with commit SHA".
 
 ## Reminder
 

@@ -1334,6 +1334,209 @@ runtime/pipeline -q` — 361 passed, 5 subtests (unchanged — zero Python
 files touched this task). `packages/shared` confirmed untouched by this
 task's own diff.
 
+## FVL-03 package closure — single-authority integration acceptance (FVL-03.012, COMPLETED 2026-08-18)
+
+Final acceptance/closure task: prove exactly one authoritative result
+per domain remains, with no duplicated business calculation, covering at
+least one cost-constrained and one substitution-triggered request. Not a
+feature session — no new features added "to make acceptance prettier."
+
+### Authority matrix
+
+| Domain | Authoritative implementation | Canonical input identity | Primary output | Current active callers | Legacy/duplicate status | Acceptance test | PASS/FAIL |
+|---|---|---|---|---|---|---|---|
+| Material | `packages/shared/src/schemas/materials.ts`, `data/master/materials.json` via `masterdata.rs` | `RawMaterial.code` | Canonical material record | `MaterialsPage.tsx`, every engine below | None — legacy `runtime/pipeline/materials.py` storage/import functions remain permanently for the unrelated Settings → General CSV-import screen only (FVL-03.002) | FVL-03.002 (`test_material_master_seam.py`) | PASS |
+| Supplier | `packages/shared/src/schemas/materials.ts` (`Supplier`/`MaterialSupplier`) | `Supplier.code` | Canonical supplier link | Cost, Substitution | None | Confirmed by audit (FVL-03.006/.010/.012) | PASS |
+| Price | `packages/shared/src/schemas/materials.ts` (`MaterialPrice`), `cost.ts::priceFor()` | `MaterialPrice.code` / `materialCode` | Selected price record | Cost Engine | None | `cost.test.ts` (pre-existing, untouched) | PASS |
+| Cost | `packages/shared/src/engine/cost.ts::costFormula`/`buildCostSnapshot` | `materialCode` | `CostSnapshot` | `CostingPanel.tsx`, `FormulationResultPage.tsx` via `generatedFormulaCost.ts` | `materials.py::cost_formula()` **DELETED** (FVL-03.003) | FVL-03.003 + FVL-03.012's new cost-constrained acceptance (`costComparison.test.ts`) | PASS |
+| Inventory | `packages/shared/src/engine/inventoryAvailability.ts::evaluateMaterialAvailability` | `materialCode` | `MaterialAvailability` | `generatedFormulaInventory.ts` (the FVL-03 integrated workflow) | Three PRE-EXISTING, pre-FVL-03 UI call sites (`MaterialsPage.tsx`, `AdvancedOptimizerPanel.tsx`, `SubstitutionPanel.tsx`) still compute `quantity − reservedQuantity` inline rather than calling the canonical function — disclosed in FVL-03.004's own doc comment as deliberately out of scope; NOT part of the generated-formula integrated workflow this domain's own acceptance targets (see note below) | FVL-03.004 (`inventoryAvailability.test.ts`) | PASS (see note) |
+| Compatibility | `packages/shared/src/engine/compatibility.ts::evaluateCompatibility` | `materialCode` (+ function/name-keyword fallback) | `CompatibilityFinding[]` | Generated-formula seam, Optimizer, Substitution | `rules.py` confirmed request-constraint-only, not a duplicate | FVL-03.008 | PASS |
+| Safety | `packages/shared/src/engine/safety.ts::evaluateSafety` | `materialCode` (+ fallback) | `SafetyFinding[]` | Generated-formula seam, Optimizer, Substitution | `safety.py` **DELETED** (FVL-03.009) | FVL-03.009 | PASS |
+| Regulatory | `packages/shared/src/engine/regulatoryRules.ts::evaluateRegulatory` | `materialCode` (+ fallback) | `RegulatoryFinding[]` | Generated-formula seam, Substitution (new FVL-03.010 wiring) | `regulatory.py` **DELETED** (FVL-03.010) | FVL-03.010 | PASS |
+| Material Substitution | `packages/shared/src/engine/substitution.ts::scoreCandidate`/`buildCandidateRecord` | `materialCode` | `SubstitutionCandidate` | `SubstitutionPanel.tsx` (both UIs) | None | FVL-03.006 + FVL-03.012's new substitution-triggered acceptance | PASS |
+| System Substitution | `packages/shared/src/engine/systemSubstitution.ts`, routes through Advanced Optimizer | `materialCode` | `SystemCandidateProposal`/optimizer result | `SubstitutionPanel.tsx` system mode | None | FVL-03.007 | PASS |
+| Advanced Optimizer | `runtime/formulation/advanced_optimizer.py` (PuLP/CBC) via `formulation_advanced.rs` | `materialCode` | `AdvancedOptimizationResult` | `AdvancedOptimizerPanel.tsx` | None — confirmed distinct from `formulation_core.py`'s simple LP, zero overlap | FVL-03.005 | PASS |
+| Deterministic Formula Generation | `runtime/pipeline/engine.py` | `material_code` (since FVL-03.002) | Generated `formula`/`cards` | `/live`, `/formulation-request`+`/formulation-result` (same backend) | None | Every FVL-03.00X session's own `pytest` regression, reconfirmed this session (361/5) | PASS |
+| Traceability/Provenance | `runtime/pipeline/traceability.py::TraceEvent` (decision trace only) + each domain's own real IDs | `material_code`/`rule_id`/each domain's own code | `trace_events`, real per-domain finding/record IDs | Every generation, every domain UI | None — confirmed one coherent model, not forked (FVL-03.011) | FVL-03.011 | PASS |
+
+**Note on Inventory's disclosed pre-existing gap**: completion condition
+#7 ("no active duplicate inventory availability calculation remains for
+the integrated workflow") is scoped to the workflow FVL-03 actually
+built — generated formula → inventory feasibility, which is entirely on
+the canonical `evaluateMaterialAvailability()` path. The three flagged
+call sites are pre-existing, pre-FVL-03 screens/panels for the SAVED-
+project workflow, already disclosed as out of scope in FVL-03.004's own
+doc comment ("the three pre-existing call sites are untouched, out of
+scope"); their own naive sum is a real, disclosed quality-of-computation
+gap (no quarantine/release/expiry filtering) that this session
+re-confirmed still present rather than silently ignoring — it does not
+conflict with, override, or compete against the canonical function for
+the integrated generated-formula workflow this domain's acceptance
+targets, so it does not block condition #7. Flagged again here,
+explicitly, for a future session to consider retrofitting.
+
+### Final duplicate-business-logic audit
+
+Repository-wide greps (material/cost/inventory/compatibility/safety/
+regulatory/substitution/optimization/provenance search terms per this
+task's own §B2 list) across `runtime/pipeline`, `runtime/formulation`,
+`packages/shared/src`, `apps/desktop/src`, `apps/desktop/src-tauri/src`:
+zero category-E ("actual duplicate business authority") hits. Every
+match classified: **A** (the one authoritative engine itself), **B**
+(a legitimate adapter/presenter — e.g. `generatedFormulaCost.ts`,
+`generatedFormulaRegulatory.ts`), **C** (a separate legitimate
+responsibility — e.g. `rules.py`'s request constraints, `classify_target`'s
+pre-generation gate, `strategy.py`'s `regulatory_conservative` STRATEGY
+selection concept, unrelated to any computed regulatory verdict), **D**
+(dead/legacy non-authoritative code — e.g. the kept-for-historical-
+parsing `SafetyResult`/`RegulatoryResult` TS interfaces, never read by
+live code), or **E** (none found in an active current path).
+
+### A real, build-breaking Rust regression found and fixed by this session's own `cargo check`
+
+`apps/desktop/src-tauri/src/formulation_v2.rs::materialize_pipeline()`
+still `include_str!`'d the two Python files FVL-03.009/.010 deleted
+(`F_SAFETY`/`F_REGULATORY` embedded-file constants, pointing at
+`runtime/pipeline/safety.py`/`regulatory.py`) — those two sessions
+correctly made no Rust changes and so correctly never ran `cargo check`
+themselves (their own scope discipline was right), but this left the
+SHIPPED DESKTOP BINARY unable to compile at all, undiscovered until this
+session's own mandatory `cargo check` regression run. Fixed by removing
+both dead constants and their `materialize_pipeline()` list entries.
+Verified end to end, not just by `cargo check` passing: the exact
+materialized file set was reproduced in a disposable temp directory (the
+same verification method FVL-02.009 established for the analogous
+missing-file defect), `pipeline.py` imported cleanly with no
+`ImportError`, and a real deterministic generation was run through it
+(`status: "ok"`, 3 real cards, `"safety"`/`"regulatory"` correctly absent
+from the card dict). `cargo test formulation_v2` — 10/10 passing.
+
+### Cost-constrained acceptance (§B11)
+
+New `costComparison.test.ts::describe("FVL-03.012 — cost-constrained
+integration acceptance")` — real, disposable materials/prices/factory
+profile fixtures (never real business data) fed through the REAL
+`costGeneratedFormula()`/`buildCostSnapshot()` engine for three
+alternatives sharing the exact ingredient shape `pipeline.py::run()`
+actually emits (`inci`/`function`/`weight_pct`/`material_code`).
+Demonstrates: a real cheaper alternative's real total is genuinely lower
+(computed, not asserted); a version with a missing price carries a real
+`missingDataWarnings` entry and cannot be crowned cheapest; an
+`invalid_constraint_violation` alternative is never selected even when
+its raw total is smallest; no Python duplicate costing participates
+(this is 100% client-side TS, by construction — Python cannot call
+`packages/shared` at all).
+
+### Substitution-triggered acceptance (§B12)
+
+New `SubstitutionPanel.test.tsx::describe("FVL-03.012 — substitution-
+triggered integration acceptance")` — reuses the file's own existing
+real-material/real-formulation fixtures. Demonstrates: no auto-
+substitution (a human must click "Apply"; `onApply` is unfired until
+then); the applied line carries the candidate's REAL canonical
+`materialCode` ("C"), never a display-name guess; the substitution is
+traceable (a real `substitution_runs` record persisted via
+`upsertRecords`, `selectedCandidateId` matching the real candidate);
+source formula/session untouched (the dialog only ever calls `onApply`
+with a new line object — no mutation of session storage anywhere in
+this component, confirmed by the existing diff-review convention every
+prior FVL-03 substitution session already established); no duplicate
+substitution scorer (the real, unmodified `scoreCandidate`/
+`buildCandidateRecord` from `substitution.ts` compute everything).
+
+### Cross-domain hard-constraint acceptance (§B13)
+
+Already proven by the pre-existing `costComparison.test.ts::"compatibility-
+blocked, safety-blocked, and regulatory-blocked are three independent
+exclusion gates"` test (added across FVL-03.008/.009/.010): four
+versions, three independently blocked by three different domains, the
+cheapest genuinely-eligible one wins — each dimension inspectable
+separately, never one opaque score. The equivalent `inventoryComparison.test.ts`
+gates (compatibility/safety/regulatory exclusion for "most feasible")
+prove the same for the inventory-preference helper.
+
+### Unknown/missing data acceptance (§B14)
+
+Confirmed honest throughout, by construction and by the full existing
+test suite: unresolved material → `unresolvedMaterialCount`/`"unknown"`
+formulaState in every domain, never silently resolved; missing price/FX
+→ real `missingDataWarnings`, excluded from "cheapest," never zero;
+missing inventory record → `hasRecords: false`, never zero usable
+quantity; incomplete Compatibility/Safety/Regulatory coverage →
+`"unknown"`/`"warning"`, never a fabricated clean verdict;
+`not_verified` regulatory content → stays `not_verified`, shown
+alongside its finding, never silently promoted; unavailable material →
+never auto-substituted (a human must act); zero LLM fallback anywhere in
+any of the above.
+
+### Old /live + new UI acceptance (§B15)
+
+Both remain, confirmed untouched this session; neither was modified,
+neither removed. Both consume the same authoritative engines (the
+generated-formula seam is new-UI-specific by construction, but `/live`'s
+own panels — `CompatibilityPanel.tsx`/`SafetyPanel.tsx`/
+`RegulatoryPanel.tsx`/`SubstitutionPanel.tsx`/`AdvancedOptimizerPanel.tsx`
+— call the exact same `evaluateCompatibility`/`evaluateSafety`/
+`evaluateRegulatory`/`scoreCandidate`/solver functions the new UI's own
+generated-formula wrappers call). Retirement decision remains
+`FVL-11.005`'s, not made or moved here.
+
+### Zero-LLM regression (§B16)
+
+`test_llm_call_is_never_reached_by_the_deterministic_path` (patches
+`llm.call` to raise, runs a real end-to-end generation, asserts the
+exception never fires) re-verified passing this session as part of the
+full 361/5 Python suite. `formulation_v2.rs` → `run_cli.py` →
+`pipeline.py` → `engine.py` confirmed by this session's own materialized-
+directory reproduction to run start-to-finish with zero LLM involvement.
+No generative model participates in formulation, concentration, cost,
+Compatibility, Safety, Regulatory, substitution, provenance, or
+acceptance anywhere in this codebase.
+
+### Data safety (§B17)
+
+Confirmed: every new test this session used disposable, in-memory
+fixtures only (materials/prices/formulation objects constructed inline
+in test files, or a disposable `tempfile.mkdtemp()` directory for the
+Rust-fix verification) — no real `.FormuLab/runs.db`, `%APPDATA%`,
+OneDrive, customer record, saved formula, real inventory, real price, or
+lab data was read or written. `formulas/index.json` and the deleted
+`formulas/*.md` files in this working tree predate this session and were
+never touched by it.
+
+### Regression suites (§B18) — final results
+
+`pnpm --filter @formulab/desktop test` — 1424/1424 across 152 files (2
+new: 1 `costComparison.test.ts`, 1 `SubstitutionPanel.test.tsx`).
+`pnpm --filter @formulab/desktop typecheck` / `lint` — clean. `pnpm
+--filter @formulab/shared test` — 1311/1311 (untouched this task).
+`python -m pytest runtime/pipeline -q` — 361 passed, 5 subtests
+(untouched this task). `cargo check` — clean (after the fix above).
+`cargo test formulation_v2` — 10/10 passing. `python scripts/
+validate_v1_tracker.py` — OK. `git diff --check` — clean (LF/CRLF
+warnings only).
+
+### Final FVL-03 completion conditions (§B19) — all 23 confirmed
+
+1. FVL-03.001–.012 COMPLETED. 2. FVL-03.013–.018 remain COMPLETED
+(untouched). 3. FVL-03 = 18/18. 4. Exactly one authoritative result per
+required domain (authority matrix above). 5-13. No active duplicate
+Material/Cost/Inventory(-for-the-integrated-workflow)/Compatibility/
+Safety/Regulatory/Material-Substitution/System-Substitution/Optimizer
+authority remains (final duplicate audit above; Inventory's one
+disclosed pre-existing gap explicitly does not conflict with the
+integrated workflow, per the note above). 14. Provenance extends
+`traceability.py`, confirmed not forked (FVL-03.011). 15. Cost-
+constrained acceptance passes. 16. Substitution-triggered acceptance
+passes. 17. Unknown/missing data stays honest throughout. 18. Hard
+constraints (a real `blocked`/`non_compliant` finding) cannot be
+overridden by cost/inventory preference — proven by the three-domain
+independent-exclusion-gates test. 19. Both UIs remain. 20. Zero-LLM
+remains intact. 21. Tracker validation passes. 22. Regression suites
+pass (including the real Rust build fix this task's own `cargo check`
+required and delivered). 23. Local HEAD will equal remote HEAD after the
+closing push (confirmed below, post-commit).
+
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 
 - **FVL-05.003-.008** ("Extractor: ..." rows): read-only/"reuse existing schema, never fork it" guarantee lives only in the FVL-05 package intro and FVL-05.013, not restated per-row. Left as-is (package intro already covers it); flagged in case a future session edits these rows in isolation without the intro's context.

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { CostSnapshot } from "@formulab/shared";
+import type { CostSnapshot, MaterialPrice, RawMaterial } from "@formulab/shared";
 import type { FormulationCard } from "./formulationV2";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 import { pickCheapestValidVersion } from "./costComparison";
+import { costGeneratedFormula } from "./generatedFormulaCost";
 
 function compat(over: Partial<GeneratedFormulaCompatibility> & { formulaState: GeneratedFormulaCompatibility["formulaState"] }): GeneratedFormulaCompatibility {
   return { findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
@@ -208,5 +209,93 @@ describe("pickCheapestValidVersion — FVL-03.010 Acceptance E (regulatory exclu
     const safeties = [safety({ formulaState: "safe" }), safety({ formulaState: "blocked" }), safety({ formulaState: "safe" }), safety({ formulaState: "safe" })];
     const regulatories = [regulatory({ formulaState: "compliant" }), regulatory({ formulaState: "compliant" }), regulatory({ formulaState: "blocked" }), regulatory({ formulaState: "compliant" })];
     expect(pickCheapestValidVersion(cards, snapshots, compatibilities, safeties, regulatories)).toBe(3);
+  });
+});
+
+describe("FVL-03.012 — cost-constrained integration acceptance (real engine, disposable fixtures)", () => {
+  function fixtureMaterial(over: Partial<RawMaterial> & { code: string }): RawMaterial {
+    return {
+      schemaVersion: "1.0",
+      displayName: over.code,
+      casNumbers: [],
+      ecNumbers: [],
+      documents: [],
+      regulatoryStatuses: [],
+      hazardClassifications: [],
+      allergens: [],
+      incompatibilities: [],
+      substituteCodes: [],
+      functions: [],
+      activeMatterState: "missing",
+      active: true,
+      createdAt: "2026-07-19T00:00:00Z",
+      updatedAt: "2026-07-19T00:00:00Z",
+      ...over,
+    };
+  }
+
+  function fixturePrice(over: Partial<MaterialPrice> & { code: string; materialCode: string }): MaterialPrice {
+    return {
+      schemaVersion: "1.0",
+      price: "100",
+      currency: "KES",
+      priceUnit: "kg",
+      effectiveFrom: "2026-01-01",
+      allocationBasis: "per_kg",
+      verification: "quoted",
+      recordedAt: "2026-07-19T00:00:00Z",
+      recordedBy: "test",
+      ...over,
+    };
+  }
+
+  it("full real chain: deterministic-shaped formula -> real materialCode -> real Cost Engine -> real cheapest-valid comparison, no Python duplicate participates", () => {
+    // Two candidate surfactants with real, different prices, plus one
+    // deliberately priceless material — mirrors exactly the shape
+    // `pipeline.py::run()` actually emits (`inci`/`function`/`weight_pct`/
+    // `material_code`, the last one carried since FVL-03.002).
+    const cheapSurfactant = fixtureMaterial({ code: "RM-CHEAP" });
+    const pricierSurfactant = fixtureMaterial({ code: "RM-PRICIER" });
+    const noPriceMaterial = fixtureMaterial({ code: "RM-NOPRICE" });
+    const materials = [cheapSurfactant, pricierSurfactant, noPriceMaterial];
+    const prices: MaterialPrice[] = [
+      fixturePrice({ code: "price-cheap", materialCode: "RM-CHEAP", price: "50" }),
+      fixturePrice({ code: "price-pricier", materialCode: "RM-PRICIER", price: "500" }),
+      // RM-NOPRICE deliberately has no MaterialPrice record at all.
+    ];
+    const profile = {
+      schemaVersion: "1.0" as const, code: "fixture-profile", name: "Fixture Profile", currency: "KES",
+      directLabourPerHour: "0", processLossPercent: "0", effectiveFrom: "2026-01-01", verification: "verified" as const,
+      active: true, updatedAt: "2026-07-19T00:00:00Z",
+    };
+    const costData = { materials, prices, rates: [], profile };
+
+    const v1Formula = { ingredients: [{ inci: "Cheap Surfactant", function: "Primary Surfactant", weight_pct: "100", material_code: "RM-CHEAP" }] };
+    const v2Formula = { ingredients: [{ inci: "Pricier Surfactant", function: "Primary Surfactant", weight_pct: "100", material_code: "RM-PRICIER" }] };
+    const v3Formula = { ingredients: [{ inci: "No-Price Material", function: "Primary Surfactant", weight_pct: "100", material_code: "RM-NOPRICE" }] };
+
+    const snapshots = [
+      costGeneratedFormula("sess-acceptance", "v1", v1Formula, "100", "KES", costData),
+      costGeneratedFormula("sess-acceptance", "v2", v2Formula, "100", "KES", costData),
+      costGeneratedFormula("sess-acceptance", "v3", v3Formula, "100", "KES", costData),
+    ];
+
+    // Real cost data actually determines the result — v1's real total is
+    // genuinely lower than v2's, not asserted, computed.
+    expect(Number(snapshots[0].totalManufacturingCost)).toBeLessThan(Number(snapshots[1].totalManufacturingCost));
+    // Missing price cannot silently win — v3 carries a real missingDataWarning.
+    expect(snapshots[2].missingDataWarnings.length).toBeGreaterThan(0);
+
+    const cards = [card({ version: "v1" }), card({ version: "v2" }), card({ version: "v3" })];
+    expect(pickCheapestValidVersion(cards, snapshots)).toBe(0);
+
+    // An invalid/blocked alternative cannot be crowned cheapest-valid even
+    // if its raw total looks smallest.
+    const invalidCards = [
+      card({ version: "v1", formula_state: "invalid_constraint_violation" as never }),
+      card({ version: "v2" }),
+      card({ version: "v3" }),
+    ];
+    expect(pickCheapestValidVersion(invalidCards, snapshots)).toBe(1);
   });
 });
