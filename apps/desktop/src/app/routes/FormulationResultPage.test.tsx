@@ -898,6 +898,67 @@ function renderResultPage() {
   );
 }
 
+// --- FVL-03.007: system substitution multi-select entry point ---
+
+describe("FormulationResultPage — FVL-03.007 system substitution selection", () => {
+  beforeEach(() => {
+    readSession.mockReset();
+    readSession.mockResolvedValue(SESSION);
+  });
+
+  it("shows a selection checkbox per ingredient row, and a disabled action until 2+ are selected", async () => {
+    renderPage();
+    await screen.findByText("Cocamidopropyl Betaine");
+    const checkboxes = screen.getAllByRole("checkbox", { name: "System substitution" });
+    expect(checkboxes.length).toBe(2); // Water + Cocamidopropyl Betaine
+
+    const action = screen.getByRole("button", { name: "System substitution" });
+    expect(action).toBeDisabled();
+
+    await userEvent.click(checkboxes[0]);
+    expect(action).toBeDisabled(); // still only one selected — a one-material problem must not reach system mode
+
+    await userEvent.click(checkboxes[1]);
+    expect(action).toBeEnabled();
+  });
+
+  it("unchecking a selected ingredient drops back below the 2-ingredient minimum and disables the action again", async () => {
+    renderPage();
+    await screen.findByText("Cocamidopropyl Betaine");
+    const checkboxes = screen.getAllByRole("checkbox", { name: "System substitution" });
+    await userEvent.click(checkboxes[0]);
+    await userEvent.click(checkboxes[1]);
+    expect(screen.getByRole("button", { name: "System substitution" })).toBeEnabled();
+
+    await userEvent.click(checkboxes[0]);
+    expect(screen.getByRole("button", { name: "System substitution" })).toBeDisabled();
+  });
+
+  it("clicking an ingredient row's checkbox never also opens that ingredient's evidence panel", async () => {
+    renderPage();
+    await screen.findByText("Cocamidopropyl Betaine");
+    const checkboxes = screen.getAllByRole("checkbox", { name: "System substitution" });
+    await userEvent.click(checkboxes[1]);
+    expect(screen.queryByText("Selected Concentration")).toBeNull();
+  });
+
+  it("selecting ingredients on one version and switching versions never leaks the selection into another version", async () => {
+    renderPage();
+    await screen.findByText("Cocamidopropyl Betaine");
+    const checkboxes = screen.getAllByRole("checkbox", { name: "System substitution" });
+    await userEvent.click(checkboxes[0]);
+    await userEvent.click(checkboxes[1]);
+    expect(screen.getByRole("button", { name: "System substitution" })).toBeEnabled();
+
+    // V2 in this fixture has zero ingredients — its own fresh (empty)
+    // selection state means the action is disabled again, proving V1's
+    // selection never carried across.
+    await userEvent.click(screen.getByText("Cost Optimized"));
+    expect(screen.getByRole("button", { name: "System substitution" })).toBeDisabled();
+    expect(screen.queryAllByRole("checkbox", { name: "System substitution" }).length).toBe(0);
+  });
+});
+
 describe("FormulationResultPage — dynamic 3-7 version selector", () => {
   beforeEach(() => {
     readSession.mockReset();

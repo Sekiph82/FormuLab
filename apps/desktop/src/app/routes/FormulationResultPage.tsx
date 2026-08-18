@@ -95,6 +95,10 @@ export function FormulationResultPage() {
   // promotion/navigation in flight, so only that one row's button shows a
   // busy state.
   const [substitutingIndex, setSubstitutingIndex] = useState<number | null>(null);
+  // FVL-03.007: whether a "System substitution" promotion/navigation is in
+  // flight (a single flag, not per-index, since a system action always
+  // covers 2+ rows at once).
+  const [systemSubstituting, setSystemSubstituting] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -219,6 +223,32 @@ export function FormulationResultPage() {
     }
   };
 
+  // FVL-03.007: same promotion seam, for the existing, unmodified System
+  // Substitution Engine (`packages/shared/src/engine/systemSubstitution.ts`).
+  // "System" here has no fixed chemistry taxonomy anywhere in this
+  // platform — it is whichever 2+ ingredients the chemist selected in the
+  // table above; the existing SubstitutionDialog's own system-mode section
+  // (candidate generation, Advanced Optimizer routing, scoring) is
+  // completely unchanged. Only the FIRST selected ingredient's line id is
+  // passed as the dialog's required anchor `line`; the rest are passed as
+  // `systemLines` to pre-check them — still 100% human-reviewable/
+  // editable from inside the dialog before anything is generated, let
+  // alone applied.
+  const onSystemSubstitution = async (ingredientIndices: number[]) => {
+    if (ingredientIndices.length < 2) return;
+    setSystemSubstituting(true);
+    try {
+      const promoted = await ensurePromoted();
+      if (!promoted) return;
+      const lineIds = ingredientIndices.map((i) => promoted.version.lines[i]?.id).filter((id): id is string => !!id);
+      if (lineIds.length < 2) return;
+      const [anchor, ...rest] = lineIds;
+      navigate(`/formulation?project=${promoted.formulation.id}&substituteLine=${anchor}&systemLines=${rest.join(",")}`);
+    } finally {
+      setSystemSubstituting(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <TopBar session={session} sessionId={sessionId} t={t} />
@@ -275,6 +305,8 @@ export function FormulationResultPage() {
               inventoryFeasibility={inventoryFeasibilities[Math.min(activeVersion, cards.length - 1)]}
               onFindSubstitute={card?.formula ? (i: number) => void onFindSubstitute(i) : undefined}
               substitutingIndex={substitutingIndex}
+              onSystemSubstitution={card?.formula ? (indices: number[]) => void onSystemSubstitution(indices) : undefined}
+              systemSubstituting={systemSubstituting}
               t={t}
             />
           </div>
@@ -536,6 +568,8 @@ function TabContent({
   inventoryFeasibility,
   onFindSubstitute,
   substitutingIndex,
+  onSystemSubstitution,
+  systemSubstituting,
   t,
 }: {
   tab: ResultTab;
@@ -554,13 +588,25 @@ function TabContent({
   inventoryFeasibility: FormulaInventoryFeasibility | undefined;
   onFindSubstitute?: (ingredientIndex: number) => void;
   substitutingIndex?: number | null;
+  onSystemSubstitution?: (ingredientIndices: number[]) => void;
+  systemSubstituting?: boolean;
   t: TFunction<readonly ["session", "common"]>;
 }) {
   if (!card) return <EmptyNotice t={t} />;
   if (card.status === "generation_failed") return <GenerationFailedNotice card={card} t={t} />;
   switch (tab) {
     case "formula":
-      return <FormulaTab card={card} formula={formula} selectedIngredient={selectedIngredient} onSelectIngredient={onSelectIngredient} t={t} />;
+      return (
+        <FormulaTab
+          card={card}
+          formula={formula}
+          selectedIngredient={selectedIngredient}
+          onSelectIngredient={onSelectIngredient}
+          onSystemSubstitution={onSystemSubstitution}
+          systemSubstituting={systemSubstituting}
+          t={t}
+        />
+      );
     case "process":
       return card.manufacturing
         ? <ManufacturingProcedureTab plan={card.manufacturing} t={t} />
@@ -639,14 +685,36 @@ function FormulaTab({
   formula,
   selectedIngredient,
   onSelectIngredient,
+  onSystemSubstitution,
+  systemSubstituting,
   t,
 }: {
   card: FormulationCard;
   formula: GeneratedFormula | undefined;
   selectedIngredient: number | null;
   onSelectIngredient: (i: number) => void;
+  // FVL-03.007: system membership is always human-selected (there is no
+  // fixed "surfactant system"/"preservative system" taxonomy anywhere in
+  // this platform — see docs/SYSTEM_SUBSTITUTION.md) — a chemist checks
+  // 2+ ingredients here, then the existing Substitution dialog's own
+  // system-mode section (unchanged) does the rest.
+  onSystemSubstitution?: (ingredientIndices: number[]) => void;
+  systemSubstituting?: boolean;
   t: TFunction<readonly ["session", "common"]>;
 }) {
+  const [selectedForSystem, setSelectedForSystem] = useState<Set<number>>(new Set());
+  // FVL-03.007 §17 scoping: a system-substitution selection is local to one
+  // version's own ingredient indices — switching versions must never leave
+  // a stale selection pointing at a different version's ingredients.
+  useEffect(() => setSelectedForSystem(new Set()), [card.version]);
+  const toggleForSystem = (i: number) => {
+    setSelectedForSystem((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  };
   const ingredients = formula?.ingredients ?? [];
   // Phase 14 Session 4: prefer the deterministic, authoritative
   // `card.mass_balance` (`provenance.py::compute_mass_balance()`) — this IS
@@ -686,10 +754,29 @@ function FormulaTab({
         </div>
       )}
 
+      {onSystemSubstitution && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-input border border-border-faint bg-surface-2/40 px-3 py-2 text-[11px]">
+          <span className="text-muted">
+            {selectedForSystem.size > 0
+              ? t("formulationResult.formula.system.selectedCount", { count: selectedForSystem.size })
+              : t("formulationResult.formula.system.selectHint")}
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={() => onSystemSubstitution([...selectedForSystem].sort((a, b) => a - b))}
+            disabled={selectedForSystem.size < 2 || systemSubstituting}
+            className="rounded-input border border-accent px-2.5 py-1 text-[11px] text-accent hover:bg-accent/10 disabled:opacity-40"
+          >
+            {systemSubstituting ? t("formulationResult.formula.system.busy") : t("formulationResult.formula.system.action")}
+          </button>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-[12px]">
           <thead>
             <tr className="border-b border-border-faint text-left text-[10px] uppercase tracking-wide text-muted">
+              {onSystemSubstitution && <th className="py-1.5 pr-2" aria-hidden />}
               <th className="py-1.5 pr-2">#</th>
               <th className="py-1.5 pr-2">{t("formulationResult.formula.columns.ingredient")}</th>
               <th className="py-1.5 pr-2">{t("formulationResult.formula.columns.function")}</th>
@@ -720,6 +807,16 @@ function FormulaTab({
                     selectedIngredient === i && "bg-accent/10",
                   )}
                 >
+                  {onSystemSubstitution && (
+                    <td className="py-1.5 pr-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedForSystem.has(i)}
+                        onChange={() => toggleForSystem(i)}
+                        aria-label={t("formulationResult.formula.system.action")}
+                      />
+                    </td>
+                  )}
                   <td className="py-1.5 pr-2 text-muted">{i + 1}</td>
                   <td className="py-1.5 pr-2 text-text">{ing.inci || "—"}</td>
                   <td className="py-1.5 pr-2 text-muted">{ing.function || "—"}</td>

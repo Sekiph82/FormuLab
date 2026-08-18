@@ -71,6 +71,7 @@ export function SubstitutionDialog({
   formulation,
   line,
   allLines,
+  initialExtraLineIds,
   onApply,
   onApplySystem,
   onClose,
@@ -78,6 +79,15 @@ export function SubstitutionDialog({
   formulation: Formulation;
   line: FormulationLine;
   allLines: FormulationLine[];
+  /** FVL-03.007 — additional line ids to pre-check alongside `line` on
+   *  open, so a caller that already knows which lines make up one
+   *  functional system (e.g. a multi-select on the formula table) can
+   *  open straight into system mode instead of making the chemist
+   *  re-check every line by hand. Purely an initial-selection
+   *  convenience: the human can still freely add/remove lines from here,
+   *  and every downstream step (generate/evaluate/apply) is completely
+   *  unchanged — this never bypasses human review. */
+  initialExtraLineIds?: string[];
   onApply: (line: FormulationLine, runCode: string) => void;
   /** Multi-material system substitution: replaces every line in
    *  `removedLineIds` with `newLines` in one step. Optional only so a
@@ -98,7 +108,17 @@ export function SubstitutionDialog({
   const [applying, setApplying] = useState(false);
 
   // ---------------------------------------------------------- system mode ---
-  const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set([line.id]));
+  // Defensive against a stale/malformed caller-supplied id (never trust it
+  // blindly): only an id that names a REAL line among `allLines` can ever
+  // pre-check system mode — a bogus id must never masquerade as a second
+  // system member.
+  const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(
+    () =>
+      new Set([
+        line.id,
+        ...(initialExtraLineIds ?? []).filter((id) => id !== line.id && allLines.some((l) => l.id === id)),
+      ]),
+  );
   const [preserveFunctions, setPreserveFunctions] = useState<MaterialFunction[]>([]);
   const [limits, setLimits] = useState<SystemCandidateLimits>(DEFAULT_LIMITS);
   const [systemCostCeiling, setSystemCostCeiling] = useState("");

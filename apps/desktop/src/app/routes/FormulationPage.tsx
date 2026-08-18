@@ -205,6 +205,17 @@ export function FormulationPage() {
           formulation={active}
           line={draft.value.lines.find((l) => l.id === substitutingLineId)!}
           allLines={draft.value.lines}
+          // FVL-03.007: a "System substitution" entry point elsewhere
+          // (the generated-formula result page's multi-select) names the
+          // OTHER lines that make up the same system as `?systemLines=`
+          // (comma-separated) — filtered against real draft lines so a
+          // stale/malformed id can never pre-check a phantom selection.
+          initialExtraLineIds={(
+            // eslint-disable-next-line i18next/no-literal-string -- internal query-param name, not display text
+            searchParams.get("systemLines") ?? ""
+          )
+            .split(",")
+            .filter((id) => id && draft.value!.lines.some((l) => l.id === id))}
           onApply={(newLine, runCode) => {
             ws.onApplySubstitution(newLine, runCode);
             setSubstitutingLineId(null);

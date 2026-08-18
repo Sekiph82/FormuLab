@@ -451,6 +451,12 @@
         "evidenceClass": "Evidence Class",
         "origin": "Origin"
       },
+      "system": {
+        "selectHint": "Select 2+ ingredients to replace them together as one system.",
+        "selectedCount": "{{count}} ingredient(s) selected",
+        "action": "System substitution",
+        "busy": "Opening…"
+      },
       "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is not available for this session",
       "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence",
       "architecture": {

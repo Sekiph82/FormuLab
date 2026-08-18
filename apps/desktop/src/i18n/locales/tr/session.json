@@ -451,6 +451,12 @@
         "evidenceClass": "Evidence Class",
         "origin": "Origin"
       },
+      "system": {
+        "selectHint": "Birlikte bir sistem olarak değiştirmek için 2+ bileşen seçin.",
+        "selectedCount": "{{count}} bileşen seçildi",
+        "action": "Sistem ikamesi",
+        "busy": "Açılıyor…"
+      },
       "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is not available for this session",
       "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence",
       "architecture": {

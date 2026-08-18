@@ -575,6 +575,126 @@ exists anywhere in the changed files. Only new `Formulation`/
 substitution apply step still only ever mutates the working draft, per
 the existing, unmodified `onApplySubstitution`.
 
+### System Substitution Engine boundary (FVL-03.007, COMPLETED 2026-08-18)
+
+Same conclusion pattern as Material Substitution and the Advanced
+Optimizer: full audit found **no engine/schema/scoring gap at all**, and
+system substitution is already fully implemented, not merely documented.
+`packages/shared/src/engine/systemSubstitution.ts`
+(`generateSystemCandidates`, `buildSystemSubstitutionProblem`,
+`scoreSystemResult`) + the `systemCandidateLimitsSchema`/
+`rejectedSystemCandidateSchema`/system-mode fields on
+`substitutionRequestSchema` (`packages/shared/src/schemas/substitution.ts`)
+are the sole authority — full mechanism documented in
+`docs/SYSTEM_SUBSTITUTION.md`.
+
+**What "system" means in this platform — confirmed by audit, not
+assumed**: there is no fixed chemistry taxonomy anywhere in the codebase
+(no hardcoded "surfactant system"/"preservative system"/"chelation
+system" categories). A system is whichever set of ≥2 formula lines a
+human selects in the existing `SubstitutionDialog`'s own checklist —
+membership is always 100% human-identified, never auto-detected. This
+resolves the task's own "if a system cannot be identified
+deterministically, surface that honestly, never fabricate membership"
+requirement by construction: the UI never attempts automatic
+identification at all, so that failure mode cannot arise in new code.
+
+**Candidate generation, optimizer routing, scoring — all pre-existing,
+all real**: `generateSystemCandidates` builds combinations from real
+material functions + stock/supplier-approval/Kenya-local filters only
+(never name similarity); a combination that fails to cover every
+preserved function is recorded as `rejected` with a real
+`missing_required_function` reason, never silently offered partial.
+Every surviving proposal is turned into a real `FormulationProblem` and
+solved by the actual Advanced Optimizer
+(`runtime/formulation/advanced_optimizer.py`) via
+`buildSystemSubstitutionProblem` — untouched lines locked, source lines
+removed as candidates, a `min_total` functional constraint per preserved
+function, a **soft** active-contribution-preservation constraint (never
+hard — the same "against silent infeasibility" reasoning FVL-03.005
+confirmed for the plain optimizer), real technical/stock limits, and
+real compatibility/safety hard exclusions computed by the caller (never
+re-implemented here) via the same `blockingExclusionConstraints` the
+plain Optimizer screen uses. `scoreSystemResult` reads feasibility,
+soft-constraint violations, real cost delta, and
+`compatibility_risk`/`safety_risk` (when the caller's base problem
+included them — otherwise `missingData: true`, never assumed) directly
+from the optimizer's own result, nothing re-derived.
+
+**Non-destructive apply, identical lifecycle to material substitution**:
+selecting a valid system and applying persists the underlying
+`OptimizationRun` (`optimization_runs`) AND an immutable `SubstitutionRun`
+(`substitution_runs`, `isSystem: true`, `systemMaterialIds`,
+`optimizationRunCode` pointing at the run above) before ever touching
+anything, then replaces the selected source lines with the system's
+materials in the WORKING DRAFT only — never the saved
+`FormulationVersion` (`useFormulationWorkspace.ts::onApplySystemSubstitution`,
+confirmed unchanged). The existing, already-tested `SubstitutionDialog`
+(`SubstitutionPanel.tsx`, mounted in both `/live` and `/formulation`)
+already implements this entire workflow end-to-end in its system-mode
+section (check 2+ lines → Generate → Evaluate → Apply). **Zero
+engine/schema/scoring/Rust/Python changes were made or are needed.**
+
+**The one real gap — identical shape to FVL-03.005/.006**: a generated
+AI session card has no real project (`substitutionRequestSchema`
+requires `projectId`/`formulaVersionId`, both non-optional — the same
+requirement FVL-03.006 already resolved for one-to-one substitution),
+and the existing dialog's `selectedLineIds` could only ever be seeded
+with ONE line (the required `line` prop) — there was no way to open it
+already pre-checked into system mode for 2+ ingredients a chemist picked
+from a generated card. Resolved with a small, additive, backward-
+compatible change: a new optional `initialExtraLineIds?: string[]` prop
+on `SubstitutionDialog` seeds `selectedLineIds` with additional lines on
+open — filtered defensively against real `allLines` inside the dialog
+itself (never trusting a caller-supplied id blindly, so a stale/bogus id
+can never masquerade as a second system member and silently enter system
+mode with a fabricated membership). Every caller that doesn't pass this
+prop is unaffected (existing `FormulasPage.tsx`/`FormulationPage.tsx`
+one-to-one call sites unchanged in behavior). The human retains full
+control after open — every checkbox remains freely editable, generation/
+evaluation/application are all still explicit, separate steps.
+
+**UI entry point — smallest addition, reusing rather than cloning**: a
+"System substitution" multi-select was added only to the existing
+generated-formula ingredient table (`FormulaTab` in
+`FormulationResultPage.tsx`) — a checkbox per row (click isolated via
+`stopPropagation` so it never also opens that ingredient's evidence
+panel) plus a small action bar showing the live selection count, with
+the action itself disabled below 2 selections so a one-material problem
+can never be routed into system mode. Clicking it reuses the exact
+FVL-03.005/.006 promotion seam (`ensurePromoted()` in
+`FormulationResultPage.tsx`) to obtain a real `Formulation`/
+`FormulationVersion`, resolves the selected ingredient indices to that
+promoted version's own real line ids (the same index-alignment guarantee
+FVL-03.006 established: both the generated card and the promoted
+version's lines are built from the same `card.formula.ingredients` array
+via the same `linesFromGeneratedFormula()`), and navigates to
+`/formulation?project=<id>&substituteLine=<anchor>&systemLines=<rest>` —
+a new one-shot query-param handoff in `FormulationPage.tsx` mirroring its
+own pre-existing `focusLine`/`substituteLine` pattern, which opens the
+existing, otherwise completely unmodified `SubstitutionDialog` already
+pre-seeded into system mode for those exact lines.
+
+**Version scoping, proven by a caught-and-fixed bug**: a genuine
+cross-version state leak was found during this session's own testing —
+`FormulaTab`'s local ingredient-selection `Set<number>` persisted across
+a version switch (React reuses the component instance; nothing reset the
+selection), so selecting 2 ingredients on V1 then switching to V2 left
+the "System substitution" action wrongly enabled against V2's unrelated
+ingredient indices. Fixed with a `useEffect` resetting the selection
+whenever `card.version` changes — caught by a new test
+(`FormulationResultPage.test.tsx`) before this ever shipped, exactly the
+kind of scoping bug the task's own Acceptance I exists to catch.
+
+**Read-only w.r.t. the session, by construction**: the new
+`FormulationResultPage.tsx::onSystemSubstitution` handler only reads
+`session.brief`/`session.id`/`card`, identical to FVL-03.005/.006's own
+handlers — confirmed by diff review that no `session.*` assignment
+exists anywhere in the changed files. Only new `Formulation`/
+`FormulationVersion` records are ever created by promotion; the actual
+system-substitution apply step still only ever mutates the working
+draft, exactly as before this task.
+
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 
 - **FVL-05.003-.008** ("Extractor: ..." rows): read-only/"reuse existing schema, never fork it" guarantee lives only in the FVL-05 package intro and FVL-05.013, not restated per-row. Left as-is (package intro already covers it); flagged in case a future session edits these rows in isolation without the intro's context.

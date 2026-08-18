@@ -104,7 +104,7 @@ beforeEach(() => {
   bridge.upsertRecords.mockResolvedValue({ inserted: 1, updated: 0, total: 1 });
 });
 
-function renderDialog(onApplySystem = vi.fn()) {
+function renderDialog(onApplySystem = vi.fn(), initialExtraLineIds?: string[]) {
   return {
     onApplySystem,
     ...render(
@@ -112,6 +112,7 @@ function renderDialog(onApplySystem = vi.fn()) {
         formulation={FORMULATION}
         line={LINE_A}
         allLines={ALL_LINES}
+        initialExtraLineIds={initialExtraLineIds}
         onApply={vi.fn()}
         onApplySystem={onApplySystem}
         onClose={vi.fn()}
@@ -125,6 +126,32 @@ describe("SubstitutionDialog — opens without exception", () => {
     renderDialog();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(await screen.findByText(/Anionic C/)).toBeInTheDocument();
+  });
+});
+
+describe("SubstitutionDialog — FVL-03.007 initialExtraLineIds", () => {
+  it("pre-checks the named extra lines on open, entering system mode without a manual click", async () => {
+    renderDialog(vi.fn(), ["line-b"]);
+    await screen.findByText(/Anionic C/);
+    const lineBCheckbox = screen.getByRole("checkbox", { name: /Preservative B/ });
+    expect((lineBCheckbox as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Generate candidate systems" })).toBeEnabled();
+  });
+
+  it("the human can still uncheck a pre-selected line — pre-selection is not forced membership", async () => {
+    const user = userEvent.setup();
+    renderDialog(vi.fn(), ["line-b"]);
+    await screen.findByText(/Anionic C/);
+    const lineBCheckbox = screen.getByRole("checkbox", { name: /Preservative B/ });
+    await user.click(lineBCheckbox);
+    expect((lineBCheckbox as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByRole("button", { name: "Generate candidate systems" })).toBeDisabled();
+  });
+
+  it("ignores an extra id that names no real line, without crashing or entering system mode", async () => {
+    renderDialog(vi.fn(), ["not-a-real-line"]);
+    await screen.findByText(/Anionic C/);
+    expect(screen.getByRole("button", { name: "Generate candidate systems" })).toBeDisabled();
   });
 });
 
