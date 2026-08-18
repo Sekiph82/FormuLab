@@ -339,9 +339,11 @@ None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003/.004 fully closed
 
 ## Latest commit SHA
 
-(updated in the closure-pointer follow-up commit for this session).
-Prior: `426c9a196b7225e1a1e025536fdea9c9dd643f25` — "docs: finalize
-FVL-03.003 closure pointer with commit SHA".
+`ff923227a5bfe6b7347e36d842268f2562882fc5` (pushed to and matching
+`origin/feature/laboratory-stability`) — "feat(v1): integrate canonical
+inventory feasibility". Prior:
+`426c9a196b7225e1a1e025536fdea9c9dd643f25` — "docs: finalize FVL-03.003
+closure pointer with commit SHA".
 
 ## Reminder
 
