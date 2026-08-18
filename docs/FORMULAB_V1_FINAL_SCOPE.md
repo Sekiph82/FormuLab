@@ -174,6 +174,49 @@ sequence.
 Full package descriptions, acceptance criteria, and every subtask live in
 [`docs/FORMULAB_V1_TASK_TRACKER.md`](FORMULAB_V1_TASK_TRACKER.md).
 
+### FVL-04 scope expansion — approved 2026-08-18
+
+An explicit human decision (per the Scope-change policy above, item 1)
+approved widening FVL-04 to also cover enterprise external-source
+connector/mapping/crosswalk onboarding, alongside its original
+canonical/template-based Data Exchange confirmation work. This is a scope
+addition WITHIN the existing FVL-04 package — it does not create a new
+top-level work package. The eleven-package structure above is unchanged:
+still exactly FVL-01 through FVL-11, no `FVL-12`.
+
+Approved additions (full task detail in the tracker, FVL-04.013–.026):
+
+- FVL-04 now includes enterprise external-source connector/mapping/
+  crosswalk onboarding — a read-only connector layer (file, database, or
+  REST API extraction) that adapts a customer's existing system schema
+  into FormuLab's canonical shape through a reusable, versioned mapping
+  profile and a persistent external-ID crosswalk (never name-only
+  matching).
+- The existing Data Exchange Center remains the sole commit/validation
+  authority. The connector/mapping layer is an onboarding adapter in
+  front of it, not a second import platform — every connector-sourced
+  record still passes through the EXISTING preview, validation, human
+  review, and explicit-commit steps before becoming a canonical FormuLab
+  record.
+- Customer source systems may enter through file extraction (CSV, XLSX,
+  JSON, XML), generic read-only relational database extraction, or a REST
+  API connector contract — all sharing one common connector contract.
+- Only a generic connector architecture is in v1 scope. Vendor-specific
+  integrations (SAP, Dynamics, a named LIMS product, etc.) are explicitly
+  NOT implicitly in scope and require a separate future approval.
+- A human-readable, stable artifact naming convention for downloaded
+  literature/source documents and saved/exported formulation artifacts is
+  included (FVL-04.026) — a display title distinct from a deterministic
+  physical filename, with the original source filename and every
+  provenance identifier (DOI/source ID, URL, acquisition timestamp,
+  content hash where available) always preserved, never destroyed by
+  display renaming.
+
+No production implementation of any FVL-04.013–.026 task occurred as part
+of approving this scope — see `docs/FORMULAB_V1_TASK_TRACKER.md` for
+current status (all blank) and `docs/handoffs/FORMULAB_V1_CURRENT.md` for
+the current execution pointer (unchanged: `FVL-03.009`, NOT STARTED).
+
 ---
 
 ## 4. Definition of "FormuLab v1 complete"

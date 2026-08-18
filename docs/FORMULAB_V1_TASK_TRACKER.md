@@ -61,8 +61,8 @@ subjective percentages.
 |---|---|---|---|---|---|
 | FVL-01 | [#2](https://github.com/Sekiph82/FormuLab/issues/2) (closed) | 21 | 21 | 0 | 0 |
 | FVL-02 | [#3](https://github.com/Sekiph82/FormuLab/issues/3) (closed) | 24 | 24 | 0 | 0 |
-| FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) | 18 | 7 | 0 | 11 |
-| FVL-04 | [#5](https://github.com/Sekiph82/FormuLab/issues/5) | 12 | 0 | 0 | 12 |
+| FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) | 18 | 14 | 0 | 4 |
+| FVL-04 | [#5](https://github.com/Sekiph82/FormuLab/issues/5) | 26 | 0 | 0 | 26 |
 | FVL-05 | [#6](https://github.com/Sekiph82/FormuLab/issues/6) | 14 | 0 | 0 | 14 |
 | FVL-06 | [#7](https://github.com/Sekiph82/FormuLab/issues/7) | 10 | 0 | 0 | 10 |
 | FVL-07 | [#8](https://github.com/Sekiph82/FormuLab/issues/8) | 16 | 0 | 0 | 16 |
@@ -70,11 +70,19 @@ subjective percentages.
 | FVL-09 | [#10](https://github.com/Sekiph82/FormuLab/issues/10) | 10 | 0 | 0 | 10 |
 | FVL-10 | [#11](https://github.com/Sekiph82/FormuLab/issues/11) | 10 | 0 | 0 | 10 |
 | FVL-11 | [#12](https://github.com/Sekiph82/FormuLab/issues/12) | 14 | 0 | 0 | 14 |
-| **Total** | milestone [#1](https://github.com/Sekiph82/FormuLab/milestone/1) | **157** | **27** | **0** | **130** |
+| **Total** | milestone [#1](https://github.com/Sekiph82/FormuLab/milestone/1) | **171** | **59** | **0** | **112** |
 
-Overall: **27 / 157 tasks completed (17.2%)**. FVL-01 is the only fully
-closed package (100%, 21/21). FVL-03 is 6/18 (33.3%) after the scientific
-full-formulation architecture correction (FVL-03.013-018).
+Overall: **59 / 171 tasks completed (34.5%)**. FVL-01 and FVL-02 are the
+only fully closed packages (100%, 21/21 and 24/24). FVL-03 is 14/18
+(77.8%) after FVL-03.001-.008 (Material Master through Compatibility
+Engine integration). FVL-04 grew from 12 to 26 tasks on 2026-08-18 —
+approved scope expansion adding enterprise external-source connector/
+mapping/crosswalk onboarding (FVL-04.013-.025) and a human-readable
+literature/formulation artifact naming convention (FVL-04.026); all 14
+new tasks are blank, none started. This table's FVL-03/Total row counts
+were found stale (not recomputed since an earlier session) and corrected
+in the same edit that added FVL-04's new tasks — recomputed directly
+from the tracker's own per-task status cells, not estimated.
 
 ---
 
@@ -259,12 +267,78 @@ tests (1252 baseline + 6 new: 5 `FormulationResultPage.test.tsx` +
 
 ## FVL-04 — Data Onboarding Through Existing Data Exchange
 
-Use the existing Data Exchange Center (24-template registry). No crawler,
-no parallel import framework.
+Use the existing Data Exchange Center (template registry — see
+`docs/DATA_EXCHANGE_CENTER.md` for the current template count and
+architecture). No crawler, no parallel import framework.
+
+This package covers TWO related onboarding cases, both landing in the
+SAME existing Data Exchange lifecycle:
+
+**A. Canonical/template-based onboarding** (FVL-04.001–.012) — confirm and,
+only where genuinely necessary, extend the existing template registry for
+FormuLab's own native import/export shape.
+
+**B. External/customer-system schema adaptation** (FVL-04.013–.026,
+approved scope expansion, 2026-08-18) — a read-only connector/mapping/
+crosswalk layer that lets an enterprise customer's existing systems (ERP,
+LIMS, proprietary formulation software, spreadsheets, relational
+databases, REST APIs) enter through the SAME existing Data Exchange
+preview/validation/commit authority, without customer-specific
+modifications to FormuLab's canonical business engines.
+
+**This is NOT a second import platform.** The connector/mapping layer is
+an enterprise onboarding adapter in front of the existing Data Exchange
+authority. It owns: extraction, source-schema description, source-to-
+canonical mapping, external-ID resolution, repeatable transformation
+configuration. It does NOT own: Material Master business rules, cost
+calculations, inventory availability calculations, compatibility, safety,
+or regulatory verdicts, formulation generation, laboratory interpretation,
+or Data Exchange commit semantics — the single-authority principle
+(`docs/FORMULAB_V1_FINAL_SCOPE.md`'s "Single-authority principle") applies
+here exactly as it does to every FVL-03 engine integration.
+
+Required architecture for the connector layer (FVL-04.013–.026):
+
+```
+Customer / External System
+    ↓
+Read-only Connector / Extractor
+    ↓
+Source Staging
+    ↓
+Schema Discovery
+    ↓
+Customer Mapping Profile
+    ↓
+Transformation / Crosswalk Resolution
+    ↓
+Canonical FormuLab import objects
+    ↓
+EXISTING Data Exchange Preview
+    ↓
+EXISTING Validation
+    ↓
+Human Review
+    ↓
+EXISTING Explicit Commit
+    ↓
+Canonical FormuLab records
+```
+
+**Explicitly out of scope for v1**: no supplier crawler; no new literature
+crawler; no new Regulatory Database; no second Data Exchange; no
+vendor-specific ERP connector (SAP, Dynamics, etc.) unless separately
+approved later; no business-engine duplication of any kind.
 
 **Existing dependency / baseline capability**: Data Exchange Center (Phase
 6) — template registry, CSV/XLSX generation, validation/preview engine,
-commit layer, import history — already implemented and tested.
+commit layer, import history — already implemented and tested. See
+`docs/DATA_EXCHANGE_CENTER.md`, `docs/DATA_EXCHANGE_IMPORTS.md`,
+`docs/DATA_EXCHANGE_TEMPLATE_REGISTRY.md`, `docs/DATA_EXCHANGE_HISTORY.md`.
+Confirmed by this session's own audit: no alias/header-mapping, external-ID
+crosswalk, or source-schema-discovery capability exists anywhere in the
+current Data Exchange architecture — FVL-04.013–.026 is a genuinely new
+adapter layer, not a duplicate of anything already implemented.
 
 | Task ID | Title | Depends on | Blocking | Status |
 |---|---|---|---|---|
@@ -280,6 +354,20 @@ commit layer, import history — already implemented and tested.
 | FVL-04.010 | Regulatory rule/evidence content import: verify `not_verified` seed status is preserved on import, never silently upgraded | — | YES | |
 | FVL-04.011 | Extend the existing template registry only where a genuinely necessary field mapping is proven missing (no new import framework) | FVL-04.001–010 | NO | |
 | FVL-04.012 | Real sample file acceptance test per confirmed/extended template, using disposable fixtures | FVL-04.011 | YES | |
+| FVL-04.013 | External Source Connector Contract — define the common read-only connector contract for external/customer systems: connector/profile ID, source system ID/name/version, source entity/dataset, source record identity, extraction mode, schema metadata, raw source values, source timestamps, extraction timestamp, source lineage, connector version, error/result contract. No canonical FormuLab business rules in the connector contract. | FVL-04.001, FVL-04.002, FVL-04.003, FVL-04.004, FVL-04.005, FVL-04.006, FVL-04.007, FVL-04.008, FVL-04.009, FVL-04.010 | YES | |
+| FVL-04.014 | Generic File Connector — scope for generic external-source file ingestion (CSV, XLSX, JSON, XML where current libraries already permit) that reads the customer's own source structure, does not require FormuLab column names, and feeds source staging/schema discovery, ultimately entering the existing Data Exchange lifecycle. | FVL-04.013 | YES | |
+| FVL-04.015 | Source Schema Discovery — deterministic discovery/inspection of incoming source schemas: field/column names, primitive data types, nullable/missing patterns, date formats, decimal conventions, units when explicitly represented, probable primary/external IDs, relationship/reference columns, sheet/table/entity structure. Discovery may propose classifications but must never silently create authoritative canonical mappings. | FVL-04.013, FVL-04.014 | YES | |
+| FVL-04.016 | Mapping Profile Model — reusable, versioned customer mapping profiles recording source system, source entity, destination canonical entity, source field, destination field, transformation references, required/optional status, default only where explicitly allowed, relationship mapping, mapping version, created/updated timestamps, human approval state, mapping provenance. A mapping can fan one source entity into multiple canonical FormuLab record types (e.g. one external raw-material row → RawMaterial + Supplier + MaterialSupplier + MaterialPrice + InventoryRecord) — a simple one-column rename is not assumed sufficient. | FVL-04.015 | YES | |
+| FVL-04.017 | External ID Crosswalk Registry — persistent crosswalk from external source identity (sourceSystem/sourceEntity/sourceRecordId) to canonical FormuLab identity (canonicalEntity/canonicalRecordId), e.g. CHT_LIMS/MATERIAL/883729 → RawMaterial/RM-00291. Stable external IDs preferred over display-name matching; aliases/names are never authoritative identity; requires mapping provenance, mapping version, conflict detection, human confirmation when unresolved/ambiguous, reuse on later imports. No name-only silent matching. | FVL-04.016 | YES | |
+| FVL-04.018 | Transformation / Unit / Enum Mapping — configurable transformations between customer and FormuLab representations: decimal locale conversion, date parsing, whitespace normalization, explicit text casing where safe, enum/value crosswalk, unit conversion through an EXISTING canonical unit-conversion capability where one exists, boolean representation mapping, relationship resolution. No duplicate business engines — reuse an existing FormuLab domain conversion/validation function wherever one already exists. Missing/ambiguous transformations fail validation or remain unresolved, never guessed. | FVL-04.016 | YES | |
+| FVL-04.019 | Formula / Recipe Relationship Import — customer recipe/formula migration into existing Formulation/FormulationVersion/FormulationLine: preserve source formula ID and source version ID if present, resolve materials through the external-ID crosswalk, keep unresolved materials explicit, preserve exact source percentages/quantities, validate units and relationship integrity, validate mass/composition structure using existing FormuLab validation, never invent missing concentration, never silently identify a material from a trade name, retain original source lineage. | FVL-04.017, FVL-04.018 | YES | |
+| FVL-04.020 | Laboratory / Test Result Relationship Import — migration of customer laboratory/history records into existing LaboratoryTrial/TestResult and applicable existing stability/DOE linkage: external trial ID, external formula/version reference, sample/test references, measurement metadata, timestamps, method/device where available, units, raw values, source attachments/references where available, unresolved-linkage detection, provenance. Not a second laboratory platform — FVL-06 remains responsible for the structured measured-response expansion and instrument-specific performance model; this is the enterprise migration/mapping bridge into the existing records only. | FVL-04.017, FVL-04.018 | YES | |
+| FVL-04.021 | Generic Database Read Connector — generic READ-ONLY database connector capability (SQL Server, PostgreSQL, MySQL/MariaDB, Oracle where practical, SQLite, ODBC-compatible sources where supported) — generic connectivity, not customer-specific business logic. Read-only by architecture, configurable queries/views, no writes back to the customer database, credentials/secrets handled securely, extraction goes to source staging then mapping then the existing Data Exchange. No SAP/Dynamics/etc. business logic built into this task. | FVL-04.013, FVL-04.015 | NO | |
+| FVL-04.022 | REST API Connector Contract — REST-based external extraction using the same connector contract: API endpoint/entity configuration, pagination, authentication references, incremental cursors/timestamps where exposed by the source, error/retry semantics, source identity, raw-response lineage. Auth mechanisms limited to what implementation later proves necessary (e.g. API key, Basic, OAuth2/client credentials). No vendor-specific API implementation in the tracker unless separately approved later. | FVL-04.013, FVL-04.015 | NO | |
+| FVL-04.023 | Incremental Re-import / Conflict Handling — repeatable enterprise re-import behavior: same external record maps to the same canonical identity via the crosswalk; detect new vs updated vs unchanged source rows; detect mapping conflicts; detect deleted/missing source records without silently deleting canonical history; no duplicate canonical records on repeated import; dry-run/preview before commit; preserve import batch/job lineage; deterministic conflict outcomes; human decision required for ambiguous/destructive changes. | FVL-04.017, FVL-04.024 | YES | |
+| FVL-04.024 | Connector → Existing Data Exchange Bridge — the critical architectural integration task: connector output must enter the EXISTING Data Exchange lifecycle exactly (connector extraction → source staging → mapping/transformation → canonical import candidate → existing Data Exchange preview → existing validator → human review → existing explicit commit → existing import history). Prove there is NO second commit/import authority and no second import-history model — reuse the existing one. | FVL-04.014, FVL-04.015, FVL-04.016, FVL-04.017, FVL-04.018, FVL-04.019, FVL-04.020, FVL-04.021, FVL-04.022 | YES | |
+| FVL-04.025 | Customer Migration Acceptance Fixture — future acceptance task (not its implementation now): a realistic enterprise customer fixture with intentionally non-FormuLab schemas covering materials, suppliers, prices, inventory, formulations/recipes, formulation versions, laboratory trials/test results, with deliberately different column names, IDs, decimal/date conventions, units, enum values, relationships. Must prove schema discovery, a saved mapping profile, the external-ID crosswalk, transformations, unresolved-data handling, repeat import without duplication, preview/validation, human explicit commit, lineage, final canonical records. Disposable fixtures only. | FVL-04.012, FVL-04.019, FVL-04.020, FVL-04.023, FVL-04.024 | YES | |
+| FVL-04.026 | Human-Readable Literature & Formulation Artifact Naming Convention — ONE deterministic, cross-platform-safe naming convention for (A) downloaded literature/source documents and (B) saved/exported formulation artifacts, replacing opaque names like `DOI-209899898789.pdf` with a human-browsable filename while keeping stable identifiers for uniqueness/provenance. Literature: a display title separate from the physical filename (`<First Author> (<Year>) — <Short Human-Readable Title>`, e.g. "Sharma (2024) — Herbal Anti-Dandruff Shampoo Formulation and Evaluation") and a deterministic filename `LIT_<Year>_<FirstAuthor>_<ShortTitle>_<StableSourceId>.<ext>` (year/author fall back to `UnknownYear`/`UnknownAuthor`; DOI slashes and filesystem-illegal characters sanitized deterministically; original extension preserved; no illegal Windows characters; no trailing dot/space; reasonable max length; collision-safe deterministic suffix). Formulation: a display title `<Product Family> — <Formula Name> — <Formula Code> — V<Version>` and a deterministic export filename `FORM_<ProductFamily>_<ShortFormulaName>_<FormulaCode>_V<Version>_<ArtifactType>.<ext>` (e.g. "FORM_Shampoo_Anti-Dandruff_FML-0042_V03_Formula.xlsx") — never renaming canonical internal database IDs. The ORIGINAL source filename, URL/source, DOI/source ID, acquisition timestamp, and content hash (if already available) are always preserved as provenance metadata, never destroyed by display renaming — reuse existing provenance/storage models, no duplicate document registry. | FVL-01, FVL-03.011 | NO | |
 
 ---
 

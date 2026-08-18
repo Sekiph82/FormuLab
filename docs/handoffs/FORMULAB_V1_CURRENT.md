@@ -9,7 +9,8 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 - Scope: [`docs/FORMULAB_V1_FINAL_SCOPE.md`](../FORMULAB_V1_FINAL_SCOPE.md)
   — frozen 2026-08-17.
 - Tracker: [`docs/FORMULAB_V1_TASK_TRACKER.md`](../FORMULAB_V1_TASK_TRACKER.md)
-  — 11 work packages (FVL-01..FVL-11), 157 tasks total.
+  — 11 work packages (FVL-01..FVL-11), 171 tasks total (FVL-04 grew from
+  12 to 26 tasks on 2026-08-18 — see "FVL-04 scope expansion" below).
 
 ## Current work package
 
@@ -25,6 +26,30 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 "Exact next task" below). FVL-03.008 — wiring the existing Compatibility
 Engine as the authoritative compatibility verdict for generated formulas
 — COMPLETED this session (no subagents used, per explicit instruction).
+
+## FVL-04 scope expansion (2026-08-18, documentation/tracker session only)
+
+An explicit human decision approved widening FVL-04 (Data Onboarding
+Through Existing Data Exchange) from 12 to 26 tasks: FVL-04.013–.025 add
+enterprise external-source connector/mapping/crosswalk onboarding (a
+read-only connector layer — file/database/REST API extraction, a
+reusable mapping profile, and an external-ID crosswalk — landing in the
+SAME existing Data Exchange preview/validation/commit lifecycle, never a
+second import platform); FVL-04.026 adds a human-readable, stable
+naming convention for downloaded literature/source documents and saved/
+exported formulation artifacts. Full detail in
+`docs/FORMULAB_V1_TASK_TRACKER.md`'s FVL-04 section and
+`docs/FORMULAB_V1_FINAL_SCOPE.md`'s new "FVL-04 scope expansion —
+approved 2026-08-18" subsection.
+
+**This session was documentation/tracker scope only — no production code,
+schema, or UI was created or modified.** All 14 new tasks are blank, none
+started. **FVL-04 IMPLEMENTATION — NOT STARTED.**
+
+**The current implementation pointer does NOT move.** It remains exactly
+as recorded above:
+
+**CURRENT IMPLEMENTATION TASK REMAINS: `FVL-03.009` — NOT STARTED.**
 
 ## FVL-03.008 resolution (this session)
 
