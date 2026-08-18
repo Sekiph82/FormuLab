@@ -31,7 +31,7 @@ import evidence
 import fulltext
 import literature_cache
 import manufacturing
-import materials
+import master_materials_adapter
 import provenance
 import regulatory
 import safety
@@ -425,6 +425,10 @@ def run(
     out_dir: str,
     n: int = 3,
     formulas_dir: str | None = None,
+    # FVL-03.002: this is the canonical Material Master directory
+    # (`data/master`, owned by `masterdata.rs`), not a legacy materials
+    # folder — read via `master_materials_adapter.load_master_materials()`,
+    # never `materials.load_materials()`, for the generation path below.
     materials_dir: str | None = None,
     download_fulltexts: bool = True,
     log: Callable[[str], None] = lambda m: None,
@@ -502,7 +506,7 @@ def run(
     materials_list: List[Dict[str, Any]] = []
     if materials_dir:
         try:
-            materials_list = materials.load_materials(materials_dir).get("materials", [])
+            materials_list = master_materials_adapter.load_master_materials(materials_dir)
         except OSError:
             materials_list = []
     queries = build_queries(brief, constraints, scent_character=parsed_requirements.scent_character)

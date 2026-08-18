@@ -14,19 +14,70 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 7/18 tasks COMPLETED (FVL-03.001, FVL-03.013-018). FVL-01
-remains CLOSED (21/21); FVL-02 remains CLOSED (24/24, 2026-08-17).
+ON PROCESS, 8/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.013-018).
+FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.002`** — blank, NOT STARTED. An architecture-correction session
-(2026-08-18, see below) hardened FVL-03.002-.012's wording with the
-SINGLE-AUTHORITY rule and a code-traced duplicate-authority audit, but
-deliberately did not implement anything — `FVL-03.002` ("canonical
-Material Master reaches `build_candidate_pool()` through a shape-only
-adapter, `RawMaterial.code` carried end-to-end, no duplicated
-supplier/price business logic") remains the next frozen task per the
-tracker's own dependency chain. Still not begun.
+**`FVL-03.003`** — blank, NOT STARTED. `FVL-03.002` closed this session
+(see below) — `FVL-03.003` ("wire landed cost + exchange rates into a
+real cost-oriented strategy, reuse existing Cost Engine, no
+reimplementation") is the next frozen task per the tracker's own
+dependency chain. Deliberately not begun this session.
+
+## FVL-03.002 resolution (this session)
+
+"Canonical Material Master / supplier linkage into formulation generation
+under the SINGLE-AUTHORITY architecture." New
+`runtime/pipeline/master_materials_adapter.py` — a shape-only adapter
+reading `data/master/{materials,material_suppliers,suppliers,
+material_prices}.json` directly (bare canonical JSON arrays, no new
+storage/database). Real identity: `RawMaterial.code` now carried as
+`material_code` through `IngredientCandidate` → `SolvedIngredient` →
+`traceability.selected_event()`'s `source_ids` → the rendered formula
+ingredient dict — in addition to, never instead of, the existing
+INCI/name text-matching pool key. Makes `resolve_concentration()`'s Tier 4
+(supplier recommended range) live end-to-end for the first time (FVL-03.001
+proved it dead code on the legacy path). Adds a new `technical_max_pct`
+hard-ceiling clamp, implemented exactly once (`resolve_concentration()`'s
+own thin wrapper over the renamed `_resolve_concentration_tiers()`,
+`ConcentrationResolution.technical_max_clamped` flag, persisted into trace
+event `output_values`).
+
+**Single-authority boundary held, proven by test**: the adapter never
+selects a current price the way `cost.ts::priceFor()` does — no `price`/
+`currency` key is ever set on an emitted row; `material_price_refs` passes
+every matching `MaterialPrice` row through raw/unfiltered instead. Supplier
+identity is kept as the full `material_supplier_refs` set; a `supplier`
+display string only surfaces when the canonical `MaterialSupplier.preferred`
+field already makes it unambiguous (exactly one `preferred: true` link) —
+never a new ranking rule. `_selection_score()`'s existing price tie-break
+bonus is therefore untouched but receives no signal for canonical-sourced
+candidates until FVL-03.003 wires real costing — a disclosed, intentional
+behavior change, not a retune.
+
+**Rust**: `formulation_v2.rs`'s `generate_formulation` payload now points
+`materials_dir` at `data/master` (was `data`) — confirmed the identical
+resolved path to `masterdata.rs::master_dir()`. The new adapter module was
+registered in `materialize_pipeline()`'s embedded-file list; verified by
+reproducing the exact materialized file set in a disposable temp directory
+and importing `pipeline` cleanly — the same class of shipped-binary
+`ImportError` bug FVL-02.009 found and fixed for `architecture_portfolio.py`
+is proactively avoided here. `runtime/pipeline/materials.py`/
+`materials.rs`'s legacy CSV-import commands (Settings → General) untouched,
+unrelated, out of scope — a real, disclosed behavior change: materials that
+only exist in that legacy store no longer surface as AI-generation
+candidates (decided with the user during the architecture-correction
+session, shipped without an added migration/warning).
+
+Verified: `python -m pytest runtime/pipeline -q` — 393 passed, 5 subtests
+(15 new tests: 11 in `test_master_materials_adapter.py`, 3
+`technical_max_pct` clamp tests in `test_engine.py`, 1 new end-to-end Tier-4
+test in `test_pipeline.py`; 2 existing tests extended in place). `cargo test
+masterdata:: formulation_v2::` — 28/28 passing. `cargo check` — clean.
+`python scripts/validate_v1_tracker.py` — OK, 157 tasks, no drift. No
+FVL-03.003/.004 work started; no Python price-selection/landed-cost/FX
+logic added anywhere.
 
 ## Architecture correction (2026-08-18) — SINGLE-AUTHORITY rule adopted
 
@@ -136,35 +187,37 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.002`** — blank, NOT STARTED (see above). Wire supplier records
-+ price history into candidate concentration/cost basis, per the exact
-adapter/seam `FVL-03.001`'s own audit defined (`docs/
-FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`). One source of truth (the
-canonical `data/master/*.json` store), no duplicated cost formula. Not
-begun this session.
+**`FVL-03.003`** — blank, NOT STARTED (see above). Wire landed cost +
+exchange rates into a real cost-oriented strategy — reuse the existing
+Cost Engine (`packages/shared/src/engine/cost.ts::costFormula()`/
+`buildCostSnapshot()`), no Python reimplementation. Retire/bypass
+`materials.py::cost_formula()` for the generation path. Not begun this
+session.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001 fully closed (audit only,
-no code change — see above).
+None. FVL-01/FVL-02 fully closed; FVL-03.001/.002 fully closed (see above).
 
 ## Most recent relevant tests
 
-- `python -m pytest runtime/pipeline -q` — 378 passed, 5 subtests passed.
-- `packages/shared/src/engine/cost.test.ts` (existing Cost Engine suite,
-  re-verified untouched by this session's audit) — 44/44 passing.
+- `python -m pytest runtime/pipeline -q` — 393 passed, 5 subtests passed.
+- `cargo test masterdata:: formulation_v2::` — 28/28 passing.
+- `cargo check` — clean.
+- `python scripts/validate_v1_tracker.py` — OK, 157 tasks, no drift.
 - `git diff --check` — clean.
-- No Rust/TypeScript/frontend production code changed this session (pure
-  audit + Python-side proof tests) — no rebuild performed, per the
-  standing "only rebuild when shipped code actually changes" policy.
+- Rust production code changed this session (`formulation_v2.rs`) — no
+  desktop rebuild/installer performed (only a `cargo check`/targeted
+  `cargo test`, matching the standing "full rebuild reserved for closure
+  sessions" policy; nothing in this session's own acceptance criteria
+  required a shipped binary).
 
 ## Latest commit SHA
 
-`c2ef4e5b6b279fcee475399490986a58208945ab` (pushed to and matching
-`origin/feature/laboratory-stability`) — "docs(v1): enforce single-authority
-integration architecture" (architecture-correction session, no production
-code changed). Prior: `86e965a6f8ddbb2144e077f05fbe66a635a46bd0` — "docs(v1):
-close FVL-03.001 material master integration-seam audit".
+(updated in the closure-pointer follow-up commit for this session — see
+next entry after this one is superseded).
+Prior: `c2ef4e5b6b279fcee475399490986a58208945ab` — "docs(v1): enforce
+single-authority integration architecture" (architecture-correction
+session, no production code changed).
 
 ## Reminder
 

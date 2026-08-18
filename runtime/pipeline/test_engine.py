@@ -250,6 +250,39 @@ class ConcentrationHierarchyTests(unittest.TestCase):
         self.assertEqual(res.source_type, "supplier_data")
         self.assertIsNotNone(res.value)
 
+    def test_technical_max_pct_clamps_a_higher_supplier_range_value(self):
+        """FVL-03.002: the ceiling is real when `technical_max_pct` is
+        present and the tiered value exceeds it — implemented once, in
+        `resolve_concentration()`'s own wrapper, not per-tier."""
+        c = engine.IngredientCandidate(
+            key="x", display_name="X", roles=["chelator"], origins=[engine.ORIGIN_SUPPLIER_DATA],
+            supplier_material={"recommended_min_pct": 5.0, "recommended_max_pct": 8.0,
+                                "technical_max_pct": 2.0},
+        )
+        res = engine.resolve_concentration(c, "chelator", [], "balanced")
+        self.assertEqual(res.value, 2.0)
+        self.assertTrue(res.technical_max_clamped)
+        self.assertEqual(res.source_type, "supplier_data")
+
+    def test_technical_max_pct_never_invented_when_absent(self):
+        c = engine.IngredientCandidate(
+            key="x", display_name="X", roles=["chelator"], origins=[engine.ORIGIN_SUPPLIER_DATA],
+            supplier_material={"recommended_min_pct": 0.1, "recommended_max_pct": 0.3},
+        )
+        res = engine.resolve_concentration(c, "chelator", [], "balanced")
+        self.assertFalse(res.technical_max_clamped)
+        self.assertLessEqual(res.value, 0.3)
+
+    def test_technical_max_pct_does_not_clamp_a_value_already_within_range(self):
+        c = engine.IngredientCandidate(
+            key="x", display_name="X", roles=["chelator"], origins=[engine.ORIGIN_SUPPLIER_DATA],
+            supplier_material={"recommended_min_pct": 0.1, "recommended_max_pct": 0.3,
+                                "technical_max_pct": 5.0},
+        )
+        res = engine.resolve_concentration(c, "chelator", [], "balanced")
+        self.assertFalse(res.technical_max_clamped)
+        self.assertLessEqual(res.value, 0.3)
+
     def test_resolves_from_internal_engineering_default_for_non_active_role(self):
         c = engine.IngredientCandidate(key="x", display_name="X", roles=["preservative"],
                                          origins=[engine.ORIGIN_DETERMINISTIC_RULE])

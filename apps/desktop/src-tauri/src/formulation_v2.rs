@@ -55,6 +55,8 @@ const F_PROVENANCE: &str = include_str!("../../../../runtime/pipeline/provenance
 // fails with ImportError on every real run.
 const F_ENGINE: &str = include_str!("../../../../runtime/pipeline/engine.py");
 const F_MATERIALS: &str = include_str!("../../../../runtime/pipeline/materials.py");
+const F_MASTER_MATERIALS_ADAPTER: &str =
+    include_str!("../../../../runtime/pipeline/master_materials_adapter.py");
 // Phase 14 Session 5 (Phase 15 zero-LLM round): pipeline.py now imports
 // manufacturing.py directly (Manufacturing Procedure/Critical Parameters/
 // Equipment intelligence, zero LLM) — same requirement as every module
@@ -167,6 +169,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("provenance.py", F_PROVENANCE),
         ("engine.py", F_ENGINE),
         ("materials.py", F_MATERIALS),
+        ("master_materials_adapter.py", F_MASTER_MATERIALS_ADAPTER),
         ("manufacturing.py", F_MANUFACTURING),
         ("traceability.py", F_TRACEABILITY),
         ("safety.py", F_SAFETY),
@@ -207,13 +210,16 @@ pub async fn generate_formulation(
     let library = data_dir(&app, &["data", "literature"])?; // shared cache + pdfs
     let formulas = data_dir(&app, &["formulas"])?; // flat library of every card
     let sessions = data_dir(&app, &["data", "sessions"])?;
-    // The same `data/` directory `materials.rs`'s own `import_materials`/
-    // `list_materials` commands already read and write `materials.json`
-    // under (Phase 15 zero-LLM round: the deterministic engine's real
-    // supplier-candidate source — see `engine.py::build_candidate_pool`).
-    // Simply has no materials to contribute when the user has never
-    // imported a raw-material list — never an error.
-    let materials_root = data_dir(&app, &["data"])?;
+    // FVL-03.002 (single-authority correction): this points at the
+    // CANONICAL Material Master `masterdata.rs` owns (`data/master`),
+    // read by `master_materials_adapter.py` — deliberately a DIFFERENT
+    // directory than `materials.rs`'s own legacy `import_materials`/
+    // `list_materials` commands, which still read/write the separate
+    // `data/materials.json` for the unrelated Settings -> General
+    // CSV-import screen (out of scope here, untouched). Simply has no
+    // materials to contribute when the canonical store is empty — never
+    // an error (see `engine.py::build_candidate_pool`).
+    let materials_root = data_dir(&app, &["data", "master"])?;
 
     // Python names the session folder (it has date formatting) as
     // YYYY-MM-DD-HHMM-<slug> and reports the path back.

@@ -414,7 +414,7 @@ _SUPPLIER_FUNCTION_KEYWORDS: Dict[str, Tuple[str, ...]] = {
     "humectant": ("humectant", "moistur"),
     "conditioning_agent": ("condition",),
     "fragrance": ("fragrance", "perfume"),
-    "ph_adjuster": ("ph adjust", "buffer", "acidifier", "alkalizer"),
+    "ph_adjuster": ("ph adjust", "ph_adjust", "buffer", "acidifier", "alkalizer"),
     "emulsifier": ("emulsif",),
     "oil_phase": ("emollient", "oil phase", "ester"),
     "abrasive": ("abrasive", "polishing"),
@@ -504,6 +504,14 @@ class IngredientCandidate:
     origins: List[str] = field(default_factory=list)
     evidence_records: List[EvidenceRecord] = field(default_factory=list)
     supplier_material: Optional[Dict[str, Any]] = None
+    material_code: Optional[str] = None
+    """FVL-03.002 — the canonical `RawMaterial.code` (`packages/shared/src/
+    schemas/materials.ts`), when this candidate matched a canonical
+    Material Master row via `master_materials_adapter`. Carried IN
+    ADDITION to (never instead of) the existing `key`/INCI-name text
+    matching — `key` stays the pool's matching mechanism; `material_code`
+    is the durable identity for traceability and any future engine
+    (costing, inventory) that needs to join back to the real record."""
     excluded: bool = False
     exclusion_reason: str = ""
     scientific_formulation_ref: Optional[Dict[str, Any]] = None
@@ -701,6 +709,8 @@ def build_candidate_pool(
         if ORIGIN_SUPPLIER_DATA not in c.origins:
             c.origins.append(ORIGIN_SUPPLIER_DATA)
         c.supplier_material = m
+        if not c.material_code:
+            c.material_code = m.get("code") or m.get("material_code")
         mark_excluded_if_needed(c)
 
     # 4. The universal aqueous base. Including water as the solvent for an
@@ -766,6 +776,13 @@ class ConcentrationResolution:
     what actually resolved the value, for direct display, never guessed
     after the fact."""
     note: str
+    technical_max_clamped: bool = False
+    """FVL-03.002 — true when `resolve_concentration()`'s own final,
+    single-implementation-point ceiling capped an otherwise-higher value
+    to the material's canonical `technicalMaxPercent` (a "does not work
+    above this, whatever a spec says" hard ceiling, never a preference).
+    `source_type`/`basis` are left describing where the (pre-cap) value
+    itself came from; this flag is the only signal a cap happened."""
 
 
 _STRATEGY_BIAS_LOW = {"cost_optimized", "sensitive_skin"}
@@ -842,7 +859,7 @@ def _is_plausible(role: str, value: float, unit: str) -> bool:
     return lo <= value <= hi
 
 
-def resolve_concentration(
+def _resolve_concentration_tiers(
     candidate: IngredientCandidate,
     role: str,
     ranked_evidence: List[EvidenceRecord],
@@ -931,6 +948,33 @@ def resolve_concentration(
     return ConcentrationResolution(value=None, unit="", basis="", source_type="unresolved",
                                     note="no evidence, supplier range, or applicable engineering "
                                          "default was available for this ingredient")
+
+
+def resolve_concentration(
+    candidate: IngredientCandidate,
+    role: str,
+    ranked_evidence: List[EvidenceRecord],
+    strategy_type: str,
+) -> ConcentrationResolution:
+    """FVL-03.002 — thin wrapper over `_resolve_concentration_tiers()`
+    applying the canonical `technicalMaxPercent` hard ceiling exactly ONCE,
+    regardless of which tier produced the value — never duplicated per
+    tier. A material with no `technical_max_pct` (the common case today)
+    never has one invented; the tiered value passes through unchanged."""
+    resolution = _resolve_concentration_tiers(candidate, role, ranked_evidence, strategy_type)
+    m = candidate.supplier_material
+    if not m or resolution.value is None:
+        return resolution
+    technical_max = m.get("technical_max_pct")
+    if isinstance(technical_max, (int, float)) and resolution.value > technical_max:
+        return ConcentrationResolution(
+            value=float(technical_max), unit=resolution.unit, basis=resolution.basis,
+            source_type=resolution.source_type,
+            note=f"{resolution.note} — capped to the material's technical maximum "
+                 f"{technical_max}% (hard ceiling)",
+            technical_max_clamped=True,
+        )
+    return resolution
 
 
 # -------------------------------------------------------------- solver ----
@@ -1023,6 +1067,9 @@ class SolvedIngredient:
     evidence_class: Optional[str]
     best_evidence_record: Optional[EvidenceRecord] = None
     scientific_formulation_ref: Optional[Dict[str, Any]] = None
+    material_code: Optional[str] = None
+    """FVL-03.002 — carried through from `IngredientCandidate.material_code`
+    when the winning candidate matched a canonical Material Master row."""
 
 
 def _best_record(candidate: IngredientCandidate) -> Optional[EvidenceRecord]:
@@ -1213,16 +1260,26 @@ def build_formula_for_strategy(
                 origins=list(c.origins), concentration=resolution,
                 evidence_class=c.best_evidence_class(), best_evidence_record=_best_record(c),
                 scientific_formulation_ref=c.scientific_formulation_ref,
+                material_code=c.material_code,
             ))
+            # FVL-03.002: `material_code` (the real, canonical identity) is
+            # preferred over the legacy `material_id` string when present —
+            # carried in addition to, never instead of, the existing
+            # origin/evidence source_ids this event already records.
+            source_ids = (
+                [c.material_code] if c.material_code
+                else ([c.supplier_material.get("material_id", "")] if c.supplier_material else [])
+            )
             trace_events.append(traceability.selected_event(
                 version_id, role, c.display_name, list(c.origins),
-                source_ids=([c.supplier_material.get("material_id", "")] if c.supplier_material else []),
+                source_ids=source_ids,
                 evidence_ids=[r.paper_doi for r in c.evidence_records if r.paper_doi][:5],
                 rationale=f"highest-ranked non-excluded candidate for {role} "
                           f"(origins: {', '.join(c.origins)})",
                 input_values={"role": role, "level": level},
                 output_values={"concentration": resolution.value, "unit": resolution.unit,
-                                "source_type": resolution.source_type},
+                                "source_type": resolution.source_type,
+                                "technical_max_clamped": resolution.technical_max_clamped},
                 status=resolution.source_type,
             ))
         # A candidate that filled the role's own candidate list but lost to
@@ -1253,11 +1310,13 @@ def build_formula_for_strategy(
     has_water = any(s.key == water_key for s in solved)
     for s in solved:
         if s.key == water_key:
-            ingredients_json.append({"inci": s.display_name, "function": "Solvent", "weight_pct": "q.s. 100"})
+            ingredients_json.append({"inci": s.display_name, "function": "Solvent", "weight_pct": "q.s. 100",
+                                      "material_code": s.material_code})
         else:
             ingredients_json.append({
                 "inci": s.display_name, "function": s.role.replace("_", " ").title(),
                 "weight_pct": f"{s.concentration.value:g}",
+                "material_code": s.material_code,
             })
     if not has_water and any(m["role"] == "solvent" for m in missing_roles):
         pass  # honestly incomplete — no fabricated water line

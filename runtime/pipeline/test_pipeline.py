@@ -389,26 +389,73 @@ class PipelineTests(unittest.TestCase):
                     self.assertTrue(origins)  # never empty — always at least one real origin
 
     def test_supplier_material_contributes_a_real_candidate(self):
-        import materials as materials_mod
+        """FVL-03.002: `materials_dir` is now the canonical Material Master
+        directory (`data/master`-shaped), read via
+        `master_materials_adapter.load_master_materials()` — bare JSON
+        arrays, `RawMaterial.code` as identity, never the legacy
+        `materials.py::save_materials()` envelope."""
         with tempfile.TemporaryDirectory() as tmp:
             lib = os.path.join(tmp, "library"); seed_library_with_concentrations(lib)
-            mat_dir = os.path.join(tmp, "matdata")
-            materials_mod.save_materials(mat_dir, [{
-                "material_id": "m1", "name": "Phenoxyethanol", "inci": "Phenoxyethanol",
-                "cas": "", "price": 4.2, "currency": "USD", "unit": "kg",
-                "supplier": "Acme Chem", "stock": None, "function": "preservative",
-                "external_ref": "",
-            }])
+            master_dir = os.path.join(tmp, "master")
+            os.makedirs(master_dir)
+            with open(os.path.join(master_dir, "materials.json"), "w", encoding="utf-8") as f:
+                json.dump([{
+                    "code": "RM-001", "displayName": "Phenoxyethanol",
+                    "inciName": "Phenoxyethanol", "casNumbers": [],
+                    "functions": ["preservative"], "active": True,
+                }], f)
+            with open(os.path.join(master_dir, "material_suppliers.json"), "w", encoding="utf-8") as f:
+                json.dump([{
+                    "code": "MS-001", "materialCode": "RM-001", "supplierCode": "SUP-001",
+                    "supplierTradeName": "Acme Chem", "preferred": True, "qualified": True,
+                }], f)
             out = os.path.join(tmp, "session")
             res = pipeline.run(
                 {"target": "anti-dandruff shampoo", "category": "shampoo"},
-                library=lib, out_dir=out, n=3, download_fulltexts=False, materials_dir=mat_dir,
+                library=lib, out_dir=out, n=3, download_fulltexts=False, materials_dir=master_dir,
             )
             self.assertEqual(res["status"], "ok")
             origins = res["cards"][0]["ingredient_origins"]
             key = "phenoxyethanol"
             self.assertIn(key, origins)
             self.assertIn("supplier_data", origins[key])
+            ingredient_rows = [
+                i for i in res["cards"][0]["formula"]["ingredients"]
+                if i["inci"] == "Phenoxyethanol"
+            ]
+            self.assertTrue(ingredient_rows)
+            self.assertEqual(ingredient_rows[0]["material_code"], "RM-001")
+
+    def test_canonical_recommended_range_makes_tier_4_concentration_live(self):
+        """FVL-03.002: the concrete regression proof FVL-03.001's audit was
+        building toward — a canonical Material Master row carrying
+        `recommendedMinPercent`/`recommendedMaxPercent` now reaches
+        `resolve_concentration()`'s Tier 4 end to end (previously proven
+        dead code for the legacy CSV path in
+        `test_material_master_seam.py`)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = os.path.join(tmp, "library"); seed_library_with_concentrations(lib)
+            master_dir = os.path.join(tmp, "master")
+            os.makedirs(master_dir)
+            with open(os.path.join(master_dir, "materials.json"), "w", encoding="utf-8") as f:
+                json.dump([{
+                    "code": "RM-002", "displayName": "Phenoxyethanol",
+                    "inciName": "Phenoxyethanol", "functions": ["preservative"],
+                    "active": True, "recommendedMinPercent": "0.4", "recommendedMaxPercent": "0.9",
+                }], f)
+            out = os.path.join(tmp, "session")
+            res = pipeline.run(
+                {"target": "anti-dandruff shampoo", "category": "shampoo"},
+                library=lib, out_dir=out, n=3, download_fulltexts=False, materials_dir=master_dir,
+            )
+            self.assertEqual(res["status"], "ok")
+            events = res["cards"][0]["trace_events"]
+            phenoxy_events = [
+                e for e in events
+                if e["subject"] == "Phenoxyethanol" and e["decision_type"] == "ingredient_selected"
+            ]
+            self.assertTrue(phenoxy_events)
+            self.assertEqual(phenoxy_events[0]["output_values"]["source_type"], "supplier_data")
 
     # --- strategies stay real and request-aware ---
 

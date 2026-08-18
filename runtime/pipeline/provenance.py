@@ -115,11 +115,14 @@ class IngredientOrigin:
     `SCIENTIFIC_EVIDENCE`), so callers work with a `List[str]`, not a single
     value.
 
-    `SUPPLIER_DATA` is real and live as of the Phase 15 zero-LLM round:
-    `pipeline.run()` now accepts a `materials_dir` and, when the user has
-    imported a priced raw-material list (`materials.py`), `engine.py`'s own
-    candidate-pool builder matches formula ingredients against it directly
-    — no LLM guess stands between a real supplier row and this origin.
+    `SUPPLIER_DATA` is real and live: `pipeline.run()` accepts a
+    `materials_dir` (as of FVL-03.002, the canonical Material Master
+    directory, `data/master`) and, when the canonical store has active
+    materials, `master_materials_adapter.load_master_materials()` reshapes
+    them and `engine.py`'s own candidate-pool builder matches formula
+    ingredients against them directly, carrying the real `RawMaterial.code`
+    as identity — no LLM guess, and no Python-side price selection, stands
+    between a real Material Master row and this origin.
 
     `INTERNAL_FORMULAB_DATA` stays reserved, still not emitted: no curated,
     lab-validated internal concentration-history database exists anywhere

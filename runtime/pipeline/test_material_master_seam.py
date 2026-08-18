@@ -1,12 +1,18 @@
-"""FormuLab v1 (FVL-03.001) — audit-proving tests for the current Material
-Master ↔ `engine.build_candidate_pool()` seam. See
+"""FormuLab v1 (FVL-03.001) — audit-proving tests for the LEGACY
+`materials.py` CSV-import path's material seam. See
 `docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`'s own FVL-03.001
 section for the full narrative these tests back with real assertions.
 
-No production code changes accompany this file — FVL-03.001 is an
-audit/seam-definition task. These tests exist to prove the CURRENT gaps
-concretely (never a wired fix) so a future FVL-03.002 session has a real,
-executable regression baseline to work against."""
+FVL-03.002 closed the generation-path seam for the CANONICAL Material
+Master (`master_materials_adapter.py`, proven in
+`test_master_materials_adapter.py` and `test_pipeline.py`'s
+`test_supplier_material_contributes_a_real_candidate`) — these tests below
+still document the separate, still-live, still-unrelated LEGACY CSV-import
+path (`materials.py::parse_materials()`, Settings -> General), which
+FVL-03.002 deliberately did not touch. They remain accurate as written for
+that path; only `test_supplier_candidate_identity_is_text_normalized_
+name_not_a_stable_code` was extended (not rewritten) to also prove the new
+`material_code` identity now available for a canonical-shaped row."""
 
 import os
 import tempfile
@@ -75,14 +81,19 @@ class CurrentMaterialSeamTests(unittest.TestCase):
         self.assertNotEqual(legacy_path.replace("\\", "/"), canonical_shaped_path)
 
     def test_supplier_candidate_identity_is_text_normalized_name_not_a_stable_code(self):
-        """Proves the identity mismatch: a supplier candidate's pool key
-        comes from `normalize_ingredient_key(inci or name)` — a derived
-        text key — never from a canonical `RawMaterial.code`-equivalent
-        stable identity. `material_id` (present in the legacy row) is
-        NOT what the pool keys on; it only survives as trailing
-        provenance (`source_ids`), proven separately by the existing
-        `test_supplier_material_contributes_a_real_candidate` in
-        `test_pipeline.py`."""
+        """Proves the identity mismatch on the LEGACY row shape: a supplier
+        candidate's pool key comes from `normalize_ingredient_key(inci or
+        name)` — a derived text key — never from a canonical
+        `RawMaterial.code`-equivalent stable identity. `material_id`
+        (present in the legacy row) is NOT what the pool keys on; it only
+        survives as trailing provenance (`source_ids`), proven separately
+        by the existing `test_supplier_material_contributes_a_real_
+        candidate` in `test_pipeline.py`.
+
+        FVL-03.002 addition (not a rewrite of the above, still true): a
+        CANONICAL-shaped row (carrying `code`) additionally populates the
+        new `IngredientCandidate.material_code` real-identity field,
+        alongside — never instead of — the same text-key matching."""
         pool = engine.build_candidate_pool(
             {}, {"avoid": []}, [], [{
                 "material_id": "totally-different-stable-id",
@@ -92,6 +103,18 @@ class CurrentMaterialSeamTests(unittest.TestCase):
         )
         self.assertIn("sodium-benzoate", pool.candidates)
         self.assertNotIn("totally-different-stable-id", pool.candidates)
+
+        canonical_pool = engine.build_candidate_pool(
+            {}, {"avoid": []}, [], [{
+                "code": "RM-SB-01", "material_code": "RM-SB-01",
+                "name": "Sodium Benzoate", "inci": "Sodium Benzoate",
+                "function": "preservative",
+            }],
+        )
+        self.assertIn("sodium-benzoate", canonical_pool.candidates)
+        self.assertEqual(
+            canonical_pool.candidates["sodium-benzoate"].material_code, "RM-SB-01",
+        )
 
 
 if __name__ == "__main__":
