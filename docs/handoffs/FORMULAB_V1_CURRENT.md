@@ -661,7 +661,9 @@ for a future session.
 
 ## Latest commit SHA
 
-_Pending — filled in by this session's closure-pointer follow-up commit._
+`0c0814d` (pushed to and matching `origin/feature/laboratory-stability`)
+— "feat(v1): integrate authoritative Compatibility Engine". Prior:
+`837f7b6` — "docs: finalize FVL-03.007 closure pointer with commit SHA".
 
 ## Reminder
 
