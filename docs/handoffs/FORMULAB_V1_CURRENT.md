@@ -213,11 +213,12 @@ None. FVL-01/FVL-02 fully closed; FVL-03.001/.002 fully closed (see above).
 
 ## Latest commit SHA
 
-(updated in the closure-pointer follow-up commit for this session — see
-next entry after this one is superseded).
-Prior: `c2ef4e5b6b279fcee475399490986a58208945ab` — "docs(v1): enforce
-single-authority integration architecture" (architecture-correction
-session, no production code changed).
+`e3e238051e8c5b890b46c3abebaf834f4712b49c` (pushed to and matching
+`origin/feature/laboratory-stability`) —
+"feat(v1): FVL-03.002 canonical Material Master into generation
+(single-authority)". Prior: `c2ef4e5b6b279fcee475399490986a58208945ab` —
+"docs(v1): enforce single-authority integration architecture"
+(architecture-correction session, no production code changed).
 
 ## Reminder
 
