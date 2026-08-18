@@ -1240,6 +1240,100 @@ pre-existing, unrelated comment reference). The only remaining
 `card.regulatory`/`overall_status` matches anywhere are explanatory
 comments and disposable test fixtures documenting the retirement.
 
+### End-to-end provenance model (FVL-03.011, COMPLETED 2026-08-18)
+
+Full audit (`traceability.py`, `provenance.py`, `pipeline.py`, `engine.py`,
+generated-formula structures, every FVL-03.002-.010 domain's own
+persisted/computed record shape, the promotion path, existing UI)
+confirmed **ONE coherent provenance model already exists — correctly NOT
+forked, only two real visibility gaps needed closing**.
+
+**Python-side decision trace — unchanged, confirmed still correct and
+deliberately narrow**: `traceability.py`'s `TraceEvent`
+(`decision_id`/`source_ids`/`rule_id`/`evidence_ids`/`status`) owns
+ONLY role-level ingredient selection/rejection decisions — never a
+general-purpose lineage graph. `material_code` has been carried in
+`source_ids` since FVL-03.002 (`engine.py:1263-1275`, `c.material_code`),
+in addition to, never instead of, the INCI/name text-matching pool key.
+The module's own docstring states the governing design explicitly, and
+this audit confirms it still holds: "Everything else a decision trace
+would want to show (why this concentration, why this process step, why
+this safety/regulatory finding) already has its own real, structured,
+authoritative home on the card — a trace event that needed one of those
+facts REFERENCES it by id/key rather than copying it." Each domain
+engine owns its OWN real IDs on its OWN real record shape
+(`CompatibilityFinding.ruleId`, `SafetyFinding.ruleId`,
+`RegulatoryFinding.ruleId`/`ruleCode`, `CostSnapshot.priceRecordCodes`/
+`exchangeRateCodes`, `SubstitutionRun`/`OptimizationRun` codes) — none of
+these are duplicated into Python `trace_events`, by design, confirmed
+correct. **No `traceability_v2.py`/`provenance_engine.py`/second
+source-reference schema was created.**
+
+**Generated → saved formula lineage (§A13) — confirmed ALREADY
+satisfied, not a gap**: `promoteGeneratedFormula.ts::buildPromotedFormulation()`
+(FVL-03.005's own original work) already writes a real, structured
+back-reference into the EXISTING `FormulationVersion.changeReason`
+field: `"Promoted from AI-generated session ${session.id}, ${card.version.toUpperCase()}, for Advanced Optimizer refinement."`
+— answering "which exact generated session/version produced this saved
+formulation version" without any new persistence system, exactly as
+this task's own §A13 instructed ("wire it through the existing
+structure... do NOT introduce a broad new persistence system").
+
+**Scientific/evidence lineage (FVL-03.013-.018)** confirmed untouched —
+not re-audited beyond confirming this task introduced no fork alongside
+it.
+
+**Two real, concrete provenance-VISIBILITY gaps found and closed — data
+already existed, was simply never rendered; not new business logic, not
+a new provenance model**:
+
+1. `GeneratedSafetySummary.tsx`/`GeneratedCompatibilitySummary.tsx`
+   (FVL-03.008/.009) computed each finding's real `ruleId` all along but
+   used it only as a React `key` — never displayed. Now shown, alongside
+   affected material ids, on every finding row, so a "safety finding →
+   safety rule" / "compatibility finding → compatibility rule" trace is
+   actually visible on screen (Regulatory's own presenter, built in
+   FVL-03.010, already showed its rule code from the start — this closes
+   the same gap for the two earlier domains).
+2. `formulationReport.ts` ("Download Report") gained a Safety section in
+   FVL-03.009 and a Regulatory section in FVL-03.010, but had **never**
+   had a Compatibility section at all since FVL-03.008 first computed
+   `GeneratedFormulaCompatibility` — a real, silent report/UI split this
+   audit found and closed, reusing the exact same already-computed
+   `compatibilities` array the UI tab renders (never a new computation,
+   never a fabricated verdict for a version with no result).
+
+**A third gap, adjacent to A14's own "formula ingredient → canonical
+material" requirement**: no ingredient row anywhere in the new result UI
+ever displayed its own resolved `material_code` — the `GeneratedIngredient`
+TS interface did not even type the field, even though
+`formulations.ts::linesFromGeneratedFormula()` already reads it. Added
+the field (optional, backward-compatible with any historical session
+JSON lacking it) and a small, honest subtext under each ingredient name
+in `FormulaTab` — the real code when resolved, or an explicit "Unresolved
+— no canonical material match" disclosure when not, never a fabricated
+id.
+
+**Acceptance P1-P12**: P1/P2 proven by a new `FormulationResultPage.test.tsx`
+test (a genuinely unresolved ingredient shows the honest disclosure)
+plus the pre-existing decoy-material-immunity tests already covering
+materialCode-join correctness in every domain's own
+`generatedFormula*.test.ts`. P3/P4 proven by 2 new tests in
+`GeneratedSafetySummary.test.tsx`/`GeneratedCompatibilitySummary.test.tsx`.
+P5/P6 already proven by FVL-03.010's own `generatedFormulaRegulatory.test.ts`.
+P7 confirmed untouched. P8/P9 confirmed by FVL-03.006/.007's own existing
+`substitution_runs`/`optimization_runs` persistence, unchanged. P10
+confirmed by FVL-03.005's own existing `optimization_runs.projectId`
+linkage. P11 proven by 3 new `formulationReport.test.ts` tests. P12
+confirmed — no new session-storage schema field was added anywhere; a
+historical session opens exactly as before.
+
+**Verified**: `pnpm --filter @formulab/desktop test` — 1422/1422 across
+152 files (6 new). `typecheck`/`lint` — clean. `python -m pytest
+runtime/pipeline -q` — 361 passed, 5 subtests (unchanged — zero Python
+files touched this task). `packages/shared` confirmed untouched by this
+task's own diff.
+
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 
 - **FVL-05.003-.008** ("Extractor: ..." rows): read-only/"reuse existing schema, never fork it" guarantee lives only in the FVL-05 package intro and FVL-05.013, not restated per-row. Left as-is (package intro already covers it); flagged in case a future session edits these rows in isolation without the intro's context.

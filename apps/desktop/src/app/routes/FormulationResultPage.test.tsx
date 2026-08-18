@@ -626,6 +626,15 @@ describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wir
     expect((await screen.findAllByText("Safety warning")).length).toBeGreaterThanOrEqual(2);
   });
 
+  it("FVL-03.011: the Formula tab shows this fixture's genuinely unresolved materialCode honestly, never a fabricated id", async () => {
+    renderPageV6();
+    await screen.findByText("Water (Aqua)");
+    // SESSION_V6's own "Water (Aqua)" ingredient carries no `material_code`
+    // at all — the real, canonical Material Master code column must
+    // disclose that honestly, never inventing one.
+    expect(screen.getByText("Unresolved — no canonical material match")).toBeInTheDocument();
+  });
+
   it("FVL-03.010: Regulatory tab recomputes from the real authoritative engine, never the legacy card.regulatory JSON this fixture still carries", async () => {
     renderPageV6();
     await screen.findByText("Water (Aqua)");

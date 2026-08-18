@@ -71,6 +71,16 @@ describe("GeneratedSafetySummary — FVL-03.009", () => {
     expect(screen.getByText(/Requires human review/)).toBeInTheDocument();
   });
 
+  it("FVL-03.011: shows the finding's real ruleId and affected materials, not just a React key", () => {
+    const s = safety({
+      formulaState: "blocked",
+      findings: [finding({ id: "f1", severity: "blocking", message: "m", ruleId: "fixture-corrosive", affectedMaterialIds: ["RM-A", "RM-B"] })],
+    });
+    render(<GeneratedSafetySummary safety={s} />);
+    expect(screen.getByText("fixture-corrosive")).toBeInTheDocument();
+    expect(screen.getByText(/RM-A, RM-B/)).toBeInTheDocument();
+  });
+
   it("surfaces required PPE and engineering controls when a finding carries them", () => {
     const s = safety({
       formulaState: "warning",

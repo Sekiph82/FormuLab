@@ -21,6 +21,18 @@ function compat(over: Partial<GeneratedFormulaCompatibility> & { formulaState: G
   return { findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
 }
 
+describe("GeneratedCompatibilitySummary — FVL-03.011", () => {
+  it("shows the finding's real ruleId and affected materials, not just a React key", () => {
+    const c = compat({
+      formulaState: "blocked",
+      findings: [finding({ id: "f1", severity: "blocking", message: "m", ruleId: "fixture-hypochlorite-acid", materialIds: ["RM-A", "RM-B"] })],
+    });
+    render(<GeneratedCompatibilitySummary compatibility={c} />);
+    expect(screen.getByText("fixture-hypochlorite-acid")).toBeInTheDocument();
+    expect(screen.getByText(/RM-A, RM-B/)).toBeInTheDocument();
+  });
+});
+
 describe("GeneratedCompatibilitySummary — FVL-03.008", () => {
   it("shows a not-yet-available message when no result is passed", () => {
     render(<GeneratedCompatibilitySummary compatibility={undefined} />);

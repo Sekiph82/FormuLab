@@ -32,7 +32,12 @@ const SEVERITY_TONE = {
  * `CompatibilityPanel.tsx` (the project-bound, saved-version panel with pH/
  * temperature inputs and a save-snapshot action) since this one evaluates a
  * generated, not-yet-necessarily-saved card read-only, with no persistence
- * step at all.
+ * step at all. FVL-03.011: each finding's real `ruleId`/`materialIds` are
+ * now shown, not just carried in data — closing a real provenance-
+ * visibility gap (the rule id existed on the finding all along but was
+ * previously used only as a React `key`, never rendered), so a
+ * "compatibility finding → compatibility rule" trace is actually visible
+ * on screen, not merely present in the object.
  */
 export function GeneratedCompatibilitySummary({
   compatibility,
@@ -69,6 +74,10 @@ export function GeneratedCompatibilitySummary({
               <span className={cn("font-medium", SEVERITY_TONE[f.severity])}>{t(`compatibility.severity.${f.severity}`)}</span>
               {f.dataIncomplete && <span className="text-muted"> · {t("compatibility.unknown")}</span>}
               <span className="text-muted"> — {f.message}</span>
+              <div className="ml-2 mt-0.5 text-[10.5px] text-muted">
+                <span>{f.ruleId}</span>
+                {f.materialIds.length > 0 && <span> · {f.materialIds.join(", ")}</span>}
+              </div>
             </li>
           ))}
         </ul>

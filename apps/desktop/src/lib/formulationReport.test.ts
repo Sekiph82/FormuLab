@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { RegulatoryFinding, SafetyFinding } from "@formulab/shared";
+import type { CompatibilityFinding, RegulatoryFinding, SafetyFinding } from "@formulab/shared";
 import { buildReportHtml } from "./formulationReport";
 import type { SessionDetail } from "./formulationV2";
+import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 
@@ -238,5 +239,41 @@ describe("buildReportHtml — FVL-03.010 authoritative Regulatory source", () =>
   it("shows 'not available' rather than a fabricated verdict when no regulatory result was computed for a version", () => {
     const html = buildReportHtml(SESSION, "2026-01-01-test");
     expect(html).toContain("Regulatory — Market: not available, Overall: not available");
+  });
+});
+
+describe("buildReportHtml — FVL-03.011 authoritative Compatibility source (a real pre-existing gap this session's provenance audit found)", () => {
+  function compatFinding(over: Partial<CompatibilityFinding> & Pick<CompatibilityFinding, "id" | "severity" | "message">): CompatibilityFinding {
+    return {
+      ruleId: "fixture-rule", ruleVersion: "1.0", materialIds: ["RM-A"], lineIds: [],
+      verificationStatus: "verified", triggeredConditions: [], dataIncomplete: false,
+      ...over,
+    };
+  }
+
+  function compatibility(over: Partial<GeneratedFormulaCompatibility> & { formulaState: GeneratedFormulaCompatibility["formulaState"] }): GeneratedFormulaCompatibility {
+    return { findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
+  }
+
+  it("uses the SAME computed compatibility result the UI tab uses — the report previously had no Compatibility section at all", () => {
+    const compatibilityByVersion = {
+      v1: compatibility({ formulaState: "blocked", findings: [compatFinding({ id: "c1", severity: "blocking", message: "Mixing hypochlorite with acid releases chlorine gas." })] }),
+    };
+    const html = buildReportHtml(SESSION, "2026-01-01-test", {}, {}, compatibilityByVersion);
+    expect(html).toContain("Compatibility — Overall: blocked");
+    expect(html).toContain("Mixing hypochlorite with acid releases chlorine gas.");
+    expect(html).toContain("RM-A");
+  });
+
+  it("discloses unresolved-material coverage honestly, never silently compatible", () => {
+    const compatibilityByVersion = { v1: compatibility({ formulaState: "unknown", unresolvedMaterialCount: 3 }) };
+    const html = buildReportHtml(SESSION, "2026-01-01-test", {}, {}, compatibilityByVersion);
+    expect(html).toContain("Compatibility — Overall: unknown");
+    expect(html).toContain("3 ingredient(s) could not be matched");
+  });
+
+  it("shows 'not available' rather than a fabricated verdict when no compatibility result was computed for a version", () => {
+    const html = buildReportHtml(SESSION, "2026-01-01-test");
+    expect(html).toContain("Compatibility — Overall: not available");
   });
 });

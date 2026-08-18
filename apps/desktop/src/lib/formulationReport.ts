@@ -6,6 +6,7 @@
 // what makes it complete regardless of what the user currently has open.
 import type { FormulationCard, LiteratureDocument, ScientificFormulationRecord, SessionDetail } from "./formulationV2";
 import { asGeneratedFormula } from "./generatedFormula";
+import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 
@@ -26,7 +27,12 @@ function table(headers: string[], rows: (string | number | undefined)[][]): stri
   return `<table>${thead}${tbody}</table>`;
 }
 
-function versionSection(card: FormulationCard, safety: GeneratedFormulaSafety | undefined, regulatory: GeneratedFormulaRegulatory | undefined): string {
+function versionSection(
+  card: FormulationCard,
+  compatibility: GeneratedFormulaCompatibility | undefined,
+  safety: GeneratedFormulaSafety | undefined,
+  regulatory: GeneratedFormulaRegulatory | undefined,
+): string {
   const formula = asGeneratedFormula(card.formula);
   const ingredients = formula?.ingredients ?? [];
   const origins = card.ingredient_origins ?? {};
@@ -75,6 +81,22 @@ function versionSection(card: FormulationCard, safety: GeneratedFormulaSafety | 
     parts.push(`<p class="muted">Manufacturing: ${esc(card.manufacturing.not_ready_reason)}</p>`);
   }
 
+  {
+    // FVL-03.011 — the authoritative Compatibility Engine result, the SAME
+    // computed object the Compatibility summary already renders in the
+    // UI — closing the same "Download Report" split-authority risk
+    // FVL-03.009/.010 already closed for Safety/Regulatory (this section
+    // was simply missing from the report entirely before this task, a
+    // real gap this audit found, not a stale/legacy value to replace).
+    parts.push(`<h4>Compatibility — Overall: ${esc(compatibility ? compatibility.formulaState : "not available")}</h4>`);
+    if (compatibility && compatibility.unresolvedMaterialCount > 0) {
+      parts.push(`<p class="muted">${esc(compatibility.unresolvedMaterialCount)} ingredient(s) could not be matched to a canonical material.</p>`);
+    }
+    parts.push(table(
+      ["Affected material(s)", "Severity", "Rule", "Message"],
+      (compatibility?.findings ?? []).map((f) => [f.materialIds.join(", ") || "Formula-level", f.severity, f.ruleId, f.message]),
+    ));
+  }
   {
     // FVL-03.009 — the authoritative Safety Engine result, the SAME
     // computed object the Safety tab renders (never the retired
@@ -153,6 +175,7 @@ export function buildReportHtml(
   sessionId: string,
   safetyByVersion: Record<string, GeneratedFormulaSafety | undefined> = {},
   regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined> = {},
+  compatibilityByVersion: Record<string, GeneratedFormulaCompatibility | undefined> = {},
 ): string {
   const generatedAt = new Date().toISOString();
   const corpus = session.cards[0]?.research_corpus;
@@ -184,7 +207,7 @@ export function buildReportHtml(
       ["Version", "Strategy", "State", "Mass Balance"],
       session.cards.map((c) => [c.version, c.strategy?.title ?? "—", c.formula_state ?? c.status, c.mass_balance?.status ?? "—"]),
     )),
-    ...session.cards.map((c) => section(`Formula ${c.version.toUpperCase()}`, versionSection(c, safetyByVersion[c.version], regulatoryByVersion[c.version]))),
+    ...session.cards.map((c) => section(`Formula ${c.version.toUpperCase()}`, versionSection(c, compatibilityByVersion[c.version], safetyByVersion[c.version], regulatoryByVersion[c.version]))),
     section("Evidence & Sources", sourcesTable(session.literature ?? [], session.scientific_formulations?.formulations ?? [])),
     session.scientific_formulations?.summary ? section("Scientific Formulation Usage", scientificFormulationUsageSection(session.scientific_formulations)) : "",
   ].join("\n");
@@ -198,8 +221,9 @@ export function openAndPrintReport(
   sessionId: string,
   safetyByVersion: Record<string, GeneratedFormulaSafety | undefined> = {},
   regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined> = {},
+  compatibilityByVersion: Record<string, GeneratedFormulaCompatibility | undefined> = {},
 ): void {
-  const html = buildReportHtml(session, sessionId, safetyByVersion, regulatoryByVersion);
+  const html = buildReportHtml(session, sessionId, safetyByVersion, regulatoryByVersion, compatibilityByVersion);
   const win = window.open("", "_blank");
   if (!win) return;
   win.document.open();

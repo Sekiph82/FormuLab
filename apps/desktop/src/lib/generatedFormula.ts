@@ -16,6 +16,11 @@ export interface GeneratedIngredient {
   inci?: string;
   function?: string;
   weight_pct?: string;
+  /** FVL-03.011 — the real canonical `RawMaterial.code` this ingredient
+   *  resolved to (see `formulations.ts::linesFromGeneratedFormula()`),
+   *  when the generator matched a candidate to the Material Master.
+   *  Absent means genuinely unresolved — never fabricated. */
+  material_code?: string;
 }
 
 export interface GeneratedFormula {

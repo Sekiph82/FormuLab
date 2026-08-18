@@ -457,6 +457,8 @@
         "action": "Sistem ikamesi",
         "busy": "Açılıyor…"
       },
+      "materialCodeUnresolved": "Çözümlenmedi — kanonik malzeme eşleşmesi yok",
+      "materialCodeHint": "Bu bileşenin eşleştiği kanonik Malzeme Ana Verisi kodu",
       "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is not available for this session",
       "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence",
       "architecture": {

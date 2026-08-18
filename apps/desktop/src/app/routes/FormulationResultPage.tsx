@@ -329,9 +329,20 @@ export function FormulationResultPage() {
     regulatoryByVersion[c.version] = regulatories[i];
   });
 
+  // FVL-03.011 — the SAME computed compatibility results, keyed by
+  // version, now also feed the "Download Report" export: a real,
+  // pre-existing gap found by this task's own provenance audit — the
+  // report had a Safety section and a Regulatory section but no
+  // Compatibility section at all, so a compatibility finding was
+  // invisible to anyone reading the exported report.
+  const compatibilityByVersion: Record<string, GeneratedFormulaCompatibility | undefined> = {};
+  cards.forEach((c, i) => {
+    compatibilityByVersion[c.version] = compatibilities[i];
+  });
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <TopBar session={session} sessionId={sessionId} safetyByVersion={safetyByVersion} regulatoryByVersion={regulatoryByVersion} t={t} />
+      <TopBar session={session} sessionId={sessionId} safetyByVersion={safetyByVersion} regulatoryByVersion={regulatoryByVersion} compatibilityByVersion={compatibilityByVersion} t={t} />
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <OriginalRequestBanner brief={session.brief} sessionId={sessionId} navigate={navigate} t={t} />
         <PartialResearchNotice corpus={card?.research_corpus} t={t} />
@@ -439,12 +450,14 @@ function TopBar({
   sessionId,
   safetyByVersion,
   regulatoryByVersion,
+  compatibilityByVersion,
   t,
 }: {
   session: SessionDetail;
   sessionId: string | undefined;
   safetyByVersion: Record<string, GeneratedFormulaSafety | undefined>;
   regulatoryByVersion: Record<string, GeneratedFormulaRegulatory | undefined>;
+  compatibilityByVersion: Record<string, GeneratedFormulaCompatibility | undefined>;
   t: TFunction<readonly ["session", "common"]>;
 }) {
   return (
@@ -452,7 +465,7 @@ function TopBar({
       <span className="text-[13px] font-medium uppercase tracking-wider text-muted">{t("formulationResult.heading")}</span>
       <div className="flex items-center gap-2">
         <button
-          onClick={() => openAndPrintReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion)}
+          onClick={() => openAndPrintReport(session, sessionId ?? session.id, safetyByVersion, regulatoryByVersion, compatibilityByVersion)}
           className="flex items-center gap-1.5 rounded-input border border-border px-2.5 py-1 text-[11px] text-text hover:bg-surface-2"
         >
           <FileDown size={13} className="text-muted" />
@@ -925,7 +938,12 @@ function FormulaTab({
                     </td>
                   )}
                   <td className="py-1.5 pr-2 text-muted">{i + 1}</td>
-                  <td className="py-1.5 pr-2 text-text">{ing.inci || "—"}</td>
+                  <td className="py-1.5 pr-2 text-text">
+                    {ing.inci || "—"}
+                    <div className="text-[9px] text-muted" title={t("formulationResult.formula.materialCodeHint")}>
+                      {ing.material_code || t("formulationResult.formula.materialCodeUnresolved")}
+                    </div>
+                  </td>
                   <td className="py-1.5 pr-2 text-muted">{ing.function || "—"}</td>
                   <td className="py-1.5 pr-2 tabular-nums text-text">{ing.weight_pct || "—"}</td>
                   {rowLinks.length > 0 ? (

@@ -457,6 +457,8 @@
         "action": "System substitution",
         "busy": "Opening…"
       },
+      "materialCodeUnresolved": "Unresolved — no canonical material match",
+      "materialCodeHint": "Canonical Material Master code this ingredient resolved to",
       "perIngredientEvidenceNotYetLinked": "Per-ingredient evidence linking is not available for this session",
       "evidenceLegend": "Evidence Class: A = Direct Formulation Evidence · B = Experimental Ingredient Evidence · C = Review / Secondary Evidence · D = Related-Domain Evidence · E = Weak / Indirect Evidence",
       "architecture": {

@@ -33,7 +33,12 @@ const SEVERITY_TONE = {
  * temperature inputs, GHS pictograms, and a resolution/audit workflow)
  * since this one evaluates a generated, not-yet-necessarily-saved card
  * read-only, with no persistence step at all — mirrors
- * `GeneratedCompatibilitySummary.tsx` exactly.
+ * `GeneratedCompatibilitySummary.tsx` exactly. FVL-03.011: each finding's
+ * real `ruleId`/`affectedMaterialIds` are now shown, not just carried in
+ * data — closing a real provenance-visibility gap (the rule id existed
+ * on the finding all along but was previously used only as a React
+ * `key`, never rendered), so a "safety finding → safety rule" trace is
+ * actually visible on screen, not merely present in the object.
  */
 export function GeneratedSafetySummary({
   safety,
@@ -70,14 +75,14 @@ export function GeneratedSafetySummary({
               <span className={cn("font-medium", SEVERITY_TONE[f.severity])}>{t(`safety.severity.${f.severity}`)}</span>
               {f.humanReviewRequired && <span className="text-warning"> · {t("safety.findingRequiresHumanReview")}</span>}
               <span className="text-muted"> — {f.message}</span>
-              {(f.requiredPpe.length > 0 || f.requiredEngineeringControls.length > 0) && (
-                <div className="ml-2 mt-0.5 text-[10.5px] text-muted">
-                  {f.requiredPpe.length > 0 && <div>{t("safety.requiredPpe")}: {f.requiredPpe.join(", ")}</div>}
-                  {f.requiredEngineeringControls.length > 0 && (
-                    <div>{t("safety.requiredControls")}: {f.requiredEngineeringControls.join(", ")}</div>
-                  )}
-                </div>
-              )}
+              <div className="ml-2 mt-0.5 text-[10.5px] text-muted">
+                <span>{f.ruleId}</span>
+                {f.affectedMaterialIds.length > 0 && <span> · {f.affectedMaterialIds.join(", ")}</span>}
+                {f.requiredPpe.length > 0 && <div>{t("safety.requiredPpe")}: {f.requiredPpe.join(", ")}</div>}
+                {f.requiredEngineeringControls.length > 0 && (
+                  <div>{t("safety.requiredControls")}: {f.requiredEngineeringControls.join(", ")}</div>
+                )}
+              </div>
             </li>
           ))}
         </ul>

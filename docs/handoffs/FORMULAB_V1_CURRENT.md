@@ -15,19 +15,16 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 16/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
+ON PROCESS, 17/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
 FVL-03.004, FVL-03.005, FVL-03.006, FVL-03.007, FVL-03.008, FVL-03.009,
-FVL-03.010, FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02
-remains CLOSED (24/24, 2026-08-17).
+FVL-03.010, FVL-03.011, FVL-03.013-018). FVL-01 remains CLOSED (21/21);
+FVL-02 remains CLOSED (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.011`** — blank, **NOT STARTED**. Not begun this session — hard
-boundary stated explicitly in this session's task brief. FVL-03.010 —
-retiring `runtime/pipeline/regulatory.py` and making the existing
-Kenya/EAC Regulatory Engine the single authoritative final regulatory
-verdict for generated formulas — COMPLETED this session (no subagents
-used, per explicit instruction).
+**`FVL-03.012`** — blank, **NOT STARTED**. Not begun yet this session.
+FVL-03.011 — end-to-end authoritative provenance integration —
+COMPLETED this session (no subagents used, per explicit instruction).
 
 ## FVL-04 scope expansion (2026-08-18, documentation/tracker session only)
 
@@ -53,7 +50,45 @@ as recorded above:
 
 **CURRENT IMPLEMENTATION TASK REMAINS: `FVL-03.009` — NOT STARTED.**
 
-## FVL-03.010 resolution (this session)
+## FVL-03.011 resolution (this session)
+
+"End-to-end authoritative provenance — extend `traceability.py`'s
+existing model, do not fork it." Full audit (no subagents, per explicit
+instruction) confirmed ONE coherent provenance model already exists:
+`traceability.py`'s `TraceEvent` owns ONLY role-level ingredient
+selection/rejection decisions (`material_code` carried in `source_ids`
+since FVL-03.002), by its own explicit, still-valid design — every other
+domain (Compatibility/Safety/Regulatory/Cost/Inventory/Substitution/
+Optimization) owns its own real IDs on its own real record shape, never
+duplicated into Python trace_events. **No `traceability_v2.py` or second
+provenance schema created.** Generated→saved lineage (§A13) confirmed
+ALREADY satisfied: `promoteGeneratedFormula.ts` already writes a real
+back-reference into the existing `FormulationVersion.changeReason`
+field ("Promoted from AI-generated session ${session.id}...") — no new
+persistence needed.
+
+**Two real, concrete visibility gaps found and closed** (data already
+existed, was never rendered): (1) `GeneratedSafetySummary.tsx`/
+`GeneratedCompatibilitySummary.tsx` computed each finding's real
+`ruleId` all along but used it only as a React `key` — now shown,
+alongside affected materials, on every finding row; (2)
+`formulationReport.ts` had a Safety section (FVL-03.009) and a
+Regulatory section (FVL-03.010) but had NEVER had a Compatibility
+section at all since FVL-03.008 — added, reusing the exact same
+already-computed `compatibilities` array the UI renders. A third gap:
+no ingredient row anywhere in the result UI displayed its own resolved
+`material_code` (the `GeneratedIngredient` type didn't even carry the
+field) — added (optional, backward-compatible) with an honest subtext
+showing the real code or an explicit "Unresolved" disclosure.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1422/1422 across 152
+files (6 new). `typecheck`/`lint` — clean. `python -m pytest
+runtime/pipeline -q` — 361 passed/5 subtests (unchanged, zero Python
+files touched). `python scripts/validate_v1_tracker.py` — OK, 171
+tasks, no drift. `git diff --check` — clean (LF/CRLF warnings only). No
+FVL-03.012 work started; no new provenance framework anywhere.
+
+## FVL-03.010 resolution (prior session)
 
 "Make the EXISTING Kenya/EAC Regulatory Engine the single authoritative
 regulatory verdict for the formulation workflow — retire
@@ -825,57 +860,50 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.011`** — blank, NOT STARTED (see above). Not begun this
-session — explicit boundary in this session's task brief.
+**`FVL-03.012`** — blank, NOT STARTED (see above). Not begun yet this
+session — the final FVL-03 closure/acceptance task.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001-.010 fully closed (see
+None. FVL-01/FVL-02 fully closed; FVL-03.001-.011 fully closed (see
 above). Disclosed, out-of-scope, non-blocking findings: (1)/(2) the
 existing Optimizer/Substitution compatibility/safety re-run call sites
 use the hardcoded `SEED_COMPATIBILITY_RULES`/`SEED_SAFETY_RULES`
 constants rather than the live edited collections; (3) Material
-Substitution's new regulatory wiring (`SubstitutionPanel.tsx`) cannot
-currently produce a real `false`/prohibited result with the actual seed
-catalog, since no ingredient-based KE/UG/TZ/RW/BI/SS rule has an empty
-`productCategories` that would match the honest `"human_review_required"`
-category fallback; (4) the Advanced Optimizer/System Substitution still
-carry a genuine, pre-existing, documented "regulatory not yet
-implemented" boundary (`regulatoryOptimizationPolicySchema.mode` locked
-to `"not_available"`) — none are duplicate-authority issues; all flagged
-for a future session.
+Substitution's regulatory wiring cannot currently produce a real
+`false`/prohibited result with the actual seed catalog (no
+ingredient-based rule has an empty `productCategories` matching the
+honest `"human_review_required"` category fallback); (4) the Advanced
+Optimizer/System Substitution carry a genuine, pre-existing, documented
+"regulatory not yet implemented" boundary — none are duplicate-authority
+issues; all flagged for a future session.
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1416/1416 across 152 files (32
-  new: 14 `generatedFormulaRegulatory.test.ts`, 8
-  `GeneratedRegulatorySummary.test.tsx`, 5 `costComparison.test.ts`, 3
-  `inventoryComparison.test.ts`, 3 `formulationReport.test.ts`, 2
-  `SubstitutionPanel.test.tsx`; `FormulationResultPage.test.tsx` count
-  unchanged, 3 tests corrected in place).
+- `pnpm --filter @formulab/desktop test` — 1422/1422 across 152 files (6
+  new: 1 `FormulationResultPage.test.tsx`, 1
+  `GeneratedSafetySummary.test.tsx`, 1
+  `GeneratedCompatibilitySummary.test.tsx`, 3 `formulationReport.test.ts`).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
-- `pnpm --filter @formulab/shared test` — 1311/1311 (comment-only doc fix
-  in `optimization.ts`'s `regulatoryOptimizationPolicySchema`, unchanged
-  count).
-- `python -m pytest runtime/pipeline -q` — 361 passed, 5 subtests (down
-  from 376+5 by exactly the 15 tests removed alongside `regulatory.py`).
-- `runtime/formulation`, `apps/desktop/src-tauri/src/formulation*`
-  confirmed untouched by `git status`/diff this session — no cargo
-  sanity re-run performed (nothing in that tree changed; prior baseline:
-  `cargo check` clean, from the FVL-03.004 session).
+- `python -m pytest runtime/pipeline -q` — 361 passed, 5 subtests
+  (unchanged — zero Python files touched this task).
+- `packages/shared`, `runtime/formulation`,
+  `apps/desktop/src-tauri/src/formulation*` confirmed untouched by `git
+  status`/diff this session — no shared/cargo sanity re-run performed.
 - `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
 - `git diff --check` — clean (LF/CRLF warnings only).
 - No desktop rebuild/installer performed (no Rust/shipped-runtime changes
-  this session at all; TS/shared changes covered by `typecheck`/`lint`/
-  vitest, matching the standing "full rebuild reserved for closure
-  sessions" policy). No live Tauri-app smoke test was performed —
-  verification relied on the automated suites above.
+  this session at all; TS changes covered by `typecheck`/`lint`/vitest,
+  matching the standing "full rebuild reserved for closure sessions"
+  policy). No live Tauri-app smoke test was performed — verification
+  relied on the automated suites above.
 
 ## Latest commit SHA
 
-`67ac343` (pushed to and matching `origin/feature/laboratory-stability`)
-— "feat(v1): consolidate authoritative Regulatory Engine". Prior:
-`860b57e` — "docs: finalize FVL-03.009 closure pointer with commit SHA".
+Pending — this session's FVL-03.011 closure commit not yet pushed at
+the time this file was last edited. Prior: `fa96142` (pushed to and
+matching `origin/feature/laboratory-stability`) — "docs: finalize
+FVL-03.010 closure pointer with commit SHA".
 
 ## Reminder
 
