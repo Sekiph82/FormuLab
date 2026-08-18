@@ -957,10 +957,9 @@ are duplicate-authority issues for the FVL-03 integrated workflow.
 
 ## Latest commit SHA
 
-Pending — this session's FVL-03.012 closure commit not yet pushed at
-the time this file was last edited. Prior: `e77ec3d` (pushed to and
-matching `origin/feature/laboratory-stability`) — "docs: finalize
-FVL-03.011 closure pointer with commit SHA".
+`0876c0b` (pushed to and matching `origin/feature/laboratory-stability`)
+— "test(v1): close FVL-03 single-authority integration". Prior:
+`e77ec3d` — "docs: finalize FVL-03.011 closure pointer with commit SHA".
 
 ## Reminder
 
