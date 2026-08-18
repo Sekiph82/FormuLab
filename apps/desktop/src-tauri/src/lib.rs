@@ -110,7 +110,6 @@ pub fn run() {
             formulation_v2::delete_session,
             materials::import_materials,
             materials::list_materials,
-            materials::cost_formulation,
             formulations::list_formulations,
             formulations::read_formulation,
             formulations::save_formulation,

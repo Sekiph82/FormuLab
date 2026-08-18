@@ -791,31 +791,6 @@ export interface ImportResult {
   mixed_currencies?: string[];
 }
 
-export interface CostLine {
-  ingredient: string;
-  weight_pct: number;
-  qs: boolean;
-  kg: number;
-  unit_price: number | null;
-  cost: number | null;
-  supplier: string;
-  note?: string;
-}
-
-export interface CostSheet {
-  status: "ok" | "error";
-  message?: string;
-  batch_kg: number;
-  currency: string;
-  lines: CostLine[];
-  total_cost: number;
-  cost_per_kg: number;
-  covered_pct: number;
-  complete: boolean;
-  unmatched: string[];
-  markdown: string;
-}
-
 /** Import a raw-material price list the user picked (CSV/TSV). */
 export async function importMaterials(path: string): Promise<ImportResult> {
   return call<ImportResult>("import_materials", { path });
@@ -823,12 +798,4 @@ export async function importMaterials(path: string): Promise<ImportResult> {
 
 export async function listMaterials(): Promise<MaterialsDoc> {
   return call<MaterialsDoc>("list_materials", {});
-}
-
-/** Cost one formula against the imported materials. Arithmetic, not a model. */
-export async function costFormulation(
-  formula: unknown,
-  batchKg: number,
-): Promise<CostSheet> {
-  return call<CostSheet>("cost_formulation", { formula, batchKg });
 }

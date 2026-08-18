@@ -1,9 +1,12 @@
-// The customer's raw materials, and costing a formula against them.
+// The customer's raw materials, imported via the legacy Settings -> General
+// CSV/TSV screen.
 //
 // Same shape as formulation_v2: the work is done by the embedded Python, which
-// is materialized on first use and driven over stdin/stdout. Costing is
-// arithmetic on the customer's own prices — no model is involved, so the number
-// on the sheet can be checked by hand.
+// is materialized on first use and driven over stdin/stdout.
+//
+// FVL-03.003 retired this module's own `cost_formulation` command: the
+// single authoritative Cost Engine is `packages/shared/src/engine/cost.ts`,
+// called client-side (`apps/desktop/src/lib/generatedFormulaCost.ts`).
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -87,20 +90,4 @@ pub async fn import_materials(app: AppHandle, token: String, path: String) -> Re
 pub async fn list_materials(app: AppHandle, token: String) -> Result<serde_json::Value, String> {
     authz::current_actor_app(&app, &token)?;
     run(&app, serde_json::json!({ "action": "list" }))
-}
-
-/// Cost one formula against the stored materials at a given batch size.
-/// Pure arithmetic, no persistence — requires only a valid session
-/// (AUTHENTICATED_READ/compute), not a specific capability.
-#[tauri::command(async)]
-pub async fn cost_formulation(
-    app: AppHandle,
-    token: String,
-    formula: serde_json::Value,
-    batch_kg: f64,
-) -> Result<serde_json::Value, String> {
-    authz::current_actor_app(&app, &token)?;
-    run(&app, serde_json::json!({
-        "action": "cost", "formula": formula, "batch_kg": batch_kg,
-    }))
 }

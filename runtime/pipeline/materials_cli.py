@@ -1,7 +1,11 @@
-"""stdin/stdout bridge for raw materials and costing (Tauri commands).
+"""stdin/stdout bridge for raw materials (Tauri commands).
 
-Request: {"action": "import"|"list"|"cost", ...}
+Request: {"action": "import"|"list", ...}
 Response: one JSON object on stdout; diagnostics to stderr.
+
+FVL-03.003 retired the "cost" action: the single authoritative Cost Engine
+is `packages/shared/src/engine/cost.ts`, called client-side — no Python
+costing arithmetic remains.
 """
 
 from __future__ import annotations
@@ -61,22 +65,6 @@ def main() -> None:
 
         if action == "list":
             return _out({"status": "ok", **mat.load_materials(data_dir)})
-
-        if action == "cost":
-            doc = mat.load_materials(data_dir)
-            mats = doc.get("materials", [])
-            if not mats:
-                return _out({"status": "error",
-                             "message": "no raw materials imported yet"})
-            formula = req.get("formula") or {}
-            sheet = mat.cost_formula(
-                formula, mats,
-                batch_kg=float(req.get("batch_kg") or 100.0),
-                currency=doc.get("currency", ""),
-            )
-            sheet["markdown"] = mat.render_costing_markdown(
-                sheet, str(formula.get("name") or ""))
-            return _out({"status": "ok", **sheet})
 
         return _out({"status": "error", "message": f"unknown action: {action!r}"})
     except Exception as e:

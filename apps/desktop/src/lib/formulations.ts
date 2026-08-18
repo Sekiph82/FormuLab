@@ -254,10 +254,16 @@ export function linesFromGeneratedFormula(formula: unknown): FormulationLine[] {
     const raw = String(ing.weight_pct ?? "").trim();
     const isQs = /q\.?s\.?/i.test(raw);
     const numeric = raw.replace(/[^\d.]/g, "");
+    const materialCode = ing.material_code ? String(ing.material_code) : undefined;
     return {
       id: newId("line"),
       lineNumber: i + 1,
       phase: "A",
+      // FVL-03.003: the canonical Material Master identity (FVL-03.002
+      // already puts this on every generated ingredient) — this is what
+      // lets costFormula()/priceFor() join a generated line to a real
+      // price, never by matching this line's own display name.
+      materialCode,
       displayName: String(ing.inci ?? ing.name ?? ""),
       inciName: String(ing.inci ?? ""),
       percent: isQs ? "0" : numeric || "0",

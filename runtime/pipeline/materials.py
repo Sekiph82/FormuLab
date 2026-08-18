@@ -1,15 +1,14 @@
-"""The customer's raw materials, and what a formula costs to make from them.
+"""The customer's raw materials, imported via the legacy Settings -> General
+CSV/TSV screen (`MaterialsCard.tsx`) — a quick, ad-hoc material entry path
+kept deliberately separate from the canonical Material Master
+(`data/master/*.json`, read via `master_materials_adapter.py` for AI
+generation as of FVL-03.002).
 
-Two jobs:
-
-  1. Import a raw-material list (CSV/TSV, whatever column names the supplier
-     used) into one canonical shape.
-  2. Cost a formulation against it: match each ingredient to a material, apply
-     the customer's own price, and produce a costing sheet.
-
-Money is arithmetic, never model output. The LLM proposes a formula; the cost
-of that formula is computed here from the customer's prices, so the number on
-the sheet can be checked by hand.
+FVL-03.003 retired this module's own costing arithmetic
+(`cost_formula()`/`render_costing_markdown()`): the single authoritative
+Cost Engine is `packages/shared/src/engine/cost.ts`, called client-side.
+This module now does exactly one job — import a raw-material list into one
+canonical shape for `materials_cli.py`'s `"import"`/`"list"` actions.
 
 ERP note: every material carries a stable `material_id` and an optional
 `external_ref`. When this app is later fed by an ERP item master, the ERP's
@@ -233,122 +232,3 @@ def match_material(ingredient: str, materials: List[Dict[str, Any]]) -> Dict[str
     # Two shared words is the floor: one shared word ("sodium", "acid") pairs
     # unrelated chemicals.
     return best if best_score >= 2 else None
-
-
-# ------------------------------------------------------------------ costing ---
-
-def _weight_pct(value: Any) -> float | None:
-    """A weight-% cell. 'q.s. 100' means 'make up the remainder', not 100%."""
-    s = str(value or "").strip().lower()
-    if "q.s" in s or "qs " in s or s == "qs":
-        return None
-    return _number(s)
-
-
-def cost_formula(
-    formula: Dict[str, Any],
-    materials: List[Dict[str, Any]],
-    batch_kg: float = 100.0,
-    currency: str = "",
-) -> Dict[str, Any]:
-    """Cost one formula against the customer's own prices.
-
-    Returns a costing sheet: a line per ingredient with its weight, matched
-    material, unit price and line cost, plus totals. Ingredients with no matched
-    material or no price are listed with a reason and excluded from the total —
-    the total then states how much of the formula it actually covers, so a
-    partial costing can never read as complete.
-    """
-    lines: List[Dict[str, Any]] = []
-    covered_pct = 0.0
-    total = 0.0
-
-    ingredients = formula.get("ingredients") or []
-    known_pct = sum(p for p in (_weight_pct(i.get("weight_pct")) for i in ingredients)
-                    if p is not None)
-
-    for ing in ingredients:
-        name = str(ing.get("inci") or ing.get("name") or "").strip()
-        pct = _weight_pct(ing.get("weight_pct"))
-        # "q.s. 100" carries the balance of the formula.
-        if pct is None:
-            pct = max(0.0, 100.0 - known_pct)
-            qs = True
-        else:
-            qs = False
-
-        kg = batch_kg * pct / 100.0
-        m = match_material(name, materials)
-        price = (m or {}).get("price")
-
-        line: Dict[str, Any] = {
-            "ingredient": name,
-            "function": ing.get("function", ""),
-            "weight_pct": round(pct, 4),
-            "qs": qs,
-            "kg": round(kg, 4),
-            "material_id": (m or {}).get("material_id", ""),
-            "matched_name": (m or {}).get("name", ""),
-            "supplier": (m or {}).get("supplier", ""),
-            "unit_price": price,
-            "currency": (m or {}).get("currency", "") or currency,
-            "external_ref": (m or {}).get("external_ref", ""),
-        }
-        if m is None:
-            line["cost"], line["note"] = None, "no matching material in your list"
-        elif price is None:
-            line["cost"], line["note"] = None, "material has no price"
-        else:
-            line["cost"] = round(kg * price, 4)
-            total += line["cost"]
-            covered_pct += pct
-        lines.append(line)
-
-    return {
-        "batch_kg": batch_kg,
-        "currency": currency or next((l["currency"] for l in lines if l["currency"]), ""),
-        "lines": lines,
-        "total_cost": round(total, 4),
-        "cost_per_kg": round(total / batch_kg, 4) if batch_kg else 0.0,
-        # What share of the formula's mass the total actually accounts for.
-        "covered_pct": round(covered_pct, 2),
-        "complete": round(covered_pct, 2) >= 99.5,
-        "unmatched": [l["ingredient"] for l in lines if l["cost"] is None],
-    }
-
-
-def _money(value: float) -> str:
-    """Money with thousands separators and two decimals.
-
-    A general format renders a 14,472 TRY total as "1.447e+04", which is not a
-    number anyone can act on.
-    """
-    return f"{value:,.2f}"
-
-
-def _qty(value: float) -> str:
-    """Quantities keep more precision — a 0.3% ingredient is grams, not units."""
-    return f"{value:,.4f}".rstrip("0").rstrip(".") if value else "0"
-
-
-def render_costing_markdown(sheet: Dict[str, Any], title: str = "") -> str:
-    cur = sheet.get("currency") or ""
-    md = [f"# Costing sheet{f': {title}' if title else ''}", ""]
-    md.append(f"**Batch:** {sheet['batch_kg']:g} kg")
-    md.append("")
-    md.append(f"| # | Ingredient | Weight % | kg | Unit price ({cur}/kg) | Line cost ({cur}) | Supplier |")
-    md.append("|---|---|---|---|---|---|---|")
-    for i, l in enumerate(sheet["lines"], 1):
-        price = _money(l["unit_price"]) if l["unit_price"] is not None else "—"
-        cost = _money(l["cost"]) if l["cost"] is not None else f"— ({l.get('note','')})"
-        pct = f"{l['weight_pct']:g}{' (q.s.)' if l['qs'] else ''}"
-        md.append(f"| {i} | {l['ingredient']} | {pct} | {_qty(l['kg'])} | {price} | {cost} | {l['supplier']} |")
-    md.append("")
-    md.append(f"**Total batch cost:** {_money(sheet['total_cost'])} {cur}")
-    md.append(f"**Cost per kg:** {_money(sheet['cost_per_kg'])} {cur}")
-    if not sheet["complete"]:
-        md.append("")
-        md.append(f"> ⚠️ This total covers {sheet['covered_pct']:g}% of the formula by weight. "
-                  f"Unpriced: {', '.join(sheet['unmatched'])}. Add these to your material "
-                  f"list to get a complete cost.")
-    return "\n".join(md)

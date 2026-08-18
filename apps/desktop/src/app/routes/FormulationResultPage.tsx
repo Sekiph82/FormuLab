@@ -21,9 +21,14 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
+import { displayMoney, type CostSnapshot } from "@formulab/shared";
 import { readSession, type ArchitectureBasis, type ExperimentalOutcome, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type ResearchCorpusSummary, type ScientificFormulationRecord, type ScientificFormulationSummary, type SessionDetail } from "@/lib/formulationV2";
 import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
 import { openAndPrintReport } from "@/lib/formulationReport";
+import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
+import { pickCheapestValidVersion } from "@/lib/costComparison";
+import { useMasterCostData } from "@/hooks/useMasterCostData";
+import { CostSnapshotSummary } from "@/components/cost/CostSnapshotSummary";
 import { cn } from "@/lib/cn";
 
 /**
@@ -57,6 +62,13 @@ export function FormulationResultPage() {
   const [activeVersion, setActiveVersion] = useState(0);
   const [tab, setTab] = useState<ResultTab>("formula");
   const [selectedIngredient, setSelectedIngredient] = useState<number | null>(null);
+  // FVL-03.003: real cost, via the authoritative Cost Engine, computed
+  // client-side after generation (Python cannot call cost.ts). Every
+  // version is costed at the SAME batch size/currency so a "cheapest
+  // valid alternative" comparison is actually comparing like with like.
+  const [batchKg, setBatchKg] = useState("100");
+  const [currency, setCurrency] = useState("KES");
+  const costData = useMasterCostData();
 
   useEffect(() => {
     if (!sessionId) return;
@@ -107,6 +119,22 @@ export function FormulationResultPage() {
   const cards = session.cards;
   const card = cards[Math.min(activeVersion, cards.length - 1)];
   const formula = asGeneratedFormula(card?.formula);
+  // FVL-03.003: real, authoritative per-version cost — computed here (not
+  // per-tab) so every version shares one costing pass at the same batch
+  // size/currency, letting `pickCheapestValidVersion` compare like with
+  // like across the whole session, not just the active tab.
+  const costSnapshots: (CostSnapshot | undefined)[] = costData.loading
+    ? cards.map(() => undefined)
+    : cards.map((c) =>
+        c.formula
+          ? costGeneratedFormula(sessionId ?? session.id, c.version, c.formula, batchKg, currency, {
+              materials: costData.materials,
+              prices: costData.prices,
+              rates: costData.rates,
+            })
+          : undefined,
+      );
+  const cheapestValidIndex = pickCheapestValidVersion(cards, costSnapshots);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -116,7 +144,15 @@ export function FormulationResultPage() {
         <PartialResearchNotice corpus={card?.research_corpus} t={t} />
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_260px]">
-          <VersionCards cards={cards} active={activeVersion} onSelect={selectVersion} t={t} />
+          <VersionCards
+            cards={cards}
+            active={activeVersion}
+            onSelect={selectVersion}
+            t={t}
+            costSnapshots={costSnapshots}
+            cheapestValidIndex={cheapestValidIndex}
+            currency={currency}
+          />
           <VersionComparisonCard t={t} />
         </div>
 
@@ -148,6 +184,11 @@ export function FormulationResultPage() {
               scientificFormulations={session.scientific_formulations}
               selectedIngredient={selectedIngredient}
               onSelectIngredient={setSelectedIngredient}
+              costSnapshot={costSnapshots[Math.min(activeVersion, cards.length - 1)]}
+              currency={currency}
+              batchKg={batchKg}
+              onBatchKgChange={setBatchKg}
+              onCurrencyChange={setCurrency}
               t={t}
             />
           </div>
@@ -162,8 +203,20 @@ export function FormulationResultPage() {
                 t={t}
               />
             )}
-            <QuickActions navigate={navigate} t={t} />
-            <VersionSummaryCard card={card} formula={formula} t={t} />
+            <QuickActions
+              navigate={navigate}
+              t={t}
+              // eslint-disable-next-line i18next/no-literal-string -- internal ResultTab id, not display text
+              onCostAnalysis={() => setTab("summary")}
+            />
+            <VersionSummaryCard
+              card={card}
+              formula={formula}
+              t={t}
+              snapshot={costSnapshots[Math.min(activeVersion, cards.length - 1)]}
+              currency={currency}
+              isCheapestValid={cheapestValidIndex === Math.min(activeVersion, cards.length - 1)}
+            />
           </div>
         </div>
       </div>
@@ -278,11 +331,17 @@ function VersionCards({
   active,
   onSelect,
   t,
+  costSnapshots,
+  cheapestValidIndex,
+  currency,
 }: {
   cards: FormulationCard[];
   active: number;
   onSelect: (i: number) => void;
   t: TFunction<readonly ["session", "common"]>;
+  costSnapshots: (CostSnapshot | undefined)[];
+  cheapestValidIndex: number | undefined;
+  currency: string;
 }) {
   return (
     <div>
@@ -328,10 +387,17 @@ function VersionCards({
                 {failed ? c.failure_reason : strategyDescription(c, formula) || t("formulationResult.versions.noSummary")}
               </p>
               {!failed && (
-                <div className="mt-2 text-[10px] text-muted">
-                  {c.score
-                    ? t("formulationResult.versions.score", { pct: Math.round(c.score.total * 100) })
-                    : t("formulationResult.versions.scoreNotYetAvailable")}
+                <div className="mt-2 flex items-center justify-between text-[10px] text-muted">
+                  <span>
+                    {c.score
+                      ? t("formulationResult.versions.score", { pct: Math.round(c.score.total * 100) })
+                      : t("formulationResult.versions.scoreNotYetAvailable")}
+                  </span>
+                  {costSnapshots[i]?.totalManufacturingCost && (
+                    <span className={cn("tabular-nums", i === cheapestValidIndex && "font-medium text-accent")}>
+                      {displayMoney(costSnapshots[i]!.totalManufacturingCost!, currency)}
+                    </span>
+                  )}
                 </div>
               )}
             </button>
@@ -372,6 +438,11 @@ function TabContent({
   scientificFormulations,
   selectedIngredient,
   onSelectIngredient,
+  costSnapshot,
+  currency,
+  batchKg,
+  onBatchKgChange,
+  onCurrencyChange,
   t,
 }: {
   tab: ResultTab;
@@ -382,6 +453,11 @@ function TabContent({
   scientificFormulations: SessionDetail["scientific_formulations"];
   selectedIngredient: number | null;
   onSelectIngredient: (i: number) => void;
+  costSnapshot: CostSnapshot | undefined;
+  currency: string;
+  batchKg: string;
+  onBatchKgChange: (v: string) => void;
+  onCurrencyChange: (v: string) => void;
   t: TFunction<readonly ["session", "common"]>;
 }) {
   if (!card) return <EmptyNotice t={t} />;
@@ -410,7 +486,18 @@ function TabContent({
     case "alternatives":
       return <AlternativesTab cards={allCards} summary={scientificFormulations?.summary} t={t} />;
     case "summary":
-      return <SummaryTab card={card} formula={formula} t={t} />;
+      return (
+        <SummaryTab
+          card={card}
+          formula={formula}
+          costSnapshot={costSnapshot}
+          currency={currency}
+          batchKg={batchKg}
+          onBatchKgChange={onBatchKgChange}
+          onCurrencyChange={onCurrencyChange}
+          t={t}
+        />
+      );
     default:
       return null;
   }
@@ -1597,7 +1684,25 @@ function AlternativesTab({
 
 // ------------------------------------------------------------ Tab 9 ---
 
-function SummaryTab({ card, formula, t }: { card: FormulationCard; formula: GeneratedFormula | undefined; t: TFunction<readonly ["session", "common"]> }) {
+function SummaryTab({
+  card,
+  formula,
+  costSnapshot,
+  currency,
+  batchKg,
+  onBatchKgChange,
+  onCurrencyChange,
+  t,
+}: {
+  card: FormulationCard;
+  formula: GeneratedFormula | undefined;
+  costSnapshot: CostSnapshot | undefined;
+  currency: string;
+  batchKg: string;
+  onBatchKgChange: (v: string) => void;
+  onCurrencyChange: (v: string) => void;
+  t: TFunction<readonly ["session", "common"]>;
+}) {
   return (
     <div className="rounded-card border border-border bg-surface p-4">
       <EvidenceSection title={t("formulationResult.summary.strategy")}>
@@ -1621,7 +1726,33 @@ function SummaryTab({ card, formula, t }: { card: FormulationCard; formula: Gene
         </EvidenceSection>
       )}
       <EvidenceSection title={t("formulationResult.summary.cost")}>
-        <p className="text-[11.5px] text-muted">{t("formulationResult.summary.costNotAvailable")}</p>
+        <div className="mb-2 flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted">
+            {t("studio.costing.batch")}
+            <input
+              value={batchKg}
+              onChange={(e) => onBatchKgChange(e.target.value)}
+              inputMode="decimal"
+              aria-label={t("studio.costing.batch")}
+              className="w-20 rounded-input border border-border bg-surface px-2 py-1 text-right text-[12px] text-text outline-none focus:border-accent"
+            />
+            {t("builder.kgUnit")}
+          </label>
+          <label className="flex items-center gap-1.5 text-[11px] text-muted">
+            {t("cost.currency")}
+            <select
+              value={currency}
+              onChange={(e) => onCurrencyChange(e.target.value)}
+              aria-label={t("cost.currency")}
+              className="rounded-input border border-border bg-surface px-2 py-1 text-[12px] text-text outline-none focus:border-accent"
+            >
+              {["KES", "USD", "EUR", "GBP", "TRY"].map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <CostSnapshotSummary snapshot={costSnapshot} currency={currency} />
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.summary.confidence")}>
         {card.score ? (
@@ -1752,12 +1883,20 @@ function SummaryTab({ card, formula, t }: { card: FormulationCard; formula: Gene
 
 // -------------------------------------------------------- side cards ---
 
-function QuickActions({ navigate, t }: { navigate: ReturnType<typeof useNavigate>; t: TFunction<readonly ["session", "common"]> }) {
+function QuickActions({
+  navigate,
+  t,
+  onCostAnalysis,
+}: {
+  navigate: ReturnType<typeof useNavigate>;
+  t: TFunction<readonly ["session", "common"]>;
+  onCostAnalysis: () => void;
+}) {
   const actions: { icon: React.ReactNode; label: string; onClick?: () => void }[] = [
     { icon: <StickyNote size={13} />, label: t("formulationResult.quickActions.addNote") },
     { icon: <FlaskConical size={13} />, label: t("formulationResult.quickActions.createTrial"), onClick: () => navigate("/laboratory") },
     { icon: <Beaker size={13} />, label: t("formulationResult.quickActions.planStability"), onClick: () => navigate("/stability") },
-    { icon: <Wallet size={13} />, label: t("formulationResult.quickActions.costAnalysis") },
+    { icon: <Wallet size={13} />, label: t("formulationResult.quickActions.costAnalysis"), onClick: onCostAnalysis },
     { icon: <FileDown size={13} />, label: t("formulationResult.quickActions.saveFormula") },
     { icon: <Share2 size={13} />, label: t("formulationResult.quickActions.querySupplier"), onClick: () => navigate("/materials") },
   ];
@@ -1781,11 +1920,28 @@ function QuickActions({ navigate, t }: { navigate: ReturnType<typeof useNavigate
   );
 }
 
-function VersionSummaryCard({ card, formula, t }: { card: FormulationCard | undefined; formula: GeneratedFormula | undefined; t: TFunction<readonly ["session", "common"]> }) {
+function VersionSummaryCard({
+  card,
+  formula,
+  t,
+  snapshot,
+  currency,
+  isCheapestValid,
+}: {
+  card: FormulationCard | undefined;
+  formula: GeneratedFormula | undefined;
+  t: TFunction<readonly ["session", "common"]>;
+  snapshot: CostSnapshot | undefined;
+  currency: string;
+  isCheapestValid: boolean;
+}) {
   const total = totalWeightPct(formula);
+  const costValue = snapshot?.totalManufacturingCost
+    ? displayMoney(snapshot.totalManufacturingCost, currency)
+    : t("formulationResult.versionSummary.notAvailable");
   const rows: [string, string][] = [
     [t("formulationResult.versionSummary.totalIngredients"), String(formula?.ingredients?.length ?? "—")],
-    [t("formulationResult.versionSummary.estimatedCost"), t("formulationResult.versionSummary.notAvailable")],
+    [t("formulationResult.versionSummary.estimatedCost"), costValue],
     [t("formulationResult.versionSummary.activeMatter"), total !== undefined ? `${total}%` : "—"],
     [t("formulationResult.versionSummary.overallScore"), t("formulationResult.versionSummary.notYetScored")],
   ];
@@ -1794,6 +1950,11 @@ function VersionSummaryCard({ card, formula, t }: { card: FormulationCard | unde
       <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
         {t("formulationResult.versionSummary.heading", { version: card?.version?.toUpperCase() ?? "" })}
       </div>
+      {isCheapestValid && (
+        <div className="mb-2 rounded-input bg-accent/10 px-2 py-1 text-[10.5px] font-medium text-accent">
+          {t("formulationResult.versionSummary.cheapestValid")}
+        </div>
+      )}
       <dl className="space-y-1">
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-center justify-between text-[11.5px]">

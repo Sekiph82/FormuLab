@@ -14,18 +14,81 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 8/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.013-018).
-FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED (24/24, 2026-08-17).
+ON PROCESS, 9/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
+FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
+(24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.003`** — blank, NOT STARTED. `FVL-03.002` closed this session
-(see below) — `FVL-03.003` ("wire landed cost + exchange rates into a
-real cost-oriented strategy, reuse existing Cost Engine, no
-reimplementation") is the next frozen task per the tracker's own
-dependency chain. Deliberately not begun this session.
+**`FVL-03.004`** — blank, NOT STARTED. `FVL-03.003` closed this session
+(see below) — `FVL-03.004` ("wire inventory/raw-material availability into
+candidate feasibility, missing data stays missing") is the next frozen
+task per the tracker's own dependency chain (depends on FVL-03.001, not
+.003 — eligible in principle since FVL-03.001 closed, but deliberately not
+begun this session). Not begun.
 
-## FVL-03.002 resolution (this session)
+## FVL-03.003 resolution (this session)
+
+"Wire the existing authoritative Cost Engine into the formulation
+pipeline." **Critical architecture finding, confirmed by audit**: Python
+cannot call `packages/shared/src/engine/cost.ts` at all —
+`run_cli.py` is a one-shot stdin→stdout subprocess (`formulation_v2.rs`'s
+`generate_formulation` spawns it, writes one JSON request, reads one JSON
+reply, no back-channel to the JS engine). The only architecturally real
+bridge is client-side, post-generation costing — new
+`apps/desktop/src/lib/generatedFormulaCost.ts::costGeneratedFormula()`, a
+thin wrapper calling `buildCostSnapshot()` directly (zero business logic
+of its own — proven by test to return the identical result a direct
+`buildCostSnapshot()` call would, including a negative proof that a
+same-display-name "decoy" material with a price is never matched by text
+similarity, only by the exact `material_code`).
+
+`apps/desktop/src/lib/formulations.ts::linesFromGeneratedFormula()` now
+carries `material_code` (the field FVL-03.002 added to every generated
+ingredient) into `FormulationLine.materialCode` — the one real gap that
+had been blocking real costing of a generated card.
+
+Wired into both UIs, consuming one authoritative result: `CostingPanel.tsx`
+(old `/live` UI, previously called the legacy Python bridge, now redirected)
+and `FormulationResultPage.tsx` (new result UI — three prior hardcoded
+"not available" placeholders replaced with real per-version cost). New
+shared `apps/desktop/src/components/cost/CostSnapshotSummary.tsx` renders
+the money-grid + `missingDataWarnings` for both; `CostPanel.tsx` (the
+manual formula builder) was left untouched — already correct, no reason to
+risk it. New pure `apps/desktop/src/lib/costComparison.ts::pickCheapestValidVersion()`
+picks the lowest-cost alternative among versions that are BOTH not
+`invalid_*` (`formula_state`) AND completely costed (zero
+`missingDataWarnings` — an incomplete/lower-bound total is never eligible
+to be crowned "cheapest"). Surfaced as a badge in `VersionSummaryCard` and
+inline per-version cost in the version-card grid.
+
+**Legacy path deleted, not merely bypassed** (confirmed zero remaining
+callers before deletion, by grep then by full regression):
+`runtime/pipeline/materials.py::cost_formula()`/`render_costing_markdown()`,
+`materials_cli.py`'s `"cost"` action, `apps/desktop/src-tauri/src/materials.rs::cost_formulation`
+(+ its `lib.rs` registration), `apps/desktop/src/lib/formulationV2.ts::costFormulation()`/
+`CostSheet`/`CostLine`. `materials.py`'s own storage/import functions and
+`materials.rs::import_materials`/`list_materials` (a separate command
+family) are untouched — still back the unrelated Settings → General
+CSV-import screen.
+
+Verified: `python -m pytest runtime/pipeline -q` — 386 passed, 5 subtests
+(7 obsolete `CostingTests` removed). `cargo check` + `cargo test` — 345/345
+passing (full suite, not just targeted — `materials.rs`/`lib.rs` changed).
+`pnpm --filter @formulab/shared test` — 1302/1302 (`cost.test.ts`
+untouched, re-verified as the sanity gate, no new tests added there per
+the "don't duplicate expected-value formulas the authoritative engine can
+already prove" instruction). `pnpm --filter @formulab/desktop test` —
+1287/1287 (19 new: `generatedFormulaCost.test.ts` 6, `costComparison.test.ts`
+5, `formulations.test.ts` 2, `CostSnapshotSummary.test.tsx` 3, plus the
+i18n locale-parity suite re-verified green across all 8 locales after
+adding 2 new translation keys to each). `typecheck`/`lint` — clean.
+`git diff --check` — clean. No desktop rebuild/installer performed (dev-mode
+`cargo check` + typecheck covers the changed surface; not required by this
+task's own acceptance criteria). No FVL-03.004+ work started; no Python
+price-selection/landed-cost/FX logic added anywhere.
+
+## FVL-03.002 resolution (prior session)
 
 "Canonical Material Master / supplier linkage into formulation generation
 under the SINGLE-AUTHORITY architecture." New
@@ -187,38 +250,39 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.003`** — blank, NOT STARTED (see above). Wire landed cost +
-exchange rates into a real cost-oriented strategy — reuse the existing
-Cost Engine (`packages/shared/src/engine/cost.ts::costFormula()`/
-`buildCostSnapshot()`), no Python reimplementation. Retire/bypass
-`materials.py::cost_formula()` for the generation path. Not begun this
-session.
+**`FVL-03.004`** — blank, NOT STARTED (see above). Wire inventory/
+raw-material availability into candidate feasibility, reusing canonical
+`InventoryRecord` collections — missing data stays missing, never assumed
+available. Not begun this session.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001/.002 fully closed (see above).
+None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003 fully closed (see
+above).
 
 ## Most recent relevant tests
 
-- `python -m pytest runtime/pipeline -q` — 393 passed, 5 subtests passed.
-- `cargo test masterdata:: formulation_v2::` — 28/28 passing.
-- `cargo check` — clean.
+- `python -m pytest runtime/pipeline -q` — 386 passed, 5 subtests passed.
+- `cargo check` + `cargo test` — 345/345 passing (full suite).
+- `pnpm --filter @formulab/shared test` — 1302/1302.
+- `pnpm --filter @formulab/desktop test` — 1287/1287.
+- `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
 - `python scripts/validate_v1_tracker.py` — OK, 157 tasks, no drift.
 - `git diff --check` — clean.
-- Rust production code changed this session (`formulation_v2.rs`) — no
-  desktop rebuild/installer performed (only a `cargo check`/targeted
-  `cargo test`, matching the standing "full rebuild reserved for closure
-  sessions" policy; nothing in this session's own acceptance criteria
-  required a shipped binary).
+- Rust/TS/Python production code changed this session — no desktop
+  rebuild/installer performed (dev-mode `cargo check`/`typecheck` covers
+  the changed surface, matching the standing "full rebuild reserved for
+  closure sessions" policy; nothing in this session's own acceptance
+  criteria required a shipped binary). No live Tauri-app smoke test was
+  performed — verification relied on the automated suites above plus a
+  new component-render test (`CostSnapshotSummary.test.tsx`) proving
+  real, non-crashing rendering with real i18n lookups.
 
 ## Latest commit SHA
 
-`e3e238051e8c5b890b46c3abebaf834f4712b49c` (pushed to and matching
-`origin/feature/laboratory-stability`) —
-"feat(v1): FVL-03.002 canonical Material Master into generation
-(single-authority)". Prior: `c2ef4e5b6b279fcee475399490986a58208945ab` —
-"docs(v1): enforce single-authority integration architecture"
-(architecture-correction session, no production code changed).
+(updated in the closure-pointer follow-up commit for this session).
+Prior: `fcb7cdcfbb0df3953708db942b5c94958d643c3c` — "docs: finalize
+FVL-03.002 closure pointer with commit SHA".
 
 ## Reminder
 

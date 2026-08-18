@@ -678,7 +678,8 @@
       "activeMatter": "Active Matter",
       "overallScore": "Overall Score",
       "notAvailable": "Not available",
-      "notYetScored": "Not yet scored"
+      "notYetScored": "Not yet scored",
+      "cheapestValid": "Geçerli alternatifler arasında en düşük maliyet"
     },
     "process": {
       "notAvailable": "A real, evidence-sourced manufacturing procedure for this formula is not yet generated — Phase 14 Session 5 builds this. No generic or invented process steps are shown in its place."
@@ -989,6 +990,7 @@
       "expired_price": "fiyatın süresi dolmuş"
     },
     "incomplete": "Bu maliyet eksik",
+    "notYetAvailable": "Henüz kullanılamıyor — ana veriler hâlâ yükleniyor.",
     "snapshots": "Kaydedilmiş anlık görüntüler",
     "noSnapshots": "Bu proje için kaydedilmiş maliyet anlık görüntüsü yok.",
     "warningCount": "{{count}} uyarı",

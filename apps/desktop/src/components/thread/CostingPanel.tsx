@@ -1,38 +1,38 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Calculator, Loader2 } from "lucide-react";
-import { costFormulation, type CostSheet } from "@/lib/formulationV2";
-import { AgentMessage } from "./atoms";
+import { Calculator } from "lucide-react";
+import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
+import { useMasterCostData } from "@/hooks/useMasterCostData";
+import { CostSnapshotSummary } from "@/components/cost/CostSnapshotSummary";
+
+const CURRENCIES = ["KES", "USD", "EUR", "GBP", "TRY"];
 
 /**
- * Costs the displayed formula against the customer's imported raw-material
- * prices. The arithmetic happens in Python from those prices — no model is
- * involved — so every figure here can be checked by hand.
+ * FVL-03.003: costs the displayed formula against the authoritative Cost
+ * Engine (`packages/shared/src/engine/cost.ts`, via `costGeneratedFormula()`)
+ * — real landed cost, exchange rates, missing-data honesty, the same
+ * engine `CostPanel.tsx`'s manual formula builder already uses. No model
+ * is involved, and as of this task no separate Python arithmetic either;
+ * one authority, both UIs.
  *
- * Collapsed until asked for: a formula is useful without a cost, and costing
- * needs a material list the user may not have imported yet.
+ * Recalculates live as the batch size or currency changes — pure local
+ * computation now, no subprocess round-trip, so there's nothing to wait
+ * on.
  */
 export function CostingPanel({ formula }: { formula: unknown }) {
   const { t } = useTranslation(["session", "common"]);
   const [batch, setBatch] = useState("100");
-  const [sheet, setSheet] = useState<CostSheet | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [currency, setCurrency] = useState("KES");
+  const { materials, prices, rates, loading } = useMasterCostData();
 
-  const run = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const kg = Number(batch.replace(",", ".")) || 100;
-      const res = await costFormulation(formula, kg);
-      if (res.status === "ok") setSheet(res);
-      else setError(res.message ?? "Costing failed.");
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const snapshot = useMemo(() => {
+    if (loading) return undefined;
+    return costGeneratedFormula("live-session", "draft", formula, batch, currency, {
+      materials,
+      prices,
+      rates,
+    });
+  }, [formula, batch, currency, materials, prices, rates, loading]);
 
   return (
     <div className="mt-6 rounded-card border border-border bg-surface-2/40 p-4">
@@ -46,41 +46,31 @@ export function CostingPanel({ formula }: { formula: unknown }) {
             value={batch}
             onChange={(e) => setBatch(e.target.value)}
             inputMode="decimal"
+            aria-label={t("studio.costing.batch")}
             className="w-20 rounded-input border border-border bg-surface px-2 py-1 text-right text-[12px] text-text outline-none focus:border-accent"
           />
           {t("builder.kgUnit")}
         </label>
-        <button
-          onClick={() => void run()}
-          disabled={busy}
-          className="flex items-center gap-1.5 rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
-        >
-          {busy ? <Loader2 size={13} className="animate-spin" /> : <Calculator size={13} />}
-          {t("studio.costing.calculate")}
-        </button>
+        <label className="flex items-center gap-1.5 text-[12px] text-muted">
+          {t("cost.currency")}
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            aria-label={t("cost.currency")}
+            className="rounded-input border border-border bg-surface px-2 py-1 text-[12px] text-text outline-none focus:border-accent"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
-      {error && <p className="mt-3 text-[13px] text-error">{error}</p>}
-
-      {sheet && (
-        <div className="mt-3">
-          <AgentMessage markdown={sheet.markdown} />
-          {!sheet.complete && (
-            // A partial cost must never be mistaken for the real one.
-            <p className="mt-2 text-[12px] text-warn">
-              {t("studio.costing.partial", {
-                pct: sheet.covered_pct,
-                list: sheet.unmatched.join(", "),
-              })}
-            </p>
-          )}
-        </div>
-      )}
-      {!sheet && !error && (
-        <p className="mt-2 text-[11px] leading-relaxed text-muted">
-          {t("studio.costing.needMaterials")}
-        </p>
-      )}
+      <div className="mt-3">
+        <CostSnapshotSummary snapshot={snapshot} currency={currency} compact />
+      </div>
     </div>
   );
 }

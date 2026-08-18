@@ -218,10 +218,23 @@ The smallest correct boundary, given everything above:
   **The future formulation pipeline must call this engine (from the
   TypeScript/frontend side, passing it a real `materialCode`-bearing
   `FormulationLine[]`), never reimplement any of it in Python.**
-  `materials.py::cost_formula()` is the exact reimplementation this
-  principle forbids going forward — it predates this policy and is not
-  removed in this audit-only session, but FVL-03.003 should retire it in
-  favor of calling the real engine.
+
+  **FVL-03.003 (COMPLETED, 2026-08-18) closed this boundary for real.**
+  Python cannot call `cost.ts` at all (`run_cli.py` is a one-shot
+  stdin→stdout subprocess, no back-channel to the JS engine) — confirmed
+  by this session's audit, which also confirmed the brief's own proposed
+  "Option A" bridge is the only architecturally real one: Python generates
+  cards unchanged; `apps/desktop/src/lib/generatedFormulaCost.ts::costGeneratedFormula()`
+  costs each one client-side, after generation, by calling
+  `buildCostSnapshot()` directly — zero business logic of its own, proven
+  by test to return the identical result a direct `buildCostSnapshot()`
+  call would. Wired into both UIs: `CostingPanel.tsx` (old `/live`) and
+  `FormulationResultPage.tsx` (new result UI, previously three hardcoded
+  "not available" placeholders). `materials.py::cost_formula()` — the
+  reimplementation this principle forbade — is deleted, not merely
+  bypassed; its Rust bridge (`materials.rs::cost_formulation`) and TS
+  wrapper (`formulationV2.ts::costFormulation()`) are deleted too, after
+  confirming (by grep, then by full regression) zero remaining callers.
 - **Formulation generation itself** (role selection, concentration
   resolution, diversity, strategy): stays owned by
   `runtime/pipeline/engine.py`, unchanged by this audit.
@@ -297,9 +310,9 @@ Terminology going forward in all NEW roadmap/architecture wording: **"Determinis
 
 | Component | Current role | Authoritative replacement | Retirement task | Can remain temporarily? | Deletion condition |
 |---|---|---|---|---|---|
-| `runtime/pipeline/materials.py` (storage/import: `load_materials`/`save_materials`/`parse_materials`) | Second, legacy material representation feeding `build_candidate_pool()` today via `<materials_dir>/materials.json` | Canonical Material Master (`data/master/*.json` via `masterdata.rs`) | FVL-03.002 | Yes — until FVL-03.002 wires the canonical seam AND regression-tests it | Delete/retire the generation-path usage only after FVL-03.002 is COMPLETED and regression-tested; the Settings → General CSV-import screen (`MaterialsCard.tsx`) may keep using this module for its own unrelated purpose unless a separate, explicit decision retires that screen too |
-| `runtime/pipeline/materials.py::cost_formula()` | Separate, simpler flat kg×price costing reimplementation | `packages/shared/src/engine/cost.ts::costFormula()`/`buildCostSnapshot()` | FVL-03.003 | Yes — until FVL-03.003 wires real Cost Engine calls AND regression-tests it | Retire once FVL-03.003 is COMPLETED and the AI-generation costing view (`CostingPanel.tsx` → `cost_formulation`) is redirected to the real engine or an equivalent bridge |
-| `apps/desktop/src-tauri/src/materials.rs` (legacy `import_materials`/`list_materials`/`cost_formulation` commands) | Backs the Settings → General CSV-import screen and the legacy AI-session costing view | Canonical `masterdata.rs` commands + `packages/shared/src/engine/cost.ts` | FVL-03.002/.003 (decision point, not auto-scheduled) | Yes — this is a UI/product decision, not purely technical; not scheduled for deletion by this correction | Only after an explicit decision (made during or after FVL-03.002/.003) to retire or redirect the Settings → General screen — this correction session does not make that call |
+| `runtime/pipeline/materials.py` (storage/import: `load_materials`/`save_materials`/`parse_materials`) | Second, legacy material representation — still backs the Settings → General CSV-import screen (`MaterialsCard.tsx`), a deliberately separate, unrelated purpose | Canonical Material Master (`data/master/*.json` via `masterdata.rs`), read for generation via `master_materials_adapter.py` | FVL-03.002 | **CLOSED for the generation path** (FVL-03.002, COMPLETED) — this module's storage/import functions remain, permanently, for the CSV-import screen only | Generation-path usage already retired (FVL-03.002). The CSV-import screen itself is not scheduled for retirement — a separate, explicit product decision, not made by any FVL-03 session |
+| `runtime/pipeline/materials.py::cost_formula()` / `render_costing_markdown()` | ~~Separate, simpler flat kg×price costing reimplementation~~ **DELETED** (FVL-03.003) | `packages/shared/src/engine/cost.ts::costFormula()`/`buildCostSnapshot()`, via `apps/desktop/src/lib/generatedFormulaCost.ts::costGeneratedFormula()` | FVL-03.003 | No — **retired**, code no longer exists | Done: `CostingPanel.tsx` redirected to the real engine first (this session), then this function and its own tests (`test_materials.py::CostingTests`) deleted once zero callers remained — confirmed by full `pytest`/`cargo check` regression |
+| `apps/desktop/src-tauri/src/materials.rs::cost_formulation` (+ `materials_cli.py`'s `"cost"` action, `apps/desktop/src/lib/formulationV2.ts::costFormulation()`/`CostSheet`/`CostLine`) | ~~Backs the legacy AI-session costing view~~ **DELETED** (FVL-03.003) | `packages/shared/src/engine/cost.ts`, called from `CostingPanel.tsx`/`FormulationResultPage.tsx` via `costGeneratedFormula()` | FVL-03.003 | No — **retired**, code no longer exists | Done — `cost_formulation` removed from `materials.rs` and `lib.rs`'s command list; `materials.rs::import_materials`/`list_materials` (a SEPARATE command family, Settings → General CSV-import) deliberately untouched, still live |
 | `runtime/pipeline/safety.py` | Independent, competing final safety verdict (`overall_status`) | `packages/shared/src/engine/safety.ts::evaluateSafety`/`classifyProductSafety` | FVL-03.009 | Yes — genuinely useful generation-time preprocessing (hazard-table lookups feeding the request) may be retained/merged into the authoritative engine's inputs; the competing final-verdict computation is what gets retired, not necessarily the whole file | Not deleted in this documentation-only session — code is in live use (`pipeline.py:846`). Consolidation happens in FVL-03.009's own implementation session, with regression tests proving one verdict, not two disagreeing ones |
 | `runtime/pipeline/regulatory.py` | Independent, self-documented "faithful port" of the TS regulatory rule catalog into a second evaluation engine | `packages/shared/src/engine/regulatoryRules.ts::evaluateRegulatory` + `regulatoryClassification.ts` | FVL-03.010 | Yes — same reasoning as safety.py; claim-review preprocessing may be retained/merged, the competing rule universe/verdict is what gets retired | Not deleted in this documentation-only session — code is in live use (`pipeline.py:847`). Consolidation happens in FVL-03.010's own implementation session |
 | `runtime/pipeline/rules.py::validate()`/`derive_constraints()` | Generation-request constraint enforcement (excluded ingredients, sulfate-free, pH bounds) | N/A — not a duplicate, stays as-is | N/A | Yes, permanently | Never — this is legitimate request-constraint logic, confirmed not to overlap the Compatibility Engine's rule-type surface |

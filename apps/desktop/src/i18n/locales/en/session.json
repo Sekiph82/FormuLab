@@ -681,7 +681,8 @@
       "activeMatter": "Active Matter",
       "overallScore": "Overall Score",
       "notAvailable": "Not available",
-      "notYetScored": "Not yet scored"
+      "notYetScored": "Not yet scored",
+      "cheapestValid": "Lowest cost among valid alternatives"
     },
     "process": {
       "notAvailable": "A real, evidence-sourced manufacturing procedure for this formula is not yet generated — Phase 14 Session 5 builds this. No generic or invented process steps are shown in its place."
@@ -989,6 +990,7 @@
       "expired_price": "price expired"
     },
     "incomplete": "This cost is incomplete",
+    "notYetAvailable": "Not yet available — master data is still loading.",
     "snapshots": "Saved snapshots",
     "noSnapshots": "No cost snapshots saved for this project.",
     "warningCount": "{{count}} warning(s)",
