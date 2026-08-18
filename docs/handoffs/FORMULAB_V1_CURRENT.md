@@ -160,9 +160,11 @@ no code change — see above).
 
 ## Latest commit SHA
 
-`86e965a6f8ddbb2144e077f05fbe66a635a46bd0` (pushed to and matching
-`origin/feature/laboratory-stability`) — "docs(v1): close FVL-03.001
-material master integration-seam audit".
+`c2ef4e5b6b279fcee475399490986a58208945ab` (pushed to and matching
+`origin/feature/laboratory-stability`) — "docs(v1): enforce single-authority
+integration architecture" (architecture-correction session, no production
+code changed). Prior: `86e965a6f8ddbb2144e077f05fbe66a635a46bd0` — "docs(v1):
+close FVL-03.001 material master integration-seam audit".
 
 ## Reminder
 
