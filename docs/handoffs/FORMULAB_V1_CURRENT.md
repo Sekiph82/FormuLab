@@ -19,10 +19,37 @@ remains CLOSED (21/21); FVL-02 remains CLOSED (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.002`** — blank, NOT STARTED. `FVL-03.001` closed this session
-(see below) — `FVL-03.002` ("wire supplier records + price history into
-candidate concentration/cost basis") is the next frozen task per the
-tracker's own dependency chain. Deliberately not begun this session.
+**`FVL-03.002`** — blank, NOT STARTED. An architecture-correction session
+(2026-08-18, see below) hardened FVL-03.002-.012's wording with the
+SINGLE-AUTHORITY rule and a code-traced duplicate-authority audit, but
+deliberately did not implement anything — `FVL-03.002` ("canonical
+Material Master reaches `build_candidate_pool()` through a shape-only
+adapter, `RawMaterial.code` carried end-to-end, no duplicated
+supplier/price business logic") remains the next frozen task per the
+tracker's own dependency chain. Still not begun.
+
+## Architecture correction (2026-08-18) — SINGLE-AUTHORITY rule adopted
+
+Roadmap/documentation session only, before any FVL-03.002 implementation.
+No production code changed. Added the single-authority principle to
+`docs/FORMULAB_V1_FINAL_SCOPE.md` (every business domain has exactly one
+authoritative engine/source of truth; a pipeline-local adapter transports
+and reshapes data only). Full code-traced authoritative domain map and
+legacy retirement matrix added to
+`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`. Key confirmed findings:
+`runtime/pipeline/safety.py` and `runtime/pipeline/regulatory.py` are real,
+independently-computing duplicate final-verdict engines (targeted by
+FVL-03.009/.010 respectively); `runtime/pipeline/rules.py::validate()` is
+**not** a duplicate of the Compatibility Engine — confirmed to implement
+only generation-request constraints. Hardened FVL-03.002 through
+FVL-03.012's wording in the tracker with exact repository names/paths, plus
+two flagged-elsewhere rows (`FVL-07.008` reworded for clarity,
+`FVL-08.005` wording strengthened, `Blocking` left `NO` — a scope decision
+deliberately not made this session). No dependency-graph or status values
+changed; no new work package created. Old UI (`/live`) and new UI
+(`/formulation-request`+`/formulation-result/:sessionId`) both remain,
+sharing one zero-LLM backend (`engine.py`) — `FVL-11.005` still owns the
+retirement decision, not moved earlier.
 
 ## FVL-03.001 resolution (this session, audit only)
 

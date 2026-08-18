@@ -32,6 +32,37 @@ remains beyond it.
    authoritative FormuLab v1 completion contract. This scope document and
    that tracker together define "done."
 
+### Single-authority principle (binding on every future session)
+
+Adopted 2026-08-18 as an architecture correction, hardening the intent
+already stated in §2 below — not a new capability, not a new work package.
+
+For every existing FormuLab business domain there SHALL be exactly one
+authoritative engine and exactly one authoritative source of truth. An
+existing authoritative implementation must be reused, called, or extended
+in place. It must **not** be independently reimplemented anywhere else in
+the platform, including inside `runtime/pipeline`.
+
+A pipeline-local adapter MAY: serialize, deserialize, map field names, map
+canonical IDs, reshape data for transport, or expose an existing
+authoritative result to Python/Rust/TypeScript.
+
+A pipeline-local adapter MUST NOT: recompute a business decision, choose an
+authoritative price, calculate landed cost, calculate exchange-rate
+conversion, duplicate a safety verdict, duplicate a regulatory verdict,
+duplicate compatibility logic, duplicate substitution scoring, duplicate
+optimizer logic, duplicate inventory-availability rules, duplicate supplier
+qualification rules, or create a second material identity model.
+
+An adapter is a transport/shape boundary only. It is not another engine.
+
+This principle governs how every remaining FVL-03 (and later FVL-04
+through FVL-11) task is implemented — see
+[`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`](FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md)'s
+authoritative domain map and legacy retirement matrix for the exact,
+code-traced per-domain authority and any confirmed duplicate needing
+retirement.
+
 ---
 
 ## 1. Final formula-count requirement (the last functional scope change)

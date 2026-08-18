@@ -196,27 +196,44 @@ Purpose: implement the frozen requirement in `FORMULAB_V1_FINAL_SCOPE.md`
 Integrate the Phase 14 deterministic pipeline with already-existing FormuLab
 platform capabilities. Do not build replacements.
 
+**Single-authority rule applies to every task below** (see
+`docs/FORMULAB_V1_FINAL_SCOPE.md`'s "Single-authority principle" and the
+authoritative domain map + legacy retirement matrix in
+`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`, both added 2026-08-18 as
+an architecture correction — no new scope, only hardened wording). Every
+subtask below must reuse/call/extend the cited existing engine; a
+Python-side adapter transports and reshapes data only, it never becomes a
+second authority for that domain's business decision.
+
 **Existing dependency / baseline capability** (verified present in
-`docs/architecture/IMPLEMENTATION_STATUS.md`): Cost Engine (§"Cost engine",
-landed cost, exchange rates, inventory records), Advanced Optimizer,
-material substitution/system substitution, Compatibility Engine, Safety
-Engine (product-level), Kenya/EAC Regulatory Engine, Material Master +
-supplier records + price history.
+`docs/architecture/IMPLEMENTATION_STATUS.md`, and re-confirmed by code
+during the 2026-08-18 architecture-correction audit): Cost Engine
+(`packages/shared/src/engine/cost.ts`), Advanced Optimizer
+(`apps/desktop/src-tauri/src/formulation_advanced.rs` /
+`runtime/formulation/advanced_optimizer.py`), material substitution
+(`packages/shared/src/engine/substitution.ts`) / system substitution
+(`packages/shared/src/engine/systemSubstitution.ts`), Compatibility Engine
+(`packages/shared/src/engine/compatibility.ts`), Safety Engine
+(`packages/shared/src/engine/safety.ts`), Kenya/EAC Regulatory Engine
+(`packages/shared/src/engine/regulatoryRules.ts` +
+`regulatoryClassification.ts`), Material Master + supplier records + price
+history (`packages/shared/src/schemas/materials.ts`,
+`apps/desktop/src-tauri/src/masterdata.rs`, `data/master/*.json`).
 
 | Task ID | Title | Depends on | Blocking | Status |
 |---|---|---|---|---|
 | FVL-03.001 | Audit exact integration seam: Material Master ↔ `engine.build_candidate_pool()` (what's read today via `materials_dir`, what's missing) | FVL-01 | YES | COMPLETED (2026-08-18) — full audit in `docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`. Confirmed by code: `build_candidate_pool()` consumes a SECOND, legacy material representation (`runtime/pipeline/materials.py`'s flat `<materials_dir>/materials.json`, populated by the live `MaterialsCard.tsx` CSV-import path), never the canonical `data/master/materials.json` (`masterdata.rs`) the real Materials screen uses. Identity mismatch confirmed: pool keys on normalized INCI/name text, never `RawMaterial.code`. `resolve_concentration()`'s own Tier 4 (supplier recommended range) is dead code on this path — proven end-to-end with a real CSV import (`test_material_master_seam.py`, 4 tests). Cost Engine boundary documented (`packages/shared/src/engine/cost.ts::costFormula()`, keyed on `materialCode`) — confirmed NOT called from the generation path; `materials.py::cost_formula()` is a separate, unrelated reimplementation. No production code changed — audit-only, per FVL-03.001's own scope. |
-| FVL-03.002 | Wire supplier records + price history into candidate concentration/cost basis (one source of truth, no duplicated cost formula) | FVL-03.001 | YES | |
-| FVL-03.003 | Wire landed cost + exchange rates into a real cost-oriented strategy (reuse existing Cost Engine, no reimplementation) | FVL-03.002 | YES | |
-| FVL-03.004 | Wire inventory/raw-material availability into candidate feasibility (missing data stays missing, never assumed available) | FVL-03.001 | NO | |
-| FVL-03.005 | Wire Advanced Optimizer as an optional post-generation refinement of a selected alternative (existing optimizer, not a new solver) | FVL-03.003 | NO | |
-| FVL-03.006 | Wire material substitution engine for an ingredient the candidate pool cannot resolve | FVL-03.001 | NO | |
-| FVL-03.007 | Wire system substitution engine at the formula level where applicable | FVL-03.006 | NO | |
-| FVL-03.008 | Wire Compatibility Engine as an additional hard-constraint check alongside `rules.validate()` (no duplicated compatibility logic) | FVL-03.001 | YES | |
-| FVL-03.009 | Reconcile product-level Safety Engine with Phase 14's `safety.py` — one authoritative safety verdict per formula version, not two disagreeing ones | FVL-03.008 | YES | |
-| FVL-03.010 | Reconcile Kenya/EAC Regulatory Engine with Phase 14's `regulatory.py` — one authoritative regulatory verdict per market, no duplicated rule universe | FVL-03.009 | YES | |
-| FVL-03.011 | Supplier/material provenance remains traceable end-to-end (extends `traceability.py`'s existing model, does not fork it) | FVL-03.002 | YES | |
-| FVL-03.012 | Integration regression suite + real acceptance covering at least one cost-constrained and one substitution-triggered request | FVL-03.005, FVL-03.007, FVL-03.010 | YES | |
+| FVL-03.002 | Canonical Material Master (`data/master/materials.json` + supplier-link + price-history collections, via `masterdata.rs`) reaches `engine.build_candidate_pool()` through a shape-only Python adapter. `RawMaterial.code` carried end-to-end as real identity, in addition to (never instead of) existing INCI/name text matching. Adapter transports/reshapes only — it must not own supplier or price business logic (single-authority rule). | FVL-03.001 | YES | |
+| FVL-03.003 | Cost-oriented formulation behavior calls the EXISTING Cost Engine (`packages/shared/src/engine/cost.ts::costFormula()`/`buildCostSnapshot()`) for any real price, landed-cost, or exchange-rate result. `runtime/pipeline/materials.py::cost_formula()` is legacy and is retired or bypassed for the generation path. No Python reimplementation of price selection, landed cost, or FX conversion. | FVL-03.002 | YES | |
+| FVL-03.004 | Inventory feasibility consumes canonical `InventoryRecord` collections and existing availability semantics directly (missing data stays missing, never assumed available) — no copied stock rules, no second availability model. | FVL-03.001 | NO | |
+| FVL-03.005 | Existing Advanced Optimizer (`apps/desktop/src-tauri/src/formulation_advanced.rs` / `runtime/formulation/advanced_optimizer.py`) used as an optional post-generation refinement of a selected alternative — no new solver, and not a merge into `engine.py`'s deterministic candidate-generation logic (different responsibility, both legitimately exist). | FVL-03.003 | NO | |
+| FVL-03.006 | Existing material substitution engine (`packages/shared/src/engine/substitution.ts`) used for an ingredient the candidate pool cannot resolve — no pipeline-local duplicate substitution scoring. | FVL-03.001 | NO | |
+| FVL-03.007 | Existing system substitution engine (`packages/shared/src/engine/systemSubstitution.ts`, which itself routes candidates through the Advanced Optimizer rather than solving independently) used at the formula level where applicable — no parallel system-substitution logic. | FVL-03.006 | NO | |
+| FVL-03.008 | Existing Compatibility Engine (`packages/shared/src/engine/compatibility.ts::evaluateCompatibility`) becomes the authoritative compatibility verdict for generated formulas. `runtime/pipeline/rules.py::validate()`/`derive_constraints()` remain in place — confirmed by the 2026-08-18 audit to implement only generation-REQUEST constraints (excluded ingredients, sulfate-free, requested pH bounds), never chemical/material compatibility logic — so they are not a competing engine. No duplicate compatibility business rules. | FVL-03.001 | YES | |
+| FVL-03.009 | Existing Safety Engine (`packages/shared/src/engine/safety.ts::evaluateSafety`/`classifyProductSafety`) becomes the single authoritative final safety verdict. `runtime/pipeline/safety.py::evaluate_safety()` is a confirmed duplicate — it independently computes its own `overall_status` from its own hazard tables, never consuming the TS engine's result. Its pipeline-local duplicate final-verdict logic is retired or reduced to non-authoritative preprocessing that feeds the authoritative engine — not permanently reconciled as a second, independently-disagreeing verdict authority. | FVL-03.008 | YES | |
+| FVL-03.010 | Existing Kenya/EAC Regulatory Engine (`packages/shared/src/engine/regulatoryRules.ts::evaluateRegulatory` + `regulatoryClassification.ts`) becomes the single authoritative regulatory verdict per market. `runtime/pipeline/regulatory.py::evaluate_regulatory()` is a confirmed duplicate — its own module docstring describes it as "a direct, faithful port" of the TS rule catalog into an independent second evaluation engine with its own terminal verdict. Its pipeline-local duplicate rule universe/verdict is retired or reduced to non-authoritative preprocessing — not a permanent second rule universe. | FVL-03.009 | YES | |
+| FVL-03.011 | Supplier/material/safety/regulatory/compatibility provenance remains traceable end-to-end, carrying each authoritative engine's real source IDs (`material_code`, rule/verdict references) — extends `traceability.py`'s existing model, does not fork it. | FVL-03.002 | YES | |
+| FVL-03.012 | Integration acceptance proves exactly one authoritative result per domain (material, cost, inventory, compatibility, safety, regulatory, substitution, optimization) with no duplicated business calculation remaining, covering at least one cost-constrained and one substitution-triggered request. | FVL-03.005, FVL-03.007, FVL-03.010 | YES | |
 | FVL-03.013 | Scientific Full-Formulation Extraction — `fulltext.pdf_lines()` (real, standard-library-only, positional PDF text reconstruction) + `scientific_formulation.py`'s deterministic F1..Fn composition-table extractor | FVL-01 | YES | COMPLETED |
 | FVL-03.014 | Scientific Formulation Experimental Outcome Linking — `ExperimentalOutcome` records tied to the correct `source_formulation_id`, both row-indexed (RPM/time tables) and F-labeled-row (results tables) shapes | FVL-03.013 | YES | COMPLETED |
 | FVL-03.015 | Scientific Architecture Candidate Seeding — `engine.build_candidate_pool()`/`resolve_concentration()` Tier 0, `ORIGIN_SCIENTIFIC_FORMULATION`, real priority over a bare evidence mention, never overriding hard constraints | FVL-03.013 | YES | COMPLETED |
@@ -335,7 +352,7 @@ built strictly on top of FVL-05's dataset builder.
 | FVL-07.005 | Feature generation: process + test-context + product-family features | FVL-05.004, FVL-06 | YES | |
 | FVL-07.006 | Feature generation: optional interaction features, only when reproducible | FVL-07.004, FVL-07.005 | NO | |
 | FVL-07.007 | Baseline models first (simple deterministic/statistical baseline before any ML candidate) | FVL-07.004–006 | YES | |
-| FVL-07.008 | Candidate model comparison (deterministic/statistical/ML), train/validation/test split, cross-validation where appropriate, recorded random seeds | FVL-07.007 | YES | |
+| FVL-07.008 | Candidate PREDICTION-MODEL comparison for the performance target (deterministic/statistical baseline vs. ML), train/validation/test split, cross-validation where appropriate, recorded random seeds — this is model selection for FVL-07's prediction target only, never a second deterministic ingredient-selection/candidate-pool engine parallel to `engine.py` | FVL-07.007 | YES | |
 | FVL-07.009 | Hyperparameter recording — no fabricated result | FVL-07.008 | YES | |
 | FVL-07.010 | Evaluation: appropriate metrics (RMSE/MAE/R² only where mathematically suitable), held-out performance vs. baseline, failure thresholds, acceptance policy | FVL-07.008 | YES | |
 | FVL-07.011 | Model registry: ID/version, dataset hash, feature-schema version, training date, algorithm, params, metrics, target definition, applicability domain, uncertainty method, artifact checksum, status | FVL-07.009, FVL-07.010 | YES | |
@@ -361,7 +378,7 @@ Engine — reused, not duplicated.
 | FVL-08.002 | Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance | FVL-08.001 | YES | |
 | FVL-08.003 | Missing prediction never silently becomes zero; out-of-domain prediction never looks equivalent to a validated one | FVL-08.001, FVL-07.013 | YES | |
 | FVL-08.004 | Cost dimension sourced from the existing Cost Engine (FVL-03.003), never recomputed independently | FVL-08.001 | YES | |
-| FVL-08.005 | Optimization pass uses the existing Advanced Optimizer where applicable (FVL-03.005), not a new solver | FVL-08.001 | NO | |
+| FVL-08.005 | Optimization pass uses the existing Advanced Optimizer where applicable (FVL-03.005), not a new solver — single-authority rule applies here exactly as elsewhere even though this row is non-blocking; do not build a second solver merely because this task itself isn't gating | FVL-08.001 | NO | |
 | FVL-08.006 | UI: result screen exposes why one alternative ranks differently (per-dimension breakdown, not a single number) | FVL-08.001 | YES | |
 | FVL-08.007 | Persistence + audit trail for every ranking input | FVL-08.001 | YES | |
 | FVL-08.008 | Regression + acceptance test: a Safety-FAIL alternative never outranks a passing one regardless of predicted performance | FVL-08.002 | YES | |
