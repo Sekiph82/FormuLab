@@ -472,6 +472,109 @@ panel is reused unmodified), and involves no predictive AI/LLM anywhere
 — the promotion step is pure data construction from the session's own
 already-generated, deterministic formula.
 
+### Material Substitution Engine boundary (FVL-03.006, COMPLETED 2026-08-18)
+
+Same conclusion pattern as the Advanced Optimizer boundary above: full
+audit found **no engine/schema/scoring gap at all**. The one-to-one
+Material Substitution Engine (`packages/shared/src/schemas/substitution.ts`
++ `packages/shared/src/engine/substitution.ts`, fully specified in
+`docs/MATERIAL_SUBSTITUTION.md`) already scores candidates over 15 real
+dimensions — function match, active-matter equivalence, a real
+`evaluateCompatibility`/`evaluateSafety` re-run with the candidate
+substituted in, ionic character, regulatory status, available stock
+(canonical `InventoryRecord`), HLB, pH, recommended-use overlap, landed
+cost (canonical `MaterialPrice`/`cost.ts`), supplier approval, lead time,
+Kenya-local, evidence confidence — never name/trade-name similarity, and
+a dimension with no backing data is reported `missingData: true`
+(`SubstitutionWeights.missingDataPenalty`, 0 by default), never defaulted
+to a perfect-match score. `rankCandidates()` sorts any candidate with a
+blocking compatibility/safety finding after every clean one regardless of
+score — a blocking candidate is shown, never hidden. Applying a candidate
+writes an immutable `substitution_runs` record
+(`substitutionRunSchema`: request, every scored candidate, the selected
+one) BEFORE ever touching the draft, then updates only the **working
+draft** (`useFormulationWorkspace.ts::onApplySubstitution`) — never the
+saved `FormulationVersion` the draft was derived from; a chemist must
+still take an explicit "Save Version" action for the substitution to
+become part of formulation history. The existing, already-tested
+`SubstitutionDialog`/`SubstitutionPanel.tsx` UI already implements this
+whole workflow, mounted project-bound in both `/live`
+(`FormulasPage.tsx`) and `/formulation` (`FormulationPage.tsx`).
+**Zero engine/schema/scoring/Rust/Python changes were made or are
+needed.**
+
+**Trigger boundary — the platform's own two named cases, nothing else**:
+new pure `apps/desktop/src/lib/generatedFormulaInventory.ts::shouldOfferSubstitution()`
+returns `true` only for (A) an ingredient that never resolved to a
+canonical `materialCode` at all, or (B) a resolved ingredient whose
+FVL-03.004 inventory state is definitively `insufficient` — and `false`
+for every other UNKNOWN (no inventory record for an otherwise-resolved
+material, mixed-unit lots, or an unusable batch size). This is a
+strict reading of the task's own "UNKNOWN means insufficient data, never
+automatic unavailability" rule, proven by test for all three UNKNOWN
+sub-cases plus the two real triggers and the "fully available" negative
+case.
+
+**Case A's "unresolved source" is not a new mechanism** — audited and
+confirmed already handled, honestly, by the existing
+`SubstitutionPanel.tsx` itself: `target.materialId = line.materialId ??
+line.id` and `target.materialCode = line.materialCode ?? ""` already
+fall back gracefully for ANY formula line without a resolved material
+(pre-existing behavior, exercised by the pre-existing formula builder,
+not introduced by this task). No fabricated source material code was
+added anywhere.
+
+**Generated-vs-saved integration**: identical seam to FVL-03.005 — a
+generated AI session card has no project, and `substitutionRequestSchema`
+requires a real `projectId`/`formulaVersionId` (both non-optional), so
+"Find substitute" promotes the selected version via the SAME
+`promoteGeneratedFormula.ts::buildPromotedFormulation()` FVL-03.005
+already introduced. The in-memory promotion cache in
+`FormulationResultPage.tsx` was widened from "formulation id only" to the
+full `{formulation, version}` pair so the Optimizer and Substitution
+entry points share one promoted project per generated version (never two
+separate `Formulation` records for the same click-session), and so a
+"Find substitute" click can resolve the promoted version's own
+persisted line id — by array index into `version.lines`, which is
+guaranteed to align 1:1 with the generated formula's own ingredient
+order since both are built from the same `card.formula.ingredients`
+array by the same `linesFromGeneratedFormula()` (FVL-03.002/.003) — without
+a re-fetch.
+
+**UI entry point — smallest addition to an existing, unmodified
+component, not a new dashboard**: a "Find substitute" button was added
+only inside the existing `InventoryFeasibilitySummary` component
+(FVL-03.004's own read-only per-ingredient inventory display), shown per
+line only when `shouldOfferSubstitution()` is true. Clicking it promotes
+(if not already promoted this visit) and navigates to
+`/formulation?project=<id>&substituteLine=<lineId>` — a new one-shot
+query-param handoff added to `FormulationPage.tsx`, exactly mirroring its
+own pre-existing `focusLine` query-param pattern (same file, same
+`useEffect`), which opens the existing, **completely unmodified**
+`SubstitutionDialog` for that exact line. A defensive existence-guard
+(`draft.value.lines.some(l => l.id === substitutingLineId)`) was added at
+that same render site so a stale or malformed `substituteLine` id can
+never crash the dialog — it simply fails to open, honestly. No new
+substitution dashboard, no duplicated ranking/filter UI — the dialog
+itself (reason selection, ranked candidates, per-dimension score
+breakdown, system-substitution section) is byte-for-byte the same
+component every other substitution entry point in this app already uses.
+
+**No system substitution pulled forward**: `systemSubstitution.ts`,
+`generateSystemCandidates`, `buildSystemSubstitutionProblem`, and
+`scoreSystemResult` are never referenced by any code this task added —
+confirmed by grep. FVL-03.007 remains untouched and NOT started.
+
+**Read-only w.r.t. the session, by construction**: the new "Find
+substitute" handler
+(`FormulationResultPage.tsx::onFindSubstitute`) only reads
+`session.brief`/`session.id`/`card`, exactly like FVL-03.005's
+`onOptimize` — confirmed by diff review that no `session.*` assignment
+exists anywhere in the changed files. Only new `Formulation`/
+`FormulationVersion` records are ever created by promotion; the actual
+substitution apply step still only ever mutates the working draft, per
+the existing, unmodified `onApplySubstitution`.
+
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 
 - **FVL-05.003-.008** ("Extractor: ..." rows): read-only/"reuse existing schema, never fork it" guarantee lives only in the FVL-05 package intro and FVL-05.013, not restated per-row. Left as-is (package intro already covers it); flagged in case a future session edits these rows in isolation without the intro's context.

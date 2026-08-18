@@ -1015,7 +1015,9 @@
       "insufficient": "Yetersiz"
     },
     "usable": "kullanılabilir",
-    "required": "gerekli"
+    "required": "gerekli",
+    "findSubstitute": "İkame bul",
+    "finding": "Aranıyor…"
   },
   "materials": {
     "sections": "Ana veri bölümleri",

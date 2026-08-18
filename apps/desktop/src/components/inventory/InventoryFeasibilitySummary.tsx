@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, HelpCircle, XCircle } from "lucide-react";
+import { CheckCircle2, HelpCircle, Wand2, XCircle } from "lucide-react";
 import { cn } from "@/lib/cn";
-import type { FormulaInventoryFeasibility } from "@/lib/generatedFormulaInventory";
+import { shouldOfferSubstitution, type FormulaInventoryFeasibility } from "@/lib/generatedFormulaInventory";
 
 const FORMULA_STATE_ICON = {
   feasible: CheckCircle2,
@@ -40,8 +40,19 @@ const LINE_STATE_TONE = {
  */
 export function InventoryFeasibilitySummary({
   feasibility,
+  onFindSubstitute,
+  substitutingIndex,
 }: {
   feasibility: FormulaInventoryFeasibility | undefined;
+  /** FVL-03.006 — index into `feasibility.lines` (== the generated formula's
+   *  own ingredient order, since both are built from the same
+   *  `formula.ingredients` array). Optional: a caller with no promotion/
+   *  substitution seam wired (e.g. a future non-generated context) simply
+   *  omits it and gets the FVL-03.004 read-only display unchanged. */
+  onFindSubstitute?: (lineIndex: number) => void;
+  /** Index of the line whose promotion/navigation is in flight, so only
+   *  that one button shows a busy state — never every button at once. */
+  substitutingIndex?: number | null;
 }) {
   const { t } = useTranslation(["session", "common"]);
 
@@ -58,12 +69,13 @@ export function InventoryFeasibilitySummary({
         {t(`inventory.state.${feasibility.formulaState}`)}
       </div>
       <ul className="space-y-1">
-        {feasibility.lines.map((line) => {
+        {feasibility.lines.map((line, i) => {
           const Icon = LINE_STATE_ICON[line.state];
+          const offerSubstitution = onFindSubstitute && shouldOfferSubstitution(line);
           return (
             <li key={line.lineId} className="flex items-start gap-1.5 text-[11.5px]">
               <Icon size={12} className={cn("mt-0.5 shrink-0", LINE_STATE_TONE[line.state])} aria-hidden />
-              <span>
+              <span className="min-w-0 flex-1">
                 <span className="font-medium text-text">{line.displayName}</span>
                 <span className="text-muted">
                   {" — "}
@@ -81,6 +93,16 @@ export function InventoryFeasibilitySummary({
                   {line.reason}
                 </span>
               </span>
+              {offerSubstitution && (
+                <button
+                  onClick={() => onFindSubstitute(i)}
+                  disabled={substitutingIndex === i}
+                  className="ml-1 flex shrink-0 items-center gap-1 rounded-input border border-accent px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10 disabled:opacity-40"
+                >
+                  <Wand2 size={11} aria-hidden />
+                  {substitutingIndex === i ? t("inventory.finding") : t("inventory.findSubstitute")}
+                </button>
+              )}
             </li>
           );
         })}

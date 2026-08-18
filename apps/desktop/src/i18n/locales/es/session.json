@@ -1015,7 +1015,9 @@
       "insufficient": "Insufficient"
     },
     "usable": "usable",
-    "required": "required"
+    "required": "required",
+    "findSubstitute": "Find substitute",
+    "finding": "Finding…"
   },
   "materials": {
     "sections": "Master data sections",

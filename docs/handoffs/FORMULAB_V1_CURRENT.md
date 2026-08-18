@@ -14,19 +14,97 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 11/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
-FVL-03.004, FVL-03.005, FVL-03.013-018). FVL-01 remains CLOSED (21/21);
-FVL-02 remains CLOSED (24/24, 2026-08-17).
+ON PROCESS, 12/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
+FVL-03.004, FVL-03.005, FVL-03.006, FVL-03.013-018). FVL-01 remains
+CLOSED (21/21); FVL-02 remains CLOSED (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.006`** — blank, **NOT STARTED**. Not begun this session (see
-"Exact next task" below). FVL-03.005 — wiring the existing Advanced
-Optimizer as an optional post-generation refinement of a selected
-generated alternative — COMPLETED this session (no subagents used, per
-explicit instruction).
+**`FVL-03.007`** — blank, **NOT STARTED**. Not begun this session (see
+"Exact next task" below). FVL-03.006 — wiring the existing Material
+Substitution Engine for an unresolved/inventory-insufficient generated
+ingredient — COMPLETED this session (no subagents used, per explicit
+instruction).
 
-## FVL-03.005 resolution (this session)
+## FVL-03.006 resolution (this session)
+
+"Wire the EXISTING material substitution engine for unresolved/
+unavailable ingredients — no new substitution engine, no second scoring
+system, material substitution only (not FVL-03.007's system
+substitution)." Full audit (no subagents, per explicit instruction) found
+**zero engine/schema/scoring gap**: the one-to-one Material Substitution
+Engine (`packages/shared/src/schemas/substitution.ts` +
+`packages/shared/src/engine/substitution.ts`, spec in
+`docs/MATERIAL_SUBSTITUTION.md`) already scores 15 real dimensions (never
+name similarity), reports `missingData: true` rather than a fabricated
+perfect match, uses real `materialCode` identity throughout, and already
+has a real, tested UI (`SubstitutionDialog`/`SubstitutionPanel.tsx`,
+mounted in both `/live` and `/formulation`) that persists an immutable
+`substitution_runs` record before ever touching the working DRAFT (never
+the saved `FormulationVersion`). Full detail in
+`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`'s new "Material
+Substitution Engine boundary" section.
+
+**New trigger boundary**: pure
+`apps/desktop/src/lib/generatedFormulaInventory.ts::shouldOfferSubstitution()`
+returns true only for (A) an ingredient with no resolvable `materialCode`
+at all, or (B) a resolved ingredient whose FVL-03.004 inventory state is
+definitively `insufficient` — false for every other UNKNOWN (no
+inventory record, mixed units, unusable batch size), matching the "UNKNOWN
+means missing data, never automatic unavailability" rule exactly.
+
+**Generated-vs-saved integration — same seam FVL-03.005 already
+established**: `substitutionRequestSchema` requires a real
+`projectId`/`formulaVersionId`, so "Find substitute" reuses
+`promoteGeneratedFormula.ts::buildPromotedFormulation()` unchanged. The
+in-memory promotion cache in `FormulationResultPage.tsx` was widened to
+hold the full `{formulation, version}` pair (not just the id) so the
+Optimizer and Substitution entry points share one promoted project per
+generated version, and so a click can resolve the promoted version's own
+line id by array index (guaranteed aligned to the generated formula's own
+ingredient order, since both derive from the same
+`card.formula.ingredients` array via the same
+`linesFromGeneratedFormula()`).
+
+**UI — smallest addition to an existing component, not a new
+dashboard**: a "Find substitute" button was added only inside the
+existing `InventoryFeasibilitySummary` (FVL-03.004's own per-ingredient
+display), shown per line only when `shouldOfferSubstitution()` is true.
+It navigates to `/formulation?project=<id>&substituteLine=<lineId>` — a
+new one-shot query-param handoff in `FormulationPage.tsx` mirroring its
+own pre-existing `focusLine` pattern — which opens the existing,
+completely unmodified `SubstitutionDialog` for that line, with a
+defensive existence-guard so a stale/malformed line id can never crash
+the dialog. `SubstitutionPanel.tsx` itself already handles an unresolved
+source material gracefully (`line.materialId ?? line.id` /
+`line.materialCode ?? ""`) — pre-existing behavior, reused as-is, not a
+new source-identity mechanism.
+
+**Read-only w.r.t. the session, by construction**: confirmed by diff
+review — only `session.brief`/`session.id`/`card` reads appear anywhere
+in the changed files, no `session.*` mutation. Only new `Formulation`/
+`FormulationVersion` records are ever created by promotion; the actual
+substitution apply step still only mutates the working draft, exactly as
+before. No system substitution pulled forward — `systemSubstitution.ts`/
+`generateSystemCandidates`/`buildSystemSubstitutionProblem`/
+`scoreSystemResult` are never referenced by any new code (confirmed by
+grep); FVL-03.007 remains untouched and NOT started. Zero-LLM.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1321/1321 across 146
+files (13 new: 6 in `generatedFormulaInventory.test.ts`'s new
+`shouldOfferSubstitution` describe block, 7 in new
+`InventoryFeasibilitySummary.test.tsx`; `SubstitutionPanel.test.tsx`/
+`FormulationPage.test.tsx` unmodified and green, confirming zero behavior
+change to the reused engine/dialog). `typecheck`/`lint` — clean.
+`packages/shared`, `runtime/formulation`, `runtime/pipeline`,
+`apps/desktop/src-tauri/src/formulation*` confirmed untouched by `git
+status` diff — no Python/Rust/shared sanity suite re-run performed.
+`python scripts/validate_v1_tracker.py` — OK, 157 tasks, no drift.
+`git diff --check` — clean (LF/CRLF warnings only). No FVL-03.007+ work
+started; no new substitution/scoring engine anywhere; no Python
+substitution logic added.
+
+## FVL-03.005 resolution (prior session)
 
 "Wire the EXISTING Advanced Optimizer as an optional post-generation
 refinement of a selected formulation alternative — no new solver, not a
@@ -379,20 +457,21 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.006`** — blank, NOT STARTED (see above). Not begun this
+**`FVL-03.007`** — blank, NOT STARTED (see above). Not begun this
 session — explicit boundary in this session's task brief.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003/.004/.005 fully
-closed (see above).
+None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003/.004/.005/.006
+fully closed (see above).
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1308/1308 across 145 files (5
-  new: `promoteGeneratedFormula.test.ts`).
+- `pnpm --filter @formulab/desktop test` — 1321/1321 across 146 files (13
+  new: 6 in `generatedFormulaInventory.test.ts`'s `shouldOfferSubstitution`
+  block, 7 in new `InventoryFeasibilitySummary.test.tsx`).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
-- `packages/shared`, `runtime/formulation`,
+- `packages/shared`, `runtime/formulation`, `runtime/pipeline`,
   `apps/desktop/src-tauri/src/formulation*` confirmed untouched by `git
   status`/diff this session — no shared/pytest/cargo sanity re-run
   performed (nothing in those trees changed; prior baselines: `pnpm
@@ -409,9 +488,7 @@ closed (see above).
 
 ## Latest commit SHA
 
-`f90f61d` (pushed to and matching `origin/feature/laboratory-stability`)
-— "feat(v1): integrate Advanced Optimizer refinement". Prior:
-`a12f509` — "docs: finalize FVL-03.004 closure pointer with commit SHA".
+_Pending — filled in by this session's closure-pointer follow-up commit._
 
 ## Reminder
 

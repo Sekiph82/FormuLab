@@ -30,7 +30,7 @@ import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
 import { pickCheapestValidVersion } from "@/lib/costComparison";
 import { evaluateGeneratedFormulaInventory, type FormulaInventoryFeasibility } from "@/lib/generatedFormulaInventory";
 import { pickMostInventoryFeasibleVersion } from "@/lib/inventoryComparison";
-import { buildPromotedFormulation } from "@/lib/promoteGeneratedFormula";
+import { buildPromotedFormulation, type PromotedFormulation } from "@/lib/promoteGeneratedFormula";
 import { saveFormulation, saveFormulationVersion } from "@/lib/formulations";
 import { useMasterCostData } from "@/hooks/useMasterCostData";
 import { useInventoryData } from "@/hooks/useInventoryData";
@@ -80,15 +80,21 @@ export function FormulationResultPage() {
   // SAME batchKg control above so cost and inventory compare the same
   // requested batch. Python is never made inventory-aware.
   const inventoryData = useInventoryData();
-  // FVL-03.005: the Advanced Optimizer's real input contract needs a real
-  // projectId (formulationProblemSchema) a generated session card doesn't
-  // have — so "Optimize / Refine" promotes the selected version into a
-  // real Formulation/Version first (never fabricating an id), then opens
-  // the existing, unchanged Advanced Optimizer workflow there. Cached
-  // per-version in memory so repeated clicks within one visit reopen the
-  // SAME promoted project instead of creating duplicates.
-  const [promotedByVersion, setPromotedByVersion] = useState<Record<string, string>>({});
+  // FVL-03.005/.006: both the Advanced Optimizer and the Material
+  // Substitution Engine need a real projectId/FormulaVersion a generated
+  // session card doesn't have — so promotion into a real Formulation/
+  // Version happens once per version (never fabricating an id) and is
+  // cached in memory (the FULL {formulation, version} pair, not just the
+  // id, so a later "Find substitute" click can resolve a promoted
+  // version's own line ids without a re-fetch) so repeated clicks within
+  // one visit reuse the SAME promoted project instead of creating
+  // duplicates.
+  const [promotedByVersion, setPromotedByVersion] = useState<Record<string, PromotedFormulation>>({});
   const [optimizing, setOptimizing] = useState(false);
+  // FVL-03.006: which generated-ingredient index (if any) currently has a
+  // promotion/navigation in flight, so only that one row's button shows a
+  // busy state.
+  const [substitutingIndex, setSubstitutingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -164,26 +170,52 @@ export function FormulationResultPage() {
     : cards.map((c) => (c.formula ? evaluateGeneratedFormulaInventory(c.formula, batchKg, inventoryData.records) : undefined));
   const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities);
 
-  // FVL-03.005: promote (once per version, cached) then hand off to the
-  // existing, unmodified Advanced Optimizer workflow. The source session
-  // and its cards are never written to here — only new Formulation/
-  // FormulationVersion records are created.
-  const onOptimize = async () => {
-    if (!card || !card.formula) return;
+  // FVL-03.005/.006: promote the selected version (once per version,
+  // cached) into a real, persisted Formulation/FormulationVersion. The
+  // source session and its cards are never written to here — only new
+  // Formulation/FormulationVersion records are created.
+  const ensurePromoted = async (): Promise<PromotedFormulation | undefined> => {
+    if (!card || !card.formula) return undefined;
     const cached = promotedByVersion[card.version];
-    if (cached) {
-      navigate(`/optimization?project=${cached}`);
-      return;
-    }
+    if (cached) return cached;
+    const built = buildPromotedFormulation(session, card, batchKg);
+    await saveFormulation(built.formulation);
+    await saveFormulationVersion(built.version);
+    setPromotedByVersion((prev) => ({ ...prev, [card.version]: built }));
+    return built;
+  };
+
+  // FVL-03.005: hand off to the existing, unmodified Advanced Optimizer
+  // workflow once the selected version is a real project.
+  const onOptimize = async () => {
     setOptimizing(true);
     try {
-      const { formulation, version } = buildPromotedFormulation(session, card, batchKg);
-      await saveFormulation(formulation);
-      await saveFormulationVersion(version);
-      setPromotedByVersion((prev) => ({ ...prev, [card.version]: formulation.id }));
-      navigate(`/optimization?project=${formulation.id}`);
+      const promoted = await ensurePromoted();
+      if (!promoted) return;
+      navigate(`/optimization?project=${promoted.formulation.id}`);
     } finally {
       setOptimizing(false);
+    }
+  };
+
+  // FVL-03.006: same promotion seam, for the existing, unmodified Material
+  // Substitution Engine. `ingredientIndex` is the generated formula's own
+  // ingredient order — identical to `promoted.version.lines`' order, since
+  // both are built from the same `card.formula.ingredients` array by the
+  // same `linesFromGeneratedFormula()` (FVL-03.002/.003), so the index
+  // resolves to the real, persisted line id for that exact ingredient.
+  // Navigates into `/formulation`, never auto-applies anything — the
+  // existing SubstitutionDialog still requires an explicit human "Apply".
+  const onFindSubstitute = async (ingredientIndex: number) => {
+    setSubstitutingIndex(ingredientIndex);
+    try {
+      const promoted = await ensurePromoted();
+      if (!promoted) return;
+      const targetLine = promoted.version.lines[ingredientIndex];
+      if (!targetLine) return;
+      navigate(`/formulation?project=${promoted.formulation.id}&substituteLine=${targetLine.id}`);
+    } finally {
+      setSubstitutingIndex(null);
     }
   };
 
@@ -241,6 +273,8 @@ export function FormulationResultPage() {
               onBatchKgChange={setBatchKg}
               onCurrencyChange={setCurrency}
               inventoryFeasibility={inventoryFeasibilities[Math.min(activeVersion, cards.length - 1)]}
+              onFindSubstitute={card?.formula ? (i: number) => void onFindSubstitute(i) : undefined}
+              substitutingIndex={substitutingIndex}
               t={t}
             />
           </div>
@@ -500,6 +534,8 @@ function TabContent({
   onBatchKgChange,
   onCurrencyChange,
   inventoryFeasibility,
+  onFindSubstitute,
+  substitutingIndex,
   t,
 }: {
   tab: ResultTab;
@@ -516,6 +552,8 @@ function TabContent({
   onBatchKgChange: (v: string) => void;
   onCurrencyChange: (v: string) => void;
   inventoryFeasibility: FormulaInventoryFeasibility | undefined;
+  onFindSubstitute?: (ingredientIndex: number) => void;
+  substitutingIndex?: number | null;
   t: TFunction<readonly ["session", "common"]>;
 }) {
   if (!card) return <EmptyNotice t={t} />;
@@ -554,6 +592,8 @@ function TabContent({
           onBatchKgChange={onBatchKgChange}
           onCurrencyChange={onCurrencyChange}
           inventoryFeasibility={inventoryFeasibility}
+          onFindSubstitute={onFindSubstitute}
+          substitutingIndex={substitutingIndex}
           t={t}
         />
       );
@@ -1752,6 +1792,8 @@ function SummaryTab({
   onBatchKgChange,
   onCurrencyChange,
   inventoryFeasibility,
+  onFindSubstitute,
+  substitutingIndex,
   t,
 }: {
   card: FormulationCard;
@@ -1762,6 +1804,8 @@ function SummaryTab({
   onBatchKgChange: (v: string) => void;
   onCurrencyChange: (v: string) => void;
   inventoryFeasibility: FormulaInventoryFeasibility | undefined;
+  onFindSubstitute?: (ingredientIndex: number) => void;
+  substitutingIndex?: number | null;
   t: TFunction<readonly ["session", "common"]>;
 }) {
   return (
@@ -1816,7 +1860,11 @@ function SummaryTab({
         <CostSnapshotSummary snapshot={costSnapshot} currency={currency} />
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.versionSummary.inventoryFeasibility")}>
-        <InventoryFeasibilitySummary feasibility={inventoryFeasibility} />
+        <InventoryFeasibilitySummary
+          feasibility={inventoryFeasibility}
+          onFindSubstitute={onFindSubstitute}
+          substitutingIndex={substitutingIndex}
+        />
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.summary.confidence")}>
         {card.score ? (

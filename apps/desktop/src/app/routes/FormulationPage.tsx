@@ -61,8 +61,16 @@ export function FormulationPage() {
     else setTab("builder");
     const requestedLine = searchParams.get("focusLine");
     if (requestedLine) setFocusLineId(requestedLine);
+    // FVL-03.006: a "Find substitute" entry point elsewhere (the generated-
+    // formula result page) promotes a session card into this exact real
+    // project, then arrives here naming the promoted line directly — same
+    // one-shot query-param handoff as `focusLine` above, reusing the
+    // existing SubstitutionDialog verbatim rather than building a second
+    // entry mechanism.
+    const requestedSubstituteLine = searchParams.get("substituteLine");
+    if (requestedSubstituteLine) setSubstitutingLineId(requestedSubstituteLine);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, searchParams.get("tab"), searchParams.get("focusLine")]);
+  }, [projectId, searchParams.get("tab"), searchParams.get("focusLine"), searchParams.get("substituteLine")]);
 
   const focusLine = (lineId: string) => {
     setTab("builder");
@@ -192,7 +200,7 @@ export function FormulationPage() {
         />
       )}
 
-      {substitutingLineId && draft.value && (
+      {substitutingLineId && draft.value && draft.value.lines.some((l) => l.id === substitutingLineId) && (
         <SubstitutionDialog
           formulation={active}
           line={draft.value.lines.find((l) => l.id === substitutingLineId)!}

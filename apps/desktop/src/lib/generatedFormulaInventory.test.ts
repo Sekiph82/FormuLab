@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InventoryRecord, RawMaterial } from "@formulab/shared";
-import { evaluateGeneratedFormulaInventory } from "./generatedFormulaInventory";
+import { evaluateGeneratedFormulaInventory, shouldOfferSubstitution } from "./generatedFormulaInventory";
 import { costGeneratedFormula } from "./generatedFormulaCost";
 
 const NOW = "2026-08-18";
@@ -139,5 +139,54 @@ describe("evaluateGeneratedFormulaInventory — FVL-03.004", () => {
     expect(cost.rawMaterialCost).toBeTruthy();
     expect(cost.missingDataWarnings.some((w) => /price|exchange rate/i.test(w))).toBe(false);
     expect(inventory.formulaState).toBe("infeasible");
+  });
+});
+
+describe("shouldOfferSubstitution — FVL-03.006 trigger boundary", () => {
+  it("Acceptance A: unresolved ingredient (no materialCode) is a real trigger", () => {
+    const f = formula([{ inci: "Fragrance", name: "Fragrance", weight_pct: "0.5" }]);
+    const result = evaluateGeneratedFormulaInventory(f, "100", []);
+    expect(shouldOfferSubstitution(result.lines[0])).toBe(true);
+  });
+
+  it("Acceptance B: resolved but definitively insufficient inventory is a real trigger", () => {
+    const f = formula([{ inci: "Glycerin", name: "Glycerin", weight_pct: "50.0", material_code: "RM-001" }]);
+    const records = [lot({ code: "INV-1", materialCode: "RM-001", quantity: "10" })];
+    const result = evaluateGeneratedFormulaInventory(f, "100", records);
+    expect(shouldOfferSubstitution(result.lines[0])).toBe(true);
+  });
+
+  it("Acceptance C: a resolved material with genuinely UNKNOWN inventory (no record) is never auto-triggered", () => {
+    const f = formula([{ inci: "Glycerin", name: "Glycerin", weight_pct: "5.0", material_code: "RM-001" }]);
+    const result = evaluateGeneratedFormulaInventory(f, "100", []);
+    expect(result.lines[0].state).toBe("unknown");
+    expect(shouldOfferSubstitution(result.lines[0])).toBe(false);
+  });
+
+  it("UNKNOWN from mixed-unit inventory (materialCode resolved) is never auto-triggered", () => {
+    const f = formula([{ inci: "Glycerin", name: "Glycerin", weight_pct: "5.0", material_code: "RM-001" }]);
+    const records = [
+      lot({ code: "INV-1", materialCode: "RM-001", quantity: "10", unit: "kg" }),
+      lot({ code: "INV-2", materialCode: "RM-001", quantity: "10", unit: "l" }),
+    ];
+    const result = evaluateGeneratedFormulaInventory(f, "100", records);
+    expect(result.lines[0].state).toBe("unknown");
+    expect(shouldOfferSubstitution(result.lines[0])).toBe(false);
+  });
+
+  it("UNKNOWN from an unusable batch size (materialCode resolved, real stock) is never auto-triggered", () => {
+    const f = formula([{ inci: "Glycerin", name: "Glycerin", weight_pct: "5.0", material_code: "RM-001" }]);
+    const records = [lot({ code: "INV-1", materialCode: "RM-001", quantity: "1000" })];
+    const result = evaluateGeneratedFormulaInventory(f, "not a number", records);
+    expect(result.lines[0].state).toBe("unknown");
+    expect(shouldOfferSubstitution(result.lines[0])).toBe(false);
+  });
+
+  it("a fully available, resolved ingredient is never triggered", () => {
+    const f = formula([{ inci: "Glycerin", name: "Glycerin", weight_pct: "5.0", material_code: "RM-001" }]);
+    const records = [lot({ code: "INV-1", materialCode: "RM-001", quantity: "1000" })];
+    const result = evaluateGeneratedFormulaInventory(f, "100", records);
+    expect(result.lines[0].state).toBe("available");
+    expect(shouldOfferSubstitution(result.lines[0])).toBe(false);
   });
 });

@@ -118,3 +118,18 @@ export function evaluateGeneratedFormulaInventory(
 
   return { formulaState, lines: result, evaluatedAt };
 }
+
+/**
+ * FVL-03.006 — whether an ingredient line is a real, defensible trigger for
+ * offering the existing Material Substitution Engine, per the platform's own
+ * two named trigger categories: (A) the ingredient never resolved to a
+ * canonical `materialCode` at all, or (B) it resolved but usable inventory is
+ * DEFINITIVELY below what this batch requires. A generic UNKNOWN (no
+ * inventory record for an otherwise-resolved material, mixed units, or an
+ * unusable batch size) is missing data, not confirmed unavailability, and
+ * must never auto-trigger a substitution offer.
+ */
+export function shouldOfferSubstitution(line: IngredientAvailabilityLine): boolean {
+  if (!line.materialCode) return true;
+  return line.state === "insufficient";
+}
