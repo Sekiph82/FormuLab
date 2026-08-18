@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { SafetyFinding } from "@formulab/shared";
 import { buildReportHtml } from "./formulationReport";
 import type { SessionDetail } from "./formulationV2";
+import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 
 function card(version: string, inci: string) {
   return {
@@ -22,7 +24,11 @@ function card(version: string, inci: string) {
       equipment: [{ equipment: "Main Vessel", purpose: "mix", requirement_level: "required" as const, suggested_capacity: "lab", key_capabilities: [], used_in_steps: [], available_in_facility: "yes" as const, basis: "deterministic_rule", confidence: "established" as const }],
       batch_scale: "laboratory" as const,
     },
-    safety: { overall_status: "PASS" as const, findings: [] },
+    // FVL-03.009: `card.safety` (the retired runtime/pipeline/safety.py
+    // legacy shape) is deliberately NOT part of this fixture anymore —
+    // `versionSection`/`buildReportHtml` never read it; the authoritative
+    // result is passed in separately via `safetyByVersion`, proven by the
+    // dedicated FVL-03.009 describe block below.
     regulatory: { target_market: "kenya", jurisdiction: "KE", coverage: "partial" as const, overall_status: "COMPLIANT_WITH_CONDITIONS" as const, findings: [], claims: [], missing_coverage_note: "note" },
     evidence_gaps: [{ category: "test_gap", gap: "a real gap" }],
     validation_plan: [{ check: "Laboratory batch", rule_id: "VAL-010", reason: "baseline" }],
@@ -156,5 +162,43 @@ describe("buildReportHtml", () => {
       expect(html).toContain(inci);
     }
     expect((html.match(/Manufacturing Procedure/g) ?? []).length).toBe(7);
+  });
+});
+
+describe("buildReportHtml — FVL-03.009 authoritative Safety source", () => {
+  function finding(over: Partial<SafetyFinding> & Pick<SafetyFinding, "id" | "severity" | "message">): SafetyFinding {
+    return {
+      ruleId: "fixture-rule", ruleVersion: "1.0", category: "fixture",
+      affectedMaterialIds: ["RM-A"], affectedLineIds: [],
+      verificationStatus: "verified", requiredPpe: [], requiredEngineeringControls: [],
+      humanReviewRequired: false, dataIncomplete: false,
+      ...over,
+    };
+  }
+
+  function safety(over: Partial<GeneratedFormulaSafety> & { formulaState: GeneratedFormulaSafety["formulaState"] }): GeneratedFormulaSafety {
+    return { findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
+  }
+
+  it("uses the SAME computed safety result the UI tab uses — never a legacy card.safety verdict", () => {
+    const safetyByVersion = {
+      v1: safety({ formulaState: "blocked", findings: [finding({ id: "f1", severity: "blocking", message: "A real blocking hazard message." })] }),
+    };
+    const html = buildReportHtml(SESSION, "2026-01-01-test", safetyByVersion);
+    expect(html).toContain("Safety — Overall: blocked");
+    expect(html).toContain("A real blocking hazard message.");
+    expect(html).toContain("RM-A");
+  });
+
+  it("discloses unresolved-material coverage honestly, never silently complete", () => {
+    const safetyByVersion = { v1: safety({ formulaState: "unknown", unresolvedMaterialCount: 2 }) };
+    const html = buildReportHtml(SESSION, "2026-01-01-test", safetyByVersion);
+    expect(html).toContain("Safety — Overall: unknown");
+    expect(html).toContain("2 ingredient(s) could not be matched");
+  });
+
+  it("shows 'not available' rather than a fabricated verdict when no safety result was computed for a version", () => {
+    const html = buildReportHtml(SESSION, "2026-01-01-test");
+    expect(html).toContain("Safety — Overall: not available");
   });
 });

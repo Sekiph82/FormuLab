@@ -116,7 +116,11 @@ class PipelineTests(unittest.TestCase):
                 self.assertGreater(len(res["cards"]), 0)
                 card = res["cards"][0]
                 # Every Session 6 output was genuinely produced, LLM-free.
-                self.assertIn("safety", card)
+                # FVL-03.009: `card["safety"]` no longer exists — the
+                # retired `runtime/pipeline/safety.py` counterpart was
+                # removed; the authoritative safety verdict is computed
+                # client-side (see `generatedFormulaSafety.ts`).
+                self.assertNotIn("safety", card)
                 self.assertIn("regulatory", card)
                 self.assertIn("validation_plan", card)
                 self.assertIn("trace_events", card)

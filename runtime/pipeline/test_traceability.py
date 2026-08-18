@@ -77,11 +77,13 @@ class TraceabilityIntegrityTests(unittest.TestCase):
             for e in card["manufacturing"]["equipment"]:
                 self.assertTrue(e["basis"])
 
-    def test_every_safety_finding_has_a_source_or_rule(self):
-        res, _ = run_session({"target": "anti-dandruff shampoo", "category": "shampoo", "targetPhMin": "5.0", "targetPhMax": "5.5"})
-        card = res["cards"][0]
-        for f in card["safety"]["findings"]:
-            self.assertTrue(f["rule_id"], f)
+    # FVL-03.009: `test_every_safety_finding_has_a_source_or_rule` removed
+    # — `card["safety"]` no longer exists (the retired
+    # `runtime/pipeline/safety.py` counterpart was deleted; the
+    # authoritative safety verdict, with its own real `ruleId` on every
+    # finding, is now computed client-side — see
+    # `generatedFormulaSafety.ts` and `packages/shared/src/engine/
+    # safety.test.ts`'s own coverage of that same guarantee).
 
     def test_every_regulatory_finding_has_a_source_or_rule(self):
         res, _ = run_session({"target": "anti-dandruff shampoo", "category": "shampoo", "market": "kenya"})

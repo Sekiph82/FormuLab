@@ -604,12 +604,26 @@ function renderPageV6() {
 }
 
 describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wiring", () => {
-  it("Safety tab shows real findings with a visible status and rule id", async () => {
+  it("FVL-03.009: Safety tab recomputes from the real authoritative engine, never the legacy card.safety JSON this fixture still carries", async () => {
     renderPageV6();
     await screen.findByText("Water (Aqua)");
     await userEvent.click(screen.getByRole("tab", { name: "Safety" }));
-    expect(screen.getByText("Sodium Hydroxide")).not.toBeNull();
-    expect(screen.getByText(/SAFETY-CORR-001/)).not.toBeNull();
+    // This fixture's own `card.safety` (legacy runtime/pipeline/safety.py
+    // shape) claims "Sodium Hydroxide"/"SAFETY-CORR-001"/PASS_WITH_CONDITIONS
+    // — an ingredient that does not even exist in this card's real
+    // `formula.ingredients` (Water (Aqua) only). The tab must show the
+    // REAL, recomputed state instead of ever rendering that legacy text
+    // — proving the retired module is genuinely not consulted. The real
+    // authoritative result here is "warning" (the real
+    // `safety-flammable-solvent`/`safety-ventilation-reminder` seed rules
+    // both fire on a q.s.-to-100% solvent-function line) — a real,
+    // deterministic finding, not the fabricated legacy one.
+    expect(screen.queryByText("Sodium Hydroxide")).toBeNull();
+    expect(screen.queryByText(/SAFETY-CORR-001/)).toBeNull();
+    // "Safety warning" legitimately appears twice — the Safety tab's own
+    // state line and the always-visible `VersionSummaryCard`'s data row —
+    // both real, both expected.
+    expect((await screen.findAllByText("Safety warning")).length).toBeGreaterThanOrEqual(2);
   });
 
   it("Regulatory tab shows the real target market and coverage", async () => {
@@ -638,7 +652,13 @@ describe("FormulationResultPage — Session 6 Safety/Regulatory/evidence-gap wir
     renderPageV6();
     await screen.findByText("Water (Aqua)");
     await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
-    expect(screen.getAllByText("PASS WITH CONDITIONS").length).toBeGreaterThan(0);
+    // FVL-03.009: the safety readiness badge now shows the authoritative,
+    // client-recomputed state ("Safety warning" — real
+    // safety-flammable-solvent/safety-ventilation-reminder seed rules fire
+    // on this fixture's q.s.-to-100% solvent-function line), never the
+    // fixture's own legacy `card.safety.overall_status` ("PASS_WITH_
+    // CONDITIONS", a value that is no longer read anywhere).
+    expect((await screen.findAllByText("Safety warning")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("COMPLIANT WITH CONDITIONS").length).toBeGreaterThan(0);
   });
 
@@ -959,7 +979,12 @@ describe("FormulationResultPage — FVL-03.008 authoritative compatibility wirin
     // presenter's own state line, the version-card red banner, and the
     // version-card's "Compatibility" data row — all real, all expected.
     expect((await screen.findAllByText("Compatibility blocked")).length).toBeGreaterThanOrEqual(3);
-    expect(screen.getByText(/chlorine gas/)).toBeInTheDocument();
+    // "chlorine gas" legitimately appears twice — the real Compatibility
+    // Engine's own blocking finding message AND the real Safety Engine's
+    // own, differently-worded blocking finding for the same real
+    // hypochlorite+acid hazard — two separate, real, authoritative
+    // engines independently confirming the same physical hazard.
+    expect((await screen.findAllByText(/chlorine gas/)).length).toBeGreaterThanOrEqual(2);
   });
 
   it("a version with an unresolved ingredient and zero findings shows unknown coverage, never silently compatible", async () => {
@@ -968,7 +993,10 @@ describe("FormulationResultPage — FVL-03.008 authoritative compatibility wirin
     await userEvent.click(screen.getByText("Unresolved"));
     await userEvent.click(screen.getByRole("tab", { name: "Summary" }));
     expect((await screen.findAllByText("Compatibility coverage unknown")).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/1 ingredient\(s\) could not be matched/)).toBeInTheDocument();
+    // Appears twice — the same unresolved ingredient is honestly reported
+    // as uncovered by BOTH the Compatibility and Safety engines, neither
+    // silently assuming the other already checked it.
+    expect((await screen.findAllByText(/1 ingredient\(s\) could not be matched/)).length).toBeGreaterThanOrEqual(2);
   });
 
   it("switching from the blocked version to the unresolved version never leaks the blocked state (version scoping)", async () => {

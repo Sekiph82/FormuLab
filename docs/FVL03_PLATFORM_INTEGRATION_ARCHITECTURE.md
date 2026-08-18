@@ -294,10 +294,10 @@ Terminology going forward in all NEW roadmap/architecture wording: **"Determinis
 
 ### Duplicate-authority audit results
 
-**Confirmed real duplicate final-verdict engines (single-authority violations, targeted by FVL-03.009/.010):**
+**Confirmed real duplicate final-verdict engines (single-authority violations):**
 
-- **Safety**: `runtime/pipeline/safety.py::evaluate_safety()` (called `pipeline.py:846`) independently computes its own `overall_status` (`PASS`/`PASS_WITH_CONDITIONS`/`FAIL`/`DATA_INCOMPLETE`) from its own hazard tables (`_SENSITIZER_CLASS_INGREDIENTS`, GHS pH boundaries, its own rule IDs like `SAFETY-SENS-001`) — it never calls or consumes a result from `packages/shared/src/engine/safety.ts::evaluateSafety`, the confirmed-live authoritative engine (called from `SafetyPanel.tsx`, `ApprovalPanel.tsx`, `SubstitutionPanel.tsx`, `optimization.ts`).
-- **Regulatory**: `runtime/pipeline/regulatory.py::evaluate_regulatory()` (called `pipeline.py:847`) is, per its own module docstring, "a direct, faithful port" of `packages/shared/src/catalog/regulatoryRules.ts`'s seed rule data into a second, independent Python evaluation engine (`SEED_REGULATORY_RULES`, `evaluate_rule()`) producing its own terminal `overall_status`. This is the clearest single-authority violation found — self-documented duplication, not accidental overlap.
+- **Safety** — ~~`runtime/pipeline/safety.py::evaluate_safety()` independently computed its own `overall_status`~~ **RESOLVED (FVL-03.009, COMPLETED 2026-08-18)**: the module (and its own hazard tables — `_SENSITIZER_CLASS_INGREDIENTS`, GHS pH boundaries, rule IDs like `SAFETY-SENS-001`) was deleted entirely; `packages/shared/src/engine/safety.ts::evaluateSafety`/`classifyProductSafety` is now the single authoritative safety verdict for every consumer, generated-formula sessions included (via `apps/desktop/src/lib/generatedFormulaSafety.ts`). See the "Safety Engine boundary" section above for the full resolution.
+- **Regulatory** — targeted by FVL-03.010, not yet resolved: `runtime/pipeline/regulatory.py::evaluate_regulatory()` (called `pipeline.py:847`) is, per its own module docstring, "a direct, faithful port" of `packages/shared/src/catalog/regulatoryRules.ts`'s seed rule data into a second, independent Python evaluation engine (`SEED_REGULATORY_RULES`, `evaluate_rule()`) producing its own terminal `overall_status`. This remains the clearest outstanding single-authority violation — self-documented duplication, not accidental overlap.
 
 **Confirmed NOT a duplicate (legitimate, no change needed):**
 
@@ -313,7 +313,7 @@ Terminology going forward in all NEW roadmap/architecture wording: **"Determinis
 | `runtime/pipeline/materials.py` (storage/import: `load_materials`/`save_materials`/`parse_materials`) | Second, legacy material representation — still backs the Settings → General CSV-import screen (`MaterialsCard.tsx`), a deliberately separate, unrelated purpose | Canonical Material Master (`data/master/*.json` via `masterdata.rs`), read for generation via `master_materials_adapter.py` | FVL-03.002 | **CLOSED for the generation path** (FVL-03.002, COMPLETED) — this module's storage/import functions remain, permanently, for the CSV-import screen only | Generation-path usage already retired (FVL-03.002). The CSV-import screen itself is not scheduled for retirement — a separate, explicit product decision, not made by any FVL-03 session |
 | `runtime/pipeline/materials.py::cost_formula()` / `render_costing_markdown()` | ~~Separate, simpler flat kg×price costing reimplementation~~ **DELETED** (FVL-03.003) | `packages/shared/src/engine/cost.ts::costFormula()`/`buildCostSnapshot()`, via `apps/desktop/src/lib/generatedFormulaCost.ts::costGeneratedFormula()` | FVL-03.003 | No — **retired**, code no longer exists | Done: `CostingPanel.tsx` redirected to the real engine first (this session), then this function and its own tests (`test_materials.py::CostingTests`) deleted once zero callers remained — confirmed by full `pytest`/`cargo check` regression |
 | `apps/desktop/src-tauri/src/materials.rs::cost_formulation` (+ `materials_cli.py`'s `"cost"` action, `apps/desktop/src/lib/formulationV2.ts::costFormulation()`/`CostSheet`/`CostLine`) | ~~Backs the legacy AI-session costing view~~ **DELETED** (FVL-03.003) | `packages/shared/src/engine/cost.ts`, called from `CostingPanel.tsx`/`FormulationResultPage.tsx` via `costGeneratedFormula()` | FVL-03.003 | No — **retired**, code no longer exists | Done — `cost_formulation` removed from `materials.rs` and `lib.rs`'s command list; `materials.rs::import_materials`/`list_materials` (a SEPARATE command family, Settings → General CSV-import) deliberately untouched, still live |
-| `runtime/pipeline/safety.py` | Independent, competing final safety verdict (`overall_status`) | `packages/shared/src/engine/safety.ts::evaluateSafety`/`classifyProductSafety` | FVL-03.009 | Yes — genuinely useful generation-time preprocessing (hazard-table lookups feeding the request) may be retained/merged into the authoritative engine's inputs; the competing final-verdict computation is what gets retired, not necessarily the whole file | Not deleted in this documentation-only session — code is in live use (`pipeline.py:846`). Consolidation happens in FVL-03.009's own implementation session, with regression tests proving one verdict, not two disagreeing ones |
+| `runtime/pipeline/safety.py` | ~~Independent, competing final safety verdict (`overall_status`)~~ **DELETED** (FVL-03.009) | `packages/shared/src/engine/safety.ts::evaluateSafety`/`classifyProductSafety`, via `apps/desktop/src/lib/generatedFormulaSafety.ts::evaluateGeneratedFormulaSafety()` | FVL-03.009 | No — **retired**, code no longer exists | Done: no genuinely-useful preprocessing survived (the hazard-table lookups were themselves the competing verdict logic, not separable input prep) — the whole module and its own tests (`test_safety.py`, 9 tests) deleted; `pipeline.py`/`validation_plan.py`/`test_pipeline.py`/`test_traceability.py` updated to remove every caller/consumer of `card["safety"]`, confirmed by full `pytest` regression (376 passed, 5 subtests, down from 386+5 by exactly the 10 tests removed) |
 | `runtime/pipeline/regulatory.py` | Independent, self-documented "faithful port" of the TS regulatory rule catalog into a second evaluation engine | `packages/shared/src/engine/regulatoryRules.ts::evaluateRegulatory` + `regulatoryClassification.ts` | FVL-03.010 | Yes — same reasoning as safety.py; claim-review preprocessing may be retained/merged, the competing rule universe/verdict is what gets retired | Not deleted in this documentation-only session — code is in live use (`pipeline.py:847`). Consolidation happens in FVL-03.010's own implementation session |
 | `runtime/pipeline/rules.py::validate()`/`derive_constraints()` | Generation-request constraint enforcement (excluded ingredients, sulfate-free, pH bounds) | N/A — not a duplicate, stays as-is | N/A | Yes, permanently | Never — this is legitimate request-constraint logic, confirmed not to overlap the Compatibility Engine's rule-type surface |
 | `runtime/pipeline/materials.py`'s legacy `stock` field (`_ALIASES["stock"]`, parsed at row-build time) | Parsed and stored on the legacy CSV-import row; confirmed (FVL-03.004) read by nothing else anywhere in `runtime/pipeline/*.py` — stored-but-unused dead data | Canonical `InventoryRecord` (`data/master/inventory.json` via `masterdata.rs`), consumed client-side only via `apps/desktop/src/lib/generatedFormulaInventory.ts` | N/A — not a duplicate authority (never read back for any computation), stays as-is | Yes, permanently | Never — deleting a stored-but-unused legacy field is gratuitous churn on the legacy CSV-import path, out of scope; classified here so a future session doesn't mistake it for a live second inventory source |
@@ -809,6 +809,162 @@ are correct, tested, and unrelated to "make the Compatibility Engine
 authoritative for generated formulas" — the actual FVL-03.008 scope);
 flagged here for a future session, not fixed silently as if it were part
 of this task.
+
+### Safety Engine boundary (FVL-03.009, COMPLETED 2026-08-18)
+
+Same conclusion pattern as FVL-03.008, but with one real duplicate to
+retire rather than a pure integration gap: `evaluateSafety()`/
+`classifyProductSafety()` (`packages/shared/src/engine/safety.ts`, fully
+specified in `docs/SAFETY_ENGINE.md`) is already a complete,
+deterministic, rule-driven checker — no model in the loop. But
+`runtime/pipeline/safety.py::evaluate_safety()` was confirmed by audit to
+be a real, independently-computed SECOND final-verdict authority: its own
+`_SENSITIZER_CLASS_INGREDIENTS`/`_ALLERGEN_DECLARATION_INGREDIENTS`/
+`_CORROSIVE_HANDLING_INGREDIENTS`/`_IRRITANT_POWDER_HANDLING_INGREDIENTS`/
+`_SULFATE_KEYS` name-keyed hazard tables produced its own `overall_status`
+(`PASS`/`PASS_WITH_CONDITIONS`/`FAIL`/`DATA_INCOMPLETE`), never consuming
+or deferring to the TS engine's result. **Resolved by full retirement,
+not permanent reconciliation** — `runtime/pipeline/safety.py` and
+`runtime/pipeline/test_safety.py` (9 tests) were deleted entirely, the
+same Option-A precedent FVL-03.003 already established for a
+fully-superseded legacy function. `pipeline.py` no longer imports
+`safety`, no longer computes `safety_result`, no longer emits
+`card["safety"]`, and no longer appends a `safety`-sourced
+`DATA_INCOMPLETE` entry to `evidence_gaps`.
+`validation_plan.py::build_validation_plan()` had its `safety_overall`
+parameter removed outright (not stubbed/defaulted) — VAL-002 now checks
+only the still-live `regulatory_overall == "NON_COMPLIANT"` half of its
+original condition; Regulatory consolidation itself (`regulatory.py`/
+`regulatoryRules.ts`) is confirmed completely untouched, reserved for
+FVL-03.010. `test_pipeline.py`'s zero-LLM regression guard now asserts
+`"safety" not in card`; `test_traceability.py`'s
+`test_every_safety_finding_has_a_source_or_rule` (reading the now-removed
+`card["safety"]["findings"]`) was deleted, its adjacent, unrelated
+regulatory-provenance test left untouched. **One separate responsibility
+confirmed by audit and deliberately left alone**: `pipeline.py`'s
+pre-generation `classify_target()`/`safety_gate()`/`safety_decision`
+AI-request classification gate (mirrors the TS
+`PRODUCT_SAFETY_CLASSIFICATIONS` enum by design, runs before generation
+even starts) is not a final-verdict engine at all and is out of this
+task's retirement scope.
+
+**Same "only blocking is a real hard block" semantics reused, not
+reinvented**: `optimization.ts::blockingExclusionConstraints` and
+`SubstitutionPanel.tsx::hasBlockingSafetyFinding` both already treat only
+`severity === "blocking"` Safety findings as a hard exclusion, exactly
+mirroring the Compatibility convention FVL-03.008 already confirmed;
+`info`/`warning`/`error` remain non-blocking, usable as optimizer
+risk-objective signal.
+
+**Read-only, no promotion needed — same as FVL-03.008**: new pure
+`apps/desktop/src/lib/generatedFormulaSafety.ts::evaluateGeneratedFormulaSafety(formula, materials, rules, opts)`
+reshapes a card via the same `linesFromGeneratedFormula()` helper and
+hands it, unmodified, to the real engine. The rule set is a REQUIRED
+caller-supplied parameter, never hardcoded — the real authoritative rule
+library is the LIVE, chemist-editable `safety_rules` masterdata
+collection, not the bare `SEED_SAFETY_RULES` constant. New
+`apps/desktop/src/hooks/useSafetyRules.ts` loads that live collection,
+mirroring `useCompatibilityRules.ts`'s own established pattern exactly
+(the `listRecordsSeeded()` `!isTauri` fix FVL-03.008 already made is
+reused as-is here, not re-fixed).
+
+**`formulaState` — the same fourth, honest coverage state pattern**:
+`"safe"` | `"warning"` | `"blocked"` | `"unknown"`. `"blocked"` iff any
+`blocking` finding fired; `"warning"` iff any non-blocking finding fired;
+otherwise `"unknown"` (never `"safe"`) when at least one ingredient never
+resolved to a canonical `materialCode`. `unresolvedMaterialCount` is
+always exposed separately and honestly, whatever the state.
+`classifyProductSafety()` (product-family + claims classification)
+deliberately NOT wired into this seam: a generated session's free-text
+`brief.category` has no reliable join to a real `ProductFamily.hazardClass`
+record, and fabricating that join would violate the standing
+no-fabricated-identity rule — the same scope decision FVL-03.008 already
+made for Compatibility's product-domain context.
+
+**Version eligibility, not a combined score**: `pickCheapestValidVersion()`
+and `pickMostInventoryFeasibleVersion()` each gained an optional 4th
+`safeties` parameter — independent of, and additive to, the existing
+`compatibilities` gate (both dimensions stay separate eligibility checks,
+never merged into one opaque score, per task's own explicit instruction).
+A safety-`"blocked"` version can never be crowned cheapest-valid or
+most-inventory-feasible; `"warning"`/`"unknown"` never exclude; omitting
+the parameter preserves every pre-existing call site's behavior exactly.
+
+**UI — a thin presenter, not a second dashboard**: new
+`GeneratedSafetySummary` (`apps/desktop/src/components/safety/`) renders
+a `GeneratedFormulaSafety` result as-is (including `humanReviewRequired`/
+`requiredPpe`/`requiredEngineeringControls` when present) — wired into
+the result page's Summary tab alongside Cost/Inventory/Compatibility, plus
+a safety data row and red "blocked" banner on `VersionSummaryCard`. The
+existing `SafetyPanel.tsx` (the project-bound, saved-version panel) is
+untouched — this is a separate, generated-card-specific presenter. The
+old `SafetyTab`/`SafetyFindingRow` code that read the legacy Python-shaped
+`card.safety` fields (`overall_status`/`subject`/`rule_id`/`rationale`/
+`required_action`/`source_type`, grouped by `subject_type`) was deleted
+outright, not left dead alongside the new path. The "Readiness" badges
+block inside `SummaryTab` had one further `card.safety.overall_status`
+reference — caught only by this task's own required closure-time grep
+audit, not by typecheck/lint/the first test pass — fixed the same way.
+
+**Report/export path — the one real split-authority risk in this task,
+closed by construction**: `formulationReport.ts`'s `versionSection()`/
+`buildReportHtml()`/`openAndPrintReport()` were rewired to accept a
+`safetyByVersion` map — built from the exact same computed `safeties`
+array the UI renders, threaded from `FormulationResultPage.tsx`'s
+`TopBar` — instead of reading the retired `card.safety` JSON. A
+backward-compatible default `= {}` keeps every other caller working;
+a version with no computed safety result renders an honest "not
+available", never a fabricated verdict. `formulationV2.ts`'s
+`SafetyResult` interface (the `card.safety` shape) is kept, not deleted —
+its doc comment now states plainly it is legacy-only, read by zero
+current code, kept solely so a historical session file saved before this
+retirement still parses without error.
+
+**Optimizer/substitution/system-substitution reuse — confirmed by audit,
+not rewritten**: `AdvancedOptimizerPanel.tsx`'s
+`blockingExclusionConstraints`/safety-risk scoring, `SubstitutionPanel.tsx`'s
+`hasBlockingSafetyFinding` re-run per one-to-one candidate, and system
+substitution's `buildSystemBasis()` were all confirmed unchanged and
+already correct — none needed a single line of new code for this task.
+**Same disclosed, out-of-scope finding FVL-03.008 already flagged, now
+reconfirmed still present for Safety too**: all three of those existing
+callers pass the hardcoded `SEED_SAFETY_RULES` constant, not the live
+edited `safety_rules` collection this task's own new
+`useSafetyRules()` correctly reads — a real data-freshness gap, but NOT
+a second engine, second scoring function, or second rule-matching
+implementation; retrofitting those already-closed call sites remains out
+of this task's boundary, flagged here again for a future session.
+
+**Compatibility and Safety confirmed to remain separate domains
+throughout** — no merged findings, no shared verdict field, no opaque
+combined score anywhere in this task's new code.
+
+**Historical sessions carrying the legacy `card.safety` JSON open without
+crashing, and the legacy payload never becomes current authority** —
+proven by a dedicated `FormulationResultPage.test.tsx` test against the
+pre-existing SESSION_V6 fixture (which still carries a real legacy
+`card.safety` object): the Safety tab shows neither that fixture's legacy
+ingredient name nor its legacy rule id, only the freshly recomputed
+authoritative result. That same test incidentally surfaced a genuine,
+non-obvious real-engine fact (not a bug in the new wrapper): the real
+`SEED_SAFETY_RULES` `safety-flammable-solvent` rule's `functionsAny:
+["solvent"]` OR-condition legitimately fires on a plain q.s.-to-100%
+"Water (Aqua)" line, alongside `safety-ventilation-reminder`, producing a
+genuine `formulaState: "warning"` — confirmed by isolated direct-engine
+inspection before the test assertion was corrected to match it.
+
+**Closure-time single-authority grep re-audit (§24)**: `overall_status`,
+`evaluate_safety`, `evaluateSafety`, `classifyProductSafety`, `hazard`
+searched across `runtime/pipeline`, `runtime/formulation`,
+`packages/shared/src`, `apps/desktop/src`,
+`apps/desktop/src-tauri/src`. Zero live-code hits outside the one
+authoritative TS engine (`packages/shared/src/engine/safety.ts`) and its
+already-confirmed-correct callers; the only remaining `card.safety`/
+`overall_status` matches anywhere are explanatory comments and disposable
+test fixtures documenting the retirement, plus the unrelated
+pre-generation `hazardous_lawful_product` request-classification label in
+`pipeline.py::classify_target()` (confirmed out of scope, a request-time
+label, not a safety verdict).
 
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 

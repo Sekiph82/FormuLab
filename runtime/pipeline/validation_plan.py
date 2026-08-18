@@ -33,7 +33,6 @@ def build_validation_plan(
     formula_state: str,
     group: str,
     manufacturing_plan: Optional[Dict[str, Any]],
-    safety_overall: str,
     regulatory_overall: str,
 ) -> List[ValidationCheck]:
     checks: List[ValidationCheck] = []
@@ -54,11 +53,17 @@ def build_validation_plan(
             f"lab time on a candidate that will change.",
         ))
 
-    if safety_overall == "FAIL" or regulatory_overall == "NON_COMPLIANT":
+    # FVL-03.009: the safety half of this check was removed along with
+    # `runtime/pipeline/safety.py`'s own retired `overall_status` — the
+    # authoritative safety verdict is no longer computed in Python at all
+    # (see `apps/desktop/src/lib/generatedFormulaSafety.ts`), so this
+    # advisory checklist entry can only honestly reference what Python
+    # itself still computes: regulatory.
+    if regulatory_overall == "NON_COMPLIANT":
         checks.append(_check(
-            "Resolve the FAIL/NON_COMPLIANT finding before proceeding", "VAL-002",
-            "A real safety or regulatory FAIL/NON_COMPLIANT finding exists on this version — "
-            "resolve it before committing lab resources to validation.",
+            "Resolve the NON_COMPLIANT finding before proceeding", "VAL-002",
+            "A real regulatory NON_COMPLIANT finding exists on this version — resolve it before "
+            "committing lab resources to validation.",
         ))
 
     checks.append(_check("Laboratory batch", "VAL-010",

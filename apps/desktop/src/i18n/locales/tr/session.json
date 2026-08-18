@@ -1170,6 +1170,21 @@
   },
   "safety": {
     "snapshotSaved": "Güvenlik anlık görüntüsü kaydedildi.",
+    "state": {
+      "safe": "Güvenli",
+      "warning": "Güvenlik uyarısı",
+      "blocked": "Güvenlik engeli",
+      "unknown": "Güvenlik kapsamı bilinmiyor"
+    },
+    "severity": {
+      "blocking": "Engelleyici",
+      "error": "Hata",
+      "warning": "Uyarı",
+      "info": "Bilgi"
+    },
+    "notYetAvailable": "Henüz kullanılamıyor — ana veriler hâlâ yükleniyor.",
+    "unresolvedMaterialCount": "{{count}} bileşen kanonik bir hammaddeyle eşleştirilemedi — bu bileşenler için güvenlik kapsamı yalnızca işlev/ad tabanlı kurallara dayanır, tam kural setine değil.",
+    "findingRequiresHumanReview": "İnsan incelemesi gerektirir",
     "classification": "Ürün güvenlik sınıflandırması",
     "classificationValue": {
       "ordinary_consumer_product": "Sıradan tüketici ürünü",

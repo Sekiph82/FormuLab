@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { CostSnapshot } from "@formulab/shared";
 import type { FormulationCard } from "./formulationV2";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
+import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 import { pickCheapestValidVersion } from "./costComparison";
 
 function compat(over: Partial<GeneratedFormulaCompatibility> & { formulaState: GeneratedFormulaCompatibility["formulaState"] }): GeneratedFormulaCompatibility {
+  return { findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
+}
+
+function safety(over: Partial<GeneratedFormulaSafety> & { formulaState: GeneratedFormulaSafety["formulaState"] }): GeneratedFormulaSafety {
   return { findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z", ...over };
 }
 
@@ -108,5 +113,49 @@ describe("pickCheapestValidVersion — FVL-03.008 Acceptance E (compatibility ex
     const cards = [card({ version: "v1" })];
     const snapshots = [snapshot({ totalManufacturingCost: "10" })];
     expect(pickCheapestValidVersion(cards, snapshots)).toBe(0);
+  });
+});
+
+describe("pickCheapestValidVersion — FVL-03.009 Acceptance E (safety exclusion)", () => {
+  it("a safety-blocked formula is never crowned cheapest, even when it's the real cheapest price", () => {
+    const cards = [card({ version: "v1" }), card({ version: "v2" })];
+    const snapshots = [
+      snapshot({ totalManufacturingCost: "10" }), // cheapest, but safety-blocked
+      snapshot({ totalManufacturingCost: "40" }),
+    ];
+    const safeties = [safety({ formulaState: "blocked" }), safety({ formulaState: "safe" })];
+    expect(pickCheapestValidVersion(cards, snapshots, undefined, safeties)).toBe(1);
+  });
+
+  it("a safety WARNING (not blocked) never excludes a version from cheapest-valid", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    const safeties = [safety({ formulaState: "warning" })];
+    expect(pickCheapestValidVersion(cards, snapshots, undefined, safeties)).toBe(0);
+  });
+
+  it("a safety UNKNOWN state never excludes a version from cheapest-valid", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    const safeties = [safety({ formulaState: "unknown" })];
+    expect(pickCheapestValidVersion(cards, snapshots, undefined, safeties)).toBe(0);
+  });
+
+  it("omitting the safeties parameter entirely preserves the exact pre-FVL-03.009 behavior", () => {
+    const cards = [card({ version: "v1" })];
+    const snapshots = [snapshot({ totalManufacturingCost: "10" })];
+    expect(pickCheapestValidVersion(cards, snapshots)).toBe(0);
+  });
+
+  it("compatibility-blocked AND safety-blocked are both independent exclusion gates", () => {
+    const cards = [card({ version: "v1" }), card({ version: "v2" }), card({ version: "v3" })];
+    const snapshots = [
+      snapshot({ totalManufacturingCost: "5" }),
+      snapshot({ totalManufacturingCost: "10" }),
+      snapshot({ totalManufacturingCost: "40" }),
+    ];
+    const compatibilities = [compat({ formulaState: "blocked" }), compat({ formulaState: "compatible" }), compat({ formulaState: "compatible" })];
+    const safeties = [safety({ formulaState: "safe" }), safety({ formulaState: "blocked" }), safety({ formulaState: "safe" })];
+    expect(pickCheapestValidVersion(cards, snapshots, compatibilities, safeties)).toBe(2);
   });
 });

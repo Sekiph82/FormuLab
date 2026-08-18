@@ -324,8 +324,13 @@ export interface SafetyFinding {
   required_action: string;
 }
 
-/** `safety.py::SafetyResult.to_dict()`. Computed independently per
- *  version — a V1 PASS never implies a V2 PASS (§20). */
+/** LEGACY ONLY (FVL-03.009) — the shape `runtime/pipeline/safety.py`
+ *  (now deleted) used to emit as `card["safety"]`. Kept solely so a
+ *  historical session file saved before this retirement still parses
+ *  without error; no current code path reads or displays it — the
+ *  authoritative safety verdict for every session, old or new, is now
+ *  `evaluateSafety()` recomputed client-side from `card.formula`, see
+ *  `apps/desktop/src/lib/generatedFormulaSafety.ts`. */
 export interface SafetyResult {
   overall_status: "PASS" | "PASS_WITH_CONDITIONS" | "FAIL" | "DATA_INCOMPLETE";
   findings: SafetyFinding[];

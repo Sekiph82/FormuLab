@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FormulationCard } from "./formulationV2";
 import type { FormulaInventoryFeasibility } from "./generatedFormulaInventory";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
+import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 import { pickMostInventoryFeasibleVersion } from "./inventoryComparison";
 
 function card(over: Partial<FormulationCard> & { version: string }): FormulationCard {
@@ -13,6 +14,10 @@ function feasibility(formulaState: FormulaInventoryFeasibility["formulaState"]):
 }
 
 function compat(formulaState: GeneratedFormulaCompatibility["formulaState"]): GeneratedFormulaCompatibility {
+  return { formulaState, findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z" };
+}
+
+function safety(formulaState: GeneratedFormulaSafety["formulaState"]): GeneratedFormulaSafety {
   return { formulaState, findings: [], unresolvedMaterialCount: 0, evaluatedAt: "2026-08-18T00:00:00Z" };
 }
 
@@ -65,6 +70,28 @@ describe("pickMostInventoryFeasibleVersion — FVL-03.008 Acceptance F (compatib
   });
 
   it("omitting the compatibilities parameter entirely preserves the exact pre-FVL-03.008 behavior", () => {
+    const cards = [card({ version: "v1" })];
+    const feasibilities = [feasibility("feasible")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities)).toBe(0);
+  });
+});
+
+describe("pickMostInventoryFeasibleVersion — FVL-03.009 Acceptance F (safety exclusion)", () => {
+  it("a safety-blocked formula is never preferred even with the best inventory state", () => {
+    const cards = [card({ version: "v1" }), card({ version: "v2" })];
+    const feasibilities = [feasibility("feasible"), feasibility("feasible")];
+    const safeties = [safety("blocked"), safety("safe")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities, undefined, safeties)).toBe(1);
+  });
+
+  it("a safety WARNING (not blocked) never excludes a version from inventory eligibility", () => {
+    const cards = [card({ version: "v1" })];
+    const feasibilities = [feasibility("feasible")];
+    const safeties = [safety("warning")];
+    expect(pickMostInventoryFeasibleVersion(cards, feasibilities, undefined, safeties)).toBe(0);
+  });
+
+  it("omitting the safeties parameter entirely preserves the exact pre-FVL-03.009 behavior", () => {
     const cards = [card({ version: "v1" })];
     const feasibilities = [feasibility("feasible")];
     expect(pickMostInventoryFeasibleVersion(cards, feasibilities)).toBe(0);

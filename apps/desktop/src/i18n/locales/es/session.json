@@ -1170,6 +1170,21 @@
   },
   "safety": {
     "snapshotSaved": "Safety snapshot saved.",
+    "state": {
+      "safe": "Safe",
+      "warning": "Safety warning",
+      "blocked": "Safety blocked",
+      "unknown": "Safety coverage unknown"
+    },
+    "severity": {
+      "blocking": "Blocking",
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Info"
+    },
+    "notYetAvailable": "Not yet available — master data is still loading.",
+    "unresolvedMaterialCount": "{{count}} ingredient(s) could not be matched to a canonical material — safety coverage for those relies only on function/name-based rules, not the full rule set.",
+    "findingRequiresHumanReview": "Requires human review",
     "classification": "Product safety classification",
     "classificationValue": {
       "ordinary_consumer_product": "Ordinary consumer product",

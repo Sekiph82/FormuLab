@@ -15,17 +15,19 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 14/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
-FVL-03.004, FVL-03.005, FVL-03.006, FVL-03.007, FVL-03.008,
+ON PROCESS, 15/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
+FVL-03.004, FVL-03.005, FVL-03.006, FVL-03.007, FVL-03.008, FVL-03.009,
 FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.009`** — blank, **NOT STARTED**. Not begun this session (see
-"Exact next task" below). FVL-03.008 — wiring the existing Compatibility
-Engine as the authoritative compatibility verdict for generated formulas
-— COMPLETED this session (no subagents used, per explicit instruction).
+**`FVL-03.010`** — blank, **NOT STARTED**. Not begun this session — hard
+boundary stated explicitly in this session's task brief. FVL-03.009 —
+retiring `runtime/pipeline/safety.py` and making the existing Safety
+Engine the single authoritative final safety verdict for generated
+formulas — COMPLETED this session (no subagents used, per explicit
+instruction).
 
 ## FVL-04 scope expansion (2026-08-18, documentation/tracker session only)
 
@@ -51,7 +53,113 @@ as recorded above:
 
 **CURRENT IMPLEMENTATION TASK REMAINS: `FVL-03.009` — NOT STARTED.**
 
-## FVL-03.008 resolution (this session)
+## FVL-03.009 resolution (this session)
+
+"Make the EXISTING Safety Engine the single authoritative final safety
+verdict for the formulation workflow — retire `runtime/pipeline/
+safety.py` as a competing final-verdict authority, no new engine, no
+Python port." Full audit (no subagents, per explicit instruction)
+confirmed `runtime/pipeline/safety.py::evaluate_safety()` was a real,
+independently-computing SECOND final-verdict authority — its own
+`_SENSITIZER_CLASS_INGREDIENTS`/`_ALLERGEN_DECLARATION_INGREDIENTS`/
+`_CORROSIVE_HANDLING_INGREDIENTS`/`_IRRITANT_POWDER_HANDLING_INGREDIENTS`/
+`_SULFATE_KEYS` hazard tables computing its own `overall_status`, never
+consuming `packages/shared/src/engine/safety.ts`. **Resolved by full
+retirement, not permanent reconciliation** (same Option-A precedent
+FVL-03.003 already established): `safety.py` and `test_safety.py` (9
+tests) deleted entirely; `pipeline.py` no longer imports `safety`,
+builds `safety_result`, emits `card["safety"]`, or appends a
+`safety`-sourced `evidence_gaps` entry; `validation_plan.py`'s
+`safety_overall` parameter removed, VAL-002 narrowed to its still-live
+regulatory-only half (Regulatory consolidation untouched — FVL-03.010's
+job); `test_pipeline.py`'s zero-LLM guard now asserts `"safety" not in
+card`; `test_traceability.py`'s safety-provenance test (reading the
+now-removed `card["safety"]["findings"]`) deleted, its adjacent
+regulatory test untouched. The separate, legitimate pre-generation
+`classify_target()`/`safety_gate()` AI-request classification gate was
+confirmed unrelated and left completely alone. Full detail in
+`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`'s new "Safety Engine
+boundary" section.
+
+**Read-only, no promotion needed — same seam pattern as FVL-03.008**:
+new pure `apps/desktop/src/lib/generatedFormulaSafety.ts::evaluateGeneratedFormulaSafety(formula, materials, rules, opts)`
+reshapes via `linesFromGeneratedFormula()` and hands it, unmodified, to
+the real `evaluateSafety()`. Rule set is a REQUIRED caller-supplied
+parameter — new `useSafetyRules()` hook loads the LIVE `safety_rules`
+masterdata collection, not the bare `SEED_SAFETY_RULES` constant.
+`classifyProductSafety()` deliberately NOT wired (a generated session's
+free-text `brief.category` has no reliable join to a real
+`ProductFamily.hazardClass` record — fabricating that join would violate
+the standing no-fabricated-identity rule, the same scope decision
+FVL-03.008 made for Compatibility).
+
+**`formulaState`**: `safe`/`warning`/`blocked`/`unknown`. `"blocked"` iff
+a real `severity === "blocking"` finding fired (the platform's own
+already-confirmed hard-block convention, reused not invented);
+`"warning"` iff any non-blocking finding fired; otherwise `"unknown"`
+(never `"safe"`) when at least one ingredient never resolved to a
+canonical `materialCode`. `unresolvedMaterialCount` always surfaced
+honestly alongside real findings.
+
+**Version eligibility, not a combined score**: `pickCheapestValidVersion()`/
+`pickMostInventoryFeasibleVersion()` gained an optional 4th `safeties`
+parameter, independent of and additive to the existing `compatibilities`
+gate — a safety-`blocked` version can never be crowned cheapest-valid or
+most-feasible; `warning`/`unknown` never exclude; omitting the parameter
+preserves every pre-existing call site's behavior exactly.
+
+**UI/report — fully rewired off the legacy `card.safety` shape**:
+`FormulationResultPage.tsx`'s `SafetyTab` rewritten around a new thin
+`GeneratedSafetySummary` presenter; a Safety section added to
+`SummaryTab` (including its "Readiness" badges block — a third,
+easy-to-miss `card.safety.overall_status` reference caught only by this
+task's own required closure-time grep audit, not by typecheck/lint/the
+first test pass); a Safety row/blocked-banner added to
+`VersionSummaryCard`. `formulationReport.ts` rewired to accept a
+`safetyByVersion` map (the exact same computed result the UI renders)
+instead of reading the retired `card.safety` JSON — closing the one real
+split-authority risk in this task (the "Download Report" path), with an
+honest "not available" (never a fabricated verdict) when no result was
+computed. `formulationV2.ts`'s `SafetyResult` interface kept, not
+deleted, but its doc comment now states plainly it is legacy-only —
+read by zero current code, kept only so a historical session file still
+parses. Historical sessions carrying legacy `card.safety` JSON open
+without crashing and never surface as current authority (proven by a
+dedicated test against the pre-existing SESSION_V6 fixture).
+
+**Optimizer/substitution/system-substitution reuse — confirmed, not
+rewritten**: all three already consume the real Safety Engine correctly
+(`blockingExclusionConstraints`, `SubstitutionPanel.tsx`'s
+`hasBlockingSafetyFinding`); none needed new code. **Same disclosed,
+out-of-scope finding FVL-03.008 already flagged, reconfirmed for
+Safety**: those three callers pass the hardcoded `SEED_SAFETY_RULES`
+constant rather than the live edited collection — a data-freshness gap,
+not a duplicate-authority violation; flagged again for a future
+session. Compatibility and Safety confirmed to remain separate domains
+throughout — no merged findings, no shared verdict field.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1381/1381 across 150
+files (24 new: 9 `generatedFormulaSafety.test.ts`, 7
+`GeneratedSafetySummary.test.tsx`, 5 `costComparison.test.ts`, 3
+`inventoryComparison.test.ts`, 3 `formulationReport.test.ts`; 4 existing
+`FormulationResultPage.test.tsx` tests corrected, not newly added, since
+the real Safety and Compatibility engines now legitimately co-fire on
+pre-existing fixtures). `typecheck`/`lint` — clean. `python -m pytest
+runtime/pipeline -q` — 376 passed, 5 subtests (down from 386+5 by
+exactly the 10 tests removed with `safety.py`/its traceability test).
+`python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
+`git diff --check` — clean (LF/CRLF warnings only). Closure-time
+single-authority grep re-audit (`overall_status`/`evaluate_safety`/
+`evaluateSafety`/`classifyProductSafety`/`hazard` across
+`runtime/pipeline`, `runtime/formulation`, `packages/shared/src`,
+`apps/desktop/src`, `apps/desktop/src-tauri/src`) found zero live-code
+hits outside the one authoritative TS engine and its confirmed-correct
+callers. No FVL-03.010+ work started; no new safety engine anywhere; no
+Python safety hazard-scoring logic remains. Regulatory consolidation
+(`regulatory.py`/`regulatoryRules.ts`) completely untouched. Zero-LLM
+intact; `/live` untouched.
+
+## FVL-03.008 resolution (prior session)
 
 "Wire the EXISTING Compatibility Engine as the authoritative chemical/
 material compatibility hard-constraint verdict — no new engine, no
@@ -649,34 +757,38 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.009`** — blank, NOT STARTED (see above). Not begun this
+**`FVL-03.010`** — blank, NOT STARTED (see above). Not begun this
 session — explicit boundary in this session's task brief.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001-.008 fully closed (see
-above). One disclosed, out-of-scope, non-blocking finding: the existing
-Optimizer/Substitution compatibility re-run call sites use the hardcoded
-`SEED_COMPATIBILITY_RULES` constant rather than the live edited
-`compatibility_rules` collection FVL-03.008's own new code correctly
-reads — a data-freshness gap, not a duplicate-authority issue; flagged
-for a future session.
+None. FVL-01/FVL-02 fully closed; FVL-03.001-.009 fully closed (see
+above). Two disclosed, out-of-scope, non-blocking findings: (1) the
+existing Optimizer/Substitution compatibility re-run call sites use the
+hardcoded `SEED_COMPATIBILITY_RULES` constant rather than the live
+edited `compatibility_rules` collection; (2) the same three call sites'
+safety re-run uses the hardcoded `SEED_SAFETY_RULES` constant rather
+than the live edited `safety_rules` collection FVL-03.009's own new code
+correctly reads — both data-freshness gaps, not duplicate-authority
+issues; flagged for a future session.
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1354/1354 across 148 files (26
-  new: 9 `generatedFormulaCompatibility.test.ts`, 6
-  `GeneratedCompatibilitySummary.test.tsx`, 4 `costComparison.test.ts`, 3
-  `inventoryComparison.test.ts`, 4 `FormulationResultPage.test.tsx`).
+- `pnpm --filter @formulab/desktop test` — 1381/1381 across 150 files (24
+  new: 9 `generatedFormulaSafety.test.ts`, 7
+  `GeneratedSafetySummary.test.tsx`, 5 `costComparison.test.ts`, 3
+  `inventoryComparison.test.ts`, 3 `formulationReport.test.ts`; 4 existing
+  `FormulationResultPage.test.tsx` tests corrected).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
-- `packages/shared`, `runtime/formulation`, `runtime/pipeline`,
+- `python -m pytest runtime/pipeline -q` — 376 passed, 5 subtests (down
+  from 386+5 by exactly the 10 tests removed alongside `safety.py`).
+- `packages/shared`, `runtime/formulation`,
   `apps/desktop/src-tauri/src/formulation*` confirmed untouched by `git
-  status`/diff this session — no shared/pytest/cargo sanity re-run
-  performed (nothing in those trees changed; prior baselines: `pnpm
-  --filter @formulab/shared test` 1311/1311, `python -m pytest
-  runtime/pipeline -q` 386 passed/5 subtests, `cargo check` clean, all
-  from the FVL-03.004 session).
-- `python scripts/validate_v1_tracker.py` — OK, 157 tasks, no drift.
+  status`/diff this session — no shared/cargo sanity re-run performed
+  (nothing in those trees changed; prior baselines: `pnpm --filter
+  @formulab/shared test` 1311/1311, `cargo check` clean, both from the
+  FVL-03.004 session).
+- `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
 - `git diff --check` — clean (LF/CRLF warnings only).
 - No desktop rebuild/installer performed (no Rust/shipped-runtime changes
   this session at all; TS/shared changes covered by `typecheck`/`lint`/
@@ -686,9 +798,10 @@ for a future session.
 
 ## Latest commit SHA
 
-`0c0814d` (pushed to and matching `origin/feature/laboratory-stability`)
-— "feat(v1): integrate authoritative Compatibility Engine". Prior:
-`837f7b6` — "docs: finalize FVL-03.007 closure pointer with commit SHA".
+Pending — this session's closure commit not yet pushed at the time this
+file was last edited. Prior: `0c0814d` (pushed to and matching
+`origin/feature/laboratory-stability`) — "feat(v1): integrate
+authoritative Compatibility Engine".
 
 ## Reminder
 

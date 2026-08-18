@@ -6,6 +6,7 @@
 // what makes it complete regardless of what the user currently has open.
 import type { FormulationCard, LiteratureDocument, ScientificFormulationRecord, SessionDetail } from "./formulationV2";
 import { asGeneratedFormula } from "./generatedFormula";
+import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 
 function esc(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (c) => (
@@ -24,7 +25,7 @@ function table(headers: string[], rows: (string | number | undefined)[][]): stri
   return `<table>${thead}${tbody}</table>`;
 }
 
-function versionSection(card: FormulationCard): string {
+function versionSection(card: FormulationCard, safety: GeneratedFormulaSafety | undefined): string {
   const formula = asGeneratedFormula(card.formula);
   const ingredients = formula?.ingredients ?? [];
   const origins = card.ingredient_origins ?? {};
@@ -73,11 +74,19 @@ function versionSection(card: FormulationCard): string {
     parts.push(`<p class="muted">Manufacturing: ${esc(card.manufacturing.not_ready_reason)}</p>`);
   }
 
-  if (card.safety) {
-    parts.push(`<h4>Safety — Overall: ${esc(card.safety.overall_status)}</h4>`);
+  {
+    // FVL-03.009 — the authoritative Safety Engine result, the SAME
+    // computed object the Safety tab renders (never the retired
+    // `runtime/pipeline/safety.py` JSON `card.safety` used to carry) —
+    // this is exactly the split ("TS verdict for UI, stale Python verdict
+    // for the report") this task exists to prevent.
+    parts.push(`<h4>Safety — Overall: ${esc(safety ? safety.formulaState : "not available")}</h4>`);
+    if (safety && safety.unresolvedMaterialCount > 0) {
+      parts.push(`<p class="muted">${esc(safety.unresolvedMaterialCount)} ingredient(s) could not be matched to a canonical material.</p>`);
+    }
     parts.push(table(
-      ["Subject", "Status", "Rule", "Rationale"],
-      card.safety.findings.map((f) => [f.subject, f.status, f.rule_id, f.rationale]),
+      ["Affected material(s)", "Severity", "Rule", "Message"],
+      (safety?.findings ?? []).map((f) => [f.affectedMaterialIds.join(", ") || "Formula-level", f.severity, f.ruleId, f.message]),
     ));
   }
   if (card.regulatory) {
@@ -131,7 +140,11 @@ function scientificFormulationUsageSection(summary: SessionDetail["scientific_fo
   return parts.join("\n");
 }
 
-export function buildReportHtml(session: SessionDetail, sessionId: string): string {
+export function buildReportHtml(
+  session: SessionDetail,
+  sessionId: string,
+  safetyByVersion: Record<string, GeneratedFormulaSafety | undefined> = {},
+): string {
   const generatedAt = new Date().toISOString();
   const corpus = session.cards[0]?.research_corpus;
   const style = `
@@ -162,7 +175,7 @@ export function buildReportHtml(session: SessionDetail, sessionId: string): stri
       ["Version", "Strategy", "State", "Mass Balance"],
       session.cards.map((c) => [c.version, c.strategy?.title ?? "—", c.formula_state ?? c.status, c.mass_balance?.status ?? "—"]),
     )),
-    ...session.cards.map((c) => section(`Formula ${c.version.toUpperCase()}`, versionSection(c))),
+    ...session.cards.map((c) => section(`Formula ${c.version.toUpperCase()}`, versionSection(c, safetyByVersion[c.version]))),
     section("Evidence & Sources", sourcesTable(session.literature ?? [], session.scientific_formulations?.formulations ?? [])),
     session.scientific_formulations?.summary ? section("Scientific Formulation Usage", scientificFormulationUsageSection(session.scientific_formulations)) : "",
   ].join("\n");
@@ -171,8 +184,12 @@ export function buildReportHtml(session: SessionDetail, sessionId: string): stri
 
 /** Opens the report in a new window and triggers print. Real browser API,
  *  not a screenshot of the current viewport. */
-export function openAndPrintReport(session: SessionDetail, sessionId: string): void {
-  const html = buildReportHtml(session, sessionId);
+export function openAndPrintReport(
+  session: SessionDetail,
+  sessionId: string,
+  safetyByVersion: Record<string, GeneratedFormulaSafety | undefined> = {},
+): void {
+  const html = buildReportHtml(session, sessionId, safetyByVersion);
   const win = window.open("", "_blank");
   if (!win) return;
   win.document.open();
