@@ -385,6 +385,93 @@ multi-version/cards context to make a feasibility comparison meaningful
 and the task's own UI minimum was stated specifically for the new result
 UI.
 
+### Advanced Optimizer boundary (FVL-03.005, COMPLETED 2026-08-18)
+
+Unlike Cost/Inventory, this task found **no engine gap at all**. Full audit
+of `runtime/formulation/advanced_optimizer.py` (1732 lines, a real
+constraint-satisfaction + multi-objective MILP solver, PuLP/CBC — its own
+module docstring: "additive; the simple optimizer is untouched, keeps its
+own CLI/Tauri command," confirmed distinct from `formulation_core.py`'s
+simple LP), its Rust bridge (`formulation_advanced.rs`), and its full
+schema set (`packages/shared/src/schemas/optimization.ts`:
+`formulationProblemSchema`, `advancedOptimizationResultSchema`,
+`optimizationRunSchema`, `optimizationScenarioSchema`,
+`optimizationProfileSchema`, backed by real canonical `masterdata.rs:150-152`
+collections — `optimization_profiles` mutable, `optimization_runs`/
+`optimization_scenarios` append-only) confirmed everything the task's
+own constraints demand is already correct: real `materialCode` identity
+(`Material.code = raw.get("materialCode") or self.id`), caller-computed
+compatibility/safety risk (`compatibilityRiskScore`/`safetyRiskScore` —
+"the solver never invents one," from the module's own comments), honest
+`stock`/`reservedStock`/`availableStock` handling, hard-constraint
+preservation (exclusions, `technical_max_pct`/`regulatory_max_pct`,
+locked percentages, composition/functional/ratio/conditional
+constraints — cost ceiling is deliberately soft-only, "against silent
+infeasibility," never a hard override), weighted/lexicographic
+multi-objective support restricted to a real `SUPPORTED_METRICS` set
+(explicitly excludes `performance_score`/`regulatory_uncertainty`,
+deferred to FVL-07 — never fabricated), and structured honest failure
+(`status`: `optimal`/`infeasible`/`unbounded`/`timeout`/`error`/
+`feasible_with_penalties`, with `_diagnose_infeasibility()` for the
+non-feasible cases — never a fake result). The existing
+`AdvancedOptimizerPanel.tsx` (1332 lines) is the one UI, already mounted
+project-bound in both `FormulasPage.tsx` (`/live`'s Optimizer tab) and
+`OptimizationPage.tsx` (`/optimization?project=<id>`). **Zero
+engine/schema/solver/Rust changes were made or are needed.**
+
+**The one real gap — and it isn't in the optimizer**:
+`formulationProblemSchema.projectId`/`productFamilyId` are non-optional
+(confirmed at the one real call site,
+`AdvancedOptimizerPanel.tsx:271-272`), but a generated AI session card
+(`SessionDetail`/`FormulationBrief` in `formulationV2.ts`) carries no
+project association at all — sessions and `Formulation` projects are
+deliberately separate concepts in this codebase (a session is a
+disposable AI-generation workspace; a `Formulation` is the persisted,
+versioned unit everything else — cost snapshots, inventory checks, the
+optimizer — is built around). Fabricating placeholder IDs to satisfy the
+schema would violate this project's own standing "no fake persistent
+IDs" rule. The `/optimizer` page (`OptimizerPage.tsx`) was investigated
+as a possible project-free path and ruled out — it is the unrelated
+**simple** optimizer (`formulation_core.py`/`runFormulationOptimize`),
+hand-entered rows, no canonical Material Master connection, no
+`materialCode` — not a lighter-weight entry to the Advanced Optimizer.
+
+**Resolution — require save-first** (decided with the user): a new
+"Optimize / Refine" quick action on `FormulationResultPage.tsx` promotes
+the selected version into a real `Formulation`/`FormulationVersion` pair
+first, using new pure `apps/desktop/src/lib/promoteGeneratedFormula.ts::buildPromotedFormulation()`
+— built entirely from the codebase's own existing, already-tested
+helpers (`newFormulation()`/`newVersion()`/`linesFromGeneratedFormula()`
+in `formulations.ts`, the same `materialCode`-carrying line conversion
+FVL-03.002/.003 already fixed), zero new persistence shape or mapping
+logic. `productFamilyCode` uses the session brief's real `category` when
+present, else an honestly-disclosed `"general"` fallback — never a
+fabricated specific category. The handler
+(`FormulationResultPage.tsx::onOptimize`) calls the existing
+`saveFormulation()`/`saveFormulationVersion()` Tauri wrappers, caches the
+promoted `formulation.id` per card version in memory (avoiding duplicate
+`Formulation` records on repeat clicks within one visit), then navigates
+into the existing, **completely unmodified**
+`/optimization?project=<id>` route — landing directly in
+`OptimizationPage.tsx` → `AdvancedOptimizerPanel.tsx`, already fully
+wired to canonical cost/inventory/materials for the new project.
+
+**Read-only w.r.t. the session, by construction**: `buildPromotedFormulation()`
+is pure (no Tauri/network call — proven by test) and only ever reads
+`session.brief`/`session.id`/the selected `card`; no code path writes
+back to session storage — the original generated cards are never
+mutated. Only NEW `Formulation`/`FormulationVersion` records are ever
+created. Confirmed by diff review across the changed files (no
+`session.*` mutation, and the promotion helper itself contains no
+Tauri import at all).
+
+**No substitution, no new UI, no LLM**: this task does not touch
+substitution/compatibility/safety/regulatory integration (deferred to
+later FVL-03 rows), introduces no new optimizer dashboard (the existing
+panel is reused unmodified), and involves no predictive AI/LLM anywhere
+— the promotion step is pure data construction from the session's own
+already-generated, deterministic formula.
+
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 
 - **FVL-05.003-.008** ("Extractor: ..." rows): read-only/"reuse existing schema, never fork it" guarantee lives only in the FVL-05 package intro and FVL-05.013, not restated per-row. Left as-is (package intro already covers it); flagged in case a future session edits these rows in isolation without the intro's context.

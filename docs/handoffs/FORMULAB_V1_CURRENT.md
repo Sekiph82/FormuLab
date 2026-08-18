@@ -14,19 +14,88 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 10/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
-FVL-03.004, FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains
-CLOSED (24/24, 2026-08-17).
+ON PROCESS, 11/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
+FVL-03.004, FVL-03.005, FVL-03.013-018). FVL-01 remains CLOSED (21/21);
+FVL-02 remains CLOSED (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.005`** — blank, NOT STARTED. `FVL-03.004` closed this session
-(see below) — `FVL-03.005` ("wire the existing Advanced Optimizer as an
-optional post-generation refinement, not a new solver") is the next
-frozen task per the tracker's own dependency chain. Deliberately not
-begun this session.
+**`FVL-03.006`** — blank, **NOT STARTED**. Not begun this session (see
+"Exact next task" below). FVL-03.005 — wiring the existing Advanced
+Optimizer as an optional post-generation refinement of a selected
+generated alternative — COMPLETED this session (no subagents used, per
+explicit instruction).
 
-## FVL-03.004 resolution (this session)
+## FVL-03.005 resolution (this session)
+
+"Wire the EXISTING Advanced Optimizer as an optional post-generation
+refinement of a selected formulation alternative — no new solver, not a
+merge into `engine.py`." Full audit (no subagents used, per explicit
+instruction) found **zero engine/schema/solver/Rust gap**:
+`runtime/formulation/advanced_optimizer.py` (1732-line real MILP/PuLP
+solver, confirmed additive and distinct from `formulation_core.py`'s
+simple LP), its Rust bridge, `packages/shared/src/schemas/optimization.ts`'s
+full schema set, and the existing `AdvancedOptimizerPanel.tsx`/
+`OptimizationPage.tsx` UI were already single-authority-correct — real
+`materialCode` identity, caller-computed compatibility/safety risk, honest
+stock fields, hard-constraint preservation, structured infeasibility
+handling. Full detail in
+`docs/FVL03_PLATFORM_INTEGRATION_ARCHITECTURE.md`'s new "Advanced
+Optimizer boundary" section.
+
+**The one real gap**: `formulationProblemSchema.projectId`/
+`productFamilyId` are non-optional, but a generated AI session card has
+no project association. The seemingly-promising `/optimizer` standalone
+page was investigated and ruled out — it's the unrelated **simple**
+optimizer, no `materialCode`/canonical Material Master connection.
+Fabricating placeholder IDs would violate the standing "no fake
+persistent IDs" rule.
+
+**Resolved with the user (AskUserQuestion) — "require save-first"**: new
+pure `apps/desktop/src/lib/promoteGeneratedFormula.ts::buildPromotedFormulation()`
+builds a real `Formulation`/`FormulationVersion` from the card's own
+real data, reusing the existing `newFormulation()`/`newVersion()`/
+`linesFromGeneratedFormula()` helpers (zero new persistence shape;
+`materialCode` carried through unchanged from FVL-03.002/.003).
+`productFamilyCode` uses the brief's real `category` when present, else
+an honest `"general"` fallback — never a fabricated specific category.
+New "Optimize / Refine" quick action on `FormulationResultPage.tsx`
+(`SlidersHorizontal` icon; `formulationResult.quickActions.optimize`/
+`optimizing` i18n keys added to all 8 locales) calls the existing
+`saveFormulation()`/`saveFormulationVersion()` Tauri wrappers once per
+version (cached in-memory per visit to avoid duplicate `Formulation`
+records on repeat clicks), then navigates into the existing, completely
+unmodified `/optimization?project=<id>` route.
+
+**Read-only w.r.t. the session, by construction**: `buildPromotedFormulation()`
+is pure (no Tauri/network call, proven by test); no code path writes back
+to session storage — confirmed by diff review (only reads of
+`session.brief`/`session.id`, no `session.*` mutation anywhere in the
+changed files). Only new `Formulation`/`FormulationVersion` records are
+ever created; the original generated session card is never mutated.
+
+No new optimizer UI/dashboard (existing panel reused unmodified); `/live`'s
+own optimizer path (`FormulasPage.tsx`'s Optimizer tab) untouched; no
+substitution/compatibility/safety/regulatory logic touched; zero-LLM.
+Acceptance A/B/C/D/E/F/G/H/J inherited as regression from the existing,
+unmodified `AdvancedOptimizerPanel`'s own test suite (re-verified green,
+not re-proven); this task's own narrow proof burden (promotion
+correctness, read-only behavior, honest fallback) covered by new
+`promoteGeneratedFormula.test.ts` (5/5 passing).
+
+Verified: `pnpm --filter @formulab/desktop test` — 1308/1308 across 145
+files (5 new; `AdvancedOptimizerPanel.test.tsx`/`OptimizationPage.test.tsx`
+unmodified and green, confirming zero behavior change to the reused
+workflow). `typecheck`/`lint` — clean. `packages/shared`,
+`runtime/formulation`, `apps/desktop/src-tauri/src/formulation*`
+confirmed untouched by `git status` diff (no Python/Rust/shared sanity
+suite re-run needed — nothing in those trees changed). `python scripts/
+validate_v1_tracker.py` — OK, 157 tasks, no drift. `git diff --check` —
+clean (LF/CRLF line-ending warnings only, no real conflicts). No
+FVL-03.006+ work started; no new solver/second optimizer implementation
+anywhere; no substitution logic implemented.
+
+## FVL-03.004 resolution (prior session)
 
 "Wire canonical InventoryRecord availability into candidate feasibility,
 read-only." Confirmed by audit: `InventoryRecord`
@@ -310,27 +379,28 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.005`** — blank, NOT STARTED (see above). Wire the existing
-Advanced Optimizer as an optional post-generation refinement of a
-selected alternative — no new solver, not a merge into `engine.py`. Not
-begun this session.
+**`FVL-03.006`** — blank, NOT STARTED (see above). Not begun this
+session — explicit boundary in this session's task brief.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003/.004 fully closed
-(see above).
+None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003/.004/.005 fully
+closed (see above).
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/shared test` — 1311/1311.
-- `pnpm --filter @formulab/desktop test` — 1303/1303.
+- `pnpm --filter @formulab/desktop test` — 1308/1308 across 145 files (5
+  new: `promoteGeneratedFormula.test.ts`).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
-- `python -m pytest runtime/pipeline -q` — 386 passed, 5 subtests passed
-  (unchanged from FVL-03.003's baseline — Python untouched this session
-  except a non-functional doc comment).
-- `cargo check` — clean (unchanged — no Rust edits this session).
+- `packages/shared`, `runtime/formulation`,
+  `apps/desktop/src-tauri/src/formulation*` confirmed untouched by `git
+  status`/diff this session — no shared/pytest/cargo sanity re-run
+  performed (nothing in those trees changed; prior baselines: `pnpm
+  --filter @formulab/shared test` 1311/1311, `python -m pytest
+  runtime/pipeline -q` 386 passed/5 subtests, `cargo check` clean, all
+  from the FVL-03.004 session).
 - `python scripts/validate_v1_tracker.py` — OK, 157 tasks, no drift.
-- `git diff --check` — clean.
+- `git diff --check` — clean (LF/CRLF warnings only).
 - No desktop rebuild/installer performed (no Rust/shipped-runtime changes
   this session at all; TS/shared changes covered by `typecheck`/`lint`/
   vitest, matching the standing "full rebuild reserved for closure
@@ -339,11 +409,7 @@ None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003/.004 fully closed
 
 ## Latest commit SHA
 
-`ff923227a5bfe6b7347e36d842268f2562882fc5` (pushed to and matching
-`origin/feature/laboratory-stability`) — "feat(v1): integrate canonical
-inventory feasibility". Prior:
-`426c9a196b7225e1a1e025536fdea9c9dd643f25` — "docs: finalize FVL-03.003
-closure pointer with commit SHA".
+_Pending — filled in by this session's closure-pointer follow-up commit._
 
 ## Reminder
 

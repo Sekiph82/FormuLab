@@ -669,7 +669,9 @@
       "planStability": "Plan Stability Test",
       "costAnalysis": "Cost Analysis",
       "saveFormula": "Save Formula",
-      "querySupplier": "Query Supplier"
+      "querySupplier": "Query Supplier",
+      "optimize": "Optimize / Refine",
+      "optimizing": "Optimizing…"
     },
     "versionSummary": {
       "heading": "{{version}} Summary",

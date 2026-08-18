@@ -17,6 +17,7 @@ import {
   Scale,
   Share2,
   ShieldCheck,
+  SlidersHorizontal,
   StickyNote,
   Wallet,
   Wrench,
@@ -29,6 +30,8 @@ import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
 import { pickCheapestValidVersion } from "@/lib/costComparison";
 import { evaluateGeneratedFormulaInventory, type FormulaInventoryFeasibility } from "@/lib/generatedFormulaInventory";
 import { pickMostInventoryFeasibleVersion } from "@/lib/inventoryComparison";
+import { buildPromotedFormulation } from "@/lib/promoteGeneratedFormula";
+import { saveFormulation, saveFormulationVersion } from "@/lib/formulations";
 import { useMasterCostData } from "@/hooks/useMasterCostData";
 import { useInventoryData } from "@/hooks/useInventoryData";
 import { CostSnapshotSummary } from "@/components/cost/CostSnapshotSummary";
@@ -77,6 +80,15 @@ export function FormulationResultPage() {
   // SAME batchKg control above so cost and inventory compare the same
   // requested batch. Python is never made inventory-aware.
   const inventoryData = useInventoryData();
+  // FVL-03.005: the Advanced Optimizer's real input contract needs a real
+  // projectId (formulationProblemSchema) a generated session card doesn't
+  // have — so "Optimize / Refine" promotes the selected version into a
+  // real Formulation/Version first (never fabricating an id), then opens
+  // the existing, unchanged Advanced Optimizer workflow there. Cached
+  // per-version in memory so repeated clicks within one visit reopen the
+  // SAME promoted project instead of creating duplicates.
+  const [promotedByVersion, setPromotedByVersion] = useState<Record<string, string>>({});
+  const [optimizing, setOptimizing] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -152,6 +164,29 @@ export function FormulationResultPage() {
     : cards.map((c) => (c.formula ? evaluateGeneratedFormulaInventory(c.formula, batchKg, inventoryData.records) : undefined));
   const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities);
 
+  // FVL-03.005: promote (once per version, cached) then hand off to the
+  // existing, unmodified Advanced Optimizer workflow. The source session
+  // and its cards are never written to here — only new Formulation/
+  // FormulationVersion records are created.
+  const onOptimize = async () => {
+    if (!card || !card.formula) return;
+    const cached = promotedByVersion[card.version];
+    if (cached) {
+      navigate(`/optimization?project=${cached}`);
+      return;
+    }
+    setOptimizing(true);
+    try {
+      const { formulation, version } = buildPromotedFormulation(session, card, batchKg);
+      await saveFormulation(formulation);
+      await saveFormulationVersion(version);
+      setPromotedByVersion((prev) => ({ ...prev, [card.version]: formulation.id }));
+      navigate(`/optimization?project=${formulation.id}`);
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <TopBar session={session} sessionId={sessionId} t={t} />
@@ -225,6 +260,8 @@ export function FormulationResultPage() {
               t={t}
               // eslint-disable-next-line i18next/no-literal-string -- internal ResultTab id, not display text
               onCostAnalysis={() => setTab("summary")}
+              onOptimize={card?.formula ? () => void onOptimize() : undefined}
+              optimizing={optimizing}
             />
             <VersionSummaryCard
               card={card}
@@ -1914,10 +1951,14 @@ function QuickActions({
   navigate,
   t,
   onCostAnalysis,
+  onOptimize,
+  optimizing,
 }: {
   navigate: ReturnType<typeof useNavigate>;
   t: TFunction<readonly ["session", "common"]>;
   onCostAnalysis: () => void;
+  onOptimize?: () => void;
+  optimizing?: boolean;
 }) {
   const actions: { icon: React.ReactNode; label: string; onClick?: () => void }[] = [
     { icon: <StickyNote size={13} />, label: t("formulationResult.quickActions.addNote") },
@@ -1926,6 +1967,11 @@ function QuickActions({
     { icon: <Wallet size={13} />, label: t("formulationResult.quickActions.costAnalysis"), onClick: onCostAnalysis },
     { icon: <FileDown size={13} />, label: t("formulationResult.quickActions.saveFormula") },
     { icon: <Share2 size={13} />, label: t("formulationResult.quickActions.querySupplier"), onClick: () => navigate("/materials") },
+    {
+      icon: <SlidersHorizontal size={13} />,
+      label: optimizing ? t("formulationResult.quickActions.optimizing") : t("formulationResult.quickActions.optimize"),
+      onClick: optimizing ? undefined : onOptimize,
+    },
   ];
   return (
     <div className="rounded-card border border-border bg-surface p-3">
