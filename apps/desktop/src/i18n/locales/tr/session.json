@@ -679,7 +679,9 @@
       "overallScore": "Overall Score",
       "notAvailable": "Not available",
       "notYetScored": "Not yet scored",
-      "cheapestValid": "Geçerli alternatifler arasında en düşük maliyet"
+      "cheapestValid": "Geçerli alternatifler arasında en düşük maliyet",
+      "mostFeasible": "Envanter açısından en uygun alternatif",
+      "inventoryFeasibility": "Envanter uygunluğu"
     },
     "process": {
       "notAvailable": "A real, evidence-sourced manufacturing procedure for this formula is not yet generated — Phase 14 Session 5 builds this. No generic or invented process steps are shown in its place."
@@ -1000,6 +1002,18 @@
       "busy": "Kaydediliyor — lütfen bekleyin.",
       "needVersion": "Maliyet anlık görüntüsünü kaydetmeden önce kaydedilmiş bir sürüm seçin."
     }
+  },
+  "inventory": {
+    "notYetAvailable": "Henüz kullanılamıyor — ana veriler hâlâ yükleniyor.",
+    "state": {
+      "feasible": "Uygun",
+      "infeasible": "Uygun değil",
+      "unknown": "Bilinmiyor",
+      "available": "Mevcut",
+      "insufficient": "Yetersiz"
+    },
+    "usable": "kullanılabilir",
+    "required": "gerekli"
   },
   "materials": {
     "sections": "Ana veri bölümleri",

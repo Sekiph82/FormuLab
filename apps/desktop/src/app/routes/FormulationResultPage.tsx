@@ -27,8 +27,12 @@ import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPc
 import { openAndPrintReport } from "@/lib/formulationReport";
 import { costGeneratedFormula } from "@/lib/generatedFormulaCost";
 import { pickCheapestValidVersion } from "@/lib/costComparison";
+import { evaluateGeneratedFormulaInventory, type FormulaInventoryFeasibility } from "@/lib/generatedFormulaInventory";
+import { pickMostInventoryFeasibleVersion } from "@/lib/inventoryComparison";
 import { useMasterCostData } from "@/hooks/useMasterCostData";
+import { useInventoryData } from "@/hooks/useInventoryData";
 import { CostSnapshotSummary } from "@/components/cost/CostSnapshotSummary";
+import { InventoryFeasibilitySummary } from "@/components/inventory/InventoryFeasibilitySummary";
 import { cn } from "@/lib/cn";
 
 /**
@@ -69,6 +73,10 @@ export function FormulationResultPage() {
   const [batchKg, setBatchKg] = useState("100");
   const [currency, setCurrency] = useState("KES");
   const costData = useMasterCostData();
+  // FVL-03.004: same read-only, client-side pattern as cost — reuses the
+  // SAME batchKg control above so cost and inventory compare the same
+  // requested batch. Python is never made inventory-aware.
+  const inventoryData = useInventoryData();
 
   useEffect(() => {
     if (!sessionId) return;
@@ -136,6 +144,14 @@ export function FormulationResultPage() {
       );
   const cheapestValidIndex = pickCheapestValidVersion(cards, costSnapshots);
 
+  // FVL-03.004: same per-version, batch-shared computation pattern as
+  // cost, kept as an entirely separate dimension (task §12) — never
+  // merged into `costSnapshots`/`cheapestValidIndex` above.
+  const inventoryFeasibilities: (FormulaInventoryFeasibility | undefined)[] = inventoryData.loading
+    ? cards.map(() => undefined)
+    : cards.map((c) => (c.formula ? evaluateGeneratedFormulaInventory(c.formula, batchKg, inventoryData.records) : undefined));
+  const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities);
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <TopBar session={session} sessionId={sessionId} t={t} />
@@ -189,6 +205,7 @@ export function FormulationResultPage() {
               batchKg={batchKg}
               onBatchKgChange={setBatchKg}
               onCurrencyChange={setCurrency}
+              inventoryFeasibility={inventoryFeasibilities[Math.min(activeVersion, cards.length - 1)]}
               t={t}
             />
           </div>
@@ -216,6 +233,8 @@ export function FormulationResultPage() {
               snapshot={costSnapshots[Math.min(activeVersion, cards.length - 1)]}
               currency={currency}
               isCheapestValid={cheapestValidIndex === Math.min(activeVersion, cards.length - 1)}
+              inventoryFeasibility={inventoryFeasibilities[Math.min(activeVersion, cards.length - 1)]}
+              isMostFeasible={mostFeasibleIndex === Math.min(activeVersion, cards.length - 1)}
             />
           </div>
         </div>
@@ -443,6 +462,7 @@ function TabContent({
   batchKg,
   onBatchKgChange,
   onCurrencyChange,
+  inventoryFeasibility,
   t,
 }: {
   tab: ResultTab;
@@ -458,6 +478,7 @@ function TabContent({
   batchKg: string;
   onBatchKgChange: (v: string) => void;
   onCurrencyChange: (v: string) => void;
+  inventoryFeasibility: FormulaInventoryFeasibility | undefined;
   t: TFunction<readonly ["session", "common"]>;
 }) {
   if (!card) return <EmptyNotice t={t} />;
@@ -495,6 +516,7 @@ function TabContent({
           batchKg={batchKg}
           onBatchKgChange={onBatchKgChange}
           onCurrencyChange={onCurrencyChange}
+          inventoryFeasibility={inventoryFeasibility}
           t={t}
         />
       );
@@ -1692,6 +1714,7 @@ function SummaryTab({
   batchKg,
   onBatchKgChange,
   onCurrencyChange,
+  inventoryFeasibility,
   t,
 }: {
   card: FormulationCard;
@@ -1701,6 +1724,7 @@ function SummaryTab({
   batchKg: string;
   onBatchKgChange: (v: string) => void;
   onCurrencyChange: (v: string) => void;
+  inventoryFeasibility: FormulaInventoryFeasibility | undefined;
   t: TFunction<readonly ["session", "common"]>;
 }) {
   return (
@@ -1753,6 +1777,9 @@ function SummaryTab({
           </label>
         </div>
         <CostSnapshotSummary snapshot={costSnapshot} currency={currency} />
+      </EvidenceSection>
+      <EvidenceSection title={t("formulationResult.versionSummary.inventoryFeasibility")}>
+        <InventoryFeasibilitySummary feasibility={inventoryFeasibility} />
       </EvidenceSection>
       <EvidenceSection title={t("formulationResult.summary.confidence")}>
         {card.score ? (
@@ -1927,6 +1954,8 @@ function VersionSummaryCard({
   snapshot,
   currency,
   isCheapestValid,
+  inventoryFeasibility,
+  isMostFeasible,
 }: {
   card: FormulationCard | undefined;
   formula: GeneratedFormula | undefined;
@@ -1934,14 +1963,20 @@ function VersionSummaryCard({
   snapshot: CostSnapshot | undefined;
   currency: string;
   isCheapestValid: boolean;
+  inventoryFeasibility: FormulaInventoryFeasibility | undefined;
+  isMostFeasible: boolean;
 }) {
   const total = totalWeightPct(formula);
   const costValue = snapshot?.totalManufacturingCost
     ? displayMoney(snapshot.totalManufacturingCost, currency)
     : t("formulationResult.versionSummary.notAvailable");
+  const inventoryValue = inventoryFeasibility
+    ? t(`inventory.state.${inventoryFeasibility.formulaState}`)
+    : t("formulationResult.versionSummary.notAvailable");
   const rows: [string, string][] = [
     [t("formulationResult.versionSummary.totalIngredients"), String(formula?.ingredients?.length ?? "—")],
     [t("formulationResult.versionSummary.estimatedCost"), costValue],
+    [t("formulationResult.versionSummary.inventoryFeasibility"), inventoryValue],
     [t("formulationResult.versionSummary.activeMatter"), total !== undefined ? `${total}%` : "—"],
     [t("formulationResult.versionSummary.overallScore"), t("formulationResult.versionSummary.notYetScored")],
   ];
@@ -1953,6 +1988,11 @@ function VersionSummaryCard({
       {isCheapestValid && (
         <div className="mb-2 rounded-input bg-accent/10 px-2 py-1 text-[10.5px] font-medium text-accent">
           {t("formulationResult.versionSummary.cheapestValid")}
+        </div>
+      )}
+      {isMostFeasible && (
+        <div className="mb-2 rounded-input bg-success/10 px-2 py-1 text-[10.5px] font-medium text-success">
+          {t("formulationResult.versionSummary.mostFeasible")}
         </div>
       )}
       <dl className="space-y-1">

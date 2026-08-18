@@ -39,6 +39,10 @@ _ALIASES: Dict[str, tuple] = {
     "currency": ("currency", "cur", "ccy", "parabirimi", "kur"),
     "unit": ("unit", "uom", "unitofmeasure", "birim"),
     "supplier": ("supplier", "vendor", "manufacturer", "tedarikci", "uretici"),
+    # FVL-03.004: parsed and stored on the legacy row (below), but read by
+    # nothing else in runtime/pipeline — non-authoritative. The canonical
+    # inventory source of truth is InventoryRecord (data/master/inventory.json),
+    # consumed only client-side (apps/desktop/src/lib/generatedFormulaInventory.ts).
     "stock": ("stock", "qty", "quantity", "onhand", "stok", "miktar"),
     "function": ("function", "role", "category", "type", "islev", "gorev"),
     "external_ref": ("externalref", "erpcode", "itemcode", "sku", "code",

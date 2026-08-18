@@ -502,6 +502,7 @@ export * from "./engine/scoringModel";
 export * from "./schemas/materials";
 export * from "./schemas/costing";
 export * from "./engine/cost";
+export * from "./engine/inventoryAvailability";
 export * from "./engine/importer";
 export * from "./schemas/ruleConditions";
 export * from "./engine/ruleConditions";

@@ -316,6 +316,74 @@ Terminology going forward in all NEW roadmap/architecture wording: **"Determinis
 | `runtime/pipeline/safety.py` | Independent, competing final safety verdict (`overall_status`) | `packages/shared/src/engine/safety.ts::evaluateSafety`/`classifyProductSafety` | FVL-03.009 | Yes — genuinely useful generation-time preprocessing (hazard-table lookups feeding the request) may be retained/merged into the authoritative engine's inputs; the competing final-verdict computation is what gets retired, not necessarily the whole file | Not deleted in this documentation-only session — code is in live use (`pipeline.py:846`). Consolidation happens in FVL-03.009's own implementation session, with regression tests proving one verdict, not two disagreeing ones |
 | `runtime/pipeline/regulatory.py` | Independent, self-documented "faithful port" of the TS regulatory rule catalog into a second evaluation engine | `packages/shared/src/engine/regulatoryRules.ts::evaluateRegulatory` + `regulatoryClassification.ts` | FVL-03.010 | Yes — same reasoning as safety.py; claim-review preprocessing may be retained/merged, the competing rule universe/verdict is what gets retired | Not deleted in this documentation-only session — code is in live use (`pipeline.py:847`). Consolidation happens in FVL-03.010's own implementation session |
 | `runtime/pipeline/rules.py::validate()`/`derive_constraints()` | Generation-request constraint enforcement (excluded ingredients, sulfate-free, pH bounds) | N/A — not a duplicate, stays as-is | N/A | Yes, permanently | Never — this is legitimate request-constraint logic, confirmed not to overlap the Compatibility Engine's rule-type surface |
+| `runtime/pipeline/materials.py`'s legacy `stock` field (`_ALIASES["stock"]`, parsed at row-build time) | Parsed and stored on the legacy CSV-import row; confirmed (FVL-03.004) read by nothing else anywhere in `runtime/pipeline/*.py` — stored-but-unused dead data | Canonical `InventoryRecord` (`data/master/inventory.json` via `masterdata.rs`), consumed client-side only via `apps/desktop/src/lib/generatedFormulaInventory.ts` | N/A — not a duplicate authority (never read back for any computation), stays as-is | Yes, permanently | Never — deleting a stored-but-unused legacy field is gratuitous churn on the legacy CSV-import path, out of scope; classified here so a future session doesn't mistake it for a live second inventory source |
+
+### Inventory feasibility boundary (FVL-03.004, COMPLETED 2026-08-18)
+
+Same constraint as the Cost Engine boundary above, confirmed again for
+inventory: Python cannot call into `packages/shared`. Canonical
+`InventoryRecord` (`packages/shared/src/schemas/materials.ts:221-242` —
+`materialCode`, `quantity`, `reservedQuantity`, `warehouse`, `lot`,
+`expiresAt`, `coaStatus`, `quarantined`, `released`, `unit`) lives in
+`data/master/inventory.json` via `masterdata.rs`'s generic
+`list_master_records`/`upsert_master_records` (not append-only, no
+dedicated command). No field stores a usable/available quantity — it is
+always derived, and before this task three UI call sites
+(`MaterialsPage.tsx`, `AdvancedOptimizerPanel.tsx`,
+`SubstitutionPanel.tsx`) each re-implemented `quantity − reservedQuantity`
+inline, none applying `quarantined`/`released`/`expiresAt` filtering.
+
+**New canonical derivation** (used by new code only — the three existing
+call sites are untouched, out of scope, no regression risk introduced):
+`packages/shared/src/engine/inventoryAvailability.ts::evaluateMaterialAvailability()`.
+A lot counts as usable iff `!quarantined && released && (!expiresAt || not
+yet expired)` — the only unambiguous, schema-defined facts; `coaStatus` is
+deliberately not gated on (its business meaning is undefined by the schema
+and by every existing caller). Distinguishes "no record at all"
+(`hasRecords: false`, genuinely unknown) from "records exist but all
+blocked" (a real, computed zero — `quarantined`/`released` are known
+facts, not missing data) from "usable lots in mixed units"
+(`usableQuantity: undefined`, never silently summed).
+
+**Client-side evaluation, read-only, version-level preference** — mirrors
+FVL-03.003 exactly, confirmed with the user as the deliberate architecture
+choice over extending `master_materials_adapter.py` to read inventory
+(which would have required either duplicating the availability formula in
+Python or piping in pre-computed numbers, neither with real precedent):
+`apps/desktop/src/lib/generatedFormulaInventory.ts::evaluateGeneratedFormulaInventory()`
+reuses `linesFromGeneratedFormula()`'s `material_code` join (never text
+similarity — proven by test with a same-display-name decoy material),
+computes required quantity from the SAME `batchKg` control FVL-03.003
+already lifted to `FormulationResultPage.tsx`'s top level (never the
+original free-text `estimatedBatchSize` brief field, which stays purely
+decorative), and rolls per-ingredient AVAILABLE/INSUFFICIENT/UNKNOWN
+states into one formula-level FEASIBLE/INFEASIBLE/UNKNOWN state (any
+insufficient → infeasible; else any unknown → unknown; else feasible).
+
+"Prefer a feasible candidate" is satisfied at the **version** level, not
+by mutating `engine.py`'s per-role candidate loop — Python remains
+entirely inventory-blind, by design. New
+`apps/desktop/src/lib/inventoryComparison.ts::pickMostInventoryFeasibleVersion()`
+picks the first already-generated, hard-rule-valid version whose
+inventory state is `feasible` (mirrors `pickCheapestValidVersion`'s own
+choice to return `undefined` rather than recommend a lower-confidence
+result when nothing fully qualifies — an infeasible or merely-unknown
+version is never returned as "the best available anyway"). Kept as an
+entirely separate function/badge from cost (task §12) — a version can be
+priced-but-unavailable or available-but-unpriced; neither is inferred
+from the other, proven by a joint test.
+
+**Read-only, by construction**: no code path introduced by this task
+calls `upsertRecords("inventory", ...)` or otherwise mutates
+`InventoryRecord` — confirmed by grep across the changed files. Generation
+never reserves, decrements, or allocates stock.
+
+Wired into the new result UI only (`FormulationResultPage.tsx`'s Summary
+tab + `VersionSummaryCard` badge) — `CostingPanel.tsx` (old `/live` UI)
+was deliberately not extended to inventory this session, since it has no
+multi-version/cards context to make a feasibility comparison meaningful
+and the task's own UI minimum was stated specifically for the new result
+UI.
 
 ### Future FVL hardening — flagged for human review (not changed by this session beyond noted wording)
 

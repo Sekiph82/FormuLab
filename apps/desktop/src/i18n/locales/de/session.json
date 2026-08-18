@@ -679,7 +679,9 @@
       "overallScore": "Overall Score",
       "notAvailable": "Not available",
       "notYetScored": "Not yet scored",
-      "cheapestValid": "Lowest cost among valid alternatives"
+      "cheapestValid": "Lowest cost among valid alternatives",
+      "mostFeasible": "Most inventory-feasible alternative",
+      "inventoryFeasibility": "Inventory feasibility"
     },
     "process": {
       "notAvailable": "A real, evidence-sourced manufacturing procedure for this formula is not yet generated — Phase 14 Session 5 builds this. No generic or invented process steps are shown in its place."
@@ -1000,6 +1002,18 @@
       "busy": "Wird gespeichert — bitte warten.",
       "needVersion": "Wählen Sie eine gespeicherte Version aus, bevor Sie einen Kosten-Snapshot speichern."
     }
+  },
+  "inventory": {
+    "notYetAvailable": "Not yet available — master data is still loading.",
+    "state": {
+      "feasible": "Feasible",
+      "infeasible": "Infeasible",
+      "unknown": "Unknown",
+      "available": "Available",
+      "insufficient": "Insufficient"
+    },
+    "usable": "usable",
+    "required": "required"
   },
   "materials": {
     "sections": "Master data sections",

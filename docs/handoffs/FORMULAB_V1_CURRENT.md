@@ -14,20 +14,80 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 ## Current work package
 
 **FVL-03 — Unified Formulation Pipeline ↔ Existing FormuLab Engines** —
-ON PROCESS, 9/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
-FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
-(24/24, 2026-08-17).
+ON PROCESS, 10/18 tasks COMPLETED (FVL-03.001, FVL-03.002, FVL-03.003,
+FVL-03.004, FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains
+CLOSED (24/24, 2026-08-17).
 
 ## Current task
 
-**`FVL-03.004`** — blank, NOT STARTED. `FVL-03.003` closed this session
-(see below) — `FVL-03.004` ("wire inventory/raw-material availability into
-candidate feasibility, missing data stays missing") is the next frozen
-task per the tracker's own dependency chain (depends on FVL-03.001, not
-.003 — eligible in principle since FVL-03.001 closed, but deliberately not
-begun this session). Not begun.
+**`FVL-03.005`** — blank, NOT STARTED. `FVL-03.004` closed this session
+(see below) — `FVL-03.005` ("wire the existing Advanced Optimizer as an
+optional post-generation refinement, not a new solver") is the next
+frozen task per the tracker's own dependency chain. Deliberately not
+begun this session.
 
-## FVL-03.003 resolution (this session)
+## FVL-03.004 resolution (this session)
+
+"Wire canonical InventoryRecord availability into candidate feasibility,
+read-only." Confirmed by audit: `InventoryRecord`
+(`packages/shared/src/schemas/materials.ts:221-242`) stores no
+usable/available quantity field — always derived — and before this task
+three UI call sites each re-implemented `quantity − reservedQuantity`
+inline, none applying `quarantined`/`released`/`expiresAt` filtering. New
+`packages/shared/src/engine/inventoryAvailability.ts::evaluateMaterialAvailability()`
+is now the one canonical derivation (used by new code only — the three
+existing call sites untouched, out of scope, no regression risk).
+
+**Same client-side, read-only, version-level architecture as FVL-03.003's
+cost wiring — confirmed with the user as the deliberate choice**: Python
+is not extended to read inventory; `master_materials_adapter.py`
+untouched. New `apps/desktop/src/lib/generatedFormulaInventory.ts::evaluateGeneratedFormulaInventory()`
+joins by `material_code` only (proven immune to a same-display-name decoy
+material by test), computes required quantity from the SAME numeric
+`batchKg` control FVL-03.003 already added to `FormulationResultPage.tsx`
+(never the original free-text `estimatedBatchSize` brief field, confirmed
+purely decorative — never parsed as a number anywhere in
+`runtime/pipeline/`). Rolls per-ingredient AVAILABLE/INSUFFICIENT/UNKNOWN
+into one formula-level FEASIBLE/INFEASIBLE/UNKNOWN state.
+
+"Prefer a feasible candidate" (satisfied at the **version** level, not by
+mutating `engine.py`'s per-role candidate loop): new
+`apps/desktop/src/lib/inventoryComparison.ts::pickMostInventoryFeasibleVersion()`
+mirrors `pickCheapestValidVersion` exactly — picks the first already-
+generated, hard-rule-valid version whose inventory state is `feasible`,
+never recommending an infeasible/unknown version as "best available
+anyway." Kept as an entirely separate dimension from cost (task §12) —
+proven by a joint test that a real cost total and an independently-
+computed `INFEASIBLE` inventory state coexist without either influencing
+the other.
+
+**Read-only by construction** — confirmed by grep across every file this
+session touched: no `upsertRecords("inventory", ...)` call exists
+anywhere. Generation never reserves, decrements, or allocates stock.
+
+Wired into the new result UI only (`FormulationResultPage.tsx`'s Summary
+tab + `VersionSummaryCard` badge, plus a per-version cost line in the
+version-card grid) — `CostingPanel.tsx` (old `/live` UI) deliberately not
+extended, since it has no multi-version/cards context to make a
+feasibility comparison meaningful. `runtime/pipeline/materials.py`'s
+legacy `stock` field (parsed, stored, read by nothing else) documented
+with a one-line comment classifying it non-authoritative — not deleted
+(gratuitous churn on an unrelated legacy path, out of scope).
+
+Verified: `pnpm --filter @formulab/shared test` — 1311/1311 (9 new in
+`inventoryAvailability.test.ts`). `pnpm --filter @formulab/desktop test`
+— 1303/1303 (16 new: `generatedFormulaInventory.test.ts` 9,
+`inventoryComparison.test.ts` 4, `InventoryFeasibilitySummary` render
+sanity via typecheck; i18n locale-parity suite re-verified green across
+all 8 locales after 7 new translation keys added to each). `typecheck`/
+`lint` — clean. `python -m pytest runtime/pipeline -q` — 386/386,
+unchanged from the FVL-03.003 baseline (Python untouched except one
+non-functional doc comment). `cargo check` — clean, unchanged (no Rust
+edits this session). `git diff --check` — clean. No FVL-03.005+ work
+started; no Python inventory logic added anywhere; no substitution logic
+implemented (explicitly deferred to FVL-03.006).
+
+## FVL-03.003 resolution (prior session)
 
 "Wire the existing authoritative Cost Engine into the formulation
 pipeline." **Critical architecture finding, confirmed by audit**: Python
@@ -250,41 +310,38 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-03.004`** — blank, NOT STARTED (see above). Wire inventory/
-raw-material availability into candidate feasibility, reusing canonical
-`InventoryRecord` collections — missing data stays missing, never assumed
-available. Not begun this session.
+**`FVL-03.005`** — blank, NOT STARTED (see above). Wire the existing
+Advanced Optimizer as an optional post-generation refinement of a
+selected alternative — no new solver, not a merge into `engine.py`. Not
+begun this session.
 
 ## Known blockers
 
-None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003 fully closed (see
-above).
+None. FVL-01/FVL-02 fully closed; FVL-03.001/.002/.003/.004 fully closed
+(see above).
 
 ## Most recent relevant tests
 
-- `python -m pytest runtime/pipeline -q` — 386 passed, 5 subtests passed.
-- `cargo check` + `cargo test` — 345/345 passing (full suite).
-- `pnpm --filter @formulab/shared test` — 1302/1302.
-- `pnpm --filter @formulab/desktop test` — 1287/1287.
+- `pnpm --filter @formulab/shared test` — 1311/1311.
+- `pnpm --filter @formulab/desktop test` — 1303/1303.
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
+- `python -m pytest runtime/pipeline -q` — 386 passed, 5 subtests passed
+  (unchanged from FVL-03.003's baseline — Python untouched this session
+  except a non-functional doc comment).
+- `cargo check` — clean (unchanged — no Rust edits this session).
 - `python scripts/validate_v1_tracker.py` — OK, 157 tasks, no drift.
 - `git diff --check` — clean.
-- Rust/TS/Python production code changed this session — no desktop
-  rebuild/installer performed (dev-mode `cargo check`/`typecheck` covers
-  the changed surface, matching the standing "full rebuild reserved for
-  closure sessions" policy; nothing in this session's own acceptance
-  criteria required a shipped binary). No live Tauri-app smoke test was
-  performed — verification relied on the automated suites above plus a
-  new component-render test (`CostSnapshotSummary.test.tsx`) proving
-  real, non-crashing rendering with real i18n lookups.
+- No desktop rebuild/installer performed (no Rust/shipped-runtime changes
+  this session at all; TS/shared changes covered by `typecheck`/`lint`/
+  vitest, matching the standing "full rebuild reserved for closure
+  sessions" policy). No live Tauri-app smoke test was performed —
+  verification relied on the automated suites above.
 
 ## Latest commit SHA
 
-`8fec21d2f6e020c149ba3b2728f60d03369d2dab` (pushed to and matching
-`origin/feature/laboratory-stability`) — "feat(v1): integrate
-authoritative Cost Engine into formulation pipeline". Prior:
-`fcb7cdcfbb0df3953708db942b5c94958d643c3c` — "docs: finalize FVL-03.002
-closure pointer with commit SHA".
+(updated in the closure-pointer follow-up commit for this session).
+Prior: `426c9a196b7225e1a1e025536fdea9c9dd643f25` — "docs: finalize
+FVL-03.003 closure pointer with commit SHA".
 
 ## Reminder
 
