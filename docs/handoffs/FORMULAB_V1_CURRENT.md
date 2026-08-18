@@ -900,10 +900,9 @@ issues; all flagged for a future session.
 
 ## Latest commit SHA
 
-Pending — this session's FVL-03.011 closure commit not yet pushed at
-the time this file was last edited. Prior: `fa96142` (pushed to and
-matching `origin/feature/laboratory-stability`) — "docs: finalize
-FVL-03.010 closure pointer with commit SHA".
+`cd19551` (pushed to and matching `origin/feature/laboratory-stability`)
+— "feat(v1): complete authoritative formulation provenance". Prior:
+`fa96142` — "docs: finalize FVL-03.010 closure pointer with commit SHA".
 
 ## Reminder
 
