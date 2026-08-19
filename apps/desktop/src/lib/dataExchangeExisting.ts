@@ -817,6 +817,43 @@ export async function loadExisting(templateCode: string): Promise<ExistingLookup
   return loader();
 }
 
+/** `formula_bom` has its own loader (`loadExistingFormulaBom`, below) since
+ *  it reads the session-based formulation store rather than a masterdata
+ *  collection — every other template goes through `LOADERS`/`loadExisting`.
+ *  This is the SAME dispatch `DataExchangeImportDialog.tsx`'s own
+ *  `existingFor()` already uses for create-vs-update classification; reused
+ *  here rather than duplicated, so both concerns stay backed by one real
+ *  authority. */
+async function existingLookupFor(templateCode: string): Promise<ExistingLookup> {
+  if (templateCode === "formula_bom") return loadExistingFormulaBom();
+  return loadExisting(templateCode);
+}
+
+/**
+ * FVL-04.013-.018 hardening (Session 7, Part J) — the generic
+ * `(referenceTemplate, key) => exists?` resolver every Data Exchange
+ * import (both the production `DataExchangeImportDialog` and the connector
+ * layer's own end-to-end acceptance) should use for real `code_reference`
+ * validation. Built ONLY from the SAME existing-record loaders every
+ * template's own create-vs-update classification already uses — never a
+ * duplicate registry, never a material/supplier-specific `if` branch. Each
+ * referenced template's natural keys are loaded ONCE up front (synchronous
+ * `resolveReference` cannot itself be async), then the returned closure is
+ * a pure in-memory lookup. A `referenceTemplate` with no registered loader
+ * (a real, pre-existing, unrelated gap in a handful of non-connector
+ * templates — see `dataExchangeExisting.test.ts`) resolves every key as
+ * "missing" rather than silently passing every reference — strictly safer
+ * than the previous production behavior of validating nothing at all.
+ */
+export async function buildReferenceResolver(referenceTemplates: Iterable<string>): Promise<(referenceTemplate: string, key: string) => boolean> {
+  const byTemplate = new Map<string, Set<string>>();
+  for (const code of new Set(referenceTemplates)) {
+    const lookup = await existingLookupFor(code);
+    byTemplate.set(code, lookup.naturalKeys);
+  }
+  return (referenceTemplate, key) => byTemplate.get(referenceTemplate)?.has(key) ?? false;
+}
+
 /** Formula/BOM's current-data export is flattened from the session-based
  *  formulation store, not a masterdata collection — kept separate since it
  *  needs `listFormulations`/`readFormulation`, not `listRecords`. */

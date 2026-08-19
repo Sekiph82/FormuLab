@@ -14,7 +14,7 @@ import {
 } from "@formulab/shared";
 import { readWorkbookRows, rejectUnsupportedWorkbook } from "@/lib/xlsx";
 import { commitDataExchangeRows, isTemplateCommitSupported, type DataExchangeRowCommitOutcome } from "@/lib/dataExchangeCommit";
-import { loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
+import { buildReferenceResolver, loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
 import { upsertRecords, nowIso } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 import { DisabledActionButton } from "@/components/help/DisabledActionButton";
@@ -92,10 +92,21 @@ export function DataExchangeImportDialog({
       setFileHash(hash);
       const rows = isXlsx ? await readWorkbookRows(bytes) : parseCsv(new TextDecoder("utf-8").decode(bytes));
       const existing = await existingFor(template.templateCode);
+      // Session 7 hardening (Part J): real code_reference existence
+      // validation, wired to the same existing-record authority
+      // `existingFor()` already uses for create-vs-update classification —
+      // previously this preview call passed no `resolveReference` at all,
+      // so a row referencing a nonexistent supplier/material silently
+      // "passed" only because the check was never performed.
+      const referenceTemplates = template.columns
+        .filter((c) => c.dataType === "code_reference" && c.referenceTemplate)
+        .map((c) => c.referenceTemplate!);
+      const resolveReference = await buildReferenceResolver(referenceTemplates);
       const p = previewDataExchangeImport(template, rows, {
         actorRole,
         fileSizeBytes: bytes.byteLength,
         existingNaturalKeys: existing.naturalKeys,
+        resolveReference,
       });
       setPreview(p);
       if (!p.authorizationDenied) {

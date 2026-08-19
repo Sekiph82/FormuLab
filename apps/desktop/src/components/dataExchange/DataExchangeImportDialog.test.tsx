@@ -106,6 +106,11 @@ describe("DataExchangeImportDialog — validation blocker (Phase 10 Session 3)",
 describe("DataExchangeImportDialog — FVL-04.012: real sample file acceptance for the two new operational templates", () => {
   it("inventory_records: a real CSV sample file previews, commits, and reaches the real evaluateMaterialAvailability()", async () => {
     const template = getDataExchangeTemplate("inventory_records")!;
+    // Session 7 hardening: the dialog now performs REAL code_reference
+    // validation (previously it validated nothing at all) — the
+    // referenced raw material must genuinely exist in canonical storage,
+    // exactly as a real user would need to import it first.
+    bridge.listRecords.mockImplementation(async (collection: string) => (collection === "materials" ? [{ code: "TEST-MAT-001" }] : []));
     const user = userEvent.setup();
     render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
 
@@ -215,6 +220,13 @@ describe("DataExchangeImportDialog — FVL-04.012 hardening: real .xlsx round-tr
       { material_code: "XLSX-MAT-1", supplier_code: "XLSX-SUP-1", supplier_trade_name: "XLSX Trade Name", preferred: "true" },
     ]);
     const file = new File([buf], "material-suppliers.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    // Session 7 hardening: real code_reference validation now requires the
+    // referenced material and supplier to genuinely exist.
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "materials") return [{ code: "XLSX-MAT-1" }];
+      if (collection === "suppliers") return [{ code: "XLSX-SUP-1" }];
+      return [];
+    });
 
     const user = userEvent.setup();
     render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
@@ -288,6 +300,13 @@ describe("DataExchangeImportDialog — FVL-04.012 hardening: real .xlsx round-tr
 describe("DataExchangeImportDialog — Part A hardening: finished_product_specifications, the previously-missing release/QC-limit domain", () => {
   it("FPS8: a real CSV file commits a specification referencing a real SKU and TestDefinition", async () => {
     const template = getDataExchangeTemplate("finished_product_specifications")!;
+    // Session 7 hardening: real code_reference validation now requires the
+    // referenced SKU and TestDefinition to genuinely exist.
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "finished_products") return [{ code: "FPS-SKU-001" }];
+      if (collection === "test_definitions") return [{ code: "FPS-TST-001" }];
+      return [];
+    });
     const user = userEvent.setup();
     render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
     const dialog = await screen.findByRole("dialog");
@@ -314,6 +333,11 @@ describe("DataExchangeImportDialog — Part A hardening: finished_product_specif
       { sku_code: "FPS-SKU-002", test_definition_code: "FPS-TST-001", target_value: "9000", lower_limit: "8000", upper_limit: "10000", effective_from: "2026-01-01" },
     ]);
     const file = new File([buf], "specs.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "finished_products") return [{ code: "FPS-SKU-002" }];
+      if (collection === "test_definitions") return [{ code: "FPS-TST-001" }];
+      return [];
+    });
     const user = userEvent.setup();
     render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
     const dialog = await screen.findByRole("dialog");
@@ -343,6 +367,11 @@ describe("DataExchangeImportDialog — Part A hardening: finished_product_specif
 
   it("A6: an attempted verification_status=verified in the file is ignored — the committed specification stays imported_unverified", async () => {
     const template = getDataExchangeTemplate("finished_product_specifications")!;
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "finished_products") return [{ code: "FPS-SKU-004" }];
+      if (collection === "test_definitions") return [{ code: "FPS-TST-001" }];
+      return [];
+    });
     const user = userEvent.setup();
     render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
     const dialog = await screen.findByRole("dialog");
