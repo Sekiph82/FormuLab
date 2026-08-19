@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseCsv } from "./importer";
 import { getDataExchangeTemplate } from "./dataExchangeRegistry";
-import { previewDataExchangeImport, previewDataExchangeImportCsv } from "./dataExchangeValidation";
+import { previewDataExchangeImport, previewDataExchangeImportCsv, resolveColumnReferenceField } from "./dataExchangeValidation";
 
 const materials = getDataExchangeTemplate("raw_materials")!;
 const prices = getDataExchangeTemplate("material_prices")!;
@@ -614,5 +614,103 @@ describe("FVL-04.012 hardening — independent sample-file acceptance (fixtures 
     const csv = csvRow(finishedProductSpecifications, { sku_code: "ACC-SKU-9", test_definition_code: "ACC-TST-PH" });
     const p = previewDataExchangeImportCsv(finishedProductSpecifications, csv, { resolveReference: () => true });
     expect(p.rows[0].state).toBe("invalid");
+  });
+});
+
+describe("FVL-04 hardening (Session 8, Part 1/2): field-aware reference resolution, self-reference no longer bypassed", () => {
+  const artwork = getDataExchangeTemplate("artwork_register")!;
+  const packagingBom = getDataExchangeTemplate("packaging_bom")!;
+
+  function rowFor(template: typeof materials, fields: Record<string, string>): string[][] {
+    const headers = template.columns.map((c) => c.key);
+    return [headers, headers.map((h) => fields[h] ?? "")];
+  }
+
+  it("Part 1: the validator calls resolveReference with the column's own referenceField, not the target's natural-key string", () => {
+    const calls: [string, string, string][] = [];
+    const p = previewDataExchangeImport(artwork, rowFor(artwork, { artwork_code: "ART-002", label_code: "TEST-LBL-001", status: "draft" }), {
+      resolveReference: (referenceTemplate, referenceField, key) => {
+        calls.push([referenceTemplate, referenceField, key]);
+        return true;
+      },
+    });
+    expect(p.rows[0].state).toBe("valid_create");
+    expect(calls).toContainEqual(["label_content", "label_code", "TEST-LBL-001"]);
+  });
+
+  it("Part 4: registry invariant — resolveColumnReferenceField never guesses on a composite-key target with no referenceField configured", () => {
+    // packaging_bom's OWN template has a composite natural key
+    // (packaging_sku_code + component_code). Fabricate a column that
+    // references it WITHOUT a referenceField, the exact misconfiguration
+    // shape the real registry never actually contains (see the registry
+    // consistency test) — proves the fallback path fails closed rather
+    // than silently picking the first natural-key field.
+    const misconfigured = { key: "x", header: "x", description: "x", dataType: "code_reference" as const, required: false, nullable: true, importable: true, exportable: true, referenceTemplate: "packaging_bom" };
+    const resolved = resolveColumnReferenceField(misconfigured);
+    expect(resolved).toHaveProperty("configError");
+  });
+
+  it("Part 4: a target with a genuine single-field natural key resolves via that field when referenceField is absent", () => {
+    // raw_materials naturalKey is ["material_code"] — single field, so the
+    // documented unambiguous fallback applies.
+    const column = { key: "x", header: "x", description: "x", dataType: "code_reference" as const, required: false, nullable: true, importable: true, exportable: true, referenceTemplate: "raw_materials" };
+    const resolved = resolveColumnReferenceField(column);
+    expect(resolved).toEqual({ field: "material_code" });
+  });
+
+  describe("SELF1-4: self-reference (artwork_register.supersedes_artwork_code -> artwork_register.artwork_code)", () => {
+    it("SELF1: an existing artwork code as the supersession target resolves valid", () => {
+      const p = previewDataExchangeImport(artwork, rowFor(artwork, { artwork_code: "ART-002", label_code: "TEST-LBL-001", status: "draft", supersedes_artwork_code: "ART-001" }), {
+        resolveReference: (referenceTemplate, referenceField, key) => referenceTemplate === "label_content" ? key === "TEST-LBL-001" : referenceTemplate === "artwork_register" && referenceField === "artwork_code" && key === "ART-001",
+      });
+      expect(p.rows[0].state).toBe("valid_create");
+    });
+
+    it("SELF2: a missing supersession target reports reference_missing (optional field -> warning state, not a hard block, matching the column's own required:false)", () => {
+      const p = previewDataExchangeImport(artwork, rowFor(artwork, { artwork_code: "ART-002", label_code: "TEST-LBL-001", status: "draft", supersedes_artwork_code: "ART-MISSING" }), {
+        resolveReference: (referenceTemplate, referenceField, key) => referenceTemplate === "label_content" ? key === "TEST-LBL-001" : false,
+      });
+      // supersedes_artwork_code is not `required`, so an unresolved
+      // reference is a warning (row still importable), never silently
+      // "valid" as if the reference had been checked and passed.
+      expect(p.rows[0].messages.join(" ")).toMatch(/supersedes_artwork_code.*does not exist in artwork_register/);
+      expect(p.rows[0].state).not.toBe("invalid"); // optional reference: warning, not a hard block
+    });
+
+    it("SELF3: a row naming itself as its own supersession target is validated exactly like any other reference — not canonical yet, so it fails, never auto-accepted merely because the template matches itself", () => {
+      const p = previewDataExchangeImport(artwork, rowFor(artwork, { artwork_code: "ART-002", label_code: "TEST-LBL-001", status: "draft", supersedes_artwork_code: "ART-002" }), {
+        // ART-002 is the row being imported right now — it does not exist
+        // in canonical storage yet, so resolving against real storage
+        // correctly reports it missing. Same-file forward references are
+        // deliberately unsupported (documented policy, Part 2.2).
+        resolveReference: (referenceTemplate, referenceField, key) => referenceTemplate === "label_content" ? key === "TEST-LBL-001" : referenceTemplate === "artwork_register" && key === "ART-001",
+      });
+      expect(p.rows[0].messages.join(" ")).toMatch(/supersedes_artwork_code.*does not exist in artwork_register/);
+    });
+
+    it("SELF4: no unconditional 'referenceTemplate === template.templateCode -> true' bypass remains in the validator's own source", async () => {
+      const fs = await import("node:fs");
+      const src = fs.readFileSync(new URL("./dataExchangeValidation.ts", import.meta.url), "utf-8");
+      // Strip comments first — the module's own doc comment discusses the
+      // OLD removed pattern by name as history; only real CODE must be
+      // free of it.
+      const withoutComments = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      expect(withoutComments).not.toMatch(/referenceTemplate\s*===\s*template\.templateCode\s*\?\s*true/);
+    });
+  });
+
+  it("composite-natural-key target: packaging_bom.packaging_sku_code resolves via the exact field the caller's resolver was asked for, not naturalKeyOf's composite join", () => {
+    let sawField: string | undefined;
+    const p = previewDataExchangeImport(packagingBom, rowFor(packagingBom, { packaging_sku_code: "SKU-001", component_code: "BOTTLE-01", component_quantity: "1" }), {
+      resolveReference: () => true,
+    });
+    expect(p.rows[0].state).toBe("valid_create");
+    // product_family_code is the only code_reference column on this
+    // template pointing elsewhere; confirm the field passed through is its
+    // own configured referenceField, not a guess.
+    const col = packagingBom.columns.find((c) => c.key === "product_family_code")!;
+    const resolved = resolveColumnReferenceField(col);
+    sawField = "field" in resolved ? resolved.field : undefined;
+    expect(sawField).toBe("family_code");
   });
 });

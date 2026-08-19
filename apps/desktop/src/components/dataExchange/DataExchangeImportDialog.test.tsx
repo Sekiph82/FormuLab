@@ -391,3 +391,96 @@ describe("DataExchangeImportDialog — Part A hardening: finished_product_specif
     expect(committed.verificationStatus).toBe("imported_unverified");
   });
 });
+
+describe("DataExchangeImportDialog — Session 8 Part 3.1: field-aware composite reference and self-reference through the real dialog", () => {
+  // artwork_register is the one real template with BOTH shapes needed here:
+  //   - label_code: REQUIRED code_reference into label_content, whose own
+  //     natural key is composite (label_code+label_revision+panel+
+  //     block_type+language) — proves the fix resolves against the single
+  //     referenceField, not the composite key, and that a REQUIRED miss
+  //     genuinely blocks atomic commit (reference_missing).
+  //   - supersedes_artwork_code: self-reference into artwork_register's own
+  //     artwork_code. It is NOT a `required` column in the registry (no
+  //     REQUIRED self-reference column exists anywhere in the registry —
+  //     confirmed by audit), so a missing target degrades to a warning, not
+  //     a hard block. Scenario D below proves that real, honest behavior
+  //     rather than the harder "blocks commit" framing that would only
+  //     apply if such a required self-reference column existed.
+  const labels = [{ id: "lbl1", labelCode: "TEST-LBL-001" }];
+  const blocks = [{ labelId: "lbl1", labelRevision: "1", panel: "front", blockType: "product_name", language: "en", text: "Test", mandatory: "true", source: "imported", status: "draft" }];
+  const existingArtworks = [{ id: "art1", labelId: "lbl1", artworkCode: "ART-001", labelRevision: "1", format: "AI", dimensions: "180x60 mm", colorMode: "CMYK", languageSet: ["en"], createdBy: "Test", createdAt: "2026-01-01T00:00:00.000Z", status: "draft" }];
+
+  function mockArtworkCollections() {
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "product_labels") return labels;
+      if (collection === "label_content_blocks") return blocks;
+      if (collection === "label_artworks") return existingArtworks;
+      return [];
+    });
+  }
+
+  it("A: a label_code that genuinely exists in label_content resolves through its own field, not the composite natural key — previews and commits", async () => {
+    mockArtworkCollections();
+    const template = getDataExchangeTemplate("artwork_register")!;
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File(["artwork_code,label_code,status\nART-101,TEST-LBL-001,draft"], "artwork-a.csv", { type: "text/csv" });
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    expect(await within(dialog).findByText("1")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Commit import" }));
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("label_artworks", expect.arrayContaining([expect.objectContaining({ artworkCode: "ART-101" })]));
+  });
+
+  it("B: a label_code with no matching label_content row is reference_missing — required reference, atomic commit disabled, no target commit", async () => {
+    mockArtworkCollections();
+    const template = getDataExchangeTemplate("artwork_register")!;
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File(["artwork_code,label_code,status\nART-102,LBL-MISSING,draft"], "artwork-b.csv", { type: "text/csv" });
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+
+    expect(await within(dialog).findByRole("button", { name: "Commit import" })).toBeDisabled();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("label_artworks", expect.anything());
+  });
+
+  it("C: a self-reference (supersedes_artwork_code) to an existing artwork resolves valid and commits", async () => {
+    mockArtworkCollections();
+    const template = getDataExchangeTemplate("artwork_register")!;
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File(["artwork_code,label_code,status,supersedes_artwork_code\nART-103,TEST-LBL-001,draft,ART-001"], "artwork-c.csv", { type: "text/csv" });
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    expect(await within(dialog).findByText("1")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Commit import" }));
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("label_artworks", expect.arrayContaining([expect.objectContaining({ artworkCode: "ART-103" })]));
+  });
+
+  it("D: a missing self-reference target is reported (does not exist) but supersedes_artwork_code is not `required` in the registry, so it warns rather than blocks — real registry behavior, not the harder framing a required column would produce", async () => {
+    mockArtworkCollections();
+    const template = getDataExchangeTemplate("artwork_register")!;
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File(["artwork_code,label_code,status,supersedes_artwork_code\nART-104,TEST-LBL-001,draft,ART-MISSING"], "artwork-d.csv", { type: "text/csv" });
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    expect(await within(dialog).findByText("1")).toBeInTheDocument();
+
+    // Not blocked — a warning-state row is still committable.
+    const commitBtn = within(dialog).getByRole("button", { name: "Commit import" });
+    expect(commitBtn).not.toBeDisabled();
+    await user.click(commitBtn);
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("label_artworks", expect.arrayContaining([expect.objectContaining({ artworkCode: "ART-104" })]));
+  });
+});

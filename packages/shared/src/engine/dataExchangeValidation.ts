@@ -20,7 +20,7 @@ import { parseCsv, desanitizeCell } from "./importer";
 import { parseHumanDecimal } from "./decimal";
 import type { ApprovalRole } from "../schemas/status";
 import type { DataExchangeRowState } from "../schemas/dataExchange";
-import type { DataExchangeColumnDefinition, DataExchangeTemplateDefinition } from "./dataExchangeRegistry";
+import { getDataExchangeTemplate, type DataExchangeColumnDefinition, type DataExchangeTemplateDefinition } from "./dataExchangeRegistry";
 
 export const DATA_EXCHANGE_MAX_ROWS = 20_000;
 export const DATA_EXCHANGE_MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -74,10 +74,24 @@ export interface DataExchangeValidationOptions {
    *  saved formula version, a frozen dossier requirement, ...). An update
    *  to one of these is reported `invalid`, never silently applied. */
   immutableNaturalKeys?: ReadonlySet<string>;
-  /** Given a referenced template's code and the natural-key string a
-   *  `code_reference` column points at, report whether it resolves. Absent
-   *  entirely, reference columns are only checked for non-emptiness. */
-  resolveReference?: (referenceTemplate: string, key: string) => boolean;
+  /**
+   * FVL-04 hardening (Session 8, Part 1) — given a referenced template's
+   * code, the EXACT target field a `code_reference` column points at, and
+   * the key value to look up, report whether it resolves. Absent entirely,
+   * reference columns are only checked for non-emptiness.
+   *
+   * The prior two-argument signature `(referenceTemplate, key)` checked
+   * the referenced template's own composite NATURAL KEY string
+   * (`"SKU-001::BOTTLE-01"`), never the single field a `referenceField`
+   * column actually points at (`"SKU-001"`) — a real false-negative bug
+   * for every reference into a template with a composite natural key
+   * (`packaging_bom`, `label_content`, `doe_factors_responses`, ...). This
+   * three-argument contract is field-aware: `referenceField` is always the
+   * column's own configured `referenceField` (or, absent that, the
+   * target's single natural-key field when unambiguous — see
+   * `resolveColumnReferenceField()` below).
+   */
+  resolveReference?: (referenceTemplate: string, referenceField: string, key: string) => boolean;
   /** Deep-compares a proposed row's mapped record against the existing
    *  one for the same natural key, to tell `unchanged` apart from
    *  `valid_update`. Optional — without it, every match against
@@ -87,6 +101,29 @@ export interface DataExchangeValidationOptions {
    *  whole job is refused before a single row is parsed. */
   actorRole?: ApprovalRole;
   fileSizeBytes?: number;
+}
+
+/**
+ * FVL-04 hardening (Session 8, Part 1.2/Part 4) — determines the EXACT
+ * target field a `code_reference` column resolves against. Preferred:
+ * the column's own explicit `referenceField` (every real registry column
+ * with a `referenceTemplate` today has one — see
+ * `dataExchangeRegistry.consistency.test.ts` for the invariant that keeps
+ * it that way). Fallback, only when `referenceField` is genuinely absent:
+ * the target template's own natural key, but ONLY when that natural key
+ * is a single field — an unambiguous case. A composite target natural key
+ * with no explicit `referenceField` is a registry MISCONFIGURATION, never
+ * silently guessed at (e.g. never "use the first natural-key field") —
+ * reported as a structured configuration error instead.
+ */
+export function resolveColumnReferenceField(column: DataExchangeColumnDefinition): { field: string } | { configError: string } {
+  if (column.referenceField) return { field: column.referenceField };
+  const target = getDataExchangeTemplate(column.referenceTemplate!);
+  if (!target) return { configError: `references unknown template "${column.referenceTemplate}".` };
+  if (target.naturalKey.length === 1) return { field: target.naturalKey[0] };
+  return {
+    configError: `references "${column.referenceTemplate}", whose natural key is composite (${target.naturalKey.join("+")}) — an explicit referenceField is required on this column and none is configured.`,
+  };
 }
 
 const BOOLEAN_TRUE = /^(y|yes|true|1|evet|ja|oui)$/i;
@@ -282,18 +319,36 @@ export function previewDataExchangeImport(
       record[column.key] = result.value;
 
       if (column.dataType === "code_reference" && column.referenceTemplate && opts.resolveReference) {
-        const referenced = column.referenceTemplate === template.templateCode ? true : opts.resolveReference(column.referenceTemplate, result.value);
-        if (!referenced) {
-          const msg = `"${column.key}" references "${result.value}", which does not exist in ${column.referenceTemplate}.`;
-          if (column.required) {
-            messages.push(msg);
-            hasReferenceError = true;
-          } else {
-            // An optional reference that does not resolve yet is a soft
-            // warning, not a blocker — the row can still be committed and
-            // the reference filled in later.
-            messages.push(`${msg} (optional — the row can still be imported.)`);
-            hasWarning = true;
+        // FVL-04 hardening (Session 8, Part 2) — the previous blanket
+        // `column.referenceTemplate === template.templateCode ? true : ...`
+        // exempted EVERY self-reference (e.g. `artwork_register.supersedes_artwork_code`
+        // pointing back at `artwork_register` itself) from validation
+        // entirely, regardless of whether the target actually existed. A
+        // self-reference is still a reference — it goes through the exact
+        // same field-aware resolution as any other. Same-file forward
+        // references (a row referencing another row in the SAME import
+        // batch that hasn't been committed yet) are deliberately NOT
+        // supported here — a reference must already exist in canonical
+        // storage at preview time; building a same-file dependency graph
+        // is out of this task's scope.
+        const fieldResolution = resolveColumnReferenceField(column);
+        if ("configError" in fieldResolution) {
+          messages.push(`"${column.key}" ${fieldResolution.configError}`);
+          hasError = true;
+        } else {
+          const referenced = opts.resolveReference(column.referenceTemplate, fieldResolution.field, result.value);
+          if (!referenced) {
+            const msg = `"${column.key}" references "${result.value}", which does not exist in ${column.referenceTemplate}.`;
+            if (column.required) {
+              messages.push(msg);
+              hasReferenceError = true;
+            } else {
+              // An optional reference that does not resolve yet is a soft
+              // warning, not a blocker — the row can still be committed and
+              // the reference filled in later.
+              messages.push(`${msg} (optional — the row can still be imported.)`);
+              hasWarning = true;
+            }
           }
         }
       }

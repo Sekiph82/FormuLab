@@ -11,7 +11,7 @@
  * classification.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { hasExistingLookup, loadExisting } from "./dataExchangeExisting";
+import { buildReferenceResolver, hasExistingLookup, loadExisting } from "./dataExchangeExisting";
 
 const bridge = { listRecords: vi.fn() };
 vi.mock("@/lib/masterdata", () => ({
@@ -311,6 +311,97 @@ describe("doe_factors_responses loader", () => {
     expect(naturalKeys.has("TEST-DOE-001::TEST-RESPONSE-1")).toBe(true);
     expect(rows.find((r) => r.record_type === "factor")).toMatchObject({ factor_or_response_code: "TEST-FACTOR-A", factor_type: "continuous" });
     expect(rows.find((r) => r.record_type === "response")).toMatchObject({ factor_or_response_code: "TEST-RESPONSE-1", objective: "within_range" });
+  });
+});
+
+describe("FVL-04 hardening (Session 8, Part 1): buildReferenceResolver is field-aware, not merely template-aware", () => {
+  it("REF1: raw_materials.material_code existence resolves against the real field, not a composite string", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ materials: [{ code: "TEST-MAT-001" }] }));
+    const resolve = await buildReferenceResolver([{ referenceTemplate: "raw_materials", referenceField: "material_code" }]);
+    expect(resolve("raw_materials", "material_code", "TEST-MAT-001")).toBe(true);
+  });
+
+  it("REF2: suppliers.supplier_code existence", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ suppliers: [{ code: "TEST-SUP-001" }] }));
+    const resolve = await buildReferenceResolver([{ referenceTemplate: "suppliers", referenceField: "supplier_code" }]);
+    expect(resolve("suppliers", "supplier_code", "TEST-SUP-001")).toBe(true);
+  });
+
+  it("REF3/REF8 — THE BUG THIS SESSION CLOSES: packaging_bom.packaging_sku_code resolves against the SKU field, not the composite natural key 'SKU::COMPONENT'", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        packaging_boms: [
+          { skuCode: "SKU-001", description: "Bottle Pack", lines: [{ componentCode: "BOTTLE-01", quantityPerUnit: "1" }, { componentCode: "CAP-01", quantityPerUnit: "1" }] },
+        ],
+      }),
+    );
+    // Sanity: the composite natural key is what it always was — proves this
+    // test fixture genuinely has a composite key, not a coincidentally
+    // single-field one.
+    const { naturalKeys } = await loadExisting("packaging_bom");
+    expect(naturalKeys.has("SKU-001::BOTTLE-01")).toBe(true);
+    expect(naturalKeys.has("SKU-001")).toBe(false); // the bare SKU is NEVER a natural key on its own
+
+    const resolve = await buildReferenceResolver([{ referenceTemplate: "packaging_bom", referenceField: "packaging_sku_code" }]);
+    // REF3: the bare SKU, which appears twice (once per BOM line), resolves true.
+    expect(resolve("packaging_bom", "packaging_sku_code", "SKU-001")).toBe(true);
+    // REF8: a genuinely nonexistent SKU resolves false.
+    expect(resolve("packaging_bom", "packaging_sku_code", "SKU-DOES-NOT-EXIST")).toBe(false);
+  });
+
+  it("REF4/REF9: label_content.label_code resolves against the real field", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        label_content_blocks: [{ labelId: "label-1", labelRevision: 1, panel: "front", blockType: "product_name", language: "en", text: "x" }],
+        product_labels: [{ id: "label-1", labelCode: "TEST-LBL-001" }],
+      }),
+    );
+    const resolve = await buildReferenceResolver([{ referenceTemplate: "label_content", referenceField: "label_code" }]);
+    expect(resolve("label_content", "label_code", "TEST-LBL-001")).toBe(true);
+    expect(resolve("label_content", "label_code", "NO-SUCH-LABEL")).toBe(false);
+  });
+
+  it("REF5/REF10: doe_factors_responses.factor_or_response_code resolves against the real field, not the composite (study, code) natural key", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        doe_studies: [{ id: "study-1", studyCode: "TEST-DOE-001" }],
+        doe_factors: [{ studyId: "study-1", factorCode: "TEST-FACTOR-A", name: "Surfactant" }],
+        doe_responses: [{ studyId: "study-1", responseCode: "TEST-RESPONSE-1", name: "Viscosity" }],
+      }),
+    );
+    const resolve = await buildReferenceResolver([{ referenceTemplate: "doe_factors_responses", referenceField: "factor_or_response_code" }]);
+    expect(resolve("doe_factors_responses", "factor_or_response_code", "TEST-RESPONSE-1")).toBe(true);
+    expect(resolve("doe_factors_responses", "factor_or_response_code", "TEST-FACTOR-A")).toBe(true);
+    expect(resolve("doe_factors_responses", "factor_or_response_code", "NO-SUCH-CODE")).toBe(false);
+  });
+
+  it("REF6/REF11: artwork_register.artwork_code — the self-reference target field — resolves against real canonical artwork, missing artwork resolves false", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        label_artworks: [{ labelId: "label-1", labelRevision: 1, artworkCode: "ART-001", status: "approved" }],
+        product_labels: [{ id: "label-1", labelCode: "TEST-LBL-001" }],
+      }),
+    );
+    const resolve = await buildReferenceResolver([{ referenceTemplate: "artwork_register", referenceField: "artwork_code" }]);
+    expect(resolve("artwork_register", "artwork_code", "ART-001")).toBe(true);
+    expect(resolve("artwork_register", "artwork_code", "ART-MISSING")).toBe(false);
+  });
+
+  it("a template referenced by two different fields loads its rows only once, shared across both field indexes", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ packaging_boms: [{ skuCode: "SKU-001", lines: [{ componentCode: "BOTTLE-01" }] }] }));
+    const resolve = await buildReferenceResolver([
+      { referenceTemplate: "packaging_bom", referenceField: "packaging_sku_code" },
+      { referenceTemplate: "packaging_bom", referenceField: "component_code" },
+    ]);
+    expect(resolve("packaging_bom", "packaging_sku_code", "SKU-001")).toBe(true);
+    expect(resolve("packaging_bom", "component_code", "BOTTLE-01")).toBe(true);
+    // Exactly one load of the underlying collection despite two fields.
+    expect(bridge.listRecords).toHaveBeenCalledTimes(1);
+  });
+
+  it("an unresolved (referenceTemplate, referenceField) pair not in the requirement set resolves false, never throws", async () => {
+    const resolve = await buildReferenceResolver([]);
+    expect(resolve("raw_materials", "material_code", "ANYTHING")).toBe(false);
   });
 });
 

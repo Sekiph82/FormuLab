@@ -34,6 +34,7 @@ import {
   createFileConnector,
   discoverSourceSchema,
   previewDataExchangeImport,
+  resolveColumnReferenceField,
   resolveCrosswalk,
   stageCsvFile,
   upsertCrosswalk,
@@ -94,14 +95,39 @@ const ctx = { actorUserId: "local", actorRole: "administrator" as const };
  * own preview call builds its resolver once from whatever already exists
  * in canonical storage at that moment.
  */
-async function previewAndCommit(candidate: MappingCandidateRow): Promise<{ preview: DataExchangeRowResult; commit: Awaited<ReturnType<typeof commitDataExchangeRows>>[number] }> {
+/** Builds the SAME field-aware reference requirements the production
+ *  dialog computes from a template's own columns (`resolveColumnReferenceField`),
+ *  never a parallel/looser implementation. */
+function referenceRequirementsFor(template: ReturnType<typeof getDataExchangeTemplate> & object) {
+  return template.columns
+    .filter((c) => c.dataType === "code_reference" && c.referenceTemplate)
+    .map((c) => {
+      const resolved = resolveColumnReferenceField(c);
+      return "field" in resolved ? { referenceTemplate: c.referenceTemplate!, referenceField: resolved.field } : null;
+    })
+    .filter((r): r is { referenceTemplate: string; referenceField: string } => r !== null);
+}
+
+async function previewOnly(candidate: MappingCandidateRow): Promise<DataExchangeRowResult> {
   const template = getDataExchangeTemplate(candidate.targetTemplate)!;
   const headers = template.columns.map((c) => c.key);
   const values = headers.map((h) => candidate.row[h] ?? "");
-  const referenceTemplates = template.columns.filter((c) => c.dataType === "code_reference" && c.referenceTemplate).map((c) => c.referenceTemplate!);
-  const resolveReference = await buildReferenceResolver(referenceTemplates);
+  const resolveReference = await buildReferenceResolver(referenceRequirementsFor(template));
   const p = previewDataExchangeImport(template, [headers, values], { resolveReference });
-  const [preview] = p.rows;
+  return p.rows[0];
+}
+
+/** Session 8, Part 7 note: the dialog is the layer that decides which rows
+ *  are committable and filters accordingly (`DataExchangeImportDialog.tsx`)
+ *  — `commitDataExchangeRows` itself trusts its caller and will run a
+ *  handler for whatever row it's handed, regardless of state. So a
+ *  `reference_missing` negative case here must never be passed to this
+ *  helper — it must stop at `previewOnly()` and prove the target
+ *  collection was never touched, exactly like the established FAIL18/J3
+ *  convention elsewhere in this file. */
+async function previewAndCommit(candidate: MappingCandidateRow): Promise<{ preview: DataExchangeRowResult; commit: Awaited<ReturnType<typeof commitDataExchangeRows>>[number] }> {
+  const template = getDataExchangeTemplate(candidate.targetTemplate)!;
+  const preview = await previewOnly(candidate);
   const [commit] = await commitDataExchangeRows(template, [preview], ctx);
   return { preview, commit };
 }
@@ -226,7 +252,10 @@ describe("End-to-end fixture 1 — CHT_LIMS, through the REAL generic FILE conne
     // §3.2/J3 — a reference to a material that does NOT yet exist in real
     // canonical storage is genuinely refused by the SAME resolver
     // production now uses, proving it is load-bearing, not decorative.
-    const preemptiveResolver = await buildReferenceResolver(["raw_materials", "suppliers"]);
+    const preemptiveResolver = await buildReferenceResolver([
+      { referenceTemplate: "raw_materials", referenceField: "material_code" },
+      { referenceTemplate: "suppliers", referenceField: "supplier_code" },
+    ]);
     const badLinkPreview = previewDataExchangeImport(getDataExchangeTemplate("material_suppliers")!, [
       ["material_code", "supplier_code"],
       ["883729", "UNKNOWN-SUP"],
@@ -337,6 +366,84 @@ describe("End-to-end fixture 2 — ACME_ERP, a genuinely different customer sche
     const dialogSrc = fs.readFileSync(path.join(process.cwd(), "src", "components", "dataExchange", "DataExchangeImportDialog.tsx"), "utf-8");
     expect(dialogSrc).toMatch(/resolveReference/);
     expect(dialogSrc).not.toMatch(/resolveReference:\s*\(\)\s*=>\s*true/);
+  });
+});
+
+describe("Session 8 Part 7 (REF1-REF11): the new field-aware 3-part reference contract, exercised end-to-end through the SAME production commit layer, single-key AND composite-key targets alike", () => {
+  it("REF1/REF2: material_suppliers.material_code -> raw_materials.material_code — existing resolves and commits; missing is reference_missing and never reaches commit", async () => {
+    store.set("materials", [{ code: "REF-MAT-1" }]);
+    store.set("suppliers", [{ code: "REF-SUP-1" }]);
+    const { preview, commit } = await previewAndCommit({ targetTemplate: "material_suppliers", row: { material_code: "REF-MAT-1", supplier_code: "REF-SUP-1" } });
+    expect(preview.state).toBe("valid_create");
+    expect(commit.outcome).toBe("created");
+
+    const missingPreview = await previewOnly({ targetTemplate: "material_suppliers", row: { material_code: "REF-MAT-MISSING", supplier_code: "REF-SUP-1" } });
+    expect(missingPreview.state).toBe("reference_missing");
+    expect(missingPreview.messages.join(" ")).toMatch(/material_code.*does not exist in raw_materials/);
+    expect(store.get("material_suppliers")).toHaveLength(1); // only the one genuinely valid row from above — the bad row was never handed to commit
+  });
+
+  it("REF3/REF4: material_suppliers.supplier_code -> suppliers.supplier_code — existing resolves and commits; missing is reference_missing and never reaches commit", async () => {
+    store.set("materials", [{ code: "REF-MAT-2" }]);
+    store.set("suppliers", [{ code: "REF-SUP-2" }]);
+    const { preview, commit } = await previewAndCommit({ targetTemplate: "material_suppliers", row: { material_code: "REF-MAT-2", supplier_code: "REF-SUP-2" } });
+    expect(preview.state).toBe("valid_create");
+    expect(commit.outcome).toBe("created");
+
+    const missingPreview = await previewOnly({ targetTemplate: "material_suppliers", row: { material_code: "REF-MAT-2", supplier_code: "REF-SUP-MISSING" } });
+    expect(missingPreview.state).toBe("reference_missing");
+    expect(missingPreview.messages.join(" ")).toMatch(/supplier_code.*does not exist in suppliers/);
+    expect(store.get("material_suppliers")).toHaveLength(1); // still only the one valid row
+  });
+
+  it("REF5/REF6: finished_products.packaging_sku_code -> packaging_bom.packaging_sku_code — the composite-key proof (packaging_bom's own natural key is packaging_sku_code+component_code). No REQUIRED reference into packaging_bom exists anywhere in the registry (confirmed by audit), so a miss here is honestly a warning, not a hard block — REF7/REF8 and REF9/REF10 below prove the hard-block path against composite targets that DO have a required incoming reference.", async () => {
+    store.set("packaging_boms", [{ skuCode: "REF-PKG-1", description: "Test pack", lines: [{ componentCode: "REF-COMP-1", quantityPerUnit: "1" }] }]);
+    const { preview, commit } = await previewAndCommit({ targetTemplate: "finished_products", row: { sku_code: "REF-SKU-1", sku_name: "Test SKU", packaging_sku_code: "REF-PKG-1" } });
+    // The bug this session fixed: a naive resolver checking the composite
+    // natural key ("REF-PKG-1::REF-COMP-1") against the bare SKU value
+    // ("REF-PKG-1") would have wrongly reported this as missing.
+    expect(preview.state).toBe("valid_create");
+    expect(commit.outcome).toBe("created");
+
+    const missingPreview = await previewOnly({ targetTemplate: "finished_products", row: { sku_code: "REF-SKU-2", sku_name: "Test SKU 2", packaging_sku_code: "REF-PKG-MISSING" } });
+    expect(missingPreview.messages.join(" ")).toMatch(/packaging_sku_code.*does not exist in packaging_bom/);
+    expect(missingPreview.state).not.toBe("reference_missing"); // optional field: warning, not a hard block — honest registry behavior
+  });
+
+  it("REF7/REF8: artwork_register.label_code -> label_content.label_code — REQUIRED reference into a composite-key target (label_content's own natural key is label_code+label_revision+panel+block_type+language). Existing resolves and commits; missing is reference_missing and never reaches commit.", async () => {
+    store.set("product_labels", [{ id: "ref-lbl1", labelCode: "REF-LBL-1" }]);
+    store.set("label_content_blocks", [{ labelId: "ref-lbl1", labelRevision: "1", panel: "front", blockType: "product_name", language: "en", text: "x", status: "draft" }]);
+    const { preview, commit } = await previewAndCommit({ targetTemplate: "artwork_register", row: { artwork_code: "REF-ART-1", label_code: "REF-LBL-1", status: "draft" } });
+    expect(preview.state).toBe("valid_create");
+    expect(commit.outcome).toBe("created");
+
+    const missingPreview = await previewOnly({ targetTemplate: "artwork_register", row: { artwork_code: "REF-ART-2", label_code: "REF-LBL-MISSING", status: "draft" } });
+    expect(missingPreview.state).toBe("reference_missing");
+    expect(missingPreview.messages.join(" ")).toMatch(/label_code.*does not exist in label_content/);
+    expect(store.get("label_artworks")).toHaveLength(1); // only REF-ART-1 — the bad row was never handed to commit
+  });
+
+  it("REF9/REF10: doe_observations.response_code -> doe_factors_responses.factor_or_response_code — REQUIRED reference into a composite-key target (doe_factors_responses' own natural key is study_code+factor_or_response_code). Existing resolves and commits; missing is reference_missing and never reaches commit.", async () => {
+    store.set("doe_studies", [{ id: "ref-st1", studyCode: "REF-STUDY-1", revision: 1 }]);
+    store.set("doe_runs", [{ id: "ref-run1", studyId: "ref-st1", runNumber: 1 }]);
+    store.set("doe_responses", [{ id: "ref-resp1", studyId: "ref-st1", responseCode: "REF-RESP-1" }]);
+    const { preview, commit } = await previewAndCommit({ targetTemplate: "doe_observations", row: { study_code: "REF-STUDY-1", run_number: "1", response_code: "REF-RESP-1", numeric_value: "5.0" } });
+    expect(preview.state).toBe("valid_create");
+    expect(commit.outcome).toBe("created");
+
+    const missingPreview = await previewOnly({ targetTemplate: "doe_observations", row: { study_code: "REF-STUDY-1", run_number: "1", response_code: "REF-RESP-MISSING", numeric_value: "5.0" } });
+    expect(missingPreview.state).toBe("reference_missing");
+    expect(missingPreview.messages.join(" ")).toMatch(/response_code.*does not exist in doe_factors_responses/);
+    expect(store.get("doe_observations")).toHaveLength(1); // only the valid one — the bad row was never handed to commit
+  });
+
+  it("REF11: artwork_register.supersedes_artwork_code -> artwork_register.artwork_code — a self-reference to an existing prior artwork resolves and commits, validated through the exact same field-aware path as any other reference (no self-template bypass)", async () => {
+    store.set("product_labels", [{ id: "ref-lbl2", labelCode: "REF-LBL-3" }]);
+    store.set("label_content_blocks", [{ labelId: "ref-lbl2", labelRevision: "1", panel: "front", blockType: "product_name", language: "en", text: "x", status: "draft" }]);
+    store.set("label_artworks", [{ id: "ref-art-prior", labelId: "ref-lbl2", artworkCode: "REF-ART-PRIOR", labelRevision: "1", status: "draft" }]);
+    const { preview, commit } = await previewAndCommit({ targetTemplate: "artwork_register", row: { artwork_code: "REF-ART-NEW", label_code: "REF-LBL-3", status: "draft", supersedes_artwork_code: "REF-ART-PRIOR" } });
+    expect(preview.state).toBe("valid_create");
+    expect(commit.outcome).toBe("created");
   });
 });
 
@@ -467,7 +574,10 @@ describe("Structured failure matrix (Section 6, FAIL1-FAIL20) — every scenario
   });
 
   it("FAIL18: a canonical Data Exchange REFERENCE validation failure — via the REAL production buildReferenceResolver against genuinely empty canonical storage — refuses, writes nothing", async () => {
-    const resolveReference = await buildReferenceResolver(["raw_materials", "suppliers"]);
+    const resolveReference = await buildReferenceResolver([
+      { referenceTemplate: "raw_materials", referenceField: "material_code" },
+      { referenceTemplate: "suppliers", referenceField: "supplier_code" },
+    ]);
     const preview = previewDataExchangeImport(getDataExchangeTemplate("material_prices")!, [
       ["material_code", "supplier_code", "unit_price", "currency", "valid_from"],
       ["883729", "UNKNOWN-SUP", "3.20", "USD", "2026-01-01"],

@@ -5,6 +5,7 @@ import {
   newId,
   parseCsv,
   previewDataExchangeImport,
+  resolveColumnReferenceField,
   dataExchangeTemplateCsv,
   type ApprovalRole,
   type DataExchangeTemplateDefinition,
@@ -98,10 +99,26 @@ export function DataExchangeImportDialog({
       // previously this preview call passed no `resolveReference` at all,
       // so a row referencing a nonexistent supplier/material silently
       // "passed" only because the check was never performed.
-      const referenceTemplates = template.columns
+      //
+      // Session 8 hardening (Part 3): FIELD-aware, not merely
+      // template-aware — a column's own configured `referenceField` (or,
+      // absent that, the target's unambiguous single natural-key field) is
+      // resolved through `resolveColumnReferenceField()`, the SAME
+      // function `previewDataExchangeImport()` itself uses, so the
+      // resolver is built for exactly the fields the validator will
+      // actually check. A column whose reference is genuinely
+      // misconfigured (a composite target natural key with no explicit
+      // `referenceField`) is skipped here — the validator reports that
+      // row a structured configuration error on its own, never a silently
+      // "passing" reference.
+      const referenceRequirements = template.columns
         .filter((c) => c.dataType === "code_reference" && c.referenceTemplate)
-        .map((c) => c.referenceTemplate!);
-      const resolveReference = await buildReferenceResolver(referenceTemplates);
+        .map((c) => {
+          const resolved = resolveColumnReferenceField(c);
+          return "field" in resolved ? { referenceTemplate: c.referenceTemplate!, referenceField: resolved.field } : null;
+        })
+        .filter((r): r is { referenceTemplate: string; referenceField: string } => r !== null);
+      const resolveReference = await buildReferenceResolver(referenceRequirements);
       const p = previewDataExchangeImport(template, rows, {
         actorRole,
         fileSizeBytes: bytes.byteLength,

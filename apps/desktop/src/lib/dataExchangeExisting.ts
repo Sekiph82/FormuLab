@@ -829,29 +829,69 @@ async function existingLookupFor(templateCode: string): Promise<ExistingLookup> 
   return loadExisting(templateCode);
 }
 
+/** One `code_reference` column's own resolution requirement — which
+ *  template, and the EXACT field on that template's own exported rows the
+ *  column's value must match. */
+export interface ReferenceRequirement {
+  referenceTemplate: string;
+  referenceField: string;
+}
+
 /**
- * FVL-04.013-.018 hardening (Session 7, Part J) — the generic
- * `(referenceTemplate, key) => exists?` resolver every Data Exchange
- * import (both the production `DataExchangeImportDialog` and the connector
- * layer's own end-to-end acceptance) should use for real `code_reference`
- * validation. Built ONLY from the SAME existing-record loaders every
- * template's own create-vs-update classification already uses — never a
- * duplicate registry, never a material/supplier-specific `if` branch. Each
- * referenced template's natural keys are loaded ONCE up front (synchronous
- * `resolveReference` cannot itself be async), then the returned closure is
- * a pure in-memory lookup. A `referenceTemplate` with no registered loader
- * (a real, pre-existing, unrelated gap in a handful of non-connector
+ * FVL-04 hardening (Session 8, Part 1) — the generic, FIELD-AWARE
+ * `(referenceTemplate, referenceField, key) => exists?` resolver every
+ * Data Exchange import (both the production `DataExchangeImportDialog`
+ * and the connector layer's own end-to-end acceptance) uses for real
+ * `code_reference` validation. Built ONLY from the SAME existing-record
+ * loaders every template's own create-vs-update classification already
+ * uses — never a duplicate registry, never a material/supplier/packaging-
+ * specific `if` branch.
+ *
+ * FVL-04 hardening (Session 8) — the prior two-argument version checked a
+ * referenced template's own COMPOSITE NATURAL KEY string
+ * (`"SKU-001::BOTTLE-01"`) regardless of which single field a
+ * `referenceField` column actually pointed at (`"SKU-001"`) — a real
+ * false-negative bug for every reference into a template with a
+ * composite natural key (`packaging_bom`, `label_content`,
+ * `doe_factors_responses`, ...): a genuinely valid reference would have
+ * been reported `reference_missing`. Fixed: each requirement's exported
+ * `rows` (the SAME rows `loadExisting`/`loadExistingFormulaBom` already
+ * produce for current-data export) are indexed by the EXACT
+ * `referenceField` column key, never the natural-key string.
+ *
+ * Each unique (template, field) pair is loaded/indexed ONCE up front
+ * (synchronous `resolveReference` cannot itself be async); a template
+ * referenced by two different fields loads its rows only once, shared
+ * across both indexes. A `referenceTemplate` with no registered loader (a
+ * real, pre-existing, unrelated gap in a handful of non-connector
  * templates — see `dataExchangeExisting.test.ts`) resolves every key as
- * "missing" rather than silently passing every reference — strictly safer
- * than the previous production behavior of validating nothing at all.
+ * "missing" rather than silently passing every reference.
  */
-export async function buildReferenceResolver(referenceTemplates: Iterable<string>): Promise<(referenceTemplate: string, key: string) => boolean> {
-  const byTemplate = new Map<string, Set<string>>();
-  for (const code of new Set(referenceTemplates)) {
-    const lookup = await existingLookupFor(code);
-    byTemplate.set(code, lookup.naturalKeys);
+export async function buildReferenceResolver(requirements: Iterable<ReferenceRequirement>): Promise<(referenceTemplate: string, referenceField: string, key: string) => boolean> {
+  const lookupCache = new Map<string, ExistingLookup>();
+  const valuesByRequirement = new Map<string, Set<string>>();
+  const seen = new Set<string>();
+
+  for (const { referenceTemplate, referenceField } of requirements) {
+    const requirementKey = `${referenceTemplate}::${referenceField}`;
+    if (seen.has(requirementKey)) continue;
+    seen.add(requirementKey);
+
+    let lookup = lookupCache.get(referenceTemplate);
+    if (!lookup) {
+      lookup = await existingLookupFor(referenceTemplate);
+      lookupCache.set(referenceTemplate, lookup);
+    }
+
+    const values = new Set<string>();
+    for (const row of lookup.rows) {
+      const v = row[referenceField];
+      if (v !== undefined && v !== "") values.add(v);
+    }
+    valuesByRequirement.set(requirementKey, values);
   }
-  return (referenceTemplate, key) => byTemplate.get(referenceTemplate)?.has(key) ?? false;
+
+  return (referenceTemplate, referenceField, key) => valuesByRequirement.get(`${referenceTemplate}::${referenceField}`)?.has(key) ?? false;
 }
 
 /** Formula/BOM's current-data export is flattened from the session-based
