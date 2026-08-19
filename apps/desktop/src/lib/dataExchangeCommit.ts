@@ -796,10 +796,34 @@ const commitTestDefinitions: Handler = async (r) => {
 };
 
 const commitLabResults: Handler = async (r) => {
-  const trial = await findByCode<{ id: string }>("laboratory_trials", "code", r.trial_code);
+  const trial = await findByCode<{ id: string; projectId: string; sourceFormulaVersionId?: string }>("laboratory_trials", "code", r.trial_code);
   if (!trial) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet — create it in the Laboratory workspace first.`);
   const testDef = await findByCode<{ code: string; resultType: string }>("test_definitions", "code", r.test_code);
   if (!testDef) throw new Error(`No test definition with code "${r.test_code}" exists yet — import or create it first.`);
+
+  // FVL-04.020 — the customer's own external formula/version reference is
+  // cross-checked against the trial actually resolved, catching a
+  // genuinely wrong trial_code before it silently attaches a result to
+  // the wrong formula's trial. `LaboratoryTrial` already carries the real
+  // link (`projectId`/`sourceFormulaVersionId`) — these two columns are
+  // never stored a second time, only verified when the customer's file
+  // happens to provide them.
+  if (r.project_code) {
+    const formulations = await listFormulations();
+    const formulation = formulations.find((f) => f.code === r.project_code);
+    if (!formulation) throw new Error(`No project/formulation with code "${r.project_code}" exists yet.`);
+    if (formulation.id !== trial.projectId) {
+      throw new Error(`Trial "${r.trial_code}" belongs to a different project than "${r.project_code}" — refusing to attach this result to the wrong formula's trial.`);
+    }
+    if (r.formula_version) {
+      const { versions } = await readFormulation(formulation.id);
+      const version = versions.find((v) => v.versionNumber === Number.parseInt(r.formula_version, 10));
+      if (!version) throw new Error(`Formula "${r.project_code}" has no saved version ${r.formula_version}.`);
+      if (version.id !== trial.sourceFormulaVersionId) {
+        throw new Error(`Trial "${r.trial_code}" was created against a different formula version than ${r.formula_version} — refusing to attach this result to the wrong version's trial.`);
+      }
+    }
+  }
 
   const replicates = (r as unknown as { __lines: { replicateNumber: number; numericValue?: string; textValue?: string }[] }).__lines;
   const record = {
@@ -820,6 +844,7 @@ const commitLabResults: Handler = async (r) => {
     })),
     passFail: "not_evaluated" as const,
     unit: nn(r.unit),
+    instrument: nn(r.instrument),
     notes: nn(r.notes),
     attachments: [] as unknown[],
     performedBy: nn(r.analyst) ?? "data-exchange-import",

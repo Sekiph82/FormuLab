@@ -237,6 +237,10 @@ export const testResultSchema = z.object({
   passFail: z.enum(["pass", "fail", "not_evaluated"]).default("not_evaluated"),
 
   unit: z.string().optional(),
+  /** Instrument/device used, when known — e.g. a customer migration's own
+   *  "Instrument" column, or a manually recorded device name. Never
+   *  fabricated when absent. */
+  instrument: z.string().optional(),
   notes: z.string().optional(),
   attachments: z.array(attachmentReferenceSchema).default([]),
 

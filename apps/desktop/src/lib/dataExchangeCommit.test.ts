@@ -735,6 +735,44 @@ describe("commitDataExchangeRows — lab results (grouped, reference resolution)
       expect.arrayContaining([expect.objectContaining({ trialId: "trial-1", testDefinitionId: "TEST-T-001", replicates: expect.arrayContaining([expect.objectContaining({ replicateNumber: 1 }), expect.objectContaining({ replicateNumber: 2 })]) })]),
     );
   });
+
+  it("FVL-04.020: instrument/device is genuinely carried through onto the saved TestResult, never silently dropped", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-001" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-T-001", resultType: "numeric" }]);
+      return Promise.resolve([]);
+    });
+    const rows = [row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0", instrument: "TEST pH Meter Model X" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("test_results", expect.arrayContaining([expect.objectContaining({ instrument: "TEST pH Meter Model X" })]));
+  });
+
+  it("FVL-04.020: a project_code/formula_version that genuinely matches the resolved trial's own link commits cleanly", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-001", projectId: "formulation-1", sourceFormulaVersionId: "version-1" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-T-001", resultType: "numeric" }]);
+      return Promise.resolve([]);
+    });
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-001" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }] });
+    const rows = [row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0", project_code: "TEST-FORM-001", formula_version: "1" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+  });
+
+  it("FVL-04.020: a project_code/formula_version that does NOT match the resolved trial's own link is refused — unresolved-linkage detection, never a silently mis-attached result", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-001", projectId: "formulation-1", sourceFormulaVersionId: "version-1" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-T-001", resultType: "numeric" }]);
+      return Promise.resolve([]);
+    });
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-OTHER", code: "TEST-FORM-WRONG" }]);
+    const rows = [row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0", project_code: "TEST-FORM-WRONG" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/belongs to a different project/);
+  });
 });
 
 describe("commitDataExchangeRows — regulatory rules", () => {

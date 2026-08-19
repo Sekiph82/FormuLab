@@ -33,15 +33,16 @@ contract) — see "FVL-04.013-.018 final correction (Session 8)",
 "FVL-04.013-.018 hardening (Session 7)", "FVL-04.013-.018 hardening
 (Session 6)", and "FVL-04.013-.018 resolution (Session 5)" below.
 **FVL-04 EXTERNAL CONNECTOR FOUNDATION — FINAL CLOSURE VERIFIED.**
-**FVL-04.019 — COMPLETED** (Formula/Recipe Relationship Import — see
-"FVL-04.019 resolution" below). FVL-04.020-.026 remain blank, none
-started.
+**FVL-04.019 — COMPLETED** (Formula/Recipe Relationship Import) and
+**FVL-04.020 — COMPLETED** (Laboratory/Test Result Relationship
+Import) — see "FVL-04.019 resolution"/"FVL-04.020 resolution" below.
+FVL-04.021-.026 remain blank, none started.
 
 ## Current task
 
-**`FVL-04.020`** — blank, **NOT STARTED** (Laboratory/Test Result
-Relationship Import). FVL-04.019 just closed — see "FVL-04.019
-resolution" below. FVL-04.013-.018 (External
+**`FVL-04.021`** — blank, **NOT STARTED** (Generic Database Read
+Connector). FVL-04.019/.020 just closed — see their own resolution
+sections below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
 Transformation/Unit/Enum Mapping) all COMPLETED in an earlier session,
@@ -106,6 +107,28 @@ not a second lineage field on `Formulation`, consistent with FVL-04.024's
 own "no second import-history model" requirement.
 `pnpm --filter @formulab/desktop test`: 1556/1556 (158 files).
 `typecheck`/`lint`: clean. FVL-04 now 19/26.
+
+## FVL-04.020 resolution (this session — Laboratory/Test Result Relationship Import)
+
+Audit found the existing `lab_results` Data Exchange template already
+covers most of this task (real reference validation on `test_code`,
+replicate grouping, exact raw value passthrough, `passFail` always
+forced `not_evaluated` on import). `trial_code` has no `referenceTemplate`
+since `laboratory_trials` is deliberately not itself Data-Exchange-
+importable — the same established pattern every other non-importable-
+parent reference in the registry already uses; existence is checked at
+commit time via `findByCode`. Two real gaps found and fixed: (1) the
+template's own `instrument` column was read but silently dropped —
+`testResultSchema` had no field for it; added `instrument?: string`
+(additive, optional) and wired it through `commitLabResults`. (2)
+`project_code`/`formula_version` were accepted but never used — added a
+cross-check against the RESOLVED trial's own real link
+(`LaboratoryTrial.projectId`/`sourceFormulaVersionId`, never duplicated
+onto `TestResult`), refusing the commit on a genuine mismatch — real
+unresolved-linkage detection for a wrong `trial_code` silently accepted
+for the wrong formula. `pnpm --filter @formulab/shared test`:
+1575/1575. `pnpm --filter @formulab/desktop test`: 1559/1559.
+`typecheck`/`lint`: clean. FVL-04 now 20/26.
 
 ## FVL-04.013-.018 final correction (Session 8, this session — narrow, four-part final correction)
 
