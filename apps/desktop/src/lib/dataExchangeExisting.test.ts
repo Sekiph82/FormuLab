@@ -11,7 +11,7 @@
  * classification.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildReferenceResolver, hasExistingLookup, loadExisting } from "./dataExchangeExisting";
+import { buildReferenceResolver, hasExistingLookup, loadExisting, loadPriorCommittedRows } from "./dataExchangeExisting";
 
 const bridge = { listRecords: vi.fn() };
 vi.mock("@/lib/masterdata", () => ({
@@ -418,5 +418,63 @@ describe("doe_observations loader", () => {
     const { naturalKeys, rows } = await loadExisting("doe_observations");
     expect(naturalKeys.has("TEST-DOE-001::1::TEST-RESPONSE-1")).toBe(true);
     expect(rows[0]).toMatchObject({ study_code: "TEST-DOE-001", run_number: "1", response_code: "TEST-RESPONSE-1", numeric_value: "12500", unit: "cP" });
+  });
+});
+
+describe("FVL-04.023: loadPriorCommittedRows — reads the EXISTING import-history model, never a second batch-tracking store", () => {
+  it("returns [] when this template has no completed import yet — the honest first-import case, not an error", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ data_exchange_import_jobs: [], data_exchange_import_row_results: [] }));
+    expect(await loadPriorCommittedRows("raw_materials")).toEqual([]);
+  });
+
+  it("uses only the MOST RECENT completed job for this exact template — an older completed job's own rows are never mixed in", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        data_exchange_import_jobs: [
+          { id: "job-old", templateCode: "raw_materials", status: "completed", startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.000Z" },
+          { id: "job-new", templateCode: "raw_materials", status: "completed", startedAt: "2026-02-01T00:00:00.000Z", completedAt: "2026-02-01T00:00:00.000Z" },
+        ],
+        data_exchange_import_row_results: [
+          { id: "r-old", jobId: "job-old", rowNumber: 1, naturalKey: "OLD-MAT", state: "valid_create", targetCollection: "materials", targetRecordId: "OLD-MAT" },
+          { id: "r-new", jobId: "job-new", rowNumber: 1, naturalKey: "NEW-MAT", state: "valid_create", targetCollection: "materials", targetRecordId: "NEW-MAT" },
+        ],
+      }),
+    );
+    const rows = await loadPriorCommittedRows("raw_materials");
+    expect(rows).toEqual([{ naturalKey: "NEW-MAT", jobId: "job-new", targetCollection: "materials", targetRecordId: "NEW-MAT" }]);
+  });
+
+  it("filters out a different template's own jobs and rows entirely", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        data_exchange_import_jobs: [{ id: "job-1", templateCode: "suppliers", status: "completed", startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.000Z" }],
+        data_exchange_import_row_results: [{ id: "r-1", jobId: "job-1", rowNumber: 1, naturalKey: "SUP-1", state: "valid_create", targetCollection: "suppliers", targetRecordId: "SUP-1" }],
+      }),
+    );
+    expect(await loadPriorCommittedRows("raw_materials")).toEqual([]);
+  });
+
+  it("only includes committable-state rows that genuinely reached a target collection — an invalid/reference_missing row was never canonical and is correctly excluded", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        data_exchange_import_jobs: [{ id: "job-1", templateCode: "raw_materials", status: "completed", startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.000Z" }],
+        data_exchange_import_row_results: [
+          { id: "r-1", jobId: "job-1", rowNumber: 1, naturalKey: "GOOD-MAT", state: "valid_create", targetCollection: "materials", targetRecordId: "GOOD-MAT" },
+          { id: "r-2", jobId: "job-1", rowNumber: 2, naturalKey: "BAD-MAT", state: "invalid", messages: ["missing required field"] },
+        ],
+      }),
+    );
+    const rows = await loadPriorCommittedRows("raw_materials");
+    expect(rows).toEqual([{ naturalKey: "GOOD-MAT", jobId: "job-1", targetCollection: "materials", targetRecordId: "GOOD-MAT" }]);
+  });
+
+  it("an incomplete (not yet committed) job is never used as the comparison baseline", async () => {
+    bridge.listRecords.mockImplementation(
+      byCollection({
+        data_exchange_import_jobs: [{ id: "job-1", templateCode: "raw_materials", status: "awaiting_confirmation", startedAt: "2026-01-01T00:00:00.000Z" }],
+        data_exchange_import_row_results: [],
+      }),
+    );
+    expect(await loadPriorCommittedRows("raw_materials")).toEqual([]);
   });
 });

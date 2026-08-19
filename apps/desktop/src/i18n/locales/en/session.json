@@ -2846,6 +2846,8 @@
       "chooseFile": "Choose a CSV or Excel file",
       "fileUnreadable": "This file could not be read. Check the format and try again.",
       "unmapped": "Unrecognized column(s), ignored: {{headers}}",
+      "missingFromSource": "{{count}} record(s) that were in the previous import of this template are not in this file — nothing has been deleted; review whether this is expected.",
+      "missingFromSourceItem": "{{key}} (last imported into {{collection}})",
       "rowIssues": "{{count}} row issue(s)",
       "downloadErrorReport": "Download error report",
       "rowLabel": "Row {{row}}",

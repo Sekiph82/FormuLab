@@ -2846,6 +2846,8 @@
       "chooseFile": "Bir CSV veya Excel dosyası seçin",
       "fileUnreadable": "Bu dosya okunamadı. Biçimi kontrol edip tekrar deneyin.",
       "unmapped": "Tanınmayan sütun(lar), yok sayıldı: {{headers}}",
+      "missingFromSource": "{{count}} kayıt, bu şablonun önceki içe aktarımında vardı ancak bu dosyada yok — hiçbir şey silinmedi; bunun beklenen bir durum olup olmadığını gözden geçirin.",
+      "missingFromSourceItem": "{{key}} (son olarak {{collection}} içine aktarıldı)",
       "rowIssues": "{{count}} satır sorunu",
       "downloadErrorReport": "Hata raporunu indir",
       "rowLabel": "Satır {{row}}",

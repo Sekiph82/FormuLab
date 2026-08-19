@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Upload } from "lucide-react";
 import {
+  COMMITTABLE_ROW_STATES,
+  detectMissingFromSource,
   newId,
   parseCsv,
   previewDataExchangeImport,
@@ -12,10 +14,11 @@ import {
   type DataExchangePreview,
   type DataExchangeImportJob,
   type DataExchangeImportRowResult,
+  type MissingFromSourceFinding,
 } from "@formulab/shared";
 import { readWorkbookRows, rejectUnsupportedWorkbook } from "@/lib/xlsx";
 import { commitDataExchangeRows, isTemplateCommitSupported, type DataExchangeRowCommitOutcome } from "@/lib/dataExchangeCommit";
-import { buildReferenceResolver, loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
+import { buildReferenceResolver, loadExisting, loadExistingFormulaBom, loadPriorCommittedRows } from "@/lib/dataExchangeExisting";
 import { upsertRecords, nowIso } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 import { DisabledActionButton } from "@/components/help/DisabledActionButton";
@@ -69,11 +72,18 @@ export function DataExchangeImportDialog({
   // an authorization refusal: "no persistence/audit event after failed
   // authorization" per the Phase 6 spec.
   const [draftJob, setDraftJob] = useState<DataExchangeImportJob | null>(null);
+  // FVL-04.023 — records genuinely present in the LAST completed import
+  // of this exact template but absent from THIS file. Purely
+  // informational: nothing is ever archived/deleted automatically — a
+  // human reviews and decides, the same discipline every other Data
+  // Exchange classification already follows.
+  const [missingFromSource, setMissingFromSource] = useState<MissingFromSourceFinding[]>([]);
 
   const onFile = async (file: File) => {
     setFileError(null);
     setCommitted(null);
     setDraftJob(null);
+    setMissingFromSource([]);
     setFilename(file.name);
     const isXlsx = /\.xlsx$/i.test(file.name);
     setFileType(isXlsx ? "xlsx" : "csv");
@@ -126,6 +136,14 @@ export function DataExchangeImportDialog({
         resolveReference,
       });
       setPreview(p);
+      // FVL-04.023 — a real, non-blocking signal that a record from the
+      // last completed import of this template didn't reappear in this
+      // file, compared against the EXISTING import-history model. Never
+      // affects `canCommit`/blocks the import — surfaced for a human to
+      // review, never acted on automatically.
+      const priorRows = await loadPriorCommittedRows(template.templateCode);
+      const currentKeys = new Set(p.rows.map((r) => r.naturalKey).filter((k): k is string => !!k));
+      setMissingFromSource(detectMissingFromSource(priorRows, currentKeys));
       if (!p.authorizationDenied) {
         const supported = isTemplateCommitSupported(template.templateCode);
         const job: DataExchangeImportJob = {
@@ -172,7 +190,7 @@ export function DataExchangeImportDialog({
   const rows = preview?.rows ?? [];
   const errorRows = rows.filter((r) => r.state === "invalid" || r.state === "reference_missing" || r.state === "duplicate");
   const warningRows = rows.filter((r) => r.state === "warning");
-  const committableStates = new Set(["valid_create", "valid_update", "unchanged", "warning"]);
+  const committableStates = new Set<string>(COMMITTABLE_ROW_STATES);
   const committableRows = rows.filter((r) => committableStates.has(r.state));
   const canCommit =
     supported && !!preview && !preview.fatalError && committableRows.length > 0 && (errorRows.length === 0 || allowPartial);
@@ -346,6 +364,17 @@ export function DataExchangeImportDialog({
 
               {preview.unmappedHeaders.length > 0 && (
                 <p className="text-[11px] text-muted">{t("dataExchange.import.unmapped", { headers: preview.unmappedHeaders.join(", ") })}</p>
+              )}
+
+              {missingFromSource.length > 0 && (
+                <div className="rounded-input border border-border px-3 py-2">
+                  <p className="text-[12px] font-medium text-text">{t("dataExchange.import.missingFromSource", { count: missingFromSource.length })}</p>
+                  <ul className="mt-1 max-h-32 space-y-0.5 overflow-y-auto text-[11px] text-muted">
+                    {missingFromSource.slice(0, 100).map((m) => (
+                      <li key={m.naturalKey}>{t("dataExchange.import.missingFromSourceItem", { key: m.naturalKey, collection: m.targetCollection ?? "?" })}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
 
               {(errorRows.length > 0 || warningRows.length > 0) && (

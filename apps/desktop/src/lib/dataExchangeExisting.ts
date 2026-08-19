@@ -18,7 +18,7 @@
  * see its loader comment for the exact contract. See
  * docs/DATA_EXCHANGE_EXPORTS.md.
  */
-import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "@formulab/shared";
+import { COMMITTABLE_ROW_STATES, SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS, type DataExchangeImportJob, type DataExchangeImportRowResult, type PriorCommittedRow } from "@formulab/shared";
 import { listRecords, type Collection } from "./masterdata";
 import { listFormulations, readFormulation } from "./formulations";
 
@@ -922,4 +922,27 @@ export async function loadExistingFormulaBom(): Promise<ExistingLookup> {
     }
   }
   return { naturalKeys, rows };
+}
+
+/**
+ * FVL-04.023 — every committed row from the MOST RECENT COMPLETED import
+ * job for this exact template, read from the EXISTING import-history
+ * model (`data_exchange_import_jobs`/`data_exchange_import_row_results`)
+ * — never a second batch-tracking store. Feeds
+ * `detectMissingFromSource()` (`@formulab/shared`); this function only
+ * loads the data, the pure comparison lives entirely in the shared
+ * engine. Returns `[]` when this template has never had a completed
+ * import before (the honest "first import" case, not an error).
+ */
+export async function loadPriorCommittedRows(templateCode: string): Promise<PriorCommittedRow[]> {
+  const jobs = (await listRecords("data_exchange_import_jobs")) as unknown as DataExchangeImportJob[];
+  const completedForTemplate = jobs.filter((j) => j.templateCode === templateCode && j.status === "completed");
+  if (completedForTemplate.length === 0) return [];
+  const latest = completedForTemplate.reduce((a, b) => ((b.completedAt ?? b.startedAt) > (a.completedAt ?? a.startedAt) ? b : a));
+
+  const rowResults = (await listRecords("data_exchange_import_row_results")) as unknown as DataExchangeImportRowResult[];
+  const committable = new Set<string>(COMMITTABLE_ROW_STATES);
+  return rowResults
+    .filter((r) => r.jobId === latest.id && r.naturalKey && r.targetRecordId && committable.has(r.state))
+    .map((r) => ({ naturalKey: r.naturalKey!, jobId: r.jobId, targetCollection: r.targetCollection, targetRecordId: r.targetRecordId }));
 }

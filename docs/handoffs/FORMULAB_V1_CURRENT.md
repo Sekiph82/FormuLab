@@ -40,13 +40,16 @@ engine layer; real driver adapter wired later), **FVL-04.022 —
 COMPLETED** (REST API Connector Contract — engine layer; real HTTP
 client adapter wired later), **FVL-04.024 — COMPLETED** (Connector ->
 Existing Data Exchange Bridge — built before .023 since .023 itself
-depends on it) — see their own resolution sections below. FVL-04.023,
-.025, .026 remain blank, none started.
+depends on it), **FVL-04.023 — COMPLETED** (Incremental Re-import /
+Conflict Handling) — see their own resolution sections below.
+FVL-04.025/.026 remain blank, none started.
 
 ## Current task
 
-**`FVL-04.023`** — blank, **NOT STARTED** (Incremental Re-import /
-Conflict Handling). FVL-04.019/.020/.021/.022/.024 just closed — see
+**`FVL-04.025`** — blank, **NOT STARTED** (Customer Migration
+Acceptance Fixture — the final task in the queued FVL-04.019-.025
+brief; do NOT start FVL-04.026 after it, per that brief's own
+instruction). FVL-04.019/.020/.021/.022/.023/.024 just closed — see
 their own resolution sections below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
@@ -191,6 +194,25 @@ new connector files, and a new check that neither imports
 `pnpm --filter @formulab/desktop test`: 1562/1562 (158 files,
 `connectorEndToEnd.test.ts` 34/34, 3 new). `typecheck`/`lint`: clean.
 FVL-04 now 23/26.
+
+## FVL-04.023 resolution (this session — Incremental Re-import / Conflict Handling)
+
+Audit found most of this task already exists and is reused: "same
+external record -> same canonical identity"/"detect mapping conflicts"
+is the existing crosswalk's own job; "new vs updated vs unchanged"/"no
+duplicate canonical records" is the existing Data Exchange preview's own
+natural-key classification; "dry-run/preview"/"batch lineage" is the
+existing import-job history. The one genuinely missing piece — detecting
+a source record present in a prior batch but absent from the current one
+— closed with a new pure `detectMissingFromSource()` comparing against a
+new `loadPriorCommittedRows()` that reads the EXISTING import-history
+model for the most recent completed job of the same template, never a
+second store. Deliberately non-destructive: never deletes/archives a
+canonical record, only surfaces a structured, non-blocking finding —
+wired into the real dialog as an informational banner. `pnpm --filter
+@formulab/shared test`: 1609/1609 (77 files, 8 new). `pnpm --filter
+@formulab/desktop test`: 1569/1569 (158 files, 7 new). `typecheck`/
+`lint`: clean. FVL-04 now 24/26.
 
 ## FVL-04.013-.018 final correction (Session 8, this session — narrow, four-part final correction)
 

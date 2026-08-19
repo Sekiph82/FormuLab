@@ -484,3 +484,62 @@ describe("DataExchangeImportDialog — Session 8 Part 3.1: field-aware composite
     expect(bridge.upsertRecords).toHaveBeenCalledWith("label_artworks", expect.arrayContaining([expect.objectContaining({ artworkCode: "ART-104" })]));
   });
 });
+
+describe("DataExchangeImportDialog — Session 8 Part 5 / FVL-04.023: a record present in the last completed import but absent from this file is surfaced, never silently dropped or auto-archived", () => {
+  it("surfaces a real 'missing from source' finding read from the EXISTING import-history model, and never blocks commit", async () => {
+    const template = getDataExchangeTemplate("raw_materials")!;
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "data_exchange_import_jobs") {
+        return [{ id: "job-prior", templateCode: "raw_materials", status: "completed", startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.000Z" }];
+      }
+      if (collection === "data_exchange_import_row_results") {
+        return [
+          { id: "r1", jobId: "job-prior", rowNumber: 1, naturalKey: "TEST-MAT-001", state: "valid_create", targetCollection: "materials", targetRecordId: "TEST-MAT-001" },
+          { id: "r2", jobId: "job-prior", rowNumber: 2, naturalKey: "TEST-MAT-GONE", state: "valid_create", targetCollection: "materials", targetRecordId: "TEST-MAT-GONE" },
+        ];
+      }
+      return [];
+    });
+
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    // This file only re-submits TEST-MAT-001 — TEST-MAT-GONE, present in
+    // the prior completed job, is genuinely absent here.
+    const file = new File(["material_code,material_name\nTEST-MAT-001,TEST Water"], "materials.csv", { type: "text/csv" });
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+
+    expect(await within(dialog).findByText(/1 record\(s\)/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/TEST-MAT-GONE/)).toBeInTheDocument();
+
+    // Purely informational — commit proceeds normally, nothing is
+    // archived/deleted automatically.
+    const commitBtn = within(dialog).getByRole("button", { name: "Commit import" });
+    expect(commitBtn).not.toBeDisabled();
+    await user.click(commitBtn);
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("materials", expect.arrayContaining([expect.objectContaining({ code: "TEST-MAT-GONE" })]));
+  });
+
+  it("a file that resubmits every previously-imported key shows no finding at all", async () => {
+    const template = getDataExchangeTemplate("raw_materials")!;
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "data_exchange_import_jobs") {
+        return [{ id: "job-prior", templateCode: "raw_materials", status: "completed", startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.000Z" }];
+      }
+      if (collection === "data_exchange_import_row_results") {
+        return [{ id: "r1", jobId: "job-prior", rowNumber: 1, naturalKey: "TEST-MAT-001", state: "valid_create", targetCollection: "materials", targetRecordId: "TEST-MAT-001" }];
+      }
+      return [];
+    });
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File(["material_code,material_name\nTEST-MAT-001,TEST Water"], "materials.csv", { type: "text/csv" });
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    await within(dialog).findByText("1"); // preview count pill, confirms the file loaded
+    expect(within(dialog).queryByText(/record\(s\)/)).not.toBeInTheDocument();
+  });
+});
