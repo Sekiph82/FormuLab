@@ -42,10 +42,35 @@ export interface ConnectorIdentity {
   sourceSystemName: string;
 }
 
+/**
+ * FVL-04.014 hardening (§8): three distinct identity concepts exist across
+ * this pipeline and must never be conflated:
+ *
+ *   (A) staging row identity   — `sourceRecordId` here, when no explicit
+ *       source ID exists: the row's own stable ordinal position. Good
+ *       enough to keep one staging run internally consistent; NOT an
+ *       authoritative external identifier.
+ *   (B) explicit external source ID — `sourceRecordId` here, when
+ *       `StageOptions.idField` names a real source column. This is the
+ *       ONLY identity a persistent External ID Crosswalk (FVL-04.017) may
+ *       be built from.
+ *   (C) canonical FormuLab ID — decided entirely by the existing Data
+ *       Exchange commit layer, never by this staging layer.
+ *
+ * `SourceRecordIdentity` cannot distinguish (A) from (B) by itself — see
+ * `StagedSourceRecord.identity.idSource` below, and `fileConnector.ts`'s
+ * own `requireExplicitId` option for the case where an ordinal fallback
+ * must not be silently allowed.
+ */
 export interface SourceRecordIdentity {
   sourceEntity: string;
   sourceRecordId: string;
   sourceParentId?: string;
+  /** Whether `sourceRecordId` came from an explicitly configured source
+   *  field ("configured") or is only a staging-row ordinal fallback
+   *  ("ordinal") — see the module doc comment above. A crosswalk must
+   *  never be built from an "ordinal" identity. */
+  idSource: "configured" | "ordinal";
 }
 
 export interface ExtractionMetadata {
@@ -117,6 +142,39 @@ export interface ConnectorStats {
   errorRecords: number;
 }
 
+/** What kind of resource a connector read from, generalized so FILE,
+ *  DATABASE, and REST_API sources can all describe themselves through one
+ *  shape without forcing fake file fields onto a database table or a REST
+ *  resource. */
+export const SOURCE_RESOURCE_KINDS = ["file", "database_table", "rest_resource"] as const;
+export type SourceResourceKind = (typeof SOURCE_RESOURCE_KINDS)[number];
+
+/**
+ * FVL-04.013/.014 hardening — real source-resource identity, replacing the
+ * previous session's unfulfilled claim that `ConnectorResult` already
+ * exposed file name/type/size/hash. `resourceName` is the source's own
+ * name (a file's own filename, a DB table name, a REST resource path) —
+ * NEVER a local absolute filesystem path, which is not portable lineage.
+ * `contentFingerprint` is the same non-cryptographic FNV-1a fingerprint
+ * `connectorFingerprint.ts` already provides elsewhere — deliberately never
+ * called a "hash" or "SHA256" anywhere, since it is not a cryptographic
+ * digest and claiming otherwise would overstate the guarantee. `byteSize`
+ * and `contentFingerprint` are optional because a DATABASE/REST_API source
+ * (not implemented by this session — FVL-04.021/.022 remain out of scope)
+ * may not have either concept, while `resourceName`/`kind` still apply.
+ * `sourceSchemaVersion` is preserved separately from anything Schema
+ * Discovery computes — a source-declared version string, when the source
+ * happens to provide one, never conflated with FormuLab's own discovered
+ * `SourceSchema.fingerprint`. */
+export interface SourceResourceMetadata {
+  kind: SourceResourceKind;
+  resourceName: string;
+  mediaType?: string;
+  byteSize?: number;
+  contentFingerprint?: string;
+  sourceSchemaVersion?: string;
+}
+
 export interface ConnectorResult {
   connector: ConnectorIdentity;
   entity: string;
@@ -125,6 +183,10 @@ export interface ConnectorResult {
   errors: ConnectorError[];
   cursor?: string;
   stats: ConnectorStats;
+  /** Identity of the resource this extraction read from — see
+   *  `SourceResourceMetadata`. Optional because a mock/in-memory connector
+   *  in a test may have no real resource to describe. */
+  sourceResource?: SourceResourceMetadata;
 }
 
 /**
@@ -150,8 +212,29 @@ export type SourceFieldType = (typeof SOURCE_FIELD_TYPES)[number];
 export const DECIMAL_CONVENTIONS = ["dot", "comma", "ambiguous", "unknown"] as const;
 export type DecimalConvention = (typeof DECIMAL_CONVENTIONS)[number];
 
-export const EXTERNAL_ID_STATUSES = ["candidate", "unresolved"] as const;
-export type ExternalIdStatus = (typeof EXTERNAL_ID_STATUSES)[number];
+/**
+ * FVL-04.015 hardening — replaces the previous two-value
+ * `EXTERNAL_ID_STATUSES` (`"candidate" | "unresolved"`), which let a merely
+ * unique field (including a unique DISPLAY NAME like `MaterialName`)
+ * silently read as an authoritative external-ID "candidate". A unique
+ * field observed in the sample is now `unique_candidate` — an honest
+ * uniqueness OBSERVATION, never authority. Only a field the caller
+ * explicitly configured as the source's own record identifier
+ * (`StageOptions.idField`) is `configured_external_id`. `explicit_primary_key`/
+ * `metadata_primary_key` are reserved for a future DATABASE/REST connector
+ * (FVL-04.021/.022, not implemented by this session) whose source can
+ * declare a real primary/foreign key through its own metadata — the model
+ * can represent that evidence today without any DB/REST connector code
+ * existing yet.
+ */
+export const EXTERNAL_ID_EVIDENCE = [
+  "explicit_primary_key",
+  "configured_external_id",
+  "metadata_primary_key",
+  "unique_candidate",
+  "unresolved",
+] as const;
+export type ExternalIdEvidence = (typeof EXTERNAL_ID_EVIDENCE)[number];
 
 export interface SourceFieldSchema {
   path: string;
@@ -168,9 +251,22 @@ export interface SourceFieldSchema {
   /** Only ever set from deterministic evidence — a dedicated unit
    *  column/header annotation — never inferred from a bare field name. */
   unitHint?: string;
-  externalIdStatus?: ExternalIdStatus;
+  /** Set only from deterministic structural evidence — either an explicit
+   *  `unitColumnPairs` configuration, or the recognized sibling-column
+   *  convention (a field paired with a column literally named `UOM`/`Unit`,
+   *  or `<field>_UOM`/`<field>_Unit`). Never a guess from the field's own
+   *  name alone: a bare `Quantity` column with no such sibling stays
+   *  without a `unitColumnHint`. */
+  unitColumnHint?: string;
+  /** Candidate null tokens observed among this field's own non-null string
+   *  values (e.g. `"N/A"`, `"NULL"`, `"-"`) — reported for a human/mapping
+   *  profile to configure, never silently treated as null by discovery
+   *  itself. A real `0`/`false`/`"0"` value is never included here. */
+  observedNullTokens?: string[];
+  externalIdStatus?: ExternalIdEvidence;
   /** True only when every value observed for this field, across every
-   *  record, was unique and non-null. */
+   *  record, was unique and non-null — a SAMPLE observation, not identity
+   *  authority. See `externalIdStatus`. */
   isUniqueNonNull: boolean;
 }
 
@@ -192,9 +288,18 @@ export interface SourceSchema {
   sourceSystemId: string;
   entities: SourceEntitySchema[];
   /** Deterministic — same structural metadata always produces the same
-   *  fingerprint, independent of extraction time or record order. */
+   *  fingerprint, independent of extraction time, record order, or sample
+   *  composition (see `schemaDiscovery.ts`'s own fingerprint-input
+   *  documentation for exactly what is and is not included). */
   fingerprint: string;
   discoveredAt: string;
+  /** A source-DECLARED schema version, when the source happens to provide
+   *  one (e.g. from `ConnectorResult.sourceResource.sourceSchemaVersion`) —
+   *  kept entirely separate from `fingerprint`, which is FormuLab's own
+   *  computed structural signature. Never conflated: a source can bump its
+   *  own version string without any structural change FormuLab would
+   *  detect, and vice versa. */
+  sourceProvidedSchemaVersion?: string;
 }
 
 // ============================================================ Part D ===
@@ -254,15 +359,27 @@ export const constantMappingSchema = z.object({
 });
 export type ConstantMapping = z.infer<typeof constantMappingSchema>;
 
-/** Persisted through the existing masterdata architecture — see
- *  `mapping_profiles` in `masterdata.rs`. `profileId` is the natural
- *  identity/storage key; a changed mapping creates a NEW profile version
- *  (`supersedesProfileId` pointing at the one it replaces) rather than
- *  rewriting history — the same append-history discipline
- *  `material_prices`/`exchange_rates` already use, applied to
- *  configuration instead of a measured fact. */
+/**
+ * Persisted through the existing masterdata architecture — see
+ * `mapping_profiles` in `masterdata.rs`. FVL-04.016 hardening (D1/D2):
+ * `profileId` alone is the LOGICAL mapping identity across its whole
+ * version history, but the IMMUTABLE STORAGE identity — the value
+ * `masterdata.rs`'s own `row_key()` reads (`code`/`id`) — is the composite
+ * `code = "${profileId}::v${profileVersion}"` (see `mappingProfileCode()`
+ * in `engine/mappingProfile.ts`). `mapping_profiles` is registered
+ * append-only in `masterdata.rs`, so a second write attempting to reuse an
+ * existing `code` is rejected by the storage layer itself, not merely by
+ * application-layer discipline — a changed mapping MUST create a new
+ * `profileVersion` (a new `code`, a new row); `supersedesProfileId` points
+ * at the version it replaces, and the prior version's row is never
+ * rewritten or removed. This mirrors the same append-history discipline
+ * `material_prices`/`exchange_rates` already use for a measured fact,
+ * applied here to configuration instead. */
 export const mappingProfileSchema = z.object({
   schemaVersion: z.literal("1.0"),
+  /** Immutable storage identity — `"${profileId}::v${profileVersion}"`.
+   *  See the module doc comment above. */
+  code: z.string().min(1),
   profileId: z.string().min(1),
   profileName: z.string().min(1),
   sourceSystemId: z.string().min(1),
@@ -323,7 +440,21 @@ export interface MappingProfileValidationIssue {
 // ============================================================ Part E ===
 // FVL-04.017 — External ID Crosswalk Registry
 
-export const CROSSWALK_STATUSES = ["active", "conflict"] as const;
+/**
+ * FVL-04.017 hardening (E1): the previous two-value
+ * `["active", "conflict"]` allowed a `status: "conflict"` state that
+ * nothing in the codebase ever actually persisted — `upsertCrosswalk()`
+ * returns a `CrosswalkConflict` as a separate, unpersisted result object
+ * and leaves the existing `active` record completely untouched (see
+ * `crosswalk.ts`). A dead enum value with no real persisted semantic is
+ * worse than none, so it is removed here: the persisted model now only
+ * ever records `"active"`. The chosen, documented conflict behavior is:
+ * the canonical active crosswalk is never silently overwritten; an
+ * attempted conflicting mapping is never persisted as a replacement; the
+ * conflict is surfaced to the caller (ultimately a human-review layer) as
+ * a `CrosswalkConflict` value, not a stored row.
+ */
+export const CROSSWALK_STATUSES = ["active"] as const;
 export type CrosswalkStatus = (typeof CROSSWALK_STATUSES)[number];
 
 /** Persisted through the existing masterdata architecture — see

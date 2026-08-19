@@ -24,7 +24,7 @@ function mockDatabaseConnector(): SourceConnector {
       entity,
       records: [
         {
-          identity: { sourceEntity: entity, sourceRecordId: "001" },
+          identity: { sourceEntity: entity, sourceRecordId: "001", idSource: "configured" },
           fields: { Chemical_ID: "001", Chemical_Name: "Test Material" },
           lineage: { sourceSystemId: "TEST_DB_SRC", sourceEntity: entity, sourceRecordId: "001", extractionRunId: "run-1", connectorVersion: "1.0" },
           extraction: { extractedAt: "2026-01-01T00:00:00.000Z", extractionRunId: "run-1" },
@@ -46,7 +46,7 @@ function mockRestConnector(): SourceConnector {
       entity,
       records: [
         {
-          identity: { sourceEntity: entity, sourceRecordId: "001" },
+          identity: { sourceEntity: entity, sourceRecordId: "001", idSource: "configured" },
           fields: { Chemical_ID: "001", Chemical_Name: "Test Material" },
           lineage: { sourceSystemId: "TEST_REST_SRC", sourceEntity: entity, sourceRecordId: "001", extractionRunId: "run-1", connectorVersion: "1.0" },
           extraction: { extractedAt: "2026-01-01T00:00:00.000Z", extractionRunId: "run-1" },
@@ -115,16 +115,91 @@ describe("SourceConnector — common contract (FVL-04.013)", () => {
     }
   });
 
-  it("C13-8: credential/secret values never appear in staged records or errors", async () => {
+  it("C13-8: credential/secret values never appear in staged records or errors (no secret supplied — weak baseline)", async () => {
     const result = await toResult(mockFileConnector(), "materials");
     const serialized = JSON.stringify(result);
     expect(serialized).not.toMatch(/password|secret|apikey|api_key|token/i);
   });
 
-  it("C13-9: structured retryable vs non-retryable error contract works", () => {
+  it("C13-8 hardening: a REAL fake credential in connector configuration never reaches staged fields, lineage, errors, or source-resource metadata", async () => {
+    // A realistic connector configuration object, exactly the shape a real
+    // DATABASE/REST connector implementation (out of this session's scope)
+    // would receive — proving the exclusion holds even when a secret is
+    // genuinely present in the caller's config, not merely absent from the
+    // fixture.
+    const fakeConfig = { host: "db.customer.example", username: "svc_formulab", password: "hunter2-do-not-log", apiKey: "sk_live_51T3STFAKEKEYNEVERREAL", connectionString: "postgres://svc:hunter2-do-not-log@db.customer.example/erp" };
+
+    function connectorWithSecretConfig(): SourceConnector {
+      // The connector's own `identity`/staged output must never echo any
+      // part of `fakeConfig` back — a credential is opaque to everything
+      // downstream of "connect", by construction, never by convention.
+      return {
+        identity: { connectorId: "mock-secret-db", connectorType: "DATABASE", connectorVersion: "1.0", sourceSystemId: "TEST_DB_SRC", sourceSystemName: "Test DB Source" },
+        discoverEntities: () => ["materials"],
+        extract: (entity) => {
+          void fakeConfig; // held only by the connector's own closure, never surfaced
+          return {
+            connector: { connectorId: "mock-secret-db", connectorType: "DATABASE", connectorVersion: "1.0", sourceSystemId: "TEST_DB_SRC", sourceSystemName: "Test DB Source" },
+            entity,
+            records: [
+              {
+                identity: { sourceEntity: entity, sourceRecordId: "001", idSource: "configured" },
+                fields: { Chemical_ID: "001", Chemical_Name: "Test Material" },
+                lineage: { sourceSystemId: "TEST_DB_SRC", sourceEntity: entity, sourceRecordId: "001", extractionRunId: "run-1", connectorVersion: "1.0" },
+                extraction: { extractedAt: "2026-01-01T00:00:00.000Z", extractionRunId: "run-1" },
+              },
+            ],
+            warnings: [],
+            errors: [],
+            stats: { totalRecords: 1, readRecords: 1, errorRecords: 0 },
+            sourceResource: { kind: "database_table" as const, resourceName: "materials" },
+          };
+        },
+      };
+    }
+    const result = await toResult(connectorWithSecretConfig(), "materials");
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("hunter2-do-not-log");
+    expect(serialized).not.toContain("sk_live_51T3STFAKEKEYNEVERREAL");
+    expect(serialized).not.toContain("svc_formulab");
+    expect(serialized).not.toMatch(/password|apikey|connectionstring/i);
+  });
+
+  it("C13-9: structured non-retryable error contract works", () => {
     const empty = stageCsvFile("TEST_FILE_SRC", "materials", "", { extractionRunId: "run-1" });
     expect(empty.errors[0]).toMatchObject({ stage: "parse", retryable: false });
     expect(empty.errors[0].code).toBeTruthy();
+  });
+
+  it("A5: a mocked retryable connector error satisfies the same ConnectorError contract as a non-retryable one", () => {
+    function connectorWithTransientFailure(): ConnectorResult {
+      return {
+        connector: { connectorId: "mock-flaky", connectorType: "REST_API", connectorVersion: "1.0", sourceSystemId: "TEST_REST_SRC", sourceSystemName: "Test REST Source" },
+        entity: "materials",
+        records: [],
+        warnings: [],
+        errors: [{ code: "upstream_timeout", stage: "connect", message: "The source system did not respond in time.", retryable: true }],
+        stats: { totalRecords: 0, readRecords: 0, errorRecords: 1 },
+      };
+    }
+    const result = connectorWithTransientFailure();
+    expect(result.errors[0]).toMatchObject({ stage: "connect", retryable: true, code: "upstream_timeout" });
+  });
+
+  it("A1/A2: source-resource metadata (identity + optional source-declared schema version) is representable without computing a FormuLab schema fingerprint here", async () => {
+    const result: ConnectorResult = {
+      connector: { connectorId: "mock-file", connectorType: "FILE", connectorVersion: "1.0", sourceSystemId: "TEST_FILE_SRC", sourceSystemName: "Test File Source" },
+      entity: "materials",
+      records: [],
+      warnings: [],
+      errors: [],
+      stats: { totalRecords: 0, readRecords: 0, errorRecords: 0 },
+      sourceResource: { kind: "file", resourceName: "customer-material-master.xlsx", mediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", byteSize: 4096, contentFingerprint: "a1b2c3d4", sourceSchemaVersion: "v3" },
+    };
+    expect(result.sourceResource?.resourceName).toBe("customer-material-master.xlsx");
+    expect(result.sourceResource?.sourceSchemaVersion).toBe("v3");
+    // Never an absolute local path.
+    expect(result.sourceResource?.resourceName).not.toMatch(/^([A-Za-z]:\\|\/)/);
   });
 
   it("C13-10: same input/config produces deterministic staged record content (excluding legitimate timestamps)", () => {

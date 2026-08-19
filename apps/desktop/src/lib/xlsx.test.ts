@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
+import { stageFile } from "@formulab/shared";
 import { buildXlsxBuffer, readWorkbookAllSheets, readWorkbookRows, rejectUnsupportedWorkbook, workbookSheets } from "./xlsx";
 
 async function toBytes(build: (wb: ExcelJS.Workbook) => void): Promise<ArrayBuffer> {
@@ -101,6 +102,36 @@ describe("readWorkbookAllSheets — FVL-04.014", () => {
     expect(sheets).toHaveLength(2);
     expect(sheets[0]).toEqual({ sheetName: "Materials", rows: [["Chemical_ID", "Chemical_Name"], ["883729", "Decyl Glucoside"]] });
     expect(sheets[1]).toEqual({ sheetName: "Suppliers", rows: [["Vendor_ID", "Vendor_Name", "Currency"], ["V-441", "ABC Chemicals", "USD"]] });
+  });
+});
+
+describe("FVL-04.014 hardening B2/B3/B5: the REAL readWorkbookAllSheets wired as stageFile's workbook-reader adapter", () => {
+  const opts = { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" };
+
+  it("a genuine .xlsx buffer stages through the shared package's common stageFile() abstraction end-to-end, not just through a mocked adapter", async () => {
+    const bytes = await toBytes((wb) => {
+      const ws = wb.addWorksheet("Materials");
+      ws.addRow(["Chemical_ID", "Chemical_Name"]);
+      ws.addRow(["883729", "Decyl Glucoside"]);
+    });
+    const result = await stageFile(
+      "CHT_LIMS",
+      "materials",
+      { fileName: "customer-material-master.xlsx", fileKind: "xlsx", byteSize: bytes.byteLength, bytes, sheetName: "Materials" },
+      opts,
+      { readWorkbook: readWorkbookAllSheets },
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.records[0].fields.Chemical_ID).toBe("883729");
+    expect(result.sourceResource).toMatchObject({ resourceName: "customer-material-master.xlsx#Materials", byteSize: bytes.byteLength });
+  });
+
+  it("a genuinely corrupt/non-xlsx byte buffer produces a structured corrupt_xlsx connector error through the REAL ExcelJS reader, never a leaked raw exception", async () => {
+    const garbage = new TextEncoder().encode("this is not a zip file, it is just plain text pretending to be xlsx").buffer;
+    const result = await stageFile("CHT_LIMS", "materials", { fileName: "corrupt.xlsx", fileKind: "xlsx", byteSize: garbage.byteLength, bytes: garbage }, opts, { readWorkbook: readWorkbookAllSheets });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatchObject({ code: "corrupt_xlsx", stage: "parse", retryable: false });
+    expect(result.records).toEqual([]);
   });
 });
 

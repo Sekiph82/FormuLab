@@ -92,10 +92,10 @@ describe("SD8/SD9: unit discovery", () => {
 });
 
 describe("SD10/SD11: external ID candidate discovery", () => {
-  it("SD10: a unique, always-present configured field is recognized as a candidate external ID", () => {
+  it("SD10: a unique, always-present field is only ever a uniqueness OBSERVATION (unique_candidate), never automatic authority", () => {
     const result = stageCsvFile("SRC", "e", "Chemical_ID,Name\n1,A\n2,B\n3,C", opts);
     const schema = discoverEntitySchema("e", result.records);
-    expect(field(schema, "Chemical_ID").externalIdStatus).toBe("candidate");
+    expect(field(schema, "Chemical_ID").externalIdStatus).toBe("unique_candidate");
     expect(field(schema, "Chemical_ID").isUniqueNonNull).toBe(true);
   });
 
@@ -104,6 +104,102 @@ describe("SD10/SD11: external ID candidate discovery", () => {
     const schema = discoverEntitySchema("e", result.records);
     expect(field(schema, "Name").externalIdStatus).toBe("unresolved");
     expect(field(schema, "Name").isUniqueNonNull).toBe(false);
+  });
+
+  it("FVL-04.015 hardening C1: a unique DISPLAY NAME is never treated as identity authority, even though it is unique in the sample", () => {
+    const result = stageCsvFile("SRC", "e", "MaterialName\nDecyl Glucoside\nGlycerin\nWater", opts);
+    const schema = discoverEntitySchema("e", result.records);
+    // Uniquely named per row, structurally identical to a real ID field —
+    // but a display name earns only the honest "unique_candidate"
+    // observation, never "configured_external_id"/"explicit_primary_key".
+    expect(field(schema, "MaterialName").externalIdStatus).toBe("unique_candidate");
+  });
+
+  it("FVL-04.015 hardening C2: an explicitly configured id field is recognized as configured_external_id, not re-inferred from its name", () => {
+    const result = stageCsvFile("SRC", "e", "Chemical_ID,Name\n1,A\n2,B\n3,C", { ...opts, idField: "Chemical_ID" });
+    const schema = discoverEntitySchema("e", result.records, { configuredIdField: "Chemical_ID" });
+    expect(field(schema, "Chemical_ID").externalIdStatus).toBe("configured_external_id");
+  });
+
+  it("FVL-04.015 hardening C3: mocked DATABASE/REST primary-key metadata can be represented without implementing a DB/REST connector", () => {
+    const result = stageCsvFile("SRC", "e", "Chemical_ID,Name\n1,A\n2,B", opts);
+    const schema = discoverEntitySchema("e", result.records, { metadataPrimaryKeyFields: ["Chemical_ID"] });
+    expect(field(schema, "Chemical_ID").externalIdStatus).toBe("metadata_primary_key");
+  });
+
+  it("FVL-04.015 hardening: a source record with no reliable ID evidence at all stays unresolved", () => {
+    const result = stageCsvFile("SRC", "e", "Note\nfine\nfine\nfine", opts);
+    const schema = discoverEntitySchema("e", result.records);
+    expect(field(schema, "Note").externalIdStatus).toBe("unresolved");
+  });
+});
+
+describe("FVL-04.015 hardening C4: dedicated unit-column discovery", () => {
+  it("Quantity | UOM — a shared UOM column paired with the single numeric field in the entity", () => {
+    const result = stageCsvFile("SRC", "e", "Quantity,UOM\n250,kg\n500,kg", opts);
+    const schema = discoverEntitySchema("e", result.records);
+    expect(field(schema, "Quantity").unitColumnHint).toBe("UOM");
+  });
+
+  it("Viscosity | ViscosityUnit — per-field suffix convention, unambiguous even with multiple numeric fields", () => {
+    const result = stageCsvFile("SRC", "e", "Viscosity,ViscosityUnit,Quantity\n8500,cP,10", opts);
+    const schema = discoverEntitySchema("e", result.records);
+    expect(field(schema, "Viscosity").unitColumnHint).toBe("ViscosityUnit");
+    // Quantity has no such sibling AND there are two numeric fields, so the
+    // shared-UOM convention does not apply — stays unresolved, not guessed.
+    expect(field(schema, "Quantity").unitColumnHint).toBeUndefined();
+  });
+
+  it("two numeric fields sharing one bare UOM column is genuinely ambiguous and is left unresolved", () => {
+    const result = stageCsvFile("SRC", "e", "Quantity,Weight,UOM\n250,10,kg", opts);
+    const schema = discoverEntitySchema("e", result.records);
+    expect(field(schema, "Quantity").unitColumnHint).toBeUndefined();
+    expect(field(schema, "Weight").unitColumnHint).toBeUndefined();
+  });
+
+  it("explicit unitColumnPairs configuration always wins over the recognized conventions", () => {
+    const result = stageCsvFile("SRC", "e", "Amount,Measure\n250,kg", opts);
+    const schema = discoverEntitySchema("e", result.records, { unitColumnPairs: { Amount: "Measure" } });
+    expect(field(schema, "Amount").unitColumnHint).toBe("Measure");
+  });
+});
+
+describe("FVL-04.015 hardening C5: source-specific null-token profiling", () => {
+  it("N/A, NULL, and - are reported as observed candidate null tokens, never silently treated as null", () => {
+    const result = stageCsvFile("SRC", "e", "Value\nN/A\nNULL\n-\n42", opts);
+    const schema = discoverEntitySchema("e", result.records);
+    const f = field(schema, "Value");
+    expect(f.observedNullTokens).toEqual(expect.arrayContaining(["N/A", "NULL", "-"]));
+    // Still present as real, non-null string samples — never dropped.
+    expect(f.sampleCount).toBe(4);
+    expect(f.nullCount).toBe(0);
+  });
+
+  it("real 0/false/\"0\" values are never reported as null tokens", () => {
+    const result = stageCsvFile("SRC", "e", "Flag,Count\nfalse,0\ntrue,5", opts);
+    const schema = discoverEntitySchema("e", result.records);
+    expect(field(schema, "Flag").observedNullTokens).toBeUndefined();
+    expect(field(schema, "Count").observedNullTokens).toBeUndefined();
+  });
+});
+
+describe("FVL-04.015 hardening C6/C7: fingerprint stability and source-provided schema version", () => {
+  it("the fingerprint does NOT change merely because one batch has a different null ratio or sample values", () => {
+    const a = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Chemical_ID,Name\n1,A\n2,\n3,C", opts).records }]);
+    const b = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Chemical_ID,Name\n9,X\n8,Y\n7,Z", opts).records }]);
+    expect(a.fingerprint).toBe(b.fingerprint);
+  });
+
+  it("the fingerprint DOES change when a unit-column pairing is added — a materially relevant structural change", () => {
+    const withoutUnit = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Quantity\n250", opts).records }]);
+    const withUnit = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Quantity,UOM\n250,kg", opts).records }]);
+    expect(withoutUnit.fingerprint).not.toBe(withUnit.fingerprint);
+  });
+
+  it("a source-declared schema version is preserved separately from the computed fingerprint", () => {
+    const schema = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Chemical_ID\n1", opts).records }], { sourceProvidedSchemaVersion: "v7" });
+    expect(schema.sourceProvidedSchemaVersion).toBe("v7");
+    expect(schema.fingerprint).not.toBe("v7");
   });
 });
 
