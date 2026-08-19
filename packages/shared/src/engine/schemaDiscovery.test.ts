@@ -111,7 +111,7 @@ describe("SD10/SD11: external ID candidate discovery", () => {
     const schema = discoverEntitySchema("e", result.records);
     // Uniquely named per row, structurally identical to a real ID field —
     // but a display name earns only the honest "unique_candidate"
-    // observation, never "configured_external_id"/"explicit_primary_key".
+    // observation, never "configured_external_id"/"metadata_primary_key".
     expect(field(schema, "MaterialName").externalIdStatus).toBe("unique_candidate");
   });
 
@@ -181,6 +181,21 @@ describe("FVL-04.015 hardening C5: source-specific null-token profiling", () => 
     expect(field(schema, "Flag").observedNullTokens).toBeUndefined();
     expect(field(schema, "Count").observedNullTokens).toBeUndefined();
   });
+
+  it("FVL-04.015 hardening (Session 7, Part F): a customer-specific null token ('NO DATA') is discoverable only when explicitly configured — never recognized by default", () => {
+    const result = stageCsvFile("SRC", "e", "Value\nNO DATA\nreal-value", opts);
+    const withoutConfig = discoverEntitySchema("e", result.records);
+    expect(field(withoutConfig, "Value").observedNullTokens).toBeUndefined();
+
+    const withConfig = discoverEntitySchema("e", result.records, { nullTokenCandidates: ["NO DATA", "NOT RECORDED", "~"] });
+    expect(field(withConfig, "Value").observedNullTokens).toEqual(["NO DATA"]);
+    // Configured tokens EXTEND the default recognizer, never replace it.
+    const both = stageCsvFile("SRC", "e2", "Value\nNO DATA\nN/A\nreal", opts);
+    const bothSchema = discoverEntitySchema("e2", both.records, { nullTokenCandidates: ["NO DATA"] });
+    expect(field(bothSchema, "Value").observedNullTokens).toEqual(expect.arrayContaining(["NO DATA", "N/A"]));
+    // Still never silently converted to an actual null.
+    expect(field(withConfig, "Value").nullCount).toBe(0);
+  });
 });
 
 describe("FVL-04.015 hardening C6/C7: fingerprint stability and source-provided schema version", () => {
@@ -188,6 +203,23 @@ describe("FVL-04.015 hardening C6/C7: fingerprint stability and source-provided 
     const a = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Chemical_ID,Name\n1,A\n2,\n3,C", opts).records }]);
     const b = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Chemical_ID,Name\n9,X\n8,Y\n7,Z", opts).records }]);
     expect(a.fingerprint).toBe(b.fingerprint);
+  });
+
+  it("FVL-04.015 hardening (Session 7, Part E): the fingerprint does NOT change when the SAME field's observed VALUE TYPE differs batch to batch — a real gap the prior fingerprint (which included observedTypes) did not catch", () => {
+    const batchNumeric = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Header,Quantity\nX,100", opts).records }]);
+    const batchText = discoverSourceSchema("SRC", [{ entity: "e", records: stageCsvFile("SRC", "e", "Header,Quantity\nX,unknown", opts).records }]);
+    // Same headers/declared structure — the fingerprint must be identical
+    // even though one batch's Quantity column happens to be numeric and
+    // the other happens to be text.
+    expect(batchNumeric.fingerprint).toBe(batchText.fingerprint);
+    // Discovery itself still reports the honest, DIFFERENT observed type
+    // profile per batch — fingerprint stability and honest reporting are
+    // deliberately separate concerns.
+    const numericTypes = batchNumeric.entities[0].fields.find((f) => f.path === "Quantity")!.observedTypes;
+    const textTypes = batchText.entities[0].fields.find((f) => f.path === "Quantity")!.observedTypes;
+    expect(numericTypes).toEqual(["integer"]);
+    expect(textTypes).toEqual(["string"]);
+    expect(numericTypes).not.toEqual(textTypes);
   });
 
   it("the fingerprint DOES change when a unit-column pairing is added — a materially relevant structural change", () => {

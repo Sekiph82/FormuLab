@@ -114,8 +114,19 @@ function discoverUnitHint(fieldPath: string): string | undefined {
 
 /** Recognized null-token candidates — reported for a human/mapping profile
  *  to configure, NEVER silently treated as null by discovery itself. A
- *  real `0`/`false`/`"0"` value is deliberately absent from this list. */
-const NULL_TOKEN_PATTERN = /^(n\/a|na|null|nil|none|-|\(blank\))$/i;
+ *  real `0`/`false`/`"0"` value is deliberately absent from this list.
+ *  FVL-04.015 hardening (Session 7, Part F): this default set covers only
+ *  common candidates; customer-specific tokens (`"NO DATA"`, `"NOT RECORDED"`,
+ *  `"~"`, ...) are discoverable when explicitly configured via
+ *  `DiscoverEntityOptions.nullTokenCandidates`, which EXTENDS this default
+ *  set rather than replacing it. */
+const DEFAULT_NULL_TOKENS = new Set(["n/a", "na", "null", "nil", "none", "-", "(blank)"]);
+
+function isNullTokenCandidate(value: string, configured: Set<string>): boolean {
+  const v = value.trim().toLowerCase();
+  if (v.length === 0) return false; // an empty string is a real, distinct value here — never confused with a "null token"
+  return DEFAULT_NULL_TOKENS.has(v) || configured.has(v);
+}
 
 interface FieldDiscoveryOptions {
   /** True when this exact field/path was explicitly configured (via
@@ -131,6 +142,9 @@ interface FieldDiscoveryOptions {
   /** The real path of a sibling field discovered to carry this field's
    *  per-row unit — see `discoverUnitColumnHints` below. */
   unitColumnHint?: string;
+  /** Lowercased, trimmed customer-specific null-token candidates,
+   *  extending `DEFAULT_NULL_TOKENS` — see `DiscoverEntityOptions.nullTokenCandidates`. */
+  nullTokenCandidates?: Set<string>;
 }
 
 function discoverField(path: string, values: (string | null | undefined)[], recordCount: number, fieldOpts: FieldDiscoveryOptions = {}): SourceFieldSchema {
@@ -145,7 +159,7 @@ function discoverField(path: string, values: (string | null | undefined)[], reco
   const unitHint = discoverUnitHint(path);
   const isUniqueNonNull = nonNull.length === present.length && nonNull.length > 0 && distinct.size === nonNull.length;
 
-  const observedNullTokens = [...new Set(nonNull.filter((v) => NULL_TOKEN_PATTERN.test(v.trim())))];
+  const observedNullTokens = [...new Set(nonNull.filter((v) => isNullTokenCandidate(v, fieldOpts.nullTokenCandidates ?? new Set())))];
 
   // FVL-04.015 hardening (C1/C2/C3) — identity is never inferred from mere
   // sample uniqueness alone. Explicit configuration and mocked DB/REST
@@ -245,6 +259,13 @@ export interface DiscoverEntityOptions {
   /** Explicit quantity-field -> unit-field pairing, preferred over the
    *  recognized-suffix/shared-column conventions (C4). */
   unitColumnPairs?: Record<string, string>;
+  /** Customer-specific null-token candidates (e.g. `"NO DATA"`,
+   *  `"NOT RECORDED"`, `"~"`) — EXTENDS `DEFAULT_NULL_TOKENS`, never
+   *  replaces it. Matched case-insensitively, trimmed. Discovery only ever
+   *  REPORTS a candidate token via `observedNullTokens`; it never silently
+   *  converts one to an actual `null` — that decision belongs to a mapping
+   *  profile's own transformation configuration, strictly later. */
+  nullTokenCandidates?: string[];
 }
 
 export function discoverEntitySchema(entity: string, records: StagedSourceRecord[], opts: DiscoverEntityOptions = {}): SourceEntitySchema {
@@ -259,6 +280,7 @@ export function discoverEntitySchema(entity: string, records: StagedSourceRecord
   }
   const unitColumnHints = discoverUnitColumnHints(sortedPaths, numericFieldPaths, opts.unitColumnPairs);
   const metadataPkSet = new Set(opts.metadataPrimaryKeyFields ?? []);
+  const nullTokenCandidates = new Set((opts.nullTokenCandidates ?? []).map((t) => t.trim().toLowerCase()));
 
   const fields = sortedPaths.map((path) => {
     const values = records.map((r) => (path in r.fields ? r.fields[path] : undefined));
@@ -266,6 +288,7 @@ export function discoverEntitySchema(entity: string, records: StagedSourceRecord
       isConfiguredExternalId: path === opts.configuredIdField,
       isMetadataPrimaryKey: metadataPkSet.has(path),
       unitColumnHint: unitColumnHints.get(path),
+      nullTokenCandidates,
     });
   });
 
@@ -278,24 +301,37 @@ export function discoverEntitySchema(entity: string, records: StagedSourceRecord
 }
 
 /**
- * Deterministic structural fingerprint. FVL-04.015 hardening (C6) —
- * strengthened beyond bare `path:observedTypes` to also cover structural
- * metadata that materially affects mapping compatibility: a recognized
- * unit suffix/column pairing, and whether a field's identity role is
- * CONFIGURATION-driven (`configured_external_id`/`metadata_primary_key`/
- * `explicit_primary_key`). Deliberately EXCLUDED: `nullCount`/
- * `sampleCount`/`distinctCount`/`observedNullTokens`/`isUniqueNonNull`
- * (a `unique_candidate` observation) — all of these can legitimately vary
- * batch to batch on an otherwise-identical schema (a different null ratio,
- * a coincidental duplicate value), and the fingerprint must not change
- * merely because one import batch's DATA happened to differ. Never
- * includes extraction timestamp or row count either.
+ * Deterministic structural fingerprint.
+ *
+ * FVL-04.015 hardening (Session 7, Part E) — `observedTypes` was removed
+ * from the fingerprint input entirely. It is SAMPLE-derived (a plain
+ * function of which values happen to appear in one particular batch), not
+ * declared structure: a `Quantity` column that reads `"100"` in one import
+ * and `"unknown"` in the next is the SAME structural field under the SAME
+ * header — the fingerprint must not change merely because the batch's
+ * VALUES differ, only when the source's own declared/configured structure
+ * genuinely changes. `DiscoverField`/`SourceFieldSchema.observedTypes`
+ * itself is untouched and still reports the honest per-batch type
+ * profile — that reporting duty is deliberately kept separate from
+ * fingerprint STABILITY.
+ *
+ * What remains, all either structural (the field's own path — which
+ * already encodes nested/repeated shape via its dot/bracket notation) or
+ * CONFIGURATION-driven (never observed-data-driven): the field path
+ * itself, a recognized unit suffix/column pairing (header-derived,
+ * stable), and whether a field's identity role was explicitly configured
+ * (`configured_external_id`/`metadata_primary_key`) — never the
+ * sample-driven `unique_candidate`/`unresolved` observations, which can
+ * legitimately flip batch to batch on an otherwise-identical schema (a
+ * coincidental duplicate value, a different null ratio) and must not move
+ * the fingerprint. Never includes extraction timestamp or row count
+ * either.
  */
 function entityFingerprintInput(schema: SourceEntitySchema): string {
   return schema.fields
     .map((f) => {
-      const identityRole = f.externalIdStatus === "unique_candidate" || f.externalIdStatus === "unresolved" || f.externalIdStatus === undefined ? "" : f.externalIdStatus;
-      return `${f.path}:${f.observedTypes.join("|")}:${f.unitHint ?? ""}:${f.unitColumnHint ?? ""}:${identityRole}`;
+      const identityRole = f.externalIdStatus === "configured_external_id" || f.externalIdStatus === "metadata_primary_key" ? f.externalIdStatus : "";
+      return `${f.path}:${f.unitHint ?? ""}:${f.unitColumnHint ?? ""}:${identityRole}`;
     })
     .join(";");
 }
@@ -306,6 +342,7 @@ export interface DiscoverSourceSchemaEntityInput {
   configuredIdField?: string;
   metadataPrimaryKeyFields?: string[];
   unitColumnPairs?: Record<string, string>;
+  nullTokenCandidates?: string[];
 }
 
 export function discoverSourceSchema(

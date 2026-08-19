@@ -165,10 +165,26 @@ export type SourceResourceKind = (typeof SOURCE_RESOURCE_KINDS)[number];
  * `sourceSchemaVersion` is preserved separately from anything Schema
  * Discovery computes — a source-declared version string, when the source
  * happens to provide one, never conflated with FormuLab's own discovered
- * `SourceSchema.fingerprint`. */
+ * `SourceSchema.fingerprint`.
+ *
+ * FVL-04.014 hardening (Session 7, Part A3): `resourceName` is ONLY the
+ * resource's own identity (a file's own filename, a DB table name, a REST
+ * path) — it must never be overloaded with a sub-resource identity like an
+ * XLSX sheet name (a prior session's `"file.xlsx#SheetName"` conflation is
+ * corrected). `subResourceName` carries that separately (e.g. the sheet
+ * name for XLSX, or a partition/shard name for a future DB/REST source)
+ * when one genuinely exists — `byteSize`/`contentFingerprint` describe the
+ * FILE/resource as a whole, never one selected sub-resource, so the same
+ * file with a different `subResourceName` selected must report the
+ * identical `byteSize`/`contentFingerprint`. See also
+ * `SourceRecordIdentity`/`StagedSourceRecord.identity` for the separate,
+ * lower layers of identity (staging row / explicit external record). */
 export interface SourceResourceMetadata {
   kind: SourceResourceKind;
   resourceName: string;
+  /** A sub-resource selected within `resourceName` — an XLSX sheet name,
+   *  for example. Never folded into `resourceName` itself. */
+  subResourceName?: string;
   mediaType?: string;
   byteSize?: number;
   contentFingerprint?: string;
@@ -220,15 +236,24 @@ export type DecimalConvention = (typeof DECIMAL_CONVENTIONS)[number];
  * field observed in the sample is now `unique_candidate` — an honest
  * uniqueness OBSERVATION, never authority. Only a field the caller
  * explicitly configured as the source's own record identifier
- * (`StageOptions.idField`) is `configured_external_id`. `explicit_primary_key`/
- * `metadata_primary_key` are reserved for a future DATABASE/REST connector
- * (FVL-04.021/.022, not implemented by this session) whose source can
- * declare a real primary/foreign key through its own metadata — the model
- * can represent that evidence today without any DB/REST connector code
- * existing yet.
+ * (`StageOptions.idField`) is `configured_external_id`.
+ *
+ * FVL-04.015 hardening (Session 7, D2): the original four-plus-unresolved
+ * model also included `explicit_primary_key`, meant for "the source
+ * connector/source schema itself explicitly declares this is the PK" —
+ * verified to have NO real input path anywhere in the codebase (nothing
+ * ever set it; a dead enum value). Removed rather than kept as an
+ * unreachable state. `metadata_primary_key` is retained because it DOES
+ * have a real, tested input path today: `DiscoverEntityOptions.metadataPrimaryKeyFields`
+ * represents a future DATABASE/REST connector's own declared-PK metadata
+ * (FVL-04.021/.022 remain unimplemented, but the evidence model can
+ * already represent that channel, exercised by a mock in
+ * `schemaDiscovery.test.ts`). The two retained non-configured states are
+ * genuinely distinct: `configured_external_id` is a HUMAN/mapping-profile
+ * decision about a FILE-shaped source; `metadata_primary_key` is a
+ * SOURCE-declared fact a future structured connector could supply.
  */
 export const EXTERNAL_ID_EVIDENCE = [
-  "explicit_primary_key",
   "configured_external_id",
   "metadata_primary_key",
   "unique_candidate",
@@ -370,11 +395,22 @@ export type ConstantMapping = z.infer<typeof constantMappingSchema>;
  * append-only in `masterdata.rs`, so a second write attempting to reuse an
  * existing `code` is rejected by the storage layer itself, not merely by
  * application-layer discipline — a changed mapping MUST create a new
- * `profileVersion` (a new `code`, a new row); `supersedesProfileId` points
- * at the version it replaces, and the prior version's row is never
- * rewritten or removed. This mirrors the same append-history discipline
- * `material_prices`/`exchange_rates` already use for a measured fact,
- * applied here to configuration instead. */
+ * `profileVersion` (a new `code`, a new row).
+ *
+ * FVL-04.016 hardening (Session 7, Part G) — lifecycle correction: every
+ * persisted row is immutable, full stop, INCLUDING its own `status`. A row
+ * saved with `status: "active"` is NEVER later rewritten to `"superseded"`
+ * — storage itself would refuse that write anyway (a real, structural
+ * consequence of append-only, not a rule this schema merely asserts).
+ * Whether a given version is CURRENTLY superseded is a DERIVED fact, never
+ * a stored one — see `effectiveMappingProfileStatus()` in
+ * `engine/mappingProfile.ts`, which reports a version superseded exactly
+ * when a newer version in the same `profileId` family exists, without
+ * ever touching the earlier row. `supersedesProfileCode` names the EXACT
+ * immutable version this one replaces (the prior version's own `code`,
+ * e.g. `"cht-lims-materials::v1"`) — never the ambiguous, version-less
+ * `profileId` a prior session used, which could not distinguish "replaces
+ * v1" from "replaces v2" once three or more versions exist. */
 export const mappingProfileSchema = z.object({
   schemaVersion: z.literal("1.0"),
   /** Immutable storage identity — `"${profileId}::v${profileVersion}"`.
@@ -388,14 +424,18 @@ export const mappingProfileSchema = z.object({
    *  a materially different source schema must not silently reuse it. */
   sourceSchemaFingerprint: z.string().min(1),
   profileVersion: z.number().int().positive(),
+  /** This version's OWN status at the moment it was created — never
+   *  rewritten afterward. See the module doc comment: "superseded" is a
+   *  DERIVED fact computed by `effectiveMappingProfileStatus()`, not a
+   *  value ever stored here for that purpose. */
   status: z.enum(MAPPING_PROFILE_STATUSES).default("draft"),
   fieldMappings: z.array(fieldMappingSchema).default([]),
   constantMappings: z.array(constantMappingSchema).default([]),
-  /** The profile version this one supersedes, when status is "active" and
-   *  a prior version existed — the earlier version is never rewritten,
-   *  only ever superseded (see FVL-04.016's own "profile evolution"
-   *  requirement). */
-  supersedesProfileId: z.string().optional(),
+  /** The EXACT immutable `code` of the prior version this one replaces
+   *  (e.g. `"cht-lims-materials::v1"`) — never merely the logical
+   *  `profileId`, which cannot distinguish which specific prior version
+   *  was actually superseded once three or more versions exist. */
+  supersedesProfileCode: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   createdBy: z.string(),

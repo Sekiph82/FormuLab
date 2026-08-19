@@ -6,22 +6,32 @@
  * name is ever required or assumed here; that translation is
  * FVL-04.016/.018's job, strictly later.
  *
- * FVL-04.014 hardening (Part B): all four formats are now exposed through
- * one common `stageFile()` abstraction (B2), which also attaches real
- * source-resource metadata — filename, media type, byte size, and a
- * deterministic content fingerprint (B1) — to `ConnectorResult.sourceResource`.
- * XLSX still needs ExcelJS/ArrayBuffer, desktop-only, so `stageFile()`
- * accepts a small injected `readWorkbook` adapter rather than importing
- * ExcelJS into the shared package; `apps/desktop/src/lib/xlsx.ts`'s
- * `readWorkbookAllSheets` is the real adapter used in production and in
- * `connectorEndToEnd.test.ts`. Every format still funnels into the exact
- * same `stageRows`/staging path underneath (B5) — there is exactly one
- * staging implementation, not four parallel ones.
+ * FVL-04.014 hardening (Session 6, Part B): all four formats are exposed
+ * through one common `stageFile()` abstraction, which also attaches real
+ * source-resource metadata to `ConnectorResult.sourceResource`. XLSX still
+ * needs ExcelJS/ArrayBuffer, desktop-only, so `stageFile()` accepts a small
+ * injected `readWorkbook` adapter rather than importing ExcelJS into the
+ * shared package; `apps/desktop/src/lib/xlsx.ts`'s `readWorkbookAllSheets`
+ * is the real adapter used in production. Every format funnels into the
+ * exact same `stageRows` staging path underneath — one staging
+ * implementation, not four parallel ones.
+ *
+ * FVL-04.014 hardening (Session 7, Parts A/B/C): three further corrections.
+ * (A) `sourceResource` is now genuinely FILE-level, not sheet-level or
+ * caller-asserted: `byteSize`/`contentFingerprint` are computed internally
+ * from the actual bytes/text — never trusted from a caller-supplied field
+ * — and `resourceName` never has a sheet name folded into it (see the new
+ * `subResourceName`). (B) `createFileConnector()` is a real
+ * `SourceConnector` implementation, not just a standalone `stageFile()`
+ * function sitting next to the interface. (C) every parse-failure path
+ * returns a stable, sanitized message — never a raw library exception's
+ * own text, which could contain a local path, a connection string, or
+ * other content that should never appear in a `ConnectorError`.
  */
 import { parseCsv } from "./importer";
-import { fingerprint } from "./connectorFingerprint";
+import { fingerprint, fingerprintBytes } from "./connectorFingerprint";
 import { parseXml, detectRepeatedElements, flattenXmlRecord, UnsafeXmlError } from "./xmlParser";
-import type { ConnectorError, ConnectorIdentity, ConnectorResult, SourceResourceMetadata, StagedSourceRecord } from "../schemas/connector";
+import type { ConnectorError, ConnectorErrorStage, ConnectorIdentity, ConnectorResult, SourceConnector, SourceResourceMetadata, StagedSourceRecord } from "../schemas/connector";
 
 export interface StageOptions {
   /** Which field/column identifies a record. When absent, the row's own
@@ -33,9 +43,9 @@ export interface StageOptions {
   idField?: string;
   /** When true AND `idField` is set, a row whose `idField` value is
    *  blank/missing produces a structured `missing_source_id` error instead
-   *  of silently falling back to an ordinal identity (FVL-04.014
-   *  hardening, §8/B4) — for a source where the caller has explicitly
-   *  declared that every record MUST carry a real external ID. */
+   *  of silently falling back to an ordinal identity — for a source where
+   *  the caller has explicitly declared that every record MUST carry a
+   *  real external ID. */
   requireExplicitId?: boolean;
   extractionRunId: string;
   extractedAt?: string;
@@ -43,6 +53,17 @@ export interface StageOptions {
 
 function connectorIdentity(sourceSystemId: string, connectorType: ConnectorIdentity["connectorType"]): ConnectorIdentity {
   return { connectorId: `file-connector`, connectorType, connectorVersion: "1.0", sourceSystemId, sourceSystemName: sourceSystemId };
+}
+
+/** FVL-04.014 hardening (Session 7, Part C) — never puts a raw library
+ *  exception's own message into a `ConnectorError`. A thrown exception may
+ *  legitimately contain a local file path, a connection string, or other
+ *  content that should never be surfaced in a structured, potentially
+ *  logged/displayed error. `detail` carries only the exception's own
+ *  constructor name (`"Error"`, `"RangeError"`, ...) — enough to
+ *  distinguish failure shapes during debugging without leaking content. */
+function parseFailure(stage: ConnectorErrorStage, code: string, stableMessage: string, cause: unknown): ConnectorError {
+  return { code, stage, message: stableMessage, retryable: false, detail: cause instanceof Error ? cause.constructor.name : "UnknownError" };
 }
 
 function emptyResult(sourceSystemId: string, entity: string, error: ConnectorError, sourceResource?: SourceResourceMetadata): ConnectorResult {
@@ -145,7 +166,7 @@ export function stageCsvFile(sourceSystemId: string, entity: string, csvText: st
   try {
     rows = parseCsv(csvText);
   } catch (e) {
-    return emptyResult(sourceSystemId, entity, { code: "malformed_csv", stage: "parse", message: String(e instanceof Error ? e.message : e), retryable: false });
+    return emptyResult(sourceSystemId, entity, parseFailure("parse", "malformed_csv", "The CSV file could not be parsed.", e));
   }
   return stageRows(sourceSystemId, entity, rows, opts);
 }
@@ -199,7 +220,7 @@ export function stageJsonFile(sourceSystemId: string, entity: string, jsonText: 
   try {
     parsed = JSON.parse(jsonText);
   } catch (e) {
-    return emptyResult(sourceSystemId, entity, { code: "malformed_json", stage: "parse", message: String(e instanceof Error ? e.message : e), retryable: false });
+    return emptyResult(sourceSystemId, entity, parseFailure("parse", "malformed_json", "The JSON file could not be parsed.", e));
   }
   const arr = findRecordArray(parsed);
   if (!arr) {
@@ -228,7 +249,11 @@ export function stageXmlFile(sourceSystemId: string, entity: string, xmlText: st
     root = parseXml(xmlText);
   } catch (e) {
     const unsafe = e instanceof UnsafeXmlError;
-    return emptyResult(sourceSystemId, entity, { code: unsafe ? "unsafe_xml_entities" : "malformed_xml", stage: "parse", message: String(e instanceof Error ? e.message : e), retryable: false });
+    return emptyResult(
+      sourceSystemId,
+      entity,
+      parseFailure("parse", unsafe ? "unsafe_xml_entities" : "malformed_xml", unsafe ? "The XML file declares a DOCTYPE/ENTITY, which is refused before parsing." : "The XML file could not be parsed.", e),
+    );
   }
   const recordElements = opts.recordTag
     ? collectByTag(root, opts.recordTag)
@@ -274,12 +299,15 @@ export type FileKind = keyof typeof MEDIA_TYPES;
 export interface FileConnectorInput {
   fileName: string;
   fileKind: FileKind;
-  byteSize: number;
   /** Raw text content — required for csv/json/xml, ignored for xlsx. */
   text?: string;
   /** Raw workbook bytes — required for xlsx, ignored otherwise. Read only
    *  through the injected `readWorkbook` adapter, never parsed directly by
-   *  this shared-package function (ExcelJS is a desktop-only dependency). */
+   *  this shared-package function (ExcelJS is a desktop-only dependency).
+   *  `byteSize`/`contentFingerprint` are always derived from these actual
+   *  bytes/text internally — FVL-04.014 hardening (Session 7, Part A2/N)
+   *  removed the prior caller-supplied `byteSize` field entirely, since a
+   *  caller-asserted size could silently lie about real provenance. */
   bytes?: ArrayBuffer;
   /** Which sheet to stage, for xlsx — defaults to the workbook's first
    *  sheet. Each sheet is its own source entity; call `stageFile` once per
@@ -291,50 +319,117 @@ export interface FileConnectorDeps {
   /** The real adapter is `apps/desktop/src/lib/xlsx.ts`'s
    *  `readWorkbookAllSheets` — injected so this shared-package module never
    *  imports ExcelJS directly. A rejected/thrown promise (a genuinely
-   *  corrupt workbook) is caught and reported as a structured
-   *  `corrupt_xlsx` error, never a raw leaked exception (FVL-04.014
-   *  hardening, B3). */
+   *  corrupt workbook) is caught and reported as a structured, sanitized
+   *  `corrupt_xlsx` error, never a raw leaked exception. */
   readWorkbook: (bytes: ArrayBuffer) => Promise<{ sheetName: string; rows: string[][] }[]>;
 }
 
+function utf8ByteLength(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
 /**
- * FVL-04.014 hardening (B1/B2/B5) — the one common abstraction all four
- * generic file formats are staged through, each returning the SAME
- * `ConnectorResult` shape with real `sourceResource` metadata attached
- * (filename, media type, byte size, deterministic content fingerprint —
- * never mislabeled as a cryptographic hash). CSV/JSON/XML dispatch
- * directly to the existing `stageCsvFile`/`stageJsonFile`/`stageXmlFile`;
- * XLSX reads through the injected `readWorkbook` adapter and then feeds
- * the exact same `stageRows` path CSV uses underneath — there is exactly
- * one staging implementation, not four.
+ * FVL-04.014 hardening — the one common abstraction all four generic file
+ * formats are staged through, each returning the SAME `ConnectorResult`
+ * shape with real, internally-derived `sourceResource` metadata attached
+ * (filename, media type, ACTUAL byte size, ACTUAL file-level content
+ * fingerprint — never mislabeled as a cryptographic hash, and never
+ * trusted from a caller-supplied field). CSV/JSON/XML dispatch directly to
+ * the existing `stageCsvFile`/`stageJsonFile`/`stageXmlFile`; XLSX reads
+ * through the injected `readWorkbook` adapter and then feeds the exact
+ * same `stageRows` path CSV uses underneath — there is exactly one staging
+ * implementation, not four.
+ *
+ * FVL-04.014 hardening (Session 7, Part A1/A3): the XLSX `contentFingerprint`
+ * is computed from the RAW WORKBOOK BYTES (`fingerprintBytes(input.bytes)`),
+ * not from the selected sheet's parsed rows — selecting a different sheet
+ * of the SAME file produces the identical file-level fingerprint.
+ * `resourceName` stays the plain filename; the selected sheet's name is
+ * carried separately as `sourceResource.subResourceName`, never folded
+ * into `resourceName` itself.
  */
 export async function stageFile(sourceSystemId: string, entity: string, input: FileConnectorInput, opts: StageOptions, deps?: FileConnectorDeps): Promise<ConnectorResult> {
-  const baseResource: SourceResourceMetadata = { kind: "file", resourceName: input.fileName, mediaType: MEDIA_TYPES[input.fileKind], byteSize: input.byteSize };
-
   if (input.fileKind === "xlsx") {
+    const bytes = input.bytes ?? new ArrayBuffer(0);
+    const baseResource: SourceResourceMetadata = { kind: "file", resourceName: input.fileName, mediaType: MEDIA_TYPES.xlsx, byteSize: bytes.byteLength, contentFingerprint: fingerprintBytes(bytes) };
     if (!deps?.readWorkbook) {
       return emptyResult(sourceSystemId, entity, { code: "xlsx_reader_not_configured", stage: "connect", message: "No workbook-reader adapter was provided for an XLSX file.", retryable: false }, baseResource);
     }
     let sheets: { sheetName: string; rows: string[][] }[];
     try {
-      sheets = await deps.readWorkbook(input.bytes ?? new ArrayBuffer(0));
+      sheets = await deps.readWorkbook(bytes);
     } catch (e) {
-      return emptyResult(sourceSystemId, entity, { code: "corrupt_xlsx", stage: "parse", message: String(e instanceof Error ? e.message : e), retryable: false }, baseResource);
+      return emptyResult(sourceSystemId, entity, parseFailure("parse", "corrupt_xlsx", "The XLSX file could not be read as a valid workbook.", e), baseResource);
     }
     const sheet = input.sheetName ? sheets.find((s) => s.sheetName === input.sheetName) : sheets[0];
     if (!sheet) {
       return emptyResult(sourceSystemId, entity, { code: "sheet_not_found", stage: "parse", message: `Sheet "${input.sheetName ?? "(first)"}" was not found in the workbook.`, retryable: false }, baseResource);
     }
     const result = stageRows(sourceSystemId, entity, sheet.rows, opts);
-    return { ...result, sourceResource: { ...baseResource, resourceName: `${input.fileName}#${sheet.sheetName}`, contentFingerprint: fingerprint(JSON.stringify(sheet.rows)) } };
+    return { ...result, sourceResource: { ...baseResource, subResourceName: sheet.sheetName } };
   }
 
   const text = input.text ?? "";
-  const contentFingerprint = fingerprint(text);
-  const resource: SourceResourceMetadata = { ...baseResource, contentFingerprint };
+  const resource: SourceResourceMetadata = { kind: "file", resourceName: input.fileName, mediaType: MEDIA_TYPES[input.fileKind], byteSize: utf8ByteLength(text), contentFingerprint: fingerprint(text) };
   const result =
     input.fileKind === "csv" ? stageCsvFile(sourceSystemId, entity, text, opts)
     : input.fileKind === "json" ? stageJsonFile(sourceSystemId, entity, text, opts)
     : stageXmlFile(sourceSystemId, entity, text, opts);
   return { ...result, sourceResource: resource };
+}
+
+/** A logical entity name derived from the filename when the caller hasn't
+ *  configured one explicitly — deterministic, structural (strip the
+ *  extension), never a guess at business meaning. */
+function defaultEntityName(fileName: string): string {
+  const stripped = fileName.replace(/\.[^./\\]+$/, "");
+  return stripped.length > 0 ? stripped : fileName;
+}
+
+export interface FileConnectorSource {
+  fileName: string;
+  fileKind: FileKind;
+  text?: string;
+  bytes?: ArrayBuffer;
+  /** The logical entity name for CSV/JSON/XML sources, which have no
+   *  sheet/table concept of their own — defaults to the filename with its
+   *  extension stripped. Ignored for XLSX, where each sheet name IS its
+   *  own entity (see `discoverEntities()` below). */
+  entity?: string;
+}
+
+/**
+ * FVL-04.014 hardening (Session 7, Part B) — a real `SourceConnector`
+ * implementation for generic files, so the common connector contract is
+ * something a FILE source genuinely implements, not merely an interface
+ * sitting unused next to a standalone `stageFile()` function. Internally
+ * reuses `stageFile()`/the existing staging functions — no parser or
+ * staging logic is duplicated here.
+ */
+export function createFileConnector(sourceSystemId: string, source: FileConnectorSource, opts: StageOptions, deps?: FileConnectorDeps): SourceConnector {
+  const identity = connectorIdentity(sourceSystemId, "FILE");
+  const logicalEntity = source.entity ?? defaultEntityName(source.fileName);
+
+  return {
+    identity,
+    async discoverEntities(): Promise<string[]> {
+      if (source.fileKind !== "xlsx") return [logicalEntity];
+      if (!deps?.readWorkbook) return [];
+      try {
+        const sheets = await deps.readWorkbook(source.bytes ?? new ArrayBuffer(0));
+        return sheets.map((s) => s.sheetName);
+      } catch {
+        return [];
+      }
+    },
+    async extract(entity: string): Promise<ConnectorResult> {
+      return stageFile(
+        sourceSystemId,
+        entity,
+        { fileName: source.fileName, fileKind: source.fileKind, text: source.text, bytes: source.bytes, sheetName: source.fileKind === "xlsx" ? entity : undefined },
+        opts,
+        deps,
+      );
+    },
+  };
 }

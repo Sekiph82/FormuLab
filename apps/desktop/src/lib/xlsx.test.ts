@@ -117,18 +117,22 @@ describe("FVL-04.014 hardening B2/B3/B5: the REAL readWorkbookAllSheets wired as
     const result = await stageFile(
       "CHT_LIMS",
       "materials",
-      { fileName: "customer-material-master.xlsx", fileKind: "xlsx", byteSize: bytes.byteLength, bytes, sheetName: "Materials" },
+      { fileName: "customer-material-master.xlsx", fileKind: "xlsx", bytes, sheetName: "Materials" },
       opts,
       { readWorkbook: readWorkbookAllSheets },
     );
     expect(result.errors).toEqual([]);
     expect(result.records[0].fields.Chemical_ID).toBe("883729");
-    expect(result.sourceResource).toMatchObject({ resourceName: "customer-material-master.xlsx#Materials", byteSize: bytes.byteLength });
+    // Session 7 hardening: resourceName is never overloaded with the sheet
+    // name (the previous `#Materials` suffix is gone) — the real byte size
+    // is derived internally from the actual ArrayBuffer, never trusted from
+    // a caller-supplied field.
+    expect(result.sourceResource).toMatchObject({ resourceName: "customer-material-master.xlsx", subResourceName: "Materials", byteSize: bytes.byteLength });
   });
 
   it("a genuinely corrupt/non-xlsx byte buffer produces a structured corrupt_xlsx connector error through the REAL ExcelJS reader, never a leaked raw exception", async () => {
     const garbage = new TextEncoder().encode("this is not a zip file, it is just plain text pretending to be xlsx").buffer;
-    const result = await stageFile("CHT_LIMS", "materials", { fileName: "corrupt.xlsx", fileKind: "xlsx", byteSize: garbage.byteLength, bytes: garbage }, opts, { readWorkbook: readWorkbookAllSheets });
+    const result = await stageFile("CHT_LIMS", "materials", { fileName: "corrupt.xlsx", fileKind: "xlsx", bytes: garbage }, opts, { readWorkbook: readWorkbookAllSheets });
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toMatchObject({ code: "corrupt_xlsx", stage: "parse", retryable: false });
     expect(result.records).toEqual([]);
