@@ -36,15 +36,21 @@ contract) — see "FVL-04.013-.018 final correction (Session 8)",
 **FVL-04.019 — COMPLETED** (Formula/Recipe Relationship Import),
 **FVL-04.020 — COMPLETED** (Laboratory/Test Result Relationship
 Import), **FVL-04.021 — COMPLETED** (Generic Database Read Connector —
-engine layer; real driver adapter wired later, see its own resolution
-section) — see their own resolution sections below. FVL-04.022-.026
-remain blank, none started.
+engine layer; real driver adapter wired later), **FVL-04.022 —
+COMPLETED** (REST API Connector Contract — engine layer; real HTTP
+client adapter wired later) — see their own resolution sections below.
+FVL-04.023-.026 remain blank, none started.
 
 ## Current task
 
-**`FVL-04.022`** — blank, **NOT STARTED** (REST API Connector
-Contract). FVL-04.019/.020/.021 just closed — see their own resolution
-sections below. FVL-04.013-.018 (External
+**`FVL-04.023`** — blank, **NOT STARTED** (Incremental Re-import /
+Conflict Handling — depends on FVL-04.024, the Connector -> Data
+Exchange Bridge, which is built next; the queued task order named
+.023 before .024 but the tracker's own dependency graph requires the
+bridge to exist first, so this session builds .024 before .023,
+documented here rather than silently reordered). FVL-04.019/.020/
+.021/.022 just closed — see their own resolution sections below.
+FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
 Transformation/Unit/Enum Mapping) all COMPLETED in an earlier session,
@@ -148,6 +154,27 @@ reaches the adapter, proven not a naive substring match. `connectionRef`
 is opaque — no credential field exists anywhere on the contract.
 `pnpm --filter @formulab/shared test`: 1590/1590 (75 files, 15 new).
 `typecheck`: clean both packages. FVL-04 now 21/26.
+
+## FVL-04.022 resolution (this session — REST API Connector Contract)
+
+New `restApiConnector.ts` — a real `SourceConnector` for REST APIs, the
+same shape `createFileConnector()`/`createDatabaseConnector()` already
+implement. Pagination follows each page's own `nextCursor` (the
+adapter's own convention, never guessed here), capped by `maxPages`
+(default 500) so a misbehaving API cannot page forever. Every page's
+JSON body reuses the SAME `stageJsonFile()` staging logic (generalized
+to accept its own `connectorType`, like `stageRows()` in the same task).
+Real gap found and fixed while wiring this: staging each page
+independently gave records an ordinal identity relative to their OWN
+page, so two pages' first records would collide on the same ordinal
+`sourceRecordId` — fixed with a post-merge renumbering pass across the
+whole batch (a configured external ID is never touched). Auth is a
+`connectionRef` reference only, resolved server-side by the desktop-only
+`fetchPage` adapter (wired later, the same boundary FVL-04.021's own
+`executeQuery` established) — this module never issues an HTTP request
+or sees a raw credential. `pnpm --filter @formulab/shared test`:
+1601/1601 (76 files, 11 new). `typecheck`: clean both packages. FVL-04
+now 22/26.
 
 ## FVL-04.013-.018 final correction (Session 8, this session — narrow, four-part final correction)
 

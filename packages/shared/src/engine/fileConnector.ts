@@ -227,7 +227,14 @@ function findRecordArray(parsed: unknown): unknown[] | undefined {
   return undefined;
 }
 
-export function stageJsonFile(sourceSystemId: string, entity: string, jsonText: string, opts: StageOptions): ConnectorResult {
+/**
+ * `connectorType` defaults to `"FILE"` — every pre-existing caller is
+ * unaffected. FVL-04.022's REST API connector passes `"REST_API"` and
+ * its own already-fetched page body text, reusing this exact JSON
+ * flattening/staging logic rather than a second implementation — see
+ * `stageRows()`'s own doc comment for the same discipline.
+ */
+export function stageJsonFile(sourceSystemId: string, entity: string, jsonText: string, opts: StageOptions, connectorType: ConnectorIdentity["connectorType"] = "FILE"): ConnectorResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonText);
@@ -246,7 +253,7 @@ export function stageJsonFile(sourceSystemId: string, entity: string, jsonText: 
     else records.push(staged.record!);
   });
   return {
-    connector: connectorIdentity(sourceSystemId, "FILE"),
+    connector: connectorIdentity(sourceSystemId, connectorType),
     entity,
     records,
     warnings: [],

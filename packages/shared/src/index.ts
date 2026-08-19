@@ -582,6 +582,7 @@ export * from "./engine/connectorFingerprint";
 export * from "./engine/xmlParser";
 export * from "./engine/fileConnector";
 export * from "./engine/databaseConnector";
+export * from "./engine/restApiConnector";
 export * from "./engine/schemaDiscovery";
 export * from "./engine/mappingProfile";
 export * from "./engine/crosswalk";
