@@ -33,11 +33,15 @@ contract) — see "FVL-04.013-.018 final correction (Session 8)",
 "FVL-04.013-.018 hardening (Session 7)", "FVL-04.013-.018 hardening
 (Session 6)", and "FVL-04.013-.018 resolution (Session 5)" below.
 **FVL-04 EXTERNAL CONNECTOR FOUNDATION — FINAL CLOSURE VERIFIED.**
-FVL-04.019-.026 remain blank, none started.
+**FVL-04.019 — COMPLETED** (Formula/Recipe Relationship Import — see
+"FVL-04.019 resolution" below). FVL-04.020-.026 remain blank, none
+started.
 
 ## Current task
 
-**`FVL-04.019`** — blank, **NOT STARTED**. FVL-04.013-.018 (External
+**`FVL-04.020`** — blank, **NOT STARTED** (Laboratory/Test Result
+Relationship Import). FVL-04.019 just closed — see "FVL-04.019
+resolution" below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
 Transformation/Unit/Enum Mapping) all COMPLETED in an earlier session,
@@ -73,6 +77,35 @@ template + real UI consumer) and a dedicated per-material TDS/SDS/
 specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
+
+## FVL-04.019 resolution (this session — Formula/Recipe Relationship Import)
+
+Audit found the existing `formula_bom` Data Exchange template (registered
+in an earlier session) already covers most of this task: real reference
+validation on `material_code` (REQUIRED, `raw_materials`), exact decimal
+percent/quantity passthrough, `formula_code`/`formula_version` preserved
+directly as the canonical `Formulation.code`/`FormulationVersion.
+versionNumber` (blank `formula_version` auto-appends the next version),
+no trade-name matching anywhere. One real gap found and fixed:
+`commitFormulaBom` built the saved version through the bare `newVersion()`
+helper, which never computes `totalsSnapshot`/`validationSnapshot` — an
+imported formula silently skipped the SAME mass/composition-structure
+validation (`validateFormula()`) every hand-authored version gets. Fixed
+by switching to the single-authority `createVersion()`
+(`engine/versioning.ts`), the exact function the real Formula Builder
+save path already uses. New end-to-end test proves a customer recipe's
+material reference resolves through the REAL External ID Crosswalk
+before reaching `formula_bom.material_code`, fans two lines into one
+real `FormulationVersion`, and that version's totals/validation are
+genuinely computed. Two disclosed non-blocking scope decisions:
+`quantity_unit` has no dedicated known-unit check (not required; unit
+normalization is the upstream mapping/transformation layer's own job);
+"source lineage" is satisfied by the EXISTING Data Exchange import-job
+history plus the connector's own `MappingResult.trace` — deliberately
+not a second lineage field on `Formulation`, consistent with FVL-04.024's
+own "no second import-history model" requirement.
+`pnpm --filter @formulab/desktop test`: 1556/1556 (158 files).
+`typecheck`/`lint`: clean. FVL-04 now 19/26.
 
 ## FVL-04.013-.018 final correction (Session 8, this session — narrow, four-part final correction)
 

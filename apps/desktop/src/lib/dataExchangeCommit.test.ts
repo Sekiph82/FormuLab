@@ -678,8 +678,13 @@ describe("commitDataExchangeRows — formula/BOM (grouped)", () => {
     expect(outcomes).toHaveLength(2);
     expect(outcomes.every((o) => o.outcome === "created")).toBe(true);
     expect(formulationsBridge.saveFormulationVersion).toHaveBeenCalledTimes(1);
-    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: unknown[] };
+    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: unknown[]; totalsSnapshot?: { totalPercent: string }; validationSnapshot?: { errorCount: number } };
     expect(saved.lines).toHaveLength(2);
+    // FVL-04.019 — an imported version gets the SAME real totals/mass-
+    // composition validation any hand-authored version gets (via the
+    // shared `createVersion()`), never silently skipped.
+    expect(saved.totalsSnapshot?.totalPercent).toBe("100.0000");
+    expect(saved.validationSnapshot?.errorCount).toBe(0);
   });
 
   it("refuses to overwrite an existing, immutable formula version", async () => {

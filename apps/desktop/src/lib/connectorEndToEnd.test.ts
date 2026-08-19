@@ -81,9 +81,44 @@ vi.mock("@/lib/masterdata", () => ({
   nowIso: () => "2026-01-01T00:00:00.000Z",
 }));
 
+/**
+ * FVL-04.019 — a realistic in-memory Formulation/FormulationVersion store,
+ * the same role the masterdata mock above plays for regular Data Exchange
+ * templates. `formula_bom`'s commit handler is the one handler that reads/
+ * writes through `./formulations` (a Tauri-backed module outside a real
+ * desktop runtime) rather than `@/lib/masterdata` — mocked here so its
+ * real `newFormulation()`/`newVersion()`/pure helpers stay real (kept via
+ * `importOriginal`) while only the four I/O functions are backed by this
+ * in-memory store, never a shallow stub.
+ */
+const formulationsStore = new Map<string, { formulation: unknown; versions: unknown[] }>();
+vi.mock("./formulations", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./formulations")>();
+  return {
+    ...actual,
+    listFormulations: async () => [...formulationsStore.values()].map((f) => f.formulation),
+    readFormulation: async (id: string) => {
+      const entry = formulationsStore.get(id);
+      return { formulation: entry?.formulation, versions: entry?.versions ?? [] };
+    },
+    saveFormulation: async (f: { id: string }) => {
+      const existing = formulationsStore.get(f.id);
+      formulationsStore.set(f.id, { formulation: f, versions: existing?.versions ?? [] });
+      return f;
+    },
+    saveFormulationVersion: async (v: { formulationId: string }) => {
+      const entry = formulationsStore.get(v.formulationId);
+      if (!entry) throw new Error(`no formulation ${v.formulationId}`);
+      entry.versions.push(v);
+      return v;
+    },
+  };
+});
+
 import { commitDataExchangeRows } from "./dataExchangeCommit";
 import { persistCrosswalkEntry } from "./connectorPersistence";
 import { buildReferenceResolver } from "./dataExchangeExisting";
+import { listFormulations, readFormulation } from "./formulations";
 
 const ctx = { actorUserId: "local", actorRole: "administrator" as const };
 
@@ -134,6 +169,7 @@ async function previewAndCommit(candidate: MappingCandidateRow): Promise<{ previ
 
 beforeEach(() => {
   store.clear();
+  formulationsStore.clear();
   vi.clearAllMocks();
 });
 
@@ -444,6 +480,96 @@ describe("Session 8 Part 7 (REF1-REF11): the new field-aware 3-part reference co
     const { preview, commit } = await previewAndCommit({ targetTemplate: "artwork_register", row: { artwork_code: "REF-ART-NEW", label_code: "REF-LBL-3", status: "draft", supersedes_artwork_code: "REF-ART-PRIOR" } });
     expect(preview.state).toBe("valid_create");
     expect(commit.outcome).toBe("created");
+  });
+});
+
+describe("FVL-04.019 — Formula/Recipe Relationship Import: real crosswalk-resolved material codes, real composition-validated commit", () => {
+  it("a customer recipe (Formula_ID/Line_No/Chem_ID/Pct) resolves its material references through the real External ID Crosswalk, fans into formula_bom, and commits one FormulationVersion with real totals/validation attached — never silently skipped, never a trade-name guess", async () => {
+    // The referenced material must already exist canonically — a
+    // crosswalk only translates the customer's own ID into this real
+    // code, it never fabricates the target itself.
+    store.set("materials", [{ code: "RM-00291" }]);
+
+    const { record: crosswalk, refused } = await persistCrosswalkEntry({
+      sourceSystemId: "CHT_LIMS",
+      sourceEntity: "materials",
+      sourceIdentity: { sourceRecordId: "883729", idSource: "configured" },
+      canonicalEntity: "RawMaterial",
+      canonicalRecordId: "RM-00291",
+    });
+    expect(refused).toBeUndefined();
+    expect(crosswalk).toBeDefined();
+
+    const csv = ["Formula_ID,Formula_Name,Line_No,Chem_ID,Pct", "F-100,Gentle Cleanser,1,883729,60", "F-100,Gentle Cleanser,2,883729,40"].join("\n");
+    const staged = stageCsvFile("CHT_LIMS", "recipes", csv, { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" });
+    expect(staged.errors).toEqual([]);
+    const schema = discoverSourceSchema("CHT_LIMS", [{ entity: "recipes", records: staged.records }]);
+
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: "cht-lims-recipes::v1",
+      profileId: "cht-lims-recipes",
+      profileName: "CHT_LIMS recipes",
+      sourceSystemId: "CHT_LIMS",
+      sourceEntity: "recipes",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "Formula_ID", targetTemplate: "formula_bom", targetField: "formula_code" },
+        { sourceField: "Formula_Name", targetTemplate: "formula_bom", targetField: "formula_name" },
+        { sourceField: "Line_No", targetTemplate: "formula_bom", targetField: "line_number" },
+        // The real point of this test: the customer's own "Chem_ID" is
+        // never trusted as a FormuLab material_code directly — it is
+        // resolved through the crosswalk into the real canonical code
+        // first. An unresolvable Chem_ID would leave the field
+        // unmapped, surfacing as a REQUIRED reference_missing at Data
+        // Exchange preview time (never a silent trade-name guess).
+        { sourceField: "Chem_ID", targetTemplate: "formula_bom", targetField: "material_code", transformations: [{ op: "resolve_crosswalk", config: { sourceEntity: "materials", canonicalEntity: "RawMaterial" } }] },
+        { sourceField: "Pct", targetTemplate: "formula_bom", targetField: "percentage" },
+      ],
+      // formula_bom's own natural key includes formula_version, but its
+      // commit handler explicitly treats a blank value as "auto-append
+      // the next version" (never a fabricated version number) — an
+      // explicit empty constant mapping is how this profile declares
+      // that intent, satisfying the fan-out identity-coverage check
+      // (D5) without hand-authoring a version number that isn't this
+      // source's concept to assign.
+      constantMappings: [{ targetTemplate: "formula_bom", targetField: "formula_version", value: "" }],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    expect(validateMappingProfile(profile, schema)).toEqual([]);
+
+    const crosswalks = (store.get("external_id_crosswalks") ?? []) as unknown as ExternalIdCrosswalk[];
+    const resolver = (entity: string, id: string, canonicalEntity: string) => resolveCrosswalk(crosswalks, "CHT_LIMS", entity, id, canonicalEntity);
+
+    const template = getDataExchangeTemplate("formula_bom")!;
+    const headers = template.columns.map((c) => c.key);
+    const referenceResolver = await buildReferenceResolver(referenceRequirementsFor(template));
+    const previewRows = staged.records.map((record) => {
+      const mapped = applyMappingProfile(profile, record, { resolveCrosswalk: resolver });
+      expect(mapped.errors).toEqual([]);
+      const candidate = mapped.candidates.find((c) => c.targetTemplate === "formula_bom")!;
+      expect(candidate.row.material_code).toBe("RM-00291"); // resolved, not the raw "883729"
+      const values = headers.map((h) => candidate.row[h] ?? "");
+      return previewDataExchangeImport(template, [headers, values], { resolveReference: referenceResolver }).rows[0];
+    });
+    expect(previewRows.every((r) => r.state === "valid_create")).toBe(true);
+
+    const outcomes = await commitDataExchangeRows(template, previewRows, ctx);
+    expect(outcomes.every((o) => o.outcome === "created")).toBe(true);
+
+    const formulations = await readFormulation((await listFormulations()).find((f) => f.code === "F-100")!.id);
+    expect(formulations.versions).toHaveLength(1);
+    const version = formulations.versions[0];
+    expect(version.lines).toHaveLength(2);
+    expect(version.lines.every((l) => l.materialCode === "RM-00291")).toBe(true);
+    // The real fix this task closes: an imported version's totals/mass-
+    // composition validation are genuinely computed, not silently blank.
+    expect(version.totalsSnapshot?.totalPercent).toBe("100.0000");
+    expect(version.validationSnapshot?.errorCount).toBe(0);
   });
 });
 

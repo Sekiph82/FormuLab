@@ -89,11 +89,13 @@ import {
   REGULATORY_JURISDICTIONS,
   REGULATORY_RULE_TYPES,
   CLAIM_CATEGORIES,
+  createVersion,
+  type FormulationDraft,
 } from "@formulab/shared";
 import { listRecords, upsertRecords, nowIso, type Collection } from "./masterdata";
 
 const PHYSICAL_FORMS = ["liquid", "powder", "granule", "paste", "flake", "pellet", "gas", "solid", "gel"] as const;
-import { listFormulations, readFormulation, saveFormulation, saveFormulationVersion, newFormulation, newVersion } from "./formulations";
+import { listFormulations, readFormulation, saveFormulation, saveFormulationVersion, newFormulation } from "./formulations";
 
 export interface DataExchangeRowCommitOutcome {
   rowNumber: number;
@@ -640,9 +642,30 @@ const commitFormulaBom: Handler = async (r, ctx) => {
     provenance: { origin: "chemist_override" as const, evidenceClaimIds: [] },
     notes: l.notes,
   }));
-  const version = newVersion(formulation.id, lines, {
-    versionNumber: requested ?? nextNumber,
+  // FVL-04.019 — reuse the SAME single-authority version-construction
+  // function the hand-authored Formula Builder path uses
+  // (`createVersion()`, `engine/versioning.ts`), never the bare
+  // `newVersion()` helper — a Data Exchange-imported version must get the
+  // same real `totalsSnapshot`/`validationSnapshot` (mass/composition
+  // structure, via the existing `validateFormula()`) any other version
+  // gets, not silently skip it. Findings are attached, never blocking —
+  // the same non-blocking discipline the builder's own save path uses;
+  // an imported formula that doesn't sum to 100% is still saved, with the
+  // real finding visible, never silently "fixed" or refused.
+  const draft: FormulationDraft = {
+    schemaVersion: "1.0",
+    formulationId: formulation.id,
+    lines,
+    basisBatchKg: formulation.targetBatchKg,
+    updatedAt: nowIso(),
+    dirty: false,
+  };
+  const version = createVersion({
+    formulation,
+    draft,
     changeReason: `Imported via Data Exchange by ${ctx.actorUserId} (${ctx.actorRole}).`,
+    author: ctx.actorUserId,
+    nextVersionNumber: requested ?? nextNumber,
   });
   await saveFormulationVersion(version);
   return { outcome: "created", targetCollection: "formulations", targetRecordId: `${formulation.code}#v${version.versionNumber}` };
