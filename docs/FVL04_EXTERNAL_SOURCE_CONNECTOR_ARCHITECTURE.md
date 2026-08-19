@@ -412,3 +412,181 @@ check`/`cargo test masterdata` — 28/28 (3 new: `apply_upsert_*`). No task
 count change — FVL-04 remains 18/26, Total 81/171 (47.4%); this was a
 second hardening pass on already-COMPLETED tasks, not new task
 completion.
+
+## Hardening (Session 8, 2026-08-19/20) — final reference & version-chain integrity correction
+
+A narrow, four-part final correction pass. Session 7's own claim that
+"production Data Exchange reference validation now works" was true but
+incomplete: it worked only for references into a target whose OWN natural
+key is a single field. Every finding below was verified against current
+code, fixed, and re-tested; Sessions 6/7's hardening sections above are
+left unchanged.
+
+**1. Reference resolution made genuinely field-aware.** The prior
+resolver contract was `resolveReference(referenceTemplate, key): boolean`
+and checked the key against the TARGET TEMPLATE'S OWN composite
+`naturalKeys` set (e.g. `"SKU-001::BOTTLE-01"`) regardless of which single
+FIELD (`packaging_sku_code`) the referencing column actually needed. For
+every real reference into a composite-natural-key template
+(`packaging_bom`, `label_content`, `doe_factors_responses`,
+`reverse_formula_candidates`, `formula_bom`), this was a live false
+negative: a genuinely valid reference (`packaging_sku_code: "SKU-001"`,
+which is real and present) would resolve `false`, because
+`naturalKeys.has("SKU-001")` is false — only the full composite string is
+a member. Fixed: the contract is now
+`resolveReference(referenceTemplate, referenceField, key): boolean`. A
+new `resolveColumnReferenceField(column)` (`dataExchangeValidation.ts`) is
+the single authority for which field a `code_reference` column resolves
+against — the column's own explicit `referenceField` when set, else the
+target's single natural-key field when the target's natural key has
+exactly one field, else a deterministic `configError` (never a guess).
+`buildReferenceResolver()` (`dataExchangeExisting.ts`) was rewritten to
+take `{referenceTemplate, referenceField}[]` requirements and index
+arbitrary EXPORTED FIELDS from each template's own `rows` (reusing the
+same loader output `ExistingLookup` already provides — no second
+per-template reference registry), caching the underlying record load per
+TEMPLATE and the resolved value set per `(template, field)` pair so a
+template referenced by two different fields loads its collection once.
+`resolveColumnReferenceField()` is reused identically by the validator's
+own row loop, `DataExchangeImportDialog.tsx`'s requirement-gathering, and
+`connectorEndToEnd.test.ts`'s requirement-gathering — one real authority,
+never a parallel implementation.
+
+**Registry audit: zero real gaps.** A full audit of every
+`code_reference` column with a `referenceTemplate` in
+`dataExchangeRegistry.ts` (~94 columns) found every single one already
+carries an explicit `referenceField` — the bug was entirely in the
+RESOLVER LOGIC, not in registry metadata. `resolveColumnReferenceField()`'s
+composite-key-without-`referenceField` fallback-failure path is currently
+unreachable in production, locked in by a new
+`dataExchangeRegistry.consistency.test.ts` (57 tests) that fails the
+build the moment any future column violates the invariant (a
+`referenceTemplate` whose target either has no matching column at the
+named `referenceField`, or has no explicit `referenceField` and a
+composite natural key) — the exact bug class closed here can never
+silently reappear as the registry grows.
+
+**2. Blanket self-reference bypass removed.** `dataExchangeValidation.ts`
+previously special-cased `column.referenceTemplate === template.templateCode
+? true : ...` — any self-reference (e.g.
+`artwork_register.supersedes_artwork_code -> artwork_register.artwork_code`)
+was accepted unconditionally, without ever checking the referenced value
+actually existed. Removed; a self-reference now goes through the exact
+same field-aware resolution as any other reference. Policy decision,
+made explicit rather than left implicit: a self-reference must already
+exist in canonical storage AT PREVIEW TIME — same-file forward references
+(a row referencing another row in the same import batch that hasn't been
+committed yet) are deliberately NOT supported. Proven by SELF1-4 in
+`dataExchangeValidation.test.ts`: an existing self-reference passes
+(SELF1); a missing one is reported not-found — and since
+`supersedes_artwork_code` is not itself a `required` column in the
+registry (no `required` self-reference column exists anywhere in it),
+this degrades to a warning rather than a hard block, honestly matching
+the column's own declared required-ness, never silently treated as valid
+(SELF2); a row naming ITSELF as its own supersession target is validated
+normally and fails, since it does not exist in canonical storage yet —
+never auto-accepted merely because the target template equals the row's
+own template (SELF3); a source-text check (with comments stripped, to
+avoid the self-referential-regex-matching-its-own-doc-comment trap) proves
+no unconditional bypass remains (SELF4).
+
+**3. Mapping Profile version chain made exact.** Session 7's
+`effectiveMappingProfileStatus()` marked a version superseded whenever ANY
+higher-numbered version existed in the same `profileId` family, including
+an unlinked draft that never actually named it as its predecessor —
+too loose. Corrected: a version is now effectively superseded only when
+some OTHER persisted version explicitly names its exact `code` via its
+own `supersedesProfileCode` AND that successor's own `status` is
+`"active"` — a draft successor never deactivates its predecessor.
+`validateMappingProfileSupersession()` now also enforces an exact linear
+chain, no gaps and no branching: `profileVersion === 1` requires no
+`supersedesProfileCode`; every `profileVersion > 1` must equal
+`max(existing) + 1` for its `profileId` family AND its
+`supersedesProfileCode` must equal the CURRENT latest persisted version's
+exact code (a v3 naming v1 as predecessor is rejected whether v2 is
+missing entirely — a gap — or genuinely exists — branching off the wrong
+predecessor). Storage model audited before implementation, per the
+session's own instruction not to invent a second lifecycle database:
+`mapping_profiles` is already append-only with `status` fixed at creation
+(Session 7's own correction) and no separate activation-pointer
+collection exists anywhere in the codebase — the exact model this
+correction assumes (Option A) was already the codebase's real, current
+model; no storage or Rust change was needed. MP1-MP12
+(`mappingProfile.test.ts`) prove: a no-predecessor v1 is valid (MP1); a
+v2 with no `supersedesProfileCode` at all is rejected (MP2); a genuine
+v2->v1 is valid (MP3); a v3->v1 while v2 is missing is rejected as a gap
+(MP4); a v3->v1 while v2 genuinely exists is rejected as branching off
+the wrong predecessor (MP5); v1 active + v2 draft naming v1 leaves v1
+effectively active (MP6); v1 active + v2 active naming v1 leaves v1
+effectively superseded (MP7); a full v1/v2/v3 active chain reports
+correct effective status at every link (MP8); cross-family and duplicate-
+version rejection still hold under the new rule (MP9/MP10); validating
+never mutates any prior version's own object (MP11); an old version's own
+stored `status` field is never rewritten (MP12).
+
+**4. `FileConnectorInput`/`FileConnectorSource` strengthened into
+discriminated unions.** Both were previously a single interface with
+`text?`/`bytes?` optional regardless of `fileKind`, and `stageFile()`
+silently fell back to `input.text ?? ""` / `input.bytes ?? new
+ArrayBuffer(0)` for a caller that got the shape wrong — an empty-content
+default standing in for what should have been a compile-time error. Now
+`TextFileConnectorInput` (`fileKind: "csv"|"json"|"xml"`, `text: string`)
+and `XlsxFileConnectorInput` (`fileKind: "xlsx"`, `bytes: ArrayBuffer`,
+`sheetName?`) are unioned into `FileConnectorInput`; the matching split
+applies to `FileConnectorSource`. Both silent fallbacks are gone from
+`stageFile()`/`createFileConnector()`. Compile-time acceptance
+(`fileConnector.test.ts`) proves CSV/JSON/XML+`text` and XLSX+`bytes` type-
+check, and CSV+`bytes`-only, XLSX+`text`-only, XLSX-without-`bytes`, and
+JSON-without-`text` are each rejected by `tsc` via `@ts-expect-error` —
+each directive itself fails typecheck (TS2578, unused directive) if the
+case it guards ever stopped being an error, so the negative proof cannot
+silently rot.
+
+**Closure-level acceptance rebuilt around the new 3-part contract.**
+`connectorEndToEnd.test.ts` gained REF1-REF11: `material_suppliers` into
+`raw_materials`/`suppliers` (single-key, REQUIRED, both directions);
+`finished_products.packaging_sku_code` into `packaging_bom` (composite-key
+positive/negative resolution proof — no REQUIRED reference into
+`packaging_bom` exists anywhere in the registry, confirmed by audit, so
+this pair honestly demonstrates correct resolution rather than a hard
+block); `artwork_register.label_code` into `label_content` (composite-key,
+REQUIRED — a genuine hard-block proof); `doe_observations.response_code`
+into `doe_factors_responses` (composite-key, REQUIRED — a second genuine
+hard-block proof); `artwork_register.supersedes_artwork_code`
+self-reference to an existing prior artwork (REF11). Every negative case
+asserts `reference_missing` and that the row was never handed to
+`commitDataExchangeRows` at all (matching the file's own established
+FAIL18/J3 convention — `commitDataExchangeRows` trusts its caller and
+will run a handler regardless of row state, so a bad row must stop at
+preview, never reach commit) — the target collection's store length is
+asserted unchanged. `DataExchangeImportDialog.test.tsx` gained four
+dialog-level acceptance tests against the real production dialog, all
+using `artwork_register` (the one real template with both a REQUIRED
+composite-key reference and a self-reference column): A — a real
+`label_code` resolves through `label_content` and commits; B — a missing
+`label_code` is `reference_missing`, the commit button stays disabled, no
+`label_artworks` write occurs; C — an existing self-reference resolves and
+commits; D — a missing self-reference reports "does not exist" but, since
+`supersedes_artwork_code` is not a `required` column, warns rather than
+blocks — the real registry behavior, not the harder framing a required
+self-reference column would produce (none exists in the registry today).
+
+**Overstatement corrected.** Session 7's closure language implied "all
+`code_reference` fields are fully validated" — true for existence-
+checking in general, but the check silently used the wrong key for every
+composite-target reference until this session. That statement is only
+now genuinely true, proven by the registry-wide consistency test plus
+REF1-REF11.
+
+Full re-verification: `pnpm --filter @formulab/shared test` — 1575/1575
+across 74 files (up from 1497+/73 — three new files:
+`dataExchangeRegistry.consistency.test.ts`, plus expanded
+`dataExchangeValidation.test.ts` 85/85 and `mappingProfile.test.ts`
+32/32, plus `fileConnector.test.ts` 37/37 and `dataExchangeExisting.test.ts`
+54/54). `pnpm --filter @formulab/desktop test` — 1555/1555 across 158
+files (`connectorEndToEnd.test.ts` 30/30,
+`DataExchangeImportDialog.test.tsx` 18/18). `typecheck`/`lint` clean both
+packages. No Rust file touched this session — `cargo check`/`cargo test
+masterdata` not re-run (nothing to verify). No task count change — FVL-04
+remains 18/26, Total 81/171 (47.4%); this was a third hardening pass on
+already-COMPLETED tasks, not new task completion.

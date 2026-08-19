@@ -22,13 +22,17 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 **FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
 PROCESS, 18/26 tasks COMPLETED. **FVL-04.001-.012 — COMPLETE, HARDENED,
 AND NO KNOWN CANONICAL/TEMPLATE ONBOARDING GAP REMAINS.** **FVL-04.013-.018
-— COMPLETE AND TWICE-HARDENED** (external source connector contract
+FINAL-HARDENED AND COMPLETED** (external source connector contract
 through transformation/unit/enum mapping, plus two independent
 end-to-end customer fixtures proving the whole chain through real Data
-Exchange commit — including, as of Session 7, the REAL PRODUCTION import
-dialog's own reference resolution, not merely a test path) — see
+Exchange commit — including the REAL PRODUCTION import dialog's own
+reference resolution, now genuinely field-aware for composite-key
+targets, no self-reference bypass, an exact immutable Mapping Profile
+version chain, and a discriminated `FileConnectorInput`/`FileConnectorSource`
+contract) — see "FVL-04.013-.018 final correction (Session 8)",
 "FVL-04.013-.018 hardening (Session 7)", "FVL-04.013-.018 hardening
 (Session 6)", and "FVL-04.013-.018 resolution (Session 5)" below.
+**FVL-04 EXTERNAL CONNECTOR FOUNDATION — FINAL CLOSURE VERIFIED.**
 FVL-04.019-.026 remain blank, none started.
 
 ## Current task
@@ -41,8 +45,8 @@ independently re-audited and hardened in Session 6 (a single
 unit-conversion authority, storage-enforced mapping-profile immutability,
 real end-to-end reference resolution in a TEST path, calendar-valid date
 parsing, stricter decimal validation, honest external-ID identity
-evidence), then independently re-audited a SECOND time and hardened
-again in Session 7 (the most important remaining gap: PRODUCTION's own
+evidence), independently re-audited a SECOND time and hardened again in
+Session 7 (the most important remaining gap at the time: PRODUCTION's own
 `DataExchangeImportDialog` never actually validated `code_reference`
 existence at all — fixed by reusing the existing per-template
 existing-record authority through a new `buildReferenceResolver()`,
@@ -50,8 +54,15 @@ wired into both production and this layer's own end-to-end tests; plus
 file-level provenance corrections, a real generic FILE `SourceConnector`
 implementation, sanitized parse errors, a corrected mapping-profile
 version-lifecycle model, transformation runtime-safety fixes, and
-API-enforced ordinal-crosswalk rejection) — see "FVL-04.013-.018
-hardening (Session 7)" below. FVL-04.005-.012 were closed,
+API-enforced ordinal-crosswalk rejection), then given a narrow FINAL
+correction pass in Session 8 (Session 7's own reference resolver
+silently checked the wrong key for every reference into a
+composite-natural-key target; a blanket self-reference bypass existed;
+the mapping-profile version chain allowed gaps/branching and an unlinked
+draft could wrongly mark an active predecessor superseded; the generic
+file-connector input types allowed an invalid shape to silently default
+to empty content) — see "FVL-04.013-.018 final correction (Session 8)"
+below. FVL-04.005-.012 were closed,
 then independently re-audited and hardened (real gaps found and fixed: a
 unit-contract bug in the Optimizer/Substitution stock fields, a missing
 real Manufacturing Procedure consumer for process_parameters, and a
@@ -62,6 +73,68 @@ template + real UI consumer) and a dedicated per-material TDS/SDS/
 specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
+
+## FVL-04.013-.018 final correction (Session 8, this session — narrow, four-part final correction)
+
+A narrow, explicitly-scoped final correction pass — NOT a redesign of
+FVL-04.013-.018, NOT the start of FVL-04.019. Four defects, all found in
+prior sessions' own work and fixed here:
+
+**1. Reference resolution made genuinely field-aware.** The resolver
+contract checked a reference's key against the TARGET template's own
+composite `naturalKeys` set, regardless of which single field the
+referencing column actually needed — a live false negative for every
+real reference into a composite-natural-key template (`packaging_bom`,
+`label_content`, `doe_factors_responses`, and others). Fixed:
+`resolveReference(referenceTemplate, referenceField, key)`; new
+`resolveColumnReferenceField()` is the one authority for which field a
+column resolves against; `buildReferenceResolver()` rewritten to index
+arbitrary exported fields, not just each template's composite key.
+Registry audit: all ~94 real `code_reference` columns already carry
+explicit `referenceField` — the bug was resolver logic, not registry
+data — now locked in by `dataExchangeRegistry.consistency.test.ts` (57
+tests).
+
+**2. Blanket self-reference bypass removed.** The validator's
+`column.referenceTemplate === template.templateCode ? true : ...` special
+case is gone; self-reference now resolves through the same field-aware
+path as any other reference. Same-file forward references (a row citing
+another uncommitted row in the same batch) are explicitly, deliberately
+NOT supported — documented policy, not a silent gap.
+
+**3. Mapping Profile version chain made exact.** A version is now
+effectively superseded only when some OTHER persisted version explicitly
+names its exact `code` AND that successor's own status is `"active"` — a
+draft successor never deactivates its predecessor. The chain itself must
+be exact and linear: `profileVersion === max(existing) + 1`, and
+`supersedesProfileCode` must equal the current latest version's exact
+code (no gaps, no branching). Storage model audited first, per this
+session's own instruction not to invent a second lifecycle database:
+`mapping_profiles` was already append-only with status fixed at
+creation and no separate activation pointer exists anywhere — Option A
+was already the codebase's real model; no storage/Rust change needed.
+
+**4. `FileConnectorInput`/`FileConnectorSource` strengthened into
+discriminated unions.** CSV/JSON/XML now require `text`; XLSX requires
+`bytes`, at the type level — the prior silent `?? ""` / `?? new
+ArrayBuffer(0)` fallbacks are gone. Proven with `@ts-expect-error`
+compile-time acceptance tests.
+
+Closure-level acceptance rebuilt around the new contract: REF1-REF11 in
+`connectorEndToEnd.test.ts` (single-key and composite-key targets, two
+genuine REQUIRED-into-composite-target hard-block proofs —
+`artwork_register.label_code`/`doe_observations.response_code` — plus an
+honest non-blocking composite proof for `packaging_bom`, since no
+REQUIRED reference into it exists anywhere in the registry); four new
+dialog-level acceptance tests (A-D) against the real production dialog
+in `DataExchangeImportDialog.test.tsx`. Full re-verification:
+`pnpm --filter @formulab/shared test` 1575/1575 (74 files);
+`pnpm --filter @formulab/desktop test` 1555/1555 (158 files);
+`typecheck`/`lint` clean both packages; no Rust file touched this
+session; `python scripts/validate_v1_tracker.py` OK, 171 tasks, no
+drift; `git diff --check` clean. See
+`docs/FVL04_EXTERNAL_SOURCE_CONNECTOR_ARCHITECTURE.md`'s own Session 8
+section and each task's own tracker row for full per-item detail.
 
 ## FVL-04.013-.018 hardening (Session 7, this session — second independent review corrections)
 
