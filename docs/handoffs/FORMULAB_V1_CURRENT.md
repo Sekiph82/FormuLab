@@ -22,11 +22,13 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 **FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
 PROCESS, 18/26 tasks COMPLETED. **FVL-04.001-.012 — COMPLETE, HARDENED,
 AND NO KNOWN CANONICAL/TEMPLATE ONBOARDING GAP REMAINS.** **FVL-04.013-.018
-— COMPLETE AND HARDENED** (external source connector contract through
-transformation/unit/enum mapping, plus two independent end-to-end
-customer fixtures proving the whole chain through real Data Exchange
-commit with REAL reference resolution) — see "FVL-04.013-.018 hardening
-(Session 6)" and "FVL-04.013-.018 resolution (Session 5)" below.
+— COMPLETE AND TWICE-HARDENED** (external source connector contract
+through transformation/unit/enum mapping, plus two independent
+end-to-end customer fixtures proving the whole chain through real Data
+Exchange commit — including, as of Session 7, the REAL PRODUCTION import
+dialog's own reference resolution, not merely a test path) — see
+"FVL-04.013-.018 hardening (Session 7)", "FVL-04.013-.018 hardening
+(Session 6)", and "FVL-04.013-.018 resolution (Session 5)" below.
 FVL-04.019-.026 remain blank, none started.
 
 ## Current task
@@ -35,12 +37,21 @@ FVL-04.019-.026 remain blank, none started.
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
 Transformation/Unit/Enum Mapping) all COMPLETED in an earlier session,
-then independently re-audited and hardened this session (real gaps
-found and fixed: a single unit-conversion authority, storage-enforced
-mapping-profile immutability, real end-to-end reference resolution,
-calendar-valid date parsing, stricter decimal validation, honest
-external-ID identity evidence) — see "FVL-04.013-.018 hardening
-(Session 6)" below. FVL-04.005-.012 were closed,
+independently re-audited and hardened in Session 6 (a single
+unit-conversion authority, storage-enforced mapping-profile immutability,
+real end-to-end reference resolution in a TEST path, calendar-valid date
+parsing, stricter decimal validation, honest external-ID identity
+evidence), then independently re-audited a SECOND time and hardened
+again in Session 7 (the most important remaining gap: PRODUCTION's own
+`DataExchangeImportDialog` never actually validated `code_reference`
+existence at all — fixed by reusing the existing per-template
+existing-record authority through a new `buildReferenceResolver()`,
+wired into both production and this layer's own end-to-end tests; plus
+file-level provenance corrections, a real generic FILE `SourceConnector`
+implementation, sanitized parse errors, a corrected mapping-profile
+version-lifecycle model, transformation runtime-safety fixes, and
+API-enforced ordinal-crosswalk rejection) — see "FVL-04.013-.018
+hardening (Session 7)" below. FVL-04.005-.012 were closed,
 then independently re-audited and hardened (real gaps found and fixed: a
 unit-contract bug in the Optimizer/Substitution stock fields, a missing
 real Manufacturing Procedure consumer for process_parameters, and a
@@ -51,6 +62,115 @@ template + real UI consumer) and a dedicated per-material TDS/SDS/
 specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
+
+## FVL-04.013-.018 hardening (Session 7, this session — second independent review corrections)
+
+A SECOND independent repository-level review of Session 6's own closure
+below found further real gaps. All were independently re-verified
+against current code (not trusted from the prior log), fixed, and
+re-tested; task counts are unchanged — FVL-04 stays 18/26, Total 81/171.
+Full detail in each task's own tracker row and
+`docs/FVL04_EXTERNAL_SOURCE_CONNECTOR_ARCHITECTURE.md`'s own Session 7
+Hardening section.
+
+**The single most important finding**: the REAL production import
+screen, `DataExchangeImportDialog.tsx`, called `previewDataExchangeImport()`
+with NO `resolveReference` at all — real user uploads never validated
+`code_reference` existence, even though Session 6 had already proven the
+validator itself works correctly in a TEST path. Fixed by reusing the
+EXISTING per-template existing-record authority (`dataExchangeExisting.ts`'s
+`loadExisting`/`loadExistingFormulaBom`) through a new
+`buildReferenceResolver(referenceTemplates)`, wired into the dialog's own
+preview call — generic, registry-driven, no new reference engine, no
+material/supplier-specific branch. This immediately surfaced 5
+pre-existing `DataExchangeImportDialog.test.tsx` fixtures that had never
+actually seeded their referenced parent records — they only ever
+"passed" because production validated nothing; fixed by seeding the
+referenced parents in each fixture. `connectorEndToEnd.test.ts` was
+rebuilt around the SAME `buildReferenceResolver()`, never a parallel
+test-only implementation.
+
+**Other real gaps found and fixed:**
+
+1. **File-level provenance was still wrong** — the XLSX `contentFingerprint`
+   fingerprinted the SELECTED SHEET's own rows, not the file; selecting a
+   different sheet of the same file produced a different fingerprint, and
+   `resourceName` had the sheet folded into it (`"file.xlsx#Materials"`).
+   Fixed: new `fingerprintBytes()` fingerprints the raw workbook bytes
+   directly (same file, different sheet → identical fingerprint, proven);
+   new `SourceResourceMetadata.subResourceName` carries the sheet
+   separately. `byteSize` — previously caller-supplied and therefore
+   able to lie — removed entirely from `FileConnectorInput`; always
+   derived internally (real UTF-8 byte length via `TextEncoder` for text
+   formats, proven against a multibyte fixture distinguishing it from JS
+   `string.length`; real `ArrayBuffer.byteLength` for XLSX).
+2. **No real generic FILE `SourceConnector` implementation existed** —
+   the common contract was only an unimplemented interface next to a
+   standalone `stageFile()` function. New `createFileConnector()` now
+   genuinely implements it (`discoverEntities()` returns real XLSX sheet
+   names), reusing `stageFile()` internally, no duplicated logic.
+3. **Raw parser exceptions could leak** — every parse-failure path
+   previously interpolated the underlying library's own `.message` into
+   `ConnectorError.message`. Fixed: every failure now returns a stable,
+   hand-written message; `detail` carries only the exception's
+   constructor name. Proven executably (a real credential + real path in
+   a thrown error, asserted absent from the serialized result), not by
+   source-text inspection.
+4. **Mapping-profile version lifecycle had a real contradiction** —
+   Session 6's append-only fix meant a persisted `active` v1 could never
+   be rewritten to `"superseded"`, yet nothing said so explicitly. Fixed:
+   a version's `status` is now understood as its status AT CREATION,
+   never rewritten; "currently superseded" is a DERIVED fact via new
+   `effectiveMappingProfileStatus()`. The ambiguous `supersedesProfileId`
+   replaced with exact `supersedesProfileCode`; new
+   `validateMappingProfileSupersession()` rejects self-supersession, a
+   nonexistent target, cross-family supersession, and duplicate codes.
+5. **A real transformation runtime-throw risk** — `map_boolean`'s blind
+   `as string[]` cast could throw `TypeError` on malformed config that
+   bypassed profile validation. Fixed with explicit shape checks at BOTH
+   runtime and validation time; `map_enum`/`parse_decimal` hardened
+   similarly. `resolve_crosswalk` now requires an explicit `sourceEntity`
+   or `sameEntity:true` (no more accidental `ctx.currentEntity` fallback);
+   a configured `fallbackCanonicalField` is now validated against the
+   discovered source schema.
+6. **Ordinal-crosswalk rejection was convention-only** — nothing in
+   `persistCrosswalkEntry()`'s own signature prevented an ordinal
+   identity from being passed. Fixed: `sourceIdentity: { sourceRecordId,
+   idSource }` is now REQUIRED; an `"ordinal"` identity is refused before
+   any storage call runs.
+7. **Rust storage acceptance was metadata-only** — new pure
+   `apply_upsert()`, extracted from the async Tauri command, is directly
+   unit-tested against disposable in-memory rows, proving the real
+   merge/rejection behavior, not just the collection's own `append_only`
+   flag.
+8. **`explicit_primary_key` was a dead enum value** — removed;
+   `metadata_primary_key` (which has a real input path) retained.
+9. **Fingerprint stability had one more real gap** — `observedTypes` was
+   still in the fingerprint input (sample-derived, not declared
+   structure); a `Quantity` column reading numeric in one batch and text
+   in the next produced two different fingerprints for the identical
+   header/structure. Removed from the fingerprint input entirely.
+10. **Null-token recognition was hardcoded** — new
+    `nullTokenCandidates` config extends (never replaces) the default
+    recognizer with customer-specific tokens.
+
+Verified: `pnpm --filter @formulab/shared test` — full suite green (73
+files, `transformation.test.ts` 40/40 with 10 new, `schemaDiscovery.test.ts`
+33/33, `fileConnector.test.ts` 36/36, `mappingProfile.test.ts` 20/20).
+`pnpm --filter @formulab/desktop test` — full suite green
+(`connectorEndToEnd.test.ts` rebuilt to 24/24, `DataExchangeImportDialog.test.tsx`
+14/14 after the 5-fixture seeding fix, `connectorPersistence.test.ts`
+10/10). `typecheck`/`lint` — clean on both packages. `cargo check`/`cargo
+test masterdata` — 28/28 (3 new: `apply_upsert_*`). `python
+scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift (one
+self-inflicted false-positive from a literal `|` character inside this
+session's own tracker prose, matching the SAME class of bug Session 6
+also hit and fixed, found and corrected before final validation). `git
+diff --check` — clean (LF/CRLF warnings only). No FVL-04.019+ work
+started; no second Data Exchange/canonical registry/masterdata system/
+business engine; no LLM mapper/schema-discovery layer; no arbitrary
+executable mapping code; no real customer data mutated (every fixture
+uses a mocked/disposable masterdata bridge or store).
 
 ## FVL-04.013-.018 hardening (Session 6, this session — independent review corrections)
 
