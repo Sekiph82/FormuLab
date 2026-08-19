@@ -33,15 +33,17 @@ contract) — see "FVL-04.013-.018 final correction (Session 8)",
 "FVL-04.013-.018 hardening (Session 7)", "FVL-04.013-.018 hardening
 (Session 6)", and "FVL-04.013-.018 resolution (Session 5)" below.
 **FVL-04 EXTERNAL CONNECTOR FOUNDATION — FINAL CLOSURE VERIFIED.**
-**FVL-04.019 — COMPLETED** (Formula/Recipe Relationship Import) and
+**FVL-04.019 — COMPLETED** (Formula/Recipe Relationship Import),
 **FVL-04.020 — COMPLETED** (Laboratory/Test Result Relationship
-Import) — see "FVL-04.019 resolution"/"FVL-04.020 resolution" below.
-FVL-04.021-.026 remain blank, none started.
+Import), **FVL-04.021 — COMPLETED** (Generic Database Read Connector —
+engine layer; real driver adapter wired later, see its own resolution
+section) — see their own resolution sections below. FVL-04.022-.026
+remain blank, none started.
 
 ## Current task
 
-**`FVL-04.021`** — blank, **NOT STARTED** (Generic Database Read
-Connector). FVL-04.019/.020 just closed — see their own resolution
+**`FVL-04.022`** — blank, **NOT STARTED** (REST API Connector
+Contract). FVL-04.019/.020/.021 just closed — see their own resolution
 sections below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
@@ -129,6 +131,23 @@ unresolved-linkage detection for a wrong `trial_code` silently accepted
 for the wrong formula. `pnpm --filter @formulab/shared test`:
 1575/1575. `pnpm --filter @formulab/desktop test`: 1559/1559.
 `typecheck`/`lint`: clean. FVL-04 now 20/26.
+
+## FVL-04.021 resolution (this session — Generic Database Read Connector)
+
+New `databaseConnector.ts` — a real `SourceConnector` for databases, the
+same shape `createFileConnector()` already implements, funneling every
+staged row through the SAME `stageRows()` path CSV/XLSX/JSON/XML use
+(generalized to accept its own `connectorType`, zero behavior change for
+existing callers). Read-only enforced two ways: `DatabaseConnectorDeps`
+exposes exactly one capability (`executeQuery`, injected — the real
+driver-backed adapter is desktop-only and NOT built this task, disclosed,
+the same "engine now, adapter wired later" boundary `readWorkbook`
+already established for XLSX); `assertReadOnlyQuery()` structurally
+refuses a write-shaped leading statement keyword before the query ever
+reaches the adapter, proven not a naive substring match. `connectionRef`
+is opaque — no credential field exists anywhere on the contract.
+`pnpm --filter @formulab/shared test`: 1590/1590 (75 files, 15 new).
+`typecheck`: clean both packages. FVL-04 now 21/26.
 
 ## FVL-04.013-.018 final correction (Session 8, this session — narrow, four-part final correction)
 

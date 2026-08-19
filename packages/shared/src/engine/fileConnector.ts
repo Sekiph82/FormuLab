@@ -51,8 +51,11 @@ export interface StageOptions {
   extractedAt?: string;
 }
 
-function connectorIdentity(sourceSystemId: string, connectorType: ConnectorIdentity["connectorType"]): ConnectorIdentity {
-  return { connectorId: `file-connector`, connectorType, connectorVersion: "1.0", sourceSystemId, sourceSystemName: sourceSystemId };
+/** Exported so other connector-type modules (e.g. FVL-04.021's database
+ *  connector) can build the SAME `ConnectorIdentity` shape their own
+ *  `SourceConnector.identity` needs, never a second hand-rolled shape. */
+export function connectorIdentity(sourceSystemId: string, connectorType: ConnectorIdentity["connectorType"]): ConnectorIdentity {
+  return { connectorId: `${connectorType.toLowerCase()}-connector`, connectorType, connectorVersion: "1.0", sourceSystemId, sourceSystemName: sourceSystemId };
 }
 
 /** FVL-04.014 hardening (Session 7, Part C) — never puts a raw library
@@ -131,12 +134,21 @@ function toStaged(
 
 /** Rows (headers first, then one row per record) -> staged records. The
  *  common path CSV and XLSX both feed. */
-export function stageRows(sourceSystemId: string, entity: string, rows: string[][], opts: StageOptions): ConnectorResult {
+/**
+ * `connectorType` defaults to `"FILE"` — every pre-existing caller
+ * (CSV/JSON/XML/XLSX, all through `stageFile()`) is unaffected. A
+ * non-file caller (the FVL-04.021 database connector) passes its own
+ * real type so `ConnectorResult.connector.connectorType` never
+ * misreports its actual source — this is the ONE real row-staging
+ * implementation every connector type funnels through, never a second
+ * one duplicated per connector type.
+ */
+export function stageRows(sourceSystemId: string, entity: string, rows: string[][], opts: StageOptions, connectorType: ConnectorIdentity["connectorType"] = "FILE"): ConnectorResult {
   const errors: ConnectorError[] = [];
   const warnings: ConnectorError[] = [];
   if (rows.length === 0) {
     errors.push({ code: "empty_file", stage: "parse", message: "The file has no rows.", retryable: false });
-    return { connector: connectorIdentity(sourceSystemId, "FILE"), entity, records: [], warnings, errors, stats: { totalRecords: 0, readRecords: 0, errorRecords: 0 } };
+    return { connector: connectorIdentity(sourceSystemId, connectorType), entity, records: [], warnings, errors, stats: { totalRecords: 0, readRecords: 0, errorRecords: 0 } };
   }
   const headers = rows[0];
   const records: StagedSourceRecord[] = [];
@@ -152,7 +164,7 @@ export function stageRows(sourceSystemId: string, entity: string, rows: string[]
     else records.push(staged.record!);
   }
   return {
-    connector: connectorIdentity(sourceSystemId, "FILE"),
+    connector: connectorIdentity(sourceSystemId, connectorType),
     entity,
     records,
     warnings,
