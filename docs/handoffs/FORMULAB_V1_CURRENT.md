@@ -21,17 +21,20 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 
 **FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
 PROCESS, 12/26 tasks COMPLETED (FVL-04.001-.012 — the original
-canonical/template-based onboarding block is now fully closed).
+canonical/template-based onboarding block is now fully closed and
+independently hardened, see "FVL-04.005-.012 closure hardening" below).
 FVL-04.013-.026 (the enterprise connector/mapping/crosswalk layer and
 artifact naming) remain blank.
 
 ## Current task
 
-**`FVL-04.013`** — blank, **NOT STARTED**. FVL-04.005-.012
-(Specifications, Price History, Inventory, Exchange Rates, Process
-Parameters, Regulatory rule/evidence integrity, template-registry
-consolidation, real sample-file acceptance) all COMPLETED this session
-(no subagents used, per explicit instruction). FVL-04.001-.004 (Material
+**`FVL-04.013`** — blank, **NOT STARTED**. FVL-04.005-.012 were closed
+in an earlier session, then independently re-audited and hardened in a
+follow-up session (real gaps found and fixed: a unit-contract bug in the
+Optimizer/Substitution stock fields, a missing real Manufacturing
+Procedure consumer for process_parameters, and a missing
+`material_suppliers` Data Exchange template) — see "FVL-04.005-.012
+closure hardening" below. FVL-04.001-.004 (Material
 Master, Supplier/MaterialSupplier link, TDS, and SDS Data Exchange
 coverage) COMPLETED the prior session.
 
@@ -92,6 +95,77 @@ Rust changes this session — no `pytest`/`cargo` re-run required. No
 FVL-04.013+ work started; no connector/mapping layer touched; no
 crawlers; no second Data Exchange system; no second document/binary
 registry; no FVL-04.026 artifact naming.
+
+## FVL-04.005-.012 closure hardening (this session)
+
+An independent review found the prior FVL-04.005-.012 closure was too
+fast in three places. This session re-audited all eight tasks from
+scratch (not trusting the prior COMPLETED labels), fixed every proven
+gap, and closed them again with stronger acceptance. Prior evidence in
+the tracker was kept, not erased — each row now carries a `**HARDENING
+(2026-08-19...)**` addendum.
+
+**Real defects found and fixed:**
+
+1. **Unit-contract bug (FVL-04.007)** — `AdvancedOptimizerPanel.tsx`'s
+   `stock` field (and the two matching fields in `SubstitutionPanel.tsx`)
+   fed `evaluateMaterialAvailability(...).usableQuantity` straight into a
+   field `advanced_optimizer.py` treats as a literal kg cap, with no
+   check that `InventoryRecord.unit` was actually "kg". A gram- or
+   litre-denominated lot would have silently produced a physical-stock
+   cap wrong by orders of magnitude. Fixed: all three fields now only
+   report a genuinely kg-denominated quantity; anything else reports
+   unknown rather than a guessed number. Proven by two new tests that
+   render the real optimizer, run it, and inspect the exact problem
+   handed to the solver.
+2. **Storage-only closure (FVL-04.009)** — the prior session had
+   correctly disclosed that no UI consumed `process_parameters`, but
+   closed the task anyway. That is no longer accepted. New
+   `ProcessParametersPanel.tsx`, wired as a real "Process" tab in
+   `FormulasPage.tsx`, is the genuine consumer — a saved formula's
+   canonical process steps are now visible, keyed to the exact
+   formula/version, explicitly distinguished from a generated session
+   card's own separate `ManufacturingProcedureTab` proposal.
+3. **MaterialSupplier reassessment (FVL-04.011)** — re-examined against
+   the APPROVED FVL-04.013+ connector architecture (which explicitly
+   anticipates a source row producing `RawMaterial + Supplier +
+   MaterialSupplier + MaterialPrice + InventoryRecord`, price included
+   or not) rather than the old FVL-03-only lens. A pure vendor
+   qualification list with no price is a legitimate enterprise shape, so
+   a new `material_suppliers` Data Exchange template was added — the
+   third genuine Class-C gap this block ever found.
+
+**Strengthened, not rewritten:** .005 (built a full Specification Domain
+Matrix, proved the `material_documents` `document_type="specification"`
+path explicitly, confirmed finished-product specs are a real disclosed
+domain gap rather than a Data Exchange gap); .006/.008 (new
+`dataExchangeCostAcceptance.test.ts`, 18 tests proving imported
+MaterialPrice/ExchangeRate reach the real `costFormula()` end to end —
+current/expired/future/multi-supplier/missing-price/missing-FX/mixed-currency,
+every assertion reading the engine's own return value); .010 (added a
+full real-`File`-through-the-dialog test proving a verification-smuggling
+attempt is refused at the highest lifecycle level, not just at the
+commit-handler unit level); .012 (rebuilt with independent fixtures never
+derived from `exampleRows`, a real sequential reference chain across 8
+templates, real `.xlsx` round-trips, real import-history job-lifecycle
+assertions, and full-dialog coverage expanded beyond the original two
+templates).
+
+Cross-cutting single-authority re-audit: repository-wide grep confirmed
+exactly one definition each of `priceFor`/`findRate`/
+`evaluateMaterialAvailability`/`evaluateRegulatory` in the whole shared
+package, zero duplicate/reimplemented copies anywhere in the desktop app,
+and zero remaining `quantity - reservedQuantity`-style inline arithmetic
+anywhere in the codebase.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1480/1480 across 154
+files. `pnpm --filter @formulab/shared test` — 1341/1341 across 67
+files. `typecheck`/`lint` — clean on both packages. `python
+scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift. `git diff
+--check` — clean (LF/CRLF warnings only). Zero Python/Rust changes — no
+`pytest`/`cargo` re-run required. No FVL-04.013+ work started; no
+connector/mapping layer touched; no second Data Exchange/Cost/Inventory/
+Regulatory/Manufacturing engine created.
 
 ## FVL-04.001 resolution (this session)
 
@@ -1069,45 +1143,48 @@ with no live literature-retrieval network access).
 **`FVL-04.013`** — blank, NOT STARTED (see above). Not begun this
 session — explicit boundary in this session's own task brief. The
 original canonical/template-based Data Exchange onboarding block
-(FVL-04.001-.012) is now fully closed; FVL-04.013 begins the enterprise
-external-source connector/mapping/crosswalk layer.
+(FVL-04.001-.012) is now fully closed AND independently hardened;
+FVL-04.013 begins the enterprise external-source connector/mapping/
+crosswalk layer.
 
 ## Known blockers
 
-None. FVL-01/FVL-02/FVL-03 fully closed; FVL-04.001-.012 complete.
-Disclosed, out-of-scope, non-blocking findings carried forward for a
-future session: (1)/(2) the existing Optimizer/Substitution
+None. FVL-01/FVL-02/FVL-03 fully closed; FVL-04.001-.012 complete and
+hardened. Disclosed, out-of-scope, non-blocking findings carried forward
+for a future session: (1)/(2) the existing Optimizer/Substitution
 compatibility/safety re-run call sites use the hardcoded
 `SEED_COMPATIBILITY_RULES`/`SEED_SAFETY_RULES` constants rather than the
 live edited collections; (3) Material Substitution's regulatory wiring
 cannot currently produce a real `false`/prohibited result with the
 actual seed catalog; (4) the Advanced Optimizer/System Substitution
 carry a genuine, pre-existing, documented "regulatory not yet
-implemented" boundary; (5) **RESOLVED this session** — the three
-pre-existing UI call sites (`MaterialsPage.tsx`,
-`AdvancedOptimizerPanel.tsx`, `SubstitutionPanel.tsx`) that computed
-inventory availability inline now call the canonical
-`evaluateMaterialAvailability()`; (6) a live `material_suppliers`
-masterdata collection/schema exists with no Data Exchange import
-template — re-confirmed this session still not required by any current
-FVL-03/.005-.012 consumer, created/edited via the existing in-workspace
-`SupplierEditor.tsx` UI instead; (7) TDS/SDS document metadata and
-Process Parameters both have a real, wired import path but no dedicated
-UI page displays their per-parent list yet — a UI/UX completeness gap,
-not an import/storage gap. None are duplicate-authority issues.
+implemented" boundary; (5) **RESOLVED** (FVL-04.007, prior session) —
+the three pre-existing UI call sites that computed inventory
+availability inline now call the canonical
+`evaluateMaterialAvailability()`; (5b) **RESOLVED this session** — those
+same three fields also had an unproven kg-unit assumption, now guarded;
+(6) **RESOLVED this session** — `material_suppliers` now has a real Data
+Exchange template (FVL-04.011 hardening), added after re-assessing the
+approved enterprise-connector requirement, not the old FVL-03-only lens;
+(7) **PARTIALLY RESOLVED this session** — Process Parameters now has a
+real consumer (`ProcessParametersPanel.tsx`, FVL-04.009 hardening); TDS/
+SDS document metadata still has no dedicated per-material viewer UI — a
+UI/UX completeness gap, not an import/storage gap, explicitly out of
+scope for this hardening session. None are duplicate-authority issues.
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1452/1452 across 152 files
-  (18 new this session: `dataExchangeCommit.test.ts` FVL-04.005-.010,
-  `DataExchangeImportDialog.test.tsx` FVL-04.012; template-card count
-  assertion in `DataExchangePage.test.tsx` updated 41→43, a real count
-  change).
+- `pnpm --filter @formulab/desktop test` — 1480/1480 across 154 files
+  (26 new this hardening session: `dataExchangeCommit.test.ts`
+  (.005/.011/.012 chain), `AdvancedOptimizerPanel.test.tsx` (.007 unit
+  contract), `ProcessParametersPanel.test.tsx` (.009, new file),
+  `DataExchangeImportDialog.test.tsx` (.010/.012), new
+  `dataExchangeCostAcceptance.test.ts` (.006/.008, 13 tests); template
+  card count updated 43→44).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
-- `pnpm --filter @formulab/shared test` — 1327/1327 across 67 files (15
-  new this session: `dataExchangeValidation.test.ts` FVL-04.007/.008/
-  .012; `dataExchangeRegistry.test.ts` template-count assertions
-  updated 41→43, a real count change, not a weakened test).
+- `pnpm --filter @formulab/shared test` — 1341/1341 across 67 files (14
+  new: independent-fixture matrix in `dataExchangeValidation.test.ts`,
+  template-count assertions updated 43→44).
 - `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
 - `git diff --check` — clean (LF/CRLF warnings only).
 - No Python or Rust files touched this session — no `pytest`/`cargo`
@@ -1116,9 +1193,9 @@ not an import/storage gap. None are duplicate-authority issues.
 
 ## Latest commit SHA
 
-`63974f6` (pushed to and matching `origin/feature/laboratory-stability`)
-— "feat(v1): complete canonical Data Exchange operational coverage
-(FVL-04.005-.011)". Prior: `de3d29e` — "docs: finalize FVL-04.001-.004
+`418c0d9` (pushed to and matching `origin/feature/laboratory-stability`)
+— "fix(v1): harden canonical Data Exchange integrations
+(FVL-04.005-.012)". Prior: `befdf3d` — "docs: finalize FVL-04.005-.011
 closure pointer with commit SHA".
 
 ## Reminder
