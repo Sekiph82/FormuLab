@@ -35,10 +35,13 @@ the code itself is immutable once created.
 | cas_number | multi_value | | CAS number(s), semicolon-separated. |
 | ec_number | multi_value | | EC number(s), semicolon-separated. |
 | material_category | string | | Broad category, e.g. Surfactant, Preservative. |
-| material_function | multi_value | | Functional role(s), semicolon-separated. |
+| material_function | multi_value | | Functional role(s), semicolon-separated — real `MaterialFunction` enum values only; an unrecognized token is dropped at commit, never fabricated as a role (FVL-04.001 — this mapping was previously silently discarded entirely; now real). |
 | physical_form | string | | Liquid, powder, paste, ... |
 | active_matter_percent | percentage | | As-supplied active content. |
 | density | decimal | | g/mL at 20°C. |
+| recommended_min_percent | percentage | | Recommended minimum use concentration — read by `resolve_concentration()`'s Tier 4 (FVL-04.001). |
+| recommended_max_percent | percentage | | Recommended maximum use concentration — read by `resolve_concentration()`'s Tier 4 (FVL-04.001). |
+| technical_max_percent | percentage | | Hard technical ceiling — above this the material does not work, whatever a spec says (FVL-04.001). |
 | default_unit | string | | Default quantity unit, e.g. kg (default `kg`). |
 | currency | enum | | Default price currency: KES/USD/EUR/GBP/TZS/UGX. |
 | default_price | currency | | Reference price; historical pricing lives on the Material-Supplier Price List template. |
@@ -143,6 +146,16 @@ Quality · Target collection: `material_documents` · Commit: **wired**
 
 Metadata updates on match; `verification_status`/`verified_by`/
 `verified_at` are never set by import.
+
+**FVL-04.003/.004**: this is the confirmed, sole canonical TDS and SDS
+import/reference path — both are real `document_type` values on the
+same template, same commit handler, same collection; no separate TDS or
+SDS storage framework exists or was created. `RawMaterial.documents[]`
+(a different, older field shape) is confirmed unused by any UI or import
+path — not a competing document registry, just dead schema. This
+template is metadata-only by design (no file-binary ingestion anywhere
+in Data Exchange) — `file_name`/`expected_sha256` are a match-against-a-
+locally-held-file hint for a human, never an attachment.
 
 | Column | Type | Req'd | Description |
 |---|---|---|---|

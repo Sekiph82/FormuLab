@@ -5,6 +5,7 @@ import { previewDataExchangeImport, previewDataExchangeImportCsv } from "./dataE
 
 const materials = getDataExchangeTemplate("raw_materials")!;
 const prices = getDataExchangeTemplate("material_prices")!;
+const materialDocuments = getDataExchangeTemplate("material_documents")!;
 const stabilityProtocols = getDataExchangeTemplate("stability_protocols")!;
 const stabilityResults = getDataExchangeTemplate("stability_results")!;
 const benchmarkProducts = getDataExchangeTemplate("benchmark_products")!;
@@ -74,7 +75,12 @@ describe("previewDataExchangeImport — fatal / job-level cases", () => {
 
 describe("previewDataExchangeImport — row classification", () => {
   it("classifies a well-formed new row as valid_create", () => {
-    const csv = csvFor(materials, [["TEST-MAT-001", "TEST Water", "", "", "", "", "", "", "", "", "kg", "", "", "", "", "", "", "", "", "", "", "", "", "", "false", "false", "false", "", "", "false", "", "", ""]]);
+    // Built from the live column list (never a hardcoded position count) so
+    // adding an optional column to the template can never silently break
+    // this test's cell alignment — every optional cell stays blank, only
+    // the two required columns (material_code, material_name) are filled.
+    const values = materials.columns.map((c) => (c.key === "material_code" ? "TEST-MAT-001" : c.key === "material_name" ? "TEST Water" : ""));
+    const csv = csvFor(materials, [values]);
     const p = previewDataExchangeImportCsv(materials, csv);
     expect(p.rows[0].state).toBe("valid_create");
     expect(p.newRecords).toBe(1);
@@ -131,6 +137,16 @@ describe("previewDataExchangeImport — row classification", () => {
       ["TEST-MAT-001", "TEST-SUP-999", "10", "KES", "2026-01-01"],
     ];
     const p = previewDataExchangeImport(prices, rows, { resolveReference: () => false });
+    expect(p.rows[0].state).toBe("reference_missing");
+    expect(p.referenceErrors).toBe(1);
+  });
+
+  it("FVL-04.003/.004 T6/D5: a TDS/SDS row with an unresolvable materialCode is rejected honestly, never silently attached", () => {
+    const rows = [
+      ["material_code", "document_type", "document_title"],
+      ["TEST-MAT-999", "TDS", "TEST Technical Data Sheet"],
+    ];
+    const p = previewDataExchangeImport(materialDocuments, rows, { resolveReference: () => false });
     expect(p.rows[0].state).toBe("reference_missing");
     expect(p.referenceErrors).toBe(1);
   });

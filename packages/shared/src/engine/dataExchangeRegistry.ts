@@ -16,6 +16,7 @@
  * `importer.ts` `FieldSpec` aliasing does.
  */
 import type { ApprovalRole } from "../schemas/status";
+import { MATERIAL_FUNCTIONS } from "../schemas/primitives";
 import { DOE_FACTOR_SOURCE_TYPES, DOE_FACTOR_TYPES, DOE_RESPONSE_OBJECTIVES } from "../schemas/doe";
 import { MATERIAL_DOCUMENT_TYPES } from "../schemas/dataExchange";
 import { REGULATORY_JURISDICTIONS, REGULATORY_RULE_TYPES } from "../schemas/regulatory";
@@ -124,10 +125,22 @@ const MATERIAL_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "cas_number", dataType: "multi_value", description: "CAS number(s), semicolon-separated.", example: "68515-73-1" }),
   col({ key: "ec_number", dataType: "multi_value", description: "EC number(s), semicolon-separated." }),
   col({ key: "material_category", dataType: "string", description: "Broad category, e.g. Surfactant, Preservative." , example: "Surfactant"}),
-  col({ key: "material_function", dataType: "multi_value", description: "Functional role(s), semicolon-separated.", example: "nonionic_surfactant" }),
+  // FVL-04.001: values are validated against the canonical `MaterialFunction`
+  // enum at commit time (unrecognized tokens are silently dropped, the same
+  // convention `physical_form` already uses below) — real values, not free
+  // text, since `engine.py`'s candidate pool matches formula roles against
+  // this exact field.
+  col({ key: "material_function", dataType: "multi_value", description: `Functional role(s), semicolon-separated. One or more of: ${MATERIAL_FUNCTIONS.join(", ")}.`, example: "nonionic_surfactant" }),
   col({ key: "physical_form", dataType: "string", description: "Liquid, powder, paste, ...", example: "liquid" }),
   col({ key: "active_matter_percent", dataType: "percentage", description: "As-supplied active content.", example: "50.0" }),
   col({ key: "density", dataType: "decimal", description: "g/mL at 20°C.", example: "1.05" }),
+  // FVL-04.001: `resolve_concentration()`'s own Tier 4 (`master_materials_
+  // adapter.py`) reads exactly these three fields for concentration
+  // resolution — genuinely required by the Phase 14 candidate pool, not
+  // merely useful. Absent stays absent; never defaulted to 0.
+  col({ key: "recommended_min_percent", dataType: "percentage", description: "Recommended minimum use concentration." }),
+  col({ key: "recommended_max_percent", dataType: "percentage", description: "Recommended maximum use concentration." }),
+  col({ key: "technical_max_percent", dataType: "percentage", description: "Hard technical ceiling — above this the material does not work, whatever a spec says." }),
   col({ key: "default_unit", dataType: "string", description: "Default quantity unit, e.g. kg.", defaultValue: "kg", example: "kg" }),
   col({ key: "currency", dataType: "enum", description: "Default price currency.", enumValues: ["KES", "USD", "EUR", "GBP", "TZS", "UGX"], example: "KES" }),
   col({ key: "default_price", dataType: "currency", description: "Reference price; historical pricing lives on the Material-Supplier Price List template.", example: "450.00" }),
@@ -919,7 +932,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     authorization: MASTER_DATA_ROLES,
     targetCollection: "materials",
     exampleRows: [
-      { material_code: "TEST-MAT-001", material_name: "TEST Decyl Glucoside", inci_name: "Decyl Glucoside", cas_number: "68515-73-1", ec_number: "", material_category: "Surfactant", material_function: "nonionic_surfactant", physical_form: "liquid", active_matter_percent: "50.0", density: "1.05", default_unit: "kg", currency: "KES", default_price: "450.00", price_basis_quantity: "1", manufacturer_name: "TEST Chemicals Ltd", manufacturer_code: "DG-50", preferred_supplier_code: "TEST-SUP-001", country_of_origin: "KE", manufacture_date: "2026-01-01", expiry_date: "2028-01-01", shelf_life_months: "24", minimum_order_quantity: "25", lead_time_days: "14", storage_condition: "Store below 25C, away from light.", hazardous: "false", allergen: "false", vegan: "true", natural_origin_percent: "95.0", renewable_carbon_percent: "90.0", biodegradable: "true", regulatory_status: "Permitted KE/EAC", tags: "surfactant;mild", notes: "Synthetic test row." },
+      { material_code: "TEST-MAT-001", material_name: "TEST Decyl Glucoside", inci_name: "Decyl Glucoside", cas_number: "68515-73-1", ec_number: "", material_category: "Surfactant", material_function: "nonionic_surfactant", physical_form: "liquid", active_matter_percent: "50.0", density: "1.05", recommended_min_percent: "5.0", recommended_max_percent: "15.0", technical_max_percent: "20.0", default_unit: "kg", currency: "KES", default_price: "450.00", price_basis_quantity: "1", manufacturer_name: "TEST Chemicals Ltd", manufacturer_code: "DG-50", preferred_supplier_code: "TEST-SUP-001", country_of_origin: "KE", manufacture_date: "2026-01-01", expiry_date: "2028-01-01", shelf_life_months: "24", minimum_order_quantity: "25", lead_time_days: "14", storage_condition: "Store below 25C, away from light.", hazardous: "false", allergen: "false", vegan: "true", natural_origin_percent: "95.0", renewable_carbon_percent: "90.0", biodegradable: "true", regulatory_status: "Permitted KE/EAC", tags: "surfactant;mild", notes: "Synthetic test row." },
     ],
   }),
   template({

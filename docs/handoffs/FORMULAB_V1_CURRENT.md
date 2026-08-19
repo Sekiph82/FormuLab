@@ -19,19 +19,60 @@ scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 (24/24, 2026-08-17). GitHub issue #4 closed 2026-08-18 to match.
 
-## Current work package (FVL-03 now closed — next real work package)
-
-**FVL-04 — Data Onboarding Through Existing Data Exchange** —
-blank, **NOT STARTED**. FVL-04.001-.026 all remain blank. This session's
-own scope ended at FVL-03's closure — FVL-04 implementation was
-explicitly NOT started, per this session's own hard boundary.
+**FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
+PROCESS, 1/26 tasks COMPLETED (FVL-04.001). FVL-04.002-.026 remain
+blank.
 
 ## Current task
 
-**`FVL-04.001`** — blank, **NOT STARTED**. FVL-03.012 — the final FVL-03
-single-authority integration acceptance, closing the entire FVL-03
-package (18/18) — COMPLETED this session (no subagents used, per
+**`FVL-04.002`** — blank, **NOT STARTED**. FVL-04.001 (Material Master
+import template coverage) COMPLETED this session (no subagents used, per
 explicit instruction).
+
+## FVL-04.001 resolution (this session)
+
+"Confirm the Material Master import template covers the fields Phase
+14's candidate pool needs." Audit found the existing `raw_materials`
+Data Exchange template/lifecycle already fully sufficient in structure,
+but found two real, genuine, blocking commit-handler gaps: (1)
+`material_function` was collected as a real column but the commit
+handler hardcoded `functions: []` on every commit, silently discarding
+it — `master_materials_adapter.py` confirmed to actively read
+`RawMaterial.functions` for the candidate pool's own role-matching, so
+every material imported via Data Exchange was invisible to candidate
+generation no matter how the CSV was filled in; (2)
+`recommendedMinPercent`/`recommendedMaxPercent`/`technicalMaxPercent` —
+confirmed by direct read of `resolve_concentration()`'s own Tier 4 to be
+the exact three concentration-range fields the candidate pool consumes
+— were not columns on the template at all.
+
+Fixed with the smallest correct extension to the EXISTING template/
+commit path: three new optional `percentage` columns added to
+`MATERIAL_COLUMNS`, never defaulted to zero when absent; `material_function`
+now parsed and filtered against the real, canonical `MaterialFunction`
+enum (an unrecognized token is dropped, never fabricated as a role) and
+refreshed on every import — matching how every other plain material-
+master field already behaves, since functional role isn't owned by
+another authority's own review workflow (unlike hazard/allergen/
+regulatory-status fields, confirmed still correctly preserve-only-on-
+create).
+
+Full coverage matrix (A required / B optional-importable / C not
+currently required / D imported elsewhere) recorded in the tracker's own
+FVL-04.001 row. Canonical `material_code` identity confirmed preserved
+throughout — immutable on update, never name/INCI/CAS-derived.
+
+A real, pre-existing, unrelated test bug also found and fixed: a
+validation test built its CSV row from a hardcoded 33-value positional
+array that silently broke the moment the template gained any new
+column — rewritten to derive blank cells from the live column list.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1427/1427 (3 new).
+`pnpm --filter @formulab/shared test` — 1311/1311 (one pre-existing test
+fixed, no net new). `typecheck`/`lint` — clean on both packages. Zero
+Python/Rust changes — `test_master_materials_adapter.py` already proves
+the seam correct once the TS-side write is correct, confirmed by
+reading it, not by re-running new Python tests.
 
 ## FVL-04 scope expansion (2026-08-18, documentation/tracker session only)
 

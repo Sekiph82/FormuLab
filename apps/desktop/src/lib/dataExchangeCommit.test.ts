@@ -97,6 +97,58 @@ describe("commitDataExchangeRows — raw materials / suppliers / material prices
     expect(bridge.upsertRecords).toHaveBeenCalledWith("materials", expect.arrayContaining([expect.objectContaining({ code: "TEST-MAT-001" })]));
   });
 
+  it("FVL-04.001 M1/M2/M3: a real material with functions and concentration-range fields commits with all of them mapped, never dropped", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("raw_materials")!,
+      [row({
+        material_code: "TEST-MAT-002", material_name: "TEST Decyl Glucoside",
+        material_function: "nonionic_surfactant;solvent",
+        recommended_min_percent: "5.0", recommended_max_percent: "15.0", technical_max_percent: "20.0",
+      })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("materials", expect.arrayContaining([
+      expect.objectContaining({
+        code: "TEST-MAT-002",
+        functions: ["nonionic_surfactant", "solvent"],
+        recommendedMinPercent: "5.0",
+        recommendedMaxPercent: "15.0",
+        technicalMaxPercent: "20.0",
+      }),
+    ]));
+  });
+
+  it("FVL-04.001: an unrecognized function token is dropped, never fabricated as a real role", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("raw_materials")!,
+      [row({ material_code: "TEST-MAT-003", material_name: "TEST Mystery Ingredient", material_function: "nonionic_surfactant;not_a_real_function" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("materials", expect.arrayContaining([
+      expect.objectContaining({ code: "TEST-MAT-003", functions: ["nonionic_surfactant"] }),
+    ]));
+  });
+
+  it("FVL-04.001 M4: missing optional concentration-range fields stay missing, never defaulted to zero", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("raw_materials")!,
+      [row({ material_code: "TEST-MAT-004", material_name: "TEST No Range Data" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("materials", expect.arrayContaining([
+      expect.objectContaining({
+        code: "TEST-MAT-004",
+        recommendedMinPercent: undefined,
+        recommendedMaxPercent: undefined,
+        technicalMaxPercent: undefined,
+        functions: [],
+      }),
+    ]));
+  });
+
   it("creates a supplier", async () => {
     const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("suppliers")!, [row({ supplier_code: "TEST-SUP-001", supplier_name: "TEST Supplier" })], ctx);
     expect(outcomes[0].outcome).toBe("created");
@@ -111,6 +163,115 @@ describe("commitDataExchangeRows — raw materials / suppliers / material prices
     );
     expect(outcomes[0].outcome).toBe("created");
     expect(bridge.upsertRecords).toHaveBeenCalledWith("material_prices", expect.arrayContaining([expect.objectContaining({ materialCode: "TEST-MAT-001" })]));
+  });
+
+  it("FVL-04.002 S2/S6/S7: the material-supplier link (supplier_material_code, preferred) commits with real codes, reconstructing the full FVL-03 provenance chain", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("material_prices")!,
+      [row({
+        material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", supplier_material_code: "SUP-OWN-CODE-77",
+        unit_price: "10", currency: "KES", valid_from: "2026-01-01", preferred: "true",
+      })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("material_prices", expect.arrayContaining([
+      expect.objectContaining({
+        materialCode: "TEST-MAT-001",
+        supplierCode: "TEST-SUP-001",
+        // FVL-03's own Cost/Substitution paths resolve the supplier via
+        // MaterialPrice.supplierCode (a real code, confirmed by audit —
+        // never a display-name join) — reconstructible here without
+        // parsing any free text.
+        notes: expect.stringContaining("supplier_material_code: SUP-OWN-CODE-77"),
+      }),
+    ]));
+    // "preferred" is folded into the same real-code-scoped record's own
+    // notes (this template has no dedicated boolean field for it on
+    // MaterialPrice — confirmed by schema read) rather than silently
+    // dropped.
+    const call = bridge.upsertRecords.mock.calls.find(([c]) => c === "material_prices");
+    expect(call?.[1][0].notes).toContain("preferred");
+  });
+
+  it("FVL-04.002 S3: a same-display-name supplier with a different code never silently matches — identity is the code, never the name", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("suppliers")!,
+      [row({ supplier_code: "TEST-SUP-002", supplier_name: "TEST Supplier" }, { naturalKey: "TEST-SUP-002" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    // A second supplier sharing the exact same display name as
+    // TEST-SUP-001 (from the prior test) is a genuinely distinct record —
+    // upsertRecords was called with the real, distinct code, never
+    // resolved/merged against the other supplier by name.
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("suppliers", expect.arrayContaining([expect.objectContaining({ code: "TEST-SUP-002", displayName: "TEST Supplier" })]));
+  });
+});
+
+describe("commitDataExchangeRows — FVL-04.003/.004: TDS and SDS reuse the existing material_documents path, never a second document registry", () => {
+  it("T1/T2/T3/T4: a TDS row enters the existing lifecycle, links to the exact canonical materialCode, and preserves the original filename as metadata", async () => {
+    const rows = [row({
+      material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", document_type: "TDS", document_number: "TDS-77",
+      document_title: "TEST Technical Data Sheet", revision: "2", issuer: "TEST Chemicals Ltd", issue_date: "2026-01-01",
+      file_name: "test-tds-dg50-v2.pdf", expected_sha256: "abc123",
+    })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("material_documents")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("material_documents", expect.arrayContaining([
+      expect.objectContaining({
+        materialCode: "TEST-MAT-001",
+        documentType: "TDS",
+        fileName: "test-tds-dg50-v2.pdf",
+        expectedSha256: "abc123",
+        // Never verified by import alone, regardless of what the file said.
+        verificationStatus: "unverified",
+      }),
+    ]));
+  });
+
+  it("D1/D2/D3/D4: an SDS row enters the same existing lifecycle, links to the exact canonical materialCode, and preserves source/filename metadata", async () => {
+    const rows = [row({
+      material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", document_type: "SDS", document_number: "SDS-77",
+      document_title: "TEST Safety Data Sheet", revision: "1", issuer: "TEST Chemicals Ltd",
+      file_name: "test-sds-dg50-v1.pdf",
+    })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("material_documents")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("material_documents", expect.arrayContaining([
+      expect.objectContaining({ materialCode: "TEST-MAT-001", documentType: "SDS", fileName: "test-sds-dg50-v1.pdf", supplierCode: "TEST-SUP-001" }),
+    ]));
+  });
+
+  it("T5/D-optional: missing optional TDS/SDS metadata (revision, issue_date, expected_sha256) stays undefined, never fabricated", async () => {
+    const rows = [row({ material_code: "TEST-MAT-001", document_type: "SDS", document_title: "TEST minimal SDS" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("material_documents")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("material_documents", expect.arrayContaining([
+      expect.objectContaining({ revision: undefined, issueDate: undefined, expectedSha256: undefined, fileName: undefined, supplierCode: undefined }),
+    ]));
+  });
+
+  it("D6/D7: SDS import never creates a Safety or Regulatory verdict — the commit writes only document metadata, no finding/verdict shape at all", async () => {
+    const rows = [row({ material_code: "TEST-MAT-001", document_type: "SDS", document_title: "TEST SDS" })];
+    await commitDataExchangeRows(getDataExchangeTemplate("material_documents")!, rows, ctx);
+    const [, written] = bridge.upsertRecords.mock.calls.find(([c]) => c === "material_documents")!;
+    const record = written[0];
+    expect(record).not.toHaveProperty("severity");
+    expect(record).not.toHaveProperty("formulaState");
+    expect(record).not.toHaveProperty("status");
+    expect(Object.keys(record).sort()).toEqual([
+      "code", "createdAt", "documentNumber", "documentTitle", "documentType", "expectedSha256", "expiryDate",
+      "fileName", "issueDate", "issuer", "language", "materialCode", "notes", "revision", "schemaVersion",
+      "supplierCode", "tags", "updatedAt", "verificationStatus",
+    ].sort());
+  });
+
+  it("T7/D8: TDS and SDS commit through the exact same material_documents collection — no separate document registry per document type", async () => {
+    await commitDataExchangeRows(getDataExchangeTemplate("material_documents")!, [row({ material_code: "TEST-MAT-001", document_type: "TDS", document_title: "T" })], ctx);
+    await commitDataExchangeRows(getDataExchangeTemplate("material_documents")!, [row({ material_code: "TEST-MAT-001", document_type: "SDS", document_title: "S" })], ctx);
+    const targets = bridge.upsertRecords.mock.calls.map(([c]) => c);
+    expect(new Set(targets)).toEqual(new Set(["material_documents"]));
   });
 });
 

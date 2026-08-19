@@ -70,6 +70,7 @@ import {
   type ReverseFormulaCandidate,
   type CandidateScoreExplanation,
   assertStudyEditable,
+  MATERIAL_FUNCTIONS,
   PACKAGING_COMPONENT_TYPES,
   SEED_STABILITY_CONDITIONS,
   SEED_STABILITY_TIME_POINTS,
@@ -277,7 +278,22 @@ const commitRawMaterials: Handler = async (r) => {
     activeMatterPercent: nn(r.active_matter_percent),
     activeMatterState: nn(r.active_matter_percent) ? "known" : "missing",
     density: nn(r.density),
-    functions: [],
+    // FVL-04.001: real, canonical `MaterialFunction` values only —
+    // `engine.py`'s candidate pool matches formula roles against this exact
+    // field; an unrecognized token is dropped rather than let through as a
+    // fabricated role (same "validate, never invent" convention
+    // `physicalForm` below already uses). Refreshed on every import, like
+    // every other mutable material field here — never merely preserved
+    // from the prior record, so a corrected CSV can actually fix a role.
+    functions: multi(r.material_function).filter((f): f is RawMaterial["functions"][number] =>
+      (MATERIAL_FUNCTIONS as readonly string[]).includes(f),
+    ),
+    // FVL-04.001: `resolve_concentration()`'s own Tier 4 reads exactly
+    // these three fields — genuinely required by the Phase 14 candidate
+    // pool. Absent stays absent; `nn()` never substitutes a zero.
+    recommendedMinPercent: nn(r.recommended_min_percent),
+    recommendedMaxPercent: nn(r.recommended_max_percent),
+    technicalMaxPercent: nn(r.technical_max_percent),
     storageConditions: nn(r.storage_condition),
     shelfLifeMonths: r.shelf_life_months ? Number.parseInt(r.shelf_life_months, 10) : undefined,
     documents: existing?.documents ?? [],
