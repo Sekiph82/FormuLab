@@ -7,16 +7,24 @@
  * job; this pipeline only prepares a candidate value.
  */
 import type { TransformationOp } from "../schemas/connector";
+import { convertUnit } from "./unitConversion";
 
 export interface TransformationContext {
-  /** Resolves `sourceEntity + sourceRecordId` to a real canonical record
-   *  code via the persistent Crosswalk Registry (FVL-04.017) — the ONLY
-   *  legitimate relationship-resolution path besides an explicit canonical
-   *  code already present in the source. Never a name match. */
-  resolveCrosswalk?: (sourceEntity: string, sourceRecordId: string) => string | undefined;
+  /** Resolves `sourceEntity + sourceRecordId + canonicalEntity` to a real
+   *  canonical record code via the persistent Crosswalk Registry
+   *  (FVL-04.017) — tier 1 of the required relationship-resolution
+   *  precedence (FVL-04.018 hardening, F3): (1) crosswalk, (2) an explicit
+   *  canonical code already present elsewhere in the SAME source record
+   *  (`resolve_crosswalk`'s own `fallbackCanonicalField` config), (3)
+   *  unresolved. Never a name match. */
+  resolveCrosswalk?: (sourceEntity: string, sourceRecordId: string, canonicalEntity: string) => string | undefined;
   /** The staged record's own entity, used as `resolve_crosswalk`'s default
    *  `sourceEntity` when the step's own config does not override it. */
   currentEntity?: string;
+  /** The full raw field map of the source record currently being mapped —
+   *  needed so `resolve_crosswalk`'s explicit-canonical-code fallback (tier
+   *  2) can read a DIFFERENT field already on the same row, never a guess. */
+  sourceRecordFields?: Record<string, string | null>;
 }
 
 export interface TransformationOutcome {
@@ -24,36 +32,70 @@ export interface TransformationOutcome {
   error?: string;
 }
 
-const MASS_UNITS: Record<string, number> = { mg: 0.001, g: 1, kg: 1000 };
-const VOLUME_UNITS: Record<string, number> = { ml: 1, l: 1000 };
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const SUPPORTED_DATE_FORMATS = new Set(["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]);
 
-function unitDimension(unit: string): "mass" | "volume" | undefined {
-  const u = unit.toLowerCase();
-  if (u in MASS_UNITS) return "mass";
-  if (u in VOLUME_UNITS) return "volume";
-  return undefined;
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
+/** Explicit-config decimal parsing — genuinely different from the
+ *  pre-existing heuristic `parseHumanDecimal()` (`decimal.ts`, still used
+ *  unchanged by Data Exchange's own CSV validation): this one requires an
+ *  explicit configured convention and never guesses. FVL-04.018 hardening
+ *  (F5): properly validates thousands-grouping structure — `"1,23,4"` and
+ *  `"1.2.3"` are now rejected as malformed rather than silently accepted
+ *  by stripping every group-separator occurrence. */
 function parseExplicitDecimal(raw: string, decimalSeparator: string, groupSeparator?: string): number | undefined {
   let s = raw.trim();
-  if (groupSeparator) s = s.split(groupSeparator).join("");
-  if (decimalSeparator !== ".") {
-    // Guard: a leftover "." that is not the configured decimal separator
-    // means the value does not actually match the declared convention —
-    // never silently strip it.
-    if (s.includes(".") && decimalSeparator !== ".") return undefined;
-    s = s.replace(decimalSeparator, ".");
+  if (!s) return undefined;
+  if (groupSeparator && groupSeparator === decimalSeparator) return undefined;
+
+  let sign = "";
+  if (s.startsWith("-")) {
+    sign = "-";
+    s = s.slice(1);
   }
-  if (!/^-?\d+(\.\d+)?$/.test(s)) return undefined;
-  const n = Number(s);
+
+  const parts = s.split(decimalSeparator);
+  if (parts.length > 2) return undefined; // more than one decimal separator — malformed
+  let intPart = parts[0];
+  const fracPart = parts.length === 2 ? parts[1] : undefined;
+  if (fracPart !== undefined && (!/^\d+$/.test(fracPart) || fracPart.length === 0)) return undefined;
+
+  if (groupSeparator && intPart.includes(groupSeparator)) {
+    const groupedRe = new RegExp(`^\\d{1,3}(${escapeRegExp(groupSeparator)}\\d{3})*$`);
+    if (!groupedRe.test(intPart)) return undefined;
+    intPart = intPart.split(groupSeparator).join("");
+  }
+  if (!/^\d+$/.test(intPart)) return undefined;
+
+  const normalized = `${sign}${intPart}${fracPart !== undefined ? "." + fracPart : ""}`;
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
+}
+
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+/** Real calendar validation — FVL-04.018 hardening (F4). Previously only
+ *  checked `day <= 31`/`month <= 12`, which silently accepted impossible
+ *  dates like 31/02/2026 or 29/02/2025 (non-leap). Now rejects any day
+ *  that does not actually exist in that month/year, leap years included. */
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) return false;
+  const max = month === 2 && isLeapYear(year) ? 29 : DAYS_IN_MONTH[month - 1];
+  return day <= max;
 }
 
 function parseExplicitDate(raw: string, format: string): string | undefined {
   const s = raw.trim();
-  if (format === "YYYY-MM-DD") return ISO_DATE.test(s) ? s : undefined;
+  if (format === "YYYY-MM-DD") {
+    if (!ISO_DATE.test(s)) return undefined;
+    const [y, m, d] = s.split("-").map((n) => Number.parseInt(n, 10));
+    return isValidCalendarDate(y, m, d) ? s : undefined;
+  }
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
   if (!m) return undefined;
   const [, a, b, year] = m;
@@ -63,7 +105,8 @@ function parseExplicitDate(raw: string, format: string): string | undefined {
   else return undefined;
   const dayNum = Number.parseInt(day, 10);
   const monthNum = Number.parseInt(month, 10);
-  if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) return undefined;
+  const yearNum = Number.parseInt(year, 10);
+  if (!isValidCalendarDate(yearNum, monthNum, dayNum)) return undefined;
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
@@ -96,6 +139,7 @@ export function applyTransformation(
       const decimalSeparator = typeof config?.decimalSeparator === "string" ? config.decimalSeparator : undefined;
       const groupSeparator = typeof config?.groupSeparator === "string" ? config.groupSeparator : undefined;
       if (!decimalSeparator) return { value: undefined, error: "decimal_convention_not_configured" };
+      if (groupSeparator && groupSeparator === decimalSeparator) return { value: undefined, error: "invalid_decimal_configuration" };
       const n = parseExplicitDecimal(value, decimalSeparator, groupSeparator);
       if (n === undefined) return { value: undefined, error: "ambiguous_or_invalid_decimal" };
       return { value: String(n) };
@@ -103,7 +147,7 @@ export function applyTransformation(
     case "parse_date": {
       if (value === null) return { value: null };
       const format = typeof config?.format === "string" ? config.format : undefined;
-      if (!format) return { value: undefined, error: "date_format_not_configured" };
+      if (!format || !SUPPORTED_DATE_FORMATS.has(format)) return { value: undefined, error: "date_format_not_configured" };
       const d = parseExplicitDate(value, format);
       if (d === undefined) return { value: undefined, error: "ambiguous_or_invalid_date" };
       return { value: d };
@@ -127,26 +171,34 @@ export function applyTransformation(
     }
     case "convert_unit": {
       if (value === null) return { value: null };
-      const from = typeof config?.from === "string" ? config.from.toLowerCase() : undefined;
-      const to = typeof config?.to === "string" ? config.to.toLowerCase() : undefined;
+      const from = typeof config?.from === "string" ? config.from : undefined;
+      const to = typeof config?.to === "string" ? config.to : undefined;
       if (!from || !to) return { value: undefined, error: "unit_conversion_not_configured" };
       const n = Number(value);
       if (!Number.isFinite(n)) return { value: undefined, error: "not_a_number" };
-      const fromDim = unitDimension(from);
-      const toDim = unitDimension(to);
-      if (!fromDim || !toDim || fromDim !== toDim) return { value: undefined, error: "incompatible_unit_conversion" };
-      const table = fromDim === "mass" ? MASS_UNITS : VOLUME_UNITS;
-      const base = n * table[from];
-      const result = base / table[to];
-      return { value: String(result) };
+      const outcome = convertUnit(n, from, to);
+      if (outcome.error) return { value: undefined, error: outcome.error };
+      return { value: String(outcome.value) };
     }
     case "resolve_crosswalk": {
       if (value === null) return { value: null };
       const sourceEntity = typeof config?.sourceEntity === "string" ? config.sourceEntity : ctx.currentEntity;
+      const canonicalEntity = typeof config?.canonicalEntity === "string" ? config.canonicalEntity : undefined;
+      if (!canonicalEntity) return { value: undefined, error: "crosswalk_canonical_entity_not_configured" };
       if (!sourceEntity || !ctx.resolveCrosswalk) return { value: undefined, error: "crosswalk_not_configured" };
-      const resolved = ctx.resolveCrosswalk(sourceEntity, value);
-      if (resolved === undefined) return { value: undefined, error: "crosswalk_unresolved" };
-      return { value: resolved };
+      // Precedence tier 1: the persistent External ID Crosswalk.
+      const resolved = ctx.resolveCrosswalk(sourceEntity, value, canonicalEntity);
+      if (resolved !== undefined) return { value: resolved };
+      // Precedence tier 2: an explicit canonical code the source/profile
+      // already declares on a DIFFERENT field of the same record — never a
+      // fuzzy/name-based fallback, only a field the profile names outright.
+      const fallbackCanonicalField = typeof config?.fallbackCanonicalField === "string" ? config.fallbackCanonicalField : undefined;
+      if (fallbackCanonicalField) {
+        const fallbackValue = ctx.sourceRecordFields?.[fallbackCanonicalField];
+        if (fallbackValue !== undefined && fallbackValue !== null && fallbackValue !== "") return { value: fallbackValue };
+      }
+      // Precedence tier 3: unresolved — never a silent name match.
+      return { value: undefined, error: "crosswalk_unresolved" };
     }
     case "split": {
       if (value === null) return { value: null };

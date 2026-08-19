@@ -8,7 +8,7 @@
  * several candidate rows (one per target template) when the profile
  * explicitly says so; there is no implicit fan-out from guessed semantics.
  */
-import { TRANSFORMATION_OPS } from "../schemas/connector";
+import { TRANSFORMATION_OPS, type TransformationStep } from "../schemas/connector";
 import type {
   ConnectorError,
   MappingCandidateRow,
@@ -21,6 +21,82 @@ import type {
 } from "../schemas/connector";
 import { getDataExchangeTemplate } from "./dataExchangeRegistry";
 import { applyTransformationPipeline, type TransformationContext } from "./transformation";
+import { isKnownUnit, unitDimension } from "./unitConversion";
+
+/** The immutable storage identity for one profile version — see
+ *  `mappingProfileSchema`'s own doc comment in `schemas/connector.ts`. */
+export function mappingProfileCode(profileId: string, profileVersion: number): string {
+  return `${profileId}::v${profileVersion}`;
+}
+
+const SUPPORTED_DATE_FORMATS = ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"];
+
+/**
+ * FVL-04.016 hardening (D3) — per-op config shape validation, BEFORE any
+ * row is ever mapped. Deliberately narrow: this validates the
+ * TRANSFORMATION's own configuration (e.g. "does parse_decimal declare a
+ * decimalSeparator at all"), never a target Data Exchange cell's actual
+ * content — that remains the existing Data Exchange validator's job.
+ */
+function validateTransformationConfig(step: TransformationStep, targetTemplate: string, targetField: string, sourceField: string): MappingProfileValidationIssue[] {
+  const issues: MappingProfileValidationIssue[] = [];
+  const bad = (message: string) => issues.push({ code: "invalid_transformation_config", targetTemplate, targetField, sourceField, message: `"${step.op}" on "${targetTemplate}.${targetField}": ${message}` });
+  const config = step.config ?? {};
+  switch (step.op) {
+    case "parse_decimal": {
+      const dec = config.decimalSeparator;
+      if (typeof dec !== "string" || dec.length === 0) bad("decimalSeparator is required and must be a non-empty string.");
+      const grp = config.groupSeparator;
+      if (grp !== undefined && (typeof grp !== "string" || grp.length === 0)) bad("groupSeparator, if present, must be a non-empty string.");
+      if (typeof dec === "string" && typeof grp === "string" && dec === grp) bad("groupSeparator cannot equal decimalSeparator.");
+      break;
+    }
+    case "parse_date": {
+      const format = config.format;
+      if (typeof format !== "string" || !SUPPORTED_DATE_FORMATS.includes(format)) bad(`format must be one of ${SUPPORTED_DATE_FORMATS.join(", ")}.`);
+      break;
+    }
+    case "map_enum": {
+      const map = config.enumMap;
+      if (typeof map !== "object" || map === null || Object.keys(map).length === 0) bad("enumMap is required and must be a non-empty object.");
+      break;
+    }
+    case "map_boolean": {
+      const trueValues = config.trueValues;
+      const falseValues = config.falseValues;
+      if (!Array.isArray(trueValues) || trueValues.length === 0) bad("trueValues is required and must be a non-empty array.");
+      if (!Array.isArray(falseValues) || falseValues.length === 0) bad("falseValues is required and must be a non-empty array.");
+      if (Array.isArray(trueValues) && Array.isArray(falseValues)) {
+        const t = new Set(trueValues.map((v) => String(v).toLowerCase()));
+        const overlap = falseValues.some((v) => t.has(String(v).toLowerCase()));
+        if (overlap) bad("trueValues and falseValues must not overlap.");
+      }
+      break;
+    }
+    case "convert_unit": {
+      const from = config.from;
+      const to = config.to;
+      if (typeof from !== "string" || !isKnownUnit(from)) bad(`from must be a recognized unit (got "${String(from)}").`);
+      if (typeof to !== "string" || !isKnownUnit(to)) bad(`to must be a recognized unit (got "${String(to)}").`);
+      if (typeof from === "string" && typeof to === "string" && isKnownUnit(from) && isKnownUnit(to) && unitDimension(from) !== unitDimension(to)) {
+        bad(`"${from}" and "${to}" are not dimensionally compatible — this connector layer never performs a density-based conversion.`);
+      }
+      break;
+    }
+    case "resolve_crosswalk": {
+      if (typeof config.canonicalEntity !== "string" || config.canonicalEntity.length === 0) bad("canonicalEntity is required.");
+      break;
+    }
+    case "split":
+    case "join": {
+      if (config.delimiter !== undefined && (typeof config.delimiter !== "string" || config.delimiter.length === 0)) bad("delimiter, if present, must be a non-empty string.");
+      break;
+    }
+    default:
+      break;
+  }
+  return issues;
+}
 
 /**
  * Structural validation only — does not touch any source record's actual
@@ -59,7 +135,9 @@ export function validateMappingProfile(profile: MappingProfile, sourceSchema: So
     for (const step of fm.transformations ?? []) {
       if (!(TRANSFORMATION_OPS as readonly string[]).includes(step.op)) {
         issues.push({ code: "unknown_transformation_op", targetTemplate: fm.targetTemplate, targetField: fm.targetField, message: `"${step.op}" is not a recognized transformation.` });
+        continue;
       }
+      issues.push(...validateTransformationConfig(step, fm.targetTemplate, fm.targetField, fm.sourceField));
     }
     const key = `${fm.targetTemplate}::${fm.targetField}`;
     if (seenTargets.has(key)) issues.push({ code: "duplicate_target_assignment", targetTemplate: fm.targetTemplate, targetField: fm.targetField, message: `More than one mapping targets "${fm.targetTemplate}.${fm.targetField}".` });
@@ -88,6 +166,20 @@ export function validateMappingProfile(profile: MappingProfile, sourceSchema: So
         issues.push({ code: "missing_required_target_field", targetTemplate: t, targetField: col.key, message: `Required field "${col.key}" on "${t}" has no mapping at all.` });
       }
     }
+    // FVL-04.016 hardening (D5) — an explicitly configured fan-out target
+    // must be able to produce its own natural-key identity fields; waiting
+    // until commit time to discover a fanned-out target has no identity
+    // mapping at all is too late. Reuses the target registry's own
+    // `naturalKey`, never a second identity concept invented here.
+    for (const key of template.naturalKey) {
+      const column = template.columns.find((c) => c.key === key);
+      if (!covered.has(key) && !column?.required) {
+        // Already reported above when the column is also `required` — this
+        // covers the case where a naturalKey field is not itself flagged
+        // required by the template but is still needed for identity.
+        issues.push({ code: "missing_target_natural_key_field", targetTemplate: t, targetField: key, message: `Natural-key field "${key}" on "${t}" has no mapping — this fan-out target's identity would be unresolvable.` });
+      }
+    }
   }
 
   return issues;
@@ -106,7 +198,7 @@ export function applyMappingProfile(profile: MappingProfile, record: StagedSourc
   const unresolved: string[] = [];
   const errors: ConnectorError[] = [];
   const warnings: ConnectorError[] = [];
-  const fullCtx: TransformationContext = { ...ctx, currentEntity: record.identity.sourceEntity };
+  const fullCtx: TransformationContext = { ...ctx, currentEntity: record.identity.sourceEntity, sourceRecordFields: record.fields };
 
   for (const fm of profile.fieldMappings) {
     const raw = fm.sourceField in record.fields ? record.fields[fm.sourceField] : null;

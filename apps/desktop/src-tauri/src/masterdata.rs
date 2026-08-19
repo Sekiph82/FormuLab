@@ -405,19 +405,31 @@ const COLLECTIONS: [(&str, bool); 93] = [
     // byteSize/checksum) live in `GeneratedDocumentRecord`
     // (`packages/shared/src/schemas/documentExport.ts`, Session 1).
     ("generated_document_records", false),
-    // FVL-04.013-.018 — external source connector foundation. A mapping
-    // profile's own "changed mapping creates a new version" discipline is
-    // enforced at the application layer (a new `profileVersion` is a new
-    // row); the collection itself is mutable so a still-`draft` profile
-    // can be edited before it is ever applied. A crosswalk's `lastSeenAt`
-    // updates in place on re-import (the same source identity resolving
-    // to the same canonical identity again); `firstSeenAt`/
-    // `canonicalRecordId` never silently change once set — see
-    // `engine/crosswalk.ts`'s own conflict-detection discipline, enforced
-    // there, not by this storage layer's own mutability alone. Neither
-    // collection ever stores a credential, a raw customer payload, or an
-    // uploaded file's contents — only configuration and identity mappings.
-    ("mapping_profiles", false),
+    // FVL-04.013-.018 — external source connector foundation.
+    //
+    // FVL-04.013-.018 hardening (D1/D2, Session 6): `mapping_profiles` was
+    // originally registered mutable, relying only on application-layer
+    // discipline to keep a profile version immutable — that was proven
+    // insufficient (nothing stopped a second `upsert_master_records` call
+    // from silently rewriting an existing version's own mappings). Its
+    // immutable STORAGE identity is now the composite
+    // `code = "${profileId}::v${profileVersion}"` (`mappingProfileCode()`
+    // in `engine/mappingProfile.ts`), and the collection is registered
+    // append-only here so the storage layer itself rejects any second
+    // write attempting to reuse an existing `code` — a changed mapping
+    // MUST produce a new `profileVersion` (a new row); the version it
+    // replaces is named via `supersedesProfileId` and is never rewritten
+    // or removed. `external_id_crosswalks` stays mutable by design: its
+    // own `lastSeenAt` genuinely updates in place on re-import (the same
+    // source identity resolving to the same canonical identity again);
+    // `firstSeenAt`/`canonicalRecordId` never silently change once set —
+    // enforced by `engine/crosswalk.ts`'s own conflict-detection
+    // discipline (a conflicting write is never persisted at all, active
+    // record left untouched), not by this storage layer's mutability
+    // alone. Neither collection ever stores a credential, a raw customer
+    // payload, or an uploaded file's contents — only configuration and
+    // identity mappings.
+    ("mapping_profiles", true),
     ("external_id_crosswalks", false),
 ];
 
@@ -842,6 +854,29 @@ mod tests {
             collection_spec("generated_document_records"),
             Ok(("generated_document_records", false)),
         );
+    }
+
+    #[test]
+    fn mapping_profiles_is_allow_listed_as_append_only() {
+        // FVL-04.013-.018 hardening (D1/D2, Session 6) — a mapping
+        // profile's immutable storage identity is the composite
+        // `code = "${profileId}::v${profileVersion}"`; append_only=true
+        // means `upsert_master_records` rejects any second write reusing
+        // an existing version's own `code`, enforced by the storage layer
+        // itself (see the same rejection branch every other append-only
+        // collection — `material_prices`/`exchange_rates` — already uses).
+        assert_eq!(collection_spec("mapping_profiles"), Ok(("mapping_profiles", true)));
+    }
+
+    #[test]
+    fn external_id_crosswalks_is_allow_listed_as_mutable() {
+        // A crosswalk's `lastSeenAt` genuinely updates in place on
+        // re-import (same source identity resolving to the same canonical
+        // identity again) — `firstSeenAt`/`canonicalRecordId` never
+        // silently change once set, enforced by `engine/crosswalk.ts`'s
+        // own conflict detection (a conflicting write is never persisted
+        // at all), not by append-only storage semantics.
+        assert_eq!(collection_spec("external_id_crosswalks"), Ok(("external_id_crosswalks", false)));
     }
 
     #[test]

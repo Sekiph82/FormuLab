@@ -3,7 +3,7 @@
  * TR15/TR16 (existing Data Exchange validator boundary, no direct commit).
  */
 import { describe, expect, it } from "vitest";
-import { applyMappingProfile, validateMappingProfile } from "./mappingProfile";
+import { applyMappingProfile, mappingProfileCode, validateMappingProfile } from "./mappingProfile";
 import { discoverSourceSchema } from "./schemaDiscovery";
 import { stageCsvFile } from "./fileConnector";
 import { previewDataExchangeImport } from "./dataExchangeValidation";
@@ -26,7 +26,7 @@ function schemaFor(staged: ReturnType<typeof csvFixture>) {
 }
 
 function baseProfile(overrides: Partial<MappingProfile> = {}): MappingProfile {
-  return {
+  const merged: Omit<MappingProfile, "code"> = {
     schemaVersion: "1.0",
     profileId: "profile-1",
     profileName: "CHT_LIMS materials",
@@ -42,6 +42,7 @@ function baseProfile(overrides: Partial<MappingProfile> = {}): MappingProfile {
     createdBy: "test",
     ...overrides,
   };
+  return { ...merged, code: mappingProfileCode(merged.profileId, merged.profileVersion) };
 }
 
 describe("MAP1: arbitrary source fields map to raw_materials", () => {
@@ -152,6 +153,64 @@ describe("MAP8: no arbitrary executable expression support", () => {
     });
     const issues = validateMappingProfile(profile, schema);
     expect(issues.some((i) => i.code === "unknown_transformation_op")).toBe(true);
+  });
+});
+
+describe("FVL-04.016 hardening D3: transformation config is validated before any row is processed", () => {
+  it("parse_decimal with no decimalSeparator fails profile validation, not just runtime", () => {
+    const staged = csvFixture();
+    const schema = schemaFor(staged);
+    const profile = baseProfile({
+      sourceSchemaFingerprint: schema.fingerprint,
+      fieldMappings: [
+        { sourceField: "Chemical_ID", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "Chemical_Name", targetTemplate: "raw_materials", targetField: "material_name" },
+        { sourceField: "Price_USD", targetTemplate: "material_prices", targetField: "unit_price", transformations: [{ op: "parse_decimal", config: {} }] },
+      ],
+    });
+    const issues = validateMappingProfile(profile, schema);
+    expect(issues.some((i) => i.code === "invalid_transformation_config" && i.targetField === "unit_price")).toBe(true);
+  });
+
+  it("convert_unit with an unrecognized unit fails profile validation", () => {
+    const staged = csvFixture();
+    const schema = schemaFor(staged);
+    const profile = baseProfile({
+      sourceSchemaFingerprint: schema.fingerprint,
+      fieldMappings: [{ sourceField: "Price_USD", targetTemplate: "raw_materials", targetField: "material_code", transformations: [{ op: "convert_unit", config: { from: "furlongs", to: "kg" } }] }],
+    });
+    const issues = validateMappingProfile(profile, schema);
+    expect(issues.some((i) => i.code === "invalid_transformation_config")).toBe(true);
+  });
+
+  it("map_boolean with overlapping trueValues/falseValues fails profile validation", () => {
+    const staged = csvFixture();
+    const schema = schemaFor(staged);
+    const profile = baseProfile({
+      sourceSchemaFingerprint: schema.fingerprint,
+      fieldMappings: [{ sourceField: "Price_USD", targetTemplate: "raw_materials", targetField: "material_code", transformations: [{ op: "map_boolean", config: { trueValues: ["Y"], falseValues: ["y"] } }] }],
+    });
+    const issues = validateMappingProfile(profile, schema);
+    expect(issues.some((i) => i.code === "invalid_transformation_config")).toBe(true);
+  });
+});
+
+describe("FVL-04.016 hardening D5: fan-out natural-key coverage validated up front", () => {
+  it("a material_prices fan-out target missing its valid_from natural-key field fails validation before commit", () => {
+    const staged = csvFixture();
+    const schema = schemaFor(staged);
+    const profile = baseProfile({
+      sourceSchemaFingerprint: schema.fingerprint,
+      fieldMappings: [
+        { sourceField: "Chemical_ID", targetTemplate: "material_prices", targetField: "material_code" },
+        { sourceField: "Vendor_ID", targetTemplate: "material_prices", targetField: "supplier_code" },
+        { sourceField: "Price_USD", targetTemplate: "material_prices", targetField: "unit_price", transformations: [{ op: "parse_decimal", config: { decimalSeparator: "." } }] },
+      ],
+      // No mapping at all for valid_from — a naturalKey field.
+      constantMappings: [{ targetTemplate: "material_prices", targetField: "currency", value: "USD" }],
+    });
+    const issues = validateMappingProfile(profile, schema);
+    expect(issues.some((i) => (i.code === "missing_required_target_field" || i.code === "missing_target_natural_key_field") && i.targetField === "valid_from")).toBe(true);
   });
 });
 

@@ -584,6 +584,7 @@ export * from "./engine/fileConnector";
 export * from "./engine/schemaDiscovery";
 export * from "./engine/mappingProfile";
 export * from "./engine/crosswalk";
+export * from "./engine/unitConversion";
 export * from "./engine/transformation";
 export {
   PRECISION,
