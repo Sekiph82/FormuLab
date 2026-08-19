@@ -10,6 +10,7 @@ import {
   PRICE_FIELDS,
   SUPPLIER_FIELDS,
   buildKenyaCatalog,
+  evaluateMaterialAvailability,
   landedUnitCost,
   templateCsv,
   toCsv,
@@ -147,11 +148,19 @@ export function MaterialsPage() {
     return counts;
   }, [prices]);
 
+  // FVL-04.007: per-material usable stock via the canonical
+  // evaluateMaterialAvailability() — quarantined/unreleased/expired lots are
+  // excluded, never counted just because quantity > 0. A material whose
+  // usable lots span more than one unit is omitted (unknown), never summed
+  // across units.
   const stock = useMemo(() => {
+    const asOf = new Date().toISOString();
     const totals = new Map<string, number>();
-    for (const i of inventory) {
-      const available = Number(i.quantity) - Number(i.reservedQuantity ?? "0");
-      totals.set(i.materialCode, (totals.get(i.materialCode) ?? 0) + available);
+    for (const code of new Set(inventory.map((i) => i.materialCode))) {
+      const availability = evaluateMaterialAvailability(inventory, code, asOf);
+      if (availability.usableQuantity !== undefined) {
+        totals.set(code, Number(availability.usableQuantity.toString()));
+      }
     }
     return totals;
   }, [inventory]);
@@ -880,7 +889,13 @@ function InventoryTable({ inventory }: { inventory: InventoryRecord[] }) {
         </tr>
       </thead>
       <tbody>
-        {inventory.map((i) => (
+        {inventory.map((i) => {
+          // FVL-04.007: this lot's own contribution to usable availability,
+          // via the canonical evaluateMaterialAvailability() (single-record
+          // array so the exclusion rule — quarantined/unreleased/expired —
+          // still applies at this row's own granularity, not a second rule).
+          const rowAvailability = evaluateMaterialAvailability([i], i.materialCode, new Date().toISOString());
+          return (
           <tr key={i.code} className="border-b border-border-faint">
             <td className="px-3 py-1.5 font-mono text-[11px] text-text">{i.materialCode}</td>
             <td className="px-3 py-1.5 text-muted">{i.lot ?? "—"}</td>
@@ -888,7 +903,7 @@ function InventoryTable({ inventory }: { inventory: InventoryRecord[] }) {
               {i.quantity} {i.unit}
             </td>
             <td className="px-3 py-1.5 text-right tabular-nums text-text">
-              {(Number(i.quantity) - Number(i.reservedQuantity ?? "0")).toFixed(2)}
+              {rowAvailability.usableQuantity !== undefined ? rowAvailability.usableQuantity.toFixed(2) : "—"}
             </td>
             <td className="px-3 py-1.5 text-muted">{i.expiresAt?.slice(0, 10) ?? "—"}</td>
             <td className="px-3 py-1.5 text-muted">
@@ -899,7 +914,8 @@ function InventoryTable({ inventory }: { inventory: InventoryRecord[] }) {
                   : t("materials.pending")}
             </td>
           </tr>
-        ))}
+          );
+        })}
         {inventory.length === 0 && (
           <tr>
             <td colSpan={6} className="py-10 text-center text-muted">

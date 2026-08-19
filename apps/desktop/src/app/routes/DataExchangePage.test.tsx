@@ -75,12 +75,12 @@ function renderPage() {
 }
 
 describe("DataExchangePage — Template Library", () => {
-  it("shows all 41 template cards by default", async () => {
+  it("shows all 43 template cards by default", async () => {
     renderPage();
     expect(await screen.findByText("Raw Materials Master")).toBeInTheDocument();
     expect(screen.getByText("DOE Observations")).toBeInTheDocument();
-    // 41 upload buttons, one per card — the most reliable proxy for card count.
-    expect(screen.getAllByRole("button", { name: "Upload" })).toHaveLength(41);
+    // 43 upload buttons, one per card — the most reliable proxy for card count.
+    expect(screen.getAllByRole("button", { name: "Upload" })).toHaveLength(43);
   });
 
   it("filters cards by module", async () => {

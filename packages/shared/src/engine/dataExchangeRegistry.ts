@@ -907,6 +907,51 @@ function template(def: {
   };
 }
 
+// ================================================== FVL-04.007 template ===
+// Inventory Lots — canonical `InventoryRecord` (packages/shared/src/schemas/
+// materials.ts), already a live masterdata collection (`inventory`,
+// `masterdata.rs`) consumed by `evaluateMaterialAvailability()`. No new
+// schema — this only adds a Data Exchange import path for it. `code` is the
+// record's own real identity (the same field the pre-existing in-workspace
+// importer's `INVENTORY_FIELDS` already requires), never derived from
+// material_code+warehouse+lot.
+
+const INVENTORY_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "inventory_code", dataType: "code_reference", description: "Stable inventory-lot record code — the natural key.", ...REQ, example: "TEST-INV-001" }),
+  col({ key: "material_code", dataType: "code_reference", description: "Material this lot is stock of.", ...REQ, referenceTemplate: "raw_materials", referenceField: "material_code", example: "TEST-MAT-001" }),
+  col({ key: "warehouse", dataType: "string", description: "Storage location.", defaultValue: "main", example: "main" }),
+  col({ key: "lot", dataType: "string", description: "Internal lot/batch number." }),
+  col({ key: "supplier_lot", dataType: "string", description: "Supplier's own lot/batch number." }),
+  col({ key: "quantity", dataType: "decimal", description: "On-hand quantity, in unit.", ...REQ, example: "100" }),
+  col({ key: "unit", dataType: "string", description: "Quantity unit.", defaultValue: "kg", example: "kg" }),
+  col({ key: "reserved_quantity", dataType: "decimal", description: "Quantity already reserved/allocated.", defaultValue: "0" }),
+  col({ key: "manufactured_at", dataType: "date", description: "Manufacture date." }),
+  col({ key: "expires_at", dataType: "date", description: "Expiry date — a lot at or past this date is excluded by `evaluateMaterialAvailability()`, never treated as usable." }),
+  col({ key: "coa_status", dataType: "enum", description: "Certificate-of-analysis status.", enumValues: ["received", "pending", "not_required", "missing"], defaultValue: "pending" }),
+  col({ key: "quarantined", dataType: "boolean", description: "Quarantined lots are excluded from usable availability regardless of quantity.", defaultValue: "false" }),
+  col({ key: "released", dataType: "boolean", description: "QC-released — an unreleased lot is excluded from usable availability regardless of quantity. Import never sets this true on its own; see updatePolicy.", defaultValue: "false" }),
+  col({ key: "unit_cost", dataType: "decimal", description: "Reference unit cost, informational only — not the authoritative price (see the Material-Supplier Price List template)." }),
+  col({ key: "currency", dataType: "enum", description: "Currency of unit_cost.", enumValues: ["KES", "USD", "EUR", "GBP", "TZS", "UGX"] }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
+// ================================================== FVL-04.008 template ===
+// Exchange Rates — canonical `ExchangeRate` (packages/shared/src/schemas/
+// costing.ts), already a live masterdata collection (`exchange_rates`,
+// `masterdata.rs`) consumed by the real Cost Engine's own `findRate()`. No
+// new schema, no FX conversion logic here — `findRate()` remains the sole
+// rate-selection/conversion authority; a missing pair stays missing
+// (`no_exchange_rate`), never defaulted to 1:1.
+
+const EXCHANGE_RATE_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "base_currency", dataType: "enum", description: "Base currency — units of quote_currency per 1 unit of this.", ...REQ, enumValues: ["KES", "USD", "EUR", "GBP", "TZS", "UGX"], example: "USD" }),
+  col({ key: "quote_currency", dataType: "enum", description: "Quote currency.", ...REQ, enumValues: ["KES", "USD", "EUR", "GBP", "TZS", "UGX"], example: "KES" }),
+  col({ key: "rate", dataType: "decimal", description: "Units of quote_currency per 1 unit of base_currency.", ...REQ, example: "129.50" }),
+  col({ key: "effective_from", dataType: "date", description: "Date this rate takes effect.", ...REQ, example: "2026-01-01" }),
+  col({ key: "source", dataType: "string", description: "Where the rate came from — a bank, a portal, a finance email. Never blank.", ...REQ, example: "TEST Central Bank" }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
 // Phase 13 Session 1: the old "chemist" role was folded into "researcher"
 // (day-to-day formulation/lab work) when the role model expanded from 6 to
 // 12 fixed roles — see docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md §1/§9.
@@ -978,6 +1023,36 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     targetCollection: "material_documents",
     exampleRows: [
       { material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", document_type: "SDS", document_number: "SDS-DG50-03", document_title: "TEST Safety Data Sheet v3", revision: "3", language: "en", issuer: "TEST Chemicals Ltd", issue_date: "2025-11-01", expiry_date: "", file_name: "test-sds-dg50-v3.pdf", expected_sha256: "", verification_status: "unverified", tags: "sds", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "inventory_records",
+    title: "Inventory Lots",
+    description: "On-hand inventory lots per material/warehouse. Quarantine, release and expiry are imported as facts; usable availability is always computed by the canonical evaluateMaterialAvailability(), never by the importer.",
+    module: "materials",
+    columns: INVENTORY_COLUMNS,
+    naturalKey: ["inventory_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "inventory_code updates the existing lot's mutable fields (quantity, reserved_quantity, quarantined, released, coa_status, ...) in place — a physical count/status correction, not a new lot.",
+    authorization: MASTER_DATA_ROLES,
+    targetCollection: "inventory",
+    exampleRows: [
+      { inventory_code: "TEST-INV-001", material_code: "TEST-MAT-001", warehouse: "main", lot: "L2026-001", supplier_lot: "SUP-L-9001", quantity: "100", unit: "kg", reserved_quantity: "20", manufactured_at: "2026-01-01", expires_at: "2028-01-01", coa_status: "received", quarantined: "false", released: "true", unit_cost: "450.00", currency: "KES", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "exchange_rates",
+    title: "Exchange Rates",
+    description: "Currency exchange rates used by the Cost Engine to convert a material price into the formula's costing currency. A missing pair is never defaulted to 1:1.",
+    module: "costing",
+    columns: EXCHANGE_RATE_COLUMNS,
+    naturalKey: ["base_currency", "quote_currency", "effective_from"],
+    duplicatePolicy: "append_history",
+    updatePolicy: "Every row is a new rate-validity period; re-importing an identical (base, quote, effective_from) triple is a duplicate, never a silent overwrite of a prior rate.",
+    authorization: COST_ROLES,
+    targetCollection: "exchange_rates",
+    exampleRows: [
+      { base_currency: "USD", quote_currency: "KES", rate: "129.50", effective_from: "2026-01-01", source: "TEST Central Bank", notes: "Synthetic test row." },
     ],
   }),
   template({

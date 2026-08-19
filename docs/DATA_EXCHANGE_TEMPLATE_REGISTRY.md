@@ -101,8 +101,8 @@ See [DATA_EXCHANGE_IMPORTS.md](DATA_EXCHANGE_IMPORTS.md#authorization).
 
 `getDataExchangeTemplate(templateCode)`, `listDataExchangeTemplates()`,
 `isDataExchangeRoleAuthorized(templateCode, role)`. `DATA_EXCHANGE_TEMPLATES`
-is the array of all 24 `template({...})` calls — the single source of
-truth `dataExchangeRegistry.test.ts` checks for: exactly 24 templates,
+is the array of all 43 `template({...})` calls — the single source of
+truth `dataExchangeRegistry.test.ts` checks for: exactly 43 templates,
 unique codes/ids, unique column keys per template, a non-empty natural
 key pointing at real columns, `schemaVersion: "1.0"`, CSV+Excel support,
 at least one authorized role, at least one example row using only real

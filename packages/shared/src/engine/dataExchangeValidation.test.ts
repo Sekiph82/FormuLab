@@ -151,6 +151,47 @@ describe("previewDataExchangeImport — row classification", () => {
     expect(p.referenceErrors).toBe(1);
   });
 
+  it("FVL-04.007: an inventory row with an unresolvable material_code is rejected honestly, never silently attached", () => {
+    const inventory = getDataExchangeTemplate("inventory_records")!;
+    const rows = [
+      ["inventory_code", "material_code", "quantity"],
+      ["TEST-INV-001", "TEST-MAT-999", "100"],
+    ];
+    const p = previewDataExchangeImport(inventory, rows, { resolveReference: () => false });
+    expect(p.rows[0].state).toBe("reference_missing");
+    expect(p.referenceErrors).toBe(1);
+  });
+
+  it("FVL-04.007: a missing required inventory field (quantity) is invalid, never defaulted", () => {
+    const inventory = getDataExchangeTemplate("inventory_records")!;
+    const rows = [
+      ["inventory_code", "material_code", "quantity"],
+      ["TEST-INV-001", "TEST-MAT-001", ""],
+    ];
+    const p = previewDataExchangeImport(inventory, rows);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("FVL-04.008: an exchange rate row with an unrecognized currency is invalid, never silently accepted", () => {
+    const rates = getDataExchangeTemplate("exchange_rates")!;
+    const rows = [
+      ["base_currency", "quote_currency", "rate", "effective_from", "source"],
+      ["ZZZ", "KES", "1.0", "2026-01-01", "TEST Bank"],
+    ];
+    const p = previewDataExchangeImport(rates, rows);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("FVL-04.008: a missing required exchange rate field (source) is invalid", () => {
+    const rates = getDataExchangeTemplate("exchange_rates")!;
+    const rows = [
+      ["base_currency", "quote_currency", "rate", "effective_from", "source"],
+      ["USD", "KES", "129.5", "2026-01-01", ""],
+    ];
+    const p = previewDataExchangeImport(rates, rows);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
   it("classifies an unresolvable OPTIONAL reference as a warning, not a blocker", () => {
     const rows = [["material_code", "material_name", "preferred_supplier_code"], ["TEST-MAT-001", "TEST Water", "TEST-SUP-999"]];
     const p = previewDataExchangeImport(materials, rows, { resolveReference: () => false });
@@ -379,6 +420,45 @@ describe("previewDataExchangeImport — stability seed-catalog enums", () => {
       return "";
     });
     const p = previewDataExchangeImport(stabilityProtocols, [header, row]);
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+});
+
+// FVL-04.012 — real sample-file acceptance for the canonical/template-based
+// onboarding block (FVL-04.001-.010). Each template's own real `exampleRows`
+// (already realistic sample data — every template ships one so a human can
+// see a working row, not this test's invention) is rendered to a real CSV
+// string and pushed through the actual parse → validate → preview path,
+// covering every confirmed/extended template from this block.
+describe("FVL-04.012 — real sample-file acceptance (parse -> validate -> preview)", () => {
+  const templateCodes = [
+    "raw_materials",
+    "suppliers",
+    "material_prices",
+    "material_documents",
+    "test_definitions",
+    "inventory_records",
+    "exchange_rates",
+    "process_parameters",
+    "regulatory_rules",
+    "dossier_requirements",
+    "dossier_evidence",
+  ];
+
+  // Real example-row values can contain commas ("Store below 25C, away from
+  // light.") — a real CSV quotes those; the shared `csvFor` helper above
+  // does not, so this test quotes for itself rather than weakening the
+  // sample data to avoid the case.
+  const csvCell = (v: string) => (v.includes(",") || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v);
+
+  it.each(templateCodes)("%s: the template's own real example row previews as valid_create through a real CSV parse", (code) => {
+    const template = getDataExchangeTemplate(code)!;
+    expect(template).toBeDefined();
+    const headers = template.columns.map((c) => c.key);
+    const values = template.columns.map((c) => csvCell(template.exampleRows[0][c.key] ?? ""));
+    const csv = [headers.join(","), values.join(",")].join("\n");
+    const p = previewDataExchangeImportCsv(template, csv, { resolveReference: () => true });
+    expect(p.fatalError).toBeUndefined();
     expect(p.rows[0].state).toBe("valid_create");
   });
 });

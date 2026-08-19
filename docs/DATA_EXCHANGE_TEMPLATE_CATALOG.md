@@ -1,6 +1,9 @@
 # Data Exchange template catalog
 
-All 24 mandated templates, every column, straight from
+All 43 registered templates (the original 24 mandated templates, plus
+11 Reverse Formulation templates, 6 Phase 8 dossier-expansion templates,
+and the 2 FVL-04.007/.008 operational templates below), every column,
+straight from
 `packages/shared/src/engine/dataExchangeRegistry.ts` (the single source
 of truth — this document is a rendering of it, not a separate spec).
 Every template supports both CSV and Excel, `schemaVersion: "1.0"`.
@@ -810,4 +813,73 @@ three resolved live, each refused independently if missing.
 | measured_at | datetime | | Measurement timestamp. |
 | analyst | string | | Analyst. |
 | exclusion_reason | string | | **Recorded as a note only; does not exclude the observation from analysis by itself.** |
+| notes | string | | Free text. |
+
+---
+
+## Inventory Lots — `inventory_records` (FVL-04.007)
+
+Module: materials · Natural key: `inventory_code` · Duplicate policy:
+`create_or_update` · Authorization: Master · Target collection:
+`inventory` · Commit: **wired**
+
+Canonical `InventoryRecord` (`packages/shared/src/schemas/materials.ts`)
+— no new schema, just a Data Exchange import path for an existing, live
+masterdata collection. `inventory_code` updates the existing lot's
+mutable fields (quantity, reserved_quantity, quarantined, released,
+coa_status, ...) in place — a physical count/status correction, not a
+new lot. **Importing a lot never computes usable availability itself**
+— quarantine/release/expiry are imported as plain facts; the sole
+authority for "how much is actually usable right now" remains the
+canonical `evaluateMaterialAvailability()`
+(`packages/shared/src/engine/inventoryAvailability.ts`), which every
+consumer (`MaterialsPage.tsx`, `AdvancedOptimizerPanel.tsx`,
+`SubstitutionPanel.tsx`, and the generated-formula inventory evaluator)
+calls afterward.
+
+| Column | Type | Req'd | Description |
+|---|---|---|---|
+| inventory_code | code_reference | yes | Stable inventory-lot record code — the natural key. |
+| material_code | code_reference → raw_materials | yes | Material this lot is stock of. |
+| warehouse | string | | Storage location (default "main"). |
+| lot | string | | Internal lot/batch number. |
+| supplier_lot | string | | Supplier's own lot/batch number. |
+| quantity | decimal | yes | On-hand quantity, in unit. |
+| unit | string | | Quantity unit (default "kg"). |
+| reserved_quantity | decimal | | Quantity already reserved/allocated (default 0). |
+| manufactured_at | date | | Manufacture date. |
+| expires_at | date | | Expiry date — a lot at or past this date is excluded by `evaluateMaterialAvailability()`, never treated as usable. |
+| coa_status | enum | | `received` / `pending` / `not_required` / `missing` (default pending). |
+| quarantined | boolean | | Quarantined lots are excluded from usable availability regardless of quantity (default false). |
+| released | boolean | | QC-released — an unreleased lot is excluded from usable availability regardless of quantity (default false). |
+| unit_cost | decimal | | Reference unit cost, informational only — not the authoritative price (see the Material-Supplier Price List template). |
+| currency | enum | | Currency of unit_cost. |
+| notes | string | | Free text. |
+
+---
+
+## Exchange Rates — `exchange_rates` (FVL-04.008)
+
+Module: costing · Natural key: `base_currency` + `quote_currency` +
+`effective_from` · Duplicate policy: `append_history` · Authorization:
+Cost · Target collection: `exchange_rates` · Commit: **wired**
+
+Canonical `ExchangeRate` (`packages/shared/src/schemas/costing.ts`) —
+no new schema. Every row is a new rate-validity period; re-importing an
+identical (base, quote, effective_from) triple is a duplicate, never a
+silent overwrite of a prior rate — the same append-only convention the
+Material-Supplier Price List template already uses. **Imports facts
+only** — the real Cost Engine's `findRate()` (`engine/cost.ts`) remains
+the sole rate-selection/conversion authority; a missing pair is never
+defaulted to 1:1, and `verification` is never taken from the file
+(always `not_verified` regardless of what the row said, same convention
+as every other verification-shaped column in this catalog).
+
+| Column | Type | Req'd | Description |
+|---|---|---|---|
+| base_currency | enum | yes | Base currency — units of quote_currency per 1 unit of this. |
+| quote_currency | enum | yes | Quote currency. |
+| rate | decimal | yes | Units of quote_currency per 1 unit of base_currency. |
+| effective_from | date | yes | Date this rate takes effect. |
+| source | string | yes | Where the rate came from — a bank, a portal, a finance email. Never blank. |
 | notes | string | | Free text. |

@@ -8,9 +8,11 @@
  * (`MaterialsPage.tsx`, `AdvancedOptimizerPanel.tsx`, `SubstitutionPanel.tsx`)
  * each re-implemented `quantity − reservedQuantity` inline, and none of
  * them applied `quarantined`/`released`/`expiresAt` filtering. This module
- * is the single, authoritative definition going forward for any NEW
- * caller (FVL-03.004's own client-side inventory-feasibility evaluator);
- * the three pre-existing call sites are untouched, out of scope.
+ * was the single, authoritative definition for any NEW caller (FVL-03.004's
+ * own client-side inventory-feasibility evaluator) from the start; the
+ * three pre-existing call sites were re-audited and switched over to this
+ * same function in FVL-04.007, so a quarantined or expired lot can no
+ * longer read as usable stock anywhere in the app.
  *
  * A lot counts as usable only when both `quarantined`/`released` — real,
  * separate schema facts, not one inferred flag — say so, and it has not

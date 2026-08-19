@@ -12,6 +12,7 @@ import {
   buildCandidateRecord,
   buildSystemSubstitutionProblem,
   evaluateCompatibility,
+  evaluateMaterialAvailability,
   evaluateRegulatory,
   evaluateSafety,
   generateSystemCandidates,
@@ -220,11 +221,9 @@ export function SubstitutionDialog({
     const regulatoryProhibited = new Set<string>();
     const scored: SubstitutionCandidate[] = pool.map((m) => {
       const priceChoice = priceFor(prices, m.code, asOf);
-      const stockRecords = inventory.filter((r) => r.materialCode === m.code);
-      const availableKg = stockRecords.reduce(
-        (sum, r) => sum + (Number(r.quantity) - Number(r.reservedQuantity || "0")),
-        0,
-      );
+      // FVL-04.007: canonical usable stock — excludes quarantined/
+      // unreleased/expired lots, never raw quantity - reserved.
+      const availability = evaluateMaterialAvailability(inventory, m.code, asOf);
       const substitutedLines = allLines.map((l) => (l.id === line.id ? { ...l, materialCode: m.code, functions: m.functions } : l));
       const compatFindings = evaluateCompatibility(substitutedLines, SEED_COMPATIBILITY_RULES, { materials });
       const safetyFindings = evaluateSafety(substitutedLines, SEED_SAFETY_RULES, { materials });
@@ -263,7 +262,7 @@ export function SubstitutionDialog({
         technicalMaxPercent: m.technicalMaxPercent,
         landedCost: priceChoice?.price.price,
         currency: priceChoice?.price.currency,
-        availableStockKg: stockRecords.length > 0 ? String(availableKg) : undefined,
+        availableStockKg: availability.hasRecords && availability.usableQuantity !== undefined ? availability.usableQuantity.toString() : undefined,
         supplierApproved: suppliers.find((s) => s.code === priceChoice?.price.supplierCode)?.approved,
         kenyaLocal: suppliers.find((s) => s.code === priceChoice?.price.supplierCode)?.country === "Kenya",
         compatibilityFindingIds: compatFindings.map((f) => f.id),
@@ -359,8 +358,9 @@ export function SubstitutionDialog({
 
   function toOptimizationMaterial(m: RawMaterial, over: Partial<OptimizationMaterial> = {}): OptimizationMaterial {
     const priceChoice = priceFor(prices, m.code, asOf);
-    const stockRecords = inventory.filter((r) => r.materialCode === m.code);
-    const availableKg = stockRecords.reduce((sum, r) => sum + (Number(r.quantity) - Number(r.reservedQuantity || "0")), 0);
+    // FVL-04.007: canonical usable stock — excludes quarantined/unreleased/
+    // expired lots, never raw quantity - reserved.
+    const availability = evaluateMaterialAvailability(inventory, m.code, asOf);
     return {
       id: m.code,
       materialCode: m.code,
@@ -373,7 +373,7 @@ export function SubstitutionDialog({
       maxUsePercent: m.recommendedMaxPercent,
       minUsePercent: m.recommendedMinPercent,
       technicalMaxPercent: m.technicalMaxPercent,
-      stock: stockRecords.length > 0 ? { value: String(availableKg), state: "known" } : undefined,
+      stock: availability.hasRecords && availability.usableQuantity !== undefined ? { value: availability.usableQuantity.toString(), state: "known" } : undefined,
       casNumbers: m.casNumbers,
       excluded: true,
       ...over,
@@ -481,13 +481,14 @@ export function SubstitutionDialog({
         .filter((m) => m.active && !sourceCodes.has(m.code))
         .map((m) => {
           const priceChoice = priceFor(prices, m.code, asOf);
-          const stockRecords = inventory.filter((r) => r.materialCode === m.code);
-          const availableKg = stockRecords.reduce((sum, r) => sum + (Number(r.quantity) - Number(r.reservedQuantity || "0")), 0);
+          // FVL-04.007: canonical usable stock — excludes quarantined/
+          // unreleased/expired lots, never raw quantity - reserved.
+          const availability = evaluateMaterialAvailability(inventory, m.code, asOf);
           return {
             materialId: m.code,
             materialCode: m.code,
             functions: m.functions,
-            stockAvailableKg: stockRecords.length > 0 ? String(availableKg) : undefined,
+            stockAvailableKg: availability.hasRecords && availability.usableQuantity !== undefined ? availability.usableQuantity.toString() : undefined,
             supplierApproved: suppliers.find((s) => s.code === priceChoice?.price.supplierCode)?.approved,
             kenyaLocal: suppliers.find((s) => s.code === priceChoice?.price.supplierCode)?.country === "Kenya",
           };

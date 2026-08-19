@@ -17,7 +17,7 @@
  * `DataExchangePage.test.tsx`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getDataExchangeTemplate, type DataExchangeRowResult } from "@formulab/shared";
+import { evaluateMaterialAvailability, findRate, getDataExchangeTemplate, type DataExchangeRowResult, type ExchangeRate, type InventoryRecord } from "@formulab/shared";
 import { commitDataExchangeRows, isTemplateCommitSupported } from "./dataExchangeCommit";
 import { loadExisting } from "./dataExchangeExisting";
 
@@ -207,6 +207,30 @@ describe("commitDataExchangeRows — raw materials / suppliers / material prices
     // resolved/merged against the other supplier by name.
     expect(bridge.upsertRecords).toHaveBeenCalledWith("suppliers", expect.arrayContaining([expect.objectContaining({ code: "TEST-SUP-002", displayName: "TEST Supplier" })]));
   });
+
+  it("FVL-04.006 P2: two price-validity periods for the same material/supplier both persist — append-only, never an overwrite", async () => {
+    const first = await commitDataExchangeRows(
+      getDataExchangeTemplate("material_prices")!,
+      [row({ material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", unit_price: "450", currency: "KES", valid_from: "2026-01-01", valid_until: "2026-06-30" })],
+      ctx,
+    );
+    const second = await commitDataExchangeRows(
+      getDataExchangeTemplate("material_prices")!,
+      [row({ material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", unit_price: "480", currency: "KES", valid_from: "2026-07-01" })],
+      ctx,
+    );
+    expect(first[0].outcome).toBe("created");
+    expect(second[0].outcome).toBe("created");
+    const calls = bridge.upsertRecords.mock.calls.filter(([c]) => c === "material_prices");
+    expect(calls).toHaveLength(2);
+    const codes = calls.map(([, records]) => (records as { code: string }[])[0].code);
+    // Distinct records — the earlier 450 KES quote is never overwritten by
+    // the later 480 KES one; both remain in history for the real Cost
+    // Engine (buildCostSnapshot/priceFor) to select from by validity date.
+    expect(codes[0]).not.toBe(codes[1]);
+    expect(calls[0][1][0]).toMatchObject({ price: "450", effectiveFrom: "2026-01-01" });
+    expect(calls[1][1][0]).toMatchObject({ price: "480", effectiveFrom: "2026-07-01" });
+  });
 });
 
 describe("commitDataExchangeRows — FVL-04.003/.004: TDS and SDS reuse the existing material_documents path, never a second document registry", () => {
@@ -275,6 +299,134 @@ describe("commitDataExchangeRows — FVL-04.003/.004: TDS and SDS reuse the exis
   });
 });
 
+describe("commitDataExchangeRows — FVL-04.005: Specifications reuse the existing test_definitions path", () => {
+  it("SP1/SP2/SP4/SP7: a test definition commits with exact target/limit/unit values, and is always imported_unverified regardless of the file", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("test_definitions")!,
+      [row({ test_code: "TEST-TST-001", test_name: "TEST pH Measurement", unit: "pH", lower_limit: "4.5", target_value: "5.5", upper_limit: "6.5", result_type: "numeric" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "test_definitions",
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "TEST-TST-001",
+          unit: "pH",
+          minimum: "4.5",
+          targetValue: "5.5",
+          maximum: "6.5",
+          // Never taken from the file — SP1-shaped equivalent of the
+          // material_documents/regulatory_rules "never verified from an
+          // import" convention.
+          verificationStatus: "imported_unverified",
+        }),
+      ]),
+    );
+  });
+
+  it("SP5: missing optional limits stay missing, never coerced to 0", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("test_definitions")!,
+      [row({ test_code: "TEST-TST-002", test_name: "TEST Viscosity" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    const call = bridge.upsertRecords.mock.calls.find(([c]) => c === "test_definitions");
+    const record = call?.[1][0] as Record<string, unknown>;
+    expect(record.minimum).toBeUndefined();
+    expect(record.targetValue).toBeUndefined();
+    expect(record.maximum).toBeUndefined();
+  });
+
+  it("SP3: lab_results' own test_code column resolves against test_definitions by code — the real consumer link, confirmed already wired", () => {
+    const labResults = getDataExchangeTemplate("lab_results")!;
+    const testCodeColumn = labResults.columns.find((c) => c.key === "test_code");
+    expect(testCodeColumn?.referenceTemplate).toBe("test_definitions");
+    expect(testCodeColumn?.referenceField).toBe("test_code");
+  });
+});
+
+describe("commitDataExchangeRows — FVL-04.007: Inventory Lots feed the canonical evaluateMaterialAvailability()", () => {
+  it("I1/I2/I3/I4: a lot commits with exact quantity/reserved/quarantine/release/expiry facts, keyed by its own real code", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("inventory_records")!,
+      [row({ inventory_code: "TEST-INV-001", material_code: "TEST-MAT-001", quantity: "100", reserved_quantity: "20", quarantined: "false", released: "true", expires_at: "2028-01-01" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "inventory",
+      expect.arrayContaining([
+        expect.objectContaining({ code: "TEST-INV-001", materialCode: "TEST-MAT-001", quantity: "100", reservedQuantity: "20", quarantined: false, released: true, expiresAt: "2028-01-01" }),
+      ]),
+    );
+  });
+
+  it("updates the same lot in place on a repeated inventory_code — a count/status correction, not a new lot", async () => {
+    bridge.listRecords.mockResolvedValue([{ code: "TEST-INV-001", createdAt: "2026-01-01T00:00:00.000Z" }]);
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("inventory_records")!,
+      [row({ inventory_code: "TEST-INV-001", material_code: "TEST-MAT-001", quantity: "80" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("updated");
+  });
+
+  it("I6/I7/I9: an imported released lot is usable and an imported quarantined lot is excluded — proven by feeding the committed records straight into the real evaluateMaterialAvailability(), no importer-local availability logic", async () => {
+    const asOf = "2026-06-01T00:00:00.000Z";
+    await commitDataExchangeRows(getDataExchangeTemplate("inventory_records")!, [row({ inventory_code: "TEST-INV-USABLE", material_code: "TEST-MAT-001", quantity: "100", reserved_quantity: "10", released: "true", quarantined: "false" })], ctx);
+    await commitDataExchangeRows(getDataExchangeTemplate("inventory_records")!, [row({ inventory_code: "TEST-INV-BLOCKED", material_code: "TEST-MAT-001", quantity: "50", quarantined: "true", released: "true" })], ctx);
+    const committed = bridge.upsertRecords.mock.calls.filter(([c]) => c === "inventory").map(([, r]) => (r as InventoryRecord[])[0]);
+    const availability = evaluateMaterialAvailability(committed, "TEST-MAT-001", asOf);
+    expect(availability.hasRecords).toBe(true);
+    // Only the usable lot's net-of-reservation quantity (100-10=90) counts;
+    // the quarantined lot's 50 is excluded entirely, not subtracted or
+    // partially counted.
+    expect(availability.usableQuantity?.toString()).toBe("90");
+    expect(availability.consideredRecordCodes).toEqual(["TEST-INV-USABLE"]);
+    expect(availability.blockedRecordCodes).toEqual(["TEST-INV-BLOCKED"]);
+  });
+});
+
+describe("commitDataExchangeRows — FVL-04.008: Exchange Rates feed the real Cost Engine's findRate(), no importer-local FX", () => {
+  it("FX1/FX2: a valid rate commits with the exact currency pair and rate, always not_verified and entryMethod imported", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("exchange_rates")!,
+      [row({ base_currency: "USD", quote_currency: "KES", rate: "129.50", effective_from: "2026-01-01", source: "TEST Central Bank" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "exchange_rates",
+      expect.arrayContaining([
+        expect.objectContaining({ baseCurrency: "USD", quoteCurrency: "KES", rate: "129.50", effectiveFrom: "2026-01-01", source: "TEST Central Bank", entryMethod: "imported", verification: "not_verified" }),
+      ]),
+    );
+  });
+
+  it("FX5/FX6/FX8: a committed rate is genuinely consumable by the real findRate() — no importer-local conversion logic exists to duplicate it", async () => {
+    await commitDataExchangeRows(getDataExchangeTemplate("exchange_rates")!, [row({ base_currency: "USD", quote_currency: "KES", rate: "129.50", effective_from: "2026-01-01", source: "TEST Central Bank" })], ctx);
+    const committed = bridge.upsertRecords.mock.calls.filter(([c]) => c === "exchange_rates").map(([, r]) => (r as ExchangeRate[])[0]);
+    const lookup = findRate(committed, "USD", "KES", "2026-06-01");
+    expect(lookup?.rate.toString()).toBe("129.5");
+    expect(lookup?.rateCode).toBe(committed[0].code);
+  });
+
+  it("FX7: a currency pair with no imported rate at all still yields undefined (no_exchange_rate), never a fabricated 1:1", () => {
+    const lookup = findRate([], "USD", "TRY", "2026-06-01");
+    expect(lookup).toBeUndefined();
+  });
+
+  it("two rate-validity periods for the same pair both persist — append-only history, never overwritten", async () => {
+    await commitDataExchangeRows(getDataExchangeTemplate("exchange_rates")!, [row({ base_currency: "USD", quote_currency: "KES", rate: "129.50", effective_from: "2026-01-01", source: "TEST Bank" })], ctx);
+    await commitDataExchangeRows(getDataExchangeTemplate("exchange_rates")!, [row({ base_currency: "USD", quote_currency: "KES", rate: "132.00", effective_from: "2026-07-01", source: "TEST Bank" })], ctx);
+    const calls = bridge.upsertRecords.mock.calls.filter(([c]) => c === "exchange_rates");
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1][0]).not.toEqual(calls[1][1][0]);
+  });
+});
+
 describe("commitDataExchangeRows — master/formulation templates without their own describe block", () => {
   it("material_documents: creates then updates the same (material, document_type, document_number) record", async () => {
     const rows = [row({ material_code: "TEST-MAT-001", document_type: "coa", document_number: "DOC-1", document_title: "TEST CoA" })];
@@ -332,6 +484,18 @@ describe("commitDataExchangeRows — master/formulation templates without their 
     bridge.listRecords.mockResolvedValue([{ code: "TEST-FORM-001-v1-step1", createdAt: "2026-01-01T00:00:00.000Z" }]);
     const updated = await commitDataExchangeRows(getDataExchangeTemplate("process_parameters")!, rows, ctx);
     expect(updated[0].outcome).toBe("updated");
+  });
+
+  it("PR3/PR4: temperature/mixing-speed values and critical_parameter survive exactly, keyed to the real formula/version/step identity", async () => {
+    const rows = [row({ formula_code: "TEST-FORM-001", formula_version: "1", step_number: "2", step_name: "Mix", temperature_min: "60", temperature_target: "65", temperature_max: "70", mixing_speed_target: "80", critical_parameter: "true" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("process_parameters")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "process_parameters",
+      expect.arrayContaining([
+        expect.objectContaining({ code: "TEST-FORM-001-v1-step2", formulaCode: "TEST-FORM-001", formulaVersion: 1, stepNumber: 2, temperatureMin: "60", temperatureTarget: "65", temperatureMax: "70", mixingSpeedTarget: "80", criticalParameter: true }),
+      ]),
+    );
   });
 
   it("formula_cost_overrides: always appends a new history row, by design, never updates in place", async () => {
@@ -451,6 +615,23 @@ describe("commitDataExchangeRows — regulatory rules", () => {
     const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("regulatory_rules")!, rows, ctx);
     expect(outcomes[0].outcome).toBe("created");
     expect(bridge.upsertRecords).toHaveBeenCalledWith("regulatory_rules", expect.arrayContaining([expect.objectContaining({ verificationStatus: "not_verified" })]));
+  });
+
+  it("R2/R3: an attempted 'verified' value smuggled onto the row is ignored — not_verified is never taken from the file", async () => {
+    const rows = [row({ rule_code: "TEST-RULE-002", jurisdiction: "KE", requirement: "Must state Y.", rule_type: "label_requirement", verification_status: "verified", verified_by: "someone", verified_at: "2026-01-01" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("regulatory_rules")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    const record = bridge.upsertRecords.mock.calls.find(([c]) => c === "regulatory_rules")?.[1][0] as Record<string, unknown>;
+    expect(record.verificationStatus).toBe("not_verified");
+    expect(record.humanReviewStatus).toBe("review_required");
+    expect(record.status).toBe("draft");
+  });
+
+  it("R4: exact jurisdiction survives — a KE rule is never silently generalized to EAC or any other market", async () => {
+    const rows = [row({ rule_code: "TEST-RULE-003", jurisdiction: "KE", requirement: "Must state Z." })];
+    await commitDataExchangeRows(getDataExchangeTemplate("regulatory_rules")!, rows, ctx);
+    const record = bridge.upsertRecords.mock.calls.find(([c]) => c === "regulatory_rules")?.[1][0] as Record<string, unknown>;
+    expect(record.jurisdiction).toBe("KE");
   });
 });
 

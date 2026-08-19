@@ -9,6 +9,7 @@ import {
   compareOptimizationRuns,
   createScenario,
   currentScenariosByGroup,
+  evaluateMaterialAvailability,
   gradedRiskScores,
   newId,
   priceFor,
@@ -236,11 +237,10 @@ export function AdvancedOptimizerPanel({
     const { compatibilityRisk, safetyRisk } = gradedRiskScores(chosen, materials);
     const optMaterials = chosen.map((m) => {
       const priceChoice = priceFor(prices, m.code, asOf);
-      const stockRecords = inventory.filter((r) => r.materialCode === m.code);
-      const availableKg = stockRecords.reduce(
-        (sum, r) => sum + (Number(r.quantity) - Number(r.reservedQuantity || "0")),
-        0,
-      );
+      // FVL-04.007: usable stock is always the canonical
+      // evaluateMaterialAvailability() — quarantined/unreleased/expired lots
+      // are excluded, never counted as available just because quantity > 0.
+      const availability = evaluateMaterialAvailability(inventory, m.code, asOf);
       return {
         id: m.code,
         materialCode: m.code,
@@ -257,7 +257,10 @@ export function AdvancedOptimizerPanel({
         maxUsePercent: m.recommendedMaxPercent,
         minUsePercent: m.recommendedMinPercent,
         technicalMaxPercent: m.technicalMaxPercent,
-        stock: stockRecords.length > 0 ? { value: String(availableKg), state: "known" as const } : undefined,
+        stock:
+          availability.hasRecords && availability.usableQuantity !== undefined
+            ? { value: availability.usableQuantity.toString(), state: "known" as const }
+            : undefined,
         casNumbers: m.casNumbers,
         excluded: false,
         compatibilityRiskScore: compatibilityRisk[m.code],

@@ -8,7 +8,7 @@ lab, stability, regulatory, dossiers, claims, labels, DOE), not just one.
 It is not a reports page with a download button: one shared,
 schema-driven template registry drives every template's CSV/Excel
 generation, validation and commit behavior, so adding or fixing a
-template means changing its column list in one place, not touching 24
+template means changing its column list in one place, not touching 43
 separate importers.
 
 Domain schemas: `packages/shared/src/schemas/dataExchange.ts` (bookkeeping
@@ -75,30 +75,38 @@ actually gets written), `apps/desktop/src/lib/dataExchangeExisting.ts`
 
 ## Implemented vs. not yet implemented
 
-**Implemented, tested, live-verifiable through the desktop app:** all 24
-templates registered with a real schema/CSV/Excel/validation pipeline;
-22 of the 24 wired to a real commit handler writing through the actual
-per-domain collections (`raw_materials`, `suppliers`, `material_prices`,
-`material_documents`, `product_families`, `finished_products`,
-`packaging_components`, `packaging_bom`, `formula_bom`,
-`process_parameters`, `costing_assumptions`, `formula_cost_overrides`,
-`test_definitions`, `lab_results`, `regulatory_rules`,
-`dossier_requirements`, `dossier_evidence`, `product_claims`,
-`label_content`, `artwork_register`, `doe_factors_responses`,
-`doe_observations`); grouped-row commits for `formula_bom` and
-`lab_results`; a full import job status lifecycle (a job is recorded the
-moment a preview succeeds or fails, not only on commit); the
-`/data-exchange` workspace with Template Library, Exports, Imports,
-Validation, History, Schema Versions and Help sections;
+**Implemented, tested, live-verifiable through the desktop app:** all 43
+templates registered with a real schema/CSV/Excel/validation pipeline
+(the original 24, plus 11 Reverse Formulation templates, 6 Phase 8
+dossier-expansion templates, and 2 FVL-04.007/.008 operational
+templates — `inventory_records`, `exchange_rates`); 41 of the 43 wired
+to a real commit handler writing through the actual per-domain
+collections (`raw_materials`, `suppliers`, `material_prices`,
+`material_documents`, `inventory_records`, `exchange_rates`,
+`product_families`, `finished_products`, `packaging_components`,
+`packaging_bom`, `formula_bom`, `process_parameters`,
+`costing_assumptions`, `formula_cost_overrides`, `test_definitions`,
+`lab_results`, `stability_protocols`, `stability_results`,
+`regulatory_rules`, `dossier_requirements`, `dossier_evidence`,
+`product_claims`, `label_content`, `artwork_register`,
+`doe_factors_responses`, `doe_observations`, and every Reverse
+Formulation and Phase 8 dossier-expansion template); grouped-row
+commits for `formula_bom`, `lab_results`, `stability_protocols` and
+`reverse_formula_candidates`; a full import job status lifecycle (a job
+is recorded the moment a preview succeeds or fails, not only on
+commit); the `/data-exchange` workspace with Template Library, Exports,
+Imports, Validation, History, Schema Versions and Help sections;
 Home/Administration/Reports/Projects integration.
 
 **Explicitly not implemented — refused with an honest error, never
-faked:** `stability_protocols` and `stability_results` are fully
-registered (schema, CSV, Excel, validation) but have **no commit
-handler** — see [DATA_EXCHANGE_TEMPLATE_CATALOG.md](DATA_EXCHANGE_TEMPLATE_CATALOG.md#stability-protocols-and-stability-results-not-wired)
-for why. A final formatted PDF/DOCX export sourced from Data Exchange
-data, and the spec's eventual 24→32-33 template expansion, are both
-deferred to Phase 8.
+faked:** `dossier_reviews` and `dossier_manual_requirement_actions` are
+fully registered (schema, CSV, Excel, validation) but have **no commit
+handler**, each with an honest, disabled reason — the corresponding
+workflow decision (a formal dossier review, a manual requirement
+override) requires a real authorized reviewer acting through the
+Regulatory/Dossiers workspace, never a spreadsheet row. A final
+formatted PDF/DOCX export sourced from Data Exchange data is deferred
+to a later phase.
 
 ## Getting there from the sidebar
 

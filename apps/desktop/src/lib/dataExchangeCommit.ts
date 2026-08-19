@@ -31,9 +31,11 @@ import {
   type DoeFactor,
   type DoeObservation,
   type DoeResponse,
+  type ExchangeRate,
   type FactoryCostProfile,
   type FinishedProduct,
   type FormulaCostOverride,
+  type InventoryRecord,
   type LabelArtwork,
   type LabelContentBlock,
   type MasterProductFamily,
@@ -393,6 +395,61 @@ const commitMaterialDocuments: Handler = async (r) => {
   };
   await upsertRecords("material_documents", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "material_documents", targetRecordId: record.code };
+};
+
+// FVL-04.007: imports facts only (quantity/reserved/quarantine/release/
+// expiry) onto the real InventoryRecord shape — usable availability is
+// always derived afterward by the canonical evaluateMaterialAvailability(),
+// never computed here. inventory_code updates an existing lot's mutable
+// fields in place, matching a physical count/status correction, not a new
+// lot creation.
+const commitInventoryRecords: Handler = async (r) => {
+  const existing = await findByCode<InventoryRecord>("inventory", "code", r.inventory_code);
+  const record: InventoryRecord = {
+    schemaVersion: "1.0",
+    code: r.inventory_code,
+    materialCode: r.material_code,
+    warehouse: nn(r.warehouse) ?? "main",
+    lot: nn(r.lot),
+    supplierLot: nn(r.supplier_lot),
+    quantity: r.quantity,
+    unit: nn(r.unit) ?? "kg",
+    reservedQuantity: nn(r.reserved_quantity) ?? "0",
+    manufacturedAt: nn(r.manufactured_at),
+    expiresAt: nn(r.expires_at),
+    coaStatus: (nn(r.coa_status) as InventoryRecord["coaStatus"]) ?? "pending",
+    quarantined: bool(r.quarantined),
+    released: bool(r.released),
+    unitCost: nn(r.unit_cost),
+    currency: nn(r.currency),
+    notes: nn(r.notes),
+    updatedAt: nowIso(),
+  };
+  await upsertRecords("inventory", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "inventory", targetRecordId: record.code };
+};
+
+// FVL-04.008: imports rate facts only. `findRate()` (engine/cost.ts) remains
+// the sole selection/conversion authority — this handler performs no FX
+// math and never derives a rate. entryMethod is honestly "imported" (it
+// really was); verification is never taken from the file, same convention
+// as every other verification-shaped column in this file.
+const commitExchangeRates: Handler = async (r) => {
+  const record: ExchangeRate = {
+    schemaVersion: "1.0",
+    code: newId("rate"),
+    baseCurrency: r.base_currency,
+    quoteCurrency: r.quote_currency,
+    rate: r.rate,
+    effectiveFrom: r.effective_from,
+    source: r.source,
+    entryMethod: "imported",
+    verification: "not_verified",
+    notes: nn(r.notes),
+    recordedAt: nowIso(),
+  };
+  await upsertRecords("exchange_rates", [record]);
+  return { outcome: "created", targetCollection: "exchange_rates", targetRecordId: record.code };
 };
 
 const commitProductFamilies: Handler = async (r) => {
@@ -1636,6 +1693,8 @@ export const COMMIT_HANDLERS: Partial<Record<string, Handler>> = {
   suppliers: commitSuppliers,
   material_prices: commitMaterialPrices,
   material_documents: commitMaterialDocuments,
+  inventory_records: commitInventoryRecords,
+  exchange_rates: commitExchangeRates,
   product_families: commitProductFamilies,
   finished_products: commitFinishedProducts,
   packaging_components: commitPackagingComponents,
