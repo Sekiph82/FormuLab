@@ -17,6 +17,7 @@ import {
   type ExchangeRate,
   type FactoryCostProfile,
   type FieldSpec,
+  type FinishedProductSpecification,
   type InventoryRecord,
   type MaterialPrice,
   type MaterialSupplier,
@@ -50,7 +51,8 @@ type Tab =
   | "rates"
   | "packagingComponents"
   | "packagingBoms"
-  | "factoryProfiles";
+  | "factoryProfiles"
+  | "specifications";
 
 const TAB_CONFIG: Record<
   Tab,
@@ -66,6 +68,11 @@ const TAB_CONFIG: Record<
   // their own dialog rather than as a flat imported table.
   packagingBoms: { collection: "packaging_boms", fields: [] },
   factoryProfiles: { collection: "factory_profiles", fields: FACTORY_PROFILE_FIELDS },
+  // FVL-04.005 hardening: read-only view — real import stays through Data
+  // Exchange's own finished_product_specifications template; no in-workspace
+  // FieldSpec importer duplicated here, same convention `packagingBoms`
+  // already uses for a domain not edited as a flat imported table.
+  specifications: { collection: "finished_product_specifications", fields: [], appendOnly: true },
 };
 
 /**
@@ -89,6 +96,7 @@ export function MaterialsPage() {
   const [packagingComponents, setPackagingComponents] = useState<PackagingComponent[]>([]);
   const [packagingBoms, setPackagingBoms] = useState<PackagingBom[]>([]);
   const [factoryProfiles, setFactoryProfiles] = useState<FactoryCostProfile[]>([]);
+  const [specifications, setSpecifications] = useState<FinishedProductSpecification[]>([]);
   const [query, setQuery] = useState("");
   const [fnFilter, setFnFilter] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -101,7 +109,7 @@ export function MaterialsPage() {
   const [status, setStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [m, s, p, i, r, ms, pc, pb, fp] = await Promise.all([
+    const [m, s, p, i, r, ms, pc, pb, fp, spec] = await Promise.all([
       listRecords("materials"),
       listRecords("suppliers"),
       listRecords("material_prices"),
@@ -111,6 +119,7 @@ export function MaterialsPage() {
       listRecords("packaging_components"),
       listRecords("packaging_boms"),
       listRecords("factory_profiles"),
+      listRecords("finished_product_specifications"),
     ]);
     setMaterials(m);
     setSuppliers(s);
@@ -121,6 +130,7 @@ export function MaterialsPage() {
     setPackagingComponents(pc);
     setPackagingBoms(pb);
     setFactoryProfiles(fp);
+    setSpecifications(spec);
   }, []);
 
   useEffect(() => {
@@ -185,6 +195,8 @@ export function MaterialsPage() {
         return packagingBoms;
       case "factoryProfiles":
         return factoryProfiles;
+      case "specifications":
+        return specifications;
     }
   };
 
@@ -481,6 +493,7 @@ export function MaterialsPage() {
             onClone={(p) => setEditingProfile(cloneFactoryProfile(p))}
           />
         )}
+        {tab === "specifications" && <SpecificationsTable specifications={specifications} />}
       </div>
 
       {importing && (
@@ -958,6 +971,92 @@ function RateTable({ rates }: { rates: ExchangeRate[] }) {
             <tr>
               <td colSpan={4} className="py-10 text-center text-muted">
                 {t("materials.noRates")}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/**
+ * FVL-04.005 hardening — the real consumer for the previously-missing
+ * finished-product release/QC-limit domain. Displays the canonical limits
+ * honestly: no pass/fail evaluation happens here (no existing authoritative
+ * evaluator owns that decision for finished-product specifications — see
+ * `finishedProductSpecificationSchema`'s own doc comment), so this table
+ * only ever shows what was imported/recorded, never a verdict.
+ */
+function SpecificationsTable({ specifications }: { specifications: FinishedProductSpecification[] }) {
+  const { t } = useTranslation("session");
+  const [skuFilter, setSkuFilter] = useState("");
+  const skuCodes = useMemo(() => [...new Set(specifications.map((s) => s.skuCode))].sort(), [specifications]);
+  const filtered = useMemo(
+    () => (skuFilter ? specifications.filter((s) => s.skuCode === skuFilter) : specifications),
+    [specifications, skuFilter],
+  );
+  const sorted = [...filtered].sort((a, b) => a.skuCode.localeCompare(b.skuCode) || b.effectiveFrom.localeCompare(a.effectiveFrom));
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <>
+      <div className="flex items-center gap-2 px-5 py-2">
+        <p className="flex-1 text-[11px] text-muted">{t("materials.specificationsNote")}</p>
+        <select
+          value={skuFilter}
+          onChange={(e) => setSkuFilter(e.target.value)}
+          aria-label={t("materials.filterBySku")}
+          className="rounded-input border border-border bg-surface px-1.5 py-1 text-[11px]"
+        >
+          <option value="">{t("materials.allSkus")}</option>
+          {skuCodes.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </select>
+      </div>
+      <table className="w-full border-collapse text-[12px]">
+        <thead className="sticky top-0 bg-surface">
+          <tr className="border-b border-border text-left text-muted">
+            <th className="px-3 py-1.5 font-medium">{t("materials.sku")}</th>
+            <th className="px-3 py-1.5 font-medium">{t("materials.test")}</th>
+            <th className="px-3 py-1.5 text-right font-medium">{t("materials.targetMin")}</th>
+            <th className="px-3 py-1.5 text-right font-medium">{t("materials.target")}</th>
+            <th className="px-3 py-1.5 text-right font-medium">{t("materials.targetMax")}</th>
+            <th className="px-3 py-1.5 font-medium">{t("materials.requiredForRelease")}</th>
+            <th className="px-3 py-1.5 font-medium">{t("materials.market")}</th>
+            <th className="px-3 py-1.5 font-medium">{t("materials.effective")}</th>
+            <th className="px-3 py-1.5 font-medium">{t("materials.verification")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((s) => {
+            const expired = !!s.effectiveTo && s.effectiveTo < today;
+            return (
+              <tr key={s.code} className="border-b border-border-faint">
+                <td className="px-3 py-1.5 font-mono text-[11px] text-text">{s.skuCode}</td>
+                <td className="px-3 py-1.5 font-mono text-[11px] text-text">{s.testDefinitionCode}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-muted">{s.minimum ?? "—"}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-muted">{s.targetValue ?? "—"}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-muted">{s.maximum ?? "—"}</td>
+                <td className="px-3 py-1.5 text-muted">{s.requiredForRelease ? t("materials.yes") : t("materials.no")}</td>
+                <td className="px-3 py-1.5 text-muted">{s.market || t("materials.allMarkets")}</td>
+                <td className="px-3 py-1.5 text-muted">
+                  {s.effectiveFrom.slice(0, 10)} → {s.effectiveTo ? s.effectiveTo.slice(0, 10) : "—"}
+                  {expired && <span className="ml-1 text-error">{t("materials.expired")}</span>}
+                </td>
+                <td className="px-3 py-1.5 text-muted">
+                  {s.verificationStatus === "verified" ? t("materials.verified") : t("materials.unverified")}
+                </td>
+              </tr>
+            );
+          })}
+          {sorted.length === 0 && (
+            <tr>
+              <td colSpan={9} className="py-10 text-center text-muted">
+                {t("materials.noSpecifications")}
               </td>
             </tr>
           )}

@@ -1,8 +1,8 @@
 # Data Exchange template catalog
 
-All 44 registered templates (the original 24 mandated templates, plus
+All 45 registered templates (the original 24 mandated templates, plus
 11 Reverse Formulation templates, 6 Phase 8 dossier-expansion templates,
-and the 3 FVL-04.007/.008/.011 operational templates below), every column,
+and the 4 FVL-04.005/.007/.008/.011 operational templates below), every column,
 straight from
 `packages/shared/src/engine/dataExchangeRegistry.ts` (the single source
 of truth — this document is a rendering of it, not a separate spec).
@@ -914,4 +914,53 @@ as every other verification-shaped column in this catalog).
 | rate | decimal | yes | Units of quote_currency per 1 unit of base_currency. |
 | effective_from | date | yes | Date this rate takes effect. |
 | source | string | yes | Where the rate came from — a bank, a portal, a finance email. Never blank. |
+| notes | string | | Free text. |
+
+---
+
+## Finished-Product Specifications — `finished_product_specifications` (FVL-04.005)
+
+Module: product · Natural key: `sku_code` + `test_definition_code` +
+`effective_from` · Duplicate policy: `append_history` · Authorization:
+Master · Target collection: `finished_product_specifications` · Commit:
+**wired**
+
+Canonical `FinishedProductSpecification`
+(`packages/shared/src/schemas/dataExchange.ts`) — the release/QC-limit
+domain closed under FVL-04.005 hardening, explicitly approved before
+FVL-04.013. Owns ONLY which test applies to which SKU and what limit/
+target that SKU needs for release — never how the test itself works
+(`TestDefinition`'s job, referenced by `test_definition_code`, never
+copied) and never the measured outcome (`TestResult`'s job). No `unit`
+column: the referenced `TestDefinition` already owns the unit of
+measurement — a second unit field here would be a second source of
+truth. Every row is a new specification-validity period; re-importing
+an identical (sku_code, test_definition_code, effective_from) triple is
+a duplicate, never a silent overwrite of a prior specification — a
+batch already evaluated against the old limits must keep meaning what
+it meant then. `verification_status` is not a column on this template
+at all — the commit handler always forces the record's
+`verificationStatus` to `imported_unverified` (reusing `TestDefinition`'s
+own vocabulary), so there is nothing in the file for a human to even
+attempt to smuggle a verified state through.
+
+Real UI consumer: no dedicated Finished Product workspace exists in the
+app (confirmed by repository-wide search), so a read-only
+"Specifications" tab was added to the existing generic masterdata
+browser (`MaterialsPage.tsx`) — a flat list across all SKUs with a SKU
+filter, displaying the canonical limits honestly; no pass/fail
+evaluation happens there (no existing authoritative evaluator owns that
+decision for this domain).
+
+| Column | Type | Req'd | Description |
+|---|---|---|---|
+| sku_code | code_reference → finished_products.sku_code | yes | Finished product SKU this specification is for. |
+| test_definition_code | code_reference → test_definitions.test_code | yes | The test this specification's limits apply to. |
+| target_value | decimal | | Target value for this SKU's release, overriding the test definition's own generic target. |
+| lower_limit | decimal | | Acceptable lower limit for this SKU's release. |
+| upper_limit | decimal | | Acceptable upper limit for this SKU's release. |
+| required_for_release | boolean | | Must pass for this specific product to release (default `true`). |
+| market | string | | Blank applies to every one of the SKU's own target markets; a specific market overrides only that market's release requirement. |
+| effective_from | date | yes | Validity start. |
+| effective_until | date | | Validity end, open-ended if blank. |
 | notes | string | | Free text. |

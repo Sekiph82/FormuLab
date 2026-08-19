@@ -65,6 +65,7 @@
 //   data/master/doe_review_actions.json
 //   data/master/product_families.json
 //   data/master/finished_products.json
+//   data/master/finished_product_specifications.json
 //   data/master/material_documents.json
 //   data/master/process_parameters.json
 //   data/master/formula_cost_overrides.json
@@ -121,7 +122,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 90] = [
+const COLLECTIONS: [(&str, bool); 91] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -347,6 +348,12 @@ const COLLECTIONS: [(&str, bool); 90] = [
     // after the fact.
     ("product_families", false),
     ("finished_products", false),
+    // FVL-04.005 hardening — release/QC limits bound to a real finished
+    // product SKU and a real TestDefinition, never a copy of either. A new
+    // effective_from period is always a new row, same convention as
+    // material_prices/exchange_rates — a specification change must never
+    // silently rewrite what a batch was actually evaluated against.
+    ("finished_product_specifications", true),
     ("material_documents", false),
     ("process_parameters", false),
     ("formula_cost_overrides", true),
@@ -826,7 +833,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 90);
+        assert_eq!(COLLECTIONS.len(), 91);
     }
 
     #[test]

@@ -10,6 +10,7 @@ import {
 } from "@formulab/shared";
 import { cn } from "@/lib/cn";
 import { WorkflowGatePanel } from "@/components/workflow/WorkflowGatePanel";
+import { MaterialDocumentsPanel } from "@/components/formula/MaterialDocumentsPanel";
 
 /**
  * Create or edit a raw material.
@@ -344,6 +345,12 @@ export function MaterialEditor({
                 subjectId={material.code}
                 heading={t("materials.verificationGate", { defaultValue: "Raw Material Verification" })}
               />
+            </Section>
+          )}
+
+          {isExisting && (
+            <Section title={t("materials.documents.heading")}>
+              <MaterialDocumentsPanel materialCode={material.code} suppliers={suppliers} />
             </Section>
           )}
         </div>

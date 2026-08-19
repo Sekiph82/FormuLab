@@ -421,6 +421,28 @@ const FORMULA_COST_OVERRIDE_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "notes", dataType: "string", description: "Free text." }),
 ];
 
+// ================================================== FVL-04.005 template ===
+// Finished-Product Specifications — canonical `FinishedProductSpecification`
+// (packages/shared/src/schemas/dataExchange.ts). Owns ONLY which test
+// applies to which SKU and what limit/target that SKU needs for release —
+// never how the test works (`TestDefinition`'s job, referenced by
+// test_definition_code, never copied) and never the measured outcome
+// (`TestResult`'s job). No `unit` column: the referenced TestDefinition
+// already owns the unit of measurement.
+
+const FINISHED_PRODUCT_SPECIFICATION_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "sku_code", dataType: "code_reference", description: "Finished product SKU this specification is for.", ...REQ, referenceTemplate: "finished_products", referenceField: "sku_code", example: "TEST-SKU-001" }),
+  col({ key: "test_definition_code", dataType: "code_reference", description: "The test this specification's limits apply to.", ...REQ, referenceTemplate: "test_definitions", referenceField: "test_code", example: "TEST-TST-001" }),
+  col({ key: "target_value", dataType: "decimal", description: "Target value for this SKU's release, overriding the test definition's own generic target." }),
+  col({ key: "lower_limit", dataType: "decimal", description: "Acceptable lower limit for this SKU's release." }),
+  col({ key: "upper_limit", dataType: "decimal", description: "Acceptable upper limit for this SKU's release." }),
+  col({ key: "required_for_release", dataType: "boolean", description: "Must pass for this specific product to release.", defaultValue: "true" }),
+  col({ key: "market", dataType: "string", description: "Blank applies to every one of the SKU's own target markets; a specific market overrides only that market's release requirement." }),
+  col({ key: "effective_from", dataType: "date", description: "Validity start.", ...REQ, example: "2026-01-01" }),
+  col({ key: "effective_until", dataType: "date", description: "Validity end, open-ended if blank." }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
 // =========================================================== Template 13 ===
 // Laboratory Test Definitions
 
@@ -1126,6 +1148,21 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     targetCollection: "finished_products",
     exampleRows: [
       { sku_code: "TEST-SKU-001", sku_name: "TEST Gentle Hand Soap 250ml", product_family_code: "TEST-FAM-001", brand: "TEST Brand", formula_code: "TEST-FORM-001", formula_version: "1", packaging_sku_code: "TEST-PKGBOM-001", net_quantity: "250", quantity_unit: "ml", barcode: "6009000000015", target_markets: "KE", languages: "en;sw", status: "draft", manufacture_site: "TEST Site", shelf_life_months: "24", tags: "handwash", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "finished_product_specifications",
+    title: "Finished-Product Specifications",
+    description: "Release/QC limits a finished product SKU must meet, bound to a real test definition — never a copy of the test's own generic limits.",
+    module: "product",
+    columns: FINISHED_PRODUCT_SPECIFICATION_COLUMNS,
+    naturalKey: ["sku_code", "test_definition_code", "effective_from"],
+    duplicatePolicy: "append_history",
+    updatePolicy: "Every row is a new specification-validity period; re-importing an identical (sku_code, test_definition_code, effective_from) triple is a duplicate, never a silent overwrite of a prior specification — a batch already evaluated against the old limits must keep meaning what it meant then.",
+    authorization: MASTER_DATA_ROLES,
+    targetCollection: "finished_product_specifications",
+    exampleRows: [
+      { sku_code: "TEST-SKU-001", test_definition_code: "TEST-TST-001", target_value: "5.5", lower_limit: "5.0", upper_limit: "6.0", required_for_release: "true", market: "", effective_from: "2026-01-01", effective_until: "", notes: "Synthetic test row." },
     ],
   }),
   template({

@@ -414,19 +414,66 @@ describe("commitDataExchangeRows — FVL-04.005: Specifications reuse the existi
     );
   });
 
-  it("FVL-04.005 hardening — Specification Domain Matrix: finished-product/product specification has no canonical quantitative schema anywhere in the repository (finishedProductSchema carries zero spec/limit fields) — a real, disclosed domain gap, not a Data Exchange gap", () => {
-    // Confirmed by schema shape, not assumption: finished_products' own
-    // template columns are pure SKU/packaging/market master data — no
-    // min/max/target/acceptance-criteria column exists on this template,
-    // because FinishedProduct has no such field to map from. Adding one
-    // here would fabricate a business concept the canonical schema does
-    // not define. If a real finished-product QC-spec model is ever built,
-    // it needs its own schema first — that is out of FVL-04's own scope
-    // (Data Exchange onboards existing canonical entities, it does not
-    // invent new ones).
+  it("FVL-04.005 hardening — Specification Domain Matrix: finished_products itself correctly still carries zero spec/limit columns — release limits are a real, deliberately SEPARATE canonical entity (finished_product_specifications), never collapsed onto the SKU master record", () => {
+    // Confirmed by schema shape: finished_products' own template columns
+    // remain pure SKU/packaging/market master data. The finished-product
+    // specification domain gap this test used to flag as disclosed and
+    // unresolved is now closed by the dedicated finished_product_specifications
+    // template below — deliberately kept as a separate entity (a SKU can
+    // have many specifications, each with its own effective-date history)
+    // rather than fields bolted onto FinishedProduct itself.
     const finishedProducts = getDataExchangeTemplate("finished_products")!;
     const specLikeColumns = finishedProducts.columns.filter((c) => /spec|acceptance_criteria|quality_limit|release_limit|minimum_limit|maximum_limit/i.test(c.key));
     expect(specLikeColumns).toEqual([]);
+    expect(getDataExchangeTemplate("finished_product_specifications")).toBeDefined();
+  });
+});
+
+describe("commitDataExchangeRows — FVL-04.005 hardening: Finished-Product Specifications (the previously-missing release/QC-limit domain, now closed)", () => {
+  it("FPS1/FPS2/FPS3/FPS4: a specification commits referencing a real SKU and a real TestDefinition, with exact target/min/max preserved and no separate unit field (the referenced TestDefinition owns the unit)", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("finished_product_specifications")!,
+      [row({ sku_code: "TEST-SKU-001", test_definition_code: "TEST-TST-001", target_value: "5.5", lower_limit: "5.0", upper_limit: "6.0", required_for_release: "true", effective_from: "2026-01-01" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    const record = bridge.upsertRecords.mock.calls.find(([c]) => c === "finished_product_specifications")![1][0] as Record<string, unknown>;
+    expect(record).toMatchObject({ skuCode: "TEST-SKU-001", testDefinitionCode: "TEST-TST-001", targetValue: "5.5", minimum: "5.0", maximum: "6.0", requiredForRelease: true, effectiveFrom: "2026-01-01" });
+    expect(record).not.toHaveProperty("unit");
+  });
+
+  it("FPS5: an imported specification is always imported_unverified regardless of the file — never silently approved/released", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("finished_product_specifications")!,
+      [row({ sku_code: "TEST-SKU-001", test_definition_code: "TEST-TST-001", effective_from: "2026-01-01" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    const record = bridge.upsertRecords.mock.calls.find(([c]) => c === "finished_product_specifications")![1][0] as Record<string, unknown>;
+    expect(record.verificationStatus).toBe("imported_unverified");
+  });
+
+  it("FPS6/FPS7: an unresolvable sku_code or test_definition_code fails honestly before commit — the required code_reference columns are configured correctly", () => {
+    const template = getDataExchangeTemplate("finished_product_specifications")!;
+    const skuCol = template.columns.find((c) => c.key === "sku_code");
+    const testCol = template.columns.find((c) => c.key === "test_definition_code");
+    expect(skuCol).toMatchObject({ referenceTemplate: "finished_products", referenceField: "sku_code", required: true });
+    expect(testCol).toMatchObject({ referenceTemplate: "test_definitions", referenceField: "test_code", required: true });
+  });
+
+  it("append-history: two specification-validity periods for the same SKU/test both persist — a later specification never silently rewrites what an earlier batch was evaluated against", async () => {
+    await commitDataExchangeRows(getDataExchangeTemplate("finished_product_specifications")!, [row({ sku_code: "TEST-SKU-001", test_definition_code: "TEST-TST-001", lower_limit: "5.0", upper_limit: "6.0", effective_from: "2026-01-01", effective_until: "2026-06-30" })], ctx);
+    await commitDataExchangeRows(getDataExchangeTemplate("finished_product_specifications")!, [row({ sku_code: "TEST-SKU-001", test_definition_code: "TEST-TST-001", lower_limit: "5.2", upper_limit: "6.2", effective_from: "2026-07-01" })], ctx);
+    const calls = bridge.upsertRecords.mock.calls.filter(([c]) => c === "finished_product_specifications");
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1][0]).toMatchObject({ minimum: "5.0", effectiveFrom: "2026-01-01" });
+    expect(calls[1][1][0]).toMatchObject({ minimum: "5.2", effectiveFrom: "2026-07-01" });
+  });
+
+  it("FPS14/FPS15: no TestDefinition logic duplicated, no second Data Exchange path — this template reuses the exact same registry/validation/commit/history pipeline as every other template", async () => {
+    const template = getDataExchangeTemplate("finished_product_specifications")!;
+    expect(template.duplicatePolicy).toBe("append_history");
+    expect(isTemplateCommitSupported("finished_product_specifications")).toBe(true);
   });
 });
 

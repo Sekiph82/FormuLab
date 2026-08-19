@@ -571,4 +571,48 @@ describe("FVL-04.012 hardening — independent sample-file acceptance (fixtures 
     const p = previewDataExchangeImportCsv(docTemplate, csv, { resolveReference: () => true });
     expect(p.rows[0].state).toBe("invalid");
   });
+
+  // ------------------------------------- finished_product_specifications ---
+  // Part A hardening: the previously-missing finished-product release/QC
+  // limit domain. Required chain per the hardening brief: FinishedProduct
+  // fixture -> TestDefinition fixture -> specification CSV -> real
+  // reference resolution -> preview.
+  const finishedProductSpecifications = getDataExchangeTemplate("finished_product_specifications")!;
+
+  it("finished_product_specifications: an independently-authored release-limit row (real SKU + real TestDefinition references) previews valid_create", () => {
+    const csv = csvRow(finishedProductSpecifications, { sku_code: "ACC-SKU-9", test_definition_code: "ACC-TST-PH", target_value: "5.8", lower_limit: "5.2", upper_limit: "6.4", required_for_release: "true", market: "KE", effective_from: "2026-02-01" });
+    const p = previewDataExchangeImportCsv(finishedProductSpecifications, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("negative: finished_product_specifications with an unknown SKU reference is reference_missing before commit", () => {
+    const csv = csvRow(finishedProductSpecifications, { sku_code: "GHOST-SKU", test_definition_code: "ACC-TST-PH", effective_from: "2026-02-01" });
+    const p = previewDataExchangeImportCsv(finishedProductSpecifications, csv, { resolveReference: () => false });
+    expect(p.rows[0].state).toBe("reference_missing");
+    expect(p.referenceErrors).toBe(1);
+  });
+
+  it("negative: finished_product_specifications with an unknown TestDefinition reference is reference_missing before commit", () => {
+    const csv = csvRow(finishedProductSpecifications, { sku_code: "ACC-SKU-9", test_definition_code: "GHOST-TEST", effective_from: "2026-02-01" });
+    const p = previewDataExchangeImportCsv(finishedProductSpecifications, csv, { resolveReference: (tmpl) => tmpl !== "test_definitions" });
+    expect(p.rows[0].state).toBe("reference_missing");
+  });
+
+  it("negative: finished_product_specifications with a non-numeric limit is invalid, never silently coerced", () => {
+    const csv = csvRow(finishedProductSpecifications, { sku_code: "ACC-SKU-9", test_definition_code: "ACC-TST-PH", lower_limit: "not-a-number", effective_from: "2026-02-01" });
+    const p = previewDataExchangeImportCsv(finishedProductSpecifications, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("negative: finished_product_specifications with a non-ISO effective_from date is invalid", () => {
+    const csv = csvRow(finishedProductSpecifications, { sku_code: "ACC-SKU-9", test_definition_code: "ACC-TST-PH", effective_from: "02/2026/whatever" });
+    const p = previewDataExchangeImportCsv(finishedProductSpecifications, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("negative: finished_product_specifications missing the required natural key (effective_from) is invalid", () => {
+    const csv = csvRow(finishedProductSpecifications, { sku_code: "ACC-SKU-9", test_definition_code: "ACC-TST-PH" });
+    const p = previewDataExchangeImportCsv(finishedProductSpecifications, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("invalid");
+  });
 });

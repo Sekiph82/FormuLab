@@ -8,7 +8,7 @@ lab, stability, regulatory, dossiers, claims, labels, DOE), not just one.
 It is not a reports page with a download button: one shared,
 schema-driven template registry drives every template's CSV/Excel
 generation, validation and commit behavior, so adding or fixing a
-template means changing its column list in one place, not touching 44
+template means changing its column list in one place, not touching 45
 separate importers.
 
 Domain schemas: `packages/shared/src/schemas/dataExchange.ts` (bookkeeping
@@ -75,16 +75,18 @@ actually gets written), `apps/desktop/src/lib/dataExchangeExisting.ts`
 
 ## Implemented vs. not yet implemented
 
-**Implemented, tested, live-verifiable through the desktop app:** all 44
+**Implemented, tested, live-verifiable through the desktop app:** all 45
 templates registered with a real schema/CSV/Excel/validation pipeline
 (the original 24, plus 11 Reverse Formulation templates, 6 Phase 8
-dossier-expansion templates, and 3 FVL-04.007/.008/.011 operational
-templates — `inventory_records`, `exchange_rates`, `material_suppliers`);
-42 of the 44 wired
+dossier-expansion templates, and 4 FVL-04.005/.007/.008/.011 operational
+templates — `finished_product_specifications`, `inventory_records`,
+`exchange_rates`, `material_suppliers`);
+43 of the 45 wired
 to a real commit handler writing through the actual per-domain
 collections (`raw_materials`, `suppliers`, `material_prices`,
 `material_documents`, `material_suppliers`, `inventory_records`,
-`exchange_rates`, `product_families`, `finished_products`, `packaging_components`,
+`exchange_rates`, `product_families`, `finished_products`,
+`finished_product_specifications`, `packaging_components`,
 `packaging_bom`, `formula_bom`, `process_parameters`,
 `costing_assumptions`, `formula_cost_overrides`, `test_definitions`,
 `lab_results`, `stability_protocols`, `stability_results`,

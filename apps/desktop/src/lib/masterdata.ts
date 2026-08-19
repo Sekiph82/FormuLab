@@ -33,6 +33,7 @@ import type {
   ExchangeRate,
   FactoryCostProfile,
   FinishedProduct,
+  FinishedProductSpecification,
   FormulaCostOverride,
   FormulaVersionEquivalence,
   GeneratedDocumentRecord,
@@ -181,6 +182,7 @@ interface CollectionTypes {
   doe_review_actions: DoeReviewAction;
   product_families: MasterProductFamily;
   finished_products: FinishedProduct;
+  finished_product_specifications: FinishedProductSpecification;
   material_documents: MaterialDocument;
   process_parameters: ProcessParameter;
   formula_cost_overrides: FormulaCostOverride;

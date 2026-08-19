@@ -100,6 +100,7 @@ export const MASTERDATA_COLLECTIONS = [
   "doe_review_actions",
   "product_families",
   "finished_products",
+  "finished_product_specifications",
   "material_documents",
   "process_parameters",
   "formula_cost_overrides",
@@ -140,6 +141,7 @@ export const MASTERDATA_COLLECTION_POLICY_AREAS: Record<MasterdataCollection, Po
   material_documents: "rawMaterials",
   product_families: "rawMaterials",
   finished_products: "rawMaterials",
+  finished_product_specifications: "rawMaterials",
   compatibility_rules: "rawMaterials",
   safety_rules: "rawMaterials",
 

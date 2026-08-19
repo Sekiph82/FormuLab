@@ -32,6 +32,7 @@
  */
 import { z } from "zod";
 import { decimalString } from "./primitives";
+import { TEST_VERIFICATION_STATUSES } from "./testDefinitions";
 
 // ------------------------------------------------------- material documents ---
 
@@ -133,6 +134,54 @@ export const finishedProductSchema = z.object({
   updatedAt: z.string(),
 });
 export type FinishedProduct = z.infer<typeof finishedProductSchema>;
+
+// -------------------------------------------------- finished-product specifications ---
+
+/**
+ * FVL-04.005 hardening — the missing "what must this finished product
+ * measure to be released?" domain. Deliberately narrow: this record owns
+ * ONLY which test applies to which SKU and what limit/target that SKU
+ * needs for release — never how the test itself works (that stays
+ * `TestDefinition`'s job, referenced by `testDefinitionCode`, never
+ * copied) and never the measured outcome (that stays `TestResult`'s job).
+ * `minimum`/`maximum`/`targetValue` mirror `TestDefinition`'s own field
+ * names on purpose — a product-specific override of that test's generic
+ * limits, not a competing concept — and deliberately carry no separate
+ * `unit`: the referenced `TestDefinition` already owns the unit of
+ * measurement: a second unit field here would be a second source of
+ * truth for the same fact.
+ *
+ * Append-only, the same convention `MaterialPrice`/`ExchangeRate` already
+ * use: a new `effectiveFrom` period is a new row, so a specification
+ * change never silently rewrites what an earlier batch was actually
+ * evaluated against. `verificationStatus` reuses `TestDefinition`'s own
+ * vocabulary (the closest real match — both are test-limit-shaped
+ * content) rather than inventing a new one.
+ */
+export const finishedProductSpecificationSchema = z.object({
+  schemaVersion: z.literal("1.0"),
+  code: z.string().min(1),
+  skuCode: z.string().min(1),
+  testDefinitionCode: z.string().min(1),
+  targetValue: decimalString.optional(),
+  minimum: decimalString.optional(),
+  maximum: decimalString.optional(),
+  /** Whether this measurement must pass for the product to release —
+   *  distinct from `TestDefinition.criticalTestFlag`, which is about the
+   *  test in general, not this specific product's own release gate. */
+  requiredForRelease: z.boolean().default(true),
+  /** Blank means it applies to every one of the SKU's own `targetMarkets`
+   *  — free text, the same convention `FinishedProduct.targetMarkets`
+   *  already uses, not necessarily a `REGULATORY_JURISDICTIONS` code. */
+  market: z.string().optional(),
+  effectiveFrom: z.string(),
+  effectiveTo: z.string().optional(),
+  verificationStatus: z.enum(TEST_VERIFICATION_STATUSES).default("not_verified"),
+  notes: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type FinishedProductSpecification = z.infer<typeof finishedProductSpecificationSchema>;
 
 // -------------------------------------------------------- process parameters ---
 

@@ -284,3 +284,81 @@ describe("DataExchangeImportDialog — FVL-04.012 hardening: real .xlsx round-tr
     expect(rowResult).toMatchObject({ jobId: completedJob.id, state: "valid_create", targetCollection: "materials" });
   });
 });
+
+describe("DataExchangeImportDialog — Part A hardening: finished_product_specifications, the previously-missing release/QC-limit domain", () => {
+  it("FPS8: a real CSV file commits a specification referencing a real SKU and TestDefinition", async () => {
+    const template = getDataExchangeTemplate("finished_product_specifications")!;
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File(
+      ["sku_code,test_definition_code,target_value,lower_limit,upper_limit,required_for_release,effective_from\nFPS-SKU-001,FPS-TST-001,5.5,5.0,6.0,true,2026-01-01"],
+      "specs.csv",
+      { type: "text/csv" },
+    );
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    expect(await within(dialog).findByText("1")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Commit import" }));
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "finished_product_specifications",
+      expect.arrayContaining([expect.objectContaining({ skuCode: "FPS-SKU-001", testDefinitionCode: "FPS-TST-001", targetValue: "5.5", minimum: "5", maximum: "6" })]),
+    );
+  });
+
+  it("FPS9: a real .xlsx workbook also commits a specification through the actual reader", async () => {
+    const template = getDataExchangeTemplate("finished_product_specifications")!;
+    const buf = await buildDataExchangeWorkbook(template, [
+      { sku_code: "FPS-SKU-002", test_definition_code: "FPS-TST-001", target_value: "9000", lower_limit: "8000", upper_limit: "10000", effective_from: "2026-01-01" },
+    ]);
+    const file = new File([buf], "specs.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    expect(await within(dialog).findByText("1")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Commit import" }));
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "finished_product_specifications",
+      expect.arrayContaining([expect.objectContaining({ skuCode: "FPS-SKU-002", minimum: "8000", maximum: "10000" })]),
+    );
+  });
+
+  it("negative: a specification row missing the required effective_from natural key is refused, commit button stays disabled", async () => {
+    const template = getDataExchangeTemplate("finished_product_specifications")!;
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File(["sku_code,test_definition_code,effective_from\nFPS-SKU-003,FPS-TST-001,"], "specs-bad.csv", { type: "text/csv" });
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    expect(await within(dialog).findByRole("button", { name: "Commit import" })).toBeDisabled();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("finished_product_specifications", expect.anything());
+  });
+
+  it("A6: an attempted verification_status=verified in the file is ignored — the committed specification stays imported_unverified", async () => {
+    const template = getDataExchangeTemplate("finished_product_specifications")!;
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={template} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File(
+      ["sku_code,test_definition_code,effective_from\nFPS-SKU-004,FPS-TST-001,2026-01-01"],
+      "specs-smuggle.csv",
+      { type: "text/csv" },
+    );
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    await user.click(within(dialog).getByRole("button", { name: "Commit import" }));
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    const committed = bridge.upsertRecords.mock.calls.find(([c]) => c === "finished_product_specifications")![1][0] as Record<string, unknown>;
+    // finished_product_specifications' own template has no verification_status
+    // column at all — there is nothing in the file for a human to even
+    // attempt to smuggle; the handler forces it regardless.
+    expect(committed.verificationStatus).toBe("imported_unverified");
+  });
+});

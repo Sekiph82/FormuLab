@@ -34,6 +34,7 @@ import {
   type ExchangeRate,
   type FactoryCostProfile,
   type FinishedProduct,
+  type FinishedProductSpecification,
   type FormulaCostOverride,
   type InventoryRecord,
   type LabelArtwork,
@@ -526,6 +527,35 @@ const commitFinishedProducts: Handler = async (r) => {
   };
   await upsertRecords("finished_products", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "finished_products", targetRecordId: record.code };
+};
+
+// FVL-04.005 hardening: owns ONLY which test applies to which SKU and what
+// limit/target that SKU needs for release — the referenced TestDefinition's
+// own semantics (how the test works, its unit) are never copied here.
+// Append-only, same convention as material_prices/exchange_rates — a new
+// effective_from period is always a new row. verificationStatus reuses
+// TestDefinition's own vocabulary and is never taken from the file.
+const commitFinishedProductSpecifications: Handler = async (r) => {
+  const record: FinishedProductSpecification = {
+    schemaVersion: "1.0",
+    code: newId("spec"),
+    skuCode: r.sku_code,
+    testDefinitionCode: r.test_definition_code,
+    targetValue: nn(r.target_value),
+    minimum: nn(r.lower_limit),
+    maximum: nn(r.upper_limit),
+    requiredForRelease: bool(r.required_for_release, true),
+    market: nn(r.market),
+    effectiveFrom: r.effective_from,
+    effectiveTo: nn(r.effective_until),
+    // Never taken from the file — see module doc.
+    verificationStatus: "imported_unverified",
+    notes: nn(r.notes),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+  await upsertRecords("finished_product_specifications", [record]);
+  return { outcome: "created", targetCollection: "finished_product_specifications", targetRecordId: record.code };
 };
 
 const commitPackagingComponents: Handler = async (r) => {
@@ -1723,6 +1753,7 @@ export const COMMIT_HANDLERS: Partial<Record<string, Handler>> = {
   exchange_rates: commitExchangeRates,
   product_families: commitProductFamilies,
   finished_products: commitFinishedProducts,
+  finished_product_specifications: commitFinishedProductSpecifications,
   packaging_components: commitPackagingComponents,
   packaging_bom: commitPackagingBom,
   formula_bom: commitFormulaBom,
