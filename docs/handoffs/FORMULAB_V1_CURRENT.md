@@ -20,23 +20,26 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 (24/24, 2026-08-17). GitHub issue #4 closed 2026-08-18 to match.
 
 **FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
-PROCESS, 12/26 tasks COMPLETED (FVL-04.001-.012 — the original
-canonical/template-based onboarding block is now fully closed and
-independently hardened, see "FVL-04.005-.012 closure hardening" below).
+PROCESS, 12/26 tasks COMPLETED. **FVL-04.001-.012 — COMPLETE, HARDENED,
+AND NO KNOWN CANONICAL/TEMPLATE ONBOARDING GAP REMAINS** — see
+"FVL-04.005-.012 closure hardening" and "Finished-product specification +
+material document viewer" below for the two gaps closed this session.
 FVL-04.013-.026 (the enterprise connector/mapping/crosswalk layer and
 artifact naming) remain blank.
 
 ## Current task
 
-**`FVL-04.013`** — blank, **NOT STARTED**. FVL-04.005-.012 were closed
-in an earlier session, then independently re-audited and hardened in a
-follow-up session (real gaps found and fixed: a unit-contract bug in the
-Optimizer/Substitution stock fields, a missing real Manufacturing
-Procedure consumer for process_parameters, and a missing
-`material_suppliers` Data Exchange template) — see "FVL-04.005-.012
-closure hardening" below. FVL-04.001-.004 (Material
-Master, Supplier/MaterialSupplier link, TDS, and SDS Data Exchange
-coverage) COMPLETED the prior session.
+**`FVL-04.013`** — blank, **NOT STARTED**. FVL-04.005-.012 were closed,
+then independently re-audited and hardened (real gaps found and fixed: a
+unit-contract bug in the Optimizer/Substitution stock fields, a missing
+real Manufacturing Procedure consumer for process_parameters, and a
+missing `material_suppliers` Data Exchange template), then two
+explicitly user-approved remaining gaps were closed in this session — a
+real finished-product specification domain (schema + Data Exchange
+template + real UI consumer) and a dedicated per-material TDS/SDS/
+specification document viewer. FVL-04.001-.004 (Material Master,
+Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
+COMPLETED in an earlier session.
 
 ## FVL-04.005-.012 resolution (this session)
 
@@ -95,6 +98,77 @@ Rust changes this session — no `pytest`/`cargo` re-run required. No
 FVL-04.013+ work started; no connector/mapping layer touched; no
 crawlers; no second Data Exchange system; no second document/binary
 registry; no FVL-04.026 artifact naming.
+
+## Finished-product specification + material document viewer (this session)
+
+Two explicitly user-approved remaining gaps closed before FVL-04.013 may
+begin.
+
+**Part A — Finished-Product Specification domain.** The prior hardening
+session's Specification Domain Matrix correctly identified this as a
+real, disclosed gap: no canonical schema anywhere carried QC/release
+limits for a specific finished-product SKU. Closed with a genuine new
+domain, not a notes-field workaround: `finishedProductSpecificationSchema`
+(`packages/shared/src/schemas/dataExchange.ts`) references a real
+`FinishedProduct` (`skuCode`) and a real `TestDefinition`
+(`testDefinitionCode`) — never copies either's own semantics.
+`targetValue`/`minimum`/`maximum` mirror `TestDefinition`'s own field
+names (a product-specific override), deliberately no separate `unit`
+field (the referenced TestDefinition already owns it).
+`requiredForRelease` is this SKU's own release gate, distinct from
+`TestDefinition.criticalTestFlag`. History is append-only, the exact
+`material_prices`/`exchange_rates` convention — a specification change
+never silently rewrites what an earlier batch was evaluated against.
+`verificationStatus` reuses `TestDefinition`'s own vocabulary,
+force-set to `imported_unverified` on every commit, never taken from the
+file. New `finished_product_specifications` Data Exchange template +
+`commitFinishedProductSpecifications` handler, 100% the existing
+registry/validation/commit/history pipeline. Real UI consumer: no
+Finished Product workspace exists anywhere in the app (confirmed by
+search), so a new read-only "Specifications" tab was added to the
+existing generic masterdata-browser (`MaterialsPage.tsx`) — flat list,
+SKU filter, deterministic expiry indicator, no pass/fail evaluation (no
+existing authoritative evaluator owns that decision for this domain).
+Required a genuine Rust change for the first time in FVL-04.005-.012:
+`finished_product_specifications` registered in `masterdata.rs`'s
+`COLLECTIONS` array and `masterdataPolicyAreas.ts`'s
+`MASTERDATA_COLLECTIONS` mapping, role-policy JSON fixtures regenerated
+via the existing `generate:role-policy-matrix` script (never hand-edited).
+
+**Part B — Per-material TDS/SDS/specification document viewer.** New
+`apps/desktop/src/components/formula/MaterialDocumentsPanel.tsx`,
+mounted inside `MaterialEditor.tsx` as a "Documents" section (gated on
+`isExisting`, same convention `WorkflowGatePanel` already uses). Reads
+`listRecords("material_documents")`, filters strictly by
+`materialCode === selectedMaterial.code`. Displays type/title/number/
+revision/issuer/supplier (resolved by code)/dates/language/verification/
+fileName/tags, TDS/SDS/specification filter, deterministic expired
+indicator. No "open file" action anywhere — `fileName` is provenance
+text only, matching the schema's own metadata-only boundary; no path
+ever inferred. No Safety or Regulatory verdict rendered anywhere
+(verified by a dedicated test). `RawMaterial.documents[]` (the confirmed
+dead/orphaned path) never read or written.
+
+Template count 44→45 (`finished_product_specifications`) — the only new
+schema this entire FVL-04 block has introduced beyond the five already
+documented in `DATA_EXCHANGE_CENTER.md`'s own header. Masterdata
+collection count 90→91. Every hardcoded-count assertion (TS and Rust)
+updated to match.
+
+Verified: `pnpm --filter @formulab/desktop test` — 1500/1500 across 156
+files (43 new: `MaterialDocumentsPanel.test.tsx` (9),
+`MaterialsPage.specifications.test.tsx` (2),
+`dataExchangeCommit.test.ts` (7 FinishedProductSpecification tests),
+`DataExchangeImportDialog.test.tsx` (4), template-count assertion
+44→45). `pnpm --filter @formulab/shared test` — 1347/1347 across 67
+files (12 new independent fixtures + negatives, template-count
+44→45). `cargo test` — 345/345 (collection-count assertions 90→91).
+`typecheck`/`lint` — clean on both packages. `python
+scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift (task counts
+unchanged — hardening, not new task completion). `git diff --check` —
+clean (LF/CRLF warnings only). No FVL-04.013+ work started; no second
+Data Exchange/document registry/laboratory platform/Regulatory-Safety
+engine created.
 
 ## FVL-04.005-.012 closure hardening (this session)
 
@@ -1141,62 +1215,65 @@ with no live literature-retrieval network access).
 ## Exact next task
 
 **`FVL-04.013`** — blank, NOT STARTED (see above). Not begun this
-session — explicit boundary in this session's own task brief. The
-original canonical/template-based Data Exchange onboarding block
-(FVL-04.001-.012) is now fully closed AND independently hardened;
-FVL-04.013 begins the enterprise external-source connector/mapping/
-crosswalk layer.
+session — explicit boundary in this session's own task brief.
+FVL-04.001-.012 — **COMPLETE, HARDENED, AND NO KNOWN CANONICAL/TEMPLATE
+ONBOARDING GAP REMAINS**; FVL-04.013 begins the enterprise
+external-source connector/mapping/crosswalk layer.
 
 ## Known blockers
 
-None. FVL-01/FVL-02/FVL-03 fully closed; FVL-04.001-.012 complete and
-hardened. Disclosed, out-of-scope, non-blocking findings carried forward
-for a future session: (1)/(2) the existing Optimizer/Substitution
+None. FVL-01/FVL-02/FVL-03 fully closed; FVL-04.001-.012 complete,
+hardened, and both explicitly user-approved remaining gaps closed.
+Disclosed, out-of-scope, non-blocking findings carried forward for a
+future session: (1)/(2) the existing Optimizer/Substitution
 compatibility/safety re-run call sites use the hardcoded
 `SEED_COMPATIBILITY_RULES`/`SEED_SAFETY_RULES` constants rather than the
 live edited collections; (3) Material Substitution's regulatory wiring
 cannot currently produce a real `false`/prohibited result with the
 actual seed catalog; (4) the Advanced Optimizer/System Substitution
 carry a genuine, pre-existing, documented "regulatory not yet
-implemented" boundary; (5) **RESOLVED** (FVL-04.007, prior session) —
-the three pre-existing UI call sites that computed inventory
-availability inline now call the canonical
-`evaluateMaterialAvailability()`; (5b) **RESOLVED this session** — those
-same three fields also had an unproven kg-unit assumption, now guarded;
-(6) **RESOLVED this session** — `material_suppliers` now has a real Data
-Exchange template (FVL-04.011 hardening), added after re-assessing the
-approved enterprise-connector requirement, not the old FVL-03-only lens;
-(7) **PARTIALLY RESOLVED this session** — Process Parameters now has a
-real consumer (`ProcessParametersPanel.tsx`, FVL-04.009 hardening); TDS/
-SDS document metadata still has no dedicated per-material viewer UI — a
-UI/UX completeness gap, not an import/storage gap, explicitly out of
-scope for this hardening session. None are duplicate-authority issues.
+implemented" boundary; (5) **RESOLVED** — the three pre-existing UI call
+sites that computed inventory availability inline now call the
+canonical `evaluateMaterialAvailability()`, with a proven kg-unit guard;
+(6) **RESOLVED** — `material_suppliers` has a real Data Exchange
+template; (7) **RESOLVED this session** — Process Parameters has a real
+consumer (`ProcessParametersPanel.tsx`) AND TDS/SDS/specification
+documents now have a real dedicated per-material viewer
+(`MaterialDocumentsPanel.tsx`) — both previously-disclosed UI/UX gaps
+closed. No known canonical/template-onboarding gap remains from
+FVL-04.001-.012. None of the above are duplicate-authority issues.
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1480/1480 across 154 files
-  (26 new this hardening session: `dataExchangeCommit.test.ts`
-  (.005/.011/.012 chain), `AdvancedOptimizerPanel.test.tsx` (.007 unit
-  contract), `ProcessParametersPanel.test.tsx` (.009, new file),
-  `DataExchangeImportDialog.test.tsx` (.010/.012), new
-  `dataExchangeCostAcceptance.test.ts` (.006/.008, 13 tests); template
-  card count updated 43→44).
+- `pnpm --filter @formulab/desktop test` — 1500/1500 across 156 files
+  (43 new this session: `MaterialDocumentsPanel.test.tsx` (9, new file),
+  `MaterialsPage.specifications.test.tsx` (2, new file),
+  `dataExchangeCommit.test.ts` (7 FinishedProductSpecification tests),
+  `DataExchangeImportDialog.test.tsx` (4); template card count updated
+  44→45).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
-- `pnpm --filter @formulab/shared test` — 1341/1341 across 67 files (14
-  new: independent-fixture matrix in `dataExchangeValidation.test.ts`,
-  template-count assertions updated 43→44).
-- `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
+- `pnpm --filter @formulab/shared test` — 1347/1347 across 67 files (12
+  new independent fixtures + negatives for `finished_product_specifications`;
+  template-count assertions updated 44→45).
+- `cargo check` / `cargo test` — 345/345 (the first Rust change in the
+  FVL-04.005-.012 block: `masterdata.rs`'s `COLLECTIONS` array +
+  `role_policy.rs` collection-count assertions updated 90→91).
+- `pnpm --filter @formulab/shared generate:role-policy-matrix` — re-run
+  after `masterdataPolicyAreas.ts`'s mapping changed; the three generated
+  JSON fixtures re-checked in, parity tests re-verified passing.
+- i18n parity — 23/23 (new `materials.tab.specifications`/
+  `materials.documents.*` keys added to all 8 locales).
+- `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift
+  (task counts unchanged — hardening evidence appended, no new task
+  completion).
 - `git diff --check` — clean (LF/CRLF warnings only).
-- No Python or Rust files touched this session — no `pytest`/`cargo`
-  re-run required. No desktop rebuild/installer performed (no
-  Rust/shipped-runtime changes).
 
 ## Latest commit SHA
 
-`418c0d9` (pushed to and matching `origin/feature/laboratory-stability`)
-— "fix(v1): harden canonical Data Exchange integrations
-(FVL-04.005-.012)". Prior: `befdf3d` — "docs: finalize FVL-04.005-.011
-closure pointer with commit SHA".
+`7ab18dc` (pushed to and matching `origin/feature/laboratory-stability`)
+— "feat(v1): complete specification and material document UX gaps
+(FVL-04.005/.003/.004)". Prior: `418c0d9` — "fix(v1): harden canonical
+Data Exchange integrations (FVL-04.005-.012)".
 
 ## Reminder
 
