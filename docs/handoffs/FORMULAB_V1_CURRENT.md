@@ -22,19 +22,25 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 **FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
 PROCESS, 18/26 tasks COMPLETED. **FVL-04.001-.012 — COMPLETE, HARDENED,
 AND NO KNOWN CANONICAL/TEMPLATE ONBOARDING GAP REMAINS.** **FVL-04.013-.018
-— COMPLETE** (external source connector contract through
+— COMPLETE AND HARDENED** (external source connector contract through
 transformation/unit/enum mapping, plus two independent end-to-end
 customer fixtures proving the whole chain through real Data Exchange
-commit) — see "FVL-04.013-.018 resolution" below. FVL-04.019-.026 remain
-blank, none started.
+commit with REAL reference resolution) — see "FVL-04.013-.018 hardening
+(Session 6)" and "FVL-04.013-.018 resolution (Session 5)" below.
+FVL-04.019-.026 remain blank, none started.
 
 ## Current task
 
 **`FVL-04.019`** — blank, **NOT STARTED**. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
-Transformation/Unit/Enum Mapping) all COMPLETED this session — see
-"FVL-04.013-.018 resolution" below. FVL-04.005-.012 were closed,
+Transformation/Unit/Enum Mapping) all COMPLETED in an earlier session,
+then independently re-audited and hardened this session (real gaps
+found and fixed: a single unit-conversion authority, storage-enforced
+mapping-profile immutability, real end-to-end reference resolution,
+calendar-valid date parsing, stricter decimal validation, honest
+external-ID identity evidence) — see "FVL-04.013-.018 hardening
+(Session 6)" below. FVL-04.005-.012 were closed,
 then independently re-audited and hardened (real gaps found and fixed: a
 unit-contract bug in the Optimizer/Substitution stock fields, a missing
 real Manufacturing Procedure consumer for process_parameters, and a
@@ -46,7 +52,117 @@ specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
 
-## FVL-04.013-.018 resolution (this session)
+## FVL-04.013-.018 hardening (Session 6, this session — independent review corrections)
+
+A subsequent independent repository-level review of the Session 5
+closure below found real implementation and acceptance gaps. All were
+independently re-verified against current code (not trusted from the
+prior log), fixed, and re-tested; task counts are unchanged (re-closing
+already-COMPLETED tasks, not new completions) — FVL-04 stays 18/26,
+Total 81/171. Full detail in each task's own tracker row and
+`docs/FVL04_EXTERNAL_SOURCE_CONNECTOR_ARCHITECTURE.md`'s Hardening
+section.
+
+**Real gaps found and fixed:**
+
+1. **`ConnectorResult` had no real file metadata** — the prior log's claim
+   of "exposes source identity/type/size/hash" was aspirational, not
+   real. New `SourceResourceMetadata` (`ConnectorResult.sourceResource`)
+   genuinely carries filename/media-type/byte-size/content-fingerprint,
+   explicitly never mislabeled a cryptographic hash.
+2. **XLSX had no common connector abstraction** — `readWorkbookAllSheets`
+   was fed manually into `stageRows` by callers, disconnected from CSV/
+   JSON/XML. New `stageFile()` is the one abstraction all four formats
+   funnel through; XLSX via an injected `readWorkbook` adapter, proven
+   wired to the REAL `readWorkbookAllSheets` in `xlsx.test.ts`.
+3. **Corrupt XLSX leaked a raw ExcelJS exception** — now caught and
+   returned as a structured `corrupt_xlsx` connector error, proven with
+   both a mocked reader and a genuinely corrupt real buffer.
+4. **A unique display name could read as identity authority** — the old
+   `EXTERNAL_ID_STATUSES` (`"candidate"|"unresolved"`) let a merely-
+   unique field (including `MaterialName`) look identical to a real
+   configured ID. New `EXTERNAL_ID_EVIDENCE` separates
+   `configured_external_id`/`metadata_primary_key` (real evidence) from
+   `unique_candidate` (an honest observation, never authority).
+5. **No dedicated unit-column discovery** — `Quantity|UOM` and
+   `Viscosity|ViscosityUnit` patterns are now deterministically
+   discovered (structural conventions, never guessed when genuinely
+   ambiguous — two numeric fields sharing one bare `UOM` column stays
+   unresolved).
+6. **No null-token profiling** — `N/A`/`NULL`/`-`/... are now reported as
+   `observedNullTokens` for a mapping profile to configure, never
+   silently nulled by discovery; real `0`/`false`/`"0"` proven excluded.
+7. **Schema fingerprint too weak / mapping-profile immutability not
+   storage-enforced** — fingerprint now also covers unit hints and
+   CONFIG-driven identity role while still excluding sample-driven
+   observations (proven stable across batches with different null
+   ratios). `mapping_profiles` re-registered **append-only=true** in
+   `masterdata.rs` (was mutable — nothing previously stopped a silent
+   version overwrite; `MappingProfile` also had no `code`/`id` field at
+   all, so a real desktop write would have failed outright, never caught
+   because tests fully mocked the masterdata bridge). New `code` field
+   (`profileId::vN`) is the real immutable storage identity.
+8. **Transformation config wasn't validated up front** — new
+   `validateTransformationConfig()` catches e.g. a `parse_decimal` with
+   no `decimalSeparator` or a `convert_unit` with an unrecognized/
+   incompatible unit pair at PROFILE validation time, not silently at
+   row-mapping runtime. Fan-out natural-key coverage is now validated
+   too (`missing_target_natural_key_field`).
+9. **A dead crosswalk status** — `CROSSWALK_STATUSES` included
+   `"conflict"`, which nothing ever persisted (`upsertCrosswalk()`
+   always returns a conflict as a separate, unpersisted object). Narrowed
+   to `["active"]`, the real behavior now documented explicitly.
+10. **Duplicate unit-conversion tables** — `MASS_UNITS`/`VOLUME_UNITS`
+    existed only inside `transformation.ts`, no genuine single authority
+    (a repo-wide audit found none pre-existing; `cost.ts`'s own inline
+    conversions are deliberately different density-specific business
+    logic, correctly untouched). New `packages/shared/src/engine/unitConversion.ts`
+    is now the ONE generic authority; `transformation.ts` delegates to it.
+11. **`resolve_crosswalk`'s relationship precedence was implicit** —
+    `canonicalEntity` was only ever supplied by a caller's own context
+    wiring, never the step's own config. Now a REQUIRED step-config
+    field, with the full precedence implemented: (1) crosswalk, (2) an
+    explicit canonical code named by a new `fallbackCanonicalField` on
+    the same source record, (3) unresolved — never a name match.
+12. **Impossible dates silently accepted** — `31/02/2026`, `29/02/2025`
+    (non-leap), `31/04/2026` all previously "parsed". New
+    `isValidCalendarDate()` (real days-in-month + leap-year rule) rejects
+    all three; `29/02/2024` still correctly accepts.
+13. **Malformed decimal grouping silently digit-stripped** — `"1,23,4"`
+    and `"1.2.3"` previously parsed into a wrong number. `parseExplicitDecimal`
+    now validates real thousands-grouping structure and refuses more than
+    one decimal-separator occurrence.
+14. **End-to-end closure tests bypassed real reference resolution** — an
+    unconditional `resolveReference` stub answered "yes, it exists" for
+    every reference everywhere. `connectorEndToEnd.test.ts` rewritten
+    around a real `ReferenceStore` built only from actually-committed
+    natural keys; a new negative case proves an unregistered code is
+    genuinely refused. ACME_ERP now performs a real explicit commit, not
+    just a preview. A new "Structured failure matrix" gives FAIL1-FAIL20
+    each an explicit test or a direct pointer to the covering test.
+
+**Deliberately confirmed correct, not changed:** FVL-04.017's tuple
+matching/no-name-matching/no-auto-delete guarantees (XW1-XW9 re-run
+unchanged and still passing); F6's "Data Exchange remains the final
+enum-value authority" boundary (no duplicate enum universe was ever
+built, nothing to fix); the read-only connector contract itself (no
+write method, C13-7 unchanged).
+
+Verified: `pnpm --filter @formulab/shared test` — 1467/1467 across 73
+files (67 new/changed this hardening pass). `pnpm --filter @formulab/desktop
+test` — 1533/1533 across 158 files (23 in `connectorEndToEnd.test.ts`
+alone, rewritten; plus `connectorPersistence.test.ts`/`xlsx.test.ts`
+additions). `typecheck`/`lint` — clean on both packages. `cargo test
+masterdata` — 25/25 (2 new: `mapping_profiles_is_allow_listed_as_append_only`,
+`external_id_crosswalks_is_allow_listed_as_mutable`). `python
+scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift. `git diff
+--check` — clean (LF/CRLF warnings only). No FVL-04.019+ work started;
+no second Data Exchange/canonical registry/masterdata system/business
+engine; no LLM mapper/schema-discovery layer; no arbitrary executable
+mapping code; no real customer data mutated (every fixture uses a
+mocked masterdata bridge).
+
+## FVL-04.013-.018 resolution (Session 5)
 
 Built the enterprise external-source connector foundation, in strict
 order .013→.014→.015→.016→.017→.018, per the approved FVL-04 scope
