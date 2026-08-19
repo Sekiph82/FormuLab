@@ -37,13 +37,17 @@ import {
   resolveColumnReferenceField,
   resolveCrosswalk,
   stageCsvFile,
+  stageDatabaseQuery,
+  stageRestEntity,
   upsertCrosswalk,
   validateMappingProfile,
   validateMappingProfileSupersession,
+  type DatabaseQueryResult,
   type DataExchangeRowResult,
   type ExternalIdCrosswalk,
   type MappingCandidateRow,
   type MappingProfile,
+  type RestResponsePage,
 } from "@formulab/shared";
 import { getDataExchangeTemplate } from "@formulab/shared";
 
@@ -570,6 +574,109 @@ describe("FVL-04.019 — Formula/Recipe Relationship Import: real crosswalk-reso
     // composition validation are genuinely computed, not silently blank.
     expect(version.totalsSnapshot?.totalPercent).toBe("100.0000");
     expect(version.validationSnapshot?.errorCount).toBe(0);
+  });
+});
+
+describe("FVL-04.024 — Connector -> Existing Data Exchange Bridge: DATABASE and REST_API sourced records reach the SAME real commit layer FILE already does, no second authority anywhere", () => {
+  it("a DATABASE-sourced row (stageDatabaseQuery, mocked executeQuery) flows through the identical mapping/Data Exchange/commit chain a FILE-sourced row already does, and reaches real canonical storage", async () => {
+    const executeQuery = async (): Promise<DatabaseQueryResult> => ({
+      columns: ["MaterialID", "MaterialName"],
+      rows: [["DB-MAT-1", "TEST DB-Sourced Material"]],
+    });
+    const staged = await stageDatabaseQuery(
+      "LEGACY_ERP",
+      { connectionRef: "conn-1", query: "SELECT MaterialID, MaterialName FROM dbo.materials", entity: "materials" },
+      { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" },
+      { executeQuery },
+    );
+    expect(staged.errors).toEqual([]);
+    expect(staged.connector.connectorType).toBe("DATABASE");
+
+    const schema = discoverSourceSchema("LEGACY_ERP", [{ entity: "materials", records: staged.records }]);
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: "legacy-erp-materials::v1",
+      profileId: "legacy-erp-materials",
+      profileName: "LEGACY_ERP materials",
+      sourceSystemId: "LEGACY_ERP",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialID", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    expect(validateMappingProfile(profile, schema)).toEqual([]);
+
+    const mapped = applyMappingProfile(profile, staged.records[0]);
+    expect(mapped.errors).toEqual([]);
+    const candidate = mapped.candidates.find((c) => c.targetTemplate === "raw_materials")!;
+    const { commit } = await previewAndCommit(candidate);
+    expect(commit.outcome).toBe("created");
+    expect(store.get("materials")).toEqual(expect.arrayContaining([expect.objectContaining({ code: "DB-MAT-1", displayName: "TEST DB-Sourced Material" })]));
+  });
+
+  it("a REST_API-sourced row (stageRestEntity, mocked fetchPage) flows through the identical mapping/Data Exchange/commit chain, and reaches real canonical storage", async () => {
+    const fetchPage = async (): Promise<RestResponsePage> => ({ bodyText: JSON.stringify([{ Sku: "REST-SUP-1", Name: "TEST REST-Sourced Supplier" }]) });
+    const staged = await stageRestEntity(
+      "SAAS_CRM",
+      { connectionRef: "conn-1", endpoints: { suppliers: "/api/v1/vendors" } },
+      "suppliers",
+      { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" },
+      { fetchPage },
+    );
+    expect(staged.errors).toEqual([]);
+    expect(staged.connector.connectorType).toBe("REST_API");
+
+    const schema = discoverSourceSchema("SAAS_CRM", [{ entity: "suppliers", records: staged.records }]);
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: "saas-crm-suppliers::v1",
+      profileId: "saas-crm-suppliers",
+      profileName: "SAAS_CRM suppliers",
+      sourceSystemId: "SAAS_CRM",
+      sourceEntity: "suppliers",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "Sku", targetTemplate: "suppliers", targetField: "supplier_code" },
+        { sourceField: "Name", targetTemplate: "suppliers", targetField: "supplier_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    expect(validateMappingProfile(profile, schema)).toEqual([]);
+
+    const mapped = applyMappingProfile(profile, staged.records[0]);
+    expect(mapped.errors).toEqual([]);
+    const candidate = mapped.candidates.find((c) => c.targetTemplate === "suppliers")!;
+    const { commit } = await previewAndCommit(candidate);
+    expect(commit.outcome).toBe("created");
+    expect(store.get("suppliers")).toEqual(expect.arrayContaining([expect.objectContaining({ code: "REST-SUP-1", displayName: "TEST REST-Sourced Supplier" })]));
+  });
+
+  it("no second commit/import-history authority exists anywhere in the connector layer — DATABASE/REST_API connectors never import the commit layer or masterdata bridge directly, and never branch on sourceSystem", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const root = path.resolve(process.cwd(), "..", "..", "packages", "shared", "src", "engine");
+    for (const file of ["databaseConnector.ts", "restApiConnector.ts"]) {
+      const src = fs.readFileSync(path.join(root, file), "utf-8");
+      expect(src).not.toMatch(/sourceSystem(Id)?\s*===\s*["']/);
+      // Connectors produce staged/candidate rows only — the EXISTING
+      // dataExchangeCommit.ts / masterdata bridge remains the sole write
+      // authority; a connector module importing either directly would be
+      // a second, competing write path.
+      expect(src).not.toMatch(/dataExchangeCommit|upsertRecords|from ["']\.\/masterdata["']/);
+    }
   });
 });
 

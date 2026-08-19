@@ -38,19 +38,16 @@ contract) — see "FVL-04.013-.018 final correction (Session 8)",
 Import), **FVL-04.021 — COMPLETED** (Generic Database Read Connector —
 engine layer; real driver adapter wired later), **FVL-04.022 —
 COMPLETED** (REST API Connector Contract — engine layer; real HTTP
-client adapter wired later) — see their own resolution sections below.
-FVL-04.023-.026 remain blank, none started.
+client adapter wired later), **FVL-04.024 — COMPLETED** (Connector ->
+Existing Data Exchange Bridge — built before .023 since .023 itself
+depends on it) — see their own resolution sections below. FVL-04.023,
+.025, .026 remain blank, none started.
 
 ## Current task
 
 **`FVL-04.023`** — blank, **NOT STARTED** (Incremental Re-import /
-Conflict Handling — depends on FVL-04.024, the Connector -> Data
-Exchange Bridge, which is built next; the queued task order named
-.023 before .024 but the tracker's own dependency graph requires the
-bridge to exist first, so this session builds .024 before .023,
-documented here rather than silently reordered). FVL-04.019/.020/
-.021/.022 just closed — see their own resolution sections below.
-FVL-04.013-.018 (External
+Conflict Handling). FVL-04.019/.020/.021/.022/.024 just closed — see
+their own resolution sections below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
 Transformation/Unit/Enum Mapping) all COMPLETED in an earlier session,
@@ -175,6 +172,25 @@ whole batch (a configured external ID is never touched). Auth is a
 or sees a raw credential. `pnpm --filter @formulab/shared test`:
 1601/1601 (76 files, 11 new). `typecheck`: clean both packages. FVL-04
 now 22/26.
+
+## FVL-04.024 resolution (this session — Connector -> Existing Data Exchange Bridge)
+
+Built before .023 since .023 depends on it. Largely already proven true
+by construction across FVL-04.013-.022 — every fixture already stages
+through a real connector, maps through `applyMappingProfile()`, and
+commits through the real `previewDataExchangeImport()`/
+`commitDataExchangeRows()`. The genuine new-this-task gap: the two
+connector types added this session (DATABASE, REST_API) had only been
+proven at the staging level, never end-to-end through mapping/Data
+Exchange/commit. Closed with two new tests proving a DATABASE-sourced
+and a REST_API-sourced row both flow through the IDENTICAL chain FILE
+already uses, reaching real canonical records — plus a source-text audit
+extending the established "no sourceSystem conditional" check to the two
+new connector files, and a new check that neither imports
+`dataExchangeCommit`/`upsertRecords`/the masterdata bridge directly.
+`pnpm --filter @formulab/desktop test`: 1562/1562 (158 files,
+`connectorEndToEnd.test.ts` 34/34, 3 new). `typecheck`/`lint`: clean.
+FVL-04 now 23/26.
 
 ## FVL-04.013-.018 final correction (Session 8, this session — narrow, four-part final correction)
 
