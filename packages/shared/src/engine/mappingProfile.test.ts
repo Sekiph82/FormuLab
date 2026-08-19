@@ -195,6 +195,94 @@ describe("FVL-04.016 hardening (Session 7, Part G): mapping-profile version life
   });
 });
 
+describe("Session 8 Part 5 (MP1-MP12): exact immutable Mapping Profile supersession chain — no gaps, no branching, active-successor-only effective supersession", () => {
+  it("MP1: a v1 with no predecessor at all validates with no issues", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1, supersedesProfileCode: undefined });
+    expect(validateMappingProfileSupersession(v1, [])).toEqual([]);
+  });
+
+  it("MP2: a v2 with no supersedesProfileCode at all is rejected — it must name the exact latest version", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1 });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, supersedesProfileCode: undefined });
+    expect(validateMappingProfileSupersession(v2, [v1])).toContainEqual(expect.objectContaining({ code: "profile_must_supersede_exact_latest" }));
+  });
+
+  it("MP3: a genuine v2 -> v1 supersession (v1 is the only, and therefore latest, prior version) validates with no issues", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1 });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, supersedesProfileCode: v1.code });
+    expect(validateMappingProfileSupersession(v2, [v1])).toEqual([]);
+  });
+
+  it("MP4: v3 naming v1 as predecessor while v2 is missing entirely is rejected as a version gap", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1 });
+    const v3 = baseProfile({ profileId: "mp-fam", profileVersion: 3, supersedesProfileCode: v1.code });
+    expect(validateMappingProfileSupersession(v3, [v1])).toContainEqual(expect.objectContaining({ code: "profile_version_not_sequential" }));
+  });
+
+  it("MP5: v3 naming v1 as predecessor while v2 genuinely exists is rejected as branching off the wrong predecessor (v2 is the real latest)", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1 });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, supersedesProfileCode: v1.code });
+    const v3 = baseProfile({ profileId: "mp-fam", profileVersion: 3, supersedesProfileCode: v1.code });
+    expect(validateMappingProfileSupersession(v3, [v1, v2])).toContainEqual(expect.objectContaining({ code: "profile_must_supersede_exact_latest" }));
+  });
+
+  it("MP6: v1 active + v2 draft naming v1 -> v1 stays effectively active (a draft successor must not deactivate its predecessor)", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1, status: "active" });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, status: "draft", supersedesProfileCode: v1.code });
+    expect(effectiveMappingProfileStatus(v1, [v1, v2])).toBe("active");
+    expect(effectiveMappingProfileStatus(v2, [v1, v2])).toBe("draft");
+  });
+
+  it("MP7: v1 active + v2 active naming v1 -> v1 is effectively superseded", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1, status: "active" });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, status: "active", supersedesProfileCode: v1.code });
+    expect(effectiveMappingProfileStatus(v1, [v1, v2])).toBe("superseded");
+    expect(effectiveMappingProfileStatus(v2, [v1, v2])).toBe("active");
+  });
+
+  it("MP8: a full v1/v2/v3 active chain reports correct effective status at every link", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1, status: "active" });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, status: "active", supersedesProfileCode: v1.code });
+    const v3 = baseProfile({ profileId: "mp-fam", profileVersion: 3, status: "active", supersedesProfileCode: v2.code });
+    const chain = [v1, v2, v3];
+    expect(validateMappingProfileSupersession(v2, [v1])).toEqual([]);
+    expect(validateMappingProfileSupersession(v3, [v1, v2])).toEqual([]);
+    expect(effectiveMappingProfileStatus(v1, chain)).toBe("superseded");
+    expect(effectiveMappingProfileStatus(v2, chain)).toBe("superseded");
+    expect(effectiveMappingProfileStatus(v3, chain)).toBe("active");
+  });
+
+  it("MP9: cross-family supersession is still rejected under the exact-chain rule too", () => {
+    const otherFamily = baseProfile({ profileId: "mp-other", profileVersion: 1 });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, supersedesProfileCode: otherFamily.code });
+    expect(validateMappingProfileSupersession(v2, [otherFamily])).toContainEqual(expect.objectContaining({ code: "supersedes_target_different_profile_family" }));
+  });
+
+  it("MP10: a duplicate version code is still rejected under the exact-chain rule too", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1 });
+    const duplicate = baseProfile({ profileId: "mp-fam", profileVersion: 1 });
+    expect(validateMappingProfileSupersession(duplicate, [v1])).toContainEqual(expect.objectContaining({ code: "profile_version_already_exists" }));
+  });
+
+  it("MP11: validating a chain never mutates any prior version's own object — every row is byte-for-byte unchanged", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1, status: "active" });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, status: "active", supersedesProfileCode: v1.code });
+    const v1Before = JSON.stringify(v1);
+    const v2Before = JSON.stringify(v2);
+    validateMappingProfileSupersession(v2, [v1]);
+    effectiveMappingProfileStatus(v1, [v1, v2]);
+    expect(JSON.stringify(v1)).toBe(v1Before);
+    expect(JSON.stringify(v2)).toBe(v2Before);
+  });
+
+  it("MP12: an old version's own stored status field is never rewritten to 'superseded' — only the derived view changes", () => {
+    const v1 = baseProfile({ profileId: "mp-fam", profileVersion: 1, status: "active" });
+    const v2 = baseProfile({ profileId: "mp-fam", profileVersion: 2, status: "active", supersedesProfileCode: v1.code });
+    expect(effectiveMappingProfileStatus(v1, [v1, v2])).toBe("superseded");
+    expect(v1.status).toBe("active"); // the stored field itself, untouched
+  });
+});
+
 describe("MAP8: no arbitrary executable expression support", () => {
   it("an unknown/scripted op name fails validation rather than being silently executed", () => {
     const staged = csvFixture();

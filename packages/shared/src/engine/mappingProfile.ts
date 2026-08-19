@@ -30,30 +30,45 @@ export function mappingProfileCode(profileId: string, profileVersion: number): s
 }
 
 /**
- * FVL-04.016 hardening (Session 7, Part G) — a version's "superseded"
- * state is DERIVED, never stored: this version is superseded exactly when
- * some OTHER persisted version in the same `profileId` family has a
- * higher `profileVersion`. `allVersions` is every persisted profile for
- * this `profileId` (e.g. the result of filtering `loadMappingProfiles()`)
- * — the function itself never touches storage. The row's own stored
- * `status` (its status AT CREATION) is returned unchanged when no newer
- * version exists.
+ * FVL-04.016 hardening (Session 7, Part G; corrected Session 8, Part 5) —
+ * a version's "superseded" state is DERIVED, never stored. Session 7's
+ * rule ("superseded whenever ANY higher version exists") was too loose: an
+ * unlinked higher-numbered draft would mark a genuinely active predecessor
+ * superseded even though nothing had actually replaced it. The exact rule
+ * now: `profile` is effectively superseded only when some OTHER persisted
+ * version in the same `profileId` family (a) names `profile.code` exactly
+ * via its own `supersedesProfileCode`, AND (b) that successor's own
+ * `status` is `"active"`. A draft successor naming its predecessor does
+ * NOT deactivate it — only an active, explicit successor does.
+ * `allVersions` is every persisted profile for this `profileId` — the
+ * function itself never touches storage. The row's own stored `status`
+ * (its status AT CREATION) is returned unchanged when no such successor
+ * exists.
  */
 export function effectiveMappingProfileStatus(profile: MappingProfile, allVersions: MappingProfile[]): MappingProfile["status"] {
-  const hasNewer = allVersions.some((p) => p.profileId === profile.profileId && p.profileVersion > profile.profileVersion);
-  return hasNewer ? "superseded" : profile.status;
+  const supersededByActiveSuccessor = allVersions.some((p) => p.profileId === profile.profileId && p.supersedesProfileCode === profile.code && p.status === "active");
+  return supersededByActiveSuccessor ? "superseded" : profile.status;
 }
 
 /**
- * FVL-04.016 hardening (Session 7, Part G) — validates a NEW version's own
- * supersession linkage BEFORE it is ever persisted: rejects a version
- * naming itself as the one it supersedes, a `supersedesProfileCode` that
- * does not match any already-persisted version, a supersession target
- * belonging to a DIFFERENT `profileId` family, and an attempt to reuse an
- * already-persisted `code` outright (the same rejection the append-only
- * storage layer would apply, surfaced here as a clean structured issue
- * before ever reaching storage). `existing` is every already-persisted
- * profile — never mutated, only read.
+ * FVL-04.016 hardening (Session 7, Part G; corrected Session 8, Part 5) —
+ * validates a NEW version's own supersession linkage BEFORE it is ever
+ * persisted, enforcing an exact, single, linear chain — no gaps, no
+ * branching:
+ *   - `profileVersion === 1` requires no `supersedesProfileCode` at all.
+ *   - `profileVersion > 1` MUST equal `max(existing profileVersion for this
+ *     profileId) + 1` (no version gaps) AND MUST set
+ *     `supersedesProfileCode` to the EXACT `code` of that current latest
+ *     version (no branching off an older version while a newer one
+ *     exists, and no skipping straight to an ancestor).
+ * Also still rejects a version naming itself as the one it supersedes, a
+ * `supersedesProfileCode` that does not match any already-persisted
+ * version, a supersession target belonging to a DIFFERENT `profileId`
+ * family, and an attempt to reuse an already-persisted `code` outright
+ * (the same rejection the append-only storage layer would apply, surfaced
+ * here as a clean structured issue before ever reaching storage).
+ * `existing` is every already-persisted profile — never mutated, only
+ * read.
  */
 export function validateMappingProfileSupersession(profile: MappingProfile, existing: MappingProfile[]): MappingProfileValidationIssue[] {
   const issues: MappingProfileValidationIssue[] = [];
@@ -72,6 +87,28 @@ export function validateMappingProfileSupersession(profile: MappingProfile, exis
       }
     }
   }
+
+  // Exact linear chain — same family, evaluated independently of the
+  // pairwise checks above so a gap/branch is reported even when
+  // `supersedesProfileCode` is absent entirely (a vN>1 with no
+  // supersedesProfileCode at all is itself a chain violation).
+  const familyVersions = existing.filter((p) => p.profileId === profile.profileId);
+  if (familyVersions.length === 0) {
+    if (profile.profileVersion !== 1) {
+      issues.push({ code: "profile_version_not_sequential", message: `Profile "${profile.profileId}" has no prior versions — the first version must be profileVersion 1 (got ${profile.profileVersion}).` });
+    }
+    if (profile.supersedesProfileCode) {
+      issues.push({ code: "profile_v1_cannot_supersede", message: `Profile "${profile.code}" is version 1 of "${profile.profileId}" and must not set supersedesProfileCode.` });
+    }
+  } else {
+    const latest = familyVersions.reduce((a, b) => (b.profileVersion > a.profileVersion ? b : a));
+    if (profile.profileVersion !== latest.profileVersion + 1) {
+      issues.push({ code: "profile_version_not_sequential", message: `Profile "${profile.profileId}" latest persisted version is ${latest.profileVersion} — the next version must be exactly ${latest.profileVersion + 1} (got ${profile.profileVersion}).` });
+    } else if (profile.supersedesProfileCode !== latest.code) {
+      issues.push({ code: "profile_must_supersede_exact_latest", message: `Profile "${profile.code}" must set supersedesProfileCode to "${latest.code}" (the current latest persisted version) — got ${profile.supersedesProfileCode ? `"${profile.supersedesProfileCode}"` : "none"}. No gaps or branching in the version chain.` });
+    }
+  }
+
   return issues;
 }
 
