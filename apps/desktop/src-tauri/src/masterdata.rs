@@ -85,6 +85,8 @@
 //   data/master/reverse_formula_candidates.json
 //   data/master/candidate_score_explanations.json
 //   data/master/generated_document_records.json
+//   data/master/mapping_profiles.json
+//   data/master/external_id_crosswalks.json
 //   data/master/backups/<collection>-<timestamp>.json
 //
 // `approval_records` and `approval_audit_events` are deliberately NOT master
@@ -122,7 +124,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 91] = [
+const COLLECTIONS: [(&str, bool); 93] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -403,6 +405,20 @@ const COLLECTIONS: [(&str, bool); 91] = [
     // byteSize/checksum) live in `GeneratedDocumentRecord`
     // (`packages/shared/src/schemas/documentExport.ts`, Session 1).
     ("generated_document_records", false),
+    // FVL-04.013-.018 — external source connector foundation. A mapping
+    // profile's own "changed mapping creates a new version" discipline is
+    // enforced at the application layer (a new `profileVersion` is a new
+    // row); the collection itself is mutable so a still-`draft` profile
+    // can be edited before it is ever applied. A crosswalk's `lastSeenAt`
+    // updates in place on re-import (the same source identity resolving
+    // to the same canonical identity again); `firstSeenAt`/
+    // `canonicalRecordId` never silently change once set — see
+    // `engine/crosswalk.ts`'s own conflict-detection discipline, enforced
+    // there, not by this storage layer's own mutability alone. Neither
+    // collection ever stores a credential, a raw customer payload, or an
+    // uploaded file's contents — only configuration and identity mappings.
+    ("mapping_profiles", false),
+    ("external_id_crosswalks", false),
 ];
 
 /// Every allow-listed collection name and whether it is append-only — the
@@ -833,7 +849,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 91);
+        assert_eq!(COLLECTIONS.len(), 93);
     }
 
     #[test]

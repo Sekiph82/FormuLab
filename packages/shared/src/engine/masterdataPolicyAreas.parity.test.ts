@@ -35,8 +35,8 @@ describe("masterdataPolicyAreas — Rust/TypeScript parity", () => {
     expect(fixture.collections).toEqual([...MASTERDATA_COLLECTIONS]);
   });
 
-  it("has exactly 91 collections", () => {
-    expect(MASTERDATA_COLLECTIONS.length).toBe(91);
+  it("has exactly 93 collections", () => {
+    expect(MASTERDATA_COLLECTIONS.length).toBe(93);
   });
 
   it("the fixture's area map is exactly MASTERDATA_COLLECTION_POLICY_AREAS right now (fails on drift)", () => {

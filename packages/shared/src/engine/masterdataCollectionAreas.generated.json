@@ -90,7 +90,9 @@
     "substitution_rules",
     "reverse_formula_candidates",
     "candidate_score_explanations",
-    "generated_document_records"
+    "generated_document_records",
+    "mapping_profiles",
+    "external_id_crosswalks"
   ],
   "areas": {
     "materials": "rawMaterials",
@@ -183,6 +185,8 @@
     "data_exchange_import_row_results": "dataExchange",
     "data_exchange_export_jobs": "dataExchange",
     "data_exchange_schema_versions": "dataExchange",
-    "generated_document_records": "documentControl"
+    "generated_document_records": "documentControl",
+    "mapping_profiles": "dataExchange",
+    "external_id_crosswalks": "dataExchange"
   }
 }

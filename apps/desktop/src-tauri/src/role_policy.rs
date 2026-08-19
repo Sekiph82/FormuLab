@@ -303,8 +303,8 @@ mod tests {
     // -------------------------------------------- masterdata_area_for ---
 
     #[test]
-    fn masterdata_area_for_has_all_91_collections_mapped() {
-        assert_eq!(masterdata_areas().collections.len(), 91);
+    fn masterdata_area_for_has_all_93_collections_mapped() {
+        assert_eq!(masterdata_areas().collections.len(), 93);
         for collection in &masterdata_areas().collections {
             assert!(
                 masterdata_area_for(collection).is_some(),

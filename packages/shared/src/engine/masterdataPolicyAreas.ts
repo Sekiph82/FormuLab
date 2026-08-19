@@ -120,6 +120,8 @@ export const MASTERDATA_COLLECTIONS = [
   "reverse_formula_candidates",
   "candidate_score_explanations",
   "generated_document_records",
+  "mapping_profiles",
+  "external_id_crosswalks",
 ] as const;
 export type MasterdataCollection = (typeof MASTERDATA_COLLECTIONS)[number];
 
@@ -237,6 +239,11 @@ export const MASTERDATA_COLLECTION_POLICY_AREAS: Record<MasterdataCollection, Po
 
   // Document export history.
   generated_document_records: "documentControl",
+
+  // FVL-04.013-.018 — external source connector foundation, gated by the
+  // same privilege as the rest of Data Exchange's own bookkeeping above.
+  mapping_profiles: "dataExchange",
+  external_id_crosswalks: "dataExchange",
 };
 
 /** Every `PolicyArea` used above is a real, recognized area — a typo here

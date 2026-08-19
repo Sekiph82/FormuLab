@@ -31,6 +31,7 @@ import type {
   DoeRun,
   DoeStudy,
   ExchangeRate,
+  ExternalIdCrosswalk,
   FactoryCostProfile,
   FinishedProduct,
   FinishedProductSpecification,
@@ -50,6 +51,7 @@ import type {
   MaterialHazardRecord,
   MaterialPrice,
   MaterialSupplier,
+  MappingProfile,
   OptimizationProfile,
   OptimizationRun,
   OptimizationScenario,
@@ -202,6 +204,8 @@ interface CollectionTypes {
   reverse_formula_candidates: ReverseFormulaCandidate;
   candidate_score_explanations: CandidateScoreExplanation;
   generated_document_records: GeneratedDocumentRecord;
+  mapping_profiles: MappingProfile;
+  external_id_crosswalks: ExternalIdCrosswalk;
 }
 
 /** Phase 13 Session 4: `token` is attached here, once, for every command in
