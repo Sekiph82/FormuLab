@@ -20,14 +20,15 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 (24/24, 2026-08-17). GitHub issue #4 closed 2026-08-18 to match.
 
 **FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
-PROCESS, 1/26 tasks COMPLETED (FVL-04.001). FVL-04.002-.026 remain
-blank.
+PROCESS, 4/26 tasks COMPLETED (FVL-04.001, FVL-04.002, FVL-04.003,
+FVL-04.004). FVL-04.005-.026 remain blank.
 
 ## Current task
 
-**`FVL-04.002`** — blank, **NOT STARTED**. FVL-04.001 (Material Master
-import template coverage) COMPLETED this session (no subagents used, per
-explicit instruction).
+**`FVL-04.005`** — blank, **NOT STARTED**. FVL-04.001-.004 (Material
+Master, Supplier/MaterialSupplier link, TDS, and SDS Data Exchange
+coverage) all COMPLETED this session (no subagents used, per explicit
+instruction).
 
 ## FVL-04.001 resolution (this session)
 
@@ -73,6 +74,52 @@ fixed, no net new). `typecheck`/`lint` — clean on both packages. Zero
 Python/Rust changes — `test_master_materials_adapter.py` already proves
 the seam correct once the TS-side write is correct, confirmed by
 reading it, not by re-running new Python tests.
+
+## FVL-04.002 resolution (this session)
+
+"Confirm supplier import + supplier-material link templates are
+sufficient for FVL-03's provenance needs." Audit-only — the existing
+`suppliers` template already fully sufficient (real code identity,
+`approved_supplier`/`qualification_status` never import-set-true). Real
+finding: a genuine, live `MaterialSupplier` relationship record and its
+own `material_suppliers` masterdata collection exist, but have no Data
+Exchange template — confirmed by grep this is NOT a gap FVL-03 needs
+closed, since neither `SubstitutionPanel.tsx` nor the Cost Engine reads
+it. FVL-03's real supplier-provenance chain (`RawMaterial.code` ↔
+`MaterialPrice.supplierCode` ↔ `Supplier.code`) is already fully carried
+by the existing, wired `material_prices` template. `MaterialSupplier`
+records are created solely through the existing in-workspace
+`SupplierEditor.tsx` UI — out of this task's scope, flagged as a
+disclosed, non-blocking finding for a future session. Zero production
+code changed. 2 new `dataExchangeCommit.test.ts` tests.
+
+## FVL-04.003/.004 resolution (this session)
+
+"Confirm TDS/SDS metadata/document import path." Both audit-only,
+identical finding: the existing `material_documents` template already
+covers both — `MATERIAL_DOCUMENT_TYPES` is a real 13-value enum
+including both `"TDS"` and `"SDS"`, same schema, same wired commit
+handler, same collection. Confirmed metadata-only by design (no file-
+binary ingestion anywhere in Data Exchange — `file_name`/
+`expected_sha256` are a match-against-a-locally-held-file hint, never an
+attachment, matching the schema's own documented boundary).
+`RawMaterial.documents[]` confirmed completely unused by any UI or
+import path — dead schema, not a competing registry. Safety/Regulatory
+boundary confirmed absolute: the commit handler writes exactly 19 real
+metadata fields, no `severity`/`formulaState`/hazard-scoring shape
+anywhere, verified by a new test enumerating the committed record's own
+key set. Zero production code changed. 5 new `dataExchangeCommit.test.ts`
+tests + 1 new `dataExchangeValidation.test.ts` test, shared across both
+tasks (proportional, not duplicated).
+
+Verified (all four tasks combined): `pnpm --filter @formulab/desktop
+test` — 1434/1434 across 152 files (10 new). `pnpm --filter
+@formulab/shared test` — 1312/1312 (1 new). `typecheck`/`lint` — clean
+on both packages. `python scripts/validate_v1_tracker.py` — OK, 171
+tasks, no drift. `git diff --check` — clean (LF/CRLF warnings only). No
+Python/Rust changes this session — no `pytest`/`cargo` re-run required.
+No FVL-04.005+ work started; no connector/mapping layer touched; no
+supplier or literature crawler created; no second Data Exchange system.
 
 ## FVL-04 scope expansion (2026-08-18, documentation/tracker session only)
 
@@ -956,51 +1003,56 @@ with no live literature-retrieval network access).
 
 ## Exact next task
 
-**`FVL-04.001`** — blank, NOT STARTED (see above). FVL-03 is now fully
-CLOSED (18/18). FVL-04 implementation explicitly NOT started this
-session — hard boundary in this session's own task brief.
+**`FVL-04.005`** — blank, NOT STARTED (see above). Not begun this
+session — explicit boundary in this session's own task brief.
 
 ## Known blockers
 
-None. FVL-01/FVL-02/FVL-03 fully closed. Disclosed, out-of-scope,
-non-blocking findings carried forward for a future session: (1)/(2) the
-existing Optimizer/Substitution compatibility/safety re-run call sites
-use the hardcoded `SEED_COMPATIBILITY_RULES`/`SEED_SAFETY_RULES`
-constants rather than the live edited collections; (3) Material
-Substitution's regulatory wiring cannot currently produce a real
-`false`/prohibited result with the actual seed catalog; (4) the Advanced
-Optimizer/System Substitution carry a genuine, pre-existing, documented
-"regulatory not yet implemented" boundary; (5) three pre-existing,
-pre-FVL-03 UI call sites (`MaterialsPage.tsx`/`AdvancedOptimizerPanel.tsx`/
-`SubstitutionPanel.tsx`) still compute inventory availability inline
-instead of calling the canonical `evaluateMaterialAvailability()` — none
-are duplicate-authority issues for the FVL-03 integrated workflow.
+None. FVL-01/FVL-02/FVL-03 fully closed; FVL-04.001-.004 complete.
+Disclosed, out-of-scope, non-blocking findings carried forward for a
+future session: (1)/(2) the existing Optimizer/Substitution
+compatibility/safety re-run call sites use the hardcoded
+`SEED_COMPATIBILITY_RULES`/`SEED_SAFETY_RULES` constants rather than the
+live edited collections; (3) Material Substitution's regulatory wiring
+cannot currently produce a real `false`/prohibited result with the
+actual seed catalog; (4) the Advanced Optimizer/System Substitution
+carry a genuine, pre-existing, documented "regulatory not yet
+implemented" boundary; (5) three pre-existing, pre-FVL-03 UI call sites
+still compute inventory availability inline instead of calling the
+canonical `evaluateMaterialAvailability()`; (6) a live `material_suppliers`
+masterdata collection/schema exists with no Data Exchange import
+template — not required by any current FVL-03 consumer, created/edited
+via the existing in-workspace `SupplierEditor.tsx` UI instead; (7) TDS/
+SDS document metadata has a real, wired import path but no dedicated
+material-detail UI page displays a per-material document list yet — a
+UI/UX completeness gap, not an import/storage gap. None are
+duplicate-authority issues.
 
 ## Most recent relevant tests
 
-- `pnpm --filter @formulab/desktop test` — 1424/1424 across 152 files (2
-  new: `costComparison.test.ts`, `SubstitutionPanel.test.tsx`).
+- `pnpm --filter @formulab/desktop test` — 1434/1434 across 152 files
+  (10 new: 5 `dataExchangeCommit.test.ts` FVL-04.001, 2 FVL-04.002, 5
+  FVL-04.003/.004 shared).
 - `pnpm --filter @formulab/desktop typecheck` / `lint` — clean.
-- `pnpm --filter @formulab/shared test` — 1311/1311 (untouched this task).
-- `python -m pytest runtime/pipeline -q` — 361 passed, 5 subtests
-  (untouched this task).
-- `cargo check` — clean, AFTER a real fix this task found and made (see
-  FVL-03.012 resolution above — `F_SAFETY`/`F_REGULATORY` dead embedded-
-  file references were breaking the shipped binary's build).
-  `cargo test formulation_v2` — 10/10 passing.
+- `pnpm --filter @formulab/shared test` — 1312/1312 (1 new
+  `dataExchangeValidation.test.ts` test; 1 pre-existing test also fixed
+  — a hardcoded 33-value positional CSV row array that broke the moment
+  `MATERIAL_COLUMNS` gained a new column, rewritten to derive from the
+  live column list).
 - `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no drift.
 - `git diff --check` — clean (LF/CRLF warnings only).
-- No desktop installer/full `tauri build` performed (out of this task's
-  own scope — `cargo check`/`cargo test` covered the Rust-surface
-  regression this task required). No live Tauri-app smoke test was
-  performed — verification relied on the automated suites above plus a
-  real materialized-pipeline generation run (see FVL-03.012 resolution).
+- No Python or Rust files touched this session — no `pytest`/`cargo`
+  re-run required (`test_master_materials_adapter.py` already proves the
+  candidate-pool seam correct once the TS-side write is correct,
+  confirmed by reading it, not by re-running new Python tests). No
+  desktop rebuild/installer performed (no Rust/shipped-runtime changes).
 
 ## Latest commit SHA
 
-`0876c0b` (pushed to and matching `origin/feature/laboratory-stability`)
-— "test(v1): close FVL-03 single-authority integration". Prior:
-`e77ec3d` — "docs: finalize FVL-03.011 closure pointer with commit SHA".
+`9a281a9` (pushed to and matching `origin/feature/laboratory-stability`)
+— "feat(v1): complete material master Data Exchange coverage
+(FVL-04.001-.004)". Prior: `4deaf01` — "docs: finalize FVL-03 package
+closure pointer with commit SHA".
 
 ## Reminder
 
