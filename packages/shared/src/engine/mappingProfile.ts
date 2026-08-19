@@ -20,13 +20,59 @@ import type {
   StagedSourceRecord,
 } from "../schemas/connector";
 import { getDataExchangeTemplate } from "./dataExchangeRegistry";
-import { applyTransformationPipeline, type TransformationContext } from "./transformation";
+import { applyTransformationPipeline, SUPPORTED_DECIMAL_SEPARATORS, SUPPORTED_GROUP_SEPARATORS, type TransformationContext } from "./transformation";
 import { isKnownUnit, unitDimension } from "./unitConversion";
 
 /** The immutable storage identity for one profile version — see
  *  `mappingProfileSchema`'s own doc comment in `schemas/connector.ts`. */
 export function mappingProfileCode(profileId: string, profileVersion: number): string {
   return `${profileId}::v${profileVersion}`;
+}
+
+/**
+ * FVL-04.016 hardening (Session 7, Part G) — a version's "superseded"
+ * state is DERIVED, never stored: this version is superseded exactly when
+ * some OTHER persisted version in the same `profileId` family has a
+ * higher `profileVersion`. `allVersions` is every persisted profile for
+ * this `profileId` (e.g. the result of filtering `loadMappingProfiles()`)
+ * — the function itself never touches storage. The row's own stored
+ * `status` (its status AT CREATION) is returned unchanged when no newer
+ * version exists.
+ */
+export function effectiveMappingProfileStatus(profile: MappingProfile, allVersions: MappingProfile[]): MappingProfile["status"] {
+  const hasNewer = allVersions.some((p) => p.profileId === profile.profileId && p.profileVersion > profile.profileVersion);
+  return hasNewer ? "superseded" : profile.status;
+}
+
+/**
+ * FVL-04.016 hardening (Session 7, Part G) — validates a NEW version's own
+ * supersession linkage BEFORE it is ever persisted: rejects a version
+ * naming itself as the one it supersedes, a `supersedesProfileCode` that
+ * does not match any already-persisted version, a supersession target
+ * belonging to a DIFFERENT `profileId` family, and an attempt to reuse an
+ * already-persisted `code` outright (the same rejection the append-only
+ * storage layer would apply, surfaced here as a clean structured issue
+ * before ever reaching storage). `existing` is every already-persisted
+ * profile — never mutated, only read.
+ */
+export function validateMappingProfileSupersession(profile: MappingProfile, existing: MappingProfile[]): MappingProfileValidationIssue[] {
+  const issues: MappingProfileValidationIssue[] = [];
+  if (existing.some((p) => p.code === profile.code)) {
+    issues.push({ code: "profile_version_already_exists", message: `A profile version with code "${profile.code}" already exists and cannot be overwritten — use a new profileVersion.` });
+  }
+  if (profile.supersedesProfileCode) {
+    if (profile.supersedesProfileCode === profile.code) {
+      issues.push({ code: "profile_cannot_supersede_itself", message: `Profile "${profile.code}" cannot name itself as the version it supersedes.` });
+    } else {
+      const target = existing.find((p) => p.code === profile.supersedesProfileCode);
+      if (!target) {
+        issues.push({ code: "supersedes_target_not_found", message: `"${profile.supersedesProfileCode}" does not match any already-persisted profile version.` });
+      } else if (target.profileId !== profile.profileId) {
+        issues.push({ code: "supersedes_target_different_profile_family", message: `"${profile.supersedesProfileCode}" belongs to profileId "${target.profileId}", not "${profile.profileId}".` });
+      }
+    }
+  }
+  return issues;
 }
 
 const SUPPORTED_DATE_FORMATS = ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"];
@@ -38,16 +84,19 @@ const SUPPORTED_DATE_FORMATS = ["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"];
  * decimalSeparator at all"), never a target Data Exchange cell's actual
  * content — that remains the existing Data Exchange validator's job.
  */
-function validateTransformationConfig(step: TransformationStep, targetTemplate: string, targetField: string, sourceField: string): MappingProfileValidationIssue[] {
+function validateTransformationConfig(step: TransformationStep, targetTemplate: string, targetField: string, sourceField: string, sourceFieldPaths: Set<string>): MappingProfileValidationIssue[] {
   const issues: MappingProfileValidationIssue[] = [];
   const bad = (message: string) => issues.push({ code: "invalid_transformation_config", targetTemplate, targetField, sourceField, message: `"${step.op}" on "${targetTemplate}.${targetField}": ${message}` });
   const config = step.config ?? {};
   switch (step.op) {
     case "parse_decimal": {
+      // FVL-04.018 hardening (Session 7, Part H1) — a clearly defined
+      // supported convention, the SAME sets `transformation.ts`'s own
+      // runtime check uses, never a second hand-maintained list.
       const dec = config.decimalSeparator;
-      if (typeof dec !== "string" || dec.length === 0) bad("decimalSeparator is required and must be a non-empty string.");
+      if (typeof dec !== "string" || !SUPPORTED_DECIMAL_SEPARATORS.has(dec)) bad(`decimalSeparator must be one of ${[...SUPPORTED_DECIMAL_SEPARATORS].map((s) => `"${s}"`).join(", ")}.`);
       const grp = config.groupSeparator;
-      if (grp !== undefined && (typeof grp !== "string" || grp.length === 0)) bad("groupSeparator, if present, must be a non-empty string.");
+      if (grp !== undefined && (typeof grp !== "string" || !SUPPORTED_GROUP_SEPARATORS.has(grp))) bad(`groupSeparator, if present, must be one of ${[...SUPPORTED_GROUP_SEPARATORS].map((s) => `"${s}"`).join(", ")}.`);
       if (typeof dec === "string" && typeof grp === "string" && dec === grp) bad("groupSeparator cannot equal decimalSeparator.");
       break;
     }
@@ -57,18 +106,28 @@ function validateTransformationConfig(step: TransformationStep, targetTemplate: 
       break;
     }
     case "map_enum": {
+      // FVL-04.018 hardening (Session 7, Part H2) — every value must
+      // genuinely be a string; a malformed value shape is caught here,
+      // before it ever reaches the runtime cast `transformation.ts` used
+      // to perform blindly.
       const map = config.enumMap;
-      if (typeof map !== "object" || map === null || Object.keys(map).length === 0) bad("enumMap is required and must be a non-empty object.");
+      if (typeof map !== "object" || map === null || Array.isArray(map) || Object.keys(map).length === 0) {
+        bad("enumMap is required and must be a non-empty plain object.");
+      } else if (Object.values(map).some((v) => typeof v !== "string")) {
+        bad("every enumMap value must be a string.");
+      }
       break;
     }
     case "map_boolean": {
       const trueValues = config.trueValues;
       const falseValues = config.falseValues;
-      if (!Array.isArray(trueValues) || trueValues.length === 0) bad("trueValues is required and must be a non-empty array.");
-      if (!Array.isArray(falseValues) || falseValues.length === 0) bad("falseValues is required and must be a non-empty array.");
-      if (Array.isArray(trueValues) && Array.isArray(falseValues)) {
-        const t = new Set(trueValues.map((v) => String(v).toLowerCase()));
-        const overlap = falseValues.some((v) => t.has(String(v).toLowerCase()));
+      const trueOk = Array.isArray(trueValues) && trueValues.length > 0 && trueValues.every((v) => typeof v === "string");
+      const falseOk = Array.isArray(falseValues) && falseValues.length > 0 && falseValues.every((v) => typeof v === "string");
+      if (!trueOk) bad("trueValues is required and must be a non-empty array of strings.");
+      if (!falseOk) bad("falseValues is required and must be a non-empty array of strings.");
+      if (trueOk && falseOk) {
+        const t = new Set((trueValues as string[]).map((v) => v.toLowerCase()));
+        const overlap = (falseValues as string[]).some((v) => t.has(v.toLowerCase()));
         if (overlap) bad("trueValues and falseValues must not overlap.");
       }
       break;
@@ -85,6 +144,26 @@ function validateTransformationConfig(step: TransformationStep, targetTemplate: 
     }
     case "resolve_crosswalk": {
       if (typeof config.canonicalEntity !== "string" || config.canonicalEntity.length === 0) bad("canonicalEntity is required.");
+      // FVL-04.018 hardening (Session 7, Part H6) — cross-entity
+      // relationship resolution requires an EXPLICIT sourceEntity; the
+      // same-entity shorthand must be requested explicitly (`sameEntity:
+      // true`), never an accidental fallback to whatever entity happens to
+      // be current.
+      const hasExplicitSourceEntity = typeof config.sourceEntity === "string" && config.sourceEntity.length > 0;
+      const hasSameEntityShorthand = config.sameEntity === true;
+      if (!hasExplicitSourceEntity && !hasSameEntityShorthand) {
+        bad("sourceEntity is required (or set sameEntity:true explicitly to resolve against the record's own entity).");
+      }
+      // FVL-04.017 hardening (Session 7, Part H5) — a configured
+      // fallbackCanonicalField must reference a field that genuinely exists
+      // in the discovered source schema, checked BEFORE any row is mapped.
+      if (config.fallbackCanonicalField !== undefined) {
+        if (typeof config.fallbackCanonicalField !== "string" || config.fallbackCanonicalField.length === 0) {
+          bad("fallbackCanonicalField, if present, must be a non-empty string.");
+        } else if (!sourceFieldPaths.has(config.fallbackCanonicalField)) {
+          bad(`fallbackCanonicalField "${config.fallbackCanonicalField}" does not exist in the discovered source schema.`);
+        }
+      }
       break;
     }
     case "split":
@@ -137,7 +216,7 @@ export function validateMappingProfile(profile: MappingProfile, sourceSchema: So
         issues.push({ code: "unknown_transformation_op", targetTemplate: fm.targetTemplate, targetField: fm.targetField, message: `"${step.op}" is not a recognized transformation.` });
         continue;
       }
-      issues.push(...validateTransformationConfig(step, fm.targetTemplate, fm.targetField, fm.sourceField));
+      issues.push(...validateTransformationConfig(step, fm.targetTemplate, fm.targetField, fm.sourceField, sourceFieldPaths));
     }
     const key = `${fm.targetTemplate}::${fm.targetField}`;
     if (seenTargets.has(key)) issues.push({ code: "duplicate_target_assignment", targetTemplate: fm.targetTemplate, targetField: fm.targetField, message: `More than one mapping targets "${fm.targetTemplate}.${fm.targetField}".` });

@@ -34,6 +34,12 @@ export interface TransformationOutcome {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SUPPORTED_DATE_FORMATS = new Set(["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]);
+/** FVL-04.018 hardening (Session 7, Part H1) — a clearly defined supported
+ *  convention, not an arbitrary non-empty string. Exported so
+ *  `mappingProfile.ts`'s own profile-time config validation checks the
+ *  SAME set, never a second hand-maintained list. */
+export const SUPPORTED_DECIMAL_SEPARATORS = new Set([".", ","]);
+export const SUPPORTED_GROUP_SEPARATORS = new Set([",", ".", " ", "'"]);
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -138,7 +144,12 @@ export function applyTransformation(
       if (value === null) return { value: null };
       const decimalSeparator = typeof config?.decimalSeparator === "string" ? config.decimalSeparator : undefined;
       const groupSeparator = typeof config?.groupSeparator === "string" ? config.groupSeparator : undefined;
-      if (!decimalSeparator) return { value: undefined, error: "decimal_convention_not_configured" };
+      // FVL-04.018 hardening (Session 7, Part H1) — a clearly defined
+      // supported convention, checked at RUNTIME too (never only at
+      // profile-validation time), so malformed config can never reach the
+      // parser regardless of how it got here.
+      if (!decimalSeparator || !SUPPORTED_DECIMAL_SEPARATORS.has(decimalSeparator)) return { value: undefined, error: "decimal_convention_not_configured" };
+      if (groupSeparator !== undefined && !SUPPORTED_GROUP_SEPARATORS.has(groupSeparator)) return { value: undefined, error: "invalid_decimal_configuration" };
       if (groupSeparator && groupSeparator === decimalSeparator) return { value: undefined, error: "invalid_decimal_configuration" };
       const n = parseExplicitDecimal(value, decimalSeparator, groupSeparator);
       if (n === undefined) return { value: undefined, error: "ambiguous_or_invalid_decimal" };
@@ -154,7 +165,15 @@ export function applyTransformation(
     }
     case "map_enum": {
       if (value === null) return { value: null };
-      const map = (config?.enumMap ?? {}) as Record<string, string>;
+      // FVL-04.018 hardening (Session 7, Part H2) — no blind cast: a
+      // malformed `enumMap` (not a plain object, or a value that isn't a
+      // string) is a structured configuration error, never a value silently
+      // treated as an empty map or an unpredictable runtime shape.
+      const rawMap = config?.enumMap;
+      if (typeof rawMap !== "object" || rawMap === null || Array.isArray(rawMap)) return { value: undefined, error: "invalid_enum_configuration" };
+      const entries = Object.entries(rawMap as Record<string, unknown>);
+      if (entries.length === 0 || entries.some(([, v]) => typeof v !== "string")) return { value: undefined, error: "invalid_enum_configuration" };
+      const map = Object.fromEntries(entries) as Record<string, string>;
       const caseInsensitive = config?.caseInsensitive !== false;
       const key = caseInsensitive ? Object.keys(map).find((k) => k.toLowerCase() === value.toLowerCase()) : (value in map ? value : undefined);
       if (key === undefined) return { value: undefined, error: "unknown_enum_value" };
@@ -162,8 +181,18 @@ export function applyTransformation(
     }
     case "map_boolean": {
       if (value === null) return { value: null };
-      const trueValues = (config?.trueValues as string[] | undefined) ?? [];
-      const falseValues = (config?.falseValues as string[] | undefined) ?? [];
+      // FVL-04.018 hardening (Session 7, Part H3) — the prior blind
+      // `as string[]` cast could THROW at runtime (e.g. `"Y".some(...)` is
+      // not a function) if malformed config ever bypassed profile
+      // validation. Explicit runtime shape checks make that structurally
+      // impossible: a malformed array is a structured error, never a crash.
+      const trueValuesRaw = config?.trueValues;
+      const falseValuesRaw = config?.falseValues;
+      if (!Array.isArray(trueValuesRaw) || !Array.isArray(falseValuesRaw) || trueValuesRaw.some((t) => typeof t !== "string") || falseValuesRaw.some((f) => typeof f !== "string")) {
+        return { value: undefined, error: "invalid_boolean_configuration" };
+      }
+      const trueValues = trueValuesRaw as string[];
+      const falseValues = falseValuesRaw as string[];
       const v = value.trim().toLowerCase();
       if (trueValues.some((t) => t.toLowerCase() === v)) return { value: "true" };
       if (falseValues.some((f) => f.toLowerCase() === v)) return { value: "false" };
@@ -182,10 +211,19 @@ export function applyTransformation(
     }
     case "resolve_crosswalk": {
       if (value === null) return { value: null };
-      const sourceEntity = typeof config?.sourceEntity === "string" ? config.sourceEntity : ctx.currentEntity;
+      // FVL-04.018 hardening (Session 7, Part H6) — cross-entity
+      // relationship resolution now requires an EXPLICIT `sourceEntity`.
+      // The same-entity shorthand (resolve against the record's OWN
+      // entity) still exists but must be requested explicitly via
+      // `sameEntity: true` — never an accidental fallback to whatever
+      // `ctx.currentEntity` happens to be.
+      const explicitSourceEntity = typeof config?.sourceEntity === "string" ? config.sourceEntity : undefined;
+      const sameEntityShorthand = config?.sameEntity === true;
+      const sourceEntity = explicitSourceEntity ?? (sameEntityShorthand ? ctx.currentEntity : undefined);
       const canonicalEntity = typeof config?.canonicalEntity === "string" ? config.canonicalEntity : undefined;
       if (!canonicalEntity) return { value: undefined, error: "crosswalk_canonical_entity_not_configured" };
-      if (!sourceEntity || !ctx.resolveCrosswalk) return { value: undefined, error: "crosswalk_not_configured" };
+      if (!sourceEntity) return { value: undefined, error: "crosswalk_source_entity_not_configured" };
+      if (!ctx.resolveCrosswalk) return { value: undefined, error: "crosswalk_not_configured" };
       // Precedence tier 1: the persistent External ID Crosswalk.
       const resolved = ctx.resolveCrosswalk(sourceEntity, value, canonicalEntity);
       if (resolved !== undefined) return { value: resolved };

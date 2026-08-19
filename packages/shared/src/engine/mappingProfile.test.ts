@@ -3,7 +3,7 @@
  * TR15/TR16 (existing Data Exchange validator boundary, no direct commit).
  */
 import { describe, expect, it } from "vitest";
-import { applyMappingProfile, mappingProfileCode, validateMappingProfile } from "./mappingProfile";
+import { applyMappingProfile, effectiveMappingProfileStatus, mappingProfileCode, validateMappingProfile, validateMappingProfileSupersession } from "./mappingProfile";
 import { discoverSourceSchema } from "./schemaDiscovery";
 import { stageCsvFile } from "./fileConnector";
 import { previewDataExchangeImport } from "./dataExchangeValidation";
@@ -130,16 +130,68 @@ describe("MAP5: a changed source schema fingerprint blocks an incompatible profi
 });
 
 describe("MAP6/MAP7: profile version lineage; v1 remains immutable/readable after v2 exists", () => {
-  it("a superseding v2 carries supersedesProfileId while v1's own object is never mutated", () => {
-    const v1 = baseProfile({ profileId: "profile-1", profileVersion: 1, status: "superseded" });
-    const v2 = baseProfile({ profileId: "profile-2", profileVersion: 2, status: "active", supersedesProfileId: "profile-1" });
+  it("a superseding v2 carries the EXACT immutable code of the version it replaces (never merely the logical profileId)", () => {
+    const v1 = baseProfile({ profileId: "profile-1", profileVersion: 1, status: "active" });
+    const v2 = baseProfile({ profileId: "profile-1", profileVersion: 2, status: "active", supersedesProfileCode: v1.code });
     expect(v1.profileVersion).toBe(1);
-    expect(v2.supersedesProfileId).toBe("profile-1");
+    expect(v2.supersedesProfileCode).toBe("profile-1::v1");
+    expect(v1.code).not.toBe(v2.code); // exact version linkage, never ambiguous
 
     const staged = csvFixture();
     const result = applyMappingProfile({ ...v2, sourceSchemaFingerprint: schemaFor(staged).fingerprint, fieldMappings: [{ sourceField: "Chemical_ID", targetTemplate: "raw_materials", targetField: "material_code" }] }, staged.records[0]);
-    expect(result.profileId).toBe("profile-2");
+    expect(result.profileId).toBe("profile-1");
     expect(result.profileVersion).toBe(2);
+  });
+});
+
+describe("FVL-04.016 hardening (Session 7, Part G): mapping-profile version lifecycle — derived supersession, exact chain, no impossible mutation", () => {
+  it("effectiveMappingProfileStatus derives 'superseded' from the existence of a newer version, without ever mutating v1's own stored status", () => {
+    const v1 = baseProfile({ profileId: "profile-1", profileVersion: 1, status: "active" });
+    // Before v2 exists, v1 is still effectively active.
+    expect(effectiveMappingProfileStatus(v1, [v1])).toBe("active");
+
+    const v2 = baseProfile({ profileId: "profile-1", profileVersion: 2, status: "active", supersedesProfileCode: v1.code });
+    const all = [v1, v2];
+    expect(effectiveMappingProfileStatus(v1, all)).toBe("superseded");
+    expect(effectiveMappingProfileStatus(v2, all)).toBe("active");
+    // v1's own persisted object is never rewritten — its stored `status`
+    // field is still literally "active"; only the DERIVED view changes.
+    expect(v1.status).toBe("active");
+
+    const v3 = baseProfile({ profileId: "profile-1", profileVersion: 3, status: "active", supersedesProfileCode: v2.code });
+    const chain = [v1, v2, v3];
+    expect(effectiveMappingProfileStatus(v1, chain)).toBe("superseded");
+    expect(effectiveMappingProfileStatus(v2, chain)).toBe("superseded");
+    expect(effectiveMappingProfileStatus(v3, chain)).toBe("active");
+  });
+
+  it("validateMappingProfileSupersession rejects a version naming itself as superseded", () => {
+    const v1 = baseProfile({ profileId: "profile-1", profileVersion: 1, supersedesProfileCode: undefined });
+    const selfReferencing = { ...v1, supersedesProfileCode: v1.code };
+    expect(validateMappingProfileSupersession(selfReferencing, [])).toContainEqual(expect.objectContaining({ code: "profile_cannot_supersede_itself" }));
+  });
+
+  it("validateMappingProfileSupersession rejects a supersedesProfileCode that names no already-persisted version", () => {
+    const v2 = baseProfile({ profileId: "profile-1", profileVersion: 2, supersedesProfileCode: "profile-1::v1" });
+    expect(validateMappingProfileSupersession(v2, [])).toContainEqual(expect.objectContaining({ code: "supersedes_target_not_found" }));
+  });
+
+  it("validateMappingProfileSupersession rejects a duplicate version code (the same rejection append-only storage would apply)", () => {
+    const v1 = baseProfile({ profileId: "profile-1", profileVersion: 1 });
+    const duplicate = baseProfile({ profileId: "profile-1", profileVersion: 1 });
+    expect(validateMappingProfileSupersession(duplicate, [v1])).toContainEqual(expect.objectContaining({ code: "profile_version_already_exists" }));
+  });
+
+  it("validateMappingProfileSupersession rejects cross-family supersession", () => {
+    const otherFamily = baseProfile({ profileId: "profile-OTHER", profileVersion: 1 });
+    const v2 = baseProfile({ profileId: "profile-1", profileVersion: 2, supersedesProfileCode: otherFamily.code });
+    expect(validateMappingProfileSupersession(v2, [otherFamily])).toContainEqual(expect.objectContaining({ code: "supersedes_target_different_profile_family" }));
+  });
+
+  it("a genuinely valid v2 -> v1 supersession passes with no issues", () => {
+    const v1 = baseProfile({ profileId: "profile-1", profileVersion: 1 });
+    const v2 = baseProfile({ profileId: "profile-1", profileVersion: 2, supersedesProfileCode: v1.code });
+    expect(validateMappingProfileSupersession(v2, [v1])).toEqual([]);
   });
 });
 

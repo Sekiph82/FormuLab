@@ -192,6 +192,63 @@ describe("FVL-04.018 hardening F5: stricter decimal validation, no host-locale d
   });
 });
 
+describe("FVL-04.018 hardening (Session 7, Part H): malformed config never throws — always a structured error", () => {
+  it("H1: parse_decimal with a nonsense separator ('abc') is refused, not applied", () => {
+    const r = applyTransformation("parse_decimal", "1234", { decimalSeparator: "abc" });
+    expect(r.error).toBe("decimal_convention_not_configured");
+  });
+
+  it("H1: parse_decimal with an unsupported groupSeparator is refused", () => {
+    const r = applyTransformation("parse_decimal", "1;234", { decimalSeparator: ".", groupSeparator: ";" });
+    expect(r.error).toBe("invalid_decimal_configuration");
+  });
+
+  it("H2: map_enum with a non-object enumMap (a string) never throws, returns a structured error", () => {
+    expect(() => applyTransformation("map_enum", "Y", { enumMap: "not-an-object" })).not.toThrow();
+    const r = applyTransformation("map_enum", "Y", { enumMap: "not-an-object" });
+    expect(r.error).toBe("invalid_enum_configuration");
+  });
+
+  it("H2: map_enum with a non-string value in enumMap never throws", () => {
+    const r = applyTransformation("map_enum", "Y", { enumMap: { Y: 1 } });
+    expect(r.error).toBe("invalid_enum_configuration");
+  });
+
+  it("H3: map_boolean with a non-array trueValues (a bare string) never throws '.some is not a function'", () => {
+    expect(() => applyTransformation("map_boolean", "Y", { trueValues: "Y", falseValues: ["N"] })).not.toThrow();
+    const r = applyTransformation("map_boolean", "Y", { trueValues: "Y", falseValues: ["N"] });
+    expect(r.error).toBe("invalid_boolean_configuration");
+  });
+
+  it("H3: map_boolean with a non-string member in trueValues never throws", () => {
+    const r = applyTransformation("map_boolean", "Y", { trueValues: [1, 2], falseValues: ["N"] });
+    expect(r.error).toBe("invalid_boolean_configuration");
+  });
+
+  it("H4: split/join with a non-string delimiter never throws, falls back to the documented default", () => {
+    expect(() => applyTransformation("split", "a,b", { delimiter: 42 })).not.toThrow();
+    const r = applyTransformation("split", "a,b", { delimiter: 42 });
+    expect(r.value).toBe("a;b"); // default "," delimiter used since 42 is not a valid string delimiter
+  });
+
+  it("H6: resolve_crosswalk with no explicit sourceEntity and no sameEntity shorthand is refused, never silently uses ctx.currentEntity", () => {
+    const r = applyTransformation("resolve_crosswalk", "V-441", { canonicalEntity: "Supplier" }, { currentEntity: "suppliers", resolveCrosswalk: () => "SUP-1" });
+    expect(r.error).toBe("crosswalk_source_entity_not_configured");
+  });
+
+  it("H6: resolve_crosswalk with explicit sameEntity:true legitimately uses ctx.currentEntity", () => {
+    const r = applyTransformation("resolve_crosswalk", "V-441", { canonicalEntity: "Supplier", sameEntity: true }, { currentEntity: "suppliers", resolveCrosswalk: (e) => (e === "suppliers" ? "SUP-1" : undefined) });
+    expect(r.value).toBe("SUP-1");
+  });
+
+  it("no malformed config for any op throws — swept across every transformation op with a garbage config shape", () => {
+    const garbageConfigs: Record<string, unknown> = { decimalSeparator: 42, groupSeparator: [], enumMap: [1, 2, 3], trueValues: "Y", falseValues: 5, from: {}, to: [], canonicalEntity: 5, format: {}, delimiter: {} };
+    for (const op of ["parse_decimal", "parse_date", "map_enum", "map_boolean", "convert_unit", "resolve_crosswalk", "split", "join"] as const) {
+      expect(() => applyTransformation(op, "some-value", garbageConfigs)).not.toThrow();
+    }
+  });
+});
+
 describe("null propagation", () => {
   it("a null raw value stays null through the pipeline rather than becoming a fabricated value", () => {
     const r = applyTransformationPipeline([{ op: "trim" }, { op: "uppercase" }], null);

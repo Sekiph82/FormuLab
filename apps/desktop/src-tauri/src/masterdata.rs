@@ -560,8 +560,31 @@ pub async fn upsert_master_records(
         .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
     authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
     let path = collection_path(&app, name)?;
-    let mut rows = read_array(&path);
+    let rows = read_array(&path);
+    let (rows, inserted, updated) = apply_upsert(rows, records, append_only, name)?;
 
+    write_array(&path, &rows)?;
+    Ok(serde_json::json!({
+        "inserted": inserted,
+        "updated": updated,
+        "total": rows.len(),
+    }))
+}
+
+/// FVL-04.016 hardening (Session 7, Part M) — the real merge/append-only-
+/// rejection logic, factored out of the async Tauri command so it can be
+/// unit-tested directly against disposable in-memory rows, never a real
+/// `data/master` file and never a full Tauri runtime. `upsert_master_records`
+/// itself is not directly unit-testable (it requires a real `AppHandle`),
+/// but this is the actual decision logic that command delegates to — the
+/// deepest pure function that enforces "a mapping_profiles record with an
+/// existing `code` is rejected, a genuinely new `code` is accepted."
+fn apply_upsert(
+    mut rows: Vec<serde_json::Value>,
+    records: Vec<serde_json::Value>,
+    append_only: bool,
+    name: &str,
+) -> Result<(Vec<serde_json::Value>, usize, usize), String> {
     let mut inserted = 0usize;
     let mut updated = 0usize;
 
@@ -598,12 +621,7 @@ pub async fn upsert_master_records(
         }
     }
 
-    write_array(&path, &rows)?;
-    Ok(serde_json::json!({
-        "inserted": inserted,
-        "updated": updated,
-        "total": rows.len(),
-    }))
+    Ok((rows, inserted, updated))
 }
 
 /// Remove a row by code. Refused on append-only collections.
@@ -854,6 +872,43 @@ mod tests {
             collection_spec("generated_document_records"),
             Ok(("generated_document_records", false)),
         );
+    }
+
+    #[test]
+    fn apply_upsert_rejects_a_second_write_reusing_an_existing_append_only_code() {
+        // FVL-04.016 hardening (Session 7, Part M) — the real merge logic,
+        // proven directly against disposable in-memory rows: a
+        // mapping_profiles-shaped record with code "P::v1" already present,
+        // and a second incoming record reusing that exact code, is
+        // rejected outright — real behavior, not merely a metadata
+        // assertion about the collection's own append_only flag.
+        let existing = vec![serde_json::json!({"code": "P::v1", "profileVersion": 1})];
+        let incoming = vec![serde_json::json!({"code": "P::v1", "profileVersion": 1, "fieldMappings": []})];
+        let result = apply_upsert(existing, incoming, true, "mapping_profiles");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("already exists"));
+    }
+
+    #[test]
+    fn apply_upsert_accepts_a_genuinely_new_append_only_code() {
+        let existing = vec![serde_json::json!({"code": "P::v1"})];
+        let incoming = vec![serde_json::json!({"code": "P::v2"})];
+        let (rows, inserted, updated) = apply_upsert(existing, incoming, true, "mapping_profiles").unwrap();
+        assert_eq!(inserted, 1);
+        assert_eq!(updated, 0);
+        assert_eq!(rows.len(), 2);
+        // v1's own row is still there, byte-for-byte, never rewritten.
+        assert_eq!(rows[0], serde_json::json!({"code": "P::v1"}));
+    }
+
+    #[test]
+    fn apply_upsert_updates_in_place_for_a_mutable_collection() {
+        let existing = vec![serde_json::json!({"code": "X", "lastSeenAt": "2026-01-01"})];
+        let incoming = vec![serde_json::json!({"code": "X", "lastSeenAt": "2026-02-01"})];
+        let (rows, inserted, updated) = apply_upsert(existing, incoming, false, "external_id_crosswalks").unwrap();
+        assert_eq!(inserted, 0);
+        assert_eq!(updated, 1);
+        assert_eq!(rows[0]["lastSeenAt"], "2026-02-01");
     }
 
     #[test]

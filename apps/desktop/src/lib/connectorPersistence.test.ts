@@ -37,11 +37,11 @@ beforeEach(() => {
 });
 
 describe("connectorPersistence", () => {
-  it("persists a new crosswalk entry through the existing masterdata bridge", async () => {
+  it("persists a new crosswalk entry through the existing masterdata bridge — using an explicitly configured source identity", async () => {
     const { record } = await persistCrosswalkEntry({
       sourceSystemId: "CHT_LIMS",
       sourceEntity: "MATERIAL",
-      sourceRecordId: "883729",
+      sourceIdentity: { sourceRecordId: "883729", idSource: "configured" },
       canonicalEntity: "RawMaterial",
       canonicalRecordId: "RM-00291",
     });
@@ -56,12 +56,49 @@ describe("connectorPersistence", () => {
     const result = await persistCrosswalkEntry({
       sourceSystemId: "CHT_LIMS",
       sourceEntity: "MATERIAL",
-      sourceRecordId: "883729",
+      sourceIdentity: { sourceRecordId: "883729", idSource: "configured" },
       canonicalEntity: "RawMaterial",
       canonicalRecordId: "RM-99999",
     });
     expect(result.conflict).toBeDefined();
     expect(bridge.upsertRecords).not.toHaveBeenCalled();
+  });
+
+  describe("FVL-04.017 hardening (Session 7, Part I): ordinal source identity is refused by the API itself, not by caller discipline", () => {
+    it("an ordinal idSource is refused before any storage call is ever made", async () => {
+      const result = await persistCrosswalkEntry({
+        sourceSystemId: "CHT_LIMS",
+        sourceEntity: "MATERIAL",
+        sourceIdentity: { sourceRecordId: "7", idSource: "ordinal" },
+        canonicalEntity: "RawMaterial",
+        canonicalRecordId: "RM-00291",
+      });
+      expect(result.refused).toMatchObject({ code: "ordinal_identity_not_crosswalk_eligible" });
+      expect(result.record).toBeUndefined();
+      expect(bridge.listRecords).not.toHaveBeenCalled();
+      expect(bridge.upsertRecords).not.toHaveBeenCalled();
+    });
+
+    it("a configured idSource is accepted and genuinely persists", async () => {
+      const result = await persistCrosswalkEntry({
+        sourceSystemId: "CHT_LIMS",
+        sourceEntity: "MATERIAL",
+        sourceIdentity: { sourceRecordId: "883729", idSource: "configured" },
+        canonicalEntity: "RawMaterial",
+        canonicalRecordId: "RM-00291",
+      });
+      expect(result.refused).toBeUndefined();
+      expect(result.record?.sourceRecordId).toBe("883729");
+    });
+
+    it("the same explicit ID re-imported resolves to the same canonical identity", async () => {
+      const params = { sourceSystemId: "CHT_LIMS", sourceEntity: "MATERIAL", sourceIdentity: { sourceRecordId: "883729", idSource: "configured" as const }, canonicalEntity: "RawMaterial", canonicalRecordId: "RM-00291" };
+      const first = await persistCrosswalkEntry(params);
+      bridge.listRecords.mockResolvedValue([first.record]);
+      const second = await persistCrosswalkEntry(params);
+      expect(second.record?.canonicalRecordId).toBe("RM-00291");
+      expect(second.record?.firstSeenAt).toBe(first.record?.firstSeenAt);
+    });
   });
 
   it("saves a mapping profile as-is", async () => {
@@ -114,15 +151,19 @@ describe("connectorPersistence", () => {
       });
       bridge.listRecords.mockImplementation(async () => persisted);
 
-      const v1 = profileFixture({ profileVersion: 1, status: "superseded" });
+      // v1's own stored status reflects its status AT CREATION ("active") —
+      // it is never rewritten to "superseded" later; that becomes a
+      // DERIVED fact once v2 exists (see effectiveMappingProfileStatus in
+      // mappingProfile.test.ts's own Part G hardening coverage).
+      const v1 = profileFixture({ profileVersion: 1, status: "active" });
       await saveMappingProfile(v1);
-      const v2 = profileFixture({ profileVersion: 2, status: "active", supersedesProfileId: "profile-1", fieldMappings: [{ sourceField: "A", targetTemplate: "raw_materials", targetField: "material_code" }] });
+      const v2 = profileFixture({ profileVersion: 2, status: "active", supersedesProfileCode: mappingProfileCode("profile-1", 1), fieldMappings: [{ sourceField: "A", targetTemplate: "raw_materials", targetField: "material_code" }] });
       await saveMappingProfile(v2);
 
       const all = await loadMappingProfiles();
       expect(all).toHaveLength(2);
-      expect(all.find((p) => p.code === mappingProfileCode("profile-1", 1))).toMatchObject({ profileVersion: 1 });
-      expect(all.find((p) => p.code === mappingProfileCode("profile-1", 2))).toMatchObject({ profileVersion: 2, supersedesProfileId: "profile-1" });
+      expect(all.find((p) => p.code === mappingProfileCode("profile-1", 1))).toMatchObject({ profileVersion: 1, status: "active" });
+      expect(all.find((p) => p.code === mappingProfileCode("profile-1", 2))).toMatchObject({ profileVersion: 2, supersedesProfileCode: "profile-1::v1" });
     });
   });
 });
