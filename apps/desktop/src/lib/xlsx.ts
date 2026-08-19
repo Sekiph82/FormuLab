@@ -188,6 +188,29 @@ export async function readWorkbookRows(bytes: ArrayBuffer): Promise<string[][]> 
 }
 
 /**
+ * FVL-04.014 — every sheet of a `.xlsx` workbook, each kept as its own
+ * separate rows array with its own real sheet name. Sheets are never
+ * implicitly merged: a customer workbook with a "Materials" sheet and a
+ * "Suppliers" sheet — two genuinely different schemas — stays two distinct
+ * source entities unless a mapping profile later explicitly relates them.
+ */
+export async function readWorkbookAllSheets(bytes: ArrayBuffer): Promise<{ sheetName: string; rows: string[][] }[]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(bytes);
+  return wb.worksheets.map((ws) => {
+    const rows: string[][] = [];
+    ws.eachRow((row) => {
+      const cells: string[] = [];
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cells.push(cellText(cell.value));
+      });
+      if (cells.some((c) => c.trim() !== "")) rows.push(cells);
+    });
+    return { sheetName: ws.name, rows };
+  });
+}
+
+/**
  * Build an `.xlsx` workbook from headers + rows — used for both the blank
  * import template and a data export.
  *

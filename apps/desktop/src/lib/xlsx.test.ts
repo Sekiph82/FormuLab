@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { buildXlsxBuffer, readWorkbookRows, rejectUnsupportedWorkbook, workbookSheets } from "./xlsx";
+import { buildXlsxBuffer, readWorkbookAllSheets, readWorkbookRows, rejectUnsupportedWorkbook, workbookSheets } from "./xlsx";
 
 async function toBytes(build: (wb: ExcelJS.Workbook) => void): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
@@ -84,6 +84,23 @@ describe("readWorkbookRows", () => {
   it("returns nothing for a workbook with no sheets", async () => {
     const bytes = await toBytes(() => {});
     expect(await readWorkbookRows(bytes)).toEqual([]);
+  });
+});
+
+describe("readWorkbookAllSheets — FVL-04.014", () => {
+  it("XLSX2: two sheets with genuinely different schemas stay distinct, never implicitly merged", async () => {
+    const bytes = await toBytes((wb) => {
+      const materials = wb.addWorksheet("Materials");
+      materials.addRow(["Chemical_ID", "Chemical_Name"]);
+      materials.addRow(["883729", "Decyl Glucoside"]);
+      const suppliers = wb.addWorksheet("Suppliers");
+      suppliers.addRow(["Vendor_ID", "Vendor_Name", "Currency"]);
+      suppliers.addRow(["V-441", "ABC Chemicals", "USD"]);
+    });
+    const sheets = await readWorkbookAllSheets(bytes);
+    expect(sheets).toHaveLength(2);
+    expect(sheets[0]).toEqual({ sheetName: "Materials", rows: [["Chemical_ID", "Chemical_Name"], ["883729", "Decyl Glucoside"]] });
+    expect(sheets[1]).toEqual({ sheetName: "Suppliers", rows: [["Vendor_ID", "Vendor_Name", "Currency"], ["V-441", "ABC Chemicals", "USD"]] });
   });
 });
 
