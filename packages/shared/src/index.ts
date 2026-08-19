@@ -577,6 +577,14 @@ export * from "./engine/dataExchangeValidation";
 export * from "./catalog/regulatoryRules";
 export * from "./engine/rolePolicy";
 export * from "./engine/masterdataPolicyAreas";
+export * from "./schemas/connector";
+export * from "./engine/connectorFingerprint";
+export * from "./engine/xmlParser";
+export * from "./engine/fileConnector";
+export * from "./engine/schemaDiscovery";
+export * from "./engine/mappingProfile";
+export * from "./engine/crosswalk";
+export * from "./engine/transformation";
 export {
   PRECISION,
   CURRENCY_DP,
