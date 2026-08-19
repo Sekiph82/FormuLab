@@ -20,16 +20,21 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 (24/24, 2026-08-17). GitHub issue #4 closed 2026-08-18 to match.
 
 **FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
-PROCESS, 12/26 tasks COMPLETED. **FVL-04.001-.012 — COMPLETE, HARDENED,
-AND NO KNOWN CANONICAL/TEMPLATE ONBOARDING GAP REMAINS** — see
-"FVL-04.005-.012 closure hardening" and "Finished-product specification +
-material document viewer" below for the two gaps closed this session.
-FVL-04.013-.026 (the enterprise connector/mapping/crosswalk layer and
-artifact naming) remain blank.
+PROCESS, 18/26 tasks COMPLETED. **FVL-04.001-.012 — COMPLETE, HARDENED,
+AND NO KNOWN CANONICAL/TEMPLATE ONBOARDING GAP REMAINS.** **FVL-04.013-.018
+— COMPLETE** (external source connector contract through
+transformation/unit/enum mapping, plus two independent end-to-end
+customer fixtures proving the whole chain through real Data Exchange
+commit) — see "FVL-04.013-.018 resolution" below. FVL-04.019-.026 remain
+blank, none started.
 
 ## Current task
 
-**`FVL-04.013`** — blank, **NOT STARTED**. FVL-04.005-.012 were closed,
+**`FVL-04.019`** — blank, **NOT STARTED**. FVL-04.013-.018 (External
+Source Connector Contract, Generic File Connector, Source Schema
+Discovery, Mapping Profile Model, External ID Crosswalk Registry,
+Transformation/Unit/Enum Mapping) all COMPLETED this session — see
+"FVL-04.013-.018 resolution" below. FVL-04.005-.012 were closed,
 then independently re-audited and hardened (real gaps found and fixed: a
 unit-contract bug in the Optimizer/Substitution stock fields, a missing
 real Manufacturing Procedure consumer for process_parameters, and a
@@ -40,6 +45,94 @@ template + real UI consumer) and a dedicated per-material TDS/SDS/
 specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
+
+## FVL-04.013-.018 resolution (this session)
+
+Built the enterprise external-source connector foundation, in strict
+order .013→.014→.015→.016→.017→.018, per the approved FVL-04 scope
+expansion. Full detail in
+`docs/FVL04_EXTERNAL_SOURCE_CONNECTOR_ARCHITECTURE.md`.
+
+**.013 Connector Contract** — new `packages/shared/src/schemas/connector.ts`:
+`ConnectorIdentity`/`SourceRecordIdentity`/`ExtractionMetadata`/
+`SourceLineage`/`StagedSourceRecord`/`ConnectorError`/`ConnectorResult`,
+and the `SourceConnector` interface (`identity`/`discoverEntities`/
+`extract` only — no write method anywhere, proven by a source-text regex
+scan, not just typing). **.014 Generic File Connector** — new
+`fileConnector.ts`/`xmlParser.ts`/`connectorFingerprint.ts`: CSV reuses
+the existing `parseCsv`; JSON supports bare arrays and `{items:[...]}`
+with reversible path notation; XML is a hand-rolled parser with XXE
+safety by construction (DOCTYPE/ENTITY rejected before parsing starts —
+the vulnerable code path doesn't exist, not merely disabled). New
+`readWorkbookAllSheets()` (`apps/desktop/src/lib/xlsx.ts`) gives XLSX
+genuine multi-sheet support, each sheet its own entity. **.015 Schema
+Discovery** — new `schemaDiscovery.ts`: type/null/date-format/decimal-
+convention/unit/relationship discovery, all evidence-based, never
+guessed — ambiguous date order and ambiguous decimal grouping both stay
+explicitly `ambiguous` rather than silently resolved. **.016 Mapping
+Profile Model** — new `mappingProfileSchema` (zod, persisted-masterdata
+convention) + `mappingProfile.ts`: one source row fans into many
+canonical templates only when the profile explicitly declares it (proven:
+one CHT_LIMS row → raw_materials+suppliers+material_suppliers+
+material_prices+inventory_records); every target resolved through the
+REAL `getDataExchangeTemplate()` registry, never a duplicate catalog; a
+changed mapping is a new `profileVersion` row, never a silent rewrite.
+**.017 External ID Crosswalk Registry** — new `externalIdCrosswalkSchema`
+(zod) + `crosswalk.ts`: exact-tuple resolution only, same-tuple-different-
+target returns an explicit `CrosswalkConflict` with nothing overwritten,
+no name-based matching anywhere in the module. **.018 Transformation/
+Unit/Enum Mapping** — new `transformation.ts`: 14 declarative ops, no
+scripting language; decimal/date parsing require explicit profile
+configuration, never host-locale guessing; unit conversion is dimension-
+gated (mass↔mass, volume↔volume only — no density-based conversion
+authority exists in this layer); `resolve_crosswalk` calls the real
+FVL-04.017 resolver.
+
+**Persistence**: two new masterdata collections, `mapping_profiles` and
+`external_id_crosswalks`, registered through the full existing ritual
+(Rust `COLLECTIONS`, TS `MASTERDATA_COLLECTIONS`/policy areas, role-
+policy matrix regenerated, every hardcoded collection-count assertion
+updated). Desktop-side `apps/desktop/src/lib/connectorPersistence.ts` is
+the only place this layer calls `listRecords`/`upsertRecords`.
+
+**End-to-end acceptance**: new `apps/desktop/src/lib/connectorEndToEnd.test.ts`
+(6 tests) proves the full chain twice, with two structurally different
+customer schemas and zero source-specific code branching anywhere in the
+engines (proven by a dedicated source-text grep test). Fixture 1
+(`CHT_LIMS`, `Chemical_ID`/`Chemical_Name`/`Vendor_ID`/.../`Active_Flag`
+headers) stages → discovers → maps → transforms (unit conversion
+250000g→250kg, boolean mapping `Y`→`released:true`) → resolves a
+supplier reference through a REAL persisted crosswalk (proven load-
+bearing: the same mapping without the crosswalk fails with an explicit
+`crosswalk_unresolved` error rather than silently falling back to the
+raw source ID) → commits candidates through the REAL
+`commitDataExchangeRows()`. Fixture 2 (`ACME_ERP`, `ItemNo`/
+`Description`/`VendorNo`/... headers) proves a different fingerprint and
+a different profile through the identical framework. Structured-failure
+and security-audit acceptance (malformed files, unsafe XML, fingerprint
+mismatch, crosswalk conflict, invalid-candidate-never-reaches-commit) all
+covered in the same file.
+
+**Deliberately not built this session**: no admin/dev viewer UI
+(primary deliverables were architecture/models/engines/tests, per the
+brief's own framing); no FVL-04.024 bridge orchestration (candidates
+proven bridgeable by calling the real Data Exchange functions directly in
+tests, but no permanent orchestration abstraction created); no
+FVL-04.019+ work.
+
+Verified: `pnpm --filter @formulab/shared test` — 1423/1423 across 73
+files (86 new: connector/fileConnector/schemaDiscovery/mappingProfile/
+crosswalk/transformation test files). `pnpm --filter @formulab/desktop
+test` — 1511/1511 across 158 files (10 new: connectorPersistence.test.ts,
+connectorEndToEnd.test.ts, xlsx.test.ts multi-sheet addition).
+`typecheck`/`lint` — clean on both packages. `cargo check` — clean.
+`cargo test masterdata` — 23/23 (collection-count assertions updated
+91→93). `python scripts/validate_v1_tracker.py` — OK, 171 tasks, no
+drift. No second Data Exchange platform, Material Master, Cost/
+Inventory/Regulatory/Safety engine, or Laboratory platform created; no
+vendor-specific connector branch; no LLM anywhere in mapping/discovery/
+transformation; no real customer data mutated (every fixture uses a
+mocked masterdata bridge). FVL-04 now 18/26; Total 81/171 (47.4%).
 
 ## FVL-04.005-.012 resolution (this session)
 
