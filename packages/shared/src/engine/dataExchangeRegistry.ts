@@ -907,6 +907,34 @@ function template(def: {
   };
 }
 
+// ================================================== FVL-04.011 template ===
+// Material-Supplier Links — canonical `MaterialSupplier`
+// (packages/shared/src/schemas/materials.ts), already a live masterdata
+// collection (`material_suppliers`, `masterdata.rs`) — no new schema.
+// Re-audited under FVL-04.011 hardening: FVL-03's own consumers never
+// needed this (they resolve supplier provenance through
+// `MaterialPrice.supplierCode` instead), but the APPROVED FVL-04.013+
+// enterprise connector architecture (see the tracker's own FVL-04.016
+// description) explicitly anticipates a source row fanning into
+// `RawMaterial + Supplier + MaterialSupplier + MaterialPrice +
+// InventoryRecord` — a pure material-supplier relationship with no price
+// is a legitimate enterprise-migration shape (an approved vendor list
+// without a live quote yet). That makes this a genuine Class-C gap: an
+// existing canonical entity with no Data Exchange path at all. `code` is
+// generated deterministically from the natural key so a repeated
+// (material_code, supplier_code) import updates the same link rather than
+// creating a duplicate.
+
+const MATERIAL_SUPPLIER_COLUMNS: DataExchangeColumnDefinition[] = [
+  col({ key: "material_code", dataType: "code_reference", description: "Material.", ...REQ, referenceTemplate: "raw_materials", referenceField: "material_code", example: "TEST-MAT-001" }),
+  col({ key: "supplier_code", dataType: "code_reference", description: "Supplier.", ...REQ, referenceTemplate: "suppliers", referenceField: "supplier_code", example: "TEST-SUP-001" }),
+  col({ key: "supplier_trade_name", dataType: "string", description: "The supplier's own name for this material — often not our display name." }),
+  col({ key: "supplier_material_code", dataType: "string", description: "Supplier's own code for the material." }),
+  col({ key: "preferred", dataType: "boolean", description: "Preferred link for this material.", defaultValue: "false" }),
+  col({ key: "qualified", dataType: "boolean", description: "Quality-qualification status is a quality decision; import never sets this true on its own.", defaultValue: "false" }),
+  col({ key: "notes", dataType: "string", description: "Free text." }),
+];
+
 // ================================================== FVL-04.007 template ===
 // Inventory Lots — canonical `InventoryRecord` (packages/shared/src/schemas/
 // materials.ts), already a live masterdata collection (`inventory`,
@@ -1023,6 +1051,21 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     targetCollection: "material_documents",
     exampleRows: [
       { material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", document_type: "SDS", document_number: "SDS-DG50-03", document_title: "TEST Safety Data Sheet v3", revision: "3", language: "en", issuer: "TEST Chemicals Ltd", issue_date: "2025-11-01", expiry_date: "", file_name: "test-sds-dg50-v3.pdf", expected_sha256: "", verification_status: "unverified", tags: "sds", notes: "Synthetic test row." },
+    ],
+  }),
+  template({
+    templateCode: "material_suppliers",
+    title: "Material-Supplier Links",
+    description: "Pure material-to-supplier relationships, independent of any price — a qualified/approved vendor list before a quote exists.",
+    module: "materials",
+    columns: MATERIAL_SUPPLIER_COLUMNS,
+    naturalKey: ["material_code", "supplier_code"],
+    duplicatePolicy: "create_or_update",
+    updatePolicy: "(material_code, supplier_code) updates the existing link's mutable fields in place; qualified is never set true by import alone.",
+    authorization: MASTER_DATA_ROLES,
+    targetCollection: "material_suppliers",
+    exampleRows: [
+      { material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", supplier_trade_name: "TEST Glucoside DG-50", supplier_material_code: "DG-50", preferred: "true", qualified: "false", notes: "Synthetic test row." },
     ],
   }),
   template({

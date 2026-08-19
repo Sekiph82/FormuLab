@@ -352,3 +352,39 @@ describe("AdvancedOptimizerPanel — profile application never silently overwrit
     expect(await screen.findByRole("button", { name: "Confirm replace" })).toBeInTheDocument();
   });
 });
+
+describe("AdvancedOptimizerPanel — FVL-04.007 hardening: stock unit contract", () => {
+  // `advanced_optimizer.py` treats `materials[].stock` as a literal kg cap
+  // (`cap_kg = min(cap_by_pct, stock)`) — no unit ever travels with it. A
+  // non-kg InventoryRecord.unit must never be silently reported as `stock`.
+  async function runAndCaptureProblem(inventory: { code: string; materialCode: string; quantity: string; reservedQuantity: string; unit: string; quarantined: boolean; released: boolean }[]) {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "materials") return Promise.resolve([MATERIAL_A]);
+      if (collection === "inventory") return Promise.resolve(inventory);
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByText("Material A");
+    await user.click(screen.getByRole("checkbox", { name: /Material A/ }));
+    await user.click(screen.getByRole("button", { name: "Run optimization" }));
+    await waitFor(() => expect(tauriBridge.run).toHaveBeenCalled());
+    return tauriBridge.run.mock.calls[0][0] as { materials: { materialCode: string; stock?: { value: string; state: string } }[] };
+  }
+
+  it("a kg-denominated usable lot is reported as real stock", async () => {
+    const problem = await runAndCaptureProblem([
+      { code: "inv-1", materialCode: "A", quantity: "100", reservedQuantity: "10", unit: "kg", quarantined: false, released: true },
+    ]);
+    const a = problem.materials.find((m) => m.materialCode === "A");
+    expect(a?.stock).toEqual({ value: "90", state: "known" });
+  });
+
+  it("a gram-denominated lot is NEVER relabeled as kg stock — reported unknown instead of a 1000x-wrong cap", async () => {
+    const problem = await runAndCaptureProblem([
+      { code: "inv-1", materialCode: "A", quantity: "100000", reservedQuantity: "0", unit: "g", quarantined: false, released: true },
+    ]);
+    const a = problem.materials.find((m) => m.materialCode === "A");
+    expect(a?.stock).toBeUndefined();
+  });
+});

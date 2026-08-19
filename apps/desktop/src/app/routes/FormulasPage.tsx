@@ -28,6 +28,7 @@ import { CostPanel } from "@/components/formula/CostPanel";
 import { CompatibilityPanel } from "@/components/formula/CompatibilityPanel";
 import { SafetyPanel } from "@/components/formula/SafetyPanel";
 import { AdvancedOptimizerPanel } from "@/components/formula/AdvancedOptimizerPanel";
+import { ProcessParametersPanel } from "@/components/formula/ProcessParametersPanel";
 import { SubstitutionDialog } from "@/components/formula/SubstitutionPanel";
 import { TrialsPanel } from "@/components/formula/TrialsPanel";
 import { TestDefinitionsPanel } from "@/components/formula/TestDefinitionsPanel";
@@ -55,7 +56,7 @@ import {
 import { listRecords } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 
-type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety" | "optimizer" | "trials" | "tests" | "stability" | "correctiveActions" | "regulatory" | "approval";
+type Tab = "builder" | "versions" | "cost" | "compatibility" | "safety" | "optimizer" | "process" | "trials" | "tests" | "stability" | "correctiveActions" | "regulatory" | "approval";
 
 /**
  * The Formula Builder workspace — FormuLab's primary working surface.
@@ -97,6 +98,7 @@ export function FormulasPage() {
     compatibility: () => setTab("compatibility"),
     safety: () => setTab("safety"),
     optimizer: () => setTab("optimizer"),
+    process: () => setTab("process"),
     trials: () => setTab("trials"),
     tests: () => setTab("tests"),
     stability: () => setTab("stability"),
@@ -411,6 +413,9 @@ export function FormulasPage() {
           <TabButton active={tab === "optimizer"} onClick={goTo.optimizer} icon={<Sparkles size={13} />}>
             {t("builder.tabOptimizer")}
           </TabButton>
+          <TabButton active={tab === "process"} onClick={goTo.process} icon={<ClipboardList size={13} />}>
+            {t("builder.tabProcess")}
+          </TabButton>
           <TabButton active={tab === "trials"} onClick={goTo.trials} icon={<Beaker size={13} />}>
             {t("builder.tabTrials")}
           </TabButton>
@@ -511,6 +516,8 @@ export function FormulasPage() {
             onApplyResult={onApplyOptimizationResult}
           />
         )}
+
+        {tab === "process" && <ProcessParametersPanel formulaCode={active.code} formulaVersion={baseVersion?.versionNumber} />}
 
         {tab === "trials" && draft.value && (
           <TrialsPanel

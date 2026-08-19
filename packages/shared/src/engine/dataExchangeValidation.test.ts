@@ -462,3 +462,113 @@ describe("FVL-04.012 — real sample-file acceptance (parse -> validate -> previ
     expect(p.rows[0].state).toBe("valid_create");
   });
 });
+
+// FVL-04.012 hardening — INDEPENDENT sample fixtures. The block above
+// proves the template's own documentation example still previews cleanly
+// (useful smoke coverage, kept per the hardening brief's own instruction),
+// but that is not independent evidence: the fixture and the thing
+// validating it come from the same source. Every row below is hand-authored
+// here, never copied from `exampleRows`, so a change to a template's own
+// example could never silently mask a real regression this suite would
+// otherwise catch.
+describe("FVL-04.012 hardening — independent sample-file acceptance (fixtures not derived from exampleRows)", () => {
+  const materialSuppliers = getDataExchangeTemplate("material_suppliers")!;
+  const inventoryRecords = getDataExchangeTemplate("inventory_records")!;
+  const exchangeRates = getDataExchangeTemplate("exchange_rates")!;
+  const processParameters = getDataExchangeTemplate("process_parameters")!;
+  const regulatoryRules = getDataExchangeTemplate("regulatory_rules")!;
+
+  function csvRow(template: typeof materials, fields: Record<string, string>): string {
+    const headers = template.columns.map((c) => c.key);
+    return [headers.join(","), headers.map((h) => fields[h] ?? "").join(",")].join("\n");
+  }
+
+  it("raw_materials: an independently-authored surfactant row previews valid_create", () => {
+    const csv = csvRow(materials, { material_code: "ACC-SLES-70", material_name: "Sodium Laureth Sulfate 70%", material_function: "anionic_surfactant", active_matter_percent: "70", physical_form: "liquid" });
+    const p = previewDataExchangeImportCsv(materials, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("suppliers: an independently-authored supplier row previews valid_create", () => {
+    const supplierTemplate = getDataExchangeTemplate("suppliers")!;
+    const csv = csvRow(supplierTemplate, { supplier_code: "ACC-VENDOR-9", supplier_name: "Accra Chemicals Ltd", country: "GH" });
+    const p = previewDataExchangeImportCsv(supplierTemplate, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("material_suppliers: a pure link row (no price) previews valid_create", () => {
+    const csv = csvRow(materialSuppliers, { material_code: "ACC-SLES-70", supplier_code: "ACC-VENDOR-9", supplier_trade_name: "Accra SLES-70", preferred: "true" });
+    const p = previewDataExchangeImportCsv(materialSuppliers, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("material_documents: an independently-authored specification document row previews valid_create", () => {
+    const docTemplate = getDataExchangeTemplate("material_documents")!;
+    const csv = csvRow(docTemplate, { material_code: "ACC-SLES-70", document_type: "specification", document_title: "Accra SLES-70 Raw Material Specification", revision: "1" });
+    const p = previewDataExchangeImportCsv(docTemplate, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("inventory_records: an independently-authored kg lot row previews valid_create", () => {
+    const csv = csvRow(inventoryRecords, { inventory_code: "ACC-LOT-2026-014", material_code: "ACC-SLES-70", warehouse: "Accra DC", quantity: "480", unit: "kg", released: "true" });
+    const p = previewDataExchangeImportCsv(inventoryRecords, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("exchange_rates: an independently-authored GHS pair row previews valid_create", () => {
+    const csv = csvRow(exchangeRates, { base_currency: "USD", quote_currency: "KES", rate: "129.87", effective_from: "2026-03-01", source: "Central Bank daily fixing" });
+    const p = previewDataExchangeImportCsv(exchangeRates, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("process_parameters: an independently-authored cooling-step row previews valid_create", () => {
+    const csv = csvRow(processParameters, { formula_code: "ACC-FORM-9", formula_version: "3", step_number: "4", step_name: "Cool to fill temperature", phase: "C", temperature_target: "35", critical_parameter: "true" });
+    const p = previewDataExchangeImportCsv(processParameters, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  it("regulatory_rules: an independently-authored EAC labeling rule previews valid_create", () => {
+    const csv = csvRow(regulatoryRules, { rule_code: "ACC-REG-EAC-11", jurisdiction: "UG", requirement: "Product must declare full ingredient list in English.", rule_type: "label_requirement" });
+    const p = previewDataExchangeImportCsv(regulatoryRules, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("valid_create");
+  });
+
+  // -------------------------------------------------------- negative set ---
+
+  it("negative: material_suppliers missing the natural key (material_code) is invalid", () => {
+    const csv = csvRow(materialSuppliers, { supplier_code: "ACC-VENDOR-9" });
+    const p = previewDataExchangeImportCsv(materialSuppliers, csv);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("negative: material_suppliers with an unresolvable supplier_code is reference_missing", () => {
+    const csv = csvRow(materialSuppliers, { material_code: "ACC-SLES-70", supplier_code: "GHOST-SUPPLIER" });
+    const p = previewDataExchangeImportCsv(materialSuppliers, csv, { resolveReference: () => false });
+    expect(p.rows[0].state).toBe("reference_missing");
+  });
+
+  it("negative: inventory_records with a non-numeric quantity is invalid, never silently coerced", () => {
+    const csv = csvRow(inventoryRecords, { inventory_code: "ACC-LOT-BAD", material_code: "ACC-SLES-70", quantity: "not-a-number" });
+    const p = previewDataExchangeImportCsv(inventoryRecords, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("negative: process_parameters with an unresolvable formula_code is reference_missing", () => {
+    const csv = csvRow(processParameters, { formula_code: "GHOST-FORM", formula_version: "1", step_number: "1" });
+    const p = previewDataExchangeImportCsv(processParameters, csv, { resolveReference: () => false });
+    expect(p.rows[0].state).toBe("reference_missing");
+  });
+
+  it("negative: regulatory_rules with an unrecognized jurisdiction is invalid, never silently generalized", () => {
+    const csv = csvRow(regulatoryRules, { rule_code: "ACC-REG-BAD", jurisdiction: "ZZ", requirement: "Bad jurisdiction." });
+    const p = previewDataExchangeImportCsv(regulatoryRules, csv);
+    expect(p.rows[0].state).toBe("invalid");
+  });
+
+  it("negative: material_documents with an unrecognized document_type is invalid, never silently mis-filed", () => {
+    const docTemplate = getDataExchangeTemplate("material_documents")!;
+    const csv = csvRow(docTemplate, { material_code: "ACC-SLES-70", document_type: "not_a_real_type", document_title: "Bad doc" });
+    const p = previewDataExchangeImportCsv(docTemplate, csv, { resolveReference: () => true });
+    expect(p.rows[0].state).toBe("invalid");
+  });
+});

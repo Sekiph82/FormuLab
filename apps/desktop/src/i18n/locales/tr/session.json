@@ -823,6 +823,7 @@
     "tabCompatibility": "Uyumluluk",
     "tabSafety": "Güvenlik",
     "tabOptimizer": "Optimize Edici",
+    "tabProcess": "Süreç",
     "tabPackaging": "Ambalaj",
     "packaging": {
       "description": "Bu projenin hedef SKU'larına bağlı ambalaj reçetesi/reçeteleri. Buradan değil, Yönetim'den düzenlenir.",
@@ -1501,6 +1502,20 @@
     "required": "Zorunlu",
     "optional": "İsteğe bağlı",
     "revisionOf": "{{id}} sürümünü revize eder"
+  },
+  "process": {
+    "heading": "Süreç Parametreleri",
+    "empty": "Bu formül sürümü için henüz içe aktarılmış süreç parametresi yok.",
+    "step": "Adım",
+    "name": "Ad",
+    "phase": "Faz",
+    "equipment": "Ekipman",
+    "temperature": "Sıcaklık (min/hedef/maks)",
+    "mixingSpeed": "Karıştırma (min/hedef/maks)",
+    "holdTime": "Bekletme (dk)",
+    "critical": "Kritik",
+    "criticalYes": "Evet",
+    "instruction": "Talimat"
   },
   "tests": {
     "heading": "Test Tanımları",

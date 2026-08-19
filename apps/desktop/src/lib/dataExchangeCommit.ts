@@ -41,6 +41,7 @@ import {
   type MasterProductFamily,
   type MaterialDocument,
   type MaterialPrice,
+  type MaterialSupplier,
   type PackagingBom,
   type PackagingComponent,
   type PackagingComponentType,
@@ -395,6 +396,30 @@ const commitMaterialDocuments: Handler = async (r) => {
   };
   await upsertRecords("material_documents", [record]);
   return { outcome: existing ? "updated" : "created", targetCollection: "material_documents", targetRecordId: record.code };
+};
+
+// FVL-04.011 hardening: pure material-supplier relationship, independent
+// of MaterialPrice — the approved enterprise connector architecture
+// (FVL-04.016) anticipates a source row producing this shape with no
+// price at all. `code` is deterministic from (material_code,
+// supplier_code) so a repeated import updates the same link.
+const commitMaterialSuppliers: Handler = async (r) => {
+  const code = `${r.material_code}::${r.supplier_code}`;
+  const existing = await findByCode<MaterialSupplier>("material_suppliers", "code", code);
+  const record: MaterialSupplier = {
+    code,
+    materialCode: r.material_code,
+    supplierCode: r.supplier_code,
+    supplierTradeName: nn(r.supplier_trade_name),
+    supplierMaterialCode: nn(r.supplier_material_code),
+    preferred: bool(r.preferred),
+    // Never set true by import alone — a quality decision, same
+    // convention as approved_supplier/approved elsewhere in this file.
+    qualified: existing?.qualified ?? false,
+    notes: nn(r.notes),
+  };
+  await upsertRecords("material_suppliers", [record]);
+  return { outcome: existing ? "updated" : "created", targetCollection: "material_suppliers", targetRecordId: record.code };
 };
 
 // FVL-04.007: imports facts only (quantity/reserved/quarantine/release/
@@ -1693,6 +1718,7 @@ export const COMMIT_HANDLERS: Partial<Record<string, Handler>> = {
   suppliers: commitSuppliers,
   material_prices: commitMaterialPrices,
   material_documents: commitMaterialDocuments,
+  material_suppliers: commitMaterialSuppliers,
   inventory_records: commitInventoryRecords,
   exchange_rates: commitExchangeRates,
   product_families: commitProductFamilies,

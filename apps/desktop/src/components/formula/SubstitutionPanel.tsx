@@ -262,7 +262,10 @@ export function SubstitutionDialog({
         technicalMaxPercent: m.technicalMaxPercent,
         landedCost: priceChoice?.price.price,
         currency: priceChoice?.price.currency,
-        availableStockKg: availability.hasRecords && availability.usableQuantity !== undefined ? availability.usableQuantity.toString() : undefined,
+        // FVL-04.007 hardening: the field name promises kg — only ever
+        // report a genuinely kg-denominated quantity, never a raw
+        // g/L/mL figure silently relabeled.
+        availableStockKg: availability.hasRecords && availability.usableQuantity !== undefined && availability.unit?.toLowerCase() === "kg" ? availability.usableQuantity.toString() : undefined,
         supplierApproved: suppliers.find((s) => s.code === priceChoice?.price.supplierCode)?.approved,
         kenyaLocal: suppliers.find((s) => s.code === priceChoice?.price.supplierCode)?.country === "Kenya",
         compatibilityFindingIds: compatFindings.map((f) => f.id),
@@ -373,7 +376,11 @@ export function SubstitutionDialog({
       maxUsePercent: m.recommendedMaxPercent,
       minUsePercent: m.recommendedMinPercent,
       technicalMaxPercent: m.technicalMaxPercent,
-      stock: availability.hasRecords && availability.usableQuantity !== undefined ? { value: availability.usableQuantity.toString(), state: "known" } : undefined,
+      // FVL-04.007 hardening: this feeds the same Advanced Optimizer solve
+      // path as AdvancedOptimizerPanel.tsx (`cap_kg` treats `stock` as a
+      // literal kg number) — only a genuinely kg-denominated quantity is
+      // ever reported.
+      stock: availability.hasRecords && availability.usableQuantity !== undefined && availability.unit?.toLowerCase() === "kg" ? { value: availability.usableQuantity.toString(), state: "known" } : undefined,
       casNumbers: m.casNumbers,
       excluded: true,
       ...over,
@@ -488,7 +495,9 @@ export function SubstitutionDialog({
             materialId: m.code,
             materialCode: m.code,
             functions: m.functions,
-            stockAvailableKg: availability.hasRecords && availability.usableQuantity !== undefined ? availability.usableQuantity.toString() : undefined,
+            // FVL-04.007 hardening: field name promises kg — never relabel
+            // a raw g/L/mL quantity.
+            stockAvailableKg: availability.hasRecords && availability.usableQuantity !== undefined && availability.unit?.toLowerCase() === "kg" ? availability.usableQuantity.toString() : undefined,
             supplierApproved: suppliers.find((s) => s.code === priceChoice?.price.supplierCode)?.approved,
             kenyaLocal: suppliers.find((s) => s.code === priceChoice?.price.supplierCode)?.country === "Kenya",
           };

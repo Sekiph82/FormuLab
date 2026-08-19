@@ -257,8 +257,16 @@ export function AdvancedOptimizerPanel({
         maxUsePercent: m.recommendedMaxPercent,
         minUsePercent: m.recommendedMinPercent,
         technicalMaxPercent: m.technicalMaxPercent,
+        // FVL-04.007 hardening: the optimizer's `FormulationProblem.materials[].stock`
+        // is consumed by `advanced_optimizer.py` as a literal kg cap
+        // (`cap_kg = min(cap_by_pct, stock)`, no unit field travels with it).
+        // `InventoryRecord.unit` is not guaranteed to be "kg" — silently
+        // handing over a gram/litre quantity as `stock` would make the
+        // solver's real physical-stock cap wrong by orders of magnitude.
+        // Only a genuinely kg-denominated usable quantity is ever reported;
+        // anything else stays unknown rather than guessed.
         stock:
-          availability.hasRecords && availability.usableQuantity !== undefined
+          availability.hasRecords && availability.usableQuantity !== undefined && availability.unit?.toLowerCase() === "kg"
             ? { value: availability.usableQuantity.toString(), state: "known" as const }
             : undefined,
         casNumbers: m.casNumbers,

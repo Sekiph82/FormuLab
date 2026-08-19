@@ -299,6 +299,61 @@ describe("commitDataExchangeRows — FVL-04.003/.004: TDS and SDS reuse the exis
   });
 });
 
+describe("commitDataExchangeRows — FVL-04.011 hardening: Material-Supplier Links, added after re-assessing the enterprise-migration requirement", () => {
+  it("creates a pure material-supplier link with real codes and no price, retrievable independent of MaterialPrice", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("material_suppliers")!,
+      [row({ material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", supplier_trade_name: "TEST Glucoside DG-50", supplier_material_code: "DG-50", preferred: "true" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "material_suppliers",
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "TEST-MAT-001::TEST-SUP-001",
+          materialCode: "TEST-MAT-001",
+          supplierCode: "TEST-SUP-001",
+          supplierTradeName: "TEST Glucoside DG-50",
+          supplierMaterialCode: "DG-50",
+          preferred: true,
+          qualified: false,
+        }),
+      ]),
+    );
+    // No "price"/"currency"/"unit_price" field anywhere on the committed
+    // record — a real material-supplier relationship independent of price.
+    const record = bridge.upsertRecords.mock.calls[0][1][0] as Record<string, unknown>;
+    expect(record).not.toHaveProperty("price");
+    expect(record).not.toHaveProperty("currency");
+  });
+
+  it("updates the same link in place on a repeated (material_code, supplier_code) import, never a duplicate", async () => {
+    bridge.listRecords.mockResolvedValue([{ code: "TEST-MAT-001::TEST-SUP-001", qualified: true }]);
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("material_suppliers")!,
+      [row({ material_code: "TEST-MAT-001", supplier_code: "TEST-SUP-001", preferred: "false" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("updated");
+    // qualified is never taken from the file (no qualified column exists on
+    // the template at all) — preserved from the existing record's own
+    // quality decision, never reset by a re-import.
+    const record = bridge.upsertRecords.mock.calls[0][1][0] as Record<string, unknown>;
+    expect(record.qualified).toBe(true);
+  });
+
+  it("an unresolvable material_code or supplier_code fails honestly before commit — same generic reference_missing mechanism every other template uses", () => {
+    const template = getDataExchangeTemplate("material_suppliers")!;
+    const materialCol = template.columns.find((c) => c.key === "material_code");
+    const supplierCol = template.columns.find((c) => c.key === "supplier_code");
+    expect(materialCol?.referenceTemplate).toBe("raw_materials");
+    expect(supplierCol?.referenceTemplate).toBe("suppliers");
+    expect(materialCol?.required).toBe(true);
+    expect(supplierCol?.required).toBe(true);
+  });
+});
+
 describe("commitDataExchangeRows — FVL-04.005: Specifications reuse the existing test_definitions path", () => {
   it("SP1/SP2/SP4/SP7: a test definition commits with exact target/limit/unit values, and is always imported_unverified regardless of the file", async () => {
     const outcomes = await commitDataExchangeRows(
@@ -344,6 +399,34 @@ describe("commitDataExchangeRows — FVL-04.005: Specifications reuse the existi
     const testCodeColumn = labResults.columns.find((c) => c.key === "test_code");
     expect(testCodeColumn?.referenceTemplate).toBe("test_definitions");
     expect(testCodeColumn?.referenceField).toBe("test_code");
+  });
+
+  it("FVL-04.005 hardening — Specification Domain Matrix: a raw-material specification DOCUMENT (document_type='specification') commits through the existing material_documents path exactly like TDS/SDS, never a second document registry", async () => {
+    const outcomes = await commitDataExchangeRows(
+      getDataExchangeTemplate("material_documents")!,
+      [row({ material_code: "TEST-MAT-001", document_type: "specification", document_title: "TEST Raw Material Specification v2", revision: "2", issuer: "TEST Quality Dept" })],
+      ctx,
+    );
+    expect(outcomes[0].outcome).toBe("created");
+    expect(bridge.upsertRecords).toHaveBeenCalledWith(
+      "material_documents",
+      expect.arrayContaining([expect.objectContaining({ documentType: "specification", materialCode: "TEST-MAT-001", verificationStatus: "unverified" })]),
+    );
+  });
+
+  it("FVL-04.005 hardening — Specification Domain Matrix: finished-product/product specification has no canonical quantitative schema anywhere in the repository (finishedProductSchema carries zero spec/limit fields) — a real, disclosed domain gap, not a Data Exchange gap", () => {
+    // Confirmed by schema shape, not assumption: finished_products' own
+    // template columns are pure SKU/packaging/market master data — no
+    // min/max/target/acceptance-criteria column exists on this template,
+    // because FinishedProduct has no such field to map from. Adding one
+    // here would fabricate a business concept the canonical schema does
+    // not define. If a real finished-product QC-spec model is ever built,
+    // it needs its own schema first — that is out of FVL-04's own scope
+    // (Data Exchange onboards existing canonical entities, it does not
+    // invent new ones).
+    const finishedProducts = getDataExchangeTemplate("finished_products")!;
+    const specLikeColumns = finishedProducts.columns.filter((c) => /spec|acceptance_criteria|quality_limit|release_limit|minimum_limit|maximum_limit/i.test(c.key));
+    expect(specLikeColumns).toEqual([]);
   });
 });
 
@@ -1431,5 +1514,62 @@ describe("commitDataExchangeRows — genuinely unsupported templates stay honest
     expect(outcomes.every((o) => o.outcome === "skipped")).toBe(true);
     expect(outcomes[0].message).toMatch(/No commit handler is wired/);
     expect(bridge.upsertRecords).not.toHaveBeenCalled();
+  });
+});
+
+describe("commitDataExchangeRows — FVL-04.012 hardening: a full real-reference chain across sequential imports (H2)", () => {
+  it("supplier -> material -> material_supplier -> price -> TDS/SDS/specification documents -> inventory all share the exact same real codes end to end", async () => {
+    const code = { material: "CHAIN-MAT-001", supplier: "CHAIN-SUP-001" };
+
+    await commitDataExchangeRows(getDataExchangeTemplate("suppliers")!, [row({ supplier_code: code.supplier, supplier_name: "Chain Test Supplier" })], ctx);
+    await commitDataExchangeRows(getDataExchangeTemplate("raw_materials")!, [row({ material_code: code.material, material_name: "Chain Test Material" })], ctx);
+    await commitDataExchangeRows(
+      getDataExchangeTemplate("material_suppliers")!,
+      [row({ material_code: code.material, supplier_code: code.supplier, preferred: "true" })],
+      ctx,
+    );
+    await commitDataExchangeRows(
+      getDataExchangeTemplate("material_prices")!,
+      [row({ material_code: code.material, supplier_code: code.supplier, unit_price: "300", currency: "KES", valid_from: "2026-01-01" })],
+      ctx,
+    );
+    await commitDataExchangeRows(
+      getDataExchangeTemplate("material_documents")!,
+      [row({ material_code: code.material, document_type: "TDS", document_title: "Chain TDS" })],
+      ctx,
+    );
+    await commitDataExchangeRows(
+      getDataExchangeTemplate("material_documents")!,
+      [row({ material_code: code.material, document_type: "SDS", document_title: "Chain SDS" })],
+      ctx,
+    );
+    await commitDataExchangeRows(
+      getDataExchangeTemplate("material_documents")!,
+      [row({ material_code: code.material, document_type: "specification", document_title: "Chain Specification" })],
+      ctx,
+    );
+    await commitDataExchangeRows(
+      getDataExchangeTemplate("inventory_records")!,
+      [row({ inventory_code: "CHAIN-INV-001", material_code: code.material, quantity: "50", released: "true" })],
+      ctx,
+    );
+
+    const supplierRec = bridge.upsertRecords.mock.calls.find(([c]) => c === "suppliers")![1][0] as Record<string, unknown>;
+    const materialRec = bridge.upsertRecords.mock.calls.find(([c]) => c === "materials")![1][0] as Record<string, unknown>;
+    const linkRec = bridge.upsertRecords.mock.calls.find(([c]) => c === "material_suppliers")![1][0] as Record<string, unknown>;
+    const priceRec = bridge.upsertRecords.mock.calls.find(([c]) => c === "material_prices")![1][0] as Record<string, unknown>;
+    const docRecs = bridge.upsertRecords.mock.calls.filter(([c]) => c === "material_documents").map(([, r]) => r[0] as Record<string, unknown>);
+    const invRec = bridge.upsertRecords.mock.calls.find(([c]) => c === "inventory")![1][0] as Record<string, unknown>;
+
+    // Every downstream record carries the SAME real code the supplier/
+    // material rows themselves declared — never a name-based join, never a
+    // fabricated identity, the chain holds together end to end.
+    expect(supplierRec.code).toBe(code.supplier);
+    expect(materialRec.code).toBe(code.material);
+    expect(linkRec).toMatchObject({ materialCode: code.material, supplierCode: code.supplier });
+    expect(priceRec).toMatchObject({ materialCode: code.material, supplierCode: code.supplier });
+    expect(docRecs.map((d) => d.documentType).sort()).toEqual(["SDS", "TDS", "specification"]);
+    for (const d of docRecs) expect(d.materialCode).toBe(code.material);
+    expect(invRec.materialCode).toBe(code.material);
   });
 });

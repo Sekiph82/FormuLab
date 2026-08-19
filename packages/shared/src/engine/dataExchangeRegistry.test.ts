@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DATA_EXCHANGE_TEMPLATES, getDataExchangeTemplate, isDataExchangeRoleAuthorized, listDataExchangeTemplates } from "./dataExchangeRegistry";
 
 describe("Data Exchange template registry", () => {
-  it("registers exactly the 24 mandated templates plus the 11 Reverse Formulation templates plus the 6 Phase 8 dossier-expansion templates plus the 2 FVL-04.007/.008 operational templates (inventory_records, exchange_rates)", () => {
-    expect(DATA_EXCHANGE_TEMPLATES).toHaveLength(43);
+  it("registers exactly the 24 mandated templates plus the 11 Reverse Formulation templates plus the 6 Phase 8 dossier-expansion templates plus the 3 FVL-04.007/.008/.011 operational templates (inventory_records, exchange_rates, material_suppliers)", () => {
+    expect(DATA_EXCHANGE_TEMPLATES).toHaveLength(44);
   });
 
   it("gives every template a unique templateCode", () => {
@@ -113,7 +113,7 @@ describe("Data Exchange template registry", () => {
   });
 
   it("lists all templates", () => {
-    expect(listDataExchangeTemplates().length).toBe(43);
+    expect(listDataExchangeTemplates().length).toBe(44);
   });
 
   it("checks role authorization", () => {

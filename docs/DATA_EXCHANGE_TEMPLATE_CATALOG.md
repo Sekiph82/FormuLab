@@ -1,8 +1,8 @@
 # Data Exchange template catalog
 
-All 43 registered templates (the original 24 mandated templates, plus
+All 44 registered templates (the original 24 mandated templates, plus
 11 Reverse Formulation templates, 6 Phase 8 dossier-expansion templates,
-and the 2 FVL-04.007/.008 operational templates below), every column,
+and the 3 FVL-04.007/.008/.011 operational templates below), every column,
 straight from
 `packages/shared/src/engine/dataExchangeRegistry.ts` (the single source
 of truth — this document is a rendering of it, not a separate spec).
@@ -813,6 +813,38 @@ three resolved live, each refused independently if missing.
 | measured_at | datetime | | Measurement timestamp. |
 | analyst | string | | Analyst. |
 | exclusion_reason | string | | **Recorded as a note only; does not exclude the observation from analysis by itself.** |
+| notes | string | | Free text. |
+
+---
+
+## Material-Supplier Links — `material_suppliers` (FVL-04.011)
+
+Module: materials · Natural key: `material_code` + `supplier_code` ·
+Duplicate policy: `create_or_update` · Authorization: Master · Target
+collection: `material_suppliers` · Commit: **wired**
+
+Canonical `MaterialSupplier` (`packages/shared/src/schemas/materials.ts`)
+— no new schema. Re-assessed under FVL-04.011 hardening: FVL-03's own
+consumers never needed this (supplier provenance is carried through
+`MaterialPrice.supplierCode` instead), but the approved FVL-04.013+
+enterprise connector architecture explicitly anticipates a source row
+fanning into `RawMaterial + Supplier + MaterialSupplier + MaterialPrice +
+InventoryRecord` — a pure material-supplier relationship with no price
+yet (an approved vendor before a quote exists) is a legitimate
+enterprise-migration shape, and this template is the only way to import
+it. `code` is generated deterministically as `material_code::supplier_code`
+so a repeated import updates the same link rather than duplicating it.
+`qualified` is never set true by import alone — a quality decision,
+preserved from the existing record on update.
+
+| Column | Type | Req'd | Description |
+|---|---|---|---|
+| material_code | code_reference → raw_materials | yes | Material. |
+| supplier_code | code_reference → suppliers | yes | Supplier. |
+| supplier_trade_name | string | | The supplier's own name for this material — often not our display name. |
+| supplier_material_code | string | | Supplier's own code for the material. |
+| preferred | boolean | | Preferred link for this material (default false). |
+| qualified | boolean | | Quality-qualification status is a quality decision; import never sets this true on its own (default false). |
 | notes | string | | Free text. |
 
 ---

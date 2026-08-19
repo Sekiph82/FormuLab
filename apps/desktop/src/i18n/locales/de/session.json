@@ -902,6 +902,7 @@
       "erpRecipe": "ERP draft recipe (CSV)"
     },
     "tabOptimizer": "Optimizer",
+    "tabProcess": "Process",
     "replaceMaterial": "Replace material",
     "tabTrials": "Trials",
     "tabTests": "Tests",
@@ -1501,6 +1502,20 @@
     "required": "Required",
     "optional": "Optional",
     "revisionOf": "revises {{id}}"
+  },
+  "process": {
+    "heading": "Process Parameters",
+    "empty": "No process parameters imported for this formula version yet.",
+    "step": "Step",
+    "name": "Name",
+    "phase": "Phase",
+    "equipment": "Equipment",
+    "temperature": "Temp (min/target/max)",
+    "mixingSpeed": "Mixing (min/target/max)",
+    "holdTime": "Hold (min)",
+    "critical": "Critical",
+    "criticalYes": "Yes",
+    "instruction": "Instruction"
   },
   "tests": {
     "heading": "Test Definitions",

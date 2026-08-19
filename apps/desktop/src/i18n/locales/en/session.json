@@ -823,6 +823,7 @@
     "tabCompatibility": "Compatibility",
     "tabSafety": "Safety",
     "tabOptimizer": "Optimizer",
+    "tabProcess": "Process",
     "tabPackaging": "Packaging",
     "packaging": {
       "description": "The packaging BOM(s) linked to this project's target SKUs. Edited from Administration, not here.",
@@ -1501,6 +1502,20 @@
     "processSheet": "Process sheet",
     "testResultsReport": "Test results report",
     "erpDraftExport": "ERP draft lab results (CSV)"
+  },
+  "process": {
+    "heading": "Process Parameters",
+    "empty": "No process parameters imported for this formula version yet.",
+    "step": "Step",
+    "name": "Name",
+    "phase": "Phase",
+    "equipment": "Equipment",
+    "temperature": "Temp (min/target/max)",
+    "mixingSpeed": "Mixing (min/target/max)",
+    "holdTime": "Hold (min)",
+    "critical": "Critical",
+    "criticalYes": "Yes",
+    "instruction": "Instruction"
   },
   "tests": {
     "heading": "Test Definitions",
