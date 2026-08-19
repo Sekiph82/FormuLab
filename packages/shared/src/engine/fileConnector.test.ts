@@ -3,7 +3,7 @@
  * Every fixture uses deliberately NON-FormuLab customer headers.
  */
 import { describe, expect, it } from "vitest";
-import { createFileConnector, stageCsvFile, stageFile, stageJsonFile, stageXmlFile } from "./fileConnector";
+import { createFileConnector, stageCsvFile, stageFile, stageJsonFile, stageXmlFile, type FileConnectorInput } from "./fileConnector";
 
 const opts = { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" };
 
@@ -146,7 +146,7 @@ describe("FVL-04.014 hardening B1/B2/B5: stageFile — one common abstraction fo
 
   it("XLSX is staged through the SAME stageFile abstraction, via an injected workbook-reader adapter — not a disconnected special path", async () => {
     const mockReadWorkbook = async () => [{ sheetName: "Materials", rows: [["Chemical_ID", "Chemical_Name"], ["883729", "Decyl Glucoside"]] }];
-    const result = await stageFile("CHT_LIMS", "materials", { fileName: "customer-material-master.xlsx", fileKind: "xlsx"}, opts, { readWorkbook: mockReadWorkbook });
+    const result = await stageFile("CHT_LIMS", "materials", { fileName: "customer-material-master.xlsx", fileKind: "xlsx", bytes: new ArrayBuffer(0) }, opts, { readWorkbook: mockReadWorkbook });
     expect(result.errors).toEqual([]);
     expect(result.records[0].fields.Chemical_ID).toBe("883729");
     expect(result.sourceResource?.mediaType).toContain("spreadsheetml");
@@ -158,8 +158,8 @@ describe("FVL-04.014 hardening B1/B2/B5: stageFile — one common abstraction fo
       { sheetName: "Materials", rows: [["Chemical_ID"], ["1"]] },
       { sheetName: "Suppliers", rows: [["Vendor_ID"], ["V-1"]] },
     ];
-    const materials = await stageFile("CHT_LIMS", "materials", { fileName: "wb.xlsx", fileKind: "xlsx", sheetName: "Materials" }, opts, { readWorkbook: mockReadWorkbook });
-    const suppliers = await stageFile("CHT_LIMS", "suppliers", { fileName: "wb.xlsx", fileKind: "xlsx", sheetName: "Suppliers" }, opts, { readWorkbook: mockReadWorkbook });
+    const materials = await stageFile("CHT_LIMS", "materials", { fileName: "wb.xlsx", fileKind: "xlsx", bytes: new ArrayBuffer(0), sheetName: "Materials" }, opts, { readWorkbook: mockReadWorkbook });
+    const suppliers = await stageFile("CHT_LIMS", "suppliers", { fileName: "wb.xlsx", fileKind: "xlsx", bytes: new ArrayBuffer(0), sheetName: "Suppliers" }, opts, { readWorkbook: mockReadWorkbook });
     expect(materials.records[0].fields.Chemical_ID).toBe("1");
     expect(suppliers.records[0].fields.Vendor_ID).toBe("V-1");
     expect(Object.keys(materials.records[0].fields)).not.toEqual(Object.keys(suppliers.records[0].fields));
@@ -169,20 +169,20 @@ describe("FVL-04.014 hardening B1/B2/B5: stageFile — one common abstraction fo
     const throwingReadWorkbook = async (): Promise<{ sheetName: string; rows: string[][] }[]> => {
       throw new Error("ExcelJS: Invalid signature — this is not a valid zip/xlsx file");
     };
-    const result = await stageFile("CHT_LIMS", "materials", { fileName: "corrupt.xlsx", fileKind: "xlsx"}, opts, { readWorkbook: throwingReadWorkbook });
+    const result = await stageFile("CHT_LIMS", "materials", { fileName: "corrupt.xlsx", fileKind: "xlsx", bytes: new ArrayBuffer(0) }, opts, { readWorkbook: throwingReadWorkbook });
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toMatchObject({ code: "corrupt_xlsx", stage: "parse", retryable: false });
     expect(result.records).toEqual([]);
   });
 
   it("an xlsx file staged with no readWorkbook adapter configured fails structured, not silently", async () => {
-    const result = await stageFile("CHT_LIMS", "materials", { fileName: "x.xlsx", fileKind: "xlsx"}, opts);
+    const result = await stageFile("CHT_LIMS", "materials", { fileName: "x.xlsx", fileKind: "xlsx", bytes: new ArrayBuffer(0) }, opts);
     expect(result.errors[0].code).toBe("xlsx_reader_not_configured");
   });
 
   it("a requested sheet name that does not exist in the workbook fails structured", async () => {
     const mockReadWorkbook = async () => [{ sheetName: "Materials", rows: [["A"], ["1"]] }];
-    const result = await stageFile("CHT_LIMS", "materials", { fileName: "wb.xlsx", fileKind: "xlsx", sheetName: "NoSuchSheet" }, opts, { readWorkbook: mockReadWorkbook });
+    const result = await stageFile("CHT_LIMS", "materials", { fileName: "wb.xlsx", fileKind: "xlsx", bytes: new ArrayBuffer(0), sheetName: "NoSuchSheet" }, opts, { readWorkbook: mockReadWorkbook });
     expect(result.errors[0].code).toBe("sheet_not_found");
   });
 });
@@ -196,12 +196,14 @@ describe("FVL-04.014 hardening (Session 7, Part A): file-level provenance correc
     expect(result.sourceResource?.byteSize).toBe(realUtf8Length);
   });
 
-  it("A2/N: FileConnectorInput has no caller-suppliable byteSize field at all — provenance cannot be asserted false by a caller", async () => {
+  it("A2/N: neither half of the FileConnectorInput discriminated union has a caller-suppliable byteSize field — provenance cannot be asserted false by a caller", async () => {
     const fs = await import("node:fs");
     const src = fs.readFileSync(new URL("./fileConnector.ts", import.meta.url), "utf-8");
-    const iface = /export interface FileConnectorInput \{[\s\S]*?\n\}/.exec(src)![0];
-    const withoutComments = iface.replace(/\/\*\*[\s\S]*?\*\//g, "");
-    expect(withoutComments).not.toMatch(/byteSize/);
+    const textIface = /export interface TextFileConnectorInput \{[\s\S]*?\n\}/.exec(src)![0];
+    const xlsxIface = /export interface XlsxFileConnectorInput \{[\s\S]*?\n\}/.exec(src)![0];
+    const withoutComments = (s: string) => s.replace(/\/\*\*[\s\S]*?\*\//g, "");
+    expect(withoutComments(textIface)).not.toMatch(/byteSize/);
+    expect(withoutComments(xlsxIface)).not.toMatch(/byteSize/);
   });
 
   it("A1/A3: an XLSX file-level fingerprint is IDENTICAL regardless of which sheet is selected — it fingerprints the file, not the sheet's rows", async () => {
@@ -329,5 +331,26 @@ describe("FVL-04.014 hardening B4/§8: explicit source-ID requirement is never s
     const result = stageCsvFile("CHT_LIMS", "materials", csv, { ...opts, idField: "Chemical_ID" });
     expect(result.errors).toEqual([]);
     expect(result.records[0].identity.idSource).toBe("ordinal");
+  });
+});
+
+describe("Session 8 Part 6: FileConnectorInput is a real discriminated union — compile-time acceptance", () => {
+  it("valid shapes type-check and invalid shapes are rejected by tsc — each @ts-expect-error below must be genuinely necessary, or the unused directive itself fails typecheck (TS2578)", () => {
+    // Valid: csv/json/xml require `text`; xlsx requires `bytes`.
+    const csvOk: FileConnectorInput = { fileName: "a.csv", fileKind: "csv", text: "x" };
+    const jsonOk: FileConnectorInput = { fileName: "a.json", fileKind: "json", text: "x" };
+    const xmlOk: FileConnectorInput = { fileName: "a.xml", fileKind: "xml", text: "x" };
+    const xlsxOk: FileConnectorInput = { fileName: "a.xlsx", fileKind: "xlsx", bytes: new ArrayBuffer(0) };
+
+    // @ts-expect-error csv is a TextFileConnectorInput — it takes `text`, not `bytes`
+    const csvBytesOnly: FileConnectorInput = { fileName: "a.csv", fileKind: "csv", bytes: new ArrayBuffer(0) };
+    // @ts-expect-error xlsx is an XlsxFileConnectorInput — it takes `bytes`, not `text`
+    const xlsxTextOnly: FileConnectorInput = { fileName: "a.xlsx", fileKind: "xlsx", text: "x" };
+    // @ts-expect-error xlsx requires `bytes` — it cannot be omitted
+    const xlsxNoBytes: FileConnectorInput = { fileName: "a.xlsx", fileKind: "xlsx" };
+    // @ts-expect-error json requires `text` — it cannot be omitted
+    const jsonNoText: FileConnectorInput = { fileName: "a.json", fileKind: "json" };
+
+    expect([csvOk, jsonOk, xmlOk, xlsxOk, csvBytesOnly, xlsxTextOnly, xlsxNoBytes, jsonNoText]).toHaveLength(8);
   });
 });

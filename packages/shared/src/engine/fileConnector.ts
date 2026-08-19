@@ -296,24 +296,39 @@ const MEDIA_TYPES = {
 } as const;
 export type FileKind = keyof typeof MEDIA_TYPES;
 
-export interface FileConnectorInput {
+/**
+ * Session 8 hardening (Part 6) — a discriminated union keyed on `fileKind`,
+ * replacing the prior single interface where `text`/`bytes` were both
+ * optional regardless of kind. That shape let a caller construct (or a
+ * refactor silently produce) a `csv` input with no `text`, or an `xlsx`
+ * input with no `bytes`, and `stageFile` would fall back to `input.text ??
+ * ""` / `input.bytes ?? new ArrayBuffer(0)` — an empty-content default
+ * standing in for what should have been a compile-time error. CSV/JSON/XML
+ * now REQUIRE `text`; XLSX REQUIRES `bytes`, at the type level, with no
+ * silent fallback left in `stageFile` for either.
+ */
+export interface TextFileConnectorInput {
   fileName: string;
-  fileKind: FileKind;
-  /** Raw text content — required for csv/json/xml, ignored for xlsx. */
-  text?: string;
-  /** Raw workbook bytes — required for xlsx, ignored otherwise. Read only
-   *  through the injected `readWorkbook` adapter, never parsed directly by
-   *  this shared-package function (ExcelJS is a desktop-only dependency).
-   *  `byteSize`/`contentFingerprint` are always derived from these actual
-   *  bytes/text internally — FVL-04.014 hardening (Session 7, Part A2/N)
-   *  removed the prior caller-supplied `byteSize` field entirely, since a
-   *  caller-asserted size could silently lie about real provenance. */
-  bytes?: ArrayBuffer;
-  /** Which sheet to stage, for xlsx — defaults to the workbook's first
-   *  sheet. Each sheet is its own source entity; call `stageFile` once per
-   *  sheet to stage a multi-sheet workbook, never auto-merged. */
+  fileKind: "csv" | "json" | "xml";
+  text: string;
+}
+export interface XlsxFileConnectorInput {
+  fileName: string;
+  fileKind: "xlsx";
+  /** Raw workbook bytes. Read only through the injected `readWorkbook`
+   *  adapter, never parsed directly by this shared-package function
+   *  (ExcelJS is a desktop-only dependency). `byteSize`/`contentFingerprint`
+   *  are always derived from these actual bytes internally — FVL-04.014
+   *  hardening (Session 7, Part A2/N) removed the prior caller-supplied
+   *  `byteSize` field entirely, since a caller-asserted size could silently
+   *  lie about real provenance. */
+  bytes: ArrayBuffer;
+  /** Which sheet to stage — defaults to the workbook's first sheet. Each
+   *  sheet is its own source entity; call `stageFile` once per sheet to
+   *  stage a multi-sheet workbook, never auto-merged. */
   sheetName?: string;
 }
+export type FileConnectorInput = TextFileConnectorInput | XlsxFileConnectorInput;
 
 export interface FileConnectorDeps {
   /** The real adapter is `apps/desktop/src/lib/xlsx.ts`'s
@@ -350,7 +365,7 @@ function utf8ByteLength(text: string): number {
  */
 export async function stageFile(sourceSystemId: string, entity: string, input: FileConnectorInput, opts: StageOptions, deps?: FileConnectorDeps): Promise<ConnectorResult> {
   if (input.fileKind === "xlsx") {
-    const bytes = input.bytes ?? new ArrayBuffer(0);
+    const bytes = input.bytes;
     const baseResource: SourceResourceMetadata = { kind: "file", resourceName: input.fileName, mediaType: MEDIA_TYPES.xlsx, byteSize: bytes.byteLength, contentFingerprint: fingerprintBytes(bytes) };
     if (!deps?.readWorkbook) {
       return emptyResult(sourceSystemId, entity, { code: "xlsx_reader_not_configured", stage: "connect", message: "No workbook-reader adapter was provided for an XLSX file.", retryable: false }, baseResource);
@@ -369,7 +384,7 @@ export async function stageFile(sourceSystemId: string, entity: string, input: F
     return { ...result, sourceResource: { ...baseResource, subResourceName: sheet.sheetName } };
   }
 
-  const text = input.text ?? "";
+  const text = input.text;
   const resource: SourceResourceMetadata = { kind: "file", resourceName: input.fileName, mediaType: MEDIA_TYPES[input.fileKind], byteSize: utf8ByteLength(text), contentFingerprint: fingerprint(text) };
   const result =
     input.fileKind === "csv" ? stageCsvFile(sourceSystemId, entity, text, opts)
@@ -386,17 +401,24 @@ function defaultEntityName(fileName: string): string {
   return stripped.length > 0 ? stripped : fileName;
 }
 
-export interface FileConnectorSource {
+/** Same discriminated-union discipline as `FileConnectorInput` above — see
+ *  its doc comment. `entity` is the logical entity name for CSV/JSON/XML
+ *  sources, which have no sheet/table concept of their own — defaults to
+ *  the filename with its extension stripped. Ignored for XLSX, where each
+ *  sheet name IS its own entity (see `discoverEntities()` below). */
+export interface TextFileConnectorSource {
   fileName: string;
-  fileKind: FileKind;
-  text?: string;
-  bytes?: ArrayBuffer;
-  /** The logical entity name for CSV/JSON/XML sources, which have no
-   *  sheet/table concept of their own — defaults to the filename with its
-   *  extension stripped. Ignored for XLSX, where each sheet name IS its
-   *  own entity (see `discoverEntities()` below). */
+  fileKind: "csv" | "json" | "xml";
+  text: string;
   entity?: string;
 }
+export interface XlsxFileConnectorSource {
+  fileName: string;
+  fileKind: "xlsx";
+  bytes: ArrayBuffer;
+  entity?: string;
+}
+export type FileConnectorSource = TextFileConnectorSource | XlsxFileConnectorSource;
 
 /**
  * FVL-04.014 hardening (Session 7, Part B) — a real `SourceConnector`
@@ -416,20 +438,18 @@ export function createFileConnector(sourceSystemId: string, source: FileConnecto
       if (source.fileKind !== "xlsx") return [logicalEntity];
       if (!deps?.readWorkbook) return [];
       try {
-        const sheets = await deps.readWorkbook(source.bytes ?? new ArrayBuffer(0));
+        const sheets = await deps.readWorkbook(source.bytes);
         return sheets.map((s) => s.sheetName);
       } catch {
         return [];
       }
     },
     async extract(entity: string): Promise<ConnectorResult> {
-      return stageFile(
-        sourceSystemId,
-        entity,
-        { fileName: source.fileName, fileKind: source.fileKind, text: source.text, bytes: source.bytes, sheetName: source.fileKind === "xlsx" ? entity : undefined },
-        opts,
-        deps,
-      );
+      const input: FileConnectorInput =
+        source.fileKind === "xlsx"
+          ? { fileName: source.fileName, fileKind: "xlsx", bytes: source.bytes, sheetName: entity }
+          : { fileName: source.fileName, fileKind: source.fileKind, text: source.text };
+      return stageFile(sourceSystemId, entity, input, opts, deps);
     },
   };
 }
