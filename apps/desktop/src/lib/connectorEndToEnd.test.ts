@@ -576,6 +576,63 @@ describe("FVL-04.019 — Formula/Recipe Relationship Import: real crosswalk-reso
     expect(version.totalsSnapshot?.totalPercent).toBe("100.0000");
     expect(version.validationSnapshot?.errorCount).toBe(0);
   });
+
+  it("A8: a NESTED JSON recipe export (same customer, a different source shape) fans into the SAME formula_bom commit path — no customer-specific recipe parser, the SAME generic connector+mapping machinery", async () => {
+    store.set("materials", [{ code: "JSON-MAT-1" }]);
+    const json = JSON.stringify({
+      lines: [
+        { Formula: "F-JSON-1", Line: 1, Material: "JSON-MAT-1", Percent: "70" },
+        { Formula: "F-JSON-1", Line: 2, Material: "JSON-MAT-1", Percent: "30" },
+      ],
+    });
+    const { stageJsonFile } = await import("@formulab/shared");
+    const staged = stageJsonFile("JSON_ERP", "recipes", json, { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" });
+    expect(staged.errors).toEqual([]);
+    expect(staged.records).toHaveLength(2); // findRecordArray() found the top-level "lines" array generically, no special-casing
+
+    const schema = discoverSourceSchema("JSON_ERP", [{ entity: "recipes", records: staged.records }]);
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: "json-erp-recipes::v1",
+      profileId: "json-erp-recipes",
+      profileName: "JSON_ERP recipes",
+      sourceSystemId: "JSON_ERP",
+      sourceEntity: "recipes",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "Formula", targetTemplate: "formula_bom", targetField: "formula_code" },
+        { sourceField: "Line", targetTemplate: "formula_bom", targetField: "line_number" },
+        { sourceField: "Material", targetTemplate: "formula_bom", targetField: "material_code" },
+        { sourceField: "Percent", targetTemplate: "formula_bom", targetField: "percentage" },
+      ],
+      constantMappings: [{ targetTemplate: "formula_bom", targetField: "formula_version", value: "" }],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    expect(validateMappingProfile(profile, schema)).toEqual([]);
+
+    const template = getDataExchangeTemplate("formula_bom")!;
+    const headers = template.columns.map((c) => c.key);
+    const referenceResolver = await buildReferenceResolver(referenceRequirementsFor(template));
+    const previewRows = staged.records.map((record) => {
+      const mapped = applyMappingProfile(profile, record);
+      expect(mapped.errors).toEqual([]);
+      const candidate = mapped.candidates.find((c) => c.targetTemplate === "formula_bom")!;
+      const values = headers.map((h) => candidate.row[h] ?? "");
+      return previewDataExchangeImport(template, [headers, values], { resolveReference: referenceResolver }).rows[0];
+    });
+    expect(previewRows.every((r) => r.state === "valid_create")).toBe(true);
+    const outcomes = await commitDataExchangeRows(template, previewRows, ctx);
+    expect(outcomes.every((o) => o.outcome === "created")).toBe(true);
+
+    const formulation = (await listFormulations()).find((f) => f.code === "F-JSON-1")!;
+    const { versions } = await readFormulation(formulation.id);
+    expect(versions[0].lines).toHaveLength(2);
+    expect(versions[0].totalsSnapshot?.totalPercent).toBe("100.0000");
+  });
 });
 
 describe("FVL-04.024 — Connector -> Existing Data Exchange Bridge: DATABASE and REST_API sourced records reach the SAME real commit layer FILE already does, no second authority anywhere", () => {

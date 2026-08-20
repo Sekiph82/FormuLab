@@ -90,7 +90,9 @@ import {
   REGULATORY_RULE_TYPES,
   CLAIM_CATEGORIES,
   createVersion,
+  snapshotFormulaForTrial,
   type FormulationDraft,
+  type LaboratoryTrial,
 } from "@formulab/shared";
 import { listRecords, upsertRecords, nowIso, type Collection } from "./masterdata";
 
@@ -166,6 +168,11 @@ const GROUPED_LINE_BUILDERS: Partial<Record<string, (rows: DataExchangeRowResult
         phase: row.record.phase,
         notes: nn(row.record.notes),
         isQs: bool(row.record.is_qs_material),
+        // FVL-04.019 hardening — previously read from the file but
+        // silently dropped; `FormulationLine.quantity`/`quantityUnit`
+        // now exist to receive it.
+        quantity: nn(row.record.quantity),
+        quantityUnit: nn(row.record.quantity_unit),
       })),
   lab_results: (rows) =>
     rows
@@ -265,6 +272,8 @@ interface FormulaBomLine {
   phase: string;
   notes?: string;
   isQs: boolean;
+  quantity?: string;
+  quantityUnit?: string;
 }
 
 // ===================================================== master data (1-8) ===
@@ -638,6 +647,8 @@ const commitFormulaBom: Handler = async (r, ctx) => {
     displayName: l.materialCode,
     percent: l.percent || "0",
     isQsToHundred: l.isQs,
+    quantity: l.quantity,
+    quantityUnit: l.quantityUnit,
     functions: [],
     provenance: { origin: "chemist_override" as const, evidenceClaimIds: [] },
     notes: l.notes,
@@ -795,9 +806,70 @@ const commitTestDefinitions: Handler = async (r) => {
   return { outcome: existing ? "updated" : "created", targetCollection: "test_definitions", targetRecordId: record.code };
 };
 
+/**
+ * FVL-04.020 hardening (Part B2) — the original requirement is
+ * relationship-aware migration of customer laboratory/history records,
+ * which cannot mean "the trial must already exist by some other means"
+ * for every real migration: an enterprise LIMS export routinely
+ * describes trials/runs that were never separately entered into
+ * FormuLab. Audited first (per this task's own instruction): no
+ * dedicated trial-creation API exists — the real Laboratory workspace
+ * (`TrialsPanel.tsx`) builds a `LaboratoryTrial` object directly (using
+ * `snapshotFormulaForTrial()` for the required formula snapshot) and
+ * persists it through the same generic masterdata bridge every other
+ * Data Exchange commit handler already uses. That IS the authoritative
+ * creation path — reused here exactly, never a second one. Auto-creation
+ * only fires when the customer's file provides enough to build a real,
+ * non-fabricated trial: a resolvable `project_code` (a real
+ * `Formulation`) and either an explicit `formula_version` or the
+ * formula's own latest saved version. A `trial_code` with no resolvable
+ * project/formula still fails exactly as before — there is nothing
+ * honest to construct.
+ */
+async function findOrCreateTrial(r: RowRecord): Promise<{ id: string; projectId: string; sourceFormulaVersionId?: string }> {
+  const existing = await findByCode<{ id: string; projectId: string; sourceFormulaVersionId?: string }>("laboratory_trials", "code", r.trial_code);
+  if (existing) return existing;
+  if (!r.project_code) {
+    throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet, and no project_code was provided to auto-create one from a migrated formula — create the trial in the Laboratory workspace first, or provide project_code (and optionally formula_version).`);
+  }
+  const formulations = await listFormulations();
+  const formulation = formulations.find((f) => f.code === r.project_code);
+  if (!formulation) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet, and project "${r.project_code}" does not exist either — nothing real to build a trial from.`);
+  const { versions } = await readFormulation(formulation.id);
+  const version = r.formula_version ? versions.find((v) => v.versionNumber === Number.parseInt(r.formula_version, 10)) : versions[versions.length - 1];
+  if (!version) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet, and formula "${r.project_code}" has no saved version${r.formula_version ? ` ${r.formula_version}` : ""} to build one from.`);
+
+  const now = nowIso();
+  const trial: LaboratoryTrial = {
+    schemaVersion: "1.0",
+    id: newId("trial"),
+    code: r.trial_code,
+    projectId: formulation.id,
+    sourceType: "saved_version",
+    sourceFormulaVersionId: version.id,
+    formulaSnapshot: snapshotFormulaForTrial({ lines: version.lines, basisBatchKg: version.basisBatchKg }),
+    productFamilyId: formulation.productFamilyCode,
+    targetPackagingSkuIds: [],
+    title: `Migrated trial ${r.trial_code}`,
+    batchSize: version.basisBatchKg,
+    batchUnit: "kg",
+    status: "planned",
+    priority: "normal",
+    equipmentIds: [],
+    materialUsage: [],
+    processSteps: [],
+    observations: [],
+    hasOpenCriticalDeviation: false,
+    createdAt: now,
+    createdBy: "data-exchange-import",
+    updatedAt: now,
+  };
+  await upsertRecords("laboratory_trials", [trial]);
+  return trial;
+}
+
 const commitLabResults: Handler = async (r) => {
-  const trial = await findByCode<{ id: string; projectId: string; sourceFormulaVersionId?: string }>("laboratory_trials", "code", r.trial_code);
-  if (!trial) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet — create it in the Laboratory workspace first.`);
+  const trial = await findOrCreateTrial(r);
   const testDef = await findByCode<{ code: string; resultType: string }>("test_definitions", "code", r.test_code);
   if (!testDef) throw new Error(`No test definition with code "${r.test_code}" exists yet — import or create it first.`);
 

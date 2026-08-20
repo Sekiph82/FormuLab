@@ -17,7 +17,7 @@
  * `DataExchangePage.test.tsx`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { evaluateMaterialAvailability, findRate, getDataExchangeTemplate, type DataExchangeRowResult, type ExchangeRate, type InventoryRecord } from "@formulab/shared";
+import { evaluateMaterialAvailability, findRate, getDataExchangeTemplate, previewDataExchangeImport, type DataExchangeRowResult, type ExchangeRate, type InventoryRecord } from "@formulab/shared";
 import { commitDataExchangeRows, isTemplateCommitSupported } from "./dataExchangeCommit";
 import { loadExisting } from "./dataExchangeExisting";
 
@@ -698,6 +698,95 @@ describe("commitDataExchangeRows — formula/BOM (grouped)", () => {
   });
 });
 
+describe("FVL-04.019 hardening (Session 10, Part A) — formula/recipe relationship migration re-audited against the original acceptance list", () => {
+  it("A1: two distinct imported versions of the SAME formula remain independently addressable, never overwritten into one", async () => {
+    // Version 1.
+    formulationsBridge.listFormulations.mockResolvedValue([]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [] });
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, [row({ formula_code: "TEST-FORM-A1", material_code: "TEST-MAT-001", percentage: "100", phase: "A", line_number: "1" })], ctx);
+    const v1 = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { versionNumber: number };
+    expect(v1.versionNumber).toBe(1);
+
+    // Version 2 — same formula, existing version 1 now known.
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-A1", targetBatchKg: "100", targetMarkets: [], targetClaims: [], targetSkuCodes: [] }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }] });
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, [row({ formula_code: "TEST-FORM-A1", material_code: "TEST-MAT-002", percentage: "100", phase: "A", line_number: "1" })], ctx);
+    const v2 = formulationsBridge.saveFormulationVersion.mock.calls[1][0] as { versionNumber: number; lines: { materialCode: string }[] };
+    expect(v2.versionNumber).toBe(2);
+    expect(v2.lines[0].materialCode).toBe("TEST-MAT-002");
+    // v1's own saved call is untouched — never re-invoked/overwritten.
+    expect(formulationsBridge.saveFormulationVersion).toHaveBeenCalledTimes(2);
+  });
+
+  it("A2: line order is deterministic by line_number, never accidental source-array order — a deliberately SHUFFLED source input still saves in the correct order", async () => {
+    const rows = [
+      row({ formula_code: "TEST-FORM-A2", material_code: "TEST-MAT-003", percentage: "30", phase: "A", line_number: "3" }, { rowNumber: 2 }),
+      row({ formula_code: "TEST-FORM-A2", material_code: "TEST-MAT-001", percentage: "50", phase: "A", line_number: "1" }, { rowNumber: 3 }),
+      row({ formula_code: "TEST-FORM-A2", material_code: "TEST-MAT-002", percentage: "20", phase: "A", line_number: "2" }, { rowNumber: 4 }),
+    ];
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, rows, ctx);
+    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: { lineNumber: number; materialCode: string }[] };
+    expect(saved.lines.map((l) => l.lineNumber)).toEqual([1, 2, 3]);
+    expect(saved.lines.map((l) => l.materialCode)).toEqual(["TEST-MAT-001", "TEST-MAT-002", "TEST-MAT-003"]);
+  });
+
+  it("A3: phase survives exactly — the canonical FormulationLine schema genuinely supports it (no invented parallel storage needed)", async () => {
+    const rows = [
+      row({ formula_code: "TEST-FORM-A3", material_code: "TEST-MAT-001", percentage: "60", phase: "B", line_number: "1" }, { rowNumber: 2 }),
+      row({ formula_code: "TEST-FORM-A3", material_code: "TEST-MAT-002", percentage: "40", phase: "C", line_number: "2" }, { rowNumber: 3 }),
+    ];
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, rows, ctx);
+    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: { phase: string }[] };
+    expect(saved.lines.map((l) => l.phase)).toEqual(["B", "C"]);
+  });
+
+  it("A4: quantity/unit are genuinely preserved when the source provides them, and genuinely left absent when it doesn't — never zero-filled, never guessed", async () => {
+    const rows = [
+      row({ formula_code: "TEST-FORM-A4", material_code: "TEST-MAT-001", percentage: "60", quantity: "60", quantity_unit: "kg", phase: "A", line_number: "1" }, { rowNumber: 2 }),
+      row({ formula_code: "TEST-FORM-A4", material_code: "TEST-MAT-002", percentage: "40", phase: "A", line_number: "2" }, { rowNumber: 3 }), // no quantity provided
+    ];
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, rows, ctx);
+    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: { quantity?: string; quantityUnit?: string }[] };
+    expect(saved.lines[0]).toMatchObject({ quantity: "60", quantityUnit: "kg" });
+    expect(saved.lines[1].quantity).toBeUndefined();
+  });
+
+  it("A5: q.s. survives exactly — the canonical FormulationLine schema genuinely has isQsToHundred, computed from the file's own is_qs_material column, never guessed from a material name", async () => {
+    const rows = [
+      row({ formula_code: "TEST-FORM-A5", material_code: "TEST-MAT-001", percentage: "30", phase: "A", line_number: "1" }, { rowNumber: 2 }),
+      row({ formula_code: "TEST-FORM-A5", material_code: "TEST-MAT-WATER", percentage: "0", is_qs_material: "true", phase: "A", line_number: "2" }, { rowNumber: 3 }),
+    ];
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, rows, ctx);
+    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: { materialCode: string; isQsToHundred: boolean }[] };
+    expect(saved.lines.find((l) => l.materialCode === "TEST-MAT-001")!.isQsToHundred).toBe(false);
+    expect(saved.lines.find((l) => l.materialCode === "TEST-MAT-WATER")!.isQsToHundred).toBe(true);
+  });
+
+  it("A7a: a 99.7% formula is saved EXACTLY as 99.7 — never normalized to 100, never a fabricated water/filler line, with a real validation finding attached", async () => {
+    const rows = [
+      row({ formula_code: "TEST-FORM-A7A", material_code: "TEST-MAT-001", percentage: "59.7", phase: "A", line_number: "1" }, { rowNumber: 2 }),
+      row({ formula_code: "TEST-FORM-A7A", material_code: "TEST-MAT-002", percentage: "40", phase: "A", line_number: "2" }, { rowNumber: 3 }),
+    ];
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, rows, ctx);
+    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: unknown[]; totalsSnapshot?: { totalPercent: string }; validationSnapshot?: { errorCount: number; warningCount: number } };
+    expect(saved.lines).toHaveLength(2); // no invented third line
+    expect(saved.totalsSnapshot?.totalPercent).toBe("99.7000");
+    expect((saved.validationSnapshot?.errorCount ?? 0) + (saved.validationSnapshot?.warningCount ?? 0)).toBeGreaterThan(0); // a real finding exists, not silently accepted as fine
+  });
+
+  it("A7b: a 103% formula is saved EXACTLY as 103 — never normalized to 100, never an ingredient silently changed, with a real validation finding attached", async () => {
+    const rows = [
+      row({ formula_code: "TEST-FORM-A7B", material_code: "TEST-MAT-001", percentage: "63", phase: "A", line_number: "1" }, { rowNumber: 2 }),
+      row({ formula_code: "TEST-FORM-A7B", material_code: "TEST-MAT-002", percentage: "40", phase: "A", line_number: "2" }, { rowNumber: 3 }),
+    ];
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, rows, ctx);
+    const saved = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { lines: { materialCode: string; percent: string }[]; totalsSnapshot?: { totalPercent: string }; validationSnapshot?: { errorCount: number; warningCount: number } };
+    expect(saved.lines.find((l) => l.materialCode === "TEST-MAT-001")!.percent).toBe("63");
+    expect(saved.totalsSnapshot?.totalPercent).toBe("103.0000");
+    expect((saved.validationSnapshot?.errorCount ?? 0) + (saved.validationSnapshot?.warningCount ?? 0)).toBeGreaterThan(0);
+  });
+});
+
 describe("commitDataExchangeRows — lab results (grouped, reference resolution)", () => {
   it("fails honestly when the referenced trial does not exist", async () => {
     const rows = [row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0" })];
@@ -772,6 +861,119 @@ describe("commitDataExchangeRows — lab results (grouped, reference resolution)
     const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
     expect(outcomes[0].outcome).toBe("failed");
     expect(outcomes[0].message).toMatch(/belongs to a different project/);
+  });
+});
+
+describe("FVL-04.020 hardening (Session 10, Part B) — laboratory/test-result relationship migration re-audited against the original acceptance list", () => {
+  it("B2: a trial that does not yet exist is auto-created from a resolvable project_code/formula_version, reusing the SAME snapshotFormulaForTrial() the real Laboratory workspace uses — never a fabricated formula snapshot", async () => {
+    const trialsCreated: Record<string, unknown>[] = [];
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve(trialsCreated);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-T-001", resultType: "numeric" }]);
+      return Promise.resolve([]);
+    });
+    bridge.upsertRecords.mockImplementation((collection: string, records: Record<string, unknown>[]) => {
+      if (collection === "laboratory_trials") trialsCreated.push(...records);
+      return Promise.resolve({ inserted: records.length, updated: 0, total: 1 });
+    });
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-B2", productFamilyCode: "TEST-FAM" }]);
+    formulationsBridge.readFormulation.mockResolvedValue({
+      formulation: undefined,
+      versions: [{ id: "version-1", versionNumber: 1, basisBatchKg: "100", lines: [{ id: "line-1", lineNumber: 1, phase: "A", materialCode: "TEST-MAT-001", displayName: "TEST-MAT-001", percent: "100", isQsToHundred: false, functions: [], provenance: { origin: "chemist_override", evidenceClaimIds: [] } }] }],
+    });
+
+    const rows = [row({ trial_code: "MIGRATED-TRIAL-1", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0", project_code: "TEST-FORM-B2", formula_version: "1" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    expect(trialsCreated).toHaveLength(1);
+    expect(trialsCreated[0]).toMatchObject({ code: "MIGRATED-TRIAL-1", projectId: "formulation-1", sourceFormulaVersionId: "version-1", sourceType: "saved_version" });
+    const snapshot = trialsCreated[0].formulaSnapshot as { lines: { materialCode: string }[] };
+    expect(snapshot.lines[0].materialCode).toBe("TEST-MAT-001"); // the real formula's own lines, never fabricated
+  });
+
+  it("B2 negative: a trial_code with no project_code provided still fails honestly — no auto-creation without a real formula to snapshot", async () => {
+    const rows = [row({ trial_code: "NO-PROJECT-TRIAL", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/no project_code was provided/);
+  });
+
+  it("B3/B4/B5: multiple samples, multiple test definitions, replicates 1/2/3, numeric AND text results, and full metadata all survive exactly", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TRIAL-B3", projectId: "formulation-1" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-PH", resultType: "numeric" }, { code: "TEST-APPEARANCE", resultType: "text" }]);
+      return Promise.resolve([]);
+    });
+    const rows = [
+      // Sample S1, test TEST-PH, 3 replicates.
+      row({ trial_code: "TRIAL-B3", sample_code: "S1", test_code: "TEST-PH", replicate_number: "1", numeric_value: "5.5", unit: "pH", instrument: "TEST pH Meter", analyst: "TEST Analyst", result_date: "2026-03-01" }, { rowNumber: 2 }),
+      row({ trial_code: "TRIAL-B3", sample_code: "S1", test_code: "TEST-PH", replicate_number: "2", numeric_value: "5.6", unit: "pH", instrument: "TEST pH Meter", analyst: "TEST Analyst", result_date: "2026-03-01" }, { rowNumber: 3 }),
+      row({ trial_code: "TRIAL-B3", sample_code: "S1", test_code: "TEST-PH", replicate_number: "3", numeric_value: "5.4", unit: "pH", instrument: "TEST pH Meter", analyst: "TEST Analyst", result_date: "2026-03-01" }, { rowNumber: 4 }),
+      // Sample S2, test TEST-APPEARANCE, text result, single replicate.
+      row({ trial_code: "TRIAL-B3", sample_code: "S2", test_code: "TEST-APPEARANCE", replicate_number: "1", text_value: "Clear liquid", analyst: "TEST Analyst" }, { rowNumber: 5 }),
+    ];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes.every((o) => o.outcome === "created")).toBe(true);
+
+    const savedResults = bridge.upsertRecords.mock.calls.filter(([c]) => c === "test_results").map(([, recs]) => recs[0] as Record<string, unknown>);
+    expect(savedResults).toHaveLength(2); // one per (sample, test) group — B3
+
+    const phResult = savedResults.find((r) => r.testDefinitionId === "TEST-PH")!;
+    expect(phResult.sampleId).toBe("S1");
+    expect((phResult.replicates as { replicateNumber: number; numericValue?: string }[]).map((r) => r.replicateNumber)).toEqual([1, 2, 3]); // B3 replicates
+    expect((phResult.replicates as { numericValue?: string }[]).map((r) => r.numericValue)).toEqual(["5.5", "5.6", "5.4"]); // B4 numeric
+    expect(phResult).toMatchObject({ unit: "pH", instrument: "TEST pH Meter", performedBy: "TEST Analyst" }); // B5 metadata
+    expect(phResult.performedAt).toBe("2026-03-01"); // B5 timestamp
+
+    const appearanceResult = savedResults.find((r) => r.testDefinitionId === "TEST-APPEARANCE")!;
+    expect(appearanceResult.sampleId).toBe("S2"); // B3 second sample
+    expect((appearanceResult.replicates as { textValue?: string }[])[0].textValue).toBe("Clear liquid"); // B4 text
+  });
+
+  it("B4: a missing numeric value stays genuinely missing — never zero-filled", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TRIAL-B4", projectId: "formulation-1" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-T-001", resultType: "numeric" }]);
+      return Promise.resolve([]);
+    });
+    const rows = [row({ trial_code: "TRIAL-B4", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1" })]; // no numeric_value at all
+    await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    const saved = bridge.upsertRecords.mock.calls.find(([c]) => c === "test_results")![1][0] as { replicates: { numericValue?: string }[] };
+    expect(saved.replicates[0].numericValue).toBeUndefined(); // never "0"
+  });
+
+  it("B6: test_code is resolved through the real registry-validated code_reference (no name-matching) — a test whose code isn't recognized blocks before commit", async () => {
+    const preview = previewDataExchangeImport(getDataExchangeTemplate("lab_results")!, [
+      ["trial_code", "sample_code", "test_code", "replicate_number", "numeric_value"],
+      ["TRIAL-B6", "S1", "NOT-A-REAL-TEST-CODE", "1", "5.0"],
+    ], { resolveReference: () => false });
+    expect(preview.rows[0].state).toBe("reference_missing");
+  });
+
+  it("B8: a genuinely missing TestDefinition blocks the whole group, no partial commit", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TRIAL-B8", projectId: "formulation-1" }]);
+      return Promise.resolve([]); // no test_definitions at all
+    });
+    const rows = [
+      row({ trial_code: "TRIAL-B8", sample_code: "S1", test_code: "GHOST-TEST", replicate_number: "1", numeric_value: "1" }, { rowNumber: 2 }),
+      row({ trial_code: "TRIAL-B8", sample_code: "S1", test_code: "GHOST-TEST", replicate_number: "2", numeric_value: "2" }, { rowNumber: 3 }),
+    ];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes.every((o) => o.outcome === "failed")).toBe(true); // BOTH replicate rows in the group fail together
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("test_results", expect.anything());
+  });
+
+  it("B8: passFail is never fabricated from imported data — always not_evaluated regardless of what the source file claims", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TRIAL-B8B", projectId: "formulation-1" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-T-001", resultType: "numeric" }]);
+      return Promise.resolve([]);
+    });
+    const rows = [row({ trial_code: "TRIAL-B8B", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.0" })];
+    await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    const saved = bridge.upsertRecords.mock.calls.find(([c]) => c === "test_results")![1][0] as { passFail: string };
+    expect(saved.passFail).toBe("not_evaluated");
   });
 });
 

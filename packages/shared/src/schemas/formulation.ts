@@ -110,6 +110,16 @@ export const formulationLineSchema = z.object({
    * is not water (a solvent base, a slurry carrier).
    */
   isQsToHundred: z.boolean().default(false),
+  /** As-supplied absolute quantity at the version's own `basisBatchKg`,
+   *  when the source of this line stated one explicitly (a migrated
+   *  customer BOM line, or a chemist entering an absolute weight) —
+   *  `percent` remains the primary, always-present composition value;
+   *  this is an optional, honest record of the source's OWN absolute
+   *  figure, never derived/recomputed from `percent` and never required. */
+  quantity: decimalString.optional(),
+  /** Unit `quantity` is expressed in, e.g. "kg" or "g" — meaningless
+   *  without `quantity` present. */
+  quantityUnit: z.string().optional(),
   /** Active content of the raw material, e.g. "70.00" for a 70% active SLES. */
   activeMatterPercent: decimalString.optional(),
   /** Highest percentage this material may technically be used at, when known. */
