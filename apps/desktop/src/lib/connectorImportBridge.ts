@@ -37,6 +37,7 @@ import {
   planImportOrder,
   previewDataExchangeImport,
   resolveColumnReferenceField,
+  resolveCrosswalk,
   validateMappingProfile,
   type ApprovalRole,
   type DataExchangeImportJob,
@@ -51,8 +52,36 @@ import {
 } from "@formulab/shared";
 import { buildReferenceResolver, loadLiveCandidateFields, loadPriorCommittedRows } from "./dataExchangeExisting";
 import { commitDataExchangeRows, type DataExchangeRowCommitOutcome } from "./dataExchangeCommit";
-import { persistCrosswalkEntry } from "./connectorPersistence";
+import { loadCrosswalks, persistCrosswalkEntry } from "./connectorPersistence";
 import { upsertRecords, nowIso } from "./masterdata";
+
+/**
+ * Session 11 hardening (Part 6) — reimport states that must NEVER
+ * auto-enter the normal committable path. Each represents a case where
+ * silently proceeding would risk a silent overwrite of something a human
+ * needs to look at first: a canonical record that was hand-edited
+ * out-of-band since the last import (CANONICAL_LOCAL_CONFLICT), a prior
+ * import target that no longer exists (CANONICAL_MISSING — recreating or
+ * updating blind is never assumed safe), a mapping-profile version change
+ * applied to an already-committed record without explicit review
+ * (MAPPING_PROFILE_CHANGED), or a source identity already bound to a
+ * DIFFERENT canonical record than this batch would produce
+ * (CROSSWALK_CONFLICT). None of these get an auto-merge — the required
+ * default is "block, and require an explicit human decision."
+ */
+const UNSAFE_REIMPORT_STATES = new Set<ReimportState>(["CANONICAL_LOCAL_CONFLICT", "CANONICAL_MISSING", "MAPPING_PROFILE_CHANGED", "CROSSWALK_CONFLICT"]);
+const COMMITTABLE_STATES = new Set(["valid_create", "valid_update", "unchanged", "warning"]);
+
+/**
+ * The ONE deterministic commit-eligibility authority — considers BOTH the
+ * existing Data Exchange preview validity AND the re-import/conflict
+ * safety state, never just one. Reused by `confirmConnectorImport()`'s own
+ * commit filter; exported so a future UI surface has the same single
+ * authority to consult rather than re-deriving this decision itself.
+ */
+export function isRowCommittable(row: Pick<PreparedRow, "preview" | "reimportState">): boolean {
+  return COMMITTABLE_STATES.has(row.preview.state) && !UNSAFE_REIMPORT_STATES.has(row.reimportState);
+}
 
 /** entity name -> the two field-level requirements a template's own
  *  `code_reference` columns need, mirroring the EXACT logic
@@ -126,16 +155,37 @@ export interface PrepareConnectorImportInput {
   entity: string;
   profile: MappingProfile;
   resolveCrosswalk?: (sourceEntity: string, sourceRecordId: string, canonicalEntity: string) => string | undefined;
+  /** Session 11 hardening (Part 6C) — when a template has a configured
+   *  crosswalk target, `prepareConnectorImport()` preflights
+   *  CROSSWALK_CONFLICT itself (a source identity already bound to a
+   *  DIFFERENT canonical record than Import History's own prior commit
+   *  names) BEFORE any canonical write, reusing the existing crosswalk
+   *  authority (`resolveCrosswalk()`) read-only. Optional and additive —
+   *  a template with no crosswalk target here behaves exactly as before. */
+  crosswalkTargets?: Record<string, CrosswalkTarget>;
 }
 
-const COMMITTABLE_STATES = new Set(["valid_create", "valid_update", "unchanged", "warning"]);
-
+/**
+ * Session 11 hardening (Part 7B) — a candidate satisfies a same-batch
+ * forward reference ONLY when it comes from a template that commits
+ * STRICTLY BEFORE the current one in the real dependency-safe order
+ * (`plan.order`). The prior implementation checked the FULL
+ * `candidatesByTemplate` map unfiltered by order, so a LATER-committing
+ * template's own candidates could incorrectly satisfy an EARLIER
+ * template's reference — exactly the bug this batch overlay's own doc
+ * comment claimed could never happen. `earlierTemplates` is a snapshot
+ * Set of every target template already processed in THIS call's
+ * `plan.order` loop before the current one — never every template in the
+ * batch.
+ */
 function withBatchOverlay(
   live: (referenceTemplate: string, referenceField: string, key: string) => boolean,
   candidatesByTemplate: Map<string, { candidate: MappingCandidateRow }[]>,
+  earlierTemplates: ReadonlySet<string>,
 ): (referenceTemplate: string, referenceField: string, key: string) => boolean {
   return (referenceTemplate, referenceField, key) => {
     if (live(referenceTemplate, referenceField, key)) return true;
+    if (!earlierTemplates.has(referenceTemplate)) return false;
     const entries = candidatesByTemplate.get(referenceTemplate);
     if (!entries) return false;
     return entries.some((e) => e.candidate.row[referenceField] === key);
@@ -217,6 +267,10 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
 
   const templates: PreparedTemplateImport[] = [];
   let mappedCount = 0;
+  // Session 11 hardening (Part 7B) — grows as each target template is
+  // processed, so `withBatchOverlay()` only ever sees templates that
+  // genuinely commit BEFORE the current one.
+  const earlierTemplates = new Set<string>();
   for (const targetTemplate of plan.order) {
     const template = getDataExchangeTemplate(targetTemplate)!;
     const entries = candidatesByTemplate.get(targetTemplate)!;
@@ -238,7 +292,7 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     // exists in neither live storage nor an earlier-ordered template's
     // own candidates is never accepted — it remains a real block (BR6).
     const liveResolver = await buildReferenceResolver(referenceRequirementsFor(template));
-    const referenceResolver = withBatchOverlay(liveResolver, candidatesByTemplate);
+    const referenceResolver = withBatchOverlay(liveResolver, candidatesByTemplate, earlierTemplates);
 
     const priorRows: PriorCommittedRow[] = await loadPriorCommittedRows(targetTemplate);
     const priorBySourceId = new Map(priorRows.filter((r) => r.sourceRecordId).map((r) => [r.sourceRecordId!, r]));
@@ -249,6 +303,13 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     // CANONICAL_LOCAL_CONFLICT a genuinely distinct signal from CHANGED
     // — see `loadLiveCandidateFields()`'s own doc comment.
     const liveCandidateFields = await loadLiveCandidateFields(targetTemplate);
+
+    // Session 11 hardening (Part 6C) — real crosswalk-conflict preflight.
+    // Loaded once per template, only when a crosswalk target is actually
+    // configured for it (the common case — most templates never crosswalk
+    // — never pays this cost for nothing).
+    const crosswalkTarget = input.crosswalkTargets?.[targetTemplate];
+    const crosswalks = crosswalkTarget ? await loadCrosswalks() : undefined;
 
     const rows: PreparedRow[] = entries.map((entry) => {
       const values = headers.map((h) => entry.candidate.row[h] ?? "");
@@ -262,22 +323,40 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
       // so the two are directly comparable.
       const liveRow = liveCandidateFields.get(preview.naturalKey);
       const canonicalCurrentFingerprint = liveRow ? fingerprintCanonicalCandidate(Object.fromEntries(Object.keys(entry.candidate.row).map((k) => [k, liveRow[k] ?? ""]))) : undefined;
-      const reimportState = classifyReimport({
+      let reimportState = classifyReimport({
         rawRecordFingerprint: entry.rawRecordFingerprint,
         mappingProfileCode: profile.code,
         canonicalCandidateFingerprint,
         prior,
-        // A row's own preview reaching a committable state with a real
-        // target is the honest signal its canonical target still
-        // resolves; a row that no longer previews clean says nothing
-        // reliable about whether the OLD target still exists, so
-        // "still exists" is left unproven (`undefined`) rather than
-        // guessed true/false in that case.
-        canonicalStillExists: prior?.targetRecordId ? preview.state !== "invalid" : undefined,
+        // Session 11 hardening (Part 6B) — the ACTUAL live canonical
+        // lookup, never inferred from this pass's own preview validity
+        // (a row can preview cleanly as a fresh "valid_create" even when
+        // the OLD target it used to point at is long gone — that proved
+        // nothing about the old target's own continued existence).
+        canonicalStillExists: prior?.targetRecordId ? liveCandidateFields.has(preview.naturalKey) : undefined,
         canonicalCurrentFingerprint,
       });
+      // Session 11 hardening (Part 6C) — a source identity already bound
+      // (in the real, existing crosswalk store) to a DIFFERENT canonical
+      // record than what Import History says THIS source last committed
+      // to is a genuine conflict, detectable from data already on hand —
+      // never a guess at what a not-yet-run commit would produce.
+      if (crosswalkTarget && crosswalks && entry.sourceIdSource === "configured") {
+        const boundCanonicalId = resolveCrosswalk(crosswalks, identity.sourceSystemId, entity, entry.sourceRecordId, crosswalkTarget.canonicalEntity);
+        if (boundCanonicalId !== undefined && prior?.targetRecordId !== undefined && boundCanonicalId !== prior.targetRecordId) {
+          reimportState = "CROSSWALK_CONFLICT";
+        }
+      }
       if (preview.state === "invalid" || preview.state === "reference_missing") {
         blockingIssues.push(`Template "${targetTemplate}" row (source ${entry.sourceRecordId}) is blocking: ${preview.messages.join(" ")}`);
+      } else if (UNSAFE_REIMPORT_STATES.has(reimportState)) {
+        // Section 6 — never silently commit an unsafe re-import state.
+        // The whole batch is blocked, same F4 atomic-preflight discipline
+        // already used for invalid/reference_missing rows — this is not a
+        // new partial-skip semantic, just the SAME one applied to a wider
+        // set of unsafe conditions, requiring an explicit human decision
+        // before this row (and therefore this batch) can commit.
+        blockingIssues.push(`Template "${targetTemplate}" row (source ${entry.sourceRecordId}) requires explicit human resolution before it can commit: ${reimportState}.`);
       }
       return { candidate: entry.candidate, sourceRecordId: entry.sourceRecordId, sourceIdSource: entry.sourceIdSource, rawRecordFingerprint: entry.rawRecordFingerprint, preview, reimportState };
     });
@@ -286,6 +365,7 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     const missingFromSource = detectMissingFromSource(priorRows, currentKeys);
 
     templates.push({ targetTemplate, rows, missingFromSource });
+    earlierTemplates.add(targetTemplate);
   }
 
   return { ...base, commitOrder: plan.order, mappedCount, unresolvedMappings, templates, blockingIssues, warnings };
@@ -341,7 +421,7 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
     const templateImport = prepared.templates.find((t) => t.targetTemplate === targetTemplate);
     if (!templateImport) continue;
     const template = getDataExchangeTemplate(targetTemplate)!;
-    const committableRows = templateImport.rows.filter((r) => COMMITTABLE_STATES.has(r.preview.state));
+    const committableRows = templateImport.rows.filter(isRowCommittable);
     const outcomes = await commitDataExchangeRows(template, committableRows.map((r) => r.preview), ctx);
     outcomesByTemplate[targetTemplate] = outcomes;
 
@@ -358,10 +438,14 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
       id: newId("dxjob"),
       templateCode: targetTemplate,
       templateSchemaVersion: template.schemaVersion,
+      // Session 11 hardening (Part 7A) — a DATABASE/REST_API/FILE
+      // connector import has no uploaded file at all; claiming "csv" and
+      // a fabricated fileSize/sha256 was an outright lie in the
+      // provenance record. fileType is genuinely "connector" here;
+      // fileSize/sha256 are correctly left unset (optional on the
+      // schema); extractionRunId gets its own honestly-named field.
       fileName: `connector:${prepared.sourceSystemId}:${prepared.sourceEntity}`,
-      fileType: "csv",
-      fileSize: 0,
-      sha256: prepared.extractionRunId || "n/a",
+      fileType: "connector",
       status: failed > 0 ? (created + updated > 0 ? "completed_with_warnings" : "failed") : "completed",
       mode: "atomic",
       totalRows: templateImport.rows.length,
@@ -381,6 +465,11 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
       sourceSystemId: prepared.sourceSystemId,
       connectorType: prepared.connectorType,
       mappingProfileCode: prepared.mappingProfileCode,
+      connectorVersion: prepared.connectorVersion || undefined,
+      sourceEntity: prepared.sourceEntity || undefined,
+      extractionRunId: prepared.extractionRunId || undefined,
+      sourceSchemaFingerprint: prepared.sourceSchemaFingerprint || undefined,
+      mappingProfileVersion: prepared.mappingProfileVersion || undefined,
     };
     await upsertRecords("data_exchange_import_jobs", [job]);
     const rowResults: DataExchangeImportRowResult[] = committableRows.map((row, i) => ({

@@ -785,6 +785,29 @@ describe("FVL-04.019 hardening (Session 10, Part A) — formula/recipe relations
     expect(saved.totalsSnapshot?.totalPercent).toBe("103.0000");
     expect((saved.validationSnapshot?.errorCount ?? 0) + (saved.validationSnapshot?.warningCount ?? 0)).toBeGreaterThan(0);
   });
+
+  it("A10 (Session 11 hardening): explicit source-supplied formula_version=1 then formula_version=2 are preserved exactly as stated — not merely 'next generated after existing' — and remain independently addressable", async () => {
+    formulationsBridge.listFormulations.mockResolvedValue([]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [] });
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, [row({ formula_code: "TEST-FORM-A10", formula_version: "1", material_code: "TEST-MAT-001", percentage: "100", phase: "A", line_number: "1" })], ctx);
+    const v1 = formulationsBridge.saveFormulationVersion.mock.calls[0][0] as { versionNumber: number };
+    expect(v1.versionNumber).toBe(1); // the EXPLICIT source value, not an incidentally-equal auto-next-number
+
+    formulationsBridge.listFormulations.mockResolvedValue([{ id: "formulation-1", code: "TEST-FORM-A10", targetBatchKg: "100", targetMarkets: [], targetClaims: [], targetSkuCodes: [] }]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }] });
+    await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, [row({ formula_code: "TEST-FORM-A10", formula_version: "2", material_code: "TEST-MAT-002", percentage: "100", phase: "A", line_number: "1" })], ctx);
+    const v2 = formulationsBridge.saveFormulationVersion.mock.calls[1][0] as { versionNumber: number; lines: { materialCode: string }[] };
+    expect(v2.versionNumber).toBe(2); // the EXPLICIT source value
+
+    // Both versions remain independently addressable: re-submitting the
+    // ALREADY-USED explicit version 1 again is refused as immutable —
+    // proof version 1 was never silently merged/renumbered into version 2.
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [{ id: "version-1", versionNumber: 1 }, { id: "version-2", versionNumber: 2 }] });
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("formula_bom")!, [row({ formula_code: "TEST-FORM-A10", formula_version: "1", material_code: "TEST-MAT-003", percentage: "100", phase: "A", line_number: "1" })], ctx);
+    expect(outcomes[0].outcome).toBe("failed");
+    expect(outcomes[0].message).toMatch(/immutable/);
+    expect(formulationsBridge.saveFormulationVersion).toHaveBeenCalledTimes(2); // the refused attempt never saved a third version
+  });
 });
 
 describe("commitDataExchangeRows — lab results (grouped, reference resolution)", () => {

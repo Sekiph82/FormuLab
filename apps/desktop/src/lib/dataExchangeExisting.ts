@@ -88,6 +88,54 @@ const LOADERS: Partial<Record<string, Loader>> = {
       incoterm: s(r.incoterm),
       notes: s(r.notes),
     })),
+  // Session 11 hardening — `material_suppliers`/`inventory_records`/
+  // `exchange_rates` had no loader at all (never previously needed: no
+  // OTHER template's code_reference column ever points AT them, the only
+  // prior consumer of `existingLookupFor`/`buildReferenceResolver`).
+  // `loadLiveCandidateFields()` (Part E6/6B) needs a loader for EVERY
+  // template that can have a prior committed row, not only referenced
+  // ones — its absence here silently made `canonicalStillExists` always
+  // false for these three, which would have misclassified every genuine
+  // re-import as CANONICAL_MISSING once Part 6B started using the real
+  // live lookup instead of the preview-validity proxy.
+  material_suppliers: () =>
+    flat("material_suppliers", "code", (r) => ({
+      material_code: s(r.materialCode),
+      supplier_code: s(r.supplierCode),
+      supplier_trade_name: s(r.supplierTradeName),
+      supplier_material_code: s(r.supplierMaterialCode),
+      preferred: s(r.preferred),
+      qualified: s(r.qualified),
+      notes: s(r.notes),
+    })),
+  inventory_records: () =>
+    flat("inventory", "code", (r) => ({
+      inventory_code: s(r.code),
+      material_code: s(r.materialCode),
+      warehouse: s(r.warehouse),
+      lot: s(r.lot),
+      supplier_lot: s(r.supplierLot),
+      quantity: s(r.quantity),
+      unit: s(r.unit),
+      reserved_quantity: s(r.reservedQuantity),
+      manufactured_at: s(r.manufacturedAt),
+      expires_at: s(r.expiresAt),
+      coa_status: s(r.coaStatus),
+      quarantined: s(r.quarantined),
+      released: s(r.released),
+      unit_cost: s(r.unitCost),
+      currency: s(r.currency),
+      notes: s(r.notes),
+    })),
+  exchange_rates: () =>
+    flat("exchange_rates", "code", (r) => ({
+      base_currency: s(r.baseCurrency),
+      quote_currency: s(r.quoteCurrency),
+      rate: s(r.rate),
+      effective_from: s(r.effectiveFrom),
+      source: s(r.source),
+      notes: s(r.notes),
+    })),
   material_documents: () =>
     flat("material_documents", "code", (r) => ({
       material_code: s(r.materialCode),

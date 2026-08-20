@@ -266,9 +266,15 @@ export const dataExchangeImportJobSchema = z.object({
   templateCode: z.string().min(1),
   templateSchemaVersion: z.string().min(1),
   fileName: z.string().min(1),
-  fileType: z.enum(["csv", "xlsx"]),
-  fileSize: z.number().int().nonnegative(),
-  sha256: z.string().min(1),
+  // "connector" — Session 11 hardening (F1/A) — a DATABASE/REST_API import
+  // has no file at all; claiming "csv" for one was an outright lie in the
+  // provenance record. fileSize/sha256 are correspondingly optional: they
+  // are genuinely inapplicable to a connector-sourced job, never a
+  // fabricated 0/extractionRunId standing in for them (see
+  // extractionRunId below, its own honestly-named field).
+  fileType: z.enum(["csv", "xlsx", "connector"]),
+  fileSize: z.number().int().nonnegative().optional(),
+  sha256: z.string().min(1).optional(),
   status: z.enum(DATA_EXCHANGE_IMPORT_STATUSES),
   mode: z.enum(DATA_EXCHANGE_IMPORT_MODES).default("atomic"),
   totalRows: z.number().int().nonnegative().default(0),
@@ -297,6 +303,15 @@ export const dataExchangeImportJobSchema = z.object({
   sourceSystemId: z.string().optional(),
   connectorType: z.string().optional(),
   mappingProfileCode: z.string().optional(),
+  /** Session 11 hardening (F1/A) — truthful connector provenance,
+   *  additive/optional exactly like the three fields above. Populated
+   *  only when genuinely available from the connector's own extraction
+   *  — never fabricated for a direct file-upload job. */
+  connectorVersion: z.string().optional(),
+  sourceEntity: z.string().optional(),
+  extractionRunId: z.string().optional(),
+  sourceSchemaFingerprint: z.string().optional(),
+  mappingProfileVersion: z.number().int().positive().optional(),
 });
 export type DataExchangeImportJob = z.infer<typeof dataExchangeImportJobSchema>;
 

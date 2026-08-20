@@ -619,7 +619,7 @@ describe("FVL-04.025 Part G — real customer migration fixture (MIG1-MIG35)", (
     const v2 = labResultsProfileV2("fp-lab");
     expect(validateMappingProfileSupersession(v2, [v1])).toEqual([]); // MIG26 — real, valid, linear chain
 
-    limsResults = [...limsResults, { RecordID: "LIMS-5", TrialCode: "LIMS-TRIAL-1", ProjectCode: "LEGACY-FORM-A", FormulaVersion: "1", SampleCode: "S3", TestCode: "LIMS-PH", Replicate: "1", NumericValue: "6.0", Unit: "pH", ResultDate: "2026-02-10", Analyst: "J. Analyst" }];
+    limsResults = [...limsResults, { RecordID: "LIMS-5", TrialCode: "LIMS-TRIAL-1", ProjectCode: "LEGACY-FORM-A", FormulaVersion: "1", SampleCode: "S3", TestCode: "LIMS-PH", Replicate: "1", NumericValue: "6.0", TextValue: "", Unit: "pH", ResultDate: "2026-02-10", Analyst: "J. Analyst" }];
 
     const fetchPage = createHttpFetchAdapter({ baseUrl, pagination: { kind: "page", pageParam: "page", pageSizeParam: "pageSize", pageSize: 2 } });
     const restOpts = { extractionRunId: "run-lab-2", extractedAt: "2026-02-10T00:00:00.000Z", idField: "RecordID", requireExplicitId: true };
@@ -630,13 +630,40 @@ describe("FVL-04.025 Part G — real customer migration fixture (MIG1-MIG35)", (
 
     const connector2 = createRestApiConnector("LEGACY_LIMS", { connectionRef: "lims-conn", endpoints: { lab_results: "/lab-results" } }, restOpts, { fetchPage });
     const prepared = await prepareConnectorImport({ connector: connector2, entity: "lab_results", profile: labResultsProfileV2(fp) });
-    expect(prepared.blockingIssues).toEqual([]);
     const rows = prepared.templates[0].rows;
     const unchangedRow = rows.find((r) => r.sourceRecordId === "LIMS-1")!;
     expect(unchangedRow.reimportState).toBe("MAPPING_PROFILE_CHANGED"); // MIG27 — content identical, profile version differs
     const newRow = rows.find((r) => r.sourceRecordId === "LIMS-5")!;
     expect(newRow.reimportState).toBe("NEW"); // MIG33 — a genuinely new lab result
-    await confirmConnectorImport(prepared, ctx);
+
+    // Section 6D — MAPPING_PROFILE_CHANGED must never silently auto-commit
+    // as though it were a normal update; it blocks the whole batch (the
+    // same F4 atomic-preflight discipline every other unsafe state uses)
+    // until a human explicitly reviews it — even though LIMS-5 on its own
+    // is perfectly safe, mixing it into a batch with unreviewed
+    // profile-version-changed rows must not let it slip through unnoticed.
+    expect(prepared.blockingIssues.some((b) => b.includes("MAPPING_PROFILE_CHANGED"))).toBe(true);
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/);
+    expect((store.get("test_results") ?? []).some((r) => (r as { sampleId?: string }).sampleId === "S3")).toBe(false); // zero write, not even the safe new row
+
+    // A human resolves the review by re-authoring v1's own LIMS-1..4 rows
+    // out of scope for this pass — the realistic path is a source query
+    // that only pulls records since the last successful run. Proven here
+    // via a v2 profile applied to an extraction of ONLY the new record,
+    // which commits cleanly on its own.
+    const onlyNewFetch = async (spec: RestRequestSpec) => {
+      const page = await fetchPage(spec);
+      const parsed = JSON.parse(page.bodyText) as Record<string, string>[];
+      return { ...page, bodyText: JSON.stringify(parsed.filter((r) => r.RecordID === "LIMS-5")) };
+    };
+    const onlyNewConnector = createRestApiConnector("LEGACY_LIMS", { connectionRef: "lims-conn", endpoints: { lab_results: "/lab-results" } }, { ...restOpts, extractionRunId: "run-lab-2-new-only" }, { fetchPage: onlyNewFetch });
+    const onlyNewStaged = await onlyNewConnector.extract("lab_results");
+    const onlyNewFp = discoverSourceSchema("LEGACY_LIMS", [{ entity: "lab_results", records: onlyNewStaged.records }]).fingerprint;
+    const onlyNewConnector2 = createRestApiConnector("LEGACY_LIMS", { connectionRef: "lims-conn", endpoints: { lab_results: "/lab-results" } }, { ...restOpts, extractionRunId: "run-lab-2-new-only" }, { fetchPage: onlyNewFetch });
+    const onlyNewPrepared = await prepareConnectorImport({ connector: onlyNewConnector2, entity: "lab_results", profile: labResultsProfileV2(onlyNewFp) });
+    expect(onlyNewPrepared.blockingIssues).toEqual([]);
+    expect(onlyNewPrepared.templates[0].rows.every((r) => r.reimportState === "NEW")).toBe(true);
+    await confirmConnectorImport(onlyNewPrepared, ctx);
     expect((store.get("test_results") ?? []).some((r) => (r as { sampleId?: string }).sampleId === "S3")).toBe(true);
   });
 
