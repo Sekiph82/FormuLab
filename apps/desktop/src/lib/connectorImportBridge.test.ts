@@ -424,3 +424,141 @@ describe("BR20 (Session 11 hardening, Part 4): a REAL DB-derived ordinal-fallbac
     }
   });
 });
+
+describe("BR21 (Session 11 hardening, Part 7C/7D): a genuine RUNTIME commit-layer failure — never a synthetic injected outcome", () => {
+  it("a row that previews cleanly but fails for real inside the commit handler produces a truthful failed outcome, persists no crosswalk for it, and stops a later template in the same batch from being attempted at all", async () => {
+    // trial_code has no code_reference/referenceTemplate at all (see
+    // dataExchangeRegistry.ts) — the generic preview layer can never
+    // catch a nonexistent trial; only commitLabResults's own real
+    // findOrCreateTrial() logic does, at commit time. A perfect real
+    // runtime-only failure surface, not a fake injected one.
+    store.set("test_definitions", [{ code: "RTF-TEST-1", resultType: "numeric" }]);
+
+    const csv = ["MaterialID,MaterialName,TrialCode,SampleCode,TestCode,Replicate,NumericValue,SupplierID,SupplierName", "RTF-MAT-1,RTF Material,RTF-TRIAL-NONEXISTENT,S1,RTF-TEST-1,1,5.0,RTF-SUP-1,RTF Supplier"].join("\n");
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "combo.csv", fileKind: "csv", text: csv }, stageOpts);
+    const staged = await connector.extract("combo");
+    const schema = discoverSourceSchema("BRIDGE_TEST", [{ entity: "combo", records: staged.records }]);
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("bridge-runtime-failure", 1),
+      profileId: "bridge-runtime-failure",
+      profileName: "Bridge runtime failure",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "combo",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialID", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+        { sourceField: "TrialCode", targetTemplate: "lab_results", targetField: "trial_code" },
+        { sourceField: "SampleCode", targetTemplate: "lab_results", targetField: "sample_code" },
+        { sourceField: "TestCode", targetTemplate: "lab_results", targetField: "test_code" },
+        { sourceField: "Replicate", targetTemplate: "lab_results", targetField: "replicate_number" },
+        { sourceField: "NumericValue", targetTemplate: "lab_results", targetField: "numeric_value" },
+        { sourceField: "SupplierID", targetTemplate: "suppliers", targetField: "supplier_code" },
+        { sourceField: "SupplierName", targetTemplate: "suppliers", targetField: "supplier_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "combo", profile });
+    expect(prepared.blockingIssues).toEqual([]); // previews cleanly — the trial issue is invisible to generic preview
+    // raw_materials structurally depends on suppliers in THIS batch (its
+    // own registry column preferred_supplier_code -> suppliers, present
+    // regardless of whether this particular mapping populates it) —
+    // lab_results has no dependency edge at all here, so it and suppliers
+    // are both immediately ready; raw_materials only becomes ready once
+    // suppliers has committed.
+    expect(prepared.commitOrder).toEqual(["lab_results", "suppliers", "raw_materials"]);
+
+    const confirmed = await confirmConnectorImport(prepared, ctx, { lab_results: { canonicalEntity: "TestResult" } });
+    expect(confirmed.outcomesByTemplate.lab_results[0].outcome).toBe("failed"); // T1 genuinely failed for real, not a synthetic flag
+    expect(confirmed.outcomesByTemplate.lab_results[0].message).toMatch(/no project_code was provided/);
+    expect(confirmed.partialFailureStoppedAt).toBe("lab_results");
+    expect(confirmed.outcomesByTemplate.suppliers).toBeUndefined(); // T2 never even attempted
+    expect(confirmed.outcomesByTemplate.raw_materials).toBeUndefined(); // T3 never even attempted
+    expect(confirmed.crosswalksPersisted).toBe(0); // the failed row's own crosswalk was never persisted
+    expect(store.get("external_id_crosswalks") ?? []).toEqual([]);
+    expect(store.get("suppliers") ?? []).toEqual([]); // nothing downstream committed either
+    expect(store.get("materials") ?? []).toEqual([]);
+  });
+});
+
+describe("BR22 (Session 11 hardening, Part 7D): zero canonical write for CANONICAL_LOCAL_CONFLICT and CROSSWALK_CONFLICT specifically", () => {
+  it("CANONICAL_LOCAL_CONFLICT blocks confirm outright — zero write, not even for the unrelated CHANGED row in the same batch", async () => {
+    const profileFor = (fp: string): MappingProfile => ({
+      schemaVersion: "1.0",
+      code: mappingProfileCode("bridge-conflict-22", 1),
+      profileId: "bridge-conflict-22",
+      profileName: "Bridge conflict 22",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialID", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    });
+    const csv1 = "MaterialID,MaterialName\nBR-22,Original Name";
+    const c1 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: csv1 }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const s1 = await c1.extract("materials");
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: s1.records }]).fingerprint;
+    await confirmConnectorImport(await prepareConnectorImport({ connector: c1, entity: "materials", profile: profileFor(fp1) }), ctx);
+
+    (store.get("materials") ?? []).find((r) => r.code === "BR-22")!.displayName = "Hand-Edited";
+    const csv2 = "MaterialID,MaterialName\nBR-22,Changed Name";
+    const c2 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: csv2 }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c2.extract("materials")).records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector: c2, entity: "materials", profile: profileFor(fp2) });
+    expect(prepared.templates[0].rows[0].reimportState).toBe("CANONICAL_LOCAL_CONFLICT");
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/);
+    expect((store.get("materials") ?? []).find((r) => r.code === "BR-22")!.displayName).toBe("Hand-Edited"); // untouched
+  });
+
+  it("CROSSWALK_CONFLICT blocks confirm outright — zero write, zero crosswalk mutation", async () => {
+    store.set("materials", [{ code: "RM-EXISTING", displayName: "Pre-existing canonical material" }]);
+    store.set("data_exchange_import_jobs", [{ id: "job-1", templateCode: "raw_materials", status: "completed", startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:00.000Z" }]);
+    store.set("data_exchange_import_row_results", [{ id: "row-1", jobId: "job-1", state: "valid_create", naturalKey: "BR-XW-1", targetCollection: "materials", targetRecordId: "RM-EXISTING", sourceRecordId: "BR-XW-1", rawRecordFingerprint: "same-fingerprint", mappingProfileCode: "bridge-xwalk-22::v1" }]);
+    // The real crosswalk store disagrees with what Import History says was committed.
+    store.set("external_id_crosswalks", [{ code: "BRIDGE_TEST::materials::BR-XW-1::RawMaterial", sourceSystemId: "BRIDGE_TEST", sourceEntity: "materials", sourceRecordId: "BR-XW-1", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-SOMETHING-ELSE", status: "active", firstSeenAt: "2026-01-01T00:00:00.000Z", lastSeenAt: "2026-01-01T00:00:00.000Z" }]);
+
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nBR-XW-1,Same Content" }, { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z", idField: "MaterialID", requireExplicitId: true });
+    const staged = await connector.extract("materials");
+    const fp = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged.records }]).fingerprint;
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("bridge-xwalk-22", 1),
+      profileId: "bridge-xwalk-22",
+      profileName: "Bridge crosswalk 22",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialID", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile, crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    expect(prepared.templates[0].rows[0].reimportState).toBe("CROSSWALK_CONFLICT");
+    expect(prepared.blockingIssues.some((b) => b.includes("CROSSWALK_CONFLICT"))).toBe(true);
+    await expect(confirmConnectorImport(prepared, ctx, { raw_materials: { canonicalEntity: "RawMaterial" } })).rejects.toThrow(/blocking issue/);
+    expect(store.get("external_id_crosswalks")).toHaveLength(1); // untouched — still only the original entry
+    expect((store.get("materials") ?? []).find((r) => r.code === "RM-EXISTING")).toBeDefined();
+    expect(store.get("materials")).toHaveLength(1); // nothing new committed
+  });
+});
