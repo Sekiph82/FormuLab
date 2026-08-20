@@ -4,6 +4,7 @@ import { Database, FileText, Globe } from "lucide-react";
 import type { ConnectorConnection, ConnectorPaginationKind, ConnectorType } from "@formulab/shared";
 import { newConnection, saveConnection } from "@/lib/connectorConnections";
 import { testDatabaseConnection, testRestConnection, type ConnectionTestResult } from "@/lib/connectorTest";
+import { pickFile } from "@/lib/tauri";
 import { Field, inputCls, Modal } from "./ui";
 
 /** Section 4/5/6/7 — real "Add Connection" flow: choose type, configure,
@@ -11,47 +12,71 @@ import { Field, inputCls, Modal } from "./ui";
  *  (`connectorConnections.ts`). Only FILE/DATABASE/REST_API are ever
  *  offered (CFUI3) — the same `CONNECTOR_TYPES` the engine itself
  *  defines, never an invented fourth type. */
-export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actorUserId: string; onClose: () => void; onCreated: (c: ConnectorConnection) => void }) {
+export function AddConnectionDialog({
+  actorUserId,
+  editing,
+  onClose,
+  onCreated,
+}: {
+  actorUserId: string;
+  /** Section 4 — when set, this dialog edits this EXISTING connection in
+   *  place (same `code`/`createdAt`/`createdBy`, connector type fixed)
+   *  rather than creating a new one. */
+  editing?: ConnectorConnection;
+  onClose: () => void;
+  onCreated: (c: ConnectorConnection) => void;
+}) {
   const { t } = useTranslation(["session", "common"]);
-  const [type, setType] = useState<ConnectorType | null>(null);
-  const [name, setName] = useState("");
-  const [sourceSystemId, setSourceSystemId] = useState("");
-  const [connectionRef, setConnectionRef] = useState("");
+  const [type, setType] = useState<ConnectorType | null>(editing?.connectorType ?? null);
+  const [name, setName] = useState(editing?.name ?? "");
+  const [sourceSystemId, setSourceSystemId] = useState(editing?.sourceSystemId ?? "");
+  const [connectionRef, setConnectionRef] = useState(editing?.connectionRef ?? "");
   const [saving, setSaving] = useState(false);
 
   // FILE
-  const [fileKind, setFileKind] = useState<ConnectorConnection["fileKind"]>("csv");
-  const [idField, setIdField] = useState("");
-  const [requireExplicitId, setRequireExplicitId] = useState(false);
+  const [fileKind, setFileKind] = useState<ConnectorConnection["fileKind"]>(editing?.fileKind ?? "csv");
+  const [idField, setIdField] = useState(editing?.idField ?? "");
+  const [requireExplicitId, setRequireExplicitId] = useState(editing?.requireExplicitId ?? false);
 
-  // DATABASE
-  const [driver, setDriver] = useState("");
-  const [host, setHost] = useState("");
-  const [port, setPort] = useState("");
-  const [database, setDatabase] = useState("");
-  const [dbSchema, setDbSchema] = useState("");
-  const [table, setTable] = useState("");
+  // DATABASE — SQLite only (the one genuinely production-supported
+  // driver in this build, Section 6). `database` holds the absolute
+  // local file path, picked via the native file dialog — never a
+  // host/port/username/password, because none exist for a local file.
+  const [database, setDatabase] = useState(editing?.database ?? "");
+  const [table, setTable] = useState(editing?.table ?? "");
 
   // REST
-  const [baseUrl, setBaseUrl] = useState("");
-  const [path, setPath] = useState("");
-  const [recordArrayPath, setRecordArrayPath] = useState("");
-  const [paginationKind, setPaginationKind] = useState<ConnectorPaginationKind>("none");
-  const [pageParam, setPageParam] = useState("page");
-  const [pageSizeParam, setPageSizeParam] = useState("pageSize");
-  const [pageSizeValue, setPageSizeValue] = useState("50");
-  const [maxPages, setMaxPages] = useState("");
-  const [timeoutMs, setTimeoutMs] = useState("");
+  const [baseUrl, setBaseUrl] = useState(editing?.baseUrl ?? "");
+  const [path, setPath] = useState(editing?.path ?? "");
+  const [recordArrayPath, setRecordArrayPath] = useState(editing?.recordArrayPath ?? "");
+  const [paginationKind, setPaginationKind] = useState<ConnectorPaginationKind>(editing?.paginationKind ?? "none");
+  const [pageParam, setPageParam] = useState(editing?.pageParam ?? "page");
+  const [pageSizeParam, setPageSizeParam] = useState(editing?.pageSizeParam ?? "pageSize");
+  const [pageSizeValue, setPageSizeValue] = useState(editing?.pageSizeValue ? String(editing.pageSizeValue) : "50");
+  const [offsetParam, setOffsetParam] = useState(editing?.offsetParam ?? "offset");
+  const [limitParam, setLimitParam] = useState(editing?.limitParam ?? "limit");
+  const [limitValue, setLimitValue] = useState(editing?.limitValue ? String(editing.limitValue) : "50");
+  const [cursorParam, setCursorParam] = useState(editing?.cursorParam ?? "cursor");
+  const [nextCursorPath, setNextCursorPath] = useState(editing?.nextCursorPath ?? "");
+  const [maxPages, setMaxPages] = useState(editing?.maxPages ? String(editing.maxPages) : "");
+  const [timeoutMs, setTimeoutMs] = useState(editing?.timeoutMs ? String(editing.timeoutMs) : "");
 
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [testing, setTesting] = useState(false);
 
   const buildConnection = (): ConnectorConnection | null => {
     if (!type || !name.trim() || !sourceSystemId.trim()) return null;
-    const base = newConnection(name.trim(), type, sourceSystemId.trim(), actorUserId);
+    // Section 4 — Configure edits the EXISTING record in place: same
+    // code/createdAt/createdBy, connector type never changes. Otherwise a
+    // genuinely new record, exactly as before.
+    const base: ConnectorConnection = editing
+      ? { ...editing, name: name.trim(), connectorType: type, sourceSystemId: sourceSystemId.trim() }
+      : newConnection(name.trim(), type, sourceSystemId.trim(), actorUserId);
     if (type === "FILE") return { ...base, fileKind, idField: idField || undefined, requireExplicitId, connectionRef: connectionRef || undefined };
     if (type === "DATABASE")
-      return { ...base, driver: driver || undefined, host: host || undefined, port: port ? Number(port) : undefined, database: database || undefined, dbSchema: dbSchema || undefined, table: table || undefined, connectionRef: connectionRef || undefined, idField: idField || undefined, requireExplicitId };
+      // `driver` is always "sqlite" — the only production-supported
+      // database driver in this build; never user-editable (Section 6).
+      return { ...base, driver: "sqlite", database: database || undefined, table: table || undefined, idField: idField || undefined, requireExplicitId };
     return {
       ...base,
       baseUrl: baseUrl || undefined,
@@ -59,6 +84,8 @@ export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actor
       recordArrayPath: recordArrayPath || undefined,
       paginationKind,
       ...(paginationKind === "page" ? { pageParam, pageSizeParam, pageSizeValue: Number(pageSizeValue) || undefined } : {}),
+      ...(paginationKind === "offset" ? { offsetParam, limitParam, limitValue: Number(limitValue) || undefined } : {}),
+      ...(paginationKind === "cursor" ? { cursorParam, nextCursorPath: nextCursorPath || undefined } : {}),
       maxPages: maxPages ? Number(maxPages) : undefined,
       timeoutMs: timeoutMs ? Number(timeoutMs) : undefined,
       connectionRef: connectionRef || undefined,
@@ -67,12 +94,23 @@ export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actor
     };
   };
 
+  // Section 8/RESTP5 — an explicitly selected pagination mode must have
+  // its own required fields filled before Test/Save is allowed; never
+  // silently saved as an incomplete configuration that degrades to
+  // "none" at extraction time.
+  const paginationComplete =
+    type !== "REST_API" ||
+    paginationKind === "none" ||
+    (paginationKind === "page" && !!pageParam.trim() && !!pageSizeParam.trim() && !!pageSizeValue.trim()) ||
+    (paginationKind === "offset" && !!offsetParam.trim() && !!limitParam.trim() && !!limitValue.trim()) ||
+    (paginationKind === "cursor" && !!cursorParam.trim() && !!nextCursorPath.trim());
+
   const onTest = async () => {
     const conn = buildConnection();
     if (!conn) return;
     setTesting(true);
     try {
-      const result = conn.connectorType === "REST_API" ? await testRestConnection(conn, sourceSystemId || "entity") : conn.connectorType === "DATABASE" ? testDatabaseConnection() : { ok: true, message: t("dataExchange.connectors.addConnection.fileTestHint") };
+      const result = conn.connectorType === "REST_API" ? await testRestConnection(conn, sourceSystemId || "entity") : conn.connectorType === "DATABASE" ? await testDatabaseConnection(conn) : { ok: true, message: t("dataExchange.connectors.addConnection.fileTestHint") };
       setTestResult(result);
     } finally {
       setTesting(false);
@@ -84,9 +122,19 @@ export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actor
     if (!conn) return;
     setSaving(true);
     try {
+      // Section 27 — honest status. A fresh Test Connection result from
+      // THIS editing session wins. Otherwise: a brand-new connection
+      // starts (and stays) "never_tested"; an EXISTING connection being
+      // Configured without a fresh re-test is reset to "never_tested"
+      // rather than risk carrying forward a stale "ready" for
+      // configuration nobody actually re-verified this session — cheaper
+      // and more honest than trying to diff every field for "did
+      // anything connection-affecting actually change".
       const withResult: ConnectorConnection = testResult
         ? { ...conn, status: testResult.ok ? "ready" : "error", lastTestedAt: new Date().toISOString(), lastTestMessage: testResult.message }
-        : conn;
+        : editing
+          ? { ...conn, status: "never_tested", lastTestedAt: undefined, lastTestMessage: undefined }
+          : conn;
       await saveConnection(withResult);
       onCreated(withResult);
     } finally {
@@ -95,7 +143,7 @@ export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actor
   };
 
   return (
-    <Modal title={t("dataExchange.connectors.addConnection.title")} onClose={onClose} wide>
+    <Modal title={editing ? t("dataExchange.connectors.addConnection.configureTitle") : t("dataExchange.connectors.addConnection.title")} onClose={onClose} wide>
       {!type ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TypeCard icon={<FileText size={18} />} title={t("dataExchange.connectors.addConnection.fileTitle")} description={t("dataExchange.connectors.addConnection.fileDescription")} onClick={() => setType("FILE")} />
@@ -135,28 +183,27 @@ export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actor
 
           {type === "DATABASE" && (
             <div className="space-y-2">
-              <p className="rounded-input border border-border-faint bg-surface-2 px-2 py-1.5 text-[11px] text-muted">{t("dataExchange.connectors.addConnection.databaseLimitation")}</p>
+              <p className="rounded-input border border-border-faint bg-surface-2 px-2 py-1.5 text-[11px] text-muted">{t("dataExchange.connectors.addConnection.databaseDriverNotice")}</p>
               <div className="grid grid-cols-2 gap-2">
                 <Field label={t("dataExchange.connectors.addConnection.driver")}>
-                  <input value={driver} onChange={(e) => setDriver(e.target.value)} className={inputCls} />
+                  {/* SQLite is the only genuinely production-supported driver in
+                      this build — never a free-text/selectable field. */}
+                  <input value="SQLite" disabled className={inputCls} />
                 </Field>
-                <Field label={t("dataExchange.connectors.addConnection.host")}>
-                  <input value={host} onChange={(e) => setHost(e.target.value)} className={inputCls} />
+                <Field label={t("dataExchange.connectors.addConnection.sqliteFile")} hint={t("dataExchange.connectors.addConnection.sqliteFileHint")}>
+                  <div className="flex gap-1">
+                    <input value={database} readOnly className={inputCls} placeholder={t("dataExchange.connectors.addConnection.sqliteFileNone")} />
+                    <button
+                      type="button"
+                      onClick={() => void pickFile(["sqlite", "db", "sqlite3"]).then((p) => p && setDatabase(p))}
+                      className="shrink-0 rounded-input border border-border px-2 py-1 text-[11px] text-text hover:bg-surface-2"
+                    >
+                      {t("dataExchange.connectors.addConnection.chooseFile")}
+                    </button>
+                  </div>
                 </Field>
-                <Field label={t("dataExchange.connectors.addConnection.port")}>
-                  <input value={port} onChange={(e) => setPort(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={t("dataExchange.connectors.addConnection.database")}>
-                  <input value={database} onChange={(e) => setDatabase(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={t("dataExchange.connectors.addConnection.dbSchema")}>
-                  <input value={dbSchema} onChange={(e) => setDbSchema(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={t("dataExchange.connectors.addConnection.table")}>
+                <Field label={t("dataExchange.connectors.addConnection.table")} hint={t("dataExchange.connectors.addConnection.databaseTableHint")}>
                   <input value={table} onChange={(e) => setTable(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label={t("dataExchange.connectors.addConnection.connectionRef")} hint={t("dataExchange.connectors.addConnection.connectionRefHint")}>
-                  <input value={connectionRef} onChange={(e) => setConnectionRef(e.target.value)} className={inputCls} />
                 </Field>
               </div>
             </div>
@@ -203,6 +250,29 @@ export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actor
                     </Field>
                   </>
                 )}
+                {paginationKind === "offset" && (
+                  <>
+                    <Field label={t("dataExchange.connectors.addConnection.offsetParam")}>
+                      <input value={offsetParam} onChange={(e) => setOffsetParam(e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label={t("dataExchange.connectors.addConnection.limitParam")}>
+                      <input value={limitParam} onChange={(e) => setLimitParam(e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label={t("dataExchange.connectors.addConnection.limitValue")}>
+                      <input value={limitValue} onChange={(e) => setLimitValue(e.target.value)} className={inputCls} />
+                    </Field>
+                  </>
+                )}
+                {paginationKind === "cursor" && (
+                  <>
+                    <Field label={t("dataExchange.connectors.addConnection.cursorParam")}>
+                      <input value={cursorParam} onChange={(e) => setCursorParam(e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label={t("dataExchange.connectors.addConnection.nextCursorPath")}>
+                      <input value={nextCursorPath} onChange={(e) => setNextCursorPath(e.target.value)} className={inputCls} />
+                    </Field>
+                  </>
+                )}
                 <Field label={t("dataExchange.connectors.addConnection.maxPages")}>
                   <input value={maxPages} onChange={(e) => setMaxPages(e.target.value)} className={inputCls} />
                 </Field>
@@ -211,6 +281,10 @@ export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actor
                 </Field>
               </div>
               <p className="text-[10px] text-muted">{t("dataExchange.connectors.addConnection.getOnlyNotice")}</p>
+              <p className="text-[10px] text-muted">{t("dataExchange.connectors.addConnection.restAuthNotice")}</p>
+              {!paginationComplete && (
+                <p className="text-[10px] text-error">{t("dataExchange.connectors.addConnection.paginationIncomplete")}</p>
+              )}
             </div>
           )}
 
@@ -219,16 +293,19 @@ export function AddConnectionDialog({ actorUserId, onClose, onCreated }: { actor
           )}
 
           <div className="flex items-center justify-between pt-2">
-            <button onClick={() => setType(null)} className="rounded-input border border-border px-2.5 py-1.5 text-[11px] text-muted hover:bg-surface-2">
+            <button
+              onClick={() => (editing ? onClose() : setType(null))}
+              className="rounded-input border border-border px-2.5 py-1.5 text-[11px] text-muted hover:bg-surface-2"
+            >
               {t("common:actions.cancel")}
             </button>
             <div className="flex gap-2">
               {type !== "FILE" && (
-                <button onClick={() => void onTest()} disabled={testing} className="rounded-input border border-border px-2.5 py-1.5 text-[11px] text-text hover:bg-surface-2 disabled:opacity-50">
+                <button onClick={() => void onTest()} disabled={testing || !paginationComplete} className="rounded-input border border-border px-2.5 py-1.5 text-[11px] text-text hover:bg-surface-2 disabled:opacity-50">
                   {testing ? t("dataExchange.connectors.addConnection.testing") : t("dataExchange.connectors.addConnection.testConnection")}
                 </button>
               )}
-              <button onClick={() => void onSave()} disabled={saving || !name.trim() || !sourceSystemId.trim()} className="rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+              <button onClick={() => void onSave()} disabled={saving || !name.trim() || !sourceSystemId.trim() || !paginationComplete} className="rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
                 {t("common:actions.save")}
               </button>
             </div>

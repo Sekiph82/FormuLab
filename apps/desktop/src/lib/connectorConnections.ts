@@ -90,11 +90,11 @@ export async function lastImportTimestampFor(connection: ConnectorConnection): P
   return matching.reduce((latest, j) => ((j.completedAt ?? j.startedAt) > latest ? (j.completedAt ?? j.startedAt) : latest), "");
 }
 
-/** Real Mapping Profile count for a connection — derived from the
- *  EXISTING `mapping_profiles` collection by `sourceSystemId`, never a
- *  second count stored redundantly on the connection record itself
- *  (the persisted `mappingProfileCount` field exists only as a fast
- *  display cache updated here, never an independent source of truth). */
+/** Real Mapping Profile count for a connection — derived LIVE from the
+ *  EXISTING `mapping_profiles` collection by `sourceSystemId`, every
+ *  time. The persisted `ConnectorConnection.mappingProfileCount` field
+ *  is deprecated and never read or written by this function or any UI
+ *  — there is exactly one source of truth for this count. */
 export async function mappingProfileCountFor(sourceSystemId: string): Promise<number> {
   const profiles = await listRecords("mapping_profiles");
   return profiles.filter((p) => p.sourceSystemId === sourceSystemId).length;

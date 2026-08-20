@@ -24,23 +24,28 @@ export function restSourceFromConnection(conn: ConnectorConnection, entity: stri
   };
 }
 
+/** Section 8/RESTP5 — an explicitly selected pagination mode with an
+ *  incomplete configuration is a real, blocking error, never silently
+ *  downgraded to "none" (that would extract only whatever the source's
+ *  own default single page happens to be, without ever telling the
+ *  operator their configured pagination was ignored). */
 function paginationFromConnection(conn: ConnectorConnection): RestPaginationConfig {
   switch (conn.paginationKind) {
     case "page":
       if (conn.pageParam && conn.pageSizeParam && conn.pageSizeValue) {
         return { kind: "page", pageParam: conn.pageParam, pageSizeParam: conn.pageSizeParam, pageSize: conn.pageSizeValue };
       }
-      return { kind: "none" };
+      throw new Error(`"${conn.name}" has page pagination selected but is missing pageParam/pageSizeParam/pageSizeValue.`);
     case "offset":
       if (conn.offsetParam && conn.limitParam && conn.limitValue) {
         return { kind: "offset", offsetParam: conn.offsetParam, limitParam: conn.limitParam, limit: conn.limitValue };
       }
-      return { kind: "none" };
+      throw new Error(`"${conn.name}" has offset pagination selected but is missing offsetParam/limitParam/limitValue.`);
     case "cursor":
       if (conn.cursorParam && conn.nextCursorPath) {
         return { kind: "cursor", cursorParam: conn.cursorParam, nextCursorPath: conn.nextCursorPath };
       }
-      return { kind: "none" };
+      throw new Error(`"${conn.name}" has cursor pagination selected but is missing cursorParam/nextCursorPath.`);
     default:
       return { kind: "none" };
   }

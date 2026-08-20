@@ -618,6 +618,12 @@ export const connectorConnectionSchema = z.object({
    *  response bodies, headers, connection strings, or any value a real
    *  connector error would already redact. */
   lastTestMessage: z.string().optional(),
+  /** @deprecated Not authoritative and never kept in sync — always 0 at
+   *  creation, never updated afterward. The real count is always
+   *  derived live from the `mapping_profiles` collection
+   *  (`mappingProfileCountFor()`, `apps/desktop/src/lib/connectorConnections.ts`).
+   *  Field kept only for persisted-record schema compatibility; no
+   *  caller may read it for business truth. */
   mappingProfileCount: z.number().int().nonnegative().default(0),
   notes: z.string().optional(),
   archived: z.boolean().default(false),

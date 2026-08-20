@@ -17,14 +17,21 @@ import {
   httpFetchConfigFromConnection,
   restSourceFromConnection,
   type ConnectorConnection,
+  type ConnectorResult,
   type SourceSchema,
 } from "@formulab/shared";
+import { createSqliteAdapter } from "./connectorDatabaseSqlite";
 
 export interface ConnectionTestResult {
   ok: boolean;
   message: string;
   schema?: SourceSchema;
   sampleRecordCount?: number;
+  /** Section 9 — the real bounded staged result from this one-page
+   *  round trip (never a second, larger fetch) — lets Source Explorer
+   *  render actual sample records/identity for REST the same way it
+   *  already does for FILE, instead of only a record count. */
+  staged?: ConnectorResult;
 }
 
 /**
@@ -43,19 +50,29 @@ export async function testRestConnection(connection: ConnectorConnection, entity
       return { ok: false, message: result.errors[0].message };
     }
     const schema = discoverSourceSchema(connection.sourceSystemId, [{ entity, records: result.records }]);
-    return { ok: true, message: `Connected — ${result.records.length} record(s) read from this page.`, schema, sampleRecordCount: result.records.length };
+    return { ok: true, message: `Connected — ${result.records.length} record(s) read from this page.`, schema, sampleRecordCount: result.records.length, staged: result };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Connection failed." };
   }
 }
 
 /**
- * Honest, non-fabricated result: no production `DatabaseAdapter` exists
- * in this build. Never pretends success — see the module doc comment.
+ * Section 6/7 — a REAL, production round trip: opens the connection's
+ * configured SQLite file read-only through `createSqliteAdapter()` (the
+ * ONLY real `DatabaseAdapter` implementation wired into a customer
+ * connection) and lists its real tables/views. Never fabricates success
+ * — a missing/invalid file, or one this process cannot open read-only,
+ * surfaces the adapter's own real error message.
  */
-export function testDatabaseConnection(): ConnectionTestResult {
-  return {
-    ok: false,
-    message: "No database driver is available in this build yet. The connection configuration is saved for when a real driver is wired — see docs/CONNECTOR_MANAGEMENT_FRONTEND.md.",
-  };
+export async function testDatabaseConnection(connection: ConnectorConnection): Promise<ConnectionTestResult> {
+  if (!connection.database) {
+    return { ok: false, message: "No SQLite database file is configured yet — choose one first." };
+  }
+  try {
+    const tables = await createSqliteAdapter(connection.database).listTables();
+    if (tables.length === 0) return { ok: true, message: "Connected — this database has no tables or views yet." };
+    return { ok: true, message: `Connected — ${tables.length} table(s)/view(s) found.` };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Could not open this SQLite database." };
+  }
 }

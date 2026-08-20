@@ -47,14 +47,39 @@ describe("httpFetchConfigFromConnection", () => {
     });
   });
 
-  it("defaults to no pagination when incompletely configured", () => {
-    const conn = baseConnection({ connectorType: "REST_API", baseUrl: "https://api.example.com", paginationKind: "page" });
-    expect(httpFetchConfigFromConnection(conn).pagination).toEqual({ kind: "none" });
-  });
-
   it("throws when no base URL is configured", () => {
     const conn = baseConnection({ connectorType: "REST_API" });
     expect(() => httpFetchConfigFromConnection(conn)).toThrow(/no configured base URL/);
+  });
+});
+
+describe("httpFetchConfigFromConnection — pagination (RESTP1-RESTP5)", () => {
+  const withBase = (overrides: Partial<ConnectorConnection>) => baseConnection({ connectorType: "REST_API", baseUrl: "https://api.example.com", ...overrides });
+
+  it("RESTP1: none pagination", () => {
+    const conn = withBase({ paginationKind: "none" });
+    expect(httpFetchConfigFromConnection(conn).pagination).toEqual({ kind: "none" });
+  });
+
+  it("RESTP2: page pagination config", () => {
+    const conn = withBase({ paginationKind: "page", pageParam: "page", pageSizeParam: "size", pageSizeValue: 20 });
+    expect(httpFetchConfigFromConnection(conn).pagination).toEqual({ kind: "page", pageParam: "page", pageSizeParam: "size", pageSize: 20 });
+  });
+
+  it("RESTP3: offset pagination config", () => {
+    const conn = withBase({ paginationKind: "offset", offsetParam: "offset", limitParam: "limit", limitValue: 50 });
+    expect(httpFetchConfigFromConnection(conn).pagination).toEqual({ kind: "offset", offsetParam: "offset", limitParam: "limit", limit: 50 });
+  });
+
+  it("RESTP4: cursor pagination config", () => {
+    const conn = withBase({ paginationKind: "cursor", cursorParam: "cursor", nextCursorPath: "meta.nextCursor" });
+    expect(httpFetchConfigFromConnection(conn).pagination).toEqual({ kind: "cursor", cursorParam: "cursor", nextCursorPath: "meta.nextCursor" });
+  });
+
+  it("RESTP5: an explicitly selected but incomplete pagination mode is blocked, never silently downgraded to none", () => {
+    expect(() => httpFetchConfigFromConnection(withBase({ paginationKind: "page" }))).toThrow(/page pagination selected but is missing/);
+    expect(() => httpFetchConfigFromConnection(withBase({ paginationKind: "offset" }))).toThrow(/offset pagination selected but is missing/);
+    expect(() => httpFetchConfigFromConnection(withBase({ paginationKind: "cursor" }))).toThrow(/cursor pagination selected but is missing/);
   });
 });
 

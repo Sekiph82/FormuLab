@@ -24,6 +24,7 @@ export function ConnectionsScreen({
   const [connections, setConnections] = useState<ConnectorConnection[]>([]);
   const [meta, setMeta] = useState<Record<string, { runs: number; lastImport?: string; profiles: number }>>({});
   const [showAdd, setShowAdd] = useState(false);
+  const [configuring, setConfiguring] = useState<ConnectorConnection | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
@@ -74,6 +75,7 @@ export function ConnectionsScreen({
             t("dataExchange.connectors.connections.type"),
             t("dataExchange.connectors.connections.sourceSystem"),
             t("dataExchange.connectors.connections.status"),
+            t("dataExchange.connectors.connections.lastTested"),
             t("dataExchange.connectors.connections.lastImport"),
             t("dataExchange.connectors.connections.mappingProfiles"),
             t("dataExchange.connectors.connections.actions"),
@@ -87,11 +89,17 @@ export function ConnectionsScreen({
               c.connectorType,
               c.sourceSystemId,
               <StatusBadge key="status" status={c.status} />,
+              <span key="lastTested" title={c.lastTestMessage ?? undefined}>
+                {c.lastTestedAt ? new Date(c.lastTestedAt).toLocaleString() : t("dataExchange.connectors.connections.never")}
+              </span>,
               meta[c.code]?.lastImport ? new Date(meta[c.code].lastImport!).toLocaleString() : t("dataExchange.connectors.connections.never"),
               String(meta[c.code]?.profiles ?? 0),
               <div key="actions" className="flex flex-wrap gap-1">
                 <button onClick={() => onOpenExplorer(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
                   {t("dataExchange.connectors.connections.open")}
+                </button>
+                <button onClick={() => setConfiguring(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
+                  {t("dataExchange.connectors.connections.configure")}
                 </button>
                 <button onClick={() => onOpenMapping(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
                   {t("dataExchange.connectors.tabs.mapping")}
@@ -143,6 +151,18 @@ export function ConnectionsScreen({
           onClose={() => setShowAdd(false)}
           onCreated={() => {
             setShowAdd(false);
+            void refresh();
+          }}
+        />
+      )}
+
+      {configuring && (
+        <AddConnectionDialog
+          actorUserId={actorUserId}
+          editing={configuring}
+          onClose={() => setConfiguring(null)}
+          onCreated={() => {
+            setConfiguring(null);
             void refresh();
           }}
         />
