@@ -1,11 +1,13 @@
 """Tests for the shared literature cache (cache-first retrieval)."""
 
 import csv
+import hashlib
 import json
 import os
 import tempfile
 import unittest
 
+import artifact_naming as an
 import literature_cache as lc
 
 
@@ -533,6 +535,98 @@ class CacheTests(unittest.TestCase):
         self.assertNotIn("semantic_scholar", default)
         self.assertNotIn("core", default)
         self.assertNotIn("base", default)
+
+
+class ArtifactNamingIntegrationTests(unittest.TestCase):
+    """FVL-04.026 (B6) — a REAL integration test for the actual literature
+    acquisition/save path, against a real local HTTP server (never a fake
+    fetch_pdfs stand-in), proving the human-readable naming convention is
+    genuinely wired into `_pdf_name()`/`fetch_pdfs()` and that provenance
+    (doi/oa_url/content_sha256) survives alongside it."""
+
+    @classmethod
+    def setUpClass(cls):
+        import http.server
+        import threading
+
+        pdf_bytes = b"%PDF-1.4\n%real-fixture-bytes-for-fvl-04-026\n"
+        cls._pdf_bytes = pdf_bytes
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                self.send_response(200)
+                self.send_header("Content-Type", "application/pdf")
+                self.end_headers()
+                self.wfile.write(pdf_bytes)
+
+            def log_message(self, *a):  # silence
+                pass
+
+        cls._server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        cls._port = cls._server.server_address[1]
+        cls._thread = threading.Thread(target=cls._server.serve_forever, daemon=True)
+        cls._thread.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._server.shutdown()
+        cls._thread.join(timeout=5)
+
+    def test_real_download_produces_the_new_human_readable_filename_and_preserves_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            library = os.path.join(tmp, "library")
+            out_dir = os.path.join(tmp, "session")
+            paper = {
+                "source_db": "openalex",
+                "title": "Herbal Anti-Dandruff Shampoo Formulation and Evaluation",
+                "year": 2024,
+                "authors": "Sharma, A.; Kumar, B.",
+                "venue": "J. Cosmet. Sci.",
+                "doi": "10.1234/jcs.2024.001",
+                "is_oa": True,
+                "oa_url": f"http://127.0.0.1:{self._port}/paper.pdf",
+                "cited_by": 0,
+                "concepts": "",
+                "abstract": "",
+            }
+            got = lc.fetch_pdfs([paper], library, out_dir, target=1)
+            self.assertEqual(len(got), 1)
+            result = got[0]
+
+            # The real filename genuinely produced by the real save path —
+            # never hand-asserted against a standalone sanitizer nothing
+            # calls.
+            expected_filename = an.literature_filename("Sharma, A.", 2024, paper["title"], "10.1234/jcs.2024.001", "pdf")
+            self.assertEqual(result["pdf_file"], expected_filename)
+            self.assertTrue(expected_filename.startswith("LIT_2024_"))
+
+            # Original provenance preserved, never destroyed by the new name.
+            self.assertEqual(result["doi"], "10.1234/jcs.2024.001")
+            self.assertEqual(result["oa_url"], paper["oa_url"])
+            self.assertEqual(result["source_db"], "openalex")
+            self.assertIn("resolved_via", result)
+
+            # NAME16 — a real content fingerprint was computed and preserved.
+            self.assertEqual(result["content_sha256"], hashlib.sha256(self._pdf_bytes).hexdigest())
+
+            # The file genuinely exists under the human-readable name, in
+            # both the shared library and the session copy.
+            self.assertTrue(os.path.isfile(os.path.join(library, "pdfs", expected_filename)))
+            self.assertTrue(os.path.isfile(os.path.join(out_dir, "pdfs", expected_filename)))
+
+    def test_no_mass_rename_of_existing_library_files(self):
+        # A file already saved under the OLD opaque naming scheme must stay
+        # exactly where it is — this task applies prospectively to NEW
+        # acquisitions only, never a destructive rename pass over history.
+        with tempfile.TemporaryDirectory() as tmp:
+            library = os.path.join(tmp, "library")
+            os.makedirs(os.path.join(library, "pdfs"), exist_ok=True)
+            old_name = "10.1234_jcs.2024.001.pdf"
+            old_path = os.path.join(library, "pdfs", old_name)
+            with open(old_path, "wb") as fh:
+                fh.write(self._pdf_bytes)
+            lc.gather(["antidandruff shampoo"], os.path.join(tmp, "session"), library, target=1, download_pdfs=False)
+            self.assertTrue(os.path.isfile(old_path))  # untouched
 
 
 if __name__ == "__main__":
