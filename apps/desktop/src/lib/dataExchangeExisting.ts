@@ -1029,3 +1029,39 @@ export async function loadPriorCommittedRows(templateCode: string): Promise<Prio
       canonicalCandidateFingerprint: r.canonicalCandidateFingerprint,
     }));
 }
+
+/**
+ * Part A3 (FVL-04 close-out) — the ONE generic "does the canonical record a
+ * PRIOR successful commit targeted still exist RIGHT NOW" check, working
+ * from the prior row-result's own real `targetCollection`/`targetRecordId`
+ * (`data_exchange_import_row_results`, already captured for every
+ * duplicatePolicy — `create_or_update`, `append_history`, `new_revision`
+ * alike) — never inferred from the CURRENT candidate's own natural key,
+ * which may have drifted, and never restricted to `create_or_update` the
+ * way the natural-key-indexed `loadLiveCandidateFields()` map necessarily
+ * is (an `append_history`/`new_revision` record's generated id is never a
+ * natural key, so it can never appear in that map). Every commit handler's
+ * own `targetRecordId` is either `record.code` or `record.id`
+ * (`dataExchangeCommit.ts`, audited) — checked against both, generically,
+ * for any real masterdata collection. `formula_bom`'s own target is a
+ * synthetic `"<code>#v<version>"` string against the file-based
+ * formulation store, not a masterdata collection — resolved through the
+ * SAME `listFormulations()`/`readFormulation()` pair `loadExistingFormulaBom()`
+ * already uses, never a second lookup mechanism. Returns `undefined` only
+ * when there is genuinely nothing to check (`targetCollection`/
+ * `targetRecordId` absent) — never guessed true or false.
+ */
+export async function priorTargetExists(targetCollection: string | undefined, targetRecordId: string | undefined): Promise<boolean | undefined> {
+  if (!targetCollection || !targetRecordId) return undefined;
+  if (targetCollection === "formulations") {
+    const [code, versionPart] = targetRecordId.split("#v");
+    const formulations = await listFormulations();
+    const formulation = formulations.find((f) => f.code === code);
+    if (!formulation) return false;
+    if (!versionPart) return true;
+    const { versions } = await readFormulation(formulation.id);
+    return versions.some((v) => String(v.versionNumber) === versionPart);
+  }
+  const records = (await listRecords(targetCollection as Collection)) as unknown as Record<string, unknown>[];
+  return records.some((r) => r.code === targetRecordId || r.id === targetRecordId);
+}

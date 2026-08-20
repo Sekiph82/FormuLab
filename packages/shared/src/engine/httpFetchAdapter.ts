@@ -51,29 +51,40 @@ export interface HttpFetchAdapterConfig {
    *  timed out. A hung source (or a connection that silently drops)
    *  must never block extraction forever. Default 30000. */
   timeoutMs?: number;
-  /** Session 12 hardening (Part 2) — an OPTIONAL factory for a real
-   *  `AbortController` COMPATIBLE WITH THIS REALM'S OWN `fetch()`
-   *  implementation, used to genuinely terminate the underlying request
-   *  when the timeout fires (never just abandoning it to run to
-   *  completion in the background). Deliberately not constructed
-   *  internally: `packages/shared`'s own tests run under plain Node
-   *  (where the global `fetch`/`AbortController` are the SAME undici
-   *  realm and a bare `new AbortController()` works correctly), but
-   *  `apps/desktop`'s own test suite runs under jsdom, which installs
-   *  its OWN spec-compliant `AbortSignal`/`AbortController` classes —
-   *  DIFFERENT objects from the ones Node's global `fetch()` validates
-   *  a `signal` against. Passing a jsdom-realm signal into that `fetch()`
-   *  throws `TypeError: RequestInit: Expected signal ... to be an
-   *  instance of AbortSignal` on EVERY request, not just at timeout —
-   *  a real regression this session found, reproduced, and fixed by
-   *  making cancellation opt-in rather than assumed compatible. Left
-   *  `undefined` (the default, used by every test in this codebase
-   *  today): the timeout still bounds the CALLER's own wait via
-   *  `Promise.race()`, safely, in every realm — the underlying request
-   *  is merely not itself cancelled. A caller running in a genuinely
-   *  single-realm environment (a real browser/Tauri webview, or plain
-   *  Node) can supply `() => new AbortController()` here to additionally
-   *  get true socket-level cancellation on timeout. */
+  /** Session 12 Part 2 hardening (superseded by Session "FVL-04 close-out"
+   *  Part A1 below) — an override factory for the `AbortController` used
+   *  to genuinely terminate the underlying request when the timeout
+   *  fires. Cancellation is now UNCONDITIONAL: `createHttpFetchAdapter()`
+   *  defaults this to `() => new AbortController()` and ALWAYS attaches
+   *  `signal` to the real `fetch()` call — there is no opt-in path left
+   *  and no separate "test-only" constructor; the one exported factory
+   *  IS the production adapter-creation path, so its own default must
+   *  cancel for that requirement to mean anything.
+   *
+   *  This field still exists only so a caller can INJECT a specific
+   *  `AbortController` implementation (a spy in a unit test, or a
+   *  realm-matched one) rather than the ambient global — it is not
+   *  needed to "enable" cancellation, which is now always on.
+   *
+   *  Why this is now safe by default: the earlier opt-in design existed
+   *  because `apps/desktop`'s vitest suite ran this adapter under a
+   *  `jsdom` environment, whose OWN installed `AbortController`/
+   *  `AbortSignal` globals are different objects from the ones Node's
+   *  `fetch()` (undici) validates a `signal` against — passing that
+   *  jsdom-realm signal into `fetch()` throws `TypeError: RequestInit:
+   *  Expected signal ... to be an instance of AbortSignal` on EVERY
+   *  request. That mismatch is an artifact of jsdom sharing a global
+   *  namespace with Node inside a single test process — it can never
+   *  occur in a real production runtime (a Tauri webview or a plain
+   *  Node process both have exactly ONE `fetch`/`AbortController` pair,
+   *  from the same realm, by construction). The correct fix is therefore
+   *  not "make cancellation optional" but "don't run this adapter's real
+   *  HTTP tests inside a realm that poisons the global `AbortController`"
+   *  — `apps/desktop/src/lib/customerMigrationFixture.test.ts` (the one
+   *  file in that package that exercises real fetch through this
+   *  adapter) now declares `@vitest-environment node` for exactly this
+   *  reason, matching `packages/shared`'s own tests, which already run
+   *  under `node`. */
   createAbortController?: () => AbortController;
 }
 
@@ -147,21 +158,26 @@ export function createHttpFetchAdapter(config: HttpFetchAdapterConfig): (spec: R
 
     const url = buildUrl(spec, config, pageState);
 
-    // Session 11/12 hardening (Part 5A / Part 2) — a hung/dropped source
-    // can never block extraction forever, AND the underlying request
-    // must not be left running in the background once timed out.
-    // `Promise.race()` alone (Session 11) safely bounds the CALLER's own
-    // wait in every realm, but never actually cancels the request.
-    // `config.createAbortController` (Session 12), when the caller
-    // supplies one, ALSO genuinely terminates the request via
-    // `fetch()`'s own `signal` option — see its own doc comment above
-    // for exactly why this can never be constructed internally/by
-    // default (the cross-realm jsdom/undici `AbortSignal` mismatch this
-    // session found and fixed). `HttpStatusError(408, ...)` reuses the
+    // Part A1 (FVL-04 close-out) — a hung/dropped source can never block
+    // extraction forever, AND the underlying request must not be left
+    // running in the background once timed out. Cancellation is now
+    // UNCONDITIONAL: every real request gets a real `AbortController`,
+    // constructed BEFORE the request is issued. If a compatible
+    // `AbortController` genuinely cannot be constructed in this realm,
+    // this fails CLOSED — it refuses to issue an uncancellable
+    // background request rather than silently falling back to
+    // `Promise.race()`-only bounding (which stops the CALLER's wait but
+    // leaves the socket running). `HttpStatusError(408, ...)` reuses the
     // EXISTING retryable classification (`retryableForStatus(408)` is
     // already true) rather than inventing a second retry-signal shape.
     const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const controller = config.createAbortController?.();
+    const makeController = config.createAbortController ?? (() => new AbortController());
+    let controller: AbortController;
+    try {
+      controller = makeController();
+    } catch (e) {
+      throw new Error(`Cannot issue a cancellable request to ${sanitizeUrl(url)}: no compatible AbortController is available in this realm (${e instanceof Error ? e.constructor.name : "UnknownError"}). Refusing to issue an uncancellable timeout-bounded request.`);
+    }
     let timedOut = false;
     let rejectTimeout: (e: Error) => void = () => {};
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -169,14 +185,12 @@ export function createHttpFetchAdapter(config: HttpFetchAdapterConfig): (spec: R
     });
     const timer = setTimeout(() => {
       timedOut = true;
-      if (controller) {
-        try {
-          controller.abort();
-        } catch {
-          // Best-effort resource cleanup only — never the source of the
-          // caller-facing timeout error, which Promise.race() already
-          // guarantees regardless of whether abort() itself succeeds.
-        }
+      try {
+        controller.abort();
+      } catch {
+        // Best-effort resource cleanup only — never the source of the
+        // caller-facing timeout error, which Promise.race() already
+        // guarantees regardless of whether abort() itself succeeds.
       }
       rejectTimeout(new Error("request_timeout"));
     }, timeoutMs);
@@ -186,7 +200,7 @@ export function createHttpFetchAdapter(config: HttpFetchAdapterConfig): (spec: R
       // GET-only — hardcoded, never configurable. No request body is
       // ever sent; a source mutation method (POST/PUT/PATCH/DELETE) has
       // no code path anywhere in this adapter.
-      response = await Promise.race([fetch(url, { method: "GET", headers: config.headers, ...(controller ? { signal: controller.signal } : {}) }), timeoutPromise]);
+      response = await Promise.race([fetch(url, { method: "GET", headers: config.headers, signal: controller.signal }), timeoutPromise]);
     } catch (e) {
       if (timedOut) {
         throw new HttpStatusError(408, `Request to ${sanitizeUrl(url)} timed out after ${timeoutMs}ms`);

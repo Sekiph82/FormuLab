@@ -64,7 +64,7 @@ import {
   type ReimportState,
   type SourceConnector,
 } from "@formulab/shared";
-import { buildReferenceResolver, loadLiveCandidateFields, loadPriorCommittedRows } from "./dataExchangeExisting";
+import { buildReferenceResolver, loadLiveCandidateFields, loadPriorCommittedRows, priorTargetExists } from "./dataExchangeExisting";
 import { commitDataExchangeRows, type DataExchangeRowCommitOutcome } from "./dataExchangeCommit";
 import { loadCrosswalks, persistCrosswalkEntry } from "./connectorPersistence";
 import { upsertRecords, nowIso } from "./masterdata";
@@ -133,21 +133,22 @@ function canonicalIdentityFor(template: Pick<DataExchangeTemplateDefinition, "du
 }
 
 /**
- * Session 12 hardening (Part 6) — whether the canonical record a PRIOR
- * commit targeted (`prior.targetRecordId`) still exists RIGHT NOW, using
- * `prior.targetRecordId` itself as the lookup key (via
- * `canonicalIdentityFor()`'s own id-equals-natural-key convention) —
- * never inferred from the CURRENT candidate's own natural key, which may
- * have drifted from what it was when `prior` was recorded. Returns
- * `undefined` (never proven true or false) when the identity cannot be
- * safely decoded at all (an append-only template's prior id is a
- * generated id, never a natural key — genuinely unresolvable here, not
- * silently guessed).
+ * Part A3 (FVL-04 close-out) — whether the canonical record a PRIOR
+ * commit targeted still exists RIGHT NOW, decoded directly from that
+ * prior commit's OWN real `targetCollection`/`targetRecordId`
+ * (`data_exchange_import_row_results`, captured for every duplicatePolicy
+ * — see `priorTargetExists()`, `dataExchangeExisting.ts`) — never
+ * inferred from the CURRENT candidate's own natural key, which may have
+ * drifted, and no longer restricted to `create_or_update`: an
+ * `append_history`/`new_revision` row's generated id was previously
+ * unresolvable here because the old check used the natural-key-indexed
+ * `liveCandidateFields` map (Session 12), which a generated id can never
+ * appear in — `priorTargetExists()` looks the real id up directly against
+ * the real target collection instead, closing that blind spot for every
+ * duplicatePolicy uniformly.
  */
-function priorTargetStillExists(template: Pick<DataExchangeTemplateDefinition, "duplicatePolicy">, prior: PriorCommittedRow | undefined, liveCandidateFields: Map<string, Record<string, string>>): boolean | undefined {
-  if (!prior?.targetRecordId) return undefined;
-  if (template.duplicatePolicy !== "create_or_update") return undefined;
-  return liveCandidateFields.has(prior.targetRecordId);
+function priorTargetStillExists(prior: PriorCommittedRow | undefined): Promise<boolean | undefined> {
+  return priorTargetExists(prior?.targetCollection, prior?.targetRecordId);
 }
 
 export interface CrosswalkTarget {
@@ -392,38 +393,56 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     const crosswalkTarget = crosswalkTargets[targetTemplate];
     const crosswalks = crosswalkTarget ? await loadCrosswalks() : undefined;
 
-    const rows: PreparedRow[] = entries.map((entry) => {
+    const rows: PreparedRow[] = await Promise.all(entries.map(async (entry) => {
       const values = headers.map((h) => entry.candidate.row[h] ?? "");
       const preview = previewDataExchangeImport(template, [headers, values], { resolveReference: referenceResolver }).rows[0];
       const prior = priorBySourceId.get(entry.sourceRecordId);
-      const canonicalCandidateFingerprint = fingerprintCanonicalCandidate(entry.candidate.row);
+      // Part A2/A3 (FVL-04 close-out) — the candidate side is fingerprinted
+      // over exactly the KEYS this profile actually maps
+      // (`entry.candidate.row`'s own key set — never the template's full
+      // column set, which would pull in `defaultValue` columns the
+      // profile never touched and the live-record loaders don't even
+      // export, a false-mismatch source of its own), but using the
+      // VALIDATED/NORMALIZED VALUE for each of those keys
+      // (`preview.record`, what `commitDataExchangeRows()` actually
+      // commits — e.g. a `decimal`/`currency`/`percentage` column's raw
+      // "100.00" is normalized to "100" by `validateCell()`), never the
+      // raw pre-validation string. Fingerprinting the raw string here was
+      // a genuine false-positive bug: the LIVE record on a later reimport
+      // always reflects the NORMALIZED value (since that's what got
+      // committed), so comparing it against a raw, un-normalized
+      // candidate fingerprint made a byte-identical decimal value (just
+      // formatted differently in the source) look like a local edit every
+      // time, wrongly forcing CANONICAL_LOCAL_CONFLICT on a perfectly
+      // safe reimport.
+      const candidateKeys = Object.keys(entry.candidate.row);
+      const canonicalCandidateFingerprint = fingerprintCanonicalCandidate(Object.fromEntries(candidateKeys.map((k) => [k, preview.record[k] ?? ""])));
       // The live canonical record's CURRENT values, projected onto
       // exactly the fields this profile maps (never the record's full
       // field set — fields the profile never touches must never count
       // as a "local edit"), fingerprinted the same way as the candidate
       // so the two are directly comparable.
       const liveRow = liveCandidateFields.get(preview.naturalKey);
-      const canonicalFingerprintAtPrepare = liveRow ? fingerprintCanonicalCandidate(Object.fromEntries(Object.keys(entry.candidate.row).map((k) => [k, liveRow[k] ?? ""]))) : undefined;
+      const canonicalFingerprintAtPrepare = liveRow ? fingerprintCanonicalCandidate(Object.fromEntries(candidateKeys.map((k) => [k, liveRow[k] ?? ""]))) : undefined;
       let reimportState = classifyReimport({
         rawRecordFingerprint: entry.rawRecordFingerprint,
         mappingProfileCode: profile.code,
         canonicalCandidateFingerprint,
         prior,
-        // Session 11/12 hardening (Part 6) — the ACTUAL live canonical
-        // lookup, decoding `prior.targetRecordId` itself as the lookup
-        // key (never inferred from the CURRENT candidate's own natural
-        // key, which may have drifted) — see `priorTargetStillExists()`.
-        canonicalStillExists: priorTargetStillExists(template, prior, liveCandidateFields),
+        // Part A3 (FVL-04 close-out) — the ACTUAL prior committed target's
+        // real existence, decoded directly from `prior.targetCollection`/
+        // `targetRecordId` (never inferred from the CURRENT candidate's
+        // own natural key, and no longer restricted to `create_or_update`
+        // — see `priorTargetStillExists()`).
+        canonicalStillExists: await priorTargetStillExists(prior),
         canonicalCurrentFingerprint: canonicalFingerprintAtPrepare,
       });
 
-      // Session 12 hardening (Part 3) — crosswalk-conflict preflight,
-      // resolved independently of Import History: what canonical
-      // identity would THIS row's own natural key represent
-      // (`canonicalIdentityFor()`, only meaningful for `create_or_update`
-      // templates — `undefined` otherwise, honestly unresolved rather
-      // than guessed), and does the real crosswalk store already bind
-      // this source identity somewhere else?
+      // Session 12 / Part A2 hardening — crosswalk-conflict preflight,
+      // resolved independently of whether Import History has a row for
+      // THIS batch, but using Import History as the reconciliation
+      // reference for templates whose canonical id can't be predicted
+      // from a natural key.
       let crosswalkBindingAtPrepare: string | null | undefined;
       if (crosswalkTarget && crosswalks) {
         if (entry.sourceIdSource !== "configured") {
@@ -433,16 +452,50 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
           const boundCanonicalId = resolveCrosswalk(crosswalks, identity.sourceSystemId, entity, entry.sourceRecordId, crosswalkTarget.canonicalEntity);
           crosswalkBindingAtPrepare = boundCanonicalId ?? null;
           if (boundCanonicalId !== undefined) {
-            const intendedTarget = canonicalIdentityFor(template, preview.naturalKey);
-            if (intendedTarget !== undefined) {
-              if (boundCanonicalId !== intendedTarget) {
-                // Part 3, Rule C — bound to a DIFFERENT canonical record.
+            if (template.duplicatePolicy === "create_or_update") {
+              // What canonical identity would THIS row's own natural key
+              // represent — deterministic and decodable for this policy.
+              const intendedTarget = canonicalIdentityFor(template, preview.naturalKey);
+              if (intendedTarget !== undefined) {
+                if (boundCanonicalId !== intendedTarget) {
+                  // Part 3, Rule C — bound to a DIFFERENT canonical record.
+                  reimportState = "CROSSWALK_CONFLICT";
+                } else if (!liveCandidateFields.has(boundCanonicalId)) {
+                  // Part 3, Rule D — agrees, but that target itself is gone.
+                  reimportState = "CANONICAL_MISSING";
+                }
+                // else Rule B — agrees and exists: safe, no override.
+              }
+            } else {
+              // Part A2 (FVL-04 close-out) — `append_history`/`new_revision`:
+              // there is no natural-key-derived "intended target"
+              // (`canonicalIdentityFor()` is honestly `undefined` here — a
+              // fresh id is generated on every real commit). The real prior
+              // COMMITTED target for this EXACT source identity (Import
+              // History's own `prior.targetRecordId`) is the only safe
+              // reconciliation reference — never the current candidate's
+              // natural key, and never the crosswalk binding trusted alone.
+              if (prior?.targetRecordId === undefined) {
+                // An active crosswalk exists but Import History has no
+                // reconcilable prior target for this exact source identity
+                // — never silently trust the crosswalk alone (it could be
+                // stale, or from a run whose history was since pruned);
+                // require explicit human resolution rather than risk a
+                // silent duplicate.
                 reimportState = "CROSSWALK_CONFLICT";
-              } else if (!liveCandidateFields.has(boundCanonicalId)) {
-                // Part 3, Rule D — agrees, but that target itself is gone.
+              } else if (boundCanonicalId !== prior.targetRecordId) {
+                // The crosswalk and Import History disagree about which
+                // canonical record this source identity belongs to.
+                reimportState = "CROSSWALK_CONFLICT";
+              } else if (!(await priorTargetExists(prior.targetCollection, prior.targetRecordId))) {
+                // They agree, but that agreed-upon target no longer exists.
                 reimportState = "CANONICAL_MISSING";
               }
-              // else Rule B — agrees and exists: safe, no override.
+              // else: crosswalk agrees with Import History and the target
+              // still exists — safe, no override. This row's own CHANGED/
+              // UNCHANGED classification (above) still decides whether a
+              // new history row is actually appended; the crosswalk is a
+              // reconciliation reference here, never a write target.
             }
           }
           // Rule A (no crosswalk at all, boundCanonicalId undefined) — no override.
@@ -470,7 +523,7 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
         canonicalFingerprintAtPrepare,
         crosswalkBindingAtPrepare,
       };
-    });
+    }));
 
     const currentKeys = new Set(rows.map((r) => r.preview.naturalKey).filter(Boolean));
     const missingFromSource = detectMissingFromSource(priorRows, currentKeys);
@@ -585,7 +638,26 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
     if (!templateImport) continue;
     const template = getDataExchangeTemplate(targetTemplate)!;
     const committableRows = templateImport.rows.filter(isRowCommittable);
-    const outcomes = await commitDataExchangeRows(template, committableRows.map((r) => r.preview), ctx);
+    // Part A2 (FVL-04 close-out) — the connector bridge never supplies
+    // `existingNaturalKeys`/`isUnchanged` to `previewDataExchangeImport()`
+    // (Session 12's own TOCTOU-4 comment already documents this: every
+    // row's OWN `preview.state` is `"valid_create"`, never `"unchanged"`,
+    // through this path), so `commitDataExchangeRows()`'s EXISTING
+    // `row.state === "unchanged"` skip (`dataExchangeCommit.ts`) never
+    // fires here on its own. That is harmless for `create_or_update`
+    // templates (their own commit handler re-upserts the SAME natural key
+    // idempotently — proven by TOCTOU-4, which deliberately still expects
+    // `"updated"`, not a skip, for a genuinely no-op reimport there) but
+    // is a real duplicate-row bug for `append_history`/`new_revision`
+    // templates, whose commit handlers unconditionally INSERT a fresh
+    // record every call. The bridge's OWN `reimportState` already
+    // correctly classifies a genuine no-op reimport as `"UNCHANGED"`
+    // (`classifyReimport()`, source-fingerprint-driven, works for every
+    // duplicatePolicy) — reusing that EXISTING signal here, scoped to
+    // non-`create_or_update` templates only, to drive the EXISTING
+    // commit-layer skip rather than inventing a second one.
+    const previewsForCommit = committableRows.map((r) => (template.duplicatePolicy !== "create_or_update" && r.reimportState === "UNCHANGED" ? { ...r.preview, state: "unchanged" as const } : r.preview));
+    const outcomes = await commitDataExchangeRows(template, previewsForCommit, ctx);
     outcomesByTemplate[targetTemplate] = outcomes;
 
     // F6 — real Import History provenance, through the EXISTING
@@ -648,7 +720,13 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
       sourceRecordId: row.sourceRecordId,
       rawRecordFingerprint: row.rawRecordFingerprint,
       mappingProfileCode: prepared.mappingProfileCode,
-      canonicalCandidateFingerprint: fingerprintCanonicalCandidate(row.candidate.row),
+      // Computed the SAME way as prepare-time (`candidateKeys` restricted
+      // to the profile's own mapped fields, values from the VALIDATED
+      // `preview.record`) so a future reimport's comparison against this
+      // stored value is apples-to-apples — see the prepare-time comment
+      // above for why both the key restriction and the value
+      // normalization matter.
+      canonicalCandidateFingerprint: fingerprintCanonicalCandidate(Object.fromEntries(Object.keys(row.candidate.row).map((k) => [k, row.preview.record[k] ?? ""]))),
     }));
     if (rowResults.length > 0) await upsertRecords("data_exchange_import_row_results", rowResults);
 
@@ -659,7 +737,7 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
         const outcome = outcomes[i];
         if (!outcome || (outcome.outcome !== "created" && outcome.outcome !== "updated") || !outcome.targetRecordId) continue;
         if (row.sourceIdSource !== "configured") continue; // persistCrosswalkEntry would refuse this anyway — skip the call, same outcome, no noisy refusal to surface
-        const { refused } = await persistCrosswalkEntry({
+        const { refused, conflict } = await persistCrosswalkEntry({
           sourceSystemId: prepared.sourceSystemId,
           sourceEntity: prepared.sourceEntity,
           sourceIdentity: { sourceRecordId: row.sourceRecordId, idSource: "configured" },
@@ -669,7 +747,15 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
           mappingProfileVersion: prepared.mappingProfileVersion,
           sourceFingerprint: row.rawRecordFingerprint,
         });
-        if (!refused) crosswalksPersisted++;
+        // Part A2 (FVL-04 close-out) — `persistCrosswalkEntry()` reports a
+        // genuine mismatch as `{ conflict }`, distinct from `{ refused }`
+        // (an ordinal identity). Both mean nothing was actually persisted
+        // — `crosswalksPersisted` must never count a silently-conflicted
+        // attempt as a real mutation (this is expected/harmless for an
+        // append_history row whose crosswalk preflight already confirmed
+        // it agrees with Import History for the PRIOR record, since this
+        // NEW row's own generated id necessarily differs).
+        if (!refused && !conflict) crosswalksPersisted++;
       }
     }
 
