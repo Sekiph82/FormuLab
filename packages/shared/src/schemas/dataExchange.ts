@@ -312,6 +312,22 @@ export const dataExchangeImportRowResultSchema = z.object({
   messages: z.array(z.string()).default([]),
   targetCollection: z.string().optional(),
   targetRecordId: z.string().optional(),
+  /** FVL-04.023 hardening — the four fields a connector-sourced row needs
+   *  for deterministic incremental re-import classification
+   *  (`engine/dataExchangeIncremental.ts`'s `classifyReimport()`). All
+   *  optional/additive: a row committed through the pre-connector,
+   *  hand-authored, or direct-CSV Data Exchange path (no external source
+   *  record, no mapping profile) simply never sets these — never a
+   *  migration, never a second import-history model. */
+  sourceRecordId: z.string().optional(),
+  rawRecordFingerprint: z.string().optional(),
+  mappingProfileCode: z.string().optional(),
+  /** A deterministic fingerprint of the CANONICAL candidate this row
+   *  produced at commit time — compared against the canonical target's
+   *  CURRENT fingerprint on a later re-import to detect "someone edited
+   *  this record locally since the last import" (E6/CANONICAL_LOCAL_CONFLICT).
+   *  Never the full canonical record itself, never a raw payload. */
+  canonicalCandidateFingerprint: z.string().optional(),
 });
 export type DataExchangeImportRowResult = z.infer<typeof dataExchangeImportRowResultSchema>;
 

@@ -27,6 +27,7 @@
  * other Data Exchange classification already follows.
  */
 import type { DataExchangeRowState } from "../schemas/dataExchange";
+import { fingerprint } from "./connectorFingerprint";
 
 /** The exact committable-state set the real production dialog already
  *  uses (`DataExchangeImportDialog.tsx`) — defined once here and
@@ -40,6 +41,13 @@ export interface PriorCommittedRow {
   jobId: string;
   targetCollection?: string;
   targetRecordId?: string;
+  /** FVL-04.023 hardening (Part E) — present only for connector-sourced
+   *  rows (a hand-authored/direct-CSV row never sets these). See
+   *  `classifyReimport()` below. */
+  sourceRecordId?: string;
+  rawRecordFingerprint?: string;
+  mappingProfileCode?: string;
+  canonicalCandidateFingerprint?: string;
 }
 
 export interface MissingFromSourceFinding {
@@ -73,4 +81,121 @@ export function detectMissingFromSource(priorCommittedRows: PriorCommittedRow[],
     }
   }
   return findings;
+}
+
+/**
+ * FVL-04.023 hardening (Part E) — the deterministic per-record
+ * re-import state model. Repository-convention naming (matching
+ * `DATA_EXCHANGE_ROW_STATES`'s own SCREAMING_SNAKE-adjacent style where
+ * the brief itself specified it). Nine states total; the five listed
+ * here are computed PER RECORD by `classifyReimport()` below.
+ * `SCHEMA_CHANGED` (a whole profile/entity is blocked before any
+ * per-record classification runs — see `checkSchemaCompatible()`),
+ * `SOURCE_MISSING` (the existing `detectMissingFromSource()` above),
+ * and `CROSSWALK_CONFLICT` (the EXISTING `upsertCrosswalk()`'s own
+ * `CrosswalkConflict` return, `crosswalk.ts`, never reimplemented here)
+ * are each a different signal computed at a different level, combined
+ * by the bridge — never a single monolithic per-record function trying
+ * to own all nine.
+ */
+export const REIMPORT_STATES = ["NEW", "UNCHANGED", "CHANGED", "CANONICAL_MISSING", "MAPPING_PROFILE_CHANGED", "CANONICAL_LOCAL_CONFLICT", "SCHEMA_CHANGED", "SOURCE_MISSING", "CROSSWALK_CONFLICT"] as const;
+export type ReimportState = (typeof REIMPORT_STATES)[number];
+
+export interface ReimportClassificationInput {
+  /** This record's CURRENT raw content fingerprint (the same
+   *  `StagedSourceRecord.lineage.rawRecordFingerprint` every connector
+   *  already computes — never a second hashing scheme). */
+  rawRecordFingerprint: string;
+  /** The exact immutable `MappingProfile.code` (`profileId::vN`) this
+   *  extraction is being mapped through. */
+  mappingProfileCode: string;
+  /** The current canonical candidate's own deterministic fingerprint —
+   *  see `fingerprintCanonicalCandidate()` below. Only meaningful when
+   *  `prior` exists; omitted when the caller has no candidate yet
+   *  (e.g. the row is itself unresolved/blocked). */
+  canonicalCandidateFingerprint?: string;
+  /** The prior committed row-result for this EXACT `sourceRecordId`
+   *  (read from the existing import-history model), or `undefined` if
+   *  this source record was never committed before. */
+  prior?: PriorCommittedRow;
+  /** Whether the canonical record `prior.targetRecordId` names still
+   *  genuinely exists right now. Only meaningful when `prior` exists
+   *  and has a `targetRecordId` — the caller looks this up against real
+   *  current canonical storage, never guessed. */
+  canonicalStillExists?: boolean;
+  /** The canonical target's OWN fingerprint AS IT STANDS RIGHT NOW
+   *  (computed the same way as `canonicalCandidateFingerprint`, from the
+   *  record's real current fields) — compared against
+   *  `prior.canonicalCandidateFingerprint` to detect a local edit since
+   *  the last import. Only meaningful when `prior` exists. */
+  canonicalCurrentFingerprint?: string;
+}
+
+/**
+ * Deterministic per-record classification. Precedence (most severe /
+ * most specific first — a record is never silently the "safer" of two
+ * simultaneously-true classifications):
+ *
+ *   1. no prior commit at all              -> NEW
+ *   2. prior committed target no longer exists -> CANONICAL_MISSING
+ *   3. source changed AND canonical was locally edited since the prior
+ *      import (E6, mandatory)              -> CANONICAL_LOCAL_CONFLICT
+ *   4. this extraction's mapping profile differs from the prior one
+ *      that produced the currently-committed candidate (E3 — checked
+ *      regardless of whether the source content itself changed, "never
+ *      silently treat this as unchanged") -> MAPPING_PROFILE_CHANGED
+ *   5. source content changed              -> CHANGED
+ *   6. otherwise                           -> UNCHANGED
+ */
+export function classifyReimport(input: ReimportClassificationInput): ReimportState {
+  if (!input.prior) return "NEW";
+
+  if (input.prior.targetRecordId && input.canonicalStillExists === false) return "CANONICAL_MISSING";
+
+  const sourceChanged = input.prior.rawRecordFingerprint !== undefined && input.prior.rawRecordFingerprint !== input.rawRecordFingerprint;
+  const canonicalLocallyEdited =
+    input.prior.canonicalCandidateFingerprint !== undefined &&
+    input.canonicalCurrentFingerprint !== undefined &&
+    input.prior.canonicalCandidateFingerprint !== input.canonicalCurrentFingerprint;
+
+  if (sourceChanged && canonicalLocallyEdited) return "CANONICAL_LOCAL_CONFLICT";
+
+  if (input.prior.mappingProfileCode !== undefined && input.prior.mappingProfileCode !== input.mappingProfileCode) return "MAPPING_PROFILE_CHANGED";
+
+  if (sourceChanged) return "CHANGED";
+
+  return "UNCHANGED";
+}
+
+/**
+ * A deterministic fingerprint of a canonical CANDIDATE row (the mapped
+ * output about to be — or previously — committed), reusing the SAME
+ * FNV-1a `fingerprint()` every other content fingerprint in this
+ * codebase already uses (`connectorFingerprint.ts`) — never a second
+ * hashing scheme. Sorts keys first so field ORDER in the object never
+ * changes the fingerprint, only field VALUES do.
+ */
+export function fingerprintCanonicalCandidate(row: Record<string, string>): string {
+  const sorted = Object.keys(row)
+    .sort()
+    .reduce<Record<string, string>>((acc, k) => {
+      acc[k] = row[k];
+      return acc;
+    }, {});
+  return fingerprint(JSON.stringify(sorted));
+}
+
+/**
+ * FVL-04.023 hardening (Part E4) — a whole mapping profile/entity is
+ * blocked from automatic reuse when the profile's own recorded
+ * `sourceSchemaFingerprint` no longer matches the CURRENT source
+ * structure. This mirrors `validateMappingProfile()`'s own existing
+ * `schema_fingerprint_mismatch` check (`mappingProfile.ts`) — never a
+ * second fingerprint-comparison implementation, just exposed here under
+ * the SCHEMA_CHANGED name this task's own state model uses, for callers
+ * that want the boolean/state directly rather than a validation issue
+ * array.
+ */
+export function isSchemaChanged(profileSourceSchemaFingerprint: string, currentSourceSchemaFingerprint: string): boolean {
+  return profileSourceSchemaFingerprint !== currentSourceSchemaFingerprint;
 }
