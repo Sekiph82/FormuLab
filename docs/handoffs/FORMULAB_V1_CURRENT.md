@@ -4,20 +4,22 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
-**READ THIS FIRST (2026-08-20, FVL-04 close-out pass)**: FVL-04 is still
-25/26 (this pass is Phase A of a two-phase close-out; FVL-04.026 is
-Phase B, in progress in the SAME session) — see "FVL-04.019-.025 final
-close-out correction (2026-08-20)" below for this pass's own six real
-corrections (the resolution section list is reverse-chronological —
-newest first). The tail sections of this file ("Exact next task"/"Known
-blockers"/"Most recent relevant tests") below are stale, dating to an
-earlier FVL-04.005-.012-era session, and were not kept current by
-intervening sessions — do not trust them over the tracker
+**READ THIS FIRST (2026-08-20, FVL-04 close-out — FULLY CLOSED)**: FVL-04
+is now genuinely **26/26** — Phase A (FVL-04.019-.025 final correction,
+six real fixes) and Phase B (FVL-04.026, the Human-Readable Literature &
+Formulation Artifact Naming Convention) both closed in this same session
+— see "FVL-04.026 resolution (2026-08-20)" and "FVL-04.019-.025 final
+close-out correction (2026-08-20)" below (the resolution section list is
+reverse-chronological — newest first). **Total: 89/171.** The tail
+sections of this file ("Exact next task"/"Known blockers"/"Most recent
+relevant tests") below are stale, dating to an earlier
+FVL-04.005-.012-era session, and were not kept current by intervening
+sessions — do not trust them over the tracker
 (`docs/FORMULAB_V1_TASK_TRACKER.md`) or this pointer.
-**FVL-04.026 is now being implemented in this same session** (Human-
-Readable Literature & Formulation Artifact Naming Convention) — the
-governing brief for this pass explicitly authorized it as Phase B,
-gated on Phase A (above) being genuinely green first.
+**Next frozen roadmap task is technically FVL-05.001 — NOT STARTED, not
+begun this session.** The Connector Management frontend (a separate,
+user-directed follow-up) is also NOT STARTED — both are explicitly
+out of scope for this session per its own governing brief.
 
 ## Frozen scope reference
 
@@ -34,9 +36,8 @@ gated on Phase A (above) being genuinely green first.
 FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 (24/24, 2026-08-17). GitHub issue #4 closed 2026-08-18 to match.
 
-**FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
-PROCESS, **25/26 tasks COMPLETED as of this pointer's own last update**
-(only FVL-04.026 remains; "18/26" appears later in this same paragraph
+**FVL-04 — Data Onboarding Through Existing Data Exchange** — **CLOSED,
+26/26 tasks COMPLETED** ("18/26" appears later in this same paragraph
 purely as HISTORICAL narrative of an earlier session's own count — it is
 not the current figure; see the "READ THIS FIRST" line above, which is
 always the authoritative current count). **FVL-04.001-.012 — COMPLETE, HARDENED,
@@ -62,17 +63,19 @@ correction, and each task's own row in
 below this paragraph ("engine layer; real driver/HTTP client adapter
 wired later") are now FALSE and superseded — real adapters exist
 (`sqliteTestAdapter.ts`, `httpFetchAdapter.ts`), and the production
-bridge (`connectorImportBridge.ts`) is real, not deferred. FVL-04 is
-now genuinely **25/26**. **FVL-04.026 — NOT STARTED, per the governing
-brief's own explicit instruction not to begin it in a hardening
-session.**
+bridge (`connectorImportBridge.ts`) is real, not deferred. **FVL-04.026
+— COMPLETED (2026-08-20), same session, as Phase B of the FVL-04
+close-out — see "FVL-04.026 resolution (2026-08-20)" below.** FVL-04 is
+now genuinely **26/26. CLOSED.**
 
 ## Current task
 
-**`FVL-04.026`** — blank, **NOT STARTED** (Human-Readable Literature &
-Formulation Artifact Naming Convention — the queued FVL-04.019-.025
-brief explicitly said not to start this). FVL-04.019-.025 all just
-closed — see their own resolution sections below. FVL-04.013-.018 (External
+FVL-04 is fully closed (26/26). The next frozen roadmap task is
+technically `FVL-05.001` — **NOT STARTED**, not begun this session per
+its own explicit governing-brief instruction. The Connector Management
+frontend is a separate, user-directed follow-up, also **NOT STARTED**.
+FVL-04.019-.025 and FVL-04.026 all just closed — see their own
+resolution sections below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
 Transformation/Unit/Enum Mapping) all COMPLETED in an earlier session,
@@ -108,6 +111,59 @@ template + real UI consumer) and a dedicated per-material TDS/SDS/
 specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
+
+## FVL-04.026 resolution (2026-08-20) — Human-Readable Literature & Formulation Artifact Naming Convention
+
+Closes FVL-04, 26/26. Audited existing naming/export authorities first
+(`docs/ARTIFACT_NAMING_SPEC.md`'s own B1 table): the real reachable
+formulation exports are `ExportMenu.tsx`'s 7 actions; the real literature
+save path is `runtime/pipeline/literature_cache.py::_pdf_name()`/
+`fetch_pdfs()`; `renderDossierPdf`/`renderDossierDocx`
+(`apps/desktop/src/lib/documentExports/`) exist but have no real UI
+caller anywhere in the repo — disclosed honestly rather than force-wired
+into an invented new export UI (out of this session's scope).
+
+One frozen spec (`docs/ARTIFACT_NAMING_SPEC.md`), two thin adapters:
+`packages/shared/src/engine/artifactNaming.ts` (TypeScript — literature
++ formulation naming) and `runtime/pipeline/artifact_naming.py` (Python
+— literature naming only; no Python formulation export path exists).
+Both pass the SAME golden vectors
+(`artifactNaming.goldenVectors.json`), proven identical by
+`test_artifact_naming.py` (NAME30).
+
+Literature: `LIT_<Year>_<FirstAuthor>_<ShortTitle>_<StableSourceId>.<ext>`,
+wired into the real `_pdf_name()`/`fetch_pdfs()` save path; original
+provenance (doi/oa_url/source_db/resolved_via) preserved unchanged. A
+genuinely missing `content_sha256` provenance field was added (minimal,
+compatible extension of the existing paper-dict model, never a second
+document registry) and is now computed for every saved file.
+
+Formulation: `FORM_<ProductFamily>_<ShortFormulaName>_<FormulaCode>_
+V<Version>_<ArtifactType>.<ext>` (closed `ArtifactType` vocabulary),
+wired into all 7 real `ExportMenu.tsx` export actions. Canonical
+`Formulation.id`/`.code`/`FormulationVersion.id`/`.versionNumber` are
+only ever read to build a derived string, never renamed/mutated.
+
+NAME1-NAME30 acceptance: 33 tests in `artifactNaming.test.ts`
+(TypeScript) + 8 tests/13 subtests in `test_artifact_naming.py` (Python)
++ 2 real integration tests: `test_literature_cache.py`'s real-local-
+HTTP-server download test (asserts the actual saved filename + preserved
+provenance + content hash), and `ExportMenu.test.tsx`'s real
+button-click test (asserts the actual `<a download>` value the browser
+would save, for every one of the 7 export actions) — never a standalone
+unit test of a sanitizer nothing calls.
+
+`pnpm --filter @formulab/shared test`: 1729/1729 (82 files, 41 new: 33
+`artifactNaming.test.ts` + 8 pre-existing net change from other Phase A
+work already accounted for above). `pnpm --filter @formulab/desktop
+test`: full suite re-verified green (2 new: `ExportMenu.test.tsx`).
+`python -m pytest runtime/pipeline`: 371/371 (10 new: 8 in
+`test_artifact_naming.py`, 2 integration tests in
+`test_literature_cache.py`). `typecheck`/`lint`: clean both packages.
+`python scripts/validate_v1_tracker.py`: OK, 171 tasks, no drift.
+
+FVL-04 = 26/26. Total = 89/171. FVL-05 and the Connector Management
+frontend: NOT STARTED.
 
 ## FVL-04.019-.025 final close-out correction (2026-08-20)
 

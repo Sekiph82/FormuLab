@@ -930,3 +930,44 @@ verification complete; independent CI not available/applicable. No task
 count change from this pass alone — FVL-04 remains 25/26
 (FVL-04.026 correctly not started until this pass closes); this was a
 hardening pass on already-COMPLETED tasks, not new task completion.
+
+## FVL-04.026 — Human-Readable Literature & Formulation Artifact Naming Convention (2026-08-20)
+
+Closes FVL-04 at 26/26. Full design rationale, sanitization rules, and
+the frozen filename/display-title grammar live in
+`docs/ARTIFACT_NAMING_SPEC.md` — not duplicated here. Summary:
+
+- **Audit first (B1):** the real reachable formulation export surface is
+  `ExportMenu.tsx`'s 7 actions; the real literature save path is
+  `runtime/pipeline/literature_cache.py`; `renderDossierPdf`/
+  `renderDossierDocx` exist with no real UI caller anywhere in the repo
+  (confirmed by search) — left unwired rather than force-connected to an
+  invented new export UI, which would have been scope creep beyond this
+  task.
+- **One spec, two adapters:** `packages/shared/src/engine/artifactNaming.ts`
+  (TypeScript) and `runtime/pipeline/artifact_naming.py` (Python,
+  literature only). Both pass the identical golden-vector file
+  (`artifactNaming.goldenVectors.json`) — proven, not asserted, by
+  `test_artifact_naming.py`.
+- **Wired into real production paths**, not left as a standalone
+  sanitizer: `literature_cache.py::_pdf_name()` (literature) and every
+  `ExportMenu.tsx` download call (formulation). Two real integration
+  tests prove this — a real local-HTTP-server download test, and a real
+  component test that clicks the actual export button and captures the
+  actual `<a download>` value.
+- **Provenance extended, not replaced:** a genuinely missing
+  `content_sha256` field was added to the literature paper-dict model
+  (minimal, compatible); no second document/naming registry was created
+  anywhere.
+- **Canonical identity untouched:** `Formulation.id`/`.code`/
+  `FormulationVersion.id`/`.versionNumber` are read-only inputs to the
+  naming functions, never renamed or mutated (explicit regression test).
+
+Full re-verification: `pnpm --filter @formulab/shared test` —
+1729/1729 across 82 files. `pnpm --filter @formulab/desktop test` —
+full suite re-verified green. `python -m pytest runtime/pipeline` —
+371/371. `typecheck`/`lint` clean both packages. `python
+scripts/validate_v1_tracker.py`: OK, 171 tasks, no drift.
+
+**FVL-04 is now 26/26. Total 89/171.** FVL-05 and the Connector
+Management frontend were NOT started this session.
