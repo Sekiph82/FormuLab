@@ -18,7 +18,7 @@
  * see its loader comment for the exact contract. See
  * docs/DATA_EXCHANGE_EXPORTS.md.
  */
-import { COMMITTABLE_ROW_STATES, SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS, type DataExchangeImportJob, type DataExchangeImportRowResult, type PriorCommittedRow } from "@formulab/shared";
+import { COMMITTABLE_ROW_STATES, SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS, getDataExchangeTemplate, naturalKeyOf, type DataExchangeImportJob, type DataExchangeImportRowResult, type PriorCommittedRow } from "@formulab/shared";
 import { listRecords, type Collection } from "./masterdata";
 import { listFormulations, readFormulation } from "./formulations";
 
@@ -892,6 +892,29 @@ export async function buildReferenceResolver(requirements: Iterable<ReferenceReq
   }
 
   return (referenceTemplate, referenceField, key) => valuesByRequirement.get(`${referenceTemplate}::${referenceField}`)?.has(key) ?? false;
+}
+
+/**
+ * FVL-04.023/.024 hardening (Session 10, Part E6 gap fix) — the LIVE
+ * canonical record's own CURRENT field values, indexed by natural key.
+ * `connectorImportBridge.ts` uses this to detect a genuine out-of-band
+ * edit (a canonical record hand-changed in a workspace editor since the
+ * last import) by comparing against the prior import's own committed
+ * candidate fingerprint. Previously the bridge compared the freshly
+ * re-mapped SOURCE candidate against itself, which can only ever detect
+ * a source content change (already `CHANGED`'s job), never a live
+ * canonical edit — `CANONICAL_LOCAL_CONFLICT` was structurally
+ * unreachable as its own distinct state. Reuses the SAME
+ * `existingLookupFor`/`naturalKeyOf` every other classification already
+ * uses — never a second live-record reader.
+ */
+export async function loadLiveCandidateFields(templateCode: string): Promise<Map<string, Record<string, string>>> {
+  const template = getDataExchangeTemplate(templateCode);
+  const index = new Map<string, Record<string, string>>();
+  if (!template) return index;
+  const { rows } = await existingLookupFor(templateCode);
+  for (const row of rows) index.set(naturalKeyOf(template, row), row);
+  return index;
 }
 
 /** Formula/BOM's current-data export is flattened from the session-based

@@ -310,6 +310,57 @@ describe("BR17: schema mismatch blocks — already proven by BR4/BR5/BR8, cross-
   });
 });
 
+describe("BR19 (Session 10 hardening): CANONICAL_LOCAL_CONFLICT is a genuinely distinct signal from CHANGED, not the same source-derived comparison twice", () => {
+  it("a source-only content change reports CHANGED; the same source change PLUS a hand-edit to the live canonical record reports CANONICAL_LOCAL_CONFLICT for a DIFFERENT record", async () => {
+    const profileFor = (fingerprint: string): MappingProfile => ({
+      schemaVersion: "1.0",
+      code: mappingProfileCode("bridge-conflict", 1),
+      profileId: "bridge-conflict",
+      profileName: "Bridge conflict test",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialID", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+        { sourceField: "ActiveMatter", targetTemplate: "raw_materials", targetField: "active_matter_percent" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    });
+
+    const csv1 = "MaterialID,MaterialName,ActiveMatter\nBR-CHANGED,Changed-Only Material,95\nBR-CONFLICT,Conflict Material,95";
+    const connector1 = createFileConnector("BRIDGE_TEST", { fileName: "materials.csv", fileKind: "csv", text: csv1 }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const staged1 = await connector1.extract("materials");
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged1.records }]).fingerprint;
+    const prepared1 = await prepareConnectorImport({ connector: connector1, entity: "materials", profile: profileFor(fp1) });
+    expect(prepared1.blockingIssues).toEqual([]);
+    await confirmConnectorImport(prepared1, ctx);
+
+    // Hand-edit ONLY the "conflict" record's live canonical name, bypassing Data Exchange entirely.
+    const materials = store.get("materials") ?? [];
+    const conflictRecord = materials.find((r) => r.code === "BR-CONFLICT")!;
+    conflictRecord.displayName = "Hand-Edited In Workspace";
+
+    // Both records' SOURCE content changes identically (ActiveMatter 95 -> 96).
+    const csv2 = "MaterialID,MaterialName,ActiveMatter\nBR-CHANGED,Changed-Only Material,96\nBR-CONFLICT,Conflict Material,96";
+    const connector2 = createFileConnector("BRIDGE_TEST", { fileName: "materials.csv", fileKind: "csv", text: csv2 }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const staged2 = await connector2.extract("materials");
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged2.records }]).fingerprint;
+    const prepared2 = await prepareConnectorImport({ connector: connector2, entity: "materials", profile: profileFor(fp2) });
+
+    const rows = prepared2.templates.find((t) => t.targetTemplate === "raw_materials")!.rows;
+    const changedRow = rows.find((r) => r.candidate.row.material_code === "BR-CHANGED")!;
+    const conflictRow = rows.find((r) => r.candidate.row.material_code === "BR-CONFLICT")!;
+    expect(changedRow.reimportState).toBe("CHANGED"); // source changed, canonical never touched out-of-band
+    expect(conflictRow.reimportState).toBe("CANONICAL_LOCAL_CONFLICT"); // source changed AND canonical hand-edited since
+  });
+});
+
 describe("BR18: re-import conflict classification is genuinely visible on the prepared result", () => {
   it("a second prepare of the identical source reports UNCHANGED once a prior commit exists", async () => {
     const connector1 = createFileConnector("BRIDGE_TEST", { fileName: "materials.csv", fileKind: "csv", text: "MaterialID,MaterialName\nBR-1,Test Material" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });

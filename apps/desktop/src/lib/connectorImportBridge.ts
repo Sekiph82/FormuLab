@@ -49,7 +49,7 @@ import {
   type ReimportState,
   type SourceConnector,
 } from "@formulab/shared";
-import { buildReferenceResolver, loadPriorCommittedRows } from "./dataExchangeExisting";
+import { buildReferenceResolver, loadLiveCandidateFields, loadPriorCommittedRows } from "./dataExchangeExisting";
 import { commitDataExchangeRows, type DataExchangeRowCommitOutcome } from "./dataExchangeCommit";
 import { persistCrosswalkEntry } from "./connectorPersistence";
 import { upsertRecords, nowIso } from "./masterdata";
@@ -242,12 +242,26 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
 
     const priorRows: PriorCommittedRow[] = await loadPriorCommittedRows(targetTemplate);
     const priorBySourceId = new Map(priorRows.filter((r) => r.sourceRecordId).map((r) => [r.sourceRecordId!, r]));
+    // Session 10 hardening (Part E6 gap fix) — the LIVE canonical
+    // record's own current fields, indexed by natural key, loaded ONCE
+    // per template. Comparing against this (never against this pass's
+    // own freshly re-mapped source candidate) is what makes
+    // CANONICAL_LOCAL_CONFLICT a genuinely distinct signal from CHANGED
+    // — see `loadLiveCandidateFields()`'s own doc comment.
+    const liveCandidateFields = await loadLiveCandidateFields(targetTemplate);
 
     const rows: PreparedRow[] = entries.map((entry) => {
       const values = headers.map((h) => entry.candidate.row[h] ?? "");
       const preview = previewDataExchangeImport(template, [headers, values], { resolveReference: referenceResolver }).rows[0];
       const prior = priorBySourceId.get(entry.sourceRecordId);
       const canonicalCandidateFingerprint = fingerprintCanonicalCandidate(entry.candidate.row);
+      // The live canonical record's CURRENT values, projected onto
+      // exactly the fields this profile maps (never the record's full
+      // field set — fields the profile never touches must never count
+      // as a "local edit"), fingerprinted the same way as the candidate
+      // so the two are directly comparable.
+      const liveRow = liveCandidateFields.get(preview.naturalKey);
+      const canonicalCurrentFingerprint = liveRow ? fingerprintCanonicalCandidate(Object.fromEntries(Object.keys(entry.candidate.row).map((k) => [k, liveRow[k] ?? ""]))) : undefined;
       const reimportState = classifyReimport({
         rawRecordFingerprint: entry.rawRecordFingerprint,
         mappingProfileCode: profile.code,
@@ -260,7 +274,7 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
         // "still exists" is left unproven (`undefined`) rather than
         // guessed true/false in that case.
         canonicalStillExists: prior?.targetRecordId ? preview.state !== "invalid" : undefined,
-        canonicalCurrentFingerprint: prior ? canonicalCandidateFingerprint : undefined,
+        canonicalCurrentFingerprint,
       });
       if (preview.state === "invalid" || preview.state === "reference_missing") {
         blockingIssues.push(`Template "${targetTemplate}" row (source ${entry.sourceRecordId}) is blocking: ${preview.messages.join(" ")}`);

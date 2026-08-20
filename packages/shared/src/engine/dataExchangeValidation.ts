@@ -209,7 +209,10 @@ function validateCell(column: DataExchangeColumnDefinition, raw: string): { valu
   }
 }
 
-function naturalKeyOf(template: DataExchangeTemplateDefinition, record: Record<string, string>): string {
+/** Exported for `dataExchangeExisting.ts` (desktop) to index a live
+ *  canonical record by the SAME natural-key convention preview
+ *  classification itself uses — never a second natural-key join. */
+export function naturalKeyOf(template: DataExchangeTemplateDefinition, record: Record<string, string>): string {
   return template.naturalKey.map((k) => record[k] ?? "").join("::");
 }
 
