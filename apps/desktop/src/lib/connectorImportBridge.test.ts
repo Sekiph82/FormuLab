@@ -14,6 +14,7 @@ import {
   type MappingProfile,
   type RestResponsePage,
 } from "@formulab/shared";
+import { createSqliteTestAdapter } from "@formulab/shared/testing";
 
 const store = new Map<string, Record<string, unknown>[]>();
 vi.mock("@/lib/masterdata", () => ({
@@ -375,5 +376,51 @@ describe("BR18: re-import conflict classification is genuinely visible on the pr
     const staged2 = await connector2.extract("materials");
     const prepared2 = await prepareConnectorImport({ connector: connector2, entity: "materials", profile: materialsProfile("materials", discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged2.records }]).fingerprint) });
     expect(prepared2.templates[0].rows[0].reimportState).toBe("UNCHANGED");
+  });
+});
+
+describe("BR20 (Session 11 hardening, Part 4): a REAL DB-derived ordinal-fallback identity cannot be persisted as a crosswalk identity", () => {
+  it("a real no-PK SQLite table's rows stage with ordinal identity, commit fine, but persist zero crosswalk entries even when a crosswalk target is configured", async () => {
+    const { adapter, close } = await createSqliteTestAdapter(`
+      CREATE TABLE erp_suppliers_no_pk (SupplierID TEXT NOT NULL, SupplierName TEXT NOT NULL);
+      INSERT INTO erp_suppliers_no_pk VALUES ('SUP-NOPK-1', 'No-PK Supplier One');
+      INSERT INTO erp_suppliers_no_pk VALUES ('SUP-NOPK-2', 'No-PK Supplier Two');
+    `);
+    try {
+      const connector = createDatabaseConnector("BRIDGE_TEST", { connectionRef: "erp-conn", entities: { suppliers: { table: "erp_suppliers_no_pk" } } }, stageOpts, { adapter });
+      const staged = await connector.extract("suppliers");
+      expect(staged.records.every((r) => r.identity.idSource === "ordinal")).toBe(true); // real no-PK fallback, not synthetic
+
+      const fp = discoverSourceSchema("BRIDGE_TEST", [{ entity: "suppliers", records: staged.records }]).fingerprint;
+      const profile: MappingProfile = {
+        schemaVersion: "1.0",
+        code: mappingProfileCode("bridge-nopk-suppliers", 1),
+        profileId: "bridge-nopk-suppliers",
+        profileName: "No-PK suppliers",
+        sourceSystemId: "BRIDGE_TEST",
+        sourceEntity: "suppliers",
+        sourceSchemaFingerprint: fp,
+        profileVersion: 1,
+        status: "active",
+        fieldMappings: [
+          { sourceField: "SupplierID", targetTemplate: "suppliers", targetField: "supplier_code" },
+          { sourceField: "SupplierName", targetTemplate: "suppliers", targetField: "supplier_name" },
+        ],
+        constantMappings: [],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        createdBy: "local",
+      };
+      const prepared = await prepareConnectorImport({ connector, entity: "suppliers", profile });
+      expect(prepared.blockingIssues).toEqual([]);
+      // Through the REAL confirm/crosswalk-persistence path — never a
+      // synthetic persistCrosswalkEntry() unit call.
+      const confirmed = await confirmConnectorImport(prepared, ctx, { suppliers: { canonicalEntity: "Supplier" } });
+      expect(confirmed.outcomesByTemplate.suppliers.every((o) => o.outcome === "created")).toBe(true); // the rows commit fine on their own
+      expect(confirmed.crosswalksPersisted).toBe(0); // but zero crosswalk entries — ordinal identity is never crosswalk-eligible
+      expect(store.get("external_id_crosswalks") ?? []).toEqual([]);
+    } finally {
+      close();
+    }
   });
 });

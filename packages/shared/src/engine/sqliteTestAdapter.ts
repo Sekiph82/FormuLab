@@ -70,6 +70,33 @@ export async function createSqliteTestAdapter(setupSql: string): Promise<SqliteT
   const db: Database = new SQL.Database();
   db.run(setupSql);
 
+  // Session 11 hardening (Part 4) — LIMIT/OFFSET with no deterministic
+  // ORDER BY can duplicate/skip/reorder rows across pages (SQLite makes
+  // no ordering guarantee absent one). Cached per table (computed once,
+  // read-only PRAGMA — never invalidated, since this adapter's own
+  // schema is fixed at construction). Real primary-key columns, in
+  // ordinal order, when the table has one (composite PK respected in
+  // ordinal order); SQLite's own implicit `rowid` otherwise — stable and
+  // deterministic for this single-writer-then-read-only disposable
+  // fixture, the same "no PK -> explicit stable key" policy
+  // `databaseConnector.ts`'s own ordinal-fallback identity already
+  // documents at the connector layer.
+  const orderByColumnsCache = new Map<string, string[]>();
+  function orderByColumnsFor(table: string): string[] {
+    const cached = orderByColumnsCache.get(table);
+    if (cached) return cached;
+    const infoRes = db.exec(`PRAGMA table_info(${quoteIdent(table)})`);
+    const pkCols = infoRes.length
+      ? infoRes[0].values
+          .filter((row) => Number(row[5]) > 0)
+          .sort((a, b) => Number(a[5]) - Number(b[5]))
+          .map((row) => String(row[1]))
+      : [];
+    const columns = pkCols.length > 0 ? pkCols : ["rowid"];
+    orderByColumnsCache.set(table, columns);
+    return columns;
+  }
+
   const adapter: DatabaseAdapter = {
     async listSchemas() {
       // SQLite has one implicit schema ("main") unless a caller ATTACHes
@@ -136,6 +163,11 @@ export async function createSqliteTestAdapter(setupSql: string): Promise<SqliteT
         sql += ` WHERE ${quoteIdent(selector.filter.column)} ${opToSql(selector.filter.op)} ?`;
         params.push(selector.filter.value);
       }
+      // Deterministic order — see orderByColumnsFor()'s own doc comment.
+      // Composite PK ordering respects ordinal order via the sort above.
+      sql += ` ORDER BY ${orderByColumnsFor(selector.table)
+        .map((c) => quoteIdent(c))
+        .join(", ")}`;
       // Request one extra row so real "is there another page" can be
       // answered exactly — never a heuristic guess from "did we get a
       // full page" (which is ambiguous exactly on a source whose total

@@ -115,6 +115,58 @@ describe("DB6/DB7: readPage — real rows, real paging boundary, never ambiguous
   });
 });
 
+describe("DB19/DB20 (Session 11 hardening, Part 4): deterministic paging order — no naked LIMIT/OFFSET without a real ORDER BY", async () => {
+  const SCRAMBLED_SQL = `
+    CREATE TABLE scrambled_single_pk (id TEXT PRIMARY KEY, val TEXT NOT NULL);
+    INSERT INTO scrambled_single_pk VALUES ('C', 'third-inserted-first-alphabetically-ish');
+    INSERT INTO scrambled_single_pk VALUES ('A', 'inserted-second');
+    INSERT INTO scrambled_single_pk VALUES ('B', 'inserted-third');
+
+    CREATE TABLE scrambled_composite_pk (mat TEXT NOT NULL, sup TEXT NOT NULL, val TEXT NOT NULL, PRIMARY KEY (mat, sup));
+    INSERT INTO scrambled_composite_pk VALUES ('M2', 'S1', 'x');
+    INSERT INTO scrambled_composite_pk VALUES ('M1', 'S2', 'x');
+    INSERT INTO scrambled_composite_pk VALUES ('M1', 'S1', 'x');
+    INSERT INTO scrambled_composite_pk VALUES ('M2', 'S2', 'x');
+
+    CREATE TABLE scrambled_no_pk (val TEXT NOT NULL);
+    INSERT INTO scrambled_no_pk VALUES ('first-row');
+    INSERT INTO scrambled_no_pk VALUES ('second-row');
+    INSERT INTO scrambled_no_pk VALUES ('third-row');
+  `;
+  const { adapter } = await createSqliteTestAdapter(SCRAMBLED_SQL);
+
+  it("DB19: single-PK paging is genuinely ordered by PK, not physical insertion order — proven with a deliberately scrambled insert order", async () => {
+    const page1 = await adapter.readPage({ selector: { table: "scrambled_single_pk" }, pageSize: 2 });
+    const page2 = await adapter.readPage({ selector: { table: "scrambled_single_pk" }, pageSize: 2, cursor: page1.nextCursor });
+    const idsInOrder = [...page1.rows, ...page2.rows].map((r) => r[0]);
+    expect(idsInOrder).toEqual(["A", "B", "C"]); // PK order, not the C/A/B insertion order above
+  });
+
+  it("DB19: composite-PK paging respects PK ordinal order (mat, then sup), scrambled insert order notwithstanding", async () => {
+    const page1 = await adapter.readPage({ selector: { table: "scrambled_composite_pk" }, pageSize: 2 });
+    const page2 = await adapter.readPage({ selector: { table: "scrambled_composite_pk" }, pageSize: 2, cursor: page1.nextCursor });
+    const keysInOrder = [...page1.rows, ...page2.rows].map((r) => `${r[0]}::${r[1]}`);
+    expect(keysInOrder).toEqual(["M1::S1", "M1::S2", "M2::S1", "M2::S2"]);
+  });
+
+  it("DB19: an unchanged snapshot produces the IDENTICAL ordered extraction on a second, independent read", async () => {
+    const first = await adapter.readPage({ selector: { table: "scrambled_composite_pk" }, pageSize: 10 });
+    const second = await adapter.readPage({ selector: { table: "scrambled_composite_pk" }, pageSize: 10 });
+    expect(second.rows).toEqual(first.rows);
+  });
+
+  it("DB20: a table with no PK still pages deterministically (rowid fallback) — no duplicate/skip across the exact page boundary", async () => {
+    const page1 = await adapter.readPage({ selector: { table: "scrambled_no_pk" }, pageSize: 2 });
+    expect(page1.rows).toHaveLength(2);
+    expect(page1.nextCursor).toBeDefined();
+    const page2 = await adapter.readPage({ selector: { table: "scrambled_no_pk" }, pageSize: 2, cursor: page1.nextCursor });
+    expect(page2.rows).toHaveLength(1);
+    const allVals = [...page1.rows, ...page2.rows].map((r) => r[0]);
+    expect(new Set(allVals).size).toBe(3); // no row skipped or duplicated across the boundary
+    expect(allVals).toEqual(["first-row", "second-row", "third-row"]); // and it's the real insertion-stable rowid order, not shuffled
+  });
+});
+
 describe("DB8/DB9: stageDatabaseEntity through the REAL adapter — composite-PK identity, no-PK ordinal fallback", async () => {
   const { adapter } = await createSqliteTestAdapter(SETUP_SQL);
 
