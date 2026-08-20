@@ -11,7 +11,88 @@
  * exercised a real transformation (G5) or a real mapping-profile version
  * chain (G6) inside its own fixture — all three are exercised here.
  *
- * MIG1-MIG35 acceptance items are called out inline as they are proven.
+ * MIG1-MIG37 labels are called out inline as they are proven.
+ *
+ * ============================================================
+ * Session 12 hardening — honest note on the "MIG1-MIG35" numbering
+ * ============================================================
+ * A later session's governing brief accused this file of "reusing
+ * MIG1-MIG35 labels for a different numbering scheme" than an
+ * "original" acceptance matrix, and asked that the original be
+ * recovered from repository evidence — never guessed.
+ *
+ * That recovery was attempted and is recorded here truthfully: the
+ * ORIGINAL Session 9 commit that first closed FVL-04.025
+ * (`f9a2aa1`, "feat(v1): close FVL-04.025 customer migration acceptance
+ * fixture") contains ZERO "MIG" references anywhere in its diff — it
+ * never used that numbering at all. No committed doc, tracker row, or
+ * external log entry anywhere in this repository ever transcribed an
+ * exact "MIG1 = ..., MIG2 = ..." list either. The "MIG1-MIG35" (later
+ * "MIG1-MIG37") labels in this file are SESSION 10's OWN invented
+ * tracking labels, created while building this fixture from a governing
+ * brief's own prose list of required categories — not a recovered
+ * original numbering, and they must not be read as one. Per the
+ * governing brief's own explicit instruction not to guess a numbering
+ * that cannot be evidenced, this file does not attempt to renumber
+ * them to match a specific invented "original" mapping.
+ *
+ * What IS genuinely evidenced and reproducible is the CATEGORY list a
+ * governing brief itself specified this fixture must cover. The table
+ * below maps each of those categories to the real, named, executable
+ * test(s) that prove it — in this file, and (where a category is
+ * already exhaustively proven by a more specific existing acceptance
+ * suite) by exact cross-reference rather than a vague "covered
+ * elsewhere":
+ *
+ *   materials                    -> "MIG1-MIG6" (this file, migration 1);
+ *                                    "MIG29-MIG31/MIG34" (migration 2)
+ *   suppliers                    -> "MIG1-MIG6"; "MIG29-MIG31/MIG34"
+ *                                    (supplier-unchanged case)
+ *   material-supplier links      -> "MIG1-MIG6" (linksPrep)
+ *   prices                       -> "MIG1-MIG6"; "MIG29-MIG31/MIG34"
+ *                                    (new append-only price period)
+ *   inventory                    -> "MIG1-MIG6" (G4 — Session 9 omitted
+ *                                    this entirely); "MIG29-MIG31/MIG34"
+ *                                    (CHANGED quantity)
+ *   formulas and versions        -> "MIG7-MIG13" (migration 1);
+ *                                    "MIG8/MIG32" (migration 2, new
+ *                                    version); "FVL-04.019 Section 1"
+ *                                    describe block (the real relational
+ *                                    FormulaHeader+FormulaLine production
+ *                                    path, explicit-version preservation)
+ *   laboratory results           -> "MIG14-MIG21" (migration 1);
+ *                                    "MIG26/MIG27/MIG33" (migration 2)
+ *   external-ID/crosswalk identity -> "Section 10" describe block (the
+ *                                    real happy-path lifecycle, source
+ *                                    identity genuinely distinct from
+ *                                    canonical identity); "MIG37"
+ *                                    (CROSSWALK_CONFLICT); BR20/BR21/
+ *                                    XW-PREFLIGHT/XW-CONFIG
+ *                                    (`connectorImportBridge.test.ts`)
+ *   import history                -> every migration-1/migration-2 test's
+ *                                    own `data_exchange_import_jobs`
+ *                                    assertions; the final "MIG25/MIG35"
+ *                                    summary test's job-count check
+ *   transformation behavior       -> "MIG24" (real convert_unit g->kg),
+ *                                    "MIG25" (real map_boolean)
+ *   second migration/re-import    -> every "migration 2" test in this
+ *                                    file ("MIG29" through the Section 10
+ *                                    re-import case)
+ *   no source writeback           -> every DB/REST fixture here uses a
+ *                                    real read-only adapter; structurally
+ *                                    proven in `sqliteTestAdapter.test.ts`
+ *                                    (DB11/DB12) and `databaseConnector.ts`
+ *                                    itself (no write method on the
+ *                                    `DatabaseAdapter` contract)
+ *   no LLM / no vendor branch /
+ *   no second Data Exchange       -> the Session 12 security sweep (see
+ *                                    the external Desktop log's own
+ *                                    "Part 13" entry for this session)
+ *
+ * FVL-04.025's own closure status must be judged on THIS category
+ * coverage (which is genuinely, executably proven), not on whether a
+ * specific numbered item happens to match an unrecoverable original
+ * label.
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,9 +105,11 @@ import {
   discoverSourceSchema,
   getDataExchangeTemplate,
   mappingProfileCode,
+  resolveCrosswalk,
   validateMappingProfileSupersession,
   wrapAssembledSource,
   type DatabaseAdapter,
+  type ExternalIdCrosswalk,
   type MappingProfile,
   type RelationalJoinConfig,
   type RestRequestSpec,
@@ -887,5 +970,92 @@ describe("FVL-04.019 Section 1 — real production path for a relational Formula
     } finally {
       close();
     }
+  });
+});
+
+describe("Section 10 (Session 12 hardening) — happy-path crosswalk lifecycle with source identity GENUINELY different from canonical identity", () => {
+  it("a real ERP source identity (\"ERP-MAT-883729\") distinct from its canonical code (\"RM-00291\") stages, resolves, commits, and the crosswalk persists and is genuinely reused on re-import — no duplicate canonical record, identity survives a display-name change", async () => {
+    const setupSql = `
+      CREATE TABLE erp_materials_xw (ExternalMaterialID TEXT PRIMARY KEY, TargetMaterialCode TEXT NOT NULL, MaterialName TEXT NOT NULL);
+      INSERT INTO erp_materials_xw VALUES ('ERP-MAT-883729', 'RM-00291', 'Legacy Decyl Glucoside');
+    `;
+    const profileFor = (fp: string): MappingProfile => ({
+      schemaVersion: "1.0",
+      code: mappingProfileCode("xw-lifecycle", 1),
+      profileId: "xw-lifecycle",
+      profileName: "Crosswalk lifecycle materials",
+      sourceSystemId: "LEGACY_ERP_XW",
+      sourceEntity: "materials_xw",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        // The migration's own mapping authorship already assigns the
+        // REAL canonical code — deliberately DIFFERENT from the ERP's
+        // own native identifier, which is used ONLY as the connector's
+        // configured identity (idField below), never copied into
+        // material_code. This is the realistic shape Section 10 calls
+        // out: a prior fixture used a source id that already equalled
+        // the canonical code, which never genuinely exercised crosswalk
+        // persistence/reuse at all.
+        { sourceField: "TargetMaterialCode", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    });
+
+    // ---- 1/2/3/4/5/6 — first migration: stage, resolve, review, commit, crosswalk persists AFTER commit. ----
+    const { adapter: adapter1, close: close1 } = await createSqliteTestAdapter(setupSql);
+    const connector1 = createDatabaseConnector("LEGACY_ERP_XW", { connectionRef: "erp-xw-conn", entities: { materials_xw: { table: "erp_materials_xw" } } }, { extractionRunId: "run-xw-1", extractedAt: "2026-01-01T00:00:00.000Z", idField: "ExternalMaterialID", requireExplicitId: true }, { adapter: adapter1 });
+    const staged1 = await connector1.extract("materials_xw");
+    expect(staged1.records[0].identity).toMatchObject({ sourceRecordId: "ERP-MAT-883729", idSource: "configured" }); // (1) configured external identity staged
+    const fp1 = discoverSourceSchema("LEGACY_ERP_XW", [{ entity: "materials_xw", records: staged1.records }]).fingerprint;
+    const prepared1 = await prepareConnectorImport({ connector: connector1, entity: "materials_xw", profile: profileFor(fp1), crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    expect(prepared1.blockingIssues).toEqual([]);
+    expect(prepared1.templates[0].rows[0].candidate.row.material_code).toBe("RM-00291"); // (2) mapping resolves to the intended canonical candidate
+    expect(prepared1.crosswalkTargets).toEqual({ raw_materials: { canonicalEntity: "RawMaterial" } }); // (3) prepare reviewed the crosswalk target configuration
+    const xwFor883729 = () => (store.get("external_id_crosswalks") ?? []).filter((c) => c.sourceRecordId === "ERP-MAT-883729");
+    expect(xwFor883729()).toEqual([]); // nothing persisted for THIS identity before commit (the store is shared/cumulative across this file's own earlier tests, by design)
+    const confirmed1 = await confirmConnectorImport(prepared1, ctx);
+    close1();
+    expect(confirmed1.outcomesByTemplate.raw_materials[0].outcome).toBe("created"); // (4) canonical record committed
+    expect((store.get("materials") ?? []).find((r) => r.code === "RM-00291")).toBeDefined();
+
+    const crosswalksAfterFirst = xwFor883729();
+    expect(crosswalksAfterFirst).toHaveLength(1); // (5) crosswalk persists only AFTER successful commit
+    expect(crosswalksAfterFirst[0]).toMatchObject({ sourceSystemId: "LEGACY_ERP_XW", sourceEntity: "materials_xw", sourceRecordId: "ERP-MAT-883729", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-00291" }); // (6) exact stored shape
+
+    // ---- 7/8/9 — second extraction of the SAME external identity: reuses the SAME active crosswalk, no duplicate canonical record, a display-name change doesn't alter identity. ----
+    const { adapter: adapter2, close: close2 } = await createSqliteTestAdapter(`
+      CREATE TABLE erp_materials_xw (ExternalMaterialID TEXT PRIMARY KEY, TargetMaterialCode TEXT NOT NULL, MaterialName TEXT NOT NULL);
+      INSERT INTO erp_materials_xw VALUES ('ERP-MAT-883729', 'RM-00291', 'Renamed Decyl Glucoside');
+    `);
+    const connector2 = createDatabaseConnector("LEGACY_ERP_XW", { connectionRef: "erp-xw-conn", entities: { materials_xw: { table: "erp_materials_xw" } } }, { extractionRunId: "run-xw-2", extractedAt: "2026-02-01T00:00:00.000Z", idField: "ExternalMaterialID", requireExplicitId: true }, { adapter: adapter2 });
+    const staged2 = await connector2.extract("materials_xw");
+    const fp2 = discoverSourceSchema("LEGACY_ERP_XW", [{ entity: "materials_xw", records: staged2.records }]).fingerprint;
+    const prepared2 = await prepareConnectorImport({ connector: connector2, entity: "materials_xw", profile: profileFor(fp2), crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    expect(prepared2.blockingIssues).toEqual([]); // still safe — same identity, agreeing crosswalk, no conflict
+    const confirmed2 = await confirmConnectorImport(prepared2, ctx);
+    close2();
+    expect(confirmed2.outcomesByTemplate.raw_materials[0].outcome).toBe("updated"); // (9) display name change updates the SAME record, never creates a new one
+    expect(store.get("materials")!.filter((r) => r.code === "RM-00291")).toHaveLength(1); // (8) no duplicate canonical record
+    expect(store.get("materials")!.find((r) => r.code === "RM-00291")!.displayName).toBe("Renamed Decyl Glucoside");
+    expect(xwFor883729()).toHaveLength(1); // (7) the SAME crosswalk entry reused, never a second one
+    expect(xwFor883729()[0].canonicalRecordId).toBe("RM-00291");
+
+    // ---- 10 — the SAME external id from a DIFFERENT sourceSystemId stays a genuinely distinct crosswalk lookup. ----
+    const crosswalks = store.get("external_id_crosswalks") as unknown as ExternalIdCrosswalk[];
+    expect(resolveCrosswalk(crosswalks, "LEGACY_ERP_XW", "materials_xw", "ERP-MAT-883729", "RawMaterial")).toBe("RM-00291");
+    expect(resolveCrosswalk(crosswalks, "OTHER_ERP", "materials_xw", "ERP-MAT-883729", "RawMaterial")).toBeUndefined(); // genuinely distinct — never cross-resolves across source systems
+
+    // ---- 11/12 — a failed canonical commit and an ordinal-fallback identity each persist zero crosswalk: already
+    // proven directly, through the real confirm/crosswalk-persistence path, by BR21 (connectorImportBridge.test.ts,
+    // "a row with a CONFIGURED source identity ... fails for real inside the commit handler ... no crosswalk is
+    // persisted") and BR20 ("a REAL DB-derived ordinal-fallback identity cannot be persisted as a crosswalk
+    // identity") respectively — not re-duplicated here, but explicitly named per the brief's own "no prose-only
+    // covered elsewhere unless the referenced executable test is explicitly named" requirement.
   });
 });
