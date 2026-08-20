@@ -92,7 +92,13 @@ produced here are shaped to pass through the existing
 `previewDataExchangeImport()`/`commitDataExchangeRows()` unchanged —
 proven directly in `connectorEndToEnd.test.ts`.
 
-## FVL-04.024 bridge boundary (not built here)
+## FVL-04.024 bridge boundary (superseded — built in Session 10)
+
+Historical note only — the paragraph below described the ORIGINAL,
+correct decision to defer building the bridge. It is now built and
+hardened; see "Hardening (Session 10/11, 2026-08-20)" below for the real
+module (`connectorImportBridge.ts`, `prepareConnectorImport()`/
+`confirmConnectorImport()`).
 
 FVL-04.024 will own the formal Connector -> Existing Data Exchange
 Bridge (a UI/orchestration surface wiring a connector run to a Data
@@ -590,3 +596,90 @@ packages. No Rust file touched this session — `cargo check`/`cargo test
 masterdata` not re-run (nothing to verify). No task count change — FVL-04
 remains 18/26, Total 81/171 (47.4%); this was a third hardening pass on
 already-COMPLETED tasks, not new task completion.
+
+## Hardening (Session 10/11, 2026-08-20) — FVL-04.019-.025 final closure, real adapters, conflict enforcement
+
+An independent audit of a prior session's FVL-04.019-.025 closure found
+real implementation work that fell below the original acceptance
+threshold on several tasks despite being marked COMPLETED. Two sessions
+of re-hardening followed; this section summarizes the resulting
+architecture changes (see `docs/FORMULAB_V1_TASK_TRACKER.md`'s own
+per-task rows for the full itemized correction).
+
+**Real DB and REST adapters now exist.** `databaseConnector.ts`'s
+primary contract was rewritten around `DatabaseAdapter`
+(`listSchemas`/`listTables`/`describeEntity`/`readPage` — structurally no
+write method); the old free-form-SQL model survives only as a clearly
+separate "expert" boundary. `sqliteTestAdapter.ts` (real sql.js/WASM
+SQLite) proves it end-to-end, including — Session 11 — deterministic
+`ORDER BY` on every paged read (real PK order, composite PK respected in
+ordinal order, `rowid` fallback when no PK exists; LIMIT/OFFSET with no
+ORDER BY at all was a real correctness gap, since SQLite makes no
+ordering guarantee absent one). `httpFetchAdapter.ts` is a real GET-only
+`fetch()`-backed adapter (page/offset/cursor pagination, `HttpStatusError`/
+`retryableForStatus()`, `sanitizeUrl()`), hardened with a configurable
+client-side request timeout — deliberately `Promise.race()`-based, never
+`AbortController`/`fetch`'s own `signal`: a signal constructed in one JS
+realm (e.g. jsdom's own spec-compliant `AbortController`, used by
+`apps/desktop`'s own test environment) silently mishandled by `fetch()`
+from another realm was a real regression this session found and fixed
+after it broke every REST call in the desktop test suite.
+
+**The production Connector -> Data Exchange Bridge is real.**
+`apps/desktop/src/lib/connectorImportBridge.ts`'s `prepareConnectorImport()`/
+`confirmConnectorImport()` replace the prior sessions' manual
+test-only pipeline chaining with one real orchestration module:
+registry-driven dependency ordering with cycle detection, a disclosed
+non-transactional residual boundary, crosswalk persisted only after
+successful commit, and a real desktop entry point
+(`ConnectorBridgeImportDialog.tsx`, wired into the existing Data Exchange
+screen). Session 11 fixed `withBatchOverlay()` — its own doc comment
+claimed only an earlier-committing template could satisfy a same-batch
+forward reference, but the implementation checked the FULL batch
+unfiltered by commit order; now tracks `earlierTemplates` explicitly as
+`plan.order` is walked. Import History provenance for a connector-sourced
+job no longer claims `fileType:"csv"`/fabricated `fileSize`/`sha256` — a
+new `"connector"` `fileType` value and honest optional
+`extractionRunId`/`connectorVersion`/`sourceEntity`/`sourceSchemaFingerprint`/
+`mappingProfileVersion` fields replace it.
+
+**Conflict classification is now enforcement, not just a label.**
+`classifyReimport()`'s `CANONICAL_LOCAL_CONFLICT` was structurally
+unreachable as its own distinct state (it compared the freshly re-mapped
+SOURCE candidate against itself, never the LIVE canonical record) —
+fixed via `loadLiveCandidateFields()` (`dataExchangeExisting.ts`), which
+also closed a real gap it exposed: `material_suppliers`/
+`inventory_records`/`exchange_rates` had no live-record loader at all.
+Then, the bigger fix: `CANONICAL_LOCAL_CONFLICT`/`CANONICAL_MISSING`/
+`MAPPING_PROFILE_CHANGED`/the new `CROSSWALK_CONFLICT` were being
+CLASSIFIED but never ENFORCED — a row in one of these states could still
+silently enter the normal committable path. `isRowCommittable()`
+(`connectorImportBridge.ts`) is now the one deterministic
+commit-eligibility authority, considering BOTH Data Exchange preview
+validity and re-import/conflict safety together; every unsafe state
+blocks the WHOLE batch (the SAME atomic-preflight discipline
+invalid/reference_missing already used) rather than an invented
+per-row partial-skip semantic. `CROSSWALK_CONFLICT` is preflighted
+during `prepareConnectorImport()` itself, reusing the existing crosswalk
+authority (`resolveCrosswalk()`) read-only — zero canonical/crosswalk
+write before a human resolves it.
+
+**The customer migration fixture is real.** A prior session's fixture
+never used a real DB/REST-backed source, never included inventory, never
+exercised a real mapping-profile version chain, and never proved a
+second migration's incremental/conflict states against real data.
+`apps/desktop/src/lib/customerMigrationFixture.test.ts` replaces it: a
+real SQLite-backed ERP, a legacy formulation file, a real REST-backed
+LIMS (real local `node:http` server), real `convert_unit`/`map_boolean`
+transformations, a real v1->v2 mapping-profile chain, and a genuine
+second migration proving NEW/UNCHANGED/CHANGED/SOURCE_MISSING/
+CANONICAL_LOCAL_CONFLICT/CANONICAL_MISSING/CROSSWALK_CONFLICT/
+MAPPING_PROFILE_CHANGED — all through the real production bridge, never
+manually chained.
+
+Full re-verification: `pnpm --filter @formulab/shared test` — 1685/1685
+across 80 files. `pnpm --filter @formulab/desktop test` — 1621/1621
+across 161 files. `typecheck`/`lint` clean both packages.
+`python scripts/validate_v1_tracker.py`: OK. No task count change — FVL-04
+remains 25/26 (FVL-04.026 correctly not started); this was a hardening
+pass on already-COMPLETED tasks, not new task completion.

@@ -4,6 +4,19 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**READ THIS FIRST (2026-08-20, Session 10/11)**: FVL-04 is 25/26,
+genuinely re-hardened after an independent audit — see "FVL-04.019-.025
+final closure hardening (Session 10/11)" below (the resolution section
+list is reverse-chronological — newest first). The tail sections of this
+file ("Exact next task"/"Known blockers"/"Most recent relevant tests")
+below are stale, dating to an earlier FVL-04.005-.012-era session, and
+were not kept current by intervening sessions — do not trust them over
+the tracker (`docs/FORMULAB_V1_TASK_TRACKER.md`) or this pointer.
+**Exact next task, as of this session: `FVL-04.026` — blank, NOT
+STARTED** (Human-Readable Literature & Formulation Artifact Naming
+Convention). Do not start it without explicit instruction — every
+governing brief through Session 11 has explicitly said not to.
+
 ## Frozen scope reference
 
 - Scope: [`docs/FORMULAB_V1_FINAL_SCOPE.md`](../FORMULAB_V1_FINAL_SCOPE.md)
@@ -32,19 +45,21 @@ version chain, and a discriminated `FileConnectorInput`/`FileConnectorSource`
 contract) — see "FVL-04.013-.018 final correction (Session 8)",
 "FVL-04.013-.018 hardening (Session 7)", "FVL-04.013-.018 hardening
 (Session 6)", and "FVL-04.013-.018 resolution (Session 5)" below.
-**FVL-04 EXTERNAL CONNECTOR FOUNDATION — FINAL CLOSURE VERIFIED.**
-**FVL-04.019-.025 — ALL COMPLETED, closing the queued FVL-04.019-.025
-brief in full.** FVL-04.019 (Formula/Recipe Relationship Import),
-FVL-04.020 (Laboratory/Test Result Relationship Import), FVL-04.021
-(Generic Database Read Connector — engine layer; real driver adapter
-wired later), FVL-04.022 (REST API Connector Contract — engine layer;
-real HTTP client adapter wired later), FVL-04.024 (Connector ->
-Existing Data Exchange Bridge — built before .023 since .023 itself
-depends on it), FVL-04.023 (Incremental Re-import / Conflict
-Handling), FVL-04.025 (Customer Migration Acceptance Fixture) — see
-their own resolution sections below. FVL-04 is now **25/26**.
-**FVL-04.026 — NOT STARTED, per the queued brief's own explicit
-instruction not to begin it.**
+**FVL-04 EXTERNAL CONNECTOR FOUNDATION — FINAL CLOSURE VERIFIED, THEN
+INDEPENDENTLY AUDITED AND RE-HARDENED (Session 10/11, 2026-08-20).**
+**FVL-04.019-.025 — ALL GENUINELY COMPLETED**, after an independent
+audit found real gaps below original acceptance in a prior session's
+closure and every one was fixed and re-proven — see "FVL-04.019-.025
+final closure hardening (Session 10/11)" below for the itemized
+correction, and each task's own row in
+`docs/FORMULAB_V1_TASK_TRACKER.md` for full detail. The stale claims
+below this paragraph ("engine layer; real driver/HTTP client adapter
+wired later") are now FALSE and superseded — real adapters exist
+(`sqliteTestAdapter.ts`, `httpFetchAdapter.ts`), and the production
+bridge (`connectorImportBridge.ts`) is real, not deferred. FVL-04 is
+now genuinely **25/26**. **FVL-04.026 — NOT STARTED, per the governing
+brief's own explicit instruction not to begin it in a hardening
+session.**
 
 ## Current task
 
@@ -87,6 +102,63 @@ template + real UI consumer) and a dedicated per-material TDS/SDS/
 specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
+
+## FVL-04.019-.025 final closure hardening (Session 10/11, 2026-08-20) — independent audit corrections
+
+A subsequent independent audit of the FVL-04.019-.025 closure below found
+real implementation work that fell below the ORIGINAL acceptance
+threshold on several tasks despite being marked COMPLETED. Two hardening
+sessions followed. Real gaps found and fixed (see
+`docs/FORMULAB_V1_TASK_TRACKER.md`'s own per-task rows and
+`docs/FVL04_EXTERNAL_SOURCE_CONNECTOR_ARCHITECTURE.md`'s own "Hardening
+(Session 10/11)" section for full detail):
+
+- **FVL-04.019**: `formula_bom`'s `quantity`/`quantity_unit` columns were
+  read but silently dropped — fixed. New acceptance: explicit
+  source-supplied version preservation (not merely "next generated"),
+  and a genuinely RELATIONAL two-entity source (`FormulaHeader`+
+  `FormulaLine`, real FK, real crosswalk-resolved material identity).
+- **FVL-04.020**: lab-result migration required a trial to already exist
+  manually — fixed with `findOrCreateTrial()`, reusing the real
+  `snapshotFormulaForTrial()`/masterdata bridge the Laboratory workspace
+  itself uses, only when a real formula/version resolves.
+- **FVL-04.021**: the "engine layer, real driver wired later" disclosure
+  is superseded — a real disposable SQLite adapter (`sqliteTestAdapter.ts`)
+  exists, plus a real deterministic-paging fix (LIMIT/OFFSET had no
+  ORDER BY at all — a genuine duplicate/skip/reorder risk).
+- **FVL-04.022**: the "engine layer, real HTTP client wired later"
+  disclosure is superseded — a real GET-only `fetch()` adapter
+  (`httpFetchAdapter.ts`) exists, hardened with a client-side timeout, a
+  proven-already-working nested external-ID path, and an audited
+  credential boundary. A real regression was found and fixed here: the
+  first timeout implementation (`AbortController`) broke every REST call
+  in the desktop app's own jsdom test environment (a cross-realm signal
+  mismatch) — rewritten to a `Promise.race()` timeout.
+- **FVL-04.023**: `CANONICAL_LOCAL_CONFLICT` was structurally
+  unreachable as its own state (compared the source candidate against
+  itself, never the live canonical record) — fixed. Then the bigger
+  fix: unsafe re-import states were CLASSIFIED but never ENFORCED — a
+  row in one could still silently commit. `isRowCommittable()` is now
+  the one authority; every unsafe state blocks the whole batch.
+  `CROSSWALK_CONFLICT` is now preflighted before any write.
+- **FVL-04.024**: Session 9's "end-to-end" proof was still manually
+  chained inside tests — the real production bridge
+  (`connectorImportBridge.ts`) is built now, plus a real desktop UI
+  entry point. Fixed: truthful Import History provenance (no more fake
+  `fileType:"csv"` for a DB/REST import), `withBatchOverlay()` genuinely
+  restricted to earlier-committing templates, and a genuine RUNTIME
+  commit-layer failure proven end-to-end (never a synthetic outcome).
+- **FVL-04.025**: the prior fixture never used a real DB/REST source,
+  never included inventory, never exercised a mapping-profile version
+  chain, and never proved a second migration's conflict states.
+  Replaced with a genuinely real, two-migration fixture
+  (`customerMigrationFixture.test.ts`, MIG1-MIG37).
+
+Full re-verification: `pnpm --filter @formulab/shared test` 1685/1685
+(80 files). `pnpm --filter @formulab/desktop test` 1621/1621 (161
+files). `typecheck`/`lint` clean both packages.
+`python scripts/validate_v1_tracker.py`: OK. No task count change —
+FVL-04 remains 25/26 (this was hardening on already-COMPLETED tasks).
 
 ## FVL-04.019 resolution (this session — Formula/Recipe Relationship Import)
 
