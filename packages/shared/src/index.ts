@@ -585,6 +585,7 @@ export * from "./engine/xmlParser";
 export * from "./engine/fileConnector";
 export * from "./engine/databaseConnector";
 export * from "./engine/restApiConnector";
+export * from "./engine/relationalAssembly";
 export * from "./engine/httpFetchAdapter";
 export * from "./engine/schemaDiscovery";
 export * from "./engine/mappingProfile";

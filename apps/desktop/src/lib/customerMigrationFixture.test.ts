@@ -16,6 +16,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  assembleRelationalRecords,
   createDatabaseConnector,
   createFileConnector,
   createHttpFetchAdapter,
@@ -24,8 +25,10 @@ import {
   getDataExchangeTemplate,
   mappingProfileCode,
   validateMappingProfileSupersession,
+  wrapAssembledSource,
   type DatabaseAdapter,
   type MappingProfile,
+  type RelationalJoinConfig,
   type RestRequestSpec,
 } from "@formulab/shared";
 import { createSqliteTestAdapter, type SqliteTestAdapterHandle } from "@formulab/shared/testing";
@@ -713,5 +716,176 @@ describe("FVL-04.025 Part G — real customer migration fixture (MIG1-MIG35)", (
     expect(link.preferred).toBe(true); // Preferred=1 in the ERP source, mapped through a real map_boolean step
     // MIG35 — every MIG item above ran as a real, executing assertion in this file, not prose.
     expect(store.get("data_exchange_import_jobs")!.length).toBeGreaterThan(5);
+  });
+});
+
+// ==================================================================
+// Session 12 hardening (FVL-04.019, Section 1) — the REAL production
+// path for a relational (FormulaHeader + FormulaLine) source: real
+// DatabaseAdapter -> two independently extracted entities -> the
+// generic, config-driven assembleRelationalRecords()/wrapAssembledSource()
+// (packages/shared/src/engine/relationalAssembly.ts) -> the UNCHANGED
+// prepareConnectorImport()/confirmConnectorImport() -> a real canonical
+// Formulation + FormulationVersion. No test-local filter()/manual
+// object merge anywhere in this block — the join itself is a generic,
+// reusable, config-driven module, never a customer-specific parser.
+// ==================================================================
+
+const RELATIONAL_JOIN_CONFIG: RelationalJoinConfig = {
+  headerEntity: "formula_header",
+  lineEntity: "formula_line",
+  headerKeyField: "FormulaCode",
+  lineKeyField: "FormulaCode",
+  headerFieldsToCopy: ["FormulaName", "ProductFamilyCode"],
+  assembledEntity: "assembled_formulas",
+};
+
+function relationalMappingProfile(fp: string, explicitVersionField?: string): MappingProfile {
+  return {
+    schemaVersion: "1.0",
+    code: mappingProfileCode("rel-prod", 1),
+    profileId: "rel-prod",
+    profileName: "Relational production formula mapping",
+    sourceSystemId: "REL_ERP",
+    sourceEntity: RELATIONAL_JOIN_CONFIG.assembledEntity,
+    sourceSchemaFingerprint: fp,
+    profileVersion: 1,
+    status: "active",
+    fieldMappings: [
+      { sourceField: "FormulaCode", targetTemplate: "formula_bom", targetField: "formula_code" },
+      { sourceField: "FormulaName", targetTemplate: "formula_bom", targetField: "formula_name" },
+      { sourceField: "ProductFamilyCode", targetTemplate: "formula_bom", targetField: "product_family_code" },
+      { sourceField: "LineNumber", targetTemplate: "formula_bom", targetField: "line_number" },
+      { sourceField: "MaterialCode", targetTemplate: "formula_bom", targetField: "material_code" },
+      { sourceField: "Percentage", targetTemplate: "formula_bom", targetField: "percentage" },
+      { sourceField: "Phase", targetTemplate: "formula_bom", targetField: "phase" },
+      { sourceField: "QuantityKg", targetTemplate: "formula_bom", targetField: "quantity" },
+      ...(explicitVersionField ? [{ sourceField: explicitVersionField, targetTemplate: "formula_bom", targetField: "formula_version" }] : []),
+    ],
+    constantMappings: [
+      { targetTemplate: "formula_bom", targetField: "quantity_unit", value: "kg" },
+      // Left blank (auto-append) UNLESS the source explicitly supplies its
+      // own version field (requirement 10) — never both at once, the
+      // field mapping above takes precedence when configured.
+      ...(explicitVersionField ? [] : [{ targetTemplate: "formula_bom", targetField: "formula_version", value: "" }]),
+    ],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    createdBy: "local",
+  };
+}
+
+async function assembleAndPrepare(setupSql: string, explicitVersionField?: string) {
+  const { adapter, close } = await createSqliteTestAdapter(setupSql);
+  const connector = createDatabaseConnector("REL_ERP", { connectionRef: "rel-erp-conn", entities: { formula_header: { table: "formula_header" }, formula_line: { table: "formula_line" } } }, { extractionRunId: "run-rel-prod", extractedAt: "2026-01-01T00:00:00.000Z" }, { adapter });
+  const assembled = await assembleRelationalRecords(connector, RELATIONAL_JOIN_CONFIG);
+  const wrapped = wrapAssembledSource(connector.identity, RELATIONAL_JOIN_CONFIG, assembled);
+  const fp = discoverSourceSchema("REL_ERP", [{ entity: RELATIONAL_JOIN_CONFIG.assembledEntity, records: assembled.records }]).fingerprint;
+  const prepared = await prepareConnectorImport({ connector: wrapped, entity: RELATIONAL_JOIN_CONFIG.assembledEntity, profile: relationalMappingProfile(fp, explicitVersionField) });
+  return { prepared, assembled, close };
+}
+
+describe("FVL-04.019 Section 1 — real production path for a relational FormulaHeader+FormulaLine source", () => {
+  it("a real header+2-line formula, scrambled line insert order, assembles and commits through the real bridge into a genuine Formulation+FormulationVersion", async () => {
+    store.set("materials", [{ code: "MAT-1" }, { code: "MAT-2" }]);
+    const { prepared, close } = await assembleAndPrepare(`
+      CREATE TABLE formula_header (FormulaCode TEXT PRIMARY KEY, FormulaName TEXT NOT NULL, ProductFamilyCode TEXT);
+      CREATE TABLE formula_line (FormulaCode TEXT NOT NULL, LineNumber INTEGER NOT NULL, MaterialCode TEXT NOT NULL, Percentage REAL NOT NULL, Phase TEXT, QuantityKg REAL, PRIMARY KEY (FormulaCode, LineNumber));
+      INSERT INTO formula_header VALUES ('REL-PROD-1','Relational Production Formula','REL-PROD-FAM');
+      INSERT INTO formula_line VALUES ('REL-PROD-1', 2, 'MAT-1', 60, 'A', 6);
+      INSERT INTO formula_line VALUES ('REL-PROD-1', 1, 'MAT-2', 40, 'A', 4);
+    `);
+    try {
+      expect(prepared.blockingIssues).toEqual([]);
+      await confirmConnectorImport(prepared, ctx);
+
+      const entry = [...formulationsStore.values()].find((e) => e.formulation.code === "REL-PROD-1")!;
+      expect(entry.formulation.name).toBe("Relational Production Formula"); // header metadata survived
+      expect(entry.formulation.productFamilyCode).toBe("REL-PROD-FAM"); // header metadata survived
+      expect(entry.versions).toHaveLength(1);
+      const version = entry.versions[0];
+      expect(version.lines.map((l) => l.lineNumber)).toEqual([1, 2]); // deterministic canonical order despite scrambled source insert order
+      expect(version.lines.map((l) => l.materialCode)).toEqual(["MAT-2", "MAT-1"]); // line 1 -> MAT-2, line 2 -> MAT-1
+      expect(version.lines.find((l) => l.lineNumber === 1)!.phase).toBe("A");
+      expect(version.lines.find((l) => l.lineNumber === 1)!.quantity).toBe("4");
+      expect(version.lines.find((l) => l.lineNumber === 1)!.quantityUnit).toBe("kg");
+      expect((version as unknown as { totalsSnapshot?: { totalPercent?: string } }).totalsSnapshot?.totalPercent).toBe("100.0000");
+    } finally {
+      close();
+    }
+  });
+
+  it("a line referencing a header key with NO matching header record blocks — a structured error from the generic join itself, zero partial commit", async () => {
+    store.set("materials", [{ code: "MAT-1" }]);
+    const { prepared, assembled, close } = await assembleAndPrepare(`
+      CREATE TABLE formula_header (FormulaCode TEXT PRIMARY KEY, FormulaName TEXT NOT NULL, ProductFamilyCode TEXT);
+      CREATE TABLE formula_line (FormulaCode TEXT NOT NULL, LineNumber INTEGER NOT NULL, MaterialCode TEXT NOT NULL, Percentage REAL NOT NULL, Phase TEXT, QuantityKg REAL, PRIMARY KEY (FormulaCode, LineNumber));
+      INSERT INTO formula_line VALUES ('REL-PROD-GHOST', 1, 'MAT-1', 100, 'A', 10);
+    `);
+    try {
+      expect(assembled.errors[0]?.code).toBe("missing_header_relationship"); // requirement 7 — real, structured, from the join step
+      expect(assembled.records).toEqual([]);
+      expect(prepared.blockingIssues.length).toBeGreaterThan(0);
+      await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/);
+      expect([...formulationsStore.values()].some((e) => e.formulation.code === "REL-PROD-GHOST")).toBe(false); // requirement 9 — zero partial commit
+    } finally {
+      close();
+    }
+  });
+
+  it("a line referencing a material with no canonical raw_materials record blocks at the existing reference layer — zero partial commit", async () => {
+    store.set("materials", []); // MAT-MISSING genuinely does not exist
+    const { prepared, close } = await assembleAndPrepare(`
+      CREATE TABLE formula_header (FormulaCode TEXT PRIMARY KEY, FormulaName TEXT NOT NULL, ProductFamilyCode TEXT);
+      CREATE TABLE formula_line (FormulaCode TEXT NOT NULL, LineNumber INTEGER NOT NULL, MaterialCode TEXT NOT NULL, Percentage REAL NOT NULL, Phase TEXT, QuantityKg REAL, PRIMARY KEY (FormulaCode, LineNumber));
+      INSERT INTO formula_header VALUES ('REL-PROD-BADMAT','Bad Material Formula','REL-PROD-FAM');
+      INSERT INTO formula_line VALUES ('REL-PROD-BADMAT', 1, 'MAT-MISSING', 100, 'A', 10);
+    `);
+    try {
+      expect(prepared.blockingIssues.some((b) => b.includes("MAT-MISSING") || b.toLowerCase().includes("reference"))).toBe(true); // requirement 8
+      await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/);
+      expect([...formulationsStore.values()].some((e) => e.formulation.code === "REL-PROD-BADMAT")).toBe(false); // requirement 9 — zero partial commit
+    } finally {
+      close();
+    }
+  });
+
+  it("an explicit source formula_version is preserved exactly and remains immutable on re-import — requirement 10", async () => {
+    store.set("materials", [{ code: "MAT-EXP-1" }]);
+    const setupSql = `
+      CREATE TABLE formula_header (FormulaCode TEXT PRIMARY KEY, FormulaName TEXT NOT NULL, ProductFamilyCode TEXT);
+      CREATE TABLE formula_line (FormulaCode TEXT NOT NULL, LineNumber INTEGER NOT NULL, MaterialCode TEXT NOT NULL, Percentage REAL NOT NULL, Phase TEXT, QuantityKg REAL, ExplicitVersion TEXT, PRIMARY KEY (FormulaCode, LineNumber));
+      INSERT INTO formula_header VALUES ('REL-PROD-EXPV','Explicit Version Formula','REL-PROD-FAM');
+      INSERT INTO formula_line VALUES ('REL-PROD-EXPV', 1, 'MAT-EXP-1', 100, 'A', 10, '1');
+    `;
+    const { prepared, close } = await assembleAndPrepare(setupSql, "ExplicitVersion");
+    try {
+      expect(prepared.blockingIssues).toEqual([]);
+      await confirmConnectorImport(prepared, ctx);
+      const entry = [...formulationsStore.values()].find((e) => e.formulation.code === "REL-PROD-EXPV")!;
+      expect(entry.versions[0].versionNumber).toBe(1); // the EXPLICIT source value, preserved exactly
+
+      // Re-importing the SAME explicit version is refused as immutable —
+      // proving it was genuinely recorded, never silently renumbered.
+      const { adapter: adapter2, close: close2 } = await createSqliteTestAdapter(setupSql);
+      const connector2 = createDatabaseConnector("REL_ERP", { connectionRef: "rel-erp-conn-2", entities: { formula_header: { table: "formula_header" }, formula_line: { table: "formula_line" } } }, { extractionRunId: "run-rel-prod-2", extractedAt: "2026-01-01T00:00:00.000Z" }, { adapter: adapter2 });
+      try {
+        const assembled2 = await assembleRelationalRecords(connector2, RELATIONAL_JOIN_CONFIG);
+        const wrapped2 = wrapAssembledSource(connector2.identity, RELATIONAL_JOIN_CONFIG, assembled2);
+        const fp2 = discoverSourceSchema("REL_ERP", [{ entity: RELATIONAL_JOIN_CONFIG.assembledEntity, records: assembled2.records }]).fingerprint;
+        const prepared2 = await prepareConnectorImport({ connector: wrapped2, entity: RELATIONAL_JOIN_CONFIG.assembledEntity, profile: relationalMappingProfile(fp2, "ExplicitVersion") });
+        // The clash is a real RUNTIME-only immutability check inside
+        // commitFormulaBom itself (invisible to generic preview, same as
+        // BR21's own runtime-failure surface) — confirm resolves with a
+        // truthfully failed outcome, never a rejected promise.
+        const confirmed2 = await confirmConnectorImport(prepared2, ctx);
+        expect(confirmed2.outcomesByTemplate.formula_bom[0].outcome).toBe("failed");
+        expect(confirmed2.outcomesByTemplate.formula_bom[0].message).toMatch(/immutable/);
+      } finally {
+        close2();
+      }
+    } finally {
+      close();
+    }
   });
 });
