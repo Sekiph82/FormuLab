@@ -23,7 +23,6 @@ import {
   Microscope,
   NotebookPen,
   PanelLeft,
-  Plus,
   Scale,
   Settings,
   Sparkles,
@@ -147,8 +146,10 @@ export function Sidebar() {
   const overlayTitlebar = useOverlayTitlebar();
 
   // ---- Navigation groups (single source of truth for the sidebar's 10
-  // top-level entries — Sessions is the 10th, rendered separately below
-  // since it is pinned data, not a route group). ----
+  // route-bearing top-level entries, including "New Request" — the sole
+  // formulation-request creation entry point. Sessions is an 11th,
+  // pinned entry rendered separately below since it is pinned data, not
+  // a route group). ----
   const navItems: NavItem[] = useMemo(
     () => [
       { type: "leaf", key: "home", icon: Home, label: t("workspacesNav.home"), path: "/home" },
@@ -317,17 +318,10 @@ export function Sidebar() {
               </div>
             </div>
 
-            {/* Brand header and New button stay fixed above the scroll region. */}
-            <div className="shrink-0 px-3">
-              <NavRow
-                icon={<Plus size={16} />}
-                label={t("items.new")}
-                onClick={() => navigate("/formulation-request")}
-              />
-            </div>
-
-            {/* The only scrolling region: the 9 route-bearing top-level
-                entries (Sessions, the 10th, is pinned below — never here). */}
+            {/* The only scrolling region: the 10 route-bearing top-level
+                entries (Sessions, pinned below, is an 11th — never here).
+                "New Request" (in navItems) is the sole formulation-request
+                creation entry point — no separate fixed "New" row. */}
             <nav aria-label={t("sections.workspaces")} className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 pt-1">
               {navItems.map((item) =>
                 item.type === "leaf" ? (
@@ -515,25 +509,5 @@ export function Sidebar() {
         />
       </div>
     </div>
-  );
-}
-
-function NavRow({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-2 rounded-input px-2 py-1 text-[13px] text-text hover:bg-surface-2"
-    >
-      <span className="text-muted">{icon}</span>
-      <span>{label}</span>
-    </button>
   );
 }

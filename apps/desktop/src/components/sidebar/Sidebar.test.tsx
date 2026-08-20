@@ -1,8 +1,27 @@
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useUiStore } from "@/lib/store";
 import { renderAt } from "@/test/render";
+import { Sidebar } from "./Sidebar";
+
+/** Renders only Sidebar (no AppShell/full route tree) plus a location
+ *  probe, so a real NavLink click can be proven to change the router's
+ *  location without mounting whatever heavy page sits at the target
+ *  route. */
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-probe">{location.pathname}</div>;
+}
+function renderSidebarOnly(initial: string) {
+  return render(
+    <MemoryRouter initialEntries={[initial]}>
+      <Sidebar />
+      <LocationProbe />
+    </MemoryRouter>,
+  );
+}
 
 const sessionsMock = {
   listSessions: vi.fn(async () => [] as unknown[]),
@@ -13,6 +32,10 @@ vi.mock("@/lib/formulationV2", () => ({
   deleteSession: (id: string) => sessionsMock.deleteSession(id),
   notifySessionsChanged: vi.fn(),
   SESSIONS_CHANGED_EVENT: "formulab:sessions-changed",
+  DEFAULT_FORMULA_ALTERNATIVES: 3,
+  FORMULA_ALTERNATIVE_COUNTS: [3, 4, 5, 6, 7],
+  generateFormulation: vi.fn(),
+  loadProviderConfig: () => ({ provider: "gemini", model: "m", apiKey: "k" }),
 }));
 
 function session(id: string, target = id) {
@@ -29,19 +52,22 @@ beforeEach(() => {
 });
 
 describe("Sidebar — top-level structure", () => {
-  it("shows exactly 10 top-level entries", async () => {
+  it("shows exactly 10 route-bearing top-level entries, plus Sessions pinned separately", async () => {
     renderAt("/files");
     const nav = await screen.findByRole("navigation", { name: "Workspaces" });
-    // 9 route-bearing top-level rows live inside <nav>: 5 direct links
-    // (Home, Projects, Reports, Data Exchange, Administration) + 4 group
-    // toggle buttons (Formulation, Laboratory, Regulatory, Tools).
-    const links = within(nav).getAllByRole("link", { name: /^(Home|Projects|Reports|Data Exchange|Administration)$/ });
-    expect(links).toHaveLength(5);
+    // 10 route-bearing top-level rows live inside <nav>: 6 direct links
+    // (Home, New Request, Projects, Reports, Data Exchange, Administration)
+    // + 4 group toggle buttons (Formulation, Laboratory, Regulatory, Tools).
+    const links = within(nav).getAllByRole("link", {
+      name: /^(Home|New Request|Projects|Reports|Data Exchange|Administration)$/,
+    });
+    expect(links).toHaveLength(6);
     const groupToggles = within(nav).getAllByRole("button", {
       name: /^(Formulation|Laboratory|Regulatory|Tools)$/,
     });
     expect(groupToggles).toHaveLength(4);
-    // Sessions is the 10th, pinned outside <nav>.
+    // Sessions is pinned outside <nav> — an 11th top-level entry, not one
+    // of the 10 route-bearing rows counted above.
     expect(screen.getByText("Sessions")).toBeInTheDocument();
   });
 
@@ -87,6 +113,65 @@ describe("Sidebar — top-level structure", () => {
     );
     // Regulatory-only children must not leak into the Formulation group.
     expect(formulationLinks).not.toContain("/dossiers");
+  });
+});
+
+describe("Sidebar — New Request navigation (NAV1-NAV7)", () => {
+  it("NAV1: no button with accessible name exactly 'New'", async () => {
+    renderAt("/files");
+    await screen.findByRole("navigation", { name: "Workspaces" });
+    expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
+  });
+
+  it("NAV2: no link with accessible name exactly 'New'", async () => {
+    renderAt("/files");
+    await screen.findByRole("navigation", { name: "Workspaces" });
+    expect(screen.queryByRole("link", { name: "New" })).not.toBeInTheDocument();
+  });
+
+  it("NAV3: exactly one navigation entry reaches /formulation-request", async () => {
+    renderAt("/files");
+    const nav = await screen.findByRole("navigation", { name: "Workspaces" });
+    const links = within(nav)
+      .getAllByRole("link")
+      .filter((el) => el.getAttribute("href") === "/formulation-request");
+    expect(links).toHaveLength(1);
+  });
+
+  it("NAV4: that entry's accessible name is exactly 'New Request'", async () => {
+    renderAt("/files");
+    const nav = await screen.findByRole("navigation", { name: "Workspaces" });
+    const link = within(nav)
+      .getAllByRole("link")
+      .find((el) => el.getAttribute("href") === "/formulation-request");
+    expect(link).toBeDefined();
+    expect(link).toHaveAccessibleName("New Request");
+  });
+
+  it("NAV5: clicking New Request navigates to /formulation-request", async () => {
+    renderSidebarOnly("/files");
+    const nav = await screen.findByRole("navigation", { name: "Workspaces" });
+    const user = userEvent.setup();
+    await user.click(within(nav).getByRole("link", { name: "New Request" }));
+    await waitFor(() => expect(screen.getByTestId("location-probe")).toHaveTextContent("/formulation-request"));
+    expect(within(nav).getByRole("link", { name: "New Request" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("NAV6: New Request becomes active on /formulation-request", async () => {
+    renderAt("/formulation-request");
+    const nav = await screen.findByRole("navigation", { name: "Workspaces" });
+    expect(within(nav).getByRole("link", { name: "New Request" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("NAV7: existing top-level navigation remains reachable", async () => {
+    renderAt("/files");
+    const nav = await screen.findByRole("navigation", { name: "Workspaces" });
+    for (const name of ["Home", "Projects", "Reports", "Data Exchange", "Administration"]) {
+      expect(within(nav).getByRole("link", { name })).toBeInTheDocument();
+    }
+    for (const name of ["Formulation", "Laboratory", "Regulatory", "Tools"]) {
+      expect(within(nav).getByRole("button", { name })).toBeInTheDocument();
+    }
   });
 });
 
