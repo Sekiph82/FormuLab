@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createFileConnector, discoverSourceSchema, type ApprovalRole, type DataExchangeTemplateDefinition } from "@formulab/shared";
 import { buildIdentityMappingProfile, confirmConnectorImport, prepareConnectorImport, type PreparedConnectorImport } from "@/lib/connectorImportBridge";
@@ -58,6 +58,15 @@ export function ConnectorBridgeImportDialog({
     }
   };
 
+  // Section 7 (Session 12 hardening) — SOURCE_MISSING findings were
+  // detected by the real engine (`detectMissingFromSource()`) but never
+  // surfaced anywhere in THIS dialog. Aggregated across every target
+  // template in the prepared plan, reusing the EXISTING
+  // dataExchange.import.missingFromSource(Item) i18n keys and rendering
+  // convention `DataExchangeImportDialog.tsx` already established —
+  // never a second copy of the disclosure text, never a new screen.
+  const missingFromSource = useMemo(() => prepared?.templates.flatMap((t) => t.missingFromSource) ?? [], [prepared]);
+
   const commit = async () => {
     if (!prepared || prepared.blockingIssues.length > 0) return;
     setBusy(true);
@@ -89,6 +98,26 @@ export function ConnectorBridgeImportDialog({
                   <li key={i}>{issue}</li>
                 ))}
               </ul>
+            )}
+            {prepared.warnings.length > 0 && (
+              <div className="rounded-input border border-border px-3 py-2">
+                <p className="text-[12px] font-medium text-text">{t("dataExchange.imports.bridgeWarnings", { count: prepared.warnings.length })}</p>
+                <ul className="mt-1 max-h-32 space-y-0.5 overflow-y-auto text-[11px] text-muted">
+                  {prepared.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {missingFromSource.length > 0 && (
+              <div className="rounded-input border border-border px-3 py-2">
+                <p className="text-[12px] font-medium text-text">{t("dataExchange.import.missingFromSource", { count: missingFromSource.length })}</p>
+                <ul className="mt-1 max-h-32 space-y-0.5 overflow-y-auto text-[11px] text-muted">
+                  {missingFromSource.slice(0, 100).map((m) => (
+                    <li key={m.naturalKey}>{t("dataExchange.import.missingFromSourceItem", { key: m.naturalKey, collection: m.targetCollection ?? "?" })}</li>
+                  ))}
+                </ul>
+              </div>
             )}
             {committed && <p className="text-[12px] font-medium text-text">{t("dataExchange.import.committed", { created: 0, updated: 0, status: "completed" })}</p>}
           </div>

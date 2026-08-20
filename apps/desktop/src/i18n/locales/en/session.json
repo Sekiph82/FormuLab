@@ -2878,7 +2878,8 @@
     "imports": {
       "description": "Choose a template to upload a completed file. Nothing is written until you preview and confirm.",
       "viaBridge": "Import via connector bridge",
-      "bridgeSummary": "{{count}} mapped row(s) - commit order: {{order}}"
+      "bridgeSummary": "{{count}} mapped row(s) - commit order: {{order}}",
+      "bridgeWarnings": "{{count}} non-fatal warning(s) from this import - review before committing:"
     },
     "validation": {
       "empty": "Open a template's Upload dialog to see validation results for a file."
