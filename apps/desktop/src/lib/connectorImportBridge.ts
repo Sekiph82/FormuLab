@@ -24,6 +24,19 @@
  * ONLY for rows that just committed successfully. No alternate write
  * path exists anywhere in this file — every canonical write still goes
  * through the one real commit authority.
+ *
+ * Session 12 hardening — `crosswalkTargets` is now decided ONLY at
+ * `prepareConnectorImport()` time and carried inside the returned
+ * `PreparedConnectorImport` itself; `confirmConnectorImport()` no
+ * longer accepts an independent crosswalk-target argument at all, so a
+ * confirmation can never introduce (or silently change) crosswalk
+ * persistence the human reviewer never actually saw. Confirmation also
+ * now revalidates the specific live state its own conflict
+ * classification depended on (canonical fingerprint, crosswalk
+ * binding) immediately before committing each template — a prepared
+ * plan that has gone stale since review (someone else edited the
+ * canonical record, rebound the crosswalk, or deleted the target) is
+ * refused outright, never silently trusted.
  */
 import {
   applyMappingProfile,
@@ -43,6 +56,7 @@ import {
   type DataExchangeImportJob,
   type DataExchangeImportRowResult,
   type DataExchangeRowResult,
+  type DataExchangeTemplateDefinition,
   type MappingCandidateRow,
   type MappingProfile,
   type MappingProfileValidationIssue,
@@ -98,6 +112,44 @@ function referenceRequirementsFor(template: ReturnType<typeof getDataExchangeTem
     .filter((r): r is { referenceTemplate: string; referenceField: string } => r !== null);
 }
 
+/**
+ * Session 11 hardening (Part 6, corrected Part 12) — the ONE place that
+ * decides "what canonical record id would this row's own natural key
+ * identify". Every `create_or_update` template in this registry has its
+ * own commit handler use the record's natural key AS its canonical
+ * `code`/id directly (`materials.code = material_code`,
+ * `suppliers.code = supplier_code`, ...) — confirmed per-handler in
+ * `dataExchangeCommit.ts`, never assumed. For an `append_history`/
+ * `new_revision` template (`material_prices`, `exchange_rates`,
+ * `formula_bom`, `lab_results`) every import creates a genuinely NEW
+ * record with a freshly generated id — there is no deterministic way to
+ * decode a natural key into "the" canonical id for those, so this
+ * function honestly returns `undefined` rather than guessing. Centralized
+ * here so `CANONICAL_MISSING` (Part 6) and the crosswalk-conflict
+ * preflight (Part 12) share exactly one decoding rule instead of two.
+ */
+function canonicalIdentityFor(template: Pick<DataExchangeTemplateDefinition, "duplicatePolicy">, naturalKey: string): string | undefined {
+  return template.duplicatePolicy === "create_or_update" ? naturalKey : undefined;
+}
+
+/**
+ * Session 12 hardening (Part 6) — whether the canonical record a PRIOR
+ * commit targeted (`prior.targetRecordId`) still exists RIGHT NOW, using
+ * `prior.targetRecordId` itself as the lookup key (via
+ * `canonicalIdentityFor()`'s own id-equals-natural-key convention) —
+ * never inferred from the CURRENT candidate's own natural key, which may
+ * have drifted from what it was when `prior` was recorded. Returns
+ * `undefined` (never proven true or false) when the identity cannot be
+ * safely decoded at all (an append-only template's prior id is a
+ * generated id, never a natural key — genuinely unresolvable here, not
+ * silently guessed).
+ */
+function priorTargetStillExists(template: Pick<DataExchangeTemplateDefinition, "duplicatePolicy">, prior: PriorCommittedRow | undefined, liveCandidateFields: Map<string, Record<string, string>>): boolean | undefined {
+  if (!prior?.targetRecordId) return undefined;
+  if (template.duplicatePolicy !== "create_or_update") return undefined;
+  return liveCandidateFields.has(prior.targetRecordId);
+}
+
 export interface CrosswalkTarget {
   /** The canonical entity name to persist a crosswalk under for rows
    *  committed to this target template (e.g. `"RawMaterial"`) — never
@@ -119,6 +171,21 @@ export interface PreparedRow {
   rawRecordFingerprint: string;
   preview: DataExchangeRowResult;
   reimportState: ReimportState;
+  /** Session 12 hardening (Part 5, TOCTOU) — the live canonical record's
+   *  fingerprint AS OBSERVED AT PREPARE TIME, projected onto exactly the
+   *  fields this profile maps (`undefined` when no live record existed
+   *  yet at prepare time). `confirmConnectorImport()` re-derives this
+   *  fresh immediately before committing and refuses the whole batch if
+   *  it no longer matches — the human reviewed THIS state, never
+   *  whatever the canonical record has since become. */
+  canonicalFingerprintAtPrepare?: string;
+  /** The crosswalk binding observed at prepare time for this row's own
+   *  source identity — `undefined` when no crosswalk target was
+   *  configured for this template at all (revalidation is skipped
+   *  entirely in that case); `null` explicitly means "a crosswalk
+   *  target WAS configured and no active crosswalk existed yet".
+   *  Re-derived fresh at confirm time the same way. */
+  crosswalkBindingAtPrepare?: string | null;
 }
 
 export interface PreparedTemplateImport {
@@ -148,6 +215,14 @@ export interface PreparedConnectorImport {
    *  errors. Zero commit happens when this is non-empty (F4). */
   blockingIssues: string[];
   warnings: string[];
+  /** Session 12 hardening (Part 12) — the EXACT crosswalk target
+   *  configuration this prepared plan was reviewed under (whatever
+   *  `PrepareConnectorImportInput.crosswalkTargets` named, `{}` when
+   *  none). `confirmConnectorImport()` reads this back rather than
+   *  accepting an independent argument — a confirmation can never
+   *  persist a crosswalk under a configuration the human never actually
+   *  saw at prepare/preview time. */
+  crosswalkTargets: Record<string, CrosswalkTarget>;
 }
 
 export interface PrepareConnectorImportInput {
@@ -155,13 +230,16 @@ export interface PrepareConnectorImportInput {
   entity: string;
   profile: MappingProfile;
   resolveCrosswalk?: (sourceEntity: string, sourceRecordId: string, canonicalEntity: string) => string | undefined;
-  /** Session 11 hardening (Part 6C) — when a template has a configured
-   *  crosswalk target, `prepareConnectorImport()` preflights
-   *  CROSSWALK_CONFLICT itself (a source identity already bound to a
-   *  DIFFERENT canonical record than Import History's own prior commit
-   *  names) BEFORE any canonical write, reusing the existing crosswalk
-   *  authority (`resolveCrosswalk()`) read-only. Optional and additive —
-   *  a template with no crosswalk target here behaves exactly as before. */
+  /** Session 11/12 hardening (Part 6C/3/4) — the crosswalk target
+   *  configuration for this import, decided HERE and only here.
+   *  `prepareConnectorImport()` preflights CROSSWALK_CONFLICT (Part 3 —
+   *  resolved independently of Import History, straight from the real
+   *  crosswalk store) BEFORE any canonical write, and
+   *  `confirmConnectorImport()` reads this exact configuration back off
+   *  the returned `PreparedConnectorImport` — it accepts no separate
+   *  crosswalk-target argument of its own (Part 4). A template with no
+   *  entry here simply commits with no crosswalk persistence, exactly
+   *  like a direct Data Exchange import always has. */
   crosswalkTargets?: Record<string, CrosswalkTarget>;
 }
 
@@ -197,6 +275,7 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
   const identity = connector.identity;
   const blockingIssues: string[] = [];
   const warnings: string[] = [];
+  const crosswalkTargets = input.crosswalkTargets ?? {};
 
   const staged = await connector.extract(entity);
   for (const e of staged.errors) blockingIssues.push(`[${e.stage}] ${e.message}`);
@@ -218,6 +297,7 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     mappedCount: 0,
     unresolvedMappings: [] as string[],
     templates: [] as PreparedTemplateImport[],
+    crosswalkTargets,
   };
 
   // FVL-04.023 Part E4 — a whole profile is blocked from automatic reuse
@@ -304,11 +384,12 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     // — see `loadLiveCandidateFields()`'s own doc comment.
     const liveCandidateFields = await loadLiveCandidateFields(targetTemplate);
 
-    // Session 11 hardening (Part 6C) — real crosswalk-conflict preflight.
-    // Loaded once per template, only when a crosswalk target is actually
-    // configured for it (the common case — most templates never crosswalk
-    // — never pays this cost for nothing).
-    const crosswalkTarget = input.crosswalkTargets?.[targetTemplate];
+    // Session 11/12 hardening (Part 6C/3) — real crosswalk-conflict
+    // preflight, resolved directly from the real crosswalk store,
+    // independent of whether Import History has any prior row at all.
+    // Loaded once per template, only when a crosswalk target is
+    // actually configured for it.
+    const crosswalkTarget = crosswalkTargets[targetTemplate];
     const crosswalks = crosswalkTarget ? await loadCrosswalks() : undefined;
 
     const rows: PreparedRow[] = entries.map((entry) => {
@@ -322,31 +403,52 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
       // as a "local edit"), fingerprinted the same way as the candidate
       // so the two are directly comparable.
       const liveRow = liveCandidateFields.get(preview.naturalKey);
-      const canonicalCurrentFingerprint = liveRow ? fingerprintCanonicalCandidate(Object.fromEntries(Object.keys(entry.candidate.row).map((k) => [k, liveRow[k] ?? ""]))) : undefined;
+      const canonicalFingerprintAtPrepare = liveRow ? fingerprintCanonicalCandidate(Object.fromEntries(Object.keys(entry.candidate.row).map((k) => [k, liveRow[k] ?? ""]))) : undefined;
       let reimportState = classifyReimport({
         rawRecordFingerprint: entry.rawRecordFingerprint,
         mappingProfileCode: profile.code,
         canonicalCandidateFingerprint,
         prior,
-        // Session 11 hardening (Part 6B) — the ACTUAL live canonical
-        // lookup, never inferred from this pass's own preview validity
-        // (a row can preview cleanly as a fresh "valid_create" even when
-        // the OLD target it used to point at is long gone — that proved
-        // nothing about the old target's own continued existence).
-        canonicalStillExists: prior?.targetRecordId ? liveCandidateFields.has(preview.naturalKey) : undefined,
-        canonicalCurrentFingerprint,
+        // Session 11/12 hardening (Part 6) — the ACTUAL live canonical
+        // lookup, decoding `prior.targetRecordId` itself as the lookup
+        // key (never inferred from the CURRENT candidate's own natural
+        // key, which may have drifted) — see `priorTargetStillExists()`.
+        canonicalStillExists: priorTargetStillExists(template, prior, liveCandidateFields),
+        canonicalCurrentFingerprint: canonicalFingerprintAtPrepare,
       });
-      // Session 11 hardening (Part 6C) — a source identity already bound
-      // (in the real, existing crosswalk store) to a DIFFERENT canonical
-      // record than what Import History says THIS source last committed
-      // to is a genuine conflict, detectable from data already on hand —
-      // never a guess at what a not-yet-run commit would produce.
-      if (crosswalkTarget && crosswalks && entry.sourceIdSource === "configured") {
-        const boundCanonicalId = resolveCrosswalk(crosswalks, identity.sourceSystemId, entity, entry.sourceRecordId, crosswalkTarget.canonicalEntity);
-        if (boundCanonicalId !== undefined && prior?.targetRecordId !== undefined && boundCanonicalId !== prior.targetRecordId) {
-          reimportState = "CROSSWALK_CONFLICT";
+
+      // Session 12 hardening (Part 3) — crosswalk-conflict preflight,
+      // resolved independently of Import History: what canonical
+      // identity would THIS row's own natural key represent
+      // (`canonicalIdentityFor()`, only meaningful for `create_or_update`
+      // templates — `undefined` otherwise, honestly unresolved rather
+      // than guessed), and does the real crosswalk store already bind
+      // this source identity somewhere else?
+      let crosswalkBindingAtPrepare: string | null | undefined;
+      if (crosswalkTarget && crosswalks) {
+        if (entry.sourceIdSource !== "configured") {
+          // Part 3, Rule E — an ordinal identity is never crosswalk-authoritative.
+          crosswalkBindingAtPrepare = undefined;
+        } else {
+          const boundCanonicalId = resolveCrosswalk(crosswalks, identity.sourceSystemId, entity, entry.sourceRecordId, crosswalkTarget.canonicalEntity);
+          crosswalkBindingAtPrepare = boundCanonicalId ?? null;
+          if (boundCanonicalId !== undefined) {
+            const intendedTarget = canonicalIdentityFor(template, preview.naturalKey);
+            if (intendedTarget !== undefined) {
+              if (boundCanonicalId !== intendedTarget) {
+                // Part 3, Rule C — bound to a DIFFERENT canonical record.
+                reimportState = "CROSSWALK_CONFLICT";
+              } else if (!liveCandidateFields.has(boundCanonicalId)) {
+                // Part 3, Rule D — agrees, but that target itself is gone.
+                reimportState = "CANONICAL_MISSING";
+              }
+              // else Rule B — agrees and exists: safe, no override.
+            }
+          }
+          // Rule A (no crosswalk at all, boundCanonicalId undefined) — no override.
         }
       }
+
       if (preview.state === "invalid" || preview.state === "reference_missing") {
         blockingIssues.push(`Template "${targetTemplate}" row (source ${entry.sourceRecordId}) is blocking: ${preview.messages.join(" ")}`);
       } else if (UNSAFE_REIMPORT_STATES.has(reimportState)) {
@@ -358,7 +460,16 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
         // before this row (and therefore this batch) can commit.
         blockingIssues.push(`Template "${targetTemplate}" row (source ${entry.sourceRecordId}) requires explicit human resolution before it can commit: ${reimportState}.`);
       }
-      return { candidate: entry.candidate, sourceRecordId: entry.sourceRecordId, sourceIdSource: entry.sourceIdSource, rawRecordFingerprint: entry.rawRecordFingerprint, preview, reimportState };
+      return {
+        candidate: entry.candidate,
+        sourceRecordId: entry.sourceRecordId,
+        sourceIdSource: entry.sourceIdSource,
+        rawRecordFingerprint: entry.rawRecordFingerprint,
+        preview,
+        reimportState,
+        canonicalFingerprintAtPrepare,
+        crosswalkBindingAtPrepare,
+      };
     });
 
     const currentKeys = new Set(rows.map((r) => r.preview.naturalKey).filter(Boolean));
@@ -395,6 +506,46 @@ export interface ConfirmedConnectorImport {
 }
 
 /**
+ * Session 12 hardening (Part 5, TOCTOU) — re-derives exactly the live
+ * state each committable row's own prepared classification depended on
+ * (canonical fingerprint, crosswalk binding) and compares it against
+ * what was observed at prepare time. Never reruns the whole migration —
+ * only the specific state a stale plan could silently trust wrongly.
+ * Returns a description per stale row found; an empty array means the
+ * prepared plan is still genuinely safe to confirm as reviewed.
+ */
+async function findStaleRows(prepared: PreparedConnectorImport): Promise<string[]> {
+  const stale: string[] = [];
+  for (const templateImport of prepared.templates) {
+    const committableRows = templateImport.rows.filter(isRowCommittable);
+    if (committableRows.length === 0) continue;
+    const needsLiveCheck = committableRows.some((r) => r.canonicalFingerprintAtPrepare !== undefined);
+    const needsCrosswalkCheck = committableRows.some((r) => r.crosswalkBindingAtPrepare !== undefined);
+    const liveCandidateFieldsNow = needsLiveCheck ? await loadLiveCandidateFields(templateImport.targetTemplate) : undefined;
+    const crosswalkTarget = prepared.crosswalkTargets[templateImport.targetTemplate];
+    const crosswalksNow = needsCrosswalkCheck && crosswalkTarget ? await loadCrosswalks() : undefined;
+
+    for (const row of committableRows) {
+      if (liveCandidateFieldsNow) {
+        const liveRowNow = liveCandidateFieldsNow.get(row.preview.naturalKey);
+        const currentFp = liveRowNow ? fingerprintCanonicalCandidate(Object.fromEntries(Object.keys(row.candidate.row).map((k) => [k, liveRowNow[k] ?? ""]))) : undefined;
+        if (currentFp !== row.canonicalFingerprintAtPrepare) {
+          stale.push(`Template "${templateImport.targetTemplate}" row (source ${row.sourceRecordId}): the canonical record changed since this import was reviewed — re-prepare and review again before confirming.`);
+          continue;
+        }
+      }
+      if (crosswalksNow && crosswalkTarget && row.sourceIdSource === "configured") {
+        const boundNow = resolveCrosswalk(crosswalksNow, prepared.sourceSystemId, prepared.sourceEntity, row.sourceRecordId, crosswalkTarget.canonicalEntity) ?? null;
+        if (boundNow !== (row.crosswalkBindingAtPrepare ?? null)) {
+          stale.push(`Template "${templateImport.targetTemplate}" row (source ${row.sourceRecordId}): the external-ID crosswalk binding changed since this import was reviewed — re-prepare and review again before confirming.`);
+        }
+      }
+    }
+  }
+  return stale;
+}
+
+/**
  * F4 — refuses outright when `prepared.blockingIssues` is non-empty;
  * zero canonical write happens in that case. F3/dependency ordering was
  * already applied by `prepareConnectorImport()` — `prepared.commitOrder`
@@ -403,16 +554,28 @@ export interface ConfirmedConnectorImport {
  * `"created"`/`"updated"`, and only for a row whose source identity was
  * genuinely `"configured"` (an ordinal identity is refused by
  * `persistCrosswalkEntry()` itself either way — this function never
- * tries to route around that refusal). `crosswalkTargets` is optional
- * per template — a template with no configured crosswalk target simply
- * commits with no crosswalk persistence, exactly like a direct Data
- * Exchange import always has.
+ * tries to route around that refusal). `prepared.crosswalkTargets` is
+ * optional per template — a template with no configured crosswalk
+ * target simply commits with no crosswalk persistence, exactly like a
+ * direct Data Exchange import always has.
+ *
+ * Session 12 hardening (Part 5, TOCTOU) — before committing anything at
+ * all, revalidates the live state each row's prepared conflict
+ * classification depended on (`findStaleRows()`); any staleness refuses
+ * the WHOLE confirmation, the same atomic-preflight discipline
+ * `blockingIssues` already uses — never a silent partial re-trust.
  */
-export async function confirmConnectorImport(prepared: PreparedConnectorImport, ctx: ConfirmConnectorImportCtx, crosswalkTargets: Record<string, CrosswalkTarget> = {}): Promise<ConfirmedConnectorImport> {
+export async function confirmConnectorImport(prepared: PreparedConnectorImport, ctx: ConfirmConnectorImportCtx): Promise<ConfirmedConnectorImport> {
   if (prepared.blockingIssues.length > 0) {
     throw new Error(`Cannot confirm this import — ${prepared.blockingIssues.length} blocking issue(s) present: ${prepared.blockingIssues[0]}${prepared.blockingIssues.length > 1 ? ` (+${prepared.blockingIssues.length - 1} more)` : ""}`);
   }
 
+  const staleRows = await findStaleRows(prepared);
+  if (staleRows.length > 0) {
+    throw new Error(`Cannot confirm this import — the prepared plan is stale: ${staleRows[0]}${staleRows.length > 1 ? ` (+${staleRows.length - 1} more)` : ""}`);
+  }
+
+  const crosswalkTargets = prepared.crosswalkTargets;
   const outcomesByTemplate: Record<string, DataExchangeRowCommitOutcome[]> = {};
   let partialFailureStoppedAt: string | undefined;
   let crosswalksPersisted = 0;

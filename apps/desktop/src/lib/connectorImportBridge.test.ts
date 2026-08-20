@@ -247,11 +247,11 @@ describe("BR10: crosswalk is persisted AFTER commit only, never before", () => {
     const staged = await connector.extract("materials");
     const schema = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged.records }]);
     const profile = materialsProfile("materials", schema.fingerprint);
-    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile });
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile, crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
     expect(prepared.blockingIssues).toEqual([]);
     expect(store.get("external_id_crosswalks") ?? []).toEqual([]); // nothing persisted yet
 
-    const confirmed = await confirmConnectorImport(prepared, ctx, { raw_materials: { canonicalEntity: "RawMaterial" } });
+    const confirmed = await confirmConnectorImport(prepared, ctx);
     expect(confirmed.crosswalksPersisted).toBe(1);
     const crosswalks = store.get("external_id_crosswalks") ?? [];
     expect(crosswalks).toHaveLength(1);
@@ -267,8 +267,8 @@ describe("BR10: crosswalk is persisted AFTER commit only, never before", () => {
     // all, proven by BR8 (atomic — nothing commits, so nothing
     // crosswalks either).
     const connector = createFileConnector("BRIDGE_TEST", { fileName: "materials.csv", fileKind: "csv", text: "MaterialID,MaterialName\nBR-1,Test" }, stageOpts);
-    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile: materialsProfile("materials", "stale-fingerprint") });
-    await expect(confirmConnectorImport(prepared, ctx, { raw_materials: { canonicalEntity: "RawMaterial" } })).rejects.toThrow();
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile: materialsProfile("materials", "stale-fingerprint"), crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow();
     expect(store.get("external_id_crosswalks") ?? []).toEqual([]);
   });
 });
@@ -411,11 +411,11 @@ describe("BR20 (Session 11 hardening, Part 4): a REAL DB-derived ordinal-fallbac
         updatedAt: "2026-01-01T00:00:00.000Z",
         createdBy: "local",
       };
-      const prepared = await prepareConnectorImport({ connector, entity: "suppliers", profile });
+      const prepared = await prepareConnectorImport({ connector, entity: "suppliers", profile, crosswalkTargets: { suppliers: { canonicalEntity: "Supplier" } } });
       expect(prepared.blockingIssues).toEqual([]);
       // Through the REAL confirm/crosswalk-persistence path — never a
       // synthetic persistCrosswalkEntry() unit call.
-      const confirmed = await confirmConnectorImport(prepared, ctx, { suppliers: { canonicalEntity: "Supplier" } });
+      const confirmed = await confirmConnectorImport(prepared, ctx);
       expect(confirmed.outcomesByTemplate.suppliers.every((o) => o.outcome === "created")).toBe(true); // the rows commit fine on their own
       expect(confirmed.crosswalksPersisted).toBe(0); // but zero crosswalk entries — ordinal identity is never crosswalk-eligible
       expect(store.get("external_id_crosswalks") ?? []).toEqual([]);
@@ -425,8 +425,8 @@ describe("BR20 (Session 11 hardening, Part 4): a REAL DB-derived ordinal-fallbac
   });
 });
 
-describe("BR21 (Session 11 hardening, Part 7C/7D): a genuine RUNTIME commit-layer failure — never a synthetic injected outcome", () => {
-  it("a row that previews cleanly but fails for real inside the commit handler produces a truthful failed outcome, persists no crosswalk for it, and stops a later template in the same batch from being attempted at all", async () => {
+describe("BR21 (Session 11/12 hardening, Part 7C/7D/8): a genuine RUNTIME commit-layer failure, with a CONFIGURED (not ordinal) source identity and a crosswalk target actually reviewed at prepare time — never a synthetic injected outcome", () => {
+  it("a row with a CONFIGURED source identity, previewing cleanly, whose crosswalk target was configured and reviewed during prepare, but which fails for real inside the commit handler: outcome is truthfully failed, no crosswalk is persisted for that configured identity, and a later template in the same batch is never attempted", async () => {
     // trial_code has no code_reference/referenceTemplate at all (see
     // dataExchangeRegistry.ts) — the generic preview layer can never
     // catch a nonexistent trial; only commitLabResults's own real
@@ -434,8 +434,17 @@ describe("BR21 (Session 11 hardening, Part 7C/7D): a genuine RUNTIME commit-laye
     // runtime-only failure surface, not a fake injected one.
     store.set("test_definitions", [{ code: "RTF-TEST-1", resultType: "numeric" }]);
 
-    const csv = ["MaterialID,MaterialName,TrialCode,SampleCode,TestCode,Replicate,NumericValue,SupplierID,SupplierName", "RTF-MAT-1,RTF Material,RTF-TRIAL-NONEXISTENT,S1,RTF-TEST-1,1,5.0,RTF-SUP-1,RTF Supplier"].join("\n");
-    const connector = createFileConnector("BRIDGE_TEST", { fileName: "combo.csv", fileKind: "csv", text: csv }, stageOpts);
+    // Session 12 hardening (Part 8) — RecordID makes the failing row's
+    // OWN source identity genuinely CONFIGURED, not ordinal. A prior
+    // version of this test used an unconfigured idField, so the
+    // zero-crosswalk-persisted assertion below was trivially guaranteed
+    // by persistCrosswalkEntry()'s own ordinal-identity refusal, never
+    // by the runtime failure itself. This version proves it for real:
+    // the crosswalk COULD have persisted (identity is configured, a
+    // target IS reviewed at prepare) but does not, because the commit
+    // itself genuinely failed.
+    const csv = ["RecordID,MaterialID,MaterialName,TrialCode,SampleCode,TestCode,Replicate,NumericValue,SupplierID,SupplierName", "RTF-REC-1,RTF-MAT-1,RTF Material,RTF-TRIAL-NONEXISTENT,S1,RTF-TEST-1,1,5.0,RTF-SUP-1,RTF Supplier"].join("\n");
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "combo.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "RecordID", requireExplicitId: true });
     const staged = await connector.extract("combo");
     const schema = discoverSourceSchema("BRIDGE_TEST", [{ entity: "combo", records: staged.records }]);
     const profile: MappingProfile = {
@@ -464,8 +473,9 @@ describe("BR21 (Session 11 hardening, Part 7C/7D): a genuine RUNTIME commit-laye
       updatedAt: "2026-01-01T00:00:00.000Z",
       createdBy: "local",
     };
-    const prepared = await prepareConnectorImport({ connector, entity: "combo", profile });
+    const prepared = await prepareConnectorImport({ connector, entity: "combo", profile, crosswalkTargets: { lab_results: { canonicalEntity: "TestResult" } } });
     expect(prepared.blockingIssues).toEqual([]); // previews cleanly — the trial issue is invisible to generic preview
+    expect(prepared.templates.find((t) => t.targetTemplate === "lab_results")!.rows[0].sourceIdSource).toBe("configured"); // Part 8 — genuinely configured, not ordinal
     // raw_materials structurally depends on suppliers in THIS batch (its
     // own registry column preferred_supplier_code -> suppliers, present
     // regardless of whether this particular mapping populates it) —
@@ -474,13 +484,13 @@ describe("BR21 (Session 11 hardening, Part 7C/7D): a genuine RUNTIME commit-laye
     // suppliers has committed.
     expect(prepared.commitOrder).toEqual(["lab_results", "suppliers", "raw_materials"]);
 
-    const confirmed = await confirmConnectorImport(prepared, ctx, { lab_results: { canonicalEntity: "TestResult" } });
+    const confirmed = await confirmConnectorImport(prepared, ctx);
     expect(confirmed.outcomesByTemplate.lab_results[0].outcome).toBe("failed"); // T1 genuinely failed for real, not a synthetic flag
     expect(confirmed.outcomesByTemplate.lab_results[0].message).toMatch(/no project_code was provided/);
     expect(confirmed.partialFailureStoppedAt).toBe("lab_results");
     expect(confirmed.outcomesByTemplate.suppliers).toBeUndefined(); // T2 never even attempted
     expect(confirmed.outcomesByTemplate.raw_materials).toBeUndefined(); // T3 never even attempted
-    expect(confirmed.crosswalksPersisted).toBe(0); // the failed row's own crosswalk was never persisted
+    expect(confirmed.crosswalksPersisted).toBe(0); // the failed row's own crosswalk was never persisted, even though identity was configured and a target was reviewed
     expect(store.get("external_id_crosswalks") ?? []).toEqual([]);
     expect(store.get("suppliers") ?? []).toEqual([]); // nothing downstream committed either
     expect(store.get("materials") ?? []).toEqual([]);
@@ -556,9 +566,289 @@ describe("BR22 (Session 11 hardening, Part 7D): zero canonical write for CANONIC
     const prepared = await prepareConnectorImport({ connector, entity: "materials", profile, crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
     expect(prepared.templates[0].rows[0].reimportState).toBe("CROSSWALK_CONFLICT");
     expect(prepared.blockingIssues.some((b) => b.includes("CROSSWALK_CONFLICT"))).toBe(true);
-    await expect(confirmConnectorImport(prepared, ctx, { raw_materials: { canonicalEntity: "RawMaterial" } })).rejects.toThrow(/blocking issue/);
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/);
     expect(store.get("external_id_crosswalks")).toHaveLength(1); // untouched — still only the original entry
     expect((store.get("materials") ?? []).find((r) => r.code === "RM-EXISTING")).toBeDefined();
     expect(store.get("materials")).toHaveLength(1); // nothing new committed
+  });
+});
+
+describe("XW-PREFLIGHT (Session 12 hardening, Part 3): crosswalk-conflict preflight is resolved directly from the real crosswalk store, independent of whether Import History has any prior row at all", () => {
+  it("XW-PREFLIGHT-1/2/3/4/5/6: an active crosswalk already bound for a configured source identity, with ZERO prior Import History rows, and a mapped candidate that would target a DIFFERENT canonical record -> CROSSWALK_CONFLICT before any write, confirm refuses, zero canonical write, zero crosswalk mutation", async () => {
+    expect(store.get("data_exchange_import_jobs") ?? []).toEqual([]); // no Import History exists AT ALL for this template yet
+    expect(store.get("data_exchange_import_row_results") ?? []).toEqual([]);
+    store.set("materials", [{ code: "RM-PRE-1", displayName: "Pre-existing canonical" }]);
+    store.set("external_id_crosswalks", [{ code: "BRIDGE_TEST::materials::SRC-1::RawMaterial", sourceSystemId: "BRIDGE_TEST", sourceEntity: "materials", sourceRecordId: "SRC-1", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-PRE-1", status: "active", firstSeenAt: "2026-01-01T00:00:00.000Z", lastSeenAt: "2026-01-01T00:00:00.000Z" }]);
+
+    const csv = "RecordID,MaterialCode,MaterialName\nSRC-1,XW-NEW,New Candidate Material";
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "RecordID", requireExplicitId: true });
+    const staged = await connector.extract("materials");
+    const fp = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged.records }]).fingerprint;
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("xw-preflight", 1),
+      profileId: "xw-preflight",
+      profileName: "XW preflight",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialCode", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile, crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    expect(prepared.templates[0].rows[0].reimportState).toBe("CROSSWALK_CONFLICT"); // XW-PREFLIGHT-1/2/3
+    expect(prepared.blockingIssues.some((b) => b.includes("CROSSWALK_CONFLICT"))).toBe(true);
+
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/); // XW-PREFLIGHT-4
+    expect(store.get("materials")!.some((r) => r.code === "XW-NEW")).toBe(false); // XW-PREFLIGHT-5 — zero canonical write
+    expect(store.get("external_id_crosswalks")).toHaveLength(1); // XW-PREFLIGHT-6 — zero crosswalk mutation, still only the original entry
+  });
+
+  it("happy path: an existing crosswalk that AGREES with the intended canonical target is safe and reused — no conflict, normal commit proceeds", async () => {
+    store.set("materials", [{ code: "RM-AGREE-1", displayName: "Existing" }]);
+    store.set("external_id_crosswalks", [{ code: "BRIDGE_TEST::materials::SRC-AGREE-1::RawMaterial", sourceSystemId: "BRIDGE_TEST", sourceEntity: "materials", sourceRecordId: "SRC-AGREE-1", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-AGREE-1", status: "active", firstSeenAt: "2026-01-01T00:00:00.000Z", lastSeenAt: "2026-01-01T00:00:00.000Z" }]);
+
+    const csv = "RecordID,MaterialCode,MaterialName\nSRC-AGREE-1,RM-AGREE-1,Updated Name";
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "RecordID", requireExplicitId: true });
+    const staged = await connector.extract("materials");
+    const fp = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged.records }]).fingerprint;
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("xw-agree", 1),
+      profileId: "xw-agree",
+      profileName: "XW agree",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialCode", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile, crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    expect(prepared.blockingIssues).toEqual([]);
+    expect(prepared.templates[0].rows[0].reimportState).not.toBe("CROSSWALK_CONFLICT");
+    const confirmed = await confirmConnectorImport(prepared, ctx);
+    expect(confirmed.outcomesByTemplate.raw_materials[0].outcome).toBe("updated");
+    expect((store.get("materials") ?? []).find((r) => r.code === "RM-AGREE-1")!.displayName).toBe("Updated Name");
+  });
+});
+
+describe("XW-CONFIG (Session 12 hardening, Part 4): crosswalk target configuration is part of the immutable prepared plan", () => {
+  it("XW-CONFIG-1: a prepare with NO crosswalk target configured cannot silently gain one at confirm — confirmConnectorImport() has no crosswalk-target argument at all", async () => {
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "materials.csv", fileKind: "csv", text: "MaterialID,MaterialName\nXWC-1,Test Material" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile: materialsProfile("materials", discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await connector.extract("materials")).records }]).fingerprint) });
+    expect(prepared.crosswalkTargets).toEqual({});
+    // confirmConnectorImport(prepared, ctx) accepts exactly two arguments —
+    // there is no third parameter through which a crosswalk target could
+    // be introduced that prepare never reviewed (proven at the type level:
+    // this file's own earlier calls all pass exactly two arguments).
+    const confirmed = await confirmConnectorImport(prepared, ctx);
+    expect(confirmed.crosswalksPersisted).toBe(0);
+    expect(store.get("external_id_crosswalks") ?? []).toEqual([]);
+  });
+
+  it("XW-CONFIG-3: prepare WITH a reviewed crosswalk target and confirming that exact prepared plan persists the crosswalk", async () => {
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "materials.csv", fileKind: "csv", text: "MaterialID,MaterialName\nXWC-3,Test Material" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const staged = await connector.extract("materials");
+    const fp = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged.records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile: materialsProfile("materials", fp), crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    expect(prepared.crosswalkTargets).toEqual({ raw_materials: { canonicalEntity: "RawMaterial" } });
+    const confirmed = await confirmConnectorImport(prepared, ctx);
+    expect(confirmed.crosswalksPersisted).toBe(1);
+    expect(store.get("external_id_crosswalks")).toHaveLength(1);
+  });
+});
+
+describe("TOCTOU (Session 12 hardening, Part 5): confirmation revalidates the specific live state its own conflict classification depended on", () => {
+  it("TOCTOU-1: prepare clean, then the canonical record is mutated out-of-band before confirm -> confirm rejects, zero overwrite", async () => {
+    const c1 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nTOCTOU-1,Original Name" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c1.extract("materials")).records }]).fingerprint;
+    await confirmConnectorImport(await prepareConnectorImport({ connector: c1, entity: "materials", profile: materialsProfile("materials", fp1) }), ctx);
+
+    const c2 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nTOCTOU-1,Original Name" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c2.extract("materials")).records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector: c2, entity: "materials", profile: materialsProfile("materials", fp2) });
+    expect(prepared.blockingIssues).toEqual([]); // clean at prepare time
+
+    // 12:03 — someone else edits the canonical record while the operator is still reviewing.
+    (store.get("materials") ?? []).find((r) => r.code === "TOCTOU-1")!.displayName = "Edited By Someone Else";
+
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/stale/i);
+    expect((store.get("materials") ?? []).find((r) => r.code === "TOCTOU-1")!.displayName).toBe("Edited By Someone Else"); // zero overwrite
+  });
+
+  it("TOCTOU-2: prepare clean, then the active crosswalk is rebound before confirm -> confirm rejects, zero canonical/crosswalk mutation", async () => {
+    store.set("materials", [{ code: "RM-TOCTOU-2", displayName: "Existing" }]);
+    store.set("external_id_crosswalks", [{ code: "BRIDGE_TEST::materials::SRC-TOCTOU-2::RawMaterial", sourceSystemId: "BRIDGE_TEST", sourceEntity: "materials", sourceRecordId: "SRC-TOCTOU-2", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-TOCTOU-2", status: "active", firstSeenAt: "2026-01-01T00:00:00.000Z", lastSeenAt: "2026-01-01T00:00:00.000Z" }]);
+    const csv = "RecordID,MaterialCode,MaterialName\nSRC-TOCTOU-2,RM-TOCTOU-2,Updated Name";
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "RecordID", requireExplicitId: true });
+    const staged = await connector.extract("materials");
+    const fp = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged.records }]).fingerprint;
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("toctou-2", 1),
+      profileId: "toctou-2",
+      profileName: "TOCTOU 2",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialCode", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile, crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    expect(prepared.blockingIssues).toEqual([]);
+
+    // 12:03 — the active crosswalk is rebound to a different canonical record while under review.
+    store.set("external_id_crosswalks", [{ code: "BRIDGE_TEST::materials::SRC-TOCTOU-2::RawMaterial", sourceSystemId: "BRIDGE_TEST", sourceEntity: "materials", sourceRecordId: "SRC-TOCTOU-2", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-REBOUND", status: "active", firstSeenAt: "2026-01-01T00:00:00.000Z", lastSeenAt: "2026-02-01T00:00:00.000Z" }]);
+
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/stale/i);
+    expect((store.get("materials") ?? []).find((r) => r.code === "RM-TOCTOU-2")!.displayName).toBe("Existing"); // zero canonical mutation
+    expect(store.get("external_id_crosswalks")!.find((c) => c.sourceRecordId === "SRC-TOCTOU-2")!.canonicalRecordId).toBe("RM-REBOUND"); // zero crosswalk mutation — the rebind itself is untouched by confirm
+  });
+
+  it("TOCTOU-3: prepare clean, then the canonical target is deleted before confirm -> confirm rejects", async () => {
+    const c1 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nTOCTOU-3,Original Name" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c1.extract("materials")).records }]).fingerprint;
+    await confirmConnectorImport(await prepareConnectorImport({ connector: c1, entity: "materials", profile: materialsProfile("materials", fp1) }), ctx);
+
+    const c2 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nTOCTOU-3,Original Name" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c2.extract("materials")).records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector: c2, entity: "materials", profile: materialsProfile("materials", fp2) });
+    expect(prepared.blockingIssues).toEqual([]);
+
+    // 12:03 — the canonical target is deleted entirely while under review.
+    store.set("materials", (store.get("materials") ?? []).filter((r) => r.code !== "TOCTOU-3"));
+
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/stale/i);
+  });
+
+  it("TOCTOU-4: prepare clean, nothing changes before confirm -> confirm succeeds normally", async () => {
+    const c1 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nTOCTOU-4,Original Name" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c1.extract("materials")).records }]).fingerprint;
+    await confirmConnectorImport(await prepareConnectorImport({ connector: c1, entity: "materials", profile: materialsProfile("materials", fp1) }), ctx);
+
+    const c2 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nTOCTOU-4,Original Name" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c2.extract("materials")).records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector: c2, entity: "materials", profile: materialsProfile("materials", fp2) });
+    expect(prepared.blockingIssues).toEqual([]);
+
+    const confirmed = await confirmConnectorImport(prepared, ctx); // nothing changed — succeeds normally, never rejected as stale
+    expect(confirmed.outcomesByTemplate.raw_materials[0].outcome).toBe("updated"); // commitRawMaterials always re-writes; the bridge's own preview never marks a row "unchanged" (no existingNaturalKeys/isUnchanged configured) — TOCTOU-4 only proves confirm was not wrongly REFUSED, not that the write was skipped
+  });
+});
+
+describe("CANONICAL_MISSING semantics (Session 12 hardening, Part 6): prior-target existence, never inferred from the current candidate's own natural key", () => {
+  it("bucket 1: the prior target still exists but the CURRENT source now maps to a different natural key -> NOT CANONICAL_MISSING for the prior target itself", async () => {
+    // Commit MAT-KEEP once for real.
+    const c1 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "RecordID,MaterialID,MaterialName\nREC-1,MAT-KEEP,Original" }, { ...stageOpts, idField: "RecordID", requireExplicitId: true });
+    const profileFor = (fp: string): MappingProfile => ({
+      schemaVersion: "1.0",
+      code: mappingProfileCode("canonical-missing-b1", 1),
+      profileId: "canonical-missing-b1",
+      profileName: "Canonical missing bucket 1",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialID", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    });
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c1.extract("materials")).records }]).fingerprint;
+    await confirmConnectorImport(await prepareConnectorImport({ connector: c1, entity: "materials", profile: profileFor(fp1) }), ctx);
+    expect(store.get("materials")!.some((r) => r.code === "MAT-KEEP")).toBe(true); // still there — never deleted
+
+    // The SAME source record (RecordID REC-1) now maps to a DIFFERENT material_code (a corrected mapping profile, or the source itself changed its own code column).
+    const c2 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "RecordID,MaterialID,MaterialName\nREC-1,MAT-RENAMED,Original" }, { ...stageOpts, idField: "RecordID", requireExplicitId: true });
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c2.extract("materials")).records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector: c2, entity: "materials", profile: profileFor(fp2) });
+    const row = prepared.templates[0].rows[0];
+    expect(row.candidate.row.material_code).toBe("MAT-RENAMED");
+    // The prior target (MAT-KEEP) is untouched and still genuinely exists —
+    // this must NOT be reported as CANONICAL_MISSING merely because the
+    // CURRENT candidate's own natural key is now something else.
+    expect(row.reimportState).not.toBe("CANONICAL_MISSING");
+  });
+
+  it("bucket 2: the prior target was genuinely deleted -> CANONICAL_MISSING", async () => {
+    const c1 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nMAT-GONE,Original" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c1.extract("materials")).records }]).fingerprint;
+    await confirmConnectorImport(await prepareConnectorImport({ connector: c1, entity: "materials", profile: materialsProfile("materials", fp1) }), ctx);
+    store.set("materials", (store.get("materials") ?? []).filter((r) => r.code !== "MAT-GONE")); // genuinely deleted
+
+    const c2 = createFileConnector("BRIDGE_TEST", { fileName: "m.csv", fileKind: "csv", text: "MaterialID,MaterialName\nMAT-GONE,Original" }, { ...stageOpts, idField: "MaterialID", requireExplicitId: true });
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: (await c2.extract("materials")).records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector: c2, entity: "materials", profile: materialsProfile("materials", fp2) });
+    expect(prepared.templates[0].rows[0].reimportState).toBe("CANONICAL_MISSING");
+  });
+
+  it("bucket 3: an append-only template's prior target identity cannot safely be resolved -> never guessed as CANONICAL_MISSING", async () => {
+    // material_prices is append_history — its own canonical `code` is a
+    // freshly generated id, never equal to any natural key, so a prior
+    // targetRecordId genuinely cannot be decoded back into a live-lookup
+    // key here. Proven directly: re-importing the identical price period
+    // twice must never report CANONICAL_MISSING for it.
+    store.set("materials", [{ code: "MAT-PB3" }]);
+    store.set("suppliers", [{ code: "SUP-PB3" }]);
+    const csv = "MaterialCode,SupplierCode,UnitPrice,Currency,ValidFrom\nMAT-PB3,SUP-PB3,100.00,KES,2026-01-01";
+    const profileFor = (fp: string): MappingProfile => ({
+      schemaVersion: "1.0",
+      code: mappingProfileCode("canonical-missing-b3", 1),
+      profileId: "canonical-missing-b3",
+      profileName: "Canonical missing bucket 3",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "prices",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialCode", targetTemplate: "material_prices", targetField: "material_code" },
+        { sourceField: "SupplierCode", targetTemplate: "material_prices", targetField: "supplier_code" },
+        { sourceField: "UnitPrice", targetTemplate: "material_prices", targetField: "unit_price" },
+        { sourceField: "Currency", targetTemplate: "material_prices", targetField: "currency" },
+        { sourceField: "ValidFrom", targetTemplate: "material_prices", targetField: "valid_from" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    });
+    const c1 = createFileConnector("BRIDGE_TEST", { fileName: "p.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "MaterialCode", requireExplicitId: true });
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "prices", records: (await c1.extract("prices")).records }]).fingerprint;
+    await confirmConnectorImport(await prepareConnectorImport({ connector: c1, entity: "prices", profile: profileFor(fp1) }), ctx);
+
+    const c2 = createFileConnector("BRIDGE_TEST", { fileName: "p.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "MaterialCode", requireExplicitId: true });
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "prices", records: (await c2.extract("prices")).records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector: c2, entity: "prices", profile: profileFor(fp2) });
+    expect(prepared.templates[0].rows[0].reimportState).not.toBe("CANONICAL_MISSING");
   });
 });

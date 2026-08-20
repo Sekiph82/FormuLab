@@ -682,9 +682,14 @@ describe("FVL-04.025 Part G — real customer migration fixture (MIG1-MIG35)", (
   });
 
   it("MIG37 (Session 11 hardening): a source identity already bound to a DIFFERENT canonical record in the real crosswalk store is preflighted as CROSSWALK_CONFLICT, using this fixture's own already-committed MAT-1", async () => {
-    // The real crosswalk store disagrees with what Import History says
+    // The real crosswalk store disagrees with the canonical identity
     // MAT-1's own source identity (its material_code, since the DB
-    // connector's configured PK identity IS "MAT-1") last committed to.
+    // connector's configured PK identity IS "MAT-1") would actually
+    // resolve to. Session 12 hardening (Part 3) — this is now resolved
+    // directly from the crosswalk store, never inferred from whether
+    // Import History has a prior row at all (see connectorImportBridge.test.ts's
+    // dedicated XW-PREFLIGHT tests for the case where NO prior Import
+    // History row exists at all).
     store.set("external_id_crosswalks", [
       { code: "LEGACY_ERP::materials::MAT-1::RawMaterial", sourceSystemId: "LEGACY_ERP", sourceEntity: "materials", sourceRecordId: "MAT-1", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-SOME-OTHER-RECORD", status: "active", firstSeenAt: "2026-01-01T00:00:00.000Z", lastSeenAt: "2026-01-01T00:00:00.000Z" },
     ]);
@@ -696,7 +701,7 @@ describe("FVL-04.025 Part G — real customer migration fixture (MIG1-MIG35)", (
     expect(mat1Row.reimportState).toBe("CROSSWALK_CONFLICT");
     expect(prepared.blockingIssues.some((b) => b.includes("CROSSWALK_CONFLICT"))).toBe(true);
     const crosswalksBefore = store.get("external_id_crosswalks")!.length;
-    await expect(confirmConnectorImport(prepared, ctx, { raw_materials: { canonicalEntity: "RawMaterial" } })).rejects.toThrow(/blocking issue/);
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/);
     expect(store.get("external_id_crosswalks")!.length).toBe(crosswalksBefore); // zero crosswalk mutation
   });
 
