@@ -134,6 +134,33 @@ describe("DataExchangePage — sections", () => {
     await user.click(screen.getByRole("button", { name: "Help" }));
     expect(await screen.findByText(/neutralizes spreadsheet formulas/i)).toBeInTheDocument();
   });
+
+  // CFUI1 — Data Exchange shows a real Connectors entry, and it renders
+  // the Connector Management shell (never a placeholder/dead tab).
+  it("shows a Connectors entry and opens the Connector Management shell", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Raw Materials Master");
+    await user.click(screen.getByRole("button", { name: "Connectors" }));
+    expect(await screen.findByRole("button", { name: "Connections" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Source Explorer" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mapping Profiles" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crosswalks" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import Runs" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Conflicts / Review" })).toBeInTheDocument();
+  });
+
+  // CFUI2 — the Connections screen genuinely renders a real empty state
+  // (real `listRecords("connector_connections")` call resolving to []),
+  // never a mocked success.
+  it("Connections screen renders a real empty state", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Raw Materials Master");
+    await user.click(screen.getByRole("button", { name: "Connectors" }));
+    expect(await screen.findByText(/No connections configured yet/i)).toBeInTheDocument();
+    expect(bridge.listRecords).toHaveBeenCalledWith("connector_connections");
+  });
 });
 
 describe("DataExchangePage — upload/preview pipeline", () => {
