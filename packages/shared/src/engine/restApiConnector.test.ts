@@ -2,7 +2,7 @@
  * FVL-04.022 — REST API Connector Contract acceptance.
  */
 import { describe, expect, it, vi } from "vitest";
-import { createRestApiConnector, stageRestEntity, type RestResponsePage } from "./restApiConnector";
+import { createRestApiConnector, HttpStatusError, retryableForStatus, stageRestEntity, type RestResponsePage } from "./restApiConnector";
 
 const opts = { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" };
 
@@ -106,5 +106,59 @@ describe("createRestApiConnector — a real SourceConnector implementation, the 
     const connector = createRestApiConnector("ACME_ERP", { connectionRef: "conn-1", endpoints: {} }, opts, { fetchPage: vi.fn() });
     expect(connector.identity).toMatchObject({ connectorType: "REST_API", sourceSystemId: "ACME_ERP" });
     expect(JSON.stringify(connector.identity)).not.toMatch(/password|token|key|secret|bearer/i);
+  });
+});
+
+describe("FVL-04.022 hardening Part D6 — cursor loop detection", () => {
+  it("REST9: a repeated nextCursor stops the loop with a pagination_loop warning, never an infinite loop", async () => {
+    const fetchPage = vi.fn(async (spec: { cursor?: string }): Promise<RestResponsePage> => {
+      if (spec.cursor === undefined) return { bodyText: JSON.stringify([{ id: "1" }]), nextCursor: "c2" };
+      // Every subsequent call reports the SAME cursor again — a genuine
+      // pagination bug in a real API.
+      return { bodyText: JSON.stringify([{ id: "2" }]), nextCursor: "c2" };
+    });
+    const result = await stageRestEntity("ACME_ERP", { connectionRef: "conn-1", endpoints: { items: "/api/v1/items" } }, "items", opts, { fetchPage });
+    expect(fetchPage).toHaveBeenCalledTimes(2); // stopped on the SECOND repeat of c2, not spun forever
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: "pagination_loop" }));
+    expect(result.records).toHaveLength(2);
+  });
+});
+
+describe("FVL-04.022 hardening Part D7 — HTTP status retryable classification", () => {
+  it("REST10: 429 is retryable", () => {
+    expect(retryableForStatus(429)).toBe(true);
+  });
+  it("REST11: 400 is non-retryable", () => {
+    expect(retryableForStatus(400)).toBe(false);
+  });
+  it("401/403/404 are non-retryable", () => {
+    expect(retryableForStatus(401)).toBe(false);
+    expect(retryableForStatus(403)).toBe(false);
+    expect(retryableForStatus(404)).toBe(false);
+  });
+  it("REST12: 500/502/503/504 are retryable", () => {
+    expect(retryableForStatus(500)).toBe(true);
+    expect(retryableForStatus(502)).toBe(true);
+    expect(retryableForStatus(503)).toBe(true);
+    expect(retryableForStatus(504)).toBe(true);
+  });
+  it("408 (timeout) is retryable", () => {
+    expect(retryableForStatus(408)).toBe(true);
+  });
+
+  it("an adapter throwing HttpStatusError propagates the real retryable classification into the connector's own structured error", async () => {
+    const fetchPage = vi.fn(async (): Promise<RestResponsePage> => {
+      throw new HttpStatusError(429, "Too Many Requests");
+    });
+    const result = await stageRestEntity("ACME_ERP", { connectionRef: "conn-1", endpoints: { items: "/api/v1/items" } }, "items", opts, { fetchPage });
+    expect(result.errors[0]).toMatchObject({ code: "fetch_failed", retryable: true, detail: "HTTP 429" });
+  });
+
+  it("an adapter throwing HttpStatusError for a 400 propagates non-retryable", async () => {
+    const fetchPage = vi.fn(async (): Promise<RestResponsePage> => {
+      throw new HttpStatusError(400, "Bad Request");
+    });
+    const result = await stageRestEntity("ACME_ERP", { connectionRef: "conn-1", endpoints: { items: "/api/v1/items" } }, "items", opts, { fetchPage });
+    expect(result.errors[0]).toMatchObject({ code: "fetch_failed", retryable: false, detail: "HTTP 400" });
   });
 });

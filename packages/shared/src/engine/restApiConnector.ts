@@ -54,10 +54,42 @@ export interface RestResponsePage {
 }
 
 export interface RestConnectorDeps {
-  /** The real adapter — a desktop-only HTTP client wired later, with
-   *  auth already applied from `connectionRef`. Never receives a raw
-   *  credential from this layer. */
+  /** The real adapter — see `createHttpFetchAdapter()` for the genuine
+   *  GET-only `fetch()`-backed implementation, or a test double. Auth is
+   *  already applied from `connectionRef` before this function is ever
+   *  called; this layer never sees a raw credential. An adapter SHOULD
+   *  throw `HttpStatusError` for a real non-2xx HTTP response so
+   *  `stageRestEntity` can classify retryable-vs-not correctly (D7) —
+   *  any other thrown error is treated as a network-level failure and
+   *  conservatively assumed retryable. */
   fetchPage: (spec: RestRequestSpec) => Promise<RestResponsePage>;
+}
+
+/**
+ * FVL-04.022 hardening (Part D7) — thrown by a real HTTP adapter to
+ * carry the ACTUAL response status so `stageRestEntity` classifies
+ * retryable-vs-not correctly, instead of every adapter failure being
+ * uniformly (and often wrongly) marked retryable. `retryableForStatus()`
+ * is the one real authority for the classification table — 200s never
+ * reach here at all (a real 2xx response is not an error); 400/401/403/
+ * 404 are non-retryable (a different request would be needed, retrying
+ * the identical one cannot succeed); 408/429/5xx are retryable
+ * (transient — a timeout, rate limit, or server-side hiccup). */
+export class HttpStatusError extends Error {
+  readonly status: number;
+  readonly retryable: boolean;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "HttpStatusError";
+    this.status = status;
+    this.retryable = retryableForStatus(status);
+  }
+}
+
+export function retryableForStatus(status: number): boolean {
+  if (status === 408 || status === 429) return true;
+  if (status >= 500) return true;
+  return false;
 }
 
 export interface RestConnectorSource {
@@ -100,13 +132,20 @@ export async function stageRestEntity(sourceSystemId: string, source: RestConnec
   let cursor: string | undefined;
   let pagesFetched = 0;
   let totalRecords = 0;
+  // FVL-04.022 hardening (Part D6) — a set of every cursor value already
+  // consumed. If an adapter's own `nextCursor` ever repeats a cursor
+  // this loop already used, that is a genuine pagination bug/loop, never
+  // relied on `maxPages` alone to eventually catch it.
+  const seenCursors = new Set<string>();
 
   for (;;) {
     let page: RestResponsePage;
     try {
       page = await deps.fetchPage({ connectionRef: source.connectionRef, entity, path, cursor });
     } catch (e) {
-      return refused(sourceSystemId, entity, "fetch_failed", "The configured REST endpoint could not be reached or returned a genuine failure.", true, e instanceof Error ? e.constructor.name : "UnknownError");
+      const retryable = e instanceof HttpStatusError ? e.retryable : true;
+      const detail = e instanceof HttpStatusError ? `HTTP ${e.status}` : e instanceof Error ? e.constructor.name : "UnknownError";
+      return refused(sourceSystemId, entity, "fetch_failed", "The configured REST endpoint could not be reached or returned a genuine failure.", retryable, detail);
     }
     pagesFetched++;
 
@@ -121,6 +160,11 @@ export async function stageRestEntity(sourceSystemId: string, source: RestConnec
     totalRecords += pageResult.stats.totalRecords;
 
     if (!page.nextCursor) break;
+    if (seenCursors.has(page.nextCursor)) {
+      warnings.push({ code: "pagination_loop", stage: "extract", message: `The source repeated a cursor value ("${page.nextCursor}") already used earlier in this extraction — stopped to avoid an infinite loop. Records fetched so far are included.`, retryable: false });
+      break;
+    }
+    seenCursors.add(page.nextCursor);
     if (pagesFetched >= maxPages) {
       warnings.push({ code: "pagination_limit_reached", stage: "extract", message: `Stopped after ${maxPages} pages — the source still reported more data available. Records fetched so far are included; nothing beyond the limit was retried or fabricated.`, retryable: true });
       break;
