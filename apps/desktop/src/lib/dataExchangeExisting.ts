@@ -944,5 +944,17 @@ export async function loadPriorCommittedRows(templateCode: string): Promise<Prio
   const committable = new Set<string>(COMMITTABLE_ROW_STATES);
   return rowResults
     .filter((r) => r.jobId === latest.id && r.naturalKey && r.targetRecordId && committable.has(r.state))
-    .map((r) => ({ naturalKey: r.naturalKey!, jobId: r.jobId, targetCollection: r.targetCollection, targetRecordId: r.targetRecordId }));
+    .map((r) => ({
+      naturalKey: r.naturalKey!,
+      jobId: r.jobId,
+      targetCollection: r.targetCollection,
+      targetRecordId: r.targetRecordId,
+      // FVL-04.024 hardening — carried through for classifyReimport()
+      // (`connectorImportBridge.ts`); absent on a row committed through
+      // a direct CSV/XLSX import with no connector/source identity.
+      sourceRecordId: r.sourceRecordId,
+      rawRecordFingerprint: r.rawRecordFingerprint,
+      mappingProfileCode: r.mappingProfileCode,
+      canonicalCandidateFingerprint: r.canonicalCandidateFingerprint,
+    }));
 }

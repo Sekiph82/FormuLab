@@ -286,6 +286,17 @@ export const dataExchangeImportJobSchema = z.object({
   completedAt: z.string().optional(),
   errorReportAttachmentId: z.string().optional(),
   notes: z.string().optional(),
+  /** FVL-04.024 hardening — minimal connector provenance for a job
+   *  created through the real Connector -> Data Exchange Bridge
+   *  (`connectorImportBridge.ts`). All optional/additive: a direct
+   *  CSV/XLSX import through `DataExchangeImportDialog.tsx` has no
+   *  connector/mapping-profile identity at all and simply never sets
+   *  these — never a second import-history model, and never a
+   *  duplicate of what `fileName`/`fileType`/`sha256` already record
+   *  for the file-upload path. */
+  sourceSystemId: z.string().optional(),
+  connectorType: z.string().optional(),
+  mappingProfileCode: z.string().optional(),
 });
 export type DataExchangeImportJob = z.infer<typeof dataExchangeImportJobSchema>;
 

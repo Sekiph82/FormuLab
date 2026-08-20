@@ -2876,7 +2876,9 @@
       "kind": "Dışa aktarım türü"
     },
     "imports": {
-      "description": "Doldurulmuş bir dosya yüklemek için bir şablon seçin. Önizleyip onaylamadan hiçbir şey yazılmaz."
+      "description": "Doldurulmuş bir dosya yüklemek için bir şablon seçin. Önizleyip onaylamadan hiçbir şey yazılmaz.",
+      "viaBridge": "Konektör köprüsü ile içe aktar",
+      "bridgeSummary": "{{count}} eşlenmiş satır - komit sırası: {{order}}"
     },
     "validation": {
       "empty": "Bir dosyanın doğrulama sonuçlarını görmek için bir şablonun Yükle iletişim kutusunu açın."

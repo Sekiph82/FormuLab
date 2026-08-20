@@ -17,6 +17,7 @@ import { buildDataExchangeWorkbookBlob, dataExchangeXlsxFileName } from "@/lib/d
 import { loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
 import { listRecords, upsertRecords, nowIso } from "@/lib/masterdata";
 import { DataExchangeImportDialog } from "@/components/dataExchange/DataExchangeImportDialog";
+import { ConnectorBridgeImportDialog } from "@/components/dataExchange/ConnectorBridgeImportDialog";
 import { useTrustedActor } from "@/lib/currentActor";
 import { cn } from "@/lib/cn";
 
@@ -54,6 +55,7 @@ export function DataExchangePage() {
   const effectiveActorRole = trusted?.role ?? actorRole;
   const [moduleFilter, setModuleFilter] = useState<string>("all");
   const [uploadTemplate, setUploadTemplate] = useState<DataExchangeTemplateDefinition | null>(null);
+  const [bridgeImportTemplate, setBridgeImportTemplate] = useState<DataExchangeTemplateDefinition | null>(null);
   const [jobs, setJobs] = useState<DataExchangeImportJob[]>([]);
   const [exportLog, setExportLog] = useState<{ id: string; templateCode: string; kind: string; fileType: string; at: string }[]>([]);
   const [busyExport, setBusyExport] = useState<string | null>(null);
@@ -214,14 +216,22 @@ export function DataExchangePage() {
             <p className="mb-3 text-[12px] text-muted">{t("dataExchange.imports.description")}</p>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               {templates.map((template) => (
-                <button
-                  key={template.templateCode}
-                  onClick={() => setUploadTemplate(template)}
-                  className="flex items-center gap-2 rounded-input border border-border px-3 py-2 text-left text-[12px] hover:bg-surface-2"
-                >
-                  <Upload size={13} className="text-muted" />
-                  <span className="text-text">{template.title}</span>
-                </button>
+                <div key={template.templateCode} className="flex items-center gap-1 rounded-input border border-border px-1 py-1">
+                  <button
+                    onClick={() => setUploadTemplate(template)}
+                    className="flex flex-1 items-center gap-2 rounded-input px-2 py-1 text-left text-[12px] hover:bg-surface-2"
+                  >
+                    <Upload size={13} className="text-muted" />
+                    <span className="text-text">{template.title}</span>
+                  </button>
+                  <button
+                    onClick={() => setBridgeImportTemplate(template)}
+                    title={t("dataExchange.imports.viaBridge")}
+                    className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2"
+                  >
+                    {t("dataExchange.imports.viaBridge")}
+                  </button>
+                </div>
               ))}
             </div>
           </Section>
@@ -276,6 +286,23 @@ export function DataExchangePage() {
           actorUserId="local"
           onCancel={() => {
             setUploadTemplate(null);
+            refreshJobs();
+          }}
+          onCommitted={() => {
+            refreshJobs();
+          }}
+        />
+      )}
+
+      {bridgeImportTemplate && (
+        <ConnectorBridgeImportDialog
+          key={`bridge-${bridgeImportTemplate.templateCode}`}
+          template={bridgeImportTemplate}
+          actorRole={effectiveActorRole}
+          // eslint-disable-next-line i18next/no-literal-string -- internal actor id, not display text
+          actorUserId="local"
+          onCancel={() => {
+            setBridgeImportTemplate(null);
             refreshJobs();
           }}
           onCommitted={() => {
