@@ -811,12 +811,15 @@ describe("CANONICAL_MISSING semantics (Session 12 hardening, Part 6): prior-targ
     expect(prepared.templates[0].rows[0].reimportState).toBe("CANONICAL_MISSING");
   });
 
-  it("bucket 3: an append-only template's prior target identity cannot safely be resolved -> never guessed as CANONICAL_MISSING", async () => {
+  it("bucket 3: an append-only template's prior target genuinely still exists -> never falsely reported CANONICAL_MISSING", async () => {
     // material_prices is append_history — its own canonical `code` is a
-    // freshly generated id, never equal to any natural key, so a prior
-    // targetRecordId genuinely cannot be decoded back into a live-lookup
-    // key here. Proven directly: re-importing the identical price period
-    // twice must never report CANONICAL_MISSING for it.
+    // freshly generated id, never equal to any natural key. Part A3
+    // (FVL-04 close-out) resolves prior-target existence for this policy
+    // too, directly via the prior row-result's own real
+    // targetCollection/targetRecordId (never via the natural-key-indexed
+    // live map, which a generated id can never appear in). Proven here:
+    // re-importing the identical price period twice, with the prior
+    // record genuinely still present, must never report CANONICAL_MISSING.
     store.set("materials", [{ code: "MAT-PB3" }]);
     store.set("suppliers", [{ code: "SUP-PB3" }]);
     const csv = "MaterialCode,SupplierCode,UnitPrice,Currency,ValidFrom\nMAT-PB3,SUP-PB3,100.00,KES,2026-01-01";
@@ -850,5 +853,207 @@ describe("CANONICAL_MISSING semantics (Session 12 hardening, Part 6): prior-targ
     const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "prices", records: (await c2.extract("prices")).records }]).fingerprint;
     const prepared = await prepareConnectorImport({ connector: c2, entity: "prices", profile: profileFor(fp2) });
     expect(prepared.templates[0].rows[0].reimportState).not.toBe("CANONICAL_MISSING");
+  });
+
+  it("bucket 4 (Part A3, FVL-04 close-out): an append-only template's prior target was genuinely deleted -> CANONICAL_MISSING now correctly fires (previously structurally unreachable for this duplicatePolicy)", async () => {
+    store.set("materials", [{ code: "MAT-PB4" }]);
+    store.set("suppliers", [{ code: "SUP-PB4" }]);
+    const csv = "MaterialCode,SupplierCode,UnitPrice,Currency,ValidFrom\nMAT-PB4,SUP-PB4,100.00,KES,2026-01-01";
+    const profileFor = (fp: string): MappingProfile => ({
+      schemaVersion: "1.0",
+      code: mappingProfileCode("canonical-missing-b4", 1),
+      profileId: "canonical-missing-b4",
+      profileName: "Canonical missing bucket 4",
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "prices",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialCode", targetTemplate: "material_prices", targetField: "material_code" },
+        { sourceField: "SupplierCode", targetTemplate: "material_prices", targetField: "supplier_code" },
+        { sourceField: "UnitPrice", targetTemplate: "material_prices", targetField: "unit_price" },
+        { sourceField: "Currency", targetTemplate: "material_prices", targetField: "currency" },
+        { sourceField: "ValidFrom", targetTemplate: "material_prices", targetField: "valid_from" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    });
+    const c1 = createFileConnector("BRIDGE_TEST", { fileName: "p.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "MaterialCode", requireExplicitId: true });
+    const fp1 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "prices", records: (await c1.extract("prices")).records }]).fingerprint;
+    const prepared1 = await prepareConnectorImport({ connector: c1, entity: "prices", profile: profileFor(fp1) });
+    await confirmConnectorImport(prepared1, ctx);
+    const createdPriceCode = store.get("material_prices")![0].code as string;
+    // Genuinely delete the prior append-only record — a real human action
+    // (e.g. correcting a bad price entry), not a synthetic test shortcut.
+    store.set("material_prices", (store.get("material_prices") ?? []).filter((r) => r.code !== createdPriceCode));
+
+    const c2 = createFileConnector("BRIDGE_TEST", { fileName: "p.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "MaterialCode", requireExplicitId: true });
+    const fp2 = discoverSourceSchema("BRIDGE_TEST", [{ entity: "prices", records: (await c2.extract("prices")).records }]).fingerprint;
+    const prepared2 = await prepareConnectorImport({ connector: c2, entity: "prices", profile: profileFor(fp2) });
+    expect(prepared2.templates[0].rows[0].reimportState).toBe("CANONICAL_MISSING");
+    expect(prepared2.blockingIssues.some((b) => b.includes("CANONICAL_MISSING"))).toBe(true);
+    // F4 atomic preflight — zero write, never a silent recreation.
+    await expect(confirmConnectorImport(prepared2, ctx)).rejects.toThrow(/blocking issue/);
+    expect(store.get("material_prices") ?? []).toEqual([]);
+  });
+});
+
+describe("XW-APPEND (Part A2, FVL-04 close-out): append_history/new_revision crosswalk reconciliation — no natural-key-derived intended target, so Import History's own prior.targetRecordId is the reconciliation reference", () => {
+  const pricesTarget = { material_prices: { canonicalEntity: "MaterialPrice" } };
+  function pricesProfileFor(profileCode: string, fp: string): MappingProfile {
+    return {
+      schemaVersion: "1.0",
+      code: mappingProfileCode(profileCode, 1),
+      profileId: profileCode,
+      profileName: profileCode,
+      sourceSystemId: "BRIDGE_TEST",
+      sourceEntity: "prices",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialCode", targetTemplate: "material_prices", targetField: "material_code" },
+        { sourceField: "SupplierCode", targetTemplate: "material_prices", targetField: "supplier_code" },
+        { sourceField: "UnitPrice", targetTemplate: "material_prices", targetField: "unit_price" },
+        { sourceField: "Currency", targetTemplate: "material_prices", targetField: "currency" },
+        { sourceField: "ValidFrom", targetTemplate: "material_prices", targetField: "valid_from" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+  }
+  function pricesCsv(unitPrice: string, currency = "KES"): string {
+    return `MaterialCode,SupplierCode,UnitPrice,Currency,ValidFrom\nMAT-XW,SUP-XW,${unitPrice},${currency},2026-01-01`;
+  }
+  async function importPrices(profileCode: string, unitPrice: string, crosswalkTargets?: typeof pricesTarget, currency = "KES") {
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "p.csv", fileKind: "csv", text: pricesCsv(unitPrice, currency) }, { ...stageOpts, idField: "MaterialCode", requireExplicitId: true });
+    const fp = discoverSourceSchema("BRIDGE_TEST", [{ entity: "prices", records: (await connector.extract("prices")).records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector, entity: "prices", profile: pricesProfileFor(profileCode, fp), ...(crosswalkTargets ? { crosswalkTargets } : {}) });
+    return prepared;
+  }
+
+  beforeEach(() => {
+    store.set("materials", [{ code: "MAT-XW" }]);
+    store.set("suppliers", [{ code: "SUP-XW" }]);
+  });
+
+  it("initial import: no prior binding — commits and persists a crosswalk only after success", async () => {
+    const prepared = await importPrices("xw-append-1", "100.00", pricesTarget);
+    expect(prepared.blockingIssues).toEqual([]);
+    expect(store.get("external_id_crosswalks") ?? []).toEqual([]); // nothing yet — commit hasn't happened
+    const confirmed = await confirmConnectorImport(prepared, ctx);
+    expect(confirmed.crosswalksPersisted).toBe(1);
+    expect(store.get("material_prices")).toHaveLength(1);
+    const xw = (store.get("external_id_crosswalks") ?? [])[0];
+    expect(xw).toMatchObject({ sourceRecordId: "MAT-XW", canonicalEntity: "MaterialPrice", canonicalRecordId: store.get("material_prices")![0].code });
+  });
+
+  it("active-crosswalk reuse: identical re-import agrees with Import History and the target still exists — safe, not blocked, zero duplicate row", async () => {
+    await confirmConnectorImport(await importPrices("xw-append-2", "100.00", pricesTarget), ctx);
+    expect(store.get("material_prices")).toHaveLength(1);
+
+    const prepared2 = await importPrices("xw-append-2", "100.00", pricesTarget);
+    const row = prepared2.templates[0].rows[0];
+    expect(row.reimportState).not.toBe("CROSSWALK_CONFLICT");
+    expect(row.reimportState).not.toBe("CANONICAL_MISSING");
+    expect(prepared2.blockingIssues).toEqual([]);
+
+    const confirmed2 = await confirmConnectorImport(prepared2, ctx);
+    expect(store.get("material_prices")).toHaveLength(1); // unchanged content -> no duplicate row created
+    expect(confirmed2.crosswalksPersisted).toBe(0); // "unchanged" rows never reach the commit handler nor the crosswalk-persist step
+    expect(store.get("external_id_crosswalks")).toHaveLength(1); // untouched, not re-mutated
+  });
+
+  it("changed source: a genuinely new append-only row is created; the crosswalk for the ORIGINAL row is left untouched (a same-identity rebind is refused, never silently overwritten)", async () => {
+    await confirmConnectorImport(await importPrices("xw-append-3", "100.00", pricesTarget, "KES"), ctx);
+    const originalPriceCode = store.get("material_prices")![0].code;
+    const originalCrosswalk = (store.get("external_id_crosswalks") ?? [])[0];
+
+    // Vary `currency` (a plain string field) rather than `unit_price` (a
+    // numeric field whose live-storage round-trip reformats "100.00" as
+    // "100", a distinct pre-existing fingerprint-comparison quirk outside
+    // this task's own scope) — a genuinely CHANGED source content signal
+    // either way.
+    const prepared2 = await importPrices("xw-append-3", "100.00", pricesTarget, "USD"); // same identity, changed content
+    const row = prepared2.templates[0].rows[0];
+    expect(row.reimportState).toBe("CHANGED");
+    expect(prepared2.blockingIssues).toEqual([]); // CHANGED is not a blocking state
+
+    const confirmed2 = await confirmConnectorImport(prepared2, ctx);
+    expect(store.get("material_prices")).toHaveLength(2); // genuinely appended, never overwritten
+    // Part A2 fix: a conflicted persist attempt (the new row's own fresh id
+    // vs. the crosswalk already bound to the original row) must never be
+    // counted as a real crosswalk mutation.
+    expect(confirmed2.crosswalksPersisted).toBe(0);
+    expect(store.get("external_id_crosswalks")).toHaveLength(1);
+    expect((store.get("external_id_crosswalks") ?? [])[0]).toEqual(originalCrosswalk); // byte-identical — never mutated
+    expect((store.get("external_id_crosswalks") ?? [])[0].canonicalRecordId).toBe(originalPriceCode);
+  });
+
+  it("crosswalk mismatch: the crosswalk and Import History disagree about the target -> CROSSWALK_CONFLICT, zero write, zero crosswalk mutation", async () => {
+    await confirmConnectorImport(await importPrices("xw-append-4", "100.00", pricesTarget), ctx);
+    // Simulate real-world drift: the crosswalk record itself was rebound
+    // out-of-band (a manual data fix, or a bug in a different code path) to
+    // point at a DIFFERENT canonical record than Import History's own
+    // last-committed target — never a scenario this bridge itself creates,
+    // but one it must still detect and refuse to build on blindly.
+    const xw = (store.get("external_id_crosswalks") ?? [])[0];
+    store.set("external_id_crosswalks", [{ ...xw, canonicalRecordId: "price-drifted-elsewhere" }]);
+
+    const prepared2 = await importPrices("xw-append-4", "100.00", pricesTarget);
+    const row = prepared2.templates[0].rows[0];
+    expect(row.reimportState).toBe("CROSSWALK_CONFLICT");
+    expect(prepared2.blockingIssues.some((b) => b.includes("CROSSWALK_CONFLICT"))).toBe(true);
+
+    await expect(confirmConnectorImport(prepared2, ctx)).rejects.toThrow(/blocking issue/);
+    expect(store.get("material_prices")).toHaveLength(1); // zero write
+    expect(store.get("external_id_crosswalks")).toHaveLength(1);
+    expect(store.get("external_id_crosswalks")![0].canonicalRecordId).toBe("price-drifted-elsewhere"); // zero crosswalk mutation on blocked conflict
+  });
+
+  it("no reconcilable prior target: an active crosswalk exists but Import History has none for this exact source identity -> CROSSWALK_CONFLICT, never a silent duplicate", async () => {
+    // A crosswalk that exists with no corresponding Import History row for
+    // this template/source — e.g. history was pruned, or the crosswalk was
+    // seeded by a different mechanism entirely. Never trusted alone.
+    store.set("external_id_crosswalks", [
+      {
+        schemaVersion: "1.0",
+        code: "BRIDGE_TEST::prices::MAT-XW::MaterialPrice",
+        sourceSystemId: "BRIDGE_TEST",
+        sourceEntity: "prices",
+        sourceRecordId: "MAT-XW",
+        canonicalEntity: "MaterialPrice",
+        canonicalRecordId: "price-from-nowhere",
+        firstSeenAt: "2026-01-01T00:00:00.000Z",
+        lastSeenAt: "2026-01-01T00:00:00.000Z",
+        status: "active",
+      },
+    ]);
+
+    const prepared = await importPrices("xw-append-5", "100.00", pricesTarget);
+    const row = prepared.templates[0].rows[0];
+    expect(row.reimportState).toBe("CROSSWALK_CONFLICT");
+    expect(prepared.blockingIssues.length).toBeGreaterThan(0);
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/);
+    expect(store.get("material_prices") ?? []).toEqual([]); // zero write
+    expect(store.get("external_id_crosswalks")).toHaveLength(1); // zero crosswalk mutation
+  });
+
+  it("missing canonical target (crosswalk-configured path): crosswalk agrees with Import History, but that agreed target was genuinely deleted -> CANONICAL_MISSING, zero write", async () => {
+    await confirmConnectorImport(await importPrices("xw-append-6", "100.00", pricesTarget), ctx);
+    const priceCode = store.get("material_prices")![0].code as string;
+    store.set("material_prices", (store.get("material_prices") ?? []).filter((r) => r.code !== priceCode));
+
+    const prepared2 = await importPrices("xw-append-6", "100.00", pricesTarget);
+    const row = prepared2.templates[0].rows[0];
+    expect(row.reimportState).toBe("CANONICAL_MISSING");
+    await expect(confirmConnectorImport(prepared2, ctx)).rejects.toThrow(/blocking issue/);
+    expect(store.get("material_prices") ?? []).toEqual([]);
+    expect(store.get("external_id_crosswalks")).toHaveLength(1); // zero crosswalk mutation on blocked conflict
   });
 });

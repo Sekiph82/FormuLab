@@ -223,6 +223,39 @@ describe("REST-TIMEOUT-3 (Session 12 hardening, Part 2): normal successful reque
   });
 });
 
+describe("REST-CANCEL (Part A1, FVL-04 close-out): cancellation is unconditional through the SAME production adapter-creation path", () => {
+  it("REST-CANCEL-1/2: the DEFAULT createHttpFetchAdapter({ baseUrl }) call — no createAbortController, no special test-only constructor — still terminates the underlying connection on timeout, proven by the server's own close event", async () => {
+    const closed = new Promise<void>((resolve) => {
+      onNeverRespondingClose = resolve;
+    });
+    const fetchPage = createHttpFetchAdapter({ baseUrl, timeoutMs: 200 });
+    const result = await stageRestEntity("ACME", { connectionRef: "conn-1", endpoints: { items: "/never-responds-trackable" } }, "items", opts, { fetchPage });
+    expect(result.errors[0]?.retryable).toBe(true);
+    await expect(closed).resolves.toBeUndefined();
+  }, 10000);
+
+  it("REST-CANCEL-3: a normal successful request is unaffected by the now-unconditional cancellation wiring", async () => {
+    const fetchPage = createHttpFetchAdapter({ baseUrl });
+    const result = await stageRestEntity("ACME", { connectionRef: "conn-1", endpoints: { items: "/items-bare" } }, "items", opts, { fetchPage });
+    expect(result.errors).toEqual([]);
+    expect(result.records[0].fields.ItemNo).toBe("AC-1");
+  });
+
+  it("REST-CANCEL-4: 4xx/5xx retryable classification is unchanged by the cancellation change", async () => {
+    const fetchPage = createHttpFetchAdapter({ baseUrl });
+    const badRequest = await stageRestEntity("ACME", { connectionRef: "conn-1", endpoints: { items: "/bad-request" } }, "items", opts, { fetchPage });
+    expect(badRequest.errors[0]).toMatchObject({ retryable: false });
+    const serverError = await stageRestEntity("ACME", { connectionRef: "conn-1", endpoints: { items: "/server-error" } }, "items", opts, { fetchPage });
+    expect(serverError.errors[0]).toMatchObject({ retryable: true });
+  });
+
+  it("REST-CANCEL-6: still structurally GET-only — no POST/PUT/PATCH/DELETE path introduced by the cancellation change", async () => {
+    const src = await (await import("node:fs")).promises.readFile(new URL("./httpFetchAdapter.ts", import.meta.url), "utf-8");
+    expect(src).toMatch(/method:\s*"GET"/);
+    expect(src).not.toMatch(/method:\s*"(POST|PUT|PATCH|DELETE)"/);
+  });
+});
+
 describe("REST6/REST7/REST8: real pagination models over the real HTTP round-trip", () => {
   it("REST6: page + pageSize", async () => {
     const fetchPage = createHttpFetchAdapter({ baseUrl, pagination: { kind: "page", pageParam: "p", pageSizeParam: "ps", pageSize: 2 }, recordArrayPath: "items" });

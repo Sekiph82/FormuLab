@@ -1,4 +1,18 @@
 /**
+ * @vitest-environment node
+ *
+ * Part A1 (FVL-04 close-out): this file issues REAL `fetch()` requests
+ * through the real `createHttpFetchAdapter()` against a real local HTTP
+ * server. Running it under the package's default `jsdom` environment
+ * would poison the global `AbortController` (jsdom installs its own,
+ * distinct from the one Node's `fetch()` validates a `signal` against —
+ * see `httpFetchAdapter.ts`'s own doc comment), which is exactly the
+ * cross-realm mismatch that made cancellation unsafe to default-enable.
+ * This file has no DOM dependency (pure lib/engine calls + `node:http`),
+ * so switching it to `node` costs nothing and matches
+ * `packages/shared`'s own tests, keeping REST cancellation genuinely
+ * unconditional in production without any cross-realm regression here.
+ *
  * FVL-04.025 (Session 10 rebuild, Part G) — a real, end-to-end customer
  * migration fixture: a SQLite-backed ERP (materials/suppliers/prices/
  * inventory, via the real `sqliteTestAdapter`), a legacy formulation
@@ -93,6 +107,186 @@
  * coverage (which is genuinely, executably proven), not on whether a
  * specific numbered item happens to match an unrecoverable original
  * label.
+ *
+ * ============================================================
+ * FVL-04 close-out — the user supplied the authoritative original
+ * MIG1-MIG35 matrix; restored verbatim below (correction, not erasure)
+ * ============================================================
+ * The Session 12 note above stands as an honest record of a genuine,
+ * evidenced repository search that found no recoverable original
+ * numbering at the time. A later governing brief then supplied the
+ * ORIGINAL MIG1-MIG35 matrix directly (not re-derived from repository
+ * evidence — supplied as the authoritative source). This section
+ * restores it verbatim and maps every item to the exact real,
+ * executable test that proves it. Session 10's own MIG36/MIG37 labels
+ * (CANONICAL_MISSING and CROSSWALK_CONFLICT hardening, added after the
+ * original 35-item matrix existed) are EXTRA hardening tests, not part
+ * of — and never a redefinition of — the canonical MIG1-MIG35 numbering.
+ *
+ *   MIG1  materials imported                  -> "MIG1-MIG6" (this file)
+ *   MIG2  suppliers imported                   -> "MIG1-MIG6" (this file)
+ *   MIG3  material-supplier relations           -> "MIG1-MIG6" (this file,
+ *                                                   linksPrep + composite-PK
+ *                                                   FK assertion)
+ *   MIG4  prices                                -> "MIG1-MIG6" (this file)
+ *   MIG5  inventory                             -> "MIG1-MIG6" (this file)
+ *   MIG6  formula                               -> "MIG7/MIG9-MIG13" (this
+ *                                                   file, migration 1)
+ *   MIG7  formula versions distinct             -> "MIG8/MIG32" (this file,
+ *                                                   migration 2 — a genuine
+ *                                                   second version)
+ *   MIG8  ingredient relationships               -> "MIG7/MIG9-MIG13" (this
+ *                                                   file, line->material);
+ *                                                   "FVL-04.019 Section 1"
+ *                                                   describe block (real
+ *                                                   relational join)
+ *   MIG9  process relationship (if fixture
+ *         supplies it)                          -> "MIG-CANONICAL closure"
+ *                                                   describe block, test
+ *                                                   "MIG9: a real
+ *                                                   formulation
+ *                                                   process-parameter
+ *                                                   relationship..." (this
+ *                                                   file) — genuinely wired
+ *                                                   via the existing
+ *                                                   process_parameters
+ *                                                   Data Exchange path,
+ *                                                   attached to LEGACY-FORM-A
+ *   MIG10 test definitions resolve               -> "MIG14-MIG21" (this
+ *                                                   file, migration 1)
+ *   MIG11 lab trials imported                    -> "MIG14-MIG21" (this
+ *                                                   file — commitLabResults'
+ *                                                   own findOrCreateTrial)
+ *   MIG12 lab results imported                   -> "MIG14-MIG21" (this
+ *                                                   file)
+ *   MIG13 replicates preserved                    -> "MIG14-MIG21" (this
+ *                                                   file, replicates 1/2/3)
+ *   MIG14 all crosswalks exact-ID based           -> "Section 10" describe
+ *                                                   block (this file) — a
+ *                                                   direct assertion the
+ *                                                   persisted crosswalk's
+ *                                                   sourceRecordId/
+ *                                                   canonicalRecordId are
+ *                                                   the CONFIGURED external
+ *                                                   id and exact canonical
+ *                                                   code, never the display
+ *                                                   name
+ *   MIG15 no name matching                        -> "MIG-CANONICAL
+ *                                                   closure" describe
+ *                                                   block, test "MIG15:
+ *                                                   identical display
+ *                                                   names..." (this file)
+ *   MIG16 DB connector read-only                  -> `sqliteTestAdapter.test.ts`
+ *                                                   (DB11/DB12); the
+ *                                                   `DatabaseAdapter`
+ *                                                   contract itself
+ *                                                   (`databaseConnector.ts`)
+ *                                                   declares no write
+ *                                                   method
+ *   MIG17 REST connector read-only                -> `httpFetchAdapter.test.ts`
+ *                                                   REST14/REST15/
+ *                                                   REST-CANCEL-6
+ *                                                   (structurally GET-only)
+ *   MIG18 File connector arbitrary columns        -> "MIG-CANONICAL
+ *                                                   closure" describe
+ *                                                   block, test "MIG18: a
+ *                                                   File Connector with
+ *                                                   deliberately
+ *                                                   non-FormuLab arbitrary
+ *                                                   column names..." (this
+ *                                                   file)
+ *   MIG19 profile versions traceable               -> "MIG26/MIG27/MIG33"
+ *                                                   (this file, v1->v2
+ *                                                   supersession chain)
+ *   MIG20 Import History traceable                 -> every migration
+ *                                                   test's own
+ *                                                   `data_exchange_import_jobs`
+ *                                                   assertions; the
+ *                                                   "MIG25/MIG35" summary
+ *                                                   test's job-count check
+ *   MIG21 unchanged re-import no duplicate         -> "MIG29-MIG31/MIG34"
+ *                                                   (this file, supplier
+ *                                                   UNCHANGED case);
+ *                                                   `connectorImportBridge.test.ts`
+ *                                                   XW-APPEND "active-
+ *                                                   crosswalk reuse" (Part
+ *                                                   A2, append-only no-
+ *                                                   duplicate proof)
+ *   MIG22 changed source -> update candidate        -> "MIG29-MIG31/MIG34"
+ *                                                   (this file, inventory
+ *                                                   CHANGED case)
+ *   MIG23 local canonical conflict blocks
+ *         overwrite                                -> "MIG29-MIG31/MIG34"
+ *                                                   (this file, real
+ *                                                   classification);
+ *                                                   `connectorImportBridge.test.ts`
+ *                                                   BR19/BR22 (blocking +
+ *                                                   zero-write proof)
+ *   MIG24 source missing -> no delete               -> "MIG29-MIG31/MIG34"
+ *                                                   (this file — strengthened
+ *                                                   with a direct
+ *                                                   post-prepare assertion
+ *                                                   that MAT-2 still exists)
+ *   MIG25 schema mismatch blocks old profile        -> "MIG-CANONICAL
+ *                                                   closure" describe
+ *                                                   block, test "MIG25:
+ *                                                   mutating the source
+ *                                                   schema..." (this file);
+ *                                                   `connectorImportBridge.test.ts`
+ *                                                   BR17 (generic proof)
+ *   MIG26 missing external relation blocks          -> `connectorImportBridge.test.ts`
+ *                                                   BR6 (generic
+ *                                                   code_reference case);
+ *                                                   "FVL-04.019 Section 1"
+ *                                                   describe block (relational
+ *                                                   line->material case)
+ *   MIG27 invalid material relation blocks
+ *         formula                                  -> "MIG7/MIG9-MIG13"
+ *                                                   (this file, LEGACY-FORM-B
+ *                                                   / MISSING-MAT-X); "FVL-04.019
+ *                                                   Section 1" describe block
+ *   MIG28 retryable REST error -> no partial
+ *         commit                                   -> "MIG14-MIG21" (this
+ *                                                   file — strengthened with
+ *                                                   a direct confirm-rejects
+ *                                                   + zero-write assertion
+ *                                                   for the 429 attempt)
+ *   MIG29 atomic blocking failure -> zero
+ *         mutation                                 -> "MIG36"/"MIG37" (this
+ *                                                   file); `connectorImportBridge.test.ts`
+ *                                                   BR8
+ *   MIG30 explicit human confirm commits            -> structural — every
+ *                                                   test in this file calls
+ *                                                   `confirmConnectorImport()`
+ *                                                   explicitly;
+ *                                                   `connectorImportBridge.test.ts`
+ *                                                   BR9
+ *   MIG31 crosswalk only after success              -> "Section 10" describe
+ *                                                   block (this file);
+ *                                                   `connectorImportBridge.test.ts`
+ *                                                   BR10
+ *   MIG32 no source-system writeback                -> same DB11/DB12 +
+ *                                                   `DatabaseAdapter`
+ *                                                   contract cross-reference
+ *                                                   as MIG16; REST23
+ *                                                   (`httpFetchAdapter.test.ts`)
+ *   MIG33 no LLM                                    -> "MIG-CANONICAL
+ *                                                   closure" describe
+ *                                                   block, test "MIG33: no
+ *                                                   LLM/generative-AI SDK..."
+ *                                                   (this file)
+ *   MIG34 no vendor-specific branch                 -> "MIG-CANONICAL
+ *                                                   closure" describe
+ *                                                   block, test "MIG34: no
+ *                                                   customer/vendor-specific
+ *                                                   production branch..."
+ *                                                   (this file); REST19
+ *                                                   (`httpFetchAdapter.test.ts`)
+ *   MIG35 no second Data Exchange                   -> "MIG-CANONICAL
+ *                                                   closure" describe
+ *                                                   block, test "MIG35:
+ *                                                   single-authority
+ *                                                   guard..." (this file)
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -605,6 +799,11 @@ describe("FVL-04.025 Part G — real customer migration fixture (MIG1-MIG35)", (
     const labConnectorAttempt1 = createRestApiConnector("LEGACY_LIMS", { connectionRef: "lims-conn", endpoints: { lab_results: "/lab-results" } }, restOpts, { fetchPage });
     const attempt1 = await prepareConnectorImport({ connector: labConnectorAttempt1, entity: "lab_results", profile: labResultsProfileV1("placeholder") });
     expect(attempt1.blockingIssues.length).toBeGreaterThan(0); // extraction failed — genuinely retryable, never silently ignored
+    // MIG28 (canonical numbering) — a retryable extraction failure must
+    // never leave a partial commit behind. F4's atomic preflight refuses
+    // confirm outright since `blockingIssues` is non-empty.
+    await expect(confirmConnectorImport(attempt1, ctx)).rejects.toThrow(/blocking issue/);
+    expect(store.get("test_results") ?? []).toEqual([]); // zero write — nothing from this attempt landed
 
     // Operator retries: a fresh extraction now succeeds.
     const labConnectorAttempt2 = createRestApiConnector("LEGACY_LIMS", { connectionRef: "lims-conn", endpoints: { lab_results: "/lab-results" } }, restOpts, { fetchPage });
@@ -641,6 +840,12 @@ describe("FVL-04.025 Part G — real customer migration fixture (MIG1-MIG35)", (
     const mat1Row = materialsPrep.templates[0].rows.find((r) => r.candidate.row.material_code === "MAT-1")!;
     expect(mat1Row.reimportState).toBe("CANONICAL_LOCAL_CONFLICT"); // MIG34 — source changed AND canonical hand-edited
     expect(materialsPrep.templates[0].missingFromSource.some((m) => m.naturalKey === "MAT-2")).toBe(true); // MIG31 — material disappeared
+    // MIG24 (canonical numbering) — SOURCE_MISSING is purely informational:
+    // MAT-2 vanishing from this batch's own source must never trigger a
+    // delete. `prepareConnectorImport()` never writes anything at all
+    // (pure planning), so this is structurally guaranteed here regardless
+    // — genuinely reconfirmed rather than merely asserted in prose.
+    expect((store.get("materials") ?? []).some((r) => r.code === "MAT-2")).toBe(true);
 
     const suppliersPrep = await importEntity(db2.adapter, "suppliers", suppliersProfile, "run-sup-2");
     const sup1Row = suppliersPrep.templates[0].rows.find((r) => r.candidate.row.supplier_code === "SUP-1")!;
@@ -1027,6 +1232,14 @@ describe("Section 10 (Session 12 hardening) — happy-path crosswalk lifecycle w
     const crosswalksAfterFirst = xwFor883729();
     expect(crosswalksAfterFirst).toHaveLength(1); // (5) crosswalk persists only AFTER successful commit
     expect(crosswalksAfterFirst[0]).toMatchObject({ sourceSystemId: "LEGACY_ERP_XW", sourceEntity: "materials_xw", sourceRecordId: "ERP-MAT-883729", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-00291" }); // (6) exact stored shape
+    // MIG14 (canonical numbering) — direct, explicit proof the persisted
+    // crosswalk is exact-ID based: the configured EXTERNAL id and the
+    // exact canonical CODE, never the human display name ("Legacy Decyl
+    // Glucoside") that flowed through the SAME row.
+    expect(crosswalksAfterFirst[0].sourceRecordId).not.toBe("Legacy Decyl Glucoside");
+    expect(crosswalksAfterFirst[0].canonicalRecordId).not.toContain("Decyl");
+    expect(crosswalksAfterFirst[0].sourceRecordId).toMatch(/^ERP-MAT-\d+$/);
+    expect(crosswalksAfterFirst[0].canonicalRecordId).toMatch(/^RM-\d+$/);
 
     // ---- 7/8/9 — second extraction of the SAME external identity: reuses the SAME active crosswalk, no duplicate canonical record, a display-name change doesn't alter identity. ----
     const { adapter: adapter2, close: close2 } = await createSqliteTestAdapter(`
@@ -1057,5 +1270,224 @@ describe("Section 10 (Session 12 hardening) — happy-path crosswalk lifecycle w
     // persisted") and BR20 ("a REAL DB-derived ordinal-fallback identity cannot be persisted as a crosswalk
     // identity") respectively — not re-duplicated here, but explicitly named per the brief's own "no prose-only
     // covered elsewhere unless the referenced executable test is explicitly named" requirement.
+  });
+});
+
+// ======================================================================
+// MIG-CANONICAL closure — the user-supplied ORIGINAL MIG1-MIG35 matrix
+// (see the top-of-file note) named MIG9/MIG14/MIG15/MIG18/MIG25/MIG28/
+// MIG33/MIG34/MIG35 as items this fixture previously left weak, N/A, or
+// only prose-covered. MIG14/MIG24/MIG28 were strengthened IN PLACE above
+// (direct assertions added to existing migration-1/migration-2 tests);
+// the remaining items get real, named, executable tests here.
+// ======================================================================
+describe("MIG-CANONICAL closure — MIG9/MIG15/MIG18/MIG25/MIG33/MIG34/MIG35", () => {
+  it("MIG9: a real formulation process-parameter relationship, via the EXISTING process_parameters Data Exchange path, attached to the fixture's own LEGACY-FORM-A", async () => {
+    const csv = "FormulaCode,FormulaVersion,StepNumber,StepName,Phase,Instruction\nLEGACY-FORM-A,1,1,Heat and mix phase A,A,Heat to 65C and hold.";
+    const connector = createFileConnector("LEGACY_ERP", { fileName: "process.csv", fileKind: "csv", text: csv }, stageOpts);
+    const staged = await connector.extract("process");
+    const fp = discoverSourceSchema("LEGACY_ERP", [{ entity: "process", records: staged.records }]).fingerprint;
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("mig-process", 1),
+      profileId: "mig-process",
+      profileName: "Legacy process parameters",
+      sourceSystemId: "LEGACY_ERP",
+      sourceEntity: "process",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "FormulaCode", targetTemplate: "process_parameters", targetField: "formula_code" },
+        { sourceField: "FormulaVersion", targetTemplate: "process_parameters", targetField: "formula_version" },
+        { sourceField: "StepNumber", targetTemplate: "process_parameters", targetField: "step_number" },
+        { sourceField: "StepName", targetTemplate: "process_parameters", targetField: "step_name" },
+        { sourceField: "Phase", targetTemplate: "process_parameters", targetField: "phase" },
+        { sourceField: "Instruction", targetTemplate: "process_parameters", targetField: "instruction" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "process", profile });
+    expect(prepared.blockingIssues).toEqual([]);
+    await confirmConnectorImport(prepared, ctx);
+    const step = (store.get("process_parameters") ?? []).find((r) => r.code === "LEGACY-FORM-A-v1-step1");
+    expect(step).toBeDefined();
+    expect(step!.formulaCode).toBe("LEGACY-FORM-A");
+    expect(step!.stepName).toBe("Heat and mix phase A");
+  });
+
+  it("MIG15: identical display names across two DIFFERENT source identities never establishes identity — two genuinely distinct canonical records, never merged by name", async () => {
+    const csv = "MaterialID,MaterialName\nMIG15-A,Same Display Name\nMIG15-B,Same Display Name";
+    const connector = createFileConnector("LEGACY_ERP", { fileName: "dupname.csv", fileKind: "csv", text: csv }, stageOpts);
+    const staged = await connector.extract("materials");
+    const fp = discoverSourceSchema("LEGACY_ERP", [{ entity: "materials", records: staged.records }]).fingerprint;
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("mig15-dupname", 1),
+      profileId: "mig15-dupname",
+      profileName: "MIG15 duplicate-name materials",
+      sourceSystemId: "LEGACY_ERP",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: fp,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MaterialID", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MaterialName", targetTemplate: "raw_materials", targetField: "material_name" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile });
+    expect(prepared.blockingIssues).toEqual([]);
+    await confirmConnectorImport(prepared, ctx);
+    const both = (store.get("materials") ?? []).filter((r) => r.displayName === "Same Display Name");
+    // Identity comes from material_code (the natural key), never from
+    // matching on the human-readable name — two source rows with the
+    // SAME name and DIFFERENT codes must produce two SEPARATE records.
+    expect(both.map((r) => r.code).sort()).toEqual(["MIG15-A", "MIG15-B"]);
+  });
+
+  it("MIG18: a File Connector with deliberately non-FormuLab arbitrary column names flows through Schema Discovery -> Mapping Profile -> Bridge -> Data Exchange", async () => {
+    const csv = "Vendor_Part_Number,Vendor_Part_Description,Vendor_Purity_Pct\nMIG18-X,Arbitrary Vendor Material,88.2";
+    const connector = createFileConnector("VENDOR_EXPORT", { fileName: "vendor_export.csv", fileKind: "csv", text: csv }, stageOpts);
+    const staged = await connector.extract("materials");
+    const schema = discoverSourceSchema("VENDOR_EXPORT", [{ entity: "materials", records: staged.records }]);
+    // Schema Discovery genuinely saw the arbitrary headers, unmodified —
+    // never coerced toward FormuLab's own column-naming convention.
+    expect(schema.entities[0].fields.map((f) => f.path)).toEqual(expect.arrayContaining(["Vendor_Part_Number", "Vendor_Part_Description", "Vendor_Purity_Pct"]));
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("mig-vendor-arbitrary", 1),
+      profileId: "mig-vendor-arbitrary",
+      profileName: "Vendor export — arbitrary columns",
+      sourceSystemId: "VENDOR_EXPORT",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "Vendor_Part_Number", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "Vendor_Part_Description", targetTemplate: "raw_materials", targetField: "material_name" },
+        { sourceField: "Vendor_Purity_Pct", targetTemplate: "raw_materials", targetField: "active_matter_percent" },
+      ],
+      constantMappings: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile });
+    expect(prepared.blockingIssues).toEqual([]);
+    await confirmConnectorImport(prepared, ctx);
+    const rec = (store.get("materials") ?? []).find((r) => r.code === "MIG18-X");
+    expect(rec).toBeDefined();
+    expect(rec!.activeMatterPercent).toBe("88.2");
+  });
+
+  it("MIG25: mutating the source schema and reusing the OLD mapping profile blocks with SCHEMA_CHANGED — zero canonical writes", async () => {
+    // The exact fingerprint migration 1's own materialsProfile was
+    // authored against — the REAL original erp_materials structure.
+    const probeConnector = createDatabaseConnector("LEGACY_ERP", { connectionRef: "erp-conn", entities: DB_ENTITIES }, { extractionRunId: "run-schema-probe", extractedAt: "2026-01-01T00:00:00.000Z" }, { adapter: db1.adapter });
+    const probeStaged = await probeConnector.extract("materials");
+    const originalFp = discoverSourceSchema("LEGACY_ERP", [{ entity: "materials", records: probeStaged.records }]).fingerprint;
+    const staleProfile = materialsProfile(originalFp);
+
+    // A realistic schema evolution: the customer's ERP genuinely gains a
+    // new column upstream. The OLD profile is deliberately reused
+    // unchanged — exactly the scenario a customer who skips re-review
+    // would hit.
+    const { adapter, close } = await createSqliteTestAdapter(`
+      CREATE TABLE erp_materials (MaterialID TEXT PRIMARY KEY, MaterialName TEXT NOT NULL, ActiveMatter REAL, Hazardous INTEGER NOT NULL, NewVendorColumn TEXT);
+      INSERT INTO erp_materials VALUES ('MAT-SCHEMA-1','Schema Test Material',90,0,'new-value');
+    `);
+    const connector = createDatabaseConnector("LEGACY_ERP", { connectionRef: "erp-conn", entities: { materials: { table: "erp_materials" } } }, { extractionRunId: "run-schema-mismatch", extractedAt: "2026-01-01T00:00:00.000Z" }, { adapter });
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile: staleProfile });
+    close();
+    expect(prepared.blockingIssues.some((b) => b.includes("SCHEMA_CHANGED"))).toBe(true);
+    await expect(confirmConnectorImport(prepared, ctx)).rejects.toThrow(/blocking issue/);
+    expect((store.get("materials") ?? []).some((r) => r.code === "MAT-SCHEMA-1")).toBe(false); // zero canonical write, never auto-remapped
+  });
+
+  it("MIG33: no LLM/generative-AI SDK or API reference exists anywhere in the in-scope connector/mapping/bridge/migration modules", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const sharedEngineDir = path.resolve(process.cwd(), "..", "..", "packages", "shared", "src", "engine");
+    const desktopLibDir = path.resolve(process.cwd(), "src", "lib");
+    const files = [
+      ...["restApiConnector.ts", "httpFetchAdapter.ts", "databaseConnector.ts", "fileConnector.ts", "mappingProfile.ts", "relationalAssembly.ts", "crosswalk.ts", "dataExchangeIncremental.ts", "dataExchangeValidation.ts", "schemaDiscovery.ts", "connectorFingerprint.ts", "dataExchangeRegistry.ts"].map((f) => path.join(sharedEngineDir, f)),
+      ...["connectorImportBridge.ts", "dataExchangeCommit.ts", "dataExchangeExisting.ts", "connectorPersistence.ts"].map((f) => path.join(desktopLibDir, f)),
+    ];
+    const llmPattern = /openai|anthropic\.com|@anthropic-ai|generativelanguage|chat\/completions|gpt-4|gpt-3|text-davinci|claude-[123]|langchain/i;
+    for (const file of files) {
+      const src = fs.readFileSync(file, "utf-8");
+      expect(src, `${file} must not reference any LLM/generative-AI SDK or API`).not.toMatch(llmPattern);
+    }
+  });
+
+  it("MIG34: no customer/vendor-specific production branch anywhere in the in-scope connector/mapping/bridge/migration modules", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const sharedEngineDir = path.resolve(process.cwd(), "..", "..", "packages", "shared", "src", "engine");
+    const desktopLibDir = path.resolve(process.cwd(), "src", "lib");
+    const files = [
+      ...["restApiConnector.ts", "httpFetchAdapter.ts", "databaseConnector.ts", "fileConnector.ts", "mappingProfile.ts", "relationalAssembly.ts"].map((f) => path.join(sharedEngineDir, f)),
+      ...["connectorImportBridge.ts"].map((f) => path.join(desktopLibDir, f)),
+    ];
+    // The fixture/profile DATA in THIS test file may freely contain
+    // vendor names (LEGACY_ERP, LEGACY_LIMS, ...) — those are test
+    // fixtures, never production source. Only PRODUCTION module source
+    // is checked here.
+    const vendorBranchPattern = /sourceSystem(Id)?\s*===\s*["']|vendor\s*===\s*["']|customer\s*===\s*["']/;
+    for (const file of files) {
+      const src = fs.readFileSync(file, "utf-8");
+      expect(src, `${file} must not branch on a specific sourceSystemId/vendor/customer literal`).not.toMatch(vendorBranchPattern);
+    }
+  });
+
+  it("MIG35: single-authority guard — connectors and mapping never write canonically, every canonical commit goes through the EXISTING commitDataExchangeRows(), Import History uses the EXISTING two-collection model, and no second Data Exchange registry exists", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const sharedEngineDir = path.resolve(process.cwd(), "..", "..", "packages", "shared", "src", "engine");
+    const desktopLibDir = path.resolve(process.cwd(), "src", "lib");
+
+    // Connectors and the mapping engine never write canonical records
+    // directly — structurally true here since they live in
+    // `packages/shared`, which has no dependency on the desktop-only
+    // masterdata bridge at all, but confirmed by source text too.
+    for (const f of ["restApiConnector.ts", "databaseConnector.ts", "fileConnector.ts", "mappingProfile.ts"]) {
+      const src = fs.readFileSync(path.join(sharedEngineDir, f), "utf-8");
+      expect(src, `${f} must never call the masterdata write bridge`).not.toMatch(/upsertRecords|saveFormulation|saveFormulationVersion/);
+    }
+
+    // The bridge itself commits ONLY through the existing authority.
+    const bridgeSrc = fs.readFileSync(path.join(desktopLibDir, "connectorImportBridge.ts"), "utf-8");
+    expect(bridgeSrc).toMatch(/commitDataExchangeRows/);
+    expect(bridgeSrc).toMatch(/data_exchange_import_jobs/);
+    expect(bridgeSrc).toMatch(/data_exchange_import_row_results/);
+    // The bridge's own canonical-write surface is exactly: Import History
+    // (`data_exchange_import_jobs`/`data_exchange_import_row_results`)
+    // and crosswalk (`external_id_crosswalks`, via `persistCrosswalkEntry`)
+    // — never a bespoke per-template write of its own outside those and
+    // the one `commitDataExchangeRows()` delegation.
+    const upsertCalls = [...bridgeSrc.matchAll(/upsertRecords\(\s*["'`]([\w.${}]+)["'`]/g)].map((m) => m[1]);
+    for (const collection of upsertCalls) {
+      expect(["data_exchange_import_jobs", "data_exchange_import_row_results"]).toContain(collection);
+    }
+
+    // No parallel Data Exchange template registry exists anywhere in the
+    // in-scope engine — `getDataExchangeTemplate`/`DATA_EXCHANGE_TEMPLATES`
+    // has exactly ONE real declaration/export site.
+    const registrySrc = fs.readFileSync(path.join(sharedEngineDir, "dataExchangeRegistry.ts"), "utf-8");
+    expect(registrySrc).toMatch(/export function getDataExchangeTemplate/);
+    const otherEngineFiles = fs.readdirSync(sharedEngineDir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "dataExchangeRegistry.ts");
+    for (const f of otherEngineFiles) {
+      const src = fs.readFileSync(path.join(sharedEngineDir, f), "utf-8");
+      expect(src, `${f} must not declare a second Data Exchange template registry`).not.toMatch(/function getDataExchangeTemplate|const DATA_EXCHANGE_TEMPLATES\s*=/);
+    }
   });
 });
