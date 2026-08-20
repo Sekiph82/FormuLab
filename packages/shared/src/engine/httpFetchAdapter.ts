@@ -125,21 +125,37 @@ export function createHttpFetchAdapter(config: HttpFetchAdapterConfig): (spec: R
     const url = buildUrl(spec, config, pageState);
 
     // Session 11 hardening (Part 5A) — a hung/dropped source can never
-    // block extraction forever. `HttpStatusError(408, ...)` reuses the
-    // EXISTING retryable classification (`retryableForStatus(408)` is
-    // already true) rather than inventing a second retry-signal shape.
+    // block extraction forever. Deliberately a `Promise.race()` timeout,
+    // never `AbortController`/`fetch`'s own `signal` option: this module
+    // runs in more than one JS realm across this codebase (packages/shared's
+    // own tests run under plain Node; apps/desktop's tests run under
+    // jsdom, which implements its OWN spec-compliant `AbortController`/
+    // `AbortSignal` classes distinct from Node's/undici's) — a signal
+    // constructed in one realm handed to a `fetch()` implementation from
+    // another can be silently mishandled. `Promise.race()` needs no
+    // signal at all, so it behaves identically in every realm.
+    // `HttpStatusError(408, ...)` reuses the EXISTING retryable
+    // classification (`retryableForStatus(408)` is already true) rather
+    // than inventing a second retry-signal shape.
     const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    let rejectTimeout: (e: Error) => void = () => {};
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      rejectTimeout = reject;
+    });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      rejectTimeout(new Error("request_timeout"));
+    }, timeoutMs);
 
     let response: Response;
     try {
       // GET-only — hardcoded, never configurable. No request body is
       // ever sent; a source mutation method (POST/PUT/PATCH/DELETE) has
       // no code path anywhere in this adapter.
-      response = await fetch(url, { method: "GET", headers: config.headers, signal: controller.signal });
+      response = await Promise.race([fetch(url, { method: "GET", headers: config.headers }), timeoutPromise]);
     } catch (e) {
-      if (e instanceof Error && e.name === "AbortError") {
+      if (timedOut) {
         throw new HttpStatusError(408, `Request to ${sanitizeUrl(url)} timed out after ${timeoutMs}ms`);
       }
       throw new Error(`Network error reaching ${sanitizeUrl(url)}: ${e instanceof Error ? e.constructor.name : "UnknownError"}`);

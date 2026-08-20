@@ -667,6 +667,39 @@ describe("FVL-04.025 Part G — real customer migration fixture (MIG1-MIG35)", (
     expect((store.get("test_results") ?? []).some((r) => (r as { sampleId?: string }).sampleId === "S3")).toBe(true);
   });
 
+  it("MIG36 (Session 11 hardening): a canonical record deleted out-of-band (never through Data Exchange) classifies as a real CANONICAL_MISSING, using the SAME committed history this fixture already built", async () => {
+    // MAT-2 was committed for real back in migration 1 (db1 still has it
+    // in its own snapshot, unaffected by db2's later deletion). An
+    // operator now deletes the CANONICAL record directly.
+    const materials = store.get("materials") ?? [];
+    store.set("materials", materials.filter((r) => r.code !== "MAT-2"));
+
+    const prep = await importEntity(db1.adapter, "materials", materialsProfile, "run-mat-canonical-missing");
+    const mat2Row = prep.templates[0].rows.find((r) => r.candidate.row.material_code === "MAT-2")!;
+    expect(mat2Row.reimportState).toBe("CANONICAL_MISSING");
+    expect(prep.blockingIssues.some((b) => b.includes("CANONICAL_MISSING"))).toBe(true);
+    await expect(confirmConnectorImport(prep, ctx)).rejects.toThrow(/blocking issue/); // never silently recreated/updated
+  });
+
+  it("MIG37 (Session 11 hardening): a source identity already bound to a DIFFERENT canonical record in the real crosswalk store is preflighted as CROSSWALK_CONFLICT, using this fixture's own already-committed MAT-1", async () => {
+    // The real crosswalk store disagrees with what Import History says
+    // MAT-1's own source identity (its material_code, since the DB
+    // connector's configured PK identity IS "MAT-1") last committed to.
+    store.set("external_id_crosswalks", [
+      { code: "LEGACY_ERP::materials::MAT-1::RawMaterial", sourceSystemId: "LEGACY_ERP", sourceEntity: "materials", sourceRecordId: "MAT-1", canonicalEntity: "RawMaterial", canonicalRecordId: "RM-SOME-OTHER-RECORD", status: "active", firstSeenAt: "2026-01-01T00:00:00.000Z", lastSeenAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+    const connector = createDatabaseConnector("LEGACY_ERP", { connectionRef: "erp-conn", entities: DB_ENTITIES }, { extractionRunId: "run-mat-crosswalk-conflict", extractedAt: "2026-01-01T00:00:00.000Z" }, { adapter: db1.adapter });
+    const staged = await connector.extract("materials");
+    const fp = discoverSourceSchema("LEGACY_ERP", [{ entity: "materials", records: staged.records }]).fingerprint;
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile: materialsProfile(fp), crosswalkTargets: { raw_materials: { canonicalEntity: "RawMaterial" } } });
+    const mat1Row = prepared.templates[0].rows.find((r) => r.candidate.row.material_code === "MAT-1")!;
+    expect(mat1Row.reimportState).toBe("CROSSWALK_CONFLICT");
+    expect(prepared.blockingIssues.some((b) => b.includes("CROSSWALK_CONFLICT"))).toBe(true);
+    const crosswalksBefore = store.get("external_id_crosswalks")!.length;
+    await expect(confirmConnectorImport(prepared, ctx, { raw_materials: { canonicalEntity: "RawMaterial" } })).rejects.toThrow(/blocking issue/);
+    expect(store.get("external_id_crosswalks")!.length).toBe(crosswalksBefore); // zero crosswalk mutation
+  });
+
   it("MIG25/MIG35: the fixture's own transformations and full acceptance run are real, not asserted in prose", () => {
     // MIG25 — map_boolean was genuinely exercised (hazardous/preferred/quarantined) and MIG24's
     // convert_unit above both produced real, checked output values — re-confirmed here structurally.
