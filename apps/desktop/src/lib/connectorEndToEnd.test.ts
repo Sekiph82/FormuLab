@@ -633,6 +633,130 @@ describe("FVL-04.019 — Formula/Recipe Relationship Import: real crosswalk-reso
     expect(versions[0].lines).toHaveLength(2);
     expect(versions[0].totalsSnapshot?.totalPercent).toBe("100.0000");
   });
+
+  it("Section 2B (Session 11 hardening): a genuinely RELATIONAL two-entity source (FormulaHeader + FormulaLine, real DatabaseAdapter) stages header and lines independently, preserves the real FK relationship, and blocks an unresolved-material formula without a partial commit", async () => {
+    store.set("materials", [{ code: "RM-REL-1" }, { code: "RM-REL-2" }]);
+    await persistCrosswalkEntry({ sourceSystemId: "LEGACY_ERP", sourceEntity: "formula_line", sourceIdentity: { sourceRecordId: "LEGACY-MAT-X", idSource: "configured" }, canonicalEntity: "RawMaterial", canonicalRecordId: "RM-REL-1" });
+    await persistCrosswalkEntry({ sourceSystemId: "LEGACY_ERP", sourceEntity: "formula_line", sourceIdentity: { sourceRecordId: "LEGACY-MAT-Y", idSource: "configured" }, canonicalEntity: "RawMaterial", canonicalRecordId: "RM-REL-2" });
+    // LEGACY-MAT-MISSING deliberately gets no crosswalk entry.
+
+    const headerRows = [["FH-REL-1", "Relational Test Formula", "REL-FAM"], ["FH-REL-2", "Relational Bad Formula", "REL-FAM"]];
+    const lineRows: Record<string, string[][]> = {
+      // Deliberately scrambled physical/read order (line 2 before line 1).
+      "FH-REL-1": [["FH-REL-1", "2", "LEGACY-MAT-X", "60", "A", "6"], ["FH-REL-1", "1", "LEGACY-MAT-Y", "40", "A", "4"]],
+      "FH-REL-2": [["FH-REL-2", "1", "LEGACY-MAT-MISSING", "100", "A", "10"]],
+    };
+    const allLineRows = [...lineRows["FH-REL-1"], ...lineRows["FH-REL-2"]];
+
+    const adapter: DatabaseAdapter = {
+      listSchemas: async () => ["dbo"],
+      listTables: async () => [
+        { table: "formula_header", kind: "table" as const },
+        { table: "formula_line", kind: "table" as const },
+      ],
+      describeEntity: async (ref) =>
+        ref.table === "formula_header"
+          ? { table: "formula_header", kind: "table" as const, columns: [{ name: "FormulaCode", declaredType: "VARCHAR", nullable: false, isPrimaryKey: true, primaryKeyOrdinal: 1 }, { name: "FormulaName", declaredType: "VARCHAR", nullable: true, isPrimaryKey: false }, { name: "ProductFamilyCode", declaredType: "VARCHAR", nullable: true, isPrimaryKey: false }], foreignKeys: [] }
+          : {
+              table: "formula_line",
+              kind: "table" as const,
+              columns: [
+                { name: "FormulaCode", declaredType: "VARCHAR", nullable: false, isPrimaryKey: true, primaryKeyOrdinal: 1 },
+                { name: "LineNumber", declaredType: "INT", nullable: false, isPrimaryKey: true, primaryKeyOrdinal: 2 },
+                { name: "MaterialCode", declaredType: "VARCHAR", nullable: false, isPrimaryKey: false },
+                { name: "Percentage", declaredType: "DECIMAL", nullable: false, isPrimaryKey: false },
+                { name: "Phase", declaredType: "VARCHAR", nullable: true, isPrimaryKey: false },
+                { name: "QuantityKg", declaredType: "DECIMAL", nullable: true, isPrimaryKey: false },
+              ],
+              foreignKeys: [{ fromColumns: ["FormulaCode"], toTable: "formula_header", toColumns: ["FormulaCode"] }],
+            },
+      readPage: async (request) => (request.selector.table === "formula_header" ? { columns: ["FormulaCode", "FormulaName", "ProductFamilyCode"], rows: headerRows } : { columns: ["FormulaCode", "LineNumber", "MaterialCode", "Percentage", "Phase", "QuantityKg"], rows: allLineRows }),
+    };
+    const source = { connectionRef: "conn-rel-1", entities: { formula_header: { table: "formula_header" }, formula_line: { table: "formula_line" } } };
+    const opts = { extractionRunId: "run-rel-1", extractedAt: "2026-01-01T00:00:00.000Z" };
+
+    // Header and lines staged INDEPENDENTLY — two separate extract calls,
+    // never a join performed by this connector layer.
+    const headerStaged = await stageDatabaseEntity("LEGACY_ERP", source, "formula_header", opts, { adapter });
+    const lineStaged = await stageDatabaseEntity("LEGACY_ERP", source, "formula_line", opts, { adapter });
+    expect(headerStaged.errors).toEqual([]);
+    expect(lineStaged.errors).toEqual([]);
+    expect(headerStaged.records).toHaveLength(2);
+    expect(lineStaged.records).toHaveLength(3);
+
+    // The real FK relationship, verified directly against the two
+    // independently-staged entities — never assumed, never joined by any
+    // hidden mechanism.
+    const fh1Header = headerStaged.records.find((r) => r.fields.FormulaCode === "FH-REL-1")!;
+    const fh1Lines = lineStaged.records.filter((r) => r.fields.FormulaCode === fh1Header.fields.FormulaCode);
+    expect(fh1Lines).toHaveLength(2);
+
+    const lineSchema = discoverSourceSchema("LEGACY_ERP", [{ entity: "formula_line", records: lineStaged.records }]);
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: "legacy-erp-formula-line::v1",
+      profileId: "legacy-erp-formula-line",
+      profileName: "LEGACY_ERP formula lines",
+      sourceSystemId: "LEGACY_ERP",
+      sourceEntity: "formula_line",
+      sourceSchemaFingerprint: lineSchema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        // Every line row carries its own FK to the header — the real
+        // relational identity, never a separate header lookup/join.
+        { sourceField: "FormulaCode", targetTemplate: "formula_bom", targetField: "formula_code" },
+        { sourceField: "LineNumber", targetTemplate: "formula_bom", targetField: "line_number" },
+        { sourceField: "MaterialCode", targetTemplate: "formula_bom", targetField: "material_code", transformations: [{ op: "resolve_crosswalk", config: { sourceEntity: "formula_line", canonicalEntity: "RawMaterial" } }] },
+        { sourceField: "Percentage", targetTemplate: "formula_bom", targetField: "percentage" },
+        { sourceField: "Phase", targetTemplate: "formula_bom", targetField: "phase" },
+        { sourceField: "QuantityKg", targetTemplate: "formula_bom", targetField: "quantity" },
+      ],
+      constantMappings: [
+        { targetTemplate: "formula_bom", targetField: "formula_version", value: "" },
+        { targetTemplate: "formula_bom", targetField: "quantity_unit", value: "kg" },
+      ],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    expect(validateMappingProfile(profile, lineSchema)).toEqual([]);
+
+    const crosswalks = (store.get("external_id_crosswalks") ?? []) as unknown as ExternalIdCrosswalk[];
+    const resolver = (entity: string, id: string, canonicalEntity: string) => resolveCrosswalk(crosswalks, "LEGACY_ERP", entity, id, canonicalEntity);
+    const template = getDataExchangeTemplate("formula_bom")!;
+    const headers = template.columns.map((c) => c.key);
+    const referenceResolver = await buildReferenceResolver(referenceRequirementsFor(template));
+
+    const previewFor = (record: (typeof lineStaged.records)[number]) => {
+      const mapped = applyMappingProfile(profile, record, { resolveCrosswalk: resolver });
+      const candidate = mapped.candidates.find((c) => c.targetTemplate === "formula_bom")!;
+      const values = headers.map((h) => candidate.row[h] ?? "");
+      return previewDataExchangeImport(template, [headers, values], { resolveReference: referenceResolver }).rows[0];
+    };
+
+    // FH-REL-1: both lines resolve cleanly.
+    const fh1Previews = fh1Lines.map(previewFor);
+    expect(fh1Previews.every((r) => r.state === "valid_create")).toBe(true);
+    const fh1Outcomes = await commitDataExchangeRows(template, fh1Previews, ctx);
+    expect(fh1Outcomes.every((o) => o.outcome === "created")).toBe(true);
+
+    const fh1Formulation = (await listFormulations()).find((f) => f.code === "FH-REL-1")!;
+    const { versions: fh1Versions } = await readFormulation(fh1Formulation.id);
+    expect(fh1Versions[0].lines.map((l) => l.lineNumber)).toEqual([1, 2]); // deterministic order despite scrambled source
+    expect(fh1Versions[0].lines.map((l) => l.materialCode)).toEqual(["RM-REL-2", "RM-REL-1"]); // exact crosswalk-resolved codes, line 1 first
+    expect(fh1Versions[0].lines.every((l) => l.phase === "A")).toBe(true);
+    expect(fh1Versions[0].lines.find((l) => l.lineNumber === 1)!.quantity).toBe("4"); // quantity/unit survive
+    expect(fh1Versions[0].lines.find((l) => l.lineNumber === 1)!.quantityUnit).toBe("kg");
+    expect(fh1Versions[0].totalsSnapshot?.totalPercent).toBe("100.0000");
+
+    // FH-REL-2: the one line references a material with no crosswalk
+    // entry at all — blocks, and never a partial canonical formula.
+    const fh2Lines = lineStaged.records.filter((r) => r.fields.FormulaCode === "FH-REL-2");
+    const fh2Previews = fh2Lines.map(previewFor);
+    expect(fh2Previews.some((r) => r.state === "invalid" || r.state === "reference_missing")).toBe(true);
+    expect((await listFormulations()).some((f) => f.code === "FH-REL-2")).toBe(false); // nothing committed for it at all
+  });
 });
 
 describe("FVL-04.024 — Connector -> Existing Data Exchange Bridge: DATABASE and REST_API sourced records reach the SAME real commit layer FILE already does, no second authority anywhere", () => {
