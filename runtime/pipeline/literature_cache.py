@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import csv
+import hashlib
 import json
 import os
 import re
@@ -35,6 +36,7 @@ import sys
 import urllib.request
 from typing import Any, Callable, Dict, List
 
+import artifact_naming
 import fulltext
 from canonical_paper import deduplicate as _canonical_deduplicate
 
@@ -205,8 +207,22 @@ PAGE_SIZE = 40
 
 
 def _pdf_name(paper: Dict[str, Any], i: int) -> str:
-    base = (paper.get("doi") or f"{paper.get('source_db', 'src')}-{i}").strip().lower()
-    return re.sub(r"[^a-z0-9._-]+", "_", base)[:120] + ".pdf"
+    """FVL-04.026 -- a human-readable, deterministic filename
+    (`LIT_<Year>_<FirstAuthor>_<ShortTitle>_<StableSourceId>.pdf`), via the
+    shared naming contract (`artifact_naming.py`,
+    `docs/ARTIFACT_NAMING_SPEC.md`). The DOI (or, absent one, a
+    `<source_db>-<i>` fallback matching the PRIOR opaque scheme's own
+    fallback) remains the STABLE id component, so the filename is still
+    unique/collision-safe even though it now leads with human-readable
+    text. Original provenance (`doi`, `oa_url`, `source_db`, ...) is never
+    touched by this — it is a pure filename derivation, applied only to
+    NEW acquisitions, never a mass rename of the existing library.
+    """
+    stable_id = (paper.get("doi") or f"{paper.get('source_db', 'src')}-{i}").strip()
+    first_author = (paper.get("authors") or "").split(";")[0].strip() or None
+    return artifact_naming.literature_filename(
+        first_author, paper.get("year"), paper.get("title"), stable_id, "pdf",
+    )
 
 
 def sniff_fulltext(head: bytes, content_type: str = "") -> str | None:
@@ -405,6 +421,17 @@ def fetch_pdfs(
             continue
         p["pdf_file"] = name
         p["fulltext"] = reason
+        # FVL-04.026 (NAME16) — a real content fingerprint, preserved as
+        # provenance alongside the human-readable filename. Computed once
+        # per paper, from the file actually saved (cache hit or fresh
+        # download alike) — genuinely missing before this session, not a
+        # duplicated/second hashing scheme (reuses hashlib directly, the
+        # same library every other content-hash in this codebase uses).
+        try:
+            with open(lib_path, "rb") as fh:
+                p["content_sha256"] = hashlib.sha256(fh.read()).hexdigest()
+        except OSError:
+            pass
         # `resolved_via` names WHICH real mechanism actually produced a
         # usable full-text URL — distinct from `provenance_sources` (which
         # DISCOVERED the paper's metadata). Only set here when
@@ -675,7 +702,7 @@ def gather(
     # `fulltext` says, in words, why a row does or does not have a file: every
     # paper here is read as metadata, but only open-access ones can be fetched.
     fields = ["source_db", "title", "year", "authors", "venue", "doi", "is_oa",
-              "oa_url", "cited_by", "concepts", "pdf_file", "fulltext"]
+              "oa_url", "cited_by", "concepts", "pdf_file", "fulltext", "content_sha256"]
     with open(os.path.join(out_dir, "papers.csv"), "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
         w.writeheader()

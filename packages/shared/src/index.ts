@@ -592,6 +592,7 @@ export * from "./engine/mappingProfile";
 export * from "./engine/crosswalk";
 export * from "./engine/unitConversion";
 export * from "./engine/transformation";
+export * from "./engine/artifactNaming";
 export {
   PRECISION,
   CURRENCY_DP,

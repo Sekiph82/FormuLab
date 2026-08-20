@@ -5,6 +5,7 @@ import {
   buildVersionExportMeta,
   erpDraftBomCsv,
   erpDraftRecipeCsv,
+  formulationExportFilename,
   versionLinesToCsv,
   versionToJsonPackage,
   type CostSnapshot,
@@ -54,16 +55,29 @@ export function ExportMenu({
   const close = () => setOpen(false);
 
   const meta = buildVersionExportMeta(formulation, version, effectiveStatus, costSnapshot?.code);
-  const base = `${formulation.code}-${meta.versionLabel}`;
+  // FVL-04.026 — the real, deterministic, cross-platform-safe export
+  // filename authority (`packages/shared/src/engine/artifactNaming.ts`,
+  // `docs/ARTIFACT_NAMING_SPEC.md`). `formulation.productFamilyCode`/
+  // `.name`/`.code` and `version.versionNumber` are only ever READ here to
+  // build a derived filename string — never renamed or mutated.
+  const filenameFor = (artifactType: Parameters<typeof formulationExportFilename>[0]["artifactType"], extension: string) =>
+    formulationExportFilename({
+      productFamily: formulation.productFamilyCode,
+      formulaName: formulation.name,
+      formulaCode: formulation.code,
+      version: version.versionNumber,
+      artifactType,
+      extension,
+    });
 
   const exportJson = () => {
     const pkg = versionToJsonPackage(formulation, version, meta, costSnapshot);
-    downloadText(`${base}.json`, JSON.stringify(pkg, null, 2), "application/json");
+    downloadText(filenameFor("Formula", "json"), JSON.stringify(pkg, null, 2), "application/json");
     close();
   };
 
   const exportCsv = () => {
-    downloadText(`${base}-formula.csv`, versionLinesToCsv(version), "text/csv;charset=utf-8");
+    downloadText(filenameFor("Formula", "csv"), versionLinesToCsv(version), "text/csv;charset=utf-8");
     close();
   };
 
@@ -78,29 +92,29 @@ export function ExportMenu({
       activeMatterPercent: l.activeMatterPercent ?? "",
       functions: l.functions.join("; "),
     }));
-    downloadBlob(`${base}-formula.xlsx`, await buildXlsxBlob(headers, rows, "Formula"));
+    downloadBlob(filenameFor("Formula", "xlsx"), await buildXlsxBlob(headers, rows, "Formula"));
     close();
   };
 
   const exportCostSnapshot = () => {
     if (!costSnapshot) return;
-    downloadText(`${base}-cost-snapshot.json`, JSON.stringify(costSnapshot, null, 2), "application/json");
+    downloadText(filenameFor("CostSnapshot", "json"), JSON.stringify(costSnapshot, null, 2), "application/json");
     close();
   };
 
   const exportPackagingBom = () => {
     if (!packagingBom) return;
-    downloadText(`${base}-packaging-bom.json`, JSON.stringify(packagingBom, null, 2), "application/json");
+    downloadText(filenameFor("PackagingBom", "json"), JSON.stringify(packagingBom, null, 2), "application/json");
     close();
   };
 
   const exportErpBom = () => {
-    downloadText(`${base}-erp-draft-bom.csv`, erpDraftBomCsv(version, meta), "text/csv;charset=utf-8");
+    downloadText(filenameFor("ErpBom", "csv"), erpDraftBomCsv(version, meta), "text/csv;charset=utf-8");
     close();
   };
 
   const exportErpRecipe = () => {
-    downloadText(`${base}-erp-draft-recipe.csv`, erpDraftRecipeCsv(version, meta), "text/csv;charset=utf-8");
+    downloadText(filenameFor("ErpRecipe", "csv"), erpDraftRecipeCsv(version, meta), "text/csv;charset=utf-8");
     close();
   };
 

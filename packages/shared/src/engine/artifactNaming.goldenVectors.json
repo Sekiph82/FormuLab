@@ -1,0 +1,156 @@
+[
+  {
+    "name": "NAME1 normal literature paper",
+    "input": {
+      "firstAuthor": "Sharma",
+      "year": 2024,
+      "title": "Herbal Anti-Dandruff Shampoo Formulation and Evaluation",
+      "stableSourceId": "10.1234/jcs.2024.001",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2024_Sharma_Herbal-Anti-Dandruff-Shampoo-Formulation-and-Evaluation_10.1234-jcs.2024.001.pdf",
+    "expectedDisplayTitle": "Sharma (2024) — Herbal Anti-Dandruff Shampoo Formulation and Evaluation"
+  },
+  {
+    "name": "NAME2 DOI containing multiple slashes",
+    "input": {
+      "firstAuthor": "Nakamura",
+      "year": 2019,
+      "title": "Silicone Emulsion Stability",
+      "stableSourceId": "10.1000/xyz123/456",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2019_Nakamura_Silicone-Emulsion-Stability_10.1000-xyz123-456.pdf",
+    "expectedDisplayTitle": "Nakamura (2019) — Silicone Emulsion Stability"
+  },
+  {
+    "name": "NAME3 title containing Windows-illegal characters",
+    "input": {
+      "firstAuthor": "Ivanova",
+      "year": 2021,
+      "title": "A Study of Silicone: Water? Ratios <Test> \"Formula\"/Blend",
+      "stableSourceId": "10.2000/aaa.111",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2021_Ivanova_A-Study-of-Silicone-Water-Ratios-Test-FormulaBlend_10.2000-aaa.111.pdf",
+    "expectedDisplayTitle": "Ivanova (2021) — A Study of Silicone: Water? Ratios <Test> \"Formula\"/Blend"
+  },
+  {
+    "name": "NAME4 UnknownYear fallback",
+    "input": {
+      "firstAuthor": "Okafor",
+      "title": "Preservative Efficacy in Cold-Process Emulsions",
+      "stableSourceId": "10.3000/bbb.222",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_UnknownYear_Okafor_Preservative-Efficacy-in-Cold-Process-Emulsions_10.3000-bbb.222.pdf",
+    "expectedDisplayTitle": "Okafor (n.d.) — Preservative Efficacy in Cold-Process Emulsions"
+  },
+  {
+    "name": "NAME5 UnknownAuthor fallback",
+    "input": {
+      "year": 2020,
+      "title": "Rheology of Shampoo Bases",
+      "stableSourceId": "10.4000/ccc.333",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2020_UnknownAuthor_Rheology-of-Shampoo-Bases_10.4000-ccc.333.pdf",
+    "expectedDisplayTitle": "Unknown Author (2020) — Rheology of Shampoo Bases"
+  },
+  {
+    "name": "NAME6 Unicode author/title",
+    "input": {
+      "firstAuthor": "Müller",
+      "year": 2022,
+      "title": "Étude de la Stabilité des Émulsions Cosmétiques",
+      "stableSourceId": "10.5000/ddd.444",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2022_Müller_Étude-de-la-Stabilité-des-Émulsions-Cosmétiques_10.5000-ddd.444.pdf",
+    "expectedDisplayTitle": "Müller (2022) — Étude de la Stabilité des Émulsions Cosmétiques"
+  },
+  {
+    "name": "NAME7 repeated whitespace/punctuation",
+    "input": {
+      "firstAuthor": "Petrov",
+      "year": 2018,
+      "title": "Foam    Stability   --   A   Repeated,,,  Spacing   Case",
+      "stableSourceId": "10.6000/eee.555",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2018_Petrov_Foam-Stability-A-Repeated,,,-Spacing-Case_10.6000-eee.555.pdf",
+    "expectedDisplayTitle": "Petrov (2018) — Foam    Stability   --   A   Repeated,,,  Spacing   Case"
+  },
+  {
+    "name": "NAME8 trailing-dot/space prevention",
+    "input": {
+      "firstAuthor": "Silva.",
+      "year": 2023,
+      "title": "Trailing Space and Dot Title.   ",
+      "stableSourceId": "10.7000/fff.666",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2023_Silva_Trailing-Space-and-Dot-Title_10.7000-fff.666.pdf",
+    "expectedDisplayTitle": "Silva. (2023) — Trailing Space and Dot Title."
+  },
+  {
+    "name": "NAME9 Windows reserved device-name component",
+    "input": {
+      "firstAuthor": "CON",
+      "year": 2017,
+      "title": "NUL",
+      "stableSourceId": "10.8000/ggg.777",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2017_CON-file_NUL-file_10.8000-ggg.777.pdf",
+    "expectedDisplayTitle": "CON (2017) — NUL"
+  },
+  {
+    "name": "NAME10 extremely long paper title",
+    "input": {
+      "firstAuthor": "Zhang",
+      "year": 2015,
+      "title": "A Very Long and Descriptive Title About Multi-Phase Emulsion Systems With Many Additional Qualifying Clauses Describing Every Single Formulation Variable Considered In This Extensive Comparative Study Of Surfactant Blends",
+      "stableSourceId": "10.9000/hhh.888",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2015_Zhang_A-Very-Long-and-Descriptive-Title-About-Multi-Phase-Emulsion_10.9000-hhh.888.pdf",
+    "expectedDisplayTitle": "Zhang (2015) — A Very Long and Descriptive Title About Multi-Phase Emulsion Systems With Many Additional Qualifying Clauses Describing Every Single Formulation Variable Considered In This Extensive Comparative Study Of Surfactant Blends"
+  },
+  {
+    "name": "NAME11a same human title, stable id A",
+    "input": {
+      "firstAuthor": "Kumar",
+      "year": 2020,
+      "title": "Identical Title For Collision Test",
+      "stableSourceId": "10.1111/id-a",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2020_Kumar_Identical-Title-For-Collision-Test_10.1111-id-a.pdf",
+    "expectedDisplayTitle": "Kumar (2020) — Identical Title For Collision Test"
+  },
+  {
+    "name": "NAME11b same human title, stable id B",
+    "input": {
+      "firstAuthor": "Kumar",
+      "year": 2020,
+      "title": "Identical Title For Collision Test",
+      "stableSourceId": "10.2222/id-b",
+      "extension": "pdf"
+    },
+    "expectedFilename": "LIT_2020_Kumar_Identical-Title-For-Collision-Test_10.2222-id-b.pdf",
+    "expectedDisplayTitle": "Kumar (2020) — Identical Title For Collision Test"
+  },
+  {
+    "name": "NAME12 original extension preserved (xml source converted to md)",
+    "input": {
+      "firstAuthor": "Haddad",
+      "year": 2016,
+      "title": "Europe PMC JATS Article",
+      "stableSourceId": "10.1212/jjj.999",
+      "extension": "md"
+    },
+    "expectedFilename": "LIT_2016_Haddad_Europe-PMC-JATS-Article_10.1212-jjj.999.md",
+    "expectedDisplayTitle": "Haddad (2016) — Europe PMC JATS Article"
+  }
+]
