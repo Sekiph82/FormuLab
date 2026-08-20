@@ -14,11 +14,13 @@
     "generate:role-policy-matrix": "tsx scripts/generate-role-policy-matrix.ts"
   },
   "dependencies": {
-    "zod": "^4.4.3",
-    "decimal.js": "^10.6.0"
+    "decimal.js": "^10.6.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "vitest": "^3.2.4",
-    "typescript": "^5.9.3"
+    "@types/sql.js": "^1.4.11",
+    "sql.js": "^1.14.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }

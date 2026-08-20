@@ -38,12 +38,12 @@ import {
   resolveColumnReferenceField,
   resolveCrosswalk,
   stageCsvFile,
-  stageDatabaseQuery,
+  stageDatabaseEntity,
   stageRestEntity,
   upsertCrosswalk,
   validateMappingProfile,
   validateMappingProfileSupersession,
-  type DatabaseQueryResult,
+  type DatabaseAdapter,
   type DataExchangeRowResult,
   type ExternalIdCrosswalk,
   type MappingCandidateRow,
@@ -579,16 +579,27 @@ describe("FVL-04.019 — Formula/Recipe Relationship Import: real crosswalk-reso
 });
 
 describe("FVL-04.024 — Connector -> Existing Data Exchange Bridge: DATABASE and REST_API sourced records reach the SAME real commit layer FILE already does, no second authority anywhere", () => {
-  it("a DATABASE-sourced row (stageDatabaseQuery, mocked executeQuery) flows through the identical mapping/Data Exchange/commit chain a FILE-sourced row already does, and reaches real canonical storage", async () => {
-    const executeQuery = async (): Promise<DatabaseQueryResult> => ({
-      columns: ["MaterialID", "MaterialName"],
-      rows: [["DB-MAT-1", "TEST DB-Sourced Material"]],
-    });
-    const staged = await stageDatabaseQuery(
+  it("a DATABASE-sourced row (real DatabaseAdapter contract) flows through the identical mapping/Data Exchange/commit chain a FILE-sourced row already does, and reaches real canonical storage", async () => {
+    const adapter: DatabaseAdapter = {
+      listSchemas: async () => ["dbo"],
+      listTables: async () => [{ table: "materials", kind: "table" as const }],
+      describeEntity: async () => ({
+        table: "materials",
+        kind: "table" as const,
+        columns: [
+          { name: "MaterialID", declaredType: "VARCHAR", nullable: false, isPrimaryKey: true, primaryKeyOrdinal: 1 },
+          { name: "MaterialName", declaredType: "VARCHAR", nullable: true, isPrimaryKey: false },
+        ],
+        foreignKeys: [],
+      }),
+      readPage: async () => ({ columns: ["MaterialID", "MaterialName"], rows: [["DB-MAT-1", "TEST DB-Sourced Material"]] }),
+    };
+    const staged = await stageDatabaseEntity(
       "LEGACY_ERP",
-      { connectionRef: "conn-1", query: "SELECT MaterialID, MaterialName FROM dbo.materials", entity: "materials" },
+      { connectionRef: "conn-1", entities: { materials: { table: "materials" } } },
+      "materials",
       { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" },
-      { executeQuery },
+      { adapter },
     );
     expect(staged.errors).toEqual([]);
     expect(staged.connector.connectorType).toBe("DATABASE");
