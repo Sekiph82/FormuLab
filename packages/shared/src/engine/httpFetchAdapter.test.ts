@@ -19,6 +19,7 @@ let server: Server;
 let baseUrl: string;
 const methodsSeen: string[] = [];
 let requestCount429 = 0;
+let onNeverRespondingClose: (() => void) | undefined;
 
 beforeAll(async () => {
   server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -90,6 +91,14 @@ beforeAll(async () => {
     }
 
     if (url.pathname === "/never-responds") return; // intentionally never calls res.end() — REST22 timeout acceptance
+    if (url.pathname === "/never-responds-trackable") {
+      // Session 12 hardening (Part 2/REST-TIMEOUT-2) — the SERVER's own
+      // proof that the underlying connection was genuinely terminated,
+      // not merely ignored client-side. `req`'s "close" event fires when
+      // the underlying TCP connection actually closes.
+      req.on("close", () => onNeverRespondingClose?.());
+      return; // never respond
+    }
 
     return send(404, { error: "not found" });
   });
@@ -180,6 +189,38 @@ describe("REST22 (Session 11 hardening, Part 5A): a bounded client-side request 
     const result = await stageRestEntity("ACME", { connectionRef: "conn-1", endpoints: { items: "/never-responds" } }, "items", opts, { fetchPage });
     expect(result.errors[0].message).not.toContain("real-secret-value"); // query values still redacted in the timeout error
   }, 10000);
+});
+
+describe("REST-TIMEOUT-2 (Session 12 hardening, Part 2): the underlying request is demonstrably terminated on timeout, not merely ignored by the caller", () => {
+  it("a real never-responding server observes the connection actually close once the configured createAbortController is used", async () => {
+    const closed = new Promise<void>((resolve) => {
+      onNeverRespondingClose = resolve;
+    });
+    // The caller opts into real cancellation — safe here since packages/shared's
+    // own tests run under plain Node, where fetch()/AbortController genuinely
+    // share the same realm (see createHttpFetchAdapter's own doc comment for
+    // why this can never be constructed internally/by default).
+    const fetchPage = createHttpFetchAdapter({ baseUrl, timeoutMs: 200, createAbortController: () => new AbortController() });
+    const result = await stageRestEntity("ACME", { connectionRef: "conn-1", endpoints: { items: "/never-responds-trackable" } }, "items", opts, { fetchPage });
+    expect(result.errors[0]?.retryable).toBe(true);
+    await expect(closed).resolves.toBeUndefined(); // hard proof — the SERVER itself observed the connection close, not merely the client giving up
+  }, 10000);
+});
+
+describe("REST-TIMEOUT-3 (Session 12 hardening, Part 2): normal successful requests remain unaffected, with or without createAbortController configured", () => {
+  it("a normal GET still succeeds when createAbortController is configured", async () => {
+    const fetchPage = createHttpFetchAdapter({ baseUrl, timeoutMs: 5000, createAbortController: () => new AbortController() });
+    const result = await stageRestEntity("ACME", { connectionRef: "conn-1", endpoints: { items: "/items-bare" } }, "items", opts, { fetchPage });
+    expect(result.errors).toEqual([]);
+    expect(result.records).toHaveLength(1);
+  });
+
+  it("a normal GET still succeeds with the default (no createAbortController) configuration", async () => {
+    const fetchPage = createHttpFetchAdapter({ baseUrl, timeoutMs: 5000 });
+    const result = await stageRestEntity("ACME", { connectionRef: "conn-1", endpoints: { items: "/items-bare" } }, "items", opts, { fetchPage });
+    expect(result.errors).toEqual([]);
+    expect(result.records).toHaveLength(1);
+  });
 });
 
 describe("REST6/REST7/REST8: real pagination models over the real HTTP round-trip", () => {

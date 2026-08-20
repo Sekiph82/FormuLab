@@ -48,10 +48,33 @@ export interface HttpFetchAdapterConfig {
    *  for `cursor` pagination, to extract `nextCursorPath`. */
   recordArrayPath?: string;
   /** Session 11 hardening (Part 5A) — milliseconds before a request is
-   *  aborted client-side via `AbortController`. A hung source (or a
-   *  connection that silently drops) must never block extraction
-   *  forever. Default 30000. */
+   *  timed out. A hung source (or a connection that silently drops)
+   *  must never block extraction forever. Default 30000. */
   timeoutMs?: number;
+  /** Session 12 hardening (Part 2) — an OPTIONAL factory for a real
+   *  `AbortController` COMPATIBLE WITH THIS REALM'S OWN `fetch()`
+   *  implementation, used to genuinely terminate the underlying request
+   *  when the timeout fires (never just abandoning it to run to
+   *  completion in the background). Deliberately not constructed
+   *  internally: `packages/shared`'s own tests run under plain Node
+   *  (where the global `fetch`/`AbortController` are the SAME undici
+   *  realm and a bare `new AbortController()` works correctly), but
+   *  `apps/desktop`'s own test suite runs under jsdom, which installs
+   *  its OWN spec-compliant `AbortSignal`/`AbortController` classes —
+   *  DIFFERENT objects from the ones Node's global `fetch()` validates
+   *  a `signal` against. Passing a jsdom-realm signal into that `fetch()`
+   *  throws `TypeError: RequestInit: Expected signal ... to be an
+   *  instance of AbortSignal` on EVERY request, not just at timeout —
+   *  a real regression this session found, reproduced, and fixed by
+   *  making cancellation opt-in rather than assumed compatible. Left
+   *  `undefined` (the default, used by every test in this codebase
+   *  today): the timeout still bounds the CALLER's own wait via
+   *  `Promise.race()`, safely, in every realm — the underlying request
+   *  is merely not itself cancelled. A caller running in a genuinely
+   *  single-realm environment (a real browser/Tauri webview, or plain
+   *  Node) can supply `() => new AbortController()` here to additionally
+   *  get true socket-level cancellation on timeout. */
+  createAbortController?: () => AbortController;
 }
 
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -124,20 +147,21 @@ export function createHttpFetchAdapter(config: HttpFetchAdapterConfig): (spec: R
 
     const url = buildUrl(spec, config, pageState);
 
-    // Session 11 hardening (Part 5A) — a hung/dropped source can never
-    // block extraction forever. Deliberately a `Promise.race()` timeout,
-    // never `AbortController`/`fetch`'s own `signal` option: this module
-    // runs in more than one JS realm across this codebase (packages/shared's
-    // own tests run under plain Node; apps/desktop's tests run under
-    // jsdom, which implements its OWN spec-compliant `AbortController`/
-    // `AbortSignal` classes distinct from Node's/undici's) — a signal
-    // constructed in one realm handed to a `fetch()` implementation from
-    // another can be silently mishandled. `Promise.race()` needs no
-    // signal at all, so it behaves identically in every realm.
-    // `HttpStatusError(408, ...)` reuses the EXISTING retryable
-    // classification (`retryableForStatus(408)` is already true) rather
-    // than inventing a second retry-signal shape.
+    // Session 11/12 hardening (Part 5A / Part 2) — a hung/dropped source
+    // can never block extraction forever, AND the underlying request
+    // must not be left running in the background once timed out.
+    // `Promise.race()` alone (Session 11) safely bounds the CALLER's own
+    // wait in every realm, but never actually cancels the request.
+    // `config.createAbortController` (Session 12), when the caller
+    // supplies one, ALSO genuinely terminates the request via
+    // `fetch()`'s own `signal` option — see its own doc comment above
+    // for exactly why this can never be constructed internally/by
+    // default (the cross-realm jsdom/undici `AbortSignal` mismatch this
+    // session found and fixed). `HttpStatusError(408, ...)` reuses the
+    // EXISTING retryable classification (`retryableForStatus(408)` is
+    // already true) rather than inventing a second retry-signal shape.
     const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const controller = config.createAbortController?.();
     let timedOut = false;
     let rejectTimeout: (e: Error) => void = () => {};
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -145,6 +169,15 @@ export function createHttpFetchAdapter(config: HttpFetchAdapterConfig): (spec: R
     });
     const timer = setTimeout(() => {
       timedOut = true;
+      if (controller) {
+        try {
+          controller.abort();
+        } catch {
+          // Best-effort resource cleanup only — never the source of the
+          // caller-facing timeout error, which Promise.race() already
+          // guarantees regardless of whether abort() itself succeeds.
+        }
+      }
       rejectTimeout(new Error("request_timeout"));
     }, timeoutMs);
 
@@ -153,7 +186,7 @@ export function createHttpFetchAdapter(config: HttpFetchAdapterConfig): (spec: R
       // GET-only — hardcoded, never configurable. No request body is
       // ever sent; a source mutation method (POST/PUT/PATCH/DELETE) has
       // no code path anywhere in this adapter.
-      response = await Promise.race([fetch(url, { method: "GET", headers: config.headers }), timeoutPromise]);
+      response = await Promise.race([fetch(url, { method: "GET", headers: config.headers, ...(controller ? { signal: controller.signal } : {}) }), timeoutPromise]);
     } catch (e) {
       if (timedOut) {
         throw new HttpStatusError(408, `Request to ${sanitizeUrl(url)} timed out after ${timeoutMs}ms`);
