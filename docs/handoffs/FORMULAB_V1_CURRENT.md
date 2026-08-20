@@ -4,19 +4,20 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
-**READ THIS FIRST (2026-08-20, Session 12)**: FVL-04 is still 25/26,
-narrowly re-hardened again after this session's own audit found real
-remaining gaps in the Session 10/11 closure — see "FVL-04.019-.025
-narrow final hardening (Session 12)" below (the resolution section
-list is reverse-chronological — newest first). The tail sections of this
-file ("Exact next task"/"Known blockers"/"Most recent relevant tests")
-below are stale, dating to an earlier FVL-04.005-.012-era session, and
-were not kept current by intervening sessions — do not trust them over
-the tracker (`docs/FORMULAB_V1_TASK_TRACKER.md`) or this pointer.
-**Exact next task, as of this session: `FVL-04.026` — blank, NOT
-STARTED** (Human-Readable Literature & Formulation Artifact Naming
-Convention). Do not start it without explicit instruction — every
-governing brief through Session 12 has explicitly said not to.
+**READ THIS FIRST (2026-08-20, FVL-04 close-out pass)**: FVL-04 is still
+25/26 (this pass is Phase A of a two-phase close-out; FVL-04.026 is
+Phase B, in progress in the SAME session) — see "FVL-04.019-.025 final
+close-out correction (2026-08-20)" below for this pass's own six real
+corrections (the resolution section list is reverse-chronological —
+newest first). The tail sections of this file ("Exact next task"/"Known
+blockers"/"Most recent relevant tests") below are stale, dating to an
+earlier FVL-04.005-.012-era session, and were not kept current by
+intervening sessions — do not trust them over the tracker
+(`docs/FORMULAB_V1_TASK_TRACKER.md`) or this pointer.
+**FVL-04.026 is now being implemented in this same session** (Human-
+Readable Literature & Formulation Artifact Naming Convention) — the
+governing brief for this pass explicitly authorized it as Phase B,
+gated on Phase A (above) being genuinely green first.
 
 ## Frozen scope reference
 
@@ -34,7 +35,11 @@ FVL-03.013-018). FVL-01 remains CLOSED (21/21); FVL-02 remains CLOSED
 (24/24, 2026-08-17). GitHub issue #4 closed 2026-08-18 to match.
 
 **FVL-04 — Data Onboarding Through Existing Data Exchange** — ON
-PROCESS, 18/26 tasks COMPLETED. **FVL-04.001-.012 — COMPLETE, HARDENED,
+PROCESS, **25/26 tasks COMPLETED as of this pointer's own last update**
+(only FVL-04.026 remains; "18/26" appears later in this same paragraph
+purely as HISTORICAL narrative of an earlier session's own count — it is
+not the current figure; see the "READ THIS FIRST" line above, which is
+always the authoritative current count). **FVL-04.001-.012 — COMPLETE, HARDENED,
 AND NO KNOWN CANONICAL/TEMPLATE ONBOARDING GAP REMAINS.** **FVL-04.013-.018
 FINAL-HARDENED AND COMPLETED** (external source connector contract
 through transformation/unit/enum mapping, plus two independent
@@ -103,6 +108,50 @@ template + real UI consumer) and a dedicated per-material TDS/SDS/
 specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
+
+## FVL-04.019-.025 final close-out correction (2026-08-20)
+
+A further governing brief, after independently re-inspecting the Session
+12 closure below, found six genuine remaining gaps: (1) REST timeout
+cancellation was still opt-in — no real production call site ever
+supplied `createAbortController`, so the underlying request kept running
+in the background past timeout; fixed to be unconditional (fails closed
+if a compatible `AbortController` genuinely cannot be constructed), with
+the one file that exercises real HTTP through it
+(`customerMigrationFixture.test.ts`) switched to `@vitest-environment
+node` to remove the jsdom/undici realm mismatch that originally forced
+the opt-in design. (2) The append-only crosswalk preflight had a genuine
+blind spot for `append_history`/`new_revision` templates — fixed to use
+Import History's own `prior.targetRecordId` as the reconciliation
+reference when a natural-key-derived intended target doesn't exist; a
+related metric bug (a conflicted crosswalk-persist attempt counted as a
+success) was found and fixed alongside it. (3) `CANONICAL_MISSING` was
+structurally unreachable for append-only templates — fixed with a new
+generic `priorTargetExists()` authority resolving directly against the
+prior commit's real `targetCollection`/`targetRecordId`, for every
+duplicatePolicy. A genuine pre-existing false-positive bug (candidate
+fingerprints compared raw vs. normalized decimal values) and a genuine
+duplicate-row bug (append-only handlers never skip on a no-op reimport)
+were found and fixed in the same pass. (4) The user supplied the
+authoritative original MIG1-MIG35 acceptance matrix directly — restored
+verbatim in `customerMigrationFixture.test.ts`, with MIG9/15/18/25/33/34/
+35 gaining real new tests and MIG14/24/28 strengthened in place. (5) The
+production bridge UI was re-audited against the 10-point safety
+checklist and found already compliant. (6) This file's own "18/26" vs
+"25/26" current-state contradiction (see the "Current work package"
+section above) was corrected.
+
+Full re-verification: `pnpm --filter @formulab/shared test` —
+1696/1696 across 81 files. `pnpm --filter @formulab/desktop test` —
+1653/1653 across 161 files. `typecheck`/`lint` clean both packages.
+`python scripts/validate_v1_tracker.py`: OK, 171 tasks, no drift. `git
+diff --check`: clean (LF/CRLF warnings only). No existing GitHub Actions
+workflow runs tests on push/PR — local verification complete;
+independent CI not available/applicable. No task count change from this
+pass alone — FVL-04 remains 25/26 until FVL-04.026 (Phase B of this same
+session) closes. Full technical detail in
+`docs/FVL04_EXTERNAL_SOURCE_CONNECTOR_ARCHITECTURE.md`'s own "FVL-04
+close-out" section and each task's own tracker row.
 
 ## FVL-04.019-.025 narrow final hardening (Session 12, 2026-08-20)
 

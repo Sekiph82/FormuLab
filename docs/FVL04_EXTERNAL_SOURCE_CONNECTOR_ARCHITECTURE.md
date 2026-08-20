@@ -781,3 +781,152 @@ Full re-verification: `pnpm --filter @formulab/shared test` —
 (LF/CRLF warnings only). No task count change — FVL-04 remains 25/26
 (FVL-04.026 correctly not started); this was a hardening pass on
 already-COMPLETED tasks, not new task completion.
+
+## FVL-04 close-out — final correction of FVL-04.019-.025 (2026-08-20)
+
+A further governing brief, after independently re-inspecting the Session
+12 closure above, found six genuine remaining gaps and directed a final
+narrow correction pass before FVL-04.026 could begin. Each was
+independently re-verified against current code (never trusted from the
+log above), fixed, and re-proven:
+
+**1. REST timeout cancellation was still opt-in.** `createHttpFetchAdapter()`
+only genuinely cancelled the underlying request when a caller supplied
+`createAbortController` — the real (and only) production
+adapter-creation path never did, so `Promise.race()` alone bounded the
+caller's wait while the socket kept running. Fixed: cancellation is now
+UNCONDITIONAL — a real `AbortController` is constructed and attached to
+every request by default; if one genuinely cannot be constructed, the
+adapter fails CLOSED (refuses to issue an uncancellable request) rather
+than silently degrading. The one file in `apps/desktop` that exercises
+real HTTP through this adapter (`customerMigrationFixture.test.ts`) now
+declares `@vitest-environment node`, removing the jsdom/undici
+`AbortController` realm mismatch that originally motivated the opt-in
+design — that mismatch is a jsdom test-harness artifact, never a real
+production condition (a Tauri webview or plain Node process has exactly
+one `fetch`/`AbortController` pair, by construction). Proven by
+REST-CANCEL-1 through REST-CANCEL-6 in `httpFetchAdapter.test.ts`
+(`packages/shared`).
+
+**2. The append-only crosswalk preflight had a real blind spot.**
+`canonicalIdentityFor()` correctly returns `undefined` for
+`append_history`/`new_revision` templates (a generated id is never
+decodable from a natural key) — but the crosswalk-conflict/missing
+preflight used that `undefined` as a reason to skip the check ENTIRELY
+for those templates, rather than falling back to a still-safe
+reconciliation reference. Fixed: for non-`create_or_update` templates,
+the preflight now uses Import History's own `prior.targetRecordId` (the
+real, last-committed target for this exact source identity) as the
+reconciliation reference — an active crosswalk with no reconcilable
+prior history blocks as `CROSSWALK_CONFLICT`; a crosswalk that disagrees
+with Import History blocks as `CROSSWALK_CONFLICT`; a crosswalk that
+agrees but whose target was deleted blocks as `CANONICAL_MISSING`. Proven
+by the new `XW-APPEND` suite in `connectorImportBridge.test.ts` (7 new
+tests: initial import, active-crosswalk reuse, changed source, crosswalk
+mismatch, no-reconcilable-prior-target, missing-canonical-target,
+zero-crosswalk-mutation-on-conflict).
+
+A related metric bug was found and fixed in the same pass:
+`confirmConnectorImport()`'s crosswalk-persist step counted a
+`{ conflict }` return from `persistCrosswalkEntry()` (a genuine mismatch,
+correctly refused with zero mutation) as a successful persist, since it
+only checked `{ refused }`. `crosswalksPersisted` now correctly excludes
+both.
+
+**3. `CANONICAL_MISSING` was structurally unreachable for append-only
+templates.** `priorTargetStillExists()` explicitly restricted itself to
+`create_or_update` (the natural-key-indexed live-lookup map an
+append-only generated id can never appear in). Fixed with a new generic
+authority, `priorTargetExists(targetCollection, targetRecordId)`
+(`apps/desktop/src/lib/dataExchangeExisting.ts`) — resolves existence
+directly against the prior commit's own real `targetCollection`/
+`targetRecordId` (captured in `data_exchange_import_row_results` for
+every duplicatePolicy already), generic across every real masterdata
+collection plus the file-based formulation store (`formula_bom`'s own
+`"<code>#v<version>"` target shape). Proven by "CANONICAL_MISSING
+semantics ... bucket 4" in `connectorImportBridge.test.ts`.
+
+While fixing (2)/(3), a genuine pre-existing false-positive bug was
+found and fixed: the candidate-side fingerprint used in
+`CANONICAL_LOCAL_CONFLICT`/`CHANGED` classification was computed from
+the RAW pre-validation candidate row, while the live comparison target
+always reflects the VALIDATED/NORMALIZED value `commitDataExchangeRows()`
+actually writes (e.g. a `decimal`/`currency`/`percentage` column's
+"100.00" normalizes to "100"). Any reimport of a byte-identical decimal
+value formatted differently in the source therefore misfired
+`CANONICAL_LOCAL_CONFLICT`. Fixed by fingerprinting the profile's own
+mapped keys with VALIDATED values (`preview.record`) on both sides,
+never the raw pre-validation string, while keeping the key set
+restricted to the profile's own mapped fields (never the template's full
+column set, which would pull in `defaultValue` columns the live-record
+loaders don't even export — a second false-mismatch source ruled out
+during the same fix).
+
+A second, distinct duplicate-row bug was found and fixed for
+append-only templates specifically: the bridge never supplies
+`existingNaturalKeys`/`isUnchanged` to `previewDataExchangeImport()`, so
+`preview.state` is always `"valid_create"` through this path (documented
+by Session 12's own TOCTOU-4) — harmless for `create_or_update` (whose
+commit handlers idempotently upsert by natural key) but a genuine
+duplicate-row bug for `append_history`/`new_revision` handlers, which
+unconditionally INSERT every call. Fixed: `confirmConnectorImport()` now
+overrides `preview.state` to `"unchanged"` for rows the bridge's OWN
+`reimportState` already classifies `"UNCHANGED"`, scoped to
+non-`create_or_update` templates only (so TOCTOU-4's own asserted
+`"updated"` outcome for a genuinely no-op `create_or_update` reimport is
+unaffected) — reusing `commitDataExchangeRows()`'s EXISTING
+`state === "unchanged"` skip rather than inventing a second one.
+
+**4. The original MIG1-MIG35 acceptance matrix, now user-supplied.** A
+prior session's honest repository search (see the Session 12 section
+above) found the numbering unrecoverable from evidence and substituted a
+category-based matrix. This governing brief then supplied the ORIGINAL
+MIG1-MIG35 list directly, as an authoritative source (not re-derived).
+`customerMigrationFixture.test.ts`'s top-of-file comment now restores it
+verbatim, mapping every item to an exact named executable test — MIG9
+(process-parameter relationship, previously N/A — now genuinely wired
+through the existing `process_parameters` Data Exchange path), MIG15 (no
+name matching — new negative test), MIG18 (File Connector arbitrary
+columns — new test through the full Schema Discovery -> Mapping Profile
+-> Bridge -> Data Exchange chain), MIG25 (schema mismatch blocks reuse of
+an old profile — new test, zero canonical writes), MIG33/MIG34/MIG35
+(structural guards: no LLM reference, no vendor-specific branch, single
+commit/import-history/registry authority) were previously weak, N/A, or
+prose-only and now have real new executable tests; MIG14 (crosswalks are
+exact-ID, never display-name, based), MIG24 (SOURCE_MISSING never
+deletes), and MIG28 (a retryable REST failure leaves zero partial
+commit) were strengthened in place with direct assertions on existing
+tests. Session 10's own MIG36/MIG37 labels remain as clearly-marked EXTRA
+hardening tests, never a redefinition of the canonical MIG1-MIG35
+numbering.
+
+**5. Production bridge UI re-audited.** `ConnectorBridgeImportDialog.tsx`
+was checked against the 10-point safety checklist (explicit commit
+required; blocking issues disable commit; `SOURCE_MISSING` informational
+only; warnings visible; exact-name identity mapping never guesses; TOCTOU
+protection automatic inside `confirmConnectorImport()`; no DB/REST
+connection UI invented) and found already fully compliant — no code
+change was needed.
+
+**6. Documentation current-state contradiction fixed.**
+`docs/handoffs/FORMULAB_V1_CURRENT.md`'s own "Current work package"
+section opened with a stale "18/26" headline directly above a "now
+genuinely 25/26" statement in the same paragraph — corrected so the
+current count is unambiguous; the "18/26" figure is now explicitly
+labelled as historical narrative, never erased.
+
+Full re-verification: `pnpm --filter @formulab/shared test` —
+1696/1696 across 81 files (4 new: REST-CANCEL-1/2/3/4/6 group in
+`httpFetchAdapter.test.ts`). `pnpm --filter @formulab/desktop test` —
+1653/1653 across 161 files (14 new: 7 in the `XW-APPEND` suite plus one
+CANONICAL_MISSING bucket-4 test in `connectorImportBridge.test.ts`; 6 in
+the `MIG-CANONICAL closure` describe block plus 3 in-place
+strengthenings in `customerMigrationFixture.test.ts`). `typecheck`/`lint`
+clean both packages. `python scripts/validate_v1_tracker.py`: OK, 171
+tasks, no drift. `git diff --check`: clean (LF/CRLF warnings only). No
+existing GitHub Actions workflow runs tests on push/PR (`build.yml` only
+builds platform installers on a version tag or manual dispatch) — local
+verification complete; independent CI not available/applicable. No task
+count change from this pass alone — FVL-04 remains 25/26
+(FVL-04.026 correctly not started until this pass closes); this was a
+hardening pass on already-COMPLETED tasks, not new task completion.
