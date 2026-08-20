@@ -47,7 +47,14 @@ export interface HttpFetchAdapterConfig {
    *  determine the page/offset "did we get a full page" heuristic and,
    *  for `cursor` pagination, to extract `nextCursorPath`. */
   recordArrayPath?: string;
+  /** Session 11 hardening (Part 5A) — milliseconds before a request is
+   *  aborted client-side via `AbortController`. A hung source (or a
+   *  connection that silently drops) must never block extraction
+   *  forever. Default 30000. */
+  timeoutMs?: number;
 }
+
+const DEFAULT_TIMEOUT_MS = 30000;
 
 function safeParse(text: string): unknown {
   try {
@@ -117,14 +124,27 @@ export function createHttpFetchAdapter(config: HttpFetchAdapterConfig): (spec: R
 
     const url = buildUrl(spec, config, pageState);
 
+    // Session 11 hardening (Part 5A) — a hung/dropped source can never
+    // block extraction forever. `HttpStatusError(408, ...)` reuses the
+    // EXISTING retryable classification (`retryableForStatus(408)` is
+    // already true) rather than inventing a second retry-signal shape.
+    const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
     let response: Response;
     try {
       // GET-only — hardcoded, never configurable. No request body is
       // ever sent; a source mutation method (POST/PUT/PATCH/DELETE) has
       // no code path anywhere in this adapter.
-      response = await fetch(url, { method: "GET", headers: config.headers });
+      response = await fetch(url, { method: "GET", headers: config.headers, signal: controller.signal });
     } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        throw new HttpStatusError(408, `Request to ${sanitizeUrl(url)} timed out after ${timeoutMs}ms`);
+      }
       throw new Error(`Network error reaching ${sanitizeUrl(url)}: ${e instanceof Error ? e.constructor.name : "UnknownError"}`);
+    } finally {
+      clearTimeout(timer);
     }
 
     if (!response.ok) {
