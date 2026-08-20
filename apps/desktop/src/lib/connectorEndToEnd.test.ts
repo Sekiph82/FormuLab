@@ -33,6 +33,7 @@ import {
   applyMappingProfile,
   createFileConnector,
   discoverSourceSchema,
+  mappingProfileCode,
   previewDataExchangeImport,
   resolveColumnReferenceField,
   resolveCrosswalk,
@@ -120,7 +121,7 @@ vi.mock("./formulations", async (importOriginal) => {
 });
 
 import { commitDataExchangeRows } from "./dataExchangeCommit";
-import { persistCrosswalkEntry } from "./connectorPersistence";
+import { persistCrosswalkEntry, saveMappingProfile } from "./connectorPersistence";
 import { buildReferenceResolver } from "./dataExchangeExisting";
 import { listFormulations, readFormulation } from "./formulations";
 
@@ -677,6 +678,223 @@ describe("FVL-04.024 — Connector -> Existing Data Exchange Bridge: DATABASE an
       // a second, competing write path.
       expect(src).not.toMatch(/dataExchangeCommit|upsertRecords|from ["']\.\/masterdata["']/);
     }
+  });
+});
+
+describe("FVL-04.025 — Customer Migration Acceptance Fixture (GLOBAL_MFG): a realistic enterprise customer, deliberately non-FormuLab schemas, disposable synthetic data only", () => {
+  const materialsCsv = ["MatlNr,MatlDesc,VendNr,VendDesc,Price_EUR,Received", 'GM-9001,TEST Sodium Cocoyl Isethionate,GM-V-1,TEST Global Chem Supply,"3,20",15/01/2026'].join("\n");
+  const recipeCsv = ["RecipeNr,RecipeDesc,LineNr,MatlNr,PctUsed", "GM-RCP-1,TEST Facial Cleanser,1,GM-9001,100"].join("\n");
+  const labCsv = ["TrialRef,SampleRef,TestRef,ResultVal", "GM-TRIAL-1,S1,GM-TST-1,5.5"].join("\n");
+
+  it("materials/suppliers: deliberately different column names, comma-decimal price, DD/MM/YYYY date — discovered, mapped through a SAVED (persisted) mapping profile with real parse_decimal/parse_date transformations, and committed", async () => {
+    const staged = stageCsvFile("GLOBAL_MFG", "materials", materialsCsv, { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" });
+    expect(staged.errors).toEqual([]);
+    const schema = discoverSourceSchema("GLOBAL_MFG", [{ entity: "materials", records: staged.records }]);
+
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("global-mfg-materials", 1),
+      profileId: "global-mfg-materials",
+      profileName: "GLOBAL_MFG materials",
+      sourceSystemId: "GLOBAL_MFG",
+      sourceEntity: "materials",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "MatlNr", targetTemplate: "raw_materials", targetField: "material_code" },
+        { sourceField: "MatlDesc", targetTemplate: "raw_materials", targetField: "material_name" },
+        { sourceField: "VendNr", targetTemplate: "suppliers", targetField: "supplier_code" },
+        { sourceField: "VendDesc", targetTemplate: "suppliers", targetField: "supplier_name" },
+        { sourceField: "MatlNr", targetTemplate: "material_prices", targetField: "material_code" },
+        { sourceField: "VendNr", targetTemplate: "material_prices", targetField: "supplier_code" },
+        // Deliberately different conventions the task explicitly calls
+        // for: European decimal comma and DD/MM/YYYY, both requiring a
+        // real configured transformation, never a guessed convention.
+        { sourceField: "Price_EUR", targetTemplate: "material_prices", targetField: "unit_price", transformations: [{ op: "parse_decimal", config: { decimalSeparator: "," } }] },
+        { sourceField: "Received", targetTemplate: "material_prices", targetField: "valid_from", transformations: [{ op: "parse_date", config: { format: "DD/MM/YYYY" } }] },
+      ],
+      constantMappings: [{ targetTemplate: "material_prices", targetField: "currency", value: "EUR" }],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    expect(validateMappingProfile(profile, schema)).toEqual([]);
+    // A SAVED mapping profile — persisted through the real
+    // connectorPersistence.ts layer (append-only storage, exact-chain
+    // validation), never merely an in-memory object as the other
+    // fixtures in this file use for brevity.
+    await saveMappingProfile(profile);
+    const persisted = (store.get("mapping_profiles") ?? []) as unknown as MappingProfile[];
+    expect(persisted).toEqual(expect.arrayContaining([expect.objectContaining({ code: profile.code, status: "active" })]));
+
+    const mapped = applyMappingProfile(profile, staged.records[0]);
+    expect(mapped.errors).toEqual([]);
+    expect(mapped.candidates.find((c) => c.targetTemplate === "material_prices")!.row.unit_price).toBe("3.2"); // comma decimal correctly parsed
+    expect(mapped.candidates.find((c) => c.targetTemplate === "material_prices")!.row.valid_from).toBe("2026-01-15"); // DD/MM/YYYY correctly parsed
+
+    const { commit: supplierCommit } = await previewAndCommit(mapped.candidates.find((c) => c.targetTemplate === "suppliers")!);
+    expect(supplierCommit.outcome).toBe("created");
+    const { commit: materialCommit } = await previewAndCommit(mapped.candidates.find((c) => c.targetTemplate === "raw_materials")!);
+    expect(materialCommit.outcome).toBe("created");
+    const { commit: priceCommit } = await previewAndCommit(mapped.candidates.find((c) => c.targetTemplate === "material_prices")!);
+    expect(priceCommit.outcome).toBe("created");
+
+    // Repeat import (task's own explicit requirement: "repeat import
+    // without duplication") — re-staging, re-mapping, and re-committing
+    // the IDENTICAL source row a second time (this harness's own
+    // `previewOnly` doesn't wire `existingNaturalKeys` the way the real
+    // production dialog does, so the preview's own create/update/
+    // unchanged classification isn't re-proven here — that's already
+    // exhaustively covered elsewhere; what's proven here is the literal
+    // requirement: the CANONICAL STORE never grows a second record for
+    // the same natural key, because the real commit handler's own
+    // find-by-code upsert updates in place regardless of how preview
+    // classified it).
+    const secondStaged = stageCsvFile("GLOBAL_MFG", "materials", materialsCsv, { extractionRunId: "run-2", extractedAt: "2026-01-02T00:00:00.000Z" });
+    const secondMapped = applyMappingProfile(profile, secondStaged.records[0]);
+    const materialsBefore = store.get("materials")!.length;
+    const suppliersBefore = store.get("suppliers")!.length;
+    const { commit: secondSupplierCommit } = await previewAndCommit(secondMapped.candidates.find((c) => c.targetTemplate === "suppliers")!);
+    expect(secondSupplierCommit.outcome).toBe("updated");
+    const { commit: secondMaterialCommit } = await previewAndCommit(secondMapped.candidates.find((c) => c.targetTemplate === "raw_materials")!);
+    expect(secondMaterialCommit.outcome).toBe("updated");
+    expect(store.get("materials")!.length).toBe(materialsBefore); // no duplicate row
+    expect(store.get("suppliers")!.length).toBe(suppliersBefore); // no duplicate row
+  });
+
+  it("recipes: a customer material reference resolves through the real crosswalk into formula_bom, producing one real FormulationVersion with real totals — the SAME chain FVL-04.019 already proved, exercised again inside this customer's own fixture", async () => {
+    store.set("materials", [{ code: "GM-MAT-1" }]);
+    const { record: crosswalk } = await persistCrosswalkEntry({
+      sourceSystemId: "GLOBAL_MFG",
+      sourceEntity: "materials",
+      sourceIdentity: { sourceRecordId: "GM-9001", idSource: "configured" },
+      canonicalEntity: "RawMaterial",
+      canonicalRecordId: "GM-MAT-1",
+    });
+    expect(crosswalk).toBeDefined();
+
+    const staged = stageCsvFile("GLOBAL_MFG", "recipes", recipeCsv, { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" });
+    const schema = discoverSourceSchema("GLOBAL_MFG", [{ entity: "recipes", records: staged.records }]);
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("global-mfg-recipes", 1),
+      profileId: "global-mfg-recipes",
+      profileName: "GLOBAL_MFG recipes",
+      sourceSystemId: "GLOBAL_MFG",
+      sourceEntity: "recipes",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "RecipeNr", targetTemplate: "formula_bom", targetField: "formula_code" },
+        { sourceField: "RecipeDesc", targetTemplate: "formula_bom", targetField: "formula_name" },
+        { sourceField: "LineNr", targetTemplate: "formula_bom", targetField: "line_number" },
+        { sourceField: "MatlNr", targetTemplate: "formula_bom", targetField: "material_code", transformations: [{ op: "resolve_crosswalk", config: { sourceEntity: "materials", canonicalEntity: "RawMaterial" } }] },
+        { sourceField: "PctUsed", targetTemplate: "formula_bom", targetField: "percentage" },
+      ],
+      constantMappings: [{ targetTemplate: "formula_bom", targetField: "formula_version", value: "" }],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    expect(validateMappingProfile(profile, schema)).toEqual([]);
+
+    const crosswalks = (store.get("external_id_crosswalks") ?? []) as unknown as ExternalIdCrosswalk[];
+    const resolver = (entity: string, id: string, canonicalEntity: string) => resolveCrosswalk(crosswalks, "GLOBAL_MFG", entity, id, canonicalEntity);
+    const mapped = applyMappingProfile(profile, staged.records[0], { resolveCrosswalk: resolver });
+    expect(mapped.errors).toEqual([]);
+    const candidate = mapped.candidates.find((c) => c.targetTemplate === "formula_bom")!;
+    expect(candidate.row.material_code).toBe("GM-MAT-1"); // resolved, never the raw "GM-9001"
+
+    const template = getDataExchangeTemplate("formula_bom")!;
+    const headers = template.columns.map((c) => c.key);
+    const referenceResolver = await buildReferenceResolver(referenceRequirementsFor(template));
+    const values = headers.map((h) => candidate.row[h] ?? "");
+    const preview = previewDataExchangeImport(template, [headers, values], { resolveReference: referenceResolver }).rows[0];
+    expect(preview.state).toBe("valid_create");
+    const [commit] = await commitDataExchangeRows(template, [preview], ctx);
+    expect(commit.outcome).toBe("created");
+
+    const formulations = await listFormulations();
+    const formulation = formulations.find((f) => f.code === "GM-RCP-1")!;
+    const { versions } = await readFormulation(formulation.id);
+    expect(versions).toHaveLength(1);
+    expect(versions[0].totalsSnapshot?.totalPercent).toBe("100.0000");
+  });
+
+  it("laboratory results: a real trial (created outside this migration, matching the task's own 'existing LaboratoryTrial' framing) receives a customer-migrated test result", async () => {
+    store.set("laboratory_trials", [{ id: "trial-gm-1", code: "GM-TRIAL-1", projectId: "unrelated", sourceFormulaVersionId: "unrelated" }]);
+    store.set("test_definitions", [{ code: "GM-TST-1", resultType: "numeric" }]);
+    const staged = stageCsvFile("GLOBAL_MFG", "lab", labCsv, { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" });
+    const schema = discoverSourceSchema("GLOBAL_MFG", [{ entity: "lab", records: staged.records }]);
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("global-mfg-lab", 1),
+      profileId: "global-mfg-lab",
+      profileName: "GLOBAL_MFG lab results",
+      sourceSystemId: "GLOBAL_MFG",
+      sourceEntity: "lab",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "TrialRef", targetTemplate: "lab_results", targetField: "trial_code" },
+        { sourceField: "SampleRef", targetTemplate: "lab_results", targetField: "sample_code" },
+        { sourceField: "TestRef", targetTemplate: "lab_results", targetField: "test_code" },
+        { sourceField: "ResultVal", targetTemplate: "lab_results", targetField: "numeric_value" },
+      ],
+      constantMappings: [{ targetTemplate: "lab_results", targetField: "replicate_number", value: "1" }],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    expect(validateMappingProfile(profile, schema)).toEqual([]);
+    const mapped = applyMappingProfile(profile, staged.records[0]);
+    expect(mapped.errors).toEqual([]);
+    const candidate = mapped.candidates.find((c) => c.targetTemplate === "lab_results")!;
+
+    const template = getDataExchangeTemplate("lab_results")!;
+    const headers = template.columns.map((c) => c.key);
+    const referenceResolver = await buildReferenceResolver(referenceRequirementsFor(template));
+    const values = headers.map((h) => candidate.row[h] ?? "");
+    const preview = previewDataExchangeImport(template, [headers, values], { resolveReference: referenceResolver }).rows[0];
+    expect(preview.state).toBe("valid_create");
+    const [commit] = await commitDataExchangeRows(template, [preview], ctx);
+    expect(commit.outcome).toBe("created");
+  });
+
+  it("unresolved-data handling: a material reference with NO crosswalk entry stays genuinely unresolved — never a guessed identity, never silently invented", async () => {
+    const staged = stageCsvFile("GLOBAL_MFG", "recipes", recipeCsv, { extractionRunId: "run-1", extractedAt: "2026-01-01T00:00:00.000Z" });
+    const schema = discoverSourceSchema("GLOBAL_MFG", [{ entity: "recipes", records: staged.records }]);
+    const profile: MappingProfile = {
+      schemaVersion: "1.0",
+      code: mappingProfileCode("global-mfg-recipes-unresolved", 1),
+      profileId: "global-mfg-recipes-unresolved",
+      profileName: "GLOBAL_MFG recipes (no crosswalk yet)",
+      sourceSystemId: "GLOBAL_MFG",
+      sourceEntity: "recipes",
+      sourceSchemaFingerprint: schema.fingerprint,
+      profileVersion: 1,
+      status: "active",
+      fieldMappings: [
+        { sourceField: "RecipeNr", targetTemplate: "formula_bom", targetField: "formula_code" },
+        { sourceField: "LineNr", targetTemplate: "formula_bom", targetField: "line_number" },
+        { sourceField: "MatlNr", targetTemplate: "formula_bom", targetField: "material_code", transformations: [{ op: "resolve_crosswalk", config: { sourceEntity: "materials", canonicalEntity: "RawMaterial" } }] },
+        { sourceField: "PctUsed", targetTemplate: "formula_bom", targetField: "percentage" },
+      ],
+      constantMappings: [{ targetTemplate: "formula_bom", targetField: "formula_version", value: "" }],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "local",
+    };
+    // No crosswalk entry has been persisted for GM-9001 in this test —
+    // resolve_crosswalk must genuinely fail to resolve, not fall back to
+    // the raw customer ID.
+    const mapped = applyMappingProfile(profile, staged.records[0], { resolveCrosswalk: () => undefined });
+    const candidate = mapped.candidates.find((c) => c.targetTemplate === "formula_bom")!;
+    expect(candidate.row.material_code).toBeUndefined(); // left unmapped, never "GM-9001" smuggled through
+    expect(mapped.unresolved).toContain("formula_bom.material_code");
   });
 });
 

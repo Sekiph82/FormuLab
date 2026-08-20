@@ -33,24 +33,25 @@ contract) — see "FVL-04.013-.018 final correction (Session 8)",
 "FVL-04.013-.018 hardening (Session 7)", "FVL-04.013-.018 hardening
 (Session 6)", and "FVL-04.013-.018 resolution (Session 5)" below.
 **FVL-04 EXTERNAL CONNECTOR FOUNDATION — FINAL CLOSURE VERIFIED.**
-**FVL-04.019 — COMPLETED** (Formula/Recipe Relationship Import),
-**FVL-04.020 — COMPLETED** (Laboratory/Test Result Relationship
-Import), **FVL-04.021 — COMPLETED** (Generic Database Read Connector —
-engine layer; real driver adapter wired later), **FVL-04.022 —
-COMPLETED** (REST API Connector Contract — engine layer; real HTTP
-client adapter wired later), **FVL-04.024 — COMPLETED** (Connector ->
+**FVL-04.019-.025 — ALL COMPLETED, closing the queued FVL-04.019-.025
+brief in full.** FVL-04.019 (Formula/Recipe Relationship Import),
+FVL-04.020 (Laboratory/Test Result Relationship Import), FVL-04.021
+(Generic Database Read Connector — engine layer; real driver adapter
+wired later), FVL-04.022 (REST API Connector Contract — engine layer;
+real HTTP client adapter wired later), FVL-04.024 (Connector ->
 Existing Data Exchange Bridge — built before .023 since .023 itself
-depends on it), **FVL-04.023 — COMPLETED** (Incremental Re-import /
-Conflict Handling) — see their own resolution sections below.
-FVL-04.025/.026 remain blank, none started.
+depends on it), FVL-04.023 (Incremental Re-import / Conflict
+Handling), FVL-04.025 (Customer Migration Acceptance Fixture) — see
+their own resolution sections below. FVL-04 is now **25/26**.
+**FVL-04.026 — NOT STARTED, per the queued brief's own explicit
+instruction not to begin it.**
 
 ## Current task
 
-**`FVL-04.025`** — blank, **NOT STARTED** (Customer Migration
-Acceptance Fixture — the final task in the queued FVL-04.019-.025
-brief; do NOT start FVL-04.026 after it, per that brief's own
-instruction). FVL-04.019/.020/.021/.022/.023/.024 just closed — see
-their own resolution sections below. FVL-04.013-.018 (External
+**`FVL-04.026`** — blank, **NOT STARTED** (Human-Readable Literature &
+Formulation Artifact Naming Convention — the queued FVL-04.019-.025
+brief explicitly said not to start this). FVL-04.019-.025 all just
+closed — see their own resolution sections below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
 Transformation/Unit/Enum Mapping) all COMPLETED in an earlier session,
@@ -213,6 +214,30 @@ wired into the real dialog as an informational banner. `pnpm --filter
 @formulab/shared test`: 1609/1609 (77 files, 8 new). `pnpm --filter
 @formulab/desktop test`: 1569/1569 (158 files, 7 new). `typecheck`/
 `lint`: clean. FVL-04 now 24/26.
+
+## FVL-04.025 resolution (this session — Customer Migration Acceptance Fixture) — closes the queued FVL-04.019-.025 brief
+
+New disposable synthetic fixture "GLOBAL_MFG" (`connectorEndToEnd.test.ts`,
+4 tests) proves every explicitly-required item together, through real
+production engines: schema discovery over deliberately different column
+names; a genuinely SAVED mapping profile (persisted through the real
+`saveMappingProfile()` — the other fixtures in this file only ever build
+an in-memory object, a real gap closed here); the external-ID crosswalk;
+real `parse_decimal`/`parse_date` transformations (European decimal
+comma, DD/MM/YYYY, both correctly parsed); unresolved-data handling (a
+material with no crosswalk entry stays genuinely unmapped, never a
+smuggled raw ID); repeat-import-without-duplication (proven via store
+length after a second real commit, not merely a preview-state assertion
+— disclosed distinction, since this harness's own helper doesn't wire
+`existingNaturalKeys` the way the real dialog does); a real
+`FormulationVersion` with genuine totals; and final canonical records
+across materials/suppliers/prices/formulation/lab results.
+`inventory_records` not included in this specific fixture (already
+covered by fixture 1 elsewhere in the file). `pnpm --filter
+@formulab/desktop test`: 1573/1573 (158 files, 4 new). `typecheck`/
+`lint`: clean. FVL-04 now 25/26 — the queued FVL-04.019-.025 brief is
+fully closed. FVL-04.026 explicitly NOT started, per that brief's own
+instruction.
 
 ## FVL-04.013-.018 final correction (Session 8, this session — narrow, four-part final correction)
 
