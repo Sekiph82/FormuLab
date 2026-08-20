@@ -14,6 +14,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": r("./src"),
+      "@formulab/shared/testing": r("../../packages/shared/src/engine/sqliteTestAdapter.ts"),
       "@formulab/shared": r("../../packages/shared/src/index.ts"),
     },
   },
