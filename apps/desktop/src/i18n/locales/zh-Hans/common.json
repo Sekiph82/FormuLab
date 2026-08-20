@@ -2,7 +2,8 @@
   "actions": {
     "save": "保存",
     "cancel": "取消",
-    "remove": "移除"
+    "remove": "移除",
+    "close": "Close"
   },
   "unsavedClose": {
     "title": "Unsaved changes",

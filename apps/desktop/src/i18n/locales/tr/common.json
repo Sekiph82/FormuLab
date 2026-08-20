@@ -2,7 +2,8 @@
   "actions": {
     "save": "Kaydet",
     "cancel": "İptal",
-    "remove": "Kaldır"
+    "remove": "Kaldır",
+    "close": "Kapat"
   },
   "unsavedClose": {
     "title": "Unsaved changes",

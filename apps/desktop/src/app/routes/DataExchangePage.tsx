@@ -18,11 +18,12 @@ import { loadExisting, loadExistingFormulaBom } from "@/lib/dataExchangeExisting
 import { listRecords, upsertRecords, nowIso } from "@/lib/masterdata";
 import { DataExchangeImportDialog } from "@/components/dataExchange/DataExchangeImportDialog";
 import { ConnectorBridgeImportDialog } from "@/components/dataExchange/ConnectorBridgeImportDialog";
+import { ConnectorManagementShell } from "@/components/dataExchange/connectors/ConnectorManagementShell";
 import { useTrustedActor } from "@/lib/currentActor";
 import { cn } from "@/lib/cn";
 
-type Section = "templates" | "exports" | "imports" | "validation" | "history" | "schemas" | "help";
-const SECTIONS: Section[] = ["templates", "exports", "imports", "validation", "history", "schemas", "help"];
+type Section = "templates" | "exports" | "imports" | "connectors" | "validation" | "history" | "schemas" | "help";
+const SECTIONS: Section[] = ["templates", "exports", "imports", "connectors", "validation", "history", "schemas", "help"];
 
 function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -235,6 +236,11 @@ export function DataExchangePage() {
               ))}
             </div>
           </Section>
+        )}
+
+        {section === "connectors" && (
+          // eslint-disable-next-line i18next/no-literal-string -- internal actor id, not display text
+          <ConnectorManagementShell actorUserId={trusted?.userId ?? "local"} actorRole={effectiveActorRole} />
         )}
 
         {section === "validation" && (

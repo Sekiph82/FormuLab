@@ -2,7 +2,8 @@
   "actions": {
     "save": "Enregistrer",
     "cancel": "Annuler",
-    "remove": "Supprimer"
+    "remove": "Supprimer",
+    "close": "Close"
   },
   "unsavedClose": {
     "title": "Unsaved changes",
