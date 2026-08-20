@@ -683,3 +683,101 @@ across 161 files. `typecheck`/`lint` clean both packages.
 `python scripts/validate_v1_tracker.py`: OK. No task count change — FVL-04
 remains 25/26 (FVL-04.026 correctly not started); this was a hardening
 pass on already-COMPLETED tasks, not new task completion.
+
+## Hardening (Session 12, 2026-08-20) — narrow final hardening: relational production path, crosswalk preflight/config/TOCTOU, resource-safe timeout, review-UI findings
+
+A further narrow hardening pass, scoped explicitly to FVL-04.019-.025
+only, closed several remaining real gaps.
+
+**A real, generic relationship-assembly path exists.** The Session 10/11
+relational acceptance still relied on a test-local `filter()`/manual
+object merge to join a header/line source — never a reusable
+mechanism. `packages/shared/src/engine/relationalAssembly.ts` is that
+mechanism: `assembleRelationalRecords()` extracts header and line
+entities independently through the SAME real connector (no join inside
+the connector itself), deterministically joins by a configured key
+pair, copies only the configured header fields onto each matched line
+(never overwriting a line's own value), and reports a structured error
+— never a silent drop — for an unresolvable header relationship.
+`wrapAssembledSource()` presents the result as a genuine
+`SourceConnector`, so the UNCHANGED `prepareConnectorImport()`/
+`confirmConnectorImport()` consumes it identically to any other
+source. A real production-path test (`customerMigrationFixture.test.ts`,
+"FVL-04.019 Section 1") proves it end-to-end into a genuine
+`Formulation`+`FormulationVersion`.
+
+**Crosswalk conflict detection is now independent of Import History.**
+The prior `CROSSWALK_CONFLICT` preflight required
+`prior?.targetRecordId` — missing the real case of an active crosswalk
+with zero prior Data Exchange history. `canonicalIdentityFor()`
+(create_or_update templates only, honestly `undefined` for append-only
+ones) now decides "what canonical identity would this row's own
+natural key represent" independent of any prior row, used to detect
+agreement (safe), conflict, or the crosswalk's own bound target being
+gone (`CANONICAL_MISSING`). The same helper, via a new
+`priorTargetStillExists()`, also fixed `CANONICAL_MISSING` itself: it
+previously inferred prior-target existence from the CURRENT candidate's
+own (possibly-drifted) natural key rather than decoding
+`prior.targetRecordId` directly.
+
+**Crosswalk target configuration is now part of the immutable prepared
+plan.** `confirmConnectorImport()` no longer accepts an independent
+crosswalk-target argument at all — `prepareConnectorImport()` decides
+it, and `PreparedConnectorImport.crosswalkTargets` carries the EXACT
+configuration a human reviewed. The prepare/confirm mismatch this was
+meant to prevent is now structurally unrepresentable, not merely
+runtime-compared.
+
+**Confirmation revalidates against staleness (TOCTOU).**
+`confirmConnectorImport()` now re-derives, immediately before
+committing each template, exactly the live state its own row
+classifications depended on (canonical fingerprint, crosswalk binding
+— both snapshotted on the `PreparedRow` at prepare time) and refuses
+the whole confirmation if either has changed since review — a
+canonical record edited or deleted, or a crosswalk rebound, between
+prepare and confirm is never silently re-trusted.
+
+**REST timeout cancellation is resource-safe without reintroducing the
+cross-realm regression.** The Session 11 `Promise.race()` timeout
+bounded caller wait but never cancelled the underlying request.
+Re-attempted a signal-based fix (including the modern
+`AbortSignal.timeout()` static method) and reproduced the SAME cross-
+realm failure empirically: `apps/desktop`'s jsdom test environment
+installs its own spec-compliant `AbortSignal` class, and Node's global
+`fetch()` rejects it outright (`TypeError: RequestInit: Expected signal
+... to be an instance of AbortSignal`) on EVERY request, not just at
+timeout. Fixed with an opt-in `createAbortController` factory —
+`undefined` by default (every call site in this codebase today),
+behaving exactly as before; a caller in a genuinely single-realm
+environment (plain Node, or a real browser/Tauri webview) can supply
+`() => new AbortController()` to additionally get true socket-level
+cancellation, proven server-side via a real connection-close event.
+
+**SOURCE_MISSING findings and bridge warnings are now visible in the
+review UI.** `ConnectorBridgeImportDialog.tsx` computed these via the
+engine but never rendered either — fixed by reusing the EXISTING
+`dataExchange.import.missingFromSource(Item)` i18n keys/rendering
+convention `DataExchangeImportDialog.tsx` already established, purely
+informational, never blocking, never triggering any destructive
+resolution.
+
+**The "MIG1-MIG35" numbering was audited honestly, not silently
+renumbered.** The original Session 9 FVL-04.025 closure commit
+(`f9a2aa1`) contains zero "MIG" references anywhere in its diff, and no
+committed doc/tracker row/external log entry in this repository ever
+transcribed an exact original numbered list — the labels are Session
+10's own invented tracking labels, not a recoverable original scheme.
+`customerMigrationFixture.test.ts`'s own top-of-file comment now
+documents this and maps every required CATEGORY (materials, suppliers,
+links, prices, inventory, formulas/versions, lab results, crosswalk
+identity, import history, transformation behavior, second migration,
+no-writeback/no-LLM/no-vendor-branch/no-second-Data-Exchange) to its
+real, named, executable proof.
+
+Full re-verification: `pnpm --filter @formulab/shared test` —
+1692/1692 across 81 files. `pnpm --filter @formulab/desktop test` —
+1639/1639 across 161 files. `typecheck`/`lint` clean both packages.
+`python scripts/validate_v1_tracker.py`: OK. `git diff --check`: clean
+(LF/CRLF warnings only). No task count change — FVL-04 remains 25/26
+(FVL-04.026 correctly not started); this was a hardening pass on
+already-COMPLETED tasks, not new task completion.

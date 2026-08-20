@@ -4,9 +4,10 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
-**READ THIS FIRST (2026-08-20, Session 10/11)**: FVL-04 is 25/26,
-genuinely re-hardened after an independent audit — see "FVL-04.019-.025
-final closure hardening (Session 10/11)" below (the resolution section
+**READ THIS FIRST (2026-08-20, Session 12)**: FVL-04 is still 25/26,
+narrowly re-hardened again after this session's own audit found real
+remaining gaps in the Session 10/11 closure — see "FVL-04.019-.025
+narrow final hardening (Session 12)" below (the resolution section
 list is reverse-chronological — newest first). The tail sections of this
 file ("Exact next task"/"Known blockers"/"Most recent relevant tests")
 below are stale, dating to an earlier FVL-04.005-.012-era session, and
@@ -15,7 +16,7 @@ the tracker (`docs/FORMULAB_V1_TASK_TRACKER.md`) or this pointer.
 **Exact next task, as of this session: `FVL-04.026` — blank, NOT
 STARTED** (Human-Readable Literature & Formulation Artifact Naming
 Convention). Do not start it without explicit instruction — every
-governing brief through Session 11 has explicitly said not to.
+governing brief through Session 12 has explicitly said not to.
 
 ## Frozen scope reference
 
@@ -102,6 +103,63 @@ template + real UI consumer) and a dedicated per-material TDS/SDS/
 specification document viewer. FVL-04.001-.004 (Material Master,
 Supplier/MaterialSupplier link, TDS, and SDS Data Exchange coverage)
 COMPLETED in an earlier session.
+
+## FVL-04.019-.025 narrow final hardening (Session 12, 2026-08-20)
+
+A further narrow-scope hardening pass (FVL-04.019-.025 only, no new
+work package) found and fixed real remaining gaps in the Session 10/11
+closure. Full detail: `docs/FORMULAB_V1_TASK_TRACKER.md`'s own
+per-task rows and `docs/FVL04_EXTERNAL_SOURCE_CONNECTOR_ARCHITECTURE.md`'s
+"Hardening (Session 12)" section.
+
+- **FVL-04.019**: the relational (FormulaHeader+FormulaLine) acceptance
+  still relied on a test-local `filter()`/manual merge, not a real
+  reusable mechanism. New `packages/shared/src/engine/relationalAssembly.ts`
+  (`assembleRelationalRecords()`/`wrapAssembledSource()`, generic,
+  config-driven, no per-customer branch) plus a real production-path
+  test into a genuine `Formulation`+`FormulationVersion`.
+- **FVL-04.020**: re-verified against the full LIMS acceptance list —
+  already genuinely proven, no new gap.
+- **FVL-04.021/.022**: no change to the DB determinism fix. The REST
+  timeout got a real fix: `Promise.race()` alone never cancelled the
+  underlying request; a signal-based fix was re-attempted (including
+  `AbortSignal.timeout()`) and reproduced the SAME cross-realm jsdom/
+  undici failure — fixed with an opt-in `createAbortController`
+  factory, `undefined` by default (unchanged behavior everywhere in
+  this codebase today), true cancellation available to a caller in a
+  genuinely single-realm environment.
+- **FVL-04.023/.024**: `CROSSWALK_CONFLICT` preflight no longer depends
+  on Import History existing at all — resolved directly from the real
+  crosswalk store. `CANONICAL_MISSING` now decodes `prior.targetRecordId`
+  itself rather than inferring from the current candidate's own
+  natural key. `crosswalkTargets` moved from an independent
+  `confirmConnectorImport()` argument into the immutable prepared plan
+  itself — the mismatch this could cause is now structurally
+  impossible. `confirmConnectorImport()` now revalidates the exact live
+  state (canonical fingerprint, crosswalk binding) each row's
+  classification depended on immediately before committing, refusing a
+  plan that went stale since review (TOCTOU-1 through TOCTOU-4). BR21's
+  runtime-failure proof strengthened to use a genuinely configured (not
+  ordinal) identity. `SOURCE_MISSING` findings and bridge warnings are
+  now rendered in `ConnectorBridgeImportDialog.tsx` (previously
+  computed but never shown).
+- **FVL-04.025**: audited the "MIG1-MIG35" numbering honestly — the
+  original Session 9 closure commit (`f9a2aa1`) contains zero "MIG"
+  references, and no committed doc ever recorded an exact original
+  numbered list; the labels are Session 10's own invented tracking
+  labels, now documented as such, with every required CATEGORY mapped
+  to its real named executable proof instead. Added a real happy-path
+  crosswalk-lifecycle test (source identity genuinely distinct from
+  canonical identity — a prior fixture never exercised this for real)
+  and the two remaining incremental states (`CANONICAL_MISSING`,
+  `CROSSWALK_CONFLICT`) against the fixture's own real committed data.
+
+Full re-verification: `pnpm --filter @formulab/shared test` —
+1692/1692 across 81 files. `pnpm --filter @formulab/desktop test` —
+1639/1639 across 161 files. `typecheck`/`lint` clean both packages.
+`python scripts/validate_v1_tracker.py`: OK. `git diff --check`: clean.
+No task count change — FVL-04 remains 25/26; FVL-04.026 correctly not
+started.
 
 ## FVL-04.019-.025 final closure hardening (Session 10/11, 2026-08-20) — independent audit corrections
 
