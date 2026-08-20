@@ -122,6 +122,7 @@ export const MASTERDATA_COLLECTIONS = [
   "generated_document_records",
   "mapping_profiles",
   "external_id_crosswalks",
+  "connector_connections",
 ] as const;
 export type MasterdataCollection = (typeof MASTERDATA_COLLECTIONS)[number];
 
@@ -244,6 +245,10 @@ export const MASTERDATA_COLLECTION_POLICY_AREAS: Record<MasterdataCollection, Po
   // same privilege as the rest of Data Exchange's own bookkeeping above.
   mapping_profiles: "dataExchange",
   external_id_crosswalks: "dataExchange",
+  // Connector Management frontend — saved connection CONFIGURATION only
+  // (name/type/host/path/idField/...); never a credential, gated by the
+  // same Data Exchange privilege as everything else on this list.
+  connector_connections: "dataExchange",
 };
 
 /** Every `PolicyArea` used above is a real, recognized area — a typo here

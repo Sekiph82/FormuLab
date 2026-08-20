@@ -92,7 +92,8 @@
     "candidate_score_explanations",
     "generated_document_records",
     "mapping_profiles",
-    "external_id_crosswalks"
+    "external_id_crosswalks",
+    "connector_connections"
   ],
   "areas": {
     "materials": "rawMaterials",
@@ -187,6 +188,7 @@
     "data_exchange_schema_versions": "dataExchange",
     "generated_document_records": "documentControl",
     "mapping_profiles": "dataExchange",
-    "external_id_crosswalks": "dataExchange"
+    "external_id_crosswalks": "dataExchange",
+    "connector_connections": "dataExchange"
   }
 }

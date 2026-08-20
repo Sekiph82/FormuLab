@@ -14,6 +14,7 @@ import type {
   ClaimReviewRevocation,
   CompatibilityRule,
   CompatibilitySnapshot,
+  ConnectorConnection,
   CorrectiveAction,
   CostSnapshot,
   DataExchangeExportJob,
@@ -206,6 +207,7 @@ interface CollectionTypes {
   generated_document_records: GeneratedDocumentRecord;
   mapping_profiles: MappingProfile;
   external_id_crosswalks: ExternalIdCrosswalk;
+  connector_connections: ConnectorConnection;
 }
 
 /** Phase 13 Session 4: `token` is attached here, once, for every command in

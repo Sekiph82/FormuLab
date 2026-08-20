@@ -124,7 +124,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 93] = [
+const COLLECTIONS: [(&str, bool); 94] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -431,6 +431,16 @@ const COLLECTIONS: [(&str, bool); 93] = [
     // identity mappings.
     ("mapping_profiles", true),
     ("external_id_crosswalks", false),
+    // Connector Management frontend — saved connection CONFIGURATION only
+    // (name/type/host/path/idField/status/...). `connectionRef` is the
+    // ONLY field that may represent authentication, always an opaque
+    // reference string — never a raw credential — resolved outside this
+    // record, the same boundary `mapping_profiles`/`external_id_crosswalks`
+    // already establish. Mutable: unlike a mapping profile's own
+    // immutable version chain, editing a saved connection's host/path
+    // configuration in place is expected, ordinary maintenance, not a
+    // historical fact that needs preserving.
+    ("connector_connections", false),
 ];
 
 /// Every allow-listed collection name and whether it is append-only — the
@@ -939,7 +949,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 93);
+        assert_eq!(COLLECTIONS.len(), 94);
     }
 
     #[test]

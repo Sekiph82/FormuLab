@@ -529,3 +529,100 @@ export interface CrosswalkConflict {
   existingCanonicalRecordId: string;
   attemptedCanonicalRecordId: string;
 }
+
+// ============================================================ Part F ===
+// Connector Management frontend — persisted Connection configuration.
+//
+// A "Connection" is a reusable, saved CONFIGURATION for one connector
+// (FILE/DATABASE/REST_API) — never a credential, and never a live
+// connector instance itself. `connectionRef` is the SAME opaque
+// credential-resolution reference every real connector deps interface
+// (`RestConnectorDeps`, `DatabaseConnectorDeps`) already required —
+// this record carries it forward unchanged, never a raw secret. Every
+// other field here is real, non-secret CONFIGURATION matching the
+// existing connector contracts (`RestConnectorSource`,
+// `DatabaseConnectorSource`, `StageOptions`) — no field invents a
+// capability those contracts don't already have.
+
+export const CONNECTOR_CONNECTION_STATUSES = ["never_tested", "ready", "error"] as const;
+export type ConnectorConnectionStatus = (typeof CONNECTOR_CONNECTION_STATUSES)[number];
+
+export const CONNECTOR_FILE_KINDS = ["csv", "json", "xml", "xlsx"] as const;
+export type ConnectorFileKind = (typeof CONNECTOR_FILE_KINDS)[number];
+
+export const CONNECTOR_PAGINATION_KINDS = ["none", "page", "offset", "cursor"] as const;
+export type ConnectorPaginationKind = (typeof CONNECTOR_PAGINATION_KINDS)[number];
+
+/**
+ * Persisted through the existing masterdata architecture — see
+ * `connector_connections` in `masterdata.rs`. `code` is the record's own
+ * stable storage identity (a generated id, `newId("connconn")`),
+ * mutable (unlike `mapping_profiles`):
+ * a saved connection's own configuration may be edited in place —
+ * editing connection host/path details is not the kind of historical
+ * fact `mapping_profiles`'s immutable version chain protects.
+ *
+ * Never carries a raw secret: `connectionRef` is the ONLY field that may
+ * ever represent authentication, and it is always an opaque reference
+ * string, resolved to a real credential entirely outside this record —
+ * the same boundary `RestConnectorDeps.fetchPage`/`DatabaseConnectorDeps.adapter`
+ * already establish for every real connector call.
+ */
+export const connectorConnectionSchema = z.object({
+  schemaVersion: z.literal("1.0"),
+  code: z.string().min(1),
+  name: z.string().min(1),
+  connectorType: z.enum(CONNECTOR_TYPES),
+  sourceSystemId: z.string().min(1),
+  /** Opaque credential-resolution reference — NEVER a raw secret. */
+  connectionRef: z.string().optional(),
+
+  // FILE
+  fileKind: z.enum(CONNECTOR_FILE_KINDS).optional(),
+  sourceEntity: z.string().optional(),
+
+  // DATABASE (configuration only — see docs/CONNECTOR_MANAGEMENT_FRONTEND.md
+  // for the honest, current no-production-driver disclosure)
+  driver: z.string().optional(),
+  host: z.string().optional(),
+  port: z.number().int().positive().optional(),
+  database: z.string().optional(),
+  dbSchema: z.string().optional(),
+  table: z.string().optional(),
+
+  // REST API (GET-only — matches RestConnectorSource/HttpFetchAdapterConfig
+  // exactly; there is no field anywhere on this record that could express
+  // a write method)
+  baseUrl: z.string().optional(),
+  path: z.string().optional(),
+  recordArrayPath: z.string().optional(),
+  paginationKind: z.enum(CONNECTOR_PAGINATION_KINDS).optional(),
+  pageParam: z.string().optional(),
+  pageSizeParam: z.string().optional(),
+  pageSizeValue: z.number().int().positive().optional(),
+  offsetParam: z.string().optional(),
+  limitParam: z.string().optional(),
+  limitValue: z.number().int().positive().optional(),
+  cursorParam: z.string().optional(),
+  nextCursorPath: z.string().optional(),
+  maxPages: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().positive().optional(),
+
+  // Identity (shared across all connector types)
+  idField: z.string().optional(),
+  requireExplicitId: z.boolean().optional(),
+
+  status: z.enum(CONNECTOR_CONNECTION_STATUSES).default("never_tested"),
+  lastTestedAt: z.string().optional(),
+  /** A sanitized, human-readable outcome message ONLY — never raw
+   *  response bodies, headers, connection strings, or any value a real
+   *  connector error would already redact. */
+  lastTestMessage: z.string().optional(),
+  mappingProfileCount: z.number().int().nonnegative().default(0),
+  notes: z.string().optional(),
+  archived: z.boolean().default(false),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  createdBy: z.string(),
+});
+export type ConnectorConnection = z.infer<typeof connectorConnectionSchema>;
