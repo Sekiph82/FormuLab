@@ -27,6 +27,7 @@ export function MappingProfileEditorDialog({
   basedOn,
   schema,
   sourceFieldOptions,
+  defaultSourceEntity,
   actorUserId,
   onClose,
   onSaved,
@@ -35,6 +36,10 @@ export function MappingProfileEditorDialog({
   basedOn?: MappingProfile;
   schema?: SourceSchema | null;
   sourceFieldOptions?: string[];
+  /** Section 11 — a new profile's `sourceEntity` prefilled from the most
+   *  recent Source Explorer inspection; never applied when editing an
+   *  existing profile (its own `sourceEntity` is authoritative). */
+  defaultSourceEntity?: string;
   actorUserId: string;
   onClose: () => void;
   onSaved: () => void;
@@ -43,14 +48,33 @@ export function MappingProfileEditorDialog({
   const templates = listDataExchangeTemplates();
   const [profileName, setProfileName] = useState(basedOn?.profileName ?? "");
   const [profileId] = useState(basedOn?.profileId ?? `${connection?.sourceSystemId ?? "source"}-${Date.now().toString(36)}`);
-  const [sourceEntity, setSourceEntity] = useState(basedOn?.sourceEntity ?? "");
+  const [sourceEntity, setSourceEntity] = useState(basedOn?.sourceEntity ?? defaultSourceEntity ?? "");
   const [rows, setRows] = useState<FieldMapping[]>(basedOn?.fieldMappings ?? []);
   const [issues, setIssues] = useState<MappingProfileValidationIssue[] | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const addRow = () => setRows((r) => [...r, { sourceField: "", targetTemplate: templates[0]?.templateCode ?? "", targetField: "" }]);
-  const removeRow = (i: number) => setRows((r) => r.filter((_, idx) => idx !== i));
-  const updateRow = (i: number, patch: Partial<FieldMapping>) => setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  // Section 13 — when a real schema is available, an active version must
+  // be validated clean before it can be saved (rule 4/6): Save is gated
+  // on a successful Validate run with zero issues. When no schema is
+  // available at all (the disclosed, still-common case — Source Explorer
+  // was never run for this connection this session), this gate cannot
+  // apply — Save falls back to the pre-existing "at least one complete
+  // row" rule rather than becoming permanently unusable.
+  const validationRequired = !!schema;
+  const validatedClean = issues !== null && issues.length === 0;
+
+  const addRow = () => {
+    setIssues(null);
+    setRows((r) => [...r, { sourceField: "", targetTemplate: templates[0]?.templateCode ?? "", targetField: "" }]);
+  };
+  const removeRow = (i: number) => {
+    setIssues(null);
+    setRows((r) => r.filter((_, idx) => idx !== i));
+  };
+  const updateRow = (i: number, patch: Partial<FieldMapping>) => {
+    setIssues(null);
+    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  };
 
   const onMatchExactNames = () => {
     if (!sourceFieldOptions || rows.length === 0) return;
@@ -189,7 +213,12 @@ export function MappingProfileEditorDialog({
             <button onClick={onValidate} disabled={!schema} title={!schema ? t("dataExchange.connectors.mapping.validateNeedsSchema") : undefined} className="rounded-input border border-border px-2.5 py-1.5 text-[11px] text-text hover:bg-surface-2 disabled:opacity-50">
               {t("dataExchange.connectors.mapping.validateAction")}
             </button>
-            <button onClick={() => void onSave()} disabled={saving || rows.length === 0} className="rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+            <button
+              onClick={() => void onSave()}
+              disabled={saving || rows.length === 0 || (validationRequired && !validatedClean)}
+              title={validationRequired && !validatedClean ? t("dataExchange.connectors.mapping.saveNeedsCleanValidation") : undefined}
+              className="rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
+            >
               {t("dataExchange.connectors.mapping.save")}
             </button>
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
-import { effectiveMappingProfileStatus, type ConnectorConnection, type MappingProfile } from "@formulab/shared";
+import { effectiveMappingProfileStatus, type ConnectorConnection, type MappingProfile, type SourceSchema } from "@formulab/shared";
 import { loadMappingProfiles } from "@/lib/connectorPersistence";
 import { Badge, Card, Empty, Table } from "./ui";
 import { MappingProfileEditorDialog } from "./MappingProfileEditorDialog";
@@ -11,7 +11,24 @@ import { MappingProfileEditorDialog } from "./MappingProfileEditorDialog";
  *  (`connectorPersistence.ts`) and the EXISTING
  *  `effectiveMappingProfileStatus()` for the derived active/superseded
  *  fact — never recomputed in React. */
-export function MappingProfilesScreen({ connection, actorUserId }: { connection: ConnectorConnection | null; actorUserId: string }) {
+export function MappingProfilesScreen({
+  connection,
+  actorUserId,
+  schema,
+  sourceFieldOptions,
+  prefillEntity,
+}: {
+  connection: ConnectorConnection | null;
+  actorUserId: string;
+  /** Section 11 — the real schema from the most recent Source Explorer
+   *  inspection of this same connection, if any. Optional: a profile
+   *  can still be created/edited without one (matches the existing
+   *  disclosed limitation), but when present it powers real validation
+   *  and exact-name matching in the editor. */
+  schema?: SourceSchema;
+  sourceFieldOptions?: string[];
+  prefillEntity?: string;
+}) {
   const { t } = useTranslation(["session", "common"]);
   const [profiles, setProfiles] = useState<MappingProfile[]>([]);
   const [editing, setEditing] = useState<{ profile?: MappingProfile } | null>(null);
@@ -79,6 +96,9 @@ export function MappingProfilesScreen({ connection, actorUserId }: { connection:
         <MappingProfileEditorDialog
           connection={connection}
           basedOn={editing.profile}
+          schema={schema}
+          sourceFieldOptions={sourceFieldOptions}
+          defaultSourceEntity={editing.profile ? undefined : prefillEntity}
           actorUserId={actorUserId}
           onClose={() => setEditing(null)}
           onSaved={() => {

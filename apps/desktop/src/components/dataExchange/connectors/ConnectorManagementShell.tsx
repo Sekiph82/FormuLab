@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ApprovalRole, ConnectorConnection } from "@formulab/shared";
+import type { ApprovalRole, ConnectorConnection, ConnectorResult, SourceSchema } from "@formulab/shared";
 import { cn } from "@/lib/cn";
 import { ConnectionsScreen } from "./ConnectionsScreen";
 import { SourceExplorerScreen } from "./SourceExplorerScreen";
@@ -22,6 +22,13 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
   const { t } = useTranslation("session");
   const [tab, setTab] = useState<ConnectorTab>("connections");
   const [selected, setSelected] = useState<ConnectorConnection | null>(null);
+  // Section 11 — the most recent successful Source Explorer inspection
+  // for the CURRENTLY selected connection, published upward so Mapping
+  // Profiles can consume the real discovered schema/entity/sample
+  // instead of the operator retyping an entity blind. Transient UI
+  // state only — never a second persistence store.
+  const [lastInspection, setLastInspection] = useState<{ sourceSystemId: string; entity: string; schema: SourceSchema; staged: ConnectorResult | null } | null>(null);
+  const inspectionForSelected = selected && lastInspection?.sourceSystemId === selected.sourceSystemId ? lastInspection : null;
 
   return (
     <div className="space-y-3">
@@ -53,8 +60,25 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
           }}
         />
       )}
-      {tab === "explorer" && <SourceExplorerScreen connection={selected} />}
-      {tab === "mapping" && <MappingProfilesScreen connection={selected} actorUserId={actorUserId} />}
+      {tab === "explorer" && (
+        <SourceExplorerScreen
+          connection={selected}
+          onInspected={(entity, schema, staged) => selected && setLastInspection({ sourceSystemId: selected.sourceSystemId, entity, schema, staged })}
+          onCreateMappingProfile={() => {
+            // eslint-disable-next-line i18next/no-literal-string -- ConnectorTab literal value, not display text
+            setTab("mapping");
+          }}
+        />
+      )}
+      {tab === "mapping" && (
+        <MappingProfilesScreen
+          connection={selected}
+          actorUserId={actorUserId}
+          schema={inspectionForSelected?.schema}
+          sourceFieldOptions={inspectionForSelected?.schema.entities[0]?.fields.map((f) => f.path)}
+          prefillEntity={inspectionForSelected?.entity}
+        />
+      )}
       {tab === "crosswalks" && <CrosswalksScreen sourceSystemFilter={selected?.sourceSystemId} />}
       {tab === "runs" && <ImportRunsScreen />}
       {tab === "review" && <PrepareReviewScreen connection={selected} actorUserId={actorUserId} actorRole={actorRole} />}
