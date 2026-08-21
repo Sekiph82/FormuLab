@@ -814,6 +814,63 @@ describe("MPV1-MPV6: mapping profile version lifecycle is explicit", () => {
   });
 });
 
+describe("MAP4: exact-name matching is exact, never fuzzy/semantic", () => {
+  it("matches a source field only when it literally equals the target column key, case-insensitively", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP Map4", "TESTMAP4");
+    await user.click(await screen.findByRole("button", { name: "ERP Map4" }));
+    // "material_code" literally equals the raw_materials target key
+    // (case-insensitively) — a real positive match. "MaterialName" does
+    // NOT literally equal "material_name" (no underscore) — proving the
+    // matcher never bridges that "obviously related" gap. MaterialID is
+    // the connection's own configured identity column (addFileConnection),
+    // present alongside the columns under test.
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "MaterialID,material_code,MaterialName\nMAT-1,MAT-1,First"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+    await user.click(screen.getByRole("button", { name: "Create Mapping Profile" }));
+    await user.click(await screen.findByRole("button", { name: "Create Mapping Profile" }));
+    await screen.findByRole("button", { name: "Match exact names" });
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    let selects = Array.from(document.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "material_code");
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    selects = Array.from(document.querySelectorAll("select"));
+    await user.selectOptions(selects[3], "Raw Materials Master");
+    await user.selectOptions(selects[4], "material_name");
+
+    await user.click(screen.getByRole("button", { name: "Match exact names" }));
+
+    const sourceFieldInputs = screen.getAllByPlaceholderText("Source field");
+    expect(sourceFieldInputs[0]).toHaveValue("material_code");
+    expect(sourceFieldInputs[1]).toHaveValue("");
+  });
+});
+
+describe("MAP8: a validated Mapping Profile goes to Prepare Review without retyping context", () => {
+  it("Use for Import carries the profile code and source entity forward", async () => {
+    const user = userEvent.setup();
+    const profile = await saveProfile("TESTMAP8", "materials");
+    renderShell();
+    await addFileConnection(user, "ERP Map8", "TESTMAP8");
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    const row = (await screen.findByRole("button", { name: "ERP Map8" })).closest("tr");
+    await user.click(within(row!).getByRole("button", { name: "Mapping Profiles" }));
+
+    await screen.findByText(profile.code);
+    await user.click(screen.getByRole("button", { name: "Use for Import" }));
+
+    // Landed on Conflicts / Review with the profile/entity already
+    // selected — never retyped.
+    await waitFor(() => expect(screen.getByLabelText("Mapping Profile")).toHaveValue(profile.code));
+    expect(screen.getByLabelText("Entity")).toHaveValue("materials");
+  });
+});
+
 describe("AUTH1-AUTH4: Data Exchange authorization UX", () => {
   it("AUTH1: a role with no dataExchange access cannot view or use Connector Management", async () => {
     render(<ConnectorManagementShell actorUserId="local" actorRole="production" />);
