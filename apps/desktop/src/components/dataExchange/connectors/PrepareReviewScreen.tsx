@@ -41,7 +41,22 @@ const BLOCKING_STATES = new Set(["CANONICAL_LOCAL_CONFLICT", "CANONICAL_MISSING"
  *  `confirmConnectorImport()` (`connectorImportBridge.ts`). Only the
  *  exact `PreparedConnectorImport` prepare returned may ever be
  *  confirmed — never reconstructed from UI state (Section 17). */
-export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { connection: ConnectorConnection | null; actorUserId: string; actorRole: ApprovalRole }) {
+export function PrepareReviewScreen({
+  connection,
+  actorUserId,
+  actorRole,
+  canWrite = true,
+}: {
+  connection: ConnectorConnection | null;
+  actorUserId: string;
+  actorRole: ApprovalRole;
+  /** Section 16/AUTH2/AUTH3 — the EXISTING dataExchange "create"
+   *  capability gates Prepare Import/Commit in the UI. The backend's own
+   *  role check inside `commitDataExchangeRows()` (reached only through
+   *  `confirmConnectorImport()`) remains the real, unweakened authority
+   *  regardless of this UI state (AUTH4). */
+  canWrite?: boolean;
+}) {
   const { t } = useTranslation(["session", "common"]);
   const [profiles, setProfiles] = useState<MappingProfile[]>([]);
   const [profileCode, setProfileCode] = useState("");
@@ -54,6 +69,7 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
   const [prepared, setPrepared] = useState<PreparedConnectorImport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
   const [committed, setCommitted] = useState(false);
 
   useEffect(() => {
@@ -98,6 +114,7 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
     setError(null);
     setCommitted(false);
     try {
+      setStale(false);
       const connector = await buildConnector();
       const crosswalkTargets = Object.fromEntries(
         targetTemplates.filter((tpl) => canonicalEntityByTemplate[tpl]?.trim()).map((tpl) => [tpl, { canonicalEntity: canonicalEntityByTemplate[tpl].trim() }]),
@@ -124,9 +141,16 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
       await confirmConnectorImport(prepared, { actorUserId, actorRole });
       setCommitted(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      // Section 17 — a rejected (stale/conflict) confirm must never
-      // silently retry; the operator must explicitly re-prepare.
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message);
+      // Section 17/24 — a rejected (stale/conflict) confirm must never
+      // silently retry; the operator must explicitly re-prepare. The
+      // real bridge's own thrown message (`connectorImportBridge.ts`'s
+      // `confirmConnectorImport()`) always says "the prepared plan is
+      // stale" for this exact rejection — detected here only to drive
+      // the explicit Re-prepare affordance below, never to reinterpret
+      // or override the bridge's own decision.
+      setStale(message.includes("prepared plan is stale"));
       setPrepared(null);
     } finally {
       setBusy(false);
@@ -136,7 +160,7 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
   const allRows = prepared?.templates.flatMap((tpl) => tpl.rows.map((r) => ({ ...r, targetTemplate: tpl.targetTemplate }))) ?? [];
   const problemRows = allRows.filter((r) => BLOCKING_STATES.has(r.reimportState));
   const missingFromSource = prepared?.templates.flatMap((tpl) => tpl.missingFromSource) ?? [];
-  const canCommit = !!prepared && prepared.blockingIssues.length === 0 && !committed;
+  const canCommit = canWrite && !!prepared && prepared.blockingIssues.length === 0 && !committed;
 
   return (
     <div className="space-y-3">
@@ -172,9 +196,15 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
             </Field>
           ))}
         </div>
-        <button onClick={() => void onPrepare()} disabled={busy || !profile || (connection.connectorType === "FILE" && !file)} className="mt-3 rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
-          {t("dataExchange.connectors.review.prepareImport")}
+        <button
+          onClick={() => void onPrepare()}
+          disabled={!canWrite || busy || !profile || (connection.connectorType === "FILE" && !file)}
+          title={!canWrite ? t("dataExchange.connectors.review.writeDenied") : undefined}
+          className="mt-3 rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
+        >
+          {stale ? t("dataExchange.connectors.review.rePrepare") : t("dataExchange.connectors.review.prepareImport")}
         </button>
+        {stale && <p className="mt-2 rounded-input border border-warning/40 px-2 py-1.5 text-[11px] text-warning">{t("dataExchange.connectors.review.stalePlan")}</p>}
         {error && <p className="mt-2 rounded-input border border-error/40 px-2 py-1.5 text-[11px] text-error">{error}</p>}
         {committed && <p className="mt-2 rounded-input border border-success/40 px-2 py-1.5 text-[11px] text-success">{t("dataExchange.connectors.review.committed")}</p>}
       </Card>
@@ -198,7 +228,12 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
           )}
 
           <div className="mt-3">
-            <button onClick={() => void onCommit()} disabled={!canCommit || busy} className="rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+            <button
+              onClick={() => void onCommit()}
+              disabled={!canCommit || busy}
+              title={!canWrite ? t("dataExchange.connectors.review.writeDenied") : undefined}
+              className="rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
+            >
               {t("dataExchange.connectors.review.commit")}
             </button>
           </div>

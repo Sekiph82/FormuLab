@@ -4,6 +4,7 @@ import type { ConnectorConnection, ConnectorResult, DatabaseEntityDescription, S
 import { discoverFileEntities, inspectFile } from "@/lib/connectorFileInspect";
 import { describeDatabaseTable, inspectDatabaseTable, listDatabaseTables, type DatabaseTableOption } from "@/lib/connectorDatabaseInspect";
 import { testRestConnection } from "@/lib/connectorTest";
+import { saveConnection } from "@/lib/connectorConnections";
 import { Badge, Card, Empty, Field, inputCls, Table } from "./ui";
 
 /** Section 8/9/10 — real Source Explorer: FILE, REST_API, and DATABASE
@@ -58,6 +59,19 @@ export function SourceExplorerScreen({
     );
   }
 
+  // Section 28/STATUS1-STATUS3 — a real Source Explorer inspection is
+  // itself a real connection test; its outcome persists to the SAVED
+  // connection record (never left at a stale "Never tested" after a
+  // genuine successful/failed round trip). Best-effort: a persistence
+  // failure here must never block the inspection result already shown.
+  const persistTestResult = async (ok: boolean, resultMessage: string) => {
+    try {
+      await saveConnection({ ...connection, status: ok ? "ready" : "error", lastTestedAt: new Date().toISOString(), lastTestMessage: resultMessage });
+    } catch {
+      /* best-effort status persistence — the inspection result itself already rendered */
+    }
+  };
+
   const onFilePicked = async (picked: File) => {
     setFile(picked);
     setMessage(null);
@@ -86,6 +100,7 @@ export function SourceExplorerScreen({
       // permanently failing `validateMappingProfile()`'s own
       // `source_entity_not_found` check for any profile prefilled from it.
       if (result.schema) onInspected?.(result.schema.entities[0]?.entity ?? entity, result.schema, result.staged ?? null);
+      await persistTestResult(result.ok, result.message);
     } finally {
       setBusy(false);
     }
@@ -99,6 +114,7 @@ export function SourceExplorerScreen({
       setSchema(result.schema ?? null);
       setStaged(result.staged ?? null);
       if (result.schema) onInspected?.(entity || connection.sourceSystemId, result.schema, result.staged ?? null);
+      await persistTestResult(result.ok, result.message);
     } finally {
       setBusy(false);
     }
@@ -115,9 +131,12 @@ export function SourceExplorerScreen({
       setSchema(result.schema ?? null);
       setStaged(result.staged ?? null);
       if (result.schema) onInspected?.(dbTable, result.schema, result.staged ?? null);
+      await persistTestResult(result.ok, result.message);
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : "Could not read this table." });
+      const failureMessage = e instanceof Error ? e.message : "Could not read this table.";
+      setMessage({ ok: false, text: failureMessage });
       setDbDescription(null);
+      await persistTestResult(false, failureMessage);
     } finally {
       setBusy(false);
     }

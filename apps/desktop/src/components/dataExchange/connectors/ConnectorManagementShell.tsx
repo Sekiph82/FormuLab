@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ApprovalRole, ConnectorConnection, ConnectorResult, SourceSchema } from "@formulab/shared";
+import { can, type ApprovalRole, type ConnectorConnection, type ConnectorResult, type SourceSchema } from "@formulab/shared";
 import { cn } from "@/lib/cn";
 import { ConnectionsScreen } from "./ConnectionsScreen";
 import { SourceExplorerScreen } from "./SourceExplorerScreen";
@@ -8,6 +8,7 @@ import { MappingProfilesScreen } from "./MappingProfilesScreen";
 import { CrosswalksScreen } from "./CrosswalksScreen";
 import { ImportRunsScreen } from "./ImportRunsScreen";
 import { PrepareReviewScreen } from "./PrepareReviewScreen";
+import { Card, Empty } from "./ui";
 
 type ConnectorTab = "connections" | "explorer" | "mapping" | "crosswalks" | "runs" | "review";
 const TABS: ConnectorTab[] = ["connections", "explorer", "mapping", "crosswalks", "runs", "review"];
@@ -30,6 +31,27 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
   const [lastInspection, setLastInspection] = useState<{ sourceSystemId: string; entity: string; schema: SourceSchema; staged: ConnectorResult | null } | null>(null);
   const inspectionForSelected = selected && lastInspection?.sourceSystemId === selected.sourceSystemId ? lastInspection : null;
 
+  // Section 16/AUTH1-AUTH4 — the EXISTING Data Exchange policy area
+  // (`packages/shared/src/engine/rolePolicy.ts`), never a new permission
+  // system. Frontend gating is UX only — the real, unweakened authority
+  // remains the backend's own role check inside `commitDataExchangeRows()`
+  // (reached only through `confirmConnectorImport()`). Note: the CURRENT
+  // policy matrix has no role holding "view" without "create" for
+  // dataExchange (every role that can view can also create, or holds
+  // neither) — there is no genuinely partial-access role to gate
+  // differently, so `canWrite` mirrors `canView` today; both are checked
+  // independently and defensively in case the matrix is ever refined.
+  const canViewConnectors = can(actorRole, "dataExchange", "view");
+  const canWriteConnectors = can(actorRole, "dataExchange", "create");
+
+  if (!canViewConnectors) {
+    return (
+      <Card title={t("dataExchange.connectors.tabs.connections")}>
+        <Empty text={t("dataExchange.connectors.accessDenied")} />
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <nav className="flex flex-wrap gap-1 border-b border-border-faint pb-2">
@@ -48,6 +70,7 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
       {tab === "connections" && (
         <ConnectionsScreen
           actorUserId={actorUserId}
+          canWrite={canWriteConnectors}
           onOpenExplorer={(c) => {
             setSelected(c);
             // eslint-disable-next-line i18next/no-literal-string -- ConnectorTab literal value, not display text
@@ -74,6 +97,7 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
         <MappingProfilesScreen
           connection={selected}
           actorUserId={actorUserId}
+          canWrite={canWriteConnectors}
           schema={inspectionForSelected?.schema}
           sourceFieldOptions={inspectionForSelected?.schema.entities[0]?.fields.map((f) => f.path)}
           prefillEntity={inspectionForSelected?.entity}
@@ -81,7 +105,7 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
       )}
       {tab === "crosswalks" && <CrosswalksScreen sourceSystemFilter={selected?.sourceSystemId} />}
       {tab === "runs" && <ImportRunsScreen />}
-      {tab === "review" && <PrepareReviewScreen connection={selected} actorUserId={actorUserId} actorRole={actorRole} />}
+      {tab === "review" && <PrepareReviewScreen connection={selected} actorUserId={actorUserId} actorRole={actorRole} canWrite={canWriteConnectors} />}
     </div>
   );
 }

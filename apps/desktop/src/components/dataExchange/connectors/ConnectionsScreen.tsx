@@ -13,10 +13,16 @@ import { Badge, Card, Empty, Table } from "./ui";
  *  invented destructive lifecycle). */
 export function ConnectionsScreen({
   actorUserId,
+  canWrite = true,
   onOpenExplorer,
   onOpenMapping,
 }: {
   actorUserId: string;
+  /** Section 16/AUTH1 — the EXISTING dataExchange "create" capability
+   *  (`can(actorRole, "dataExchange", "create")`). Defaults to `true` so
+   *  every existing caller/test that doesn't pass it keeps today's
+   *  behavior. */
+  canWrite?: boolean;
   onOpenExplorer: (connection: ConnectorConnection) => void;
   onOpenMapping: (connection: ConnectorConnection) => void;
 }) {
@@ -62,9 +68,11 @@ export function ConnectionsScreen({
     <Card
       title={t("dataExchange.connectors.tabs.connections")}
       actions={
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-1 rounded-input bg-accent px-2.5 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90">
-          <Plus size={12} /> {t("dataExchange.connectors.connections.addConnection")}
-        </button>
+        canWrite && (
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1 rounded-input bg-accent px-2.5 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90">
+            <Plus size={12} /> {t("dataExchange.connectors.connections.addConnection")}
+          </button>
+        )
       }
     >
       {!loading && visible.length === 0 && <Empty text={t("dataExchange.connectors.connections.empty")} />}
@@ -98,33 +106,39 @@ export function ConnectionsScreen({
                 <button onClick={() => onOpenExplorer(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
                   {t("dataExchange.connectors.connections.open")}
                 </button>
-                <button onClick={() => setConfiguring(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
-                  {t("dataExchange.connectors.connections.configure")}
-                </button>
+                {canWrite && (
+                  <button onClick={() => setConfiguring(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
+                    {t("dataExchange.connectors.connections.configure")}
+                  </button>
+                )}
                 <button onClick={() => onOpenMapping(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
                   {t("dataExchange.connectors.tabs.mapping")}
                 </button>
-                <button onClick={() => void onDuplicate(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
-                  {t("dataExchange.connectors.connections.duplicate")}
-                </button>
-                <button onClick={() => void onToggleArchive(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
-                  {t("dataExchange.connectors.connections.disable")}
-                </button>
-                <button
-                  onClick={() => void onDelete(c)}
-                  disabled={!!meta[c.code]?.runs}
-                  title={meta[c.code]?.runs ? t("dataExchange.connectors.connections.deleteBlocked") : undefined}
-                  className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-error hover:bg-surface-2 disabled:opacity-40"
-                >
-                  {t("common:actions.remove")}
-                </button>
+                {canWrite && (
+                  <>
+                    <button onClick={() => void onDuplicate(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
+                      {t("dataExchange.connectors.connections.duplicate")}
+                    </button>
+                    <button onClick={() => void onToggleArchive(c)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
+                      {t("dataExchange.connectors.connections.disable")}
+                    </button>
+                    <button
+                      onClick={() => void onDelete(c)}
+                      disabled={!!meta[c.code]?.runs}
+                      title={meta[c.code]?.runs ? t("dataExchange.connectors.connections.deleteBlocked") : undefined}
+                      className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-error hover:bg-surface-2 disabled:opacity-40"
+                    >
+                      {t("common:actions.remove")}
+                    </button>
+                  </>
+                )}
               </div>,
             ],
           }))}
         />
       )}
 
-      {connections.some((c) => c.archived) && (
+      {canWrite && connections.some((c) => c.archived) && (
         <div className="mt-4">
           <h4 className="mb-1 text-[11px] font-medium text-muted">{t("dataExchange.connectors.connections.disabledSection")}</h4>
           <Table
@@ -145,7 +159,7 @@ export function ConnectionsScreen({
         </div>
       )}
 
-      {showAdd && (
+      {showAdd && canWrite && (
         <AddConnectionDialog
           actorUserId={actorUserId}
           onClose={() => setShowAdd(false)}
@@ -156,7 +170,7 @@ export function ConnectionsScreen({
         />
       )}
 
-      {configuring && (
+      {configuring && canWrite && (
         <AddConnectionDialog
           actorUserId={actorUserId}
           editing={configuring}
