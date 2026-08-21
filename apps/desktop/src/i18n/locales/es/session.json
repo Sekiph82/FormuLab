@@ -3056,6 +3056,8 @@
         "open": "Open",
         "validate": "Validate",
         "useForImport": "Use for Import",
+        "useForImportNeedsActive": "Only the currently-effective active version of a profile can be used for import.",
+        "useForImportNeedsSchema": "Inspect this source first — Use for Import is unavailable without a current inspected schema to check compatibility against.",
         "editorTitle": "Mapping Profile",
         "profileName": "Profile name",
         "sourceField": "Source field",

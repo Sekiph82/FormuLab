@@ -1126,9 +1126,15 @@ describe("MAP8: a validated Mapping Profile goes to Prepare Review without retyp
     const profile = await saveProfile("TESTMAP8", "materials");
     renderShell();
     await addFileConnection(user, "ERP Map8", "TESTMAP8");
-    await user.click(screen.getByRole("button", { name: "Connections" }));
-    const row = (await screen.findByRole("button", { name: "ERP Map8" })).closest("tr");
-    await user.click(within(row!).getByRole("button", { name: "Mapping Profiles" }));
+    // VAL8-11 — "Use for Import" is gated on the CURRENT inspected schema
+    // being compatible, not just `effective === "active"`; inspect the
+    // exact same shape `saveProfile()`'s own fingerprint was computed
+    // against, so the two genuinely match.
+    await user.click(await screen.findByRole("button", { name: "ERP Map8" }));
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("materials.csv", "MaterialID,MaterialName\nMAT-0,Probe"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+    await user.click(screen.getByRole("button", { name: "Mapping Profiles" }));
 
     await screen.findByText(profile.code);
     await user.click(screen.getByRole("button", { name: "Use for Import" }));
@@ -1137,6 +1143,42 @@ describe("MAP8: a validated Mapping Profile goes to Prepare Review without retyp
     // selected — never retyped.
     await waitFor(() => expect(screen.getByLabelText("Mapping Profile")).toHaveValue(profile.code));
     expect(screen.getByLabelText("Entity")).toHaveValue("materials");
+  });
+});
+
+describe("VAL8-11: Use for Import is gated on schema compatibility, never just effective===active", () => {
+  it("is unavailable with no current inspected schema, and unavailable when the current schema fingerprint differs from the profile's own", async () => {
+    const user = userEvent.setup();
+    const profile = await saveProfile("TESTVAL8", "materials");
+    renderShell();
+    await addFileConnection(user, "ERP Val8", "TESTVAL8");
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    const row = (await screen.findByRole("button", { name: "ERP Val8" })).closest("tr");
+    await user.click(within(row!).getByRole("button", { name: "Mapping Profiles" }));
+    await screen.findByText(profile.code);
+
+    // No inspection has happened this session — unavailable, with a
+    // title explaining why.
+    let useForImportButton = screen.getByRole("button", { name: "Use for Import" });
+    expect(useForImportButton).toBeDisabled();
+    expect(useForImportButton).toHaveAttribute("title", expect.stringContaining("Inspect this source first"));
+
+    // Inspect a source with a DIFFERENT structure (an extra column) —
+    // the current fingerprint now genuinely differs from the profile's
+    // own recorded fingerprint.
+    await user.click(screen.getByRole("button", { name: "Source Explorer" }));
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("materials.csv", "MaterialID,MaterialName,ExtraColumn\nMAT-0,Probe,X"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+    await user.click(screen.getByRole("button", { name: "Mapping Profiles" }));
+
+    useForImportButton = screen.getByRole("button", { name: "Use for Import" });
+    expect(useForImportButton).toBeDisabled();
+    expect(useForImportButton).toHaveAttribute("title", expect.stringContaining("schema has changed"));
+
+    // Clicking a disabled button never navigates anywhere.
+    await user.click(useForImportButton);
+    expect(screen.queryByLabelText("Mapping Profile")).not.toBeInTheDocument();
   });
 });
 

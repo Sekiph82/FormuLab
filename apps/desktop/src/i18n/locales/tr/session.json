@@ -3056,6 +3056,8 @@
         "open": "Aç",
         "validate": "Doğrula",
         "useForImport": "İçe Aktarma İçin Kullan",
+        "useForImportNeedsActive": "Yalnızca bir profilin şu anda geçerli olan aktif sürümü içe aktarma için kullanılabilir.",
+        "useForImportNeedsSchema": "Önce bu kaynağı inceleyin — uyumluluğu kontrol edecek güncel bir incelenmiş şema olmadan İçe Aktarma İçin Kullan kullanılamaz.",
         "editorTitle": "Eşleme Profili",
         "profileName": "Profil adı",
         "sourceField": "Kaynak alan",

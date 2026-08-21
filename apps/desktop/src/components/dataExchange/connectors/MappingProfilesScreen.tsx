@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
-import { effectiveMappingProfileStatus, type ConnectorConnection, type MappingProfile, type SourceSchema } from "@formulab/shared";
+import { effectiveMappingProfileStatus, isSchemaChanged, type ConnectorConnection, type MappingProfile, type SourceSchema } from "@formulab/shared";
 import { loadMappingProfiles } from "@/lib/connectorPersistence";
 import { Badge, Card, Empty, Field, Modal, Table } from "./ui";
 import { MappingProfileEditorDialog } from "./MappingProfileEditorDialog";
@@ -116,11 +116,35 @@ export function MappingProfilesScreen({
                       {t("dataExchange.connectors.mapping.newVersion")}
                     </button>
                   )}
-                  {onUseForImport && effective === "active" && (
-                    <button onClick={() => onUseForImport(p.code)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
-                      {t("dataExchange.connectors.mapping.useForImport")}
-                    </button>
-                  )}
+                  {onUseForImport && (() => {
+                    // VAL8-11 — "Use for Import" must only present valid/
+                    // effective profiles COMPATIBLE with the currently
+                    // inspected source schema, never just `effective ===
+                    // "active"` alone. Reuses the EXISTING `isSchemaChanged()`
+                    // authority — never a second schema-decision
+                    // implementation. Unavailable (not hidden) with a title
+                    // explaining why, so the operator always knows what to
+                    // do next.
+                    const schemaMismatch = !!schema && isSchemaChanged(p.sourceSchemaFingerprint, schema.fingerprint);
+                    const reason = effective !== "active"
+                      ? t("dataExchange.connectors.mapping.useForImportNeedsActive")
+                      : !schema
+                        ? t("dataExchange.connectors.mapping.useForImportNeedsSchema")
+                        : schemaMismatch
+                          ? t("dataExchange.connectors.mapping.schemaMismatchBlocking")
+                          : undefined;
+                    const available = reason === undefined;
+                    return (
+                      <button
+                        onClick={() => available && onUseForImport(p.code)}
+                        disabled={!available}
+                        title={reason}
+                        className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
+                      >
+                        {t("dataExchange.connectors.mapping.useForImport")}
+                      </button>
+                    );
+                  })()}
                 </div>,
               ],
             };
