@@ -16,10 +16,42 @@ relevant tests") below are stale, dating to an earlier
 FVL-04.005-.012-era session, and were not kept current by intervening
 sessions — do not trust them over the tracker
 (`docs/FORMULAB_V1_TASK_TRACKER.md`) or this pointer.
-**Next frozen roadmap task is technically FVL-05.001 — NOT STARTED, not
-begun this session.** The Connector Management frontend (a separate,
-user-directed follow-up) is also NOT STARTED — both are explicitly
-out of scope for this session per its own governing brief.
+**UPDATE (2026-08-21, post-FVL-04 regression/acceptance hardening —
+COMPLETE)**: two follow-up passes have since closed, neither of which
+reopens FVL-04 or begins FVL-05 (task counts and tracker status
+unchanged: FVL-04 = 26/26, Total = 89/171):
+1. **Native packaging regression** — a real, user-reported
+   `ModuleNotFoundError: No module named 'artifact_naming'` crash on
+   every New Request click was root-caused (`formulation_v2.rs`'s
+   `materialize_pipeline()` embedded-file list was missing
+   `artifact_naming.py`), fixed in source/build, backed by a full
+   first-party Python dependency-closure audit and new PKG1-PKG6/
+   NR1-NR8 regression tests (frontend submit -> real Tauri command
+   boundary -> real materialization function -> real isolated
+   `run_cli.py` execution -> real structured pipeline outcome). The
+   user manually verified the rebuilt native app through
+   `Desktop\FormuLab.lnk`: New Request opened, a real request
+   submitted, the formulation result page rendered 4 real versions
+   with real content, no `ModuleNotFoundError`, no traceback. **New
+   Request native click-through: USER-VERIFIED PASS. Real
+   `%APPDATA%\com.formulab.app\runtime\pipeline` materialization
+   through a real New Request click: USER-VERIFIED PASS.** Full detail:
+   `C:\Users\sekip\Desktop\FormuLab-New-Request-Runtime-Regression-Log.md`.
+2. **Connector Management frontend correction** — the prior session's
+   own "HARDENING IMPLEMENTATION COMPLETE" claim was checked against
+   its actual governing prompt and found to have real, disclosed gaps;
+   all were closed (MAP5A-M full 15-op ordered transformation editor,
+   VAL1-11 schema-required active-profile save, VAL8-11 schema-gated
+   "Use for Import", MAPREQ1-4 mapping-coverage panel, REVIEW1-5/
+   WARN1-2 richer Prepare Review detail, RUN4-7 Import Runs
+   provenance columns, HIST1-3 exact per-connection import history).
+   Connector Management frontend is therefore **COMPLETED**, not
+   NOT STARTED — the prior wording below (and its own repeated "NOT
+   STARTED" framing) is stale/superseded by this line. Full detail:
+   `C:\Users\sekip\Desktop\FormuLab-Connector-Management-Frontend-Log.md`.
+
+**Next frozen roadmap task is FVL-05.001 — NOT STARTED, not begun.**
+FVL-05 as a whole remains 0/14, NOT STARTED.
 
 ## Frozen scope reference
 
@@ -71,10 +103,15 @@ now genuinely **26/26. CLOSED.**
 ## Current task
 
 FVL-04 is fully closed (26/26). The next frozen roadmap task is
-technically `FVL-05.001` — **NOT STARTED**, not begun this session per
-its own explicit governing-brief instruction. The Connector Management
-frontend is a separate, user-directed follow-up, also **NOT STARTED**.
-FVL-04.019-.025 and FVL-04.026 all just closed — see their own
+`FVL-05.001` — **NOT STARTED**, not begun. Post-FVL-04, two
+regression/acceptance-hardening passes completed (see the "UPDATE
+(2026-08-21...)" block above for full summary and log pointers): the
+native packaging regression fix (New Request `ModuleNotFoundError`,
+user-verified via a real native click-through) and the Connector
+Management frontend correction (now **COMPLETED**, not the stale "NOT
+STARTED" this file previously said — see the log pointer above).
+Neither reopens FVL-04 or begins FVL-05. FVL-04.019-.025 and FVL-04.026
+all just closed — see their own
 resolution sections below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema
 Discovery, Mapping Profile Model, External ID Crosswalk Registry,
@@ -163,7 +200,11 @@ test`: full suite re-verified green (2 new: `ExportMenu.test.tsx`).
 `python scripts/validate_v1_tracker.py`: OK, 171 tasks, no drift.
 
 FVL-04 = 26/26. Total = 89/171. FVL-05 and the Connector Management
-frontend: NOT STARTED.
+frontend: NOT STARTED (true as of THIS 2026-08-20 session's own close —
+HISTORICAL; the Connector Management frontend was subsequently started
+and COMPLETED in later sessions, see the "UPDATE (2026-08-21...)" block
+near the top of this file for current truth; FVL-05 remains NOT
+STARTED, unchanged).
 
 ## FVL-04.019-.025 final close-out correction (2026-08-20)
 

@@ -72,44 +72,81 @@ subjective percentages.
 | FVL-11 | [#12](https://github.com/Sekiph82/FormuLab/issues/12) | 14 | 0 | 0 | 14 |
 | **Total** | milestone [#1](https://github.com/Sekiph82/FormuLab/milestone/1) | **171** | **89** | **0** | **82** |
 
-Overall: **81 / 171 tasks completed (47.4%)**. FVL-04.013-.018 (External
-Source Connector Contract, Generic File Connector, Source Schema
-Discovery, Mapping Profile Model, External ID Crosswalk Registry,
-Transformation/Unit/Enum Mapping) all COMPLETED 2026-08-19, bringing
-FVL-04 to 18/26 — the new enterprise external-source connector layer's
+**CURRENT STATE (authoritative, matches the Total row above):**
+**FVL-04 = 26/26 (CLOSED). Total = 89/171 tasks completed (52.0%).
+FVL-05 = NOT STARTED (0/14). Next eligible task: FVL-05.001.**
+FVL-01/FVL-02/FVL-03 are fully closed (21/21, 24/24, 18/18). No FVL-05
+work has begun; this session is a post-FVL-04 regression/acceptance
+reconciliation pass only, not FVL-05 work.
+
+**HISTORICAL narrative below (dated snapshots — each percentage/
+fraction reflects the tracker's own count AT THAT SESSION'S DATE, not
+the current state; superseded by the CURRENT STATE line above):**
+
+Overall (as of 2026-08-19): **81 / 171 tasks completed (47.4%)** —
+HISTORICAL. FVL-04.013-.018 (External Source Connector Contract,
+Generic File Connector, Source Schema Discovery, Mapping Profile
+Model, External ID Crosswalk Registry, Transformation/Unit/Enum
+Mapping) all COMPLETED 2026-08-19, bringing FVL-04 to 18/26 at that
+date — the new enterprise external-source connector layer's
 foundation (contract through transformation, plus two independent
 end-to-end customer fixtures proving the whole chain through real Data
-Exchange commit) is now fully closed. **HARDENED 2026-08-19 (Session 6)**
-after an independent repository-level review found real gaps (a single
-unit-conversion authority now exists where two would-be-duplicate tables
-lived; mapping-profile version immutability is now storage-enforced, not
-merely application-layer discipline; the end-to-end closure tests now use
-real Data Exchange reference resolution instead of an unconditional
-stub; impossible calendar dates and malformed decimal grouping are now
-rejected; external-ID identity evidence no longer treats a unique display
-name as authority) — see each task's own `**HARDENING**` row and
+Exchange commit) was fully closed as of that session. **HARDENED
+2026-08-19 (Session 6)** after an independent repository-level review
+found real gaps (a single unit-conversion authority now exists where
+two would-be-duplicate tables lived; mapping-profile version
+immutability is now storage-enforced, not merely application-layer
+discipline; the end-to-end closure tests now use real Data Exchange
+reference resolution instead of an unconditional stub; impossible
+calendar dates and malformed decimal grouping are now rejected;
+external-ID identity evidence no longer treats a unique display name
+as authority) — see each task's own `**HARDENING**` row and
 `docs/FVL04_EXTERNAL_SOURCE_CONNECTOR_ARCHITECTURE.md`'s own Hardening
-section for full detail. Task counts are unchanged by this hardening pass
-(re-closing already-COMPLETED tasks, not new completions). **Stale as of
-Session 10/11 (2026-08-20)**: FVL-04.019-.025 were subsequently completed,
-independently audited, found to have real gaps below their original
-acceptance, and genuinely re-hardened and re-closed — see each task's own
-row above for the exact correction; FVL-04 is now 25/26, with FVL-04.026
-correctly NOT STARTED (per the governing brief's own explicit instruction
-not to begin it in a hardening session). The **Total** row at the top of
-this file already reflects the current 88/171 count. FVL-04.005-.012 (Specifications,
-Price History, Inventory, Exchange Rates, Process Parameters, Regulatory
-rule/evidence integrity, template-registry consolidation, and real
-sample-file acceptance) all COMPLETED 2026-08-19, closing the original
+section for full detail. Task counts were unchanged by this hardening
+pass (re-closing already-COMPLETED tasks, not new completions). As of
+Session 10/11 (2026-08-20): FVL-04.019-.025 were subsequently
+completed, independently audited, found to have real gaps below their
+original acceptance, and genuinely re-hardened and re-closed — see
+each task's own row above for the exact correction; FVL-04 reached
+25/26 at that date, with FVL-04.026 correctly NOT STARTED at that time
+(per that session's own governing brief, which explicitly instructed
+not to begin it in a hardening-only session). FVL-04.026 (a
+human-readable literature/formulation artifact naming convention) was
+subsequently completed, bringing FVL-04 to its now-CURRENT 26/26 — see
+the CURRENT STATE line above, not the historical fractions in this
+paragraph. FVL-04.005-.012 (Specifications, Price History, Inventory,
+Exchange Rates, Process Parameters, Regulatory rule/evidence
+integrity, template-registry consolidation, and real sample-file
+acceptance) all COMPLETED 2026-08-19, closing the original
 canonical/template-based Data Exchange onboarding block
-(FVL-04.001-.012). FVL-01, FVL-02, and FVL-03
-are now the fully closed packages (100%, 21/21, 24/24, and 18/18 —
-FVL-03 closed 2026-08-18 after FVL-03.001-.012, Material Master through
-final single-authority integration acceptance). FVL-04 grew from 12 to
-26 tasks on 2026-08-18 —
-approved scope expansion adding enterprise external-source connector/
-mapping/crosswalk onboarding (FVL-04.013-.025) and a human-readable
-literature/formulation artifact naming convention (FVL-04.026).
+(FVL-04.001-.012). FVL-01, FVL-02, and FVL-03 are the fully closed
+packages (100%, 21/21, 24/24, and 18/18 — FVL-03 closed 2026-08-18
+after FVL-03.001-.012, Material Master through final single-authority
+integration acceptance). FVL-04 grew from 12 to 26 tasks on 2026-08-18
+— approved scope expansion adding enterprise external-source
+connector/mapping/crosswalk onboarding (FVL-04.013-.025) and a
+human-readable literature/formulation artifact naming convention
+(FVL-04.026).
+
+Two POST-FVL-04 regression/acceptance-hardening passes followed
+FVL-04's own closure (task COUNTS unaffected — no new tasks, no status
+changes, corrections to already-COMPLETED tasks' own real acceptance
+gaps): (1) a native packaging regression (`literature_cache.py`'s
+`artifact_naming` import was never added to
+`formulation_v2.rs::materialize_pipeline()`'s embedded-file list,
+crashing every real New Request generation with
+`ModuleNotFoundError`) — root-caused, fixed, and closed with a full
+Python first-party dependency-closure audit and new PKG1-PKG6/NR1-NR8
+regression tests, user-verified via a real native New Request
+click-through; (2) a correction of the Connector Management frontend's
+own prior "HARDENING IMPLEMENTATION COMPLETE" claim against its
+governing prompt (MAP5A-M full 15-op ordered transformation editor,
+VAL1-11 schema-required save, VAL8-11 Use-for-Import schema gating,
+MAPREQ1-4 mapping-coverage panel, REVIEW1-5/WARN1-2 richer prepare-
+review detail, RUN4-7 Import Runs provenance columns, HIST1-3 exact
+per-connection import history). Full detail in
+`C:\Users\sekip\Desktop\FormuLab-New-Request-Runtime-Regression-Log.md`
+and `C:\Users\sekip\Desktop\FormuLab-Connector-Management-Frontend-Log.md`.
 
 ---
 
