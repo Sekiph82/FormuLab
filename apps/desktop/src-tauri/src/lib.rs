@@ -21,6 +21,7 @@ mod migration;
 mod git_snapshot;
 mod identity;
 mod compute;
+mod connector_sqlite;
 mod jupyter;
 mod kernel;
 mod large_file;
@@ -94,6 +95,9 @@ pub fn run() {
             workspace::open_workspace_base,
             workspace::pick_folder,
             workspace::pick_file,
+            connector_sqlite::connector_sqlite_list_tables,
+            connector_sqlite::connector_sqlite_describe_table,
+            connector_sqlite::connector_sqlite_read_page,
             jupyter::jupyter_status,
             jupyter::setup_jupyter,
             jupyter::start_jupyter,
