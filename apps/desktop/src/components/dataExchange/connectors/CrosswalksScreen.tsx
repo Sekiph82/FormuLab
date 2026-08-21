@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ExternalIdCrosswalk } from "@formulab/shared";
 import { loadCrosswalks } from "@/lib/connectorPersistence";
@@ -22,6 +22,20 @@ export function CrosswalksScreen({ sourceSystemFilter }: { sourceSystemFilter?: 
   useEffect(() => {
     void loadCrosswalks().then(setCrosswalks);
   }, []);
+
+  // Section 16 — resync the source-system filter when the SELECTED
+  // CONNECTION actually changes (never on every render, and never
+  // clobbering a manually-typed filter when the connection context did
+  // not change — e.g. this screen staying mounted while `selected`
+  // changes elsewhere, rather than relying on the initial `useState`
+  // value alone, which only ever reflects the connection at first mount).
+  const priorFilter = useRef(sourceSystemFilter);
+  useEffect(() => {
+    if (priorFilter.current !== sourceSystemFilter) {
+      priorFilter.current = sourceSystemFilter;
+      setSourceSystem(sourceSystemFilter ?? "");
+    }
+  }, [sourceSystemFilter]);
 
   const filtered = useMemo(
     () =>

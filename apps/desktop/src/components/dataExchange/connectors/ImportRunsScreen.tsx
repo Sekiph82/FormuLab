@@ -80,8 +80,17 @@ export function ImportRunsScreen() {
           </dl>
           {detailRows.length > 0 && (
             <Table
-              headers={[t("dataExchange.connectors.mapping.targetTemplate"), t("dataExchange.connectors.runs.targetCollection"), t("dataExchange.connectors.runs.targetRecordId"), t("dataExchange.connectors.runs.status")]}
-              rows={detailRows.map((r) => ({ key: r.id, cells: [r.naturalKey ?? "—", r.targetCollection ?? "—", r.targetRecordId ?? "—", r.state] }))}
+              headers={[
+                t("dataExchange.connectors.runs.naturalKey"),
+                t("dataExchange.connectors.runs.sourceRecordId"),
+                t("dataExchange.connectors.runs.targetCollection"),
+                t("dataExchange.connectors.runs.targetRecordId"),
+                t("dataExchange.connectors.runs.status"),
+              ]}
+              rows={detailRows.map((r) => ({
+                key: r.id,
+                cells: [r.naturalKey ?? "—", r.sourceRecordId ?? "—", r.targetCollection ?? "—", r.targetRecordId ?? "—", r.state],
+              }))}
             />
           )}
         </div>
