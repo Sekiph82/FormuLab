@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useParams } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -37,12 +37,28 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 import { NewFormulationRequestPage } from "./NewFormulationRequestPage";
 
+/** Mounts the real page at "/" alongside the REAL production route shape
+ *  (`app/router.tsx`'s own `"formulation-result/:sessionId"` path) so a
+ *  real `navigate()` call is observable as a real route change — never a
+ *  fabricated router or a synthetic "navigate was called" spy. The target
+ *  route's own element is a tiny marker rendering the real `:sessionId`
+ *  param, sufficient to prove the exact real destination without pulling
+ *  in `FormulationResultPage`'s own unrelated data-loading concerns. */
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <NewFormulationRequestPage />
+    <MemoryRouter initialEntries={["/"]}>
+      <Routes>
+        <Route path="/" element={<NewFormulationRequestPage />} />
+        <Route path="/formulation-result/:sessionId" element={<FormulationResultRouteMarker />} />
+        <Route path="/live" element={<div>live-fallback-route</div>} />
+      </Routes>
     </MemoryRouter>,
   );
+}
+
+function FormulationResultRouteMarker() {
+  const { sessionId } = useParams();
+  return <div data-testid="formulation-result-route">formulation-result-route:{sessionId}</div>;
 }
 
 describe("NR3: the real New Request submit handler reaches the real generate_formulation Tauri command boundary", () => {
@@ -85,7 +101,7 @@ describe("NR3: the real New Request submit handler reaches the real generate_for
     );
   });
 
-  it("navigates to the returned session on a real ok response — the real result contract, not a fabricated one", async () => {
+  it("navigates to the real /formulation-result/:sessionId route on a real ok response — the real result contract, not a fabricated one", async () => {
     const user = userEvent.setup();
     renderPage();
     await user.type(
@@ -94,10 +110,16 @@ describe("NR3: the real New Request submit handler reaches the real generate_for
     );
     await user.click(screen.getByRole("button", { name: "Start Formulation Request" }));
     await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(1));
-    // The button returns to its idle label once the async submit settles —
-    // observable proof the real promise chain (invoke -> generateFormulation
-    // -> submit()'s own status handling) actually completed, not just that
-    // invoke was called.
-    await waitFor(() => expect(screen.getByRole("button", { name: "Start Formulation Request" })).toBeInTheDocument());
+    // The real submit() handler's own status branch
+    // (res.status === "ok" && res.session_id -> navigate(`/formulation-result/${res.session_id}`))
+    // genuinely fired — proven by a real route change to the real
+    // production path shape, carrying the exact session_id the mocked
+    // invoke() response returned ("nr3-session"), not a synthetic
+    // navigate() spy assertion.
+    await waitFor(() => expect(screen.getByTestId("formulation-result-route")).toBeInTheDocument());
+    expect(screen.getByTestId("formulation-result-route")).toHaveTextContent("formulation-result-route:nr3-session");
+    // The New Request form itself is gone — this really was a route change,
+    // not content rendered alongside it.
+    expect(screen.queryByRole("button", { name: "Start Formulation Request" })).not.toBeInTheDocument();
   });
 });
