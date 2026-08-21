@@ -312,6 +312,25 @@ export const dataExchangeImportJobSchema = z.object({
   extractionRunId: z.string().optional(),
   sourceSchemaFingerprint: z.string().optional(),
   mappingProfileVersion: z.number().int().positive().optional(),
+  /** HIST1-3 hardening — the EXACT saved `ConnectorConnection.code` this
+   *  job ran through, when the job was created via the real Connector ->
+   *  Data Exchange Bridge (`connectorImportBridge.ts`) with a known saved
+   *  connection. `sourceSystemId + connectorType` alone are not a unique
+   *  connection identity — two saved connections can legitimately share
+   *  both (e.g. two SQLite files pointed at the same source system id) —
+   *  so per-connection history (`importRunCountFor()`/
+   *  `lastImportTimestampFor()`, `connectorConnections.ts`) must use this
+   *  exact identity, never fall back to guessing from the shared fields
+   *  alone. Optional/additive: a direct file-upload job, or a connector
+   *  job created before this field existed, simply never sets it. */
+  connectionCode: z.string().optional(),
+  /** RUN4-7 — the source's own real resource identity (a file's filename,
+   *  a DB table, a REST path), when the connector genuinely reported one
+   *  at prepare time (`PreparedConnectorImport.sourceResourceName`).
+   *  Optional/additive, same convention as every other connector
+   *  provenance field above — never fabricated when the connector had
+   *  none to report. */
+  sourceResourceName: z.string().optional(),
 });
 export type DataExchangeImportJob = z.infer<typeof dataExchangeImportJobSchema>;
 

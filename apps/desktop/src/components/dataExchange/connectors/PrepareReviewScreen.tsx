@@ -141,6 +141,10 @@ export function PrepareReviewScreen({
         connector,
         entity: entity || connection.sourceSystemId,
         profile,
+        // HIST1-3 — the exact saved connection identity, so per-connection
+        // import history can never conflate two connections that happen to
+        // share the same sourceSystemId/connectorType.
+        connectionCode: connection.code,
         ...(Object.keys(crosswalkTargets).length > 0 ? { crosswalkTargets } : {}),
       });
       setPrepared(result);

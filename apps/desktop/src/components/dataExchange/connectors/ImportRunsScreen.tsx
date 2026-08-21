@@ -34,8 +34,12 @@ export function ImportRunsScreen() {
             t("dataExchange.connectors.runs.timestamp"),
             t("dataExchange.connectors.runs.sourceSystem"),
             t("dataExchange.connectors.runs.connectorType"),
+            t("dataExchange.connectors.runs.sourceEntity"),
             t("dataExchange.connectors.runs.mappingProfile"),
+            t("dataExchange.connectors.runs.extractionRunId"),
+            t("dataExchange.connectors.runs.schemaFingerprint"),
             t("dataExchange.connectors.runs.rows"),
+            t("dataExchange.connectors.runs.actor"),
             t("dataExchange.connectors.runs.status"),
           ]}
           rows={jobs.map((j) => ({
@@ -46,8 +50,25 @@ export function ImportRunsScreen() {
               </button>,
               j.sourceSystemId ?? "—",
               j.connectorType ?? "—",
+              j.sourceEntity ?? "—",
               j.mappingProfileCode ?? "—",
+              j.extractionRunId ?? "—",
+              // RUN4-7 — safely shortened for the list, with the full real
+              // value always available via the title tooltip; never
+              // truncated to the point of losing the actual value entirely.
+              j.sourceSchemaFingerprint ? (
+                <span key="fp" title={j.sourceSchemaFingerprint} className="cursor-help">
+                  {j.sourceSchemaFingerprint.slice(0, 10)}…
+                </span>
+              ) : (
+                "—"
+              ),
               String(j.totalRows),
+              // RUN4-7 — real persisted startedBy/committedBy semantics:
+              // committedBy is the actor who actually committed the write
+              // (when the job reached that stage); startedBy otherwise —
+              // never a fabricated single "actor" concept invented here.
+              j.committedBy ?? j.startedBy,
               <JobStatusBadge key="status" status={j.status} />,
             ],
           }))}
@@ -69,6 +90,12 @@ export function ImportRunsScreen() {
             <dd className="truncate text-text">{detailJob.sourceSchemaFingerprint}</dd>
             <dt className="text-muted">{t("dataExchange.connectors.runs.extractionRunId")}</dt>
             <dd className="text-text">{detailJob.extractionRunId}</dd>
+            {detailJob.sourceResourceName && (
+              <>
+                <dt className="text-muted">{t("dataExchange.connectors.runs.sourceResource")}</dt>
+                <dd className="text-text">{detailJob.sourceResourceName}</dd>
+              </>
+            )}
             <dt className="text-muted">{t("dataExchange.connectors.runs.creates")}</dt>
             <dd className="text-text">{detailJob.createdRows}</dd>
             <dt className="text-muted">{t("dataExchange.connectors.runs.updates")}</dt>

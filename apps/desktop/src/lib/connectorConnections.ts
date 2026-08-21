@@ -75,17 +75,37 @@ export async function setConnectionArchived(connection: ConnectorConnection, arc
   await saveConnection({ ...connection, archived });
 }
 
+/** HIST1-3 hardening — `sourceSystemId + connectorType` alone are NOT a
+ *  unique connection identity: two saved `ConnectorConnection` records can
+ *  legitimately share both (e.g. two SQLite files configured against the
+ *  same source system id). Every job created through the real Connector ->
+ *  Data Exchange Bridge (`connectorImportBridge.ts`, since HIST1-3) now
+ *  carries the EXACT saved connection's own `code` as `connectionCode`.
+ *  This filter uses that exact identity when present. A LEGACY job
+ *  committed before `connectionCode` existed has no way to be attributed
+ *  to one specific saved connection over another sharing the same
+ *  sourceSystemId/connectorType — silently guessing would risk crediting
+ *  the wrong connection's history, so the documented, deterministic rule
+ *  here is to EXCLUDE it from this exact per-connection count rather than
+ *  attribute it. */
+function jobsForConnection<J extends { connectionCode?: string }>(jobs: J[], connection: ConnectorConnection): J[] {
+  return jobs.filter((j) => j.connectionCode === connection.code);
+}
+
 /** Real, non-fabricated Import Run count for a connection — derived from
- *  the EXISTING `data_exchange_import_jobs` provenance fields
- *  (`sourceSystemId`/`connectorType`), never a second history store. */
+ *  the EXISTING `data_exchange_import_jobs` provenance, using the exact
+ *  saved-connection identity (`connectionCode`) — never a second history
+ *  store, and never conflating two connections sharing the same
+ *  sourceSystemId/connectorType. See `jobsForConnection()`'s own doc
+ *  comment for the legacy-job exclusion rule. */
 export async function importRunCountFor(connection: ConnectorConnection): Promise<number> {
   const jobs = await listRecords("data_exchange_import_jobs");
-  return jobs.filter((j) => j.sourceSystemId === connection.sourceSystemId && j.connectorType === connection.connectorType).length;
+  return jobsForConnection(jobs, connection).length;
 }
 
 export async function lastImportTimestampFor(connection: ConnectorConnection): Promise<string | undefined> {
   const jobs = await listRecords("data_exchange_import_jobs");
-  const matching = jobs.filter((j) => j.sourceSystemId === connection.sourceSystemId && j.connectorType === connection.connectorType);
+  const matching = jobsForConnection(jobs, connection);
   if (matching.length === 0) return undefined;
   return matching.reduce((latest, j) => ((j.completedAt ?? j.startedAt) > latest ? (j.completedAt ?? j.startedAt) : latest), "");
 }

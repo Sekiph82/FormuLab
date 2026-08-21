@@ -218,6 +218,12 @@ export interface PreparedConnectorImport {
   connectorVersion: string;
   sourceEntity: string;
   extractionRunId: string;
+  /** HIST1-3 — the exact saved `ConnectorConnection.code` this batch was
+   *  prepared through, when the caller named one (`PrepareConnectorImportInput.
+   *  connectionCode`). Carried onto the committed job so per-connection
+   *  history is never conflated with a DIFFERENT saved connection sharing
+   *  the same sourceSystemId/connectorType. */
+  connectionCode?: string;
   /** REVIEW1-5 — the real extraction timestamp (`ExtractionMetadata.extractedAt`
    *  of the first staged record), never fabricated; empty when nothing was
    *  staged at all. */
@@ -276,6 +282,15 @@ export interface PrepareConnectorImportInput {
    *  entry here simply commits with no crosswalk persistence, exactly
    *  like a direct Data Exchange import always has. */
   crosswalkTargets?: Record<string, CrosswalkTarget>;
+  /** HIST1-3 — the exact saved `ConnectorConnection.code` this prepare
+   *  call was made through, when the caller has a real saved connection
+   *  (`connection.code` in `PrepareReviewScreen.tsx`) — carried through to
+   *  the committed job's own `connectionCode` so per-connection import
+   *  history (`connectorConnections.ts`) can use exact identity rather
+   *  than guessing from `sourceSystemId + connectorType` alone. Omitted
+   *  when no saved connection is genuinely involved (e.g. a test/adhoc
+   *  connector never persisted as a `ConnectorConnection`). */
+  connectionCode?: string;
 }
 
 /**
@@ -326,6 +341,7 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     extractionRunId: staged.records[0]?.extraction.extractionRunId ?? "",
     extractedAt: staged.records[0]?.extraction.extractedAt ?? "",
     sourceResourceName: staged.sourceResource?.resourceName,
+    connectionCode: input.connectionCode,
     sourceSchemaFingerprint: sourceSchema.fingerprint,
     mappingProfileCode: profile.code,
     mappingProfileVersion: profile.profileVersion,
@@ -744,6 +760,8 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
       extractionRunId: prepared.extractionRunId || undefined,
       sourceSchemaFingerprint: prepared.sourceSchemaFingerprint || undefined,
       mappingProfileVersion: prepared.mappingProfileVersion || undefined,
+      connectionCode: prepared.connectionCode,
+      sourceResourceName: prepared.sourceResourceName,
     };
     await upsertRecords("data_exchange_import_jobs", [job]);
     const rowResults: DataExchangeImportRowResult[] = committableRows.map((row, i) => ({

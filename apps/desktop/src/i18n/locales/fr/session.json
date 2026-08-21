@@ -3134,6 +3134,7 @@
         "mappingProfile": "Mapping profile",
         "schemaFingerprint": "Schema fingerprint",
         "extractionRunId": "Extraction run ID",
+        "sourceResource": "Source resource",
         "rows": "Rows",
         "status": "Status",
         "actor": "Actor",

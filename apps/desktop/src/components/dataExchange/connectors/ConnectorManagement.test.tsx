@@ -79,7 +79,11 @@ function csvFile(name: string, text: string) {
 
 async function addFileConnection(user: ReturnType<typeof userEvent.setup>, name: string, sourceSystemId: string) {
   await user.click(screen.getByRole("button", { name: "Add Connection" }));
-  await user.click(await screen.findByText("FILE"));
+  // Scoped to the dialog — once a connection row already exists, its own
+  // connectorType cell can also literally read "FILE", which would
+  // otherwise make an unscoped screen.findByText("FILE") ambiguous.
+  const dialog = await screen.findByRole("dialog");
+  await user.click(within(dialog).getByText("FILE"));
   await user.type(screen.getByLabelText("Connection name"), name);
   await user.type(screen.getByLabelText("Source system ID"), sourceSystemId);
   await user.type(screen.getByLabelText("External ID field"), "MaterialID");
@@ -1329,12 +1333,67 @@ describe("CFUI22/RUN1-RUN3: Import Runs shows real connector provenance", () => 
     expect(screen.getByText("Target record ID")).toBeInTheDocument();
     // MAT-1 legitimately repeats across naturalKey/sourceRecordId/targetRecordId cells.
     expect(screen.getAllByText("MAT-1").length).toBeGreaterThanOrEqual(3);
-    expect(screen.getByText("materials")).toBeInTheDocument();
+    // RUN4-7 — "materials" now legitimately also renders in the list's own
+    // new Source entity column, in addition to the detail dl.
+    expect(screen.getAllByText("materials").length).toBeGreaterThanOrEqual(2);
 
     // RUN3: source provenance (schema fingerprint, extraction run ID,
-    // mapping profile) is shown in the job-level detail.
-    expect(screen.getByText("Schema fingerprint")).toBeInTheDocument();
-    expect(screen.getByText("Extraction run ID")).toBeInTheDocument();
+    // mapping profile) is shown in the job-level detail — RUN4-7 also
+    // added these as real list column headers, so both now legitimately
+    // match.
+    expect(screen.getAllByText("Schema fingerprint").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Extraction run ID").length).toBeGreaterThanOrEqual(2);
+
+    // RUN4-7: the list itself now carries source entity, a (shortened,
+    // full-value-on-hover) schema fingerprint, extraction run ID, and a
+    // real actor column — never fabricated, only real persisted fields.
+    const listRow = screen.getAllByText("TESTSRC7").map((el) => el.closest("tr")).find((tr): tr is HTMLTableRowElement => tr !== null)!;
+    expect(within(listRow).getByText("materials")).toBeInTheDocument();
+    expect(within(listRow).getByText(ctx.actorUserId)).toBeInTheDocument(); // actor = committedBy
+  });
+});
+
+describe("HIST1-3: per-connection import history uses exact connection identity, never sourceSystemId+connectorType alone", () => {
+  it("two saved connections sharing the same sourceSystemId/connectorType are never conflated", async () => {
+    const user = userEvent.setup();
+    await saveProfile("TESTHIST", "materials");
+    renderShell();
+    // Two DISTINCT saved connections, same sourceSystemId+connectorType —
+    // exactly the case the prior filter would have falsely merged.
+    await addFileConnection(user, "ERP Hist One", "TESTHIST");
+    await addFileConnection(user, "ERP Hist Two", "TESTHIST");
+
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    let rowOne = (await screen.findByRole("button", { name: "ERP Hist One" })).closest("tr")!;
+    let rowTwo = screen.getByRole("button", { name: "ERP Hist Two" }).closest("tr")!;
+    // Neither tested nor imported yet — "Never" in both the "Last tested"
+    // and "Last import" columns.
+    expect(within(rowOne).getAllByText("Never")).toHaveLength(2);
+    expect(within(rowTwo).getAllByText("Never")).toHaveLength(2);
+
+    // Commit a real import through "ERP Hist One" only (never runs a
+    // connection-level Test/Discover, so "Last tested" legitimately stays
+    // "Never" — only "Last import" is expected to change).
+    await openConnectionsReview(user, "ERP Hist One");
+    await user.type(screen.getByLabelText("Entity"), "materials");
+    await user.selectOptions(screen.getByLabelText("Mapping Profile"), [mappingProfileCode("testhist-materials", 1)]);
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "MaterialID,MaterialName\nMAT-1,Test"));
+    await user.click(screen.getByRole("button", { name: "Prepare Import" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Commit" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Commit" }));
+    await screen.findByText("Import committed.");
+
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    rowOne = (await screen.findByRole("button", { name: "ERP Hist One" })).closest("tr")!;
+    rowTwo = screen.getByRole("button", { name: "ERP Hist Two" }).closest("tr")!;
+    // ERP Hist One really did import — only 1 "Never" left ("Last tested").
+    await waitFor(() => expect(within(rowOne).getAllByText("Never")).toHaveLength(1));
+    // ERP Hist Two shares sourceSystemId+connectorType but was never
+    // itself used — must stay "Never" in BOTH columns, never falsely
+    // credited with the OTHER connection's real import.
+    expect(within(rowTwo).getAllByText("Never")).toHaveLength(2);
+    // ERP Hist Two, having zero real history, must still be deletable.
+    expect(within(rowTwo).getByRole("button", { name: "Remove" })).toBeEnabled();
   });
 });
 

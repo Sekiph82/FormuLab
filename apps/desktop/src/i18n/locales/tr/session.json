@@ -3134,6 +3134,7 @@
         "mappingProfile": "Eşleme profili",
         "schemaFingerprint": "Şema parmak izi",
         "extractionRunId": "Çıkarma çalıştırma kimliği",
+        "sourceResource": "Kaynak nesnesi",
         "rows": "Satırlar",
         "status": "Durum",
         "actor": "Kullanıcı",
