@@ -594,6 +594,7 @@ export * from "./engine/unitConversion";
 export * from "./engine/transformation";
 export * from "./engine/artifactNaming";
 export * from "./engine/connectorConnection";
+export * from "./schemas/dataset";
 export {
   PRECISION,
   CURRENCY_DP,

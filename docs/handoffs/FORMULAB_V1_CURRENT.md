@@ -50,8 +50,17 @@ unchanged: FVL-04 = 26/26, Total = 89/171):
    STARTED" framing) is stale/superseded by this line. Full detail:
    `C:\Users\sekip\Desktop\FormuLab-Connector-Management-Frontend-Log.md`.
 
-**Next frozen roadmap task is FVL-05.001 — NOT STARTED, not begun.**
-FVL-05 as a whole remains 0/14, NOT STARTED.
+**UPDATE (2026-08-21, FVL-05.001 — COMPLETED)**: `FVL-05.001` (Define
+dataset schema version + feature schema version, explicit/incrementable)
+is done — new `packages/shared/src/schemas/dataset.ts` defines
+`DATASET_SCHEMA_VERSION`/`FEATURE_SCHEMA_VERSION` as two independent
+literal `"1.0"` constants with their own zod schemas, matching the
+existing per-record `schemaVersion` convention. Foundational only: no
+dataset row shape, feature-vector shape, extractor, or normalization
+logic exists yet — that stays FVL-05.002 onward. See the FVL-05.001 row
+in `docs/FORMULAB_V1_TASK_TRACKER.md` for full detail. FVL-05 is now
+1/14. **Next frozen roadmap task is FVL-05.002 — NOT STARTED, not
+begun.**
 
 ## Frozen scope reference
 
@@ -102,15 +111,17 @@ now genuinely **26/26. CLOSED.**
 
 ## Current task
 
-FVL-04 is fully closed (26/26). The next frozen roadmap task is
-`FVL-05.001` — **NOT STARTED**, not begun. Post-FVL-04, two
-regression/acceptance-hardening passes completed (see the "UPDATE
-(2026-08-21...)" block above for full summary and log pointers): the
+FVL-04 is fully closed (26/26). `FVL-05.001` is now **COMPLETED**
+(2026-08-21 — see the "UPDATE (2026-08-21, FVL-05.001...)" block above).
+The next frozen roadmap task is `FVL-05.002` — **NOT STARTED**, not
+begun. Post-FVL-04, two regression/acceptance-hardening passes also
+completed (see the "UPDATE (2026-08-21, post-FVL-04...)" block above
+for full summary and log pointers): the
 native packaging regression fix (New Request `ModuleNotFoundError`,
 user-verified via a real native click-through) and the Connector
 Management frontend correction (now **COMPLETED**, not the stale "NOT
 STARTED" this file previously said — see the log pointer above).
-Neither reopens FVL-04 or begins FVL-05. FVL-04.019-.025 and FVL-04.026
+None of these reopens FVL-04. FVL-04.019-.025 and FVL-04.026
 all just closed — see their own
 resolution sections below. FVL-04.013-.018 (External
 Source Connector Contract, Generic File Connector, Source Schema

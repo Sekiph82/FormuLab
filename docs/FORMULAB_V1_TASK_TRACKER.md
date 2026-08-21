@@ -63,21 +63,24 @@ subjective percentages.
 | FVL-02 | [#3](https://github.com/Sekiph82/FormuLab/issues/3) (closed) | 24 | 24 | 0 | 0 |
 | FVL-03 | [#4](https://github.com/Sekiph82/FormuLab/issues/4) (closed) | 18 | 18 | 0 | 0 |
 | FVL-04 | [#5](https://github.com/Sekiph82/FormuLab/issues/5) | 26 | 26 | 0 | 0 |
-| FVL-05 | [#6](https://github.com/Sekiph82/FormuLab/issues/6) | 14 | 0 | 0 | 14 |
+| FVL-05 | [#6](https://github.com/Sekiph82/FormuLab/issues/6) | 14 | 1 | 0 | 13 |
 | FVL-06 | [#7](https://github.com/Sekiph82/FormuLab/issues/7) | 10 | 0 | 0 | 10 |
 | FVL-07 | [#8](https://github.com/Sekiph82/FormuLab/issues/8) | 16 | 0 | 0 | 16 |
 | FVL-08 | [#9](https://github.com/Sekiph82/FormuLab/issues/9) | 8 | 0 | 0 | 8 |
 | FVL-09 | [#10](https://github.com/Sekiph82/FormuLab/issues/10) | 10 | 0 | 0 | 10 |
 | FVL-10 | [#11](https://github.com/Sekiph82/FormuLab/issues/11) | 10 | 0 | 0 | 10 |
 | FVL-11 | [#12](https://github.com/Sekiph82/FormuLab/issues/12) | 14 | 0 | 0 | 14 |
-| **Total** | milestone [#1](https://github.com/Sekiph82/FormuLab/milestone/1) | **171** | **89** | **0** | **82** |
+| **Total** | milestone [#1](https://github.com/Sekiph82/FormuLab/milestone/1) | **171** | **90** | **0** | **81** |
 
 **CURRENT STATE (authoritative, matches the Total row above):**
-**FVL-04 = 26/26 (CLOSED). Total = 89/171 tasks completed (52.0%).
-FVL-05 = NOT STARTED (0/14). Next eligible task: FVL-05.001.**
-FVL-01/FVL-02/FVL-03 are fully closed (21/21, 24/24, 18/18). No FVL-05
-work has begun; this session is a post-FVL-04 regression/acceptance
-reconciliation pass only, not FVL-05 work.
+**FVL-04 = 26/26 (CLOSED). Total = 90/171 tasks completed (52.6%).
+FVL-05 = 1/14 (FVL-05.001 COMPLETED, 2026-08-21). Next eligible task:
+FVL-05.002.**
+FVL-01/FVL-02/FVL-03 are fully closed (21/21, 24/24, 18/18). FVL-05.001
+(dataset schema version + feature schema version, foundational only —
+see its own tracker row above) is the only FVL-05 work done; no dataset
+row/feature-vector shape, extractor, normalization, or dataset build
+logic has begun.
 
 **HISTORICAL narrative below (dated snapshots — each percentage/
 fraction reflects the tracker's own count AT THAT SESSION'S DATE, not
@@ -447,7 +450,7 @@ actions, cost snapshots — all already implemented per
 
 | Task ID | Title | Depends on | Blocking | Status |
 |---|---|---|---|---|
-| FVL-05.001 | Define dataset schema version + feature schema version (explicit, incrementable) | FVL-02, FVL-03 | YES | |
+| FVL-05.001 | Define dataset schema version + feature schema version (explicit, incrementable) | FVL-02, FVL-03 | YES | COMPLETED (2026-08-21) — new `packages/shared/src/schemas/dataset.ts` defines the two versions this task requires, foundational only, no dataset row/feature-vector shape or extractor implemented (that stays FVL-05.002 onward): `DATASET_SCHEMA_VERSION`/`FEATURE_SCHEMA_VERSION` are separate literal `"1.0"` constants (same explicit-literal convention every other `schemaVersion` in this package already uses, e.g. `schemas/doe.ts`), each with its own zod schema (`datasetSchemaVersionSchema`/`featureSchemaVersionSchema`) and a composable versioned-record schema (`datasetSchemaVersionedSchema`/`featureSchemaVersionedSchema`) future FVL-05.002 row types and FVL-05.009-.010 feature-vector types can embed by field name rather than inventing their own. Deliberately two independent identifiers, not one shared version, since a dataset-row shape change (new extractor field) and a feature-vector shape change (a normalization/target-variable rule) happen on independent timelines — mirrors the existing `SchemaMigration.fromVersion`/`toVersion` per-collection versioning already established in `engine/migrations.ts`. New `dataset.test.ts` (6 tests): each literal accepts only its exact current value and rejects any other string/number/absence; a combined schema proves the two fields fail independently (an invalid dataset version never surfaces as a feature-field error and vice versa); a JSON round-trip proves deterministic serialization with no field collision/swap. Exported from `packages/shared/src/index.ts`. `pnpm --filter @formulab/shared test`: 1748/1748 across 84 files (6 new). `typecheck`: clean both `@formulab/shared` and `@formulab/desktop` (no export-name collision). No Rust/Python file touched. |
 | FVL-05.002 | Row/entity lineage model: every dataset row cites its exact source record IDs | FVL-05.001 | YES | |
 | FVL-05.003 | Extractor: formula version + exact composition + materials + material properties + product family | FVL-05.002 | YES | |
 | FVL-05.004 | Extractor: process plan + actual process observations (from Manufacturing Procedure / real trial records) | FVL-05.002 | YES | |
