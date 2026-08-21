@@ -164,6 +164,11 @@ own audit found no existing "saved connection" model at all):
   rather than risk carrying forward a stale "ready" for configuration
   nobody actually re-verified. `Connections` also shows real "Last
   tested" (`lastTestedAt`) alongside "Last import", not just the latter.
+- **Status lifecycle (Section 28/STATUS1-3)**: a real Source Explorer
+  inspection (FILE/REST/DATABASE) persists its outcome back to the saved
+  connection (`status`/`lastTestedAt`/`lastTestMessage`) — a connection
+  is never left at "Never tested" forever after a genuine successful or
+  failed round trip performed there.
 - `ConnectorConnection.mappingProfileCount` is `@deprecated` in the
   schema — always `0` at creation, never updated. The ONLY authority for
   a connection's mapping-profile count is `mappingProfileCountFor()`,
@@ -221,6 +226,25 @@ Saving always produces a NEW version (`profileVersion + 1`,
 the EXISTING `saveMappingProfile()` — the immutable v1←v2←v3 chain is
 enforced by the storage layer itself (`mapping_profiles` is append-only
 in `masterdata.rs`), never by UI discipline alone.
+
+**Version lifecycle is explicit (Section 14).** Clicking a profile's
+code opens a real READ-ONLY detail dialog (`MappingProfileDetailDialog`)
+— no field is editable, no Save action exists there. "Create New
+Version" is a separate action, only ever offered on a family's own
+LATEST persisted version (`latestCodeByFamily`), so it can never derive
+a duplicate/skipped version number from an older row.
+
+**Direct/constant/transformation mappings.** The editor supports direct
+field mappings, a full constant-mapping editor (target template/field/
+value, add/remove, round-tripping through the real `constantMappings`),
+and a typed UI for a real subset of the transformation pipeline — see
+"Current limitations" below for exactly which ops.
+
+**Use for Import (Section 15/MAP8).** An active profile's row offers
+"Use for Import", which carries the profile's own `code` and
+`sourceEntity` to Prepare Review (`ConnectorManagementShell.tsx`'s
+`prefillProfileCode`, consumed exactly once) — the operator never
+retypes an already-known profile/entity.
 
 ## Crosswalks
 
@@ -335,30 +359,57 @@ not merely asserted in prose.
 - **REST connections are unauthenticated.** `connectionRef` is saved but
   this build does not resolve it into request headers anywhere — see
   the REST_API section above. Stated plainly in the UI, not hidden.
-- The Mapping Profile editor supports direct field mappings with manual
-  or exact-name-matched source-field entry, and now (Section 11) real
-  schema/entity context flowing from Source Explorer. It does NOT yet
-  expose a typed UI for constant mappings or the transformation
-  pipeline (`trim`/`parse_decimal`/`map_enum`/`convert_unit`/...) —
-  those remain readable/round-trippable on an existing profile's own
-  `constantMappings`/`transformations` fields (never dropped on save),
-  but there is no dedicated form to author them yet.
-- Mapping Profile version history has no dedicated read-only "View"
-  screen distinct from the editor — opening an existing profile's code
-  or clicking "Create New Version" both open the same editor dialog
-  (which always saves as a NEW version, per the immutable v1←v2←v3
-  chain enforced by storage itself); there is no separate, explicitly
-  read-only historical-version viewer yet.
-- No new authorization UX gating exists beyond the EXISTING
-  `actorRole`/`actorUserId` threading into `confirmConnectorImport()` —
-  a view-only role still sees write controls in this UI (the backend's
-  own role checks remain the real, unweakened gate; this is a frontend
-  UX gap, not a security gap).
+- The Mapping Profile editor's typed transformation UI covers a real,
+  disclosed SUBSET of `TRANSFORMATION_OPS`: `trim`/`empty_to_null`/
+  `lowercase`/`uppercase`/`safe_code_case`/`copy` (no config), plus
+  `parse_decimal` (real `decimalSeparator` control) and `map_boolean`
+  (real `trueValues`/`falseValues` lists). `map_enum`/`convert_unit`/
+  `resolve_crosswalk`/`parse_date`/`split`/`join`/`constant` each still
+  need their own typed config UI, not yet built — an existing profile
+  using one of those keeps it intact on save (never dropped), just not
+  authorable from this dialog yet. At most ONE transformation step per
+  field mapping is supported in this UI (the engine itself supports a
+  full ordered pipeline array; this editor does not yet build a
+  multi-step UI).
+- Authorization UX is now real (Section 16): the whole Connector
+  Management shell is gated on the EXISTING `dataExchange` "view"
+  capability (`can(actorRole, "dataExchange", "view")`,
+  `packages/shared/src/engine/rolePolicy.ts`), and every write action
+  (Add/Configure/Duplicate/Disable/Delete/Create Mapping Profile/Create
+  New Version/Save/Prepare Import/Commit) is gated on "create". The
+  current policy matrix has no role holding "view" without "create" for
+  `dataExchange` — every role either has both or neither — so there is
+  no genuinely partial-access role to exercise differently; `AUTH1`'s
+  "read-only" scenario is proven against a no-access role (production),
+  the real boundary that actually exists in the matrix today. The
+  backend's own role check inside `commitDataExchangeRows()` (reached
+  only through `confirmConnectorImport()`) remains the real,
+  unweakened authority regardless of this UI state.
 - `renderDossierPdf`/`renderDossierDocx`
   (`apps/desktop/src/lib/documentExports/`) remain unwired to any real
   UI caller anywhere in the app (pre-existing, not introduced or fixed
   by this session) — out of scope for a connector-frontend
   productization pass.
+
+## Acceptance matrix
+
+Real, dedicated tests — never "same code path as another CFUI" or
+"engine test already proves it" as the ONLY evidence for a UI-level
+requirement. Full IDs and test names: `ConnectorManagement.test.tsx`,
+`ConnectorManagement.database.test.tsx`, `ConnectorManagement.architecture.test.ts`,
+`connectorDatabaseSqlite.test.ts`, `Sidebar.test.tsx` (NAV1-NAV7).
+
+| Group | IDs | Status |
+| --- | --- | --- |
+| CFUI | 1-30 | 30/30 dedicated or regression-proven (see external log for the exact per-ID test-name mapping) |
+| NAV | 1-7 | 7/7 (`Sidebar.test.tsx`) |
+| DBUI | 1-10 | 10/10 (`connectorDatabaseSqlite.test.ts` + `ConnectorManagement.database.test.tsx`) |
+| RESTP | 1-5 | 5/5 |
+| MAP | 1-8 | 8/8 (MAP3 covered inside the CFUI9 scenario; MAP4 and MAP8 each have their own dedicated test) |
+| MPV | 1-6 | 6/6 |
+| AUTH | 1-4 | 4/4 |
+| RUN | 1-3 | 3/3 (inside the CFUI22 test) |
+| STATUS | 1-3 | 3/3 |
 
 ## Not changed by this session
 
