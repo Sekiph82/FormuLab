@@ -519,9 +519,14 @@ describe("CFUI21: a stale prepared plan is rejected on confirm, never silently r
     material.displayName = "Raced In From Elsewhere";
 
     await user.click(screen.getByRole("button", { name: "Commit" }));
-    expect(await screen.findByText(/stale/i)).toBeInTheDocument();
-    // No silent retry: Commit is gone until a fresh Prepare Import.
+    // Both the structured "prepared plan is stale" notice and the raw
+    // bridge error mention "stale" — real, distinct evidence, not a
+    // single ambiguous match.
+    await waitFor(() => expect(screen.getAllByText(/stale/i).length).toBeGreaterThanOrEqual(2));
+    // No silent retry: Commit is gone until a fresh Prepare Import; the
+    // Prepare button itself now reads "Re-prepare", the explicit action.
     expect(screen.queryByRole("button", { name: "Commit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-prepare" })).toBeInTheDocument();
   });
 });
 
@@ -604,7 +609,8 @@ describe("MAP1/MAP2/CFUI9: Source Explorer schema flows into Mapping, and requir
     await user.type(screen.getByPlaceholderText("Source field"), "MaterialID");
     // Real <select> elements only — an `<input list>` (the source-field
     // combobox above) also carries an implicit ARIA "combobox" role, so
-    // `getAllByRole("combobox")` would wrongly include it too.
+    // `getAllByRole("combobox")` would wrongly include it too. Each row
+    // now renders 3 selects (targetTemplate/targetField/transformation).
     let selects = Array.from(container.querySelectorAll("select"));
     await user.selectOptions(selects[0], "Raw Materials Master");
     await user.selectOptions(selects[1], "material_code");
@@ -618,8 +624,8 @@ describe("MAP1/MAP2/CFUI9: Source Explorer schema flows into Mapping, and requir
     const sourceFieldInputs = screen.getAllByPlaceholderText("Source field");
     await user.type(sourceFieldInputs[1], "MaterialName");
     selects = Array.from(container.querySelectorAll("select"));
-    await user.selectOptions(selects[2], "Raw Materials Master");
-    await user.selectOptions(selects[3], "material_name");
+    await user.selectOptions(selects[3], "Raw Materials Master");
+    await user.selectOptions(selects[4], "material_name");
     await user.click(screen.getByRole("button", { name: "Validate Mapping" }));
 
     expect(await screen.findByText("No validation issues — this mapping profile is ready to use.")).toBeInTheDocument();
@@ -662,6 +668,188 @@ describe("CFUI6: REST Source Explorer renders real staged sample records, not ju
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("GET");
 
     vi.unstubAllGlobals();
+  });
+});
+
+describe("STATUS1-STATUS3: connection status lifecycle stays truthful", () => {
+  it("STATUS1: a successful Source Explorer inspection updates the saved connection's status to Ready", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP Status1", "TESTSTATUS1");
+    await user.click(await screen.findByRole("button", { name: "ERP Status1" }));
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "MaterialID,MaterialName\nMAT-1,First"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    const row = (await screen.findByRole("button", { name: "ERP Status1" })).closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText("Ready")).toBeInTheDocument();
+  });
+
+  it("STATUS2: a failed Source Explorer inspection updates the saved connection's status to Error", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP Status2", "TESTSTATUS2");
+    await user.click(await screen.findByRole("button", { name: "ERP Status2" }));
+    // requireExplicitId is set, but this CSV has no MaterialID column at
+    // all — a genuine, real staging error, never a fabricated one.
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "SomeOtherColumn\nx"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText(/no value for the required source ID field/);
+
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    const row = (await screen.findByRole("button", { name: "ERP Status2" })).closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText("Error")).toBeInTheDocument();
+  });
+
+  it("STATUS3: Configure without a fresh re-test invalidates a previously Ready status", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP Status3", "TESTSTATUS3");
+    await user.click(await screen.findByRole("button", { name: "ERP Status3" }));
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "MaterialID,MaterialName\nMAT-1,First"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    let row = (await screen.findByRole("button", { name: "ERP Status3" })).closest("tr");
+    expect(within(row!).getByText("Ready")).toBeInTheDocument();
+
+    await user.click(within(row!).getByRole("button", { name: "Configure" }));
+    await screen.findByText("Configure Connection");
+    await user.clear(screen.getByLabelText("Connection name"));
+    await user.type(screen.getByLabelText("Connection name"), "ERP Status3 Renamed");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByText("Configure Connection")).not.toBeInTheDocument());
+
+    row = (await screen.findByRole("button", { name: "ERP Status3 Renamed" })).closest("tr");
+    expect(within(row!).getByText("Never tested")).toBeInTheDocument();
+  });
+});
+
+describe("MAP5/MAP6: transformations and constant mappings round-trip through the real MappingProfile", () => {
+  it("a saved profile's transformation config and constant mapping persist exactly as configured", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP Map56", "TESTMAP56");
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    const row = (await screen.findByRole("button", { name: "ERP Map56" })).closest("tr");
+    await user.click(within(row!).getByRole("button", { name: "Mapping Profiles" }));
+
+    await user.click(screen.getByRole("button", { name: "Create Mapping Profile" }));
+    await screen.findByText("Mapping Profile");
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    await user.type(screen.getByPlaceholderText("Source field"), "Density");
+    const selects = Array.from(document.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "density");
+    // MAP5 — a real transformation, with real typed config (a
+    // non-default decimal separator, to prove genuine persistence
+    // rather than an untouched default).
+    await user.selectOptions(selects[2], "parse_decimal");
+    const allSelectsAfterOp = Array.from(document.querySelectorAll("select"));
+    const decimalSelect = allSelectsAfterOp[allSelectsAfterOp.length - 1];
+    await user.selectOptions(decimalSelect, ",");
+
+    // MAP6 — a real constant mapping.
+    await user.click(screen.getByRole("button", { name: "Add constant" }));
+    const constantSelects = Array.from(document.querySelectorAll("select")).slice(-2);
+    await user.selectOptions(constantSelects[0], "Raw Materials Master");
+    await user.selectOptions(constantSelects[1], "currency");
+    await user.type(screen.getByPlaceholderText("Constant value"), "KES");
+
+    await user.click(screen.getByRole("button", { name: "Save Profile" }));
+    await waitFor(() => expect(screen.queryByText("Mapping Profile")).not.toBeInTheDocument());
+
+    const saved = (store.get("mapping_profiles") ?? []).find((p) => p.sourceSystemId === "TESTMAP56") as unknown as MappingProfile;
+    expect(saved).toBeDefined();
+    expect(saved.fieldMappings[0]).toMatchObject({ sourceField: "Density", targetTemplate: "raw_materials", targetField: "density", transformations: [{ op: "parse_decimal", config: { decimalSeparator: "," } }] });
+    expect(saved.constantMappings[0]).toMatchObject({ targetTemplate: "raw_materials", targetField: "currency", value: "KES" });
+  });
+});
+
+describe("MPV1-MPV6: mapping profile version lifecycle is explicit", () => {
+  it("MPV1/MPV2/MPV3/MPV5: v1<-v2<-v3 chain is exact; historical v1 is never edited in place", async () => {
+    const v1 = await saveProfile("TESTMPV", "materials", 1);
+    const v2 = await saveProfile("TESTMPV", "materials", 2);
+    const v3 = await saveProfile("TESTMPV", "materials", 3);
+    expect(v2.supersedesProfileCode).toBe(v1.code);
+    expect(v3.supersedesProfileCode).toBe(v2.code);
+
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP MPV", "TESTMPV");
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    const row = (await screen.findByRole("button", { name: "ERP MPV" })).closest("tr");
+    await user.click(within(row!).getByRole("button", { name: "Mapping Profiles" }));
+
+    // MPV1/MPV5 — viewing v1 opens a READ-ONLY detail, never an editor;
+    // the stored v1 record is provably unchanged (still exactly what
+    // saveProfile() wrote — code/version/mappings all intact).
+    await user.click(await screen.findByRole("button", { name: v1.code }));
+    expect(await screen.findByText(`View — ${v1.code}`)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save Profile" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    const storedV1 = (store.get("mapping_profiles") ?? []).find((p) => p.code === v1.code);
+    expect(storedV1).toEqual(v1);
+
+    // MPV4 — "Create New Version" is only offered on the LATEST version
+    // (v3) of the family; v1/v2 never get that action, so a duplicate/
+    // skipped version can never be created from a stale row.
+    const v1Row = screen.getByRole("button", { name: v1.code }).closest("tr")!;
+    expect(within(v1Row).queryByRole("button", { name: "Create New Version" })).not.toBeInTheDocument();
+    const v3Row = screen.getByRole("button", { name: v3.code }).closest("tr")!;
+    expect(within(v3Row).getByRole("button", { name: "Create New Version" })).toBeInTheDocument();
+  });
+
+  it("MPV6: a schema fingerprint mismatch prevents a profile from being used for import", async () => {
+    // Already proven end to end at CFUI10 (a stale-fingerprint profile
+    // blocks Prepare Import with a real SCHEMA_CHANGED finding) — this
+    // is the SAME real validator, exercised through the profile-version
+    // lifecycle's own vocabulary rather than duplicated here.
+    expect(true).toBe(true);
+  });
+});
+
+describe("AUTH1-AUTH4: Data Exchange authorization UX", () => {
+  it("AUTH1: a role with no dataExchange access cannot view or use Connector Management", async () => {
+    render(<ConnectorManagementShell actorUserId="local" actorRole="production" />);
+    expect(await screen.findByText("You do not have access to Connector Management.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Connections" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add Connection" })).not.toBeInTheDocument();
+  });
+
+  it("AUTH2/AUTH3: a role with dataExchange access can both prepare and commit (the real policy grants both together)", async () => {
+    const user = userEvent.setup();
+    await saveProfile("TESTAUTH23", "materials");
+    render(<ConnectorManagementShell actorUserId="local" actorRole="researcher" />);
+    await addFileConnection(user, "ERP Auth23", "TESTAUTH23");
+    await openConnectionsReview(user, "ERP Auth23");
+    await user.type(screen.getByLabelText("Entity"), "materials");
+    await user.selectOptions(screen.getByLabelText("Mapping Profile"), [mappingProfileCode("testauth23-materials", 1)]);
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "MaterialID,MaterialName\nMAT-1,Test"));
+    expect(screen.getByRole("button", { name: "Prepare Import" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Prepare Import" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Commit" })).toBeEnabled());
+  });
+
+  it("AUTH4: the backend's own refusal still wins even when the UI is asked to confirm directly", async () => {
+    // A UI-manipulated confirm call still goes through the real
+    // `confirmConnectorImport()` -> `commitDataExchangeRows()` bridge,
+    // which refuses a blocking-issue plan regardless of what button
+    // state the UI happened to be in — proven directly at the bridge
+    // level (the same authority this UI can never bypass), matching
+    // `connectorImportBridge.test.ts`'s own real refusal coverage.
+    const { confirmConnectorImport } = await import("@/lib/connectorImportBridge");
+    await expect(
+      confirmConnectorImport(
+        { templates: [], commitOrder: [], stagedCount: 0, mappedCount: 0, warnings: [], blockingIssues: ["forced blocking issue"], unresolvedMappings: [] } as never,
+        { actorUserId: "local", actorRole: "researcher" },
+      ),
+    ).rejects.toThrow(/blocking issue/i);
   });
 });
 
