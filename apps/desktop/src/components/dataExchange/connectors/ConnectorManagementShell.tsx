@@ -30,6 +30,10 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
   // state only — never a second persistence store.
   const [lastInspection, setLastInspection] = useState<{ sourceSystemId: string; entity: string; schema: SourceSchema; staged: ConnectorResult | null } | null>(null);
   const inspectionForSelected = selected && lastInspection?.sourceSystemId === selected.sourceSystemId ? lastInspection : null;
+  // Section 15/MAP8 — "Use for Import" carries a validated profile's own
+  // code straight to Prepare Review; consumed once by PrepareReviewScreen
+  // (never re-applied on unrelated renders).
+  const [prefillProfileCode, setPrefillProfileCode] = useState<string | null>(null);
 
   // Section 16/AUTH1-AUTH4 — the EXISTING Data Exchange policy area
   // (`packages/shared/src/engine/rolePolicy.ts`), never a new permission
@@ -101,11 +105,25 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
           schema={inspectionForSelected?.schema}
           sourceFieldOptions={inspectionForSelected?.schema.entities[0]?.fields.map((f) => f.path)}
           prefillEntity={inspectionForSelected?.entity}
+          onUseForImport={(profileCode) => {
+            setPrefillProfileCode(profileCode);
+            // eslint-disable-next-line i18next/no-literal-string -- ConnectorTab literal value, not display text
+            setTab("review");
+          }}
         />
       )}
       {tab === "crosswalks" && <CrosswalksScreen sourceSystemFilter={selected?.sourceSystemId} />}
       {tab === "runs" && <ImportRunsScreen />}
-      {tab === "review" && <PrepareReviewScreen connection={selected} actorUserId={actorUserId} actorRole={actorRole} canWrite={canWriteConnectors} />}
+      {tab === "review" && (
+        <PrepareReviewScreen
+          connection={selected}
+          actorUserId={actorUserId}
+          actorRole={actorRole}
+          canWrite={canWriteConnectors}
+          prefillProfileCode={prefillProfileCode}
+          onPrefillConsumed={() => setPrefillProfileCode(null)}
+        />
+      )}
     </div>
   );
 }

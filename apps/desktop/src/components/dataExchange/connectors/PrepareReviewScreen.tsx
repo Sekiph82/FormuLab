@@ -46,6 +46,8 @@ export function PrepareReviewScreen({
   actorUserId,
   actorRole,
   canWrite = true,
+  prefillProfileCode,
+  onPrefillConsumed,
 }: {
   connection: ConnectorConnection | null;
   actorUserId: string;
@@ -56,6 +58,10 @@ export function PrepareReviewScreen({
    *  `confirmConnectorImport()`) remains the real, unweakened authority
    *  regardless of this UI state (AUTH4). */
   canWrite?: boolean;
+  /** Section 15/MAP8 — a validated Mapping Profile's own code, carried
+   *  here from "Use for Import" so the operator never retypes it. */
+  prefillProfileCode?: string | null;
+  onPrefillConsumed?: () => void;
 }) {
   const { t } = useTranslation(["session", "common"]);
   const [profiles, setProfiles] = useState<MappingProfile[]>([]);
@@ -76,6 +82,18 @@ export function PrepareReviewScreen({
     if (!connection) return;
     void loadMappingProfiles().then((rows) => setProfiles(rows.filter((p) => p.sourceSystemId === connection.sourceSystemId)));
   }, [connection]);
+
+  // MAP8 — consume a "Use for Import" prefill exactly once, only when
+  // the profile it names is actually present for this connection.
+  useEffect(() => {
+    if (!prefillProfileCode) return;
+    const match = profiles.find((p) => p.code === prefillProfileCode);
+    if (!match) return;
+    setProfileCode(match.code);
+    setEntity((current) => current || match.sourceEntity);
+    onPrefillConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillProfileCode, profiles]);
 
   const profile = profiles.find((p) => p.code === profileCode);
   // Section 21 — every distinct target template this profile's field

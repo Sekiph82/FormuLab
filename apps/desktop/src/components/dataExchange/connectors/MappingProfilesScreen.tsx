@@ -18,6 +18,7 @@ export function MappingProfilesScreen({
   schema,
   sourceFieldOptions,
   prefillEntity,
+  onUseForImport,
 }: {
   connection: ConnectorConnection | null;
   actorUserId: string;
@@ -31,6 +32,9 @@ export function MappingProfilesScreen({
   schema?: SourceSchema;
   sourceFieldOptions?: string[];
   prefillEntity?: string;
+  /** Section 15/MAP8 — "Use for Import" carries the validated profile's
+   *  own code to Prepare Review, so the operator never retypes it. */
+  onUseForImport?: (profileCode: string) => void;
 }) {
   const { t } = useTranslation(["session", "common"]);
   const [profiles, setProfiles] = useState<MappingProfile[]>([]);
@@ -110,6 +114,11 @@ export function MappingProfilesScreen({
                   {canWrite && isLatest && (
                     <button onClick={() => setEditing({ profile: p })} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
                       {t("dataExchange.connectors.mapping.newVersion")}
+                    </button>
+                  )}
+                  {onUseForImport && effective === "active" && (
+                    <button onClick={() => onUseForImport(p.code)} className="rounded-input border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-surface-2">
+                      {t("dataExchange.connectors.mapping.useForImport")}
                     </button>
                   )}
                 </div>,
