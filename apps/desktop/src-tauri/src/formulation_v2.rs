@@ -867,10 +867,19 @@ mod tests {
     /// it flaky).
     #[test]
     fn nr5_nr6_nr7_real_materialized_run_cli_reaches_structured_post_bootstrap_outcome() {
-        let Some(python) = find_test_python() else {
-            eprintln!("nr5_nr6_nr7: skipped — no python/python3/py interpreter found on this machine");
-            return;
-        };
+        // Fail CLOSED, never silently skip/pass — a green `cargo test` must
+        // never mean "this acceptance never actually ran." The Python
+        // pipeline this whole app ships around is a real, documented
+        // dependency of this repository's own dev/CI environment (the
+        // parallel `python -m pytest runtime/pipeline` suite already
+        // requires it); its absence here is a genuine environment defect
+        // to surface loudly, not a reason to report success.
+        let python = find_test_python().expect(
+            "NR5/NR6/NR7 requires a real python/python3/py interpreter on PATH — \
+             none found. This is a real test-environment defect, not something \
+             to skip: install Python 3 (matching runtime/pipeline's own \
+             requirement) rather than treating this acceptance as passed.",
+        );
 
         let tmp = nr_tempdir("run-cli");
         let pipe_dir = tmp.join("runtime").join("pipeline");
