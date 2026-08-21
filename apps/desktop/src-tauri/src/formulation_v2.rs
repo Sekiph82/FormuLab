@@ -85,6 +85,16 @@ const F_SCIENTIFIC_FORMULATION: &str = include_str!("../../../../runtime/pipelin
 // pre-existing packaging defect from the session that created the module;
 // fixed here rather than shipped broken.)
 const F_ARCHITECTURE_PORTFOLIO: &str = include_str!("../../../../runtime/pipeline/architecture_portfolio.py");
+// FVL-04.026: literature_cache.py now imports artifact_naming.py directly
+// (the deterministic literature/formulation artifact naming convention)
+// — same requirement as every module above: must be materialized
+// alongside it or the embedded desktop app fails with
+// `ModuleNotFoundError: No module named 'artifact_naming'` on every real
+// run. Found missing from this list as a real, release-blocking native
+// packaging defect (the source-tree Python tests for FVL-04.026 never
+// exercised the embedded/materialized runtime, only the importable repo
+// tree) — fixed here rather than shipped broken.
+const F_ARTIFACT_NAMING: &str = include_str!("../../../../runtime/pipeline/artifact_naming.py");
 const F_DISCOVER: &str =
     include_str!("../../../../runtime/skills/core/formulation-discovery/discover.py");
 
@@ -180,6 +190,7 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("validation_plan.py", F_VALIDATION_PLAN),
         ("scientific_formulation.py", F_SCIENTIFIC_FORMULATION),
         ("architecture_portfolio.py", F_ARCHITECTURE_PORTFOLIO),
+        ("artifact_naming.py", F_ARTIFACT_NAMING),
     ] {
         std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
     }
