@@ -138,3 +138,77 @@ this session's final report for that gate's own outcome.
 
 Manual UI acceptance from Desktop\FormuLab.lnk is pending user
 verification.
+
+## Corrective verification cycle (2026-08-21, same day)
+
+A second cycle independently re-verified this already-pushed commit
+rather than trusting the log above at face value.
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD = starting remote HEAD = final HEAD = remote HEAD
+  (unchanged): `78c686641d091f48cd1a341cacf835fec1805199`.
+- `git status --short` at start showed the same pre-existing unrelated
+  worktree changes (generated user-guide DOCX/PDF, deleted formula
+  files/index, untracked FVL-03/FVL-04/Phase 11-14 external logs) —
+  all left untouched again.
+- Inspected `packages/shared/src/schemas/dataset.ts`,
+  `dataset.test.ts`, and the `index.ts` export line directly: the
+  contract (two independent literal `"1.0"` version constants, zod
+  literal schemas, composable versioned-record schemas with distinct
+  field names `datasetSchemaVersion`/`featureSchemaVersion`, barrel
+  export, independence + JSON round-trip tests) matches the FVL-05.001
+  requirement exactly. No defect found — **no source or test change
+  was made this cycle**.
+- Re-ran verification independently (not copied from the prior log):
+  - `pnpm --filter @formulab/shared exec vitest run src/schemas/dataset.test.ts` — 6/6 passed.
+  - `pnpm --filter @formulab/shared test` — 84 files / 1748 tests passed.
+  - `pnpm --filter @formulab/shared typecheck` — clean.
+  - `pnpm typecheck` (root, runs `@formulab/desktop` which depends on
+    `@formulab/shared`) — clean.
+  - `pnpm test` (root) — 167 files / 1726 tests passed (this run
+    covers `apps/desktop`; `@formulab/shared`'s 1748 were verified via
+    its own `test` script above since root `pnpm test` does not
+    recurse into it).
+  - `pnpm lint` (root) → `@formulab/desktop lint` (`eslint .`) — no
+    errors. `@formulab/shared` has no `lint` script (confirmed via its
+    `package.json`) — same pre-existing gap noted previously, not
+    introduced by this task.
+  - `git diff --check` on the FVL-05.001-owned files — clean.
+- Desktop build & shortcut gate:
+  - Shortcut `C:\Users\sekip\Desktop\FormuLab.lnk` → TargetPath
+    `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`,
+    WorkingDirectory matching release dir, no arguments.
+  - Pre-existing `formulab.exe` predated this HEAD (mtime 17:14 vs.
+    commit time 17:37), so it was rebuilt regardless of the "no source
+    change" finding, to satisfy the gate.
+  - `pnpm --filter @formulab/desktop exec tauri build` run to
+    completion in the foreground (tsc + vite build, then Rust release
+    build, then MSI + NSIS bundling) — succeeded, produced
+    `FormuLab_0.4.0_x64_en-US.msi` and `FormuLab_0.4.0_x64-setup.exe`.
+  - Fresh `formulab.exe`: 24,870,400 bytes, mtime 2026-08-21 18:04,
+    SHA-256 `faa96307f5e36bf964fddc97c6d086e1d7282aaca2c10c29bf2848efe995dd5f`.
+  - Shortcut TargetPath already pointed at this exact path — no
+    shortcut edit needed.
+  - Launch smoke test via the actual `.lnk`: `Start-Process` on the
+    `.lnk` produced a running `formulab` process (PID 7708) whose Path
+    matched the fresh binary; process was then stopped (smoke test
+    only, no interactive use).
+  - `.lnk` file itself not committed to git (git-ignored/outside repo
+    tree; `git status` confirms no `.lnk` entry).
+
+### Corrective result
+
+No concrete defect existed in the FVL-05.001 implementation or tests.
+This cycle made **zero commits** — nothing to push beyond the
+already-pushed `78c6866`. Local HEAD, remote HEAD, and final HEAD are
+identical: `78c686641d091f48cd1a341cacf835fec1805199`. Tracker's
+completed count is unchanged (FVL-05.001 already marked COMPLETED by
+the prior cycle) since no new work was done.
+
+FVL-03/FVL-04 reopened? No — not touched, not needed.
+
+**Result: COMPLETE** — existing pushed implementation independently
+re-verified; no artificial implementation commit created.
+
+Manual UI acceptance from Desktop\FormuLab.lnk is pending user
+verification.
