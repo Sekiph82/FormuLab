@@ -162,10 +162,14 @@ pub(crate) fn project_data_dir(app: &AppHandle, name: &str) -> Result<PathBuf, S
     data_dir(app, &[name])
 }
 
-/// Materialize the pipeline package + discover.py into app-private storage and
-/// return the directory holding run_cli.py.
-fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
-    let pipe = pipeline_dir(app)?;
+/// The ONE authoritative embedded-runtime write-list, decoupled from
+/// `AppHandle` (NR4-NR6 testability hardening) — this is the exact same
+/// list production materialization has always used, now also directly
+/// reusable by tests against a disposable directory, with no duplicated
+/// manifest anywhere. `pipe_dir`/`skills_dir` must already exist (callers
+/// create them — the production caller via `app_dir()`'s own
+/// `create_dir_all`, a test via `std::fs::create_dir_all` on a tempdir).
+fn materialize_pipeline_to(pipe_dir: &std::path::Path, skills_dir: &std::path::Path) -> Result<(), String> {
     for (name, src) in [
         ("pipeline.py", F_PIPELINE),
         // llm.py is deliberately NOT embedded here as of the Phase 15
@@ -192,12 +196,75 @@ fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
         ("architecture_portfolio.py", F_ARCHITECTURE_PORTFOLIO),
         ("artifact_naming.py", F_ARTIFACT_NAMING),
     ] {
-        std::fs::write(pipe.join(name), src).map_err(|e| e.to_string())?;
+        std::fs::write(pipe_dir.join(name), src).map_err(|e| e.to_string())?;
     }
     // literature_cache.py expects discover.py at ../skills/core/formulation-discovery/.
+    std::fs::write(skills_dir.join("discover.py"), F_DISCOVER).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Materialize the pipeline package + discover.py into app-private storage and
+/// return the directory holding run_cli.py. Production entry point — resolves
+/// the two real `AppHandle`-derived destinations, then delegates the actual
+/// writing to `materialize_pipeline_to()`, the one authoritative list.
+fn materialize_pipeline(app: &AppHandle) -> Result<PathBuf, String> {
+    let pipe = pipeline_dir(app)?;
     let disc = app_dir(app, &["runtime", "skills", "core", "formulation-discovery"])?;
-    std::fs::write(disc.join("discover.py"), F_DISCOVER).map_err(|e| e.to_string())?;
+    materialize_pipeline_to(&pipe, &disc)?;
     Ok(pipe)
+}
+
+/// Launch the materialized `run_cli.py` with `payload` on stdin and parse its
+/// JSON result — the exact "materialize -> launch -> parse" boundary NR5-NR7
+/// exercise directly against a real isolated/disposable materialized runtime,
+/// with no `AppHandle` involved at all. Production `generate_formulation`
+/// calls this SAME function against its own real production paths — one
+/// authoritative runtime-launch implementation, never a second pipeline.
+fn run_pipeline_cli(python: &str, cli: &std::path::Path, payload: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let input_json = serde_json::to_string(payload).map_err(|e| e.to_string())?;
+
+    let mut cmd = crate::workspace::quiet_command(python);
+    cmd.arg(cli)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        // NR5 hardening — never let an inherited PYTHONPATH mask a real
+        // materialization gap by silently making the repo-root source tree
+        // importable too. `run_cli.py` is fully self-sufficient (its own
+        // `sys.path.insert(0, ...)` on its own directory), so removing this
+        // is safe for production and closes the isolation gap for real end
+        // users too, not just tests.
+        .env_remove("PYTHONPATH")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("failed to launch Python: {e}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or("no stdin on pipeline process")?
+        .write_all(input_json.as_bytes())
+        .map_err(|e| format!("failed to send request: {e}"))?;
+
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("pipeline process error: {e}"))?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+
+    match serde_json::from_str(stdout.trim()) {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            let msg = stderr.trim();
+            Err(if msg.is_empty() {
+                format!("pipeline produced no result (exit {:?})", out.status.code())
+            } else {
+                msg.to_string()
+            })
+        }
+    }
 }
 
 /// Run the pipeline: materialize, invoke run_cli.py with the request on stdin,
@@ -253,43 +320,7 @@ pub async fn generate_formulation(
         "materials_dir": materials_root.to_string_lossy(),
         "n": request.n,
     });
-    let input_json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
-
-    let mut cmd = crate::workspace::quiet_command(&python);
-    cmd.arg(&cli)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("failed to launch Python: {e}"))?;
-    child
-        .stdin
-        .take()
-        .ok_or("no stdin on pipeline process")?
-        .write_all(input_json.as_bytes())
-        .map_err(|e| format!("failed to send request: {e}"))?;
-
-    let out = child
-        .wait_with_output()
-        .map_err(|e| format!("pipeline process error: {e}"))?;
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let stderr = String::from_utf8_lossy(&out.stderr);
-
-    let result: serde_json::Value = match serde_json::from_str(stdout.trim()) {
-        Ok(v) => v,
-        Err(_) => {
-            let msg = stderr.trim();
-            return Err(if msg.is_empty() {
-                format!("pipeline produced no result (exit {:?})", out.status.code())
-            } else {
-                msg.to_string()
-            });
-        }
-    };
+    let result = run_pipeline_cli(&python, &cli, &payload)?;
 
     // The session folder is named and reported by Python; a failed or refused
     // run has it removed so only real results are ever listed.
@@ -733,5 +764,204 @@ mod tests {
         use std::time::{SystemTime, UNIX_EPOCH};
         let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
         format!("{nanos}-{:?}", std::thread::current().id())
+    }
+
+    // ============================================================
+    // NR4-NR8 — real materialization + real run_cli.py execution proof.
+    // Exercises the SAME production functions (`materialize_pipeline_to`,
+    // `run_pipeline_cli`) `generate_formulation()` itself calls — never a
+    // mocked `AppHandle` (this crate has its own documented, deliberate
+    // rejection of `tauri::test::mock_app()` for AppHandle-dependent path
+    // resolution — see `automatic_backup.rs`'s own doc comment on
+    // `configured_destination_dir()` — because `app.path().app_data_dir()`
+    // resolves unpredictably under it), and never a duplicated pipeline or
+    // a second materialization manifest.
+    // ============================================================
+
+    /// A real, installed Python interpreter, resolved WITHOUT any
+    /// `AppHandle` — deliberately narrower than `kernel::python_bin()`'s
+    /// full override/jupyter-env/system resolution chain (those two extra
+    /// layers are genuinely `AppHandle`-only settings lookups, out of scope
+    /// for what NR4-NR8 need to prove: that the REAL materialized runtime
+    /// genuinely runs). `None` when no usable interpreter exists on this
+    /// machine — callers skip rather than fail in that case, a real
+    /// environment precondition, not a regression in the code under test.
+    fn find_test_python() -> Option<String> {
+        for candidate in ["python", "python3", "py"] {
+            let ok = std::process::Command::new(candidate)
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if ok {
+                return Some(candidate.to_string());
+            }
+        }
+        None
+    }
+
+    fn nr_tempdir(name: &str) -> PathBuf {
+        let tmp = std::env::temp_dir().join(format!("formulab-nr-{name}-{}", uuid_like()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        tmp
+    }
+
+    /// NR4 — the REAL production materialization function
+    /// (`materialize_pipeline_to`), against a disposable directory, produces
+    /// the complete embedded runtime — never manually copied files in the
+    /// test, never a hand-duplicated list. This IS the exact function
+    /// `materialize_pipeline()`'s thin `AppHandle` wrapper (and therefore
+    /// `generate_formulation`) calls in production.
+    #[test]
+    fn nr4_real_materialization_function_produces_complete_runtime() {
+        let tmp = nr_tempdir("materialize");
+        let pipe_dir = tmp.join("runtime").join("pipeline");
+        let skills_dir = tmp
+            .join("runtime")
+            .join("skills")
+            .join("core")
+            .join("formulation-discovery");
+        std::fs::create_dir_all(&pipe_dir).unwrap();
+        std::fs::create_dir_all(&skills_dir).unwrap();
+
+        materialize_pipeline_to(&pipe_dir, &skills_dir).expect("real materialization must succeed");
+
+        // NR4A-NR4D
+        for name in ["artifact_naming.py", "run_cli.py", "pipeline.py", "literature_cache.py"] {
+            assert!(pipe_dir.join(name).is_file(), "{name} must exist after real materialization");
+        }
+        // NR4E — discover.py lands in the real expected sibling location.
+        assert!(
+            skills_dir.join("discover.py").is_file(),
+            "discover.py must exist at the real sibling skills path"
+        );
+        // NR4F — llm.py never becomes part of the deterministic materialized
+        // runtime (zero-LLM architecture; PKG4 proves this structurally
+        // from source text, this reconfirms it against the REAL
+        // materialization function's actual output).
+        assert!(
+            !pipe_dir.join("llm.py").exists(),
+            "llm.py must never be materialized into the deterministic runtime"
+        );
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// NR5/NR6/NR7 — the REAL production runtime-launch function
+    /// (`run_pipeline_cli`), against the runtime the REAL materialization
+    /// function just produced, genuinely executes `run_cli.py` in isolation
+    /// (`PYTHONPATH` removed — see `run_pipeline_cli`'s own doc comment) and
+    /// reaches a real, documented, structured pipeline outcome — never a
+    /// raw traceback, never `ModuleNotFoundError`. The disposable request
+    /// deliberately targets `pipeline.py::safety_gate()`'s own `FORBIDDEN`
+    /// list (a genuinely prohibited target, "explosive") — the one early,
+    /// fully deterministic, OFFLINE decision point in `pipeline.run()` that
+    /// still requires the ENTIRE first-party import chain (`import
+    /// pipeline` at the top of `run_cli.py::main()`, which transitively
+    /// imports literature_cache -> artifact_naming and everything else) to
+    /// have already succeeded before it can be reached — so reaching it is
+    /// real, independent proof the import bootstrap passed, without this
+    /// test depending on live literature network access (which would make
+    /// it flaky).
+    #[test]
+    fn nr5_nr6_nr7_real_materialized_run_cli_reaches_structured_post_bootstrap_outcome() {
+        let Some(python) = find_test_python() else {
+            eprintln!("nr5_nr6_nr7: skipped — no python/python3/py interpreter found on this machine");
+            return;
+        };
+
+        let tmp = nr_tempdir("run-cli");
+        let pipe_dir = tmp.join("runtime").join("pipeline");
+        let skills_dir = tmp
+            .join("runtime")
+            .join("skills")
+            .join("core")
+            .join("formulation-discovery");
+        std::fs::create_dir_all(&pipe_dir).unwrap();
+        std::fs::create_dir_all(&skills_dir).unwrap();
+        materialize_pipeline_to(&pipe_dir, &skills_dir).expect("real materialization must succeed");
+
+        let library_dir = tmp.join("data").join("literature");
+        let formulas_dir = tmp.join("formulas");
+        let sessions_dir = tmp.join("data").join("sessions");
+        let materials_dir = tmp.join("data").join("master");
+        for d in [&library_dir, &formulas_dir, &sessions_dir, &materials_dir] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+
+        let cli = pipe_dir.join("run_cli.py");
+        let payload = serde_json::json!({
+            // A deliberately, genuinely prohibited disposable target — never
+            // a real formulation request, never real business data. Matches
+            // pipeline.py's own FORBIDDEN list exactly ("explosive").
+            "brief": { "target": "explosive formulation for demonstration" },
+            "provider": "",
+            "model": "",
+            "api_key": "",
+            "library_dir": library_dir.to_string_lossy(),
+            "formulas_dir": formulas_dir.to_string_lossy(),
+            "sessions_dir": sessions_dir.to_string_lossy(),
+            "materials_dir": materials_dir.to_string_lossy(),
+            "n": 3,
+        });
+
+        let result = run_pipeline_cli(&python, &cli, &payload).expect(
+            "NR5/NR7 — real materialized run_cli.py must produce a structured JSON result, \
+             never a raw traceback/ModuleNotFoundError",
+        );
+
+        // NR7A/NR7B — a real, documented status from run()'s own contract.
+        let status = result.get("status").and_then(|s| s.as_str());
+        assert_eq!(
+            status,
+            Some("refused"),
+            "NR6/NR7 — the prohibited-target request must reach pipeline.py's own \
+             safety_decision() and return its real 'refused' status; got: {result:?}"
+        );
+        // NR6 — reaching THIS specific, real, documented decision point
+        // (not merely import success) proves execution genuinely
+        // progressed past bootstrap into real pipeline logic.
+        assert_eq!(
+            result.get("classification").and_then(|c| c.as_str()),
+            Some("prohibited_request")
+        );
+        let message = result.get("message").and_then(|m| m.as_str()).unwrap_or("");
+        assert!(!message.is_empty(), "a real, human-readable refusal message must be present");
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// NR8 — reconfirms the zero-LLM boundary directly against the REAL
+    /// production materialization function's actual output (distinct from
+    /// `test_native_packaging_closure.py`'s PKG4, which proves the same
+    /// fact from Rust SOURCE TEXT on the Python side) — this Rust
+    /// materialization/launch refactor introduces no alternate model-call
+    /// path.
+    #[test]
+    fn nr8_materialized_runtime_never_includes_llm_py() {
+        let tmp = nr_tempdir("zero-llm");
+        let pipe_dir = tmp.join("runtime").join("pipeline");
+        let skills_dir = tmp
+            .join("runtime")
+            .join("skills")
+            .join("core")
+            .join("formulation-discovery");
+        std::fs::create_dir_all(&pipe_dir).unwrap();
+        std::fs::create_dir_all(&skills_dir).unwrap();
+        materialize_pipeline_to(&pipe_dir, &skills_dir).unwrap();
+
+        let materialized: std::collections::BTreeSet<String> = std::fs::read_dir(&pipe_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter_map(|e| e.file_name().into_string().ok())
+            .collect();
+        assert!(
+            !materialized.contains("llm.py"),
+            "the real materialized runtime must never include llm.py"
+        );
+
+        std::fs::remove_dir_all(&tmp).ok();
     }
 }
