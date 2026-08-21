@@ -1146,6 +1146,48 @@ describe("MAP8: a validated Mapping Profile goes to Prepare Review without retyp
   });
 });
 
+describe("MAPREQ1-4: an explicit mapping-coverage panel shows mapped/missing required and unmapped optional fields", () => {
+  it("updates immediately as mappings and constants change, using the real Data Exchange registry", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP MapReq", "TESTMAPREQ");
+    await user.click(await screen.findByRole("button", { name: "ERP MapReq" }));
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("materials.csv", "MaterialID,MaterialName\nMAT-1,First"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+    await user.click(screen.getByRole("button", { name: "Create Mapping Profile" }));
+    await user.click(await screen.findByRole("button", { name: "Create Mapping Profile" }));
+    await screen.findByText("Mapping Profile");
+
+    // No rows/constants yet — the coverage panel renders nothing.
+    expect(screen.queryByText("Field coverage")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    await user.type(screen.getByPlaceholderText("Source field"), "MaterialID");
+    const row = rowContainerFor(screen.getByPlaceholderText("Source field"));
+    const selects = Array.from(row.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "material_code");
+
+    // 1 of 2 required fields mapped (material_code); material_name still
+    // missing — real raw_materials registry data, never fabricated.
+    await screen.findByText("1 of 2 required fields mapped");
+    expect(screen.getByText(/Missing required/)).toHaveTextContent("material_name");
+    expect(screen.getByText(/Unmapped optional/)).toHaveTextContent("inci_name");
+
+    // A constant mapping counts toward coverage too (MAPREQ1-4's own
+    // "mapped required" definition — a field can be satisfied by either
+    // a field mapping OR a constant mapping).
+    await user.click(screen.getByRole("button", { name: "Add constant" }));
+    const constantSelects = Array.from(document.querySelectorAll("select")).slice(-2);
+    await user.selectOptions(constantSelects[0], "Raw Materials Master");
+    await user.selectOptions(constantSelects[1], "material_name");
+
+    await screen.findByText("2 of 2 required fields mapped");
+    expect(screen.queryByText(/Missing required/)).not.toBeInTheDocument();
+  });
+});
+
 describe("VAL8-11: Use for Import is gated on schema compatibility, never just effective===active", () => {
   it("is unavailable with no current inspected schema, and unavailable when the current schema fingerprint differs from the profile's own", async () => {
     const user = userEvent.setup();

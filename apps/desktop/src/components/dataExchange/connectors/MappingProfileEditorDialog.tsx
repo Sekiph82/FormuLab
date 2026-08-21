@@ -276,6 +276,58 @@ function TransformStepConfig({ step, onChange }: { step: TransformationStep; onC
   return null;
 }
 
+/** MAPREQ1-4 — an explicit mapping-coverage panel: mapped required /
+ *  missing required / unmapped optional fields, per target template this
+ *  profile currently touches, reading the SAME `getDataExchangeTemplate()`
+ *  registry the editor's own selects already use — never a duplicated
+ *  field catalog. Presentation only: the actual validity decision remains
+ *  `validateMappingProfile()`, never re-derived here. Recomputed on every
+ *  render from `rows`/`constants` props, so it updates immediately when a
+ *  mapping or constant changes. */
+function MappingCoveragePanel({ rows, constants }: { rows: FieldMapping[]; constants: ConstantMapping[] }) {
+  const { t } = useTranslation(["session", "common"]);
+  const touchedTemplates = [...new Set([...rows.map((r) => r.targetTemplate), ...constants.map((c) => c.targetTemplate)].filter(Boolean))];
+  if (touchedTemplates.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <h4 className="text-[11px] font-medium text-muted">{t("dataExchange.connectors.mapping.coverageHeading")}</h4>
+      {touchedTemplates.map((templateCode) => {
+        const template = getDataExchangeTemplate(templateCode);
+        if (!template) return null;
+        const mappedKeys = new Set([
+          ...rows.filter((r) => r.targetTemplate === templateCode && r.targetField).map((r) => r.targetField),
+          ...constants.filter((c) => c.targetTemplate === templateCode && c.targetField).map((c) => c.targetField),
+        ]);
+        const requiredKeys = template.columns.filter((c) => c.required).map((c) => c.key);
+        const mappedRequired = requiredKeys.filter((k) => mappedKeys.has(k));
+        const missingRequired = requiredKeys.filter((k) => !mappedKeys.has(k));
+        const unmappedOptional = template.columns.filter((c) => !c.required && !mappedKeys.has(c.key)).map((c) => c.key);
+        return (
+          <div key={templateCode} className="rounded-input border border-border-faint p-1.5 text-[11px]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-text">{template.title}</span>
+              <span className="text-muted">
+                {t("dataExchange.connectors.mapping.requiredCoverage", { mapped: mappedRequired.length, total: requiredKeys.length })}
+              </span>
+            </div>
+            {missingRequired.length > 0 && (
+              <p className="mt-1 text-error">
+                {t("dataExchange.connectors.mapping.missingRequiredLabel")}: {missingRequired.join(", ")}
+              </p>
+            )}
+            {unmappedOptional.length > 0 && (
+              <p className="mt-1 text-muted">
+                {t("dataExchange.connectors.mapping.unmappedOptionalLabel")}: {unmappedOptional.join(", ")}
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Section 12/13 — a real Mapping Profile editor: every mapping row is
  *  `{sourceField, targetTemplate, targetField, transformations}` — the
  *  EXACT `FieldMapping` shape `applyMappingProfile()` already consumes,
@@ -592,6 +644,8 @@ export function MappingProfileEditorDialog({
             );
           })}
         </div>
+
+        <MappingCoveragePanel rows={rows} constants={constants} />
 
         {issues && (
           <div className="rounded-input border border-border px-2 py-1.5 text-[11px]">

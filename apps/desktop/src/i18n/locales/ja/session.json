@@ -3101,7 +3101,11 @@
         "enumSourceValue": "Source value",
         "enumTargetValue": "Target value",
         "addEnumPair": "Add value mapping",
-        "caseInsensitiveMatch": "Case-insensitive match"
+        "caseInsensitiveMatch": "Case-insensitive match",
+        "coverageHeading": "Field coverage",
+        "requiredCoverage": "{{mapped}} of {{total}} required fields mapped",
+        "missingRequiredLabel": "Missing required",
+        "unmappedOptionalLabel": "Unmapped optional"
       },
       "crosswalks": {
         "empty": "No crosswalk identity bindings yet.",

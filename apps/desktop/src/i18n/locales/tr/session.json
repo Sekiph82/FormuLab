@@ -3101,7 +3101,11 @@
         "enumSourceValue": "Kaynak değer",
         "enumTargetValue": "Hedef değer",
         "addEnumPair": "Değer eşlemesi ekle",
-        "caseInsensitiveMatch": "Büyük/küçük harf duyarsız eşleşme"
+        "caseInsensitiveMatch": "Büyük/küçük harf duyarsız eşleşme",
+        "coverageHeading": "Alan kapsamı",
+        "requiredCoverage": "{{total}} zorunlu alandan {{mapped}} tanesi eşlendi",
+        "missingRequiredLabel": "Eksik zorunlu",
+        "unmappedOptionalLabel": "Eşlenmemiş isteğe bağlı"
       },
       "crosswalks": {
         "empty": "Henüz kimlik eşleştirme bağı yok.",
