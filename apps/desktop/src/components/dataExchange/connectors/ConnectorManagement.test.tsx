@@ -610,7 +610,8 @@ describe("MAP1/MAP2/CFUI9: Source Explorer schema flows into Mapping, and requir
     // Real <select> elements only — an `<input list>` (the source-field
     // combobox above) also carries an implicit ARIA "combobox" role, so
     // `getAllByRole("combobox")` would wrongly include it too. Each row
-    // now renders 3 selects (targetTemplate/targetField/transformation).
+    // renders 2 selects by default (targetTemplate/targetField) — a
+    // transformation step select only appears once "Add step" is clicked.
     let selects = Array.from(container.querySelectorAll("select"));
     await user.selectOptions(selects[0], "Raw Materials Master");
     await user.selectOptions(selects[1], "material_code");
@@ -624,8 +625,8 @@ describe("MAP1/MAP2/CFUI9: Source Explorer schema flows into Mapping, and requir
     const sourceFieldInputs = screen.getAllByPlaceholderText("Source field");
     await user.type(sourceFieldInputs[1], "MaterialName");
     selects = Array.from(container.querySelectorAll("select"));
-    await user.selectOptions(selects[3], "Raw Materials Master");
-    await user.selectOptions(selects[4], "material_name");
+    await user.selectOptions(selects[2], "Raw Materials Master");
+    await user.selectOptions(selects[3], "material_name");
     await user.click(screen.getByRole("button", { name: "Validate Mapping" }));
 
     expect(await screen.findByText("No validation issues — this mapping profile is ready to use.")).toBeInTheDocument();
@@ -734,23 +735,53 @@ describe("MAP5/MAP6: transformations and constant mappings round-trip through th
     const user = userEvent.setup();
     renderShell();
     await addFileConnection(user, "ERP Map56", "TESTMAP56");
-    await user.click(screen.getByRole("button", { name: "Connections" }));
-    const row = (await screen.findByRole("button", { name: "ERP Map56" })).closest("tr");
-    await user.click(within(row!).getByRole("button", { name: "Mapping Profiles" }));
+    // VAL1-11 — a real inspected SourceSchema is required before an active
+    // profile can be saved; inspect the source first (same real flow
+    // MAP1/CFUI9 already uses), then reach the editor.
+    await user.click(await screen.findByRole("button", { name: "ERP Map56" }));
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "MaterialID,MaterialName,Density\nMAT-1,First,1.5"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
 
     await user.click(screen.getByRole("button", { name: "Create Mapping Profile" }));
+    await user.click(await screen.findByRole("button", { name: "Create Mapping Profile" }));
     await screen.findByText("Mapping Profile");
+
+    // The two required raw_materials fields — mapped plainly, no
+    // transformation — so Validate can genuinely reach clean (VAL1-11:
+    // Save is gated on a real clean Validate run).
     await user.click(screen.getByRole("button", { name: "Add mapping" }));
-    await user.type(screen.getByPlaceholderText("Source field"), "Density");
-    const selects = Array.from(document.querySelectorAll("select"));
+    await user.type(screen.getByPlaceholderText("Source field"), "MaterialID");
+    let selects = Array.from(document.querySelectorAll("select"));
     await user.selectOptions(selects[0], "Raw Materials Master");
-    await user.selectOptions(selects[1], "density");
-    // MAP5 — a real transformation, with real typed config (a
-    // non-default decimal separator, to prove genuine persistence
-    // rather than an untouched default).
-    await user.selectOptions(selects[2], "parse_decimal");
-    const allSelectsAfterOp = Array.from(document.querySelectorAll("select"));
-    const decimalSelect = allSelectsAfterOp[allSelectsAfterOp.length - 1];
+    await user.selectOptions(selects[1], "material_code");
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    const sourceFieldInputs1 = screen.getAllByPlaceholderText("Source field");
+    await user.type(sourceFieldInputs1[1], "MaterialName");
+    selects = Array.from(document.querySelectorAll("select"));
+    await user.selectOptions(selects[2], "Raw Materials Master");
+    await user.selectOptions(selects[3], "material_name");
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    const sourceFieldInputs2 = screen.getAllByPlaceholderText("Source field");
+    await user.type(sourceFieldInputs2[2], "Density");
+    selects = Array.from(document.querySelectorAll("select"));
+    await user.selectOptions(selects[4], "Raw Materials Master");
+    await user.selectOptions(selects[5], "density");
+    // MAP5A-M — a real ordered transformation step, with real typed
+    // config (a non-default decimal separator, to prove genuine
+    // persistence rather than an untouched default). A step only
+    // appears once "Add step" is clicked — it defaults to "trim". Three
+    // rows exist, each with its own "Add step" button — the LAST one is
+    // this (third) row's.
+    const addStepButtons = screen.getAllByRole("button", { name: "Add step" });
+    await user.click(addStepButtons[addStepButtons.length - 1]);
+    const afterAddStep = Array.from(document.querySelectorAll("select"));
+    const opSelect = afterAddStep[afterAddStep.length - 1];
+    await user.selectOptions(opSelect, "parse_decimal");
+    const afterOp = Array.from(document.querySelectorAll("select"));
+    const decimalSelect = afterOp[afterOp.length - 2]; // decimalSeparator, then groupSeparator
     await user.selectOptions(decimalSelect, ",");
 
     // MAP6 — a real constant mapping.
@@ -760,14 +791,252 @@ describe("MAP5/MAP6: transformations and constant mappings round-trip through th
     await user.selectOptions(constantSelects[1], "currency");
     await user.type(screen.getByPlaceholderText("Constant value"), "KES");
 
+    await user.click(screen.getByRole("button", { name: "Validate Mapping" }));
+    await screen.findByText("No validation issues — this mapping profile is ready to use.");
     await user.click(screen.getByRole("button", { name: "Save Profile" }));
     await waitFor(() => expect(screen.queryByText("Mapping Profile")).not.toBeInTheDocument());
 
     const saved = (store.get("mapping_profiles") ?? []).find((p) => p.sourceSystemId === "TESTMAP56") as unknown as MappingProfile;
     expect(saved).toBeDefined();
-    expect(saved.fieldMappings[0]).toMatchObject({ sourceField: "Density", targetTemplate: "raw_materials", targetField: "density", transformations: [{ op: "parse_decimal", config: { decimalSeparator: "," } }] });
+    const densityMapping = saved.fieldMappings.find((m) => m.targetField === "density");
+    expect(densityMapping).toMatchObject({ sourceField: "Density", targetTemplate: "raw_materials", targetField: "density", transformations: [{ op: "parse_decimal", config: { decimalSeparator: "," } }] });
     expect(saved.constantMappings[0]).toMatchObject({ targetTemplate: "raw_materials", targetField: "currency", value: "KES" });
   });
+});
+
+/** A row's own container — scoping element lookups to ONE field mapping
+ *  row (never a global select index, which would silently break as soon
+ *  as a prior row's own transformation steps add more `<select>`s ahead
+ *  of it in the DOM). */
+function rowContainerFor(sourceFieldInput: HTMLElement): HTMLElement {
+  const el = sourceFieldInput.closest("div.rounded-input.border-border-faint");
+  if (!el) throw new Error("row container not found");
+  return el as HTMLElement;
+}
+
+describe("VAL1-11: an active Mapping Profile can never be saved without a real inspected SourceSchema", () => {
+  it("Save stays disabled, with clear guidance, when Source Explorer was never run for this connection this session", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP ValNoSchema", "TESTVALNOSCHEMA");
+    await user.click(screen.getByRole("button", { name: "Connections" }));
+    const row = (await screen.findByRole("button", { name: "ERP ValNoSchema" })).closest("tr");
+    await user.click(within(row!).getByRole("button", { name: "Mapping Profiles" }));
+
+    await user.click(screen.getByRole("button", { name: "Create Mapping Profile" }));
+    await screen.findByText("Mapping Profile");
+    expect(screen.getByText(/Inspect a real source first/)).toBeInTheDocument();
+
+    // Even a fully-typed, structurally-plausible row must not unlock Save
+    // — there is no "at least one complete row" fallback any more.
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    await user.type(screen.getByPlaceholderText("Source field"), "MaterialID");
+    const row2 = rowContainerFor(screen.getByPlaceholderText("Source field"));
+    const selects = Array.from(row2.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "material_code");
+
+    expect(screen.getByRole("button", { name: "Validate Mapping" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save Profile" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(store.get("mapping_profiles") ?? []).toEqual([]); // never persisted
+  });
+});
+
+describe("MAP5A-M (part 2): multi-step ordered pipelines — add, reorder, and remove", () => {
+  it("two steps on one field mapping persist in the reordered order, and a removed step never persists", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP Map5B", "TESTMAP5B");
+    await user.click(await screen.findByRole("button", { name: "ERP Map5B" }));
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "MaterialID,MaterialName\nMAT-1,First"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+    await user.click(screen.getByRole("button", { name: "Create Mapping Profile" }));
+    await user.click(await screen.findByRole("button", { name: "Create Mapping Profile" }));
+    await screen.findByText("Mapping Profile");
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    await user.type(screen.getByPlaceholderText("Source field"), "MaterialID");
+    let row = rowContainerFor(screen.getByPlaceholderText("Source field"));
+    let selects = Array.from(row.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "material_code");
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    const sourceFieldInputs = screen.getAllByPlaceholderText("Source field");
+    await user.type(sourceFieldInputs[1], "MaterialName");
+    row = rowContainerFor(sourceFieldInputs[1]);
+    selects = Array.from(row.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "material_name");
+
+    // Two ordered steps on this SAME row: uppercase, then trim.
+    await user.click(within(row).getByRole("button", { name: "Add step" }));
+    selects = Array.from(row.querySelectorAll("select"));
+    await user.selectOptions(selects[selects.length - 1], "uppercase");
+    await user.click(within(row).getByRole("button", { name: "Add step" }));
+    selects = Array.from(row.querySelectorAll("select"));
+    await user.selectOptions(selects[selects.length - 1], "trim");
+
+    // Reorder: move the second step (trim) up, so it now runs FIRST.
+    const moveUpButtons = within(row).getAllByRole("button", { name: "Move step up" });
+    await user.click(moveUpButtons[moveUpButtons.length - 1]);
+
+    // A third step is added then removed — it must never reach storage.
+    await user.click(within(row).getByRole("button", { name: "Add step" }));
+    selects = Array.from(row.querySelectorAll("select"));
+    await user.selectOptions(selects[selects.length - 1], "safe_code_case");
+    const removeButtons = within(row).getAllByRole("button", { name: "Remove step" });
+    await user.click(removeButtons[removeButtons.length - 1]);
+
+    await user.click(screen.getByRole("button", { name: "Validate Mapping" }));
+    await screen.findByText("No validation issues — this mapping profile is ready to use.");
+    await user.click(screen.getByRole("button", { name: "Save Profile" }));
+    await waitFor(() => expect(screen.queryByText("Mapping Profile")).not.toBeInTheDocument());
+
+    const saved = (store.get("mapping_profiles") ?? []).find((p) => p.sourceSystemId === "TESTMAP5B") as unknown as MappingProfile;
+    const nameMapping = saved.fieldMappings.find((m) => m.targetField === "material_name");
+    expect(nameMapping!.transformations).toEqual([{ op: "trim", config: undefined }, { op: "uppercase", config: undefined }]);
+  });
+});
+
+describe("MAP5A-M (part 3): parse_date/convert_unit/split/join typed config UI round-trips through the real MappingProfile", () => {
+  it("each op's own typed config persists exactly as configured, never a JSON blob", async () => {
+    // 6 field-mapping rows, each with its own transformation step —
+    // genuinely more UI interaction than the default 5000ms test budget.
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP Map5C", "TESTMAP5C");
+    await user.click(await screen.findByRole("button", { name: "ERP Map5C" }));
+    await user.upload(
+      screen.getByLabelText("Choose file"),
+      csvFile("m.csv", "MaterialID,MaterialName,ExpiryRaw,MoqGrams,CasList,NotesRaw\nMAT-1,First,01/06/2026,500,68515-73-1;9004-82-4,hello"),
+    );
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+    await user.click(screen.getByRole("button", { name: "Create Mapping Profile" }));
+    await user.click(await screen.findByRole("button", { name: "Create Mapping Profile" }));
+    await screen.findByText("Mapping Profile");
+
+    async function addMapping(sourceField: string, targetField: string, index: number): Promise<HTMLElement> {
+      await user.click(screen.getByRole("button", { name: "Add mapping" }));
+      const inputs = screen.getAllByPlaceholderText("Source field");
+      await user.type(inputs[index], sourceField);
+      const row = rowContainerFor(inputs[index]);
+      const selects = Array.from(row.querySelectorAll("select"));
+      await user.selectOptions(selects[0], "Raw Materials Master");
+      await user.selectOptions(selects[1], targetField);
+      return row;
+    }
+    async function addStepOp(row: HTMLElement, op: string): Promise<void> {
+      await user.click(within(row).getByRole("button", { name: "Add step" }));
+      const selects = Array.from(row.querySelectorAll("select"));
+      await user.selectOptions(selects[selects.length - 1], op);
+    }
+
+    await addMapping("MaterialID", "material_code", 0);
+    await addMapping("MaterialName", "material_name", 1);
+
+    const dateRow = await addMapping("ExpiryRaw", "expiry_date", 2);
+    await addStepOp(dateRow, "parse_date");
+    const dateFormatSelect = Array.from(dateRow.querySelectorAll("select")).pop()!;
+    await user.selectOptions(dateFormatSelect, "DD/MM/YYYY");
+
+    const unitRow = await addMapping("MoqGrams", "minimum_order_quantity", 3);
+    await addStepOp(unitRow, "convert_unit");
+    let unitSelects = Array.from(unitRow.querySelectorAll("select"));
+    await user.selectOptions(unitSelects[unitSelects.length - 2], "g"); // from
+    unitSelects = Array.from(unitRow.querySelectorAll("select"));
+    await user.selectOptions(unitSelects[unitSelects.length - 1], "kg"); // to
+
+    const splitRow = await addMapping("CasList", "cas_number", 4);
+    await addStepOp(splitRow, "split"); // default delimiter "," — asserted below
+
+    const joinRow = await addMapping("NotesRaw", "notes", 5);
+    await addStepOp(joinRow, "join");
+
+    await user.click(screen.getByRole("button", { name: "Validate Mapping" }));
+    await screen.findByText("No validation issues — this mapping profile is ready to use.");
+    await user.click(screen.getByRole("button", { name: "Save Profile" }));
+    await waitFor(() => expect(screen.queryByText("Mapping Profile")).not.toBeInTheDocument());
+
+    const saved = (store.get("mapping_profiles") ?? []).find((p) => p.sourceSystemId === "TESTMAP5C") as unknown as MappingProfile;
+    expect(saved.fieldMappings.find((m) => m.targetField === "expiry_date")).toMatchObject({ transformations: [{ op: "parse_date", config: { format: "DD/MM/YYYY" } }] });
+    expect(saved.fieldMappings.find((m) => m.targetField === "minimum_order_quantity")).toMatchObject({ transformations: [{ op: "convert_unit", config: { from: "g", to: "kg" } }] });
+    expect(saved.fieldMappings.find((m) => m.targetField === "cas_number")).toMatchObject({ transformations: [{ op: "split", config: { delimiter: "," } }] });
+    expect(saved.fieldMappings.find((m) => m.targetField === "notes")).toMatchObject({ transformations: [{ op: "join", config: { delimiter: ";" } }] });
+  }, 15000);
+});
+
+describe("MAP5A-M (part 4): map_enum and resolve_crosswalk typed config UI round-trips", () => {
+  it("map_enum's source->target pair editor and resolve_crosswalk's same-entity config persist exactly as configured", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await addFileConnection(user, "ERP Map5D", "TESTMAP5D");
+    await user.click(await screen.findByRole("button", { name: "ERP Map5D" }));
+    await user.upload(screen.getByLabelText("Choose file"), csvFile("m.csv", "MaterialID,MaterialName,CurrencyRaw,SupplierRef\nMAT-1,First,K,SUP-1"));
+    await user.click(screen.getByRole("button", { name: "Test / Discover" }));
+    await screen.findByText("Schema");
+    await user.click(screen.getByRole("button", { name: "Create Mapping Profile" }));
+    await user.click(await screen.findByRole("button", { name: "Create Mapping Profile" }));
+    await screen.findByText("Mapping Profile");
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    await user.type(screen.getByPlaceholderText("Source field"), "MaterialID");
+    let row = rowContainerFor(screen.getByPlaceholderText("Source field"));
+    let selects = Array.from(row.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "material_code");
+
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    let inputs = screen.getAllByPlaceholderText("Source field");
+    await user.type(inputs[1], "MaterialName");
+    row = rowContainerFor(inputs[1]);
+    selects = Array.from(row.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "material_name");
+
+    // map_enum — a real source->target pair, never a JSON editor.
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    inputs = screen.getAllByPlaceholderText("Source field");
+    await user.type(inputs[2], "CurrencyRaw");
+    const enumRow = rowContainerFor(inputs[2]);
+    selects = Array.from(enumRow.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "currency");
+    await user.click(within(enumRow).getByRole("button", { name: "Add step" }));
+    selects = Array.from(enumRow.querySelectorAll("select"));
+    await user.selectOptions(selects[selects.length - 1], "map_enum");
+    await user.click(within(enumRow).getByRole("button", { name: "Add value mapping" }));
+    const enumInputs = within(enumRow).getAllByPlaceholderText(/Source value|Target value/);
+    await user.type(enumInputs[0], "K");
+    await user.type(enumInputs[1], "KES");
+
+    // resolve_crosswalk — sameEntity shorthand, never a fuzzy fallback.
+    await user.click(screen.getByRole("button", { name: "Add mapping" }));
+    inputs = screen.getAllByPlaceholderText("Source field");
+    await user.type(inputs[3], "SupplierRef");
+    const crosswalkRow = rowContainerFor(inputs[3]);
+    selects = Array.from(crosswalkRow.querySelectorAll("select"));
+    await user.selectOptions(selects[0], "Raw Materials Master");
+    await user.selectOptions(selects[1], "preferred_supplier_code");
+    await user.click(within(crosswalkRow).getByRole("button", { name: "Add step" }));
+    selects = Array.from(crosswalkRow.querySelectorAll("select"));
+    await user.selectOptions(selects[selects.length - 1], "resolve_crosswalk");
+    await user.type(within(crosswalkRow).getByLabelText("Canonical entity"), "Supplier");
+    await user.click(within(crosswalkRow).getByLabelText("Same entity as this record"));
+
+    await user.click(screen.getByRole("button", { name: "Validate Mapping" }));
+    await screen.findByText("No validation issues — this mapping profile is ready to use.");
+    await user.click(screen.getByRole("button", { name: "Save Profile" }));
+    await waitFor(() => expect(screen.queryByText("Mapping Profile")).not.toBeInTheDocument());
+
+    const saved = (store.get("mapping_profiles") ?? []).find((p) => p.sourceSystemId === "TESTMAP5D") as unknown as MappingProfile;
+    expect(saved.fieldMappings.find((m) => m.targetField === "currency")).toMatchObject({ transformations: [{ op: "map_enum", config: { enumMap: { K: "KES" }, caseInsensitive: true } }] });
+    expect(saved.fieldMappings.find((m) => m.targetField === "preferred_supplier_code")).toMatchObject({ transformations: [{ op: "resolve_crosswalk", config: { canonicalEntity: "Supplier", sameEntity: true } }] });
+  }, 15000);
 });
 
 describe("MPV1-MPV6: mapping profile version lifecycle is explicit", () => {
@@ -840,8 +1109,8 @@ describe("MAP4: exact-name matching is exact, never fuzzy/semantic", () => {
 
     await user.click(screen.getByRole("button", { name: "Add mapping" }));
     selects = Array.from(document.querySelectorAll("select"));
-    await user.selectOptions(selects[3], "Raw Materials Master");
-    await user.selectOptions(selects[4], "material_name");
+    await user.selectOptions(selects[2], "Raw Materials Master");
+    await user.selectOptions(selects[3], "material_name");
 
     await user.click(screen.getByRole("button", { name: "Match exact names" }));
 

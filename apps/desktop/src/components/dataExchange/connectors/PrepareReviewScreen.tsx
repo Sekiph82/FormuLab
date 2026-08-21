@@ -179,6 +179,13 @@ export function PrepareReviewScreen({
   const problemRows = allRows.filter((r) => BLOCKING_STATES.has(r.reimportState));
   const missingFromSource = prepared?.templates.flatMap((tpl) => tpl.missingFromSource) ?? [];
   const canCommit = canWrite && !!prepared && prepared.blockingIssues.length === 0 && !committed;
+  // REVIEW1-5 — real create/update/unchanged counts, aggregated from the
+  // EXISTING per-row `preview.state` the validator already computed; never
+  // a second classification decision.
+  const createCount = allRows.filter((r) => r.preview.state === "valid_create").length;
+  const updateCount = allRows.filter((r) => r.preview.state === "valid_update").length;
+  const unchangedCount = allRows.filter((r) => r.preview.state === "unchanged").length;
+  const mappingProfileLabel = prepared ? `${prepared.mappingProfileCode} (v${prepared.mappingProfileVersion})` : "";
 
   return (
     <div className="space-y-3">
@@ -228,13 +235,32 @@ export function PrepareReviewScreen({
       </Card>
 
       {prepared && (
+        <Card title={t("dataExchange.connectors.review.sourceContextHeading")}>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] sm:grid-cols-3">
+            <Info label={connection.name} sub={t("dataExchange.connectors.review.connectionName")} />
+            <Info label={prepared.connectorType} sub={t("dataExchange.connectors.review.connectorType")} />
+            <Info label={prepared.sourceSystemId} sub={t("dataExchange.connectors.review.sourceSystemId")} />
+            <Info label={prepared.sourceEntity} sub={t("dataExchange.connectors.explorer.entity")} />
+            <Info label={prepared.extractionRunId || "—"} sub={t("dataExchange.connectors.review.extractionRunId")} />
+            <Info label={prepared.extractedAt || "—"} sub={t("dataExchange.connectors.review.extractedAt")} />
+            <Info label={prepared.sourceResourceName ?? t("dataExchange.connectors.review.sourceResourceNameUnavailable")} sub={t("dataExchange.connectors.review.sourceResourceName")} />
+            <Info label={prepared.sourceSchemaFingerprint || "—"} sub={t("dataExchange.connectors.review.schemaFingerprint")} />
+            <Info label={`${prepared.mappingProfileCode} (v${prepared.mappingProfileVersion})`} sub={t("dataExchange.connectors.review.mappingProfile")} />
+          </div>
+        </Card>
+      )}
+
+      {prepared && (
         <Card title={t("dataExchange.connectors.review.summary")}>
-          <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
             <Info label={String(prepared.stagedCount)} sub={t("dataExchange.connectors.review.stagedRows")} />
             <Info label={String(prepared.mappedCount)} sub={t("dataExchange.connectors.review.mappedRows")} />
+            <Info label={String(createCount)} sub={t("dataExchange.connectors.review.creates")} />
+            <Info label={String(updateCount)} sub={t("dataExchange.connectors.review.updates")} />
+            <Info label={String(unchangedCount)} sub={t("dataExchange.connectors.review.unchanged")} />
             <Info label={String(prepared.warnings.length)} sub={t("dataExchange.connectors.review.warnings")} />
             <Info label={String(prepared.blockingIssues.length)} sub={t("dataExchange.connectors.review.blockingIssues")} />
-            <Info label={prepared.commitOrder.join(" → ") || "—"} sub={t("dataExchange.connectors.mapping.targetTemplates")} />
+            <Info label={String(missingFromSource.length)} sub={t("dataExchange.connectors.review.sourceMissingCount")} />
           </div>
 
           {prepared.blockingIssues.length > 0 && (
@@ -258,20 +284,100 @@ export function PrepareReviewScreen({
         </Card>
       )}
 
+      {prepared && prepared.warnings.length > 0 && (
+        <Card title={t("dataExchange.connectors.review.warningsHeading")}>
+          <div className="space-y-1.5">
+            {prepared.warnings.map((w, i) => (
+              <div key={i} className="rounded-input border border-warning/30 px-2 py-1.5 text-[11px]">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <Badge tone="warn">{w.code}</Badge>
+                  <span className="text-muted">
+                    {t("dataExchange.connectors.review.warningStage")}: {w.stage}
+                  </span>
+                  {w.sourceEntity && (
+                    <span className="text-muted">
+                      {t("dataExchange.connectors.review.warningSourceEntity")}: {w.sourceEntity}
+                    </span>
+                  )}
+                  {w.sourceRecordId && (
+                    <span className="text-muted">
+                      {t("dataExchange.connectors.review.warningSourceRecordId")}: {w.sourceRecordId}
+                    </span>
+                  )}
+                  <span className="text-muted">
+                    {t("dataExchange.connectors.review.warningRetryable")}: {w.retryable ? t("dataExchange.connectors.review.warningRetryableYes") : t("dataExchange.connectors.review.warningRetryableNo")}
+                  </span>
+                </div>
+                <p className="mt-1 text-text">{w.message}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {problemRows.length > 0 && (
         <Card title={t("dataExchange.connectors.review.conflictHeading")}>
           <div className="space-y-2">
             {problemRows.map((row, i) => (
               <div key={i} className="rounded-input border border-error/40 px-2 py-1.5 text-[11px]">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <Badge tone="error">{row.reimportState}</Badge>
+                  <span className="text-text">{t("dataExchange.connectors.review.blocking")}</span>
                   <span className="font-medium text-text">{row.targetTemplate}</span>
-                  <span className="text-muted">{row.preview.naturalKey}</span>
+                  <span className="text-muted">
+                    {t("dataExchange.connectors.review.naturalKey")}: {row.preview.naturalKey}
+                  </span>
+                  <span className="text-muted">
+                    {t("dataExchange.connectors.review.conflictSourceSystem")}: {prepared?.sourceSystemId}
+                  </span>
+                  <span className="text-muted">
+                    {t("dataExchange.connectors.review.conflictSourceEntity")}: {prepared?.sourceEntity}
+                  </span>
                   <span className="text-muted">
                     {t("dataExchange.connectors.review.sourceIdentity")}: {row.sourceRecordId}
                   </span>
+                  <span className="text-muted">
+                    {t("dataExchange.connectors.review.conflictMappingProfile")}: {mappingProfileLabel}
+                  </span>
+                  <span className="text-muted">
+                    {t("dataExchange.connectors.review.conflictSchemaFingerprint")}: {prepared?.sourceSchemaFingerprint}
+                  </span>
                 </div>
-                <p className="mt-1 text-muted">{t("dataExchange.connectors.review.resolutionNotice")}</p>
+
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[10px] font-medium text-muted">{t("dataExchange.connectors.review.conflictPriorTarget")}</p>
+                    {row.prior?.targetCollection || row.prior?.targetRecordId ? (
+                      <p className="text-text">
+                        {row.prior.targetCollection ?? "—"} / {row.prior.targetRecordId ?? "—"} ({t("dataExchange.connectors.review.conflictLastSeenJob")}: {row.prior.jobId})
+                      </p>
+                    ) : (
+                      <p className="text-muted">{t("dataExchange.connectors.review.conflictPriorTargetNone")}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-muted">{t("dataExchange.connectors.review.conflictCurrentCanonicalValue")}</p>
+                    {row.canonicalSnapshotAtPrepare ? (
+                      <pre className="whitespace-pre-wrap break-words text-text">{JSON.stringify(row.canonicalSnapshotAtPrepare)}</pre>
+                    ) : (
+                      <p className="text-muted">{t("dataExchange.connectors.review.conflictCurrentCanonicalValueNone")}</p>
+                    )}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] font-medium text-muted">{t("dataExchange.connectors.review.conflictCandidateValue")}</p>
+                    <pre className="whitespace-pre-wrap break-words text-text">{JSON.stringify(row.candidate.row)}</pre>
+                  </div>
+                  {row.preview.messages.length > 0 && (
+                    <div className="sm:col-span-2">
+                      <p className="text-[10px] font-medium text-muted">{t("dataExchange.connectors.review.conflictExplanation")}</p>
+                      <p className="text-text">{row.preview.messages.join(" ")}</p>
+                    </div>
+                  )}
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] font-medium text-muted">{t("dataExchange.connectors.review.conflictRequiredAction")}</p>
+                    <p className="text-muted">{t("dataExchange.connectors.review.conflictRequiredActionText")}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -290,12 +396,22 @@ export function PrepareReviewScreen({
                     {t("dataExchange.connectors.review.targetTemplate")}: {m.targetCollection ?? "—"}
                   </span>
                   <span>
-                    {t("dataExchange.connectors.runs.targetRecordId")}: {m.targetRecordId ?? "—"}
+                    {t("dataExchange.connectors.review.sourceMissingTargetCollection")}: {m.targetCollection ?? "—"}
+                  </span>
+                  <span>
+                    {t("dataExchange.connectors.review.sourceMissingTargetRecordId")}: {m.targetRecordId ?? "—"}
+                  </span>
+                  <span>
+                    {t("dataExchange.connectors.review.conflictSourceSystem")}: {prepared?.sourceSystemId}
+                  </span>
+                  <span>
+                    {t("dataExchange.connectors.review.conflictSourceEntity")}: {prepared?.sourceEntity}
                   </span>
                   <span>
                     {t("dataExchange.connectors.review.lastSeenJob")}: {m.lastSeenJobId}
                   </span>
                 </div>
+                <p className="mt-1 text-muted">{t("dataExchange.connectors.review.noAutomaticDeletion")}</p>
               </li>
             ))}
           </ul>

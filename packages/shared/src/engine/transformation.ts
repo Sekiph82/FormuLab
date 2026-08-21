@@ -33,7 +33,10 @@ export interface TransformationOutcome {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const SUPPORTED_DATE_FORMATS = new Set(["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]);
+/** Exported so the Mapping Profile editor's `parse_date` step config UI
+ *  offers exactly the formats this engine actually supports — never a
+ *  hand-duplicated list that could drift from the real parser. */
+export const SUPPORTED_DATE_FORMATS = new Set(["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]);
 /** FVL-04.018 hardening (Session 7, Part H1) — a clearly defined supported
  *  convention, not an arbitrary non-empty string. Exported so
  *  `mappingProfile.ts`'s own profile-time config validation checks the

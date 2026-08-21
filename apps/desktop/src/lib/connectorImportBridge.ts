@@ -53,6 +53,7 @@ import {
   resolveCrosswalk,
   validateMappingProfile,
   type ApprovalRole,
+  type ConnectorError,
   type DataExchangeImportJob,
   type DataExchangeImportRowResult,
   type DataExchangeRowResult,
@@ -180,6 +181,15 @@ export interface PreparedRow {
    *  it no longer matches — the human reviewed THIS state, never
    *  whatever the canonical record has since become. */
   canonicalFingerprintAtPrepare?: string;
+  /** REVIEW1-5/Section 16 hardening — the live canonical record's own
+   *  current field VALUES (not just the fingerprint above), projected onto
+   *  exactly the fields this profile maps — already computed internally
+   *  (`liveCandidateFields`) to derive `canonicalFingerprintAtPrepare`;
+   *  previously discarded before reaching the UI. `undefined` when no live
+   *  record existed yet at prepare time. Lets a conflict reviewer actually
+   *  SEE the current canonical value next to the candidate/source value,
+   *  never just a hash. */
+  canonicalSnapshotAtPrepare?: Record<string, string>;
   /** The crosswalk binding observed at prepare time for this row's own
    *  source identity — `undefined` when no crosswalk target was
    *  configured for this template at all (revalidation is skipped
@@ -187,6 +197,13 @@ export interface PreparedRow {
    *  target WAS configured and no active crosswalk existed yet".
    *  Re-derived fresh at confirm time the same way. */
   crosswalkBindingAtPrepare?: string | null;
+  /** REVIEW1-5/Section 16 hardening — the real prior committed row this
+   *  source identity reconciled against at prepare time (already computed
+   *  internally for reimport classification; previously discarded before
+   *  reaching the UI). `undefined` when this source identity has never
+   *  committed before. Carries the real prior target collection/record ID
+   *  and last-seen job ID a conflict reviewer needs — never fabricated. */
+  prior?: PriorCommittedRow;
 }
 
 export interface PreparedTemplateImport {
@@ -201,6 +218,15 @@ export interface PreparedConnectorImport {
   connectorVersion: string;
   sourceEntity: string;
   extractionRunId: string;
+  /** REVIEW1-5 — the real extraction timestamp (`ExtractionMetadata.extractedAt`
+   *  of the first staged record), never fabricated; empty when nothing was
+   *  staged at all. */
+  extractedAt: string;
+  /** REVIEW1-5 — the source's own resource identity (a file's filename, a
+   *  DB table, a REST path) when the connector reported one
+   *  (`ConnectorResult.sourceResource.resourceName`) — undefined only when
+   *  the connector genuinely has none to report. */
+  sourceResourceName?: string;
   sourceSchemaFingerprint: string;
   mappingProfileCode: string;
   mappingProfileVersion: number;
@@ -215,7 +241,15 @@ export interface PreparedConnectorImport {
    *  structural issue, a dependency cycle, or connector extraction
    *  errors. Zero commit happens when this is non-empty (F4). */
   blockingIssues: string[];
-  warnings: string[];
+  /** Section 24/WARN1-2 hardening — the full structured `ConnectorError`
+   *  (code/stage/sourceEntity/sourceRecordId/message/retryable/detail),
+   *  never collapsed to a plain string. Extraction warnings and per-row
+   *  mapping-transformation failures already carry this shape upstream
+   *  (`ConnectorResult.warnings`, `MappingResult.errors`) — this was
+   *  previously discarded down to `w.message` alone before reaching the
+   *  UI; now carried through unchanged so the Prepare Review screen can
+   *  render each field individually instead of only a warning count. */
+  warnings: ConnectorError[];
   /** Session 12 hardening (Part 12) — the EXACT crosswalk target
    *  configuration this prepared plan was reviewed under (whatever
    *  `PrepareConnectorImportInput.crosswalkTargets` named, `{}` when
@@ -275,12 +309,12 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
   const { connector, entity, profile } = input;
   const identity = connector.identity;
   const blockingIssues: string[] = [];
-  const warnings: string[] = [];
+  const warnings: ConnectorError[] = [];
   const crosswalkTargets = input.crosswalkTargets ?? {};
 
   const staged = await connector.extract(entity);
   for (const e of staged.errors) blockingIssues.push(`[${e.stage}] ${e.message}`);
-  for (const w of staged.warnings) warnings.push(w.message);
+  for (const w of staged.warnings) warnings.push(w);
 
   const sourceSchema = discoverSourceSchema(identity.sourceSystemId, [{ entity, records: staged.records }]);
 
@@ -290,6 +324,8 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     connectorVersion: identity.connectorVersion,
     sourceEntity: entity,
     extractionRunId: staged.records[0]?.extraction.extractionRunId ?? "",
+    extractedAt: staged.records[0]?.extraction.extractedAt ?? "",
+    sourceResourceName: staged.sourceResource?.resourceName,
     sourceSchemaFingerprint: sourceSchema.fingerprint,
     mappingProfileCode: profile.code,
     mappingProfileVersion: profile.profileVersion,
@@ -323,7 +359,8 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
   // both incremental classification and post-commit crosswalk timing.
   const mappingResults = staged.records.map((record) => applyMappingProfile(profile, record, { resolveCrosswalk: input.resolveCrosswalk }));
   const unresolvedMappings = mappingResults.flatMap((m) => m.unresolved);
-  for (const m of mappingResults) for (const e of m.errors) warnings.push(`${e.code}: ${e.message}`);
+  for (const m of mappingResults) for (const e of m.errors) warnings.push(e);
+  for (const m of mappingResults) for (const w of m.warnings) warnings.push(w);
 
   const candidatesByTemplate = new Map<string, { candidate: MappingCandidateRow; sourceRecordId: string; sourceIdSource: "configured" | "ordinal"; rawRecordFingerprint: string }[]>();
   staged.records.forEach((record, i) => {
@@ -521,7 +558,9 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
         preview,
         reimportState,
         canonicalFingerprintAtPrepare,
+        canonicalSnapshotAtPrepare: liveRow,
         crosswalkBindingAtPrepare,
+        prior,
       };
     }));
 

@@ -29,6 +29,12 @@
 const MASS_UNITS: Record<string, number> = { mg: 0.001, g: 1, kg: 1000 };
 const VOLUME_UNITS: Record<string, number> = { ml: 1, l: 1000 };
 
+/** The real, complete set of unit tokens this authority actually converts
+ *  between — read directly from the same tables `convertUnit()` uses, so a
+ *  UI picker (e.g. the Mapping Profile editor's `convert_unit` step) can
+ *  never drift from what conversion genuinely supports. */
+export const KNOWN_UNITS = [...Object.keys(MASS_UNITS), ...Object.keys(VOLUME_UNITS)] as const;
+
 export type UnitDimension = "mass" | "volume";
 
 export function unitDimension(unit: string): UnitDimension | undefined {

@@ -104,7 +104,7 @@ export function ConnectorBridgeImportDialog({
                 <p className="text-[12px] font-medium text-text">{t("dataExchange.imports.bridgeWarnings", { count: prepared.warnings.length })}</p>
                 <ul className="mt-1 max-h-32 space-y-0.5 overflow-y-auto text-[11px] text-muted">
                   {prepared.warnings.map((w, i) => (
-                    <li key={i}>{w}</li>
+                    <li key={i}>{w.message}</li>
                   ))}
                 </ul>
               </div>

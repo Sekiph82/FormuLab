@@ -379,6 +379,71 @@ describe("BR18: re-import conflict classification is genuinely visible on the pr
   });
 });
 
+describe("BR23 (REVIEW1-5/WARN1-2 hardening): source-context/warning detail carried through, never fabricated or collapsed to a plain string", () => {
+  it("extractedAt/sourceResourceName are real values from the connector's own extraction, and a transformation failure surfaces as a full structured ConnectorError", async () => {
+    const connector = createFileConnector("BRIDGE_TEST", { fileName: "materials.csv", fileKind: "csv", text: "MaterialID,MaterialName\nBR-1,Test Material" }, stageOpts);
+    const staged = await connector.extract("materials");
+    const schema = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged.records }]);
+    const profile: MappingProfile = {
+      ...materialsProfile("materials", schema.fingerprint),
+      fieldMappings: [
+        ...materialsProfile("materials", schema.fingerprint).fieldMappings,
+        // A validly configured parse_decimal step fed a genuinely
+        // non-numeric source value ("BR-1") on a real optional field
+        // (raw_materials.density) — a real, structured RUNTIME
+        // transformation failure (never blocking, since density is
+        // optional), distinct from a profile-time config validation error.
+        { sourceField: "MaterialID", targetTemplate: "raw_materials", targetField: "density", transformations: [{ op: "parse_decimal", config: { decimalSeparator: "." } }] },
+      ],
+    };
+    const prepared = await prepareConnectorImport({ connector, entity: "materials", profile });
+
+    expect(prepared.extractedAt).toBe(stageOpts.extractedAt);
+    expect(prepared.sourceResourceName).toBe("materials.csv");
+    expect(prepared.blockingIssues).toEqual([]); // never blocking — density is optional
+
+    const warning = prepared.warnings.find((w) => w.code === "ambiguous_or_invalid_decimal");
+    expect(warning).toBeDefined();
+    expect(warning).toMatchObject({
+      code: "ambiguous_or_invalid_decimal",
+      stage: "transformation",
+      sourceEntity: "materials",
+      retryable: false,
+    });
+    expect(warning!.sourceRecordId).toBeTruthy();
+    expect(typeof warning!.message).toBe("string");
+    expect(warning!.message.length).toBeGreaterThan(0);
+  });
+
+  it("a conflicting row's prior committed target and live canonical snapshot are carried onto the prepared row, never discarded", async () => {
+    const connector1 = createFileConnector("BRIDGE_TEST", { fileName: "m1.csv", fileKind: "csv", text: "MaterialID,MaterialName\nBR-CONFLICT-1,Original Name" }, stageOpts);
+    const staged1 = await connector1.extract("materials");
+    const schema = discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged1.records }]);
+    const profile = materialsProfile("materials", schema.fingerprint);
+    const prepared1 = await prepareConnectorImport({ connector: connector1, entity: "materials", profile });
+    await confirmConnectorImport(prepared1, ctx);
+
+    // Hand-edit the canonical record out-of-band, then re-import a
+    // genuinely changed source value — CANONICAL_LOCAL_CONFLICT.
+    const materials = store.get("materials") ?? [];
+    const material = materials.find((r) => r.code === "BR-CONFLICT-1")!;
+    material.displayName = "Hand-Edited";
+
+    const connector2 = createFileConnector("BRIDGE_TEST", { fileName: "m2.csv", fileKind: "csv", text: "MaterialID,MaterialName\nBR-CONFLICT-1,Genuinely Changed" }, stageOpts);
+    const staged2 = await connector2.extract("materials");
+    const prepared2 = await prepareConnectorImport({ connector: connector2, entity: "materials", profile: materialsProfile("materials", discoverSourceSchema("BRIDGE_TEST", [{ entity: "materials", records: staged2.records }]).fingerprint) });
+
+    const row = prepared2.templates[0].rows[0];
+    expect(row.reimportState).toBe("CANONICAL_LOCAL_CONFLICT");
+    expect(row.prior).toBeDefined();
+    expect(row.prior!.jobId).toBeTruthy();
+    expect(row.prior!.targetCollection).toBe("materials");
+    expect(row.prior!.targetRecordId).toBe("BR-CONFLICT-1");
+    expect(row.canonicalSnapshotAtPrepare).toBeDefined();
+    expect(row.canonicalSnapshotAtPrepare!.material_name).toBe("Hand-Edited"); // the REAL live value, not the candidate's
+  });
+});
+
 describe("BR20 (Session 11 hardening, Part 4): a REAL DB-derived ordinal-fallback identity cannot be persisted as a crosswalk identity", () => {
   it("a real no-PK SQLite table's rows stage with ordinal identity, commit fine, but persist zero crosswalk entries even when a crosswalk target is configured", async () => {
     const { adapter, close } = await createSqliteTestAdapter(`
