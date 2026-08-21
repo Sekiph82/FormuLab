@@ -2917,6 +2917,7 @@
       "allowPartialPrerequisite": "\"kısmi içe aktarmaya izin ver\" seçeneğini etkinleştirin veya hatalı satırları düzeltin."
     },
     "connectors": {
+      "accessDenied": "Bağlayıcı Yönetimine erişiminiz yok.",
       "tabs": {
         "connections": "Bağlantılar",
         "explorer": "Kaynak Gezgini",
@@ -3040,6 +3041,9 @@
         "empty": "Bu kaynak için henüz eşleme profili yok.",
         "createProfile": "Eşleme Profili Oluştur",
         "newVersion": "Yeni Sürüm Oluştur",
+        "viewProfile": "Görüntüle",
+        "constantMapping": "Sabit eşlemeler",
+        "constantValue": "Sabit değer",
         "code": "Kod",
         "profileVersion": "Sürüm",
         "status": "Durum",
@@ -3058,6 +3062,12 @@
         "targetTemplate": "Hedef şablon",
         "targetField": "Hedef alan",
         "addMapping": "Eşleme ekle",
+        "transformation": "Dönüşüm",
+        "noTransformation": "Dönüşüm yok",
+        "decimalSeparator": "Ondalık ayırıcı",
+        "trueValues": "Doğru değerler",
+        "falseValues": "Yanlış değerler",
+        "addConstant": "Sabit ekle",
         "matchExactNames": "Tam adları eşleştir",
         "unmapped": "Eşlenmemiş",
         "required": "Zorunlu",
@@ -3146,6 +3156,7 @@
         "mappingProfileChanged": "MAPPING_PROFILE_CHANGED",
         "schemaChanged": "SCHEMA_CHANGED",
         "commit": "Onayla",
+        "writeDenied": "Mevcut rolünüzün Bağlayıcı Yönetimi'nde yazma erişimi yok.",
         "committed": "İçe aktarma onaylandı.",
         "rePrepare": "Yeniden hazırla",
         "stalePlan": "Bu hazırlanan plan güncelliğini yitirmiş — incelendiğinden beri bir şey değişti. Onaylamadan önce yeniden hazırlayın.",

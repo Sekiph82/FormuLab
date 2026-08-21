@@ -2917,6 +2917,7 @@
       "allowPartialPrerequisite": "启用“允许部分导入”，或修复错误行。"
     },
     "connectors": {
+      "accessDenied": "You do not have access to Connector Management.",
       "tabs": {
         "connections": "Connections",
         "explorer": "Source Explorer",
@@ -3040,6 +3041,9 @@
         "empty": "No mapping profiles yet for this source.",
         "createProfile": "Create Mapping Profile",
         "newVersion": "Create New Version",
+        "viewProfile": "View",
+        "constantMapping": "Constant mappings",
+        "constantValue": "Constant value",
         "code": "Code",
         "profileVersion": "Version",
         "status": "Status",
@@ -3058,6 +3062,12 @@
         "targetTemplate": "Target template",
         "targetField": "Target field",
         "addMapping": "Add mapping",
+        "transformation": "Transformation",
+        "noTransformation": "No transformation",
+        "decimalSeparator": "Decimal separator",
+        "trueValues": "True values",
+        "falseValues": "False values",
+        "addConstant": "Add constant",
         "matchExactNames": "Match exact names",
         "unmapped": "Unmapped",
         "required": "Required",
@@ -3146,6 +3156,7 @@
         "mappingProfileChanged": "MAPPING_PROFILE_CHANGED",
         "schemaChanged": "SCHEMA_CHANGED",
         "commit": "Commit",
+        "writeDenied": "Your current role does not have write access to Connector Management.",
         "committed": "Import committed.",
         "rePrepare": "Re-prepare",
         "stalePlan": "This prepared plan is stale — something changed since it was reviewed. Re-prepare before committing.",
