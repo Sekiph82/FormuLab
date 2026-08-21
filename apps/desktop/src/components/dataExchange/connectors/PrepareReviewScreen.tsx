@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  createDatabaseConnector,
   createFileConnector,
   createHttpFetchAdapter,
   createRestApiConnector,
+  databaseSourceFromConnection,
   httpFetchConfigFromConnection,
   restSourceFromConnection,
   type ApprovalRole,
@@ -12,11 +14,24 @@ import {
   type SourceConnector,
 } from "@formulab/shared";
 import { confirmConnectorImport, prepareConnectorImport, type PreparedConnectorImport } from "@/lib/connectorImportBridge";
+import { createSqliteAdapter } from "@/lib/connectorDatabaseSqlite";
 import { readWorkbookAllSheets } from "@/lib/xlsx";
 import { loadMappingProfiles } from "@/lib/connectorPersistence";
 import { Badge, Card, Empty, Field, inputCls } from "./ui";
 
-const BLOCKING_STATES = new Set(["CANONICAL_LOCAL_CONFLICT", "CANONICAL_MISSING", "CROSSWALK_CONFLICT", "MAPPING_PROFILE_CHANGED"]);
+// Section 18 audit — the full real `ReimportState` vocabulary
+// (`packages/shared/src/engine/dataExchangeIncremental.ts`'s
+// `REIMPORT_STATES`) is nine states. Five are per-row blocking states a
+// row can genuinely carry (below). `SCHEMA_CHANGED` is included here for
+// EXHAUSTIVE typed correctness even though `classifyReimport()` never
+// actually returns it as a row's own `reimportState` — a schema mismatch
+// aborts the ENTIRE prepare before any row classification runs
+// (`connectorImportBridge.ts`'s own early-return `blockingIssues.push`,
+// already rendered generically below) — so this entry is structurally
+// unreachable as a row state, not a missing capability. `SOURCE_MISSING`
+// is a separate, non-blocking, non-row-state finding rendered in its own
+// card further down — it is deliberately NOT in this set.
+const BLOCKING_STATES = new Set(["CANONICAL_LOCAL_CONFLICT", "CANONICAL_MISSING", "CROSSWALK_CONFLICT", "MAPPING_PROFILE_CHANGED", "SCHEMA_CHANGED"]);
 
 /** Section 15/16/17 — the real Prepare/Review/Commit flow. This
  *  component NEVER reimplements staging/schema/mapping/conflict logic —
@@ -32,7 +47,10 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
   const [profileCode, setProfileCode] = useState("");
   const [entity, setEntity] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [canonicalEntity, setCanonicalEntity] = useState("");
+  // Section 21 — one canonical-entity input PER distinct target template
+  // the profile actually fans out to, never reduced to just the first
+  // (`fieldMappings[0]`) target template.
+  const [canonicalEntityByTemplate, setCanonicalEntityByTemplate] = useState<Record<string, string>>({});
   const [prepared, setPrepared] = useState<PreparedConnectorImport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +62,9 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
   }, [connection]);
 
   const profile = profiles.find((p) => p.code === profileCode);
-  const primaryTargetTemplate = useMemo(() => profile?.fieldMappings[0]?.targetTemplate, [profile]);
+  // Section 21 — every distinct target template this profile's field
+  // mappings actually reach, not just the first one.
+  const targetTemplates = useMemo(() => [...new Set(profile?.fieldMappings.map((m) => m.targetTemplate) ?? [])], [profile]);
 
   if (!connection) {
     return (
@@ -61,7 +81,9 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
       return createRestApiConnector(connection.sourceSystemId, restSourceFromConnection(connection, entity), opts, { fetchPage });
     }
     if (connection.connectorType === "DATABASE") {
-      throw new Error(t("dataExchange.connectors.addConnection.databaseLimitation"));
+      if (!connection.database) throw new Error(t("dataExchange.connectors.addConnection.sqliteFileNone"));
+      const adapter = createSqliteAdapter(connection.database);
+      return createDatabaseConnector(connection.sourceSystemId, databaseSourceFromConnection(connection, entity), opts, { adapter });
     }
     if (!file) throw new Error(t("dataExchange.connectors.explorer.selectFile"));
     if (connection.fileKind === "xlsx") {
@@ -77,11 +99,14 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
     setCommitted(false);
     try {
       const connector = await buildConnector();
+      const crosswalkTargets = Object.fromEntries(
+        targetTemplates.filter((tpl) => canonicalEntityByTemplate[tpl]?.trim()).map((tpl) => [tpl, { canonicalEntity: canonicalEntityByTemplate[tpl].trim() }]),
+      );
       const result = await prepareConnectorImport({
         connector,
         entity: entity || connection.sourceSystemId,
         profile,
-        ...(canonicalEntity && primaryTargetTemplate ? { crosswalkTargets: { [primaryTargetTemplate]: { canonicalEntity } } } : {}),
+        ...(Object.keys(crosswalkTargets).length > 0 ? { crosswalkTargets } : {}),
       });
       setPrepared(result);
     } catch (e) {
@@ -135,12 +160,17 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
               <input type="file" aria-label={t("dataExchange.connectors.explorer.uploadFile")} onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])} className="text-[11px]" />
             </Field>
           )}
-          {primaryTargetTemplate && (
-            <Field label={t("dataExchange.connectors.crosswalks.canonicalEntity")}>
-              {/* eslint-disable-next-line i18next/no-literal-string -- example canonical entity name placeholder, not natural-language text */}
-              <input value={canonicalEntity} onChange={(e) => setCanonicalEntity(e.target.value)} className={inputCls} placeholder="RawMaterial" />
+          {targetTemplates.map((tpl) => (
+            <Field key={tpl} label={`${t("dataExchange.connectors.crosswalks.canonicalEntity")} (${tpl})`}>
+              <input
+                value={canonicalEntityByTemplate[tpl] ?? ""}
+                onChange={(e) => setCanonicalEntityByTemplate((prev) => ({ ...prev, [tpl]: e.target.value }))}
+                className={inputCls}
+                // eslint-disable-next-line i18next/no-literal-string -- example canonical entity name placeholder, not natural-language text
+                placeholder="RawMaterial"
+              />
             </Field>
-          )}
+          ))}
         </div>
         <button onClick={() => void onPrepare()} disabled={busy || !profile || (connection.connectorType === "FILE" && !file)} className="mt-3 rounded-input bg-accent px-3 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
           {t("dataExchange.connectors.review.prepareImport")}
@@ -200,8 +230,19 @@ export function PrepareReviewScreen({ connection, actorUserId, actorRole }: { co
           <p className="mb-2 text-[11px] font-medium text-warning">{t("dataExchange.connectors.review.sourceMissingNotice")}</p>
           <ul className="space-y-1 text-[11px] text-muted">
             {missingFromSource.map((m) => (
-              <li key={m.naturalKey}>
-                {m.naturalKey} — {m.targetCollection ?? "—"}
+              <li key={m.naturalKey} className="rounded-input border border-warning/30 px-2 py-1.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-text">
+                  <span className="font-medium">{m.naturalKey}</span>
+                  <span>
+                    {t("dataExchange.connectors.review.targetTemplate")}: {m.targetCollection ?? "—"}
+                  </span>
+                  <span>
+                    {t("dataExchange.connectors.runs.targetRecordId")}: {m.targetRecordId ?? "—"}
+                  </span>
+                  <span>
+                    {t("dataExchange.connectors.review.lastSeenJob")}: {m.lastSeenJobId}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>

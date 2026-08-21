@@ -1,17 +1,29 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ConnectorConnection, ConnectorResult, SourceSchema } from "@formulab/shared";
+import type { ConnectorConnection, ConnectorResult, DatabaseEntityDescription, SourceSchema } from "@formulab/shared";
 import { discoverFileEntities, inspectFile } from "@/lib/connectorFileInspect";
-import { testDatabaseConnection, testRestConnection } from "@/lib/connectorTest";
+import { describeDatabaseTable, inspectDatabaseTable, listDatabaseTables, type DatabaseTableOption } from "@/lib/connectorDatabaseInspect";
+import { testRestConnection } from "@/lib/connectorTest";
 import { Badge, Card, Empty, Field, inputCls, Table } from "./ui";
 
-/** Section 8/9/10 — real Source Explorer: FILE and REST_API genuinely
- *  execute through the actual connector engines (`connectorFileInspect.ts`/
- *  `connectorTest.ts`); DATABASE honestly reports the current
- *  no-production-driver limitation. Renders ONLY what
- *  `discoverSourceSchema()`/the real staged records already returned —
- *  never a second, React-local schema-discovery algorithm. */
-export function SourceExplorerScreen({ connection }: { connection: ConnectorConnection | null }) {
+/** Section 8/9/10 — real Source Explorer: FILE, REST_API, and DATABASE
+ *  (SQLite) all genuinely execute through the actual connector engines
+ *  (`connectorFileInspect.ts`/`connectorTest.ts`/`connectorDatabaseInspect.ts`).
+ *  Renders ONLY what `discoverSourceSchema()`/the real staged records/the
+ *  real `describeEntity()` metadata already returned — never a second,
+ *  React-local schema-discovery algorithm. */
+export function SourceExplorerScreen({
+  connection,
+  onInspected,
+  onCreateMappingProfile,
+}: {
+  connection: ConnectorConnection | null;
+  /** Section 11 — publishes a successful inspection's real schema/entity
+   *  upward so Mapping Profiles can consume it, without a second
+   *  persistence store for transient inspection state. */
+  onInspected?: (entity: string, schema: SourceSchema, staged: ConnectorResult | null) => void;
+  onCreateMappingProfile?: () => void;
+}) {
   const { t } = useTranslation(["session", "common"]);
   const [entity, setEntity] = useState("");
   const [sheetOptions, setSheetOptions] = useState<string[]>([]);
@@ -20,6 +32,23 @@ export function SourceExplorerScreen({ connection }: { connection: ConnectorConn
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [schema, setSchema] = useState<SourceSchema | null>(null);
   const [staged, setStaged] = useState<ConnectorResult | null>(null);
+  const [dbTables, setDbTables] = useState<DatabaseTableOption[]>([]);
+  const [dbTable, setDbTable] = useState("");
+  const [dbDescription, setDbDescription] = useState<DatabaseEntityDescription | null>(null);
+
+  useEffect(() => {
+    setDbTables([]);
+    setDbTable("");
+    setDbDescription(null);
+    if (connection?.connectorType !== "DATABASE" || !connection.database) return;
+    void listDatabaseTables(connection).then((tables) => {
+      setDbTables(tables);
+      setDbTable(connection.table && tables.some((t) => t.table === connection.table) ? connection.table : (tables[0]?.table ?? ""));
+    });
+    // Re-list whenever the connection identity or its configured file
+    // changes — never on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection?.code, connection?.database]);
 
   if (!connection) {
     return (
@@ -50,6 +79,13 @@ export function SourceExplorerScreen({ connection }: { connection: ConnectorConn
       setMessage({ ok: result.ok, text: result.message });
       setSchema(result.schema ?? null);
       setStaged(result.staged ?? null);
+      // The REAL discovered entity name (`result.schema.entities[0].entity`)
+      // — never the local `entity` UI state, which for a plain (non-XLSX)
+      // file stays empty and would otherwise mismatch the filename-derived
+      // entity `inspectFile()`/`createFileConnector()` actually used,
+      // permanently failing `validateMappingProfile()`'s own
+      // `source_entity_not_found` check for any profile prefilled from it.
+      if (result.schema) onInspected?.(result.schema.entities[0]?.entity ?? entity, result.schema, result.staged ?? null);
     } finally {
       setBusy(false);
     }
@@ -61,14 +97,30 @@ export function SourceExplorerScreen({ connection }: { connection: ConnectorConn
       const result = await testRestConnection(connection, entity || connection.sourceSystemId);
       setMessage({ ok: result.ok, text: result.message });
       setSchema(result.schema ?? null);
+      setStaged(result.staged ?? null);
+      if (result.schema) onInspected?.(entity || connection.sourceSystemId, result.schema, result.staged ?? null);
     } finally {
       setBusy(false);
     }
   };
 
-  const onTestDatabase = () => {
-    const result = testDatabaseConnection();
-    setMessage({ ok: result.ok, text: result.message });
+  const onInspectDatabase = async () => {
+    if (!dbTable) return;
+    setBusy(true);
+    try {
+      const desc = await describeDatabaseTable(connection, dbTable);
+      setDbDescription(desc);
+      const result = await inspectDatabaseTable(connection, dbTable, { idField: connection.idField, requireExplicitId: connection.requireExplicitId });
+      setMessage({ ok: result.ok, text: result.message });
+      setSchema(result.schema ?? null);
+      setStaged(result.staged ?? null);
+      if (result.schema) onInspected?.(dbTable, result.schema, result.staged ?? null);
+    } catch (e) {
+      setMessage({ ok: false, text: e instanceof Error ? e.message : "Could not read this table." });
+      setDbDescription(null);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -120,18 +172,72 @@ export function SourceExplorerScreen({ connection }: { connection: ConnectorConn
         )}
 
         {connection.connectorType === "DATABASE" && (
-          <div className="mt-3">
-            <button onClick={onTestDatabase} className="rounded-input bg-accent px-2.5 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90">
-              {t("dataExchange.connectors.explorer.testAndDiscover")}
-            </button>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            {!connection.database ? (
+              <p className="text-[11px] text-warning">{t("dataExchange.connectors.addConnection.sqliteFileNone")}</p>
+            ) : (
+              <>
+                <Field label={t("dataExchange.connectors.explorer.tables")}>
+                  <select value={dbTable} onChange={(e) => setDbTable(e.target.value)} className={inputCls}>
+                    {dbTables.length === 0 && <option value="">—</option>}
+                    {dbTables.map((tbl) => (
+                      <option key={tbl.table} value={tbl.table}>
+                        {tbl.table} ({tbl.kind})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <button onClick={() => void onInspectDatabase()} disabled={!dbTable || busy} className="rounded-input bg-accent px-2.5 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+                  {t("dataExchange.connectors.explorer.testAndDiscover")}
+                </button>
+              </>
+            )}
           </div>
         )}
 
         {message && <p className={`mt-2 rounded-input border px-2 py-1.5 text-[11px] ${message.ok ? "border-success/40 text-success" : "border-error/40 text-error"}`}>{message.text}</p>}
       </Card>
 
+      {dbDescription && (
+        <Card title={t("dataExchange.connectors.explorer.columns")}>
+          <Table
+            headers={[
+              t("dataExchange.connectors.explorer.field"),
+              t("dataExchange.connectors.explorer.declaredType"),
+              t("dataExchange.connectors.explorer.nullable"),
+              t("dataExchange.connectors.explorer.primaryKey"),
+              t("dataExchange.connectors.explorer.foreignKey"),
+            ]}
+            rows={dbDescription.columns.map((c) => {
+              const fk = dbDescription.foreignKeys.find((f) => f.fromColumns.includes(c.name));
+              return {
+                key: c.name,
+                cells: [
+                  c.name,
+                  c.declaredType || "—",
+                  // eslint-disable-next-line i18next/no-literal-string -- check/dash glyphs, not natural-language text
+                  c.nullable ? "✓" : "—",
+                  // eslint-disable-next-line i18next/no-literal-string -- check/dash glyphs, not natural-language text
+                  c.isPrimaryKey ? `✓${c.primaryKeyOrdinal ? ` (${c.primaryKeyOrdinal})` : ""}` : "—",
+                  fk ? `${fk.toTable}.${fk.toColumns.join(", ")}` : "—",
+                ],
+              };
+            })}
+          />
+        </Card>
+      )}
+
       {schema?.entities[0] && (
-        <Card title={t("dataExchange.connectors.explorer.schema")}>
+        <Card
+          title={t("dataExchange.connectors.explorer.schema")}
+          actions={
+            onCreateMappingProfile && (
+              <button onClick={onCreateMappingProfile} className="rounded-input bg-accent px-2.5 py-1.5 text-[11px] font-medium text-accent-fg hover:opacity-90">
+                {t("dataExchange.connectors.explorer.createMappingProfile")}
+              </button>
+            )
+          }
+        >
           <Table
             headers={[
               t("dataExchange.connectors.explorer.field"),
