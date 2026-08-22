@@ -57,3 +57,75 @@ export const featureSchemaVersionedSchema = z.object({
   featureSchemaVersion: featureSchemaVersionSchema,
 });
 export type FeatureSchemaVersioned = z.infer<typeof featureSchemaVersionedSchema>;
+
+/**
+ * FVL-05.002 — row/entity lineage model.
+ *
+ * A dataset row is only trustworthy if every value on it can be traced back
+ * to the exact source record it came from. `sourceRecordReferenceSchema` is
+ * that trace: WHICH source entity/collection the record lives in
+ * (`sourceEntity` — e.g. "formulation", "labResult", "correctiveAction";
+ * deliberately an open string, not a frozen enum, since later FVL-05.003-.008
+ * extractors will cite entities that don't exist yet) plus the EXACT id of
+ * the record within it (`sourceRecordId`, opaque and case-sensitive — never
+ * trimmed, normalized, or reformatted, because a source system's real id may
+ * itself carry meaningful casing/whitespace and silently rewriting it would
+ * make the citation stop matching the source of truth).
+ *
+ * `sourceRecordLineageSchema` is the non-empty, deduplicated list of those
+ * references a row carries (one when assembled from a single record, several
+ * when assembled by joining more than one). `datasetRowBaseSchema` is the
+ * composable envelope every future dataset row/payload schema
+ * (FVL-05.003-.008) extends or embeds: it requires both the existing
+ * `datasetSchemaVersion` (never a second version literal) and `sourceRecords`,
+ * so a row is structurally unable to validate without exact lineage.
+ */
+const nonBlankString = (label: string) =>
+  z.string().refine((value) => value.trim().length > 0, `${label} must not be blank`);
+
+/** WHICH source entity/collection a record lives in, e.g. "formulation",
+ *  "labResult". Intentionally an open string, not an enum: FVL-05.003-.008
+ *  extractors will cite entity kinds this task must not freeze in advance. */
+export const sourceEntitySchema = nonBlankString("sourceEntity");
+
+/** The exact id of a record within `sourceEntity`, preserved opaque and
+ *  case-sensitive — never trimmed, normalized, hashed, or shortened. */
+export const sourceRecordIdSchema = nonBlankString("sourceRecordId");
+
+/** One exact citation of a source record: which entity, which id. */
+export const sourceRecordReferenceSchema = z.object({
+  sourceEntity: sourceEntitySchema,
+  sourceRecordId: sourceRecordIdSchema,
+});
+export type SourceRecordReference = z.infer<typeof sourceRecordReferenceSchema>;
+
+/** The full lineage of a dataset row: at least one exact source-record
+ *  reference, preserving the caller's order, with exact duplicate
+ *  `(sourceEntity, sourceRecordId)` pairs rejected as ambiguous. The same
+ *  record id under two different `sourceEntity` values is not a duplicate. */
+export const sourceRecordLineageSchema = z
+  .array(sourceRecordReferenceSchema)
+  .min(1, "a dataset row requires at least one source record reference")
+  .superRefine((refs, ctx) => {
+    const seen = new Set<string>();
+    refs.forEach((ref, index) => {
+      const key = JSON.stringify([ref.sourceEntity, ref.sourceRecordId]);
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index],
+          message: `duplicate source record reference: sourceEntity="${ref.sourceEntity}" sourceRecordId="${ref.sourceRecordId}"`,
+        });
+      }
+      seen.add(key);
+    });
+  });
+export type SourceRecordLineage = z.infer<typeof sourceRecordLineageSchema>;
+
+/** Composable envelope every future dataset row/payload schema
+ *  (FVL-05.003-.008) extends or embeds. Requires the existing dataset schema
+ *  version and mandatory lineage — never introduces a second version field. */
+export const datasetRowBaseSchema = datasetSchemaVersionedSchema.extend({
+  sourceRecords: sourceRecordLineageSchema,
+});
+export type DatasetRowBase = z.infer<typeof datasetRowBaseSchema>;

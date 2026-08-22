@@ -212,3 +212,148 @@ re-verified; no artificial implementation commit created.
 
 Manual UI acceptance from Desktop\FormuLab.lnk is pending user
 verification.
+
+## FVL-05.002 — Row/entity lineage model (2026-08-22)
+
+### Task
+
+**FVL-05.002 (FVL-05)** — Row/entity lineage model: every dataset row
+cites its exact source record IDs. Depends on FVL-05.001 (COMPLETED
+above).
+
+### Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `66e5316cd77fdea7f993a7122961ce54035109c4`.
+- Starting remote HEAD (`origin/feature/laboratory-stability`):
+  `66e5316cd77fdea7f993a7122961ce54035109c4`.
+
+### Pre-existing worktree state (not touched)
+
+`git status --short` at start showed the same category of unrelated
+changes as prior FVL-05 cycles, all left untouched by this cycle:
+modified generated user-guide DOCX/PDF (`docs/generated/`), deleted
+formula Markdown files and `formulas/index.json`, and untracked
+FVL-03/FVL-04/Phase 11-14 external logs.
+
+### Implementation
+
+`packages/shared/src/schemas/dataset.ts` (edited, not replaced) adds:
+
+- `sourceEntitySchema` / `sourceRecordIdSchema` — both a non-blank
+  string refinement (`value.trim().length > 0`) that rejects missing,
+  empty, whitespace-only, or non-string input while leaving the
+  accepted value byte-for-byte as given (no trim/case-fold applied to
+  the stored value itself). `sourceEntity` is deliberately an open
+  string, not a frozen enum — FVL-05.003-.008 extractors will cite
+  entity kinds (`formulation`, `labResult`, `correctiveAction`, …) this
+  task must not freeze in advance.
+- `sourceRecordReferenceSchema` — `{ sourceEntity, sourceRecordId }`,
+  one exact citation of a source record.
+- `sourceRecordLineageSchema` — `z.array(sourceRecordReferenceSchema)
+  .min(1)` plus a `superRefine` that rejects exact duplicate
+  `(sourceEntity, sourceRecordId)` pairs (keyed by
+  `JSON.stringify([sourceEntity, sourceRecordId])`, so no ambiguous
+  string-concatenation collision) while allowing the same record id
+  under two different entities.
+- `datasetRowBaseSchema` — `datasetSchemaVersionedSchema.extend({
+  sourceRecords: sourceRecordLineageSchema })`. Reuses the FVL-05.001
+  `datasetSchemaVersion` field rather than introducing a second version
+  constant, and stays a plain `ZodObject` so a later FVL-05.003-.008
+  payload schema can `.extend()` it without weakening the mandatory
+  lineage contract.
+
+No extractor, dataset/feature payload, record-existence check,
+persistence, migration, UI, export, normalization, or Rust/Python code
+was added — all explicitly out of scope. Already exported via the
+existing `export * from "./schemas/dataset";` barrel line in
+`packages/shared/src/index.ts` (FVL-05.001 added that line; no new
+export-path entry was needed).
+
+### Tests
+
+`packages/shared/src/schemas/dataset.test.ts` — 18 new tests appended
+(24 total in the file):
+
+1. One exact reference accepted.
+2. Multiple references accepted, exact values/order preserved.
+3. Missing lineage rejected.
+4. Empty lineage array rejected.
+5. Missing/blank/whitespace-only/non-string `sourceEntity` each
+   rejected (4 assertions).
+6. Missing/blank/whitespace-only/non-string `sourceRecordId` each
+   rejected (4 assertions).
+7. Case-sensitivity/no-trim: a padded/mixed-case id round-trips
+   unchanged; the same id differing only by case is a distinct,
+   independently valid reference.
+8. Same record id valid under two different `sourceEntity` values.
+9. Exact duplicate `(sourceEntity, sourceRecordId)` pair rejected.
+10. `datasetSchemaVersion` remains mandatory and independently
+    validated on the row base (missing and wrong-value cases).
+11. JSON round-trip preserves exact source identities, including
+    leading whitespace inside an id.
+12. A synthetic `.extend()`'d payload schema still requires lineage —
+    proves the base composes without weakening the contract.
+
+All fixtures are synthetic (`FORM-0001`, `LAB-9982`, `CA-004`, etc.),
+no real lab/customer data.
+
+### Test / build results
+
+- `pnpm --filter @formulab/shared test -- dataset` — 18/18 tests in
+  `dataset.test.ts` passed (24/24 including the pre-existing FVL-05.001
+  tests).
+- `pnpm typecheck` (root, `@formulab/desktop` depends on
+  `@formulab/shared`) — clean.
+- `pnpm lint` (root, `@formulab/desktop` → `eslint .`) — clean.
+- `pnpm test` (root) — **167 files / 1726 tests passed**, no
+  regression.
+- `git diff --check` on the two touched source files — clean (only a
+  pre-existing LF/CRLF autocrlf warning on the test file, not an
+  error).
+
+### Security notes
+
+Pure schema/validation code, no new I/O, no external input parsing
+beyond what zod already validates in-memory, no credentials/secrets.
+
+### Tracker update
+
+`docs/FORMULAB_V1_TASK_TRACKER.md`: only the FVL-05.002 row edited,
+marked COMPLETED with the implementation/test evidence above. No other
+roadmap row, work-package count, or "CURRENT STATE" summary paragraph
+touched this cycle (left for a dedicated tracker-summary pass).
+
+### FVL-03/FVL-04 reopened?
+
+No. Only `packages/shared/src/schemas/dataset.ts` and
+`dataset.test.ts` were edited; no FVL-03/FVL-04-owned module
+(`dataExchange*`, `connector*`, etc.) was touched, and none was needed
+— the existing `sourceRecordLineageSchema` composition needed no
+FVL-03/FVL-04 primitive.
+
+### Files changed
+
+- `packages/shared/src/schemas/dataset.ts` (edited).
+- `packages/shared/src/schemas/dataset.test.ts` (edited).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.002 row only).
+- This log file (new section).
+
+### Commits
+
+See `git log` on `feature/laboratory-stability` for the exact commit(s)
+created this cycle (FVL-05.002-focused messages).
+
+### Desktop build & shortcut
+
+Recorded in the same session's final report per the Desktop Build &
+Shortcut Acceptance Gate (native Tauri release build from final HEAD,
+`formulab.exe` verification, shortcut `TargetPath` check).
+
+### Result
+
+**COMPLETE** for the FVL-05.002 implementation/tests/tracker scope
+described above.
+
+Manual UI acceptance from Desktop\FormuLab.lnk is pending user
+verification.
