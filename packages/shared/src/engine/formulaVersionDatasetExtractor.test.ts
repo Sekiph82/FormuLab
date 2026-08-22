@@ -399,6 +399,53 @@ describe("extractFormulaVersionDatasetRows", () => {
     }
   });
 
+  it("fails closed when duplicate/ambiguous exact owning-formulation identities are supplied", () => {
+    const input = buildInput({
+      formulationVersions: [version()],
+      formulations: [formulation(), formulation({ code: "HC-SHAMPOO-REG-002", name: "Duplicate" })],
+    });
+    try {
+      extractFormulaVersionDatasetRows(input);
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(FormulaVersionDatasetExtractionError);
+      expect((err as FormulaVersionDatasetExtractionError).code).toBe("duplicate_formulation_id");
+    }
+  });
+
+  it("does not mutate inputs on the duplicate-formulation-id failure path", () => {
+    const formulations = Object.freeze([
+      Object.freeze(formulation()),
+      Object.freeze(formulation({ code: "HC-SHAMPOO-REG-002", name: "Duplicate" })),
+    ]);
+    const versions = Object.freeze([Object.freeze(version())]);
+    const materials = Object.freeze([Object.freeze(material())]);
+    const snapshotBefore = JSON.parse(JSON.stringify({ formulations, versions, materials }));
+
+    expect(() =>
+      extractFormulaVersionDatasetRows({
+        formulationVersionIds: [versions[0]!.id],
+        formulations: [...formulations],
+        formulationVersions: [...versions],
+        materials: [...materials],
+      }),
+    ).toThrow(FormulaVersionDatasetExtractionError);
+
+    expect(JSON.parse(JSON.stringify({ formulations, versions, materials }))).toEqual(snapshotBefore);
+  });
+
+  it("emits one row per requested identity, including a duplicate-requested version id twice in order", () => {
+    const input = buildInput({
+      formulationVersions: [version({ id: "VER-0001" })],
+      formulationVersionIds: ["VER-0001", "VER-0001"],
+    });
+    const rows = extractFormulaVersionDatasetRows(input);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].formulaVersionId).toBe("VER-0001");
+    expect(rows[1].formulaVersionId).toBe("VER-0001");
+    expect(rows[0]).toEqual(rows[1]);
+  });
+
   it("fails closed when a formula version references a formula that was not supplied", () => {
     const input = buildInput({
       formulationVersions: [version()],

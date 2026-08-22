@@ -54,6 +54,7 @@ export type FormulaVersionDatasetExtractionErrorCode =
   | "formula_version_not_found"
   | "duplicate_formula_version_id"
   | "formulation_not_found"
+  | "duplicate_formulation_id"
   | "material_not_found"
   | "duplicate_material_code"
   | "product_family_not_found"
@@ -94,6 +95,26 @@ function buildVersionsById(formulationVersions: FormulationVersion[]): Map<strin
       );
     }
     byId.set(version.id, version);
+  }
+  return byId;
+}
+
+/** Builds the exact-id formula lookup, failing closed on a duplicate
+ *  `Formulation.id` rather than silently letting the last one win — an
+ *  ambiguous owning-formulation identity must never be resolved by
+ *  guessing which of two conflicting records a version's `formulationId`
+ *  actually means. */
+function buildFormulationsById(formulations: Formulation[]): Map<string, Formulation> {
+  const byId = new Map<string, Formulation>();
+  for (const formulation of formulations) {
+    if (byId.has(formulation.id)) {
+      throw new FormulaVersionDatasetExtractionError(
+        "duplicate_formulation_id",
+        formulation.id,
+        `Ambiguous exact formulation identity: more than one supplied formulation has id "${formulation.id}".`,
+      );
+    }
+    byId.set(formulation.id, formulation);
   }
   return byId;
 }
@@ -251,7 +272,7 @@ function extractOne(
 export function extractFormulaVersionDatasetRows(
   input: FormulaVersionDatasetExtractionInput,
 ): FormulaVersionCompositionRow[] {
-  const formulationsById = new Map(input.formulations.map((formulation) => [formulation.id, formulation]));
+  const formulationsById = buildFormulationsById(input.formulations);
   const versionsById = buildVersionsById(input.formulationVersions);
   return input.formulationVersionIds.map((requestedId) => {
     const version = versionsById.get(requestedId);

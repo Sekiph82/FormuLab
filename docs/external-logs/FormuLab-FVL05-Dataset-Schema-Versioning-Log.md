@@ -549,8 +549,10 @@ resolved materials; materials resolved by exact code only (never by
 matching display name); missing optional material properties stay
 missing; product family copied exactly when resolved, honestly absent
 when no collection supplied; exact deduplicated ordered lineage citing
-every contributing record; all seven fail-closed error codes each
-asserted by `.code` — `formula_version_not_found` (new),
+every contributing record; all eight fail-closed error codes then in
+existence each asserted by `.code` (a ninth, `duplicate_formulation_id`,
+was added in the 2026-08-22 corrective cycle below — see that section)
+— `formula_version_not_found` (new),
 `duplicate_formula_version_id` (new), `material_not_found`,
 `duplicate_material_code`, `product_family_not_found` (new, replaces
 the old test that wrongly expected silent absence),
@@ -644,7 +646,182 @@ Shortcut Acceptance Gate (native Tauri release build from final HEAD,
 ### Result
 
 **COMPLETE** for the FVL-05.003 implementation/tests/tracker scope
-described above.
+described above (superseded by the corrective cycle below, which
+audited this result rather than accepting it on narrative alone).
+
+Manual UI acceptance from Desktop\FormuLab.lnk is pending user
+verification.
+
+## FVL-05.003 — Corrective cycle: duplicate-formulation-id ambiguity
+fix, error-count documentation correction (2026-08-22)
+
+### Task
+
+Corrective completion cycle for FVL-05.003 only. Instructed not to
+accept the prior "COMPLETE" claim above without independently auditing
+the committed source and tests.
+
+### Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD = starting remote HEAD:
+  `3684d1fe84ff21012bf8c4d701dfc04aae5cfadb`.
+
+### Audit finding
+
+Read the committed
+`packages/shared/src/engine/formulaVersionDatasetExtractor.ts` line by
+line against the frozen task contract. The formula-version lookup
+(`buildVersionsById`), material lookup (`buildMaterialsByCode`), and
+product-family lookup (`resolveProductFamily`) each already detected an
+ambiguous exact-identity pool and threw a dedicated structured error
+code. The owning-formulation lookup did not:
+
+```ts
+const formulationsById = new Map(input.formulations.map((formulation) => [formulation.id, formulation]));
+```
+
+A `Map` built this way silently keeps the *last* entry when two
+supplied `Formulation` records share an `id` — exactly the
+last-write-wins defect the task instructions named. This is a real
+defect against the extractor's own stated fail-closed exact-resolution
+contract (task §8: "Fails closed on missing or ambiguous required
+source relationships"), confirmed by reading the code rather than
+trusting the prior cycle's completion narrative.
+
+No other exact-identity lookup in the file had an equivalent gap —
+`buildVersionsById`, `buildMaterialsByCode`, and `resolveProductFamily`
+were already correct on inspection, so no further fix was needed there.
+
+### Fix
+
+- Added `buildFormulationsById(formulations)` to
+  `formulaVersionDatasetExtractor.ts`, mirroring the existing
+  `buildVersionsById`/`buildMaterialsByCode` pattern: builds the exact-id
+  map entry by entry, throwing a new
+  `FormulaVersionDatasetExtractionError` with code
+  `duplicate_formulation_id` the moment a second `Formulation` with an
+  already-seen `id` is encountered, before any entry is overwritten.
+- Added `duplicate_formulation_id` to the
+  `FormulaVersionDatasetExtractionErrorCode` union (now nine codes).
+- Replaced the inline `new Map(...)` construction in
+  `extractFormulaVersionDatasetRows` with a call to
+  `buildFormulationsById(input.formulations)`.
+
+### Duplicate-requested-version-id question (task-required audit)
+
+The frozen task instructions also required auditing whether a duplicate
+entry in the *requested* `formulationVersionIds` list should be treated
+as an invalid duplicate-row request. Re-read task contract point 1:
+"Emits one validated row for each requested exact formula-version
+identity, in requested order." This describes a per-requested-occurrence
+emission, not a per-distinct-identity emission — nothing in the frozen
+contract calls a repeated request an ambiguity (unlike a duplicate
+*pool* entry, which genuinely leaves two conflicting records for one
+id). The existing implementation already resolves each requested id
+independently via `.map`, so a repeated request id naturally produces
+two equal, correctly-ordered rows rather than an error. Retained this
+behavior (no code change) and added a focused test
+(`"emits one row per requested identity, including a
+duplicate-requested version id twice in order"`) asserting exactly that
+— two rows, both `formulaVersionId: "VER-0001"`, deeply equal, in
+order.
+
+### Tests
+
+`formulaVersionDatasetExtractor.test.ts` — 3 new tests added, none
+removed or weakened (26 → 29 total in file):
+
+1. `"fails closed when duplicate/ambiguous exact owning-formulation
+   identities are supplied"` — two `Formulation` records sharing an
+   `id`; asserts `FormulaVersionDatasetExtractionError` with
+   `.code === "duplicate_formulation_id"`.
+2. `"does not mutate inputs on the duplicate-formulation-id failure
+   path"` — frozen input arrays/objects, `JSON.stringify` snapshot
+   before vs. after a call that throws on this new path; asserts no
+   change.
+3. `"emits one row per requested identity, including a
+   duplicate-requested version id twice in order"` — see prior section.
+
+### Test / build results (run fresh this cycle; prior cycle's counts
+not reused)
+
+- `pnpm --filter @formulab/shared test -- formulaVersionDatasetExtractor`
+  — **29/29 passed**.
+- `pnpm --filter @formulab/shared test -- dataset` — **47/47 passed**
+  (18 `dataset.test.ts` + 29 `formulaVersionDatasetExtractor.test.ts`).
+- `pnpm test` (root) — **167 files / 1726 tests passed**, no
+  regression (root suite does not recurse into `@formulab/shared`, same
+  as the prior cycle's evidence — count is unchanged because this
+  cycle's only test additions are in `@formulab/shared`).
+- `pnpm typecheck` (root → `@formulab/desktop tsc --noEmit`,
+  transitively type-checks against the edited `@formulab/shared`
+  exports) — clean.
+- `pnpm lint` (root → `@formulab/desktop eslint .`) — clean.
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+- `git diff --check` — clean (CRLF-on-next-touch warnings only, no
+  whitespace errors).
+
+### Documentation correction
+
+The prior FVL-05.003 log section above said "all seven fail-closed
+error codes" while enumerating eight — corrected in place to "all eight
+fail-closed error codes then in existence," with a forward pointer to
+this section for the ninth (`duplicate_formulation_id`). The
+`docs/FORMULAB_V1_TASK_TRACKER.md` FVL-05.003 row was rewritten to
+describe the corrected lookup, the nine-code union, the
+duplicate-request-id audit finding, and this cycle's fresh test counts
+— no other tracker row, roadmap summary, or narrative was touched.
+
+### Security notes
+
+Same as the original cycle: pure in-memory transformation, no new I/O,
+no persistence, no external input parsing, no credentials/secrets. The
+new error path's message cites only the ambiguous `Formulation.id`
+value, consistent with the existing error messages' practice of citing
+identifiers/codes, never full record content.
+
+### Tracker update
+
+`docs/FORMULAB_V1_TASK_TRACKER.md`: only the FVL-05.003 row edited.
+
+### FVL-03/FVL-04 reopened?
+
+No. Only
+`packages/shared/src/engine/formulaVersionDatasetExtractor.ts`, its
+test file, the tracker row, and this log file were touched this cycle.
+
+### Files changed this cycle
+
+- `packages/shared/src/engine/formulaVersionDatasetExtractor.ts`
+  (`buildFormulationsById` added, `duplicate_formulation_id` error code
+  added, inline `Map` construction replaced).
+- `packages/shared/src/engine/formulaVersionDatasetExtractor.test.ts`
+  (3 new tests).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.003 row only).
+- This log file (corrected wording in the original section + this new
+  corrective subsection).
+
+### Commits
+
+See `git log` on `feature/laboratory-stability` for the exact
+corrective commit created this cycle.
+
+### Desktop build & shortcut
+
+Recorded in the same session's final report per the Desktop Build &
+Shortcut Acceptance Gate (native Tauri release build from final HEAD,
+`formulab.exe` verification, shortcut `TargetPath` check).
+
+### Result
+
+**COMPLETE** for the FVL-05.003 corrective scope described above:
+the duplicate-formulation-id ambiguity defect is fixed, all required
+verification passes with freshly run evidence, documentation is
+corrected and accurate, and the push/build/shortcut gate below was run
+from the final HEAD.
 
 Manual UI acceptance from Desktop\FormuLab.lnk is pending user
 verification.
