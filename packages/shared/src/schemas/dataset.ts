@@ -25,6 +25,9 @@
  * FVL-05.002 onward.
  */
 import { z } from "zod";
+import { formulationLineSchema } from "./formulation";
+import { rawMaterialSchema } from "./materials";
+import { productFamilySchema } from "./product";
 
 /** Current dataset (row/lineage) schema version. Bump when the shape of a
  *  dataset row changes (a field is added, removed, or renamed by one of
@@ -129,3 +132,37 @@ export const datasetRowBaseSchema = datasetSchemaVersionedSchema.extend({
   sourceRecords: sourceRecordLineageSchema,
 });
 export type DatasetRowBase = z.infer<typeof datasetRowBaseSchema>;
+
+/**
+ * FVL-05.003 — formula version + exact composition + materials + material
+ * properties + product family payload.
+ *
+ * One row per `FormulationVersion`. Reuses the repository's own canonical
+ * record schemas verbatim (`formulationLineSchema`, `rawMaterialSchema`,
+ * `productFamilySchema`) rather than re-modeling their fields, so a change to
+ * one of those schemas is felt here automatically instead of silently
+ * drifting out of sync.
+ *
+ * `formulaId`/`formulaCode` and `formulaVersionId`/`formulaVersionNumber` are
+ * the exact persisted identities of the `Formulation` and `FormulationVersion`
+ * records the row was extracted from — never regenerated or normalized.
+ * `composition` is `FormulationVersion.lines` verbatim (order, ids, values,
+ * casing/whitespace preserved exactly). `materials` is the deduplicated,
+ * order-of-first-reference snapshot of every `RawMaterial` record an
+ * `composition` line's `materialCode` resolves to. `productFamilyCode` is
+ * `Formulation.productFamilyCode` copied exactly (always present on a
+ * `Formulation`); `productFamily` is the matching `ProductFamily` record
+ * embedded verbatim ONLY when the extractor was given that collection and it
+ * contained an exact match — otherwise honestly absent, never inferred.
+ */
+export const formulaVersionCompositionRowSchema = datasetRowBaseSchema.extend({
+  formulaId: nonBlankString("formulaId"),
+  formulaCode: nonBlankString("formulaCode"),
+  formulaVersionId: nonBlankString("formulaVersionId"),
+  formulaVersionNumber: z.number().int().positive(),
+  composition: z.array(formulationLineSchema),
+  materials: z.array(rawMaterialSchema),
+  productFamilyCode: nonBlankString("productFamilyCode"),
+  productFamily: productFamilySchema.optional(),
+});
+export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionCompositionRowSchema>;

@@ -419,3 +419,232 @@ placeholder correction and this subsection.
 
 Manual UI acceptance from Desktop\FormuLab.lnk is pending user
 verification.
+
+## FVL-05.003 — Extractor: formula version + exact composition +
+materials + material properties + product family (2026-08-22)
+
+### Task
+
+**FVL-05.003 (FVL-05)** — extractor turning `Formulation`/
+`FormulationVersion` records into one validated dataset row per formula
+version, carrying exact composition, exact referenced materials and
+their properties, the formula's product-family association, and exact
+source-record lineage. Depends on FVL-05.002 (COMPLETED above).
+
+### Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD = starting remote HEAD:
+  `f289c9f90fd57d530c52a1c71da68c7d56eadfc0`.
+
+### Pre-existing worktree state (not touched)
+
+`git status --short` at start showed the same category of unrelated
+changes as prior FVL-05 cycles (modified generated user-guide DOCX/PDF,
+deleted formula Markdown files and `formulas/index.json`, untracked
+FVL-03/FVL-04/Phase 11-14 external logs), plus this cycle's own
+starting point: two untracked partial-implementation files,
+`packages/shared/src/engine/formulaVersionDatasetExtractor.ts` and
+`.test.ts`, and already-modified `packages/shared/src/index.ts` /
+`packages/shared/src/schemas/dataset.ts` (the barrel export line and
+`formulaVersionCompositionRowSchema` respectively). All unrelated
+changes left untouched; the partial files were audited and completed,
+not discarded.
+
+### Audit of the pre-existing partial implementation
+
+The untracked extractor/test files and the `dataset.ts` schema edit
+were substantively correct (materials/family resolved by exact code,
+composition preserved verbatim, lineage built in deterministic order,
+19 passing tests) but had three real gaps against the frozen task
+instructions, closed this cycle:
+
+1. **No "requested formula version not found" failure path.** The
+   original API took a `formulationVersions: FormulationVersion[]`
+   array and processed every element directly — there was no way to
+   *request* a version id that turns out to be missing, so the
+   required "Requested formula version not found" fail-closed
+   behavior (task §7) was structurally unreachable. Fixed by splitting
+   the input into `formulationVersionIds: string[]` (what's requested,
+   in the order rows are produced) resolved against a
+   `formulationVersions` pool, with `formula_version_not_found` on a
+   missing id and `duplicate_formula_version_id` on an ambiguous pool
+   (mirrors the existing material/product-family duplicate-code
+   pattern).
+2. **Product family silently absent instead of failing closed.**
+   `resolveProductFamily` returned `undefined` both when no
+   `productFamilies` collection was supplied (correct — no resolution
+   was requested) *and* when a collection was supplied but contained
+   no match for `formulation.productFamilyCode` (wrong — task §5/§7
+   require this to fail explicitly: "If a referenced family record is
+   required but cannot be resolved, fail explicitly rather than
+   silently fabricating or dropping it"). Fixed: a supplied collection
+   with zero matches now throws `product_family_not_found`; the
+   ambiguous case still throws `duplicate_product_family_code`; only a
+   fully-omitted collection stays a legitimate silent absence.
+3. **No output-schema validation, and possible output/input
+   aliasing.** The extractor built and returned each row without ever
+   validating it against `formulaVersionCompositionRowSchema`, so
+   "Output failing the task-specific row schema" (task §7) could not
+   fail closed. Separately, `composition`/`materials`/`productFamily`
+   on the returned row referenced the same nested arrays/objects as
+   the source records (e.g. a line's `functions` array), which could
+   let a caller mutate a returned row and corrupt the input it was
+   built from (task §8). Fixed with one change: each constructed row
+   is now `formulaVersionCompositionRowSchema.safeParse()`d before
+   being returned, throwing `row_schema_validation_failed` on failure.
+   Because zod's object/array parsing always rebuilds nested
+   structures rather than reusing input references, this single call
+   also eliminates the aliasing — verified directly by a new test that
+   mutates a returned row's nested arrays and asserts the source
+   fixtures are unchanged.
+
+### Implementation
+
+- `packages/shared/src/schemas/dataset.ts` (pre-existing edit,
+  unchanged this cycle): `formulaVersionCompositionRowSchema` =
+  `datasetRowBaseSchema.extend({ formulaId, formulaCode,
+  formulaVersionId, formulaVersionNumber, composition:
+  z.array(formulationLineSchema), materials: z.array(rawMaterialSchema),
+  productFamilyCode, productFamily: productFamilySchema.optional() })`
+  and its inferred `FormulaVersionCompositionRow` type.
+- `packages/shared/src/engine/formulaVersionDatasetExtractor.ts`
+  (rewritten this cycle): `extractFormulaVersionDatasetRows(input)`
+  where `input` is `{ formulationVersionIds, formulationVersions,
+  formulations, materials, productFamilies? }`. For each requested id:
+  resolves the version from the pool (`formula_version_not_found` /
+  `duplicate_formula_version_id`), resolves its owning `Formulation`
+  (`formulation_not_found`), resolves every composition line's
+  `materialCode` to an exact `RawMaterial` in first-reference order,
+  deduplicated (`material_not_found` / `duplicate_material_code`;
+  lines with no `materialCode` — a draft naming an unlinked material —
+  contribute nothing and are not an error), resolves the product
+  family only when `productFamilies` was supplied
+  (`product_family_not_found` / `duplicate_product_family_code`),
+  builds deterministic lineage (`formulation` → `formulationVersion` →
+  each `rawMaterial` in first-reference order → `productFamily` if
+  resolved), and validates the assembled row against
+  `formulaVersionCompositionRowSchema` (`row_schema_validation_failed`)
+  before returning it. Pure/deterministic: no mutation of any input,
+  no I/O, no clock/random/locale dependence.
+- `packages/shared/src/index.ts`: `export * from
+  "./engine/formulaVersionDatasetExtractor";` (pre-existing edit,
+  unchanged this cycle) — smallest necessary export-path addition.
+
+### Tests
+
+`packages/shared/src/engine/formulaVersionDatasetExtractor.test.ts`
+rewritten to match the corrected API and to close the gaps above — 26
+tests (up from 19), all synthetic fixtures:
+
+One schema-valid row per version; exact formula-version identity
+retained; two versions of one formula produce isolated, non-equal
+rows; composition order/duplicate-material-line/casing/whitespace
+preserved exactly; missing optional composition data
+(`materialCode`/`quantity`/`quantityUnit`/`tradeName`) stays
+`undefined`, never defaulted (new); every referenced material resolved
+once regardless of repeat citation; material properties round-trip
+exactly and stay attached to the correct material across several
+resolved materials; materials resolved by exact code only (never by
+matching display name); missing optional material properties stay
+missing; product family copied exactly when resolved, honestly absent
+when no collection supplied; exact deduplicated ordered lineage citing
+every contributing record; all seven fail-closed error codes each
+asserted by `.code` — `formula_version_not_found` (new),
+`duplicate_formula_version_id` (new), `material_not_found`,
+`duplicate_material_code`, `product_family_not_found` (new, replaces
+the old test that wrongly expected silent absence),
+`duplicate_product_family_code`, `formulation_not_found`,
+`row_schema_validation_failed` (new); malformed-row-shape rejection at
+the schema level; non-mutation of inputs on both success and failure
+paths; non-aliasing of returned nested output — mutating a returned
+row's `composition[].functions`, `materials[].functions`, and
+`productFamily.intendedUsers` arrays, and a `displayName` string, then
+asserting the source fixtures are unchanged (new); determinism; JSON
+round-trip; and availability of both the extractor and the schema from
+the shared package's public export path (`../index`, new).
+
+No existing test was weakened or deleted; the one pre-existing test
+whose *expectation* was wrong (silent absence on an unresolved-but-
+requested product family) was corrected to assert the fail-closed
+behavior the frozen task instructions require, not removed.
+
+### Test / build results
+
+- `pnpm --filter @formulab/shared test -- formulaVersionDatasetExtractor`
+  — **26/26 passed**.
+- `pnpm --filter @formulab/shared test -- dataset` — **44/44 passed**
+  (18 in `dataset.test.ts` + 26 in
+  `formulaVersionDatasetExtractor.test.ts`, both files matched by the
+  `dataset` pattern).
+- `pnpm test` (root) — **167 files / 1726 tests passed**, no
+  regression (covers `apps/desktop`, which depends on
+  `@formulab/shared`; `@formulab/shared`'s own suite verified
+  separately above since root `pnpm test` does not recurse into it).
+- `pnpm typecheck` (root, runs `@formulab/desktop tsc --noEmit`,
+  transitively type-checking against the new/edited `@formulab/shared`
+  exports) — clean.
+- `pnpm lint` (root) → `@formulab/desktop lint` (`eslint .`) — clean.
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+- `git diff --check` on the four touched/added files — clean.
+
+### Security notes
+
+Pure in-memory transformation over already-typed records; no new I/O,
+no persistence, no external input parsing, no credentials/secrets. Error
+messages cite only `sourceEntity`/record id/path/message fragments —
+no raw material, formula, or family record content is embedded in a
+thrown error.
+
+### Tracker update
+
+`docs/FORMULAB_V1_TASK_TRACKER.md`: only the FVL-05.003 row edited,
+marked COMPLETED with the implementation/test evidence above. The
+"CURRENT STATE" summary paragraph and FVL-05 work-package count were
+left untouched this cycle, consistent with the FVL-05.002 corrective
+cycle's precedent of reserving cross-row count updates for a dedicated
+tracker-summary pass — no other roadmap row's completion state or
+narrative was touched.
+
+### FVL-03/FVL-04 reopened?
+
+No. Only `packages/shared/src/engine/formulaVersionDatasetExtractor.ts`,
+its test file, the tracker row, and this log file were touched this
+cycle (`packages/shared/src/index.ts` and `schemas/dataset.ts` had
+already been edited by the pre-existing partial work and needed no
+further change). No FVL-03/FVL-04-owned module (`dataExchange*`,
+`connector*`, etc.) was touched, and none was needed.
+
+### Files changed
+
+- `packages/shared/src/engine/formulaVersionDatasetExtractor.ts`
+  (rewritten from the pre-existing partial implementation).
+- `packages/shared/src/engine/formulaVersionDatasetExtractor.test.ts`
+  (rewritten from the pre-existing partial implementation).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.003 row only).
+- This log file (new section).
+
+Not touched this cycle (already correct from the pre-existing partial
+work, audited and left as-is): `packages/shared/src/schemas/dataset.ts`,
+`packages/shared/src/index.ts`.
+
+### Commits
+
+See `git log` on `feature/laboratory-stability` for the exact commit(s)
+created this cycle (FVL-05.003-focused messages).
+
+### Desktop build & shortcut
+
+Recorded in the same session's final report per the Desktop Build &
+Shortcut Acceptance Gate (native Tauri release build from final HEAD,
+`formulab.exe` verification, shortcut `TargetPath` check).
+
+### Result
+
+**COMPLETE** for the FVL-05.003 implementation/tests/tracker scope
+described above.
+
+Manual UI acceptance from Desktop\FormuLab.lnk is pending user
+verification.

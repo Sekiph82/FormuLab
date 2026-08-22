@@ -595,6 +595,7 @@ export * from "./engine/transformation";
 export * from "./engine/artifactNaming";
 export * from "./engine/connectorConnection";
 export * from "./schemas/dataset";
+export * from "./engine/formulaVersionDatasetExtractor";
 export {
   PRECISION,
   CURRENCY_DP,
