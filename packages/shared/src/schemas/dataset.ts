@@ -25,7 +25,8 @@
  * FVL-05.002 onward.
  */
 import { z } from "zod";
-import { formulationLineSchema } from "./formulation";
+import { decimalString, formulationLineSchema } from "./formulation";
+import { TRIAL_PROCESS_STEP_STATUSES, trialObservationSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
 import { productFamilySchema } from "./product";
 
@@ -166,3 +167,90 @@ export const formulaVersionCompositionRowSchema = datasetRowBaseSchema.extend({
   productFamily: productFamilySchema.optional(),
 });
 export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionCompositionRowSchema>;
+
+/**
+ * FVL-05.004 — process plan + actual process observations payload.
+ *
+ * There is no persisted "manufacturing procedure" record independent of a
+ * trial: `FormulationVersion` carries no process fields at all, and the only
+ * structured, shared-package-visible process data is `LaboratoryTrial`'s own
+ * embedded `processSteps`/`observations` (`schemas/laboratory.ts`) — each
+ * `TrialProcessStep` co-locates its PLANNED fields (`plannedInstruction`,
+ * `plannedTemperature*`, `plannedMixingSpeed*`, `plannedDurationMinutes`,
+ * `plannedAdditionOrder`) and its ACTUAL execution fields
+ * (`actualStart`/`actualEnd`, `actualTemperature*`, `actualMixingSpeedRpm`,
+ * `actualDurationMinutes`, `actualAdditionOrder`, `actualPh`,
+ * `actualViscosity`, `operator`, `observation`, `deviationNote`) on the same
+ * record. `processStepPlanSchema` and `processStepActualObservationSchema`
+ * below split that one record into two honestly-scoped views — a planned
+ * target must never be presented as an actual observation — without
+ * inventing a second source model for either half.
+ *
+ * A step marked `unplanned: true` (added mid-execution, not part of the
+ * original plan) is deliberately excluded from `plannedSteps` — it was never
+ * planned — while still counting as real actual-execution evidence in
+ * `actualStepObservations`.
+ *
+ * `processTrialSchema` groups both step views plus the trial's own discrete
+ * `TrialObservation` records (reused verbatim from `schemas/laboratory.ts`)
+ * under the exact trial identity (`trialId`/`trialCode`) they were recorded
+ * against, so multiple trials for one formula version stay distinct.
+ *
+ * One row per `FormulationVersion`, same convention as FVL-05.003:
+ * `trials` is empty when no `LaboratoryTrial` is linked to the version via
+ * an exact `sourceType === "saved_version"` + `sourceFormulaVersionId` match
+ * — never a fabricated plan or observation.
+ */
+export const processStepPlanSchema = z.object({
+  processStepId: nonBlankString("processStepId"),
+  stepNumber: z.number().int().positive(),
+  phase: nonBlankString("phase"),
+  plannedInstruction: nonBlankString("plannedInstruction"),
+  requiredEquipment: z.array(z.string()),
+  plannedTemperatureMinC: decimalString.optional(),
+  plannedTemperatureMaxC: decimalString.optional(),
+  plannedMixingSpeedMinRpm: decimalString.optional(),
+  plannedMixingSpeedMaxRpm: decimalString.optional(),
+  plannedDurationMinutes: decimalString.optional(),
+  plannedAdditionOrder: z.number().int().nonnegative().optional(),
+});
+export type ProcessStepPlan = z.infer<typeof processStepPlanSchema>;
+
+export const processStepActualObservationSchema = z.object({
+  processStepId: nonBlankString("processStepId"),
+  stepNumber: z.number().int().positive(),
+  status: z.enum(TRIAL_PROCESS_STEP_STATUSES),
+  unplanned: z.boolean(),
+  skipReason: z.string().optional(),
+  actualStart: z.string().optional(),
+  actualEnd: z.string().optional(),
+  actualTemperatureC: decimalString.optional(),
+  actualMixingSpeedRpm: decimalString.optional(),
+  actualDurationMinutes: decimalString.optional(),
+  actualAdditionOrder: z.number().int().nonnegative().optional(),
+  actualPh: decimalString.optional(),
+  actualViscosity: decimalString.optional(),
+  viscosityUnit: z.string().optional(),
+  operator: z.string().optional(),
+  observation: z.string().optional(),
+  deviationNote: z.string().optional(),
+});
+export type ProcessStepActualObservation = z.infer<typeof processStepActualObservationSchema>;
+
+export const processTrialSchema = z.object({
+  trialId: nonBlankString("trialId"),
+  trialCode: nonBlankString("trialCode"),
+  plannedSteps: z.array(processStepPlanSchema),
+  actualStepObservations: z.array(processStepActualObservationSchema),
+  observations: z.array(trialObservationSchema),
+});
+export type ProcessTrial = z.infer<typeof processTrialSchema>;
+
+export const formulaVersionProcessRowSchema = datasetRowBaseSchema.extend({
+  formulaId: nonBlankString("formulaId"),
+  formulaCode: nonBlankString("formulaCode"),
+  formulaVersionId: nonBlankString("formulaVersionId"),
+  formulaVersionNumber: z.number().int().positive(),
+  trials: z.array(processTrialSchema),
+});
+export type FormulaVersionProcessRow = z.infer<typeof formulaVersionProcessRowSchema>;
