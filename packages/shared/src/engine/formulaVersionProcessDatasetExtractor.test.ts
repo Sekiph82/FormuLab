@@ -303,6 +303,31 @@ describe("extractFormulaVersionProcessRows", () => {
     expect(entry.actualStepObservations[0].unplanned).toBe(true);
   });
 
+  it("emits one row per requested identity, including a duplicate-requested version id twice in order", () => {
+    const input = buildInput({
+      formulationVersions: [version({ id: "VER-0001" })],
+      formulationVersionIds: ["VER-0001", "VER-0001"],
+    });
+    const rows = extractFormulaVersionProcessRows(input);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].formulaVersionId).toBe("VER-0001");
+    expect(rows[1].formulaVersionId).toBe("VER-0001");
+    expect(rows[0]).toEqual(rows[1]);
+  });
+
+  it("counts a step with only viscosityUnit set (no actualViscosity) as real actual-execution evidence, not silently dropped", () => {
+    const unitOnlyStep = step({ id: "s1", stepNumber: 1, viscosityUnit: "cP" });
+    const input = buildInput({
+      formulationVersions: [version()],
+      trials: [trial({ processSteps: [unitOnlyStep] })],
+    });
+    const rows = extractFormulaVersionProcessRows(input);
+    const entry = rows[0].trials[0];
+    expect(entry.actualStepObservations).toHaveLength(1);
+    expect(entry.actualStepObservations[0].viscosityUnit).toBe("cP");
+    expect(entry.actualStepObservations[0].actualViscosity).toBeUndefined();
+  });
+
   it("fails closed when a requested formula version id is not found", () => {
     const input = buildInput({
       formulationVersions: [version({ id: "VER-0001" })],

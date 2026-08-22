@@ -160,6 +160,7 @@ function stepHasActualData(step: TrialProcessStep): boolean {
     step.actualAdditionOrder !== undefined ||
     step.actualPh !== undefined ||
     step.actualViscosity !== undefined ||
+    step.viscosityUnit !== undefined ||
     step.operator !== undefined ||
     step.observation !== undefined ||
     step.deviationNote !== undefined
