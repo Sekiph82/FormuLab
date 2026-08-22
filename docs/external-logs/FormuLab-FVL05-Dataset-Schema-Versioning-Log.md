@@ -825,3 +825,184 @@ from the final HEAD.
 
 Manual UI acceptance from Desktop\FormuLab.lnk is pending user
 verification.
+
+## FVL-05.003 — Corrective cycle: independent source audit,
+root-test-scope documentation correction (2026-08-22)
+
+### Task
+
+Second corrective/audit cycle for FVL-05.003 only. Instructed to
+independently re-verify the committed implementation against the
+frozen task contract rather than trust the prior cycle's `COMPLETED`
+narrative, and specifically to check whether root `pnpm test` still
+excludes `@formulab/shared` before repeating that claim.
+
+### Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD = starting remote HEAD:
+  `cbaffe4f62b30e7f04373f8e4a3449141015b0ef`.
+
+### Audit method
+
+Read line by line: `formulaVersionDatasetExtractor.ts`,
+`formulaVersionDatasetExtractor.test.ts`, `schemas/dataset.ts`, the
+relevant slices of `schemas/formulation.ts` (`formulationLineSchema`),
+`schemas/materials.ts` (`rawMaterialSchema`), `schemas/product.ts`
+(`productFamilySchema`), `packages/shared/src/index.ts`, the
+FVL-05.003 tracker row, and both existing FVL-05.003 log sections
+above. Also read `package.json` (root), `packages/shared/package.json`,
+and `apps/desktop/package.json` to check the documented test/typecheck/
+lint commands against what they actually run.
+
+### Audit finding: implementation
+
+Verified against the twelve frozen contract points: exact-id resolution
+with fail-closed ambiguity handling exists for all four identity kinds
+(formula version, owning formulation, material code, product family
+code — `buildVersionsById`, `buildFormulationsById`,
+`buildMaterialsByCode`, `resolveProductFamily`); composition
+(`version.lines`) and materials/family are copied verbatim with no
+normalization; `resolveReferencedMaterials` dedupes by first-reference
+order while leaving composition lines themselves untouched; a
+`productFamilies` collection is treated as an explicit resolution
+request (fails closed on zero or >1 matches; honestly absent only when
+the collection itself is omitted); `buildLineage` emits deterministic,
+non-duplicated `sourceRecords` in formulation → version → materials →
+family order; every row is `safeParse`d against
+`formulaVersionCompositionRowSchema` before being returned, which both
+fails closed on a malformed row and eliminates output/input aliasing
+(the zod parse always rebuilds nested structures); a repeated requested
+version id produces one equal row per requested occurrence, matching
+contract point 12's per-occurrence (not per-distinct-identity) reading;
+no mutation, I/O, clock, random, or generated identity appears anywhere
+in the module. Cross-checked the schema files directly:
+`formulationLineSchema`/`rawMaterialSchema`/`productFamilySchema` are
+reused verbatim in `dataset.ts` via `datasetRowBaseSchema.extend()`
+rather than re-modeled, so the row schema cannot silently drift from
+the canonical record shapes. Checked `index.ts`'s `export *` lines for
+`./schemas/dataset` and `./engine/formulaVersionDatasetExtractor` —
+present, and (confirmed by the pre-existing "available from the shared
+package's public export path" test still passing) no export-name
+collision.
+
+**No implementation defect found.** The prior corrective cycle's
+`duplicate_formulation_id` fix was independently re-verified as present
+and correctly ordered (checked before either material or product-family
+resolution runs for a given version), and remains the only defect ever
+found in this module across both corrective cycles.
+
+### Audit finding: documentation (the one real defect this cycle)
+
+Both existing FVL-05.003 log sections above, and the tracker row before
+this edit, stated that root `pnpm test` "does not recurse into
+`@formulab/shared`." Reading `package.json` at the repository root
+directly shows:
+
+```json
+"test": "pnpm --filter @formulab/shared test && pnpm --filter @formulab/desktop test"
+```
+
+That statement was true when FVL-05.001 was written but is no longer
+true of this repository — root `pnpm test` runs the full
+`@formulab/shared` suite (via `vitest run`, per
+`packages/shared/package.json`) before the `@formulab/desktop` suite,
+sequentially, and fails the whole command if either half fails. This is
+exactly the stale claim the task instructions for this cycle warned
+against repeating. This is a documentation defect only — the extractor
+and its tests were unaffected either way, since `@formulab/shared test`
+was always run and asserted directly in every prior cycle regardless of
+what root `pnpm test` did or didn't cover.
+
+### Fix
+
+Documentation-only. No production or test source was changed this
+cycle (the implementation audit above found nothing to fix). Corrected:
+
+- `docs/FORMULAB_V1_TASK_TRACKER.md` FVL-05.003 row: replaced the
+  stale "`pnpm test` (root, does not recurse into `@formulab/shared`):
+  167 files / 1726 tests passed" claim with the fresh, dual-package
+  result below, and noted explicitly that this cycle's audit found the
+  implementation already correct.
+- This log file: this new subsection.
+
+### Test / build results (run fresh this cycle; prior cycles' counts
+not reused)
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionDatasetExtractor.test.ts` — **29/29
+  passed**.
+- `pnpm --filter @formulab/shared exec vitest run
+  src/schemas/dataset.test.ts` — **18/18 passed**.
+- `pnpm --filter @formulab/shared test` (full shared suite) —
+  **85 files / 1789 tests passed**.
+- `pnpm test` (root) — **exit 0**; this now runs
+  `@formulab/shared test` (85 files / 1789 tests, as above) followed by
+  `@formulab/desktop test` (167 files / 1726 tests passed, captured
+  directly from this run's own output) — **252 files / 3515 tests
+  passed combined, no regression**.
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm typecheck` (root → `@formulab/desktop tsc --noEmit`,
+  transitively type-checks against `@formulab/shared`'s exports) —
+  clean.
+- `pnpm lint` (root → `@formulab/desktop eslint .`; confirmed
+  `packages/shared/package.json` still defines no `lint` script) —
+  clean.
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+- `git diff --check` — clean.
+- `git diff --stat` / `--name-status` at the start of this cycle showed
+  only the pre-existing unrelated worktree state (generated user-guide
+  DOCX/PDF, deleted `formulas/*.md` + `formulas/index.json`, untracked
+  FVL-03/FVL-04/Phase 11-14 external logs) — all left untouched;
+  `git diff --cached` was empty until this cycle's own two documentation
+  files were staged.
+
+### Security notes
+
+No source code changed this cycle — nothing new to assess. The
+extractor module itself (unchanged) remains pure in-memory
+transformation with no I/O, persistence, or credential handling.
+
+### Tracker update
+
+`docs/FORMULAB_V1_TASK_TRACKER.md`: only the FVL-05.003 row edited,
+correcting the root-test-scope claim and recording this cycle's fresh
+counts. No other roadmap row touched.
+
+### FVL-03/FVL-04 reopened?
+
+No. No FVL-03/FVL-04-owned module was read for editing purposes or
+touched; `dataExchange*`/`connector*` files were not part of this
+cycle's diff.
+
+### Files changed this cycle
+
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.003 row only).
+- This log file (this new corrective subsection).
+
+No `packages/shared/src/**` file was changed this cycle — the audit
+found the existing implementation and its tests already correct.
+
+### Commits
+
+See `git log` on `feature/laboratory-stability` for the exact
+documentation-only commit created this cycle.
+
+### Desktop build & shortcut
+
+Recorded in the same session's final report per the Desktop Build &
+Shortcut Acceptance Gate (native Tauri release build from final HEAD,
+`formulab.exe` verification, shortcut `TargetPath` check).
+
+### Result
+
+**COMPLETE** for this cycle's audit scope: independently re-verified
+the FVL-05.003 implementation against the frozen contract (no defect
+found), corrected the one real defect found — stale root-test-scope
+documentation — with fresh evidence, and ran the full acceptance
+command set from the final HEAD.
+
+Manual UI acceptance from Desktop\FormuLab.lnk is pending user
+verification.
