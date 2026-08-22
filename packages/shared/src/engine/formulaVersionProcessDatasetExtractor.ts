@@ -26,6 +26,15 @@
  * does — fails closed on a malformed row, and guarantees (via zod's
  * always-rebuilding parse) that the returned row shares no mutable
  * array/object with the source records it was built from.
+ *
+ * `TrialProcessStep.id`/`TrialObservation.id` are embedded-array-scoped to
+ * their own trial, not globally unique, so two different linked trials may
+ * legitimately hold a step or observation with the same `id`. Lineage
+ * citations for those two entities are therefore `${trial.id}:${record.id}`
+ * (a deterministic join of two real persisted ids, never an invented one) —
+ * this keeps every physical record's citation distinct across multiple
+ * linked trials while the row's own emitted `processStepId`/observation
+ * `id` fields stay the exact, unprefixed persisted value.
  */
 import type { Formulation, FormulationVersion } from "../schemas/formulation";
 import type { LaboratoryTrial, TrialObservation, TrialProcessStep } from "../schemas/laboratory";
@@ -285,10 +294,16 @@ function buildProcessTrial(
   for (const step of [...plannedSteps, ...actualSteps]) {
     if (citedStepIds.has(step.id)) continue;
     citedStepIds.add(step.id);
-    citations.push({ sourceEntity: "trialProcessStep", sourceRecordId: step.id });
+    // `TrialProcessStep.id` is embedded-array-scoped to its own trial, not
+    // globally unique (see `schemas/laboratory.ts`'s header comment) — two
+    // DIFFERENT steps on two different linked trials may legitimately share
+    // the same `id`. Prefixing with the (globally unique) owning trial id
+    // keeps each physical record's citation distinct without inventing any
+    // id component that isn't itself a real persisted identifier.
+    citations.push({ sourceEntity: "trialProcessStep", sourceRecordId: `${trial.id}:${step.id}` });
   }
   for (const observation of sortedObservations) {
-    citations.push({ sourceEntity: "trialObservation", sourceRecordId: observation.id });
+    citations.push({ sourceEntity: "trialObservation", sourceRecordId: `${trial.id}:${observation.id}` });
   }
 
   return {

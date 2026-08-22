@@ -204,10 +204,10 @@ describe("extractFormulaVersionProcessRows", () => {
     expect(entry.observations.map((o) => o.id)).toEqual(["obs-1", "obs-2"]);
     expect(entry.observations[0].description).toBe("Pale yellow.");
     expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "laboratoryTrial", sourceRecordId: "TRIAL-0001" });
-    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialProcessStep", sourceRecordId: "s1" });
-    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialProcessStep", sourceRecordId: "s2" });
-    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialObservation", sourceRecordId: "obs-1" });
-    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialObservation", sourceRecordId: "obs-2" });
+    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialProcessStep", sourceRecordId: "TRIAL-0001:s1" });
+    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialProcessStep", sourceRecordId: "TRIAL-0001:s2" });
+    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialObservation", sourceRecordId: "TRIAL-0001:obs-1" });
+    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialObservation", sourceRecordId: "TRIAL-0001:obs-2" });
   });
 
   it("keeps multiple trials for one formula version distinct and orders them deterministically by createdAt/id regardless of input order", () => {
@@ -222,6 +222,35 @@ describe("extractFormulaVersionProcessRows", () => {
     expect(forward[0].trials.map((t) => t.trialId)).toEqual(["TRIAL-A", "TRIAL-B"]);
     expect(reversed[0].trials.map((t) => t.trialId)).toEqual(["TRIAL-A", "TRIAL-B"]);
     expect(forward[0]).toEqual(reversed[0]);
+  });
+
+  it("does not collapse two different trials' process steps or observations into one lineage citation when their (trial-scoped, not global) ids happen to collide", () => {
+    const trialA = trial({
+      id: "TRIAL-A",
+      code: "TRL-A",
+      createdAt: "2026-01-03T00:00:00.000Z",
+      processSteps: [step({ id: "s1", stepNumber: 1, status: "completed", actualStart: "2026-01-03T10:00:00.000Z" })],
+      observations: [observation({ id: "obs-1", observedAt: "2026-01-03T10:05:00.000Z" })],
+    });
+    const trialB = trial({
+      id: "TRIAL-B",
+      code: "TRL-B",
+      createdAt: "2026-01-04T00:00:00.000Z",
+      processSteps: [step({ id: "s1", stepNumber: 1, status: "completed", actualStart: "2026-01-04T10:00:00.000Z" })],
+      observations: [observation({ id: "obs-1", observedAt: "2026-01-04T10:05:00.000Z" })],
+    });
+    const input = buildInput({ formulationVersions: [version()], trials: [trialA, trialB] });
+
+    const rows = extractFormulaVersionProcessRows(input);
+
+    expect(rows).toHaveLength(1);
+    expect(formulaVersionProcessRowSchema.safeParse(rows[0]).success).toBe(true);
+    expect(rows[0].trials[0].plannedSteps[0].processStepId).toBe("s1");
+    expect(rows[0].trials[1].plannedSteps[0].processStepId).toBe("s1");
+    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialProcessStep", sourceRecordId: "TRIAL-A:s1" });
+    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialProcessStep", sourceRecordId: "TRIAL-B:s1" });
+    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialObservation", sourceRecordId: "TRIAL-A:obs-1" });
+    expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "trialObservation", sourceRecordId: "TRIAL-B:obs-1" });
   });
 
   it("never lets a trial or observation linked to another formula version leak into this row", () => {
