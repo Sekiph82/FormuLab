@@ -2194,3 +2194,163 @@ None identified for FVL-05.004 within this task's frozen scope.
 
 Manual UI acceptance from Desktop\FormuLab.lnk is pending user
 verification.
+
+## FVL-05.004 — fourth corrective cycle: reconciliation with remote GPT ledger + final build/shortcut evidence (2026-08-23)
+
+### Remote reconciliation
+
+`git push` after the first fourth-cycle commit (`80c74b6`) was rejected:
+the remote had gained two commits (`b2715a3` "docs(FVL-05): add GPT audit
+ledger", `7889da4` "docs(FVL-05): add GPT prompt ledger") pushed by the
+user directly while this session worked — containing the REAL, full
+`AUDIT_FVL05_GPT_000001` audit (411 lines) and `PROMPT_FVL05_GPT_000001`
+prompt (530 lines). This session's own `docs/audits/FVL05-GPT Audits.md`/
+`docs/prompts/FVL05 Prompts.md` had been found empty (0 bytes) at session
+start and were populated with a transcription reconstructed from this
+session's own governing prompt — now superseded by the real content.
+
+Resolved via `git merge origin/feature/laboratory-stability` (not a
+rebase — the pre-existing unrelated dirty worktree files blocked a clean
+rebase and stashing was denied by the permission classifier; a merge
+does not require a clean tree for unrelated paths). Both ledger files
+conflicted (add/add). Resolved by keeping the real, user-authored
+content as the base and re-appending this session's own resolution
+sections on top — not reconciled into one voice, not deleted:
+
+- `docs/audits/FVL05-GPT Audits.md`: real `AUDIT_FVL05_GPT_000001`
+  (findings A1-A4/B1-B5/C1-C5/D1-D3/E/F/G) kept verbatim; this session's
+  `CLAUDE RESOLUTION` section REWRITTEN to reference the real finding
+  IDs (previously used an improvised A-J lettering, since the session
+  had no real audit to reference against at the time) and to explicitly
+  address D1/D2/D3 (documentation-truth findings this session's first
+  pass had not covered).
+- `docs/prompts/FVL05 Prompts.md`: real `PROMPT_FVL05_GPT_000001` kept
+  verbatim; this session's own actually-received governing prompt
+  appended as `PROMPT_FVL05_GPT_000002` (recorded as a distinct variant,
+  not merged into the first — the two differ in section
+  numbering/lettering and required-test names for the same substantive
+  scope).
+
+### D1 (tracker/handoff contradictory truth) — actually fixed this pass
+
+The real audit's D1 finding was not addressed by the first fourth-cycle
+commit. Fixed in the reconciliation commit:
+
+- `docs/FORMULAB_V1_TASK_TRACKER.md`'s FVL-05.004 row: inserted an
+  explicit "CURRENT TRUTH is the FOURTH CORRECTIVE CYCLE paragraph at
+  the very end of this cell — read that first" marker immediately after
+  the row's `COMPLETED` date, before the superseded opening sentence
+  ("no persisted process-plan record exists independent of a trial"),
+  which is now clearly flagged as historical narrative rather than left
+  to silently contradict the corrected conclusion.
+- `docs/handoffs/FORMULAB_V1_CURRENT.md`'s THIRD CORRECTIVE CYCLE block
+  (now correctly positioned below the new FOURTH CORRECTIVE CYCLE block
+  per the file's existing newest-first convention): annotated the
+  `(formulaCode, formulaVersion)` phrase in place to point at the block
+  above for the exact 3-part authoritative natural key.
+- `packages/shared/src/schemas/dataset.ts` (2 occurrences) and
+  `packages/shared/src/engine/formulaVersionProcessDatasetExtractor.ts`
+  (2 occurrences): the same imprecise `(formulaCode, formulaVersion)`
+  phrasing, used to describe the row-level grouping/match criterion,
+  now explicitly distinguished from the per-record authoritative natural
+  key `(formulaCode, formulaVersion, stepNumber)` in every occurrence.
+
+### Fresh re-verification after reconciliation
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionProcessDatasetExtractor.test.ts
+  src/schemas/dataset.test.ts` — **77/77 passed**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite) — **86
+  files / 1848 tests passed**, unchanged from before reconciliation (only
+  comments/docs changed in the reconciliation commit itself).
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` — clean.
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks across
+  11 work packages, no drift found.`
+- `git diff --staged --check` — 3 warnings, all pre-existing trailing
+  double-space markdown line-breaks in the verbatim-preserved real audit
+  header (the user's own original content, not introduced by this
+  session); otherwise clean.
+- Desktop full test suite not re-run after the reconciliation commit
+  (doc/comment-only changes, no desktop source touched) — last real run
+  (167 files / 1726 tests passed) remains valid evidence for this HEAD.
+
+### Commits
+
+- `80c74b6` — first fourth-cycle commit (all ten code-level findings
+  B1-C5 fixed; rejected on push, remote had moved).
+- `bb70dd6` — merge/reconciliation commit (real ledger content kept,
+  D1 actually fixed, CLAUDE RESOLUTION remapped to real finding IDs).
+
+Final HEAD: `bb70dd67d81627af533a93c8875352c18b482b98`. Verified
+`git rev-parse HEAD` equals `git rev-parse origin/feature/laboratory-stability`
+after push — both `bb70dd67d81627af533a93c8875352c18b482b98`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Build command: `pnpm --filter @formulab/desktop tauri build` — exit 0.
+  Vite build succeeded (17.69s); Rust release compile succeeded
+  (Finished release profile [optimized] target(s) in 1m 11s); MSI
+  and NSIS bundles produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,870,400 bytes, modified 2026-08-23 20:13 local time,
+  SHA256 `2925c4ce2c1a6307cb9e7378421def00e466bca09709b2daf662e15715217915`
+  (distinct from the pre-cycle build's hash
+  `a1feb1467ed2b5906b6041decfda63f3022ba6be24508144cd6ed81be3b9c39`,
+  confirming a fresh build from this cycle's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath equals the exact just-built executable path (byte-identical
+  match), Arguments empty, WorkingDirectory is
+  `...\apps\desktop\src-tauri\target\release`. No duplicate shortcut
+  created; `.lnk` not committed.
+- Native launch smoke: prior stale `formulab.exe` process (from an
+  earlier session's smoke test) stopped first; launched fresh via
+  Start-Process against the shortcut; resulting process (PID 5128)
+  confirmed running from the exact fresh exe path and Responding=True 5
+  seconds after launch. Automated launch smoke: PASS. Manual UI
+  acceptance (New Request click-through, etc.) from Desktop\FormuLab.lnk
+  is still pending USER verification — not claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+dataset schema-version compatibility resolved from the FVL-05.001
+contract (B1, no bump needed, zero-consumer evidence); process_parameters
+authoritative natural key traced end-to-end and enforced (B2); duplicate
+natural-key process steps fail closed; processParameter lineage cites the
+real persisted code; nested lineage collision-safe AND preserves the
+exact child persisted id under the FVL-05.002 contract (B3, via the
+additive parentRecordId field) AND preserves explicit parent scope;
+cross-trial reused nested IDs work; delimiter/unicode-containing IDs
+cannot collide; saved_version-implies-sourceFormulaVersionId invariant
+enforced/fail-closed (B4); TrialObservation.processStepId referential
+integrity enforced when present (B5); authoritative Laboratory schemas
+directly inspected; field-by-field TrialProcessStep disposition matrix
+completed (C1/C2); every demonstrated source/dataset mismatch corrected
+or source-justified; attachment handling deliberately resolved (C1);
+Manufacturing Procedure persistence/linkage re-proven from executable
+source; authoritative persisted plan used; no plan fabricated; planned
+and actual data remain structurally separate; no fabricated actual
+observations; exact zero/false/units/optional values preserved; ordering
+locale-independent (C3); timestamp-order assumption validated/fail-closed
+(C3); exact formula/version/trial linkage; formula-code uniqueness used
+by plan linkage proven-not-enforced and fails closed on ambiguity (C5);
+all ambiguous identities fail closed; structured error context names
+match values (C4); source non-mutation; no source/output aliasing; public
+exports correct; focused tests green (77/77); full shared tests green
+(86/86 files, 1848/1848); desktop regression green (167/167 files,
+1726/1726, last real run, unaffected by doc-only reconciliation);
+shared/desktop typechecks green; desktop lint green; tracker validator
+green; git diff --check clean (pre-existing warnings only); tracker/
+handoff present one unambiguous current truth (D1, actually fixed this
+pass); GPT audit ledger updated (real content preserved, resolution
+appended); prompt ledger updated (real content preserved, this session's
+actual prompt appended); FVL-05.005 untouched; changes committed and
+pushed; local HEAD == remote HEAD; fresh native build from final pushed
+HEAD; Desktop\FormuLab.lnk verified; this external log updated; fresh
+whole-scope adversarial re-audit found no unresolved defect.
+
+**FVL-05.004 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.005 NOT STARTED** (per this session's explicit
+instruction not to begin it).
