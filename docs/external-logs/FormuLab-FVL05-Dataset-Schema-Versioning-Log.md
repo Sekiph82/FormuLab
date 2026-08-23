@@ -3113,3 +3113,244 @@ audit/prompt files untouched (read-only, respected).
 
 **NEXT TASK — FVL-05.006 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+## FVL-05.005 — corrective cycle: independent GPT re-audit (AUDIT_FVL05_GPT_000005, 2026-08-24)
+
+A second independent GPT re-audit reopened FVL-05.005. Governing
+prompts: `docs/prompts/FVL05-GPT-PROMPT-000006.md` (this cycle) plus
+`docs/prompts/FVL05-GPT-PROMPT-000005.md` (original task, re-read for
+context). Audit: `docs/audits/FVL05-GPT-AUDIT-000005.md`. All GPT-owned/
+READ-ONLY — read this session, not written to. Manual session, no
+subagents, no Autopilot.
+
+### Starting state
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `5fefe0991691327a6904a245e6b6766c3172b249`.
+- `git fetch` found remote at `0eb13f89f879b8a456dedd1421f29c558c8e5a19`
+  (two new commits: `a77cd0f` "docs(FVL-05): add GPT audit 000005 for
+  FVL-05.005" adding `docs/audits/FVL05-GPT-AUDIT-000005.md`, `0eb13f8`
+  "docs(FVL-05): add corrective prompt for FVL-05.005" adding
+  `docs/prompts/FVL05-GPT-PROMPT-000006.md`) — fast-forwarded cleanly
+  (`git merge --ff-only`), no conflict.
+- Pre-existing dirty worktree (unrelated, left untouched): same set as
+  every prior cycle. Verified unchanged via `git status --short` before
+  commit.
+
+### Finding 1 (HIGH) — referential integrity for revisesResultId/retestOf
+
+**What was wrong.** The original extractor preserved
+`TestResult.revisesResultId`/`.retestOf` verbatim (correct — these are
+real predecessor/retest identity references, not free text, confirmed
+via `engine/testResults.ts`'s `reviseTestResult`, which sets
+`revisesResultId` to the exact predecessor `id`), but never validated
+that either reference actually resolves. Zod only checked the field was
+a string; a dangling, cross-trial, self-referencing, or cyclic reference
+would silently pass through into a schema-valid dataset row.
+
+**Source-of-truth recovery (per the audit's explicit "do not invent
+rules" instruction).** Found `packages/shared/src/engine/resultHistory.ts`
+— an EXISTING, production-used (via
+`apps/desktop/src/components/formula/ResultHistoryBrowser.tsx`) engine
+module that already walks these exact two relationships:
+
+- `buildResultRevisionChain`'s own doc comment: "`results` may be any
+  pool of results (e.g. every result for one test definition on ONE
+  TRIAL)" — establishes the CONVENTIONAL scope of a revision chain as
+  trial-scoped.
+- Its cycle-detection code ("Circular revision reference detected...
+  stopped walking further back") proves a cyclic `revisesResultId`
+  reference is a real, anticipated malformed state in this domain — not
+  a hypothetical this session invented.
+- `groupRetestLineage`'s own doc comment: "An orphan retest (`retestOf`
+  points at an id absent from `results`) becomes its own single-result
+  lineage, with a warning rather than being silently dropped" — proves a
+  dangling `retestOf` is a real, anticipated case too.
+- Neither function enforces or discusses trial-scoping as a hard rule —
+  they are GENERIC utilities, agnostic to trial boundaries. Agnosticism
+  is not the same as endorsement: no source evidence anywhere proves
+  cross-trial `revisesResultId`/`retestOf` linkage is a legitimate,
+  intended relationship.
+
+**The key judgment call.** `resultHistory.ts` resolves every one of
+these anomalies with a WARNING, never a thrown exception — because its
+job is graceful DISPLAY of imperfect real-world data to a human who can
+see and dismiss a warning. This session did NOT copy that behavior
+verbatim into the dataset extractor: a historical dataset, unlike an
+interactive UI, has no mechanism to hand a downstream ML/analysis
+consumer "here's a warning, judge for yourself" — an internally
+inconsistent lineage reference silently baked into extracted output
+would poison that consumer instead. Per the audit's own explicit
+instruction ("same-trial requirement must be enforced UNLESS current
+source explicitly proves cross-trial linkage is legitimate" / "detect
+cycles only if acyclicity is proven"), and having found no evidence
+proving either exception, the extractor now:
+
+- requires `revisesResultId`/`retestOf` to resolve to exactly one
+  `TestResult` in the supplied pool (fails closed if dangling);
+- requires the referenced result to belong to the SAME `trialId`
+  (fails closed if cross-trial — enforced for both fields identically,
+  since no evidence was found justifying a different rule for either);
+- fails closed on a direct self-reference;
+- fails closed on any longer (length ≥2) reference cycle.
+
+**Implementation.** `validateResultReference()` checks each reference's
+immediate neighbor in order — self (checked FIRST: a self-reference
+would otherwise trivially "resolve", since the target IS the result
+itself, and would silently pass both the dangling and cross-trial
+checks, masking the real problem), then dangling, then cross-trial.
+`findFirstReferenceCycle()` separately walks every result's chain per
+field (once every individual edge is already known to resolve, from the
+prior pass) to catch longer cycles. Both run pool-wide over the ENTIRE
+supplied `testResults`, matching the "audit the whole pool up front"
+convention every other identity check in this extractor already
+follows. Six new error codes, each carrying truthful `testResultId`/
+`trialId` context (not an overloaded field):
+`test_result_revision_cycle_detected`,
+`dangling_test_result_revision_reference`,
+`cross_trial_test_result_revision_reference`,
+`test_result_retest_cycle_detected`,
+`dangling_test_result_retest_reference`,
+`cross_trial_test_result_retest_reference`.
+
+Also fixed, in the same pass: a leftover orphaned doc comment from the
+edit (the original "Builds the trial-id -> test-results index..."
+comment ended up floating above unrelated new type declarations instead
+of the function it described, after the new helpers were inserted
+between them) — removed the duplicate; the function itself already has
+an accurate, updated version of that same comment directly above it.
+
+### Whole-scope regression re-audit (per the prompt's own instruction — not treating the new tests as automatic proof)
+
+Re-read the entire extractor file end to end after the fix. Confirmed
+unchanged and correct: exact `TestResult.trialId` ↔ `LaboratoryTrial.id`
+linkage; `TestResult.id`'s genuinely global identity (no `parentRecordId`
+fabricated); `DATASET_SCHEMA_VERSION` `"1.2"` behavior; `TestDefinition`
+still deliberately not embedded (no planned-vs-actual conflation);
+revision/retest history still preserved in full (never collapsed —
+proven by the pre-existing "valid chain still passes" tests, re-run
+green); deterministic, locale-independent ordering unchanged; no
+cross-trial/cross-version leakage (pre-existing tests for this, re-run
+green); every prior error path/test still passes (37/37 pre-existing
+tests, now 49/49 with the 12 new ones, 0 removed or weakened).
+
+### Tests
+
+`formulaVersionTestResultDatasetExtractor.test.ts`: 37 → 49 tests (+12,
+0 removed/weakened): valid same-trial `revisesResultId` chain still
+passes and both records preserved; dangling `revisesResultId` fails
+closed; cross-trial `revisesResultId` fails closed; self-revising fails
+closed; a length-2 `revisesResultId` cycle fails closed; valid same-trial
+`retestOf` accepted and preserved; dangling `retestOf` fails closed;
+cross-trial `retestOf` fails closed; self-retesting fails closed; a
+length-2 `retestOf` cycle fails closed; non-mutation of inputs on the new
+failure paths; reordering the `testResults` input does not change
+whether a cycle is detected.
+
+### Fresh test/typecheck/lint/diff/tracker-validation evidence
+
+All commands run fresh from the final corrected state on
+`feature/laboratory-stability`:
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionTestResultDatasetExtractor.test.ts` —
+  **49/49 passed**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite) — **87
+  files / 1900 tests passed** (1888 → 1900, +12, no regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` (eslint) — clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite) — **167
+  files / 1726 tests passed, no regression** (unchanged — no desktop
+  source file touched).
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks across
+  11 work packages, no drift found.`
+- `git diff --check` (staged) — clean, no whitespace warnings.
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+
+### Security / real-data-safety notes
+
+No new I/O, persistence, or external input parsing added — the extractor
+remains pure. All new tests use entirely synthetic fixtures built from
+the existing `formulation()`/`version()`/`trial()`/`testResult()`
+builders — no real laboratory/customer/production data touched.
+
+### Files changed this cycle
+
+- `packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.ts`
+  (six new error codes; `validateResultReference`/
+  `findFirstReferenceCycle`/`REFERENCE_FIELD_ERROR_CODES`;
+  `buildTestResultsByTrialId` restructured into three passes; header
+  comment extended with the full recovered-semantics rationale; orphaned
+  duplicate comment removed).
+- `packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.test.ts`
+  (12 new tests).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.005 row — appended this
+  cycle's evidence under a "CORRECTIVE CYCLE" heading; did not remove or
+  alter the original implementation's evidence).
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` (new pointer block, prepended
+  above the original FVL-05.005 block, left intact as history).
+- This log file (new corrective-cycle section, appended).
+
+GPT-owned files explicitly NOT touched this cycle (read-only rule
+respected): every `docs/audits/FVL05-GPT*.md`/`docs/prompts/FVL05*.md`
+file, including the two new ones this cycle read.
+
+All other pre-existing worktree modifications/deletions/untracked files
+listed under "Starting state" above were left untouched.
+
+### Commits
+
+- `f983e02` — this cycle's single commit (no amend, no force push, no
+  history rewrite).
+
+Final HEAD: `f983e025328bb4f5ee615ca14c064ab049e05641`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`f983e025328bb4f5ee615ca14c064ab049e05641`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building
+  (standing lesson from an earlier cycle's own build failure) — none
+  running.
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly via `echo "EXIT_CODE=$?"` — **`EXIT_CODE=0`**.
+  MSI and NSIS bundles produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,870,400 bytes, modified 2026-08-24 01:54 local time,
+  SHA256 `3ff8b525d3dbcdeff328dfacb4f2cf702f4d43c5b6b387f5c57074c8ff6e1993`
+  (distinct from the pre-cycle build's hash
+  `765dd0658259f0132c3f64a18cdc07d926c365646769e5e5d62be5ec03adebb6`,
+  confirming a fresh build from this cycle's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 11968) confirmed running from the exact fresh exe path
+  and `Responding: True` 5 seconds after launch. **Automated launch
+  smoke: PASS.** Process then deliberately stopped afterward so it does
+  not lock the next build. **Manual UI acceptance from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Finding 1 resolved from authoritative source semantics (not invented);
+focused FVL-05.005 tests green (49/49); full shared suite green (87/87
+files, 1900/1900); full desktop suite green (167/167 files, 1726/1726);
+shared and desktop typechecks green; desktop lint green; tracker
+validator green; `git diff --check` clean; tracker/handoff/external log
+accurately describe the correction; task-owned changes committed and
+pushed; local HEAD equals remote branch HEAD; native Tauri release
+build + shortcut + launch smoke rerun from final pushed HEAD with the
+real exit code verified explicitly; FVL-05.006 remains untouched;
+whole-scope re-audit found no further defect.
+
+**FVL-05.005 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.006 NOT STARTED** (per this session's explicit
+instruction not to begin it).
