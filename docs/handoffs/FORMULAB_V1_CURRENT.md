@@ -4,6 +4,30 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-24, FVL-05.005 corrective cycle, independent GPT
+re-audit `AUDIT_FVL05_GPT_000005` — COMPLETE, genuinely audit-closed)**:
+one HIGH finding — the original extractor preserved
+`TestResult.revisesResultId`/`.retestOf` verbatim but never validated
+that either reference actually resolves. Recovered the authoritative
+domain semantics directly from the existing, production-used
+`packages/shared/src/engine/resultHistory.ts` (not invented): a revision
+chain's conventional scope is one trial; cyclic/dangling references are
+real, anticipated malformed states in this domain. No source evidence
+endorses cross-trial linkage for either field, so both now enforce
+same-trial. Unlike `resultHistory.ts`'s UI-appropriate warn-and-continue
+behavior, this dataset extractor fails closed on a dangling reference, a
+cross-trial reference, a self-reference, or any longer cycle, for both
+fields — a historical dataset has no way to hand a downstream consumer a
+dismissible warning. Six new truthful, context-carrying error codes. Full
+detail: the FVL-05.005 tracker row's "CORRECTIVE CYCLE" paragraph and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own corrective-cycle section. `pnpm --filter @formulab/shared test`: 87
+files / 1900 tests passed. `pnpm --filter @formulab/desktop test`: full
+suite green, no regression (exact count in the external log). Both
+`typecheck`s clean, desktop `lint` clean, `git diff --check` clean,
+`python scripts/validate_v1_tracker.py` OK. **FVL-05.006 explicitly NOT
+started this session, per this session's own instruction.**
+
 **UPDATE (2026-08-24, FVL-05.005 — Extractor: LaboratoryTrial + TestResult
 — COMPLETE)**: FVL-05.004 was independently GPT-audit CLOSED
 (`AUDIT_FVL05_GPT_000004`) before this task began; per that audit's own

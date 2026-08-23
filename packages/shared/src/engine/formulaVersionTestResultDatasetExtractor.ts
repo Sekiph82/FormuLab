@@ -37,6 +37,40 @@
  * closed on a malformed row, and guarantees (via zod's always-rebuilding
  * parse) that the returned row shares no mutable array/object with the
  * source records it was built from.
+ *
+ * REFERENTIAL INTEGRITY FOR `revisesResultId`/`retestOf`
+ * (`AUDIT_FVL05_GPT_000005` finding 1): both are real
+ * `TestResult`-to-`TestResult` identity relationships (`engine/testResults.ts`'s
+ * `reviseTestResult` sets `revisesResultId` to the exact predecessor
+ * `id`), not decorative free text. The AUTHORITATIVE domain semantics for
+ * both were recovered directly from `engine/resultHistory.ts` — the
+ * existing, production-used (via `ResultHistoryBrowser.tsx`) engine
+ * module that walks these exact relationships — rather than invented:
+ * `buildResultRevisionChain`'s own doc comment establishes the
+ * CONVENTIONAL scope for a `revisesResultId` chain as "every result for
+ * one test definition on ONE TRIAL"; its cycle-detection code proves a
+ * cyclic reference is a real, anticipated malformed state (it chooses to
+ * warn-and-truncate there, because that module's job is graceful DISPLAY
+ * of imperfect real-world data to a human); `groupRetestLineage`
+ * similarly treats a dangling `retestOf` as detectable-but-tolerated in
+ * that same browsing context. No source evidence anywhere proves
+ * CROSS-TRIAL `revisesResultId`/`retestOf` linkage is a legitimate,
+ * intended relationship (the generic utilities are merely agnostic to
+ * trial scope, which is not the same as endorsing it) — per this task's
+ * own "same-trial requirement must be enforced UNLESS current source
+ * explicitly proves cross-trial linkage is legitimate" instruction, this
+ * extractor therefore ENFORCES same-trial for both fields, and — unlike
+ * `resultHistory.ts`'s UI-browsing tolerance for a human who can see and
+ * dismiss a warning — FAILS CLOSED on a dangling reference, a
+ * cross-trial reference, a self-reference, or any longer cycle, for
+ * BOTH `revisesResultId` and `retestOf` identically (no source evidence
+ * was found justifying a materially different rule for the two fields).
+ * A trustworthy HISTORICAL DATASET, unlike an interactive UI a human is
+ * actively looking at, has no way to surface "here's a warning, judge
+ * for yourself" to a downstream ML/analysis consumer — an internally
+ * inconsistent lineage reference silently baked into extracted output
+ * would poison that consumer instead. See `validateResultReference`/
+ * `findFirstReferenceCycle` below.
  */
 import type { Formulation, FormulationVersion } from "../schemas/formulation";
 import type { LaboratoryTrial } from "../schemas/laboratory";
@@ -99,6 +133,12 @@ export type FormulaVersionTestResultDatasetExtractionErrorCode =
   | "trial_formula_link_conflict"
   | "duplicate_test_result_id"
   | "test_result_trial_not_found"
+  | "test_result_revision_cycle_detected"
+  | "dangling_test_result_revision_reference"
+  | "cross_trial_test_result_revision_reference"
+  | "test_result_retest_cycle_detected"
+  | "dangling_test_result_retest_reference"
+  | "cross_trial_test_result_retest_reference"
   | "invalid_timestamp_format"
   | "row_schema_validation_failed";
 
@@ -214,29 +254,121 @@ function buildTrialsById(trials: LaboratoryTrial[]): Map<string, LaboratoryTrial
   return byId;
 }
 
+type TestResultReferenceField = "revisesResultId" | "retestOf";
+
+const REFERENCE_FIELD_ERROR_CODES: Record<
+  TestResultReferenceField,
+  {
+    cycle: FormulaVersionTestResultDatasetExtractionErrorCode;
+    dangling: FormulaVersionTestResultDatasetExtractionErrorCode;
+    crossTrial: FormulaVersionTestResultDatasetExtractionErrorCode;
+    verb: string;
+  }
+> = {
+  revisesResultId: {
+    cycle: "test_result_revision_cycle_detected",
+    dangling: "dangling_test_result_revision_reference",
+    crossTrial: "cross_trial_test_result_revision_reference",
+    verb: "revises",
+  },
+  retestOf: {
+    cycle: "test_result_retest_cycle_detected",
+    dangling: "dangling_test_result_retest_reference",
+    crossTrial: "cross_trial_test_result_retest_reference",
+    verb: "is a retest of",
+  },
+};
+
+/** Validates one `result[field]` reference (immediate neighbor only — self,
+ *  dangling, cross-trial). Longer cycles (length >= 2) are caught
+ *  separately by `findFirstReferenceCycle` once every individual edge is
+ *  known to resolve. Self-reference is checked FIRST: a self-reference
+ *  would otherwise trivially "resolve" (the target is the result itself)
+ *  and pass both the dangling and cross-trial checks, masking the real
+ *  problem. */
+function validateResultReference(
+  result: TestResult,
+  field: TestResultReferenceField,
+  resultsById: Map<string, TestResult>,
+): void {
+  const targetId = result[field];
+  if (targetId === undefined) return;
+  const codes = REFERENCE_FIELD_ERROR_CODES[field];
+
+  if (targetId === result.id) {
+    throw new FormulaVersionTestResultDatasetExtractionError(
+      codes.cycle,
+      `Test result "${result.id}" ${codes.verb} itself — a self-reference is not a valid ${field === "revisesResultId" ? "revision" : "retest"} relationship.`,
+      { testResultId: result.id, trialId: result.trialId },
+    );
+  }
+
+  const target = resultsById.get(targetId);
+  if (!target) {
+    throw new FormulaVersionTestResultDatasetExtractionError(
+      codes.dangling,
+      `Test result "${result.id}" ${codes.verb} "${targetId}", which was not found among the supplied test results.`,
+      { testResultId: result.id, trialId: result.trialId },
+    );
+  }
+
+  if (target.trialId !== result.trialId) {
+    throw new FormulaVersionTestResultDatasetExtractionError(
+      codes.crossTrial,
+      `Test result "${result.id}" (trial "${result.trialId}") ${codes.verb} "${targetId}", which belongs to a different trial ("${target.trialId}").`,
+      { testResultId: result.id, trialId: result.trialId },
+    );
+  }
+}
+
+/** Walks the `field` chain from every result in `testResults`, returning
+ *  the first result found to be part of a cycle (length >= 2 — a direct
+ *  self-reference is already rejected by `validateResultReference` before
+ *  this ever runs). Every edge is already known to resolve (no dangling
+ *  reference survives `validateResultReference`), so `resultsById.get`
+ *  here is always defined for a set `field`. */
+function findFirstReferenceCycle(
+  testResults: TestResult[],
+  field: TestResultReferenceField,
+  resultsById: Map<string, TestResult>,
+): TestResult | undefined {
+  for (const start of testResults) {
+    const visited = new Set<string>();
+    let current: TestResult | undefined = start;
+    while (current) {
+      if (visited.has(current.id)) return start;
+      visited.add(current.id);
+      const nextId = current[field];
+      if (nextId === undefined) break;
+      current = resultsById.get(nextId);
+    }
+  }
+  return undefined;
+}
+
 /** Builds the trial-id -> test-results index over the ENTIRE supplied
- *  `testResults` pool, failing closed on a duplicate `TestResult.id`, on
- *  a `trialId` that does not resolve to any trial in the supplied
- *  `trials` pool (the same "audit the whole pool up front" discipline
- *  `formulation_not_found` already applies elsewhere in this file — a
- *  result whose trial genuinely doesn't exist in the supplied pool is a
- *  real data-integrity problem, not merely "irrelevant"), and on a
- *  non-canonical `performedAt`. */
+ *  `testResults` pool. Pass 1: fails closed on a duplicate `TestResult.id`,
+ *  a `trialId` that does not resolve to any supplied trial, and a
+ *  non-canonical `performedAt` (mirrors `formulation_not_found`'s "audit
+ *  the whole pool up front" discipline). Pass 2: validates every
+ *  `revisesResultId`/`retestOf` immediate reference (self/dangling/
+ *  cross-trial — see `validateResultReference`). Pass 3: detects any
+ *  longer (length >= 2) reference cycle in either field, now that every
+ *  individual edge is known to resolve. */
 function buildTestResultsByTrialId(
   testResults: TestResult[],
   trialsById: Map<string, LaboratoryTrial>,
 ): Map<string, TestResult[]> {
-  const seenIds = new Set<string>();
+  const resultsById = new Map<string, TestResult>();
   const byTrialId = new Map<string, TestResult[]>();
   for (const result of testResults) {
-    if (seenIds.has(result.id)) {
+    if (resultsById.has(result.id)) {
       throw new FormulaVersionTestResultDatasetExtractionError(
         "duplicate_test_result_id",
         `Ambiguous exact test result identity: more than one supplied test result has id "${result.id}".`,
         { testResultId: result.id },
       );
     }
-    seenIds.add(result.id);
     if (!trialsById.has(result.trialId)) {
       throw new FormulaVersionTestResultDatasetExtractionError(
         "test_result_trial_not_found",
@@ -251,6 +383,7 @@ function buildTestResultsByTrialId(
         { testResultId: result.id, trialId: result.trialId },
       );
     }
+    resultsById.set(result.id, result);
     const bucket = byTrialId.get(result.trialId);
     if (bucket) {
       bucket.push(result);
@@ -258,6 +391,29 @@ function buildTestResultsByTrialId(
       byTrialId.set(result.trialId, [result]);
     }
   }
+
+  for (const result of testResults) {
+    validateResultReference(result, "revisesResultId", resultsById);
+    validateResultReference(result, "retestOf", resultsById);
+  }
+
+  const revisionCycleMember = findFirstReferenceCycle(testResults, "revisesResultId", resultsById);
+  if (revisionCycleMember) {
+    throw new FormulaVersionTestResultDatasetExtractionError(
+      "test_result_revision_cycle_detected",
+      `Test result "${revisionCycleMember.id}" is part of a circular revisesResultId reference chain.`,
+      { testResultId: revisionCycleMember.id, trialId: revisionCycleMember.trialId },
+    );
+  }
+  const retestCycleMember = findFirstReferenceCycle(testResults, "retestOf", resultsById);
+  if (retestCycleMember) {
+    throw new FormulaVersionTestResultDatasetExtractionError(
+      "test_result_retest_cycle_detected",
+      `Test result "${retestCycleMember.id}" is part of a circular retestOf reference chain.`,
+      { testResultId: retestCycleMember.id, trialId: retestCycleMember.trialId },
+    );
+  }
+
   return byTrialId;
 }
 

@@ -589,4 +589,179 @@ describe("extractFormulaVersionTestResultRows", () => {
       expect(trialTestResultsSchema.shape.testResults.element).toBe(testResultSchema);
     });
   });
+
+  describe("revisesResultId / retestOf referential integrity (AUDIT_FVL05_GPT_000005 finding 1)", () => {
+    it("a valid revisesResultId chain (same trial) still passes and both records are fully preserved", () => {
+      const original = testResult({ id: "R1", performedAt: "2026-01-03T10:00:00.000Z" });
+      const revision = testResult({ id: "R2", performedAt: "2026-01-03T11:00:00.000Z", revisesResultId: "R1" });
+      const rows = extractFormulaVersionTestResultRows(
+        buildInput({ formulationVersions: [version()], trials: [trial()], testResults: [revision, original] }),
+      );
+      expect(rows[0].trials[0].testResults.map((r) => r.id)).toEqual(["R1", "R2"]);
+      expect(rows[0].trials[0].testResults[1].revisesResultId).toBe("R1");
+    });
+
+    it("a dangling revisesResultId fails closed", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial()],
+        testResults: [testResult({ id: "R1", revisesResultId: "R-GHOST" })],
+      });
+      try {
+        extractFormulaVersionTestResultRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(FormulaVersionTestResultDatasetExtractionError);
+        expect((err as FormulaVersionTestResultDatasetExtractionError).code).toBe("dangling_test_result_revision_reference");
+        expect((err as FormulaVersionTestResultDatasetExtractionError).testResultId).toBe("R1");
+      }
+    });
+
+    it("a cross-trial revisesResultId fails closed — no source evidence proves cross-trial revision linkage is legitimate", () => {
+      const trialA = trial({ id: "TRIAL-A", createdAt: "2026-01-03T00:00:00.000Z" });
+      const trialB = trial({ id: "TRIAL-B", createdAt: "2026-01-04T00:00:00.000Z" });
+      const original = testResult({ id: "R1", trialId: "TRIAL-A" });
+      const revision = testResult({ id: "R2", trialId: "TRIAL-B", revisesResultId: "R1", performedAt: "2026-01-04T10:00:00.000Z" });
+      const input = buildInput({ formulationVersions: [version()], trials: [trialA, trialB], testResults: [original, revision] });
+      try {
+        extractFormulaVersionTestResultRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionTestResultDatasetExtractionError).code).toBe("cross_trial_test_result_revision_reference");
+        expect((err as FormulaVersionTestResultDatasetExtractionError).testResultId).toBe("R2");
+        expect((err as FormulaVersionTestResultDatasetExtractionError).trialId).toBe("TRIAL-B");
+      }
+    });
+
+    it("a self-revising result fails closed", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial()],
+        testResults: [testResult({ id: "R1", revisesResultId: "R1" })],
+      });
+      try {
+        extractFormulaVersionTestResultRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionTestResultDatasetExtractionError).code).toBe("test_result_revision_cycle_detected");
+        expect((err as FormulaVersionTestResultDatasetExtractionError).testResultId).toBe("R1");
+      }
+    });
+
+    it("a longer revisesResultId cycle (length 2) fails closed", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial()],
+        testResults: [
+          testResult({ id: "R1", performedAt: "2026-01-03T10:00:00.000Z", revisesResultId: "R2" }),
+          testResult({ id: "R2", performedAt: "2026-01-03T11:00:00.000Z", revisesResultId: "R1" }),
+        ],
+      });
+      expect(() => extractFormulaVersionTestResultRows(input)).toThrow(FormulaVersionTestResultDatasetExtractionError);
+      try {
+        extractFormulaVersionTestResultRows(input);
+      } catch (err) {
+        expect((err as FormulaVersionTestResultDatasetExtractionError).code).toBe("test_result_revision_cycle_detected");
+      }
+    });
+
+    it("a valid retestOf reference (same trial) is accepted and preserved, per the recovered domain semantics (a retest is a fresh sample, distinct from a revision)", () => {
+      const original = testResult({ id: "R1", performedAt: "2026-01-03T10:00:00.000Z" });
+      const retest = testResult({ id: "R2", performedAt: "2026-01-04T10:00:00.000Z", retestOf: "R1" });
+      const rows = extractFormulaVersionTestResultRows(
+        buildInput({ formulationVersions: [version()], trials: [trial()], testResults: [retest, original] }),
+      );
+      expect(rows[0].trials[0].testResults.map((r) => r.id)).toEqual(["R1", "R2"]);
+      expect(rows[0].trials[0].testResults[1].retestOf).toBe("R1");
+    });
+
+    it("a dangling retestOf fails closed — the extractor does not adopt resultHistory.ts's UI-browsing 'orphan retest' tolerance, since a historical dataset has no way to surface a warning to a downstream consumer", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial()],
+        testResults: [testResult({ id: "R1", retestOf: "R-GHOST" })],
+      });
+      try {
+        extractFormulaVersionTestResultRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionTestResultDatasetExtractionError).code).toBe("dangling_test_result_retest_reference");
+        expect((err as FormulaVersionTestResultDatasetExtractionError).testResultId).toBe("R1");
+      }
+    });
+
+    it("a cross-trial retestOf fails closed — no source evidence proves cross-trial retest linkage is legitimate either", () => {
+      const trialA = trial({ id: "TRIAL-A", createdAt: "2026-01-03T00:00:00.000Z" });
+      const trialB = trial({ id: "TRIAL-B", createdAt: "2026-01-04T00:00:00.000Z" });
+      const original = testResult({ id: "R1", trialId: "TRIAL-A" });
+      const retest = testResult({ id: "R2", trialId: "TRIAL-B", retestOf: "R1", performedAt: "2026-01-04T10:00:00.000Z" });
+      const input = buildInput({ formulationVersions: [version()], trials: [trialA, trialB], testResults: [original, retest] });
+      try {
+        extractFormulaVersionTestResultRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionTestResultDatasetExtractionError).code).toBe("cross_trial_test_result_retest_reference");
+      }
+    });
+
+    it("a self-retesting result fails closed", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial()],
+        testResults: [testResult({ id: "R1", retestOf: "R1" })],
+      });
+      try {
+        extractFormulaVersionTestResultRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionTestResultDatasetExtractionError).code).toBe("test_result_retest_cycle_detected");
+      }
+    });
+
+    it("a longer retestOf cycle (length 2) fails closed", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial()],
+        testResults: [
+          testResult({ id: "R1", performedAt: "2026-01-03T10:00:00.000Z", retestOf: "R2" }),
+          testResult({ id: "R2", performedAt: "2026-01-03T11:00:00.000Z", retestOf: "R1" }),
+        ],
+      });
+      try {
+        extractFormulaVersionTestResultRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionTestResultDatasetExtractionError).code).toBe("test_result_retest_cycle_detected");
+      }
+    });
+
+    it("does not mutate its inputs on any of the new referential-integrity failure paths", () => {
+      const trials = Object.freeze([Object.freeze(trial())]);
+      const results = Object.freeze([Object.freeze(testResult({ id: "R1", revisesResultId: "R-GHOST" }))]);
+      const formulations = Object.freeze([Object.freeze(formulation())]);
+      const versions = Object.freeze([Object.freeze(version())]);
+      const snapshotBefore = JSON.parse(JSON.stringify({ formulations, versions, trials, results }));
+
+      const failingInput: FormulaVersionTestResultDatasetExtractionInput = {
+        formulationVersionIds: [versions[0]!.id],
+        formulations: [...formulations],
+        formulationVersions: [...versions],
+        trials: [...trials],
+        testResults: [...results],
+      };
+      expect(() => extractFormulaVersionTestResultRows(failingInput)).toThrow(FormulaVersionTestResultDatasetExtractionError);
+      expect(JSON.parse(JSON.stringify({ formulations, versions, trials, results }))).toEqual(snapshotBefore);
+    });
+
+    it("reordering the testResults input does not change whether a cycle is detected", () => {
+      const cyclicResults = [
+        testResult({ id: "R1", performedAt: "2026-01-03T10:00:00.000Z", revisesResultId: "R2" }),
+        testResult({ id: "R2", performedAt: "2026-01-03T11:00:00.000Z", revisesResultId: "R1" }),
+      ];
+      const forward = buildInput({ formulationVersions: [version()], trials: [trial()], testResults: cyclicResults });
+      const backward = buildInput({ formulationVersions: [version()], trials: [trial()], testResults: [...cyclicResults].reverse() });
+      expect(() => extractFormulaVersionTestResultRows(forward)).toThrow(FormulaVersionTestResultDatasetExtractionError);
+      expect(() => extractFormulaVersionTestResultRows(backward)).toThrow(FormulaVersionTestResultDatasetExtractionError);
+    });
+  });
 });
