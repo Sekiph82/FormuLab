@@ -1687,3 +1687,242 @@ None identified for FVL-05.004 within this task's frozen scope.
 
 Manual UI acceptance from Desktop\FormuLab.lnk is pending user
 verification.
+
+## FVL-05.004 — third corrective verification cycle (AUDIT_000018 re-resolution, 2026-08-23)
+
+Independent GPT audit `AUDIT_000018`, verdict **CONTINUE**, supplied two
+concrete remaining findings plus an instruction to re-verify the
+Manufacturing Procedure source question from repository contracts
+(not tracker/log prose). Scope: FVL-05.004 only, manual session (no
+subagents, no Autopilot).
+
+### Starting state
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD and starting remote HEAD (`origin/feature/laboratory-stability`):
+  both `939accebbc2b59c3424a86ffde2b4773c764dcce` (in sync).
+- Pre-existing dirty worktree at cycle start (unrelated, left untouched):
+  modified `docs/generated/FormuLab-User-Guide.docx`/`.pdf`; deleted
+  `formulas/2026-07-18-*.md` (10 files) and `formulas/index.json`;
+  untracked `docs/external-logs/FormuLab-FVL03-Integration-Log.md`,
+  `FormuLab-FVL04-DataExchange-Integration-Log.md`,
+  `FormuLab-Phase11-Backup-Restore-Data-Safety-Log.md`,
+  `FormuLab-Phase12-Commercial-Distribution-Log.md`,
+  `FormuLab-Phase13-Identity-Security-Log.md`,
+  `FormuLab-Phase14-Literature-Formulation-Intelligence-Log.md`. Verified
+  unchanged via `git status --short` before commit — none staged.
+
+### Finding 1 — lineage collision safety (fixed)
+
+The second corrective cycle's `sourceRecordId: `${trial.id}:${record.id}``
+join is not injective over the unrestricted nonblank-string id domain:
+`trial.id="A:B"` + `record.id="C"` and `trial.id="A"` + `record.id="B:C"`
+both encode to `"A:B:C"`. Fixed in
+`formulaVersionProcessDatasetExtractor.ts` with a new
+`encodeNestedLineageId(parentId, recordId) = JSON.stringify([parentId, recordId])`,
+applied to both `trialProcessStep` and `trialObservation` citations. JSON
+array/string serialization escapes/quotes rather than using a fixed
+delimiter, so it is injective for any two nonblank strings regardless of
+content, and the exact original pair is recoverable via `JSON.parse`. The
+row's own emitted `processStepId`/observation `id` fields are untouched —
+only the lineage citation's `sourceRecordId` changed shape. Regression
+tests LINEAGE1-LINEAGE6 added (cross-trial step/observation id reuse,
+delimiter-containing ids proven distinct via the exact `"A:B"`+`"C"` vs
+`"A"`+`"B:C"` example, recoverability, reordering determinism,
+non-mutation); the 3 pre-existing lineage-citation assertions (from the
+second corrective cycle) were updated in place to the new encoding, not
+weakened.
+
+### Finding 2 — source-schema parity (direct audit performed, one real mismatch fixed)
+
+Read `trialProcessStepSchema`, `trialObservationSchema`, and
+`laboratoryTrialSchema` directly from `packages/shared/src/schemas/laboratory.ts`
+(not summarized from prior logs) and compared every field the extractor
+relies on against `processStepPlanSchema`/`processStepActualObservationSchema`/
+`processTrialSchema` in `schemas/dataset.ts`. `decimalString`,
+`TRIAL_PROCESS_STEP_STATUSES`, and `trialObservationSchema` are imported
+and reused verbatim (no re-modeling, no drift possible). One real
+mismatch found: `processStepPlanSchema.phase` used `nonBlankString`,
+over-tightening against the source's own permissive
+`phase: z.string().default("A")`, which allows an explicit empty string.
+Fixed to `phase: z.string()`. All other fields checked
+(required/optional, defaults, nullable behavior, timestamp fields inside
+the extracted values, numeric/decimal constraints, boolean semantics
+including explicit `false`, `viscosityUnit`/equipment optionality,
+status enum) matched exactly — no further mismatch found. New regression
+test proves an explicit empty-string `phase` on a source step survives
+extraction and the row still validates.
+
+### Manufacturing Procedure source question — re-resolved from direct repository evidence (original conclusion was WRONG)
+
+Both the original FVL-05.004 implementation and both prior corrective
+cycles asserted "no persisted process-plan record exists independent of
+a trial." This session re-investigated directly per the audit's explicit
+instruction, inspecting `apps/desktop/src/lib/formulationV2.ts`,
+`runtime/pipeline/manufacturing.py`, and repo-wide occurrences of
+`ManufacturingPlan`/`ProcessStep`/`process_parameters`/
+`manufacturingProcedure`, rather than trusting the prior conclusion.
+
+Found: `process_parameters` is a real, independently persisted,
+Data-Exchange-importable masterdata collection —
+`processParameterSchema` (`packages/shared/src/schemas/dataExchange.ts`),
+registry entry `templateCode: "process_parameters"` /
+`targetCollection: "process_parameters"`
+(`packages/shared/src/engine/dataExchangeRegistry.ts`), registered as a
+real mutable Rust collection persisted to
+`data/master/process_parameters.json`
+(`apps/desktop/src-tauri/src/masterdata.rs`), with a real read consumer
+(`apps/desktop/src/components/formula/ProcessParametersPanel.tsx`, whose
+own header comment names it "the real Manufacturing Procedure consumer
+for canonical/imported `process_parameters`" and explicitly distinguishes
+it from the generated-session `ManufacturingProcedureTab` proposal, which
+never reads this collection). It is deterministically linked to an exact
+formula version by its own natural key
+`(formula_code, formula_version, step_number)` against
+`Formulation.code`/`FormulationVersion.versionNumber` — never a fuzzy or
+guessed match.
+
+Confirmed (unchanged conclusion): the generated-session
+`ManufacturingPlan`/`ProcessStep` shape (`formulationV2.ts`, driven by
+`runtime/pipeline/manufacturing.py`) has no persisted, formula-version-linkable
+identity of its own — read `apps/desktop/src/lib/promoteGeneratedFormula.ts`
+in full (the one seam from a generated card to a real, saved
+`FormulationVersion`, via `newVersion()`): it never reads or carries a
+card's `manufacturing` field onto the persisted version. This shape stays
+out of scope, correctly.
+
+**Conclusion: A = yes (process_parameters), B = yes (exact natural-key
+link), C = PLAN1 applies** — the extractor must extract the persisted
+`process_parameters` plan even when no `LaboratoryTrial` exists.
+PLAN1-EVIDENCE (the fallback for "no source exists") does not apply; the
+prior "no source exists" conclusion is corrected here, in code and in
+this log, not silently left standing.
+
+### PLAN1 implementation
+
+`schemas/dataset.ts`: new `plannedProcedure: z.array(processParameterSchema)`
+field on `formulaVersionProcessRowSchema` — the literal source schema
+reused verbatim (same "reuse the canonical source schema directly"
+principle FVL-05.003 already established for `formulationLineSchema`/
+`rawMaterialSchema`), so this dataset can never silently drift from
+`process_parameters`' own contract. Deliberately kept as a separate
+top-level array from `trials[].plannedSteps` — a trial's own recorded
+plan describes what THAT trial planned (may legitimately vary run to
+run); `plannedProcedure` is the version-level canonical procedure.
+Conflating them would misattribute one provenance as the other.
+
+`formulaVersionProcessDatasetExtractor.ts`: new optional
+`processParameters?: ProcessParameter[]` extraction input (defaults to
+`[]`, fully backward compatible — every existing caller keeps working
+unchanged). `buildProcessParametersByCode()` fails closed on a duplicate
+`code` (new error code `duplicate_process_parameter_code`, same
+pool-wide fail-closed-on-ambiguous-identity convention as every other
+pool in this extractor). `resolvePlannedProcedure()` matches rows whose
+`(formulaCode, formulaVersion)` exactly equals the resolved
+`Formulation.code`/`FormulationVersion.versionNumber`, sorted by
+`stepNumber` then `code`, independent of input order. Matched rows are
+cited in lineage as `sourceEntity: "processParameter"`,
+`sourceRecordId: code` (a real, globally-unique masterdata code — no
+collision-safety concern the way trial-embedded ids have, since
+`process_parameters` is a flat collection, not a nested array).
+`plannedProcedure` and `trials` resolve fully independently: a version
+may have a persisted plan with zero trials (PLAN1: plan emitted, zero
+fabricated actual observations — proven by test), trials with no
+persisted plan, both, or neither.
+
+### Tests
+
+`formulaVersionProcessDatasetExtractor.test.ts`: 30 → 42 tests (+12, 0
+removed/weakened). New: PLAN1 (persisted plan + zero linked trials, zero
+fabricated actual observations, schema-valid, lineage cites both
+`processParameter` rows), empty-`plannedProcedure`-on-no-natural-key-match,
+plan/trial mutual independence, `duplicate_process_parameter_code`
+fail-closed, plannedProcedure non-mutation of source /
+non-aliasing of output, explicit-empty-string-`phase` preservation,
+LINEAGE1 (two linked trials reuse the same nested step id, no collision),
+LINEAGE2 (same for observation id), LINEAGE3 (`trial.id="A:B"`+`step.id="C"`
+vs `trial.id="A"`+`step.id="B:C"` proven to encode distinctly), LINEAGE4
+(exact original ids recoverable via `JSON.parse` on the citation),
+LINEAGE5 (reordered trial/step/observation input still deterministic),
+LINEAGE6 (no source object mutated while building citations).
+
+### Fresh test/typecheck/lint/diff/tracker-validation evidence
+
+All commands run fresh from the final corrected state on
+`feature/laboratory-stability`:
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionProcessDatasetExtractor.test.ts` — **42/42
+  passed**.
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/shared test` (full suite) — **86 files / 1831
+  tests passed** (1819 → 1831, +12, no regression).
+- `pnpm --filter @formulab/desktop test` (full suite) — **167 files /
+  1726 tests passed, no regression** (unchanged from before this cycle —
+  no desktop source file touched).
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` (eslint) — clean.
+- `git diff --check` — clean (pre-existing CRLF-normalization warnings
+  only, exit 0).
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks across
+  11 work packages, no drift found.`
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+
+### Security / real-data-safety notes
+
+No new I/O, persistence, or external input parsing added — the extractor
+remains pure (no Tauri call, no mutation of inputs). Lineage citations
+still carry only ids (never free text/measurements). All new tests use
+entirely synthetic fixtures built from the existing
+`step()`/`observation()`/`trial()`/`version()`/`formulation()` builders
+plus a new `processParameter()` builder of the same kind — no real
+laboratory/customer/production data touched.
+
+### Files changed this cycle
+
+- `packages/shared/src/schemas/dataset.ts` (`plannedProcedure` field
+  added to `formulaVersionProcessRowSchema`; `processStepPlanSchema.phase`
+  constraint corrected; header comment rewritten to record the corrected
+  Manufacturing Procedure conclusion).
+- `packages/shared/src/engine/formulaVersionProcessDatasetExtractor.ts`
+  (`encodeNestedLineageId` collision-safe citation encoding;
+  `processParameters` extraction input, `buildProcessParametersByCode`,
+  `resolvePlannedProcedure`, `byProcessParameterOrder`; header comment
+  rewritten).
+- `packages/shared/src/engine/formulaVersionProcessDatasetExtractor.test.ts`
+  (12 new tests; 3 existing lineage-citation assertions updated to the
+  new encoding via the exported `encodeNestedLineageId` helper; new
+  `processParameter()` fixture builder).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.004 row — appended this
+  cycle's evidence; did not remove or alter any prior cycle's evidence).
+- This log file (new corrective-cycle section, appended).
+
+All other pre-existing worktree modifications/deletions/untracked files
+listed under "Starting state" above were left untouched.
+
+### Commits
+
+See `git log` on `feature/laboratory-stability` for the exact
+corrective-cycle commit(s) created after this section was written — new
+commits, not amends of `939accebbc2b59c3424a86ffde2b4773c764dcce`.
+
+### Desktop build & shortcut
+
+Recorded below per the Desktop Build & Shortcut Acceptance Gate (native
+Tauri release build from the final corrective-cycle HEAD, `formulab.exe`
+verification, shortcut `TargetPath` check).
+
+### Remaining work
+
+None identified for FVL-05.004 within this task's frozen scope. All
+closure-gate line items from the governing brief are satisfied (see the
+final report for the itemized checklist).
+
+### Result
+
+**COMPLETE** for this corrective verification cycle.
+
+Manual UI acceptance from Desktop\FormuLab.lnk is pending user
+verification.

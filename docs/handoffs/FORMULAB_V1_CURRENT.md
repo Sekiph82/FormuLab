@@ -50,6 +50,36 @@ unchanged: FVL-04 = 26/26, Total = 89/171):
    STARTED" framing) is stale/superseded by this line. Full detail:
    `C:\Users\sekip\Desktop\FormuLab-Connector-Management-Frontend-Log.md`.
 
+**UPDATE (2026-08-23, FVL-05.004 — third corrective verification cycle,
+AUDIT_000018 re-resolution — COMPLETE)**: independent audit `AUDIT_000018`
+(verdict CONTINUE) found two real remaining defects in `FVL-05.004`, both
+now fixed: (1) the prior cycle's `${trial.id}:${record.id}` nested-lineage
+citation join was not collision-safe over the unrestricted id domain —
+fixed with a collision-safe `JSON.stringify([parentId, recordId])`
+encoding (`encodeNestedLineageId`). (2) A direct field-by-field re-audit
+of `formulaVersionProcessRowSchema` against
+`trialProcessStepSchema`/`trialObservationSchema`/`laboratoryTrialSchema`
+found one real parity defect (`processStepPlanSchema.phase` over-tightened
+to non-blank against the source's permissive `z.string()`), fixed. The
+audit also required re-resolving the Manufacturing Procedure source
+question from repository contracts, not prior log prose — this session
+found that the original "no persisted process-plan record exists
+independent of a trial" conclusion was **wrong**: `process_parameters` is
+a real, independently persisted, Data-Exchange-importable masterdata
+collection, deterministically linkable to an exact formula version by its
+own `(formulaCode, formulaVersion)` natural key. A new `plannedProcedure`
+field now extracts it (PLAN1: a version's persisted plan is emitted even
+with zero linked trials, with zero fabricated actual observations). Full
+detail: the FVL-05.004 tracker row's "THIRD CORRECTIVE CYCLE" paragraph
+and `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own "third corrective verification cycle" section. `pnpm --filter
+@formulab/shared test`: 86 files / 1831 tests passed. `pnpm --filter
+@formulab/desktop test`: 167 files / 1726 tests passed, no regression.
+Both `typecheck`s clean, desktop `lint` clean, `git diff --check` clean,
+`python scripts/validate_v1_tracker.py` OK. FVL-05.004 stays COMPLETED
+(now genuinely audit-closed). **FVL-05.005 explicitly NOT started this
+session, per this session's own instruction.**
+
 **UPDATE (2026-08-21, FVL-05.001 — COMPLETED)**: `FVL-05.001` (Define
 dataset schema version + feature schema version, explicit/incrementable)
 is done — new `packages/shared/src/schemas/dataset.ts` defines

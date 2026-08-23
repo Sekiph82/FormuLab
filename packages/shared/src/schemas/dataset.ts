@@ -25,6 +25,7 @@
  * FVL-05.002 onward.
  */
 import { z } from "zod";
+import { processParameterSchema } from "./dataExchange";
 import { decimalString, formulationLineSchema } from "./formulation";
 import { TRIAL_PROCESS_STEP_STATUSES, trialObservationSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
@@ -171,20 +172,55 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
 /**
  * FVL-05.004 — process plan + actual process observations payload.
  *
- * There is no persisted "manufacturing procedure" record independent of a
- * trial: `FormulationVersion` carries no process fields at all, and the only
- * structured, shared-package-visible process data is `LaboratoryTrial`'s own
- * embedded `processSteps`/`observations` (`schemas/laboratory.ts`) — each
- * `TrialProcessStep` co-locates its PLANNED fields (`plannedInstruction`,
- * `plannedTemperature*`, `plannedMixingSpeed*`, `plannedDurationMinutes`,
- * `plannedAdditionOrder`) and its ACTUAL execution fields
- * (`actualStart`/`actualEnd`, `actualTemperature*`, `actualMixingSpeedRpm`,
- * `actualDurationMinutes`, `actualAdditionOrder`, `actualPh`,
- * `actualViscosity`, `operator`, `observation`, `deviationNote`) on the same
- * record. `processStepPlanSchema` and `processStepActualObservationSchema`
- * below split that one record into two honestly-scoped views — a planned
- * target must never be presented as an actual observation — without
- * inventing a second source model for either half.
+ * CORRECTED (AUDIT_000018 re-resolution): a persisted process-plan record
+ * that is independent of any `LaboratoryTrial` DOES exist — the Data
+ * Exchange `process_parameters` template/masterdata collection
+ * (`schemas/dataExchange.ts`'s `processParameterSchema`, registry entry
+ * `templateCode: "process_parameters"`, Rust-registered mutable collection
+ * `process_parameters`; real read consumer: `ProcessParametersPanel.tsx`,
+ * which documents it as "the real Manufacturing Procedure consumer"). It is
+ * deterministically linkable to an exact formula version by its own natural
+ * key `(formulaCode, formulaVersion, stepNumber)` against
+ * `Formulation.code`/`FormulationVersion.versionNumber` — never a fabricated
+ * or fuzzy match. `plannedProcedure` on `formulaVersionProcessRowSchema`
+ * below carries these rows verbatim (the literal `processParameterSchema`
+ * shape, not a re-modeled subset, so this dataset can never silently drift
+ * from the canonical source), independent of whether any trial is linked —
+ * a version can have a persisted plan with zero trials (nothing executed
+ * yet), trials with no independent plan, both, or neither.
+ * `FormulationVersion` itself still carries no process fields at all, and
+ * the generated-session `ManufacturingPlan`/`ProcessStep` shape
+ * (`apps/desktop/src/lib/formulationV2.ts`, driven by
+ * `runtime/pipeline/manufacturing.py`) is a session/card PROPOSAL with no
+ * persisted, formula-version-linkable identity — `promoteGeneratedFormula.ts`
+ * (the one seam from a generated card to a real `FormulationVersion`) never
+ * carries a card's `manufacturing` field onto the saved version — so that
+ * shape stays out of scope here, unchanged from the original conclusion.
+ *
+ * The only OTHER structured, shared-package-visible process data is
+ * `LaboratoryTrial`'s own embedded `processSteps`/`observations`
+ * (`schemas/laboratory.ts`) — each `TrialProcessStep` co-locates its
+ * PLANNED fields (`plannedInstruction`, `plannedTemperature*`,
+ * `plannedMixingSpeed*`, `plannedDurationMinutes`, `plannedAdditionOrder`)
+ * and its ACTUAL execution fields (`actualStart`/`actualEnd`,
+ * `actualTemperature*`, `actualMixingSpeedRpm`, `actualDurationMinutes`,
+ * `actualAdditionOrder`, `actualPh`, `actualViscosity`, `operator`,
+ * `observation`, `deviationNote`) on the same record. `processStepPlanSchema`
+ * and `processStepActualObservationSchema` below split that one record into
+ * two honestly-scoped views — a planned target must never be presented as
+ * an actual observation — without inventing a second source model for
+ * either half. This trial-scoped plan is deliberately kept SEPARATE from
+ * `plannedProcedure` (never merged into one array): a trial's own recorded
+ * steps describe what THAT trial planned to do (which may legitimately
+ * differ run-to-run), while `plannedProcedure` is the version-level
+ * canonical procedure — conflating them would misattribute one provenance
+ * as the other.
+ *
+ * `phase` on `processStepPlanSchema` mirrors the source's own
+ * `trialProcessStepSchema.phase` constraint exactly (`z.string()` with a
+ * default applied upstream at trial-parse time, not required non-blank
+ * here) — the source permits an explicit empty string, so this dataset must
+ * not reject one a real trial legitimately carries.
  *
  * A step marked `unplanned: true` (added mid-execution, not part of the
  * original plan) is deliberately excluded from `plannedSteps` — it was never
@@ -199,12 +235,14 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * One row per `FormulationVersion`, same convention as FVL-05.003:
  * `trials` is empty when no `LaboratoryTrial` is linked to the version via
  * an exact `sourceType === "saved_version"` + `sourceFormulaVersionId` match
- * — never a fabricated plan or observation.
+ * — never a fabricated plan or observation; `plannedProcedure` is
+ * independently empty when no `process_parameters` row matches the
+ * version's exact `(formulaCode, formulaVersion)` natural key.
  */
 export const processStepPlanSchema = z.object({
   processStepId: nonBlankString("processStepId"),
   stepNumber: z.number().int().positive(),
-  phase: nonBlankString("phase"),
+  phase: z.string(),
   plannedInstruction: nonBlankString("plannedInstruction"),
   requiredEquipment: z.array(z.string()),
   plannedTemperatureMinC: decimalString.optional(),
@@ -251,6 +289,13 @@ export const formulaVersionProcessRowSchema = datasetRowBaseSchema.extend({
   formulaCode: nonBlankString("formulaCode"),
   formulaVersionId: nonBlankString("formulaVersionId"),
   formulaVersionNumber: z.number().int().positive(),
+  /** The version-level canonical Manufacturing Procedure, verbatim
+   *  `process_parameters` rows (`processParameterSchema`) whose own
+   *  `(formulaCode, formulaVersion)` natural key matches this row's exact
+   *  formula/version identity. Empty when no such persisted row exists —
+   *  never fabricated. Independent of `trials`: a version may have a
+   *  persisted procedure with no trial ever run against it. */
+  plannedProcedure: z.array(processParameterSchema),
   trials: z.array(processTrialSchema),
 });
 export type FormulaVersionProcessRow = z.infer<typeof formulaVersionProcessRowSchema>;

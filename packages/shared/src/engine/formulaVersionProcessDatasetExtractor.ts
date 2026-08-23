@@ -1,17 +1,25 @@
 /**
  * FVL-05.004 — the extractor: turns a persisted `FormulationVersion`'s
- * linked `LaboratoryTrial` records into `FormulaVersionProcessRow` dataset
- * rows for the future Historical Experiment Dataset Builder.
+ * linked `LaboratoryTrial` records AND the version's own canonical
+ * `process_parameters` Manufacturing Procedure rows into
+ * `FormulaVersionProcessRow` dataset rows for the future Historical
+ * Experiment Dataset Builder.
  *
- * There is no persisted process-plan record independent of a trial — see
- * `schemas/dataset.ts`'s header comment on `formulaVersionProcessRowSchema`
- * for why `LaboratoryTrial.processSteps` (`schemas/laboratory.ts`) is the
- * only source this extractor reads from. A trial is "linked" to the
- * requested formula version only when `sourceType === "saved_version"` AND
- * `sourceFormulaVersionId` exactly matches the requested version's id; a
- * linked trial whose `projectId` does not match the version's owning
- * `Formulation.id` is a conflicting link, not a usable one, and fails
- * closed rather than being silently attributed or silently dropped.
+ * See `schemas/dataset.ts`'s header comment on `formulaVersionProcessRowSchema`
+ * for the full AUDIT_000018 re-resolution of the Manufacturing Procedure
+ * source question: `process_parameters` (`schemas/dataExchange.ts`'s
+ * `processParameterSchema`) IS a persisted process-plan record independent
+ * of any trial, deterministically linked by its own exact
+ * `(formulaCode, formulaVersion)` natural key against
+ * `Formulation.code`/`FormulationVersion.versionNumber` — never a fuzzy or
+ * fabricated match. `LaboratoryTrial.processSteps` (`schemas/laboratory.ts`)
+ * remains the only source for trial-scoped planned/actual data. A trial is
+ * "linked" to the requested formula version only when
+ * `sourceType === "saved_version"` AND `sourceFormulaVersionId` exactly
+ * matches the requested version's id; a linked trial whose `projectId` does
+ * not match the version's owning `Formulation.id` is a conflicting link,
+ * not a usable one, and fails closed rather than being silently attributed
+ * or silently dropped.
  *
  * Pure and deterministic: no persistence, no mutation of its inputs, no
  * generated ids/timestamps. Trials are ordered by `createdAt` then `id`
@@ -19,7 +27,8 @@
  * changes a row's `trials` order. Within a trial, planned steps and actual
  * step observations are ordered by the persisted `stepNumber` (the domain's
  * own authoritative process order) then `id`; discrete `TrialObservation`
- * records are ordered by `observedAt` then `id`.
+ * records are ordered by `observedAt` then `id`. `plannedProcedure` rows are
+ * ordered by their own `stepNumber` then `code`, independent of input order.
  *
  * Every constructed row is validated against `formulaVersionProcessRowSchema`
  * before it is returned, exactly as `formulaVersionDatasetExtractor.ts`
@@ -29,14 +38,23 @@
  *
  * `TrialProcessStep.id`/`TrialObservation.id` are embedded-array-scoped to
  * their own trial, not globally unique, so two different linked trials may
- * legitimately hold a step or observation with the same `id`. Lineage
- * citations for those two entities are therefore `${trial.id}:${record.id}`
- * (a deterministic join of two real persisted ids, never an invented one) —
- * this keeps every physical record's citation distinct across multiple
- * linked trials while the row's own emitted `processStepId`/observation
- * `id` fields stay the exact, unprefixed persisted value.
+ * legitimately hold a step or observation with the same `id` — and either
+ * id may itself legitimately contain any character, including a delimiter
+ * like `:`. A naive `${trial.id}:${record.id}` join is therefore NOT
+ * injective (`trial.id="A:B"` + `record.id="C"` collides with
+ * `trial.id="A"` + `record.id="B:C"`, both producing `"A:B:C"`) — this was
+ * AUDIT_000018's collision-safety finding. `encodeNestedLineageId` below
+ * fixes this with `JSON.stringify([parentId, recordId])`: JSON string
+ * escaping is a structural (length-delimited via quoting/escaping), not
+ * fixed-delimiter, encoding — two different `(parentId, recordId)` pairs of
+ * non-blank strings always serialize to two different JSON array literals,
+ * for any content either id may contain, and the exact original pair is
+ * always recoverable via `JSON.parse`. The row's own emitted
+ * `processStepId`/observation `id` fields stay the exact, unprefixed
+ * persisted value; only the lineage citation's `sourceRecordId` is encoded.
  */
 import type { Formulation, FormulationVersion } from "../schemas/formulation";
+import type { ProcessParameter } from "../schemas/dataExchange";
 import type { LaboratoryTrial, TrialObservation, TrialProcessStep } from "../schemas/laboratory";
 import {
   DATASET_SCHEMA_VERSION,
@@ -47,6 +65,16 @@ import {
   type ProcessTrial,
   type SourceRecordReference,
 } from "../schemas/dataset";
+
+/** Deterministic, collision-safe, recoverable encoding of a nested (trial-
+ *  scoped) source-record identity into a single `sourceRecordId` string.
+ *  JSON array serialization of two strings is injective — see this file's
+ *  header comment for why a fixed delimiter (`:` or otherwise) is not.
+ *  Exported so tests (and any future decode need) never hand-roll the
+ *  format independently of this one authority. */
+export function encodeNestedLineageId(parentId: string, recordId: string): string {
+  return JSON.stringify([parentId, recordId]);
+}
 
 export interface FormulaVersionProcessDatasetExtractionInput {
   /** The exact formula version ids requested for extraction, in the order
@@ -64,6 +92,13 @@ export interface FormulaVersionProcessDatasetExtractionInput {
    *  `"saved_version"`) contribute to that version's row; every other
    *  supplied trial is legitimately irrelevant to that row and ignored. */
   trials: LaboratoryTrial[];
+  /** The pool of persisted `process_parameters` (canonical Manufacturing
+   *  Procedure) rows available to resolve each version's `plannedProcedure`
+   *  from. Only rows whose own `(formulaCode, formulaVersion)` exactly
+   *  matches a requested version's owning `Formulation.code`/
+   *  `versionNumber` contribute to that version's row. Defaults to `[]` —
+   *  every existing caller that never had this source keeps working. */
+  processParameters?: ProcessParameter[];
 }
 
 export type FormulaVersionProcessDatasetExtractionErrorCode =
@@ -75,6 +110,7 @@ export type FormulaVersionProcessDatasetExtractionErrorCode =
   | "trial_formula_link_conflict"
   | "duplicate_process_step_id"
   | "duplicate_trial_observation_id"
+  | "duplicate_process_parameter_code"
   | "row_schema_validation_failed";
 
 export class FormulaVersionProcessDatasetExtractionError extends Error {
@@ -188,6 +224,47 @@ function byTrialOrder(a: LaboratoryTrial, b: LaboratoryTrial): number {
   return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
+function byProcessParameterOrder(a: ProcessParameter, b: ProcessParameter): number {
+  return a.stepNumber - b.stepNumber || a.code.localeCompare(b.code);
+}
+
+/** Builds the exact-code process-parameter lookup over the ENTIRE supplied
+ *  pool, failing closed on a duplicate `ProcessParameter.code` — the same
+ *  fail-closed-on-ambiguous-identity convention every other pool builder in
+ *  this extractor uses. */
+function buildProcessParametersByCode(processParameters: ProcessParameter[]): Map<string, ProcessParameter> {
+  const byCode = new Map<string, ProcessParameter>();
+  for (const parameter of processParameters) {
+    if (byCode.has(parameter.code)) {
+      throw new FormulaVersionProcessDatasetExtractionError(
+        "duplicate_process_parameter_code",
+        parameter.code,
+        `Ambiguous exact process parameter identity: more than one supplied process parameter has code "${parameter.code}".`,
+      );
+    }
+    byCode.set(parameter.code, parameter);
+  }
+  return byCode;
+}
+
+/** Resolves the version-level canonical Manufacturing Procedure: every
+ *  `process_parameters` row whose own `(formulaCode, formulaVersion)`
+ *  exactly matches this version's owning formula code and version number,
+ *  ordered by `stepNumber` then `code`, independent of the supplied pool's
+ *  order. Independent of trial linkage entirely. */
+function resolvePlannedProcedure(
+  version: FormulationVersion,
+  formulation: Formulation,
+  processParametersByCode: Map<string, ProcessParameter>,
+): ProcessParameter[] {
+  const matched: ProcessParameter[] = [];
+  for (const parameter of processParametersByCode.values()) {
+    if (parameter.formulaCode !== formulation.code || parameter.formulaVersion !== version.versionNumber) continue;
+    matched.push(parameter);
+  }
+  return matched.sort(byProcessParameterOrder);
+}
+
 function toProcessStepPlan(step: TrialProcessStep): ProcessStepPlan {
   return {
     processStepId: step.id,
@@ -297,13 +374,12 @@ function buildProcessTrial(
     // `TrialProcessStep.id` is embedded-array-scoped to its own trial, not
     // globally unique (see `schemas/laboratory.ts`'s header comment) — two
     // DIFFERENT steps on two different linked trials may legitimately share
-    // the same `id`. Prefixing with the (globally unique) owning trial id
-    // keeps each physical record's citation distinct without inventing any
-    // id component that isn't itself a real persisted identifier.
-    citations.push({ sourceEntity: "trialProcessStep", sourceRecordId: `${trial.id}:${step.id}` });
+    // the same `id`. `encodeNestedLineageId` keeps each physical record's
+    // citation distinct, collision-safely, across every linked trial.
+    citations.push({ sourceEntity: "trialProcessStep", sourceRecordId: encodeNestedLineageId(trial.id, step.id) });
   }
   for (const observation of sortedObservations) {
-    citations.push({ sourceEntity: "trialObservation", sourceRecordId: `${trial.id}:${observation.id}` });
+    citations.push({ sourceEntity: "trialObservation", sourceRecordId: encodeNestedLineageId(trial.id, observation.id) });
   }
 
   return {
@@ -322,6 +398,7 @@ function extractOne(
   version: FormulationVersion,
   formulationsById: Map<string, Formulation>,
   trialsById: Map<string, LaboratoryTrial>,
+  processParametersByCode: Map<string, ProcessParameter>,
 ): FormulaVersionProcessRow {
   const formulation = formulationsById.get(version.formulationId);
   if (!formulation) {
@@ -332,11 +409,15 @@ function extractOne(
     );
   }
 
+  const plannedProcedure = resolvePlannedProcedure(version, formulation, processParametersByCode);
   const linkedTrials = resolveLinkedTrials(version, formulation, trialsById);
   const sourceRecords: SourceRecordReference[] = [
     { sourceEntity: "formulation", sourceRecordId: formulation.id },
     { sourceEntity: "formulationVersion", sourceRecordId: version.id },
   ];
+  for (const parameter of plannedProcedure) {
+    sourceRecords.push({ sourceEntity: "processParameter", sourceRecordId: parameter.code });
+  }
   const trials: ProcessTrial[] = [];
   for (const trial of linkedTrials) {
     const { entry, citations } = buildProcessTrial(trial, version.id);
@@ -351,6 +432,7 @@ function extractOne(
     formulaCode: formulation.code,
     formulaVersionId: version.id,
     formulaVersionNumber: version.versionNumber,
+    plannedProcedure,
     trials,
   };
 
@@ -378,6 +460,7 @@ export function extractFormulaVersionProcessRows(
   const formulationsById = buildFormulationsById(input.formulations);
   const versionsById = buildVersionsById(input.formulationVersions);
   const trialsById = buildTrialsById(input.trials);
+  const processParametersByCode = buildProcessParametersByCode(input.processParameters ?? []);
   return input.formulationVersionIds.map((requestedId) => {
     const version = versionsById.get(requestedId);
     if (!version) {
@@ -387,6 +470,6 @@ export function extractFormulaVersionProcessRows(
         `Requested formula version id "${requestedId}" was not found among the supplied formulation versions.`,
       );
     }
-    return extractOne(version, formulationsById, trialsById);
+    return extractOne(version, formulationsById, trialsById, processParametersByCode);
   });
 }
