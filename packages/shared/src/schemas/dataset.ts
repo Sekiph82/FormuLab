@@ -320,7 +320,12 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * an exact `sourceType === "saved_version"` + `sourceFormulaVersionId` match
  * — never a fabricated plan or observation; `plannedProcedure` is
  * independently empty when no `process_parameters` row matches the
- * version's exact `(formulaCode, formulaVersion)` natural key. FINDING H:
+ * version's exact `(formulaCode, formulaVersion)` — this is the ROW-LEVEL
+ * grouping/match criterion that gathers every step for that formula
+ * version, NOT the per-record authoritative natural key (which is the
+ * full `(formulaCode, formulaVersion, stepNumber)` — see FINDING B above
+ * and `buildProcessParametersByCode`'s natural-key collision check).
+ * FINDING H:
  * `Formulation.code` is NOT enforced globally unique by any authoritative
  * repository contract (`save_formulation` in `formulations.rs` keys
  * storage by `id` only, never checks `code` for a collision) — the
@@ -402,8 +407,10 @@ export const formulaVersionProcessRowSchema = datasetRowBaseSchema.extend({
   formulaVersionNumber: z.number().int().positive(),
   /** The version-level canonical Manufacturing Procedure, verbatim
    *  `process_parameters` rows (`processParameterSchema`) whose own
-   *  `(formulaCode, formulaVersion)` natural key matches this row's exact
-   *  formula/version identity. Empty when no such persisted row exists —
+   *  `(formulaCode, formulaVersion)` matches this row's exact formula/
+   *  version identity — the grouping criterion, not the per-record
+   *  authoritative natural key (`(formulaCode, formulaVersion, stepNumber)`,
+   *  enforced by `buildProcessParametersByCode`). Empty when no such persisted row exists —
    *  never fabricated. Independent of `trials`: a version may have a
    *  persisted procedure with no trial ever run against it. */
   plannedProcedure: z.array(processParameterSchema),

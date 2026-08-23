@@ -112,7 +112,10 @@ found that the original "no persisted process-plan record exists
 independent of a trial" conclusion was **wrong**: `process_parameters` is
 a real, independently persisted, Data-Exchange-importable masterdata
 collection, deterministically linkable to an exact formula version by its
-own `(formulaCode, formulaVersion)` natural key. A new `plannedProcedure`
+own `(formulaCode, formulaVersion)` (the row-grouping criterion — see the
+FOURTH CORRECTIVE CYCLE block above this one for the exact per-record
+authoritative natural key, `(formulaCode, formulaVersion, stepNumber)`).
+A new `plannedProcedure`
 field now extracts it (PLAN1: a version's persisted plan is emitted even
 with zero linked trials, with zero fabricated actual observations). Full
 detail: the FVL-05.004 tracker row's "THIRD CORRECTIVE CYCLE" paragraph

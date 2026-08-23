@@ -126,7 +126,10 @@ export interface FormulaVersionProcessDatasetExtractionInput {
    *  Procedure) rows available to resolve each version's `plannedProcedure`
    *  from. Only rows whose own `(formulaCode, formulaVersion)` exactly
    *  matches a requested version's owning `Formulation.code`/
-   *  `versionNumber` contribute to that version's row. Defaults to `[]` —
+   *  `versionNumber` contribute to that version's row — this groups every
+   *  step belonging to that version; the per-record AUTHORITATIVE natural
+   *  key is the full `(formulaCode, formulaVersion, stepNumber)`, enforced
+   *  separately by `buildProcessParametersByCode`. Defaults to `[]` —
    *  every existing caller that never had this source keeps working. */
   processParameters?: ProcessParameter[];
 }
@@ -371,7 +374,10 @@ function buildProcessParametersByCode(processParameters: ProcessParameter[]): Ma
 
 /** Resolves the version-level canonical Manufacturing Procedure: every
  *  `process_parameters` row whose own `(formulaCode, formulaVersion)`
- *  exactly matches this version's owning formula code and version number,
+ *  exactly matches this version's owning formula code and version number
+ *  (the grouping criterion — gathers every step belonging to this
+ *  version; the per-record authoritative natural key, including
+ *  `stepNumber`, is enforced separately by `buildProcessParametersByCode`),
  *  ordered by `stepNumber` then `code`, independent of the supplied pool's
  *  order. Independent of trial linkage entirely. */
 function resolvePlannedProcedure(
