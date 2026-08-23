@@ -1926,3 +1926,60 @@ final report for the itemized checklist).
 
 Manual UI acceptance from Desktop\FormuLab.lnk is pending user
 verification.
+
+## FVL-05.004 — third corrective cycle: final build/shortcut evidence (2026-08-23)
+
+- Final HEAD (local == remote `origin/feature/laboratory-stability`):
+  `92a89ae21dbab39a5d991b3e14b62180edd36c18`.
+- Build command: `pnpm --filter @formulab/desktop tauri build` — exit 0.
+  Vite frontend build succeeded (46.59s); Rust release compile succeeded
+  (`Finished \`release\` profile [optimized] target(s) in 2m 38s`); MSI
+  and NSIS bundles produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,870,400 bytes, modified 2026-08-23 18:06 local time,
+  SHA256 `a1feb1467ed2b5906b6041decfda63f3022ba6be24508144cd6ed81be3b9c394`
+  (distinct from the pre-session build's hash
+  `46f83d41d21411bccb79cd4826434910e14060286212ec0d3c4fffc6fcb66ce`,
+  confirming this is a fresh build from this cycle's HEAD, not a stale
+  artifact).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via `WScript.Shell`:
+  `TargetPath` = `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  (exact match to the just-built executable), `Arguments` = (none),
+  `WorkingDirectory` = `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release`.
+  No duplicate shortcut created; `.lnk` not committed.
+- Native launch smoke: launched via the real Desktop shortcut
+  (`Start-Process -FilePath 'C:\Users\sekip\Desktop\FormuLab.lnk'`); process
+  `formulab.exe` (PID 19236) confirmed running and `Responding: True`
+  several seconds after launch. **Automated launch smoke: PASS.**
+  **Manual UI acceptance (New Request click-through, etc.) from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+collision-safe lineage implemented; cross-trial reused nested IDs work
+(LINEAGE1/2); delimiter-containing IDs cannot collide (LINEAGE3);
+authoritative Laboratory schemas directly inspected; dataset/source-schema
+parity proven (`phase` mismatch found and corrected); Manufacturing
+Procedure persistence/linkage question resolved from direct repository
+source (`process_parameters`, real and linkable) and the authoritative
+persisted plan is now used (`plannedProcedure`, PLAN1); no plan fabricated
+when none exists (empty-match test); planned/actual stay structurally
+separate; no fabricated actual observations; exact zero/false/units/
+optional values preserved (pre-existing + new tests); deterministic
+ordering; exact formula/version/trial linkage preserved; fail-closed on
+every ambiguous identity including the new `process_parameters` pool;
+source non-mutation; no source/output aliasing; public exports correct
+(barrel export unchanged, already covers the module); focused tests green
+(42/42); full shared tests green (86/86 files, 1831/1831); desktop
+regression green (167/167 files, 1726/1726, no regression); both
+typechecks clean; desktop lint clean; tracker validator green; `git diff
+--check` clean; tracker/handoff updated truthfully; FVL-05.005 untouched;
+changes committed (`92a89ae`); pushed; local HEAD == remote HEAD; fresh
+native build from final pushed HEAD; `Desktop\FormuLab.lnk` verified;
+this external log updated.
+
+**FVL-05.004 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.005 NOT STARTED** (per this session's explicit
+instruction not to begin it).
