@@ -50,6 +50,39 @@ unchanged: FVL-04 = 26/26, Total = 89/171):
    STARTED" framing) is stale/superseded by this line. Full detail:
    `C:\Users\sekip\Desktop\FormuLab-Connector-Management-Frontend-Log.md`.
 
+**UPDATE (2026-08-23, FVL-05.004 — sixth corrective cycle, independent
+GPT re-audit `AUDIT_FVL05_GPT_000003` — COMPLETE, genuinely audit-closed,
+documentation-only)**: a third independent GPT re-audit confirmed both
+substantive `AUDIT_FVL05_GPT_000002` findings are genuinely fixed in
+source (`DATASET_SCHEMA_VERSION` is `"1.1"`, the superseded `"1.0"`
+literal rejected; `processStepPlanSchema`/`processStepActualObservationSchema`
+composition-derived) and found NO new implementation defect. It found
+three stale current-truth documentation contradictions left over from
+those earlier fixes: the FVL-05.001 tracker row still presented both
+`DATASET_SCHEMA_VERSION`/`FEATURE_SCHEMA_VERSION` as currently `"1.0"`
+(dataset is now `"1.1"`); the FVL-05.002 tracker row still described
+`sourceRecordReferenceSchema` as only `sourceEntity`+`sourceRecordId`
+with pair-based duplicate detection (the additive `parentRecordId` field
+and triple-based duplicate detection, added by the fourth corrective
+cycle, were undocumented there); `schemas/dataset.ts`'s own top-level
+module comment still said the file "defines the two versions only... not
+the dataset row shape" (true only at FVL-05.001 completion — the same
+file has since been extended in place by FVL-05.002/.003/.004). All
+three corrected in place, historical completion state preserved for each
+task, no external-log chronology rewritten. Full detail: the FVL-05.004
+tracker row's "SIXTH CORRECTIVE CYCLE" paragraph and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own "sixth corrective cycle" section (the real GPT audit/prompt text
+itself lives only in `docs/audits/FVL05-GPT-AUDIT-000003.md`/
+`docs/prompts/FVL05-GPT-PROMPT-000004.md`, per the now-standing read-only
+rule). `pnpm --filter @formulab/shared test`: 86 files / 1851 tests
+passed (unchanged — doc/comment-only cycle). Both `typecheck`s clean,
+desktop `lint` clean, `git diff --check` clean, `python
+scripts/validate_v1_tracker.py` OK. FVL-05.004 stays COMPLETED (now
+genuinely audit-closed against this third, independent re-audit).
+**FVL-05.005 explicitly NOT started this session, per this session's own
+instruction.**
+
 **UPDATE (2026-08-23, FVL-05.004 — fifth corrective cycle, independent
 GPT re-audit `AUDIT_FVL05_GPT_000002` — COMPLETE, genuinely audit-closed)**:
 a second independent GPT audit reopened FVL-05.004 after the fourth

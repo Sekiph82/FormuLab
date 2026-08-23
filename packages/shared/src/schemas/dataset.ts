@@ -20,9 +20,18 @@
  * `toVersion`) would key off, exactly as that module already does for
  * other collections.
  *
- * This module defines the two versions only — not the dataset row shape,
- * the feature vector shape, or any extractor/normalizer. That is
- * FVL-05.002 onward.
+ * At FVL-05.001 completion this module defined only the two version
+ * constants above — not yet the dataset row shape, the feature vector
+ * shape, or any extractor/normalizer. That historical scope note is
+ * stale: this module has since been extended in place by every later
+ * FVL-05 task that needed a schema here rather than a new file, and now
+ * also contains the FVL-05.002 lineage model
+ * (`sourceRecordReferenceSchema`/`sourceRecordLineageSchema`/
+ * `datasetRowBaseSchema`), the FVL-05.003 formula-version composition row
+ * (`formulaVersionCompositionRowSchema`), and the FVL-05.004 process row
+ * (`processStepPlanSchema`/`processStepActualObservationSchema`/
+ * `processTrialSchema`/`formulaVersionProcessRowSchema`) — see each
+ * section's own header comment below for its specific contract.
  */
 import { z } from "zod";
 import { processParameterSchema } from "./dataExchange";
