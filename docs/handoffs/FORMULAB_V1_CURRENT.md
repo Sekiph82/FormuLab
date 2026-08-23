@@ -50,6 +50,46 @@ unchanged: FVL-04 = 26/26, Total = 89/171):
    STARTED" framing) is stale/superseded by this line. Full detail:
    `C:\Users\sekip\Desktop\FormuLab-Connector-Management-Frontend-Log.md`.
 
+**UPDATE (2026-08-23, FVL-05.004 — fifth corrective cycle, independent
+GPT re-audit `AUDIT_FVL05_GPT_000002` — COMPLETE, genuinely audit-closed)**:
+a second independent GPT audit reopened FVL-05.004 after the fourth
+cycle's own completion claim, with exactly two remaining findings (both
+contract-level, not cosmetic) — and a new, now-binding control-plane
+rule: `docs/audits/FVL05-GPT*`/`docs/prompts/FVL05*` files are GPT-owned
+and READ-ONLY for Claude from this audit onward (a prior GPT prompt had
+incorrectly instructed Claude to write into them; that instruction is
+now explicitly retracted). **Finding 1**: `DATASET_SCHEMA_VERSION`
+carried two contradictory rules — the ORIGINAL FVL-05.001 rule ("bump
+when a dataset-row field is added/removed/renamed", present verbatim
+since the very first FVL-05.001 commit, confirmed via `git log --follow`)
+versus the fourth cycle's own self-authored "no bump until externally
+consumed" exception, which no pre-existing contract actually supports.
+Resolved in favor of the original rule: `DATASET_SCHEMA_VERSION` bumped
+`"1.0"` → `"1.1"`, covering every row-shape change this family has
+accumulated since `"1.0"` was first defined and never bumped. A row still
+carrying the old literal is now structurally rejected by the schema — old
+and new identity can never be ambiguous. **Finding 2**: `PARITY1` (the
+fourth cycle's schema-parity guard) only checked field NAMES, not
+semantic constraints (default/optional/enum) — so a source field's
+constraint could drift without detection even after being "accounted
+for". Fixed by deriving `processStepPlanSchema`/
+`processStepActualObservationSchema` via Zod `.pick()`/`.extend()`
+directly from the canonical `trialProcessStepSchema`, so each selected
+field is the literal same schema object as the source (constraint drift
+is now structurally impossible for any already-picked field, not merely
+tested for). New `PARITY2`/`PARITY3` tests prove this. Full detail: the
+FVL-05.004 tracker row's "FIFTH CORRECTIVE CYCLE" paragraph and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own "fifth corrective cycle" section (the real GPT audit/prompt text
+itself lives only in `docs/audits/FVL05-GPT-AUDIT-000002.md`/
+`docs/prompts/FVL05-GPT-PROMPT-000003.md`, per the new read-only rule —
+not reproduced here). `pnpm --filter @formulab/shared test`: 86 files /
+1851 tests passed. Both `typecheck`s clean, desktop `lint` clean, `git
+diff --check` clean, `python scripts/validate_v1_tracker.py` OK.
+FVL-05.004 stays COMPLETED (now genuinely audit-closed against this
+second, independent reopen). **FVL-05.005 explicitly NOT started this
+session, per this session's own instruction.**
+
 **UPDATE (2026-08-23, FVL-05.004 — fourth corrective cycle, independent
 GPT reopen `AUDIT_FVL05_GPT_000001` — COMPLETE, genuinely audit-closed)**:
 a new independent GPT audit REOPENED FVL-05.004 after the prior session's

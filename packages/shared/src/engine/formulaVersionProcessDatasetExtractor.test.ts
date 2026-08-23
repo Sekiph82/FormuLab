@@ -860,18 +860,21 @@ describe("extractFormulaVersionProcessRows", () => {
   });
 
   describe("2026-08-23 independent-audit reopen findings", () => {
-    it("VERSION1: DATASET_SCHEMA_VERSION stays the current literal after the plannedProcedure addition — no row of this family is persisted/consumed anywhere outside this package's own extractor return values", () => {
+    it("VERSION1 (GPT audit 000002, finding 1): DATASET_SCHEMA_VERSION reflects the real bump required by the original, unchanged-since-FVL-05.001 rule, and every row of this family shares the ONE bumped literal", () => {
       const rows = extractFormulaVersionProcessRows(buildInput({ formulationVersions: [version()] }));
       expect(rows[0].datasetSchemaVersion).toBe(DATASET_SCHEMA_VERSION);
-      expect(DATASET_SCHEMA_VERSION).toBe("1.0");
+      expect(DATASET_SCHEMA_VERSION).toBe("1.1");
       // Proves this row type still shares the ONE dataset schema version
-      // literal with the sibling FVL-05.003 row type — the row family is
-      // still one un-bumped, incrementally-assembled "1.0", per the
-      // documented "bump on first external consumer" rule in
-      // schemas/dataset.ts, not independently versioned per row type.
+      // literal with the sibling FVL-05.003 row type — the shared literal
+      // is not independently versioned per row type; a single bump on the
+      // constant is felt by every row family at once.
       expect(formulaVersionProcessRowSchema.shape.datasetSchemaVersion.value).toBe(
         formulaVersionCompositionRowSchema.shape.datasetSchemaVersion.value,
       );
+      // The superseded prior version can never be ambiguously accepted as
+      // current — a row still carrying the old literal fails schema
+      // validation outright.
+      expect(formulaVersionProcessRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.0" }).success).toBe(false);
     });
 
     it("FORMCODE1: fails closed when two different formulation ids in the supplied pool share the same code (Formulation.code is not enforced globally unique)", () => {
@@ -997,6 +1000,70 @@ describe("extractFormulaVersionProcessRows", () => {
           `source field "${key}" is not present in the plan view, the actual view, or the explicit omission list — update the disposition table in schemas/dataset.ts`,
         ).toBe(true);
       }
+    });
+
+    it("PARITY2 (GPT audit 000002, finding 2): every selected field is the SAME zod schema instance as the source, not a re-typed copy — proves semantic constraint drift (default/optional/enum/refinement), not just field-name presence, cannot silently diverge", () => {
+      const planFieldsToCheck = [
+        "stepNumber",
+        "phase",
+        "plannedInstruction",
+        "requiredEquipment",
+        "plannedTemperatureMinC",
+        "plannedTemperatureMaxC",
+        "plannedMixingSpeedMinRpm",
+        "plannedMixingSpeedMaxRpm",
+        "plannedDurationMinutes",
+        "plannedAdditionOrder",
+      ] as const;
+      for (const key of planFieldsToCheck) {
+        expect(
+          processStepPlanSchema.shape[key],
+          `processStepPlanSchema.${key} must be the exact same zod schema object as trialProcessStepSchema.${key} (via .pick()), not an independently re-typed copy`,
+        ).toBe(trialProcessStepSchema.shape[key]);
+      }
+
+      const actualFieldsToCheck = [
+        "stepNumber",
+        "status",
+        "unplanned",
+        "skipReason",
+        "actualStart",
+        "actualEnd",
+        "actualTemperatureC",
+        "actualMixingSpeedRpm",
+        "actualDurationMinutes",
+        "actualAdditionOrder",
+        "actualPh",
+        "actualViscosity",
+        "viscosityUnit",
+        "operator",
+        "observation",
+        "deviationNote",
+        "attachments",
+      ] as const;
+      for (const key of actualFieldsToCheck) {
+        expect(
+          processStepActualObservationSchema.shape[key],
+          `processStepActualObservationSchema.${key} must be the exact same zod schema object as trialProcessStepSchema.${key} (via .pick()), not an independently re-typed copy`,
+        ).toBe(trialProcessStepSchema.shape[key]);
+      }
+
+      expect(processStepPlanSchema.shape.processStepId).toBe(trialProcessStepSchema.shape.id);
+      expect(processStepActualObservationSchema.shape.processStepId).toBe(trialProcessStepSchema.shape.id);
+    });
+
+    it("PARITY3: a source field's constraint change is felt automatically by both dataset views, with no dataset.ts edit required — proven by round-tripping a source-schema-valid edge case (whitespace-only requiredEquipment entry) through the real extractor", () => {
+      // requiredEquipment is z.array(z.string()) on the source — a single
+      // whitespace entry is a valid string, so the source schema accepts it.
+      // Because the plan view reuses that exact array-of-string schema via
+      // .pick() (not a re-typed z.array(z.string()) copy), it accepts the
+      // identical set of values with zero dataset.ts changes if the source
+      // constraint were ever tightened or loosened.
+      const weirdStep = step({ id: "s1", stepNumber: 1, requiredEquipment: [" ", "mixer"] });
+      const rows = extractFormulaVersionProcessRows(
+        buildInput({ formulationVersions: [version()], trials: [trial({ processSteps: [weirdStep] })] }),
+      );
+      expect(rows[0].trials[0].plannedSteps[0].requiredEquipment).toEqual([" ", "mixer"]);
     });
 
     it("ORDER1: ordering is environment-independent ordinal comparison, not locale-collation-aware — proven on a case pair where the two disagree", () => {

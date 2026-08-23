@@ -26,16 +26,15 @@
  */
 import { z } from "zod";
 import { processParameterSchema } from "./dataExchange";
-import { decimalString, formulationLineSchema } from "./formulation";
-import { TRIAL_PROCESS_STEP_STATUSES, trialObservationSchema } from "./laboratory";
+import { formulationLineSchema } from "./formulation";
+import { trialObservationSchema, trialProcessStepSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
 import { productFamilySchema } from "./product";
-import { attachmentReferenceSchema } from "./testDefinitions";
 
 /** Current dataset (row/lineage) schema version. Bump when the shape of a
  *  dataset row changes (a field is added, removed, or renamed by one of
  *  the FVL-05.003-.008 extractors). */
-export const DATASET_SCHEMA_VERSION = "1.0" as const;
+export const DATASET_SCHEMA_VERSION = "1.1" as const;
 
 /** Validates the literal current dataset schema version. */
 export const datasetSchemaVersionSchema = z.literal(DATASET_SCHEMA_VERSION);
@@ -333,62 +332,102 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * two different formulation ids sharing the same `code`, since that makes
  * the `process_parameters` plan-key namespace genuinely ambiguous.
  *
- * DATASET_SCHEMA_VERSION (FINDING A): stays `"1.0"`, not bumped, for this
- * `plannedProcedure` addition. Evidence: (1) `SchemaMigration` exists to
- * protect PERSISTED records at an old version from becoming unreadable —
- * a repo-wide grep for `formulaVersionProcessRowSchema`/
- * `formulaVersionCompositionRowSchema`/`extractFormulaVersionProcessRows`/
- * `extractFormulaVersionDatasetRows` outside this package's own engine/
- * schema/test files returns ZERO matches: no persistence layer, UI, or
- * downstream package reads a row of this family today, so there is
- * nothing "old" anywhere to invalidate. (2) Established precedent: three
- * prior additions to this same row family — FVL-05.002 (`sourceRecords`),
- * FVL-05.003 (the whole `formulaVersionCompositionRowSchema` type), and
- * FVL-05.004's own original `formulaVersionProcessRowSchema` — all added
- * dataset-row shape under the same `"1.0"` without a bump. The row family
- * is still being incrementally assembled behind a pure, in-memory-only
- * extractor boundary; the version must bump the first time a row of this
- * family becomes reachable outside `packages/shared`'s own extractor
- * return values (persisted, exported, or consumed elsewhere) or the first
- * time an already-external-facing row shape changes thereafter — whichever
- * FVL-05 task first builds that consumer must re-verify this conclusion
- * before shipping.
+ * DATASET_SCHEMA_VERSION (GPT audit 000002, finding 1 — RESOLVED): a
+ * prior cycle left `DATASET_SCHEMA_VERSION` at `"1.0"` after adding
+ * `plannedProcedure`, reasoning from usage evidence (no consumers exist
+ * yet) rather than from the ORIGINAL, pre-existing, still-authoritative
+ * rule stated on `DATASET_SCHEMA_VERSION` itself: "bump when the shape
+ * of a dataset row changes (a field is added, removed, or renamed by one
+ * of the FVL-05.003-.008 extractors)". That usage-based exception was
+ * never actually written into that rule, so it directly contradicted it
+ * — two competing rules cannot both be authoritative. There is exactly
+ * ONE rule, unchanged since FVL-05.001's original commit (`78c6866`):
+ * bump on every dataset-row shape change. `DATASET_SCHEMA_VERSION` is
+ * therefore bumped `"1.0"` -> `"1.1"` in THIS cycle, covering every
+ * shape change this row family has accumulated since `"1.0"` was first
+ * defined and never bumped (FVL-05.002's `sourceRecords`, FVL-05.003's
+ * whole row type, FVL-05.004's original row type, `plannedProcedure`,
+ * and this same cycle's additive `parentRecordId`) — a single bump now
+ * catches up every previously-un-bumped change in one step, and every
+ * FUTURE shape change bumps again, with no further exception. Compatibility:
+ * `SchemaMigration` (`engine/migrations.ts`) exists to convert PERSISTED
+ * records at an old version forward; a repo-wide grep for
+ * `formulaVersionProcessRowSchema`/`formulaVersionCompositionRowSchema`/
+ * `extractFormulaVersionProcessRows`/`extractFormulaVersionDatasetRows`
+ * outside this package's own engine/schema/test files returns ZERO
+ * matches — no persisted row of this family exists anywhere, so there is
+ * nothing to migrate, and no `SchemaMigration` entry is registered for
+ * this bump (none is applicable). `datasetSchemaVersionSchema` is a
+ * `z.literal` — a row still carrying `datasetSchemaVersion: "1.0"` is now
+ * explicitly, structurally REJECTED by every schema in this row family
+ * (proven by `dataset.test.ts`), so an old- and new-shaped row can never
+ * be ambiguously accepted as the same version.
  */
-export const processStepPlanSchema = z.object({
-  processStepId: nonBlankString("processStepId"),
-  stepNumber: z.number().int().positive(),
-  phase: z.string(),
-  plannedInstruction: nonBlankString("plannedInstruction"),
-  requiredEquipment: z.array(z.string()),
-  plannedTemperatureMinC: decimalString.optional(),
-  plannedTemperatureMaxC: decimalString.optional(),
-  plannedMixingSpeedMinRpm: decimalString.optional(),
-  plannedMixingSpeedMaxRpm: decimalString.optional(),
-  plannedDurationMinutes: decimalString.optional(),
-  plannedAdditionOrder: z.number().int().nonnegative().optional(),
-});
+/**
+ * GPT audit 000002, finding 2 (RESOLVED): `processStepPlanSchema`/
+ * `processStepActualObservationSchema` previously hand-modeled each
+ * selected field's type/optionality/default independently of
+ * `trialProcessStepSchema` — `PARITY1` (below, in the extractor test)
+ * could only catch a field NAME missing from both views, never a
+ * SEMANTIC drift (a source field's default/optional/enum/refinement
+ * changing while the dataset view stayed stale, e.g. the `phase`
+ * mismatch AUDIT_000018 found). Fixed by deriving both views via `.pick()`
+ * directly from `trialProcessStepSchema` — each picked field is the
+ * EXACT SAME zod schema instance as the source, so a semantic change to
+ * an already-selected source field is felt here automatically, not just
+ * a renamed/removed/added key. Two independent `.pick()` calls both
+ * legitimately include `stepNumber` (needed by both views for ordering);
+ * `id` is renamed to `processStepId` by extending with
+ * `trialProcessStepSchema.shape.id` directly (the same constraint
+ * object, not a re-typed copy) rather than picking it under its
+ * original name. `PARITY1` is KEPT, not removed — composition guarantees
+ * an already-picked field can never semantically drift, but it does
+ * NOT automatically surface a brand-new source field (`.pick()` only
+ * includes what it's explicitly told to); `PARITY1`'s key-membership
+ * check is still the only guard against that case, so together the two
+ * mechanisms catch both required cases per audit 000002.
+ */
+export const processStepPlanSchema = trialProcessStepSchema
+  .pick({
+    stepNumber: true,
+    phase: true,
+    plannedInstruction: true,
+    requiredEquipment: true,
+    plannedTemperatureMinC: true,
+    plannedTemperatureMaxC: true,
+    plannedMixingSpeedMinRpm: true,
+    plannedMixingSpeedMaxRpm: true,
+    plannedDurationMinutes: true,
+    plannedAdditionOrder: true,
+  })
+  .extend({
+    processStepId: trialProcessStepSchema.shape.id,
+  });
 export type ProcessStepPlan = z.infer<typeof processStepPlanSchema>;
 
-export const processStepActualObservationSchema = z.object({
-  processStepId: nonBlankString("processStepId"),
-  stepNumber: z.number().int().positive(),
-  status: z.enum(TRIAL_PROCESS_STEP_STATUSES),
-  unplanned: z.boolean(),
-  skipReason: z.string().optional(),
-  actualStart: z.string().optional(),
-  actualEnd: z.string().optional(),
-  actualTemperatureC: decimalString.optional(),
-  actualMixingSpeedRpm: decimalString.optional(),
-  actualDurationMinutes: decimalString.optional(),
-  actualAdditionOrder: z.number().int().nonnegative().optional(),
-  actualPh: decimalString.optional(),
-  actualViscosity: decimalString.optional(),
-  viscosityUnit: z.string().optional(),
-  operator: z.string().optional(),
-  observation: z.string().optional(),
-  deviationNote: z.string().optional(),
-  attachments: z.array(attachmentReferenceSchema),
-});
+export const processStepActualObservationSchema = trialProcessStepSchema
+  .pick({
+    stepNumber: true,
+    status: true,
+    unplanned: true,
+    skipReason: true,
+    actualStart: true,
+    actualEnd: true,
+    actualTemperatureC: true,
+    actualMixingSpeedRpm: true,
+    actualDurationMinutes: true,
+    actualAdditionOrder: true,
+    actualPh: true,
+    actualViscosity: true,
+    viscosityUnit: true,
+    operator: true,
+    observation: true,
+    deviationNote: true,
+    attachments: true,
+  })
+  .extend({
+    processStepId: trialProcessStepSchema.shape.id,
+  });
 export type ProcessStepActualObservation = z.infer<typeof processStepActualObservationSchema>;
 
 export const processTrialSchema = z.object({

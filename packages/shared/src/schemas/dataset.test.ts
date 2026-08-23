@@ -14,17 +14,20 @@ import {
 
 describe("dataset schema version", () => {
   it("is an explicit literal, not a free-form string", () => {
-    expect(DATASET_SCHEMA_VERSION).toBe("1.0");
-    expect(datasetSchemaVersionSchema.safeParse("1.0").success).toBe(true);
-    expect(datasetSchemaVersionSchema.safeParse("1.1").success).toBe(false);
+    expect(DATASET_SCHEMA_VERSION).toBe("1.1");
+    expect(datasetSchemaVersionSchema.safeParse("1.1").success).toBe(true);
     expect(datasetSchemaVersionSchema.safeParse("").success).toBe(false);
-    expect(datasetSchemaVersionSchema.safeParse(1.0).success).toBe(false);
+    expect(datasetSchemaVersionSchema.safeParse(1.1).success).toBe(false);
+  });
+
+  it("GPT audit 000002 finding 1: the superseded prior version is now explicitly rejected — old and new row identity can never be ambiguous", () => {
+    expect(datasetSchemaVersionSchema.safeParse("1.0").success).toBe(false);
   });
 
   it("rejects a record missing the field, so the version can never be silently absent", () => {
     expect(datasetSchemaVersionedSchema.safeParse({}).success).toBe(false);
     expect(
-      datasetSchemaVersionedSchema.safeParse({ datasetSchemaVersion: "1.0" }).success,
+      datasetSchemaVersionedSchema.safeParse({ datasetSchemaVersion: DATASET_SCHEMA_VERSION }).success,
     ).toBe(true);
   });
 });
@@ -52,7 +55,7 @@ describe("dataset schema version vs feature schema version — independence", ()
 
     // Valid dataset version + invalid feature version: only the feature field fails.
     const badFeature = combinedSchema.safeParse({
-      datasetSchemaVersion: "1.0",
+      datasetSchemaVersion: DATASET_SCHEMA_VERSION,
       featureSchemaVersion: "9.9",
     });
     expect(badFeature.success).toBe(false);
@@ -76,8 +79,8 @@ describe("dataset schema version vs feature schema version — independence", ()
 
     // Both valid: the combined record is accepted, each field independently identifiable.
     const both = combinedSchema.parse({
-      datasetSchemaVersion: "1.0",
-      featureSchemaVersion: "1.0",
+      datasetSchemaVersion: DATASET_SCHEMA_VERSION,
+      featureSchemaVersion: FEATURE_SCHEMA_VERSION,
     });
     expect(both.datasetSchemaVersion).toBe(DATASET_SCHEMA_VERSION);
     expect(both.featureSchemaVersion).toBe(FEATURE_SCHEMA_VERSION);
