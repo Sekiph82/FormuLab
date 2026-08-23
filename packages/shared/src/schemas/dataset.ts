@@ -28,10 +28,12 @@
  * also contains the FVL-05.002 lineage model
  * (`sourceRecordReferenceSchema`/`sourceRecordLineageSchema`/
  * `datasetRowBaseSchema`), the FVL-05.003 formula-version composition row
- * (`formulaVersionCompositionRowSchema`), and the FVL-05.004 process row
+ * (`formulaVersionCompositionRowSchema`), the FVL-05.004 process row
  * (`processStepPlanSchema`/`processStepActualObservationSchema`/
- * `processTrialSchema`/`formulaVersionProcessRowSchema`) — see each
- * section's own header comment below for its specific contract.
+ * `processTrialSchema`/`formulaVersionProcessRowSchema`), and the
+ * FVL-05.005 trial/test-result row (`trialTestResultsSchema`/
+ * `formulaVersionTestResultRowSchema`) — see each section's own header
+ * comment below for its specific contract.
  */
 import { z } from "zod";
 import { processParameterSchema } from "./dataExchange";
@@ -39,11 +41,12 @@ import { formulationLineSchema } from "./formulation";
 import { trialObservationSchema, trialProcessStepSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
 import { productFamilySchema } from "./product";
+import { testResultSchema } from "./testDefinitions";
 
 /** Current dataset (row/lineage) schema version. Bump when the shape of a
  *  dataset row changes (a field is added, removed, or renamed by one of
  *  the FVL-05.003-.008 extractors). */
-export const DATASET_SCHEMA_VERSION = "1.1" as const;
+export const DATASET_SCHEMA_VERSION = "1.2" as const;
 
 /** Validates the literal current dataset schema version. */
 export const datasetSchemaVersionSchema = z.literal(DATASET_SCHEMA_VERSION);
@@ -371,6 +374,19 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * explicitly, structurally REJECTED by every schema in this row family
  * (proven by `dataset.test.ts`), so an old- and new-shaped row can never
  * be ambiguously accepted as the same version.
+ *
+ * SECOND BUMP (FVL-05.005, 2026-08-24): `"1.1"` -> `"1.2"`. FVL-05.005
+ * adds `trialTestResultsSchema`/`formulaVersionTestResultRowSchema`, a
+ * brand-new row type — under the ONE rule above (and its own direct
+ * precedent: the first bump explicitly counted FVL-05.003's brand-new
+ * row type as a "shape change"), a new row type is a shape change and
+ * must bump, with no exception for being additive/new rather than a
+ * field edit to an existing type. Compatibility: same reasoning as the
+ * first bump — repo-wide grep re-confirmed zero persisted rows of any
+ * FVL-05 row family exist anywhere, so no `SchemaMigration` entry is
+ * registered for this bump either (still not applicable); the superseded
+ * `"1.1"` literal is now itself structurally rejected, same as `"1.0"`
+ * before it.
  */
 /**
  * GPT audit 000002, finding 2 (RESOLVED): `processStepPlanSchema`/
@@ -465,3 +481,85 @@ export const formulaVersionProcessRowSchema = datasetRowBaseSchema.extend({
   trials: z.array(processTrialSchema),
 });
 export type FormulaVersionProcessRow = z.infer<typeof formulaVersionProcessRowSchema>;
+
+/**
+ * FVL-05.005 — LaboratoryTrial + TestResult payload.
+ *
+ * SOURCE CONTRACT (recovered directly from repository source, not
+ * inferred from the tracker's intentionally short task title):
+ * `TestResult` (`schemas/testDefinitions.ts`'s `testResultSchema`) links
+ * to its owning trial by a single, direct, exact field —
+ * `trialId: z.string().min(1)` — never a composite/fuzzy match, and
+ * never invented here: this is the ONLY relationship between
+ * `LaboratoryTrial` and `TestResult` that exists in source. Unlike
+ * `TrialProcessStep`/`TrialObservation` (FVL-05.004), `TestResult` is
+ * NOT an embedded array on `LaboratoryTrial` — it is its own real,
+ * top-level, APPEND-ONLY masterdata collection (`test_results`,
+ * `append_only: true` in `masterdata.rs`, vs. `laboratory_trials`'
+ * `append_only: false`): recording a result is an event, and
+ * `engine/testResults.ts`'s `reviseTestResult` never mutates a prior
+ * result in place, it creates a NEW record with `revisesResultId`
+ * pointing at the one being revised, so a full revision history is
+ * multiple real, distinct, separately-identified `TestResult` records.
+ * `trialTestResultsSchema` below therefore embeds `testResultSchema`
+ * VERBATIM (never re-modeled — no plan/actual split is needed the way
+ * FVL-05.004 needed one, since a `TestResult` is already purely an
+ * ACTUAL recorded measurement event start to finish, never a plan), and
+ * this extractor emits EVERY persisted `TestResult` for a linked trial —
+ * including every entry in a revision chain — never collapsing to
+ * "latest revision only", which would be an extractor-invented business
+ * rule this task was never asked to apply.
+ *
+ * Because `TestResult.id` is a genuinely GLOBAL identity (its own
+ * top-level collection, not an embedded array scoped to one trial the
+ * way `TrialProcessStep.id`/`TrialObservation.id` are), lineage citations
+ * for a `testResult` never set `parentRecordId` — per the current FVL-05
+ * lineage contract (`sourceRecordReferenceSchema`'s own header comment),
+ * `parentRecordId` is used ONLY when a record's true addressable
+ * identity is parent-scoped, which a `TestResult` genuinely is not.
+ *
+ * `TestDefinition` (the test's own method/unit/spec-limit template) is
+ * deliberately NOT embedded in this row: the task title names exactly
+ * two entities (`LaboratoryTrial` + `TestResult`), `TestResult` already
+ * carries everything needed to interpret a recorded value on its own
+ * (`resultType`, `unit`, `instrument`, `methodSnapshot` — an immutable
+ * snapshot of the method actually used, captured at creation), and
+ * `TestDefinition.targetValue`/`.minimum`/`.maximum` are PLANNED
+ * spec/reference values, never a measured actual — presenting them
+ * alongside `TestResult` here would risk exactly the planned-vs-actual
+ * conflation FVL-05.004 was so deliberate about avoiding. A future task
+ * that needs test-definition context can add it without touching this
+ * row's already-correct trial/result identity.
+ *
+ * A trial is "linked" via the exact same rule FVL-05.004 established:
+ * `sourceType === "saved_version"` AND `sourceFormulaVersionId` exactly
+ * matches the requested version's id; a linked trial whose `projectId`
+ * does not resolve to the version's owning formulation fails closed
+ * (`trial_formula_link_conflict`), never silently attributed or dropped.
+ * A `TestResult` whose `trialId` does not resolve to ANY trial in the
+ * supplied pool fails closed (`test_result_trial_not_found`) — the same
+ * "audit the whole pool up front" discipline `formulation_not_found`
+ * already applies to `FormulationVersion.formulationId`; a `TestResult`
+ * whose trial DOES exist in the pool but is not linked to the
+ * REQUESTED version is legitimately irrelevant to this row and is simply
+ * not included (never an error) — this is what keeps a result linked to
+ * the wrong trial/version from ever leaking into a row.
+ *
+ * One row per `FormulationVersion`, same convention as FVL-05.003/.004:
+ * `trials` is empty when no `LaboratoryTrial` is linked to the version.
+ */
+export const trialTestResultsSchema = z.object({
+  trialId: nonBlankString("trialId"),
+  trialCode: nonBlankString("trialCode"),
+  testResults: z.array(testResultSchema),
+});
+export type TrialTestResults = z.infer<typeof trialTestResultsSchema>;
+
+export const formulaVersionTestResultRowSchema = datasetRowBaseSchema.extend({
+  formulaId: nonBlankString("formulaId"),
+  formulaCode: nonBlankString("formulaCode"),
+  formulaVersionId: nonBlankString("formulaVersionId"),
+  formulaVersionNumber: z.number().int().positive(),
+  trials: z.array(trialTestResultsSchema),
+});
+export type FormulaVersionTestResultRow = z.infer<typeof formulaVersionTestResultRowSchema>;

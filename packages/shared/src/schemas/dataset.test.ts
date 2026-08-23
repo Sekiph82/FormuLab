@@ -14,14 +14,15 @@ import {
 
 describe("dataset schema version", () => {
   it("is an explicit literal, not a free-form string", () => {
-    expect(DATASET_SCHEMA_VERSION).toBe("1.1");
-    expect(datasetSchemaVersionSchema.safeParse("1.1").success).toBe(true);
+    expect(DATASET_SCHEMA_VERSION).toBe("1.2");
+    expect(datasetSchemaVersionSchema.safeParse("1.2").success).toBe(true);
     expect(datasetSchemaVersionSchema.safeParse("").success).toBe(false);
-    expect(datasetSchemaVersionSchema.safeParse(1.1).success).toBe(false);
+    expect(datasetSchemaVersionSchema.safeParse(1.2).success).toBe(false);
   });
 
-  it("GPT audit 000002 finding 1: the superseded prior version is now explicitly rejected — old and new row identity can never be ambiguous", () => {
+  it("every superseded prior version is explicitly rejected — old and new row identity can never be ambiguous, across every bump", () => {
     expect(datasetSchemaVersionSchema.safeParse("1.0").success).toBe(false);
+    expect(datasetSchemaVersionSchema.safeParse("1.1").success).toBe(false);
   });
 
   it("rejects a record missing the field, so the version can never be silently absent", () => {

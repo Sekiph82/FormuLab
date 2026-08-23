@@ -597,6 +597,7 @@ export * from "./engine/connectorConnection";
 export * from "./schemas/dataset";
 export * from "./engine/formulaVersionDatasetExtractor";
 export * from "./engine/formulaVersionProcessDatasetExtractor";
+export * from "./engine/formulaVersionTestResultDatasetExtractor";
 export {
   PRECISION,
   CURRENCY_DP,

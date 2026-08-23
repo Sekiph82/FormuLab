@@ -863,7 +863,11 @@ describe("extractFormulaVersionProcessRows", () => {
     it("VERSION1 (GPT audit 000002, finding 1): DATASET_SCHEMA_VERSION reflects the real bump required by the original, unchanged-since-FVL-05.001 rule, and every row of this family shares the ONE bumped literal", () => {
       const rows = extractFormulaVersionProcessRows(buildInput({ formulationVersions: [version()] }));
       expect(rows[0].datasetSchemaVersion).toBe(DATASET_SCHEMA_VERSION);
-      expect(DATASET_SCHEMA_VERSION).toBe("1.1");
+      // FVL-05.005 bumped this again (1.1 -> 1.2) for its own new row type,
+      // under the same rule — asserted symbolically (not a hardcoded
+      // literal) so this test never goes stale on a future bump again.
+      expect(DATASET_SCHEMA_VERSION).not.toBe("1.0");
+      expect(DATASET_SCHEMA_VERSION).not.toBe("1.1");
       // Proves this row type still shares the ONE dataset schema version
       // literal with the sibling FVL-05.003 row type — the shared literal
       // is not independently versioned per row type; a single bump on the

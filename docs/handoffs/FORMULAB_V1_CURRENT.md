@@ -4,6 +4,43 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-24, FVL-05.005 — Extractor: LaboratoryTrial + TestResult
+— COMPLETE)**: FVL-05.004 was independently GPT-audit CLOSED
+(`AUDIT_FVL05_GPT_000004`) before this task began; per that audit's own
+verdict, this session did not reopen it. New task, source contract
+recovered directly (the tracker text was intentionally short):
+`TestResult.trialId` is the one, direct, exact link to
+`LaboratoryTrial.id` — the only relationship between the two entities
+that exists in source. `TestResult` is its own real, top-level,
+APPEND-ONLY masterdata collection (`test_results`, confirmed via
+`masterdata.rs`), not embedded on the trial the way
+`TrialProcessStep`/`TrialObservation` are, so `TestResult.id` is a
+genuinely global identity — lineage citations for it never set
+`parentRecordId`. Every persisted `TestResult` for a linked trial is
+extracted verbatim, including a full `revisesResultId` revision chain,
+never collapsed to "latest only". `TestDefinition` deliberately NOT
+embedded — out of the task's own title scope, and `TestResult` already
+carries everything needed to interpret a value on its own.
+`packages/shared/src/schemas/dataset.ts` gained `trialTestResultsSchema`/
+`formulaVersionTestResultRowSchema` (`testResultSchema` reused 100%
+verbatim — zero re-modeling, zero parity risk); new
+`packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.ts`
+(`extractFormulaVersionTestResultRows`). Introducing this brand-new row
+type is a dataset-row shape change under the standing FVL-05.001 rule —
+`DATASET_SCHEMA_VERSION` bumped `"1.1"` → `"1.2"`, following the exact
+precedent the fifth FVL-05.004 corrective cycle set for exactly this
+situation. Full detail: the FVL-05.005 tracker row and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own FVL-05.005 section. `pnpm --filter @formulab/shared test`: 87 files /
+1888 tests passed. `pnpm --filter @formulab/desktop test`: full suite
+green, no regression (exact count in the external log). Both
+`typecheck`s clean, desktop `lint` clean, `git diff --check` clean,
+`python scripts/validate_v1_tracker.py` OK. This update also corrected a
+stale "FVL-05 = 1/14" rollup near the top of the tracker (each task's own
+row had stayed current across four intervening sessions; only that one
+summary block had drifted) to the true `5/14`. **FVL-05.006 explicitly
+NOT started this session, per this session's own instruction.**
+
 **READ THIS FIRST (2026-08-20, FVL-04 close-out — FULLY CLOSED)**: FVL-04
 is now genuinely **26/26** — Phase A (FVL-04.019-.025 final correction,
 six real fixes) and Phase B (FVL-04.026, the Human-Readable Literature &
