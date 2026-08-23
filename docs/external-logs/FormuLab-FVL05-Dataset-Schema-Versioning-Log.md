@@ -2354,3 +2354,246 @@ whole-scope adversarial re-audit found no unresolved defect.
 
 **NEXT TASK — FVL-05.005 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+## FVL-05.004 — fifth corrective cycle: second independent GPT re-audit (AUDIT_FVL05_GPT_000002, 2026-08-23)
+
+A second independent GPT re-audit reopened FVL-05.004 after the fourth
+cycle's own completion claim. Governing prompt:
+`docs/prompts/FVL05-GPT-PROMPT-000003.md`. Audit:
+`docs/audits/FVL05-GPT-AUDIT-000002.md`. Both files, plus the existing
+`docs/audits/FVL05-GPT Audits.md`/`docs/prompts/FVL05 Prompts.md`, are
+now explicitly GPT-owned/READ-ONLY for Claude per this audit's own new
+control-plane rule — this session read them but did not write to any of
+them. Implementation evidence recorded only here, in the tracker, and in
+the handoff, per that rule. Scope: FVL-05.004 only, manual session (no
+subagents, no Autopilot).
+
+### Starting state
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `a98df8b8d5e0bfe29fc7aecac689bfcfc8c3678b`.
+- `git fetch` found remote at `ac85179a9d0386fce6fece5200d0c5d0ae880211`
+  (two new commits: `7616177` adding `docs/audits/FVL05-GPT-AUDIT-000002.md`,
+  `ac85179` adding `docs/prompts/FVL05-GPT-PROMPT-000003.md`) —
+  fast-forwarded cleanly (`git merge --ff-only`), no conflict this time.
+- Pre-existing dirty worktree (unrelated, left untouched): modified
+  `docs/generated/FormuLab-User-Guide.docx`/`.pdf`; deleted
+  `formulas/2026-07-18-*.md` (10 files) and `formulas/index.json`;
+  untracked `docs/external-logs/FormuLab-Build-Shortcut-Log.md`,
+  `FormuLab-Connector-Management-Frontend-Log.md`,
+  `FormuLab-FVL03-Integration-Log.md`,
+  `FormuLab-FVL04-DataExchange-Integration-Log.md`,
+  `FormuLab-New-Request-Runtime-Regression-Log.md`,
+  `FormuLab-Phase11-Backup-Restore-Data-Safety-Log.md`,
+  `FormuLab-Phase12-Commercial-Distribution-Log.md`,
+  `FormuLab-Phase13-Identity-Security-Log.md`,
+  `FormuLab-Phase14-Literature-Formulation-Intelligence-Log.md`. Verified
+  unchanged via `git status --short` before commit.
+
+### Finding 1 — dataset schema-version contract was internally contradictory (fixed)
+
+The fourth cycle left `DATASET_SCHEMA_VERSION` at `"1.0"` after adding
+`plannedProcedure`/`parentRecordId`, reasoning from usage evidence (zero
+consumers exist). That directly contradicted the ORIGINAL rule stated on
+`DATASET_SCHEMA_VERSION` itself: "bump when the shape of a dataset row
+changes (a field is added, removed, or renamed...)". Verified via
+`git log --follow -p -- packages/shared/src/schemas/dataset.ts` that
+this exact comment has been present, unchanged, since the very first
+FVL-05.001 commit (`78c6866`) — it is the real, pre-existing,
+authoritative contract; the "unfrozen 1.0" exception was self-authored
+in a later corrective cycle, never actually written into that contract.
+Resolved in favor of the original rule (option A, not option B):
+`DATASET_SCHEMA_VERSION` bumped `"1.0"` → `"1.1"` in one step, covering
+every row-shape change accumulated since `"1.0"` was first defined and
+never bumped (FVL-05.002's `sourceRecords`, FVL-05.003's whole row type,
+FVL-05.004's original row type, `plannedProcedure`, `parentRecordId`).
+Every future shape change bumps again — no further exception. The prior
+cycle's contradictory "FINDING A: stays 1.0" comment block in
+`schemas/dataset.ts` rewritten to state this bump and its reasoning.
+Compatibility: repo-wide grep re-confirmed zero persisted rows of this
+family exist anywhere, so no `SchemaMigration` entry was registered
+(none applicable) — but the version constant still bumps per the rule
+regardless. `datasetSchemaVersionSchema` being a `z.literal` means a row
+still carrying `"1.0"` is now structurally rejected — proven by a new
+`dataset.test.ts` test and `VERSION1`'s rewritten assertion.
+
+### Finding 2 — PARITY1 proved key-name parity only, not semantic-constraint parity (fixed)
+
+`processStepPlanSchema`/`processStepActualObservationSchema` were
+hand-modeled independently of `trialProcessStepSchema`, so `PARITY1`
+(checking only that every source field NAME appears in one of the two
+views or an omission list) could never catch a source field's
+default/optional/enum/refinement changing while the dataset view stayed
+stale — exactly the class of bug the original `phase` mismatch was.
+Fixed by deriving both views via zod `.pick()` directly from
+`trialProcessStepSchema`, `.extend()`ed with
+`processStepId: trialProcessStepSchema.shape.id` (the exact same
+constraint object as source `id`, renamed) — each picked field (`phase`,
+`requiredEquipment`, `status`, `unplanned`, `attachments`, etc.) is now
+the LITERAL SAME zod schema object as the source, not an independent
+re-typed copy, so a future semantic change to an already-selected field
+is felt automatically with zero `dataset.ts` edit required. The audit's
+own claim that `stepNumber` needing to appear in both views makes
+`.pick()` impractical was confirmed incorrect: two independent `.pick()`
+calls both including `stepNumber` compose without conflict — verified
+directly. `PARITY1` (key-membership) is KEPT unchanged — composition
+alone doesn't automatically surface a brand-new source field, so the two
+mechanisms are complementary, not redundant, matching the audit's own
+"must catch BOTH" requirement. New `PARITY2` proves referential identity
+(`processStepPlanSchema.shape.phase === trialProcessStepSchema.shape.phase`,
+etc., for every picked field in both views). New `PARITY3` proves this
+end-to-end through the real extractor: a source-schema-valid
+whitespace-only `requiredEquipment` entry round-trips unchanged, since
+the plan view's array-of-string constraint is now literally the source's
+own schema object. Removed now-unused `decimalString`/
+`attachmentReferenceSchema` imports from `schemas/dataset.ts` (both
+fields now arrive via composition, never hand-typed there directly).
+
+### Regression re-audit (per prompt section 4)
+
+Re-read the whole FVL-05.004 implementation after both fixes. Confirmed
+intact, unchanged: `process_parameters` authoritative natural-key
+ambiguity handling; exact `sourceRecordId` + structural `parentRecordId`
+nested lineage; `saved_version` missing/blank `sourceFormulaVersionId`
+fail-closed behavior; same-trial `TrialObservation.processStepId`
+referential integrity; attachment-only actual evidence; formula-code
+ambiguity handling; locale-independent deterministic ordering; timestamp
+validation; truthful structured error identities; no plan/actual
+conflation; no cross-trial/cross-formula leakage; source non-mutation
+and no output/source aliasing (still guaranteed by zod's
+always-rebuilding `safeParse`, now composition-derived schemas included);
+public exports remain coherent (barrel export line unchanged;
+`formulaVersionProcessDatasetExtractor.ts` itself needed NO code change
+this cycle — the fix was entirely schema-composition in `dataset.ts` plus
+the version-literal bump, both upstream of the extractor's own logic).
+
+### Tests
+
+`formulaVersionProcessDatasetExtractor.test.ts`: 59 → 61 tests (+2:
+`PARITY2`, `PARITY3`; `VERSION1` rewritten in place — literal updated
+`"1.0"` → `"1.1"`, plus a new assertion that the superseded `"1.0"`
+literal is now rejected by the row schema — not weakened, strengthened).
+`dataset.test.ts`: 18 → 19 tests (+1: explicit rejection of the
+superseded `"1.0"` version literal; the "is an explicit literal" test's
+expected value updated to `"1.1"`; two fixtures in the
+dataset-vs-feature-version independence test switched from a hardcoded
+`"1.0"` literal to the symbolic `DATASET_SCHEMA_VERSION`/
+`FEATURE_SCHEMA_VERSION` constants so they can never again silently drift
+out of sync with a future bump).
+
+### Fresh test/typecheck/lint/diff/tracker-validation evidence
+
+All commands run fresh from the final corrected state on
+`feature/laboratory-stability`:
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionProcessDatasetExtractor.test.ts
+  src/schemas/dataset.test.ts` — **80/80 passed**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite) — **86
+  files / 1851 tests passed** (1848 → 1851, +3 net, no regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` (eslint) — clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite) — **167
+  files / 1726 tests passed, no regression** (unchanged — no desktop
+  source file touched; `dataset.ts`'s consumers are entirely within
+  `packages/shared`, confirmed by both a repo-wide grep and this green
+  desktop run).
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks across
+  11 work packages, no drift found.`
+- `git diff --check` — clean (pre-existing CRLF-normalization warnings
+  only, exit 0).
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+
+### Security / real-data-safety notes
+
+No new I/O, persistence, or external input parsing added — the extractor
+remains pure; this cycle's changes are entirely schema-definition
+(`dataset.ts`) and test files. No real laboratory/customer/production
+data touched — all fixtures synthetic, reused from the existing test
+builders.
+
+### Files changed this cycle
+
+- `packages/shared/src/schemas/dataset.ts` (`DATASET_SCHEMA_VERSION`
+  bumped `"1.0"` → `"1.1"`; `processStepPlanSchema`/
+  `processStepActualObservationSchema` rewritten as zod `.pick()`/
+  `.extend()` compositions of `trialProcessStepSchema`; unused
+  `decimalString`/`attachmentReferenceSchema` imports removed; FVL-05.004
+  header comment's contradictory version narrative rewritten).
+- `packages/shared/src/schemas/dataset.test.ts` (version-literal
+  assertions updated; 1 new test; 2 fixtures switched to symbolic
+  constants).
+- `packages/shared/src/engine/formulaVersionProcessDatasetExtractor.test.ts`
+  (`VERSION1` rewritten; 2 new tests — `PARITY2`, `PARITY3`).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.004 row — appended this
+  cycle's evidence under a new "FIFTH CORRECTIVE CYCLE" heading, "read
+  this first" pointer updated to point at it; did not remove or alter
+  any prior cycle's evidence).
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` (new pointer block for this
+  cycle, prepended above the fourth cycle's block, which is left intact
+  as history).
+- This log file (new corrective-cycle section, appended).
+
+GPT-owned files explicitly NOT touched this cycle (per the new
+read-only rule): `docs/audits/FVL05-GPT Audits.md`,
+`docs/audits/FVL05-GPT-AUDIT-000002.md`, `docs/prompts/FVL05 Prompts.md`,
+`docs/prompts/FVL05-GPT-PROMPT-000003.md`.
+
+All other pre-existing worktree modifications/deletions/untracked files
+listed under "Starting state" above were left untouched.
+
+### Commits
+
+- `4134315` — this cycle's single commit (both findings fixed; no
+  amend, no force push, no history rewrite).
+
+Final HEAD: `413431523cf47c9c96335b84cc51f659f47064e6`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`413431523cf47c9c96335b84cc51f659f47064e6`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Build command: `pnpm --filter @formulab/desktop tauri build` — exit 0.
+  Rust release compile succeeded (`Finished \`release\` profile
+  [optimized] target(s) in 1m 17s`); MSI and NSIS bundles produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,870,912 bytes, modified 2026-08-23 21:05 local time,
+  SHA256 `7100413eabfbe4398f4f40bc97f8031d0d2e8c2fcbefa8a2018f4cf513562e70`
+  (distinct from the pre-cycle build's hash
+  `2925c4ce2c1a6307cb9e7378421def00e466bca09709b2daf662e15715217915`,
+  confirming a fresh build from this cycle's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: prior `formulab.exe` process stopped first;
+  launched fresh via the real shortcut; resulting process (PID 8784)
+  confirmed running from the exact fresh exe path and `Responding: True`
+  5 seconds after launch. **Automated launch smoke: PASS.** **Manual UI
+  acceptance from Desktop\FormuLab.lnk is still pending USER
+  verification** — not claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Dataset schema-version rule reconciled into ONE authoritative,
+non-contradictory contract and implemented/tested; process-step schema
+parity structurally derived from the canonical source (composition), not
+merely key-name tested; the whole FVL-05.004 scope re-audited after both
+changes with no regression found; focused FVL-05.004 tests green (80/80),
+full shared tests green (86/86 files, 1851/1851), desktop tests green
+(167/167 files, 1726/1726), shared/desktop typechecks green, desktop
+lint green, tracker validation green, `git diff --check` clean;
+tracker/handoff/external log truthful and pointing to current truth;
+changes committed and pushed with local HEAD == remote HEAD; native
+Tauri release build and `Desktop\FormuLab.lnk` checks rerun from the
+final pushed HEAD; FVL-05.005 remains untouched; GPT audit/prompt files
+untouched (read-only, respected).
+
+**FVL-05.004 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.005 NOT STARTED** (per this session's explicit
+instruction not to begin it).
