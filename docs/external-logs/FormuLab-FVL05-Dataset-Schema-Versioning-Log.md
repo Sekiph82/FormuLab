@@ -2810,3 +2810,306 @@ untouched (read-only, respected).
 
 **NEXT TASK — FVL-05.005 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+## FVL-05.005 — Extractor: LaboratoryTrial + TestResult (2026-08-24)
+
+New task. FVL-05.004 was independently GPT-audit CLOSED
+(`AUDIT_FVL05_GPT_000004`, `docs/audits/FVL05-GPT-AUDIT-000004.md`)
+before this task began; per that audit's own verdict and this session's
+own governing prompt, FVL-05.004 was not reopened. Governing prompt:
+`docs/prompts/FVL05-GPT-PROMPT-000005.md`. Both files, plus every prior
+`docs/audits/FVL05-GPT*.md`/`docs/prompts/FVL05-GPT*.md` file, are
+GPT-owned/READ-ONLY for Claude — read this session, not written to.
+Manual session, no subagents, no Autopilot.
+
+### Starting state
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `e36b4f88b5c6ecea61e614e6d137f2a725a41424`.
+- `git fetch` found remote at `e5e6a895e2e53fde9232fdf83bf2199680e9cfc1`
+  (three new commits: `6839772` — already known, `e02daf2` "docs(FVL-05):
+  close FVL-05.004 after sixth corrective cycle" adding
+  `docs/audits/FVL05-GPT-AUDIT-000004.md`, `e5e6a89` "docs(FVL-05): add
+  GPT prompt for FVL-05.005" adding
+  `docs/prompts/FVL05-GPT-PROMPT-000005.md`) — fast-forwarded cleanly
+  (`git merge --ff-only`), no conflict.
+- Pre-existing dirty worktree (unrelated, left untouched): same set as
+  every prior cycle — modified `docs/generated/FormuLab-User-Guide.docx`/
+  `.pdf`; deleted `formulas/2026-07-18-*.md` (10 files) and
+  `formulas/index.json`; the same 9 untracked external-log files under
+  `docs/external-logs/`. Verified unchanged via `git status --short`
+  before commit.
+
+### Source-of-truth recovery
+
+The tracker task text is intentionally short ("Extractor: LaboratoryTrial
++ TestResult"). Recovered the exact contract directly from repository
+source rather than inferring it from the title, per the governing
+prompt's explicit instruction:
+
+- `packages/shared/src/schemas/testDefinitions.ts`'s `testResultSchema`:
+  `trialId: z.string().min(1)` is the ONE, direct, exact field linking a
+  `TestResult` to its owning `LaboratoryTrial.id` — the only relationship
+  between the two entities that exists anywhere in source. No composite
+  key, no fuzzy match, nothing invented.
+- `TestResult` is NOT embedded on `LaboratoryTrial` the way
+  `TrialProcessStep`/`TrialObservation` are (FVL-05.004) — it is its own
+  real, top-level masterdata collection, confirmed via
+  `apps/desktop/src-tauri/src/masterdata.rs`: `("test_results", true)`
+  (append-only) vs. `("laboratory_trials", false)` (mutable). Confirmed
+  via `packages/shared/src/engine/testResults.ts`'s `reviseTestResult`:
+  editing a result never mutates it in place, it creates a NEW record
+  with `revisesResultId` pointing at the one being revised — a revision
+  chain is multiple real, separately-identified, separately-persisted
+  records.
+- Because `TestResult` has its own top-level collection, `TestResult.id`
+  is a genuinely GLOBAL identity — unlike `TrialProcessStep.id`/
+  `TrialObservation.id`, which are embedded-array-scoped to one trial and
+  required FVL-05.004's `parentRecordId` fix. This extractor's `testResult`
+  lineage citations correctly never set `parentRecordId`, per the current
+  FVL-05 lineage contract's own "only when true source identity is
+  parent-scoped" rule.
+- `TestDefinition` (method/unit/spec-limit template,
+  `testDefinitionSchema`) was deliberately NOT embedded in the row: the
+  task title names exactly two entities; `TestResult` already carries
+  everything needed to interpret a recorded value on its own
+  (`resultType`, `unit`, `instrument`, `methodSnapshot` — an immutable
+  snapshot of the method actually used, captured at creation);
+  `TestDefinition.targetValue`/`.minimum`/`.maximum` are PLANNED
+  spec/reference values, never a measured actual, and embedding them here
+  would risk the exact planned-vs-actual conflation FVL-05.004 was
+  deliberate about avoiding.
+
+### Implementation
+
+`packages/shared/src/schemas/dataset.ts`: new `trialTestResultsSchema`
+(`{ trialId, trialCode, testResults: z.array(testResultSchema) }` —
+`testResultSchema` reused 100% VERBATIM, no re-modeling at all, so this
+row can never silently drift from the canonical source — zero parity
+risk by construction, no `PARITY`-style test needed the way FVL-05.004
+needed one for its hand-split plan/actual views) and
+`formulaVersionTestResultRowSchema`
+(`datasetRowBaseSchema.extend({..., trials: trialTestResultsSchema[]})`)
+— one row per `FormulationVersion`, same convention as FVL-05.003/.004.
+
+**Dataset schema version bump.** Introducing this brand-new row type is a
+dataset-row shape change under the standing FVL-05.001 rule ("bump when
+the shape of a dataset row changes... by one of the FVL-05.003-.008
+extractors"). Direct precedent: the fifth FVL-05.004 corrective cycle's
+own bump (`1.0` → `1.1`) explicitly counted FVL-05.003's brand-new row
+type as a shape change requiring a bump — the identical situation here.
+`DATASET_SCHEMA_VERSION` bumped `"1.1"` → `"1.2"`; both superseded
+literals (`"1.0"`, `"1.1"`) are now structurally rejected by every row
+schema in the family. Repo-wide grep re-confirmed zero persisted rows of
+any FVL-05 row family exist anywhere, so no `SchemaMigration` entry is
+registered (still not applicable).
+
+New `packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.ts`
+(`extractFormulaVersionTestResultRows`): resolves requested
+`formulationVersionIds` against a pool
+(`formula_version_not_found`/`duplicate_formula_version_id`), each
+version's owning `Formulation`
+(`formulation_not_found`/`duplicate_formulation_id`), every trial in the
+supplied pool by exact id with the same `saved_version`-invariant and
+canonical-`createdAt`-timestamp checks FVL-05.004 established
+(`duplicate_trial_id`/`invalid_saved_version_trial_link`/
+`invalid_timestamp_format`), and every test result in the supplied pool
+pool-wide by exact id, dangling-trial-reference, and canonical
+`performedAt` timestamp (`duplicate_test_result_id`/
+`test_result_trial_not_found`/`invalid_timestamp_format`) —
+`test_result_trial_not_found` mirrors the same "audit the whole pool up
+front" discipline `formulation_not_found` already applies to
+`FormulationVersion.formulationId` elsewhere in this file. A trial is
+"linked" via the identical rule FVL-05.004 established
+(`sourceType === "saved_version"` + exact `sourceFormulaVersionId` match,
+`trial_formula_link_conflict` on a `projectId` mismatch). A result linked
+to a trial that IS in the supplied pool but not linked to the REQUESTED
+version is legitimately excluded, never an error — proven by a dedicated
+test. Ordering: trials by `createdAt` then `id`; test results within a
+trial by `performedAt` then `id` — both use a locale-independent ordinal
+comparator (never `localeCompare`), matching FVL-05.004's own
+`compareOrdinal` helper (duplicated here rather than factored into a
+shared module, to avoid touching FVL-05.004's just-closed file at all).
+Structured errors (`FormulaVersionTestResultDatasetExtractionError`) use
+a truthful, correctly-named `context` object
+(`formulaVersionId`/`formulationId`/`trialId`/`testResultId`) from day
+one — built on FVL-05.004's own corrected error-class shape rather than
+repeating its original (fixed) defect. Every constructed row is
+`safeParse`d against `formulaVersionTestResultRowSchema` before being
+returned. Exported via new
+`export * from "./engine/formulaVersionTestResultDatasetExtractor"` line
+in `packages/shared/src/index.ts`.
+
+### Tests
+
+`formulaVersionTestResultDatasetExtractor.test.ts` — 37 tests: zero-trial
+row; one trial/one result; multiple results on one trial ordered by
+`performedAt`/`id` regardless of input order; multiple trials each with
+distinct results ordered by `createdAt`/`id`; exact value/unit/
+instrument/passFail/timestamp/replicate/notes preservation; missing
+optional fields staying absent; explicit zero/false/empty-but-valid
+values surviving; a full `revisesResultId` chain preserved as two
+distinct, separately-cited records (never collapsed to latest-only);
+attachments preserved verbatim; no fabricated result for a trial with
+zero results; a trial linked to another formula version never leaking
+in; a result whose trial is linked to a DIFFERENT formula version never
+leaking in; duplicate-requested version id producing two equal in-order
+rows; all eleven fail-closed error codes (asserted by `code`); source
+non-mutation on both success and failure paths; non-aliasing of returned
+nested output; determinism; JSON round-trip with schema re-validation;
+schema-level rejection of a payload missing `formulaVersionId` and of a
+non-row payload; availability from the shared package's public export
+path; global test-result identity proven (`parentRecordId` absent on
+every `testResult` citation; two different trials' results never
+collide since ids are genuinely global); delimiter-containing/Unicode
+ids remaining unambiguous and deterministic under reordering;
+ordinal-not-locale ordering proven on a real disagreeing pair (`"a"` vs.
+`"B"`); dataset-version rejection of both superseded literals (`"1.0"`,
+`"1.1"`); a referential-identity proof that the embedded `testResults`
+element schema is the literal same `testResultSchema` object as the
+canonical source (`trialTestResultsSchema.shape.testResults.element ===
+testResultSchema`).
+
+**Minimal, unavoidable FVL-05.004-file touches** (not a reopening of that
+task's scope — required by the version bump alone):
+`formulaVersionProcessDatasetExtractor.test.ts`'s `VERSION1` test had a
+hardcoded `expect(DATASET_SCHEMA_VERSION).toBe("1.1")` — updated to
+`.not.toBe("1.0")`/`.not.toBe("1.1")` (future-proof, symbolic, will never
+need updating again on a future bump). `dataset.test.ts`'s
+version-literal tests updated the same way (`"1.2"` current;
+`"1.0"`/`"1.1"` both explicitly rejected).
+
+### Fresh test/typecheck/lint/diff/tracker-validation evidence
+
+All commands run fresh from the final corrected state on
+`feature/laboratory-stability`:
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionTestResultDatasetExtractor.test.ts` —
+  **37/37 passed**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite) — **87
+  files / 1888 tests passed** (86 → 87 files, 1851 → 1888 tests, +37 new,
+  no regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` (eslint) — clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite) — **167
+  files / 1726 tests passed, no regression** (unchanged — no desktop
+  source file touched).
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks across
+  11 work packages, no drift found.` (re-run after the tracker rollup
+  correction too — still clean).
+- `git diff --check` (staged) — clean, no whitespace warnings.
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+
+### Security / real-data-safety notes
+
+No new I/O, persistence, or external input parsing added — the extractor
+remains pure (no Tauri call, no mutation of inputs). Lineage citations
+carry only ids. All tests use entirely synthetic fixtures built from new
+`formulation()`/`version()`/`trial()`/`testResult()` builders modeled on
+FVL-05.004's own fixture style — no real laboratory/customer/production
+data touched.
+
+### Files changed this cycle
+
+- `packages/shared/src/schemas/dataset.ts` (`DATASET_SCHEMA_VERSION`
+  bumped `"1.1"` → `"1.2"`; new `trialTestResultsSchema`/
+  `formulaVersionTestResultRowSchema`; top-of-file module comment and the
+  version-bump history comment both extended, not rewritten).
+- `packages/shared/src/schemas/dataset.test.ts` (version-literal
+  assertions updated to the new bump, made symbolic/future-proof where
+  practical).
+- `packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.ts`
+  (new file).
+- `packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.test.ts`
+  (new file, 37 tests).
+- `packages/shared/src/engine/formulaVersionProcessDatasetExtractor.test.ts`
+  (one line — the `VERSION1` test's hardcoded prior-version literal made
+  symbolic; minimal, unavoidable consequence of the shared version
+  constant bumping again).
+- `packages/shared/src/index.ts` (new barrel export line).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.005 row — full evidence;
+  also corrected the top-of-file "FVL-05 = 1/14" rollup, stale since
+  FVL-05.002, to the true `5/14` — each task's own row had stayed
+  current throughout, only that one summary block had drifted; did not
+  touch any other work package's rollup).
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` (new pointer block, prepended
+  above the sixth FVL-05.004 cycle's block, left intact as history).
+- This log file (new task section, appended).
+
+GPT-owned files explicitly NOT touched this cycle (read-only rule
+respected): `docs/audits/FVL05-GPT Audits.md`,
+`docs/audits/FVL05-GPT-AUDIT-000002.md`,
+`docs/audits/FVL05-GPT-AUDIT-000003.md`,
+`docs/audits/FVL05-GPT-AUDIT-000004.md`, `docs/prompts/FVL05 Prompts.md`,
+`docs/prompts/FVL05-GPT-PROMPT-000003.md`,
+`docs/prompts/FVL05-GPT-PROMPT-000004.md`,
+`docs/prompts/FVL05-GPT-PROMPT-000005.md`.
+
+All other pre-existing worktree modifications/deletions/untracked files
+listed under "Starting state" above were left untouched.
+
+### Commits
+
+- `a9d271a` — this task's single commit (no amend, no force push, no
+  history rewrite).
+
+Final HEAD: `a9d271ab0c27e5078952857c6c2792d4e39d2ec9`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`a9d271ab0c27e5078952857c6c2792d4e39d2ec9`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building this
+  time (lesson from the sixth FVL-05.004 cycle's own build failure) —
+  none running.
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly via `echo "EXIT_CODE=$?"` — **`EXIT_CODE=0`**.
+  MSI and NSIS bundles produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,870,400 bytes, modified 2026-08-24 00:24 local time,
+  SHA256 `765dd0658259f0132c3f64a18cdc07d926c365646769e5e5d62be5ec03adebb6`
+  (distinct from the pre-task build's hash
+  `fb2fed061885d51e80fc736e2de02360dd20e3aad143730299f0e949563c00ab`,
+  confirming a fresh build from this task's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 20780) confirmed running from the exact fresh exe path
+  and `Responding: True` 5 seconds after launch. **Automated launch
+  smoke: PASS.** Process then deliberately stopped afterward so it does
+  not lock the next build. **Manual UI acceptance from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Exact `LaboratoryTrial`↔`TestResult` linkage proven from source, not
+invented; global vs. parent-scoped identity correctly distinguished
+(no `parentRecordId` fabricated where not needed); dataset-row shape
+change correctly triggered the standing version-bump rule; canonical
+`testResultSchema` reused verbatim (zero parity risk); revision chains
+preserved, never collapsed; planned (`TestDefinition`) vs. actual
+(`TestResult`) kept separate by deliberate scope exclusion; all
+pool-level and nested identity scopes fail closed; deterministic,
+locale-independent ordering; source non-mutation and no output/source
+aliasing; public exports correct; focused tests green (37/37); full
+shared tests green (87/87 files, 1888/1888); desktop regression green
+(167/167 files, 1726/1726); shared/desktop typechecks green; desktop
+lint green; tracker validator green; `git diff --check` clean;
+tracker/handoff/external log truthful; changes committed and pushed
+with local HEAD == remote HEAD; native Tauri release build and
+`Desktop\FormuLab.lnk` checks rerun from the final pushed HEAD with the
+real exit code verified explicitly; FVL-05.006 remains untouched; GPT
+audit/prompt files untouched (read-only, respected).
+
+**FVL-05.005 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.006 NOT STARTED** (per this session's explicit
+instruction not to begin it).
