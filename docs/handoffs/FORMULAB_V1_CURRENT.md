@@ -50,6 +50,51 @@ unchanged: FVL-04 = 26/26, Total = 89/171):
    STARTED" framing) is stale/superseded by this line. Full detail:
    `C:\Users\sekip\Desktop\FormuLab-Connector-Management-Frontend-Log.md`.
 
+**UPDATE (2026-08-23, FVL-05.004 — fourth corrective cycle, independent
+GPT reopen `AUDIT_FVL05_GPT_000001` — COMPLETE, genuinely audit-closed)**:
+a new independent GPT audit REOPENED FVL-05.004 after the prior session's
+own "IMPLEMENTATION AND ACCEPTANCE COMPLETE" claim — ten findings (A-J),
+all CONFIRMED except A (investigated, resolved as no-version-bump-needed
+with direct evidence). Fixed: (B) the `process_parameters` registry's
+authoritative natural key is `(formula_code, formula_version, step_number)`,
+not `code` — `code` is mechanically derived from it by the real commit
+path, and the extractor now also fails closed on a same-natural-key/
+different-code collision. (C) the third cycle's `JSON.stringify([trial.id,
+record.id])` lineage encoding, while collision-safe, violated FVL-05.002's
+own "exact opaque persisted record id, never reformatted" contract —
+replaced with an additive `parentRecordId` field on
+`sourceRecordReferenceSchema`, so `sourceRecordId` stays the exact
+unmodified child id and trial scope is represented structurally instead
+of synthesized into one string. (D) a `"saved_version"` trial with a
+missing `sourceFormulaVersionId` (a contradiction the canonical schema
+documents but does not Zod-enforce) now fails closed instead of being
+silently treated as unlinked. (E) a `TrialObservation.processStepId` now
+must resolve to a real step in the same trial. (F) `TrialProcessStep.attachments`
+now has an explicit, tested disposition (actual-execution evidence). (G)
+a new durable parity test fails automatically if a future
+`trialProcessStepSchema` field addition isn't consciously dispositioned.
+(H) `Formulation.code` is confirmed NOT globally unique by any
+authoritative contract (`formulations.rs`) — the extractor now fails
+closed on a code collision across two different formulation ids. (I)
+opaque-id ordering now uses a locale-independent ordinal comparator
+instead of `localeCompare`, and chronological-sort timestamps are
+validated as canonical `toISOString()` format, failing closed otherwise.
+(J) the error class's structured context is now truthfully named per
+field instead of one overloaded `formulationVersionId`. A full
+whole-scope adversarial re-audit after all fixes found no further defect.
+Full detail: the FVL-05.004 tracker row's "FOURTH CORRECTIVE CYCLE"
+paragraph, `docs/audits/FVL05-GPT Audits.md`'s
+`CLAUDE RESOLUTION — AUDIT_FVL05_GPT_000001` section, and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own "fourth corrective cycle" section. `pnpm --filter @formulab/shared
+test`: 86 files / 1848 tests passed. `pnpm --filter @formulab/desktop
+test`: full suite green, no regression (exact count in the external log).
+Both `typecheck`s clean, desktop `lint` clean, `git diff --check` clean,
+`python scripts/validate_v1_tracker.py` OK. FVL-05.004 stays COMPLETED
+(now genuinely audit-closed against this second, independent reopen).
+**FVL-05.005 explicitly NOT started this session, per this session's own
+instruction.**
+
 **UPDATE (2026-08-23, FVL-05.004 — third corrective verification cycle,
 AUDIT_000018 re-resolution — COMPLETE)**: independent audit `AUDIT_000018`
 (verdict CONTINUE) found two real remaining defects in `FVL-05.004`, both

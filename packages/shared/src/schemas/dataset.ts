@@ -30,6 +30,7 @@ import { decimalString, formulationLineSchema } from "./formulation";
 import { TRIAL_PROCESS_STEP_STATUSES, trialObservationSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
 import { productFamilySchema } from "./product";
+import { attachmentReferenceSchema } from "./testDefinitions";
 
 /** Current dataset (row/lineage) schema version. Bump when the shape of a
  *  dataset row changes (a field is added, removed, or renamed by one of
@@ -97,29 +98,55 @@ export const sourceEntitySchema = nonBlankString("sourceEntity");
  *  case-sensitive — never trimmed, normalized, hashed, or shortened. */
 export const sourceRecordIdSchema = nonBlankString("sourceRecordId");
 
-/** One exact citation of a source record: which entity, which id. */
+/**
+ * One exact citation of a source record: which entity, which id, and —
+ * ONLY for a record whose true addressable identity is scoped inside a
+ * parent record rather than globally unique on its own (e.g. an embedded
+ * `TrialProcessStep`/`TrialObservation` array item, scoped to its owning
+ * `LaboratoryTrial`) — the exact id of that owning parent.
+ *
+ * FVL-05.004 REOPEN (independent GPT re-audit, 2026-08-23) FINDING C:
+ * an earlier corrective cycle solved cross-trial nested-id collision
+ * safety by synthesizing `sourceRecordId: JSON.stringify([trial.id, step.id])`
+ * — collision-safe, but it violated THIS schema's own documented contract
+ * immediately above ("the exact id of a record... never reformatted"):
+ * the emitted `sourceRecordId` was no longer the exact persisted child id,
+ * it was a synthesized compound string. `parentRecordId` is the correct,
+ * additive fix: `sourceRecordId` stays the exact unmodified persisted
+ * child id; nesting/scope is represented structurally in its own field,
+ * never folded into `sourceRecordId`. A citation with no parent scope
+ * (the overwhelming majority — every FVL-05.003 citation, and every
+ * FVL-05.004 top-level `formulation`/`formulationVersion`/`processParameter`
+ * citation) simply omits `parentRecordId`; it is not a general-purpose
+ * "extra context" field for other unrelated uses. */
 export const sourceRecordReferenceSchema = z.object({
   sourceEntity: sourceEntitySchema,
   sourceRecordId: sourceRecordIdSchema,
+  parentRecordId: sourceRecordIdSchema.optional(),
 });
 export type SourceRecordReference = z.infer<typeof sourceRecordReferenceSchema>;
 
 /** The full lineage of a dataset row: at least one exact source-record
  *  reference, preserving the caller's order, with exact duplicate
- *  `(sourceEntity, sourceRecordId)` pairs rejected as ambiguous. The same
- *  record id under two different `sourceEntity` values is not a duplicate. */
+ *  `(sourceEntity, parentRecordId, sourceRecordId)` triples rejected as
+ *  ambiguous. The same `sourceRecordId` under a different `sourceEntity`
+ *  OR under a different `parentRecordId` (including present vs. absent)
+ *  is not a duplicate — this is exactly what lets two different
+ *  `LaboratoryTrial`s legitimately embed a process step or observation
+ *  that happens to share the same trial-scoped id (FVL-05.004
+ *  LINEAGE1/LINEAGE2) without a false-positive ambiguity rejection. */
 export const sourceRecordLineageSchema = z
   .array(sourceRecordReferenceSchema)
   .min(1, "a dataset row requires at least one source record reference")
   .superRefine((refs, ctx) => {
     const seen = new Set<string>();
     refs.forEach((ref, index) => {
-      const key = JSON.stringify([ref.sourceEntity, ref.sourceRecordId]);
+      const key = JSON.stringify([ref.sourceEntity, ref.parentRecordId ?? null, ref.sourceRecordId]);
       if (seen.has(key)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [index],
-          message: `duplicate source record reference: sourceEntity="${ref.sourceEntity}" sourceRecordId="${ref.sourceRecordId}"`,
+          message: `duplicate source record reference: sourceEntity="${ref.sourceEntity}" parentRecordId=${ref.parentRecordId ? `"${ref.parentRecordId}"` : "(none)"} sourceRecordId="${ref.sourceRecordId}"`,
         });
       }
       seen.add(key);
@@ -172,15 +199,16 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
 /**
  * FVL-05.004 — process plan + actual process observations payload.
  *
- * CORRECTED (AUDIT_000018 re-resolution): a persisted process-plan record
- * that is independent of any `LaboratoryTrial` DOES exist — the Data
- * Exchange `process_parameters` template/masterdata collection
- * (`schemas/dataExchange.ts`'s `processParameterSchema`, registry entry
- * `templateCode: "process_parameters"`, Rust-registered mutable collection
- * `process_parameters`; real read consumer: `ProcessParametersPanel.tsx`,
- * which documents it as "the real Manufacturing Procedure consumer"). It is
- * deterministically linkable to an exact formula version by its own natural
- * key `(formulaCode, formulaVersion, stepNumber)` against
+ * MANUFACTURING PROCEDURE SOURCE (established, unchanged by the 2026-08-23
+ * reopen): a persisted process-plan record that is independent of any
+ * `LaboratoryTrial` DOES exist — the Data Exchange `process_parameters`
+ * template/masterdata collection (`schemas/dataExchange.ts`'s
+ * `processParameterSchema`, registry entry `templateCode: "process_parameters"`,
+ * Rust-registered mutable collection `process_parameters`; real read
+ * consumer: `ProcessParametersPanel.tsx`, which documents it as "the real
+ * Manufacturing Procedure consumer"). It is deterministically linkable to
+ * an exact formula version by its own natural key
+ * `(formulaCode, formulaVersion, stepNumber)` against
  * `Formulation.code`/`FormulationVersion.versionNumber` — never a fabricated
  * or fuzzy match. `plannedProcedure` on `formulaVersionProcessRowSchema`
  * below carries these rows verbatim (the literal `processParameterSchema`
@@ -197,30 +225,71 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * carries a card's `manufacturing` field onto the saved version — so that
  * shape stays out of scope here, unchanged from the original conclusion.
  *
+ * PROCESS_PARAMETERS AUTHORITATIVE IDENTITY (independent GPT re-audit,
+ * 2026-08-23, FINDING B): the registry's own natural key is
+ * `(formula_code, formula_version, step_number)` — `ProcessParameter.code`
+ * is NOT an independently-authored identity; the real commit path
+ * (`apps/desktop/src/lib/dataExchangeCommit.ts`'s `commitProcessParameters`)
+ * derives it mechanically as
+ * `` `${formula_code}-v${formula_version}-step${step_number}` `` and
+ * upserts on it (`findByCode` + `upsertRecords`), so two legitimately
+ * committed rows can never share a natural key with different codes
+ * through that path. But this extractor accepts an arbitrary supplied
+ * `ProcessParameter[]` pool — nothing at the type level stops a caller
+ * (a test fixture, a future non-conforming writer) from handing it two
+ * records with the same `(formulaCode, formulaVersion, stepNumber)` and
+ * different `code`s. The extractor (not this schema) now fails closed on
+ * that natural-key collision, in addition to the pre-existing exact-`code`
+ * collision check — see `formulaVersionProcessDatasetExtractor.ts`'s
+ * `buildProcessParametersByNaturalKey`.
+ *
+ * NESTED LINEAGE (independent GPT re-audit, 2026-08-23, FINDING C): see
+ * `sourceRecordReferenceSchema`'s own header comment above for the full
+ * resolution — cross-trial-collision-safety is now achieved via the
+ * additive `parentRecordId` field, not by synthesizing `sourceRecordId`.
+ *
  * The only OTHER structured, shared-package-visible process data is
  * `LaboratoryTrial`'s own embedded `processSteps`/`observations`
- * (`schemas/laboratory.ts`) — each `TrialProcessStep` co-locates its
- * PLANNED fields (`plannedInstruction`, `plannedTemperature*`,
- * `plannedMixingSpeed*`, `plannedDurationMinutes`, `plannedAdditionOrder`)
- * and its ACTUAL execution fields (`actualStart`/`actualEnd`,
- * `actualTemperature*`, `actualMixingSpeedRpm`, `actualDurationMinutes`,
- * `actualAdditionOrder`, `actualPh`, `actualViscosity`, `operator`,
- * `observation`, `deviationNote`) on the same record. `processStepPlanSchema`
- * and `processStepActualObservationSchema` below split that one record into
- * two honestly-scoped views — a planned target must never be presented as
- * an actual observation — without inventing a second source model for
- * either half. This trial-scoped plan is deliberately kept SEPARATE from
- * `plannedProcedure` (never merged into one array): a trial's own recorded
- * steps describe what THAT trial planned to do (which may legitimately
- * differ run-to-run), while `plannedProcedure` is the version-level
- * canonical procedure — conflating them would misattribute one provenance
- * as the other.
+ * (`schemas/laboratory.ts`) — each `TrialProcessStep` co-locates PLANNED,
+ * ACTUAL, and record-management fields on one record.
+ * `processStepPlanSchema`/`processStepActualObservationSchema` below split
+ * it into two honestly-scoped views — a planned target must never be
+ * presented as an actual observation. Full field-by-field disposition
+ * (FINDING G — a durable parity test, `PARITY1` in
+ * `formulaVersionProcessDatasetExtractor.test.ts`, asserts every key of
+ * `trialProcessStepSchema.shape` is accounted for below, so a future
+ * source field addition fails the test instead of silently drifting):
  *
- * `phase` on `processStepPlanSchema` mirrors the source's own
- * `trialProcessStepSchema.phase` constraint exactly (`z.string()` with a
- * default applied upstream at trial-parse time, not required non-blank
- * here) — the source permits an explicit empty string, so this dataset must
- * not reject one a real trial legitimately carries.
+ * | source field                                    | plan | actual | reason |
+ * |--------------------------------------------------|------|--------|--------|
+ * | `id`                                              | yes (`processStepId`) | yes (`processStepId`) | exact persisted identity both views cite |
+ * | `stepNumber`                                      | yes  | yes    | ordering key both views need |
+ * | `phase`                                           | yes  |        | authored-at-planning attribute |
+ * | `plannedInstruction`                              | yes  |        | planning field |
+ * | `requiredEquipment`                               | yes  |        | planning field |
+ * | `plannedTemperatureMinC`/`MaxC`                   | yes  |        | planning field |
+ * | `plannedMixingSpeedMinRpm`/`MaxRpm`               | yes  |        | planning field |
+ * | `plannedDurationMinutes`                          | yes  |        | planning field |
+ * | `plannedAdditionOrder`                            | yes  |        | planning field |
+ * | `status`                                          |      | yes    | execution-state field |
+ * | `unplanned`                                       |      | yes    | the step's very presence is itself an actual-execution fact |
+ * | `skipReason`                                      |      | yes    | execution-state field |
+ * | `actualStart`/`actualEnd`                         |      | yes    | execution field |
+ * | `actualTemperatureC`                              |      | yes    | execution field |
+ * | `actualMixingSpeedRpm`                            |      | yes    | execution field |
+ * | `actualDurationMinutes`                           |      | yes    | execution field |
+ * | `actualAdditionOrder`                             |      | yes    | execution field |
+ * | `actualPh`                                        |      | yes    | execution field |
+ * | `actualViscosity`/`viscosityUnit`                 |      | yes    | execution field |
+ * | `operator`                                        |      | yes    | execution field |
+ * | `observation`                                     |      | yes    | execution free-text note |
+ * | `deviationNote`                                   |      | yes    | execution field |
+ * | `attachments`                                     |      | yes    | FINDING F: evidence attached during/after execution (photos, scan of a filled-in log) reads as actual-execution evidence, the same bucket as `operator`/`observation`/`deviationNote` on this same merged record — never a plan-authored field. `stepHasActualData()` now treats a non-empty `attachments` array as actual-execution evidence on its own, the same principle as the prior cycle's `viscosityUnit`-only fix. |
+ * | `createdAt`/`updatedAt`                           |      |        | record-management metadata (when the STEP RECORD itself was created/edited in the system) — not a process observation. Consistent with FVL-05.003 also omitting `FormulationVersion.createdAt`/`.updatedAt` from its row. |
+ *
+ * `trialObservationSchema` is reused VERBATIM in `processTrialSchema.observations`
+ * (never re-modeled), so no parity test is needed there — drift is
+ * structurally impossible by construction.
  *
  * A step marked `unplanned: true` (added mid-execution, not part of the
  * original plan) is deliberately excluded from `plannedSteps` — it was never
@@ -230,14 +299,55 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * `processTrialSchema` groups both step views plus the trial's own discrete
  * `TrialObservation` records (reused verbatim from `schemas/laboratory.ts`)
  * under the exact trial identity (`trialId`/`trialCode`) they were recorded
- * against, so multiple trials for one formula version stay distinct.
+ * against, so multiple trials for one formula version stay distinct. A
+ * `TrialObservation.processStepId`, when present, must resolve to exactly
+ * one process step within that SAME trial (FINDING E) — the extractor
+ * fails closed on a dangling reference rather than emitting it as if it
+ * were valid process evidence.
+ *
+ * `LaboratoryTrial.sourceFormulaVersionId` is documented (comment only, not
+ * Zod-enforced — see `schemas/laboratory.ts`) as required when
+ * `sourceType === "saved_version"`. FINDING D: the extractor now fails
+ * closed on a `"saved_version"` trial with a missing/blank
+ * `sourceFormulaVersionId` in the supplied pool, rather than silently
+ * treating it as merely "not linked to any requested version" — a
+ * narrowly-scoped extractor-side fix (not a change to the shared,
+ * broadly-consumed `laboratoryTrialSchema`, which is out of this task's
+ * scope and blast radius).
  *
  * One row per `FormulationVersion`, same convention as FVL-05.003:
  * `trials` is empty when no `LaboratoryTrial` is linked to the version via
  * an exact `sourceType === "saved_version"` + `sourceFormulaVersionId` match
  * — never a fabricated plan or observation; `plannedProcedure` is
  * independently empty when no `process_parameters` row matches the
- * version's exact `(formulaCode, formulaVersion)` natural key.
+ * version's exact `(formulaCode, formulaVersion)` natural key. FINDING H:
+ * `Formulation.code` is NOT enforced globally unique by any authoritative
+ * repository contract (`save_formulation` in `formulations.rs` keys
+ * storage by `id` only, never checks `code` for a collision) — the
+ * extractor now fails closed if the supplied `formulations` pool contains
+ * two different formulation ids sharing the same `code`, since that makes
+ * the `process_parameters` plan-key namespace genuinely ambiguous.
+ *
+ * DATASET_SCHEMA_VERSION (FINDING A): stays `"1.0"`, not bumped, for this
+ * `plannedProcedure` addition. Evidence: (1) `SchemaMigration` exists to
+ * protect PERSISTED records at an old version from becoming unreadable —
+ * a repo-wide grep for `formulaVersionProcessRowSchema`/
+ * `formulaVersionCompositionRowSchema`/`extractFormulaVersionProcessRows`/
+ * `extractFormulaVersionDatasetRows` outside this package's own engine/
+ * schema/test files returns ZERO matches: no persistence layer, UI, or
+ * downstream package reads a row of this family today, so there is
+ * nothing "old" anywhere to invalidate. (2) Established precedent: three
+ * prior additions to this same row family — FVL-05.002 (`sourceRecords`),
+ * FVL-05.003 (the whole `formulaVersionCompositionRowSchema` type), and
+ * FVL-05.004's own original `formulaVersionProcessRowSchema` — all added
+ * dataset-row shape under the same `"1.0"` without a bump. The row family
+ * is still being incrementally assembled behind a pure, in-memory-only
+ * extractor boundary; the version must bump the first time a row of this
+ * family becomes reachable outside `packages/shared`'s own extractor
+ * return values (persisted, exported, or consumed elsewhere) or the first
+ * time an already-external-facing row shape changes thereafter — whichever
+ * FVL-05 task first builds that consumer must re-verify this conclusion
+ * before shipping.
  */
 export const processStepPlanSchema = z.object({
   processStepId: nonBlankString("processStepId"),
@@ -272,6 +382,7 @@ export const processStepActualObservationSchema = z.object({
   operator: z.string().optional(),
   observation: z.string().optional(),
   deviationNote: z.string().optional(),
+  attachments: z.array(attachmentReferenceSchema),
 });
 export type ProcessStepActualObservation = z.infer<typeof processStepActualObservationSchema>;
 

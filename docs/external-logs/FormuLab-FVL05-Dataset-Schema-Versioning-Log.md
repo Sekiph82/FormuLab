@@ -1983,3 +1983,214 @@ this external log updated.
 
 **NEXT TASK — FVL-05.005 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+## FVL-05.004 — fourth corrective cycle: independent GPT reopen (AUDIT_FVL05_GPT_000001, 2026-08-23)
+
+A new independent GPT audit REOPENED FVL-05.004 after the third
+corrective cycle's own "FVL-05.004 — IMPLEMENTATION AND ACCEPTANCE
+COMPLETE" claim (commits `92a89ae`/`0b02cab`). Governing prompt directed
+reading `docs/audits/FVL05-GPT Audits.md` and
+`docs/prompts/FVL05 Prompts.md` first — both were found EMPTY (0 bytes);
+the ten findings (A-J) exist only in the governing prompt itself, now
+transcribed verbatim into `docs/audits/FVL05-GPT Audits.md`'s
+`AUDIT_FVL05_GPT_000001` section. Scope: FVL-05.004 only, manual session
+(no subagents, no Autopilot, no plan mode).
+
+### Starting state
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD and starting remote HEAD (`origin/feature/laboratory-stability`):
+  both `0b02cabc183c6093e960d2fca0d637f528097541` (in sync).
+- Pre-existing dirty worktree at cycle start (unrelated, left untouched):
+  modified `docs/generated/FormuLab-User-Guide.docx`/`.pdf`; deleted
+  `formulas/2026-07-18-*.md` (10 files) and `formulas/index.json`;
+  untracked `docs/external-logs/FormuLab-Build-Shortcut-Log.md`,
+  `FormuLab-Connector-Management-Frontend-Log.md`,
+  `FormuLab-FVL03-Integration-Log.md`,
+  `FormuLab-FVL04-DataExchange-Integration-Log.md`,
+  `FormuLab-New-Request-Runtime-Regression-Log.md`,
+  `FormuLab-Phase11-Backup-Restore-Data-Safety-Log.md`,
+  `FormuLab-Phase12-Commercial-Distribution-Log.md`,
+  `FormuLab-Phase13-Identity-Security-Log.md`,
+  `FormuLab-Phase14-Literature-Formulation-Intelligence-Log.md`. Verified
+  unchanged via `git status --short` before commit — none staged.
+
+### Findings and resolutions (summary — full evidence in `docs/audits/FVL05-GPT Audits.md`'s `CLAUDE RESOLUTION` section)
+
+- **A (dataset schema version compatibility)** — investigated, NOT a
+  defect: repo-wide grep (`grep -rln
+  "formulaVersionProcessRowSchema\|formulaVersionCompositionRowSchema\|extractFormulaVersionProcessRows\|extractFormulaVersionDatasetRows"
+  apps/ packages/` excluding `*.test.ts`) returns exactly the two engine
+  files and `schemas/dataset.ts` itself — zero consumers exist anywhere,
+  so there is no persisted "old" row a version bump would protect.
+  Established precedent: FVL-05.002/.003/.004's own original row type all
+  added shape under `"1.0"` without bumping. `DATASET_SCHEMA_VERSION`
+  stays `"1.0"`; the exact future bump trigger is now documented
+  explicitly in `schemas/dataset.ts`.
+- **B (process_parameters authoritative identity)** — CONFIRMED. Traced
+  registry (`naturalKey: ["formula_code","formula_version","step_number"]`)
+  through the real commit path (`dataExchangeCommit.ts`'s
+  `commitProcessParameters`: `code` is mechanically derived from that
+  exact natural key). Fixed: extractor now also fails closed
+  (`duplicate_process_parameter_natural_key`) on a same-natural-key/
+  different-code collision in the supplied pool.
+- **C (lineage contract vs. collision-safe encoding)** — CONFIRMED. The
+  third cycle's `JSON.stringify([trial.id, record.id])` violated
+  FVL-05.002's own "exact opaque persisted record id, never reformatted"
+  contract. Fixed with the smallest correct additive change: new optional
+  `parentRecordId` on `sourceRecordReferenceSchema`; `sourceRecordId`
+  stays the exact unmodified child id; the duplicate-pair check now keys
+  on the full `(sourceEntity, parentRecordId, sourceRecordId)` triple.
+  `encodeNestedLineageId` removed (zero external consumers, confirmed via
+  grep).
+- **D (saved_version conditional invariant)** — CONFIRMED not enforced
+  (direct grep of `laboratory.ts` for `superRefine`/`refine`: zero
+  matches). Fixed extractor-side (narrow scope, not touching the shared
+  schema): new `invalid_saved_version_trial_link` fail-closed check.
+- **E (observation → process step referential integrity)** — CONFIRMED
+  gap. Fixed: `TrialObservation.processStepId`, when present, must
+  resolve within the SAME trial or the extractor fails closed
+  (`dangling_observation_process_step_id`); proven not to resolve
+  cross-trial.
+- **F (attachments disposition)** — CONFIRMED silent drop. Built a full
+  field-disposition table (now in `schemas/dataset.ts`'s FVL-05.004
+  header); `attachments` now flows into the actual-observation view;
+  `stepHasActualData` treats a non-empty array as evidence on its own.
+- **G (durable schema parity)** — CONFIRMED gap (prose-only claim). New
+  `PARITY1` test asserts every `trialProcessStepSchema` field is
+  accounted for in the plan view, actual view, or an explicit omission
+  set — fails automatically on a future undispositioned field.
+- **H (formula-code uniqueness)** — CONFIRMED not enforced (direct read
+  of `formulations.rs`'s `save_formulation`: storage keyed by `id` only).
+  Fixed: extractor fails closed (`duplicate_formulation_code`) on two
+  different formulation ids sharing a code.
+- **I (deterministic ordering)** — CONFIRMED both sub-issues. Replaced
+  every `.localeCompare()` on an opaque id/code with a locale-independent
+  ordinal comparator; `createdAt`/`observedAt` are now validated as
+  canonical `toISOString()` format before being used as a chronological
+  sort key, failing closed (`invalid_timestamp_format`) otherwise.
+- **J (structured error context)** — CONFIRMED. Redesigned
+  `FormulaVersionProcessDatasetExtractionError` from one overloaded
+  `formulationVersionId: string` to a `context` object with
+  correctly-named optional fields; every throw site now sets only fields
+  genuinely true of that failure.
+
+A full whole-scope adversarial re-audit after all ten findings were fixed
+(identity scope, schema compatibility, source fidelity, hidden defaults,
+optional-field loss, lineage, ambiguity, cross-trial/cross-formula
+leakage, plan/actual conflation, duplicate natural keys, source mutation,
+aliasing, deterministic serialization, public exports, backward
+compatibility) found no further defect.
+
+### Tests
+
+`formulaVersionProcessDatasetExtractor.test.ts`: 42 → 59 tests (+17, 0
+removed). New: `VERSION1`, `PLANKEY1`, `PLANKEY2`, `FORMCODE1`, `LINK1`,
+`LINK1b`, a working-draft positive control, `OBSREF1`, `OBSREF2`,
+`OBSREF2b`, `ATTACH1`, `PARITY1`, `ORDER1`, `ORDER1b`, two new
+timestamp-format fail-closed tests, `ERROR1`. LINEAGE1/2's assertions
+rewritten to check the full `(parentRecordId, sourceRecordId)` tuple
+instead of `sourceRecordId` alone — the correct invariant for the new
+citation shape (`sourceRecordId` is now deliberately allowed to repeat
+across trials), not a weakening. LINEAGE3/4 rewritten around the new
+`parentRecordId` field (no more `encodeNestedLineageId`/`JSON.parse`
+decoding — the two identities are just two separate fields now).
+
+### Fresh test/typecheck/lint/diff/tracker-validation evidence
+
+All commands run fresh from the final corrected state on
+`feature/laboratory-stability`:
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionProcessDatasetExtractor.test.ts` — **59/59
+  passed**.
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite) — **86
+  files / 1848 tests passed** (1831 → 1848, +17, no regression —
+  `dataset.test.ts`, `formulaVersionDatasetExtractor.test.ts`, and
+  `dataExchangeRegistry.consistency.test.ts` all confirmed unaffected by
+  the additive `parentRecordId` schema field).
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` (eslint) — clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite) — **167
+  files / 1726 tests passed, no regression** (unchanged from before this
+  cycle — no desktop source file touched).
+- `git diff --check` — clean (pre-existing CRLF-normalization warnings
+  only, exit 0).
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks across
+  11 work packages, no drift found.`
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+
+### Security / real-data-safety notes
+
+No new I/O, persistence, or external input parsing added — the extractor
+remains pure. Lineage citations still carry only ids (never free
+text/measurements). All new tests use entirely synthetic fixtures built
+from the existing `step()`/`observation()`/`trial()`/`version()`/
+`formulation()`/`processParameter()` builders — no real laboratory/
+customer/production data touched. No authoritative Laboratory schema
+(`laboratoryTrialSchema`/`trialProcessStepSchema`/`trialObservationSchema`)
+was modified — Findings D and I's checks were both deliberately kept
+extractor-side per their own narrow-scope reasoning, avoiding blast
+radius into FVL-01/02 trial-creation code and any already-persisted
+trial records.
+
+### Files changed this cycle
+
+- `packages/shared/src/schemas/dataset.ts` (`parentRecordId` additive
+  field on `sourceRecordReferenceSchema`; duplicate-pair key widened;
+  `attachments` added to `processStepActualObservationSchema`; FVL-05.004
+  header comment rewritten with the full field-disposition table and all
+  ten findings' resolutions).
+- `packages/shared/src/engine/formulaVersionProcessDatasetExtractor.ts`
+  (rewritten: `compareOrdinal`/`isCanonicalIsoTimestamp` helpers;
+  `encodeNestedLineageId` removed; `encodeProcessParameterNaturalKey`/
+  natural-key duplicate check; `duplicate_formulation_code`/
+  `invalid_saved_version_trial_link`/`dangling_observation_process_step_id`/
+  `invalid_timestamp_format` checks; error class redesigned to a
+  `context`-object shape).
+- `packages/shared/src/engine/formulaVersionProcessDatasetExtractor.test.ts`
+  (17 new tests; LINEAGE1-4 rewritten for the new citation shape; new
+  `processParameter()` builder already present from the third cycle,
+  reused).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.004 row — appended this
+  cycle's evidence; did not remove or alter any prior cycle's evidence).
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` (new pointer block for this
+  cycle, prepended above the third cycle's block, which is left intact
+  as history).
+- `docs/audits/FVL05-GPT Audits.md` (populated for the first time — was
+  empty; now records `AUDIT_FVL05_GPT_000001` verbatim plus this
+  session's `CLAUDE RESOLUTION` section).
+- `docs/prompts/FVL05 Prompts.md` (populated for the first time — was
+  empty; now records PROMPT 1 — reconstructed verbatim from this same
+  conversation's history, since it was never previously saved anywhere —
+  and PROMPT 2, this cycle's own governing prompt).
+- This log file (new corrective-cycle section, appended).
+
+All other pre-existing worktree modifications/deletions/untracked files
+listed under "Starting state" above were left untouched.
+
+### Commits
+
+See `git log` on `feature/laboratory-stability` for the exact
+corrective-cycle commit(s) created after this section was written — new
+commits, not amends of `0b02cabc183c6093e960d2fca0d637f528097541`.
+
+### Desktop build & shortcut
+
+Recorded below per the Desktop Build & Shortcut Acceptance Gate (native
+Tauri release build from the final corrective-cycle HEAD, `formulab.exe`
+verification, shortcut `TargetPath` check, native launch smoke).
+
+### Remaining work
+
+None identified for FVL-05.004 within this task's frozen scope.
+
+### Result
+
+**COMPLETE** for this corrective verification cycle.
+
+Manual UI acceptance from Desktop\FormuLab.lnk is pending user
+verification.

@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   FormulaVersionProcessDatasetExtractionError,
-  encodeNestedLineageId,
   extractFormulaVersionProcessRows,
   type FormulaVersionProcessDatasetExtractionInput,
 } from "./formulaVersionProcessDatasetExtractor";
-import { DATASET_SCHEMA_VERSION, formulaVersionProcessRowSchema } from "../schemas/dataset";
+import {
+  DATASET_SCHEMA_VERSION,
+  formulaVersionCompositionRowSchema,
+  formulaVersionProcessRowSchema,
+  processStepActualObservationSchema,
+  processStepPlanSchema,
+} from "../schemas/dataset";
 import { extractFormulaVersionProcessRows as extractFromPublicEntryPoint } from "../index";
 import type { ProcessParameter } from "../schemas/dataExchange";
 import type { Formulation, FormulationVersion } from "../schemas/formulation";
+import { trialProcessStepSchema } from "../schemas/laboratory";
 import type { LaboratoryTrial, TrialObservation, TrialProcessStep } from "../schemas/laboratory";
 
 function formulation(over: Partial<Formulation> = {}): Formulation {
@@ -222,19 +228,23 @@ describe("extractFormulaVersionProcessRows", () => {
     expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "laboratoryTrial", sourceRecordId: "TRIAL-0001" });
     expect(rows[0].sourceRecords).toContainEqual({
       sourceEntity: "trialProcessStep",
-      sourceRecordId: encodeNestedLineageId("TRIAL-0001", "s1"),
+      sourceRecordId: "s1",
+      parentRecordId: "TRIAL-0001",
     });
     expect(rows[0].sourceRecords).toContainEqual({
       sourceEntity: "trialProcessStep",
-      sourceRecordId: encodeNestedLineageId("TRIAL-0001", "s2"),
+      sourceRecordId: "s2",
+      parentRecordId: "TRIAL-0001",
     });
     expect(rows[0].sourceRecords).toContainEqual({
       sourceEntity: "trialObservation",
-      sourceRecordId: encodeNestedLineageId("TRIAL-0001", "obs-1"),
+      sourceRecordId: "obs-1",
+      parentRecordId: "TRIAL-0001",
     });
     expect(rows[0].sourceRecords).toContainEqual({
       sourceEntity: "trialObservation",
-      sourceRecordId: encodeNestedLineageId("TRIAL-0001", "obs-2"),
+      sourceRecordId: "obs-2",
+      parentRecordId: "TRIAL-0001",
     });
   });
 
@@ -277,19 +287,23 @@ describe("extractFormulaVersionProcessRows", () => {
     expect(rows[0].trials[1].plannedSteps[0].processStepId).toBe("s1");
     expect(rows[0].sourceRecords).toContainEqual({
       sourceEntity: "trialProcessStep",
-      sourceRecordId: encodeNestedLineageId("TRIAL-A", "s1"),
+      sourceRecordId: "s1",
+      parentRecordId: "TRIAL-A",
     });
     expect(rows[0].sourceRecords).toContainEqual({
       sourceEntity: "trialProcessStep",
-      sourceRecordId: encodeNestedLineageId("TRIAL-B", "s1"),
+      sourceRecordId: "s1",
+      parentRecordId: "TRIAL-B",
     });
     expect(rows[0].sourceRecords).toContainEqual({
       sourceEntity: "trialObservation",
-      sourceRecordId: encodeNestedLineageId("TRIAL-A", "obs-1"),
+      sourceRecordId: "obs-1",
+      parentRecordId: "TRIAL-A",
     });
     expect(rows[0].sourceRecords).toContainEqual({
       sourceEntity: "trialObservation",
-      sourceRecordId: encodeNestedLineageId("TRIAL-B", "obs-1"),
+      sourceRecordId: "obs-1",
+      parentRecordId: "TRIAL-B",
     });
   });
 
@@ -666,6 +680,41 @@ describe("extractFormulaVersionProcessRows", () => {
       (rows[0].plannedProcedure[0] as { instruction?: string }).instruction = "mutated";
       expect(source.instruction).toBeUndefined();
     });
+
+    it("PLANKEY1: two process_parameters rows sharing the authoritative (formulaCode, formulaVersion, stepNumber) natural key with different codes cannot silently coexist", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        processParameters: [
+          processParameter({ code: "HC-SHAMPOO-REG-001-v1-step1", stepNumber: 1 }),
+          // Same natural key (formulaCode, formulaVersion=1, stepNumber=1), different code —
+          // the real commit path (commitProcessParameters) can never produce this; a supplied
+          // pool that does is non-conforming and must fail closed, not silently emit two
+          // "authoritative" steps for step 1.
+          processParameter({ code: "some-other-code-for-step-1", stepNumber: 1 }),
+        ],
+      });
+      try {
+        extractFormulaVersionProcessRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(FormulaVersionProcessDatasetExtractionError);
+        expect((err as FormulaVersionProcessDatasetExtractionError).code).toBe("duplicate_process_parameter_natural_key");
+      }
+    });
+
+    it("PLANKEY2: process_parameters identity matches real repository storage semantics — the derived-code convention never false-positives across genuinely different steps", () => {
+      // Mirrors dataExchangeCommit.ts's real `commitProcessParameters` derivation:
+      // code = `${formula_code}-v${formula_version}-step${step_number}`.
+      const deriveCode = (formulaCode: string, formulaVersion: number, stepNumber: number) =>
+        `${formulaCode}-v${formulaVersion}-step${stepNumber}`;
+      const step1 = processParameter({ code: deriveCode("HC-SHAMPOO-REG-001", 1, 1), stepNumber: 1 });
+      const step2 = processParameter({ code: deriveCode("HC-SHAMPOO-REG-001", 1, 2), stepNumber: 2 });
+      const rows = extractFormulaVersionProcessRows(
+        buildInput({ formulationVersions: [version()], processParameters: [step1, step2] }),
+      );
+      expect(rows[0].plannedProcedure).toHaveLength(2);
+      expect(rows[0].plannedProcedure.map((p) => p.stepNumber)).toEqual([1, 2]);
+    });
   });
 
   describe("phase field source parity", () => {
@@ -699,7 +748,16 @@ describe("extractFormulaVersionProcessRows", () => {
       expect(formulaVersionProcessRowSchema.safeParse(rows[0]).success).toBe(true);
       const stepCitations = rows[0].sourceRecords.filter((r) => r.sourceEntity === "trialProcessStep");
       expect(stepCitations).toHaveLength(2);
-      expect(new Set(stepCitations.map((r) => r.sourceRecordId)).size).toBe(2);
+      // sourceRecordId is deliberately the SAME bare "shared-step" value on
+      // both citations (FINDING C: it stays the exact, unmodified persisted
+      // child id) — the two citations are distinguished by parentRecordId,
+      // not by sourceRecordId, which is exactly what "no collision" means
+      // here: both are legitimately, distinctly citable, and the schema's
+      // own duplicate-pair rejection (keyed on the FULL (sourceEntity,
+      // parentRecordId, sourceRecordId) triple) does not reject them.
+      expect(stepCitations.every((r) => r.sourceRecordId === "shared-step")).toBe(true);
+      expect(new Set(stepCitations.map((r) => r.parentRecordId)).size).toBe(2);
+      expect(new Set(stepCitations.map((r) => `${r.parentRecordId} ${r.sourceRecordId}`)).size).toBe(2);
     });
 
     it("LINEAGE2: two linked trials may reuse the same nested observation id without collision", () => {
@@ -719,14 +777,18 @@ describe("extractFormulaVersionProcessRows", () => {
       expect(formulaVersionProcessRowSchema.safeParse(rows[0]).success).toBe(true);
       const obsCitations = rows[0].sourceRecords.filter((r) => r.sourceEntity === "trialObservation");
       expect(obsCitations).toHaveLength(2);
-      expect(new Set(obsCitations.map((r) => r.sourceRecordId)).size).toBe(2);
+      // Same principle as LINEAGE1: sourceRecordId stays the identical bare
+      // "shared-obs" on both citations; parentRecordId is what distinguishes
+      // them, never a synthesized/encoded sourceRecordId.
+      expect(obsCitations.every((r) => r.sourceRecordId === "shared-obs")).toBe(true);
+      expect(new Set(obsCitations.map((r) => r.parentRecordId)).size).toBe(2);
+      expect(new Set(obsCitations.map((r) => `${r.parentRecordId} ${r.sourceRecordId}`)).size).toBe(2);
     });
 
     it("LINEAGE3: delimiter-containing trial ids and nested ids remain distinct (trial 'A:B' + record 'C' vs trial 'A' + record 'B:C')", () => {
-      const idA = encodeNestedLineageId("A:B", "C");
-      const idB = encodeNestedLineageId("A", "B:C");
-      expect(idA).not.toBe(idB);
-
+      // FINDING C: sourceRecordId/parentRecordId are two separate, exact,
+      // unmodified fields — no string concatenation happens at all, so
+      // there is no encoding to collide in the first place.
       const trialAB = trial({ id: "A:B", createdAt: "2026-01-03T00:00:00.000Z", processSteps: [step({ id: "C", stepNumber: 1 })] });
       const trialA = trial({ id: "A", createdAt: "2026-01-04T00:00:00.000Z", processSteps: [step({ id: "B:C", stepNumber: 1 })] });
       const rows = extractFormulaVersionProcessRows(
@@ -734,14 +796,22 @@ describe("extractFormulaVersionProcessRows", () => {
       );
       const stepCitations = rows[0].sourceRecords.filter((r) => r.sourceEntity === "trialProcessStep");
       expect(stepCitations).toHaveLength(2);
-      expect(stepCitations.map((r) => r.sourceRecordId).sort()).toEqual([idA, idB].sort());
+      expect(stepCitations).toContainEqual({ sourceEntity: "trialProcessStep", sourceRecordId: "C", parentRecordId: "A:B" });
+      expect(stepCitations).toContainEqual({ sourceEntity: "trialProcessStep", sourceRecordId: "B:C", parentRecordId: "A" });
     });
 
-    it("LINEAGE4: exact original trial id and nested record id remain recoverable from the citation", () => {
-      const encoded = encodeNestedLineageId("TRIAL-A:weird", "step:1");
-      const [parentId, recordId] = JSON.parse(encoded) as [string, string];
-      expect(parentId).toBe("TRIAL-A:weird");
-      expect(recordId).toBe("step:1");
+    it("LINEAGE4: exact original trial id and nested record id remain directly, trivially recoverable from the citation (no decoding step at all)", () => {
+      const trialWeird = trial({
+        id: "TRIAL-A:weird",
+        createdAt: "2026-01-03T00:00:00.000Z",
+        processSteps: [step({ id: "step:1", stepNumber: 1 })],
+      });
+      const rows = extractFormulaVersionProcessRows(
+        buildInput({ formulationVersions: [version()], trials: [trialWeird] }),
+      );
+      const citation = rows[0].sourceRecords.find((r) => r.sourceEntity === "trialProcessStep");
+      expect(citation?.parentRecordId).toBe("TRIAL-A:weird");
+      expect(citation?.sourceRecordId).toBe("step:1");
     });
 
     it("LINEAGE5: reordered trial/step/observation input collections still yield deterministic, identical output", () => {
@@ -786,6 +856,274 @@ describe("extractFormulaVersionProcessRows", () => {
       const snapshotBefore = JSON.parse(JSON.stringify({ trialA, trialB }));
       extractFormulaVersionProcessRows(buildInput({ formulationVersions: [version()], trials: [trialA, trialB] }));
       expect(JSON.parse(JSON.stringify({ trialA, trialB }))).toEqual(snapshotBefore);
+    });
+  });
+
+  describe("2026-08-23 independent-audit reopen findings", () => {
+    it("VERSION1: DATASET_SCHEMA_VERSION stays the current literal after the plannedProcedure addition — no row of this family is persisted/consumed anywhere outside this package's own extractor return values", () => {
+      const rows = extractFormulaVersionProcessRows(buildInput({ formulationVersions: [version()] }));
+      expect(rows[0].datasetSchemaVersion).toBe(DATASET_SCHEMA_VERSION);
+      expect(DATASET_SCHEMA_VERSION).toBe("1.0");
+      // Proves this row type still shares the ONE dataset schema version
+      // literal with the sibling FVL-05.003 row type — the row family is
+      // still one un-bumped, incrementally-assembled "1.0", per the
+      // documented "bump on first external consumer" rule in
+      // schemas/dataset.ts, not independently versioned per row type.
+      expect(formulaVersionProcessRowSchema.shape.datasetSchemaVersion.value).toBe(
+        formulaVersionCompositionRowSchema.shape.datasetSchemaVersion.value,
+      );
+    });
+
+    it("FORMCODE1: fails closed when two different formulation ids in the supplied pool share the same code (Formulation.code is not enforced globally unique)", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        formulations: [formulation({ id: "FORM-0001", code: "SHARED-CODE" }), formulation({ id: "FORM-0002", code: "SHARED-CODE" })],
+      });
+      try {
+        extractFormulaVersionProcessRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(FormulaVersionProcessDatasetExtractionError);
+        expect((err as FormulaVersionProcessDatasetExtractionError).code).toBe("duplicate_formulation_code");
+      }
+    });
+
+    it("LINK1: fails closed on a saved_version trial with a missing sourceFormulaVersionId, rather than silently treating it as unlinked", () => {
+      const malformedTrial = trial({ sourceType: "saved_version", sourceFormulaVersionId: undefined });
+      const input = buildInput({ formulationVersions: [version()], trials: [malformedTrial] });
+      try {
+        extractFormulaVersionProcessRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(FormulaVersionProcessDatasetExtractionError);
+        expect((err as FormulaVersionProcessDatasetExtractionError).code).toBe("invalid_saved_version_trial_link");
+      }
+    });
+
+    it("LINK1b: a blank (whitespace-only) sourceFormulaVersionId on a saved_version trial also fails closed", () => {
+      const malformedTrial = trial({ sourceType: "saved_version", sourceFormulaVersionId: "   " });
+      const input = buildInput({ formulationVersions: [version()], trials: [malformedTrial] });
+      expect(() => extractFormulaVersionProcessRows(input)).toThrow(FormulaVersionProcessDatasetExtractionError);
+    });
+
+    it("a working_draft trial with no sourceFormulaVersionId at all remains legitimate (not a saved_version trial)", () => {
+      const draftTrial = trial({ sourceType: "working_draft", sourceFormulaVersionId: undefined, sourceDraftId: "FORM-0001" });
+      const input = buildInput({ formulationVersions: [version()], trials: [draftTrial] });
+      const rows = extractFormulaVersionProcessRows(input);
+      expect(rows[0].trials).toEqual([]);
+    });
+
+    it("OBSREF1: an observation with a processStepId that resolves to a real step in the same trial is accepted", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [
+          trial({
+            processSteps: [step({ id: "s1", stepNumber: 1 })],
+            observations: [observation({ id: "obs-1", processStepId: "s1" })],
+          }),
+        ],
+      });
+      const rows = extractFormulaVersionProcessRows(input);
+      expect(rows[0].trials[0].observations[0].processStepId).toBe("s1");
+    });
+
+    it("OBSREF2: an observation with a dangling processStepId (no matching step in the same trial) fails closed", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [
+          trial({
+            processSteps: [step({ id: "s1", stepNumber: 1 })],
+            observations: [observation({ id: "obs-1", processStepId: "s-does-not-exist" })],
+          }),
+        ],
+      });
+      try {
+        extractFormulaVersionProcessRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(FormulaVersionProcessDatasetExtractionError);
+        expect((err as FormulaVersionProcessDatasetExtractionError).code).toBe("dangling_observation_process_step_id");
+      }
+    });
+
+    it("OBSREF2b: a processStepId referencing a step that exists only in a DIFFERENT trial still fails closed (no cross-trial resolution)", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [
+          trial({ id: "TRIAL-A", createdAt: "2026-01-03T00:00:00.000Z", processSteps: [step({ id: "s1", stepNumber: 1 })] }),
+          trial({
+            id: "TRIAL-B",
+            createdAt: "2026-01-04T00:00:00.000Z",
+            observations: [observation({ id: "obs-1", processStepId: "s1" })],
+          }),
+        ],
+      });
+      expect(() => extractFormulaVersionProcessRows(input)).toThrow(FormulaVersionProcessDatasetExtractionError);
+    });
+
+    it("ATTACH1: a step with only an attachment (no other actual field, status still planned) counts as actual-execution evidence, and the attachment flows into actualStepObservations, never plannedSteps", () => {
+      const attachment = {
+        id: "att-1",
+        kind: "photo" as const,
+        title: "Mid-batch photo",
+        location: "s3://bucket/photo.jpg",
+      };
+      const attachmentOnlyStep = step({ id: "s1", stepNumber: 1, attachments: [attachment] });
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial({ processSteps: [attachmentOnlyStep] })],
+      });
+      const rows = extractFormulaVersionProcessRows(input);
+      const entry = rows[0].trials[0];
+      expect(entry.actualStepObservations).toHaveLength(1);
+      expect(entry.actualStepObservations[0].attachments).toEqual([attachment]);
+      expect("attachments" in entry.plannedSteps[0]).toBe(false);
+    });
+
+    it("PARITY1: every trialProcessStepSchema source field is accounted for in the plan view, the actual view, or the explicit omission list — a future source field addition fails this test instead of silently drifting", () => {
+      const OMITTED_SOURCE_FIELDS = new Set(["createdAt", "updatedAt"]);
+      const sourceKeys = Object.keys(trialProcessStepSchema.shape);
+      const planKeys = new Set(Object.keys(processStepPlanSchema.shape));
+      const actualKeys = new Set(Object.keys(processStepActualObservationSchema.shape));
+      for (const key of sourceKeys) {
+        if (key === "id") {
+          expect(planKeys.has("processStepId"), 'source field "id" must map to processStepId in the plan view').toBe(true);
+          expect(actualKeys.has("processStepId"), 'source field "id" must map to processStepId in the actual view').toBe(true);
+          continue;
+        }
+        const accounted = planKeys.has(key) || actualKeys.has(key) || OMITTED_SOURCE_FIELDS.has(key);
+        expect(
+          accounted,
+          `source field "${key}" is not present in the plan view, the actual view, or the explicit omission list — update the disposition table in schemas/dataset.ts`,
+        ).toBe(true);
+      }
+    });
+
+    it("ORDER1: ordering is environment-independent ordinal comparison, not locale-collation-aware — proven on a case pair where the two disagree", () => {
+      // "a".localeCompare("B") is negative in common locales (case-insensitive-ish
+      // collation puts lowercase near its uppercase counterpart), while ordinal
+      // ("a" > "B" since 'a' = 0x61 > 'B' = 0x42) disagrees. If this extractor were
+      // still using localeCompare, the two steps below would sort "a-step" before
+      // "B-step"; ordinal comparison sorts "B-step" first.
+      expect("a".localeCompare("B")).toBeLessThan(0);
+      expect("a" > "B").toBe(true);
+
+      const steps = [
+        step({ id: "a-step", stepNumber: 1 }),
+        step({ id: "B-step", stepNumber: 1 }),
+      ];
+      const input = buildInput({ formulationVersions: [version()], trials: [trial({ processSteps: steps })] });
+      const rows = extractFormulaVersionProcessRows(input);
+      expect(rows[0].trials[0].plannedSteps.map((s) => s.processStepId)).toEqual(["B-step", "a-step"]);
+    });
+
+    it("ORDER1b: non-ASCII ids still produce deterministic, environment-independent output", () => {
+      const trialA = trial({ id: "TRIAL-Ω", createdAt: "2026-01-03T00:00:00.000Z" });
+      const trialB = trial({ id: "TRIAL-α", createdAt: "2026-01-03T00:00:00.000Z" });
+      const forward = extractFormulaVersionProcessRows(buildInput({ formulationVersions: [version()], trials: [trialA, trialB] }));
+      const reversed = extractFormulaVersionProcessRows(buildInput({ formulationVersions: [version()], trials: [trialB, trialA] }));
+      expect(forward).toEqual(reversed);
+    });
+
+    it("fails closed on a trial with a createdAt value that is not the canonical toISOString() format", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial({ createdAt: "2026-01-03 00:00:00" })],
+      });
+      try {
+        extractFormulaVersionProcessRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(FormulaVersionProcessDatasetExtractionError);
+        expect((err as FormulaVersionProcessDatasetExtractionError).code).toBe("invalid_timestamp_format");
+      }
+    });
+
+    it("fails closed on a trial observation with an observedAt value that is not the canonical toISOString() format", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        trials: [trial({ observations: [observation({ observedAt: "not-a-real-timestamp" })] })],
+      });
+      try {
+        extractFormulaVersionProcessRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(FormulaVersionProcessDatasetExtractionError);
+        expect((err as FormulaVersionProcessDatasetExtractionError).code).toBe("invalid_timestamp_format");
+      }
+    });
+
+    it("ERROR1: structured error context exposes only correctly-named, truthful identity fields — never a formulaVersionId that isn't actually a formula-version id", () => {
+      const dupFormulationErr = (() => {
+        try {
+          extractFormulaVersionProcessRows(
+            buildInput({
+              formulationVersions: [version()],
+              formulations: [formulation({ id: "FORM-A" }), formulation({ id: "FORM-A", name: "dup" })],
+            }),
+          );
+          return undefined;
+        } catch (err) {
+          return err as FormulaVersionProcessDatasetExtractionError;
+        }
+      })();
+      expect(dupFormulationErr?.code).toBe("duplicate_formulation_id");
+      expect(dupFormulationErr?.formulationId).toBe("FORM-A");
+      expect(dupFormulationErr?.formulaVersionId).toBeUndefined();
+
+      const dupTrialErr = (() => {
+        try {
+          extractFormulaVersionProcessRows(
+            buildInput({
+              formulationVersions: [version()],
+              trials: [trial({ id: "TRIAL-DUP" }), trial({ id: "TRIAL-DUP", code: "OTHER" })],
+            }),
+          );
+          return undefined;
+        } catch (err) {
+          return err as FormulaVersionProcessDatasetExtractionError;
+        }
+      })();
+      expect(dupTrialErr?.code).toBe("duplicate_trial_id");
+      expect(dupTrialErr?.trialId).toBe("TRIAL-DUP");
+      expect(dupTrialErr?.formulaVersionId).toBeUndefined();
+      expect(dupTrialErr?.formulationId).toBeUndefined();
+
+      const dupParamErr = (() => {
+        try {
+          extractFormulaVersionProcessRows(
+            buildInput({
+              formulationVersions: [version()],
+              processParameters: [processParameter({ code: "PP-DUP" }), processParameter({ code: "PP-DUP", stepNumber: 2 })],
+            }),
+          );
+          return undefined;
+        } catch (err) {
+          return err as FormulaVersionProcessDatasetExtractionError;
+        }
+      })();
+      expect(dupParamErr?.code).toBe("duplicate_process_parameter_code");
+      expect(dupParamErr?.processParameterCode).toBe("PP-DUP");
+      expect(dupParamErr?.formulaVersionId).toBeUndefined();
+
+      const linkConflictErr = (() => {
+        try {
+          extractFormulaVersionProcessRows(
+            buildInput({
+              formulationVersions: [version({ id: "VER-0001", formulationId: "FORM-0001" })],
+              trials: [trial({ sourceFormulaVersionId: "VER-0001", projectId: "FORM-OTHER" })],
+            }),
+          );
+          return undefined;
+        } catch (err) {
+          return err as FormulaVersionProcessDatasetExtractionError;
+        }
+      })();
+      // trial_formula_link_conflict legitimately has BOTH a real formula-version
+      // context (the version we were resolving trial links for) and a trial id.
+      expect(linkConflictErr?.code).toBe("trial_formula_link_conflict");
+      expect(linkConflictErr?.formulaVersionId).toBe("VER-0001");
+      expect(linkConflictErr?.trialId).toBe("TRIAL-0001");
     });
   });
 });
