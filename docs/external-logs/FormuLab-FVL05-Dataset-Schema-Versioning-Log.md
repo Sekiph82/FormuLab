@@ -2597,3 +2597,216 @@ untouched (read-only, respected).
 
 **NEXT TASK — FVL-05.005 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+## FVL-05.004 — sixth corrective cycle: third independent GPT re-audit, documentation-only (AUDIT_FVL05_GPT_000003, 2026-08-23)
+
+A third independent GPT re-audit re-reviewed FVL-05.004 after the fifth
+corrective cycle. Governing prompt:
+`docs/prompts/FVL05-GPT-PROMPT-000004.md`. Audit:
+`docs/audits/FVL05-GPT-AUDIT-000003.md`. Both read-only per the
+now-standing control-plane rule (established by `AUDIT_FVL05_GPT_000002`)
+— read, not written to, this cycle, along with the existing
+`docs/audits/FVL05-GPT Audits.md`/`docs/prompts/FVL05 Prompts.md`. Scope:
+FVL-05.004 only, documentation-only correction cycle unless direct
+inspection proved a new implementation defect (none was found). Manual
+session, no subagents, no Autopilot.
+
+### Starting state
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `ebc26a40188b61b7c700b46e0d24bbde7f2e575c`.
+- `git fetch` found remote at `de26365a2b396e2de659f258746a99e04d9f5217`
+  (two new commits: `ac91aad` adding `docs/audits/FVL05-GPT-AUDIT-000003.md`,
+  `de26365` adding `docs/prompts/FVL05-GPT-PROMPT-000004.md`) —
+  fast-forwarded cleanly (`git merge --ff-only`), no conflict.
+- Pre-existing dirty worktree (unrelated, left untouched): same set as
+  prior cycles — modified `docs/generated/FormuLab-User-Guide.docx`/
+  `.pdf`; deleted `formulas/2026-07-18-*.md` (10 files) and
+  `formulas/index.json`; the same 9 untracked external-log files under
+  `docs/external-logs/`. Verified unchanged via `git status --short`
+  before commit.
+
+### Verdict on prior findings
+
+The audit confirmed BOTH `AUDIT_FVL05_GPT_000002` findings genuinely
+fixed in current source (`DATASET_SCHEMA_VERSION` is `"1.1"` with the
+superseded `"1.0"` rejected; `processStepPlanSchema`/
+`processStepActualObservationSchema` composition-derived via `.pick()`)
+and found **no new FVL-05.004 implementation defect**. The only
+remaining gap was documentation: three stale current-truth claims left
+behind by the version/lineage changes those earlier cycles made.
+
+### Finding 1 — FVL-05.001 tracker row still claimed both versions "1.0" (fixed)
+
+`docs/FORMULAB_V1_TASK_TRACKER.md`'s FVL-05.001 row stated
+`DATASET_SCHEMA_VERSION`/`FEATURE_SCHEMA_VERSION` "are separate literal
+`\"1.0\"` constants" as a blanket present-tense claim — no longer true
+for the dataset version after the fifth cycle's bump. Corrected in place
+with an explicit "CURRENT VALUES" note distinguishing the two
+(`DATASET_SCHEMA_VERSION` now `"1.1"`, `FEATURE_SCHEMA_VERSION`
+unchanged at `"1.0"`), while preserving the original sentence as the
+accurate historical record of what FVL-05.001 originally shipped —
+FVL-05.001's own COMPLETED status/date untouched.
+
+### Finding 2 — FVL-05.002 tracker row still described the pre-parentRecordId contract (fixed)
+
+The FVL-05.002 row described `sourceRecordReferenceSchema` as only
+`sourceEntity` + `sourceRecordId`, with duplicate detection on the pair
+— stale since the fourth corrective cycle added the additive, optional
+`parentRecordId` field and widened duplicate detection to the triple
+`(sourceEntity, parentRecordId, sourceRecordId)`. Corrected in place with
+a "CURRENT CONTRACT" note stating the exact current shape, that
+`sourceRecordId`'s original exact-child-id semantics are UNCHANGED, that
+the same child id under two different parents (or parent present vs.
+absent) is legitimate, and pointing at `AUDIT_FVL05_GPT_000001` finding
+B3/C for why the change was made — FVL-05.002's own COMPLETED status/date
+untouched.
+
+### Finding 3 — dataset.ts top-level module comment was stale (fixed)
+
+`packages/shared/src/schemas/dataset.ts`'s own top-of-file comment still
+said "This module defines the two versions only... That is FVL-05.002
+onward" — accurate only at FVL-05.001 completion; the same file has
+since been extended in place by FVL-05.002 (lineage), FVL-05.003
+(composition row), and FVL-05.004 (process row) schemas. Rewritten to
+state plainly that the file has been extended in place by each later
+task, pointing at each section's own header comment below for its exact
+contract, rather than leaving the reader to discover this by scrolling.
+
+### Search for further equivalent stale claims
+
+Per the prompt's explicit instruction, searched for other instances of
+the same two patterns ("both versions 1.0", "pair-based duplicate
+detection") across `docs/handoffs/FORMULAB_V1_CURRENT.md`,
+`packages/shared/src/schemas/dataset.test.ts`, and the FVL-05 engine
+files. None found beyond the three the audit named. One test title in
+`dataset.test.ts` ("rejects an exact duplicate (sourceEntity,
+sourceRecordId) pair") still uses pair language — left unchanged: it
+remains literally accurate for that specific test case (both references
+have no `parentRecordId` set, so the pair IS the relevant identity for
+that scenario), not a current-truth contradiction. The pre-existing,
+long-stale "FVL-05 = 1/14, only FVL-05.001 work done" summary near the
+top of the tracker file was deliberately NOT touched — it predates and
+is unrelated to the version/lineage changes this audit's three findings
+are specifically about, out of this narrowly-scoped documentation cycle
+(matching the prompt's "correct only genuine contradictions [from these
+same changes]" instruction).
+
+### Fresh test/typecheck/lint/diff/tracker-validation evidence
+
+All commands run fresh from the final corrected state on
+`feature/laboratory-stability`:
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionProcessDatasetExtractor.test.ts
+  src/schemas/dataset.test.ts` — **80/80 passed** (unchanged — doc/
+  comment-only cycle, no test logic touched).
+- `pnpm --filter @formulab/shared exec vitest run` (full suite) — **86
+  files / 1851 tests passed** (unchanged).
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` (eslint) — clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite) — **167
+  files / 1726 tests passed, no regression** (unchanged).
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks across
+  11 work packages, no drift found.`
+- `git diff --check` (on staged changes) — clean, no whitespace warnings
+  at all this cycle (no verbatim GPT-authored content touched).
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+
+### Files changed this cycle
+
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.001 row, FVL-05.002 row,
+  and the FVL-05.004 cell's own "read this first" pointer + new SIXTH
+  CORRECTIVE CYCLE paragraph — comment/prose only, no task status
+  changed).
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` (new pointer block for this
+  cycle, prepended above the fifth cycle's block, left intact as
+  history).
+- `packages/shared/src/schemas/dataset.ts` (top-of-file module comment
+  rewritten — no schema/type/logic change).
+- This log file (new corrective-cycle section, appended).
+
+GPT-owned files explicitly NOT touched this cycle (read-only rule
+respected): `docs/audits/FVL05-GPT Audits.md`,
+`docs/audits/FVL05-GPT-AUDIT-000002.md`,
+`docs/audits/FVL05-GPT-AUDIT-000003.md`, `docs/prompts/FVL05 Prompts.md`,
+`docs/prompts/FVL05-GPT-PROMPT-000003.md`,
+`docs/prompts/FVL05-GPT-PROMPT-000004.md`.
+
+All other pre-existing worktree modifications/deletions/untracked files
+listed under "Starting state" above were left untouched.
+
+### Commits
+
+- `6839772` — this cycle's single commit (all three findings fixed; no
+  amend, no force push, no history rewrite).
+
+Final HEAD: `68397722a68e950b6197e5eca269633e025d9c2b`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`68397722a68e950b6197e5eca269633e025d9c2b`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- First build attempt FAILED (real failure, not a false alarm — the
+  wrapper command's own exit code was misleadingly reported as 0 because
+  output was piped through `tail`, which masked the underlying `pnpm`
+  failure): `error: failed to remove file
+  ...\target\release\formulab.exe — Caused by: Access is denied. (os
+  error 5)`. Root cause: the native launch smoke test's own
+  `formulab.exe` process from the fifth corrective cycle was still
+  running and held the file locked. Fixed by stopping the stale process
+  (`Stop-Process -Force`) and rebuilding. **Lesson applied**: after this
+  cycle's own native launch smoke test below, the process was
+  deliberately stopped again immediately after verification, specifically
+  to avoid locking the executable for whatever build runs next.
+- Second (real) build: `pnpm --filter @formulab/desktop tauri build`,
+  exit code confirmed explicitly via `echo "EXIT_CODE=$?"` this time
+  (not inferred from a piped command) — **`EXIT_CODE=0`**. Vite build
+  succeeded (17.85s); Rust release compile succeeded (`Finished
+  \`release\` profile [optimized] target(s) in 1m 03s`); MSI and NSIS
+  bundles produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,870,912 bytes, modified 2026-08-23 23:07 local time,
+  SHA256 `fb2fed061885d51e80fc736e2de02360dd20e3aad143730299f0e949563c00ab`
+  (distinct from the pre-cycle build's hash
+  `7100413eabfbe4398f4f40bc97f8031d0d2e8c2fcbefa8a2018f4cf513562e70`,
+  confirming a fresh build from this cycle's final HEAD — even though no
+  schema/logic changed this cycle, the doc-comment edit to `dataset.ts`
+  still triggers a real frontend rebuild through the workspace-linked
+  `@formulab/shared` dependency, and Cargo re-links the binary).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 2304) confirmed running from the exact fresh exe path and
+  `Responding: True` 5 seconds after launch. **Automated launch smoke:
+  PASS.** Process then deliberately stopped (see "lesson applied" above)
+  rather than left running. **Manual UI acceptance from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Both `AUDIT_FVL05_GPT_000002` findings re-confirmed genuinely fixed, no
+new implementation defect found; all three `AUDIT_FVL05_GPT_000003`
+documentation findings corrected in place with historical state
+preserved; focused FVL-05.004 tests green (80/80, unchanged); full
+shared tests green (86/86 files, 1851/1851, unchanged); desktop
+regression green (167/167 files, 1726/1726, unchanged); shared/desktop
+typechecks green; desktop lint green; tracker validator green; `git diff
+--check` clean; tracker/handoff/external log truthful and pointing to
+current truth; changes committed and pushed with local HEAD == remote
+HEAD; native Tauri release build (after resolving a real, diagnosed
+build-lock failure) and `Desktop\FormuLab.lnk` checks rerun from the
+final pushed HEAD; FVL-05.005 remains untouched; GPT audit/prompt files
+untouched (read-only, respected).
+
+**FVL-05.004 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.005 NOT STARTED** (per this session's explicit
+instruction not to begin it).
