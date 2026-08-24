@@ -43,13 +43,18 @@ import { formulationLineSchema } from "./formulation";
 import { trialObservationSchema, trialProcessStepSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
 import { productFamilySchema } from "./product";
-import { stabilityResultSchema, stabilitySampleSchema } from "./stability";
+import {
+  stabilityConditionSchema,
+  stabilityResultSchema,
+  stabilitySampleSchema,
+  stabilityTimePointSchema,
+} from "./stability";
 import { testResultSchema } from "./testDefinitions";
 
 /** Current dataset (row/lineage) schema version. Bump when the shape of a
  *  dataset row changes (a field is added, removed, or renamed by one of
  *  the FVL-05.003-.008 extractors). */
-export const DATASET_SCHEMA_VERSION = "1.3" as const;
+export const DATASET_SCHEMA_VERSION = "1.4" as const;
 
 /** Validates the literal current dataset schema version. */
 export const datasetSchemaVersionSchema = z.literal(DATASET_SCHEMA_VERSION);
@@ -399,6 +404,22 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * zero persisted rows of any FVL-05 row family anywhere, so no
  * `SchemaMigration` entry is applicable; `"1.2"` (and `"1.1"`, `"1.0"`)
  * are now all structurally rejected.
+ *
+ * FOURTH BUMP (FVL-05.006 corrective cycle, independent GPT re-audit
+ * `AUDIT_FVL05_GPT_000007`, 2026-08-24): `"1.3"` -> `"1.4"`. The original
+ * FVL-05.006 shape omitted the persisted `StabilityCondition`/
+ * `StabilityTimePoint` catalog records that give
+ * `StabilitySample.conditionId`/`.timePointId` their real domain meaning
+ * — a HIGH finding, since `stabilityStudySamplesSchema` now gains new
+ * `conditions`/`timePoints` fields (see that schema's own header comment
+ * below for the full corrective rationale). This is a dataset-row shape
+ * change under the same standing rule the prior three bumps applied —
+ * adding required fields to an existing row type is exactly the "field
+ * is added" case the rule's own text names, no different in kind from a
+ * brand-new row type. Compatibility unchanged: still zero persisted rows
+ * of any FVL-05 row family anywhere (repo-wide grep re-confirmed), so no
+ * `SchemaMigration` entry is applicable; `"1.3"` (and `"1.2"`, `"1.1"`,
+ * `"1.0"`) are now all structurally rejected.
  */
 /**
  * GPT audit 000002, finding 2 (RESOLVED): `processStepPlanSchema`/
@@ -627,11 +648,66 @@ export type FormulaVersionTestResultRow = z.infer<typeof formulaVersionTestResul
  * project-management metadata the way a study's `title`/`owner`/
  * `protocol` are. `StabilityResult` is embedded verbatim too
  * (`stabilityResultSchema`, no re-modeling, zero parity risk).
- * `StabilityCondition`/`StabilityTimePoint` (the shared, configurable
- * reference catalogs `conditionId`/`timePointId` point at) are NOT
- * resolved/embedded — same reasoning as `TestDefinition`: they are
- * reference/template data, not part of the trial/sample/result
- * measurement hierarchy itself.
+ *
+ * CORRECTIVE CYCLE (`AUDIT_FVL05_GPT_000007`, 2026-08-24) —
+ * `StabilityCondition`/`StabilityTimePoint` ARE resolved and embedded,
+ * superseding the original implementation's exclusion of them. The
+ * original rationale ("reference/template data, not part of the
+ * measurement hierarchy, same as `TestDefinition`") was DIRECTLY
+ * CONTRADICTED by `stabilityConditionSchema`'s own source comment, which
+ * says a condition's `label`/tolerance fields are "fine to read live
+ * since it does not retroactively change what was already measured" —
+ * the exact opposite of a frozen, capture-once snapshot field. Direct
+ * source evidence: `engine/stability.ts`'s `generateStabilitySamples(
+ * study, conditions, timePoints)` is the ONLY function anywhere in the
+ * codebase that constructs a `StabilitySample` (confirmed by a
+ * repo-wide grep for `newId("stabsample")` — exactly one call site) —
+ * it takes real `StabilityCondition[]`/`StabilityTimePoint[]` records as
+ * direct parameters and copies `condition.id`/`timePoint.id` onto the
+ * sample it creates, and its ONLY production caller
+ * (`StabilityPanel.tsx`) resolves those arrays from
+ * `SEED_STABILITY_CONDITIONS`/`SEED_STABILITY_TIME_POINTS`
+ * (`catalog/stabilityConditions.ts`) — these are causal source records
+ * a sample is generated FROM, not decorative display-only lookups.
+ * Unlike `StabilityStudy`/`StabilitySample`/`StabilityResult`, conditions
+ * and time points are NOT registered as their own mutable
+ * `masterdata.rs` collection — `apps/desktop/src/lib/dataExchangeCommit.ts`
+ * confirms the Data Exchange import path resolves an imported
+ * `condition_code`/`time_point` against this exact same
+ * `SEED_STABILITY_CONDITIONS`/`SEED_STABILITY_TIME_POINTS` catalog
+ * (rejecting anything not in it), proving it is the one, single,
+ * canonical source of every condition/time-point identity in the
+ * system, not an arbitrary caller-suppliable pool the way
+ * `stabilityStudies`/`stabilitySamples`/`stabilityResults` are. The
+ * extractor accordingly takes it as a required resolution pool (same
+ * calling convention as the other three pools) rather than importing
+ * the catalog module directly, keeping the extractor itself free of any
+ * import of application/UI-layer data and fully testable with synthetic
+ * fixtures.
+ *
+ * STUDY-MEMBERSHIP INVARIANT (proven from source, not invented, per the
+ * audit's explicit instruction not to assume it): every legitimately
+ * generated sample's `conditionId`/`timePointId` was, at generation
+ * time, a member of its own study's `conditionIds`/`timePointIds` —
+ * `StabilityPanel.tsx`'s sample-generation call site filters
+ * `SEED_STABILITY_CONDITIONS`/`SEED_STABILITY_TIME_POINTS` by
+ * `study.conditionIds`/`study.timePointIds` BEFORE calling
+ * `generateStabilitySamples`, and since `generateStabilitySamples` is
+ * the only sample constructor anywhere, every real sample's
+ * `conditionId`/`timePointId` is drawn exclusively from that
+ * pre-filtered set. `study.conditionIds`/`.timePointIds` is proven
+ * MONOTONICALLY GROWING, never shrinking: a repo-wide grep for every
+ * write site found exactly two — `StabilityPanel.tsx`'s study-creation
+ * flow (sets the initial array once) and
+ * `dataExchangeCommit.ts`'s `commitStabilityProtocols` import handler
+ * (`Set`-based union-only `conditionIds.add(...)`/`timePointIds.add(...)`,
+ * never a deletion) — so a condition/time-point membership true at
+ * generation time remains true forever after. This extractor therefore
+ * fails closed when a supplied sample's `conditionId`/`timePointId` is
+ * not a member of its own study's `conditionIds`/`timePointIds` array,
+ * the same "prove it from the real writer/lifecycle contract, do not
+ * invent an unproven rule" discipline every other fail-closed check in
+ * this file already follows.
  *
  * `StabilityResult` also carries `studyId`/`conditionId`/`timePointId`
  * directly, denormalized against its own resolved sample's identical
@@ -672,9 +748,26 @@ export const stabilitySampleResultsSchema = z.object({
 });
 export type StabilitySampleResults = z.infer<typeof stabilitySampleResultsSchema>;
 
+/**
+ * Corrective addition (`AUDIT_FVL05_GPT_000007`): `conditions`/
+ * `timePoints` hold the exact, deduplicated `StabilityCondition`/
+ * `StabilityTimePoint` catalog records actually referenced by at least
+ * one of this study's `samples` — a per-study set, not one copy per
+ * sample, avoiding wasteful duplication when several samples in the
+ * same study (as they normally do — one sample per condition x time
+ * point x replicate) share a condition/time point. `stabilityConditionSchema`/
+ * `stabilityTimePointSchema` are reused 100% VERBATIM (zero re-modeling,
+ * zero parity risk, same discipline as `stabilitySampleSchema`/
+ * `stabilityResultSchema`). Each sample's own `conditionId`/`timePointId`
+ * remains the join key into these arrays — resolving a specific sample's
+ * condition/time-point record is `conditions.find(c => c.id ===
+ * sample.conditionId)`, never a second copy embedded per sample.
+ */
 export const stabilityStudySamplesSchema = z.object({
   studyId: nonBlankString("studyId"),
   studyCode: nonBlankString("studyCode"),
+  conditions: z.array(stabilityConditionSchema),
+  timePoints: z.array(stabilityTimePointSchema),
   samples: z.array(stabilitySampleResultsSchema),
 });
 export type StabilityStudySamples = z.infer<typeof stabilityStudySamplesSchema>;

@@ -45,9 +45,31 @@
  * closed on a malformed row, and guarantees (via zod's always-rebuilding
  * parse) that the returned row shares no mutable array/object with the
  * source records it was built from.
+ *
+ * CORRECTIVE CYCLE (`AUDIT_FVL05_GPT_000007`): the persisted
+ * `StabilityCondition`/`StabilityTimePoint` catalog records that give
+ * `StabilitySample.conditionId`/`.timePointId` their real domain meaning
+ * are now resolved and embedded too — see `schemas/dataset.ts`'s header
+ * comment on `stabilityStudySamplesSchema` for the full recovered
+ * evidence. `stabilityConditions`/`stabilityTimePoints` are required
+ * input pools (same calling convention as the other three pools); every
+ * sample's `conditionId`/`timePointId` must resolve exactly, AND must be
+ * a member of its own study's `conditionIds`/`timePointIds` array — an
+ * invariant proven, not invented, from the single real sample-generation
+ * call path (see the same schema header comment). Each study's
+ * `conditions`/`timePoints` arrays hold the deduplicated set of records
+ * actually referenced by that study's samples, and every distinct
+ * condition/time-point id contributes exactly one lineage citation to
+ * the row even when referenced by samples in more than one study.
  */
 import type { Formulation, FormulationVersion } from "../schemas/formulation";
-import type { StabilityResult, StabilitySample, StabilityStudy } from "../schemas/stability";
+import type {
+  StabilityCondition,
+  StabilityResult,
+  StabilitySample,
+  StabilityStudy,
+  StabilityTimePoint,
+} from "../schemas/stability";
 import {
   DATASET_SCHEMA_VERSION,
   formulaVersionStabilityRowSchema,
@@ -96,6 +118,19 @@ export interface FormulaVersionStabilityDatasetExtractionInput {
    *  (pool-wide), and its own `studyId`/`conditionId`/`timePointId` must
    *  agree with that sample's, or the whole extraction fails closed. */
   stabilityResults: StabilityResult[];
+  /** The canonical storage-condition catalog every `StabilitySample.
+   *  conditionId` resolves against — in production this is always
+   *  `SEED_STABILITY_CONDITIONS` (`catalog/stabilityConditions.ts`), the
+   *  one and only condition catalog the real app writes samples from;
+   *  supplied here as a caller-provided pool (not imported directly) so
+   *  this extractor stays free of any application-layer import and
+   *  fully testable with synthetic fixtures. */
+  stabilityConditions: StabilityCondition[];
+  /** The canonical time-point catalog every `StabilitySample.timePointId`
+   *  resolves against — in production this is always
+   *  `SEED_STABILITY_TIME_POINTS`, the same convention as
+   *  `stabilityConditions` above. */
+  stabilityTimePoints: StabilityTimePoint[];
 }
 
 export type FormulaVersionStabilityDatasetExtractionErrorCode =
@@ -108,6 +143,12 @@ export type FormulaVersionStabilityDatasetExtractionErrorCode =
   | "study_formula_link_conflict"
   | "duplicate_stability_sample_id"
   | "stability_sample_study_not_found"
+  | "duplicate_stability_condition_id"
+  | "duplicate_stability_time_point_id"
+  | "stability_sample_condition_not_found"
+  | "stability_sample_time_point_not_found"
+  | "stability_sample_condition_not_in_study"
+  | "stability_sample_time_point_not_in_study"
   | "duplicate_stability_result_id"
   | "stability_result_sample_not_found"
   | "stability_result_sample_conflict"
@@ -126,6 +167,8 @@ export interface FormulaVersionStabilityDatasetExtractionErrorContext {
   studyId?: string;
   sampleId?: string;
   resultId?: string;
+  conditionId?: string;
+  timePointId?: string;
 }
 
 export class FormulaVersionStabilityDatasetExtractionError extends Error {
@@ -135,6 +178,8 @@ export class FormulaVersionStabilityDatasetExtractionError extends Error {
   readonly studyId?: string;
   readonly sampleId?: string;
   readonly resultId?: string;
+  readonly conditionId?: string;
+  readonly timePointId?: string;
 
   constructor(
     code: FormulaVersionStabilityDatasetExtractionErrorCode,
@@ -149,6 +194,8 @@ export class FormulaVersionStabilityDatasetExtractionError extends Error {
     this.studyId = context.studyId;
     this.sampleId = context.sampleId;
     this.resultId = context.resultId;
+    this.conditionId = context.conditionId;
+    this.timePointId = context.timePointId;
   }
 }
 
@@ -182,6 +229,40 @@ function buildFormulationsById(formulations: Formulation[]): Map<string, Formula
       );
     }
     byId.set(formulation.id, formulation);
+  }
+  return byId;
+}
+
+/** Builds the exact-id storage-condition lookup, failing closed on a
+ *  duplicate `StabilityCondition.id`. */
+function buildConditionsById(stabilityConditions: StabilityCondition[]): Map<string, StabilityCondition> {
+  const byId = new Map<string, StabilityCondition>();
+  for (const condition of stabilityConditions) {
+    if (byId.has(condition.id)) {
+      throw new FormulaVersionStabilityDatasetExtractionError(
+        "duplicate_stability_condition_id",
+        `Ambiguous exact stability condition identity: more than one supplied condition has id "${condition.id}".`,
+        { conditionId: condition.id },
+      );
+    }
+    byId.set(condition.id, condition);
+  }
+  return byId;
+}
+
+/** Builds the exact-id time-point lookup, failing closed on a duplicate
+ *  `StabilityTimePoint.id`. */
+function buildTimePointsById(stabilityTimePoints: StabilityTimePoint[]): Map<string, StabilityTimePoint> {
+  const byId = new Map<string, StabilityTimePoint>();
+  for (const timePoint of stabilityTimePoints) {
+    if (byId.has(timePoint.id)) {
+      throw new FormulaVersionStabilityDatasetExtractionError(
+        "duplicate_stability_time_point_id",
+        `Ambiguous exact stability time point identity: more than one supplied time point has id "${timePoint.id}".`,
+        { timePointId: timePoint.id },
+      );
+    }
+    byId.set(timePoint.id, timePoint);
   }
   return byId;
 }
@@ -236,10 +317,17 @@ function buildStudiesById(studies: StabilityStudy[]): Map<string, StabilityStudy
 /** Builds the study-id -> samples index over the ENTIRE supplied
  *  `stabilitySamples` pool, failing closed on a duplicate
  *  `StabilitySample.id`, a `studyId` that does not resolve to any
- *  supplied study, and a non-canonical `createdAt`. */
+ *  supplied study, a non-canonical `createdAt`, a `conditionId`/
+ *  `timePointId` that does not resolve to any supplied condition/time
+ *  point, and — the corrective-cycle invariant, proven from the single
+ *  real sample-generation call path (see this file's own header comment)
+ *  — a `conditionId`/`timePointId` that is not a member of its own
+ *  study's `conditionIds`/`timePointIds` array. */
 function buildSamplesByStudyId(
   stabilitySamples: StabilitySample[],
   studiesById: Map<string, StabilityStudy>,
+  conditionsById: Map<string, StabilityCondition>,
+  timePointsById: Map<string, StabilityTimePoint>,
 ): { samplesById: Map<string, StabilitySample>; byStudyId: Map<string, StabilitySample[]> } {
   const samplesById = new Map<string, StabilitySample>();
   const byStudyId = new Map<string, StabilitySample[]>();
@@ -251,11 +339,40 @@ function buildSamplesByStudyId(
         { sampleId: sample.id },
       );
     }
-    if (!studiesById.has(sample.studyId)) {
+    const study = studiesById.get(sample.studyId);
+    if (!study) {
       throw new FormulaVersionStabilityDatasetExtractionError(
         "stability_sample_study_not_found",
         `Stability sample "${sample.id}" references studyId "${sample.studyId}", which was not found among the supplied stability studies.`,
         { sampleId: sample.id, studyId: sample.studyId },
+      );
+    }
+    if (!conditionsById.has(sample.conditionId)) {
+      throw new FormulaVersionStabilityDatasetExtractionError(
+        "stability_sample_condition_not_found",
+        `Stability sample "${sample.id}" references conditionId "${sample.conditionId}", which was not found among the supplied stability conditions.`,
+        { sampleId: sample.id, conditionId: sample.conditionId },
+      );
+    }
+    if (!timePointsById.has(sample.timePointId)) {
+      throw new FormulaVersionStabilityDatasetExtractionError(
+        "stability_sample_time_point_not_found",
+        `Stability sample "${sample.id}" references timePointId "${sample.timePointId}", which was not found among the supplied stability time points.`,
+        { sampleId: sample.id, timePointId: sample.timePointId },
+      );
+    }
+    if (!study.conditionIds.includes(sample.conditionId)) {
+      throw new FormulaVersionStabilityDatasetExtractionError(
+        "stability_sample_condition_not_in_study",
+        `Stability sample "${sample.id}" references conditionId "${sample.conditionId}", which is not a member of its own study "${study.id}"'s conditionIds.`,
+        { sampleId: sample.id, studyId: study.id, conditionId: sample.conditionId },
+      );
+    }
+    if (!study.timePointIds.includes(sample.timePointId)) {
+      throw new FormulaVersionStabilityDatasetExtractionError(
+        "stability_sample_time_point_not_in_study",
+        `Stability sample "${sample.id}" references timePointId "${sample.timePointId}", which is not a member of its own study "${study.id}"'s timePointIds.`,
+        { sampleId: sample.id, studyId: study.id, timePointId: sample.timePointId },
       );
     }
     if (!isCanonicalIsoTimestamp(sample.createdAt)) {
@@ -443,28 +560,63 @@ function resolveLinkedStudies(
 }
 
 /** Builds one `StabilityStudySamples` entry plus the exact source-record
- *  citations it contributes. Neither sample nor result citations ever
- *  set `parentRecordId` — both `StabilitySample.id` and
- *  `StabilityResult.id` are genuinely global identities (their own
- *  top-level collections), not parent-scoped. */
+ *  citations it contributes. Sample and result citations never set
+ *  `parentRecordId` — both `StabilitySample.id` and `StabilityResult.id`
+ *  are genuinely global identities (their own top-level collections),
+ *  not parent-scoped; condition/time-point citations don't either, since
+ *  they are drawn from one single global catalog, not a parent-scoped
+ *  collection. `citedConditionIds`/`citedTimePointIds` are shared across
+ *  every study in the row so a condition/time point referenced by
+ *  samples in more than one study is cited exactly once at the row
+ *  level, even though it legitimately appears in more than one study's
+ *  own `conditions`/`timePoints` array. */
 function buildStudySamples(
   study: StabilityStudy,
   samplesByStudyId: Map<string, StabilitySample[]>,
   resultsBySampleId: Map<string, StabilityResult[]>,
+  conditionsById: Map<string, StabilityCondition>,
+  timePointsById: Map<string, StabilityTimePoint>,
+  citedConditionIds: Set<string>,
+  citedTimePointIds: Set<string>,
 ): { entry: StabilityStudySamples; citations: SourceRecordReference[] } {
   const samples = [...(samplesByStudyId.get(study.id) ?? [])].sort(bySampleOrder);
   const citations: SourceRecordReference[] = [{ sourceEntity: "stabilityStudy", sourceRecordId: study.id }];
   const sampleEntries: StabilitySampleResults[] = [];
+  const conditionIdsUsed = new Set<string>();
+  const timePointIdsUsed = new Set<string>();
   for (const sample of samples) {
     citations.push({ sourceEntity: "stabilitySample", sourceRecordId: sample.id });
+    conditionIdsUsed.add(sample.conditionId);
+    timePointIdsUsed.add(sample.timePointId);
     const results = [...(resultsBySampleId.get(sample.id) ?? [])].sort(byResultOrder);
     for (const result of results) {
       citations.push({ sourceEntity: "stabilityResult", sourceRecordId: result.id });
     }
     sampleEntries.push({ sample, results });
   }
+
+  const conditions = [...conditionIdsUsed]
+    .map((id) => conditionsById.get(id)!)
+    .sort((a, b) => compareOrdinal(a.id, b.id));
+  for (const condition of conditions) {
+    if (!citedConditionIds.has(condition.id)) {
+      citedConditionIds.add(condition.id);
+      citations.push({ sourceEntity: "stabilityCondition", sourceRecordId: condition.id });
+    }
+  }
+
+  const timePoints = [...timePointIdsUsed]
+    .map((id) => timePointsById.get(id)!)
+    .sort((a, b) => compareOrdinal(a.id, b.id));
+  for (const timePoint of timePoints) {
+    if (!citedTimePointIds.has(timePoint.id)) {
+      citedTimePointIds.add(timePoint.id);
+      citations.push({ sourceEntity: "stabilityTimePoint", sourceRecordId: timePoint.id });
+    }
+  }
+
   return {
-    entry: { studyId: study.id, studyCode: study.code, samples: sampleEntries },
+    entry: { studyId: study.id, studyCode: study.code, conditions, timePoints, samples: sampleEntries },
     citations,
   };
 }
@@ -475,6 +627,8 @@ function extractOne(
   studiesById: Map<string, StabilityStudy>,
   samplesByStudyId: Map<string, StabilitySample[]>,
   resultsBySampleId: Map<string, StabilityResult[]>,
+  conditionsById: Map<string, StabilityCondition>,
+  timePointsById: Map<string, StabilityTimePoint>,
 ): FormulaVersionStabilityRow {
   const formulation = formulationsById.get(version.formulationId);
   if (!formulation) {
@@ -491,8 +645,18 @@ function extractOne(
     { sourceEntity: "formulationVersion", sourceRecordId: version.id },
   ];
   const studies: StabilityStudySamples[] = [];
+  const citedConditionIds = new Set<string>();
+  const citedTimePointIds = new Set<string>();
   for (const study of linkedStudies) {
-    const { entry, citations } = buildStudySamples(study, samplesByStudyId, resultsBySampleId);
+    const { entry, citations } = buildStudySamples(
+      study,
+      samplesByStudyId,
+      resultsBySampleId,
+      conditionsById,
+      timePointsById,
+      citedConditionIds,
+      citedTimePointIds,
+    );
     studies.push(entry);
     sourceRecords.push(...citations);
   }
@@ -531,7 +695,14 @@ export function extractFormulaVersionStabilityRows(
   const formulationsById = buildFormulationsById(input.formulations);
   const versionsById = buildVersionsById(input.formulationVersions);
   const studiesById = buildStudiesById(input.stabilityStudies);
-  const { samplesById, byStudyId: samplesByStudyId } = buildSamplesByStudyId(input.stabilitySamples, studiesById);
+  const conditionsById = buildConditionsById(input.stabilityConditions);
+  const timePointsById = buildTimePointsById(input.stabilityTimePoints);
+  const { samplesById, byStudyId: samplesByStudyId } = buildSamplesByStudyId(
+    input.stabilitySamples,
+    studiesById,
+    conditionsById,
+    timePointsById,
+  );
   const resultsBySampleId = buildResultsBySampleId(input.stabilityResults, samplesById);
   return input.formulationVersionIds.map((requestedId) => {
     const version = versionsById.get(requestedId);
@@ -542,6 +713,6 @@ export function extractFormulaVersionStabilityRows(
         { formulaVersionId: requestedId },
       );
     }
-    return extractOne(version, formulationsById, studiesById, samplesByStudyId, resultsBySampleId);
+    return extractOne(version, formulationsById, studiesById, samplesByStudyId, resultsBySampleId, conditionsById, timePointsById);
   });
 }

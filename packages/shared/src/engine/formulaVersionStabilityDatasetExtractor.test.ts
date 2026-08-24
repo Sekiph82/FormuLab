@@ -8,11 +8,12 @@ import {
   DATASET_SCHEMA_VERSION,
   formulaVersionStabilityRowSchema,
   stabilitySampleResultsSchema,
+  stabilityStudySamplesSchema,
 } from "../schemas/dataset";
 import { extractFormulaVersionStabilityRows as extractFromPublicEntryPoint } from "../index";
-import { stabilityResultSchema, stabilitySampleSchema } from "../schemas/stability";
+import { stabilityConditionSchema, stabilityResultSchema, stabilitySampleSchema, stabilityTimePointSchema } from "../schemas/stability";
 import type { Formulation, FormulationVersion } from "../schemas/formulation";
-import type { StabilityResult, StabilitySample, StabilityStudy } from "../schemas/stability";
+import type { StabilityCondition, StabilityResult, StabilitySample, StabilityStudy, StabilityTimePoint } from "../schemas/stability";
 
 function formulation(over: Partial<Formulation> = {}): Formulation {
   return {
@@ -67,14 +68,40 @@ function study(over: Partial<StabilityStudy> = {}): StabilityStudy {
     title: "Study 1",
     owner: "local",
     status: "active",
-    conditionIds: [],
-    timePointIds: [],
+    conditionIds: ["COND-0001"],
+    timePointIds: ["TP-0001"],
     requiredTestDefinitionIds: [],
     replicatesPerPullPoint: 1,
     hasOpenCriticalFailure: false,
     createdAt: "2026-01-03T00:00:00.000Z",
     createdBy: "local",
     updatedAt: "2026-01-03T00:00:00.000Z",
+    ...over,
+  };
+}
+
+function condition(over: Partial<StabilityCondition> = {}): StabilityCondition {
+  return {
+    schemaVersion: "1.0",
+    id: "COND-0001",
+    code: "25C",
+    label: "25°C / long-term",
+    verificationStatus: "not_verified",
+    active: true,
+    lightCondition: "none",
+    orientation: "not_applicable",
+    ...over,
+  };
+}
+
+function timePoint(over: Partial<StabilityTimePoint> = {}): StabilityTimePoint {
+  return {
+    schemaVersion: "1.0",
+    id: "TP-0001",
+    code: "1MO",
+    label: "1 month",
+    daysFromStart: 30,
+    custom: false,
     ...over,
   };
 }
@@ -126,6 +153,8 @@ function buildInput(
     stabilityStudies: [],
     stabilitySamples: [],
     stabilityResults: [],
+    stabilityConditions: [condition()],
+    stabilityTimePoints: [timePoint()],
     ...over,
   };
 }
@@ -138,7 +167,7 @@ describe("extractFormulaVersionStabilityRows", () => {
     expect(formulaVersionStabilityRowSchema.safeParse(rows[0]).success).toBe(true);
   });
 
-  it("emits one study with one sample and one result", () => {
+  it("emits one study with one sample and one result, including its resolved condition and time point", () => {
     const rows = extractFormulaVersionStabilityRows(
       buildInput({
         formulationVersions: [version()],
@@ -153,6 +182,10 @@ describe("extractFormulaVersionStabilityRows", () => {
     expect(rows[0].studies[0].samples[0].sample.id).toBe("SAMPLE-0001");
     expect(rows[0].studies[0].samples[0].results).toHaveLength(1);
     expect(rows[0].studies[0].samples[0].results[0].id).toBe("RESULT-0001");
+    expect(rows[0].studies[0].conditions).toHaveLength(1);
+    expect(rows[0].studies[0].conditions[0].id).toBe("COND-0001");
+    expect(rows[0].studies[0].timePoints).toHaveLength(1);
+    expect(rows[0].studies[0].timePoints[0].id).toBe("TP-0001");
   });
 
   it("emits multiple results on one sample, ordered by performedAt then id regardless of input order", () => {
@@ -255,6 +288,76 @@ describe("extractFormulaVersionStabilityRows", () => {
     expect(emittedSample.dueDate).toBe("2026-02-01T00:00:00.000Z");
     expect(emittedSample.disposedAt).toBe("2026-02-05T00:00:00.000Z");
     expect(emittedSample.status).toBe("disposed");
+  });
+
+  it("preserves exact canonical StabilityCondition evidence — temperature/tolerance, humidity/tolerance, light, orientation, freeze-thaw, custom instructions, verification, active", () => {
+    const richCondition = condition({
+      id: "COND-RICH",
+      code: "FREEZE_THAW",
+      label: "Freeze-thaw cycling",
+      temperatureC: "-10",
+      temperatureToleranceC: "2",
+      humidityPercent: "60",
+      humidityTolerancePercent: "5",
+      lightCondition: "uv",
+      orientation: "inverted",
+      freezeThawCycleDefinition: "24h at -10C, 24h at 25C, repeat",
+      customInstructions: "Rotate samples daily.",
+      verificationStatus: "verified",
+      active: true,
+    });
+    const richStudy = study({ conditionIds: ["COND-RICH"], timePointIds: ["TP-0001"] });
+    const richSample = sample({ conditionId: "COND-RICH" });
+    const rows = extractFormulaVersionStabilityRows(
+      buildInput({
+        formulationVersions: [version()],
+        stabilityStudies: [richStudy],
+        stabilitySamples: [richSample],
+        stabilityConditions: [richCondition],
+      }),
+    );
+    const emitted = rows[0].studies[0].conditions[0];
+    expect(emitted.id).toBe("COND-RICH");
+    expect(emitted.code).toBe("FREEZE_THAW");
+    expect(emitted.label).toBe("Freeze-thaw cycling");
+    expect(emitted.temperatureC).toBe("-10");
+    expect(emitted.temperatureToleranceC).toBe("2");
+    expect(emitted.humidityPercent).toBe("60");
+    expect(emitted.humidityTolerancePercent).toBe("5");
+    expect(emitted.lightCondition).toBe("uv");
+    expect(emitted.orientation).toBe("inverted");
+    expect(emitted.freezeThawCycleDefinition).toBe("24h at -10C, 24h at 25C, repeat");
+    expect(emitted.customInstructions).toBe("Rotate samples daily.");
+    expect(emitted.verificationStatus).toBe("verified");
+    expect(emitted.active).toBe(true);
+  });
+
+  it("preserves exact canonical StabilityTimePoint evidence — code, label, daysFromStart, custom, notes", () => {
+    const richTimePoint = timePoint({
+      id: "TP-RICH",
+      code: "6MO",
+      label: "6 months",
+      daysFromStart: 180,
+      custom: true,
+      notes: "Extended pull point for this protocol.",
+    });
+    const richStudy = study({ conditionIds: ["COND-0001"], timePointIds: ["TP-RICH"] });
+    const richSample = sample({ timePointId: "TP-RICH" });
+    const rows = extractFormulaVersionStabilityRows(
+      buildInput({
+        formulationVersions: [version()],
+        stabilityStudies: [richStudy],
+        stabilitySamples: [richSample],
+        stabilityTimePoints: [richTimePoint],
+      }),
+    );
+    const emitted = rows[0].studies[0].timePoints[0];
+    expect(emitted.id).toBe("TP-RICH");
+    expect(emitted.code).toBe("6MO");
+    expect(emitted.label).toBe("6 months");
+    expect(emitted.daysFromStart).toBe(180);
+    expect(emitted.custom).toBe(true);
+    expect(emitted.notes).toBe("Extended pull point for this protocol.");
   });
 
   it("keeps missing optional fields absent, following the existing dataset contract", () => {
@@ -486,6 +589,220 @@ describe("extractFormulaVersionStabilityRows", () => {
     }
   });
 
+  describe("StabilityCondition/StabilityTimePoint resolution (AUDIT_FVL05_GPT_000007 corrective cycle)", () => {
+    it("fails closed on a duplicate condition id in the supplied pool", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        stabilityConditions: [condition({ id: "COND-DUP" }), condition({ id: "COND-DUP", code: "DUP2" })],
+      });
+      try {
+        extractFormulaVersionStabilityRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionStabilityDatasetExtractionError).code).toBe("duplicate_stability_condition_id");
+      }
+    });
+
+    it("fails closed on a duplicate time point id in the supplied pool", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        stabilityTimePoints: [timePoint({ id: "TP-DUP" }), timePoint({ id: "TP-DUP", code: "DUP2" })],
+      });
+      try {
+        extractFormulaVersionStabilityRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionStabilityDatasetExtractionError).code).toBe("duplicate_stability_time_point_id");
+      }
+    });
+
+    it("fails closed when a sample's conditionId does not resolve to any supplied condition", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        stabilityStudies: [study({ conditionIds: ["COND-GHOST"] })],
+        stabilitySamples: [sample({ conditionId: "COND-GHOST" })],
+      });
+      try {
+        extractFormulaVersionStabilityRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionStabilityDatasetExtractionError).code).toBe("stability_sample_condition_not_found");
+      }
+    });
+
+    it("fails closed when a sample's timePointId does not resolve to any supplied time point", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        stabilityStudies: [study({ timePointIds: ["TP-GHOST"] })],
+        stabilitySamples: [sample({ timePointId: "TP-GHOST" })],
+      });
+      try {
+        extractFormulaVersionStabilityRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionStabilityDatasetExtractionError).code).toBe("stability_sample_time_point_not_found");
+      }
+    });
+
+    it("fails closed when a sample's conditionId resolves in the pool but is not a member of its own study's conditionIds (study-membership invariant)", () => {
+      const outsideCondition = condition({ id: "COND-OUTSIDE" });
+      const input = buildInput({
+        formulationVersions: [version()],
+        stabilityStudies: [study({ conditionIds: ["COND-0001"] })],
+        stabilitySamples: [sample({ conditionId: "COND-OUTSIDE" })],
+        stabilityConditions: [condition(), outsideCondition],
+      });
+      try {
+        extractFormulaVersionStabilityRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionStabilityDatasetExtractionError).code).toBe("stability_sample_condition_not_in_study");
+        expect((err as FormulaVersionStabilityDatasetExtractionError).sampleId).toBe("SAMPLE-0001");
+        expect((err as FormulaVersionStabilityDatasetExtractionError).studyId).toBe("STUDY-0001");
+      }
+    });
+
+    it("fails closed when a sample's timePointId resolves in the pool but is not a member of its own study's timePointIds (study-membership invariant)", () => {
+      const outsideTimePoint = timePoint({ id: "TP-OUTSIDE" });
+      const input = buildInput({
+        formulationVersions: [version()],
+        stabilityStudies: [study({ timePointIds: ["TP-0001"] })],
+        stabilitySamples: [sample({ timePointId: "TP-OUTSIDE" })],
+        stabilityTimePoints: [timePoint(), outsideTimePoint],
+      });
+      try {
+        extractFormulaVersionStabilityRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionStabilityDatasetExtractionError).code).toBe("stability_sample_time_point_not_in_study");
+        expect((err as FormulaVersionStabilityDatasetExtractionError).sampleId).toBe("SAMPLE-0001");
+        expect((err as FormulaVersionStabilityDatasetExtractionError).studyId).toBe("STUDY-0001");
+      }
+    });
+
+    it("multiple samples in the same study sharing one condition/time point stay deterministic without duplicate/ambiguous lineage", () => {
+      const sampleA = sample({ id: "SAMPLE-A", sampleCode: "SMP-A" });
+      const sampleB = sample({ id: "SAMPLE-B", sampleCode: "SMP-B" });
+      const rows = extractFormulaVersionStabilityRows(
+        buildInput({
+          formulationVersions: [version()],
+          stabilityStudies: [study()],
+          stabilitySamples: [sampleA, sampleB],
+        }),
+      );
+      expect(rows[0].studies[0].conditions).toHaveLength(1);
+      expect(rows[0].studies[0].timePoints).toHaveLength(1);
+      const conditionCitations = rows[0].sourceRecords.filter((r) => r.sourceEntity === "stabilityCondition");
+      const timePointCitations = rows[0].sourceRecords.filter((r) => r.sourceEntity === "stabilityTimePoint");
+      expect(conditionCitations).toEqual([{ sourceEntity: "stabilityCondition", sourceRecordId: "COND-0001" }]);
+      expect(timePointCitations).toEqual([{ sourceEntity: "stabilityTimePoint", sourceRecordId: "TP-0001" }]);
+    });
+
+    it("two different studies referencing the same condition/time point cite it exactly once at the row level, but each study's own array still lists it", () => {
+      const studyA = study({ id: "STUDY-A", code: "STB-A", createdAt: "2026-01-03T00:00:00.000Z" });
+      const studyB = study({ id: "STUDY-B", code: "STB-B", createdAt: "2026-01-04T00:00:00.000Z" });
+      const sampleA = sample({ id: "SAMPLE-A", studyId: "STUDY-A" });
+      const sampleB = sample({ id: "SAMPLE-B", studyId: "STUDY-B" });
+      const rows = extractFormulaVersionStabilityRows(
+        buildInput({
+          formulationVersions: [version()],
+          stabilityStudies: [studyA, studyB],
+          stabilitySamples: [sampleA, sampleB],
+        }),
+      );
+      expect(rows[0].studies[0].conditions.map((c) => c.id)).toEqual(["COND-0001"]);
+      expect(rows[0].studies[1].conditions.map((c) => c.id)).toEqual(["COND-0001"]);
+      const conditionCitations = rows[0].sourceRecords.filter((r) => r.sourceEntity === "stabilityCondition");
+      expect(conditionCitations).toEqual([{ sourceEntity: "stabilityCondition", sourceRecordId: "COND-0001" }]);
+    });
+
+    it("delimiter-containing and Unicode condition/time-point ids remain unambiguous and deterministic", () => {
+      const weirdCondition = condition({ id: "COND:Ω" });
+      const weirdTimePoint = timePoint({ id: "TP:α" });
+      const weirdStudy = study({ conditionIds: ["COND:Ω"], timePointIds: ["TP:α"] });
+      const weirdSample = sample({ conditionId: "COND:Ω", timePointId: "TP:α" });
+      const rows = extractFormulaVersionStabilityRows(
+        buildInput({
+          formulationVersions: [version()],
+          stabilityStudies: [weirdStudy],
+          stabilitySamples: [weirdSample],
+          stabilityConditions: [weirdCondition],
+          stabilityTimePoints: [weirdTimePoint],
+        }),
+      );
+      expect(rows[0].studies[0].conditions[0].id).toBe("COND:Ω");
+      expect(rows[0].studies[0].timePoints[0].id).toBe("TP:α");
+      expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "stabilityCondition", sourceRecordId: "COND:Ω" });
+      expect(rows[0].sourceRecords).toContainEqual({ sourceEntity: "stabilityTimePoint", sourceRecordId: "TP:α" });
+    });
+
+    it("reordering the stabilityConditions/stabilityTimePoints pools does not change normalized output", () => {
+      const conditionA = condition({ id: "COND-A" });
+      const conditionB = condition({ id: "COND-B" });
+      const timePointA = timePoint({ id: "TP-A" });
+      const timePointB = timePoint({ id: "TP-B" });
+      const twoCondStudy = study({ conditionIds: ["COND-A", "COND-B"], timePointIds: ["TP-A", "TP-B"] });
+      const sampleA = sample({ id: "SAMPLE-A", conditionId: "COND-A", timePointId: "TP-A" });
+      const sampleB = sample({ id: "SAMPLE-B", conditionId: "COND-B", timePointId: "TP-B" });
+      const forward = extractFormulaVersionStabilityRows(
+        buildInput({
+          formulationVersions: [version()],
+          stabilityStudies: [twoCondStudy],
+          stabilitySamples: [sampleA, sampleB],
+          stabilityConditions: [conditionA, conditionB],
+          stabilityTimePoints: [timePointA, timePointB],
+        }),
+      );
+      const reversed = extractFormulaVersionStabilityRows(
+        buildInput({
+          formulationVersions: [version()],
+          stabilityStudies: [twoCondStudy],
+          stabilitySamples: [sampleB, sampleA],
+          stabilityConditions: [conditionB, conditionA],
+          stabilityTimePoints: [timePointB, timePointA],
+        }),
+      );
+      expect(forward[0].studies[0].conditions.map((c) => c.id)).toEqual(["COND-A", "COND-B"]);
+      expect(reversed[0]).toEqual(forward[0]);
+    });
+
+    it("does not let mutating returned nested condition/time-point objects mutate the source fixtures", () => {
+      const sourceCondition = condition({ id: "COND-0001", label: "original label" });
+      const input = buildInput({
+        formulationVersions: [version()],
+        stabilityStudies: [study()],
+        stabilitySamples: [sample()],
+        stabilityConditions: [sourceCondition],
+      });
+      const rows = extractFormulaVersionStabilityRows(input);
+      (rows[0].studies[0].conditions[0] as { label?: string }).label = "mutated";
+      expect(sourceCondition.label).toBe("original label");
+    });
+
+    it("does not mutate stabilityConditions/stabilityTimePoints inputs on the new failure paths", () => {
+      const conditions = Object.freeze([Object.freeze(condition())]);
+      const timePoints = Object.freeze([Object.freeze(timePoint())]);
+      const studies = Object.freeze([Object.freeze(study({ conditionIds: ["COND-GHOST"] }))]);
+      const samples = Object.freeze([Object.freeze(sample({ conditionId: "COND-GHOST" }))]);
+      const formulations = Object.freeze([Object.freeze(formulation())]);
+      const versions = Object.freeze([Object.freeze(version())]);
+      const snapshotBefore = JSON.parse(JSON.stringify({ formulations, versions, studies, samples, conditions, timePoints }));
+
+      const failingInput: FormulaVersionStabilityDatasetExtractionInput = {
+        formulationVersionIds: [versions[0]!.id],
+        formulations: [...formulations],
+        formulationVersions: [...versions],
+        stabilityStudies: [...studies],
+        stabilitySamples: [...samples],
+        stabilityResults: [],
+        stabilityConditions: [...conditions],
+        stabilityTimePoints: [...timePoints],
+      };
+      expect(() => extractFormulaVersionStabilityRows(failingInput)).toThrow(FormulaVersionStabilityDatasetExtractionError);
+      expect(JSON.parse(JSON.stringify({ formulations, versions, studies, samples, conditions, timePoints }))).toEqual(snapshotBefore);
+    });
+  });
+
   it("fails closed on a duplicate result identity in the supplied pool, pool-wide, regardless of relevance", () => {
     const input = buildInput({
       formulationVersions: [version()],
@@ -617,7 +934,9 @@ describe("extractFormulaVersionStabilityRows", () => {
     const results = Object.freeze([Object.freeze(result())]);
     const formulations = Object.freeze([Object.freeze(formulation())]);
     const versions = Object.freeze([Object.freeze(version())]);
-    const snapshotBefore = JSON.parse(JSON.stringify({ formulations, versions, studies, samples, results }));
+    const conditions = Object.freeze([Object.freeze(condition())]);
+    const timePoints = Object.freeze([Object.freeze(timePoint())]);
+    const snapshotBefore = JSON.parse(JSON.stringify({ formulations, versions, studies, samples, results, conditions, timePoints }));
 
     expect(() =>
       extractFormulaVersionStabilityRows({
@@ -627,6 +946,8 @@ describe("extractFormulaVersionStabilityRows", () => {
         stabilityStudies: [...studies],
         stabilitySamples: [...samples],
         stabilityResults: [...results],
+        stabilityConditions: [...conditions],
+        stabilityTimePoints: [...timePoints],
       }),
     ).not.toThrow();
 
@@ -637,10 +958,12 @@ describe("extractFormulaVersionStabilityRows", () => {
       stabilityStudies: [...studies],
       stabilitySamples: [...samples],
       stabilityResults: [...results],
+      stabilityConditions: [...conditions],
+      stabilityTimePoints: [...timePoints],
     };
     expect(() => extractFormulaVersionStabilityRows(failingInput)).toThrow(FormulaVersionStabilityDatasetExtractionError);
 
-    expect(JSON.parse(JSON.stringify({ formulations, versions, studies, samples, results }))).toEqual(snapshotBefore);
+    expect(JSON.parse(JSON.stringify({ formulations, versions, studies, samples, results, conditions, timePoints }))).toEqual(snapshotBefore);
   });
 
   it("does not let mutating returned nested output mutate the source fixtures", () => {
@@ -721,6 +1044,10 @@ describe("extractFormulaVersionStabilityRows", () => {
       for (const citation of citations) {
         expect(citation.parentRecordId).toBeUndefined();
       }
+      const conditionCitations = rows[0].sourceRecords.filter((r) => r.sourceEntity === "stabilityCondition");
+      for (const citation of conditionCitations) {
+        expect(citation.parentRecordId).toBeUndefined();
+      }
     });
 
     it("delimiter-containing and Unicode study/sample/result ids remain unambiguous and deterministic", () => {
@@ -772,17 +1099,20 @@ describe("extractFormulaVersionStabilityRows", () => {
   });
 
   describe("dataset schema version + canonical schema reuse", () => {
-    it("VERSION: DATASET_SCHEMA_VERSION reflects the bump this task's new row type required, shared with every other FVL-05 row type", () => {
+    it("VERSION: DATASET_SCHEMA_VERSION reflects the corrective-cycle bump this task's new condition/time-point fields required, shared with every other FVL-05 row type", () => {
       const rows = extractFormulaVersionStabilityRows(buildInput({ formulationVersions: [version()] }));
       expect(rows[0].datasetSchemaVersion).toBe(DATASET_SCHEMA_VERSION);
       expect(formulaVersionStabilityRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.0" }).success).toBe(false);
       expect(formulaVersionStabilityRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.1" }).success).toBe(false);
       expect(formulaVersionStabilityRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.2" }).success).toBe(false);
+      expect(formulaVersionStabilityRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.3" }).success).toBe(false);
     });
 
-    it("PARITY: the embedded sample/result element schemas are the literal same schema objects as the canonical source — never re-modeled copies", () => {
+    it("PARITY: the embedded sample/result/condition/time-point element schemas are the literal same schema objects as the canonical source — never re-modeled copies", () => {
       expect(stabilitySampleResultsSchema.shape.sample).toBe(stabilitySampleSchema);
       expect(stabilitySampleResultsSchema.shape.results.element).toBe(stabilityResultSchema);
+      expect(stabilityStudySamplesSchema.shape.conditions.element).toBe(stabilityConditionSchema);
+      expect(stabilityStudySamplesSchema.shape.timePoints.element).toBe(stabilityTimePointSchema);
     });
   });
 
@@ -889,6 +1219,8 @@ describe("extractFormulaVersionStabilityRows", () => {
         stabilityStudies: [...studies],
         stabilitySamples: [...samples],
         stabilityResults: [...results],
+        stabilityConditions: [condition()],
+        stabilityTimePoints: [timePoint()],
       };
       expect(() => extractFormulaVersionStabilityRows(failingInput)).toThrow(FormulaVersionStabilityDatasetExtractionError);
       expect(JSON.parse(JSON.stringify({ formulations, versions, studies, samples, results }))).toEqual(snapshotBefore);

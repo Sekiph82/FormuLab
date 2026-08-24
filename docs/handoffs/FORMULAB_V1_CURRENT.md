@@ -4,6 +4,46 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-24, FVL-05.006 corrective cycle, independent GPT
+re-audit `AUDIT_FVL05_GPT_000007` — COMPLETE, genuinely audit-closed)**:
+one HIGH finding — the original extractor omitted the persisted
+`StabilityCondition`/`StabilityTimePoint` catalog records that give
+`StabilitySample.conditionId`/`.timePointId` their real domain meaning.
+The original exclusion rationale ("reference/template data, same as
+`TestDefinition`") was directly contradicted by
+`stabilityConditionSchema`'s own source comment, which says a
+condition's `label`/tolerance fields are "fine to read live since it
+does not retroactively change what was already measured." Recovered
+the authoritative source: `engine/stability.ts`'s
+`generateStabilitySamples` is the ONLY function anywhere that
+constructs a `StabilitySample` (confirmed via a repo-wide grep for
+`newId("stabsample")`), and its only production caller
+(`StabilityPanel.tsx`) resolves conditions/time points from
+`SEED_STABILITY_CONDITIONS`/`SEED_STABILITY_TIME_POINTS` — the one
+canonical catalog in the system (confirmed via
+`dataExchangeCommit.ts`'s import handler resolving against the same
+catalog). Proved (not invented) a study-membership invariant: a
+sample's `conditionId`/`timePointId` was, at generation time, always a
+member of its own study's `conditionIds`/`timePointIds`, and that set
+only ever grows (never shrinks — confirmed via a repo-wide grep of
+every write site). `stabilityStudySamplesSchema` gained per-study
+deduplicated `conditions`/`timePoints` arrays (both schemas reused
+100% verbatim); the extractor now requires `stabilityConditions`/
+`stabilityTimePoints` pools, fails closed on a duplicate id, a
+dangling reference, or a sample/study-membership contradiction, and
+deduplicates condition/time-point lineage citations at the row level
+(not per-study) since the same catalog id can legitimately be
+referenced by more than one study. `DATASET_SCHEMA_VERSION` bumped
+`"1.3"` → `"1.4"`. Full detail: the FVL-05.006 tracker row's
+"CORRECTIVE CYCLE" paragraph and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own corrective-cycle section. `pnpm --filter @formulab/shared test`: 88
+files / 1965 tests passed. `pnpm --filter @formulab/desktop test`: full
+suite green, no regression (exact count in the external log). Both
+`typecheck`s clean, desktop `lint` clean, `git diff --check` clean,
+`python scripts/validate_v1_tracker.py` OK. **FVL-05.007 explicitly NOT
+started this session, per this session's own instruction.**
+
 **UPDATE (2026-08-24, FVL-05.006 — Extractor: stability studies/results —
 COMPLETE)**: FVL-05.005 was independently GPT-audit CLOSED
 (`AUDIT_FVL05_GPT_000006`) before this task began; per that audit's own

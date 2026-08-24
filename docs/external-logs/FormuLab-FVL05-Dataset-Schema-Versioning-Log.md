@@ -3708,3 +3708,290 @@ respected).
 
 **NEXT TASK — FVL-05.007 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+## FVL-05.006 — corrective cycle: independent GPT re-audit (AUDIT_FVL05_GPT_000007, 2026-08-24)
+
+A third independent GPT re-audit reopened FVL-05.006. Governing
+prompts: `docs/prompts/FVL05-GPT-PROMPT-000008.md` (this cycle) plus
+`docs/prompts/FVL05-GPT-PROMPT-000007.md` (original task, re-read for
+context). Audit: `docs/audits/FVL05-GPT-AUDIT-000007.md`. All GPT-owned/
+READ-ONLY — read this session, not written to. Manual session, no
+subagents, no Autopilot.
+
+### Starting state
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `ff37922b171058b65492856b0ae09d4cbabaea5d`.
+- `git fetch` found remote at `ca95373fda48297edca0e63614394dedfbdb3774`
+  (two new commits: `2cc2336` "docs(FVL-05): add GPT audit 000007 for
+  FVL-05.006" adding `docs/audits/FVL05-GPT-AUDIT-000007.md`, `ca95373`
+  "docs(FVL-05): add corrective prompt for FVL-05.006" adding
+  `docs/prompts/FVL05-GPT-PROMPT-000008.md`) — fast-forwarded cleanly
+  (`git merge --ff-only`), no conflict.
+- Pre-existing dirty worktree (unrelated, left untouched): same
+  recurring set as every prior cycle. Verified unchanged via
+  `git status --short` before staging.
+
+### Finding 1 (HIGH) — persisted StabilityCondition/StabilityTimePoint sources omitted
+
+**What was wrong.** The original FVL-05.006 implementation accepted
+pools for `StabilityStudy`/`StabilitySample`/`StabilityResult` only. It
+preserved `sample.conditionId`/`.timePointId` as opaque strings but
+never resolved or embedded the actual `StabilityCondition`/
+`StabilityTimePoint` records those ids point at, never failed closed on
+a dangling reference, and never cited them in lineage. The row's own
+implementation/log rationale for excluding them ("reference/template
+data, not part of the measurement hierarchy, same as `TestDefinition`")
+was independently re-checked against current source and found to be
+DIRECTLY CONTRADICTED by `stabilityConditionSchema`'s own comment in
+`schemas/stability.ts`, which states a condition's `label`/tolerance
+fields are "fine to read live since it does not retroactively change
+what was already measured" — the opposite of a frozen, capture-once
+snapshot field the original rationale implied.
+
+**Source-of-truth recovery (per the audit's explicit "do not blindly
+implement the audit wording if current source proves a materially
+different contract" instruction — re-verified independently rather than
+taken on faith).**
+
+- `packages/shared/src/engine/stability.ts`'s `generateStabilitySamples(
+  study, conditions, timePoints)` is the ONLY function anywhere in the
+  codebase that constructs a `StabilitySample` — confirmed via a
+  repo-wide grep for `newId("stabsample")`, which returned exactly one
+  file/call site. It takes real `StabilityCondition[]`/
+  `StabilityTimePoint[]` records as direct parameters and copies
+  `condition.id`/`timePoint.id` onto the sample it creates — these are
+  causal source records a sample is generated FROM, not decorative
+  display-only lookups.
+- Its ONLY production caller, `apps/desktop/src/components/formula/
+  StabilityPanel.tsx` (line ~249-251), resolves those arrays from
+  `SEED_STABILITY_CONDITIONS`/`SEED_STABILITY_TIME_POINTS`
+  (`packages/shared/src/catalog/stabilityConditions.ts`).
+- `apps/desktop/src-tauri/src/masterdata.rs` was grepped again and
+  confirmed to register NO `stability_conditions`/`stability_time_points`
+  collection anywhere — unlike `StabilityStudy`/`StabilitySample`/
+  `StabilityResult`, conditions/time points are NOT their own mutable
+  masterdata collection.
+- `apps/desktop/src/lib/dataExchangeCommit.ts`'s `commitStabilityProtocols`
+  import handler resolves an imported `condition_code`/`time_point`
+  against this EXACT SAME `SEED_STABILITY_CONDITIONS`/
+  `SEED_STABILITY_TIME_POINTS` catalog (rejecting anything not found in
+  it) — direct, independent confirmation that this seed catalog is the
+  one, single, canonical source of every condition/time-point identity
+  in the system, not an arbitrary caller-suppliable pool the way
+  `stabilityStudies`/`stabilitySamples`/`stabilityResults` legitimately
+  are.
+
+**Study-membership invariant — proven, not invented, per the audit's
+explicit "if not proven, do not invent it" instruction.**
+
+- `StabilityPanel.tsx`'s sample-generation call site filters
+  `SEED_STABILITY_CONDITIONS`/`SEED_STABILITY_TIME_POINTS` by
+  `study.conditionIds`/`study.timePointIds` BEFORE calling
+  `generateStabilitySamples` — every real sample's `conditionId`/
+  `timePointId` is drawn exclusively from that pre-filtered set, since
+  `generateStabilitySamples` is the only sample constructor anywhere.
+- `study.conditionIds`/`.timePointIds` is proven MONOTONICALLY GROWING,
+  never shrinking: a repo-wide grep for every write site to these two
+  fields (`grep -rn "conditionIds\s*[:=]\|timePointIds\s*[:=]"` across
+  `apps/desktop/src`/`packages/shared/src`) found exactly two —
+  `StabilityPanel.tsx`'s study-creation flow (sets the initial array
+  once, at creation) and `dataExchangeCommit.ts`'s
+  `commitStabilityProtocols` handler (`Set`-based union-only
+  `conditionIds.add(...)`/`timePointIds.add(...)`, never a deletion
+  anywhere). No removal code path exists.
+- Therefore a condition/time-point membership true at a sample's
+  generation time remains true forever after, and this extractor can
+  safely fail closed on any supplied sample whose `conditionId`/
+  `timePointId` is not currently a member of its own study's
+  `conditionIds`/`timePointIds`.
+
+### Corrective implementation
+
+`packages/shared/src/schemas/dataset.ts`:
+
+- `DATASET_SCHEMA_VERSION` bumped `"1.3"` → `"1.4"` — a "FOURTH BUMP"
+  doc-comment paragraph added after the "THIRD BUMP" paragraph, under
+  the same standing rule (adding required fields to an existing row
+  type is the rule's own "field is added" case, no different in kind
+  from a brand-new row type). Superseded `"1.3"`/`"1.2"`/`"1.1"`/`"1.0"`
+  literals are now all structurally rejected.
+- `stabilityStudySamplesSchema` gains `conditions:
+  z.array(stabilityConditionSchema)` and `timePoints:
+  z.array(stabilityTimePointSchema)` — both canonical schemas reused
+  100% VERBATIM (zero re-modeling, zero parity risk, same discipline as
+  `stabilitySampleSchema`/`stabilityResultSchema`). Per-study,
+  deduplicated: only the condition/time-point records actually
+  referenced by at least one of that study's samples, sorted by id
+  (ordinal), avoiding wasteful duplication when several samples in the
+  same study (the normal case — one sample per condition x time point x
+  replicate) share a condition/time point. Each sample's own
+  `conditionId`/`timePointId` remains the join key into these arrays.
+- The header comment on `stabilitySampleResultsSchema` (the section
+  documenting `StabilityCondition`/`StabilityTimePoint` exclusion) was
+  corrected in place with a "CORRECTIVE CYCLE" paragraph documenting the
+  contradiction and the new evidence, preserving the original (now
+  superseded) rationale as clearly-marked historical narrative, not
+  silently overwritten.
+
+`packages/shared/src/engine/formulaVersionStabilityDatasetExtractor.ts`:
+
+- New required inputs `stabilityConditions: StabilityCondition[]`/
+  `stabilityTimePoints: StabilityTimePoint[]` — required pools, same
+  calling convention as the other three pools. Deliberately NOT
+  importing `catalog/stabilityConditions.ts` directly into the
+  extractor, keeping it free of any application/UI-layer import and
+  fully testable with synthetic fixtures; a production caller passes
+  `SEED_STABILITY_CONDITIONS`/`SEED_STABILITY_TIME_POINTS` exactly as
+  `StabilityPanel.tsx` does.
+- `buildConditionsById`/`buildTimePointsById` — fail closed on a
+  duplicate id (`duplicate_stability_condition_id`/
+  `duplicate_stability_time_point_id`).
+- `buildSamplesByStudyId` extended: every sample's `conditionId`/
+  `timePointId` is resolved against the pool
+  (`stability_sample_condition_not_found`/
+  `stability_sample_time_point_not_found`) and cross-checked against
+  its own study's `conditionIds`/`timePointIds`
+  (`stability_sample_condition_not_in_study`/
+  `stability_sample_time_point_not_in_study`) — the proven
+  study-membership invariant above.
+- `buildStudySamples` extended: computes each study's deduplicated
+  `conditions`/`timePoints` arrays from the condition/time-point ids
+  actually used by that study's samples, and adds `stabilityCondition`/
+  `stabilityTimePoint` lineage citations. Citations are deduplicated at
+  the ROW level (via `citedConditionIds`/`citedTimePointIds` `Set`s
+  shared across every linked study in `extractOne`), NOT per-study —
+  proven necessary because the same catalog id can legitimately be
+  referenced by samples in more than one study within a single row, and
+  `sourceRecordLineageSchema` structurally rejects an exact duplicate
+  `(sourceEntity, sourceRecordId)` pair. Neither entity ever sets
+  `parentRecordId`, since both are drawn from one single global catalog,
+  not a parent-scoped collection.
+- Error context gained `conditionId?`/`timePointId?` fields (truthful,
+  correctly-named, same discipline as every other context field in this
+  file).
+
+### Tests
+
+`formulaVersionStabilityDatasetExtractor.test.ts` 51 → 65 (+14, 0
+removed/weakened): exact `StabilityCondition` field preservation
+(temperature/tolerance, humidity/tolerance, light condition,
+orientation, freeze-thaw definition, custom instructions, verification
+status, active); exact `StabilityTimePoint` field preservation (code,
+label, daysFromStart, custom, notes); missing condition reference fails
+closed; missing time-point reference fails closed; duplicate condition
+id fails closed; duplicate time-point id fails closed; a sample's
+condition resolving in the pool but absent from its own study's
+`conditionIds` fails closed (study-membership invariant); the same for
+time points; multiple samples in one study sharing a condition/time
+point remain deduplicated with no ambiguous lineage; two different
+studies referencing the same condition/time point cite it exactly once
+at the row level while each study's own array still lists it;
+delimiter-containing/Unicode condition/time-point ids remain
+unambiguous; condition/time-point pool reordering produces identical
+normalized output; mutating a returned condition object never mutates
+the source fixture; non-mutation of `stabilityConditions`/
+`stabilityTimePoints` inputs on the new failure paths; `VERSION`
+assertion extended to also reject `"1.3"`; `PARITY` assertion extended
+to prove `stabilityStudySamplesSchema.shape.conditions.element ===
+stabilityConditionSchema` and the time-point equivalent. Existing
+`study()`/`sample()` test builders updated (`study()`'s
+`conditionIds`/`timePointIds` now default to `["COND-0001"]`/
+`["TP-0001"]`, matching `sample()`'s existing default `conditionId`/
+`timePointId`) so every pre-existing test continues to exercise a
+source-faithful fixture rather than the previously-permitted (and now
+correctly rejected) empty-membership shape.
+
+**Minimal, unavoidable sibling-file touch** (not a reopening of
+FVL-05.005's own scope — required by the version bump alone):
+`formulaVersionTestResultDatasetExtractor.test.ts`'s own `VERSION` test
+extended in place to also assert `"1.3"` is rejected (49/49 unchanged).
+`dataset.test.ts`'s version-literal test extended to assert `"1.3"` is
+rejected and its "current" assertion updated to `"1.4"` (19/19
+unchanged).
+
+### Fresh test/typecheck/lint/diff/tracker-validation evidence
+
+All commands run fresh from the final corrected state on
+`feature/laboratory-stability`:
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionStabilityDatasetExtractor.test.ts` —
+  **65/65 passed**.
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionStabilityDatasetExtractor.test.ts
+  src/schemas/dataset.test.ts
+  src/engine/formulaVersionTestResultDatasetExtractor.test.ts
+  src/engine/formulaVersionProcessDatasetExtractor.test.ts` —
+  **194/194 passed**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite) — **88
+  files / 1965 tests passed** (88 → 88 files, 1951 → 1965 tests, +14
+  new, no regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` (eslint) — clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite) —
+  **167 files / 1726 tests passed, no regression** (unchanged — no
+  desktop source file touched this cycle).
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks
+  across 11 work packages, no drift found.` (re-run after the tracker
+  row edit too — still clean).
+- `git diff --check` (staged) — clean, no whitespace warnings (only
+  the same pre-existing CRLF-on-next-touch informational warnings seen
+  in every prior cycle).
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+
+### What was independently re-verified as sound (not touched this cycle)
+
+Per the audit's own "What was independently re-verified as sound"
+section: exact formula-version → study linkage; owning-formulation
+conflict handling; global identity treatment for study/sample/result;
+exact sample → study and result → sample resolution; cross-validation
+of result `studyId`/`conditionId`/`timePointId` against the resolved
+sample; canonical chronology validation and deterministic ordering;
+`StabilityResult.revisesResultId` fail-closed checks; canonical
+`stabilitySampleSchema`/`stabilityResultSchema` reuse; row-level Zod
+validation; non-mutation/non-aliasing strategy; `StabilityTrend`
+exclusion as computed-only. None of this logic was rewritten — only the
+condition/time-point resolution described above was added around it.
+
+### Security / real-data-safety notes
+
+No new I/O, persistence, or external input parsing added — the
+extractor remains pure. All tests use entirely synthetic fixtures — no
+real laboratory/customer/production data touched.
+
+### Files changed this cycle
+
+- `packages/shared/src/schemas/dataset.ts` (`DATASET_SCHEMA_VERSION`
+  bumped `"1.3"` → `"1.4"`; `stabilityStudySamplesSchema` gains
+  `conditions`/`timePoints`; corrective-cycle doc-comment corrections).
+- `packages/shared/src/schemas/dataset.test.ts` (version-literal
+  assertions updated to the new bump).
+- `packages/shared/src/engine/formulaVersionStabilityDatasetExtractor.ts`
+  (new required inputs, new resolution/validation logic, new lineage
+  dedup logic, new error codes/context fields).
+- `packages/shared/src/engine/formulaVersionStabilityDatasetExtractor.test.ts`
+  (51 → 65 tests; `study()`/`sample()` builders and `buildInput()`
+  updated for the new required pools).
+- `packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.test.ts`
+  (one line — the `VERSION` test's hardcoded prior-version literal
+  extended to reject `"1.3"` too).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.006 row — corrective-cycle
+  paragraph appended).
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` (new pointer block, prepended
+  above the FVL-05.006 initial-completion block, left intact as
+  history).
+- This log file (new corrective-cycle section, appended).
+
+GPT-owned files explicitly NOT touched this cycle (read-only rule
+respected): every prior `docs/audits/FVL05-GPT*.md`/
+`docs/prompts/FVL05-GPT*.md` file, including
+`docs/audits/FVL05-GPT-AUDIT-000007.md` and
+`docs/prompts/FVL05-GPT-PROMPT-000008.md` (both read, neither
+modified).
+
+All other pre-existing worktree modifications/deletions/untracked files
+were left untouched.
