@@ -3640,3 +3640,71 @@ modified).
 
 All other pre-existing worktree modifications/deletions/untracked files
 listed under "Starting state" above were left untouched.
+
+### Commits
+
+- `d0ee0e4` — this task's single commit (no amend, no force push, no
+  history rewrite).
+
+Final HEAD: `d0ee0e4fcafe0ee82d40567f417ee6a2fb67dd8f`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`d0ee0e4fcafe0ee82d40567f417ee6a2fb67dd8f`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building —
+  none running (`(Get-Process formulab -ErrorAction SilentlyContinue).Count`
+  = 0).
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly — **`EXIT_CODE=0`**. MSI and NSIS bundles
+  produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,870,912 bytes, modified 2026-08-24 07:33:50 local time,
+  SHA256 `13BC00A94512BC934F2A54C3E79EF37D1FD934BE6934482F6999168299315546`
+  (distinct from the pre-task build's hash
+  `3FF8B525D3DBCDEFF328DFACB4F2CF702F4D43C5B6B387F5C57074C8FF6E1993`,
+  confirming a fresh build from this task's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 6980) confirmed running from the exact fresh exe path
+  and `Responding: True` 5 seconds after launch. **Automated launch
+  smoke: PASS.** Process then deliberately stopped afterward so it does
+  not lock the next build. **Manual UI acceptance from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Exact `StabilityStudy`↔`StabilitySample`↔`StabilityResult` hierarchy
+and formula-version linkage proven from source, not invented; global
+vs. parent-scoped identity correctly distinguished (no `parentRecordId`
+fabricated where not needed); denormalized result fields
+cross-validated against the resolved sample; dataset-row shape change
+correctly triggered the standing version-bump rule; canonical
+`stabilitySampleSchema`/`stabilityResultSchema` reused verbatim (zero
+parity risk); `revisesResultId` referential integrity recovered from
+authoritative source (`resultHistory.ts`), not invented, scoped to
+same-sample and fail-closed on dangling/cross-sample/self/cycle;
+`StabilityTrend`/`StabilityFailure` correctly excluded with source
+evidence; all pool-level and nested identity scopes fail closed;
+deterministic, locale-independent ordering; source non-mutation and no
+output/source aliasing; public exports correct; focused tests green
+(51/51); full shared tests green (88/88 files, 1951/1951); desktop
+regression green (167/167 files, 1726/1726); shared/desktop typechecks
+green; desktop lint green; tracker validator green; `git diff --check`
+clean; tracker/handoff/external log accurately describe the
+implementation; task-owned changes committed and pushed with local
+HEAD equal to remote HEAD; native Tauri release build,
+`Desktop\FormuLab.lnk` check, and launch smoke rerun from the final
+pushed HEAD with the real exit code verified explicitly; FVL-05.007
+remains untouched; GPT audit/prompt files untouched (read-only,
+respected).
+
+**FVL-05.006 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.007 NOT STARTED** (per this session's explicit
+instruction not to begin it).
