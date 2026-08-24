@@ -3995,3 +3995,73 @@ modified).
 
 All other pre-existing worktree modifications/deletions/untracked files
 were left untouched.
+
+### Commits
+
+- `5dbbcb3` — this corrective cycle's single implementation commit (no
+  amend, no force push, no history rewrite).
+
+Final HEAD: `5dbbcb3365dd83eb98fbfb96d3d17535197aa024`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`5dbbcb3365dd83eb98fbfb96d3d17535197aa024`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building —
+  none running.
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly — **`EXIT_CODE=0`**. MSI and NSIS bundles
+  produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,870,912 bytes, modified 2026-08-24 08:25:26 local time,
+  SHA256 `CFD5AF789BC7A6756CF3F9F9C5D6C2EABF4B5F62B2D00DE868C5DC78DAEE7825`
+  (distinct from the pre-cycle build's hash
+  `13BC00A94512BC934F2A54C3E79EF37D1FD934BE6934482F6999168299315546`,
+  confirming a fresh build from this cycle's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 22148) confirmed running from the exact fresh exe path
+  and `Responding: True` 5 seconds after launch. **Automated launch
+  smoke: PASS.** Process then deliberately stopped afterward so it does
+  not lock the next build. **Manual UI acceptance from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Finding 1 resolved from authoritative source semantics (not invented —
+`generateStabilitySamples`'s single call site, `SEED_STABILITY_
+CONDITIONS`/`SEED_STABILITY_TIME_POINTS`, `dataExchangeCommit.ts`'s
+import-path corroboration, and the proven monotonically-growing
+`study.conditionIds`/`.timePointIds` invariant); persisted
+`StabilityCondition`/`StabilityTimePoint` records now resolved,
+embedded (deduplicated per study), and cited in lineage (deduplicated
+at the row level); study-membership invariant enforced and fails
+closed; canonical `stabilityConditionSchema`/`stabilityTimePointSchema`
+reused verbatim (zero parity risk); dataset-row shape change correctly
+triggered the standing version-bump rule (`1.3` → `1.4`); every
+pool-level and nested identity scope fails closed; deterministic,
+locale-independent ordering preserved; source non-mutation and no
+output/source aliasing preserved; public exports correct; all
+previously-sound FVL-05.006 logic (study/formula-version linkage,
+sample/result resolution, `revisesResultId` integrity, canonical
+sample/result reuse) left untouched and still green; focused tests
+green (65/65); full shared tests green (88/88 files, 1965/1965);
+desktop regression green (167/167 files, 1726/1726); shared/desktop
+typechecks green; desktop lint green; tracker validator green;
+`git diff --check` clean; tracker/handoff/external log truthfully
+supersede the earlier unsupported exclusion rationale; task-owned
+changes committed and pushed with local HEAD equal to remote HEAD;
+native Tauri release build, `Desktop\FormuLab.lnk` check, and launch
+smoke rerun from the final pushed HEAD with the real exit code verified
+explicitly; FVL-05.007 remains untouched; GPT audit/prompt files
+untouched (read-only, respected).
+
+**FVL-05.006 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.007 NOT STARTED** (per this session's explicit
+instruction not to begin it).
