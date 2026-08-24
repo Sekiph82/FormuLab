@@ -39,6 +39,7 @@
  */
 import { z } from "zod";
 import { processParameterSchema } from "./dataExchange";
+import { doeDesignSchema, doeObservationSchema, doeRunSchema } from "./doe";
 import { formulationLineSchema } from "./formulation";
 import { trialObservationSchema, trialProcessStepSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
@@ -54,7 +55,7 @@ import { testResultSchema } from "./testDefinitions";
 /** Current dataset (row/lineage) schema version. Bump when the shape of a
  *  dataset row changes (a field is added, removed, or renamed by one of
  *  the FVL-05.003-.008 extractors). */
-export const DATASET_SCHEMA_VERSION = "1.4" as const;
+export const DATASET_SCHEMA_VERSION = "1.5" as const;
 
 /** Validates the literal current dataset schema version. */
 export const datasetSchemaVersionSchema = z.literal(DATASET_SCHEMA_VERSION);
@@ -420,6 +421,15 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * of any FVL-05 row family anywhere (repo-wide grep re-confirmed), so no
  * `SchemaMigration` entry is applicable; `"1.3"` (and `"1.2"`, `"1.1"`,
  * `"1.0"`) are now all structurally rejected.
+ *
+ * FIFTH BUMP (FVL-05.007, 2026-08-24): `"1.4"` -> `"1.5"`. Same standing
+ * rule, same direct precedent (every prior brand-new row type bumped):
+ * `doeStudyRunsSchema`/`doeDesignRunsSchema`/`doeRunObservationsSchema`/
+ * `formulaVersionDoeRowSchema` are a brand-new row type. Compatibility
+ * unchanged: still zero persisted rows of any FVL-05 row family anywhere
+ * (repo-wide grep re-confirmed), so no `SchemaMigration` entry is
+ * applicable; `"1.4"` (and `"1.3"`, `"1.2"`, `"1.1"`, `"1.0"`) are now all
+ * structurally rejected.
  */
 /**
  * GPT audit 000002, finding 2 (RESOLVED): `processStepPlanSchema`/
@@ -780,3 +790,205 @@ export const formulaVersionStabilityRowSchema = datasetRowBaseSchema.extend({
   studies: z.array(stabilityStudySamplesSchema),
 });
 export type FormulaVersionStabilityRow = z.infer<typeof formulaVersionStabilityRowSchema>;
+
+/**
+ * FVL-05.007 — DOE studies/designs/runs/observations payload.
+ *
+ * SOURCE CONTRACT (recovered directly from repository source, not inferred
+ * from the tracker's short task title). `DoeStudy` (`schemas/doe.ts`) links
+ * to a formula version by a DIRECT field, not the `sourceType`/
+ * `sourceFormulaVersionId` pattern FVL-05.004/.005/.006 used:
+ * `baselineFormulaVersionId: z.string().min(1)` — always required, never
+ * optional, and documented + enforced by `engine/doeDesign.ts`'s
+ * `createDoeStudy` as "a saved `FormulationVersion.id` — never a working
+ * draft" (it throws if the caller passes a draft's placeholder status).
+ * `DoeStudy` ALSO carries its own `formulationId: z.string().min(1)`,
+ * separate from `projectId` — unlike `StabilityStudy`, which only had
+ * `projectId`. The one real production writer
+ * (`DoePanel.tsx`'s `handleCreateStudy`) always sets BOTH
+ * `projectId: formulation.id` AND `formulationId: formulation.id` to the
+ * exact same value, so `formulationId` (the more specifically-named field,
+ * matching this extractor's own `formulaId` join target) is used as the
+ * owning-formulation link; a study whose `formulationId` does not resolve
+ * to the requested version's owning formulation fails closed
+ * (`doe_study_formula_link_conflict`), the same "conflicting link" pattern
+ * FVL-05.004/.005/.006 established for `trial_formula_link_conflict`/
+ * `study_formula_link_conflict`.
+ *
+ * FOUR REAL, SEPARATE TOP-LEVEL PERSISTED COLLECTIONS form the hierarchy
+ * this task extracts (confirmed in `masterdata.rs`): `doe_studies`,
+ * `doe_designs`, `doe_runs`, `doe_observations` — all four MUTABLE
+ * (`append_only: false`), unlike `stability_results`/`test_results`.
+ * Because all four are independent top-level collections,
+ * `DoeStudy.id`/`DoeDesign.id`/`DoeRun.id`/`DoeObservation.id` are each
+ * GENUINELY GLOBAL identities, so lineage citations for all four never set
+ * `parentRecordId` — the same reasoning FVL-05.005/.006 established for
+ * `TestResult`/`StabilitySample`/`StabilityResult`.
+ *
+ * `DoeFactor`/`DoeConstraint`/`DoeResponse` ARE also real, separate
+ * top-level collections (`doe_factors`/`doe_constraints`/`doe_responses`),
+ * but this extractor deliberately does NOT accept them as separate
+ * resolution pools, because `DoeDesign.factorSnapshot`/`.constraintSnapshot`/
+ * `.responseSnapshot` (`schemas/doe.ts`) are FROZEN COPIES of exactly those
+ * records, captured at design-generation time specifically "to prevent live
+ * record edits from reinterpreting historical designs" (that schema's own
+ * header comment) — the current, single production writer
+ * (`generateDoeDesign`, `engine/doeDesign.ts`) embeds the live
+ * factor/constraint/response rows it was called with directly into the
+ * design record it returns, and `DoePanel.tsx`'s only call site persists
+ * `doe_factors`/`doe_constraints`/`doe_responses` and the design in the
+ * SAME atomic wizard submission — so a design's own frozen snapshot is
+ * already the authoritative, exact source for interpreting that design's
+ * runs' `factorSettings.factorCode` and that design's runs' observations'
+ * `responseId`, with no live-catalog drift possible. Embedding `DoeDesign`
+ * verbatim (`doeDesignSchema`, unmodified) therefore already carries every
+ * factor/constraint/response fact needed, without a second, separately
+ * resolved and independently-driftable pool.
+ *
+ * `DoeAnalysis`/`DoeCandidate`/`DoeReviewAction` are deliberately NOT
+ * extracted. `DoeAnalysis`/`DoeCandidate` are computed statistical outputs
+ * and desirability-ranked predictions, not raw persisted measurement
+ * evidence — the DOE analog of `StabilityTrend`'s exclusion in FVL-05.006,
+ * and directly named by the governing prompt: "`DoeAnalysis`/candidate
+ * predictions/desirability are not automatically part of 'observations'."
+ * `DoeReviewAction` is a separate append-only human-sign-off log (who
+ * validated/confirmed/approved what), administrative record-keeping
+ * outside this task's own "studies/runs/observations" title scope — the
+ * DOE analog of `StabilityFailure`'s exclusion in FVL-05.006.
+ *
+ * HIERARCHY PRESERVATION: a study groups its designs
+ * (`design.studyId === study.id`, cross-checked against
+ * `design.studyRevision === study.revision` — a genuine redundant-field
+ * contradiction check, since each study REVISION is its own distinct
+ * top-level `DoeStudy` record with its own stable `id`, never mutated
+ * after creation, per `engine/doeDesign.ts`'s `reviseDoeStudy`, which
+ * always mints a brand-new `id` rather than incrementing `revision` on the
+ * existing record); a design groups its runs
+ * (`run.designId === design.id`, cross-checked against
+ * `run.studyId === design.studyId` and `run.studyRevision ===
+ * design.studyRevision`); a run groups its observations
+ * (`observation.runId === run.id`, cross-checked against
+ * `observation.studyId === run.studyId` and `observation.studyRevision ===
+ * run.studyRevision`) — the same "resolve both sides of a denormalized
+ * relationship and fail closed on contradiction" discipline FVL-05.004
+ * established for `trial_formula_link_conflict` and FVL-05.006 established
+ * for `stability_result_sample_conflict`.
+ *
+ * MULTIPLE STUDY REVISIONS PER BASELINE VERSION (proven from source, not
+ * assumed): `reviseDoeStudy` copies `baselineFormulaVersionId` forward
+ * unchanged unless the caller explicitly overrides it, and `DoePanel.tsx`'s
+ * own revise button (`onRevise`) calls it with an EMPTY changes object —
+ * so a revised study legitimately keeps the same baseline version as its
+ * predecessor. This extractor therefore links EVERY `DoeStudy` (any
+ * revision) whose `baselineFormulaVersionId` exactly matches the requested
+ * version's id, exactly like FVL-05.006 already had to handle "multiple
+ * studies for one version."
+ *
+ * `DoeStudy.supersedesStudyId` / `DoeDesign.supersedesDesignId`
+ * REFERENTIAL INTEGRITY: both fields exist specifically to model "this
+ * record replaces an older one of the same kind" (a study revision; a
+ * regenerated design for the same study+revision — `DoePanel.tsx`'s own
+ * `studyDesign` selector proves more than one `DoeDesign` can legitimately
+ * exist for the same `(studyId, studyRevision)`, picking the most recent
+ * by `generatedAt` for DISPLAY purposes only). This extractor does NOT
+ * silently pick a single "latest" design/study and drop the others — every
+ * design linked to a returned study is embedded, each with its own exact
+ * runs (an older, superseded design's runs are still real, physically
+ * executed experimental data, not fabricated or excluded) — but it DOES
+ * fail closed on a dangling, self, or cyclical `supersedesStudyId`/
+ * `supersedesDesignId` reference (pool-wide, same two-function
+ * self-check-first / cycle-walk pattern FVL-05.005/.006 established for
+ * `revisesResultId`), since an inconsistent supersession chain would make
+ * the row's own revision lineage untrustworthy.
+ *
+ * FROZEN FACTOR/RESPONSE SNAPSHOT AS THE INTERPRETIVE SOURCE: a run's
+ * `factorSettings[].factorCode` and an observation's `responseId` are
+ * resolved for MEANING against the run's OWN design's frozen
+ * `factorSnapshot`/`responseSnapshot` (never a live catalog) — concretely,
+ * `observation.responseId` must exactly match the `id` of one entry in the
+ * owning run's design's `responseSnapshot`, or the extraction fails closed
+ * (`doe_observation_response_not_found`); this is the "resolve the
+ * observation -> response reference" rule the governing prompt requires,
+ * satisfied via the already-embedded frozen snapshot rather than a second
+ * live `doe_responses` pool. `factorSettings` themselves are never
+ * recomputed from any live/frozen factor definition — `DoeRun` is embedded
+ * 100% verbatim, so a run's actually-persisted `codedValue`/`actualValue`
+ * pair for each factor survives completely untouched.
+ *
+ * `DoeRun.linkedTrialId` and `DoeObservation.sourceTrialId`/
+ * `.sourceTestResultId` are cross-references to `LaboratoryTrial`/
+ * `TestResult` — entities entirely outside this task's own "studies/runs/
+ * observations" title scope, the exact same category as
+ * `StabilityStudy.laboratoryTrialId` in FVL-05.006 ("plays no role in
+ * study-to-version linkage... not resolved/embedded here, matching this
+ * task's own title scope"). A repo-wide search for the one documented
+ * automatic-import concept, `importDoeObservationsFromResults`
+ * (`doeResponseSchema`'s own header comment), found it named in exactly two
+ * places — that comment and `docs/DOE_RESPONSES.md` — and implemented
+ * NOWHERE: the ONE real `DoeObservation` writer
+ * (`DoePanel.tsx`'s `recordObservation`) never sets `sourceTrialId` or
+ * `sourceTestResultId` on any record it creates. Per the governing prompt's
+ * own rule ("do not enforce a cross-reference unless current writer/domain
+ * source proves it is required"), this extractor does NOT require a
+ * `LaboratoryTrial[]`/`TestResult[]` resolution pool and does NOT validate
+ * these two optional fields referentially — `DoeObservation` is embedded
+ * 100% verbatim (`doeObservationSchema`, unmodified), so whatever value
+ * either field carries (including absent) survives exactly, honestly
+ * unresolved. `DoeRun.linkedFormulaVersionId` is treated differently: the
+ * ONE real writer (`DoePanel.tsx`'s `generateTrialForRun`) sets it in the
+ * SAME statement as `linkedTrialId`, always to the study's own baseline
+ * `FormulationVersion.id` — and this extractor already requires a
+ * `formulationVersions` pool for its own top-level version resolution, so
+ * validating `linkedFormulaVersionId` against that SAME already-required
+ * pool costs nothing extra and catches a genuinely corrupt/dangling link
+ * (`doe_run_linked_formula_version_not_found`) — unlike `linkedTrialId`,
+ * this does not require inventing a brand-new resolution pool this task's
+ * title does not call for.
+ *
+ * DETERMINISTIC ORDERING: studies by `createdAt` then `id` (matching every
+ * prior FVL-05 top-level grouping entity); designs within a study by
+ * `generatedAt` then `id`; runs within a design by `standardOrder` (an
+ * integer domain field — `generateDoeDesign` always sets
+ * `standardOrder = runNumber = standardIndex + 1`, the design algorithm's
+ * own systematic sequence, independent of the separately-randomized
+ * `randomizedOrder` a lab actually executes in) then `id`; observations
+ * within a run by `recordedAt` (always present, unlike optional
+ * `measuredAt`) then `id`. Every timestamp used as a sort key
+ * (`study.createdAt`, `design.generatedAt`, `observation.recordedAt`) is
+ * validated as canonical `toISOString()` format before use, failing closed
+ * on a non-conforming value, matching FVL-05.004/.005/.006. Opaque-id
+ * tie-breakers use locale-independent ordinal comparison, never
+ * `localeCompare`.
+ *
+ * One row per `FormulationVersion`, same convention as FVL-05.003-.006:
+ * `studies` is empty when no `DoeStudy` is linked to the version.
+ */
+export const doeRunObservationsSchema = z.object({
+  run: doeRunSchema,
+  observations: z.array(doeObservationSchema),
+});
+export type DoeRunObservations = z.infer<typeof doeRunObservationsSchema>;
+
+export const doeDesignRunsSchema = z.object({
+  design: doeDesignSchema,
+  runs: z.array(doeRunObservationsSchema),
+});
+export type DoeDesignRuns = z.infer<typeof doeDesignRunsSchema>;
+
+export const doeStudyRunsSchema = z.object({
+  studyId: nonBlankString("studyId"),
+  studyCode: nonBlankString("studyCode"),
+  studyRevision: z.number().int().positive(),
+  supersedesStudyId: z.string().optional(),
+  designs: z.array(doeDesignRunsSchema),
+});
+export type DoeStudyRuns = z.infer<typeof doeStudyRunsSchema>;
+
+export const formulaVersionDoeRowSchema = datasetRowBaseSchema.extend({
+  formulaId: nonBlankString("formulaId"),
+  formulaCode: nonBlankString("formulaCode"),
+  formulaVersionId: nonBlankString("formulaVersionId"),
+  formulaVersionNumber: z.number().int().positive(),
+  studies: z.array(doeStudyRunsSchema),
+});
+export type FormulaVersionDoeRow = z.infer<typeof formulaVersionDoeRowSchema>;

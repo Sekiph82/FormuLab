@@ -14,10 +14,10 @@ import {
 
 describe("dataset schema version", () => {
   it("is an explicit literal, not a free-form string", () => {
-    expect(DATASET_SCHEMA_VERSION).toBe("1.4");
-    expect(datasetSchemaVersionSchema.safeParse("1.4").success).toBe(true);
+    expect(DATASET_SCHEMA_VERSION).toBe("1.5");
+    expect(datasetSchemaVersionSchema.safeParse("1.5").success).toBe(true);
     expect(datasetSchemaVersionSchema.safeParse("").success).toBe(false);
-    expect(datasetSchemaVersionSchema.safeParse(1.4).success).toBe(false);
+    expect(datasetSchemaVersionSchema.safeParse(1.5).success).toBe(false);
   });
 
   it("every superseded prior version is explicitly rejected — old and new row identity can never be ambiguous, across every bump", () => {
@@ -25,6 +25,7 @@ describe("dataset schema version", () => {
     expect(datasetSchemaVersionSchema.safeParse("1.1").success).toBe(false);
     expect(datasetSchemaVersionSchema.safeParse("1.2").success).toBe(false);
     expect(datasetSchemaVersionSchema.safeParse("1.3").success).toBe(false);
+    expect(datasetSchemaVersionSchema.safeParse("1.4").success).toBe(false);
   });
 
   it("rejects a record missing the field, so the version can never be silently absent", () => {

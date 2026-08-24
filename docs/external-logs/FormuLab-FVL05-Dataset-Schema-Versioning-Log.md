@@ -4065,3 +4065,182 @@ untouched (read-only, respected).
 
 **NEXT TASK — FVL-05.007 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.007 — Extractor: DOE studies/runs/observations — Cycle Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file — per this session's own explicit instruction to log both governing
+documents together in one file).
+
+## Task
+
+**FVL-05.007** — Extractor: DOE studies/runs/observations. Depends on
+FVL-05.002 (row/entity lineage model, closed). Blocking = NO.
+
+Governing documents (both GPT-owned, READ-ONLY, read completely before
+any edit, neither modified):
+- `docs/audits/FVL05-GPT-AUDIT-000008.md` — independent re-audit that
+  closed FVL-05.006 (`CLOSE / ACCEPT`) and cleared FVL-05.007 to begin.
+- `docs/prompts/FVL05-GPT-PROMPT-000009.md` — the start prompt for this
+  task.
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD (before fetch/pull): `55c9e7c37e7fc154c46f9b35204d5e54b5e507a5`.
+- Remote HEAD at fetch: `6f5e94a...` (2 commits ahead — the audit-000008
+  and prompt-000009 doc commits). Local branch fast-forwarded via
+  `git pull --ff-only`; local HEAD then equaled remote HEAD exactly.
+- `git diff --check` at start: clean (pre-existing CRLF warnings only,
+  same as prior cycles).
+
+## Pre-existing worktree state (not touched)
+
+At session start the worktree already had unrelated changes, all left
+untouched by this cycle (same set carried forward from FVL-05.006's own
+log entry above):
+- Modified generated user-guide DOCX/PDF (`docs/generated/`).
+- Deleted formula Markdown files and `formulas/index.json`.
+- Untracked FVL-03/FVL-04/Build-Shortcut/Connector-Management/New-Request-
+  Runtime/Phase 11-14 external logs.
+
+Only files this cycle created/edited are listed in "Files changed" below;
+nothing else was staged or committed.
+
+## Source-of-truth recovery (before any edit)
+
+Read, in full, before writing any code:
+- `packages/shared/src/schemas/doe.ts` — full `DoeStudy`/`DoeFactor`/
+  `DoeConstraint`/`DoeResponse`/`DoeDesign`/`DoeRun`/`DoeObservation`/
+  `DoeAnalysis`/`DoeCandidate`/`DoeReviewAction` schemas.
+- `packages/shared/src/engine/doeDesign.ts` — `createDoeStudy`,
+  `reviseDoeStudy`, `generateDoeDesign` (confirmed `standardOrder =
+  runNumber = standardIndex + 1`, always).
+- `apps/desktop/src-tauri/src/masterdata.rs` — confirmed
+  `doe_studies`/`doe_factors`/`doe_constraints`/`doe_responses`/
+  `doe_designs`/`doe_runs`/`doe_observations`/`doe_candidates` are all
+  `append_only: false` (mutable); `doe_analyses`/`doe_review_actions` are
+  `append_only: true`.
+- `apps/desktop/src/components/formula/DoePanel.tsx` — the ONE real
+  production writer for every DOE record: `handleCreateStudy` (study +
+  factors + constraints + responses + design + runs, all in one atomic
+  wizard submission, `projectId`/`formulationId` both set to
+  `formulation.id`), `recordObservation` (the only `DoeObservation`
+  writer — confirmed it never sets `sourceTrialId`/`sourceTestResultId`),
+  `generateTrialForRun` (sets `linkedTrialId`/`linkedFormulaVersionId`
+  together), `onRevise` (calls `reviseDoeStudy` with an EMPTY changes
+  object, confirming a revised study keeps its predecessor's baseline
+  version), and the `studyDesign` selector (proves more than one
+  `DoeDesign` can legitimately exist for one `(studyId, studyRevision)`,
+  picking the most recent by `generatedAt` for DISPLAY only).
+- `packages/shared/src/engine/doeExports.ts` — confirmed `status:
+  obs?.status ?? "missing"` is an EXPORT/CSV display fallback, not a
+  persisted-record writer.
+- `docs/DOE_RESPONSES.md` and a repo-wide grep for
+  `importDoeObservationsFromResults` — confirmed named in exactly two
+  places (that doc and `doeResponseSchema`'s own comment) and
+  implemented NOWHERE.
+- `packages/shared/src/schemas/dataset.ts` (full file, including every
+  prior FVL-05.002-.006 header comment) and
+  `formulaVersionStabilityDatasetExtractor.ts`/`.test.ts` for the
+  established fail-closed/ordering/lineage conventions this task reuses.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` and
+  `docs/handoffs/FORMULAB_V1_CURRENT.md` current truth.
+
+Full recovered-contract reasoning is written once, durably, in
+`schemas/dataset.ts`'s own header comment on `formulaVersionDoeRowSchema`
+and in the FVL-05.007 tracker row — not duplicated here.
+
+## Design decisions (with source justification)
+
+1. **Link to formula version**: `DoeStudy.baselineFormulaVersionId`
+   directly, not the `sourceType`/`sourceFormulaVersionId` pattern —
+   because DOE has no `sourceType` field at all; `baselineFormulaVersionId`
+   is always required and enforced by `createDoeStudy`.
+2. **Owning formulation**: `DoeStudy.formulationId`, not `projectId` —
+   because `formulationId` is the more specifically-named field and the
+   one real writer always sets both to the same value anyway.
+3. **No separate `doe_factors`/`doe_constraints`/`doe_responses` pools**:
+   `DoeDesign`'s frozen snapshots are already authoritative and are
+   embedded verbatim; a second live pool would be a second,
+   independently-driftable source of the same facts with no current
+   writer requiring it.
+4. **`DoeAnalysis`/`DoeCandidate`/`DoeReviewAction` excluded**: computed
+   outputs / administrative sign-off log, not raw measurement evidence —
+   directly named as out-of-scope by the governing prompt itself.
+5. **Multiple study revisions linked, not just the latest**: proven from
+   `reviseDoeStudy` + `DoePanel.tsx`'s empty-changes revise call.
+6. **Multiple designs per study embedded, not "latest wins"**: the UI's
+   own latest-by-`generatedAt` tie-break is a DISPLAY convenience, not a
+   dataset-extraction contract — collapsing to it here would silently
+   drop a superseded design's own real, physically-executed runs.
+7. **`linkedTrialId`/`sourceTrialId`/`sourceTestResultId` preserved but
+   not referentially enforced**: zero current-writer evidence any of the
+   three is ever set, so enforcing them would be an invented rule, not a
+   recovered one (the governing prompt's own explicit rule).
+8. **`linkedFormulaVersionId` IS validated**: real joint-writer evidence,
+   and the `formulationVersions` pool is already required for the row's
+   own top-level resolution, so validating it costs nothing extra.
+9. **Ordering**: studies by `createdAt`/`id`; designs by `generatedAt`/
+   `id`; runs by `standardOrder`/`id` (the design algorithm's own
+   systematic sequence, confirmed identical to `runNumber` by
+   construction); observations by `recordedAt`/`id` (always present,
+   unlike optional `measuredAt`).
+
+## Files changed
+
+- `packages/shared/src/schemas/dataset.ts` — `DATASET_SCHEMA_VERSION`
+  `"1.4"` → `"1.5"`; new `doeRunObservationsSchema`/`doeDesignRunsSchema`/
+  `doeStudyRunsSchema`/`formulaVersionDoeRowSchema`; new version-history
+  comment entry (fifth bump).
+- `packages/shared/src/schemas/dataset.test.ts` — `DATASET_SCHEMA_VERSION`
+  assertion updated to `"1.5"`; superseded-version list extended with
+  `"1.4"`.
+- `packages/shared/src/engine/formulaVersionDoeDatasetExtractor.ts` (new)
+  — `extractFormulaVersionDoeRows`.
+- `packages/shared/src/engine/formulaVersionDoeDatasetExtractor.test.ts`
+  (new) — 57 focused tests.
+- `packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.test.ts`
+  and `formulaVersionStabilityDatasetExtractor.test.ts` — each `VERSION`
+  test extended in place to also assert `"1.4"` is rejected (mechanical
+  consequence of the version bump, same pattern every prior cycle used;
+  counts unchanged: 49/49 and 65/65).
+- `packages/shared/src/index.ts` — new
+  `export * from "./engine/formulaVersionDoeDatasetExtractor"` line.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.007 row marked COMPLETED;
+  completion-percentage table (`FVL-05` 6→7, Total 95→96) and CURRENT
+  STATE prose updated.
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE block prepended.
+- `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md` —
+  this section.
+
+No GPT audit/prompt file touched (ownership rule respected): every prior
+`docs/audits/FVL05-GPT*.md`/`docs/prompts/FVL05-GPT*.md` file, including
+`docs/audits/FVL05-GPT-AUDIT-000008.md` and
+`docs/prompts/FVL05-GPT-PROMPT-000009.md` (both read, neither modified).
+
+All other pre-existing worktree modifications/deletions/untracked files
+were left untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionDoeDatasetExtractor.test.ts`: **57/57**.
+- Focused FVL-05 dataset/extractor group (`dataset.test.ts` +
+  `formulaVersionDatasetExtractor.test.ts` +
+  `formulaVersionProcessDatasetExtractor.test.ts` +
+  `formulaVersionTestResultDatasetExtractor.test.ts` +
+  `formulaVersionStabilityDatasetExtractor.test.ts` +
+  `formulaVersionDoeDatasetExtractor.test.ts`): **280/280** (19+29+61+49+65+57).
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **89
+  files / 2022 tests** passed (88→89 files, 1965→2022 tests, +57 new, no
+  regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): **167
+  files / 1726 tests** passed, unchanged from FVL-05.006's own evidence
+  (no desktop app code touched this cycle).
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).
