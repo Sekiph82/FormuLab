@@ -4867,3 +4867,65 @@ untouched.
 - `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
   drift.
 - `git diff --check`: clean (pre-existing CRLF warnings only).
+
+### Commits
+
+- `1941d9c` — this corrective cycle's single implementation commit (no
+  amend, no force push, no history rewrite).
+
+Final HEAD: `1941d9cf8dde70db7ad2d988d0013116785ad444`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`1941d9cf8dde70db7ad2d988d0013116785ad444`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building —
+  none running.
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly — **`EXIT_CODE=0`**. MSI and NSIS bundles
+  produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,871,424 bytes, modified 2026-08-24 11:17:13 local time,
+  SHA256 `AEAFCD5678BE0ED1948A540A16AEA9FEB53852ED6BCF5B783EF132E0429FCF20`
+  (distinct from the pre-cycle build's hash
+  `EF5B2C9D696A2EEA50E9F98CBA44748166E1F296B4EF12A4C05F1CF9E9C90328`,
+  confirming a fresh build from this cycle's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 10368) confirmed running from the exact fresh exe path
+  and `Responding: True` 5 seconds after launch. **Automated launch
+  smoke: PASS.** Process then deliberately stopped afterward so it does
+  not lock the next build. **Manual UI acceptance from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Blocking finding resolved from authoritative source semantics (not
+invented): `LaboratoryTrial.id`/`StabilityStudy.id` proven to have no
+cross-collection uniqueness guarantee; both pools now checked before
+choosing a resolution target; a genuine collision fails closed
+(`corrective_action_source_record_ambiguous`) rather than silently
+preferring the trial branch; `sourceType` correctly NOT introduced as a
+tie-breaker (no writer evidence supports it); validation-only correction
+correctly left `DATASET_SCHEMA_VERSION` at `"1.6"` (no row shape
+change); every portion Audit 000011 listed as independently sound left
+untouched and still green; focused tests green (50/50); full shared
+tests green (90/90 files, 2083/2083); desktop regression green
+(167/167 files, 1726/1726, unchanged); shared/desktop typechecks green;
+desktop lint green; tracker validator green; `git diff --check` clean;
+tracker/handoff/external log truthfully supersede the prior completion
+claim; task-owned changes committed and pushed with local HEAD equal to
+remote HEAD; native Tauri release build, `Desktop\FormuLab.lnk` check,
+and launch smoke rerun from the final pushed HEAD with the real exit
+code verified explicitly; FVL-05.009 remains untouched; GPT audit/
+prompt files untouched (read-only, respected).
+
+**FVL-05.008 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.009 NOT STARTED** (per this session's explicit
+instruction not to begin it).
