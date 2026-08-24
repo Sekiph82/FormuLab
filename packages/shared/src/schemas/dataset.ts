@@ -32,8 +32,10 @@
  * (`processStepPlanSchema`/`processStepActualObservationSchema`/
  * `processTrialSchema`/`formulaVersionProcessRowSchema`), and the
  * FVL-05.005 trial/test-result row (`trialTestResultsSchema`/
- * `formulaVersionTestResultRowSchema`) — see each section's own header
- * comment below for its specific contract.
+ * `formulaVersionTestResultRowSchema`), and the FVL-05.006 stability
+ * study/sample/result row (`stabilitySampleResultsSchema`/
+ * `stabilityStudySamplesSchema`/`formulaVersionStabilityRowSchema`) — see
+ * each section's own header comment below for its specific contract.
  */
 import { z } from "zod";
 import { processParameterSchema } from "./dataExchange";
@@ -41,12 +43,13 @@ import { formulationLineSchema } from "./formulation";
 import { trialObservationSchema, trialProcessStepSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
 import { productFamilySchema } from "./product";
+import { stabilityResultSchema, stabilitySampleSchema } from "./stability";
 import { testResultSchema } from "./testDefinitions";
 
 /** Current dataset (row/lineage) schema version. Bump when the shape of a
  *  dataset row changes (a field is added, removed, or renamed by one of
  *  the FVL-05.003-.008 extractors). */
-export const DATASET_SCHEMA_VERSION = "1.2" as const;
+export const DATASET_SCHEMA_VERSION = "1.3" as const;
 
 /** Validates the literal current dataset schema version. */
 export const datasetSchemaVersionSchema = z.literal(DATASET_SCHEMA_VERSION);
@@ -387,6 +390,15 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * registered for this bump either (still not applicable); the superseded
  * `"1.1"` literal is now itself structurally rejected, same as `"1.0"`
  * before it.
+ *
+ * THIRD BUMP (FVL-05.006, 2026-08-24): `"1.2"` -> `"1.3"`. Same reasoning
+ * again: `stabilitySampleResultsSchema`/`stabilityStudySamplesSchema`/
+ * `formulaVersionStabilityRowSchema` are a brand-new row type, which the
+ * standing rule (and its own now-twice-applied precedent) requires a
+ * bump for. Compatibility unchanged from the prior two bumps — still
+ * zero persisted rows of any FVL-05 row family anywhere, so no
+ * `SchemaMigration` entry is applicable; `"1.2"` (and `"1.1"`, `"1.0"`)
+ * are now all structurally rejected.
  */
 /**
  * GPT audit 000002, finding 2 (RESOLVED): `processStepPlanSchema`/
@@ -563,3 +575,115 @@ export const formulaVersionTestResultRowSchema = datasetRowBaseSchema.extend({
   trials: z.array(trialTestResultsSchema),
 });
 export type FormulaVersionTestResultRow = z.infer<typeof formulaVersionTestResultRowSchema>;
+
+/**
+ * FVL-05.006 — stability studies/samples/results payload.
+ *
+ * SOURCE CONTRACT (recovered directly from repository source, not
+ * inferred from the tracker's short task title). `StabilityStudy`
+ * (`schemas/stability.ts`) links to a formula version by the EXACT SAME
+ * pattern `LaboratoryTrial` uses (FVL-05.004/.005):
+ * `sourceType: z.enum(["saved_version","working_draft"])` +
+ * `sourceFormulaVersionId?: string`, plus `projectId` naming the owning
+ * `Formulation.id`. `laboratoryTrialId?: string` is a SEPARATE, optional
+ * cross-reference to a specific trial — it plays no role in
+ * study-to-version linkage (that is exclusively via
+ * `sourceFormulaVersionId`) and is not resolved/embedded here, matching
+ * this task's own title scope.
+ *
+ * THREE REAL, SEPARATE TOP-LEVEL PERSISTED COLLECTIONS form the
+ * hierarchy (confirmed in `masterdata.rs`): `stability_studies`
+ * (mutable), `stability_samples` (mutable), `stability_results`
+ * (APPEND-ONLY, same convention as `test_results` — recording a result
+ * is an event; `revisesResultId` — see below — points at a prior record,
+ * never mutates it). Because all three are independent top-level
+ * collections, `StabilityStudy.id`/`StabilitySample.id`/
+ * `StabilityResult.id` are each GENUINELY GLOBAL identities — none of
+ * them are embedded-array-scoped the way `TrialProcessStep`/
+ * `TrialObservation` are, so lineage citations for all three never set
+ * `parentRecordId` (per the current FVL-05 lineage contract's "only when
+ * true source identity is parent-scoped" rule) — the exact same
+ * reasoning FVL-05.005 established for `TestResult`.
+ *
+ * `StabilityTrend` (`schemas/stability.ts`) is deliberately NOT
+ * extracted: `engine/stability.ts`'s `computeStabilityTrend` is a PURE
+ * COMPUTED function — confirmed it has NO registered `masterdata.rs`
+ * collection at all — so it is derived analytics, not raw persisted
+ * source evidence, the same category `TestDefinition` fell into for
+ * FVL-05.005. `StabilityFailure` is also NOT extracted: it is a separate
+ * incident-tracking collection (the stability analog of `TrialDeviation`,
+ * which FVL-05.004 also did not extract), out of this task's own
+ * "studies/results" title scope.
+ *
+ * HIERARCHY PRESERVATION: a study groups its samples
+ * (`sample.studyId === study.id`); a sample groups its results
+ * (`result.sampleId === sample.id`). `StabilitySample` is embedded
+ * VERBATIM in full (`stabilitySampleSchema`, unlike the id+code-only
+ * treatment `LaboratoryTrial`/`StabilityStudy` get at their own grouping
+ * level) because a sample's own fields — `conditionId`, `timePointId`,
+ * `replicateNumber`, `status`, `storageLocation` — are genuine
+ * MEASUREMENT CONTEXT needed to interpret its nested results (which
+ * condition/time-point/replicate produced them), not administrative
+ * project-management metadata the way a study's `title`/`owner`/
+ * `protocol` are. `StabilityResult` is embedded verbatim too
+ * (`stabilityResultSchema`, no re-modeling, zero parity risk).
+ * `StabilityCondition`/`StabilityTimePoint` (the shared, configurable
+ * reference catalogs `conditionId`/`timePointId` point at) are NOT
+ * resolved/embedded — same reasoning as `TestDefinition`: they are
+ * reference/template data, not part of the trial/sample/result
+ * measurement hierarchy itself.
+ *
+ * `StabilityResult` also carries `studyId`/`conditionId`/`timePointId`
+ * directly, denormalized against its own resolved sample's identical
+ * fields — a genuine redundant-field contradiction (the result claims a
+ * different study/condition/time-point than the sample it belongs to)
+ * fails closed, the same "contradictory link" discipline
+ * `trial_formula_link_conflict` established in FVL-05.004.
+ *
+ * `revisesResultId` REFERENTIAL INTEGRITY: `engine/resultHistory.ts`'s
+ * own module comment states its revision-chain helpers are "shared by
+ * laboratory TestResult and StabilityResult" — the SAME authoritative
+ * domain semantics FVL-05.005's `AUDIT_FVL05_GPT_000005` corrective
+ * cycle recovered for `TestResult.revisesResultId` apply directly here.
+ * `StabilityResult` has NO `retestOf` field (confirmed by direct
+ * inspection of `stabilityResultSchema` — only `TestResult` has that
+ * field), so only `revisesResultId` is validated. The natural scope
+ * analog to "same trial" (which doesn't exist on `StabilityResult`) is
+ * SAME SAMPLE: `StabilitySample`'s own schema comment says a sample is
+ * "tested once then disposed" — a revision is a correction of THAT one
+ * physical measurement, so a `revisesResultId` pointing at a result on a
+ * DIFFERENT sample is not a legitimate revision (it would be revising a
+ * different physical pull-point entirely). No source evidence proves
+ * cross-sample revision linkage is legitimate, so — per the same
+ * "enforce the tightest defensible scope unless proven otherwise"
+ * instruction FVL-05.005 followed — this extractor fails closed on a
+ * dangling reference, a cross-sample reference, a self-reference, or any
+ * longer cycle, matching FVL-05.005's fail-closed (not
+ * warn-and-continue) design for the same reason: a historical dataset
+ * has no way to hand a downstream consumer a dismissible warning.
+ *
+ * One row per `FormulationVersion`, same convention as FVL-05.003/.004/
+ * .005: `studies` is empty when no `StabilityStudy` is linked to the
+ * version.
+ */
+export const stabilitySampleResultsSchema = z.object({
+  sample: stabilitySampleSchema,
+  results: z.array(stabilityResultSchema),
+});
+export type StabilitySampleResults = z.infer<typeof stabilitySampleResultsSchema>;
+
+export const stabilityStudySamplesSchema = z.object({
+  studyId: nonBlankString("studyId"),
+  studyCode: nonBlankString("studyCode"),
+  samples: z.array(stabilitySampleResultsSchema),
+});
+export type StabilityStudySamples = z.infer<typeof stabilityStudySamplesSchema>;
+
+export const formulaVersionStabilityRowSchema = datasetRowBaseSchema.extend({
+  formulaId: nonBlankString("formulaId"),
+  formulaCode: nonBlankString("formulaCode"),
+  formulaVersionId: nonBlankString("formulaVersionId"),
+  formulaVersionNumber: z.number().int().positive(),
+  studies: z.array(stabilityStudySamplesSchema),
+});
+export type FormulaVersionStabilityRow = z.infer<typeof formulaVersionStabilityRowSchema>;

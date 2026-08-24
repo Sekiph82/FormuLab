@@ -583,6 +583,7 @@ describe("extractFormulaVersionTestResultRows", () => {
       expect(rows[0].datasetSchemaVersion).toBe(DATASET_SCHEMA_VERSION);
       expect(formulaVersionTestResultRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.0" }).success).toBe(false);
       expect(formulaVersionTestResultRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.1" }).success).toBe(false);
+      expect(formulaVersionTestResultRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.2" }).success).toBe(false);
     });
 
     it("PARITY: the embedded testResults element schema is the literal same testResultSchema object as the canonical source — never a re-modeled copy", () => {

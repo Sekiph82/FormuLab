@@ -3354,3 +3354,289 @@ whole-scope re-audit found no further defect.
 
 **NEXT TASK — FVL-05.006 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+## FVL-05.006 — Extractor: stability studies/results (2026-08-24)
+
+New task. FVL-05.005 was independently GPT-audit CLOSED
+(`AUDIT_FVL05_GPT_000006`, `docs/audits/FVL05-GPT-AUDIT-000006.md`)
+before this task began; per that audit's own verdict and this session's
+own governing prompt, FVL-05.005 was not reopened. Governing prompt:
+`docs/prompts/FVL05-GPT-PROMPT-000007.md`. Both files, plus every prior
+`docs/audits/FVL05-GPT*.md`/`docs/prompts/FVL05-GPT*.md` file, are
+GPT-owned/READ-ONLY for Claude — read this session, not written to.
+Manual session, no subagents, no Autopilot.
+
+### Starting state
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `2b423a41011e625f2a4ec0d05fbe8563bda18275`.
+- `git fetch` confirmed remote at the same
+  `2b423a41011e625f2a4ec0d05fbe8563bda18275` — no new commits to
+  fast-forward.
+- Pre-existing dirty worktree (unrelated, left untouched): same
+  recurring set as every prior cycle — modified
+  `docs/generated/FormuLab-User-Guide.docx`/`.pdf`; deleted
+  `formulas/2026-07-18-*.md` (10 files) and `formulas/index.json`;
+  untracked external-log files under `docs/external-logs/` from other
+  phases/work packages. Verified unchanged via `git status --short`
+  before staging.
+
+### Source-of-truth recovery
+
+The tracker task text is intentionally short ("Extractor: stability
+studies/results"). Recovered the exact contract directly from
+`packages/shared/src/schemas/stability.ts` and
+`apps/desktop/src-tauri/src/masterdata.rs`, not from the title:
+
+- `StabilityStudy.sourceType: z.enum(["saved_version","working_draft"])`
+  + `StabilityStudy.sourceFormulaVersionId?: string` — the SAME
+  linkage pattern `LaboratoryTrial` uses to a formula version
+  (FVL-05.004/.005), confirmed by direct field-by-field comparison. No
+  other field on `StabilityStudy` references a formula version.
+- `masterdata.rs` grep confirmed three independent, real, top-level
+  masterdata collections: `("stability_studies", false)`,
+  `("stability_samples", false)`, `("stability_results", true)`
+  (append-only) — mirroring exactly how FVL-05.005 confirmed
+  `("test_results", true)` was its own top-level collection distinct
+  from `("laboratory_trials", false)`. No `stability_trends` entry
+  exists anywhere in the file (confirmed via a dedicated grep) —
+  `StabilityTrend` is purely computed by `engine/stability.ts`'s
+  `computeStabilityTrend`, never persisted, so it is out of scope by
+  the same "no persisted source, nothing to extract" logic that
+  excluded `TestDefinition` targets in FVL-05.005. `StabilityFailure`
+  is a separate incident-tracking collection (its own `studyId`/
+  `sampleId`/`conditionId`/`timePointId`/`testResultId` fields point
+  INTO the stability model rather than being part of it) — excluded,
+  mirroring `TrialDeviation`'s exclusion from FVL-05.004's scope.
+- Because all three (`StabilityStudy`/`StabilitySample`/
+  `StabilityResult`) are genuinely independent top-level collections,
+  every one of their ids is a GLOBAL identity — none is parent-scoped,
+  so no lineage citation for any of them ever sets `parentRecordId`,
+  per the current FVL-05 lineage contract's "only when true source
+  identity is parent-scoped" rule (the same conclusion FVL-05.005
+  reached for `TestResult.id`).
+- Hierarchy confirmed by direct field inspection: `StabilitySample.
+  studyId: z.string().min(1)` links a sample to its study;
+  `StabilityResult.sampleId: z.string().min(1)` links a result to its
+  sample. `StabilityResult` ALSO denormalizes `studyId`/`conditionId`/
+  `timePointId` directly on itself (fields the sample already carries)
+  — a genuine redundancy in the source schema with no precedent in
+  FVL-05.004/.005's models, so this extractor treats the sample's own
+  fields as authoritative and cross-validates the result's copies
+  against them, failing closed on any mismatch rather than silently
+  trusting one side or the other.
+- Embedding-depth decision: `StabilitySample` and `StabilityResult` are
+  embedded 100% VERBATIM (their fields are measurement/physical-unit
+  context — storage location, packaging, replicate number, due date,
+  disposal, or the actual measured value/unit/pass-fail/timestamp —
+  never administrative metadata). `StabilityStudy` itself contributes
+  only `studyId`/`studyCode` into the row, the identical
+  administrative-metadata-only treatment `LaboratoryTrial` received in
+  FVL-05.004/.005 (its `title`/`owner`/`protocol`/packaging-BOM
+  snapshot etc. are study-administration fields, not measurement
+  data). `StabilityCondition`/`StabilityTimePoint` reference catalogs
+  are deliberately not resolved or embedded — `StabilitySample`/
+  `StabilityResult` already carry their own `conditionId`/`timePointId`
+  references, and resolving the catalog's own `label`/`temperatureC`
+  live would risk a condition's later edit silently reinterpreting an
+  already-measured historical result, the same live-vs-frozen-snapshot
+  discipline this codebase already applies elsewhere (e.g.
+  `formulaSnapshot`/`packagingSnapshot` capture-once fields).
+- `revisesResultId` referential integrity: `StabilityResult` has an
+  optional `revisesResultId: z.string()` field but, confirmed by direct
+  schema inspection, NO `retestOf` field at all (unlike `TestResult`,
+  which has both). The authoritative domain semantics were not
+  reinvented — `engine/resultHistory.ts`'s own header comment states it
+  is "shared by laboratory `TestResult` and `StabilityResult`", so the
+  exact fail-closed philosophy FVL-05.005's corrective cycle
+  established (recovered from that same module) applies here too. The
+  natural scope analog to `TestResult`'s "same trial" is SAME SAMPLE —
+  recovered from `StabilitySample`'s own schema-file comment ("one
+  pull-point physical unit... tested once then disposed"), which
+  establishes a sample as the terminal, non-reusable unit a stability
+  result's revision history is naturally scoped to.
+
+### Implementation
+
+`packages/shared/src/schemas/dataset.ts`: `DATASET_SCHEMA_VERSION`
+bumped `"1.2"` → `"1.3"` (brand-new row type, standing FVL-05.001 rule,
+exact precedent FVL-05.005 itself set for this identical situation);
+new `stabilitySampleResultsSchema` (`{ sample: stabilitySampleSchema,
+results: z.array(stabilityResultSchema) }` — both reused 100%
+VERBATIM, zero re-modeling, zero parity risk by construction, the same
+discipline FVL-05.005 established for `testResultSchema`),
+`stabilityStudySamplesSchema` (`{ studyId, studyCode, samples:
+stabilitySampleResultsSchema[] }`), and `formulaVersionStabilityRowSchema`
+(`datasetRowBaseSchema.extend({..., studies:
+stabilityStudySamplesSchema[]})`) — one row per `FormulationVersion`,
+`studies: []` when nothing is linked.
+
+New `packages/shared/src/engine/formulaVersionStabilityDatasetExtractor.ts`
+(`extractFormulaVersionStabilityRows`): resolves requested
+`formulationVersionIds` against a pool
+(`formula_version_not_found`/`duplicate_formula_version_id`), each
+version's owning `Formulation`
+(`formulation_not_found`/`duplicate_formulation_id`), every study in
+the supplied pool pool-wide by exact id with the same
+`saved_version`-invariant and canonical-`createdAt`-timestamp checks
+FVL-05.004/.005 established (`duplicate_stability_study_id`/
+`invalid_saved_version_study_link`/`invalid_timestamp_format`), every
+sample pool-wide by exact id, dangling-study-reference, and canonical
+`createdAt` (`duplicate_stability_sample_id`/
+`stability_sample_study_not_found`/`invalid_timestamp_format`), and
+every result pool-wide by exact id, dangling-sample-reference,
+denormalized-field agreement with its resolved sample, and canonical
+`performedAt` (`duplicate_stability_result_id`/
+`stability_result_sample_not_found`/`stability_result_sample_conflict`/
+`invalid_timestamp_format`). A study is "linked" via the identical rule
+FVL-05.004/.005 established (`sourceType === "saved_version"` + exact
+`sourceFormulaVersionId` match, `study_formula_link_conflict` on a
+`projectId` mismatch). A sample/result belonging to a study that IS in
+the supplied pool but not linked to the REQUESTED version is
+legitimately excluded, never an error — proven by a dedicated test.
+Ordering: studies by `createdAt` then `id`; samples within a study by
+`createdAt` then `id`; results within a sample by `performedAt` then
+`id` — all three use a locale-independent ordinal comparator (never
+`localeCompare`), matching FVL-05.004/.005's own `compareOrdinal`
+helper (duplicated locally rather than factored into a shared module,
+to avoid touching FVL-05.005's just-closed file at all, matching the
+FVL-05.005 cycle's own stated rationale for the identical choice).
+`revisesResultId` validated via `validateResultRevisionReference()`
+(self-check first — a self-reference would trivially "resolve" and
+mask itself otherwise — then dangling, then same-sample-scope
+mismatch: `stability_result_revision_cycle_detected`/
+`dangling_stability_result_revision_reference`/
+`cross_sample_stability_result_revision_reference`) plus
+`findFirstResultRevisionCycle()` for any longer (length ≥2) cycle,
+directly adapted from FVL-05.005's own
+`validateResultReference()`/`findFirstReferenceCycle()` pair.
+Structured errors (`FormulaVersionStabilityDatasetExtractionError`)
+use a truthful, correctly-named `context` object (`formulaVersionId`/
+`formulationId`/`studyId`/`sampleId`/`resultId`) from day one, built on
+FVL-05.004/.005's own corrected error-class shape. Every constructed
+row is `safeParse`d against `formulaVersionStabilityRowSchema` before
+being returned. Exported via new `export * from
+"./engine/formulaVersionStabilityDatasetExtractor"` line in
+`packages/shared/src/index.ts`.
+
+### Tests
+
+`formulaVersionStabilityDatasetExtractor.test.ts` — 51 tests: zero-study
+row; one study/one sample/one result; multiple results on one sample
+ordered by `performedAt`/`id` regardless of input order; multiple
+samples on one study ordered by `createdAt`/`id`; multiple studies for
+one version ordered by `createdAt`/`id`; exact value/unit/status/
+timestamp/method-field preservation; full sample-context field
+preservation (storage location, due date, disposal status); missing
+optional fields staying absent; explicit zero/false/empty-but-valid
+values surviving; attachments preserved verbatim; no fabricated result
+for a sample with zero results; a study linked to another formula
+version never leaking in; a sample/result belonging to a study linked
+to a DIFFERENT formula version never leaking in; duplicate-requested
+version id producing two equal in-order rows; all fourteen fail-closed
+error codes (asserted by `code`, including the three independent
+`stability_result_sample_conflict` checks — studyId, conditionId,
+timePointId — and a `working_draft`-with-no-link positive control);
+source non-mutation on both success and failure paths; non-aliasing of
+returned nested output; determinism; JSON round-trip with schema
+re-validation; schema-level rejection of a payload missing
+`formulaVersionId` and of a non-row payload; availability from the
+shared package's public export path; global sample/result identity
+proven (`parentRecordId` absent on every `stabilitySample` citation;
+two different studies' samples never collide since ids are genuinely
+global); delimiter-containing/Unicode ids remaining unambiguous and
+deterministic under reordering; ordinal-not-locale ordering proven on a
+real disagreeing pair (`"a"` vs. `"B"`); dataset-version rejection of
+all three superseded literals (`"1.0"`, `"1.1"`, `"1.2"`); a
+referential-identity proof that the embedded `sample`/`results` element
+schemas are the literal same `stabilitySampleSchema`/
+`stabilityResultSchema` objects as the canonical source; and the full
+`revisesResultId` referential-integrity battery (valid same-sample
+chain, dangling, cross-sample, self-reference, length-2 cycle,
+non-mutation on failure, reordering-invariant cycle detection).
+
+**Minimal, unavoidable sibling-file touches** (not a reopening of
+FVL-05.004/.005's own scope — required by the version bump alone, the
+same mechanical consequence FVL-05.005 itself caused for
+FVL-05.004's test file): `dataset.test.ts`'s version-literal test
+extended to also assert `"1.2"` is now rejected (alongside the
+already-rejected `"1.0"`/`"1.1"`), and its "current" assertion updated
+to `"1.3"`. `formulaVersionTestResultDatasetExtractor.test.ts`'s own
+`VERSION` test extended in place to also assert `"1.2"` is rejected.
+
+### Fresh test/typecheck/lint/diff/tracker-validation evidence
+
+All commands run fresh from the final state on
+`feature/laboratory-stability`:
+
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionStabilityDatasetExtractor.test.ts` —
+  **51/51 passed**.
+- `pnpm --filter @formulab/shared exec vitest run
+  src/engine/formulaVersionStabilityDatasetExtractor.test.ts
+  src/schemas/dataset.test.ts
+  src/engine/formulaVersionTestResultDatasetExtractor.test.ts
+  src/engine/formulaVersionProcessDatasetExtractor.test.ts` — **180/180
+  passed** (all FVL-05 dataset/extractor test files together).
+- `pnpm --filter @formulab/shared exec vitest run` (full suite) — **88
+  files / 1951 tests passed** (87 → 88 files, 1900 → 1951 tests, +51
+  new, no regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit` — clean.
+- `pnpm --filter @formulab/desktop lint` (eslint) — clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite) —
+  **167 files / 1726 tests passed, no regression** (unchanged — no
+  desktop source file touched this cycle).
+- `python scripts/validate_v1_tracker.py` — `OK: 171 unique tasks
+  across 11 work packages, no drift found.` (re-run after the tracker
+  rollup correction too — still clean).
+- `git diff --check` (staged) — clean, no whitespace warnings (only
+  the same pre-existing CRLF-on-next-touch informational warnings seen
+  in every prior cycle).
+- No `.rs` file touched — `cargo check` not applicable.
+- No `runtime/pipeline` file touched — `python -m pytest
+  runtime/pipeline` not applicable.
+
+### Security / real-data-safety notes
+
+No new I/O, persistence, or external input parsing added — the
+extractor remains pure (no Tauri call, no mutation of inputs). Lineage
+citations carry only ids. All tests use entirely synthetic fixtures
+built from new `formulation()`/`version()`/`study()`/`sample()`/
+`result()` builders modeled on FVL-05.005's own fixture style — no real
+laboratory/customer/production data touched.
+
+### Files changed this cycle
+
+- `packages/shared/src/schemas/dataset.ts` (`DATASET_SCHEMA_VERSION`
+  bumped `"1.2"` → `"1.3"`; new `stabilitySampleResultsSchema`/
+  `stabilityStudySamplesSchema`/`formulaVersionStabilityRowSchema`;
+  top-of-file module comment and the version-bump history comment
+  both extended, not rewritten).
+- `packages/shared/src/schemas/dataset.test.ts` (version-literal
+  assertions updated to the new bump).
+- `packages/shared/src/engine/formulaVersionStabilityDatasetExtractor.ts`
+  (new file).
+- `packages/shared/src/engine/formulaVersionStabilityDatasetExtractor.test.ts`
+  (new file, 51 tests).
+- `packages/shared/src/engine/formulaVersionTestResultDatasetExtractor.test.ts`
+  (one line — the `VERSION` test's hardcoded prior-version literal
+  extended to reject `"1.2"` too; minimal, unavoidable consequence of
+  the shared version constant bumping again).
+- `packages/shared/src/index.ts` (new barrel export line).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-05.006 row — full evidence;
+  also updated the top-of-file "FVL-05 = 5/14" rollup and Total-row
+  count to the true `6/14`/`95/171`).
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` (new pointer block, prepended
+  above the FVL-05.005 corrective-cycle block, left intact as history).
+- This log file (new task section, appended).
+
+GPT-owned files explicitly NOT touched this cycle (read-only rule
+respected): every prior `docs/audits/FVL05-GPT*.md`/
+`docs/prompts/FVL05-GPT*.md` file, including
+`docs/audits/FVL05-GPT-AUDIT-000006.md` and
+`docs/prompts/FVL05-GPT-PROMPT-000007.md` (both read, neither
+modified).
+
+All other pre-existing worktree modifications/deletions/untracked files
+listed under "Starting state" above were left untouched.

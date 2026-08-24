@@ -598,6 +598,7 @@ export * from "./schemas/dataset";
 export * from "./engine/formulaVersionDatasetExtractor";
 export * from "./engine/formulaVersionProcessDatasetExtractor";
 export * from "./engine/formulaVersionTestResultDatasetExtractor";
+export * from "./engine/formulaVersionStabilityDatasetExtractor";
 export {
   PRECISION,
   CURRENCY_DP,

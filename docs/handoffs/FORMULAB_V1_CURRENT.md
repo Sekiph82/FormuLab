@@ -4,6 +4,52 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-24, FVL-05.006 — Extractor: stability studies/results —
+COMPLETE)**: FVL-05.005 was independently GPT-audit CLOSED
+(`AUDIT_FVL05_GPT_000006`) before this task began; per that audit's own
+verdict, this session did not reopen it. New task, source contract
+recovered directly (the tracker text was intentionally short):
+`StabilityStudy` links to a formula version by the SAME
+`sourceType`/`sourceFormulaVersionId` pattern `LaboratoryTrial` uses.
+`StabilityStudy`/`StabilitySample`/`StabilityResult` are each their own
+real, independent, top-level masterdata collection (confirmed via
+`masterdata.rs`, the last append-only), so none of their ids are
+parent-scoped — lineage citations never set `parentRecordId`.
+`StabilityTrend` (purely computed) and `StabilityFailure` (a separate
+incident-tracking collection) are both out of scope. Hierarchy is study
+→ samples → results; `StabilitySample`/`StabilityResult` embedded 100%
+verbatim (measurement context, not administrative metadata) — the study
+itself contributes only `studyId`/`studyCode`, the same treatment
+`LaboratoryTrial` got in FVL-05.004/.005.
+`packages/shared/src/schemas/dataset.ts` gained
+`stabilitySampleResultsSchema`/`stabilityStudySamplesSchema`/
+`formulaVersionStabilityRowSchema` (`stabilitySampleSchema`/
+`stabilityResultSchema` reused 100% verbatim — zero re-modeling, zero
+parity risk); new
+`packages/shared/src/engine/formulaVersionStabilityDatasetExtractor.ts`
+(`extractFormulaVersionStabilityRows`). Introducing this brand-new row
+type is a dataset-row shape change under the standing FVL-05.001 rule —
+`DATASET_SCHEMA_VERSION` bumped `"1.2"` → `"1.3"`, following the exact
+precedent FVL-05.005 itself set for exactly this situation. New: a
+`stability_result_sample_conflict` check (no FVL-05.004/.005 precedent)
+cross-validates `StabilityResult`'s own denormalized
+`studyId`/`conditionId`/`timePointId` against its resolved sample's
+fields, failing closed on any contradiction. `revisesResultId`
+referential integrity (`StabilityResult` has NO `retestOf` field) reuses
+the exact fail-closed philosophy FVL-05.005's corrective cycle
+established, recovered from `resultHistory.ts`'s own "shared by
+laboratory `TestResult` and `StabilityResult`" comment — scoped to SAME
+SAMPLE (the natural analog to "same trial"), recovered from
+`StabilitySample`'s own "tested once then disposed" schema comment.
+Full detail: the FVL-05.006 tracker row and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own FVL-05.006 section. `pnpm --filter @formulab/shared test`: 88 files /
+1951 tests passed. `pnpm --filter @formulab/desktop test`: full suite
+green, no regression (exact count in the external log). Both
+`typecheck`s clean, desktop `lint` clean, `git diff --check` clean,
+`python scripts/validate_v1_tracker.py` OK. **FVL-05.007 explicitly NOT
+started this session, per this session's own instruction.**
+
 **UPDATE (2026-08-24, FVL-05.005 corrective cycle, independent GPT
 re-audit `AUDIT_FVL05_GPT_000005` — COMPLETE, genuinely audit-closed)**:
 one HIGH finding — the original extractor preserved
