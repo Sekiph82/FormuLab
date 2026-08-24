@@ -403,8 +403,18 @@ describe("extractFormulaVersionDoeRows", () => {
   it("no observation from another run/study/revision leaks into a row", () => {
     const studyA = study({ id: "STUDY-A" });
     const studyB = study({ id: "STUDY-B", baselineFormulaVersionId: "VER-OTHER" });
-    const designA = design({ id: "DESIGN-A", studyId: "STUDY-A" });
-    const designB = design({ id: "DESIGN-B", studyId: "STUDY-B" });
+    const designA = design({
+      id: "DESIGN-A",
+      studyId: "STUDY-A",
+      factorSnapshot: [factor({ studyId: "STUDY-A" })],
+      responseSnapshot: [response({ studyId: "STUDY-A" })],
+    });
+    const designB = design({
+      id: "DESIGN-B",
+      studyId: "STUDY-B",
+      factorSnapshot: [factor({ studyId: "STUDY-B" })],
+      responseSnapshot: [response({ studyId: "STUDY-B" })],
+    });
     const runA = run({ id: "RUN-A", studyId: "STUDY-A", designId: "DESIGN-A" });
     const runB = run({ id: "RUN-B", studyId: "STUDY-B", designId: "DESIGN-B" });
     const obsA = observation({ id: "OBS-A", studyId: "STUDY-A", runId: "RUN-A" });
@@ -1002,6 +1012,176 @@ describe("extractFormulaVersionDoeRows", () => {
       expect(doeDesignRunsSchema.shape.design).toBe(doeDesignSchema);
       expect(doeRunObservationsSchema.shape.run).toBe(doeRunSchema);
       expect(doeRunObservationsSchema.shape.observations.element).toBe(doeObservationSchema);
+    });
+  });
+
+  describe("corrective cycle (AUDIT_FVL05_GPT_000009): frozen factorSnapshot/responseSnapshot are authoritative referential dictionaries", () => {
+    it("a valid exact factorCode resolution preserves codedValue/actualValue unchanged", () => {
+      const richRun = run({ factorSettings: [{ factorCode: "TEMP", codedValue: "1", actualValue: "80.5" }] });
+      const rows = extractFormulaVersionDoeRows(
+        buildInput({
+          formulationVersions: [version()],
+          doeStudies: [study()],
+          doeDesigns: [design({ factorSnapshot: [factor({ factorCode: "TEMP" })] })],
+          doeRuns: [richRun],
+        }),
+      );
+      expect(rows[0].studies[0].designs[0].runs[0].run.factorSettings).toEqual([
+        { factorCode: "TEMP", codedValue: "1", actualValue: "80.5" },
+      ]);
+    });
+
+    it("fails closed when a run's factorSettings.factorCode is missing from its design's factorSnapshot", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [study()],
+        doeDesigns: [design({ factorSnapshot: [factor({ factorCode: "TEMP" })] })],
+        doeRuns: [run({ factorSettings: [{ factorCode: "PH", codedValue: "1", actualValue: "6.5" }] })],
+      });
+      try {
+        extractFormulaVersionDoeRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionDoeDatasetExtractionError).code).toBe("doe_run_factor_code_not_found");
+        expect((err as FormulaVersionDoeDatasetExtractionError).factorCode).toBe("PH");
+      }
+    });
+
+    it("fails closed on a duplicate factorCode within one design's factorSnapshot", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [study()],
+        doeDesigns: [
+          design({
+            factorSnapshot: [factor({ id: "FACTOR-1", factorCode: "TEMP" }), factor({ id: "FACTOR-2", factorCode: "TEMP" })],
+          }),
+        ],
+      });
+      try {
+        extractFormulaVersionDoeRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionDoeDatasetExtractionError).code).toBe("duplicate_doe_design_factor_code");
+        expect((err as FormulaVersionDoeDatasetExtractionError).factorCode).toBe("TEMP");
+      }
+    });
+
+    it("fails closed on a factorSnapshot child whose studyId contradicts the owning design", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [study()],
+        doeDesigns: [design({ factorSnapshot: [factor({ studyId: "STUDY-OTHER" })] })],
+      });
+      try {
+        extractFormulaVersionDoeRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionDoeDatasetExtractionError).code).toBe("doe_design_factor_snapshot_conflict");
+      }
+    });
+
+    it("fails closed on a factorSnapshot child whose studyRevision contradicts the owning design", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [study()],
+        doeDesigns: [design({ factorSnapshot: [factor({ studyRevision: 2 })] })],
+      });
+      try {
+        extractFormulaVersionDoeRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionDoeDatasetExtractionError).code).toBe("doe_design_factor_snapshot_conflict");
+      }
+    });
+
+    it("fails closed on a responseSnapshot child whose studyId contradicts the owning design", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [study()],
+        doeDesigns: [design({ responseSnapshot: [response({ studyId: "STUDY-OTHER" })] })],
+      });
+      try {
+        extractFormulaVersionDoeRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionDoeDatasetExtractionError).code).toBe("doe_design_response_snapshot_conflict");
+      }
+    });
+
+    it("fails closed on a responseSnapshot child whose studyRevision contradicts the owning design", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [study()],
+        doeDesigns: [design({ responseSnapshot: [response({ studyRevision: 2 })] })],
+      });
+      try {
+        extractFormulaVersionDoeRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionDoeDatasetExtractionError).code).toBe("doe_design_response_snapshot_conflict");
+      }
+    });
+
+    it("fails closed on a duplicate response id within one design's responseSnapshot", () => {
+      const input = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [study()],
+        doeDesigns: [design({ responseSnapshot: [response({ id: "RESP-DUP" }), response({ id: "RESP-DUP" })] })],
+      });
+      try {
+        extractFormulaVersionDoeRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionDoeDatasetExtractionError).code).toBe("duplicate_doe_design_response_id");
+        expect((err as FormulaVersionDoeDatasetExtractionError).responseId).toBe("RESP-DUP");
+      }
+    });
+
+    it("delimiter-rich and Unicode factorCode values remain exact and deterministic through resolution", () => {
+      const richCode = "TEMP|α,β°C";
+      const rows = extractFormulaVersionDoeRows(
+        buildInput({
+          formulationVersions: [version()],
+          doeStudies: [study()],
+          doeDesigns: [design({ factorSnapshot: [factor({ factorCode: richCode })] })],
+          doeRuns: [run({ factorSettings: [{ factorCode: richCode, codedValue: "-1", actualValue: "20" }] })],
+        }),
+      );
+      expect(rows[0].studies[0].designs[0].runs[0].run.factorSettings[0].factorCode).toBe(richCode);
+    });
+
+    it("does not mutate its inputs on any of the new referential-integrity failure paths", () => {
+      const badFactorDesign = Object.freeze(design({ factorSnapshot: Object.freeze([Object.freeze(factor({ studyId: "STUDY-OTHER" }))]) as unknown as DoeDesign["factorSnapshot"] }));
+      const input = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [Object.freeze(study()) as unknown as DoeStudy],
+        doeDesigns: [badFactorDesign as unknown as DoeDesign],
+      });
+      expect(() => extractFormulaVersionDoeRows(input)).toThrow(FormulaVersionDoeDatasetExtractionError);
+
+      const badRun = Object.freeze(run({ factorSettings: [{ factorCode: "GHOST", codedValue: "1", actualValue: "1" }] }));
+      const okInput = buildInput({
+        formulationVersions: [version()],
+        doeStudies: [Object.freeze(study()) as unknown as DoeStudy],
+        doeDesigns: [Object.freeze(design()) as unknown as DoeDesign],
+        doeRuns: [badRun as unknown as DoeRun],
+      });
+      expect(() => extractFormulaVersionDoeRows(okInput)).toThrow(FormulaVersionDoeDatasetExtractionError);
+    });
+
+    it("returned run.factorSettings output is not aliased to the source fixture's array", () => {
+      const sourceRun = run();
+      const rows = extractFormulaVersionDoeRows(
+        buildInput({
+          formulationVersions: [version()],
+          doeStudies: [study()],
+          doeDesigns: [design()],
+          doeRuns: [sourceRun],
+        }),
+      );
+      const emittedSettings = rows[0].studies[0].designs[0].runs[0].run.factorSettings;
+      (emittedSettings as unknown as { push: (...args: unknown[]) => void }).push({ factorCode: "X", codedValue: "1", actualValue: "1" });
+      expect(sourceRun.factorSettings).toHaveLength(1);
     });
   });
 });

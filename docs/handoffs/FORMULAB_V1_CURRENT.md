@@ -4,6 +4,41 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-24, FVL-05.007 corrective cycle, independent GPT
+re-audit `AUDIT_FVL05_GPT_000009` — COMPLETE, genuinely audit-fixed)**:
+one HIGH finding — the extractor preserved `DoeRun.factorSettings[]`
+and resolved `DoeObservation.responseId` via
+`design.responseSnapshot.some(...)`, but never resolved each
+`factorSettings[].factorCode` against the owning design's frozen
+`factorSnapshot`, and never proved the frozen snapshots themselves were
+internally unambiguous before using them as an interpretive dictionary.
+Correction (validation-only, no row shape change, `DATASET_SCHEMA_
+VERSION` stays `"1.5"` per the audit's own explicit instruction): new
+`buildDesignSnapshotIndex` builds each design's own `factorsByCode`/
+`responsesById`, failing closed on a snapshot child whose `studyId`/
+`studyRevision` contradicts the owning design, or a duplicate
+`factorCode`/response `id` within one design's own snapshot — rejected
+BEFORE either dictionary is used to resolve anything. `run.
+factorSettings[].factorCode` is now resolved exactly against the owning
+design's factor dictionary (`doe_run_factor_code_not_found` on a miss);
+`codedValue`/`actualValue` never recomputed. Observation `responseId`
+resolution switched from `.some(...)` to an exact map lookup.
+Independently audited `DoeConstraint.appliesTo` and found it not
+semantically required to interpret run/observation evidence — no check
+added, no live `doe_factors`/`doe_responses`/`doe_constraints` pool
+introduced, frozen design snapshots remain sole historical authority.
+Full detail: the FVL-05.007 tracker row's "CORRECTIVE CYCLE" paragraph
+and `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-
+Log.md`'s own corrective-cycle section. `pnpm --filter @formulab/shared
+test`: 89 files / 2033 tests passed (2022→2033, +11 new adversarial
+tests, no regression — one pre-existing test fixture had a latent
+cross-study snapshot `studyId` mismatch the new check correctly caught
+and was fixed, not loosened). `pnpm --filter @formulab/desktop test`:
+full suite green, no regression (exact count in the external log). Both
+`typecheck`s clean, desktop `lint` clean, `git diff --check` clean,
+`python scripts/validate_v1_tracker.py` OK. **FVL-05.008 explicitly NOT
+started this session, per this session's own instruction.**
+
 **UPDATE (2026-08-24, FVL-05.007 — Extractor: DOE studies/runs/
 observations — COMPLETE)**: FVL-05.006 was independently GPT-audit
 CLOSED (`AUDIT_FVL05_GPT_000008`) before this task began; per that

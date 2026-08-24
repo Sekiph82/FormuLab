@@ -39,13 +39,41 @@
  * (`validate...Reference` + `findFirst...Cycle`) pattern FVL-05.005/.006
  * established for `revisesResultId`.
  *
+ * CORRECTIVE CYCLE (`AUDIT_FVL05_GPT_000009`): a design's frozen
+ * `factorSnapshot`/`responseSnapshot` are now treated as authoritative
+ * referential DICTIONARIES, not just opaque embedded arrays. For every
+ * design: each `factorSnapshot`/`responseSnapshot` child's own
+ * `studyId`/`studyRevision` is cross-checked against the OWNING design's
+ * `studyId`/`studyRevision` (a genuine redundant-field contradiction,
+ * the same discipline every other FVL-05 denormalized-field check uses),
+ * and a duplicate `factorCode` (within one design's `factorSnapshot`) or
+ * duplicate response `id` (within one design's `responseSnapshot`) fails
+ * closed BEFORE either is ever used to resolve anything — the same
+ * "reject ambiguity before it can be silently used" discipline
+ * `buildConditionsById`/`buildTimePointsById` established in FVL-05.006.
+ * Every `DoeRun.factorSettings[].factorCode` is then resolved EXACTLY
+ * against its owning design's (now proven-unambiguous)
+ * `factorSnapshot` — a `factorCode` absent from the design fails closed
+ * (`doe_run_factor_code_not_found`) rather than surviving as an opaque,
+ * unverified string. Every `DoeObservation.responseId` is resolved via an
+ * exact map lookup against the same proven-unambiguous
+ * `responsesById` (replacing the original `.some(...)` scan, which could
+ * not distinguish "found" from "found exactly once"). `codedValue`/
+ * `actualValue` are never recomputed — only the `factorCode` KEY is
+ * resolved, the setting's own persisted values pass through untouched.
+ * `DoeConstraint.appliesTo` (a `factorCode[]` informational list) was
+ * independently audited and found NOT semantically required to interpret
+ * any emitted run/observation value — no live `doe_factors`/`doe_responses`
+ * pool was introduced; the frozen snapshots remain the sole historical
+ * authority per the governing audit's own explicit instruction.
+ *
  * Every constructed row is validated against `formulaVersionDoeRowSchema`
  * before it is returned — fails closed on a malformed row, and guarantees
  * (via zod's always-rebuilding parse) that the returned row shares no
  * mutable array/object with the source records it was built from.
  */
 import type { Formulation, FormulationVersion } from "../schemas/formulation";
-import type { DoeDesign, DoeObservation, DoeRun, DoeStudy } from "../schemas/doe";
+import type { DoeDesign, DoeFactor, DoeObservation, DoeResponse, DoeRun, DoeStudy } from "../schemas/doe";
 import {
   DATASET_SCHEMA_VERSION,
   formulaVersionDoeRowSchema,
@@ -118,10 +146,15 @@ export type FormulaVersionDoeDatasetExtractionErrorCode =
   | "doe_design_study_conflict"
   | "dangling_doe_design_supersession_reference"
   | "doe_design_supersession_cycle_detected"
+  | "doe_design_factor_snapshot_conflict"
+  | "duplicate_doe_design_factor_code"
+  | "doe_design_response_snapshot_conflict"
+  | "duplicate_doe_design_response_id"
   | "duplicate_doe_run_id"
   | "doe_run_design_not_found"
   | "doe_run_design_conflict"
   | "doe_run_linked_formula_version_not_found"
+  | "doe_run_factor_code_not_found"
   | "duplicate_doe_observation_id"
   | "doe_observation_run_not_found"
   | "doe_observation_run_conflict"
@@ -140,6 +173,7 @@ export interface FormulaVersionDoeDatasetExtractionErrorContext {
   runId?: string;
   observationId?: string;
   responseId?: string;
+  factorCode?: string;
 }
 
 export class FormulaVersionDoeDatasetExtractionError extends Error {
@@ -151,6 +185,7 @@ export class FormulaVersionDoeDatasetExtractionError extends Error {
   readonly runId?: string;
   readonly observationId?: string;
   readonly responseId?: string;
+  readonly factorCode?: string;
 
   constructor(
     code: FormulaVersionDoeDatasetExtractionErrorCode,
@@ -167,6 +202,7 @@ export class FormulaVersionDoeDatasetExtractionError extends Error {
     this.runId = context.runId;
     this.observationId = context.observationId;
     this.responseId = context.responseId;
+    this.factorCode = context.factorCode;
   }
 }
 
@@ -331,18 +367,81 @@ function findFirstDesignSupersessionCycle(designs: DoeDesign[], designsById: Map
   return undefined;
 }
 
+/** One design's frozen snapshot dictionaries, proven internally
+ *  unambiguous — `factorsByCode`/`responsesById` are safe to `.get()`
+ *  from without a second ambiguity check at the call site. */
+interface DesignSnapshotIndex {
+  factorsByCode: Map<string, DoeFactor>;
+  responsesById: Map<string, DoeResponse>;
+}
+
+/** Builds one design's frozen `factorSnapshot`/`responseSnapshot`
+ *  dictionaries, failing closed on a snapshot child whose own
+ *  `studyId`/`studyRevision` contradicts the OWNING design's
+ *  (`doe_design_factor_snapshot_conflict`/`doe_design_response_snapshot_conflict`
+ *  — the same denormalized-field-contradiction discipline every other
+ *  FVL-05 extractor applies) and on a duplicate `factorCode`/response
+ *  `id` WITHIN that one design's own snapshot array
+ *  (`duplicate_doe_design_factor_code`/`duplicate_doe_design_response_id`)
+ *  — rejected before either dictionary is ever used to resolve a run's
+ *  `factorSettings` or an observation's `responseId`, so a `.get()`
+ *  against either map can never be ambiguous. */
+function buildDesignSnapshotIndex(design: DoeDesign): DesignSnapshotIndex {
+  const factorsByCode = new Map<string, DoeFactor>();
+  for (const factor of design.factorSnapshot) {
+    if (factor.studyId !== design.studyId || factor.studyRevision !== design.studyRevision) {
+      throw new FormulaVersionDoeDatasetExtractionError(
+        "doe_design_factor_snapshot_conflict",
+        `DOE design "${design.id}" factorSnapshot factor "${factor.factorCode}" claims studyId "${factor.studyId}"/studyRevision ${factor.studyRevision}, but the owning design has studyId "${design.studyId}"/studyRevision ${design.studyRevision}.`,
+        { designId: design.id, studyId: design.studyId, factorCode: factor.factorCode },
+      );
+    }
+    if (factorsByCode.has(factor.factorCode)) {
+      throw new FormulaVersionDoeDatasetExtractionError(
+        "duplicate_doe_design_factor_code",
+        `Ambiguous exact DOE factor identity: DOE design "${design.id}" factorSnapshot has more than one factor with factorCode "${factor.factorCode}".`,
+        { designId: design.id, factorCode: factor.factorCode },
+      );
+    }
+    factorsByCode.set(factor.factorCode, factor);
+  }
+  const responsesById = new Map<string, DoeResponse>();
+  for (const response of design.responseSnapshot) {
+    if (response.studyId !== design.studyId || response.studyRevision !== design.studyRevision) {
+      throw new FormulaVersionDoeDatasetExtractionError(
+        "doe_design_response_snapshot_conflict",
+        `DOE design "${design.id}" responseSnapshot response "${response.id}" claims studyId "${response.studyId}"/studyRevision ${response.studyRevision}, but the owning design has studyId "${design.studyId}"/studyRevision ${design.studyRevision}.`,
+        { designId: design.id, studyId: design.studyId, responseId: response.id },
+      );
+    }
+    if (responsesById.has(response.id)) {
+      throw new FormulaVersionDoeDatasetExtractionError(
+        "duplicate_doe_design_response_id",
+        `Ambiguous exact DOE response identity: DOE design "${design.id}" responseSnapshot has more than one response with id "${response.id}".`,
+        { designId: design.id, responseId: response.id },
+      );
+    }
+    responsesById.set(response.id, response);
+  }
+  return { factorsByCode, responsesById };
+}
+
 /** Builds the study-id -> designs index over the ENTIRE supplied
  *  `doeDesigns` pool, failing closed on a duplicate `DoeDesign.id`, a
  *  `studyId` that does not resolve to any supplied study, a
  *  `studyRevision` that contradicts the resolved study's own `revision`
- *  (`doe_design_study_conflict`), a non-canonical `generatedAt`, and any
- *  dangling/self/cyclical `supersedesDesignId` reference. */
+ *  (`doe_design_study_conflict`), a non-canonical `generatedAt`, any
+ *  dangling/self/cyclical `supersedesDesignId` reference, and — the
+ *  corrective-cycle addition — an internally-contradictory or ambiguous
+ *  frozen `factorSnapshot`/`responseSnapshot` (see
+ *  `buildDesignSnapshotIndex`). */
 function buildDesignsByStudyId(
   designs: DoeDesign[],
   studiesById: Map<string, DoeStudy>,
-): { designsById: Map<string, DoeDesign>; byStudyId: Map<string, DoeDesign[]> } {
+): { designsById: Map<string, DoeDesign>; byStudyId: Map<string, DoeDesign[]>; snapshotIndexByDesignId: Map<string, DesignSnapshotIndex> } {
   const designsById = new Map<string, DoeDesign>();
   const byStudyId = new Map<string, DoeDesign[]>();
+  const snapshotIndexByDesignId = new Map<string, DesignSnapshotIndex>();
   for (const design of designs) {
     if (designsById.has(design.id)) {
       throw new FormulaVersionDoeDatasetExtractionError(
@@ -373,6 +472,7 @@ function buildDesignsByStudyId(
         { designId: design.id, studyId: design.studyId },
       );
     }
+    snapshotIndexByDesignId.set(design.id, buildDesignSnapshotIndex(design));
     designsById.set(design.id, design);
     const bucket = byStudyId.get(design.studyId);
     if (bucket) {
@@ -392,18 +492,23 @@ function buildDesignsByStudyId(
       { designId: cycleMember.id },
     );
   }
-  return { designsById, byStudyId };
+  return { designsById, byStudyId, snapshotIndexByDesignId };
 }
 
 /** Builds the design-id -> runs index over the ENTIRE supplied `doeRuns`
  *  pool, failing closed on a duplicate `DoeRun.id`, a `designId` that does
  *  not resolve to any supplied design, a `studyId`/`studyRevision` that
  *  contradicts the resolved design's own fields (`doe_run_design_conflict`),
- *  and a `linkedFormulaVersionId` that does not resolve to any supplied
- *  formulation version. */
+ *  a `linkedFormulaVersionId` that does not resolve to any supplied
+ *  formulation version, and — the corrective-cycle addition — a
+ *  `factorSettings[].factorCode` that does not resolve exactly within the
+ *  owning design's (proven-unambiguous) frozen `factorSnapshot`
+ *  (`doe_run_factor_code_not_found`). `codedValue`/`actualValue` are never
+ *  recomputed — only the `factorCode` key is resolved for validation. */
 function buildRunsByDesignId(
   runs: DoeRun[],
   designsById: Map<string, DoeDesign>,
+  snapshotIndexByDesignId: Map<string, DesignSnapshotIndex>,
   versionsById: Map<string, FormulationVersion>,
 ): { runsById: Map<string, DoeRun>; byDesignId: Map<string, DoeRun[]> } {
   const runsById = new Map<string, DoeRun>();
@@ -438,6 +543,16 @@ function buildRunsByDesignId(
         { runId: run.id, formulaVersionId: run.linkedFormulaVersionId },
       );
     }
+    const { factorsByCode } = snapshotIndexByDesignId.get(design.id)!;
+    for (const setting of run.factorSettings) {
+      if (!factorsByCode.has(setting.factorCode)) {
+        throw new FormulaVersionDoeDatasetExtractionError(
+          "doe_run_factor_code_not_found",
+          `DOE run "${run.id}" has a factorSettings entry with factorCode "${setting.factorCode}", which was not found in its design "${design.id}" factorSnapshot.`,
+          { runId: run.id, designId: design.id, factorCode: setting.factorCode },
+        );
+      }
+    }
     runsById.set(run.id, run);
     const bucket = byDesignId.get(run.designId);
     if (bucket) {
@@ -454,12 +569,16 @@ function buildRunsByDesignId(
  *  `DoeObservation.id`, a `runId` that does not resolve to any supplied
  *  run, a `studyId`/`studyRevision` that contradicts the resolved run's own
  *  fields (`doe_observation_run_conflict`), a non-canonical `recordedAt`,
- *  and a `responseId` that does not resolve within the owning run's own
- *  design's frozen `responseSnapshot`. */
+ *  and a `responseId` that does not resolve EXACTLY (an unambiguous exact
+ *  map lookup against the owning design's proven-duplicate-free
+ *  `responsesById`, not the original `.some(...)` scan that could not
+ *  distinguish "found" from "found exactly once") within the owning run's
+ *  own design's frozen `responseSnapshot`. */
 function buildObservationsByRunId(
   observations: DoeObservation[],
   runsById: Map<string, DoeRun>,
   designsById: Map<string, DoeDesign>,
+  snapshotIndexByDesignId: Map<string, DesignSnapshotIndex>,
 ): Map<string, DoeObservation[]> {
   const observationsById = new Map<string, DoeObservation>();
   const byRunId = new Map<string, DoeObservation[]>();
@@ -494,7 +613,8 @@ function buildObservationsByRunId(
       );
     }
     const design = designsById.get(run.designId)!;
-    if (!design.responseSnapshot.some((response) => response.id === observation.responseId)) {
+    const { responsesById } = snapshotIndexByDesignId.get(design.id)!;
+    if (!responsesById.has(observation.responseId)) {
       throw new FormulaVersionDoeDatasetExtractionError(
         "doe_observation_response_not_found",
         `DOE observation "${observation.id}" references responseId "${observation.responseId}", which was not found in its run's design "${design.id}" responseSnapshot.`,
@@ -640,9 +760,9 @@ export function extractFormulaVersionDoeRows(
   const formulationsById = buildFormulationsById(input.formulations);
   const versionsById = buildVersionsById(input.formulationVersions);
   const studiesById = buildStudiesById(input.doeStudies);
-  const { designsById, byStudyId: designsByStudyId } = buildDesignsByStudyId(input.doeDesigns, studiesById);
-  const { runsById, byDesignId: runsByDesignId } = buildRunsByDesignId(input.doeRuns, designsById, versionsById);
-  const observationsByRunId = buildObservationsByRunId(input.doeObservations, runsById, designsById);
+  const { designsById, byStudyId: designsByStudyId, snapshotIndexByDesignId } = buildDesignsByStudyId(input.doeDesigns, studiesById);
+  const { runsById, byDesignId: runsByDesignId } = buildRunsByDesignId(input.doeRuns, designsById, snapshotIndexByDesignId, versionsById);
+  const observationsByRunId = buildObservationsByRunId(input.doeObservations, runsById, designsById, snapshotIndexByDesignId);
   return input.formulationVersionIds.map((requestedId) => {
     const version = versionsById.get(requestedId);
     if (!version) {

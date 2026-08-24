@@ -4314,3 +4314,135 @@ FVL-05.008 remains untouched; GPT audit/prompt files untouched
 
 **NEXT TASK — FVL-05.008 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.007 corrective cycle — Cycle Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file, per this session's own combined-log instruction carried forward
+from the original FVL-05.007 cycle above).
+
+## Task
+
+**FVL-05.007 corrective cycle**, governed by:
+- `docs/audits/FVL05-GPT-AUDIT-000009.md` — independent re-audit
+  (`CONTINUE / REOPEN`) of implementation commit `d7fa96f`.
+- `docs/prompts/FVL05-GPT-PROMPT-000010.md` — the corrective prompt.
+
+Both GPT-owned, READ-ONLY, read completely before any edit, neither
+modified. `docs/prompts/FVL05-GPT-PROMPT-000009.md` (the original
+FVL-05.007 contract) also re-read per this cycle's own instruction.
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `8032bb1f2f6d47c37dd76be60c44ad15fa124ab2`.
+- Remote HEAD at fetch: `431644c...` (2 commits ahead — the
+  audit-000009 and prompt-000010 doc commits). Fast-forwarded via
+  `git pull --ff-only`; local HEAD then equaled remote HEAD.
+- `git diff --check` at start: clean (pre-existing CRLF warnings only).
+
+## Blocking finding (from Audit 000009)
+
+HIGH — `DoeRun.factorSettings[].factorCode` was preserved verbatim but
+never resolved against the owning `DoeDesign.factorSnapshot`; a run
+could carry a `factorCode` absent from its own design and the row still
+validated/emitted. The frozen `factorSnapshot`/`responseSnapshot`
+themselves were never proven internally unambiguous/uncontradictory
+(no check that a snapshot child's own `studyId`/`studyRevision` matched
+the owning design; no duplicate-identity rejection) before being used
+as an interpretive dictionary — the existing
+`design.responseSnapshot.some(...)` observation check could not
+distinguish "found" from "found exactly once."
+
+## Correction applied
+
+Independently re-read `packages/shared/src/schemas/doe.ts` and the
+current `formulaVersionDoeDatasetExtractor.ts` before editing, per this
+cycle's own instruction, and confirmed the finding against current
+source (not blindly trusted).
+
+- New `buildDesignSnapshotIndex(design)`: builds `factorsByCode`/
+  `responsesById` for one design, failing closed if any
+  `factorSnapshot`/`responseSnapshot` child's own `studyId`/
+  `studyRevision` contradicts the OWNING design's
+  (`doe_design_factor_snapshot_conflict`/
+  `doe_design_response_snapshot_conflict`) or on a duplicate
+  `factorCode`/response `id` WITHIN one design's own snapshot array
+  (`duplicate_doe_design_factor_code`/`duplicate_doe_design_response_id`)
+  — rejected BEFORE either dictionary is ever used to resolve anything.
+- `buildDesignsByStudyId` now also returns `snapshotIndexByDesignId`,
+  computed alongside the existing per-design checks.
+- `buildRunsByDesignId` now resolves every `run.factorSettings[].
+  factorCode` exactly against the owning design's `factorsByCode`,
+  failing closed on a miss (`doe_run_factor_code_not_found`).
+  `codedValue`/`actualValue` are never recomputed — only the
+  `factorCode` KEY is resolved.
+- `buildObservationsByRunId`'s `responseId` check now uses an exact
+  `responsesById.has(...)` map lookup instead of the original
+  `.some(...)` scan.
+- Independently audited `DoeConstraint.appliesTo` (a `factorCode[]`
+  informational list): NOT semantically required to interpret any
+  emitted run/observation value — constraints gate design GENERATION
+  only, never persisted run/observation interpretation. No check added,
+  per the audit's own explicit "do not add checks merely because
+  fields exist" instruction.
+- No live `doe_factors`/`doe_responses`/`doe_constraints` pool
+  introduced — frozen design snapshots remain the sole historical
+  authority, per the audit's explicit instruction.
+- `DATASET_SCHEMA_VERSION` NOT bumped (stays `"1.5"`): this correction
+  is validation-only — no field was added/removed/renamed on the
+  emitted row shape (`DoeDesign`/`DoeRun`/`DoeObservation` are still
+  embedded 100% verbatim, unchanged) — per the audit's own explicit
+  instruction not to bump unless the emitted schema actually changes.
+
+## Latent test-fixture defect found and fixed (not the extractor)
+
+Re-running the pre-existing 57 tests against the corrected
+implementation surfaced ONE failure: "no observation from another
+run/study/revision leaks into a row" overrode `design.studyId` to
+`"STUDY-A"`/`"STUDY-B"` without also overriding the default
+`factorSnapshot`/`responseSnapshot` fixtures' hardcoded `studyId:
+"STUDY-0001"` — a genuine latent fixture inconsistency the new stricter
+check correctly caught (exactly the class of defect this corrective
+cycle exists to catch). Fixed by giving each overridden-`studyId`
+design its own matching `factorSnapshot`/`responseSnapshot` fixtures —
+the check itself was not loosened or removed.
+
+## Files changed
+
+- `packages/shared/src/engine/formulaVersionDoeDatasetExtractor.ts` —
+  `buildDesignSnapshotIndex` (new), `buildDesignsByStudyId` (returns
+  `snapshotIndexByDesignId`), `buildRunsByDesignId` (factorCode
+  resolution), `buildObservationsByRunId` (exact responseId lookup),
+  five new error codes + `factorCode` error-context field, updated
+  header doc comment (corrective-cycle note).
+- `packages/shared/src/engine/formulaVersionDoeDatasetExtractor.test.ts`
+  — one pre-existing fixture fixed (see above); 11 new focused
+  adversarial tests (57 → 68).
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.007 row's own
+  "CORRECTIVE CYCLE" paragraph appended.
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE block prepended.
+- `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`
+  — this section.
+
+No GPT audit/prompt file touched (ownership rule respected). All other
+pre-existing worktree modifications/deletions/untracked files left
+untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionDoeDatasetExtractor.test.ts`: **68/68**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **89
+  files / 2033 tests** passed (2022 → 2033 tests, +11 new, no
+  regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): **167
+  files / 1726 tests** passed, unchanged (no desktop app code touched
+  this cycle).
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
+  drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).
