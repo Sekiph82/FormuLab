@@ -38,6 +38,8 @@
  * each section's own header comment below for its specific contract.
  */
 import { z } from "zod";
+import { correctiveActionSchema } from "./correctiveActions";
+import { costSnapshotSchema } from "./costing";
 import { processParameterSchema } from "./dataExchange";
 import { doeDesignSchema, doeObservationSchema, doeRunSchema } from "./doe";
 import { formulationLineSchema } from "./formulation";
@@ -45,6 +47,7 @@ import { trialObservationSchema, trialProcessStepSchema } from "./laboratory";
 import { rawMaterialSchema } from "./materials";
 import { productFamilySchema } from "./product";
 import {
+  packagingSystemSnapshotSchema,
   stabilityConditionSchema,
   stabilityResultSchema,
   stabilitySampleSchema,
@@ -55,7 +58,7 @@ import { testResultSchema } from "./testDefinitions";
 /** Current dataset (row/lineage) schema version. Bump when the shape of a
  *  dataset row changes (a field is added, removed, or renamed by one of
  *  the FVL-05.003-.008 extractors). */
-export const DATASET_SCHEMA_VERSION = "1.5" as const;
+export const DATASET_SCHEMA_VERSION = "1.6" as const;
 
 /** Validates the literal current dataset schema version. */
 export const datasetSchemaVersionSchema = z.literal(DATASET_SCHEMA_VERSION);
@@ -430,6 +433,14 @@ export type FormulaVersionCompositionRow = z.infer<typeof formulaVersionComposit
  * (repo-wide grep re-confirmed), so no `SchemaMigration` entry is
  * applicable; `"1.4"` (and `"1.3"`, `"1.2"`, `"1.1"`, `"1.0"`) are now all
  * structurally rejected.
+ *
+ * SIXTH BUMP (FVL-05.008, 2026-08-24): `"1.5"` -> `"1.6"`. Same standing
+ * rule, same direct precedent: `stabilityStudyPackagingContextSchema`/
+ * `formulaVersionCorrectiveCostContextRowSchema` are a brand-new row
+ * type. Compatibility unchanged: still zero persisted rows of any FVL-05
+ * row family anywhere (repo-wide grep re-confirmed), so no
+ * `SchemaMigration` entry is applicable; `"1.5"` (and every prior
+ * superseded literal) are now all structurally rejected.
  */
 /**
  * GPT audit 000002, finding 2 (RESOLVED): `processStepPlanSchema`/
@@ -992,3 +1003,167 @@ export const formulaVersionDoeRowSchema = datasetRowBaseSchema.extend({
   studies: z.array(doeStudyRunsSchema),
 });
 export type FormulaVersionDoeRow = z.infer<typeof formulaVersionDoeRowSchema>;
+
+/**
+ * FVL-05.008 — corrective actions (when relevant) + cost snapshots +
+ * packaging/context payload.
+ *
+ * SOURCE-RECOVERY CONCLUSIONS (recovered directly from repository source,
+ * not inferred from the tracker's title — see the FVL-05.008 tracker row
+ * and `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+ * own cycle section for the full evidence trail):
+ *
+ * 1. CORRECTIVE ACTIONS: `CorrectiveAction` (`schemas/correctiveActions.ts`)
+ *    is a real, top-level, MUTABLE masterdata collection (`corrective_actions`,
+ *    `append_only: false` in `masterdata.rs`) — a genuinely GLOBAL identity,
+ *    never `parentRecordId`-scoped. It links to a specific `LaboratoryTrial`
+ *    or `StabilityStudy` via `sourceRecordId` — its own schema comment states
+ *    plainly "the trial or stability study id this action belongs to,"
+ *    unconditional on `sourceType`. The two real production writers
+ *    (`TrialsPanel.tsx`'s `createCorrectiveActionForDeviation`,
+ *    `StabilityPanel.tsx`'s `createFailureCorrectiveAction`) confirm exactly
+ *    this: `sourceType: "trial_deviation"` pairs with
+ *    `sourceRecordId: selectedTrial.id`; `sourceType: "stability_failure"`
+ *    pairs with `sourceRecordId: selectedStudy.id`; both also set
+ *    `projectId: formulation.id` — the SAME owning-formulation identifier
+ *    every other FVL-05 extractor already uses (`LaboratoryTrial.projectId`/
+ *    `StabilityStudy.projectId` are documented as `Formulation.id`, not a
+ *    separate "project" concept). `sourceType: "trial_failure"` and
+ *    `"manual"` are real enum values with NO current writer evidence at
+ *    all — a repo-wide grep found zero call sites — so this extractor does
+ *    NOT invent a different resolution rule for them; per the schema's own
+ *    unconditional comment, EVERY `CorrectiveAction.sourceRecordId` is
+ *    resolved against the union of the supplied `laboratoryTrials`/
+ *    `stabilityStudies` pools regardless of its `sourceType` label, failing
+ *    closed (pool-wide) when it resolves to neither
+ *    (`corrective_action_source_record_not_found`). A `CorrectiveAction`
+ *    whose resolved trial/study IS linked (via the SAME `sourceType ===
+ *    "saved_version"` + exact `sourceFormulaVersionId` rule FVL-05.004-.006
+ *    established) to the REQUESTED formula version is included in that
+ *    version's row; a `CorrectiveAction` whose resolved trial/study exists
+ *    in the pool but belongs to a DIFFERENT version is legitimately
+ *    irrelevant and simply excluded (never an error) — the same convention
+ *    every prior FVL-05 extractor uses. When an action IS attributed to a
+ *    row, its own denormalized `projectId` and the resolved trial's/study's
+ *    `projectId` must BOTH agree with the row's owning `Formulation.id`, or
+ *    the extraction fails closed (`corrective_action_formula_link_conflict`)
+ *    — the same "resolve both sides of a redundant field and fail closed on
+ *    contradiction" discipline `trial_formula_link_conflict`/
+ *    `stability_result_sample_conflict` established. `CorrectiveAction` is
+ *    embedded 100% VERBATIM (`correctiveActionSchema`, unmodified) — the
+ *    whole record IS the historical evidence (problem statement, owner,
+ *    resolution, effectiveness check, full audit history), not
+ *    administrative metadata to trim. `CorrectiveAction.deviationOrFailureId`
+ *    is preserved verbatim but NOT referentially validated: `TrialDeviation`/
+ *    `StabilityFailure` are entities this whole FVL-05 family has
+ *    consistently kept out of scope (`schemas/stability.ts`'s own header
+ *    comment: `StabilityFailure` is "the stability analog of
+ *    `TrialDeviation`, which FVL-05.004 also did not extract") — pooling
+ *    either merely to validate one optional field would be scope creep
+ *    beyond this task's own "corrective actions" title, the same
+ *    preserve-but-do-not-enforce precedent FVL-05.007 established for
+ *    `DoeObservation.sourceTrialId`/`.sourceTestResultId`.
+ *    `LaboratoryTrial`/`StabilityStudy` themselves are supplied ONLY as
+ *    resolution pools (never embedded in the row — out of this task's own
+ *    title scope), but a trial/study that legitimately resolves an
+ *    included action still contributes an exact lineage citation
+ *    (`laboratoryTrial`/`stabilityStudy`), the same convention
+ *    FVL-05.005's `trialTestResultsSchema` established for a trial that
+ *    contributes context without being embedded whole.
+ *
+ * 2. COST SNAPSHOTS: `CostSnapshot` (`schemas/costing.ts`) is a real,
+ *    top-level, APPEND-ONLY masterdata collection (`cost_snapshots`,
+ *    `append_only: true`) — its own header comment states it is
+ *    "immutable," recording every input (price/exchange-rate/packaging
+ *    codes, factory profile) it used so "the number can be explained and
+ *    reproduced later, even after all of those have moved on." Unlike
+ *    every other entity this file embeds, `CostSnapshot` has NO separate
+ *    `id` field — `code` IS its exact persisted identity — so lineage
+ *    citations and duplicate-identity checks use `code`, still a
+ *    GENUINELY GLOBAL identity (its own flat top-level collection, no
+ *    parent scoping), never `parentRecordId`. It links to a formula
+ *    version DIRECTLY, via its own `formulationId`/`versionId` fields —
+ *    no multi-hop resolution needed, unlike corrective actions. A snapshot
+ *    whose `versionId` matches the requested version's id but whose
+ *    `formulationId` does not resolve to that version's owning formulation
+ *    is a genuine denormalized-field contradiction and fails closed
+ *    (`cost_snapshot_formula_link_conflict`). `CostSnapshot` is embedded
+ *    100% VERBATIM (`costSnapshotSchema`, unmodified) — a historical
+ *    costing IS the evidence, not a value to re-derive.
+ *    `PackagingComponent`/`PackagingBom`/`FactoryCostProfile`/
+ *    `ExchangeRate` (the CURRENT, MUTABLE catalog/reference data a
+ *    snapshot's `priceRecordCodes`/`exchangeRateCodes`/
+ *    `packagingComponentCodes`/`factoryProfileCode` merely CITE by code)
+ *    are deliberately NOT resolved or embedded — presenting today's live
+ *    catalog alongside a frozen historical snapshot would be exactly the
+ *    planned/current-vs-actual/historical conflation this whole FVL-05
+ *    family has consistently refused (the same reasoning FVL-05.005 kept
+ *    `TestDefinition` out of its own row); the snapshot's own embedded
+ *    `costLineSchema` rows already carry every cost figure the
+ *    calculation actually produced.
+ *
+ * 3. PACKAGING/CONTEXT: a repo-wide search for a packaging record that is
+ *    genuinely HISTORICAL experiment context (frozen, capture-once) rather
+ *    than current mutable catalog metadata found exactly ONE:
+ *    `StabilityStudy.packagingSnapshot` (`packagingSystemSnapshotSchema`,
+ *    `schemas/stability.ts`) — its own header comment states it is
+ *    "captured once, at study creation, so a later packaging-component
+ *    price or BOM edit cannot silently change what an in-progress study is
+ *    protocol-bound to," mirroring `TrialFormulaSnapshot`'s "capture once,
+ *    never re-read live" principle. `LaboratoryTrial` carries only
+ *    `targetPackagingSkuIds` (mutable id references, no frozen snapshot);
+ *    `DoeStudy` carries no packaging field at all; `PackagingComponent`/
+ *    `PackagingBom` (`schemas/costing.ts`) are confirmed CURRENT, MUTABLE
+ *    catalog collections (`packaging_components`/`packaging_boms`,
+ *    `append_only: false`), never historical snapshots. FVL-05.006
+ *    deliberately did NOT embed `StabilityStudy.packagingSnapshot` (its own
+ *    "administrative-metadata-only" treatment of `StabilityStudy` embedded
+ *    only `studyId`/`studyCode`) — so this genuinely missing historical
+ *    context, for every `StabilityStudy` already resolved as linked to the
+ *    requested version (the SAME resolution this extractor performs for
+ *    corrective-action linkage), is extracted here as
+ *    `stabilityStudyPackagingContextSchema`
+ *    (`{ studyId, studyCode, packagingSkuCode, packagingSnapshot }`,
+ *    `packagingSystemSnapshotSchema` reused 100% verbatim) — never a
+ *    second copy of FVL-05.006's own sample/result/condition/time-point
+ *    evidence, which stays exclusively that task's own row.
+ *
+ * 4. ENVIRONMENTAL/TEST CONDITIONS: independently audited and found ALREADY
+ *    FULLY REPRESENTED by prior FVL-05 rows, with no genuinely missing
+ *    context to add — `TestResult.storageCondition`/`.timePoint`
+ *    (`schemas/testDefinitions.ts`) are embedded verbatim by FVL-05.005's
+ *    `trialTestResultsSchema`; `StabilityCondition`/`StabilityTimePoint`
+ *    are embedded verbatim by FVL-05.006's `stabilityStudySamplesSchema`
+ *    (corrective cycle); `DoeDesign.factorSnapshot`/`.responseSnapshot`
+ *    (the DOE analog of environmental/method conditions — temperature,
+ *    humidity, and similar process factors) are embedded verbatim by
+ *    FVL-05.007's `doeDesignRunsSchema`. Inventing a second, parallel
+ *    environmental-condition model here would duplicate already-extracted
+ *    measured evidence, which the governing prompt explicitly forbids —
+ *    so this row contributes NOTHING new under this heading, by design,
+ *    not by omission.
+ *
+ * One row per `FormulationVersion`, same convention as FVL-05.003-.007:
+ * `correctiveActions`/`costSnapshots`/`packagingContext` are each
+ * independently empty when nothing of that kind is linked to the version
+ * — a row with all three empty is legitimate (the tracker's own "when
+ * relevant" qualifier for corrective actions), never fabricated.
+ */
+export const stabilityStudyPackagingContextSchema = z.object({
+  studyId: nonBlankString("studyId"),
+  studyCode: nonBlankString("studyCode"),
+  packagingSkuCode: nonBlankString("packagingSkuCode"),
+  packagingSnapshot: packagingSystemSnapshotSchema,
+});
+export type StabilityStudyPackagingContext = z.infer<typeof stabilityStudyPackagingContextSchema>;
+
+export const formulaVersionCorrectiveCostContextRowSchema = datasetRowBaseSchema.extend({
+  formulaId: nonBlankString("formulaId"),
+  formulaCode: nonBlankString("formulaCode"),
+  formulaVersionId: nonBlankString("formulaVersionId"),
+  formulaVersionNumber: z.number().int().positive(),
+  correctiveActions: z.array(correctiveActionSchema),
+  costSnapshots: z.array(costSnapshotSchema),
+  packagingContext: z.array(stabilityStudyPackagingContextSchema),
+});
+export type FormulaVersionCorrectiveCostContextRow = z.infer<typeof formulaVersionCorrectiveCostContextRowSchema>;

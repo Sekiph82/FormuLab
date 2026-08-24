@@ -4,6 +4,55 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-24, FVL-05.008 — Extractor: corrective actions + cost
+snapshots + packaging/context — COMPLETE)**: FVL-05.007 was
+independently GPT-audit CLOSED (`AUDIT_FVL05_GPT_000010`) before this
+task began; per that audit's own verdict, this session did not reopen
+it. New task; source recovery was the main work, per the governing
+prompt's own instruction — nothing was inferred from the tracker
+title's four named categories. Found: `CorrectiveAction`
+(`schemas/correctiveActions.ts`, mutable top-level collection) links to
+a formula version via a two-hop path its own schema comment makes
+unconditional — `sourceRecordId` is "the trial or stability study id
+this action belongs to," resolved against the union of supplied
+`laboratoryTrials`/`stabilityStudies` pools regardless of `sourceType`
+(only `trial_deviation`/`stability_failure` have real writer evidence;
+`trial_failure`/`manual` have none, so no different rule was invented
+for them) — fails closed pool-wide when unresolvable
+(`corrective_action_source_record_not_found`), and on a formula-link
+contradiction on either side once attributed to a row
+(`corrective_action_formula_link_conflict`/
+`laboratory_trial_formula_link_conflict`/
+`stability_study_formula_link_conflict`). `CostSnapshot`
+(`schemas/costing.ts`, append-only, immutable, keyed by `code` — no
+separate `id`) links DIRECTLY via `formulationId`/`versionId`, no
+multi-hop resolution needed. Packaging/context: exactly ONE genuinely
+historical (frozen, capture-once) packaging record exists anywhere in
+the repository — `StabilityStudy.packagingSnapshot` — which FVL-05.006
+deliberately never embedded; extracted here via the same study-linkage
+resolution already needed for corrective actions.
+Environmental/test-condition fields were independently audited and
+found already fully represented by FVL-05.005/.006/.007's own rows, so
+this row adds nothing new under that heading, by design. Lineage
+citations for a trial/study referenced by more than one corrective
+action, or also contributing packaging context, are deduplicated at the
+row level (found and fixed during test authoring — a genuine bug, not
+a documentation gap). `DATASET_SCHEMA_VERSION` bumped `"1.5"` → `"1.6"`
+(brand-new row type, sixth consecutive bump under the standing rule).
+Full detail: the FVL-05.008 tracker row and this cycle's own section in
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`.
+Focused `formulaVersionCorrectiveCostContextDatasetExtractor.test.ts`:
+**44/44**. `pnpm --filter @formulab/shared test`: **90 files / 2077
+tests** passed (89→90 files, 2033→2077 tests, +44, no regression).
+`pnpm --filter @formulab/desktop test`: full suite green, no regression
+(exact count in the external log). Both `typecheck`s clean, desktop
+`lint` clean, `git diff --check` clean, `python
+scripts/validate_v1_tracker.py` OK (171 unique tasks, no drift). Native
+build/shortcut/launch-smoke gate rerun from final pushed HEAD —
+evidence in the external log's own FVL-05.008 section. **FVL-05.009
+explicitly NOT started this session, per this session's own
+instruction.**
+
 **UPDATE (2026-08-24, FVL-05.007 corrective cycle, independent GPT
 re-audit `AUDIT_FVL05_GPT_000009` — COMPLETE, genuinely audit-fixed)**:
 one HIGH finding — the extractor preserved `DoeRun.factorSettings[]`

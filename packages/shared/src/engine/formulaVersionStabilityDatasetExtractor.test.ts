@@ -1107,6 +1107,7 @@ describe("extractFormulaVersionStabilityRows", () => {
       expect(formulaVersionStabilityRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.2" }).success).toBe(false);
       expect(formulaVersionStabilityRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.3" }).success).toBe(false);
       expect(formulaVersionStabilityRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.4" }).success).toBe(false);
+      expect(formulaVersionStabilityRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.5" }).success).toBe(false);
     });
 
     it("PARITY: the embedded sample/result/condition/time-point element schemas are the literal same schema objects as the canonical source — never re-modeled copies", () => {

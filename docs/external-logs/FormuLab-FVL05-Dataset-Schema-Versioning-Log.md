@@ -4511,3 +4511,189 @@ prompt files untouched (read-only, respected).
 
 **NEXT TASK — FVL-05.008 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.008 — Extractor: corrective actions + cost snapshots +
+packaging/context — Cycle Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file, per this session's own combined-log instruction carried forward).
+
+## Task
+
+**FVL-05.008** — Extractor: corrective actions when relevant, cost
+snapshots, packaging/context, environmental/test conditions. Depends on
+FVL-05.002 (row/entity lineage model, closed). Blocking = NO.
+
+Governing documents (both GPT-owned, READ-ONLY, read completely before
+any edit, neither modified):
+- `docs/audits/FVL05-GPT-AUDIT-000010.md` — independent closure re-audit
+  that closed FVL-05.007 (`CLOSE / ACCEPT`) and cleared FVL-05.008 to
+  begin.
+- `docs/prompts/FVL05-GPT-PROMPT-000011.md` — the start prompt for this
+  task, explicit that "SOURCE RECOVERY IS THE MAIN WORK OF THIS TASK."
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `e151b634284759a5ac043e2a9dda11a2d395d005`.
+- Remote HEAD at fetch: `a516ed4...` (2 commits ahead — the
+  audit-000010 and prompt-000011 doc commits). Fast-forwarded via
+  `git pull --ff-only`; local HEAD then equaled remote HEAD.
+- `git diff --check` at start: clean (pre-existing CRLF warnings only).
+
+## Source recovery (before any code was written)
+
+Read, in full:
+- `packages/shared/src/schemas/dataset.ts` (all six prior FVL-05.002-.007
+  sections, for established conventions).
+- `packages/shared/src/schemas/correctiveActions.ts` — found
+  `correctiveActionSchema`, a real top-level mutable collection whose
+  own comment defines `sourceRecordId` as "the trial or stability study
+  id this action belongs to," unconditional on `sourceType`.
+- `packages/shared/src/schemas/costing.ts` — found `costSnapshotSchema`
+  (immutable, direct `formulationId`/`versionId` link, `code`-keyed, no
+  `id`) alongside `PackagingComponent`/`PackagingBom`/
+  `FactoryCostProfile`/`ExchangeRate` (all confirmed CURRENT mutable
+  catalog/reference data, not historical snapshots).
+- `packages/shared/src/engine/correctiveActions.ts` — `createCorrectiveAction`
+  and the full lifecycle (`markInProgress`/`markAwaitingVerification`/
+  `verifyEffectiveness`/`reopenCorrectiveAction`/`cancelCorrectiveAction`).
+- `apps/desktop/src-tauri/src/masterdata.rs` — confirmed
+  `corrective_actions` (`append_only: false`), `cost_snapshots`
+  (`append_only: true`), `packaging_components`/`packaging_boms`
+  (`append_only: false`, current catalog), `exchange_rates`
+  (`append_only: true`, but a general FX table, not itself
+  experiment-specific evidence).
+- `apps/desktop/src/components/formula/TrialsPanel.tsx` — the ONE real
+  writer for `sourceType: "trial_deviation"`, confirmed
+  `sourceRecordId: selectedTrial.id`, `projectId: formulation.id`.
+- `apps/desktop/src/components/formula/StabilityPanel.tsx` — the ONE
+  real writer for `sourceType: "stability_failure"`, confirmed
+  `sourceRecordId: selectedStudy.id`, `projectId: formulation.id`.
+- A repo-wide grep for `sourceType: "trial_failure"` and
+  `sourceType: "manual"` inside `createCorrectiveAction(` call
+  arguments — ZERO matches. Neither has any current writer evidence.
+- `packages/shared/src/schemas/laboratory.ts` — confirmed
+  `LaboratoryTrial.projectId` is documented as `Formulation.id`, and
+  `targetPackagingSkuIds` is a mutable id array, not a frozen snapshot.
+- `packages/shared/src/schemas/stability.ts` — confirmed
+  `StabilityStudy.packagingSnapshot` (`packagingSystemSnapshotSchema`)
+  is the one frozen, capture-once packaging record in the repository,
+  and that FVL-05.006 deliberately did not embed it (id/code-only
+  treatment of `StabilityStudy`).
+- `packages/shared/src/schemas/doe.ts` — confirmed `DoeStudy` carries no
+  packaging field at all.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` and
+  `docs/handoffs/FORMULAB_V1_CURRENT.md` current truth.
+
+## Critical source-semantics answers (per the governing prompt's own
+required questions)
+
+1. Corrective-action identity scope: `CorrectiveAction.id` is genuinely
+   global (own top-level collection). It links to a `LaboratoryTrial`
+   or `StabilityStudy` via `sourceRecordId`, unconditional on
+   `sourceType`; only two of the four enum values have real writer
+   evidence, so the SAME resolution rule was applied uniformly rather
+   than inventing a different one per label.
+2. A true historical cost snapshot exists: `CostSnapshot`
+   (`append_only: true`), distinct from mutable
+   `PackagingComponent`/`PackagingBom`/`FactoryCostProfile`/
+   `ExchangeRate`, which are current/mutable and were NOT embedded.
+3. Packaging/context: only `StabilityStudy.packagingSnapshot` is frozen
+   experiment-specific context; `packaging_components`/`packaging_boms`
+   are current catalog and excluded.
+4. Environmental/test-condition fields: already fully carried by
+   `TestResult` (FVL-05.005), `StabilityCondition`/`StabilityTimePoint`
+   (FVL-05.006), and `DoeDesign.factorSnapshot`/`.responseSnapshot`
+   (FVL-05.007) — confirmed nothing genuinely missing, so nothing new
+   was added under this heading.
+5. No duplicate measured evidence: packaging context is the ONLY new
+   contribution under a category FVL-05.006 already partially covers,
+   and it is exactly the ONE field FVL-05.006 explicitly did not embed
+   — verified by reading `stabilityStudySamplesSchema`'s own field list.
+6. Optional-relationship honesty: a corrective action's `sourceRecordId`
+   either resolves (attached to the row when its trial/study links to
+   the requested version) or fails closed pool-wide as unresolvable
+   (`corrective_action_source_record_not_found`) — never silently
+   treated as "no record."
+
+## Design decisions
+
+- `CorrectiveAction`/`CostSnapshot` embedded 100% verbatim (the whole
+  record IS the historical evidence); `LaboratoryTrial`/`StabilityStudy`
+  supplied only as resolution pools, never embedded (out of title
+  scope), but still cited in lineage when they resolve an included
+  action.
+- `deviationOrFailureId` preserved verbatim, not referentially
+  validated — `TrialDeviation`/`StabilityFailure` are out of scope for
+  this whole FVL-05 family (established by FVL-05.004/.006), and
+  pooling either just to validate one optional field would be scope
+  creep, mirroring FVL-05.007's `sourceTrialId`/`sourceTestResultId`
+  precedent.
+- `DATASET_SCHEMA_VERSION` bumped `"1.5"` → `"1.6"` (brand-new row type,
+  sixth consecutive bump under the standing rule).
+
+## Bug found and fixed during test authoring (not a documentation gap)
+
+Writing the adversarial tests for "multiple corrective actions resolving
+the same trial" and "a study contributing both a corrective action AND
+packaging context" immediately surfaced a real defect: the initial
+implementation pushed a `laboratoryTrial`/`stabilityStudy` lineage
+citation on EVERY resolved action and EVERY packaging-context entry
+independently, producing an exact-duplicate `(sourceEntity,
+sourceRecordId)` pair whenever the same trial/study was referenced more
+than once — `sourceRecordLineageSchema` correctly rejected it
+(`row_schema_validation_failed`). Fixed with a `citedTrialIds`/
+`citedStudyIds` `Set` shared across the whole row, the same dedup
+discipline FVL-05.006 established for shared condition/time-point
+citations — each trial/study is now cited exactly once per row
+regardless of how many actions/packaging entries reference it.
+
+## Files changed
+
+- `packages/shared/src/schemas/dataset.ts` — `DATASET_SCHEMA_VERSION`
+  `"1.5"` → `"1.6"`; new `stabilityStudyPackagingContextSchema`/
+  `formulaVersionCorrectiveCostContextRowSchema`; new version-history
+  comment entry (sixth bump).
+- `packages/shared/src/schemas/dataset.test.ts` — `DATASET_SCHEMA_VERSION`
+  assertion updated to `"1.6"`; superseded-version list extended with
+  `"1.5"`.
+- `packages/shared/src/engine/formulaVersionCorrectiveCostContextDatasetExtractor.ts`
+  (new) — `extractFormulaVersionCorrectiveCostContextRows`.
+- `packages/shared/src/engine/formulaVersionCorrectiveCostContextDatasetExtractor.test.ts`
+  (new) — 44 focused tests.
+- `packages/shared/src/engine/formulaVersionStabilityDatasetExtractor.test.ts`
+  and `formulaVersionDoeDatasetExtractor.test.ts` — each `VERSION` test
+  extended in place to also assert `"1.5"` is rejected (mechanical
+  consequence of the version bump; counts unchanged: 65/65 and 68/68).
+- `packages/shared/src/index.ts` — new
+  `export * from "./engine/formulaVersionCorrectiveCostContextDatasetExtractor"`
+  line.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.008 row marked COMPLETED;
+  completion-percentage table (`FVL-05` 7→8, Total 96→97) and CURRENT
+  STATE prose updated.
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE block prepended.
+- `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`
+  — this section.
+
+No GPT audit/prompt file touched (ownership rule respected). All other
+pre-existing worktree modifications/deletions/untracked files left
+untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionCorrectiveCostContextDatasetExtractor.test.ts`: **44/44**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **90
+  files / 2077 tests** passed (2033 → 2077 tests, +44 new, no
+  regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): **167
+  files / 1726 tests** passed, unchanged (no desktop app code touched
+  this cycle).
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
+  drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).

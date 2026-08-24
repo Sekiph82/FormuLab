@@ -1006,6 +1006,7 @@ describe("extractFormulaVersionDoeRows", () => {
       expect(formulaVersionDoeRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.2" }).success).toBe(false);
       expect(formulaVersionDoeRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.3" }).success).toBe(false);
       expect(formulaVersionDoeRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.4" }).success).toBe(false);
+      expect(formulaVersionDoeRowSchema.safeParse({ ...rows[0], datasetSchemaVersion: "1.5" }).success).toBe(false);
     });
 
     it("PARITY: the embedded design/run/observation element schemas are the literal same schema objects as the canonical source — never re-modeled copies", () => {
