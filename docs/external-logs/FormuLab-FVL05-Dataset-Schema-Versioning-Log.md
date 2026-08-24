@@ -4244,3 +4244,73 @@ were left untouched.
   (no desktop app code touched this cycle).
 - `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no drift.
 - `git diff --check`: clean (pre-existing CRLF warnings only).
+
+### Commits
+
+- `d7fa96f` — this cycle's single implementation commit (no amend, no
+  force push, no history rewrite).
+
+Final HEAD: `d7fa96f8dd35686a0170e40aa982d0e5577b2774`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`d7fa96f8dd35686a0170e40aa982d0e5577b2774`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building —
+  none running.
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly — **`EXIT_CODE=0`**. MSI and NSIS bundles
+  produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,871,424 bytes, modified 2026-08-24 10:00:31 local time,
+  SHA256 `EC05CE8978DFA3427D2258CFD807A7347A2210EB59FDBFBF63E55F5292E7B0A7`
+  (distinct from the pre-cycle build's hash
+  `CFD5AF789BC7A6756CF3F9F9C5D6C2EABF4B5F62B2D00DE868C5DC78DAEE7825`,
+  confirming a fresh build from this cycle's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 18988) confirmed running from the exact fresh exe path
+  and `Responding: True` 5 seconds after launch. **Automated launch
+  smoke: PASS.** Process then deliberately stopped afterward so it does
+  not lock the next build. **Manual UI acceptance from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Source contract recovered directly from `schemas/doe.ts`/
+`engine/doeDesign.ts`/`DoePanel.tsx` (not the title); `baselineFormulaVersionId`/
+`formulationId` link proven, not the `sourceType` pattern; all four DOE
+collections resolved and cross-validated pool-wide; frozen design
+snapshot correctly used as the sole interpretive source for factor/
+response meaning (no invented second live pool); `DoeAnalysis`/
+`DoeCandidate`/`DoeReviewAction` correctly excluded; multiple study
+revisions and multiple designs per study both fully preserved (never
+collapsed to "latest wins"); `supersedesStudyId`/`supersedesDesignId`
+fail-closed dangling/self/cycle checks pool-wide; `linkedFormulaVersionId`
+validated against the already-required version pool while
+`linkedTrialId`/`sourceTrialId`/`sourceTestResultId` are honestly
+preserved-not-enforced per zero writer evidence; dataset-row shape change
+correctly triggered the standing version-bump rule (`1.4` → `1.5`); every
+pool-level and nested identity scope fails closed; deterministic,
+locale-independent ordering; source non-mutation and no output/source
+aliasing; public exports correct; focused tests green (57/57); focused
+FVL-05 dataset/extractor group green (280/280); full shared tests green
+(89/89 files, 2022/2022); desktop regression green (167/167 files,
+1726/1726, unchanged); shared/desktop typechecks green; desktop lint
+green; tracker validator green; `git diff --check` clean;
+tracker/handoff/external log all truthfully current; task-owned changes
+committed and pushed with local HEAD equal to remote HEAD; native Tauri
+release build, `Desktop\FormuLab.lnk` check, and launch smoke rerun from
+the final pushed HEAD with the real exit code verified explicitly;
+FVL-05.008 remains untouched; GPT audit/prompt files untouched
+(read-only, respected).
+
+**FVL-05.007 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.008 NOT STARTED** (per this session's explicit
+instruction not to begin it).
