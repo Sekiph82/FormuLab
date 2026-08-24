@@ -4697,3 +4697,70 @@ untouched.
 - `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
   drift.
 - `git diff --check`: clean (pre-existing CRLF warnings only).
+
+### Commits
+
+- `b1c52ba` — this task's single implementation commit (no amend, no
+  force push, no history rewrite).
+
+Final HEAD: `b1c52ba692bb91d171c1640e5471c41294826561`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`b1c52ba692bb91d171c1640e5471c41294826561`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building —
+  none running.
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly — **`EXIT_CODE=0`**. MSI and NSIS bundles
+  produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,871,424 bytes, modified 2026-08-24 10:56:28 local time,
+  SHA256 `EF5B2C9D696A2EEA50E9F98CBA44748166E1F296B4EF12A4C05F1CF9E9C90328`
+  (distinct from the pre-cycle build's hash
+  `140B8B6B01730A5C5A93E37192F2708BC07A6EA01155639CB95043FB38032038`,
+  confirming a fresh build from this cycle's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 20060) confirmed running from the exact fresh exe path
+  and `Responding: True` 5 seconds after launch. **Automated launch
+  smoke: PASS.** Process then deliberately stopped afterward so it does
+  not lock the next build. **Manual UI acceptance from
+  Desktop\FormuLab.lnk is still pending USER verification** — not
+  claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Source recovery genuinely drove the payload (not the tracker title):
+`CorrectiveAction`'s two-hop trial/study resolution proven from its own
+schema comment and the two real writers; `CostSnapshot`'s direct
+`formulationId`/`versionId` link and `code`-only identity confirmed;
+`StabilityStudy.packagingSnapshot` confirmed the ONE genuinely
+historical packaging record and correctly not duplicated from
+FVL-05.006; environmental/test conditions correctly left untouched
+(already fully represented); `TrialDeviation`/`StabilityFailure`/
+current mutable packaging catalog correctly excluded; lineage
+deduplication bug found during test authoring and fixed, not papered
+over; dataset-row shape change correctly triggered the standing
+version-bump rule (`1.5` → `1.6`); every pool-level and per-version
+identity/reference check fails closed; deterministic, locale-independent
+ordering; source non-mutation and no output/source aliasing; public
+exports correct; focused tests green (44/44); full shared tests green
+(90/90 files, 2077/2077); desktop regression green (167/167 files,
+1726/1726, unchanged); shared/desktop typechecks green; desktop lint
+green; tracker validator green; `git diff --check` clean;
+tracker/handoff/external log all truthfully current; task-owned changes
+committed and pushed with local HEAD equal to remote HEAD; native Tauri
+release build, `Desktop\FormuLab.lnk` check, and launch smoke rerun from
+the final pushed HEAD with the real exit code verified explicitly;
+FVL-05.009 remains untouched; GPT audit/prompt files untouched
+(read-only, respected).
+
+**FVL-05.008 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.009 NOT STARTED** (per this session's explicit
+instruction not to begin it).
