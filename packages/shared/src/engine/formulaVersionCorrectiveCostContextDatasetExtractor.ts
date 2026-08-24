@@ -39,6 +39,28 @@
  * fails closed on a malformed row, and guarantees (via zod's
  * always-rebuilding parse) that the returned row shares no mutable
  * array/object with the source records it was built from.
+ *
+ * CORRECTIVE CYCLE (`AUDIT_FVL05_GPT_000011`): `CorrectiveAction.
+ * sourceRecordId` resolution now checks BOTH the `laboratoryTrials` and
+ * `stabilityStudies` pools before choosing a target, rather than
+ * accepting the first (trial) match and only falling back to the study
+ * pool when no trial matched. `LaboratoryTrial.id` and `StabilityStudy.
+ * id` are opaque global identifiers in two SEPARATE top-level
+ * collections — nothing in the FVL-05 lineage/extractor contract
+ * establishes a cross-collection uniqueness guarantee between them, so a
+ * supplied pool can legitimately contain a trial and a study sharing the
+ * same exact id string. Order-of-lookup precedence (silently preferring
+ * "trial" because it happened to be checked first) is not an exact,
+ * unambiguous resolution — it now fails closed
+ * (`corrective_action_source_record_ambiguous`) when a `sourceRecordId`
+ * resolves in BOTH pools simultaneously. `sourceType` is deliberately
+ * still NOT used as a tie-breaking discriminator: the original FVL-05.008
+ * source recovery concluded `sourceRecordId` resolution is unconditional
+ * on `sourceType` (no writer evidence ties a specific `sourceType` value
+ * to exactly one target namespace), and no new source evidence in this
+ * corrective cycle disproves that — inventing a `sourceType`-based
+ * disambiguation rule now would be exactly the "paper over the ambiguity"
+ * the governing audit explicitly forbade.
  */
 import type { CorrectiveAction } from "../schemas/correctiveActions";
 import type { CostSnapshot } from "../schemas/costing";
@@ -103,6 +125,7 @@ export type FormulaVersionCorrectiveCostContextDatasetExtractionErrorCode =
   | "stability_study_formula_link_conflict"
   | "duplicate_corrective_action_id"
   | "corrective_action_source_record_not_found"
+  | "corrective_action_source_record_ambiguous"
   | "corrective_action_formula_link_conflict"
   | "duplicate_cost_snapshot_code"
   | "cost_snapshot_formula_link_conflict"
@@ -228,11 +251,18 @@ type CorrectiveActionResolution = { kind: "trial"; record: LaboratoryTrial } | {
 
 /** Builds the exact-id corrective-action lookup over the ENTIRE supplied
  *  pool, failing closed on a duplicate `CorrectiveAction.id`, a
- *  non-canonical `createdAt`, and a `sourceRecordId` that resolves to
- *  NEITHER the supplied `laboratoryTrials` nor `stabilityStudies` pool —
- *  per `CorrectiveAction.sourceRecordId`'s own unconditional schema
- *  comment ("the trial or stability study id this action belongs to"),
- *  this resolution is attempted regardless of `sourceType`. Returns the
+ *  non-canonical `createdAt`, a `sourceRecordId` that resolves to NEITHER
+ *  the supplied `laboratoryTrials` nor `stabilityStudies` pool, and —
+ *  corrective-cycle addition (`AUDIT_FVL05_GPT_000011`) — a
+ *  `sourceRecordId` that resolves in BOTH pools simultaneously (a
+ *  genuine cross-collection id collision; `LaboratoryTrial.id`/
+ *  `StabilityStudy.id` have no shared-uniqueness guarantee, so this must
+ *  be checked explicitly rather than accepting whichever pool happens to
+ *  be looked up first). Per `CorrectiveAction.sourceRecordId`'s own
+ *  unconditional schema comment ("the trial or stability study id this
+ *  action belongs to"), this resolution is attempted regardless of
+ *  `sourceType` — `sourceType` is NOT used to break a collision, since no
+ *  writer evidence proves it selects a target namespace. Returns the
  *  resolution alongside each action so the per-version filter never
  *  re-scans both pools. */
 function buildActionResolutions(
@@ -259,11 +289,18 @@ function buildActionResolutions(
       );
     }
     const trial = trialsById.get(action.sourceRecordId);
+    const study = studiesById.get(action.sourceRecordId);
+    if (trial && study) {
+      throw new FormulaVersionCorrectiveCostContextDatasetExtractionError(
+        "corrective_action_source_record_ambiguous",
+        `Corrective action "${action.id}" references sourceRecordId "${action.sourceRecordId}", which exists in BOTH the supplied laboratory trials and stability studies pools — resolution would be order-of-lookup precedence, not exact and unambiguous.`,
+        { actionId: action.id },
+      );
+    }
     if (trial) {
       resolutions.set(action.id, { kind: "trial", record: trial });
       continue;
     }
-    const study = studiesById.get(action.sourceRecordId);
     if (study) {
       resolutions.set(action.id, { kind: "study", record: study });
       continue;

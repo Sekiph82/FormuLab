@@ -4,6 +4,35 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-24, FVL-05.008 corrective cycle, independent GPT
+re-audit `AUDIT_FVL05_GPT_000011` — COMPLETE, genuinely audit-fixed)**:
+one HIGH finding — `buildActionResolutions()` checked `laboratoryTrials`
+first and immediately accepted a match, only falling back to
+`stabilityStudies` when no trial matched — order-of-lookup precedence,
+not exact/unambiguous resolution. `LaboratoryTrial.id`/`StabilityStudy.id`
+are opaque global identifiers in two SEPARATE top-level collections with
+no cross-collection uniqueness guarantee, so a supplied pool could
+legitimately contain a trial and a study sharing the same id, and the
+original code would silently attribute the action to the trial.
+Correction (validation/relationship logic only, no row shape change,
+`DATASET_SCHEMA_VERSION` stays `"1.6"` per the audit's own explicit
+instruction): resolution now checks BOTH pools before choosing a
+target; if both resolve, fails closed with a new
+`corrective_action_source_record_ambiguous` error; exactly-one-match and
+no-match behavior unchanged. `sourceType` was deliberately NOT
+introduced as a tie-breaker — the original source recovery already
+concluded resolution is unconditional on `sourceType`, and no new
+evidence disproved that. Full detail: the FVL-05.008 tracker row's
+"CORRECTIVE CYCLE" paragraph and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own corrective-cycle section. `pnpm --filter @formulab/shared test`: 90
+files / 2083 tests passed (2077→2083, +6 new adversarial tests, no
+regression). `pnpm --filter @formulab/desktop test`: full suite green,
+no regression (exact count in the external log). Both `typecheck`s
+clean, desktop `lint` clean, `git diff --check` clean, `python
+scripts/validate_v1_tracker.py` OK. **FVL-05.009 explicitly NOT started
+this session, per this session's own instruction.**
+
 **UPDATE (2026-08-24, FVL-05.008 — Extractor: corrective actions + cost
 snapshots + packaging/context — COMPLETE)**: FVL-05.007 was
 independently GPT-audit CLOSED (`AUDIT_FVL05_GPT_000010`) before this

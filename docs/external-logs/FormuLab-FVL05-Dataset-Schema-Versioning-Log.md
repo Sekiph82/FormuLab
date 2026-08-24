@@ -4764,3 +4764,106 @@ FVL-05.009 remains untouched; GPT audit/prompt files untouched
 
 **NEXT TASK — FVL-05.009 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.008 corrective cycle — Cycle Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file, per this session's own combined-log instruction carried forward).
+
+## Task
+
+**FVL-05.008 corrective cycle**, governed by:
+- `docs/audits/FVL05-GPT-AUDIT-000011.md` — independent re-audit
+  (`CONTINUE / REOPEN`) of implementation commit `b1c52ba`.
+- `docs/prompts/FVL05-GPT-PROMPT-000012.md` — the corrective prompt.
+
+Both GPT-owned, READ-ONLY, read completely before any edit, neither
+modified. `docs/audits/FVL05-GPT-AUDIT-000010.md` and
+`docs/prompts/FVL05-GPT-PROMPT-000011.md` also re-read per this cycle's
+own instruction.
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `daf357bbfed3ad91121bdca8fa85d4a70dd499fb`.
+- Remote HEAD at fetch: `437f4e9...` (2 commits ahead — the
+  audit-000011 and prompt-000012 doc commits). Fast-forwarded via
+  `git pull --ff-only`; local HEAD then equaled remote HEAD.
+- `git diff --check` at start: clean (pre-existing CRLF warnings only).
+
+## Blocking finding (from Audit 000011)
+
+HIGH — `buildActionResolutions()` resolved `CorrectiveAction.
+sourceRecordId` by checking `laboratoryTrials` first and immediately
+accepting a match, only checking `stabilityStudies` if no trial matched.
+`LaboratoryTrial.id`/`StabilityStudy.id` are opaque global identifiers
+in two separate top-level collections with no cross-collection
+uniqueness guarantee anywhere in the FVL-05 contract — a supplied
+dataset could legitimately contain a trial and a study sharing the exact
+same id, and the original code would silently prefer the trial branch
+purely because it was checked first — order-of-lookup precedence, not
+an exact, unambiguous resolution.
+
+## Correction applied
+
+Independently re-read `packages/shared/src/schemas/correctiveActions.ts`
+and the current `formulaVersionCorrectiveCostContextDatasetExtractor.ts`
+before editing, per this cycle's own instruction, and confirmed the
+finding against current source.
+
+- `buildActionResolutions()` now looks up BOTH `trialsById`/`studiesById`
+  for every action's `sourceRecordId` BEFORE choosing a target.
+- If both resolve: fails closed with a new
+  `corrective_action_source_record_ambiguous` error, truthful
+  `actionId` context.
+- If exactly one resolves: unchanged behavior.
+- If neither resolves: unchanged `corrective_action_source_record_not_found`
+  behavior.
+- `sourceType` deliberately NOT introduced as a tie-breaker: the
+  original FVL-05.008 source recovery already concluded
+  `sourceRecordId` resolution is unconditional on `sourceType` (no
+  writer evidence ties a specific `sourceType` value to exactly one
+  target namespace); this cycle found no new evidence disproving that,
+  and using it to silently pick a branch on a real collision would be
+  exactly the "paper over the ambiguity" the governing audit forbade.
+- `DATASET_SCHEMA_VERSION` NOT bumped (stays `"1.6"`): validation/
+  relationship logic only — no field was added/removed/renamed on the
+  emitted row shape — per the audit's own explicit instruction.
+
+## Files changed
+
+- `packages/shared/src/engine/formulaVersionCorrectiveCostContextDatasetExtractor.ts`
+  — `buildActionResolutions` (both-pools check before choosing,
+  ambiguity fail-closed), new `corrective_action_source_record_ambiguous`
+  error code, updated header + function doc comments (corrective-cycle
+  notes).
+- `packages/shared/src/engine/formulaVersionCorrectiveCostContextDatasetExtractor.test.ts`
+  — 6 new focused adversarial tests (44 → 50); no existing test
+  weakened or removed.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.008 row's own "CORRECTIVE
+  CYCLE" paragraph appended.
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE block prepended.
+- `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`
+  — this section.
+
+No GPT audit/prompt file touched (ownership rule respected). All other
+pre-existing worktree modifications/deletions/untracked files left
+untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionCorrectiveCostContextDatasetExtractor.test.ts`: **50/50**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **90
+  files / 2083 tests** passed (2077 → 2083 tests, +6 new, no
+  regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): **167
+  files / 1726 tests** passed, unchanged (no desktop app code touched
+  this cycle).
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
+  drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).

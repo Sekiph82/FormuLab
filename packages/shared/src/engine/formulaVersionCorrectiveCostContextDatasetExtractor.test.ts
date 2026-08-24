@@ -670,4 +670,121 @@ describe("extractFormulaVersionCorrectiveCostContextRows", () => {
       expect(stabilityStudyPackagingContextSchema.shape.packagingSnapshot).toBe(packagingSystemSnapshotSchema);
     });
   });
+
+  describe("corrective cycle (AUDIT_FVL05_GPT_000011): cross-namespace sourceRecordId ambiguity", () => {
+    it("fails closed when a corrective action's sourceRecordId exists in BOTH the trial and study pools", () => {
+      const collidingTrial = trial({ id: "SHARED-ID" });
+      const collidingStudy = study({ id: "SHARED-ID" });
+      const action = correctiveAction({ sourceRecordId: "SHARED-ID" });
+      const input = buildInput({
+        formulationVersions: [version()],
+        laboratoryTrials: [collidingTrial],
+        stabilityStudies: [collidingStudy],
+        correctiveActions: [action],
+      });
+      try {
+        extractFormulaVersionCorrectiveCostContextRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(FormulaVersionCorrectiveCostContextDatasetExtractionError);
+        expect((err as FormulaVersionCorrectiveCostContextDatasetExtractionError).code).toBe("corrective_action_source_record_ambiguous");
+        expect((err as FormulaVersionCorrectiveCostContextDatasetExtractionError).actionId).toBe(action.id);
+      }
+    });
+
+    it("does not use sourceType to silently disambiguate a same-id collision — fails closed even when sourceType names one branch", () => {
+      const collidingTrial = trial({ id: "SHARED-ID" });
+      const collidingStudy = study({ id: "SHARED-ID" });
+      const action = correctiveAction({ sourceRecordId: "SHARED-ID", sourceType: "stability_failure" });
+      const input = buildInput({
+        formulationVersions: [version()],
+        laboratoryTrials: [collidingTrial],
+        stabilityStudies: [collidingStudy],
+        correctiveActions: [action],
+      });
+      try {
+        extractFormulaVersionCorrectiveCostContextRows(input);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as FormulaVersionCorrectiveCostContextDatasetExtractionError).code).toBe("corrective_action_source_record_ambiguous");
+      }
+    });
+
+    it("a same-id collision elsewhere in the supplied pools does not affect an action pointing to a genuinely unique id", () => {
+      const collidingTrial = trial({ id: "SHARED-ID" });
+      const collidingStudy = study({ id: "SHARED-ID" });
+      const uniqueTrial = trial({ id: "TRIAL-UNIQUE" });
+      const action = correctiveAction({ sourceRecordId: "TRIAL-UNIQUE" });
+      const rows = extractFormulaVersionCorrectiveCostContextRows(
+        buildInput({
+          formulationVersions: [version()],
+          laboratoryTrials: [collidingTrial, uniqueTrial],
+          stabilityStudies: [collidingStudy],
+          correctiveActions: [action],
+        }),
+      );
+      expect(rows[0].correctiveActions.map((a) => a.id)).toEqual([action.id]);
+    });
+
+    it("exactly-one-match resolution is unaffected by an unrelated collision present in the supplied pools", () => {
+      const collidingTrial = trial({ id: "SHARED-ID" });
+      const collidingStudy = study({ id: "SHARED-ID" });
+      const uniqueStudy = study({ id: "STUDY-UNIQUE" });
+      const action = correctiveAction({ sourceType: "stability_failure", sourceRecordId: "STUDY-UNIQUE" });
+      const rows = extractFormulaVersionCorrectiveCostContextRows(
+        buildInput({
+          formulationVersions: [version()],
+          laboratoryTrials: [collidingTrial],
+          stabilityStudies: [collidingStudy, uniqueStudy],
+          correctiveActions: [action],
+        }),
+      );
+      expect(rows[0].correctiveActions.map((a) => a.id)).toEqual([action.id]);
+    });
+
+    it("collision-detection result is deterministic and independent of supplied pool order", () => {
+      const collidingTrial = trial({ id: "SHARED-ID" });
+      const collidingStudy = study({ id: "SHARED-ID" });
+      const action = correctiveAction({ sourceRecordId: "SHARED-ID" });
+      const forward = buildInput({
+        formulationVersions: [version()],
+        laboratoryTrials: [collidingTrial],
+        stabilityStudies: [collidingStudy],
+        correctiveActions: [action],
+      });
+      const reversedPools = buildInput({
+        formulationVersions: [version()],
+        laboratoryTrials: [collidingTrial],
+        stabilityStudies: [collidingStudy],
+        correctiveActions: [action],
+      });
+      let forwardCode: string | undefined;
+      let reversedCode: string | undefined;
+      try {
+        extractFormulaVersionCorrectiveCostContextRows(forward);
+      } catch (err) {
+        forwardCode = (err as FormulaVersionCorrectiveCostContextDatasetExtractionError).code;
+      }
+      try {
+        extractFormulaVersionCorrectiveCostContextRows(reversedPools);
+      } catch (err) {
+        reversedCode = (err as FormulaVersionCorrectiveCostContextDatasetExtractionError).code;
+      }
+      expect(forwardCode).toBe("corrective_action_source_record_ambiguous");
+      expect(reversedCode).toBe("corrective_action_source_record_ambiguous");
+    });
+
+    it("does not mutate its inputs on the new ambiguity failure path", () => {
+      const collidingTrial = Object.freeze(trial({ id: "SHARED-ID" }));
+      const collidingStudy = Object.freeze(study({ id: "SHARED-ID" }));
+      const action = Object.freeze(correctiveAction({ sourceRecordId: "SHARED-ID" }));
+      const input = buildInput({
+        formulationVersions: [version()],
+        laboratoryTrials: [collidingTrial as unknown as LaboratoryTrial],
+        stabilityStudies: [collidingStudy as unknown as StabilityStudy],
+        correctiveActions: [action as unknown as CorrectiveAction],
+      });
+      expect(() => extractFormulaVersionCorrectiveCostContextRows(input)).toThrow(FormulaVersionCorrectiveCostContextDatasetExtractionError);
+    });
+  });
 });
