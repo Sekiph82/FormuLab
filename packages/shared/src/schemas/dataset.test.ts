@@ -39,15 +39,16 @@ describe("dataset schema version", () => {
 
 describe("feature schema version", () => {
   it("is an explicit literal, not a free-form string", () => {
-    expect(FEATURE_SCHEMA_VERSION).toBe("1.1");
-    expect(featureSchemaVersionSchema.safeParse("1.1").success).toBe(true);
-    expect(featureSchemaVersionSchema.safeParse("1.2").success).toBe(false);
+    expect(FEATURE_SCHEMA_VERSION).toBe("1.2");
+    expect(featureSchemaVersionSchema.safeParse("1.2").success).toBe(true);
+    expect(featureSchemaVersionSchema.safeParse("1.3").success).toBe(false);
     expect(featureSchemaVersionSchema.safeParse("").success).toBe(false);
-    expect(featureSchemaVersionSchema.safeParse(1.1).success).toBe(false);
+    expect(featureSchemaVersionSchema.safeParse(1.2).success).toBe(false);
   });
 
-  it("rejects the superseded FVL-05.009 literal — old and new feature-row identity can never be ambiguous", () => {
+  it("rejects every superseded prior literal — old and new feature-row identity can never be ambiguous, across every bump", () => {
     expect(featureSchemaVersionSchema.safeParse("1.0").success).toBe(false);
+    expect(featureSchemaVersionSchema.safeParse("1.1").success).toBe(false);
   });
 
   it("rejects a record missing the field, so the version can never be silently absent", () => {

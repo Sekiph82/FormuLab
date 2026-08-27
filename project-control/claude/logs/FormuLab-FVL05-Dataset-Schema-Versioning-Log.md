@@ -5701,3 +5701,189 @@ FVL-05.011 remains untouched; GPT audit/prompt files untouched
 
 **NEXT TASK — FVL-05.011 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.010 corrective cycle — Cycle Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file, per the standing combined-log instruction carried forward).
+
+## Task
+
+**FVL-05.010 corrective cycle**, governed by:
+- `project-control/gpt/audits/FVL05-GPT-AUDIT-000015.md` — independent
+  re-audit (`CONTINUE / REOPEN`) of implementation commit `d5e7388`.
+- `project-control/gpt/prompts/FVL05-GPT-PROMPT-000016.md` — the
+  corrective prompt.
+
+Both GPT-owned, READ-ONLY, read completely before any edit, neither
+modified.
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `37a5fc2e075a5e76dad57a6be47e8c5fa13f62d3`.
+- Remote HEAD at fetch: same — already up to date (`git pull --ff-only`
+  reported a fast-forward landing only the audit-000015/prompt-000016
+  doc commits before this cycle began work).
+- `git diff --check` at start: clean (pre-existing CRLF warnings only;
+  unrelated pre-existing dirty worktree state left untouched throughout).
+
+## Blocking findings (from Audit 000015)
+
+**Finding A (HIGH)** — `collectMeasuredResultTarget()` emitted every
+numeric replicate AND `ReplicateStats.mean`/`.minimum`/`.maximum`/
+`.standardDeviation` as additional target observations for the same
+target definition. `schemas/testDefinitions.ts`'s own
+`replicateStatsSchema` header comment states plainly the stats are
+"computed purely from replicates... persisted only so reports do not
+need to recompute them... the replicates remain the source of truth" —
+a computed reporting cache is not an independent measured response.
+
+**Finding B (HIGH)** — `targetDefinitionSchema`'s `testResult` branch
+defined identity as only `productFamilyCode + sourceEntity +
+testDefinitionId`, structurally forbidding `sampleId`/`timePoint`/
+`storageCondition`/`instrument`/`methodSnapshot` — but the audit found
+no schema invariant proving two `TestResult`s sharing one
+`testDefinitionId` must share the same persisted time-point/storage-
+condition context, and the original implementation had concluded this
+without proving the TestResult fields non-distinguishing (only
+`StabilityResult` had been re-audited that way).
+
+## Source recovery for Finding B (before any code was written)
+
+Both real `TestResult` writers inspected directly, per the governing
+prompt's own 7 mandatory questions:
+
+- `apps/desktop/src/components/formula/TrialsPanel.tsx`'s
+  `recordTestResult()` (the human-recorded writer): constructs a
+  `TestResult` setting `schemaVersion`/`id`/`trialId`/`testDefinitionId`/
+  `resultType`/`replicates`/`attachments`/`stats`/`passFail`/`unit`
+  (from `definition.unit`)/`performedBy`/`performedAt`/`createdAt`/
+  `updatedAt` — grep-confirmed it sets NONE of `sampleId`/`timePoint`/
+  `storageCondition`/`instrument`/`methodSnapshot`.
+- `apps/desktop/src/lib/dataExchangeCommit.ts`'s `commitLabResults()`
+  (the Data Exchange import writer): sets `sampleId: nn(r.sample_code)`
+  and `instrument: nn(r.instrument)` from the customer's own file columns
+  — but never `timePoint` or `storageCondition`.
+- `engine/laboratoryStandards.ts`'s `buildTestMethodSnapshot()`: defined,
+  but a repo-wide grep found ZERO call sites anywhere in
+  `apps/desktop/src` — `methodSnapshot` is never populated by any current
+  production writer.
+
+Answers to the 7 mandatory questions: (1) `sampleId` CAN vary for the
+same `testDefinitionId` (import writer sets it per customer row; no
+uniqueness constraint). (2) `timePoint` — schema-permitted to vary
+(independently optional per record, no invariant forcing equality
+across records sharing a `testDefinitionId`) though no CURRENT writer
+exercises that permission. (3) `storageCondition` — identical
+reasoning to `timePoint`. (4) `instrument` CAN vary (import writer sets
+it per customer row). (5) `methodSnapshot` cannot currently vary in
+practice (never populated by any writer), so no current evidence either
+proves or disproves it as identity-relevant. (6) `sampleId`/`instrument`/
+`methodSnapshot` do NOT change WHAT is being measured — which physical
+specimen or device/method version produced a value is measurement-
+INSTANCE context, the same treatment `TestReplicate.replicateNumber`
+already gets; `timePoint`/`storageCondition` DO change what is being
+predicted — "pH at hour 0" and "pH at hour 24" recorded under the SAME
+`testDefinitionId` are conceptually different targets, the identical
+reasoning `stabilityResult`'s `conditionId`/`timePointId` already rest
+on. (7) `timePoint`/`storageCondition` are the persisted context
+required so two materially different measurements cannot become
+indistinguishable after extraction.
+
+## Corrections applied
+
+**Finding A**: the `if (result.stats) { ... }` block removed entirely
+from `collectMeasuredResultTarget()` (shared by both `TestResult`/
+`StabilityResult` walkers) — only `result.replicates[]` produce
+observations now. `STATS_FIELDS` constant deleted as dead code.
+
+**Finding B**: `targetDefinitionSchema` gained `timePoint`/
+`storageCondition` (both `z.string().optional()`, matching
+`testResultSchema`'s own exact optionality — no stricter constraint
+invented), permitted ONLY for `sourceEntity === "testResult"`
+(`superRefine` extended to forbid them for `stabilityResult`/
+`doeObservation`). New `targetObservationContextSchema`
+(`sampleId?`/`instrument?`/`methodSnapshot?`) and a new optional
+`context` field on `targetObservationSchema`; `buildTestResultContext()`
+in the extractor returns `undefined` (never an all-fields-undefined
+object) unless at least one of the three is actually present.
+`collectStabilityTargets()`/`collectDoeTargets()` pass `context:
+undefined` explicitly — this correction does not touch stability/DOE
+context semantics at all, per the audit's own "do not weaken
+independently sound behavior" instruction.
+
+## Versioning decision
+
+`FEATURE_SCHEMA_VERSION` bumped `"1.1"` → `"1.2"`. The corrective
+cycle's own field additions (`targetDefinitionSchema.timePoint`/
+`.storageCondition`, `targetObservationSchema.context`) ARE a serialized
+shape change to an ALREADY-SHIPPED feature-family row type — the
+standing rule draws no distinction for additive/optional fields (direct
+precedent: `DATASET_SCHEMA_VERSION`'s own fourth corrective cycle,
+FVL-05.004 `AUDIT_FVL05_GPT_000001` finding C, bumped for an
+identically-additive-optional `parentRecordId` field; and
+`DATASET_SCHEMA_VERSION`'s own fourth bump, FVL-05.006's corrective
+cycle, bumped again for a required-field addition to an already-shipped
+row type it had itself introduced one bump earlier — the exact
+"corrective cycle changes an already-shipped shape" situation this cycle
+is in). Two hardcoded `"1.1"` test literals updated to `"1.2"`
+(`dataset.test.ts`, `formulaVersionFeatureExtractor.test.ts`,
+`formulaVersionTargetExtractor.test.ts`); a new test proves `"1.1"` is
+now also structurally rejected alongside `"1.0"`. `DATASET_SCHEMA_VERSION`
+untouched (stays `"1.6"`) — no FVL-05.003-.008 row shape changed.
+
+## Files changed
+
+- `packages/shared/src/schemas/dataset.ts` — `FEATURE_SCHEMA_VERSION`
+  bumped + header comment; `targetDefinitionSchema` gained `timePoint`/
+  `storageCondition` (testResult-only, enforced by `superRefine`); new
+  `targetObservationContextSchema`; `targetObservationSchema` gained
+  `context`; new `testMethodSnapshotSchema` import from
+  `./laboratoryStandards`.
+- `packages/shared/src/engine/formulaVersionTargetExtractor.ts` —
+  removed stats-emission block + `STATS_FIELDS` constant (Finding A);
+  new `buildTestResultContext()`; `collectMeasuredResultTarget()`/
+  `collectTestResultTargets()` updated to thread `timePoint`/
+  `storageCondition`/`context` through (Finding B); new
+  `TestMethodSnapshot` type import.
+- `packages/shared/src/engine/formulaVersionTargetExtractor.test.ts` —
+  10 new focused adversarial tests (42 → 52); one existing test
+  corrected (no longer asserts stats-derived `detail`s); no existing
+  test weakened or removed.
+- `packages/shared/src/schemas/dataset.test.ts` — `FEATURE_SCHEMA_VERSION`
+  literal updated `"1.1"`→`"1.2"`; superseded-literal test extended to
+  cover `"1.1"` too.
+- `packages/shared/src/engine/formulaVersionFeatureExtractor.test.ts` —
+  one hardcoded `FEATURE_SCHEMA_VERSION` literal updated.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.010 row's own "CORRECTIVE
+  CYCLE" paragraph appended.
+- `project-control/claude/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE
+  block prepended.
+- `project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`
+  — this section.
+
+No GPT audit/prompt file touched (ownership rule respected). `.hiveai/
+PROJECT_DASHBOARD.md` not touched — no path it declares was broken by
+this corrective task. All other pre-existing worktree
+modifications/deletions/untracked files left untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionTargetExtractor.test.ts`: **52/52**.
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionTestResultDatasetExtractor.test.ts src/engine/formulaVersionStabilityDatasetExtractor.test.ts src/engine/formulaVersionDoeDatasetExtractor.test.ts`: **182/182**, unchanged.
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionFeatureExtractor.test.ts`: **46/46**, unchanged — predictor FVL-05.009 semantics not touched by this correction.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **92
+  files / 2182 tests** passed (2172 → 2182 tests, +10 new, no
+  regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): **167
+  files / 1726 tests** passed, unchanged (no desktop app code touched
+  this cycle).
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
+  drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).

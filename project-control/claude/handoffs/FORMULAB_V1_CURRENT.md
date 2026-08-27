@@ -4,6 +4,52 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-27, FVL-05.010 corrective cycle, independent GPT
+re-audit `AUDIT_FVL05_GPT_000015` — COMPLETE, genuinely audit-fixed)**:
+GPT inspected the actual implementation commit and current source, not
+the cycle log, and found two HIGH findings. **Finding A** —
+`collectMeasuredResultTarget()` emitted `ReplicateStats.mean`/
+`.minimum`/`.maximum`/`.standardDeviation` as ADDITIONAL target
+observations alongside the real replicates; `schemas/testDefinitions.ts`'s
+own `replicateStatsSchema` header comment says stats are "computed purely
+from replicates... the replicates remain the source of truth" — a
+persisted cache is not a second, independent measurement. Fixed: the
+stats-emission block removed entirely (both `TestResult`/`StabilityResult`)
+— only actual replicates become target observations; a cache-invariance
+test proves two different `stats` snapshots over identical replicates
+produce identical output. **Finding B** — `targetDefinitionSchema`'s
+`testResult` branch discarded ALL persisted measurement context with no
+source proof those fields can never distinguish two measurements sharing
+one `testDefinitionId`. Both real writers re-audited from source:
+`TrialsPanel.tsx`'s `recordTestResult()` sets none of `sampleId`/
+`timePoint`/`storageCondition`/`instrument`/`methodSnapshot`;
+`dataExchangeCommit.ts`'s `commitLabResults()` sets only `sampleId`/
+`instrument`, never `timePoint`/`storageCondition`; `buildTestMethodSnapshot()`
+has zero call sites anywhere in the repository. Resolved: `timePoint`/
+`storageCondition` (schema-permitted to vary, and conceptually the same
+"a differently-conditioned measurement is a different target" reasoning
+`stabilityResult`'s `conditionId`/`timePointId` already rest on) now join
+`targetDefinitionSchema`'s testResult-only IDENTITY; `sampleId`/
+`instrument`/`methodSnapshot` (proven instance context, not
+identity-changing) now carried in a new optional
+`targetObservationContextSchema`, attached only when at least one field
+is actually present. `FEATURE_SCHEMA_VERSION` bumped `"1.1"` → `"1.2"`
+(the corrective cycle's own additive optional fields are a serialized
+shape change under the standing no-exception-for-additive rule — direct
+precedent: `DATASET_SCHEMA_VERSION`'s own fourth corrective cycle bumped
+for an identically-additive-optional `parentRecordId` field).
+`DATASET_SCHEMA_VERSION` untouched (stays `"1.6"`). 10 new focused
+adversarial tests (42 → 52, no existing test weakened). Full
+detail: the FVL-05.010 tracker row's own "CORRECTIVE CYCLE" paragraph and
+`project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own corrective-cycle section. `pnpm --filter @formulab/shared test`: 92
+files / 2182 tests passed (2172→2182, +10, no regression). `pnpm --filter
+@formulab/desktop test`: full suite green, no regression (167 files /
+1726 tests, unchanged). Both `typecheck`s clean, desktop `lint` clean,
+`git diff --check` clean, `python scripts/validate_v1_tracker.py` OK.
+**FVL-05.011 explicitly NOT started this session, per this session's own
+instruction.**
+
 **UPDATE (2026-08-27, FVL-05.010 — Exact target-variable definitions (per
 product family / measured response) — COMPLETE)**: FVL-05.009 was
 independently GPT-audit CLOSED (`AUDIT_FVL05_GPT_000014`) before this

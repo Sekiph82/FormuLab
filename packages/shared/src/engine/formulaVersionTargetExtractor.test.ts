@@ -248,8 +248,8 @@ describe("extractFormulaVersionTargetRows — row assembly", () => {
     expect(row.featureSchemaVersion).toBe(FEATURE_SCHEMA_VERSION);
   });
 
-  it("FEATURE_SCHEMA_VERSION is '1.1' (bumped for this brand-new target row type)", () => {
-    expect(FEATURE_SCHEMA_VERSION).toBe("1.1");
+  it("FEATURE_SCHEMA_VERSION is '1.2' (bumped again by the corrective cycle's additive targetDefinition/targetObservation fields)", () => {
+    expect(FEATURE_SCHEMA_VERSION).toBe("1.2");
   });
 
   it("DATASET_SCHEMA_VERSION is untouched by this task — stays '1.6'", () => {
@@ -375,7 +375,7 @@ describe("extractFormulaVersionTargetRows — TestResult targets", () => {
     });
     const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
     const details = target.targetObservations.map((o) => o.detail);
-    expect(details).toEqual(["1", "2", "stats.mean", "stats.minimum", "stats.maximum"]);
+    expect(details).toEqual(["1", "2"]);
     for (const obs of target.targetObservations) {
       expect(obs.targetDefinition).toEqual({ productFamilyCode: "HC-SHAMPOO-REG", sourceEntity: "testResult", testDefinitionId: "TD-VISC" });
       expect(obs.sourceRecords).toEqual([{ sourceEntity: "testResult", sourceRecordId: "RESULT-0001" }]);
@@ -383,6 +383,105 @@ describe("extractFormulaVersionTargetRows — TestResult targets", () => {
     }
     expect(target.targetObservations[1].isOutlier).toBe(true);
     expect(target.targetObservations[0].isOutlier).toBe(false);
+  });
+
+  it("AUDIT_FVL05_GPT_000015 finding A: ReplicateStats never produces target observations, only the actual replicates do", () => {
+    const row = testResultRow({
+      trials: [
+        {
+          trialId: "TRIAL-0001",
+          trialCode: "TRL-0001",
+          testResults: [
+            testResult({
+              unit: "g",
+              replicates: [
+                { replicateNumber: 1, numericValue: "10" },
+                { replicateNumber: 2, numericValue: "20" },
+              ],
+              stats: { count: 2, mean: "15", minimum: "10", maximum: "20", standardDeviation: "5" },
+            }),
+          ],
+        },
+      ],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
+    expect(target.targetObservations).toHaveLength(2);
+    expect(JSON.stringify(target)).not.toContain("\"15\"");
+  });
+
+  it("stats-cache mutation/removal over identical replicates never changes the target-observation set", () => {
+    const rowWithStats = testResultRow({
+      trials: [
+        {
+          trialId: "TRIAL-0001",
+          trialCode: "TRL-0001",
+          testResults: [
+            testResult({
+              unit: "g",
+              replicates: [{ replicateNumber: 1, numericValue: "10" }, { replicateNumber: 2, numericValue: "20" }],
+              stats: { count: 2, mean: "15", minimum: "10", maximum: "20", standardDeviation: "5" },
+            }),
+          ],
+        },
+      ],
+    });
+    const rowWithDifferentStats = testResultRow({
+      trials: [
+        {
+          trialId: "TRIAL-0001",
+          trialCode: "TRL-0001",
+          testResults: [
+            testResult({
+              unit: "g",
+              replicates: [{ replicateNumber: 1, numericValue: "10" }, { replicateNumber: 2, numericValue: "20" }],
+              stats: { count: 2, mean: "999", minimum: "1", maximum: "1000", standardDeviation: "1" },
+            }),
+          ],
+        },
+      ],
+    });
+    const rowWithNoStats = testResultRow({
+      trials: [
+        {
+          trialId: "TRIAL-0001",
+          trialCode: "TRL-0001",
+          testResults: [testResult({ unit: "g", replicates: [{ replicateNumber: 1, numericValue: "10" }, { replicateNumber: 2, numericValue: "20" }] })],
+        },
+      ],
+    });
+    const [withStats] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [rowWithStats] }));
+    const [withDifferentStats] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [rowWithDifferentStats] }));
+    const [withNoStats] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [rowWithNoStats] }));
+    expect(withStats.targetObservations).toEqual(withDifferentStats.targetObservations);
+    expect(withStats.targetObservations).toEqual(withNoStats.targetObservations);
+  });
+
+  it("stability stats likewise never produce target observations, only the actual replicates do", () => {
+    const row = stabilityRow({
+      studies: [
+        {
+          studyId: "STUDY-0001",
+          studyCode: "STB-0001",
+          conditions: [],
+          timePoints: [],
+          samples: [
+            {
+              sample: stabilitySample(),
+              results: [
+                stabilityResult({
+                  unit: "mL",
+                  replicates: [{ replicateNumber: 1, numericValue: "5" }],
+                  stats: { count: 1, mean: "5", minimum: "5", maximum: "5" },
+                }),
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ stabilityRows: [row] }));
+    expect(target.targetObservations).toHaveLength(1);
+    expect(target.targetObservations[0].detail).toBe("1");
   });
 
   it("treats explicit zero as a real, distinct numeric observation, never absent", () => {
@@ -481,6 +580,116 @@ describe("extractFormulaVersionTargetRows — TestResult targets", () => {
     });
     const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
     expect(JSON.stringify(target)).not.toContain("targetValue");
+  });
+
+  // AUDIT_FVL05_GPT_000015 finding B: persisted TestResult.timePoint/
+  // storageCondition are part of target IDENTITY (same reasoning as
+  // stabilityResult's conditionId/timePointId); sampleId/instrument/
+  // methodSnapshot are observation CONTEXT, not identity.
+
+  it("keeps two TestResults with the same testDefinitionId but different timePoint as distinct target definitions", () => {
+    const row = testResultRow({
+      trials: [
+        {
+          trialId: "TRIAL-0001",
+          trialCode: "TRL-0001",
+          testResults: [
+            testResult({ id: "R1", unit: "g", timePoint: "hour 0", replicates: [{ replicateNumber: 1, numericValue: "1" }] }),
+            testResult({ id: "R2", unit: "g", timePoint: "hour 24", replicates: [{ replicateNumber: 1, numericValue: "2" }] }),
+          ],
+        },
+      ],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
+    const defs = target.targetObservations.map((o) => JSON.stringify(o.targetDefinition));
+    expect(new Set(defs).size).toBe(2);
+    expect(target.targetObservations[0].targetDefinition).toMatchObject({ timePoint: "hour 0" });
+    expect(target.targetObservations[1].targetDefinition).toMatchObject({ timePoint: "hour 24" });
+  });
+
+  it("keeps two TestResults with the same testDefinitionId but different storageCondition as distinct target definitions", () => {
+    const row = testResultRow({
+      trials: [
+        {
+          trialId: "TRIAL-0001",
+          trialCode: "TRL-0001",
+          testResults: [
+            testResult({ id: "R1", unit: "g", storageCondition: "refrigerated", replicates: [{ replicateNumber: 1, numericValue: "1" }] }),
+            testResult({ id: "R2", unit: "g", storageCondition: "ambient", replicates: [{ replicateNumber: 1, numericValue: "2" }] }),
+          ],
+        },
+      ],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
+    const defs = target.targetObservations.map((o) => JSON.stringify(o.targetDefinition));
+    expect(new Set(defs).size).toBe(2);
+  });
+
+  it("collapses two TestResults with the same testDefinitionId and no timePoint/storageCondition into the SAME target definition — the ordinary case", () => {
+    const row = testResultRow({
+      trials: [
+        {
+          trialId: "TRIAL-0001",
+          trialCode: "TRL-0001",
+          testResults: [
+            testResult({ id: "R1", unit: "g", replicates: [{ replicateNumber: 1, numericValue: "1" }] }),
+            testResult({ id: "R2", unit: "g", replicates: [{ replicateNumber: 1, numericValue: "2" }] }),
+          ],
+        },
+      ],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
+    const defs = target.targetObservations.map((o) => JSON.stringify(o.targetDefinition));
+    expect(new Set(defs).size).toBe(1);
+  });
+
+  it("handles Unicode/delimiter-rich timePoint/storageCondition context values collision-safely", () => {
+    const weird = "T=0h/µ〜特殊[start]";
+    const row = testResultRow({
+      trials: [{ trialId: "TRIAL-0001", trialCode: "TRL-0001", testResults: [testResult({ unit: "g", timePoint: weird, replicates: [{ replicateNumber: 1, numericValue: "1" }] })] }],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
+    expect(target.targetObservations[0].targetDefinition).toMatchObject({ timePoint: weird });
+  });
+
+  it("attaches an observation context object only when sampleId/instrument/methodSnapshot are actually present, never an all-undefined placeholder", () => {
+    const withContext = testResultRow({
+      trials: [{ trialId: "TRIAL-0001", trialCode: "TRL-0001", testResults: [testResult({ unit: "g", sampleId: "SMP-1", instrument: "HPLC-3", replicates: [{ replicateNumber: 1, numericValue: "1" }] })] }],
+    });
+    const [withContextTarget] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [withContext] }));
+    expect(withContextTarget.targetObservations[0].context).toEqual({ sampleId: "SMP-1", instrument: "HPLC-3" });
+
+    const withoutContext = testResultRow({
+      trials: [{ trialId: "TRIAL-0001", trialCode: "TRL-0001", testResults: [testResult({ unit: "g", replicates: [{ replicateNumber: 1, numericValue: "1" }] })] }],
+    });
+    const [withoutContextTarget] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [withoutContext] }));
+    expect(withoutContextTarget.targetObservations[0].context).toBeUndefined();
+  });
+
+  it("treats an explicit empty-string sampleId as present and distinct from absence — never conflated with missing", () => {
+    const row = testResultRow({
+      trials: [{ trialId: "TRIAL-0001", trialCode: "TRL-0001", testResults: [testResult({ unit: "g", sampleId: "", replicates: [{ replicateNumber: 1, numericValue: "1" }] })] }],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
+    expect(target.targetObservations[0].context).toEqual({ sampleId: "" });
+  });
+
+  it("does not treat sampleId/instrument as part of target identity — same testDefinitionId, different sampleId, still one target definition", () => {
+    const row = testResultRow({
+      trials: [
+        {
+          trialId: "TRIAL-0001",
+          trialCode: "TRL-0001",
+          testResults: [
+            testResult({ id: "R1", unit: "g", sampleId: "SMP-A", replicates: [{ replicateNumber: 1, numericValue: "1" }] }),
+            testResult({ id: "R2", unit: "g", sampleId: "SMP-B", replicates: [{ replicateNumber: 1, numericValue: "2" }] }),
+          ],
+        },
+      ],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
+    const defs = target.targetObservations.map((o) => JSON.stringify(o.targetDefinition));
+    expect(new Set(defs).size).toBe(1);
   });
 });
 

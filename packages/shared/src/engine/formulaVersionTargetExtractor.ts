@@ -36,6 +36,7 @@ import type {
 } from "../schemas/dataset";
 import { FEATURE_SCHEMA_VERSION, formulaVersionTargetRowSchema } from "../schemas/dataset";
 import type { DoeDesign, DoeResponse } from "../schemas/doe";
+import type { TestMethodSnapshot } from "../schemas/laboratoryStandards";
 import { normalizeQuantity } from "./formulaVersionFeatureExtractor";
 
 export type FormulaVersionTargetExtractionErrorCode =
@@ -112,8 +113,6 @@ export interface FormulaVersionTargetExtractionInput {
   doeRows?: FormulaVersionDoeRow[];
 }
 
-const STATS_FIELDS = ["mean", "minimum", "maximum", "standardDeviation"] as const;
-
 /** `TEST_RESULT_TYPES`/`STABILITY` resultType values that never carry
  *  genuine measured evidence — the absence of a judgment, not a label.
  *  `TestResult`/`StabilityResult` share the identical enum and identical
@@ -130,40 +129,59 @@ interface MeasuredResultLike {
   unit?: string;
   passFail: string;
   replicates: { replicateNumber: number; numericValue?: string; isOutlier: boolean }[];
-  stats?: Record<string, string | number | undefined>;
   textValue?: string;
   categoricalValue?: string;
   booleanValue?: boolean;
 }
 
+/** Builds the `context` object for a `testResult` observation from
+ *  `TestResult.sampleId`/`.instrument`/`.methodSnapshot` — see
+ *  `targetObservationContextSchema`'s own header comment
+ *  (`AUDIT_FVL05_GPT_000015` corrective finding B) for why these are
+ *  instance context, not identity. Returns `undefined` (never an
+ *  all-fields-undefined object) when none of the three fields are set —
+ *  the ordinary case for the human-recorded `TrialsPanel.tsx` writer
+ *  path, which sets none of them. */
+function buildTestResultContext(result: {
+  sampleId?: string;
+  instrument?: string;
+  methodSnapshot?: TestMethodSnapshot;
+}): TargetObservation["context"] {
+  if (result.sampleId === undefined && result.instrument === undefined && result.methodSnapshot === undefined) return undefined;
+  return { sampleId: result.sampleId, instrument: result.instrument, methodSnapshot: result.methodSnapshot };
+}
+
 /** Shared walk for `TestResult` and `StabilityResult` — structurally
  *  identical `resultType`-driven value disposition (see this file's own
  *  header comment / `schemas/dataset.ts`'s target-row header comment for
- *  the full per-`resultType` mapping and why). Only the definition/
- *  citation shape differs between the two callers. */
+ *  the full per-`resultType` mapping and why).
+ *
+ *  `AUDIT_FVL05_GPT_000015` corrective finding A: `ReplicateStats`
+ *  (`mean`/`minimum`/`maximum`/`standardDeviation`) is NEVER emitted as a
+ *  target observation — `schemas/testDefinitions.ts`'s own
+ *  `replicateStatsSchema` header comment states it is "computed purely
+ *  from replicates... the replicates remain the source of truth." Only
+ *  the actual `replicates[]` are measured ground truth; a persisted
+ *  cache of their own aggregate is not a second, independent
+ *  measurement. Only the definition/context/citation shape differs
+ *  between the `testResult`/`stabilityResult` callers. */
 function collectMeasuredResultTarget(
   result: MeasuredResultLike,
   buildDefinition: () => TargetObservation["targetDefinition"],
+  context: TargetObservation["context"],
   sourceEntity: "testResult" | "stabilityResult",
 ): TargetObservation[] {
   if (!isUsableTestOrStabilityResult(result.resultType, result.passFail)) return [];
   const citation: SourceRecordReference[] = [{ sourceEntity, sourceRecordId: result.id }];
   const observations: TargetObservation[] = [];
   const push = (value: TargetObservation["value"], detail: string | undefined, isOutlier: boolean) => {
-    observations.push({ targetDefinition: buildDefinition(), value, detail, isOutlier, sourceRecords: citation });
+    observations.push({ targetDefinition: buildDefinition(), value, detail, isOutlier, context, sourceRecords: citation });
   };
 
   if (result.resultType === "numeric" || result.resultType === "visual_rating") {
     for (const replicate of result.replicates) {
       const normalized = normalizeQuantity(replicate.numericValue, result.unit);
       if (normalized) push({ kind: "numeric", ...normalized }, String(replicate.replicateNumber), replicate.isOutlier);
-    }
-    if (result.stats) {
-      for (const statField of STATS_FIELDS) {
-        const raw = result.stats[statField];
-        const normalized = normalizeQuantity(typeof raw === "string" ? raw : undefined, result.unit);
-        if (normalized) push({ kind: "numeric", ...normalized }, `stats.${statField}`, false);
-      }
     }
   } else if (result.resultType === "text") {
     if (result.textValue !== undefined) push({ kind: "text", text: result.textValue }, undefined, false);
@@ -186,7 +204,14 @@ function collectTestResultTargets(row: FormulaVersionTestResultRow, productFamil
       observations.push(
         ...collectMeasuredResultTarget(
           result,
-          () => ({ productFamilyCode, sourceEntity: "testResult", testDefinitionId: result.testDefinitionId }),
+          () => ({
+            productFamilyCode,
+            sourceEntity: "testResult",
+            testDefinitionId: result.testDefinitionId,
+            timePoint: result.timePoint,
+            storageCondition: result.storageCondition,
+          }),
+          buildTestResultContext(result),
           "testResult",
         ),
       );
@@ -210,6 +235,7 @@ function collectStabilityTargets(row: FormulaVersionStabilityRow, productFamilyC
               conditionId: result.conditionId,
               timePointId: result.timePointId,
             }),
+            undefined,
             "stabilityResult",
           ),
         );

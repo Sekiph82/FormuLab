@@ -45,6 +45,7 @@ import { processParameterSchema } from "./dataExchange";
 import { doeDesignSchema, doeObservationSchema, doeRunSchema } from "./doe";
 import { formulationLineSchema } from "./formulation";
 import { trialObservationSchema, trialProcessStepSchema } from "./laboratory";
+import { testMethodSnapshotSchema } from "./laboratoryStandards";
 import { rawMaterialSchema } from "./materials";
 import { productFamilySchema } from "./product";
 import {
@@ -100,7 +101,28 @@ export type DatasetSchemaVersioned = z.infer<typeof datasetSchemaVersionedSchema
  *  (none is applicable). `featureSchemaVersionSchema` is a `z.literal` — a
  *  row still carrying `featureSchemaVersion: "1.0"` is now explicitly,
  *  structurally REJECTED (proven by `dataset.test.ts`). */
-export const FEATURE_SCHEMA_VERSION = "1.1" as const;
+export const FEATURE_SCHEMA_VERSION = "1.2" as const;
+
+/** SECOND BUMP (FVL-05.010 corrective cycle, `AUDIT_FVL05_GPT_000015`,
+ *  2026-08-27): `"1.1"` -> `"1.2"`. The corrective cycle added
+ *  `timePoint`/`storageCondition` to `targetDefinitionSchema` (finding
+ *  B — `testResult` target identity needed persisted measurement context
+ *  the original shape structurally forbade) and a new `context` field to
+ *  `targetObservationSchema` (`sampleId`/`instrument`/`methodSnapshot`).
+ *  Both are ADDITIVE and OPTIONAL, but the standing rule draws no
+ *  distinction — the direct, already-established precedent is
+ *  `DATASET_SCHEMA_VERSION`'s own fourth corrective cycle (FVL-05.004,
+ *  `AUDIT_FVL05_GPT_000001` finding C), which bumped for an additive
+ *  OPTIONAL `parentRecordId` field exactly like this one, and
+ *  `DATASET_SCHEMA_VERSION`'s own fourth bump (FVL-05.006 corrective
+ *  cycle), which bumped again for a REQUIRED field added to an
+ *  ALREADY-SHIPPED row type it had itself introduced one bump earlier —
+ *  the exact same "corrective cycle changes a shape this same row family
+ *  already shipped" situation FVL-05.010's target row is now in.
+ *  Compatibility unchanged: still zero persisted feature rows of any kind
+ *  anywhere (repo-wide grep re-confirmed), so no `SchemaMigration` entry
+ *  is applicable; `"1.1"` (and `"1.0"`) are now both structurally
+ *  rejected. */
 
 /** Validates the literal current feature schema version. */
 export const featureSchemaVersionSchema = z.literal(FEATURE_SCHEMA_VERSION);
@@ -1603,6 +1625,24 @@ export const targetDefinitionSchema = z
     conditionId: nonBlankString("conditionId").optional(),
     /** Required for `stabilityResult` only. */
     timePointId: nonBlankString("timePointId").optional(),
+    /** `testResult` ONLY (AUDIT_FVL05_GPT_000015 corrective finding B) —
+     *  `TestResult.timePoint`/`.storageCondition` verbatim, present only
+     *  when the source record actually carries them. Mirrors the exact
+     *  optionality of `testResultSchema` itself (plain `z.string().optional()`,
+     *  not `nonBlankString` — this task does not impose a stricter
+     *  constraint than the source already has). Part of target IDENTITY,
+     *  not mere observation context, for the same reason
+     *  `stabilityResult`'s `conditionId`/`timePointId` already are: "pH at
+     *  hour 0" and "pH at hour 24" recorded under the SAME
+     *  `testDefinitionId` during one trial are conceptually different
+     *  measured targets, not replicates of one target. Both absent (the
+     *  overwhelming majority of current production data — see this
+     *  section's own header comment for the writer evidence) is the
+     *  ordinary case and collapses to the SAME definition, correctly. */
+    timePoint: z.string().optional(),
+    /** `testResult` ONLY — see `timePoint` immediately above; identical
+     *  reasoning and identical current-writer-evidence disclosure. */
+    storageCondition: z.string().optional(),
   })
   .superRefine((def, ctx) => {
     const fail = (message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, message });
@@ -1617,10 +1657,19 @@ export const targetDefinitionSchema = z
       if (def.conditionId === undefined) fail("stabilityResult target definitions require conditionId");
       if (def.timePointId === undefined) fail("stabilityResult target definitions require timePointId");
       if (def.responseId !== undefined) fail("stabilityResult target definitions must not carry responseId");
+      if (def.timePoint !== undefined || def.storageCondition !== undefined) {
+        fail("stabilityResult target definitions must not carry testResult-only timePoint/storageCondition");
+      }
     } else {
       if (def.responseId === undefined) fail("doeObservation target definitions require responseId");
-      if (def.testDefinitionId !== undefined || def.conditionId !== undefined || def.timePointId !== undefined) {
-        fail("doeObservation target definitions must not carry testDefinitionId/conditionId/timePointId");
+      if (
+        def.testDefinitionId !== undefined ||
+        def.conditionId !== undefined ||
+        def.timePointId !== undefined ||
+        def.timePoint !== undefined ||
+        def.storageCondition !== undefined
+      ) {
+        fail("doeObservation target definitions must not carry testDefinitionId/conditionId/timePointId/timePoint/storageCondition");
       }
     }
   });
@@ -1635,6 +1684,31 @@ export const targetObservationValueSchema = z.discriminatedUnion("kind", [
 ]);
 export type TargetObservationValue = z.infer<typeof targetObservationValueSchema>;
 
+/** `testResult` ONLY (`AUDIT_FVL05_GPT_000015` corrective finding B) —
+ *  `TestResult.sampleId`/`.instrument`/`.methodSnapshot` verbatim.
+ *  Deliberately NOT part of target IDENTITY (unlike `timePoint`/
+ *  `storageCondition` on `targetDefinitionSchema`): which physical
+ *  specimen was tested or which device/method version measured it does
+ *  not change WHAT is being predicted, only which measurement INSTANCE
+ *  produced this exact value — the same "instance context, not identity"
+ *  treatment `TestReplicate.replicateNumber` already gets. `methodSnapshot`
+ *  has zero current production-writer evidence anywhere in this
+ *  repository (`buildTestMethodSnapshot()`, `engine/laboratoryStandards.ts`,
+ *  is defined but has no call site) — kept here only so a FUTURE writer
+ *  that does populate it is preserved rather than silently dropped;
+ *  absence today does not make it identity, since two records can never
+ *  currently differ on it. Present only when at least one field is
+ *  actually defined — `undefined` entirely for `stabilityResult`/
+ *  `doeObservation` observations, and for the ordinary `testResult` case
+ *  (the human-recorded `TrialsPanel.tsx` writer path) where none of these
+ *  three fields are ever set. */
+export const targetObservationContextSchema = z.object({
+  sampleId: z.string().optional(),
+  instrument: z.string().optional(),
+  methodSnapshot: testMethodSnapshotSchema.optional(),
+});
+export type TargetObservationContext = z.infer<typeof targetObservationContextSchema>;
+
 export const targetObservationSchema = z.object({
   targetDefinition: targetDefinitionSchema,
   value: targetObservationValueSchema,
@@ -1644,6 +1718,8 @@ export const targetObservationSchema = z.object({
   /** `TestReplicate.isOutlier`, or `true` for a `DoeObservation` status of
    *  `"outlier_flagged"`/`"outlier_confirmed"` — flagged, never dropped. */
   isOutlier: z.boolean().default(false),
+  /** See `targetObservationContextSchema`'s own header comment. */
+  context: targetObservationContextSchema.optional(),
   sourceRecords: sourceRecordLineageSchema,
 });
 export type TargetObservation = z.infer<typeof targetObservationSchema>;
