@@ -268,4 +268,16 @@ commit) every prior FVL-05 cycle in this repository already used, since
 this file cannot truthfully cite its own future commit hash before that
 commit exists.
 
+### Commit
+
+- `cc585ac` — this migration's single implementation commit (80 files:
+  45 renames, 9 newly-tracked relocations, 22 active-reference edits,
+  2 state JSON edits, this log; no amend, no force push, no history
+  rewrite).
+
+Final HEAD: `cc585ac7da491717b271b54cfd8ac9dd1867aaf6`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`cc585ac7da491717b271b54cfd8ac9dd1867aaf6`.
+
 `CONTROL HUB MIGRATION IMPLEMENTED — PENDING GPT AUDIT`
