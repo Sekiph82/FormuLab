@@ -5128,3 +5128,71 @@ untouched.
 - `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
   drift.
 - `git diff --check`: clean (pre-existing CRLF warnings only).
+
+### Commits
+
+- `3153799` — this task's single implementation commit (no amend, no
+  force push, no history rewrite).
+
+Final HEAD: `31537998893ec9cddab3b6db3111d604568b2532`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`31537998893ec9cddab3b6db3111d604568b2532`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building —
+  none running.
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly — **`EXIT_CODE=0`**. MSI and NSIS bundles
+  produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,871,424 bytes, modified 2026-08-27 10:00:30 local time,
+  SHA256 `5E601B5662E7EED61E608D9F931497D7866E189F18B5C171DB5B8C58AFD89FA6`
+  (distinct from the prior FVL-05.008 cycle's build hash
+  `AEAFCD5678BE0ED1948A540A16AEA9FEB53852ED6BCF5B783EF132E0429FCF20`,
+  confirming a fresh build from this cycle's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 8356) confirmed running from the exact fresh exe path and
+  `Responding: True` 5 seconds after launch. **Automated launch smoke:
+  PASS.** Process then deliberately stopped afterward so it does not lock
+  the next build. **Manual UI acceptance from Desktop\FormuLab.lnk is
+  still pending USER verification** — not claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Source recovery genuinely drove the payload (not the tracker title): the
+tracker's own `Depends on` column proves this normalizes across all six
+FVL-05.003-.008 families, not one hand-picked one; exactly one recurring
+normalizable ambiguity (value+unit pairs) was found via a field-by-field
+audit and reused the one existing conversion authority
+(`convertUnit`/`unitDimension`) rather than inventing a new one; every
+excluded field has a concrete, source-grounded disqualifying reason
+(rate fields, planned/spec/objective fields, fixed-unit-by-name fields,
+unresolvable fields); target-variable leakage is structurally prevented,
+not merely asserted, and proven by a dedicated test; missing-stays-missing
+and zero-vs-missing are both proven by dedicated tests;
+`FEATURE_SCHEMA_VERSION`/`DATASET_SCHEMA_VERSION` both correctly left
+unbumped, each with direct precedent cited; DOE factor/response unit
+resolution independently fails closed on ambiguity rather than trusting
+a caller-supplied row; row-level lineage dedup and per-value lineage
+citation both proven; input non-mutation and no output/source aliasing
+proven; public export proven; focused tests green (39/39); full shared
+tests green (91/91 files, 2122/2122); desktop regression green (167/167
+files, 1726/1726, unchanged); shared/desktop typechecks green; desktop
+lint green; tracker validator green (rollup counts corrected); `git diff
+--check` clean; tracker/handoff/external log all truthfully current;
+task-owned changes committed and pushed with local HEAD equal to remote
+HEAD; native Tauri release build, `Desktop\FormuLab.lnk` check, and
+launch smoke run from the final pushed HEAD with the real exit code
+verified explicitly; FVL-05.010 remains untouched; GPT audit/prompt files
+untouched (read-only, respected).
+
+**FVL-05.009 — IMPLEMENTATION AND ACCEPTANCE COMPLETE.**
+
+**NEXT TASK — FVL-05.010 NOT STARTED** (per this session's explicit
+instruction not to begin it).
