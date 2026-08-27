@@ -601,6 +601,7 @@ export * from "./engine/formulaVersionTestResultDatasetExtractor";
 export * from "./engine/formulaVersionStabilityDatasetExtractor";
 export * from "./engine/formulaVersionDoeDatasetExtractor";
 export * from "./engine/formulaVersionCorrectiveCostContextDatasetExtractor";
+export * from "./engine/formulaVersionFeatureExtractor";
 export {
   PRECISION,
   CURRENCY_DP,

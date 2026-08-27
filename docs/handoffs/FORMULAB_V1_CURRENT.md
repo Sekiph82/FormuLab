@@ -4,6 +4,80 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-27, FVL-05.009 — Extractor: normalization (units,
+categorical, numeric) — COMPLETE)**: FVL-05.008 was independently
+GPT-audit CLOSED (`AUDIT_FVL05_GPT_000012`) before this task began; per
+that audit's own verdict, this session did not reopen it. New task;
+source recovery was the main work, per the governing prompt's own
+instruction. The tracker's own `Depends on` column names ALL SIX prior
+extractors (FVL-05.003-.008), so this is a NORMALIZATION LAYER over the
+six already-extracted, already-versioned row families — never a
+re-derivation from raw masterdata, never a re-embedding of a dataset
+row's own fields, never a designation of any field as a training target
+(that stays FVL-05.010's own explicit job). A field-by-field audit of all
+six families found exactly one recurring ambiguity worth resolving: a
+decimal value paired with a free-text unit string that may or may not be
+one of the two physical dimensions `engine/unitConversion.ts`'s existing
+`convertUnit`/`unitDimension` already knows how to convert (mass
+mg/g/kg, volume mL/L — reused verbatim, not reimplemented). New
+`normalizeQuantity()` (`packages/shared/src/engine/formulaVersionFeatureExtractor.ts`)
+applies that one conversion uniformly across 11 exact value+unit field
+pairs spanning all six families (composition line quantity; process
+actual-step viscosity; test-result/stability-result replicates and all
+four stats fields; DOE factor-setting actualValue and DOE observation
+value, each resolved against the owning design's frozen
+factorSnapshot/responseSnapshot; cost-snapshot cost-line quantityKg and
+sku-cost fillQuantity; packaging-context fillQuantity). Deliberately
+excluded, each for a concrete disqualifying reason found in source (full
+list in `schemas/dataset.ts`'s own header comment and this cycle's own
+external-log section): `unitPrice`/`priceUnit` and every other rate
+field (no rate-safe inverse conversion authority exists); `DoeFactor.
+lowValue`/`.centerValue`/`.highValue` and `DoeResponse.targetValue`/
+`.lowerLimit`/`.upperLimit` (planned/spec/objective values — including
+them would be the exact target-leakage this task's own governing
+invariants forbid); `process_parameters`' fixed-unit-by-name fields (no
+companion unit exists); unitless/percentage fields; `StabilitySample.
+fillQuantity` (no companion unit anywhere in its own row family);
+`TrialMaterialUsage` (not embedded by any existing FVL-05.003-.008 row at
+all). Missing stays missing (no entry ever emitted for an absent source
+value); an explicit zero is a real, distinct, `normalized: true` entry,
+proven by a dedicated test; an unrecognized/absent unit is preserved raw,
+never guessed. New `packages/shared/src/schemas/dataset.ts` additions:
+`NORMALIZED_QUANTITY_SOURCE_PATHS` (closed enum),
+`normalizedQuantitySchema`, `featureRowBaseSchema` (the feature-family
+analog of `datasetRowBaseSchema`, composing the EXISTING
+`featureSchemaVersionSchema`), `formulaVersionFeatureRowSchema`. New
+`packages/shared/src/engine/formulaVersionFeatureExtractor.ts`:
+`extractFormulaVersionFeatureRows()` — takes the six already-produced
+FVL-05.003-.008 row arrays (composition required per version, the other
+five each independently optional) and returns one
+`FormulaVersionFeatureRow` per requested id, failing closed on a missing
+composition row, an ambiguous/contradictory optional-family row, or an
+unresolvable DOE factor/response unit (re-derived independently from
+`formulaVersionDoeDatasetExtractor.ts`'s own unexported
+`buildDesignSnapshotIndex` pattern, never trusting a caller-supplied
+`doeRow` blindly). `FEATURE_SCHEMA_VERSION` stays `"1.0"` (NOT bumped —
+this is the FIRST feature-vector shape ever defined, the same
+"nothing existed before, nothing changed" case `DATASET_SCHEMA_VERSION`
+itself was in at FVL-05.001/.002 completion, direct precedent, not a new
+exception). `DATASET_SCHEMA_VERSION` stays `"1.6"` — this task adds no
+field to, and removes no field from, any FVL-05.003-.008 row shape.
+Scaling (min-max/z-score) is explicitly NOT implemented — no persisted,
+fitted-statistic contract exists anywhere in this package to build one
+against. Full detail: the FVL-05.009 tracker row and
+`docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own FVL-05.009 section. Focused `formulaVersionFeatureExtractor.test.ts`:
+**39/39**. `pnpm --filter @formulab/shared test`: **91 files / 2122
+tests** passed (90→91 files, 2083→2122 tests, +39, no regression).
+`pnpm --filter @formulab/desktop test`: full suite green, no regression
+(exact count in the external log). Both `typecheck`s clean, desktop
+`lint` clean, `git diff --check` clean, `python
+scripts/validate_v1_tracker.py` OK (171 unique tasks, no drift, rollup
+counts corrected `8/14`→`9/14`, `97/171`→`98/171`). Native
+build/shortcut/launch-smoke gate rerun from final pushed HEAD — evidence
+in the external log's own FVL-05.009 section. **FVL-05.010 explicitly
+NOT started this session, per this session's own instruction.**
+
 **UPDATE (2026-08-24, FVL-05.008 corrective cycle, independent GPT
 re-audit `AUDIT_FVL05_GPT_000011` — COMPLETE, genuinely audit-fixed)**:
 one HIGH finding — `buildActionResolutions()` checked `laboratoryTrials`

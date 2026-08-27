@@ -4929,3 +4929,202 @@ prompt files untouched (read-only, respected).
 
 **NEXT TASK — FVL-05.009 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.009 — Extractor: normalization (units, categorical, numeric) —
+Task Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file, per the standing combined-log instruction carried forward from
+every prior FVL-05 task).
+
+## Task
+
+**FVL-05.009** — Normalization: units, categorical, numeric — missing
+values stay missing, no missing-to-zero unless mathematically/
+domain-explicitly valid. Depends on FVL-05.003-008 (all closed). Blocking
+= YES.
+
+Governing documents (both GPT-owned, READ-ONLY, read completely before
+any edit, neither modified):
+- `docs/audits/FVL05-GPT-AUDIT-000012.md` — independent re-audit that
+  closed FVL-05.008 (`CLOSE / ACCEPT`) and cleared FVL-05.009 to begin.
+- `docs/prompts/FVL05-GPT-PROMPT-000013.md` — the start prompt for this
+  task, explicit that "SOURCE RECOVERY IS THE MAIN WORK OF THIS TASK."
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `961c3151d1f30715bbe786cbae1983bfee2250c6`.
+- Remote HEAD at fetch: same — already up to date (`git pull --ff-only`
+  reported "Already up to date").
+- `git diff --check` at start: clean (pre-existing CRLF warnings only;
+  unrelated pre-existing dirty worktree state — formula file deletions,
+  generated doc regeneration, several new external-log files from other
+  work — left untouched throughout this task, per the governing prompt's
+  own "do not touch unrelated dirty files" instruction).
+
+## Source recovery (before any code was written)
+
+Read, in full: `packages/shared/src/schemas/dataset.ts` (all six prior
+FVL-05.002-.008 sections), `engine/decimal.ts`, `engine/unitConversion.ts`
+(the one existing generic mass/volume conversion authority —
+`convertUnit`/`unitDimension`, reused verbatim, not reimplemented),
+`schemas/formulation.ts`, `schemas/materials.ts`, `schemas/primitives.ts`,
+`schemas/testDefinitions.ts`, `schemas/laboratory.ts`, `schemas/stability.ts`,
+`schemas/doe.ts`, `schemas/costing.ts`, `schemas/dataExchange.ts`,
+`schemas/product.ts`, and the `formulaVersionDoeDatasetExtractor.ts`
+extractor (for its `buildDesignSnapshotIndex` pattern, reused
+independently since it is not exported). Also read the current
+`docs/FORMULAB_V1_TASK_TRACKER.md` FVL-05.009/.010/.011 rows and
+`docs/FORMULAB_V1_FINAL_SCOPE.md`'s FVL-05/FVL-07 entries — the latter
+confirmed FVL-07 ("Predictive Performance Engine") consumes FVL-05's
+output as predictors against FVL-06's performance results, which is the
+concrete evidence behind this task's own target-leakage exclusions below.
+
+## Critical source-semantics answers (per the governing prompt's own
+mandatory questions)
+
+1. Tracker wording/boundary: "Normalization: units, categorical, numeric
+   — missing values stay missing, no missing-to-zero unless
+   mathematically/domain-explicitly valid." `Depends on` names ALL SIX
+   prior extractors — this normalizes across the full existing dataset-row
+   surface, not one hand-picked family.
+2. Output grain: one `FormulaVersionFeatureRow` per `FormulationVersion`,
+   the same convention every FVL-05.003-.008 row already uses.
+3. Row-family inputs: all six (`compositionRows` required per version — a
+   version always has one; the other five each independently optional,
+   matching the established "empty when none" convention). None excluded
+   at the family level; specific WITHIN-family fields are excluded — see
+   Q6/Q10 below.
+4. Field disposition: a repository-wide, field-by-field audit of all six
+   row families found exactly ONE recurring ambiguity worth normalizing —
+   a decimal value paired with a free-text unit string. Every other field
+   (categorical enums, identifiers, provenance, administrative metadata)
+   already flows through the six existing rows unchanged; this task adds
+   nothing that duplicates or forks any of their field lists.
+5. Existing deterministic unit conversions: exactly one,
+   `engine/unitConversion.ts`'s `convertUnit`/`unitDimension` (mass
+   mg/g/kg, volume mL/L). No rate-conversion authority exists anywhere
+   (see Q6).
+6. Missing/excluded/invalid/outlier/textual/zero/boolean/repeated
+   representation: `normalizeQuantity(undefined, ...)` returns `undefined`
+   — no entry is ever emitted for an absent source value (missing stays
+   missing). An explicit `"0"` is a real, `normalized: true` entry (proven
+   by a dedicated test) — never conflated with absence. An unrecognized or
+   absent unit is preserved raw (`normalized: false`) rather than guessed.
+   Repeated replicate values are each their own entry, disambiguated by
+   `detail` (the replicate number) since they share one `TestResult`/
+   `StabilityResult` citation.
+7. Scaling: NOT part of this task's contract. A repository-wide check for
+   a persisted, fitted-statistic contract (a stored min/max or mean/stddev
+   meant to be replayed against future data) found none anywhere in this
+   package. Inventing one with no source authority, no persistence model,
+   and no leakage/reproducibility design proven anywhere would be exactly
+   the unproven normalization the governing rule forbids.
+8. `FEATURE_SCHEMA_VERSION` change: NOT bumped, stays `"1.0"` — this is
+   the FIRST feature-vector shape ever defined. Direct precedent:
+   `DATASET_SCHEMA_VERSION` was NOT bumped when FVL-05.002 defined the
+   first dataset row shape either; only a LATER change to an
+   ALREADY-SHIPPED shape (FVL-05.004's fifth corrective cycle) ever
+   bumped it.
+9. Provenance: every `normalizedQuantitySchema` entry carries its own
+   `sourceRecords` citation (record-level, `detail` sub-disambiguating
+   where a citation legitimately repeats); the feature row's own
+   `sourceRecords` is the deduplicated union of every contributing input
+   row's own lineage.
+10. Target-leakage prevention: every normalized `path` resolves to a
+    genuinely REALIZED/measured field. `DoeFactor.lowValue`/`.centerValue`/
+    `.highValue` and `DoeResponse.targetValue`/`.lowerLimit`/`.upperLimit`
+    (planned/spec/objective values) are deliberately excluded — a
+    dedicated test proves it. This task also does not designate ANY
+    normalized value as "the" target variable for anything — that stays
+    FVL-05.010's own explicit job.
+
+## Deliberately excluded value+unit-shaped fields (found, not overlooked)
+
+- `FormulationLine.unitPrice`/`.priceUnit` (and every `*PerUnit` cost
+  field in `costing.ts`): a price-per-unit is a RATE, not a simple
+  quantity — canonicalizing it needs a DIVIDE where a plain quantity
+  conversion MULTIPLIES. `convertUnit` has no rate-safe inverse and none
+  is invented here. Left raw, unconverted.
+- `DoeFactor.lowValue`/`.centerValue`/`.highValue`,
+  `DoeResponse.targetValue`/`.lowerLimit`/`.upperLimit`,
+  `TestDefinition.targetValue`/`.minimum`/`.maximum`: planned/spec/
+  objective values — see Q10 above.
+- `DataExchange.processParameterSchema` (`plannedProcedure`): every
+  temperature/mixing-speed/duration field is fixed-unit-by-name with no
+  companion unit field — nothing to resolve.
+- `RawMaterial.viscosityMin`/`.viscosityMax`/`.phMin`/`.phMax`/`.hlb`,
+  `TrialProcessStep.actualPh`, every `*Percent` field: unitless or
+  already-percentage by domain convention, no companion unit field.
+- `StabilitySample.fillQuantity`: no companion unit anywhere in its own
+  row family; resolving one would require a brand-new resolution pool
+  outside this task's "normalize what FVL-05.003-.008 already extracted"
+  scope.
+- `TrialMaterialUsage.actualWeight`/`.weightUnit`: not embedded by ANY
+  existing FVL-05.003-.008 row — FVL-05.004's own header comment already
+  established material usage was never in scope.
+
+## Design decisions
+
+`normalizeQuantity()` is the one new deterministic primitive this task
+adds — pure, reused everywhere a value+unit pair was found, never
+duplicated per family. It reuses `convertUnit`'s existing float-based
+conversion characteristics as-is (an inherited constraint of the reused
+authority, not a new risk this task introduces) and formats the result
+through `engine/decimal.ts`'s existing `PRECISION.quantity` (4 dp) — no
+second, parallel rounding rule invented. The DOE factor/response unit
+resolution independently re-derives `formulaVersionDoeDatasetExtractor.ts`'s
+own `buildDesignSnapshotIndex` duplicate-safety check (that function is
+not exported, and this extractor's own contract cannot blindly trust a
+caller-supplied `doeRow` that need not have come through that extractor).
+`formulaVersionFeatureRowSchema` deliberately does NOT re-embed any of the
+six input rows' own fields (avoiding the "copy a field list into a
+parallel schema" risk six times over) — a feature consumer joins this
+row's `normalizedQuantities` with the six existing dataset rows by
+`formulaVersionId` for full categorical/raw-field context.
+
+## Files changed
+
+- `packages/shared/src/schemas/dataset.ts` — new FVL-05.009 section:
+  `NORMALIZED_QUANTITY_SOURCE_PATHS`, `NORMALIZED_QUANTITY_CANONICAL_UNITS`,
+  `normalizedQuantitySchema`, `featureRowBaseSchema`,
+  `formulaVersionFeatureRowSchema`; added `decimalString` import from
+  `./primitives` (previously unused in this file).
+- `packages/shared/src/engine/formulaVersionFeatureExtractor.ts` — new:
+  `normalizeQuantity`, `extractFormulaVersionFeatureRows`,
+  `FormulaVersionFeatureExtractionError`.
+- `packages/shared/src/engine/formulaVersionFeatureExtractor.test.ts` —
+  new: 39 focused adversarial tests.
+- `packages/shared/src/index.ts` — added
+  `export * from "./engine/formulaVersionFeatureExtractor"`.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.009 row completed; the
+  top-of-file rollup table/prose counts corrected `8/14`→`9/14`,
+  `97/171`→`98/171` (same "each task's own row stayed current, only the
+  rollup lagged" pattern the FVL-05.005 session already documented for an
+  earlier instance of this same drift).
+- `docs/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE block prepended.
+- `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md` —
+  this section.
+
+No GPT audit/prompt file touched (ownership rule respected). All other
+pre-existing worktree modifications/deletions/untracked files left
+untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionFeatureExtractor.test.ts`: **39/39**.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **91
+  files / 2122 tests** passed (90→91 files, 2083→2122 tests, +39 new, no
+  regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): **167
+  files / 1726 tests** passed, unchanged (no desktop app code touched
+  this task).
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
+  drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).

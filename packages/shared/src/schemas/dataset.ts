@@ -40,6 +40,7 @@
 import { z } from "zod";
 import { correctiveActionSchema } from "./correctiveActions";
 import { costSnapshotSchema } from "./costing";
+import { decimalString } from "./primitives";
 import { processParameterSchema } from "./dataExchange";
 import { doeDesignSchema, doeObservationSchema, doeRunSchema } from "./doe";
 import { formulationLineSchema } from "./formulation";
@@ -1167,3 +1168,250 @@ export const formulaVersionCorrectiveCostContextRowSchema = datasetRowBaseSchema
   packagingContext: z.array(stabilityStudyPackagingContextSchema),
 });
 export type FormulaVersionCorrectiveCostContextRow = z.infer<typeof formulaVersionCorrectiveCostContextRowSchema>;
+
+/**
+ * FVL-05.009 — normalization: units, categorical, numeric.
+ *
+ * SOURCE RECOVERY (not inferred from the tracker's short title — the
+ * tracker's own `Depends on` column names ALL SIX prior extractors,
+ * FVL-05.003-.008, so this task normalizes across the full existing
+ * dataset-row surface, not one hand-picked family). This is a NORMALIZATION
+ * LAYER over the six already-extracted, already-versioned `FormulaVersion*
+ * Row` families — it never re-derives anything from raw masterdata pools,
+ * never re-embeds a dataset row's own fields (that would violate the
+ * standing "reuse canonical schemas, do not copy a field list into a
+ * parallel schema" rule six times over), and never designates any field as
+ * a training TARGET (that is FVL-05.010's own explicit job — see its own
+ * tracker row, "Depends on: FVL-05.009").
+ *
+ * WHAT "NORMALIZATION" MEANS HERE (the one genuinely new thing this task
+ * adds — everything else already exists verbatim in the six input rows):
+ * a repository-wide field-by-field audit of every FVL-05.003-.008 row
+ * family found exactly ONE recurring, well-defined ambiguity a downstream
+ * numeric consumer cannot resolve on its own — a decimal VALUE paired with
+ * a free-text UNIT string that may or may not be a physical unit this
+ * codebase already knows how to convert. `normalizedQuantitySchema` below
+ * is that one concept, applied uniformly via `normalizeQuantity()`
+ * (`engine/formulaVersionFeatureExtractor.ts`) to every such pair found:
+ *
+ * | path                                | source field (value + unit)                                                    | family      |
+ * |--------------------------------------|---------------------------------------------------------------------------------|-------------|
+ * | `composition.line.quantity`           | `FormulationLine.quantity` + `.quantityUnit`                                    | FVL-05.003  |
+ * | `process.actualStep.viscosity`        | `TrialProcessStep.actualViscosity` + `.viscosityUnit`                           | FVL-05.004  |
+ * | `testResult.replicate.numericValue`   | `TestReplicate.numericValue` + owning `TestResult.unit`                         | FVL-05.005  |
+ * | `testResult.stats.mean`/`.minimum`/`.maximum`/`.standardDeviation` | `ReplicateStats.*` + owning `TestResult.unit`             | FVL-05.005  |
+ * | `stabilityResult.replicate.numericValue` | `TestReplicate.numericValue` + owning `StabilityResult.unit`                 | FVL-05.006  |
+ * | `stabilityResult.stats.mean`/`.minimum`/`.maximum`/`.standardDeviation` | `ReplicateStats.*` + owning `StabilityResult.unit`     | FVL-05.006  |
+ * | `doe.factorSetting.actualValue`       | `DoeFactorSetting.actualValue` + the owning design's `DoeFactor.unit` (resolved by `factorCode` against the run's own design's frozen `factorSnapshot`, the exact index FVL-05.007's own `buildDesignSnapshotIndex` already proves unambiguous — re-checked defensively here since a caller need not have gone through that extractor) | FVL-05.007  |
+ * | `doe.observation.value`               | `DoeObservation.value` + the owning design's `DoeResponse.unit` (resolved by `responseId` against the same frozen `responseSnapshot`) | FVL-05.007  |
+ * | `costSnapshot.costLine.quantityKg`    | `CostLine.quantityKg` (unit is fixed "kg" by the field's own name — no companion field exists, still run through the same function for one uniform code path) | FVL-05.008  |
+ * | `costSnapshot.skuCost.fillQuantity`   | `SkuCost.fillQuantity` + `.fillUnit`                                             | FVL-05.008  |
+ * | `packagingContext.fillQuantity`       | `PackagingSystemSnapshot.fillQuantity` + `.fillUnit`                            | FVL-05.008  |
+ *
+ * DELIBERATELY EXCLUDED value+unit-shaped fields, each for a concrete,
+ * disqualifying reason found in source — never merely overlooked:
+ *
+ * - `FormulationLine.unitPrice`/`.priceUnit` (and every other `*PerUnit`/
+ *   `*Cost` + unit-ish field across `costing.ts`): a PRICE PER UNIT is a
+ *   RATE, not a simple quantity — canonicalizing a rate requires DIVIDING
+ *   by the same factor a plain quantity conversion MULTIPLIES by (kes/L ->
+ *   kes/mL is ÷1000, while L -> mL is ×1000). `engine/unitConversion.ts`'s
+ *   `convertUnit` is documented as "generic, density-free DIMENSIONAL
+ *   conversion" — it has no rate-safe inverse mode, and inventing one here
+ *   (a brand-new arithmetic direction with no existing authority or test
+ *   coverage) is exactly the kind of unproven, non-source-supported
+ *   normalization the governing rule forbids. Left raw and unconverted,
+ *   not fabricated.
+ * - `DoeFactor.lowValue`/`.centerValue`/`.highValue`, `DoeResponse.
+ *   targetValue`/`.lowerLimit`/`.upperLimit`, `TestDefinition.targetValue`/
+ *   `.minimum`/`.maximum`: PLANNED/SPEC/OBJECTIVE values, not measured
+ *   actuals — including them here would be exactly the "DOE objectives...
+ *   into measured actual features" leak this task's own governing
+ *   invariants forbid. `DoeFactorSetting.actualValue` and `DoeObservation.
+ *   value` (the realized run/response values) are the only DOE-family
+ *   fields normalized, precisely because they alone are actuals.
+ *   `TestDefinition` was already out of FVL-05.005's own row entirely, so
+ *   there is nothing of its to exclude here beyond restating why.
+ * - `DataExchange.processParameterSchema` (the `plannedProcedure` embedded
+ *   in every FVL-05.004 row): audited field-by-field — `temperatureMin/
+ *   Target/Max`, `mixingSpeedMin/Target/Max`, `mixingTimeMinutes`,
+ *   `holdTimeMinutes` are ALL fixed-unit-by-name (°C/rpm/minutes) with NO
+ *   companion unit field anywhere on the schema — there is no unit
+ *   ambiguity to resolve, so nothing here needs `normalizeQuantity()`.
+ * - `RawMaterial.viscosityMin`/`.viscosityMax`/`.phMin`/`.phMax`/`.hlb`,
+ *   `TrialProcessStep.actualPh`, every `*Percent` field across all six
+ *   families (`percent`, `activeMatterPercent`, `humidityPercent`, ...):
+ *   each is fixed-unit-by-domain-convention (unitless pH/HLB, or already a
+ *   percentage of a stated total) with no companion unit field — nothing to
+ *   resolve, left as plain numeric passthrough by every row that already
+ *   embeds them verbatim.
+ * - `StabilitySample.fillQuantity`: genuinely has NO companion unit
+ *   anywhere in its own row family (`stabilitySampleSchema` has no
+ *   `fillUnit` field, and FVL-05.006 never pools the packaging catalog that
+ *   would supply one) — resolving it would require inventing a brand-new
+ *   resolution pool this task's own "normalize what FVL-05.003-.008 already
+ *   extracted" scope does not call for. Left exactly as its own row already
+ *   carries it, honestly un-normalizable rather than guessed.
+ * - `TrialMaterialUsage.actualWeight`/`.weightUnit`: `TrialMaterialUsage`
+ *   (the trial's weighing log) is not embedded by ANY existing FVL-05.003-
+ *   .008 row (`schemas/dataset.ts`'s own FVL-05.004 header comment: "The
+ *   only OTHER structured, shared-package-visible process data is
+ *   `LaboratoryTrial`'s own embedded `processSteps`/`observations`" —
+ *   material usage was never in scope). A field this task's own inputs
+ *   never contain cannot be normalized by it.
+ *
+ * `normalized: false` (raw value preserved, `canonicalUnit`/`canonicalValue`
+ * both absent) covers BOTH "no unit was ever recorded" and "the recorded
+ * unit is not one `engine/unitConversion.ts` knows how to convert" — the
+ * governing rule's own "remain raw exactly as contract requires, never
+ * guessed" language makes no distinction between the two, so neither does
+ * this schema. A `path` never appears for a source field that is itself
+ * absent — missing stays missing, never coerced into a zero-valued entry.
+ *
+ * `detail` disambiguates the rare case where more than one entry can cite
+ * the exact same source record (a `TestResult`'s several replicates all
+ * share one `TestResult.id`; a `DoeRun`'s several `factorSettings` all
+ * share one `DoeRun.id`) — the replicate's own `replicateNumber` or the
+ * setting's own `factorCode`, respectively. Every other `path` already
+ * cites a source record with its own unique, unshared identity (a
+ * `DoeObservation.id`, a `TestResult.id` for its OWN stats fields, a
+ * `CostSnapshot.code`, a `StabilityStudy.id`) and leaves `detail` absent.
+ *
+ * NOT PART OF THIS TASK'S CONTRACT (Q7, answered from source, not assumed):
+ * no schema anywhere in this package models a persisted, fitted scaling
+ * statistic (a stored min/max or mean/stddev meant to be REPLAYED against
+ * future data) — `dataset.ts`/`costing.ts`/`doe.ts` were all re-checked for
+ * exactly this shape and found none. Min-max/z-score scaling is therefore
+ * NOT implemented here: inventing a fitted-statistic contract with no
+ * source authority, no persistence model, and no leakage/reproducibility
+ * design proven anywhere would be exactly the unproven normalization rule
+ * this task's own governing invariants forbid. A future task that adds a
+ * real, persisted, fitted-statistic contract can layer scaling on top of
+ * `canonicalValue` without revisiting this decision.
+ *
+ * FEATURE_SCHEMA_VERSION stays `"1.0"` (NOT bumped by this task): this is
+ * the FIRST feature-vector shape ever defined — `FEATURE_SCHEMA_VERSION`'s
+ * own header comment already said "FVL-05.009-.010 are the tasks that
+ * would bump it" only once an EXISTING feature-vector shape later changes.
+ * The direct, already-established precedent is `DATASET_SCHEMA_VERSION`
+ * itself: FVL-05.001 defined it at `"1.0"` with no row shape yet, and
+ * FVL-05.002's `sourceRecordReferenceSchema`/`datasetRowBaseSchema` — the
+ * FIRST dataset row shape — did NOT bump it; only a LATER change to an
+ * ALREADY-SHIPPED shape ever bumps a schema-version literal in this file.
+ * Defining the first feature-vector shape is that same "nothing existed
+ * before, nothing changed" case, not a shape change to bump against.
+ *
+ * `DATASET_SCHEMA_VERSION` is untouched (stays `"1.6"`) — this task adds no
+ * field to, and removes no field from, any FVL-05.003-.008 row shape; it
+ * only reads them.
+ *
+ * ANTI-LEAKAGE (Q10): every `path` above resolves to a genuinely REALIZED/
+ * MEASURED value (`FormulationLine.quantity` — the source's own recorded
+ * absolute weight, not a target; `TrialProcessStep.actual*` — recorded
+ * execution evidence; `TestResult`/`StabilityResult` replicate & stats
+ * values — recorded measurements; `DoeFactorSetting.actualValue`/
+ * `DoeObservation.value` — the run's actually-used setting and its
+ * actually-recorded response; `CostSnapshot`/packaging context — historical
+ * recorded evidence). No `path` here ever resolves to a spec, a target, a
+ * DOE objective, a candidate prediction, or a desirability score — see the
+ * "DELIBERATELY EXCLUDED" list above for the specific fields that WOULD
+ * have been exactly that, and why each is excluded. This task also does
+ * NOT designate any of these normalized values as "the" target variable
+ * for anything — that designation is FVL-05.010's own explicit job.
+ */
+export const NORMALIZED_QUANTITY_SOURCE_PATHS = [
+  "composition.line.quantity",
+  "process.actualStep.viscosity",
+  "testResult.replicate.numericValue",
+  "testResult.stats.mean",
+  "testResult.stats.minimum",
+  "testResult.stats.maximum",
+  "testResult.stats.standardDeviation",
+  "stabilityResult.replicate.numericValue",
+  "stabilityResult.stats.mean",
+  "stabilityResult.stats.minimum",
+  "stabilityResult.stats.maximum",
+  "stabilityResult.stats.standardDeviation",
+  "doe.factorSetting.actualValue",
+  "doe.observation.value",
+  "costSnapshot.costLine.quantityKg",
+  "costSnapshot.skuCost.fillQuantity",
+  "packagingContext.fillQuantity",
+] as const;
+export type NormalizedQuantitySourcePath = (typeof NORMALIZED_QUANTITY_SOURCE_PATHS)[number];
+
+/** The two canonical target units every normalized mass/volume quantity is
+ *  expressed in — chosen once, fixed, never per-field: "g" for anything
+ *  `engine/unitConversion.ts`'s `unitDimension()` resolves as "mass", "mL"
+ *  for anything it resolves as "volume". A quantity whose unit is absent or
+ *  unrecognized never gets either — `canonicalUnit`/`canonicalValue` are a
+ *  matched pair, always both present or both absent. */
+export const NORMALIZED_QUANTITY_CANONICAL_UNITS = ["g", "mL"] as const;
+export type NormalizedQuantityCanonicalUnit = (typeof NORMALIZED_QUANTITY_CANONICAL_UNITS)[number];
+
+export const normalizedQuantitySchema = z
+  .object({
+    path: z.enum(NORMALIZED_QUANTITY_SOURCE_PATHS),
+    /** Disambiguates a `path` whose source record legitimately repeats
+     *  (a replicate number, a DOE factor code) — see this section's own
+     *  header comment. Absent whenever the citation below is already
+     *  unique on its own. */
+    detail: z.string().optional(),
+    /** The exact source value, unmodified — never re-rounded, never
+     *  dropped even when `normalized` is false. */
+    raw: decimalString,
+    /** The exact source unit string, unmodified. Absent only when the
+     *  source field itself carries no unit companion at all (as opposed to
+     *  an unrecognized one, which IS present here, just unconverted). */
+    rawUnit: z.string().optional(),
+    canonicalUnit: z.enum(NORMALIZED_QUANTITY_CANONICAL_UNITS).optional(),
+    /** Present if and only if `canonicalUnit` is present — a deterministic
+     *  conversion via `engine/unitConversion.ts`'s `convertUnit`, formatted
+     *  through `engine/decimal.ts`'s own `PRECISION.quantity` (4 dp),
+     *  never a second, parallel rounding rule. */
+    canonicalValue: decimalString.optional(),
+    /** True iff `canonicalUnit`/`canonicalValue` are both present. Kept as
+     *  its own explicit boolean (not merely inferred from presence) so a
+     *  downstream consumer never has to reverse-engineer the pairing rule. */
+    normalized: z.boolean(),
+    sourceRecords: sourceRecordLineageSchema,
+  })
+  .superRefine((entry, ctx) => {
+    const hasCanonical = entry.canonicalUnit !== undefined && entry.canonicalValue !== undefined;
+    if (entry.normalized !== hasCanonical) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `normalized must be true if and only if both canonicalUnit and canonicalValue are present (path="${entry.path}")`,
+      });
+    }
+  });
+export type NormalizedQuantity = z.infer<typeof normalizedQuantitySchema>;
+
+/** Composable envelope for the feature-vector family, mirroring
+ *  `datasetRowBaseSchema` one level up: the existing feature schema version
+ *  (never a second version literal) plus the same lineage contract every
+ *  dataset row already uses — a feature row is exactly as source-traceable
+ *  as the dataset rows it was normalized from. */
+export const featureRowBaseSchema = featureSchemaVersionedSchema.extend({
+  sourceRecords: sourceRecordLineageSchema,
+});
+export type FeatureRowBase = z.infer<typeof featureRowBaseSchema>;
+
+/** One row per `FormulationVersion`, same convention as every FVL-05.003-
+ *  .008 dataset row. `sourceRecords` here is the DEDUPLICATED UNION of
+ *  every source-record citation contributed by whichever of the six input
+ *  rows were supplied (row-level lineage, proving which underlying records
+ *  this feature row as a whole was built from) — `normalizedQuantities[].
+ *  sourceRecords` is the separate, finer-grained per-VALUE citation.
+ *  `normalizedQuantities` is empty when none of the source rows contained
+ *  any resolvable value+unit pair — legitimate (e.g. a version with
+ *  composition but no quantity/unit ever entered on any line), never an
+ *  error. */
+export const formulaVersionFeatureRowSchema = featureRowBaseSchema.extend({
+  formulaId: nonBlankString("formulaId"),
+  formulaCode: nonBlankString("formulaCode"),
+  formulaVersionId: nonBlankString("formulaVersionId"),
+  formulaVersionNumber: z.number().int().positive(),
+  normalizedQuantities: z.array(normalizedQuantitySchema),
+});
+export type FormulaVersionFeatureRow = z.infer<typeof formulaVersionFeatureRowSchema>;
