@@ -6197,3 +6197,77 @@ untracked files left untouched.
 - `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
   drift.
 - `git diff --check`: clean (pre-existing CRLF warnings only).
+
+### Commits
+
+- `7a01c89` — this task's single implementation commit (no amend, no
+  force push, no history rewrite).
+
+Final HEAD: `7a01c898af08f306be81e4f1227c15b8514b1f81`. Verified
+`git rev-parse HEAD` equals
+`git rev-parse origin/feature/laboratory-stability` after push — both
+`7a01c898af08f306be81e4f1227c15b8514b1f81`.
+
+### Desktop build & shortcut (final pushed HEAD)
+
+- Checked for a stale locked `formulab.exe` process BEFORE building —
+  none running.
+- Build command: `pnpm --filter @formulab/desktop tauri build`, exit
+  code confirmed explicitly — **`EXIT_CODE=0`**. MSI and NSIS bundles
+  produced.
+- Executable: `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`
+  — size 24,872,448 bytes, modified 2026-08-28 00:25:50 local time,
+  SHA256 `0958C88C1B672ECD8640C75D2D3CC1B1D9C27D65B80AC547FDD39620BD1E796E`
+  (distinct from the pre-task build's hash
+  `F4A5053D542C63AB4E4C6565957B0AA3D6A029A1DBCF0AC289A8CF9AC97B5F91`,
+  confirming a fresh build from this task's final HEAD).
+- `C:\Users\sekip\Desktop\FormuLab.lnk` verified via WScript.Shell:
+  TargetPath matches the exact just-built executable path, Arguments
+  empty, WorkingDirectory correct. No duplicate shortcut created; `.lnk`
+  not committed.
+- Native launch smoke: launched fresh via the real shortcut; resulting
+  process (PID 32868) confirmed running from the exact fresh exe path and
+  `Responding: True` 5 seconds after launch. **Automated launch smoke:
+  PASS.** Process then deliberately stopped afterward so it does not lock
+  the next build. **Manual UI acceptance from Desktop\FormuLab.lnk is
+  still pending USER verification** — not claimed here.
+
+### Closure-gate checklist (all satisfied)
+
+Source recovery genuinely drove the payload (not the tracker title): all
+15 mandatory source questions answered from direct source inspection
+before any code was written; a genuine existing-utility candidate
+(FNV-1a `fingerprint()`) was found, evaluated, and explicitly rejected
+with sourced reasoning rather than reused by default or ignored; real
+SHA-256 confirmed already-proven-portable in this exact codebase before
+adopting it; canonicalization algorithm fully specified and exhaustively
+unit-tested (key order, array order, undefined-vs-null, zero/false-vs-
+missing, Unicode, casing) independent of any row-level test; a genuine
+defect (composition row's unwrapped `.parse()`) was caught by the
+adversarial tests themselves during authoring and fixed, not merely
+narrated; `MANIFEST_SCHEMA_VERSION` introduced as a third version family
+only after direct architecture evidence, mirroring FVL-05.001's own
+two-version precedent rather than inventing a new exception;
+`DATASET_SCHEMA_VERSION`/`FEATURE_SCHEMA_VERSION` correctly left
+unbumped; permutation invariance for dataset-level membership proven, not
+assumed; digest changes proven for feature-value, target-value, lineage-
+parentRecordId, and id-casing changes; fail-closed proven for invalid
+row, stale schema-version literal, cross-row identity conflict, and
+duplicate bundle membership; no wall-clock/random/machine-path entering
+any digest, proven by repeated-build determinism; focused tests green
+(39/39); full shared tests green (93/93 files, 2221/2221); desktop
+regression green (167/167 files, 1726/1726, with one full-suite-load
+timing flake independently reproduced as non-regressive and re-confirmed
+clean); shared/desktop typechecks green; desktop lint green; tracker
+validator green (rollup counts corrected); `git diff --check` clean;
+tracker/handoff/external log all truthfully current; task-owned changes
+committed and pushed with local HEAD equal to remote HEAD; native Tauri
+release build, `Desktop\FormuLab.lnk` check, and launch smoke run from
+the final pushed HEAD with the real exit code verified explicitly;
+FVL-05.012 remains untouched; GPT audit/prompt files untouched
+(read-only, respected).
+
+**FVL-05.011 — IMPLEMENTATION COMPLETE — PENDING GPT AUDIT.**
+
+**NEXT TASK — FVL-05.012 NOT STARTED** (per this session's explicit
+instruction not to begin it).
