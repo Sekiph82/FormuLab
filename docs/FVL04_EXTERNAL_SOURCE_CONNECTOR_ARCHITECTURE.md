@@ -909,7 +909,7 @@ connection UI invented) and found already fully compliant — no code
 change was needed.
 
 **6. Documentation current-state contradiction fixed.**
-`docs/handoffs/FORMULAB_V1_CURRENT.md`'s own "Current work package"
+`project-control/claude/handoffs/FORMULAB_V1_CURRENT.md`'s own "Current work package"
 section opened with a stale "18/26" headline directly above a "now
 genuinely 25/26" statement in the same paragraph — corrected so the
 current count is unambiguous; the "18/26" figure is now explicitly

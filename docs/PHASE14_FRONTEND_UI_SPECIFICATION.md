@@ -520,7 +520,7 @@ available.
 ## Phase discipline
 
 This specification was registered during **Session 0** (backend/design
-scope only — see `docs/handoffs/PHASE14_CURRENT.md`), then implemented
+scope only — see `project-control/claude/handoffs/PHASE14_CURRENT.md`), then implemented
 in the same run at the user's explicit, direct instruction ("please do
 these now, it is not a future reference") — an intentional, disclosed
 departure from §12's proposed sequencing (request screen: Session 3;

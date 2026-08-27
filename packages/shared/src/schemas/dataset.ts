@@ -1011,7 +1011,7 @@ export type FormulaVersionDoeRow = z.infer<typeof formulaVersionDoeRowSchema>;
  *
  * SOURCE-RECOVERY CONCLUSIONS (recovered directly from repository source,
  * not inferred from the tracker's title — see the FVL-05.008 tracker row
- * and `docs/external-logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+ * and `project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
  * own cycle section for the full evidence trail):
  *
  * 1. CORRECTIVE ACTIONS: `CorrectiveAction` (`schemas/correctiveActions.ts`)

@@ -3,7 +3,7 @@
  * no rendering, no React. Actual copy lives in the `help` i18n namespace
  * (`i18n/locales/<locale>/help.json`), keyed by this topic's `id`; this
  * file only says which fields exist and which route(s)/relationships a
- * topic has. See docs/handoffs/PHASE10_CURRENT.md for the architecture
+ * topic has. See project-control/claude/handoffs/PHASE10_CURRENT.md for the architecture
  * this implements.
  */
 
@@ -76,7 +76,7 @@ export interface HelpTopic {
   glossaryTermIds: string[];
 
   /** Screenshot ids, following the naming convention from
-   *  docs/handoffs/PHASE10_CURRENT.md's screenshot strategy:
+   *  project-control/claude/handoffs/PHASE10_CURRENT.md's screenshot strategy:
    *  `<module>-<page>-<state>-<theme>-<locale>`. No screenshots are
    *  captured in this session — ids may be empty, but any id present must
    *  already match the convention (tested). */

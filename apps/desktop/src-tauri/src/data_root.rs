@@ -8,7 +8,7 @@
 // `runs.rs` wrote `runs.jsonl` through `workspace_dir()` — two different
 // roots whenever `active-workspace.txt` ever diverged from
 // `base-workspace.txt`. See docs/PHASE11_DATA_INVENTORY.md's "Active
-// data-location assessment" and docs/handoffs/PHASE11_CURRENT.md's
+// data-location assessment" and project-control/claude/handoffs/PHASE11_CURRENT.md's
 // Session 0 findings for the full evidence trail.
 //
 // This module is the one place that now decides the active data root.

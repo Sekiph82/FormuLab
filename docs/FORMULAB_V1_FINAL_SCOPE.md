@@ -7,7 +7,7 @@ still required to declare **FormuLab v1 complete**. It is created at the point
 where Phase 14 (Evidence-Driven Hybrid Literature & Formulation Intelligence)
 is implementation-complete — see
 [`docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md`](PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md)
-§20/§21 and `docs/handoffs/PHASE14_CURRENT.md` — and is the **last scope
+§20/§21 and `project-control/claude/handoffs/PHASE14_CURRENT.md` — and is the **last scope
 change before v1 completion**.
 
 Phase 14's own history is preserved exactly as recorded. This document does
@@ -214,7 +214,7 @@ Approved additions (full task detail in the tracker, FVL-04.013–.026):
 
 No production implementation of any FVL-04.013–.026 task occurred as part
 of approving this scope — see `docs/FORMULAB_V1_TASK_TRACKER.md` for
-current status (all blank) and `docs/handoffs/FORMULAB_V1_CURRENT.md` for
+current status (all blank) and `project-control/claude/handoffs/FORMULAB_V1_CURRENT.md` for
 the current execution pointer (unchanged: `FVL-03.009`, NOT STARTED).
 
 ---
@@ -233,7 +233,7 @@ FormuLab v1 is complete only when:
 - The repository is pushed to `origin/feature/laboratory-stability` (or its
   eventual merge target) with no outstanding blocking task.
 - An explicit v1 COMPLETE declaration is recorded in
-  `docs/handoffs/FORMULAB_V1_CURRENT.md` — never assumed from code existing.
+  `project-control/claude/handoffs/FORMULAB_V1_CURRENT.md` — never assumed from code existing.
 
 ## 5. Data safety (standing rules, restated)
 

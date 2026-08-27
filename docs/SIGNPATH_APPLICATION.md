@@ -89,7 +89,7 @@ independent re-download. One real CI issue surfaced and was fixed along
 the way: the standard tag-push trigger did not fire on this repository
 (confirmed via the GitHub Actions API; `workflow_dispatch` worked fine),
 worked around with a `workflow_dispatch` `tag` input — disclosed in
-`docs/handoffs/PHASE12_CURRENT.md`'s Session 3 summary, not hidden. This
+`project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 3 summary, not hidden. This
 blocker is now resolved; this document's "Blocker requiring a decision
 before applying" status is stale as of Session 3 and superseded by this
 section.
@@ -160,7 +160,7 @@ SignPath's OSS-tier requirement that every job in the chain run on a
 GitHub-hosted agent, not a self-hosted one). Triggered on a `v*` tag
 push, **or** (added Session 3, since the tag-push trigger does not
 currently fire on this repository — a real, disclosed, unresolved
-anomaly; see `docs/handoffs/PHASE12_CURRENT.md`'s Session 4 summary) a
+anomaly; see `project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 4 summary) a
 manual `workflow_dispatch` run with its `tag` input set, producing
 identical release output either way. Uses `tauri-apps/tauri-action@v0`.
 `v0.4.0` was published via the `workflow_dispatch` path.
@@ -196,7 +196,7 @@ fast-forward with zero unique `main`-only commits and zero conflicts.
 bytes), which conflicts with this project's own standing "never touch
 real user data" rule carried through every session on this repository.
 Left open for a human decision; see the PR description and
-`docs/handoffs/PHASE12_CURRENT.md`'s Session 4 summary for the exact
+`project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 4 summary for the exact
 blocker. Until merged, this dossier's policy-document URLs point to the
 immutable `v0.4.0` tag (proven reachable) rather than `main` (proven
 unreachable), per the same reasoning applied to the release notes in

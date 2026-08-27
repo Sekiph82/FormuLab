@@ -85,7 +85,7 @@ deferring it to Session 13:
 - Final exhaustive scan: case-insensitive search for the previous
   project identity's token across the entire working tree including the
   freshly generated `node_modules`, `target`, and release artifacts,
-  excluding only `.git` — see `docs/handoffs/PHASE12_CURRENT.md`'s final
+  excluding only `.git` — see `project-control/claude/handoffs/PHASE12_CURRENT.md`'s final
   scan section for the result.
 - `git diff --check`: clean.
 
@@ -118,7 +118,7 @@ since it was correcting that same closure's shortfall.
 - **NSIS installer match (1 of 18)**: required a clean rebuild
   (`apps/desktop/src-tauri/target` removed and recompiled) to test
   whether it reappears — see the final scan result in
-  `docs/handoffs/PHASE12_CURRENT.md` for the outcome.
+  `project-control/claude/handoffs/PHASE12_CURRENT.md` for the outcome.
 - **Desktop-suite exit code**: two real unhandled-promise-rejection root
   causes fixed — `HomePage.tsx`'s missing `.catch()` (application-code
   fix) and a jsdom/undici `AbortSignal` cross-realm artifact inside
@@ -136,7 +136,7 @@ since it was correcting that same closure's shortfall.
 - Clean Windows release rebuild and native launch verification, and the
   final exhaustive whole-tree scan (filenames + text + raw bytes,
   including fresh `node_modules`/`target`/release artifacts, excluding
-  only `.git`): see `docs/handoffs/PHASE12_CURRENT.md`'s "Final scan
+  only `.git`): see `project-control/claude/handoffs/PHASE12_CURRENT.md`'s "Final scan
   result (Session 2A)" section for the literal, unqualified result.
 
 **Correction: the bullets above describe this session's *first* pass,
@@ -150,14 +150,14 @@ byte-level matches**, not zero: the 35 orphaned-copy matches above, plus
 a ~165 MB dead-but-still-fetched OpenCode sidecar binary (10 matches,
 counted twice via a pnpm workspace symlink = 20), a stale local
 `aider`-tool cache (1), and one self-referential match in
-`docs/handoffs/PHASE12_CURRENT.md` itself (1). The real fix: a full
+`project-control/claude/handoffs/PHASE12_CURRENT.md` itself (1). The real fix: a full
 `node_modules` wipe + fresh `pnpm install` (eliminating orphaned copies
 entirely), deleting the dead OpenCode binary/fetch script/CI step (with
 source-level confirmation it is genuinely unreferenced, not merely
 unused this session), deleting the stale cache, and rewording the
 self-referential doc line. **The literal final scan, re-run after all
 of this, returned `TOTAL BYTE-LEVEL OCCURRENCES: 0`** — see
-`docs/handoffs/PHASE12_CURRENT.md`'s "Final scan result (Session 2A)"
+`project-control/claude/handoffs/PHASE12_CURRENT.md`'s "Final scan result (Session 2A)"
 for the full breakdown and the literal command output.
 
 Separately, the `node_modules` wipe this correction required surfaced

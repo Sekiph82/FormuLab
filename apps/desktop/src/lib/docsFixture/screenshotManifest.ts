@@ -5,7 +5,7 @@
  * not compiled TS) — this module only types it, loads it, and answers
  * "is this manifest internally consistent" / "does the real app still
  * match it" questions. No screenshot binary is captured by this module;
- * see `docs/handoffs/PHASE10_CURRENT.md`'s Session 5 summary for the
+ * see `project-control/claude/handoffs/PHASE10_CURRENT.md`'s Session 5 summary for the
  * capture workflow this feeds.
  */
 import * as fs from "node:fs";

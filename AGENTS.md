@@ -73,7 +73,7 @@ SQLite + JSONL provenance.
 
 ## Phase handoffs
 
-- Use `docs/handoffs/PHASE7_CURRENT.md` for active Phase 7 state.
+- Use `project-control/claude/handoffs/PHASE7_CURRENT.md` for active Phase 7 state.
 - Keep implementation sessions bounded to one related subsystem and one logical commit.
 - Use a fresh Claude context after each completed session.
 - Update the active handoff once at session end.

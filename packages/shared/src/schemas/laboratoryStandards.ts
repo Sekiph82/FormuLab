@@ -9,7 +9,7 @@
  * unmodified — existing definitions and results keep working exactly as
  * before. `LaboratoryStandard`/`LaboratoryTestMethod` below are the
  * structured, per-test-assignable model layered alongside it. See
- * docs/handoffs/PHASE10_CURRENT.md Session 1A for the before-state
+ * project-control/claude/handoffs/PHASE10_CURRENT.md Session 1A for the before-state
  * assessment.
  *
  * Copyright discipline (non-negotiable): this schema never stores or

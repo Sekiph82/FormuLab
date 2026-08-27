@@ -359,7 +359,7 @@ app-private code/log cache, not user data — see the cache rows below.
   derived from reading the *source code* that writes there, not from
   inspecting this real directory directly.
 
-### 18. `docs/external-logs/`, `docs/screenshots/`, `docs/PHASE10_SCREENSHOT_MANIFEST.json`
+### 18. `project-control/claude/logs/`, `docs/screenshots/`, `docs/PHASE10_SCREENSHOT_MANIFEST.json`
 - Repository-tracked archival/documentation material from the Phase 10
   consolidation and screenshot work. Not application data. Out of scope
   for backup/restore (they are already versioned by git).
@@ -375,7 +375,7 @@ app-private code/log cache, not user data — see the cache rows below.
 > found and is kept for the historical record, but the root-resolution
 > layer itself has since been unified — see
 > `docs/PHASE11_MIGRATION_ARCHITECTURE.md`'s sibling doc,
-> `docs/handoffs/PHASE11_CURRENT.md`'s Session 4 summary, and
+> `project-control/claude/handoffs/PHASE11_CURRENT.md`'s Session 4 summary, and
 > `apps/desktop/src-tauri/src/data_root.rs`. In short: `project_root()`
 > and `workspace_dir()` now delegate to one shared
 > `data_root::resolve_data_root()` (same precedence
@@ -390,7 +390,7 @@ app-private code/log cache, not user data — see the cache rows below.
 > Manager (relocating or merging roots) remains deferred.
 >
 > **Session 8 update**: the Data Location Manager deferred above is now
-> built — see `docs/handoffs/PHASE11_CURRENT.md`'s Session 8 summary and
+> built — see `project-control/claude/handoffs/PHASE11_CURRENT.md`'s Session 8 summary and
 > `apps/desktop/src-tauri/src/data_location_manager.rs`. It writes
 > exactly the `base-workspace.txt` pointer `workspace::set_workspace_base`
 > already wrote (now `pub(crate)` and reused, not a second writer of a

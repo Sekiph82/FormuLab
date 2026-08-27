@@ -263,7 +263,7 @@ route.
 - **Screenshot**: yes — trial lifecycle, weighing, result-history browser.
 - **Tour suitability**: good secondary tour.
 - **Limitations**: none beyond the general "never a fabricated value" principle.
-- **Session 1A addition**: per-test configurable laboratory standards and methods (`LaboratoryStandard`/`LaboratoryTestMethod`, `TestDefinitionsPanel.tsx`'s per-row Method drawer) — primary/alternative assignment, internal methods, superseded-acknowledgement, immutable historical `TestResult.methodSnapshot`. See `docs/handoffs/PHASE10_CURRENT.md`'s Session 1A summary and `USER_GUIDE.md` §17a. The `laboratory` help topic (registry coverage table above) was extended in place — no new topic id.
+- **Session 1A addition**: per-test configurable laboratory standards and methods (`LaboratoryStandard`/`LaboratoryTestMethod`, `TestDefinitionsPanel.tsx`'s per-row Method drawer) — primary/alternative assignment, internal methods, superseded-acknowledgement, immutable historical `TestResult.methodSnapshot`. See `project-control/claude/handoffs/PHASE10_CURRENT.md`'s Session 1A summary and `USER_GUIDE.md` §17a. The `laboratory` help topic (registry coverage table above) was extended in place — no new topic id.
 
 ### Stability — `/stability`
 - **Purpose**: stability studies, samples, results, trends, failures.

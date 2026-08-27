@@ -321,7 +321,7 @@ are included in the Rust count below).
 
 **Full audit**: all 12 of the session's required guarantees mapped to
 specific passing tests — see
-[`PHASE11_CURRENT.md`](handoffs/PHASE11_CURRENT.md#all-12-required-guarantees--confirmed-with-evidence).
+[`PHASE11_CURRENT.md`](../project-control/claude/handoffs/PHASE11_CURRENT.md#all-12-required-guarantees--confirmed-with-evidence).
 
 ## Session 7 — Automatic Backups (Stage 2, complete — actual results)
 
@@ -629,7 +629,7 @@ specific passing tests — see
 - The `HelpPanel.test.tsx` jsdom/undici `AbortSignal` flake — recorded as
   a known limitation in every prior Stage 2 session — was genuinely
   root-caused and fixed this session, not documented around again. See
-  `docs/handoffs/PHASE11_CURRENT.md`'s "Stage 2 Closure" section for the
+  `project-control/claude/handoffs/PHASE11_CURRENT.md`'s "Stage 2 Closure" section for the
   full investigation (two ruled-out fix attempts: dependency inlining,
   OS-process-per-file isolation; the actual fix:
   `vite.config.ts`'s `test.fileParallelism: false`).
@@ -643,7 +643,7 @@ specific passing tests — see
   plus **9/9** (`tours.test.ts`), run standalone.
 - Desktop typecheck: clean. Desktop lint: clean.
 - Release build (`pnpm tauri build`): fresh `formulab.exe` + MSI + NSIS
-  installers built; see `docs/handoffs/PHASE11_CURRENT.md` for
+  installers built; see `project-control/claude/handoffs/PHASE11_CURRENT.md` for
   paths/hashes/signing status and native-launch verification.
 
 ## What no session in this first stage runs

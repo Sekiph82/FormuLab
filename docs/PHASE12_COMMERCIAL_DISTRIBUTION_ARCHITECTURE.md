@@ -656,7 +656,7 @@ not ship under the wrong identity.
   goal-plugin CI fetch) ahead of the first public release — a release
   must not ship under an identity the project already renamed away from
   in Phase 9. Complete — full detail in
-  `docs/handoffs/PHASE12_CURRENT.md`'s Session 2 summary.
+  `project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 2 summary.
 - **Session 3** — First Public Release Publication. **Complete.**
   Published FormuLab's first-ever real GitHub Release,
   [`v0.4.0`](https://github.com/Sekiph82/FormuLab/releases/tag/v0.4.0)
@@ -667,7 +667,7 @@ not ship under the wrong identity.
   (`workflow_dispatch` fired instantly), and disclosed honestly rather
   than hidden — worked around with a `workflow_dispatch` `tag` input so
   a manual dispatch produces the same tagged-release behavior. Full
-  detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 3 summary.
+  detail: `project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 3 summary.
 - **Session 4** — SignPath Application and Approval Gate. **Prepared,
   not submitted.** The dossier (`docs/SIGNPATH_APPLICATION.md`) was
   re-audited against fresh GitHub state and is copy-paste ready.
@@ -679,7 +679,7 @@ not ship under the wrong identity.
   forward, `feature/laboratory-stability` → `main`) to fix the stale
   `main` branch the dossier's own checklist depends on — left open, not
   merged, because the diff would change `.FormuLab/runs.db`'s tracked
-  content on `main`. Full detail: `docs/handoffs/PHASE12_CURRENT.md`'s
+  content on `main`. Full detail: `project-control/claude/handoffs/PHASE12_CURRENT.md`'s
   Session 4 summary. Next: **Session 4A — SignPath Manual Submission
   Completion** (the user completes and submits the form personally).
 - **Session 5** — Signing wired for real. Replace the documentation-only

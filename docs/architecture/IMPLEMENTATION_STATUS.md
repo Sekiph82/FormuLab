@@ -1259,7 +1259,7 @@ to export an older (superseded) dossier revision — only the current one.
 ### Identity Rename: pre-rename identifier → FormuLab (Phase 9) — CLOSED
 Migrated every first-party pre-rename identifier to `FormuLab`
 naming, in bounded sessions, with compatibility preserved throughout —
-see `docs/handoffs/PHASE9_CURRENT.md` for full session-by-session
+see `project-control/claude/handoffs/PHASE9_CURRENT.md` for full session-by-session
 detail. **Update (Phase 12 Session 2)**: the compatibility fallback
 described below was fully removed and the one remaining external
 third-party dependency this phase deliberately left alone was removed
@@ -1335,7 +1335,7 @@ Illustrated user guide (in-app/PDF/DOCX), a full in-app help system
 disabled-action explanations, guided tours, first-launch onboarding),
 and a documentation fixture/screenshot pipeline — built across 8
 sessions plus an inserted laboratory-standards scope expansion. Full
-session-by-session detail in `docs/handoffs/PHASE10_CURRENT.md`.
+session-by-session detail in `project-control/claude/handoffs/PHASE10_CURRENT.md`.
 
 **Implemented, verified by tests**:
 - `HELP_TOPICS` registry (`apps/desktop/src/lib/help/registry.ts`) covers
@@ -1378,7 +1378,7 @@ session-by-session detail in `docs/handoffs/PHASE10_CURRENT.md`.
   existing `sidebarCollapsed` state (no second sidebar state).
 - File consolidation: 349 external FormuLab-related files (historical
   logs, phase-verification screenshots) moved into the repository under
-  `docs/external-logs/`/`docs/screenshots/`; two real application/
+  `project-control/claude/logs/`/`docs/screenshots/`; two real application/
   project-data locations correctly identified and left in place as
   documented technical exceptions rather than risked via a raw
   filesystem move. Full report:
@@ -1430,7 +1430,7 @@ Local backup/restore, standalone verification, a schema migration
 framework, active data-root clarification, and a basic diagnostics
 center — built across 6 sessions (assessment + 5 implementation +
 closure). Full session-by-session detail in
-`docs/handoffs/PHASE11_CURRENT.md`; dedicated architecture docs:
+`project-control/claude/handoffs/PHASE11_CURRENT.md`; dedicated architecture docs:
 [`PHASE11_BACKUP_RESTORE_ARCHITECTURE.md`](../PHASE11_BACKUP_RESTORE_ARCHITECTURE.md),
 [`PHASE11_MIGRATION_ARCHITECTURE.md`](../PHASE11_MIGRATION_ARCHITECTURE.md),
 [`PHASE11_DIAGNOSTICS_ARCHITECTURE.md`](../PHASE11_DIAGNOSTICS_ARCHITECTURE.md),
@@ -1523,7 +1523,7 @@ Automatic (daily/weekly/on-exit) backups, a Data Location Manager (safe
 move/switch/restore-default for the active data root), and a check-only
 update checker — built across 3 sessions plus a closure session, all on
 top of Stage 1's existing engines rather than parallel ones. Full
-session-by-session detail in `docs/handoffs/PHASE11_CURRENT.md`.
+session-by-session detail in `project-control/claude/handoffs/PHASE11_CURRENT.md`.
 
 **Implemented, verified by tests**:
 - `automatic_backup.rs`: reuses `backup::try_create_backup`/
@@ -1602,7 +1602,7 @@ automatic rollback, release channels, schema-compatibility gating,
 CI/CD release automation, certificate management, and release
 auditability. No code written. Full detail in
 [`PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md`](../PHASE12_COMMERCIAL_DISTRIBUTION_ARCHITECTURE.md);
-handoff in `docs/handoffs/PHASE12_CURRENT.md`.
+handoff in `project-control/claude/handoffs/PHASE12_CURRENT.md`.
 
 **Verified, not assumed, this session**:
 - `tauri-plugin-updater` is absent from both `Cargo.lock` (`grep -c` = 0)
@@ -1683,8 +1683,8 @@ architecture/product docs (`PRD.md`, `TECHNICAL_DESIGN.md`,
 `CURRENT_STATE_AUDIT.md`, `TAURI_LIVE_VERIFICATION.md`,
 `INFORMATION_ARCHITECTURE.md`, `CONNECT_YOUR_TOOLS.md`, this document,
 `AGENTS.md`) never updated since the Phase 9 rename were corrected.
-Historical archives (`PROGRESS.md`, `docs/external-logs/*`, closed
-`docs/handoffs/PHASE8-9_CURRENT.md`) were mechanically scrubbed too, at
+Historical archives (`PROGRESS.md`, `project-control/claude/logs/*`, closed
+`project-control/claude/handoffs/PHASE8-9_CURRENT.md`) were mechanically scrubbed too, at
 the user's explicit direction after being asked whether to preserve them
 as an immutable record — disclosed plainly, not hidden, as a real
 reduction in historical precision. Clean rebuild: `node_modules` +
@@ -1693,7 +1693,7 @@ reduction in historical precision. Clean rebuild: `node_modules` +
 pre-rename-crate-named Cargo build artifacts, confirming the rebuild
 mattered); fresh install, fresh Rust build (**180/180** tests, clippy
 clean), fresh desktop suite, fresh shared suite, fresh signed... — see
-`docs/handoffs/PHASE12_CURRENT.md`'s Session 2 summary and
+`project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 2 summary and
 `docs/PHASE12_TEST_MATRIX.md` for full totals. Final tree-wide scan
 (including the freshly generated `node_modules`/`target`/release
 artifacts): zero matches in every first-party/project file; a handful of
@@ -1729,7 +1729,7 @@ version for) via a new `postinstall` script,
 `scripts/dev/strip-xlsx-sourcemaps.mjs`. The NSIS installer's 1 remaining
 match required a from-clean rebuild to test whether it was a
 build-specific compression artifact — see this session's own final scan
-result in `docs/handoffs/PHASE12_CURRENT.md` for the outcome, rather than
+result in `project-control/claude/handoffs/PHASE12_CURRENT.md` for the outcome, rather than
 this paragraph, so the two documents don't drift. The desktop-suite exit
 code was root-caused to two distinct unhandled promise rejections — a
 genuine missing `.catch()` on `HomePage.tsx`'s data-load effect (fixed in
@@ -1751,7 +1751,7 @@ verified directly in `formulationV2.ts`; keychain storage is `AGENTS.md`'s
 stated goal, not current behavior); absolute network-call claims were
 scoped explicitly to FormuLab's own first-party source. Full detail,
 including the actual final scan result and release-build/native-launch
-verification: `docs/handoffs/PHASE12_CURRENT.md`'s Session 2A summary and
+verification: `project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 2A summary and
 `docs/PHASE12_TEST_MATRIX.md`.
 
 **Correction: the paragraph above describes Session 2A's *first* pass,
@@ -1767,7 +1767,7 @@ and `workspace.rs`'s own comment states this integration already
 "survived the OpenCode removal" (a leftover from before this app's
 v1→v2 pivot to `formulation_v2.rs`'s direct pipeline) — counted twice via
 a pnpm workspace symlink (20), a stale local `aider`-tool cache (1), and
-one self-referential match inside `docs/handoffs/PHASE12_CURRENT.md`
+one self-referential match inside `project-control/claude/handoffs/PHASE12_CURRENT.md`
 itself (1). Fixed for real via a full `node_modules` wipe + fresh
 `pnpm install` (eliminating orphaned copies), deleting the dead OpenCode
 binary/fetch script/CI step and correcting the now-stale references to
@@ -1806,7 +1806,7 @@ only. Verified: zero `opencode` matches left anywhere in
 23/23; typecheck/lint clean; full desktop suite re-verified clean again,
 130/130 files, 1161/1161 tests, exit code 0; whole-tree identity scan
 re-run once more per the user's explicit instruction: `0`. Full detail:
-`docs/handoffs/PHASE12_CURRENT.md`'s Session 2A summary (updated) and
+`project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 2A summary (updated) and
 `docs/PHASE12_TEST_MATRIX.md`.
 
 **Session 3 (First Public Release Publication) — complete.** Published
@@ -1828,7 +1828,7 @@ succeeded, producing both Windows installers; published with a SHA256
 checksum file; independently re-verified via a fresh download (which
 caught and retried one network-truncated attempt, rather than trusting
 the first result). SignPath's "already released" eligibility prerequisite
-is now satisfied. Full detail: `docs/handoffs/PHASE12_CURRENT.md`'s
+is now satisfied. Full detail: `project-control/claude/handoffs/PHASE12_CURRENT.md`'s
 Session 3 summary and `docs/PHASE12_TEST_MATRIX.md`.
 
 **Session 4 (SignPath Application and Approval Gate) — dossier prepared
@@ -1856,7 +1856,7 @@ anomaly with a bounded, safe synthetic-tag test (created, tested,
 deleted — the published `v0.4.0` tag was never touched): still
 reproducible, root cause not established after exhausting every
 official-documentation-backed explanation available via `gh`. Full
-detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4 summary.
+detail: `project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 4 summary.
 
 **Session 4A (User Input File, runs.db Root-Cause Analysis, Safe
 Untracking and Main Merge) — complete except SignPath submission
@@ -1884,7 +1884,7 @@ SignPath's own application page (`signpath.org/apply`, both direct URL
 and via its own in-page nav link) renders no form fields at all — a
 genuine external blocker, re-confirmed on a second, differently-named
 SignPath product domain redirecting back to the same broken page. Full
-detail: `docs/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
+detail: `project-control/claude/handoffs/PHASE12_CURRENT.md`'s Session 4A summary.
 
 **Phase 12 status: Sessions 0-3 and 4A complete (Session 4A's own
 SignPath submission attempt genuinely blocked externally). Next:
@@ -2112,7 +2112,7 @@ clean across all 8 shipped locales (Turkish fully translated; the other
 exact section's pre-existing precedent). Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §13; test report:
 `docs/PHASE13_SECURITY_TEST_MATRIX.md` §L; handoff:
-`docs/handoffs/PHASE13_CURRENT.md`.
+`project-control/claude/handoffs/PHASE13_CURRENT.md`.
 
 A focused closure session then resolved the five residual warnings
 Session 5 disclosed, without starting Session 6. The four Production
@@ -2158,7 +2158,7 @@ disclosed, not closed: no admin UI to inspect/list all workflow gates
 across subjects — out of scope, not one of the five named warnings.
 Full design: `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §26; test
 report: `docs/PHASE13_SECURITY_TEST_MATRIX.md` §M; handoff:
-`docs/handoffs/PHASE13_CURRENT.md`.
+`project-control/claude/handoffs/PHASE13_CURRENT.md`.
 
 **Session 6** re-confirmed brute-force/lockout end to end (one real
 defense-in-depth gap closed: `validate_session`'s own independent
@@ -2196,7 +2196,7 @@ window; honestly recorded as a still-open manual acceptance item, not
 claimed complete. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §27; test report:
 `docs/PHASE13_SECURITY_TEST_MATRIX.md` §N; handoff:
-`docs/handoffs/PHASE13_CURRENT.md`.
+`project-control/claude/handoffs/PHASE13_CURRENT.md`.
 
 **Phase 13 is now CLOSED, implementation-complete.** The human reviewer
 made the call Session 6 left open: the native Windows GUI multi-user
@@ -2209,7 +2209,7 @@ the four gates' own domain-local UI already provides real, working
 coverage. No Session 7 was opened: there was nothing left in Phase 13's
 automatable scope to re-test. Full design:
 `docs/PHASE13_IDENTITY_SECURITY_ARCHITECTURE.md` §28; handoff:
-`docs/handoffs/PHASE13_CURRENT.md`. **No Phase 13 session planned.**
+`project-control/claude/handoffs/PHASE13_CURRENT.md`. **No Phase 13 session planned.**
 
 ### Evidence-Driven Hybrid Literature & Formulation Intelligence (Phase 14) — ZERO-LLM DETERMINISTIC FORMULATION ENGINE + SESSION 5 MANUFACTURING INTELLIGENCE
 
@@ -2237,7 +2237,7 @@ workflow (Phase 1-13, including Phase 13's role/workflow-gate
 enforcement) — a Phase-14-generated formula enters the same lifecycle
 a manually-authored one does. Full design + a proposed 7-session
 breakdown: `docs/PHASE14_LITERATURE_INTELLIGENCE_
-ARCHITECTURE.md`; handoff: `docs/handoffs/PHASE14_CURRENT.md`.
+ARCHITECTURE.md`; handoff: `project-control/claude/handoffs/PHASE14_CURRENT.md`.
 
 **Session 0** (started only after Phase 13 closed, above) audited the
 existing pipeline in detail and found a real discrepancy the
@@ -2575,7 +2575,7 @@ Full design: `docs/PHASE14_LITERATURE_INTELLIGENCE_ARCHITECTURE.md`
 §11a (Session 0), §13 (frontend implementation), §13a (data-contract
 repair + dual-flow state), §14 (Session 1), §15 (Session 2), §16
 (Session 3), §17 (Session 4), §18 (zero-LLM deterministic engine), §19
-(Session 5); handoff: `docs/handoffs/PHASE14_CURRENT.md`.
+(Session 5); handoff: `project-control/claude/handoffs/PHASE14_CURRENT.md`.
 
 **Phase 14 Session 6** (full decision traceability + deterministic
 Safety/Regulatory intelligence) and a mid-session **Hybrid System

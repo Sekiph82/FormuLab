@@ -2,7 +2,7 @@
  * Phase 10 Session 6 — pure content-quality checks against
  * `docs/USER_GUIDE.md`'s real text: required-topic coverage and stale-claim
  * detection. Both lists are grounded in this session's own verified
- * findings (see `docs/handoffs/PHASE10_CURRENT.md`'s Session 6 summary for
+ * findings (see `project-control/claude/handoffs/PHASE10_CURRENT.md`'s Session 6 summary for
  * why each stale pattern was stale and what replaced it) — never a vague
  * "looks complete" heuristic.
  */

@@ -7,7 +7,7 @@ decisions it must implement. Session 0 (§11a) is the first real
 implementation work — a dormant, unwired `runtime/pipeline/
 canonical_paper.py` module plus 23 new tests — everything else in this
 document below §11a is still the original reservation-time design
-record, not yet built. See `docs/handoffs/PHASE14_CURRENT.md` for the
+record, not yet built. See `project-control/claude/handoffs/PHASE14_CURRENT.md` for the
 current session pointer, and `docs/architecture/IMPLEMENTATION_STATUS.md`'s
 own Phase 14 entry for where this sits in the overall roadmap.
 
@@ -1902,7 +1902,7 @@ exported target/minimum constants), `NewFormulationRequestPage.tsx`/
 (partial-corpus disclosure), `formulationReport.test.ts` (1 new test), all
 8 shipped locales' `session.json` (new `partialResearch.*` keys,
 English-mirrored per this codebase's existing precedent), this
-architecture doc (§22), `docs/handoffs/PHASE14_CURRENT.md`,
+architecture doc (§22), `project-control/claude/handoffs/PHASE14_CURRENT.md`,
 `docs/FORMULAB_V1_TASK_TRACKER.md` (FVL-01.005 note — this is a bug-fix
 correction to an already-COMPLETED FVL-01 task, not new v1 scope).
 

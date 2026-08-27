@@ -6,7 +6,7 @@
  * against — the real Zod schema from `@formulab/shared`, the same schemas
  * `masterdata.rs`'s collections and `formulation_v2.rs`'s project layout
  * actually read. Never derived from a real user's project (see
- * `docs/handoffs/PHASE10_CURRENT.md`'s Session 5 summary for why this file
+ * `project-control/claude/handoffs/PHASE10_CURRENT.md`'s Session 5 summary for why this file
  * exists instead of copying `data/formulations/*` from the dev's own
  * checkout).
  *

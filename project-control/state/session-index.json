@@ -1,7 +1,8 @@
 {
   "schemaVersion": "1.0",
   "project": "FormuLab",
-  "migrationPending": true,
+  "migrationPending": false,
+  "migrationCompletedAt": "2026-08-27",
   "sessions": [],
   "latestKnownImplementation": {
     "taskId": "FVL-05.009",
@@ -9,5 +10,5 @@
     "status": "IMPLEMENTED_PENDING_AUDIT",
     "sourceLog": "project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md"
   },
-  "notes": "Claude migration must backfill historical session manifests and this index from the moved audits/prompts/logs/handoffs without rewriting substantive history."
+  "notes": "File migration (docs/audits, docs/prompts, docs/external-logs, docs/handoffs -> project-control/**) completed 2026-08-27 by the Control Hub migration session; see project-control/claude/logs/FormuLab-Control-Hub-Migration-Log.md. Per-session manifest backfill (one entry per historical GPT<->Claude cycle in `sessions[]` above) was deliberately NOT attempted in that session: reconstructing per-cycle session identity/timestamps/verdicts retroactively from prose logs risks inventing values no source directly confirms, which the governing prompt's own \"unknown values stay null/unknown rather than invented\" rule forbids. `sessions[]` stays empty until a real session backfill is deliberately authorized and evidence-checked."
 }
