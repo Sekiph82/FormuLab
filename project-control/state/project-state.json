@@ -4,6 +4,11 @@
   "repository": "Sekiph82/FormuLab",
   "branch": "feature/laboratory-stability",
   "controlRoot": "project-control",
+  "canonicalDashboard": {
+    "branch": "main",
+    "path": ".hiveai/PROJECT_DASHBOARD.md",
+    "role": "single-canonical-entrypoint"
+  },
   "migrationPending": true,
   "currentTask": {
     "taskId": "FVL-05.009",
@@ -16,7 +21,7 @@
     "latestPrompt": "project-control/gpt/prompts/FVL05-GPT-PROMPT-000013.md",
     "auditVerdict": "NOT_AUDITED",
     "auditedCommit": null,
-    "updatedAt": "2026-08-27T11:25:00+03:00"
+    "updatedAt": "2026-08-27T12:35:00+03:00"
   },
   "claude": {
     "latestImplementationCommit": "31537998893ec9cddab3b6db3111d604568b2532",
@@ -27,7 +32,9 @@
   },
   "dashboard": {
     "consumer": "H!veAI Project Dashboard",
-    "ingestionMode": "github-control-hub",
+    "discoveryMode": "canonical-manifest-source-map",
+    "manifestBranch": "main",
+    "manifestPath": ".hiveai/PROJECT_DASHBOARD.md",
     "lastIngestedSessionId": null,
     "lastIngestedAt": null
   }
