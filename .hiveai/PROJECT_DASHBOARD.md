@@ -21,8 +21,8 @@ Active branch: `feature/laboratory-stability`
 
 Canonical task source: `docs/FORMULAB_V1_TASK_TRACKER.md`
 Roadmap source: `docs/FORMULAB_V1_FINAL_SCOPE.md`
-Handoff source: `docs/handoffs/FORMULAB_V1_CURRENT.md`
-Progress/history sources: `PROGRESS.md`, `docs/audits/`, `docs/external-logs/`, `project-control/gpt/audits/`, `project-control/claude/logs/`
+Handoff source: `project-control/claude/handoffs/FORMULAB_V1_CURRENT.md`
+Progress/history sources: `PROGRESS.md`, `project-control/gpt/audits/`, `project-control/claude/logs/`
 Architecture source: repository architecture/design documents under `docs/` when explicitly referenced by the canonical tracker or final scope
 Decision/governance source: `docs/FORMULAB_V1_FINAL_SCOPE.md`
 Agent instruction sources: `AGENTS.md`, `CLAUDE.md`
@@ -37,7 +37,7 @@ Build/test metadata: `package.json`, workspace manifests, Rust/Python manifests 
 
 The `project-control/` tree is a GPT↔Claude communication and evidence archive. It is not a second Project Dashboard, not the canonical task ledger, and must not replace this manifest or `docs/FORMULAB_V1_TASK_TRACKER.md` as H!veAI task authority.
 
-During the planned historical migration, legacy `docs/audits`, `docs/prompts`, `docs/external-logs`, and `docs/handoffs` material may be moved into `project-control/`. Until that migration is completed and this manifest is intentionally updated, the current canonical handoff remains `docs/handoffs/FORMULAB_V1_CURRENT.md`.
+The historical migration is COMPLETE (2026-08-27): legacy `docs/audits`, `docs/prompts`, `docs/external-logs`, and `docs/handoffs` material has been moved into `project-control/gpt/audits/`, `project-control/gpt/prompts/`, `project-control/claude/logs/`, and `project-control/claude/handoffs/` respectively. Those four legacy paths no longer exist. This manifest has been intentionally updated to reflect the new locations above; no further pointer change is needed unless source routing itself changes again.
 
 ## Refresh model
 
