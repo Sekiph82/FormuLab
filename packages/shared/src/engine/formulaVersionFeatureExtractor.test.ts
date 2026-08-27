@@ -688,6 +688,203 @@ describe("extractFormulaVersionFeatureRows — DOE", () => {
       expect((err as FormulaVersionFeatureExtractionError).code).toBe("duplicate_doe_design_factor_code");
     }
   });
+
+  // AUDIT_FVL05_GPT_000013 corrective cycle: buildDoeUnitIndex() must reject
+  // a frozen factor/response snapshot child whose own studyId/studyRevision
+  // contradicts the OWNING design's, before ever trusting it as unit
+  // authority — never fall back to a live DOE factor/response pool.
+
+  it("fails closed on a factor snapshot child whose studyId contradicts the owning design", () => {
+    const row = doeRow({
+      studies: [
+        {
+          studyId: "DOESTUDY-0001",
+          studyCode: "DOE-0001",
+          studyRevision: 1,
+          designs: [
+            {
+              design: doeDesign({
+                studyId: "DOESTUDY-0001",
+                factorSnapshot: [doeFactor({ factorCode: "TEMP", studyId: "DOESTUDY-OTHER" })],
+              }),
+              runs: [],
+            },
+          ],
+        },
+      ],
+    });
+    try {
+      extractFormulaVersionFeatureRows(baseInput({ doeRows: [row] }));
+      expect.unreachable();
+    } catch (err) {
+      expect((err as FormulaVersionFeatureExtractionError).code).toBe("doe_design_factor_snapshot_conflict");
+    }
+  });
+
+  it("fails closed on a factor snapshot child whose studyRevision contradicts the owning design", () => {
+    const row = doeRow({
+      studies: [
+        {
+          studyId: "DOESTUDY-0001",
+          studyCode: "DOE-0001",
+          studyRevision: 1,
+          designs: [
+            {
+              design: doeDesign({
+                studyRevision: 1,
+                factorSnapshot: [doeFactor({ factorCode: "TEMP", studyRevision: 2 })],
+              }),
+              runs: [],
+            },
+          ],
+        },
+      ],
+    });
+    try {
+      extractFormulaVersionFeatureRows(baseInput({ doeRows: [row] }));
+      expect.unreachable();
+    } catch (err) {
+      expect((err as FormulaVersionFeatureExtractionError).code).toBe("doe_design_factor_snapshot_conflict");
+    }
+  });
+
+  it("fails closed on a response snapshot child whose studyId contradicts the owning design", () => {
+    const row = doeRow({
+      studies: [
+        {
+          studyId: "DOESTUDY-0001",
+          studyCode: "DOE-0001",
+          studyRevision: 1,
+          designs: [
+            {
+              design: doeDesign({
+                studyId: "DOESTUDY-0001",
+                responseSnapshot: [doeResponse({ id: "RESPONSE-0001", studyId: "DOESTUDY-OTHER" })],
+              }),
+              runs: [],
+            },
+          ],
+        },
+      ],
+    });
+    try {
+      extractFormulaVersionFeatureRows(baseInput({ doeRows: [row] }));
+      expect.unreachable();
+    } catch (err) {
+      expect((err as FormulaVersionFeatureExtractionError).code).toBe("doe_design_response_snapshot_conflict");
+    }
+  });
+
+  it("fails closed on a response snapshot child whose studyRevision contradicts the owning design", () => {
+    const row = doeRow({
+      studies: [
+        {
+          studyId: "DOESTUDY-0001",
+          studyCode: "DOE-0001",
+          studyRevision: 1,
+          designs: [
+            {
+              design: doeDesign({
+                studyRevision: 1,
+                responseSnapshot: [doeResponse({ id: "RESPONSE-0001", studyRevision: 2 })],
+              }),
+              runs: [],
+            },
+          ],
+        },
+      ],
+    });
+    try {
+      extractFormulaVersionFeatureRows(baseInput({ doeRows: [row] }));
+      expect.unreachable();
+    } catch (err) {
+      expect((err as FormulaVersionFeatureExtractionError).code).toBe("doe_design_response_snapshot_conflict");
+    }
+  });
+
+  it("fails closed when a design's own studyId/studyRevision contradicts the study it is nested under in the row (independently found during the corrective re-audit)", () => {
+    const row = doeRow({
+      studies: [
+        {
+          studyId: "DOESTUDY-0001",
+          studyCode: "DOE-0001",
+          studyRevision: 1,
+          designs: [{ design: doeDesign({ studyId: "DOESTUDY-OTHER" }), runs: [] }],
+        },
+      ],
+    });
+    try {
+      extractFormulaVersionFeatureRows(baseInput({ doeRows: [row] }));
+      expect.unreachable();
+    } catch (err) {
+      expect((err as FormulaVersionFeatureExtractionError).code).toBe("doe_design_study_conflict");
+    }
+  });
+
+  it("does not mutate any supplied input row on a snapshot-conflict failure path", () => {
+    const row = doeRow({
+      studies: [
+        {
+          studyId: "DOESTUDY-0001",
+          studyCode: "DOE-0001",
+          studyRevision: 1,
+          designs: [
+            {
+              design: doeDesign({ factorSnapshot: [doeFactor({ factorCode: "TEMP", studyId: "DOESTUDY-OTHER" })] }),
+              runs: [],
+            },
+          ],
+        },
+      ],
+    });
+    const frozenCopy = structuredClone(row);
+    expect(() => extractFormulaVersionFeatureRows(baseInput({ doeRows: [row] }))).toThrow(FormulaVersionFeatureExtractionError);
+    expect(row).toEqual(frozenCopy);
+  });
+
+  it("still normalizes correctly, and duplicate-identity checks still fire, once every snapshot child agrees with its owning design (regression guard)", () => {
+    const validRow = doeRow({
+      studies: [
+        {
+          studyId: "DOESTUDY-0001",
+          studyCode: "DOE-0001",
+          studyRevision: 1,
+          designs: [
+            {
+              design: doeDesign({ factorSnapshot: [doeFactor({ factorCode: "TEMP", unit: "kg" })] }),
+              runs: [{ run: doeRun({ factorSettings: [{ factorCode: "TEMP", codedValue: "1", actualValue: "0.5" }] }), observations: [] }],
+            },
+          ],
+        },
+      ],
+    });
+    const [feature] = extractFormulaVersionFeatureRows(baseInput({ doeRows: [validRow] }));
+    expect(feature.normalizedQuantities[0]).toMatchObject({ canonicalUnit: "g", canonicalValue: "500.0000", normalized: true });
+
+    const duplicateRow = doeRow({
+      studies: [
+        {
+          studyId: "DOESTUDY-0001",
+          studyCode: "DOE-0001",
+          studyRevision: 1,
+          designs: [
+            {
+              design: doeDesign({
+                factorSnapshot: [doeFactor({ id: "F1", factorCode: "TEMP" }), doeFactor({ id: "F2", factorCode: "TEMP" })],
+              }),
+              runs: [],
+            },
+          ],
+        },
+      ],
+    });
+    try {
+      extractFormulaVersionFeatureRows(baseInput({ doeRows: [duplicateRow] }));
+      expect.unreachable();
+    } catch (err) {
+      expect((err as FormulaVersionFeatureExtractionError).code).toBe("duplicate_doe_design_factor_code");
+    }
+  });
 });
 
 describe("extractFormulaVersionFeatureRows — corrective actions / cost / packaging context", () => {

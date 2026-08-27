@@ -61,6 +61,7 @@ export type FormulaVersionFeatureExtractionErrorCode =
   | "duplicate_doe_design_factor_code"
   | "doe_design_response_snapshot_conflict"
   | "duplicate_doe_design_response_id"
+  | "doe_design_study_conflict"
   | "doe_run_factor_code_not_found"
   | "doe_observation_response_not_found"
   | "row_schema_validation_failed";
@@ -70,6 +71,7 @@ export type FormulaVersionFeatureExtractionErrorCode =
  *  overloaded field holding whatever identity happened to be at hand). */
 export interface FormulaVersionFeatureExtractionErrorContext {
   formulaVersionId?: string;
+  studyId?: string;
   designId?: string;
   runId?: string;
   observationId?: string;
@@ -80,6 +82,7 @@ export interface FormulaVersionFeatureExtractionErrorContext {
 export class FormulaVersionFeatureExtractionError extends Error {
   readonly code: FormulaVersionFeatureExtractionErrorCode;
   readonly formulaVersionId?: string;
+  readonly studyId?: string;
   readonly designId?: string;
   readonly runId?: string;
   readonly observationId?: string;
@@ -95,6 +98,7 @@ export class FormulaVersionFeatureExtractionError extends Error {
     this.name = "FormulaVersionFeatureExtractionError";
     this.code = code;
     this.formulaVersionId = context.formulaVersionId;
+    this.studyId = context.studyId;
     this.designId = context.designId;
     this.runId = context.runId;
     this.observationId = context.observationId;
@@ -245,15 +249,37 @@ function collectStabilityEntries(row: FormulaVersionStabilityRow): NormalizedQua
 }
 
 /** One design's frozen `factorSnapshot`/`responseSnapshot` resolved into
- *  unit-only dictionaries, failing closed on the same duplicate-identity
- *  ambiguity `formulaVersionDoeDatasetExtractor.ts`'s own (unexported)
+ *  unit-only dictionaries, failing closed on the same two invariants
+ *  `formulaVersionDoeDatasetExtractor.ts`'s own (unexported)
  *  `buildDesignSnapshotIndex` already guards against — re-checked here,
  *  independently, because this extractor's own contract (a `doeRow` need
  *  not have come from that extractor) cannot simply trust a caller-supplied
- *  invariant it did not itself verify. */
+ *  invariant it did not itself verify:
+ *
+ *  CORRECTIVE CYCLE (`AUDIT_FVL05_GPT_000013`, 2026-08-27): the original
+ *  implementation only checked duplicate `factorCode`/response `id` — it
+ *  never verified a snapshot child's own `studyId`/`studyRevision` agree
+ *  with the OWNING design's before trusting it as unit authority, so a
+ *  malformed caller-supplied `FormulaVersionDoeRow` could smuggle a
+ *  factor/response belonging to a DIFFERENT study revision into this
+ *  design's unit resolution. Both checks now run BEFORE the duplicate
+ *  check (same ordering FVL-05.007's own `buildDesignSnapshotIndex`
+ *  uses), failing closed with the already-declared
+ *  `doe_design_factor_snapshot_conflict`/`doe_design_response_snapshot_conflict`
+ *  codes (previously declared in the error union but never thrown —
+ *  dead code until this cycle). Validation-only: no persisted run/
+ *  observation value is recomputed, no live DOE factor/response pool is
+ *  consulted as a fallback. */
 function buildDoeUnitIndex(design: DoeDesign): { factorUnitByCode: Map<string, DoeFactor>; responseUnitById: Map<string, DoeResponse> } {
   const factorUnitByCode = new Map<string, DoeFactor>();
   for (const factor of design.factorSnapshot) {
+    if (factor.studyId !== design.studyId || factor.studyRevision !== design.studyRevision) {
+      throw new FormulaVersionFeatureExtractionError(
+        "doe_design_factor_snapshot_conflict",
+        `DOE design "${design.id}" factorSnapshot factor "${factor.factorCode}" claims studyId "${factor.studyId}"/studyRevision ${factor.studyRevision}, but the owning design has studyId "${design.studyId}"/studyRevision ${design.studyRevision}.`,
+        { designId: design.id, factorCode: factor.factorCode },
+      );
+    }
     if (factorUnitByCode.has(factor.factorCode)) {
       throw new FormulaVersionFeatureExtractionError(
         "duplicate_doe_design_factor_code",
@@ -265,6 +291,13 @@ function buildDoeUnitIndex(design: DoeDesign): { factorUnitByCode: Map<string, D
   }
   const responseUnitById = new Map<string, DoeResponse>();
   for (const response of design.responseSnapshot) {
+    if (response.studyId !== design.studyId || response.studyRevision !== design.studyRevision) {
+      throw new FormulaVersionFeatureExtractionError(
+        "doe_design_response_snapshot_conflict",
+        `DOE design "${design.id}" responseSnapshot response "${response.id}" claims studyId "${response.studyId}"/studyRevision ${response.studyRevision}, but the owning design has studyId "${design.studyId}"/studyRevision ${design.studyRevision}.`,
+        { designId: design.id, responseId: response.id },
+      );
+    }
     if (responseUnitById.has(response.id)) {
       throw new FormulaVersionFeatureExtractionError(
         "duplicate_doe_design_response_id",
@@ -277,11 +310,34 @@ function buildDoeUnitIndex(design: DoeDesign): { factorUnitByCode: Map<string, D
   return { factorUnitByCode, responseUnitById };
 }
 
+/** Independently found during the `AUDIT_FVL05_GPT_000013` corrective
+ *  re-audit (not itself named by that audit, but the same class of defect
+ *  it targeted): `buildDoeUnitIndex()` now proves a factor/response
+ *  snapshot child agrees with its OWNING DESIGN, but a design's own claimed
+ *  `studyId`/`studyRevision` was never cross-checked against the STUDY
+ *  WRAPPER it is nested under in this row (`doeStudyRunsSchema`) — the same
+ *  "resolve both sides of a nested identity, fail closed on contradiction"
+ *  gap one level up. `formulaVersionDoeDatasetExtractor.ts`'s own
+ *  `buildDesignsByStudyId` already enforces this exact check
+ *  (`doe_design_study_conflict`) when it resolves a design against a live
+ *  `doeStudies`/`doeDesigns` pool; this extractor performs the equivalent
+ *  check here against the row's own nested structure, since it accepts an
+ *  already-assembled `FormulaVersionDoeRow` rather than resolving pools
+ *  itself. Fails closed BEFORE the design is ever trusted as factor/
+ *  response unit authority. */
 function collectDoeEntries(row: FormulaVersionDoeRow): NormalizedQuantity[] {
   const entries: NormalizedQuantity[] = [];
   for (const study of row.studies) {
     for (const designEntry of study.designs) {
-      const { factorUnitByCode, responseUnitById } = buildDoeUnitIndex(designEntry.design);
+      const { design } = designEntry;
+      if (design.studyId !== study.studyId || design.studyRevision !== study.studyRevision) {
+        throw new FormulaVersionFeatureExtractionError(
+          "doe_design_study_conflict",
+          `DOE design "${design.id}" claims studyId "${design.studyId}"/studyRevision ${design.studyRevision}, but the study it is nested under in this row has studyId "${study.studyId}"/studyRevision ${study.studyRevision}.`,
+          { designId: design.id, studyId: study.studyId },
+        );
+      }
+      const { factorUnitByCode, responseUnitById } = buildDoeUnitIndex(design);
       for (const runEntry of designEntry.runs) {
         const { run, observations } = runEntry;
         for (const setting of run.factorSettings) {

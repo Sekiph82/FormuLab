@@ -5196,3 +5196,148 @@ untouched (read-only, respected).
 
 **NEXT TASK — FVL-05.010 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.009 corrective cycle — Cycle Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file, per the standing combined-log instruction carried forward from
+every prior FVL-05 task).
+
+## Task
+
+**FVL-05.009 corrective cycle**, governed by:
+- `project-control/gpt/audits/FVL05-GPT-AUDIT-000013.md` — independent
+  re-audit (`CONTINUE / REOPEN`) of implementation commit `3153799`
+  (folded into the migration-renumbered commit range; original hash
+  `31537998893ec9cddab3b6db3111d604568b2532`).
+- `project-control/gpt/prompts/FVL05-GPT-PROMPT-000014.md` — the
+  corrective prompt.
+
+Both GPT-owned, READ-ONLY, read completely before any edit, neither
+modified.
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `bb402347b198640e5a0e5fc87728456fc652d440`.
+- Remote HEAD at fetch: same — already up to date (`git pull --ff-only`
+  reported a fast-forward with only the audit-000013/prompt-000014 doc
+  commits, `fb01779..bb40234`, landing before this cycle started work).
+- `git diff --check` at start: clean (pre-existing CRLF warnings only;
+  unrelated pre-existing dirty worktree state — formula file deletions,
+  generated doc regeneration — left untouched throughout, per this
+  session's own standing instruction).
+
+## Blocking finding (from Audit 000013)
+
+`buildDoeUnitIndex()` in `formulaVersionFeatureExtractor.ts` validated
+only duplicate `factorSnapshot[].factorCode`/`responseSnapshot[].id`. It
+never verified a frozen snapshot child's own `studyId`/`studyRevision`
+agreed with the OWNING `DoeDesign`'s before trusting it as unit authority
+for normalizing `DoeRun.factorSettings[].actualValue`/
+`DoeObservation.value`. Because FVL-05.009 explicitly accepts a
+caller-supplied `FormulaVersionDoeRow` and does not assume it came
+through the FVL-05.007 extractor, a malformed input could smuggle a
+factor/response belonging to a DIFFERENT study revision into unit
+resolution, silently crossing frozen historical contexts instead of
+failing closed. The two codes this needed
+(`doe_design_factor_snapshot_conflict`/
+`doe_design_response_snapshot_conflict`) were already declared in
+`FormulaVersionFeatureExtractionErrorCode` but never thrown anywhere —
+confirmed by direct source inspection before writing any fix (`grep` for
+both codes returned only their declaration lines).
+
+## Correction applied
+
+Independently re-read `formulaVersionDoeDatasetExtractor.ts`'s
+`buildDesignSnapshotIndex` (the FVL-05.007 precedent this cycle must
+match) before editing, per the governing prompt's own instruction.
+
+- `buildDoeUnitIndex()`: for every `factorSnapshot` child, `factor.
+  studyId`/`factor.studyRevision` are now checked against `design.
+  studyId`/`design.studyRevision` BEFORE the duplicate-`factorCode`
+  check — failing closed with `doe_design_factor_snapshot_conflict` on a
+  mismatch. The identical treatment applies to `responseSnapshot`
+  children against `duplicate_doe_design_response_id`, failing closed
+  with `doe_design_response_snapshot_conflict`. Ordering (contradiction
+  check first, duplicate check second) exactly matches
+  `buildDesignSnapshotIndex`'s own ordering — not an independently
+  invented sequence.
+- `codedValue`/`actualValue`/`DoeObservation.value` are never recomputed
+  — only the snapshot children's identity fields are validated before
+  their `unit` is read; the persisted run/observation values pass
+  through exactly as before.
+- No live DOE factor/response pool was introduced as a fallback — the
+  frozen `factorSnapshot`/`responseSnapshot` remain the sole authority,
+  per the audit's own explicit instruction not to weaken FVL-05.007
+  semantics.
+- `FEATURE_SCHEMA_VERSION`/`DATASET_SCHEMA_VERSION` NOT bumped (stay
+  `"1.0"`/`"1.6"`): validation-only, no row/feature-vector shape field
+  was added/removed/renamed — per the audit's own explicit instruction.
+
+## Independent re-audit finding (beyond Audit 000013's own named scope)
+
+Per the governing prompt's own "independently re-audit the whole
+FVL-05.009 DOE normalization path against FVL-05.007's frozen-snapshot
+semantics. Do not stop at making tests green" instruction — not a
+literal restatement of Audit 000013's own finding, but the identical
+class of defect, found by applying the same scrutiny one level up:
+`collectDoeEntries()` called `buildDoeUnitIndex(designEntry.design)`
+using the design's OWN claimed `studyId`/`studyRevision` as the trust
+anchor, but never cross-checked that against the STUDY WRAPPER
+(`doeStudyRunsSchema`) the design is nested under in the row itself.
+`formulaVersionDoeDatasetExtractor.ts`'s own `buildDesignsByStudyId`
+already enforces this exact check (`doe_design_study_conflict`) when it
+resolves a design against a live `doeStudies`/`doeDesigns` pool — this
+extractor needed the equivalent check against the row's own nested
+structure, since it resolves no pools itself. Fixed with a new
+`doe_design_study_conflict` error code (added to
+`FormulaVersionFeatureExtractionErrorCode`, plus a new `studyId` context
+field on the error class/context interface, following the same "truthful,
+correctly-named structured context" discipline every field there already
+uses) and a check in `collectDoeEntries()` run BEFORE `buildDoeUnitIndex()`
+is ever called for that design. Disclosed here explicitly, separate from
+Audit 000013's own words, so the corrective-cycle boundary between
+"what GPT found" and "what this session additionally found during its
+own required re-audit" stays honest and traceable.
+
+## Files changed
+
+- `packages/shared/src/engine/formulaVersionFeatureExtractor.ts` —
+  `buildDoeUnitIndex` (studyId/studyRevision cross-checks before the
+  duplicate checks, both directions), `collectDoeEntries` (new
+  design-vs-study-wrapper cross-check), new `doe_design_study_conflict`
+  error code + `studyId` error-context field, updated header/function doc
+  comments (corrective-cycle notes).
+- `packages/shared/src/engine/formulaVersionFeatureExtractor.test.ts` —
+  7 new focused adversarial tests (39 → 46); no existing test weakened or
+  removed.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.009 row's own "CORRECTIVE
+  CYCLE" paragraph appended.
+- `project-control/claude/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE
+  block prepended.
+- `project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`
+  — this section.
+
+No GPT audit/prompt file touched (ownership rule respected). `.hiveai/
+PROJECT_DASHBOARD.md` not touched — no path it declares was broken by
+this corrective task. All other pre-existing worktree
+modifications/deletions/untracked files left untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionFeatureExtractor.test.ts`: **46/46**.
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionDoeDatasetExtractor.test.ts`: **68/68**, unchanged (FVL-05.007 extractor itself untouched).
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **91
+  files / 2129 tests** passed (2122 → 2129 tests, +7 new, no regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): **167
+  files / 1726 tests** passed, unchanged (no desktop app code touched
+  this cycle).
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
+  drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).

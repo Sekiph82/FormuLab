@@ -4,6 +4,41 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-27, FVL-05.009 corrective cycle, independent GPT
+re-audit `AUDIT_FVL05_GPT_000013` — COMPLETE, genuinely audit-fixed)**:
+GPT inspected the actual current `formulaVersionFeatureExtractor.ts`
+source (not the Claude cycle log) and found `buildDoeUnitIndex()` checked
+only duplicate `factorSnapshot[].factorCode`/`responseSnapshot[].id` — it
+never verified a snapshot child's own `studyId`/`studyRevision` agreed
+with the OWNING `DoeDesign`'s before trusting it as unit authority, so a
+malformed caller-supplied `FormulaVersionDoeRow` could smuggle a
+factor/response belonging to a DIFFERENT study revision into unit
+resolution. The two error codes needed
+(`doe_design_factor_snapshot_conflict`/
+`doe_design_response_snapshot_conflict`) were already declared but never
+thrown — dead code until this cycle. Corrected (validation-only,
+`FEATURE_SCHEMA_VERSION` stays `"1.0"`, `DATASET_SCHEMA_VERSION` stays
+`"1.6"` per the audit's own explicit instruction): both checks now run
+BEFORE the duplicate-identity check, matching
+`formulaVersionDoeDatasetExtractor.ts`'s own `buildDesignSnapshotIndex`
+ordering exactly. Per the governing prompt's own "do not stop at making
+tests green" instruction, an independent re-audit of the whole FVL-05.009
+DOE path found ONE further gap of the identical class (not itself named
+by Audit 000013): a `DoeDesign`'s own claimed `studyId`/`studyRevision`
+was never cross-checked against the study wrapper it is nested under in
+the row — fixed with a new `doe_design_study_conflict` check, run before
+the design is ever trusted as unit authority. 7 new focused adversarial
+tests (39 → 46, no existing test weakened). Full detail: the FVL-05.009
+tracker row's own "CORRECTIVE CYCLE" paragraph and
+`project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own corrective-cycle section. `pnpm --filter @formulab/shared test`: 91
+files / 2129 tests passed (2122→2129, +7, no regression). `pnpm --filter
+@formulab/desktop test`: full suite green, no regression (167 files /
+1726 tests, unchanged — exact evidence in the external log). Both
+`typecheck`s clean, desktop `lint` clean, `git diff --check` clean,
+`python scripts/validate_v1_tracker.py` OK. **FVL-05.010 explicitly NOT
+started this session, per this session's own instruction.**
+
 **UPDATE (2026-08-27, FVL-05.009 — Extractor: normalization (units,
 categorical, numeric) — COMPLETE)**: FVL-05.008 was independently
 GPT-audit CLOSED (`AUDIT_FVL05_GPT_000012`) before this task began; per
