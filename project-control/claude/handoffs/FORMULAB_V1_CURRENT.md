@@ -4,6 +4,67 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-27, FVL-05.010 — Exact target-variable definitions (per
+product family / measured response) — COMPLETE)**: FVL-05.009 was
+independently GPT-audit CLOSED (`AUDIT_FVL05_GPT_000014`) before this
+task began; per that audit's own verdict, this session did not reopen
+it. New task; source recovery was the main work (15 mandatory questions
+answered in the external log before any code was written). Exactly
+THREE source families are genuinely measured-response evidence —
+`TestResult` (FVL-05.005), `StabilityResult` (FVL-05.006),
+`DoeObservation` (FVL-05.007) — each reused BY ROW from its existing
+extractor, never re-derived from raw pools; `CorrectiveAction`/
+`CostSnapshot` (FVL-05.008) carry no measured-response-shaped field at
+all. Product-family identity reuses `FormulaVersionCompositionRow.
+productFamilyCode` (FVL-05.003's own already-authoritative value; a
+repo-wide mutation-path search found exactly one writer, at creation
+only). Deliberately excluded, each for a concrete disqualifying reason:
+`TestDefinition.targetValue`/`.minimum`/`.maximum` (never pooled at
+all); `DoeResponse.targetValue`/`.lowerLimit`/`.upperLimit`/`.objective`
+(planned DOE objective metadata — the identical fields FVL-05.009 already
+excluded from predictor normalization); `DoeAnalysis`/`DoeCandidate`
+(computed predictions); `passFail === "not_evaluated"` (absence of
+judgment, not a label); a `DoeObservation` with status `"missing"`/
+`"invalid"`/`"excluded"` (produces no observation at all). New
+`packages/shared/src/schemas/dataset.ts`: `TARGET_SOURCE_ENTITIES`,
+`targetDefinitionSchema` (the exact identity tuple — productFamilyCode +
+sourceEntity + testDefinitionId-or-responseId +, for stabilityResult
+only, conditionId/timePointId as part of IDENTITY not a predictor
+dimension — enforced by its own `superRefine`), `targetObservationValueSchema`
+(a `kind`-discriminated union; `resultType` on the source record decides
+which kind, never guessed from populated fields), `targetObservationSchema`,
+`formulaVersionTargetRowSchema`. New `packages/shared/src/engine/
+formulaVersionTargetExtractor.ts`: `extractFormulaVersionTargetRows()` —
+composition row required per version, the three measured-response pools
+each independently optional; every `TestResult`/`StabilityResult`
+(including every entry in a `revisesResultId` revision chain — FVL-05.005's
+own "never collapse to latest" precedent applied unchanged) and every
+replicate/stats field produces its own observation, never silently
+aggregated; `isOutlier` preserved, never dropped; DOE response-unit
+resolution independently re-derives the SAME frozen-snapshot integrity
+checks the FVL-05.009 corrective cycle just established
+(`doe_design_study_conflict`/`doe_design_response_snapshot_conflict`/
+`duplicate_doe_design_response_id`), duplicated per this codebase's own
+small-helper convention rather than cross-importing sibling extractors'
+error classes. `FEATURE_SCHEMA_VERSION` bumped `"1.0"` → `"1.1"` (a
+SECOND brand-new feature-family row type — the standing
+`DATASET_SCHEMA_VERSION` "no exception for being additive" rule applied
+without exception; `formulaVersionFeatureRowSchema`'s own shape is
+unchanged but now requires the bumped literal too). `DATASET_SCHEMA_VERSION`
+untouched (stays `"1.6"`). Full detail: the FVL-05.010 tracker row and
+`project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s
+own FVL-05.010 section. Focused `formulaVersionTargetExtractor.test.ts`:
+**42/42**. `pnpm --filter @formulab/shared test`: **92 files / 2172
+tests** passed (91→92 files, 2129→2172 tests, +43, no regression).
+`pnpm --filter @formulab/desktop test`: full suite green, no regression
+(167 files / 1726 tests, unchanged). Both `typecheck`s clean, desktop
+`lint` clean, `git diff --check` clean, `python
+scripts/validate_v1_tracker.py` OK (171 unique tasks, no drift, rollup
+counts corrected `9/14`→`10/14`, `98/171`→`99/171`). Native
+build/shortcut/launch-smoke gate rerun from final pushed HEAD — evidence
+in the external log's own FVL-05.010 section. **FVL-05.011 explicitly
+NOT started this session, per this session's own instruction.**
+
 **UPDATE (2026-08-27, FVL-05.009 corrective cycle, independent GPT
 re-audit `AUDIT_FVL05_GPT_000013` — COMPLETE, genuinely audit-fixed)**:
 GPT inspected the actual current `formulaVersionFeatureExtractor.ts`

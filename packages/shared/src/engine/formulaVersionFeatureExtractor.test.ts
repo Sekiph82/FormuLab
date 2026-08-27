@@ -962,10 +962,10 @@ describe("extractFormulaVersionFeatureRows — corrective actions / cost / packa
 // ---------------------------------------------------------------------------
 
 describe("extractFormulaVersionFeatureRows — row assembly", () => {
-  it("carries the composition row's own identity onto the feature row and stays at FEATURE_SCHEMA_VERSION '1.0'", () => {
+  it("carries the composition row's own identity onto the feature row and stays at the current FEATURE_SCHEMA_VERSION", () => {
     const [feature] = extractFormulaVersionFeatureRows(baseInput());
     expect(feature.featureSchemaVersion).toBe(FEATURE_SCHEMA_VERSION);
-    expect(FEATURE_SCHEMA_VERSION).toBe("1.0");
+    expect(FEATURE_SCHEMA_VERSION).toBe("1.1");
     expect(feature.formulaId).toBe("FORM-0001");
     expect(feature.formulaCode).toBe("HC-SHAMPOO-REG-001");
     expect(feature.formulaVersionId).toBe("VER-0001");

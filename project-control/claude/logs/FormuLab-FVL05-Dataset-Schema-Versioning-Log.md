@@ -5407,3 +5407,228 @@ untouched (read-only, respected).
 
 **NEXT TASK — FVL-05.010 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.010 — Extractor: exact target-variable definitions (per product
+family / measured response) — Task Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file, per the standing combined-log instruction carried forward).
+
+## Task
+
+**FVL-05.010** — Exact target-variable definitions (per product family /
+measured response). Depends on FVL-05.009 (closed). Blocking = YES.
+
+Governing documents (both GPT-owned, READ-ONLY, read completely before
+any edit, neither modified):
+- `project-control/gpt/audits/FVL05-GPT-AUDIT-000014.md` — independent
+  re-audit that closed FVL-05.009 (`CLOSE / ACCEPT`) and cleared
+  FVL-05.010 to begin.
+- `project-control/gpt/prompts/FVL05-GPT-PROMPT-000015.md` — the start
+  prompt for this task, explicit that "SOURCE RECOVERY IS THE MAIN WORK
+  OF THIS TASK."
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `f665ad2f556714a1de184103d9cf7826bb42d116`.
+- Remote HEAD at fetch: same — already up to date (`git pull --ff-only`
+  reported a fast-forward landing only the audit-000014/prompt-000015
+  doc commits before this session began work).
+- `git diff --check` at start: clean (pre-existing CRLF warnings only;
+  unrelated pre-existing dirty worktree state left untouched throughout).
+
+## Source recovery (before any code was written)
+
+Read, in full: `packages/shared/src/schemas/dataset.ts` (all prior
+FVL-05.002-.009 sections), `engine/formulaVersionFeatureExtractor.ts`
+and its tests, `schemas/testDefinitions.ts`, `schemas/laboratory.ts`,
+`schemas/stability.ts`, `schemas/doe.ts`, `schemas/formulation.ts`,
+`schemas/product.ts`, `docs/FORMULAB_V1_FINAL_SCOPE.md`'s FVL-05/FVL-06/
+FVL-07 entries, and `apps/desktop/src/lib/formulations.ts`/a repo-wide
+search for every `productFamilyCode` mutation call site.
+
+## Mandatory source questions (answered, per the governing prompt's own
+requirement, before any schema/extractor code was written)
+
+1. Canonical product-family source: `Formulation.productFamilyCode` — no
+   competing candidate exists; `LaboratoryTrial`/`StabilityStudy` carry a
+   DIFFERENT field (`productFamilyId`), not a copy of this one.
+2. Mutability: a repo-wide search found exactly one writer,
+   `newFormulation()` (`apps/desktop/src/lib/formulations.ts`), setting
+   it once at creation; no edit/update call site was found anywhere.
+   FVL-05.003 already relies on this same conclusion (`FormulaVersionCompositionRow.
+   productFamilyCode` is "always present on a Formulation," copied
+   verbatim) — this task reuses THAT already-extracted, already-trusted
+   value rather than re-resolving `Formulation` a second time.
+3. Measured-response source families: exactly three —
+   `TestResult`/`StabilityResult`/`DoeObservation`. `CorrectiveAction`/
+   `CostSnapshot` independently checked and found to carry no
+   measured-response-shaped field (a problem/resolution narrative and a
+   computed financial figure, respectively — not product-performance
+   measurements).
+4. `TestResult` usable evidence: `resultType` is the domain's own
+   authority for which OTHER field holds the value — `"numeric"`/
+   `"visual_rating"` -> `replicates[].numericValue`/`stats.*`; `"text"`
+   -> `textValue`; `"categorical"` -> `categoricalValue`; `"boolean"` ->
+   `booleanValue`; `"pass_fail"` -> `passFail`, ONLY `"pass"`/`"fail"`
+   (never `"not_evaluated"`, the absence of a judgment). No dedicated
+   `"visual_rating"` field exists anywhere in the codebase (confirmed by
+   grep) — `numericValue` is structurally the only field capable of
+   holding it, not an assumption about its meaning.
+5. `StabilityResult` usable evidence: identical `resultType`/field
+   disposition to `TestResult` (same enum, same field set). Condition/
+   time-point ARE part of target IDENTITY (a measurement at 40°C/3mo is a
+   different target than 25°C/1mo), never a predictor dimension —
+   `StabilityResult` carries `conditionId`/`timePointId` directly, no
+   join needed.
+6. DOE target source: `DoeObservation.value`/`.textValue` only.
+   `DoeResponse.targetValue`/`.lowerLimit`/`.upperLimit`/`.objective`/
+   `.desirabilityShape`, `DoeAnalysis`, `DoeCandidate` are all planned/
+   computed, never measured actuals — confirmed excluded by a dedicated
+   test asserting the string `"999"` (an injected `targetValue`) never
+   appears anywhere in an extracted row's JSON.
+7. Multiplicity: YES, deliberately preserved — every replicate, every
+   stats field, every DOE observation, every entry in a `TestResult`/
+   `StabilityResult` revision chain produces its own observation; no
+   aggregation invented.
+8. Target identity tuple: `productFamilyCode` + `sourceEntity` + EITHER
+   `testDefinitionId` OR `responseId` +, for `stabilityResult` only,
+   `conditionId`/`timePointId`. `unit` deliberately excluded from
+   identity — the same `testDefinitionId` is the same measured concept
+   regardless of which unit a given record happened to be entered in.
+9. Unit normalization: FVL-05.009's `normalizeQuantity()` reused
+   verbatim (imported, not reimplemented) for every numeric target value.
+10. Missing/zero/false/textual/excluded representation: `normalizeQuantity(undefined,
+    ...)` returns `undefined` (no fabricated observation); an explicit
+    `"0"` or `false` is a real, distinct, preserved observation (proven
+    by dedicated tests); a `DoeObservation` with status `"missing"`/
+    `"invalid"`/`"excluded"` produces NO observation at all (proven by a
+    parametrized test over all three statuses); `"outlier_flagged"`/
+    `"outlier_confirmed"` observations ARE kept, flagged via `isOutlier`
+    (proven by a parametrized test).
+11. Revision/retest chains: every entry produces its own SEPARATE
+    observation, per FVL-05.005's own already-established "never collapse
+    to latest" precedent, applied here unchanged (proven by a dedicated
+    test walking a two-entry `revisesResultId` chain).
+12. Definition + observation, both: `targetDefinitionSchema` (identity)
+    is embedded inline on every `targetObservationSchema` (the actual
+    measured instance) — no separate catalog/collection built (would be
+    scope creep toward FVL-05.011's own fingerprinting/dedup job).
+13. Feature-schema-version impact: recovered from `FEATURE_SCHEMA_VERSION`'s
+    OWN pre-existing header comment ("normalization + target-variable
+    definitions, FVL-05.009-.010") — direct proof this row family was
+    always intended under the EXISTING feature version, never a third
+    version constant.
+14. Lineage: every `targetObservationSchema` carries its own
+    `sourceRecords` citing the exact source record; the row's own
+    `sourceRecords` is the deduplicated union of every contributing
+    input row's lineage — the identical two-tier convention FVL-05.009
+    established.
+15. Determinism: no re-sorting is performed anywhere — every input array
+    (trials, testResults, samples, results, replicates, runs,
+    observations) is already deterministically ordered by its own
+    originating FVL-05.005/.006/.007 extractor; this task only reads that
+    order.
+
+## Versioning decision
+
+`FEATURE_SCHEMA_VERSION` bumped `"1.0"` -> `"1.1"`. Reasoning: FVL-05.009's
+`formulaVersionFeatureRowSchema` was the FIRST feature-family shape ever
+defined — the same "nothing existed before, nothing changed" case
+`DATASET_SCHEMA_VERSION` itself was in at FVL-05.002 completion, and
+correctly did not bump. `formulaVersionTargetRowSchema` is a SECOND,
+brand-new feature-family row type — the exact situation
+`DATASET_SCHEMA_VERSION`'s own SECOND BUMP (FVL-05.005) already resolved
+with a direct, explicit, no-exception rule: "a new row type is a shape
+change and must bump, with no exception for being additive/new rather
+than a field edit to an existing type." Applied here without inventing a
+new exception. `formulaVersionFeatureRowSchema`'s own field shape is
+UNCHANGED but now requires the bumped literal too, since both row types
+share ONE `featureSchemaVersion` literal — the same way every unrelated
+DATASET row already requires the current `DATASET_SCHEMA_VERSION`
+regardless of whether its own shape changed in a given bump. Updated
+consistently: two previously-hardcoded `"1.0"` assertions
+(`dataset.test.ts`, `formulaVersionFeatureExtractor.test.ts`) now assert
+`"1.1"`; a new test proves `"1.0"` is structurally rejected
+(`featureSchemaVersionSchema.safeParse("1.0").success === false`).
+Compatibility: repo-wide grep for `formulaVersionFeatureRowSchema`/
+`extractFormulaVersionFeatureRows` outside this package's own engine/
+schema/test files returns zero matches — no persisted feature row exists
+anywhere, so no `SchemaMigration` entry is applicable.
+`DATASET_SCHEMA_VERSION` untouched (stays `"1.6"`) — no FVL-05.003-.008
+row shape changed.
+
+## Design decisions
+
+`normalizedQuantitySchema` was refactored (behavior-preserving, no
+validation change) to extract a reusable `normalizedQuantityValueSchema`/
+`requireNormalizedPairing` — the target row's own numeric value
+(`targetObservationValueSchema`'s `"numeric"` branch) composes this via
+`.merge()` rather than copying the raw/canonical field list into a
+parallel shape. DOE response-unit resolution
+(`buildDoeResponseUnitIndex`) independently re-derives the SAME
+frozen-snapshot integrity checks the FVL-05.009 corrective cycle just
+established (`doe_design_study_conflict`/
+`doe_design_response_snapshot_conflict`/`duplicate_doe_design_response_id`)
+— duplicated rather than imported, matching this codebase's own
+established convention for a small extractor-local helper
+(`compareOrdinal`/`isCanonicalIsoTimestamp` across FVL-05.004-.007), and
+because each FVL-05 extractor's error class is intentionally its own,
+never shared across sibling files. `collectMeasuredResultTarget` is
+shared between the `TestResult` and `StabilityResult` walkers (both use
+the structurally identical `resultType`-driven disposition) — a single
+function taking a narrow duck-typed interface, not a re-modeled zod
+schema, so there is no parity-drift risk to guard against (nothing here
+independently re-validates a field zod already validated on the source
+row).
+
+## Files changed
+
+- `packages/shared/src/schemas/dataset.ts` — `FEATURE_SCHEMA_VERSION`
+  bumped + header comment; `normalizedQuantitySchema` refactored
+  (extracted `normalizedQuantityValueSchema`/`requireNormalizedPairing`);
+  new FVL-05.010 section: `TARGET_SOURCE_ENTITIES`,
+  `targetDefinitionSchema`, `targetObservationValueSchema`,
+  `targetObservationSchema`, `formulaVersionTargetRowSchema`.
+- `packages/shared/src/engine/formulaVersionTargetExtractor.ts` — new:
+  `extractFormulaVersionTargetRows`, `FormulaVersionTargetExtractionError`.
+- `packages/shared/src/engine/formulaVersionTargetExtractor.test.ts` —
+  new: 42 focused adversarial tests.
+- `packages/shared/src/schemas/dataset.test.ts` — two hardcoded
+  `FEATURE_SCHEMA_VERSION` literals updated `"1.0"`→`"1.1"`; one new
+  superseded-literal-rejection test.
+- `packages/shared/src/engine/formulaVersionFeatureExtractor.test.ts` —
+  one hardcoded `FEATURE_SCHEMA_VERSION` literal updated.
+- `packages/shared/src/index.ts` — added
+  `export * from "./engine/formulaVersionTargetExtractor"`.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.010 row completed; rollup
+  counts corrected `9/14`→`10/14`, `98/171`→`99/171`.
+- `project-control/claude/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE
+  block prepended.
+- `project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`
+  — this section.
+
+No GPT audit/prompt file touched (ownership rule respected). `.hiveai/
+PROJECT_DASHBOARD.md` not touched — no path it declares was broken by
+this task. All other pre-existing worktree modifications/deletions/
+untracked files left untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionTargetExtractor.test.ts`: **42/42**.
+- `pnpm --filter @formulab/shared exec vitest run src/engine/formulaVersionTestResultDatasetExtractor.test.ts src/engine/formulaVersionStabilityDatasetExtractor.test.ts src/engine/formulaVersionDoeDatasetExtractor.test.ts`: **182/182**, unchanged (FVL-05.005/.006/.007 extractors themselves untouched).
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **92
+  files / 2172 tests** passed (91 → 92 files, 2129 → 2172 tests, +43 new,
+  no regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): **167
+  files / 1726 tests** passed, unchanged (no desktop app code touched
+  this task).
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
+  drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).

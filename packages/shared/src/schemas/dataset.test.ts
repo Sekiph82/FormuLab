@@ -39,17 +39,21 @@ describe("dataset schema version", () => {
 
 describe("feature schema version", () => {
   it("is an explicit literal, not a free-form string", () => {
-    expect(FEATURE_SCHEMA_VERSION).toBe("1.0");
-    expect(featureSchemaVersionSchema.safeParse("1.0").success).toBe(true);
-    expect(featureSchemaVersionSchema.safeParse("1.1").success).toBe(false);
+    expect(FEATURE_SCHEMA_VERSION).toBe("1.1");
+    expect(featureSchemaVersionSchema.safeParse("1.1").success).toBe(true);
+    expect(featureSchemaVersionSchema.safeParse("1.2").success).toBe(false);
     expect(featureSchemaVersionSchema.safeParse("").success).toBe(false);
-    expect(featureSchemaVersionSchema.safeParse(1.0).success).toBe(false);
+    expect(featureSchemaVersionSchema.safeParse(1.1).success).toBe(false);
+  });
+
+  it("rejects the superseded FVL-05.009 literal — old and new feature-row identity can never be ambiguous", () => {
+    expect(featureSchemaVersionSchema.safeParse("1.0").success).toBe(false);
   });
 
   it("rejects a record missing the field, so the version can never be silently absent", () => {
     expect(featureSchemaVersionedSchema.safeParse({}).success).toBe(false);
     expect(
-      featureSchemaVersionedSchema.safeParse({ featureSchemaVersion: "1.0" }).success,
+      featureSchemaVersionedSchema.safeParse({ featureSchemaVersion: FEATURE_SCHEMA_VERSION }).success,
     ).toBe(true);
   });
 });
@@ -73,7 +77,7 @@ describe("dataset schema version vs feature schema version — independence", ()
     // Invalid dataset version + valid feature version: only the dataset field fails.
     const badDataset = combinedSchema.safeParse({
       datasetSchemaVersion: "9.9",
-      featureSchemaVersion: "1.0",
+      featureSchemaVersion: FEATURE_SCHEMA_VERSION,
     });
     expect(badDataset.success).toBe(false);
     if (!badDataset.success) {

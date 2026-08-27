@@ -74,8 +74,33 @@ export type DatasetSchemaVersioned = z.infer<typeof datasetSchemaVersionedSchema
 
 /** Current feature (derived feature-vector) schema version. Bump when
  *  normalization or target-variable definitions change (FVL-05.009-.010)
- *  in a way that changes the shape or meaning of a feature vector. */
-export const FEATURE_SCHEMA_VERSION = "1.0" as const;
+ *  in a way that changes the shape or meaning of a feature vector.
+ *
+ *  FIRST BUMP (FVL-05.010, 2026-08-27): `"1.0"` -> `"1.1"`. FVL-05.009
+ *  defined the first feature-family shape (`formulaVersionFeatureRowSchema`)
+ *  at `"1.0"` with no prior shape to diverge from — the same "nothing
+ *  existed before, nothing changed" case `DATASET_SCHEMA_VERSION` itself
+ *  was in when FVL-05.002 defined the first dataset row shape and did NOT
+ *  bump. FVL-05.010 adds `formulaVersionTargetRowSchema`, a SECOND,
+ *  brand-new feature-family row type — the exact situation
+ *  `DATASET_SCHEMA_VERSION`'s own SECOND BUMP (FVL-05.005) already
+ *  resolved: "a new row type is a shape change and must bump, with no
+ *  exception for being additive/new rather than a field edit to an
+ *  existing type." Direct, already-established precedent applied here
+ *  without exception — `formulaVersionFeatureRowSchema` (FVL-05.009's own
+ *  predictor row) is UNCHANGED in field shape, but shares this ONE literal
+ *  with every feature-family row, so it now requires `"1.1"` too, the same
+ *  way every unrelated dataset row already requires the current
+ *  `DATASET_SCHEMA_VERSION` regardless of whether ITS OWN shape changed in
+ *  a given bump. Compatibility: a repo-wide grep for
+ *  `formulaVersionFeatureRowSchema`/`extractFormulaVersionFeatureRows`
+ *  outside this package's own engine/schema/test files returns ZERO
+ *  matches — no persisted feature row exists anywhere, so there is nothing
+ *  to migrate, and no `SchemaMigration` entry is registered for this bump
+ *  (none is applicable). `featureSchemaVersionSchema` is a `z.literal` — a
+ *  row still carrying `featureSchemaVersion: "1.0"` is now explicitly,
+ *  structurally REJECTED (proven by `dataset.test.ts`). */
+export const FEATURE_SCHEMA_VERSION = "1.1" as const;
 
 /** Validates the literal current feature schema version. */
 export const featureSchemaVersionSchema = z.literal(FEATURE_SCHEMA_VERSION);
@@ -1349,42 +1374,56 @@ export type NormalizedQuantitySourcePath = (typeof NORMALIZED_QUANTITY_SOURCE_PA
 export const NORMALIZED_QUANTITY_CANONICAL_UNITS = ["g", "mL"] as const;
 export type NormalizedQuantityCanonicalUnit = (typeof NORMALIZED_QUANTITY_CANONICAL_UNITS)[number];
 
-export const normalizedQuantitySchema = z
-  .object({
+/** The raw+canonical quantity fields alone, with no `path`/`detail`/
+ *  `sourceRecords` — factored out so FVL-05.010's target numeric value
+ *  (one quantity per observation, not an array of named paths) can reuse
+ *  the exact same fields/validation via composition rather than copying
+ *  the field list into a parallel shape. */
+const normalizedQuantityValueSchema = z.object({
+  /** The exact source value, unmodified — never re-rounded, never
+   *  dropped even when `normalized` is false. */
+  raw: decimalString,
+  /** The exact source unit string, unmodified. Absent only when the
+   *  source field itself carries no unit companion at all (as opposed to
+   *  an unrecognized one, which IS present here, just unconverted). */
+  rawUnit: z.string().optional(),
+  canonicalUnit: z.enum(NORMALIZED_QUANTITY_CANONICAL_UNITS).optional(),
+  /** Present if and only if `canonicalUnit` is present — a deterministic
+   *  conversion via `engine/unitConversion.ts`'s `convertUnit`, formatted
+   *  through `engine/decimal.ts`'s own `PRECISION.quantity` (4 dp),
+   *  never a second, parallel rounding rule. */
+  canonicalValue: decimalString.optional(),
+  /** True iff `canonicalUnit`/`canonicalValue` are both present. Kept as
+   *  its own explicit boolean (not merely inferred from presence) so a
+   *  downstream consumer never has to reverse-engineer the pairing rule. */
+  normalized: z.boolean(),
+});
+
+function requireNormalizedPairing<T extends { canonicalUnit?: string; canonicalValue?: string; normalized: boolean }>(
+  entry: T,
+  ctx: z.RefinementCtx,
+  label: string,
+): void {
+  const hasCanonical = entry.canonicalUnit !== undefined && entry.canonicalValue !== undefined;
+  if (entry.normalized !== hasCanonical) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `normalized must be true if and only if both canonicalUnit and canonicalValue are present (${label})`,
+    });
+  }
+}
+
+export const normalizedQuantitySchema = normalizedQuantityValueSchema
+  .extend({
     path: z.enum(NORMALIZED_QUANTITY_SOURCE_PATHS),
     /** Disambiguates a `path` whose source record legitimately repeats
      *  (a replicate number, a DOE factor code) — see this section's own
      *  header comment. Absent whenever the citation below is already
      *  unique on its own. */
     detail: z.string().optional(),
-    /** The exact source value, unmodified — never re-rounded, never
-     *  dropped even when `normalized` is false. */
-    raw: decimalString,
-    /** The exact source unit string, unmodified. Absent only when the
-     *  source field itself carries no unit companion at all (as opposed to
-     *  an unrecognized one, which IS present here, just unconverted). */
-    rawUnit: z.string().optional(),
-    canonicalUnit: z.enum(NORMALIZED_QUANTITY_CANONICAL_UNITS).optional(),
-    /** Present if and only if `canonicalUnit` is present — a deterministic
-     *  conversion via `engine/unitConversion.ts`'s `convertUnit`, formatted
-     *  through `engine/decimal.ts`'s own `PRECISION.quantity` (4 dp),
-     *  never a second, parallel rounding rule. */
-    canonicalValue: decimalString.optional(),
-    /** True iff `canonicalUnit`/`canonicalValue` are both present. Kept as
-     *  its own explicit boolean (not merely inferred from presence) so a
-     *  downstream consumer never has to reverse-engineer the pairing rule. */
-    normalized: z.boolean(),
     sourceRecords: sourceRecordLineageSchema,
   })
-  .superRefine((entry, ctx) => {
-    const hasCanonical = entry.canonicalUnit !== undefined && entry.canonicalValue !== undefined;
-    if (entry.normalized !== hasCanonical) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `normalized must be true if and only if both canonicalUnit and canonicalValue are present (path="${entry.path}")`,
-      });
-    }
-  });
+  .superRefine((entry, ctx) => requireNormalizedPairing(entry, ctx, `path="${entry.path}"`));
 export type NormalizedQuantity = z.infer<typeof normalizedQuantitySchema>;
 
 /** Composable envelope for the feature-vector family, mirroring
@@ -1415,3 +1454,213 @@ export const formulaVersionFeatureRowSchema = featureRowBaseSchema.extend({
   normalizedQuantities: z.array(normalizedQuantitySchema),
 });
 export type FormulaVersionFeatureRow = z.infer<typeof formulaVersionFeatureRowSchema>;
+
+/**
+ * FVL-05.010 — exact target-variable definitions (per product family /
+ * measured response).
+ *
+ * SOURCE RECOVERY (not inferred from the tracker's short title): a
+ * SECOND, brand-new feature-family row, sibling to FVL-05.009's own
+ * `formulaVersionFeatureRowSchema` — both share ONE `featureSchemaVersion`
+ * literal (see `FEATURE_SCHEMA_VERSION`'s own header comment for the
+ * FIRST BUMP this row family caused), neither embeds or duplicates the
+ * other's fields. Where FVL-05.009 normalizes PREDICTOR evidence
+ * (composition, process, cost/packaging — see its own row's excluded-
+ * field list), this row extracts LABEL evidence: the measured response
+ * values a future FVL-07 "Predictive Performance Engine (supervised ML)"
+ * would train against. Neither task designates which normalized
+ * predictor fields "are" inputs to a model or which target fields "are"
+ * outputs — that remains FVL-05.011+/FVL-07's own job; this task only
+ * makes target evidence extractable, exact, and traceable.
+ *
+ * WHICH SOURCE FAMILIES ARE MEASURED RESPONSES (Q3, answered from source):
+ * exactly three, each already extracted verbatim by an existing FVL-05
+ * extractor and reused here by row, never re-derived from raw pools:
+ * `TestResult` (FVL-05.005), `StabilityResult` (FVL-05.006),
+ * `DoeObservation` (FVL-05.007). `CorrectiveAction`/`CostSnapshot`
+ * (FVL-05.008) were independently checked and found to carry no
+ * measured-response-shaped field at all (a corrective action is a
+ * problem/resolution narrative; a cost snapshot is a computed financial
+ * figure, not a product-performance measurement) — genuinely nothing to
+ * extract there, not merely unexamined.
+ *
+ * WHAT IS **NOT** A MEASURED RESPONSE, deliberately excluded (Q6, the
+ * anti-leakage core of this task): `TestDefinition.targetValue`/
+ * `.minimum`/`.maximum` (planned spec/reference, and `TestDefinition`
+ * itself was never even pooled by FVL-05.005 — nothing to exclude twice
+ * over); `DoeResponse.targetValue`/`.lowerLimit`/`.upperLimit`/
+ * `.objective`/`.desirabilityShape` (planned DOE objective metadata, the
+ * exact fields FVL-05.009's own header comment already excluded from
+ * PREDICTOR normalization for the identical reason); `DoeAnalysis`/
+ * `DoeCandidate` (computed predictions/desirability, never pooled by any
+ * FVL-05 extractor); `TestResult.passFail === "not_evaluated"` (the
+ * absence of a judgment, not a label — only `"pass"`/`"fail"` are real
+ * evidence); a `DoeObservation` whose `status` is `"missing"`/
+ * `"invalid"`/`"excluded"` (explicitly non-evidence by the domain's own
+ * vocabulary — produces no target observation at all, the same
+ * "excluded/invalid/pending never silently becomes a label" discipline
+ * the governing prompt requires).
+ *
+ * PRODUCT-FAMILY IDENTITY (Q1/Q2): the one, already-authoritative source
+ * is `Formulation.productFamilyCode` — FVL-05.003's own row already
+ * established it as "always present on a Formulation" and copies it
+ * verbatim into every `FormulaVersionCompositionRow`. A repository-wide
+ * search for a productFamilyCode MUTATION path found exactly one writer,
+ * `newFormulation()` (`apps/desktop/src/lib/formulations.ts`), which sets
+ * it once at creation time; no edit/update call site was found anywhere
+ * that changes an EXISTING formulation's `productFamilyCode`. No separate
+ * historical/frozen snapshot of it exists on any other schema
+ * (`LaboratoryTrial`/`StabilityStudy` carry a DIFFERENT field,
+ * `productFamilyId`, not a copy of this one). This task therefore reuses
+ * `compositionRow.productFamilyCode` directly — the SAME already-trusted
+ * value FVL-05.009 already carries in via its own required
+ * `compositionRows` input — rather than re-resolving `Formulation` a
+ * second time.
+ *
+ * TARGET IDENTITY TUPLE (Q8, `targetDefinitionSchema` below, enforced by
+ * its own `superRefine` rather than left to convention): `productFamilyCode`
+ * + `sourceEntity` + EITHER `testDefinitionId` (testResult/stabilityResult)
+ * OR `responseId` (doeObservation) + — for `stabilityResult` only —
+ * `conditionId`/`timePointId`. Q5's own finding: a stability condition/
+ * time-point pair is part of WHAT the target IS ("viscosity at 40°C /
+ * 3 months" is a different target than "viscosity at 25°C / 1 month"),
+ * never a predictor field this task could leak — `StabilityResult`
+ * carries its own `conditionId`/`timePointId` directly (no join needed).
+ * `unit` is deliberately NOT part of the identity tuple: the SAME
+ * `testDefinitionId`/`responseId` is definitionally the same measured
+ * concept regardless of which unit a given record happened to be entered
+ * in — unit variation is a per-observation RECORDING fact (normalized
+ * below, exactly like FVL-05.009 already does), not a different target.
+ *
+ * VALUE REPRESENTATION (Q9/Q10): `targetObservationValueSchema` is a
+ * discriminated union over `kind` — `"numeric"` reuses
+ * `normalizedQuantityValueSchema` (the FVL-05.009 quantity shape,
+ * factored out for exactly this reuse) via `.merge()`, never a
+ * re-modeled copy; `"text"`/`"categorical"`/`"boolean"`/`"passFail"`
+ * carry their own single required value field. WHICH kind a `TestResult`/
+ * `StabilityResult` contributes is read directly from that record's own
+ * `resultType` — the field the domain itself uses to say which OTHER
+ * field is authoritative — never guessed from which fields happen to be
+ * populated: `"numeric"`/`"visual_rating"` -> `kind: "numeric"` (a
+ * repository-wide check confirmed `"visual_rating"` has no dedicated
+ * value field anywhere in this codebase — `replicates[].numericValue` is
+ * structurally the only field capable of holding it, not an assumption
+ * about its meaning); `"text"` -> `kind: "text"`; `"categorical"` ->
+ * `kind: "categorical"`; `"boolean"` -> `kind: "boolean"`; `"pass_fail"`
+ * -> `kind: "passFail"`, ONLY when the record's own `passFail` is
+ * `"pass"` or `"fail"` (never `"not_evaluated"`). `DoeObservation` has no
+ * `resultType` — its own `value`/`textValue` fields are read directly and
+ * independently (both are independently optional on the source schema,
+ * so both may legitimately be populated; neither is forced exclusive of
+ * the other here). Explicit zero/false stay distinct from absence exactly
+ * as `normalizedQuantityValueSchema` and `z.boolean()` already guarantee
+ * (proven by dedicated tests) — never coerced, never silently imputed.
+ *
+ * MULTIPLICITY / NO SILENT AGGREGATION (Q7/Q11): every `TestResult`/
+ * `StabilityResult` (including every entry in a `revisesResultId`
+ * revision chain — FVL-05.005's own established "never collapse to
+ * latest" precedent applies unchanged) and every `TestReplicate` produces
+ * its OWN observation; `ReplicateStats` (`mean`/`minimum`/`maximum`/
+ * `standardDeviation`) additionally produces its own observations,
+ * `detail`-tagged `"stats.mean"` etc — the exact same already-persisted,
+ * already-computed-by-the-source-system aggregate FVL-05.009's own
+ * `testResult.stats.*`/`stabilityResult.stats.*` paths already treat as
+ * real evidence, not a NEW aggregation this task invents. `isOutlier`
+ * (from `TestReplicate.isOutlier`, or `true` for a `DoeObservation`
+ * status of `"outlier_flagged"`/`"outlier_confirmed"`) is preserved as an
+ * explicit flag, never silently dropped — "flagged, not deleted, the
+ * caller's choice" is the same precedent `TestReplicate.isOutlier`'s own
+ * schema comment already established; downstream partitioning/training
+ * (FVL-05.012+) decides what to do with a flagged point, not this
+ * extraction step.
+ *
+ * `detail` disambiguates a citation that legitimately repeats (a
+ * replicate number; a `"stats.*"` field name) — the identical convention
+ * `normalizedQuantitySchema` already established; every other case (one
+ * `TestResult`'s own text/categorical/boolean/passFail value; one
+ * `DoeObservation`) already has a unique source-record citation and
+ * leaves `detail` absent.
+ *
+ * FEATURE_SCHEMA_VERSION bumps `"1.0"` -> `"1.1"` for this brand-new row
+ * type (see the constant's own header comment for the full precedent
+ * chain). `DATASET_SCHEMA_VERSION` is untouched (stays `"1.6"`) — this
+ * task adds no field to, and removes no field from, any FVL-05.003-.008
+ * row shape; it only reads them.
+ */
+export const TARGET_SOURCE_ENTITIES = ["testResult", "stabilityResult", "doeObservation"] as const;
+export type TargetSourceEntity = (typeof TARGET_SOURCE_ENTITIES)[number];
+
+export const targetDefinitionSchema = z
+  .object({
+    productFamilyCode: nonBlankString("productFamilyCode"),
+    sourceEntity: z.enum(TARGET_SOURCE_ENTITIES),
+    /** Required for `testResult`/`stabilityResult`; must be absent for `doeObservation`. */
+    testDefinitionId: nonBlankString("testDefinitionId").optional(),
+    /** Required for `doeObservation`; must be absent for `testResult`/`stabilityResult`. */
+    responseId: nonBlankString("responseId").optional(),
+    /** Required for `stabilityResult` only — part of target IDENTITY, not
+     *  a predictor dimension (see this section's own header comment). */
+    conditionId: nonBlankString("conditionId").optional(),
+    /** Required for `stabilityResult` only. */
+    timePointId: nonBlankString("timePointId").optional(),
+  })
+  .superRefine((def, ctx) => {
+    const fail = (message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+    if (def.sourceEntity === "testResult") {
+      if (def.testDefinitionId === undefined) fail("testResult target definitions require testDefinitionId");
+      if (def.responseId !== undefined) fail("testResult target definitions must not carry responseId");
+      if (def.conditionId !== undefined || def.timePointId !== undefined) {
+        fail("testResult target definitions must not carry conditionId/timePointId");
+      }
+    } else if (def.sourceEntity === "stabilityResult") {
+      if (def.testDefinitionId === undefined) fail("stabilityResult target definitions require testDefinitionId");
+      if (def.conditionId === undefined) fail("stabilityResult target definitions require conditionId");
+      if (def.timePointId === undefined) fail("stabilityResult target definitions require timePointId");
+      if (def.responseId !== undefined) fail("stabilityResult target definitions must not carry responseId");
+    } else {
+      if (def.responseId === undefined) fail("doeObservation target definitions require responseId");
+      if (def.testDefinitionId !== undefined || def.conditionId !== undefined || def.timePointId !== undefined) {
+        fail("doeObservation target definitions must not carry testDefinitionId/conditionId/timePointId");
+      }
+    }
+  });
+export type TargetDefinition = z.infer<typeof targetDefinitionSchema>;
+
+export const targetObservationValueSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("numeric") }).merge(normalizedQuantityValueSchema).superRefine((entry, ctx) => requireNormalizedPairing(entry, ctx, "target numeric value")),
+  z.object({ kind: z.literal("text"), text: z.string() }),
+  z.object({ kind: z.literal("categorical"), categorical: z.string() }),
+  z.object({ kind: z.literal("boolean"), boolean: z.boolean() }),
+  z.object({ kind: z.literal("passFail"), passFail: z.enum(["pass", "fail"]) }),
+]);
+export type TargetObservationValue = z.infer<typeof targetObservationValueSchema>;
+
+export const targetObservationSchema = z.object({
+  targetDefinition: targetDefinitionSchema,
+  value: targetObservationValueSchema,
+  /** Disambiguates a source-record citation that legitimately repeats —
+   *  see this section's own header comment. */
+  detail: z.string().optional(),
+  /** `TestReplicate.isOutlier`, or `true` for a `DoeObservation` status of
+   *  `"outlier_flagged"`/`"outlier_confirmed"` — flagged, never dropped. */
+  isOutlier: z.boolean().default(false),
+  sourceRecords: sourceRecordLineageSchema,
+});
+export type TargetObservation = z.infer<typeof targetObservationSchema>;
+
+/** One row per `FormulationVersion`, same convention as every FVL-05.003-
+ *  .009 row. `productFamilyCode` is copied verbatim from the SAME
+ *  `FormulaVersionCompositionRow` this extractor already requires (see
+ *  this section's own header comment) — never re-resolved independently.
+ *  `targetObservations` is empty when none of the three measured-response
+ *  source families contributed any usable evidence for this version —
+ *  legitimate, never an error. */
+export const formulaVersionTargetRowSchema = featureRowBaseSchema.extend({
+  formulaId: nonBlankString("formulaId"),
+  formulaCode: nonBlankString("formulaCode"),
+  formulaVersionId: nonBlankString("formulaVersionId"),
+  formulaVersionNumber: z.number().int().positive(),
+  productFamilyCode: nonBlankString("productFamilyCode"),
+  targetObservations: z.array(targetObservationSchema),
+});
+export type FormulaVersionTargetRow = z.infer<typeof formulaVersionTargetRowSchema>;
