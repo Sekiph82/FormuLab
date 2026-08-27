@@ -1,38 +1,37 @@
-# FormuLab Project Control Backend
+# FormuLab GPT ↔ Claude Project Control Archive
 
-This directory is the structured coordination/evidence backend for the canonical H!veAI dashboard manifest:
+`project-control/` is a coordination and evidence archive for GPT ↔ Claude work.
 
-`/.hiveai/PROJECT_DASHBOARD.md` on `main`.
+It is **not** the H!veAI Project Dashboard, **not** the canonical task ledger, and **not** a replacement for `.hiveai/PROJECT_DASHBOARD.md`.
 
-It is **not a second dashboard** and must never compete with or replace `.hiveai/PROJECT_DASHBOARD.md`.
+## H!veAI authority
 
-## Role in the architecture
+The canonical H!veAI project manifest is:
 
-`.hiveai/PROJECT_DASHBOARD.md` is the single project-dashboard entrypoint and source map. H!veAI starts there, learns the working branch and declared control paths, then reads this directory for machine-readable state and GPT↔Claude session evidence.
+`.hiveai/PROJECT_DASHBOARD.md`
 
-## Goals
+The canonical FormuLab task ledger is:
 
-1. Keep GPT-owned and Claude-owned artifacts physically separated.
-2. Give every work session a stable session identity.
-3. Expose compact machine-readable state that `.hiveai/PROJECT_DASHBOARD.md` can point H!veAI toward.
-4. Preserve the complete historical audit/prompt/log/handoff record.
-5. Prevent one agent from rewriting the other agent's evidence.
-6. Keep generated session/status data out of `.hiveai/PROJECT_DASHBOARD.md` itself.
+`docs/FORMULAB_V1_TASK_TRACKER.md`
 
-## Canonical structure
+H!veAI should discover project sources from the manifest and derive task truth from the canonical tracker. Files under `project-control/` are supporting communication/history sources only when the manifest lists them.
+
+## Purpose
+
+This archive exists to:
+
+1. Separate GPT audits/prompts from Claude implementation logs/handoffs.
+2. Preserve the complete communication history between the two agents.
+3. Give each implementation/audit cycle a stable session identity where useful.
+4. Prevent Claude from rewriting GPT-owned audit/prompt evidence.
+5. Provide drill-down evidence that H!veAI may display as project history without promoting it into task authority.
+
+## Structure
 
 ```text
-.hiveai/
-  PROJECT_DASHBOARD.md        # CANONICAL H!veAI ENTRYPOINT, on main
-
-project-control/              # backend referenced by the manifest
+project-control/
   README.md
   PROTOCOL.md
-  dashboard/
-    HIVEAI-INTEGRATION.md
-  state/
-    project-state.json
-    session-index.json
   gpt/
     audits/
     prompts/
@@ -41,20 +40,30 @@ project-control/              # backend referenced by the manifest
     handoffs/
   sessions/
     <session-id>.json
+  state/
+    project-state.json
+    session-index.json
   migration/
-    FORMULAB-CONTROL-MIGRATION-000001.md
+    ...
 ```
+
+`state/` and `sessions/` are coordination conveniences for GPT/Claude. They are not the canonical H!veAI task source and must never override `docs/FORMULAB_V1_TASK_TRACKER.md`.
 
 ## Ownership
 
-- `.hiveai/PROJECT_DASHBOARD.md` is the canonical dashboard source map. It should remain pointer-only and should not receive generated per-session status commits.
 - GPT owns `project-control/gpt/**`.
-- Claude owns `project-control/claude/**` and implementation-session manifests under `project-control/sessions/**` when it executes a coding session.
-- `project-control/state/project-state.json` and `project-control/state/session-index.json` are shared protocol state. An actor may update only fields explicitly assigned to that actor by `PROTOCOL.md`.
-- H!veAI reads this backend only because `.hiveai/PROJECT_DASHBOARD.md` points to it. H!veAI mirrors/render summaries inside its own dashboard UI, not by rewriting the canonical manifest after every session.
+- Claude may read GPT-owned files but must not edit their substantive content.
+- Claude owns `project-control/claude/**` implementation evidence.
+- GPT may inspect Claude evidence for audit but should not rewrite historical Claude logs.
+- Shared session/state files may summarize communication status, but task completion truth must be synchronized back to the canonical tracker.
 
-## Migration
+## Historical migration
 
-The historical folders currently under `docs/audits`, `docs/prompts`, `docs/external-logs`, and `docs/handoffs` will be moved by Claude using the migration instructions in `project-control/migration/FORMULAB-CONTROL-MIGRATION-000001.md`.
+The planned migration may move historical coordination files:
 
-Do not delete history. Prefer `git mv` so Git can retain rename ancestry.
+- `docs/audits/**` → `project-control/gpt/audits/**`
+- `docs/prompts/**` → `project-control/gpt/prompts/**`
+- `docs/external-logs/**` → `project-control/claude/logs/**`
+- `docs/handoffs/**` → `project-control/claude/handoffs/**`
+
+Use `git mv` where possible and preserve content/history. If the canonical handoff path changes, `.hiveai/PROJECT_DASHBOARD.md` must be intentionally updated afterward so H!veAI follows the new source.
