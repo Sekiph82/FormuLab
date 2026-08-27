@@ -157,7 +157,7 @@ export type FeatureSchemaVersioned = z.infer<typeof featureSchemaVersionedSchema
  * `datasetSchemaVersion` (never a second version literal) and `sourceRecords`,
  * so a row is structurally unable to validate without exact lineage.
  */
-const nonBlankString = (label: string) =>
+export const nonBlankString = (label: string) =>
   z.string().refine((value) => value.trim().length > 0, `${label} must not be blank`);
 
 /** WHICH source entity/collection a record lives in, e.g. "formulation",

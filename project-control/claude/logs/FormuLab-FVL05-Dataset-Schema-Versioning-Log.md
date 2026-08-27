@@ -5956,3 +5956,244 @@ FVL-05.011 remains untouched; GPT audit/prompt files untouched
 
 **NEXT TASK — FVL-05.011 NOT STARTED** (per this session's explicit
 instruction not to begin it).
+
+---
+
+# FVL-05.011 — Dataset hash/fingerprint + reproducible rebuild — Task Log
+
+Continuing the SAME single FVL-05 external log file (appended, not a new
+file, per the standing combined-log instruction carried forward).
+
+## Task
+
+**FVL-05.011** — Dataset hash/fingerprint + reproducible rebuild from
+source records. Depends on FVL-05.009 (closed). Blocking = YES.
+
+Governing documents (both GPT-owned, READ-ONLY, read completely before
+any edit, neither modified):
+- `project-control/gpt/audits/FVL05-GPT-AUDIT-000016.md` — independent
+  re-audit that closed FVL-05.010 (`CLOSE / ACCEPT`) and cleared
+  FVL-05.011 to begin.
+- `project-control/gpt/prompts/FVL05-GPT-PROMPT-000017.md` — the start
+  prompt for this task, explicit that "SOURCE RECOVERY IS THE MAIN WORK
+  OF THIS TASK."
+
+## Branch / commit range
+
+- Branch: `feature/laboratory-stability`.
+- Starting local HEAD: `f94e4b1fc5c269540254c4b53dd8858f42ba0875`.
+- Remote HEAD at fetch: same — already up to date (`git pull --ff-only`
+  reported a fast-forward landing only the audit-000016/prompt-000017
+  doc commits before this session began work).
+- `git diff --check` at start: clean (pre-existing CRLF warnings only;
+  unrelated pre-existing dirty worktree state left untouched throughout).
+
+## Source recovery (before any code was written)
+
+Read, in full: `packages/shared/src/schemas/dataset.ts` (all FVL-05.002-
+.010 sections), every FVL-05.003-.010 extractor's own tests,
+`docs/FORMULAB_V1_FINAL_SCOPE.md`'s FVL-05/.06/.07 boundaries, and a
+repo-wide search for `sha256|checksum|createHash|canonicalJson|
+stableStringify|fingerprint|digest` across `packages/shared`,
+`apps/desktop/src`, `apps/desktop/src-tauri/src`, `runtime/pipeline`.
+
+## Existing hashing/fingerprint precedent found (and one rejected)
+
+- `packages/shared/src/engine/connectorFingerprint.ts`: `fingerprint()`/
+  `fingerprintBytes()` — FNV-1a, 32-bit, hex-encoded. Own header comment:
+  "Not a cryptographic hash and never used as one." `schemas/connector.ts`'s
+  own header comment independently confirms the SAME fingerprint is
+  "deliberately never called a hash or SHA256 anywhere, since it is not
+  a cryptographic digest and claiming otherwise would overstate the
+  guarantee." REJECTED for this task's purpose: a 32-bit digest space is
+  a genuine collision risk at real ML-dataset-corpus scale, a stake
+  FNV-1a's own narrower Data-Exchange-schema-drift-detection purpose
+  never had to survive.
+- `apps/desktop/src/lib/documentExports/exportHistory.ts`'s `sha256Hex()`
+  and `apps/desktop/src/components/dataExchange/DataExchangeImportDialog.tsx`'s
+  `sha256Hex()`: both call `crypto.subtle.digest("SHA-256", bytes)`.
+  `exportHistory.ts`'s own comment: "computed client-side via the
+  standard Web Crypto API (no new dependency, works in the Tauri webview,
+  a real browser, and Node's vitest/jsdom environment)."
+- `apps/desktop/src-tauri/src/{attachments,backup,data_location_manager,
+  identity}.rs`: all use the Rust `sha2` crate's `Sha256` for the same
+  "does this content match" purpose.
+- `engine/dataExchangeValidation.ts`: `SHA256 = /^[a-f0-9]{64}$/i` — the
+  established lowercase-hex-64-char format convention this task's own
+  digest format matches.
+- Confirmed directly (`node -e "console.log(typeof globalThis.crypto?.subtle)"`
+  under this repo's own Node version): `crypto.subtle` is a true global,
+  and this repo's own `package.json` requires `engines.node >=20`, where
+  it is stable with no import needed — satisfying the SAME portability
+  requirement `connectorFingerprint.ts`'s own header comment cites, via
+  a real Web Crypto call rather than a hand-rolled algorithm.
+
+ADOPTED: real SHA-256 via `crypto.subtle.digest`, chosen and documented
+explicitly (Q5) — not FNV-1a, not a hand-rolled implementation, not a
+new npm dependency.
+
+## Mandatory source questions (answered before any code was written)
+
+1. Three fingerprint levels — row (one per FVL-05.003-.010 row), bundle
+   (one per `FormulationVersion`, combining that version's row digests),
+   dataset (one over every included version's bundle digest) — recovered
+   from FVL-05.012's own "no same-formula-version rows split across
+   partitions" wording (presupposes a formula-version-scoped bundle) and
+   FVL-05.014's own "lineage round-trip" wording.
+2. Both: the row payload already embeds its own `sourceRecords` lineage
+   as a field, so hashing the whole validated row (as its own extractor
+   already returned it) automatically includes both source identity and
+   extracted values — no separate lineage encoding invented.
+3. Canonicalization boundary: object keys sorted by ordinal `<`
+   comparison (never `localeCompare`); array order NEVER touched (every
+   FVL-05 array is already meaningfully ordered by its own extractor);
+   `undefined`/absent omitted exactly as the source omits it, never
+   coerced to `null`; decimals are always the source's own exact string
+   (this package never stores a training-relevant quantity as a raw
+   float); no Unicode normalization; single-line compact output, so no
+   line-ending ambiguity can exist.
+4. No existing canonical-JSON serializer found anywhere in the repo — the
+   smallest deterministic standard-compatible approach (sorted-key
+   recursive JSON, matching `JSON.stringify` everywhere else) was
+   implemented, not an existing utility reused, since none existed.
+5. Real SHA-256 via `crypto.subtle` — see "Existing hashing/fingerprint
+   precedent" above.
+6. Rebuild accepts the ALREADY-PRODUCED output of FVL-05.003-.010's own
+   extractors — never re-invokes them, never accepts raw masterdata
+   pools; "reproducible" means the canonicalization+hashing pipeline
+   itself is pure and reproducible, not a re-proof of each extractor's
+   own already-independently-tested determinism.
+7. Rebuild input identity validation: every supplied row is re-validated
+   against its own canonical schema (`schema.safeParse()`) before being
+   hashed, and cross-checked against the composition row's own
+   `formulaId`/`formulaCode`/`formulaVersionId`/`formulaVersionNumber`
+   — both fail closed.
+8. Array order is never re-sorted at the row level (domain-meaningful,
+   preserved exactly); dataset-level bundle MEMBERSHIP is sorted by
+   `formulaVersionId` (ordinal) since it is a SET, not a caller-meaningful
+   sequence — proven permutation-invariant by a dedicated test.
+9. Yes — `datasetSchemaVersion`/`featureSchemaVersion` are already fields
+   on the row objects being hashed whole, so they are included
+   automatically; no special-casing needed.
+10. No — no existing FVL-05 manifest architecture mixes app-build
+    identity into a data-content hash; inventing that mixing would be
+    exactly the unproven contract the governing invariants forbid.
+    Algorithm/canonicalization identifiers are explicit SIBLING metadata
+    (`digestSchema.algorithm`/`.canonicalization`) next to the digest
+    bytes, never hashed into them.
+11. Preserved exactly — a row's own `sourceRecords` (including
+    `parentRecordId`) is part of what gets canonicalized verbatim; a
+    dedicated test proves a `parentRecordId` difference changes the
+    bundle digest.
+12. Every supplied row is re-validated against its own canonical schema
+    before canonicalization — a malformed timestamp or a superseded
+    version literal is rejected by that row's OWN existing schema
+    (`datasetSchemaVersionSchema`/`featureSchemaVersionSchema` are
+    `z.literal`s), never hashed as authoritative — proven by a dedicated
+    stale-version-literal test.
+13. Row-level alone is insufficient — bundle- and dataset-level manifests
+    are also implemented now, since FVL-05.012/.014 need a
+    formula-version-scoped and a dataset-scoped digest respectively; no
+    partitioning/split logic itself was implemented (out of this task's
+    own scope).
+14. No existing FVL-05.002-.010 row shape was changed. A brand-new,
+    THIRD, independent `MANIFEST_SCHEMA_VERSION` was introduced — see
+    "Versioning decision" below.
+15. No wall-clock time, random id, machine path, or process id ever
+    enters a digest — every function is a pure transform of its
+    argument(s); proven by a dedicated test running the same build 5
+    times and asserting a single unique digest.
+
+## Versioning decision
+
+`MANIFEST_SCHEMA_VERSION` — a THIRD, independent version family, NOT
+folded into `DATASET_SCHEMA_VERSION` or `FEATURE_SCHEMA_VERSION`.
+Reasoning: `DATASET_SCHEMA_VERSION`'s own documented scope is "the shape
+of a dataset ROW" (FVL-05.002-.008 raw extracted evidence); `FEATURE_SCHEMA_VERSION`'s
+own documented scope is "normalization + target-variable definitions"
+(FVL-05.009-.010). A manifest/digest CONTRACT is neither — it changes on
+a timeline independent of both (e.g. swapping canonicalization
+algorithms, or which row families a bundle includes, implies nothing
+about whether any dataset or feature row shape changed, and vice versa).
+This is the SAME reasoning FVL-05.001's own original design already used
+to justify two independent versions instead of one shared version ("a
+dataset-row shape change and a feature-vector shape change happen on
+independent timelines"), extended one step further — genuine
+architecture evidence per the governing prompt's own "unless direct
+architecture evidence proves it is necessary" instruction, not an
+invented exception. Starts at `"1.0"` — the FIRST manifest shape ever
+defined, the identical "nothing existed before, nothing changed" case
+both other version families were already in at their own first
+definitions, correctly unbumped. `DATASET_SCHEMA_VERSION`/
+`FEATURE_SCHEMA_VERSION` both untouched (stay `"1.6"`/`"1.2"`) — no
+existing row shape changed.
+
+## Bug found and fixed during test authoring (not a documentation gap)
+
+`buildFormulaVersionBundleManifest()`'s initial implementation validated
+the composition row with a bare `formulaVersionCompositionRowSchema.parse(...)`
+(throwing) instead of `.safeParse()` wrapped in the module's own
+`DatasetManifestBuilderError` — the same pattern already correctly used
+for every OTHER row family in the loop below it. Two tests
+("fails closed on a schema-invalid row" / "...stale/superseded schema-
+version literal") caught a raw `ZodError` escaping instead of
+`DatasetManifestBuilderError`. Fixed by applying the identical
+`safeParse` + wrap pattern to the composition row too — a genuine
+inconsistency the adversarial tests were specifically designed to catch,
+not a cosmetic gap.
+
+## Files changed
+
+- `packages/shared/src/schemas/dataset.ts` — `nonBlankString` exported
+  (previously module-private) for reuse by the new manifest schema
+  module.
+- `packages/shared/src/schemas/datasetManifest.ts` — new:
+  `MANIFEST_SCHEMA_VERSION`, `digestSchema`,
+  `FORMULA_VERSION_ROW_FAMILIES`, `formulaVersionRowFingerprintSchema`,
+  `formulaVersionBundleManifestSchema`, `datasetManifestEntrySchema`,
+  `datasetManifestSchema`.
+- `packages/shared/src/engine/datasetManifestBuilder.ts` — new:
+  `canonicalizeForFingerprint`, `sha256Hex`, `digestCanonical`,
+  `buildFormulaVersionBundleManifest`, `buildDatasetManifest`,
+  `DatasetManifestBuilderError`.
+- `packages/shared/src/engine/datasetManifestBuilder.test.ts` — new: 39
+  focused adversarial tests.
+- `packages/shared/src/index.ts` — added
+  `export * from "./schemas/datasetManifest"` and
+  `export * from "./engine/datasetManifestBuilder"`.
+- `docs/FORMULAB_V1_TASK_TRACKER.md` — FVL-05.011 row completed; rollup
+  counts corrected `10/14`→`11/14`, `99/171`→`100/171`.
+- `project-control/claude/handoffs/FORMULAB_V1_CURRENT.md` — new UPDATE
+  block prepended.
+- `project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`
+  — this section.
+
+No GPT audit/prompt file touched (ownership rule respected). `.hiveai/
+PROJECT_DASHBOARD.md` not touched — no path it declares was broken by
+this task. All other pre-existing worktree modifications/deletions/
+untracked files left untouched.
+
+## Validation (from the final local state, before commit)
+
+- `pnpm --filter @formulab/shared exec vitest run src/engine/datasetManifestBuilder.test.ts`: **39/39**.
+- `pnpm --filter @formulab/shared exec vitest run src/schemas/dataset.test.ts src/engine/formulaVersionFeatureExtractor.test.ts src/engine/formulaVersionTargetExtractor.test.ts`: **118/118**, unchanged.
+- `pnpm --filter @formulab/shared exec vitest run` (full suite): **93
+  files / 2221 tests** passed (92 → 93 files, 2182 → 2221 tests, +39 new,
+  no regression).
+- `pnpm --filter @formulab/shared exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop exec tsc --noEmit`: clean.
+- `pnpm --filter @formulab/desktop lint`: clean.
+- `pnpm --filter @formulab/desktop exec vitest run` (full suite): first
+  run **166/167 files, 1725/1726 tests** — one failure,
+  `DoePanel.test.tsx`'s "disables Generate design until..." test,
+  `Error: Test timed out in 5000ms` under full-suite system load.
+  Re-ran `DoePanel.test.tsx` in isolation: **6/6 passed**, the previously
+  timed-out test completing in 2012ms (well under its 5000ms timeout) —
+  confirmed a load-induced flake, not a regression (this session touched
+  no `apps/desktop` file, no DOE UI code, no
+  `formulaVersionDoeDatasetExtractor.ts`). Re-ran the FULL desktop suite
+  a second time for a clean baseline: **167 files / 1726 tests** passed,
+  unchanged.
+- `python scripts/validate_v1_tracker.py`: OK, 171 unique tasks, no
+  drift.
+- `git diff --check`: clean (pre-existing CRLF warnings only).

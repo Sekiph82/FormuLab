@@ -603,6 +603,8 @@ export * from "./engine/formulaVersionDoeDatasetExtractor";
 export * from "./engine/formulaVersionCorrectiveCostContextDatasetExtractor";
 export * from "./engine/formulaVersionFeatureExtractor";
 export * from "./engine/formulaVersionTargetExtractor";
+export * from "./schemas/datasetManifest";
+export * from "./engine/datasetManifestBuilder";
 export {
   PRECISION,
   CURRENCY_DP,

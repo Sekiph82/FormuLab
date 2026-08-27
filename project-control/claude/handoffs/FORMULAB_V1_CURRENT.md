@@ -4,6 +4,65 @@
 This file only points at the tracker's current state — it is not itself a
 scope document. Frozen scope: `docs/FORMULAB_V1_FINAL_SCOPE.md`.
 
+**UPDATE (2026-08-28, FVL-05.011 — Dataset hash/fingerprint +
+reproducible rebuild from source records — COMPLETE)**: FVL-05.010 was
+independently GPT-audit CLOSED (`AUDIT_FVL05_GPT_000016`) before this
+task began; per that audit's own verdict, this session did not reopen
+it. New task; source recovery was the main work (15 mandatory questions
+answered in the external log before any code was written). Three
+fingerprint levels: ROW (one digest per already-extracted FVL-05.003-.010
+row), BUNDLE (one digest per `FormulationVersion`, combining that
+version's row digests), DATASET (one digest over every included
+version's bundle digest, ordered by `formulaVersionId` since membership
+is a SET) — the level FVL-05.012/.014 will actually consume. Real SHA-256
+via `crypto.subtle.digest`, deliberately NOT the existing non-cryptographic
+`engine/connectorFingerprint.ts` FNV-1a (both that module's own header
+comment and `schemas/connector.ts`'s own independently state it is "not a
+cryptographic hash... never called a hash or SHA256" — a 32-bit space is
+a genuine collision risk at real ML-corpus scale). SHA-256 is not
+invented: it is the exact same standard API this codebase already uses
+for content-identity hashing (`exportHistory.ts`'s `sha256Hex()`,
+`DataExchangeImportDialog.tsx`'s `sha256Hex()`, the Rust `sha2` crate in
+`attachments.rs`/`backup.rs`/`data_location_manager.rs`/`identity.rs`) —
+`crypto.subtle` is a true global under this repo's own `engines.node
+>=20`, no new dependency, no hand-rolled algorithm. Digest functions are
+deliberately async (no synchronous standard SHA-256 exists without
+inventing one) — `packages/shared` already has async-engine precedent.
+New `packages/shared/src/schemas/datasetManifest.ts`: `MANIFEST_SCHEMA_VERSION`
+(a THIRD, independent version family — a manifest/digest contract
+changes on a timeline independent of both `DATASET_SCHEMA_VERSION` and
+`FEATURE_SCHEMA_VERSION`, the same reasoning FVL-05.001 used to justify
+two versions instead of one, extended one step further; starts at
+`"1.0"`, correctly unbumped as the first manifest shape ever defined),
+`digestSchema` (self-describing, never a bare hex string),
+`FORMULA_VERSION_ROW_FAMILIES` (fixed assembly order), `formulaVersionBundleManifestSchema`,
+`datasetManifestSchema`. New `packages/shared/src/engine/
+datasetManifestBuilder.ts`: `canonicalizeForFingerprint()` (sorted-key,
+order-preserving-array canonical JSON), `sha256Hex()`, `digestCanonical()`,
+`buildFormulaVersionBundleManifest()` (re-validates every supplied row
+against its own canonical schema before hashing — a real bug caught
+during test authoring, not merely anticipated: the composition row's
+initial `.parse()` let a raw `ZodError` escape instead of the module's
+own error class, fixed), `buildDatasetManifest()` (permutation-invariant
+over caller-supplied bundle order, proven by a dedicated test). Software/
+build version is deliberately NOT mixed into the data digest. `DATASET_SCHEMA_VERSION`/
+`FEATURE_SCHEMA_VERSION` both untouched (stay `"1.6"`/`"1.2"`). Full
+detail: the FVL-05.011 tracker row and `project-control/claude/logs/
+FormuLab-FVL05-Dataset-Schema-Versioning-Log.md`'s own FVL-05.011
+section. Focused `datasetManifestBuilder.test.ts`: **39/39**. `pnpm
+--filter @formulab/shared test`: **93 files / 2221 tests** passed
+(92→93 files, 2182→2221 tests, +39, no regression). `pnpm --filter
+@formulab/desktop test`: full suite green, no regression (167 files /
+1726 tests — one `DoePanel.test.tsx` timing flake reproduced under
+full-suite load, confirmed non-regressive by an isolated re-run and a
+clean full-suite re-run). Both `typecheck`s clean, desktop `lint` clean,
+`git diff --check` clean, `python scripts/validate_v1_tracker.py` OK
+(171 unique tasks, no drift, rollup counts corrected `10/14`→`11/14`,
+`99/171`→`100/171`). Native build/shortcut/launch-smoke gate rerun from
+final pushed HEAD — evidence in the external log's own FVL-05.011
+section. **FVL-05.012 explicitly NOT started this session, per this
+session's own instruction.**
+
 **UPDATE (2026-08-27, FVL-05.010 corrective cycle, independent GPT
 re-audit `AUDIT_FVL05_GPT_000015` — COMPLETE, genuinely audit-fixed)**:
 GPT inspected the actual implementation commit and current source, not
