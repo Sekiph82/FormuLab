@@ -1,6 +1,16 @@
 # FormuLab GPT ↔ Claude ↔ H!veAI Coordination Protocol
 
-Protocol version: `1.0`
+Protocol version: `1.1`
+
+## 0. Canonical dashboard authority
+
+The single canonical H!veAI entrypoint for FormuLab is:
+
+`/.hiveai/PROJECT_DASHBOARD.md` on `main`.
+
+This protocol and the entire `project-control/` tree are backend coordination/evidence sources referenced by that manifest. They are not a separate dashboard definition.
+
+H!veAI MUST resolve branch/path routing from `.hiveai/PROJECT_DASHBOARD.md` first, then consume the sources declared there. Generated per-session status must be rendered inside H!veAI, not written back into the canonical manifest.
 
 ## 1. Session lifecycle
 
@@ -23,10 +33,16 @@ A normal cycle is:
 5. Claude appends or creates implementation evidence under `project-control/claude/logs/` and updates the current handoff under `project-control/claude/handoffs/`.
 6. Claude writes/updates the session manifest under `project-control/sessions/`.
 7. Claude updates only the Claude-owned fields in `project-control/state/project-state.json` and appends the session record to `project-control/state/session-index.json`.
-8. H!veAI ingests the state/index/session files and updates the Project Dashboard summary.
+8. H!veAI begins from `main:.hiveai/PROJECT_DASHBOARD.md`, resolves the working branch/control paths, ingests the changed state/index/session files, and refreshes its own Project Dashboard UI.
 9. GPT audits Claude's actual GitHub source and evidence, then updates only GPT-owned state fields. If accepted, GPT creates the next audit/prompt pair. If rejected, GPT creates a corrective pair for the same task.
 
 ## 2. Ownership boundaries
+
+### Canonical H!veAI manifest
+
+- `.hiveai/PROJECT_DASHBOARD.md` on `main` is pointer-only routing/configuration authority.
+- It MUST NOT become a generated session ledger.
+- GPT, Claude, or H!veAI should change it only when project source routing/authority configuration itself changes.
 
 ### GPT-owned, READ-ONLY to Claude
 
@@ -122,7 +138,7 @@ Every completed Claude session must produce a concise dashboard-ready summary co
 - latest GPT audit verdict when available
 - next authorized task
 
-H!veAI should use `project-control/state/project-state.json` as the fast current-state source and `session-index.json` + `sessions/*.json` for history/drill-down.
+H!veAI discovers these sources through `.hiveai/PROJECT_DASHBOARD.md`, uses `project-control/state/project-state.json` as the fast current-state source, and uses `session-index.json` + `sessions/*.json` for history/drill-down.
 
 ## 6. Historical migration rules
 
@@ -143,3 +159,4 @@ Use `git mv` whenever possible. Preserve filenames and exact contents during the
 - GPT must audit actual GitHub source, not accept Claude narrative alone.
 - Claude must execute only the latest authorized GPT prompt and must obey task boundary restrictions such as “do not start next task.”
 - H!veAI is a reader/aggregator of this protocol and must not silently change task truth.
+- `.hiveai/PROJECT_DASHBOARD.md` remains the canonical source map even if `project-control/` evolves internally.
