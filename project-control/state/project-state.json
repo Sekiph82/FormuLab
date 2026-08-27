@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0",
+  "project": "FormuLab",
+  "repository": "Sekiph82/FormuLab",
+  "branch": "feature/laboratory-stability",
+  "controlRoot": "project-control",
+  "migrationPending": true,
+  "currentTask": {
+    "taskId": "FVL-05.009",
+    "status": "IMPLEMENTED_PENDING_AUDIT",
+    "nextTask": "FVL-05.010",
+    "nextTaskAuthorized": false
+  },
+  "gpt": {
+    "latestAudit": "project-control/gpt/audits/FVL05-GPT-AUDIT-000012.md",
+    "latestPrompt": "project-control/gpt/prompts/FVL05-GPT-PROMPT-000013.md",
+    "auditVerdict": "NOT_AUDITED",
+    "auditedCommit": null,
+    "updatedAt": "2026-08-27T11:25:00+03:00"
+  },
+  "claude": {
+    "latestImplementationCommit": "31537998893ec9cddab3b6db3111d604568b2532",
+    "latestLog": "project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md",
+    "latestHandoff": "project-control/claude/handoffs/FORMULAB_V1_CURRENT.md",
+    "sessionStatus": "IMPLEMENTED_PENDING_AUDIT",
+    "updatedAt": "2026-08-27T10:00:30+03:00"
+  },
+  "dashboard": {
+    "consumer": "H!veAI Project Dashboard",
+    "ingestionMode": "github-control-hub",
+    "lastIngestedSessionId": null,
+    "lastIngestedAt": null
+  }
+}
