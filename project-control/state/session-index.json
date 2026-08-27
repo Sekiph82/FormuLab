@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "project": "FormuLab",
+  "migrationPending": true,
+  "sessions": [],
+  "latestKnownImplementation": {
+    "taskId": "FVL-05.009",
+    "commit": "31537998893ec9cddab3b6db3111d604568b2532",
+    "status": "IMPLEMENTED_PENDING_AUDIT",
+    "sourceLog": "project-control/claude/logs/FormuLab-FVL05-Dataset-Schema-Versioning-Log.md"
+  },
+  "notes": "Claude migration must backfill historical session manifests and this index from the moved audits/prompts/logs/handoffs without rewriting substantive history."
+}
