@@ -1,14 +1,19 @@
 {
-  "schema": "hiveai-project/v1",
+  "schema": "hiveai-project-control-plane/v1",
   "projectKey": "formulab",
   "displayName": "FormuLab",
-  "repository": "Sekiph82/FormuLab",
+  "repository": {
+    "owner": "Sekiph82",
+    "name": "FormuLab",
+    "branch": "feature/laboratory-stability"
+  },
   "trackedBranch": "feature/laboratory-stability",
   "canonicalTaskSource": "docs/FORMULAB_V1_TASK_TRACKER.md",
-  "rulesSource": ".hiveai/RULES.md",
-  "stateSource": ".hiveai/STATE.json",
-  "handoffSource": ".hiveai/HANDOFF.md",
-  "eventSource": ".hiveai/EVENTS.jsonl",
+  "rules": ".hiveai/RULES.md",
+  "state": ".hiveai/STATE.json",
+  "handoff": ".hiveai/HANDOFF.md",
+  "events": ".hiveai/EVENTS.jsonl",
+  "eventSources": [],
   "refresh": {
     "mode": "watcher-first",
     "debounceMs": 500,
