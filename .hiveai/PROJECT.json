@@ -1,0 +1,22 @@
+{
+  "schema": "hiveai-project/v1",
+  "projectKey": "formulab",
+  "displayName": "FormuLab",
+  "repository": "Sekiph82/FormuLab",
+  "trackedBranch": "feature/laboratory-stability",
+  "canonicalTaskSource": "docs/FORMULAB_V1_TASK_TRACKER.md",
+  "rulesSource": ".hiveai/RULES.md",
+  "stateSource": ".hiveai/STATE.json",
+  "handoffSource": ".hiveai/HANDOFF.md",
+  "eventSource": ".hiveai/EVENTS.jsonl",
+  "refresh": {
+    "mode": "watcher-first",
+    "debounceMs": 500,
+    "safetyReconcileSeconds": 60
+  },
+  "git": {
+    "remoteExpected": true,
+    "localGitPreferred": true,
+    "nonGitLocalFolderMustBeReported": true
+  }
+}
