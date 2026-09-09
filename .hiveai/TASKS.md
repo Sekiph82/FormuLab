@@ -15,7 +15,7 @@
     "scopeId": "FVL-05",
     "completed": 11,
     "total": 14,
-    "percent": 78
+    "percent": 78.57
   },
   "lastCompletedTaskId": null,
   "lastCompletedTaskTitle": null,
@@ -51,4 +51,3 @@ HIVEAI_TRACKER_V3_END -->
 
 - 2026-09-09: migrated to the GitHub-first hiveai-task-tracker/v3 contract by M16O.
 - Progress scope: {\n    "scopeType": "MILESTONE",\n    "scopeId": "FVL-05",\n    "completed": 11,\n    "total": 14,\n    "percent": 78\n  }
-
