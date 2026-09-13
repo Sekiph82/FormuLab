@@ -12,7 +12,7 @@ Project rules and working context for AI agents (Claude Code, Cursor, Codex, etc
 
 - The repository root `TASKS.md` is the **only current project-status tracker**.
 - H!veAI project truth is GitHub repository metadata plus root `TASKS.md` on the configured tracked branch.
-- Current H!veAI tracked branch for FormuLab is `feature/laboratory-stability`.
+- Current H!veAI tracked branch for FormuLab is `main`.
 - `PROGRESS.md`, `project-control/**`, handoffs, audits, prompts, logs, roadmap/spec documents, GitHub issues, and `docs/migration/legacy-task-trackers/**` are evidence/history or scope context only. They must not override task state in root `TASKS.md`.
 - Do not create or revive `.hiveai/PROJECT*`, `.hiveai/TASKS*`, `.hiveai/STATE*`, `.hiveai/HANDOFF*`, `.hiveai/EVENTS*`, `.hiveai/RULES*`, dashboard manifests, or any other competing task ledger.
 - When a task starts, update both its checkbox row and the `Project Status` section in `TASKS.md` in the same logical change.
