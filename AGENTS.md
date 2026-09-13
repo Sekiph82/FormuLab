@@ -1,14 +1,3 @@
-# H!veAI mandatory control-plane adapter
-
-Before doing project work, read `.hiveai/RULES.md`, `.hiveai/PROJECT.json`, and the v3 machine block in `.hiveai/TASKS.md`. The tracked GitHub branch is current-state authority; local folders are execution workspaces.
-
-After every meaningful task/workflow/audit/session state change, update the v3 TASKS block and append-only EVENTS.jsonl, then commit and push the tracked branch before claiming completion.
-
-Do not create a competing task ledger. Provider-specific behavior must not change H!veAI state semantics.
-
-
----
-
 # FormuLab
 
 Brand name: **FormuLab** — "Local-first, model-agnostic AI research
@@ -17,7 +6,20 @@ workbench for macOS, Windows & Linux." Bundle identifier:
 `@formulab/desktop`.
 
 Project rules and working context for AI agents (Claude Code, Cursor, Codex, etc.).
-`CLAUDE.md` is a symlink to this file — edit only `AGENTS.md`.
+`CLAUDE.md` points agents back to this governance file; edit project-wide rules here.
+
+## H!veAI GitHub tracking
+
+- The repository root `TASKS.md` is the **only current project-status tracker**.
+- H!veAI project truth is GitHub repository metadata plus root `TASKS.md` on the configured tracked branch.
+- Current H!veAI tracked branch for FormuLab is `feature/laboratory-stability`.
+- `PROGRESS.md`, `project-control/**`, handoffs, audits, prompts, logs, roadmap/spec documents, GitHub issues, and `docs/migration/legacy-task-trackers/**` are evidence/history or scope context only. They must not override task state in root `TASKS.md`.
+- Do not create or revive `.hiveai/PROJECT*`, `.hiveai/TASKS*`, `.hiveai/STATE*`, `.hiveai/HANDOFF*`, `.hiveai/EVENTS*`, `.hiveai/RULES*`, dashboard manifests, or any other competing task ledger.
+- When a task starts, update both its checkbox row and the `Project Status` section in `TASKS.md` in the same logical change.
+- When a task is independently accepted/validated complete, mark it `[x]`, advance `Current Task`/`Next Task`, and keep the human-readable progress summary consistent with the checkbox ledger.
+- Valid task markers for H!veAI are `[x]` complete, `[~]` in progress, `[ ]` planned/pending, and `[!]` blocked.
+- Never infer the current task from the first unchecked item. `Current Task` in `TASKS.md` is explicit authority.
+- Commit and push `TASKS.md` with the implementation state it describes. Do not claim a remote task-state transition before that state exists on the tracked GitHub branch.
 
 ## Design principles
 
@@ -73,21 +75,23 @@ SQLite + JSONL provenance.
 
 - Default working language for discussion is Chinese; **all project files and
   code are in English** (this is a pure-English project).
-- One progress file: `PROGRESS.md`. Append one line per real milestone,
-  `YYYY-MM-DD HH:MM` + a one-sentence conclusion, newest on top. Results and
-  blockers only.
+- `PROGRESS.md` is a historical progress log, not a task-state authority. Append
+  one line per real milestone when useful: `YYYY-MM-DD HH:MM` plus a one-sentence
+  conclusion, newest on top. Results and blockers only.
 - Avoid adding new Markdown docs unless requested — too many docs become debt.
 - Prefer minimal, verifiable changes; every step should produce a checkable result.
 - Do not write inferences as verified facts; tie conclusions to code or data.
 - New session workspaces are local git repos: the app initializes them and makes
   best-effort local commits after workspace file changes. Never set a remote or push.
 
-## Phase handoffs
+## Session evidence and handoffs
 
-- Use `project-control/claude/handoffs/PHASE7_CURRENT.md` for active Phase 7 state.
+- `project-control/**` may hold provider-specific implementation evidence, audits,
+  prompts, logs, or handoffs, but none of it is task-state authority.
 - Keep implementation sessions bounded to one related subsystem and one logical commit.
-- Use a fresh Claude context after each completed session.
-- Update the active handoff once at session end.
+- Use a fresh Claude context after each completed session when useful.
+- Update provider handoffs when required by that workflow, without duplicating the
+  canonical task state already present in `TASKS.md`.
 - Reserve full regression, release builds, installers, and native verification for closure sessions.
 
 ## Data integrity
@@ -106,10 +110,3 @@ SQLite + JSONL provenance.
 - Use targeted tests during implementation sessions.
 - Run full-project regression only in closure sessions.
 - Do not force-push.
-
-## H!veAI GitHub tracking
-
-- The repository root TASKS.md is the only current project-status tracker.
-- Keep the Project Status fields and task rows current when work changes state.
-- Commit and push TASKS.md with the implementation evidence that it describes.
-- Do not create or revive .hiveai PROJECT/RULES/TASKS/STATE/HANDOFF/EVENTS files as a competing tracker.
