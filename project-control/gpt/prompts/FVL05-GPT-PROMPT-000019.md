@@ -1,8 +1,10 @@
 # FVL05-GPT-PROMPT-000019 — Codex Master Execution Prompt
 
-Repository: `Sekiph82/FormuLab`
+Repository: https://github.com/Sekiph82/FormuLab
 Canonical branch: `main`
-Canonical task authority: `/TASKS.md`
+Canonical task authority: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
+Governance: https://github.com/Sekiph82/FormuLab/blob/main/AGENTS.md
+Codex master prompt: https://github.com/Sekiph82/FormuLab/blob/main/project-control/gpt/prompts/FVL05-GPT-PROMPT-000019.md
 Actor: CODEX
 
 ## Scope
@@ -21,12 +23,14 @@ Before changing code:
 
 1. checkout `main`
 2. fetch/pull latest `main`
-3. read `TASKS.md` completely
-4. read `AGENTS.md`
-5. read `CLAUDE.md` if present
+3. read https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md completely
+4. read https://github.com/Sekiph82/FormuLab/blob/main/AGENTS.md completely
+5. treat https://github.com/Sekiph82/FormuLab/blob/main/CLAUDE.md as compatibility-only, not execution authority
 6. inspect relevant FVL-05 source, schemas, tests, and historical evidence
 
-`TASKS.md` is the only authoritative task-state ledger.
+https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md is the only authoritative task-state ledger.
+
+Codex is the primary implementation/execution agent for this milestone. Do not hand active implementation to Claude or another agent unless the owner explicitly changes `Required Actor` in TASKS.md.
 
 Do not create or revive:
 - alternate task trackers
