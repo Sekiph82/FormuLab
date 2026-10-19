@@ -12,8 +12,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Task Status: READY
 - Next Task: FVL-05.013 — Immutable historical linkage; dataset build never mutates a source record
 - Required Actor: CODEX
-- Tracking Repository: Sekiph82/FormuLab
+- Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
+- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
 - Blockers/Waits: None
 
 ## Progress
