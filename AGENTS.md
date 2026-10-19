@@ -80,8 +80,8 @@ SQLite + JSONL provenance.
 
 ## Working conventions
 
-- Default working language for discussion is Chinese; **all project files and
-  code are in English** (this is a pure-English project).
+- Default working language for discussion with the owner is Turkish; **all project files and
+  code are in English** unless the owner explicitly requests otherwise.
 - `PROGRESS.md` is a historical progress log, not a task-state authority. Append
   one line per real milestone when useful: `YYYY-MM-DD HH:MM` plus a one-sentence
   conclusion, newest on top. Results and blockers only.
