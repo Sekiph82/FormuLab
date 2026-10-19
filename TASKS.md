@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: FVL-05
-- Current Sprint: FVL-05-S04
-- Current Task: FVL-05.014 — Regression tests: rebuild determinism, missing-value handling, leakage checks, lineage round-trip
-- Current Task Status: IN_PROGRESS
-- Next Task: FVL-06.001 — Define structured measured-response schema
+- Current Milestone: FVL-06
+- Current Sprint: FVL-06-S01
+- Current Task: FVL-06.001 — Define structured measured-response schema
+- Current Task Status: READY
+- Next Task: FVL-06.002 — Define spectrophotometric/detergent-performance metric schema
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 102
-- Remaining Tasks: 69
-- Completion: 59.6%
+- Completed Tasks: 103
+- Remaining Tasks: 68
+- Completion: 60.2%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -187,7 +187,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-05.011 — Dataset hash/fingerprint + reproducible rebuild from source records
 - [x] FVL-05.012 — Train/validation/test partition rules with leakage prevention
 - [x] FVL-05.013 — Immutable historical linkage; dataset build never mutates a source record
-- [~] FVL-05.014 — Regression tests: rebuild determinism, missing-value handling, leakage checks, lineage round-trip
+- [x] FVL-05.014 — Regression tests: rebuild determinism, missing-value handling, leakage checks, lineage round-trip
 
 # FVL-06
 

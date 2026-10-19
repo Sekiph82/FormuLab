@@ -7,6 +7,7 @@ import {
   formulaVersionCompositionRowSchema,
   formulaVersionTargetRowSchema,
   formulaVersionTestResultRowSchema,
+  type SourceRecordReference,
 } from "../index";
 import type { FormulaVersionBundleInput } from "./datasetManifestBuilder";
 import { datasetPartitionManifestSchema, PARTITION_SCHEMA_VERSION } from "../schemas/datasetPartition";
@@ -20,7 +21,7 @@ function bundle(
   formulaId: string,
   formulaVersionId: string,
   formulaVersionNumber: number,
-  options: { trialId?: string; target?: string } = {},
+  options: { trialId?: string; target?: string; additionalLineage?: SourceRecordReference[] } = {},
 ): FormulaVersionBundleInput {
   const sourceRecords = [
     { sourceEntity: "formulation", sourceRecordId: formulaId },
@@ -28,7 +29,7 @@ function bundle(
   ];
   const compositionRow = formulaVersionCompositionRowSchema.parse({
     datasetSchemaVersion: DATASET_SCHEMA_VERSION,
-    sourceRecords,
+    sourceRecords: [...sourceRecords, ...(options.additionalLineage ?? [])],
     formulaId,
     formulaCode: `FORM-${formulaId}`,
     formulaVersionId,
@@ -113,6 +114,56 @@ describe("partitionDataset", () => {
       sourceEntity: "laboratoryTrial",
       sourceRecordId: "TRIAL-SHARED",
     });
+  });
+
+  it("keeps stability study, sample, and result lineage together", async () => {
+    const result = await partitionDataset([
+      bundle("F-A", "A-v1", 1, { additionalLineage: [
+        { sourceEntity: "stabilityStudy", sourceRecordId: "STUDY-SHARED" },
+        { sourceEntity: "stabilitySample", sourceRecordId: "SAMPLE-A" },
+        { sourceEntity: "stabilityResult", sourceRecordId: "STABILITY-RESULT-A" },
+      ] }),
+      bundle("F-B", "B-v1", 1, { additionalLineage: [
+        { sourceEntity: "stabilityStudy", sourceRecordId: "STUDY-SHARED" },
+        { sourceEntity: "stabilitySample", sourceRecordId: "SAMPLE-B" },
+        { sourceEntity: "stabilityResult", sourceRecordId: "STABILITY-RESULT-B" },
+      ] }),
+      bundle("F-C", "C-v1", 1), bundle("F-D", "D-v1", 1),
+    ], DEFAULT_CONFIG);
+    const assignments = assignmentMap(result);
+    expect(assignments.get("A-v1")).toBe(assignments.get("B-v1"));
+    const group = result.groups.find(({ formulaVersionIds }) => formulaVersionIds.includes("A-v1"))!;
+    expect(group.sourceRecords).toContainEqual({ sourceEntity: "stabilityStudy", sourceRecordId: "STUDY-SHARED" });
+    expect(group.sourceRecords).toContainEqual({ sourceEntity: "stabilitySample", sourceRecordId: "SAMPLE-A" });
+    expect(group.sourceRecords).toContainEqual({ sourceEntity: "stabilityResult", sourceRecordId: "STABILITY-RESULT-B" });
+  });
+
+  it("keeps related DOE study/design/run/observation and corrective-action records together", async () => {
+    const result = await partitionDataset([
+      bundle("F-A", "A-v1", 1, { additionalLineage: [
+        { sourceEntity: "doeStudy", sourceRecordId: "DOE-SHARED" },
+        { sourceEntity: "doeDesign", sourceRecordId: "DESIGN-A" },
+        { sourceEntity: "doeRun", sourceRecordId: "RUN-A" },
+        { sourceEntity: "doeObservation", sourceRecordId: "OBS-A" },
+        { sourceEntity: "correctiveAction", sourceRecordId: "ACTION-SHARED" },
+      ] }),
+      bundle("F-B", "B-v1", 1, { additionalLineage: [
+        { sourceEntity: "doeStudy", sourceRecordId: "DOE-SHARED" },
+        { sourceEntity: "doeDesign", sourceRecordId: "DESIGN-B" },
+        { sourceEntity: "doeRun", sourceRecordId: "RUN-B" },
+        { sourceEntity: "doeObservation", sourceRecordId: "OBS-B" },
+        { sourceEntity: "correctiveAction", sourceRecordId: "ACTION-SHARED" },
+      ] }),
+      bundle("F-C", "C-v1", 1), bundle("F-D", "D-v1", 1),
+    ], DEFAULT_CONFIG);
+    const assignments = assignmentMap(result);
+    expect(assignments.get("A-v1")).toBe(assignments.get("B-v1"));
+    const group = result.groups.find(({ formulaVersionIds }) => formulaVersionIds.includes("A-v1"))!;
+    expect(group.sourceRecords).toContainEqual({ sourceEntity: "doeStudy", sourceRecordId: "DOE-SHARED" });
+    expect(group.sourceRecords).toContainEqual({ sourceEntity: "doeDesign", sourceRecordId: "DESIGN-B" });
+    expect(group.sourceRecords).toContainEqual({ sourceEntity: "doeRun", sourceRecordId: "RUN-A" });
+    expect(group.sourceRecords).toContainEqual({ sourceEntity: "doeObservation", sourceRecordId: "OBS-B" });
+    expect(group.sourceRecords).toContainEqual({ sourceEntity: "correctiveAction", sourceRecordId: "ACTION-SHARED" });
   });
 
   it("does not use measured target values to determine groups or assignments", async () => {
