@@ -605,6 +605,9 @@ export * from "./engine/formulaVersionFeatureExtractor";
 export * from "./engine/formulaVersionTargetExtractor";
 export * from "./schemas/datasetManifest";
 export * from "./engine/datasetManifestBuilder";
+export type { FormulaVersionBundleInput } from "./engine/datasetManifestBuilder";
+export * from "./schemas/datasetPartition";
+export * from "./engine/datasetPartitioner";
 export {
   PRECISION,
   CURRENCY_DP,
