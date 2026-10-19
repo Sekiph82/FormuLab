@@ -5,12 +5,19 @@ workbench for macOS, Windows & Linux." Bundle identifier:
 `com.formulab.app`. Internal packages: `@formulab/shared`,
 `@formulab/desktop`.
 
-Project rules and working context for AI agents (Claude Code, Cursor, Codex, etc.).
-`CLAUDE.md` points agents back to this governance file; edit project-wide rules here.
+Project rules and working context for AI agents.
+
+**Primary implementation/execution agent: Codex.** Codex owns active FormuLab implementation work, testing, TASKS.md state transitions, commits, and pushes unless the owner explicitly assigns a different actor for a specific task. Other agent-specific files are compatibility/history surfaces only and must not override this rule.
+
+Canonical repository: https://github.com/Sekiph82/FormuLab
+Canonical task ledger: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
+
+`CLAUDE.md` is retained only as a compatibility pointer back to this governance file; edit project-wide rules here.
 
 ## H!veAI GitHub tracking
 
-- The repository root `TASKS.md` is the **only current project-status tracker**.
+- The repository root `TASKS.md` is the **only current project-status tracker**: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
+- Codex is the default required actor for active implementation unless `TASKS.md` explicitly names another actor.
 - H!veAI project truth is GitHub repository metadata plus root `TASKS.md` on the configured tracked branch.
 - Current H!veAI tracked branch for FormuLab is `main`.
 - `PROGRESS.md`, `project-control/**`, handoffs, audits, prompts, logs, roadmap/spec documents, GitHub issues, and `docs/migration/legacy-task-trackers/**` are evidence/history or scope context only. They must not override task state in root `TASKS.md`.
@@ -89,9 +96,8 @@ SQLite + JSONL provenance.
 - `project-control/**` may hold provider-specific implementation evidence, audits,
   prompts, logs, or handoffs, but none of it is task-state authority.
 - Keep implementation sessions bounded to one related subsystem and one logical commit.
-- Use a fresh Claude context after each completed session when useful.
-- Update provider handoffs when required by that workflow, without duplicating the
-  canonical task state already present in `TASKS.md`.
+- Provider-specific contexts or handoffs may be used only when explicitly requested, without duplicating the canonical task state already present in `TASKS.md`.
+- Do not route active implementation to Claude by default; Codex is the primary executor.
 - Reserve full regression, release builds, installers, and native verification for closure sessions.
 
 ## Data integrity
