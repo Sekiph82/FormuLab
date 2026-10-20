@@ -15,6 +15,7 @@
 //   data/master/optimization_profiles.json
 //   data/master/optimization_runs.json
 //   data/master/optimization_scenarios.json
+//   data/master/alternative_rankings.json
 //   data/master/substitution_runs.json
 //   data/master/laboratory_trials.json
 //   data/master/test_definitions.json
@@ -124,7 +125,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 94] = [
+const COLLECTIONS: [(&str, bool); 95] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -153,6 +154,9 @@ const COLLECTIONS: [(&str, bool); 94] = [
     ("optimization_profiles", false),
     ("optimization_runs", true),
     ("optimization_scenarios", true),
+    // A ranking record freezes every decision input, policy version and
+    // deterministic ordering for one generated formulation session.
+    ("alternative_rankings", true),
     // Substitution engine: a run (the request + its scored candidates, and
     // which one was applied) is immutable for the same reason.
     ("substitution_runs", true),
@@ -949,7 +953,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 94);
+        assert_eq!(COLLECTIONS.len(), 95);
     }
 
     #[test]
