@@ -9,7 +9,7 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Milestone: FVL-07
 - Current Sprint: FVL-07-S01
 - Current Task: FVL-07.001 — Eligibility: minimum dataset size and target-observation thresholds
-- Current Task Status: READY
+- Current Task Status: IN_PROGRESS
 - Next Task: FVL-07.002 — Eligibility: missing-data rules and applicability-domain requirements
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -208,7 +208,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-07
 
 ## Sprint FVL-07-S01 — Eligibility & feature engineering
-- [ ] FVL-07.001 — Eligibility: minimum dataset size and target-observation thresholds
+- [~] FVL-07.001 — Eligibility: minimum dataset size and target-observation thresholds
 - [ ] FVL-07.002 — Eligibility: missing-data rules and applicability-domain requirements
 - [ ] FVL-07.003 — Explicit INSUFFICIENT_DATA outcome below threshold
 - [ ] FVL-07.004 — Feature generation: composition + material/property features with provenance
