@@ -357,6 +357,44 @@ export function previewDataExchangeImport(
       }
     }
 
+    // FVL-06 measured-response contracts span related columns and cannot be
+    // validated one cell at a time. Keep these checks in the shared preview
+    // pipeline so malformed rows never reach the canonical commit handler.
+    const addRowError = (message: string) => {
+      messages.push(message);
+      hasError = true;
+    };
+    if (template.templateCode === "test_definitions") {
+      if (!!record.metric_code !== !!record.metric_family) {
+        addRowError('"metric_code" and "metric_family" must be supplied together.');
+      }
+    }
+    if (template.templateCode === "lab_results") {
+      const normalizationFields = ["normalized_performance_value", "normalization_rule_id", "normalization_rule_version", "normalization_inputs"];
+      const suppliedNormalizationFields = normalizationFields.filter((key) => record[key] !== undefined);
+      if (suppliedNormalizationFields.length > 0 && suppliedNormalizationFields.length !== normalizationFields.length) {
+        addRowError(`Normalized performance requires all fields: ${normalizationFields.join(", ")}.`);
+      }
+      if (record.normalized_performance_value !== undefined && record.numeric_value === undefined) {
+        addRowError('"normalized_performance_value" requires the raw "numeric_value" to remain present.');
+      }
+      if (record.normalization_inputs !== undefined) {
+        try {
+          const inputs: unknown = JSON.parse(record.normalization_inputs);
+          if (!inputs || typeof inputs !== "object" || Array.isArray(inputs) || Object.keys(inputs).length === 0 || Object.values(inputs).some((value) => typeof value !== "string" || !value.trim())) {
+            addRowError('"normalization_inputs" must be a non-empty JSON object whose values are non-empty strings.');
+          }
+        } catch {
+          // validateCell already reports invalid JSON; this guards values
+          // that were inserted by a non-CSV caller as well.
+          addRowError('"normalization_inputs" must be valid JSON.');
+        }
+      }
+      if ((record.project_code === undefined) !== (record.formula_version === undefined)) {
+        addRowError('"project_code" and "formula_version" must be supplied together for exact formula linkage.');
+      }
+    }
+
     const naturalKey = naturalKeyOf(template, record);
     if (!naturalKey.replace(/:/g, "")) {
       messages.push("Natural key is empty — this row cannot be matched safely.");

@@ -221,7 +221,17 @@ export function DataExchangeImportDialog({
     setBusy(true);
     try {
       const toCommit = allowPartial ? committableRows : rows.filter((r) => committableStates.has(r.state));
-      const outcomes = await commitDataExchangeRows(template, toCommit, { actorUserId, actorRole });
+      const outcomes = await commitDataExchangeRows(template, toCommit, {
+        actorUserId,
+        actorRole,
+        sourceFile: {
+          fileName: filename,
+          fileType,
+          sha256: fileHash || undefined,
+          importJobId: draftJob?.id,
+          sheetName: fileType === "xlsx" ? "Data" : undefined,
+        },
+      });
       const created = outcomes.filter((o) => o.outcome === "created").length;
       const updated = outcomes.filter((o) => o.outcome === "updated").length;
       const unchanged = outcomes.filter((o) => o.outcome === "unchanged").length;

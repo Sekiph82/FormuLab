@@ -111,6 +111,14 @@ export interface DataExchangeRowCommitOutcome {
 interface CommitCtx {
   actorUserId: string;
   actorRole: ApprovalRole;
+  sourceFile?: {
+    fileName: string;
+    fileType: "csv" | "xlsx";
+    sha256?: string;
+    importJobId?: string;
+    connectorId?: string;
+    sheetName?: string;
+  };
 }
 
 const nn = (v: string | undefined) => (v && v.trim() !== "" ? v.trim() : undefined);
@@ -181,7 +189,14 @@ const GROUPED_LINE_BUILDERS: Partial<Record<string, (rows: DataExchangeRowResult
       .map((row) => ({
         replicateNumber: Number.parseInt(row.record.replicate_number || "1", 10),
         numericValue: nn(row.record.numeric_value),
+        normalizedPerformanceValue: nn(row.record.normalized_performance_value),
+        normalizationRuleId: nn(row.record.normalization_rule_id),
+        normalizationRuleVersion: nn(row.record.normalization_rule_version),
+        normalizationInputs: nn(row.record.normalization_inputs),
         textValue: nn(row.record.text_value),
+        wavelengthNm: nn(row.record.wavelength_nm),
+        referenceContext: nn(row.record.reference_context),
+        sourceRowNumber: row.rowNumber,
       })),
   stability_protocols: (rows) =>
     rows.map((row) => ({
@@ -778,12 +793,19 @@ const TEST_RESULT_TYPES = ["numeric", "text", "boolean", "pass_fail", "categoric
 const commitTestDefinitions: Handler = async (r) => {
   const existing = await findByCode<Record<string, unknown>>("test_definitions", "code", r.test_code);
   const record = {
-    schemaVersion: "1.0" as const,
+    schemaVersion: "1.1" as const,
     code: r.test_code,
     name: r.test_name,
     category: nn(r.test_category) ?? "general",
     description: [nn(r.decimal_places) ? `decimal_places: ${r.decimal_places}` : undefined, r.tags ? `tags: ${r.tags}` : undefined, nn(r.notes)].filter(Boolean).join(" | ") || undefined,
     methodReference: nn(r.method_reference),
+    metric: nn(r.metric_code) && nn(r.metric_family) ? {
+      metricCode: r.metric_code,
+      family: r.metric_family,
+      description: nn(r.metric_description),
+      wavelengthNm: nn(r.metric_wavelength_nm),
+      referenceContext: nn(r.metric_reference_context),
+    } : undefined,
     resultType: (TEST_RESULT_TYPES.includes(r.result_type as (typeof TEST_RESULT_TYPES)[number]) ? r.result_type : "numeric") as (typeof TEST_RESULT_TYPES)[number],
     unit: nn(r.unit),
     targetValue: nn(r.target_value),
@@ -836,8 +858,9 @@ async function findOrCreateTrial(r: RowRecord): Promise<{ id: string; projectId:
   const formulation = formulations.find((f) => f.code === r.project_code);
   if (!formulation) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet, and project "${r.project_code}" does not exist either — nothing real to build a trial from.`);
   const { versions } = await readFormulation(formulation.id);
-  const version = r.formula_version ? versions.find((v) => v.versionNumber === Number.parseInt(r.formula_version, 10)) : versions[versions.length - 1];
-  if (!version) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet, and formula "${r.project_code}" has no saved version${r.formula_version ? ` ${r.formula_version}` : ""} to build one from.`);
+  if (!r.formula_version) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet, and formula_version is required to avoid linking historical results to a latest version.`);
+  const version = versions.find((v) => v.versionNumber === Number.parseInt(r.formula_version, 10));
+  if (!version) throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet, and formula "${r.project_code}" has no saved version ${r.formula_version} to build one from.`);
 
   const now = nowIso();
   const trial: LaboratoryTrial = {
@@ -868,10 +891,11 @@ async function findOrCreateTrial(r: RowRecord): Promise<{ id: string; projectId:
   return trial;
 }
 
-const commitLabResults: Handler = async (r) => {
+const commitLabResults: Handler = async (r, ctx) => {
   const trial = await findOrCreateTrial(r);
-  const testDef = await findByCode<{ code: string; resultType: string }>("test_definitions", "code", r.test_code);
+  const testDef = await findByCode<{ code: string; resultType: string; unit?: string; metric?: { metricCode: string; family: string; description?: string; wavelengthNm?: string; referenceContext?: string } }>("test_definitions", "code", r.test_code);
   if (!testDef) throw new Error(`No test definition with code "${r.test_code}" exists yet — import or create it first.`);
+  if (r.unit && testDef.unit && r.unit !== testDef.unit) throw new Error(`Unit "${r.unit}" does not match test definition "${r.test_code}" unit "${testDef.unit}".`);
 
   // FVL-04.020 — the customer's own external formula/version reference is
   // cross-checked against the trial actually resolved, catching a
@@ -897,32 +921,64 @@ const commitLabResults: Handler = async (r) => {
     }
   }
 
-  const replicates = (r as unknown as { __lines: { replicateNumber: number; numericValue?: string; textValue?: string }[] }).__lines;
+  const replicates = (r as unknown as { __lines: {
+    replicateNumber: number; numericValue?: string; normalizedPerformanceValue?: string; normalizationRuleId?: string;
+    normalizationRuleVersion?: string; normalizationInputs?: string; textValue?: string; sourceRowNumber: number;
+  }[] }).__lines;
+  const normalizationFor = (rep: typeof replicates[number]) => {
+    const hasAny = [rep.normalizedPerformanceValue, rep.normalizationRuleId, rep.normalizationRuleVersion, rep.normalizationInputs].some((value) => value !== undefined);
+    if (!hasAny) return undefined;
+    if (!rep.normalizedPerformanceValue || !rep.normalizationRuleId || !rep.normalizationRuleVersion || !rep.normalizationInputs) {
+      throw new Error(`Replicate ${rep.replicateNumber} must provide normalized_performance_value, normalization_rule_id, normalization_rule_version, and normalization_inputs together.`);
+    }
+    const inputs = JSON.parse(rep.normalizationInputs) as Record<string, unknown>;
+    if (!inputs || typeof inputs !== "object" || Array.isArray(inputs) || Object.keys(inputs).length === 0 || Object.values(inputs).some((value) => typeof value !== "string" || value.trim() === "")) {
+      throw new Error(`Replicate ${rep.replicateNumber} normalization_inputs must be a non-empty JSON object of non-empty strings.`);
+    }
+    return { value: rep.normalizedPerformanceValue, ruleId: rep.normalizationRuleId, ruleVersion: rep.normalizationRuleVersion, inputs: inputs as Record<string, string> };
+  };
+  const createdAt = nowIso();
+  const sourceProvenance = ctx.sourceFile ? replicates.map((rep) => ({
+    fileName: ctx.sourceFile!.fileName,
+    fileType: ctx.sourceFile!.fileType,
+    mimeType: ctx.sourceFile!.fileType === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    sha256: ctx.sourceFile!.sha256,
+    importJobId: ctx.sourceFile!.importJobId,
+    connectorId: ctx.sourceFile!.connectorId,
+    rowNumber: rep.sourceRowNumber,
+    sheetName: ctx.sourceFile!.sheetName,
+  })) : undefined;
   const record = {
-    schemaVersion: "1.0" as const,
+    schemaVersion: "1.1" as const,
     id: newId("testresult"),
     trialId: trial.id,
+    formulaVersionId: trial.sourceFormulaVersionId,
     // `test_definitions` records have no separate `id` field — their code
     // is their identity, matching `TrialsPanel.tsx`'s
     // `testDefinitionId: definition.code` for a human-recorded result.
     testDefinitionId: testDef.code,
+    metricSnapshot: testDef.metric,
     sampleId: nn(r.sample_code),
     resultType: (TEST_RESULT_TYPES.includes(testDef.resultType as (typeof TEST_RESULT_TYPES)[number]) ? testDef.resultType : "numeric") as (typeof TEST_RESULT_TYPES)[number],
     replicates: replicates.map((rep) => ({
       replicateNumber: rep.replicateNumber,
       numericValue: rep.numericValue,
+      normalizedPerformance: normalizationFor(rep),
       textValue: rep.textValue,
       isOutlier: false,
     })),
     passFail: "not_evaluated" as const,
-    unit: nn(r.unit),
+    unit: nn(r.unit) ?? testDef.unit,
+    measurementContext: nn(r.wavelength_nm) || nn(r.reference_context) ? { wavelengthNm: nn(r.wavelength_nm), referenceContext: nn(r.reference_context) } : undefined,
     instrument: nn(r.instrument),
+    sourceProvenance,
     notes: nn(r.notes),
     attachments: [] as unknown[],
     performedBy: nn(r.analyst) ?? "data-exchange-import",
-    performedAt: nn(r.result_date) ?? nowIso(),
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
+    performedAt: nn(r.acquired_at) ?? nn(r.result_date),
+    importedAt: ctx.sourceFile ? createdAt : undefined,
+    createdAt,
+    updatedAt: createdAt,
   };
   await upsertRecords("test_results", [record as never]);
   return { outcome: "created", targetCollection: "test_results", targetRecordId: record.id };

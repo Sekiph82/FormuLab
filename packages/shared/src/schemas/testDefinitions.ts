@@ -41,6 +41,65 @@ export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 export const ATTACHMENT_FILE_CATEGORIES = ["image", "pdf", "spreadsheet", "text_document"] as const;
 export type AttachmentFileCategory = (typeof ATTACHMENT_FILE_CATEGORIES)[number];
 
+/** Measurement families are descriptive identities only. The schema does
+ *  not assign equations, reference standards, or pass limits to a family. */
+export const MEASURED_METRIC_FAMILIES = [
+  "absorbance",
+  "reflectance",
+  "transmittance",
+  "colorimetric",
+  "soil_removal",
+  "whiteness_brightness",
+  "comparative_performance",
+  "other",
+] as const;
+export type MeasuredMetricFamily = (typeof MEASURED_METRIC_FAMILIES)[number];
+
+export const testMetricDefinitionSchema = z.object({
+  metricCode: z.string().min(1),
+  family: z.enum(MEASURED_METRIC_FAMILIES),
+  description: z.string().optional(),
+  /** Wavelength specified by the method, not a guessed default. */
+  wavelengthNm: decimalString.optional(),
+  referenceContext: z.string().optional(),
+});
+export type TestMetricDefinition = z.infer<typeof testMetricDefinitionSchema>;
+
+export const measuredResponseContextSchema = z.object({
+  wavelengthNm: decimalString.optional(),
+  referenceContext: z.string().optional(),
+});
+export type MeasuredResponseContext = z.infer<typeof measuredResponseContextSchema>;
+
+/** A normalized value is accepted only with enough explicit metadata to
+ *  identify the deterministic rule and its inputs. This records evidence;
+ *  it does not invent a rule or recompute a scientific result. */
+export const normalizedPerformanceSchema = z.object({
+  value: decimalString,
+  unit: z.string().optional(),
+  ruleId: z.string().min(1),
+  ruleVersion: z.string().min(1),
+  inputs: z.record(z.string(), z.string().min(1)).refine((inputs) => Object.keys(inputs).length > 0, {
+    message: "Normalization inputs must be recorded.",
+  }),
+});
+export type NormalizedPerformance = z.infer<typeof normalizedPerformanceSchema>;
+
+/** Stable source-file identity and row locator, deliberately excluding
+ *  machine-specific paths. Raw bytes remain in the existing managed-file
+ *  attachment lifecycle when a user attaches them. */
+export const measuredResponseSourceProvenanceSchema = z.object({
+  fileName: z.string().min(1),
+  fileType: z.enum(["csv", "xlsx"]),
+  mimeType: z.string().min(1).optional(),
+  sha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+  importJobId: z.string().min(1).optional(),
+  connectorId: z.string().min(1).optional(),
+  rowNumber: z.number().int().positive().optional(),
+  sheetName: z.string().min(1).optional(),
+});
+export type MeasuredResponseSourceProvenance = z.infer<typeof measuredResponseSourceProvenanceSchema>;
+
 /** A reference, never an embedded blob — files stay in the project folder,
  *  same convention as `RawMaterial.documents`. `location` is always a path
  *  relative to the project's own attachment folder, never an arbitrary
@@ -87,7 +146,7 @@ export const TEST_APPLICABLE_CONTEXTS = ["trial", "stability"] as const;
 export type TestApplicableContext = (typeof TEST_APPLICABLE_CONTEXTS)[number];
 
 export const testDefinitionSchema = z.object({
-  schemaVersion: z.literal("1.0"),
+  schemaVersion: z.enum(["1.0", "1.1"]),
   code: z.string().min(1),
   name: z.string().min(1),
   category: z.string().min(1),
@@ -95,6 +154,7 @@ export const testDefinitionSchema = z.object({
   /** Free text — "in-house SOP-014", "ISO 4316" — never invented; absent is
    *  honest when the lab has not recorded a method reference yet. */
   methodReference: z.string().optional(),
+  metric: testMetricDefinitionSchema.optional(),
   resultType: z.enum(TEST_RESULT_TYPES),
   unit: z.string().optional(),
   targetValue: decimalString.optional(),
@@ -172,6 +232,9 @@ export type TestRequirementSnapshot = z.infer<typeof testRequirementSnapshotSche
 export const testReplicateSchema = z.object({
   replicateNumber: z.number().int().positive(),
   numericValue: decimalString.optional(),
+  /** Optional deterministic performance normalization; numericValue above
+   *  always remains the raw instrument observation. */
+  normalizedPerformance: normalizedPerformanceSchema.optional(),
   textValue: z.string().optional(),
   notes: z.string().optional(),
   /** Flagged, never deleted — see `engine/testResults.ts`'s outlier
@@ -214,10 +277,13 @@ export type TestResultOverride = z.infer<typeof testResultOverrideSchema>;
  *  sample × time point, not a trial id, even though both reuse
  *  `testReplicateSchema`/`replicateStatsSchema`/`passFailLogicSchema`. */
 export const testResultSchema = z.object({
-  schemaVersion: z.literal("1.0"),
+  schemaVersion: z.enum(["1.0", "1.1"]),
   id: z.string().min(1),
   trialId: z.string().min(1),
+  /** Exact immutable version identity captured from the linked trial. */
+  formulaVersionId: z.string().min(1).optional(),
   testDefinitionId: z.string().min(1),
+  metricSnapshot: testMetricDefinitionSchema.optional(),
   sampleId: z.string().optional(),
   timePoint: z.string().optional(),
   storageCondition: z.string().optional(),
@@ -237,15 +303,19 @@ export const testResultSchema = z.object({
   passFail: z.enum(["pass", "fail", "not_evaluated"]).default("not_evaluated"),
 
   unit: z.string().optional(),
+  measurementContext: measuredResponseContextSchema.optional(),
   /** Instrument/device used, when known — e.g. a customer migration's own
    *  "Instrument" column, or a manually recorded device name. Never
    *  fabricated when absent. */
   instrument: z.string().optional(),
+  sourceProvenance: z.array(measuredResponseSourceProvenanceSchema).optional(),
   notes: z.string().optional(),
   attachments: z.array(attachmentReferenceSchema).default([]),
 
   performedBy: z.string().min(1),
-  performedAt: z.string(),
+  performedAt: z.string().optional(),
+  /** Time this source record entered FormuLab; distinct from performedAt. */
+  importedAt: z.string().optional(),
   reviewedBy: z.string().optional(),
   reviewedAt: z.string().optional(),
 

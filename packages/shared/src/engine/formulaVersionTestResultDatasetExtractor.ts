@@ -214,7 +214,9 @@ function byTrialOrder(a: LaboratoryTrial, b: LaboratoryTrial): number {
 }
 
 function byTestResultOrder(a: TestResult, b: TestResult): number {
-  return compareOrdinal(a.performedAt, b.performedAt) || compareOrdinal(a.id, b.id);
+  // Unknown acquisition times remain unknown and sort after timed results;
+  // the stable id tie-break keeps rebuilds deterministic without inventing a time.
+  return compareOrdinal(a.performedAt ?? "\uffff", b.performedAt ?? "\uffff") || compareOrdinal(a.id, b.id);
 }
 
 /** Builds the exact-id trial lookup over the ENTIRE supplied pool, failing
@@ -376,7 +378,7 @@ function buildTestResultsByTrialId(
         { testResultId: result.id, trialId: result.trialId },
       );
     }
-    if (!isCanonicalIsoTimestamp(result.performedAt)) {
+    if (result.performedAt !== undefined && !isCanonicalIsoTimestamp(result.performedAt)) {
       throw new FormulaVersionTestResultDatasetExtractionError(
         "invalid_timestamp_format",
         `Test result "${result.id}" has a performedAt value ("${result.performedAt}") that is not the canonical toISOString() format this extractor relies on for chronological ordering.`,

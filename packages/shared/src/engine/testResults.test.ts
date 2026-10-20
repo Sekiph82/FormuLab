@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyResultOverride, computeReplicateStats, evaluatePassFail, flagOutliers, reviseTestResult } from "./testResults";
 import type { TestReplicate, TestResult } from "../schemas/testDefinitions";
+import { testDefinitionSchema, testResultSchema } from "../schemas/testDefinitions";
 
 function replicate(n: number, value: string | undefined): TestReplicate {
   return { replicateNumber: n, numericValue: value, isOutlier: false };
@@ -132,5 +133,51 @@ describe("flagOutliers", () => {
     const replicates = [replicate(1, "10"), replicate(2, "500")];
     const flagged = flagOutliers(replicates);
     expect(flagged.every((r) => !r.isOutlier)).toBe(true);
+  });
+});
+
+describe("FVL-06 measured-response contracts", () => {
+  it("round-trips metric definitions, raw values, exact linkage, timestamps and import provenance", () => {
+    const result = testResultSchema.parse(baseResult({
+      schemaVersion: "1.1",
+      formulaVersionId: "formula-version-7",
+      sampleId: "sample-A",
+      metricSnapshot: { metricCode: "SR-405", family: "soil_removal", description: "Source-defined soil removal response" },
+      measurementContext: { wavelengthNm: "405", referenceContext: "unsoiled swatch, source instrument export" },
+      replicates: [{
+        replicateNumber: 1,
+        numericValue: "0",
+        normalizedPerformance: { value: "0", ruleId: "vendor-export-normalization", ruleVersion: "2", inputs: { reference: "0", sample: "0" } },
+        isOutlier: false,
+      }],
+      sourceProvenance: [{
+        fileName: "instrument-export.csv", fileType: "csv", mimeType: "text/csv", sha256: "a".repeat(64),
+        importJobId: "dxjob-1", rowNumber: 2,
+      }],
+      importedAt: "2026-04-01T12:00:00.000Z",
+      performedAt: "2026-04-01T11:59:00.000Z",
+    }));
+    expect(result.formulaVersionId).toBe("formula-version-7");
+    expect(result.replicates[0].numericValue).toBe("0");
+    expect(result.replicates[0].normalizedPerformance?.ruleVersion).toBe("2");
+    expect(result.sourceProvenance?.[0].rowNumber).toBe(2);
+    expect(testResultSchema.parse(result)).toEqual(result);
+  });
+
+  it("keeps missing raw and normalized values absent and rejects untraceable normalization", () => {
+    const missing = testResultSchema.parse(baseResult({ schemaVersion: "1.1", replicates: [{ replicateNumber: 1, isOutlier: false }] }));
+    expect(missing.replicates[0].numericValue).toBeUndefined();
+    expect(missing.replicates[0].normalizedPerformance).toBeUndefined();
+    expect(testResultSchema.safeParse({ ...missing, replicates: [{ replicateNumber: 1, numericValue: "5", normalizedPerformance: { value: "4", ruleId: "", ruleVersion: "1", inputs: {} }, isOutlier: false }] }).success).toBe(false);
+  });
+
+  it("supports source-defined metric families without assigning scientific equations", () => {
+    const definition = testDefinitionSchema.parse({
+      schemaVersion: "1.1", code: "TEST-REFLECT", name: "Reflectance at 405 nm", category: "performance",
+      resultType: "numeric", metric: { metricCode: "REF-405", family: "reflectance", wavelengthNm: "405" },
+      createdAt: "2026-04-01T00:00:00.000Z", updatedAt: "2026-04-01T00:00:00.000Z",
+    });
+    expect(definition.metric?.metricCode).toBe("REF-405");
+    expect(testDefinitionSchema.parse(definition)).toEqual(definition);
   });
 });

@@ -33,7 +33,7 @@ export interface ResultLike {
   unit?: string;
   replicates: unknown[];
   performedBy: string;
-  performedAt: string;
+  performedAt?: string;
   override?: unknown;
 }
 

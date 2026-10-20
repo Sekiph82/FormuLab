@@ -873,6 +873,60 @@ describe("commitDataExchangeRows — lab results (grouped, reference resolution)
     expect(outcomes[0].outcome).toBe("created");
   });
 
+  it("FVL-06: persists raw and explicitly normalized measurements, exact historical linkage, and source-file row provenance", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-1", projectId: "formulation-1", sourceFormulaVersionId: "version-historical" }]);
+      if (collection === "test_definitions") return Promise.resolve([{
+        code: "TEST-REFLECT-405", resultType: "numeric", unit: "reflectance-unit",
+        metric: { metricCode: "REF-405", family: "reflectance", wavelengthNm: "405" },
+      }]);
+      return Promise.resolve([]);
+    });
+    const rows = [row({
+      trial_code: "TEST-TRIAL-1", sample_code: "SAMPLE-A", test_code: "TEST-REFLECT-405", replicate_number: "1",
+      numeric_value: "0", normalized_performance_value: "0", normalization_rule_id: "source-explicit-rule",
+      normalization_rule_version: "2", normalization_inputs: '{"reference":"0","sample":"0"}',
+      unit: "reflectance-unit", wavelength_nm: "405", reference_context: "source blank",
+      acquired_at: "2026-04-01T11:59:00.000Z", analyst: "TEST Analyst", instrument: "TEST Spectrometer",
+    }, { rowNumber: 7 })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, {
+      ...ctx,
+      sourceFile: { fileName: "spectrometer-export.csv", fileType: "csv", sha256: "a".repeat(64), importJobId: "dxjob-test-1" },
+    });
+    expect(outcomes[0].outcome).toBe("created");
+    const saved = bridge.upsertRecords.mock.calls.find(([collection]) => collection === "test_results")![1][0] as Record<string, unknown>;
+    expect(saved).toMatchObject({
+      schemaVersion: "1.1", trialId: "trial-1", formulaVersionId: "version-historical", sampleId: "SAMPLE-A",
+      testDefinitionId: "TEST-REFLECT-405", metricSnapshot: { metricCode: "REF-405", family: "reflectance", wavelengthNm: "405" },
+      unit: "reflectance-unit", measurementContext: { wavelengthNm: "405", referenceContext: "source blank" },
+      performedAt: "2026-04-01T11:59:00.000Z", sourceProvenance: [{
+        fileName: "spectrometer-export.csv", fileType: "csv", mimeType: "text/csv", sha256: "a".repeat(64),
+        importJobId: "dxjob-test-1", rowNumber: 7,
+      }],
+    });
+    expect((saved.replicates as { numericValue?: string; normalizedPerformance?: { value: string; ruleId: string; ruleVersion: string; inputs: Record<string, string> } }[])[0]).toEqual({
+      replicateNumber: 1, numericValue: "0", normalizedPerformance: {
+        value: "0", ruleId: "source-explicit-rule", ruleVersion: "2", inputs: { reference: "0", sample: "0" },
+      }, textValue: undefined, isOutlier: false,
+    });
+    expect(saved.importedAt).toBeDefined();
+    expect(saved.importedAt).not.toBe(saved.performedAt);
+  });
+
+  it("FVL-06: rejects an instrument unit that conflicts with its exact TestDefinition", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-UNIT" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-UNIT", resultType: "numeric", unit: "mPa·s" }]);
+      return Promise.resolve([]);
+    });
+    const outcome = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, [row({
+      trial_code: "TEST-TRIAL-UNIT", sample_code: "S1", test_code: "TEST-UNIT", replicate_number: "1", numeric_value: "10", unit: "cP",
+    })], ctx);
+    expect(outcome[0].outcome).toBe("failed");
+    expect(outcome[0].message).toMatch(/does not match test definition/);
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("test_results", expect.anything());
+  });
+
   it("FVL-04.020: a project_code/formula_version that does NOT match the resolved trial's own link is refused — unresolved-linkage detection, never a silently mis-attached result", async () => {
     bridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-001", projectId: "formulation-1", sourceFormulaVersionId: "version-1" }]);

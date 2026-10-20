@@ -7,10 +7,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Project Status
 
 - Current Milestone: FVL-06
-- Current Sprint: FVL-06-S01
-- Current Task: FVL-06.001 — Define structured measured-response schema
-- Current Task Status: IN_PROGRESS
-- Next Task: FVL-06.002 — Define spectrophotometric/detergent-performance metric schema
+- Current Sprint: FVL-06-S02
+- Current Task: FVL-06.006 — CSV/Excel instrument import through existing Data Exchange
+- Current Task Status: READY
+- Next Task: FVL-06.007 — Instrument-import validation rules for units and linkage
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 103
-- Remaining Tasks: 68
-- Completion: 60.2%
+- Completed Tasks: 108
+- Remaining Tasks: 63
+- Completion: 63.2%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -192,11 +192,11 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-06
 
 ## Sprint FVL-06-S01 — Measured-response domain model
-- [~] FVL-06.001 — Define structured measured-response schema
-- [ ] FVL-06.002 — Define spectrophotometric/detergent-performance metric schema
-- [ ] FVL-06.003 — Raw measurement + normalized-performance field only when deterministic normalization exists
-- [ ] FVL-06.004 — Raw-file attachment/provenance linkage
-- [ ] FVL-06.005 — Measured-response linkage fields for formula version, trial, sample, test definition, timestamps
+- [x] FVL-06.001 — Define structured measured-response schema
+- [x] FVL-06.002 — Define spectrophotometric/detergent-performance metric schema
+- [x] FVL-06.003 — Raw measurement + normalized-performance field only when deterministic normalization exists
+- [x] FVL-06.004 — Raw-file attachment/provenance linkage
+- [x] FVL-06.005 — Measured-response linkage fields for formula version, trial, sample, test definition, timestamps
 
 ## Sprint FVL-06-S02 — Instrument ingestion & dataset integration
 - [ ] FVL-06.006 — CSV/Excel instrument import through existing Data Exchange

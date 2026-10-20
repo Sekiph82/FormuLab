@@ -24,7 +24,7 @@ export interface HistoricalResult {
   retestOf?: string;
   attachments: AttachmentReference[];
   performedBy: string;
-  performedAt: string;
+  performedAt?: string;
   reviewedBy?: string;
   reviewedAt?: string;
   passFail: "pass" | "fail" | "not_evaluated";

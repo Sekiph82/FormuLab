@@ -24,6 +24,7 @@ import { DOSSIER_APPLICABILITY_STATUSES, DOSSIER_EVIDENCE_TYPES, DOSSIER_MANUAL_
 import { CLAIM_CATEGORIES, LABEL_CONTENT_BLOCK_TYPES } from "../schemas/claimsLabels";
 import { SEED_STABILITY_CONDITIONS, SEED_STABILITY_TIME_POINTS } from "../catalog/stabilityConditions";
 import { BENCHMARK_EVIDENCE_TYPES, INGREDIENT_MAPPING_METHODS, CANDIDATE_SCORE_TYPES } from "../schemas/reverseFormulation";
+import { MEASURED_METRIC_FAMILIES } from "../schemas/testDefinitions";
 
 const STABILITY_CONDITION_CODES = SEED_STABILITY_CONDITIONS.map((c) => c.code);
 const STABILITY_TIME_POINT_CODES = SEED_STABILITY_TIME_POINTS.map((tp) => tp.code);
@@ -451,6 +452,11 @@ const TEST_DEFINITION_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "test_name", dataType: "string", description: "Display name.", ...REQ, example: "TEST pH Measurement" }),
   col({ key: "test_category", dataType: "string", description: "Category, e.g. physicochemical." }),
   col({ key: "method_reference", dataType: "string", description: "Method reference/standard." }),
+  col({ key: "metric_code", dataType: "string", description: "Stable measured metric identity." }),
+  col({ key: "metric_family", dataType: "enum", enumValues: MEASURED_METRIC_FAMILIES, description: "Measurement family; descriptive only, with no implied equation or standard." }),
+  col({ key: "metric_description", dataType: "string", description: "Source-defined metric description." }),
+  col({ key: "metric_wavelength_nm", dataType: "decimal", description: "Method wavelength in nanometers, when specified." }),
+  col({ key: "metric_reference_context", dataType: "string", description: "Method reference context, when specified." }),
   col({ key: "unit", dataType: "string", description: "Result unit." }),
   col({ key: "result_type", dataType: "enum", description: "Result type.", enumValues: ["numeric", "text", "pass_fail"], defaultValue: "numeric" }),
   col({ key: "lower_limit", dataType: "decimal", description: "Acceptable lower limit." }),
@@ -477,9 +483,16 @@ const LAB_RESULT_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "test_code", dataType: "code_reference", description: "Test performed.", ...REQ, referenceTemplate: "test_definitions", referenceField: "test_code", example: "TEST-TST-001" }),
   col({ key: "replicate_number", dataType: "integer", description: "Replicate number.", ...REQ, defaultValue: "1", example: "1" }),
   col({ key: "numeric_value", dataType: "decimal", description: "Numeric result. Left blank the value is stored as missing, never as zero." }),
+  col({ key: "normalized_performance_value", dataType: "decimal", description: "Optional normalized performance value; requires explicit normalization rule, version, and inputs." }),
+  col({ key: "normalization_rule_id", dataType: "string", description: "Deterministic normalization rule identifier." }),
+  col({ key: "normalization_rule_version", dataType: "string", description: "Exact normalization rule version." }),
+  col({ key: "normalization_inputs", dataType: "json", description: "JSON object of exact non-empty normalization inputs." }),
   col({ key: "text_value", dataType: "string", description: "Text/pass-fail result." }),
   col({ key: "unit", dataType: "string", description: "Result unit." }),
+  col({ key: "wavelength_nm", dataType: "decimal", description: "Measured wavelength in nanometers, when reported by the instrument." }),
+  col({ key: "reference_context", dataType: "string", description: "Source-reported blank/reference context, when applicable." }),
   col({ key: "result_date", dataType: "date", description: "Date measured." }),
+  col({ key: "acquired_at", dataType: "datetime", description: "Exact instrument acquisition timestamp in ISO 8601 format, when available." }),
   col({ key: "analyst", dataType: "string", description: "Analyst." }),
   col({ key: "instrument", dataType: "string", description: "Instrument used." }),
   col({ key: "status", dataType: "enum", description: "Import always writes an unreviewed result; formal review happens afterward in the Laboratory workspace.", enumValues: ["recorded", "missing", "invalid"], defaultValue: "recorded" }),
@@ -903,6 +916,7 @@ function template(def: {
   authorization: readonly ApprovalRole[];
   exampleRows: Record<string, string>[];
   targetCollection: string;
+  schemaVersion?: string;
   enabled?: boolean;
   disabledReason?: string;
 }): DataExchangeTemplateDefinition {
@@ -912,7 +926,7 @@ function template(def: {
     title: def.title,
     description: def.description,
     module: def.module,
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: def.schemaVersion ?? SCHEMA_VERSION,
     supportedFormats: ["csv", "xlsx"],
     columns: def.columns,
     primaryKey: def.naturalKey[0],
@@ -1267,6 +1281,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     updatePolicy: "test_code updates mutable fields on the existing definition.",
     authorization: LAB_ROLES,
     targetCollection: "test_definitions",
+    schemaVersion: "1.1",
     exampleRows: [
       { test_code: "TEST-TST-001", test_name: "TEST pH Measurement", test_category: "physicochemical", method_reference: "internal method TP-01", unit: "pH", result_type: "numeric", lower_limit: "4.5", target_value: "5.5", upper_limit: "6.5", decimal_places: "1", replicate_count: "2", destructive_test: "false", required_for_release: "true", required_for_stability: "true", active: "true", tags: "physicochemical", notes: "Synthetic test row." },
     ],
@@ -1282,6 +1297,7 @@ export const DATA_EXCHANGE_TEMPLATES: DataExchangeTemplateDefinition[] = [
     updatePolicy: "Laboratory results are append-only history — re-importing the same (trial, sample, test, replicate) creates a new result revision rather than overwriting the original measurement; the new revision stays unreviewed until a human reviews it in the Laboratory workspace.",
     authorization: LAB_ROLES,
     targetCollection: "test_results",
+    schemaVersion: "1.1",
     exampleRows: [
       { project_code: "TEST-PROJ-001", formula_version: "1", trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-TST-001", replicate_number: "1", numeric_value: "5.4", text_value: "", unit: "pH", result_date: "2026-01-15", analyst: "Test Analyst", instrument: "TEST pH meter", status: "recorded", deviation_code: "", notes: "Synthetic test row." },
     ],

@@ -38,8 +38,10 @@ describe("Data Exchange template registry", () => {
 
   it("defines a schema version for every template", () => {
     for (const t of DATA_EXCHANGE_TEMPLATES) {
-      expect(t.schemaVersion).toBe("1.0");
+      expect(["1.0", "1.1"]).toContain(t.schemaVersion);
     }
+    expect(getDataExchangeTemplate("test_definitions")?.schemaVersion).toBe("1.1");
+    expect(getDataExchangeTemplate("lab_results")?.schemaVersion).toBe("1.1");
   });
 
   it("supports both csv and xlsx for every template", () => {

@@ -73,6 +73,52 @@ describe("previewDataExchangeImport — fatal / job-level cases", () => {
   });
 });
 
+describe("FVL-06 measured-response row validation", () => {
+  const labResults = getDataExchangeTemplate("lab_results")!;
+  const testDefinitions = getDataExchangeTemplate("test_definitions")!;
+
+  it("requires complete normalization rule provenance and preserves raw-only rows", () => {
+    const headers = ["trial_code", "sample_code", "test_code", "replicate_number", "numeric_value"];
+    const raw = previewDataExchangeImport(labResults, [headers, ["TRIAL-1", "S1", "TEST-1", "1", "0"]]);
+    expect(raw.rows[0].state).toBe("valid_create");
+    expect(raw.rows[0].record.numeric_value).toBe("0");
+
+    const normalized = previewDataExchangeImport(labResults, [
+      [...headers, "normalized_performance_value", "normalization_rule_id", "normalization_rule_version", "normalization_inputs"],
+      ["TRIAL-1", "S1", "TEST-1", "1", "0", "0", "fixture-rule", "1", '{"reference":"0"}'],
+    ]);
+    expect(normalized.rows[0].state).toBe("valid_create");
+    expect(normalized.rows[0].record.numeric_value).toBe("0");
+
+    const incomplete = previewDataExchangeImport(labResults, [
+      [...headers, "normalized_performance_value"],
+      ["TRIAL-1", "S1", "TEST-1", "1", "0", "0"],
+    ]);
+    expect(incomplete.rows[0].state).toBe("invalid");
+    expect(incomplete.rows[0].messages.join(" ")).toMatch(/requires all fields/);
+  });
+
+  it("rejects normalized values without raw measurements, malformed linkage pairs and timestamps", () => {
+    const lab = previewDataExchangeImport(labResults, [
+      ["project_code", "formula_version", "trial_code", "sample_code", "test_code", "replicate_number", "normalized_performance_value", "normalization_rule_id", "normalization_rule_version", "normalization_inputs", "acquired_at"],
+      ["FORM-1", "", "TRIAL-1", "S1", "TEST-1", "1", "10", "rule", "1", '{"x":"1"}', "not-a-time"],
+    ]);
+    expect(lab.rows[0].state).toBe("invalid");
+    expect(lab.rows[0].messages.join(" ")).toMatch(/raw/);
+    expect(lab.rows[0].messages.join(" ")).toMatch(/project_code.*formula_version/);
+    expect(lab.rows[0].messages.join(" ")).toMatch(/ISO datetime/);
+  });
+
+  it("requires metric_code and metric_family together on a test definition", () => {
+    const result = previewDataExchangeImport(testDefinitions, [
+      ["test_code", "test_name", "metric_code"],
+      ["TEST-1", "Test metric", "REF-405"],
+    ]);
+    expect(result.rows[0].state).toBe("invalid");
+    expect(result.rows[0].messages.join(" ")).toMatch(/metric_code.*metric_family/);
+  });
+});
+
 describe("previewDataExchangeImport — row classification", () => {
   it("classifies a well-formed new row as valid_create", () => {
     // Built from the live column list (never a hardcoded position count) so
