@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: FVL-07
-- Current Sprint: FVL-07-S03
-- Current Task: FVL-07.012 — Prediction API with exact formula/version lineage and uncertainty where supported
-- Current Task Status: IN_PROGRESS
-- Next Task: FVL-07.013 — Applicability-domain warning / out-of-domain refusal
+- Current Milestone: FVL-08
+- Current Sprint: FVL-08-S01
+- Current Task: FVL-08.001 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
+- Current Task Status: READY
+- Next Task: FVL-08.002 — Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 124
-- Remaining Tasks: 47
-- Completion: 72.5%
+- Completed Tasks: 129
+- Remaining Tasks: 42
+- Completion: 75.4%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -223,11 +223,11 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-07.011 — Model registry with dataset hash, schema version, algorithm, params, metrics and checksums
 
 ## Sprint FVL-07-S03 — Prediction serving & acceptance
-- [~] FVL-07.012 — Prediction API with exact formula/version lineage and uncertainty where supported
-- [ ] FVL-07.013 — Applicability-domain warning / out-of-domain refusal
-- [ ] FVL-07.014 — Hard rule: prediction cannot override regulatory/safety
-- [ ] FVL-07.015 — Per-product-family, per-target model training
-- [ ] FVL-07.016 — Regression + acceptance tests for eligibility, model selection, registry and OOD refusal
+- [x] FVL-07.012 — Prediction API with exact formula/version lineage and uncertainty where supported
+- [x] FVL-07.013 — Applicability-domain warning / out-of-domain refusal
+- [x] FVL-07.014 — Hard rule: prediction cannot override regulatory/safety
+- [x] FVL-07.015 — Per-product-family, per-target model training
+- [x] FVL-07.016 — Regression + acceptance tests for eligibility, model selection, registry and OOD refusal
 
 # FVL-08
 

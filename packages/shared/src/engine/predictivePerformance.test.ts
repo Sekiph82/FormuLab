@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DATASET_SCHEMA_VERSION,
   FEATURE_SCHEMA_VERSION,
+  canonicalizeForFingerprint,
   buildFormulaVersionBundleManifest,
   extractFormulaVersionDatasetRows,
   formulaVersionDoeRowSchema,
@@ -15,6 +16,7 @@ import {
   registerPredictiveModel,
   serializePredictiveModelRegistry,
   trainPredictiveModel,
+  sha256Hex,
   evaluatePredictiveEligibility,
   type FormulaVersionBundleInput,
   type Formulation,
@@ -299,6 +301,18 @@ describe("FVL-07 predictive performance engine", () => {
     const inDomain = await predictPerformance({ model: trained.model, featureRow: inDomainRow });
     expect(inDomain).toMatchObject({ status: "PREDICTED", formulaId: inDomainRow.formulaId, formulaVersionId: inDomainRow.formulaVersionId, advisoryOnly: true, applicabilityDomain: { inDomain: true } });
     expect(inDomain.uncertainty).toBeUndefined();
+    for (const boundary of [trained.model.applicabilityDomain.minNumeric!, trained.model.applicabilityDomain.maxNumeric!]) {
+      const row = pipeline.featureRows.find((candidate) => candidate.features.find((item) => item.name === featureName)?.numericValue === boundary)!;
+      expect((await predictPerformance({ model: trained.model, featureRow: row })).status).toBe("PREDICTED");
+    }
+    const laundryFeature = (await makePipeline(3, "LAUNDRY")).featureRows[0]!;
+    await expect(predictPerformance({ model: trained.model, featureRow: laundryFeature })).rejects.toThrow("product family");
+    const { artifactChecksum: _checksum, ...unacceptedBase } = trained.model;
+    const unacceptedPayload = { ...unacceptedBase, evaluation: { ...unacceptedBase.evaluation, acceptance: "NOT_ACCEPTED" as const } };
+    const unaccepted = { ...unacceptedPayload, artifactChecksum: await sha256Hex(canonicalizeForFingerprint(unacceptedPayload)) };
+    const notAccepted = await predictPerformance({ model: unaccepted, featureRow: inDomainRow });
+    expect(notAccepted.status).toBe("MODEL_NOT_ACCEPTED");
+    expect(notAccepted).not.toHaveProperty("predictedNumericValue");
     const highVersion = version("SHAMPOO-999", "999");
     const highComposition = extractFormulaVersionDatasetRows({ formulationVersions: [highVersion], formulations: [formulation(highVersion.formulationId)], materials: [material()], formulationVersionIds: [highVersion.id] })[0]!;
     const highFeature = generateModelFeatures([{ compositionRow: highComposition, targetRow: targetRow("SHAMPOO-999", 1999) }])[0]!;
@@ -313,6 +327,7 @@ describe("FVL-07 predictive performance engine", () => {
     expect(predictionDecisionGate({ prediction, safetyVerdict: "PASS", regulatoryVerdict: "FAIL" })).toMatchObject({ eligibleForConsideration: false, regulatoryVerdict: "FAIL", reasonCodes: ["REGULATORY_FAIL"] });
     expect(predictionDecisionGate({ prediction: { ...prediction, status: "OUT_OF_DOMAIN" }, safetyVerdict: "PASS", regulatoryVerdict: "PASS" }).eligibleForConsideration).toBe(false);
     expect(predictionDecisionGate({ prediction, safetyVerdict: "UNKNOWN", regulatoryVerdict: "PASS" })).toMatchObject({ eligibleForConsideration: false, reasonCodes: ["SAFETY_NOT_PASS"] });
+    expect(predictionDecisionGate({ prediction: { ...prediction, status: "OUT_OF_DOMAIN" }, safetyVerdict: "FAIL", regulatoryVerdict: "FAIL" })).toMatchObject({ safetyVerdict: "FAIL", regulatoryVerdict: "FAIL", eligibleForConsideration: false });
     expect(Object.keys(prediction)).not.toContain("approval");
   });
 });

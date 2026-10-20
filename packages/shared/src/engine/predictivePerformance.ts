@@ -29,7 +29,7 @@ import {
 } from "../schemas/predictiveModel";
 import { FEATURE_SCHEMA_VERSION, targetDefinitionSchema, type TargetDefinition, type TargetObservation, type SourceRecordReference } from "../schemas/dataset";
 import { datasetPartitionManifestSchema, type DatasetPartitionManifest, type PartitionName } from "../schemas/datasetPartition";
-import { digestSchema, type Digest } from "../schemas/datasetManifest";
+import { digestSchema } from "../schemas/datasetManifest";
 
 export interface ModelFeatureExtractionOptions {
   interactionConfig?: InteractionConfig;
@@ -482,7 +482,7 @@ function trainOneFeature(samples: ScoredSample[], numericTarget: boolean) {
       domain: { minNumeric: Math.min(...xs), maxNumeric: Math.max(...xs), categories: [] as string[] },
     };
   }
-  if (train.some(({ x, y }) => typeof y !== "string")) return undefined;
+  if (train.some(({ y }) => typeof y !== "string")) return undefined;
   const labels = train.map(({ y }) => y as string);
   const fallback = majority(labels);
   const numericFeature = train.every(({ x }) => typeof x === "number");
