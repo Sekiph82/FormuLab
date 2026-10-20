@@ -435,7 +435,26 @@
       "regulatory": "Regulatory",
       "evidence": "Evidence & Sources",
       "alternatives": "Alternatives",
+      "ranking": "순위",
       "summary": "Summary"
+    },
+    "ranking": {
+      "title": "대안 순위",
+      "policy": "정책 1.0은 하드 게이트와 순서가 지정된 차원을 적용하며 하나의 점수로 합치지 않습니다.",
+      "saving": "스냅샷 저장 중…",
+      "record": "순위 스냅샷 기록",
+      "predictionNotice": "생성된 대안에 사용할 수 있는 승인된 모델 예측이 없습니다. 성능과 불확실성은 사용할 수 없습니다.",
+      "rank": "순위 {{rank}}",
+      "optimize": "고급 최적화 도구 열기",
+      "gateReasons": "게이트 상태",
+      "history": "기록된 순위 스냅샷",
+      "noHistory": "이 세션에는 기록된 순위 스냅샷이 없습니다.",
+      "empty": "대안 없음",
+      "policyVersion": "정책 {{version}}",
+      "checksum": "스냅샷 체크섬",
+      "checksumAlgorithm": "SHA-256",
+      "class": "등급",
+      "sources": "개 출처"
     },
     "formula": {
       "untitled": "Untitled formula",

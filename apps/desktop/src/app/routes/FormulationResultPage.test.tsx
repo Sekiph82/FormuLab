@@ -97,6 +97,18 @@ describe("FormulationResultPage", () => {
     await screen.findByText("Original Request (Fixed)");
     expect(screen.getAllByText(/not yet available/i).length).toBeGreaterThan(0);
   });
+
+  it("shows per-dimension ranking and labels missing predictions honestly", async () => {
+    renderPage();
+    await screen.findByText(SESSION.brief.target);
+    await userEvent.click(screen.getByRole("tab", { name: "Ranking" }));
+    expect(await screen.findByRole("heading", { name: "Alternative ranking" })).toBeInTheDocument();
+    expect(screen.getByText(/No accepted model prediction is available/)).toBeInTheDocument();
+    expect(screen.getAllByText("performance").length).toBe(2);
+    expect(screen.getAllByText("uncertainty").length).toBe(2);
+    expect(screen.getAllByText("safety").length).toBe(2);
+    expect(screen.getAllByText("regulatory").length).toBe(2);
+  });
 });
 
 // --- Phase 14 Session 3: real strategy metadata, scoring, evidence, failure handling ---

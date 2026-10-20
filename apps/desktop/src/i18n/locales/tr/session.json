@@ -435,7 +435,26 @@
       "regulatory": "Regulatory",
       "evidence": "Evidence & Sources",
       "alternatives": "Alternatives",
+      "ranking": "Sıralama",
       "summary": "Summary"
+    },
+    "ranking": {
+      "title": "Alternatif sıralaması",
+      "policy": "1.0 ilkesi, boyutları tek bir puana birleştirmeden katı geçitleri ve sıralı boyutları uygular.",
+      "saving": "Anlık görüntü kaydediliyor…",
+      "record": "Sıralama anlık görüntüsünü kaydet",
+      "predictionNotice": "Oluşturulan alternatifler için kabul edilmiş model tahmini yok. Performans ve belirsizlik kullanılamıyor.",
+      "rank": "Sıra {{rank}}",
+      "optimize": "Gelişmiş Optimizasyon aracını aç",
+      "gateReasons": "Geçit durumu",
+      "history": "Kaydedilmiş sıralama anlık görüntüleri",
+      "noHistory": "Bu oturum için sıralama anlık görüntüsü kaydedilmedi.",
+      "empty": "Alternatif yok",
+      "policyVersion": "İlke {{version}}",
+      "checksum": "Anlık görüntü sağlama toplamı",
+      "checksumAlgorithm": "SHA-256",
+      "class": "Sınıf",
+      "sources": "kaynak"
     },
     "formula": {
       "untitled": "Untitled formula",

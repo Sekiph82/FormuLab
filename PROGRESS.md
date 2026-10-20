@@ -1,5 +1,7 @@
 # Progress
 
+2026-10-20 23:49 · FVL-08 complete: versioned multi-dimensional ranking, authoritative hard gates, canonical Cost Engine inputs, Advanced Optimizer linkage, explainable UI, and immutable checksummed snapshots passed regression; shared 2,263/2,263, desktop 1,745/1,745, typecheck, lint, and production build passed; Rust unit tests remain blocked by the missing bundled `binaries/uv-x86_64-pc-windows-msvc.exe` resource.
+
 2026-10-20 20:00 · FVL-06 complete: instrument CSV/Excel ingestion, validated linkage and provenance, FVL-05 target integration, and real-flow sample acceptance passed; 2,247 shared and 1,735 desktop tests passed.
 
 2026-10-19 19:10 · test(shared): completed FVL-05 with leakage-safe partitions, verified read-only historical dataset construction, and milestone regression coverage (2,235 shared and 1,726 desktop tests); FVL-06.001 remains READY.

@@ -435,7 +435,26 @@
       "regulatory": "Regulatory",
       "evidence": "Evidence & Sources",
       "alternatives": "Alternatives",
+      "ranking": "排名",
       "summary": "Summary"
+    },
+    "ranking": {
+      "title": "备选方案排名",
+      "policy": "1.0 版策略使用硬性门槛和有序维度，不会将它们合并为单一分数。",
+      "saving": "正在保存快照…",
+      "record": "记录排名快照",
+      "predictionNotice": "这些生成的备选方案没有可用的已接受模型预测。性能和不确定性仍不可用。",
+      "rank": "第 {{rank}} 名",
+      "optimize": "打开高级优化器",
+      "gateReasons": "门槛状态",
+      "history": "已记录的排名快照",
+      "noHistory": "此会话尚未记录排名快照。",
+      "empty": "没有备选方案",
+      "policyVersion": "策略 {{version}}",
+      "checksum": "快照校验和",
+      "checksumAlgorithm": "SHA-256",
+      "class": "等级",
+      "sources": "个来源"
     },
     "formula": {
       "untitled": "Untitled formula",

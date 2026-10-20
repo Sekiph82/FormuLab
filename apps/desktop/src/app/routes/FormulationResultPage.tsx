@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -22,7 +22,7 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { displayMoney, type CostSnapshot } from "@formulab/shared";
+import { createAlternativeRankingRecord, displayMoney, newId, rankAlternatives, type AlternativeRankingRecord, type CostSnapshot, type RankedAlternative } from "@formulab/shared";
 import { readSession, type ArchitectureBasis, type ExperimentalOutcome, type FormulationCard, type LiteratureDocument, type ManufacturingPlan, type ResearchCorpusSummary, type ScientificFormulationRecord, type ScientificFormulationSummary, type SessionDetail } from "@/lib/formulationV2";
 import { asGeneratedFormula, ingredientId, normalizeIngredientKey, totalWeightPct, type GeneratedFormula } from "@/lib/generatedFormula";
 import { openAndPrintReport } from "@/lib/formulationReport";
@@ -46,6 +46,10 @@ import { GeneratedCompatibilitySummary } from "@/components/compatibility/Genera
 import { GeneratedSafetySummary } from "@/components/safety/GeneratedSafetySummary";
 import { GeneratedRegulatorySummary } from "@/components/regulatory/GeneratedRegulatorySummary";
 import { cn } from "@/lib/cn";
+import { buildAlternativeRankingCandidates } from "@/lib/alternativeRanking";
+import { isTauri } from "@/lib/tauri";
+import { listRecords, upsertRecords } from "@/lib/masterdata";
+import { AlternativeRankingPanel } from "@/components/formula/AlternativeRankingPanel";
 
 /**
  * Phase 14 — "Formulation Result" screen, built directly from the approved
@@ -64,9 +68,9 @@ import { cn } from "@/lib/cn";
  * otherwise.
  */
 
-type ResultTab = "formula" | "process" | "critical" | "equipment" | "safety" | "regulatory" | "evidence" | "alternatives" | "summary";
+type ResultTab = "formula" | "process" | "critical" | "equipment" | "safety" | "regulatory" | "evidence" | "alternatives" | "ranking" | "summary";
 
-const TABS: ResultTab[] = ["formula", "process", "critical", "equipment", "safety", "regulatory", "evidence", "alternatives", "summary"];
+const TABS: ResultTab[] = ["formula", "process", "critical", "equipment", "safety", "regulatory", "evidence", "alternatives", "ranking", "summary"];
 
 export function FormulationResultPage() {
   const { t } = useTranslation(["session", "common"]);
@@ -118,6 +122,10 @@ export function FormulationResultPage() {
   // flight (a single flag, not per-index, since a system action always
   // covers 2+ rows at once).
   const [systemSubstituting, setSystemSubstituting] = useState(false);
+  const [rankingCandidates, setRankingCandidates] = useState<Awaited<ReturnType<typeof buildAlternativeRankingCandidates>>>([]);
+  const [rankingRecords, setRankingRecords] = useState<AlternativeRankingRecord[]>([]);
+  const [rankingRecording, setRankingRecording] = useState(false);
+  const [rankingError, setRankingError] = useState<string>();
 
   useEffect(() => {
     if (!sessionId) return;
@@ -148,41 +156,24 @@ export function FormulationResultPage() {
     setSelectedIngredient(null);
   };
 
-  if (error) {
-    return (
-      <div className="px-8 py-6">
-        <div role="alert" className="rounded-card border border-error/40 bg-error/10 px-4 py-3 text-[13px] text-error">
-          {error}
-        </div>
-      </div>
-    );
-  }
-  if (!session) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted">
-        <Loader2 size={18} className="animate-spin" />
-      </div>
-    );
-  }
-
-  const cards = session.cards;
+  const cards = useMemo(() => session?.cards ?? [], [session?.cards]);
   const card = cards[Math.min(activeVersion, cards.length - 1)];
   const formula = asGeneratedFormula(card?.formula);
   // FVL-03.003: real, authoritative per-version cost — computed here (not
   // per-tab) so every version shares one costing pass at the same batch
   // size/currency, letting `pickCheapestValidVersion` compare like with
   // like across the whole session, not just the active tab.
-  const costSnapshots: (CostSnapshot | undefined)[] = costData.loading
+  const costSnapshots: (CostSnapshot | undefined)[] = useMemo(() => costData.loading
     ? cards.map(() => undefined)
     : cards.map((c) =>
         c.formula
-          ? costGeneratedFormula(sessionId ?? session.id, c.version, c.formula, batchKg, currency, {
+          ? costGeneratedFormula(sessionId ?? session?.id ?? "", c.version, c.formula, batchKg, currency, {
               materials: costData.materials,
               prices: costData.prices,
               rates: costData.rates,
             })
           : undefined,
-      );
+      ), [cards, costData.loading, costData.materials, costData.prices, costData.rates, batchKg, currency, sessionId, session?.id]);
   // FVL-03.008: real, authoritative per-version compatibility — computed
   // read-only, no promotion/persistence needed (`evaluateCompatibility` is
   // pure), against the SAME canonical Material Master `costData.materials`
@@ -191,9 +182,9 @@ export function FormulationResultPage() {
   // `costSnapshots`), but IS an eligibility gate for both `cheapestValid`/
   // `mostFeasible` below (task §9) — a `"blocked"` version can never win
   // either comparison merely because its price or stock looks good.
-  const compatibilities: (GeneratedFormulaCompatibility | undefined)[] = costData.loading || compatibilityRulesData.loading
+  const compatibilities: (GeneratedFormulaCompatibility | undefined)[] = useMemo(() => costData.loading || compatibilityRulesData.loading
     ? cards.map(() => undefined)
-    : cards.map((c) => (c.formula ? evaluateGeneratedFormulaCompatibility(c.formula, costData.materials, compatibilityRulesData.rules) : undefined));
+    : cards.map((c) => (c.formula ? evaluateGeneratedFormulaCompatibility(c.formula, costData.materials, compatibilityRulesData.rules) : undefined)), [cards, costData.loading, costData.materials, compatibilityRulesData.loading, compatibilityRulesData.rules]);
 
   // FVL-03.009: real, authoritative per-version safety — the SOLE
   // replacement for `runtime/pipeline/safety.py`'s former independent
@@ -205,9 +196,9 @@ export function FormulationResultPage() {
   // eligibility gate for `cheapestValid`/`mostFeasible` below — a
   // `"blocked"` version can never win either comparison merely because
   // its price or stock looks good.
-  const safeties: (GeneratedFormulaSafety | undefined)[] = costData.loading || safetyRulesData.loading
+  const safeties: (GeneratedFormulaSafety | undefined)[] = useMemo(() => costData.loading || safetyRulesData.loading
     ? cards.map(() => undefined)
-    : cards.map((c) => (c.formula ? evaluateGeneratedFormulaSafety(c.formula, costData.materials, safetyRulesData.rules) : undefined));
+    : cards.map((c) => (c.formula ? evaluateGeneratedFormulaSafety(c.formula, costData.materials, safetyRulesData.rules) : undefined)), [cards, costData.loading, costData.materials, safetyRulesData.loading, safetyRulesData.rules]);
 
   // FVL-03.010: real, authoritative per-version regulatory verdict — the
   // SOLE replacement for `runtime/pipeline/regulatory.py`'s former
@@ -221,20 +212,89 @@ export function FormulationResultPage() {
   // `cheapestValid`/`mostFeasible` below — a `"blocked"` version (a real
   // `non_compliant` finding) can never win either comparison merely
   // because its price or stock looks good.
-  const regulatories: (GeneratedFormulaRegulatory | undefined)[] = costData.loading || regulatoryRulesData.loading
+  const regulatories: (GeneratedFormulaRegulatory | undefined)[] = useMemo(() => costData.loading || regulatoryRulesData.loading
     ? cards.map(() => undefined)
     : cards.map((c) => (c.formula
-        ? evaluateGeneratedFormulaRegulatory(c.formula, costData.materials, regulatoryRulesData.rules, { market: session.brief?.market, claims: session.brief?.claims })
-        : undefined));
+        ? evaluateGeneratedFormulaRegulatory(c.formula, costData.materials, regulatoryRulesData.rules, { market: session?.brief?.market, claims: session?.brief?.claims })
+        : undefined)), [cards, costData.loading, costData.materials, regulatoryRulesData.loading, regulatoryRulesData.rules, session?.brief?.market, session?.brief?.claims]);
 
   const cheapestValidIndex = pickCheapestValidVersion(cards, costSnapshots, compatibilities, safeties, regulatories);
 
   // FVL-03.004: same per-version, batch-shared computation pattern as
   // cost, kept as an entirely separate dimension (task §12) — never
   // merged into `costSnapshots`/`cheapestValidIndex` above.
-  const inventoryFeasibilities: (FormulaInventoryFeasibility | undefined)[] = inventoryData.loading
+  const inventoryFeasibilities: (FormulaInventoryFeasibility | undefined)[] = useMemo(() => inventoryData.loading
     ? cards.map(() => undefined)
-    : cards.map((c) => (c.formula ? evaluateGeneratedFormulaInventory(c.formula, batchKg, inventoryData.records) : undefined));
+    : cards.map((c) => (c.formula ? evaluateGeneratedFormulaInventory(c.formula, batchKg, inventoryData.records) : undefined)), [cards, inventoryData.loading, inventoryData.records, batchKg]);
+
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    buildAlternativeRankingCandidates({
+      sessionId: sessionId ?? session.id,
+      cards,
+      costSnapshots,
+      availability: inventoryFeasibilities,
+      compatibility: compatibilities,
+      safety: safeties,
+      regulatory: regulatories,
+    }).then((candidates) => { if (!cancelled) setRankingCandidates(candidates); })
+      .catch((e) => { if (!cancelled) setRankingError(String(e)); });
+    return () => { cancelled = true; };
+  }, [session, sessionId, cards, costSnapshots, inventoryFeasibilities, compatibilities, safeties, regulatories]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    listRecords("alternative_rankings").then((records) => {
+      if (!cancelled) setRankingRecords(records.filter((record) => record.sessionId === sessionId).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt)));
+    }).catch((e) => { if (!cancelled) setRankingError(String(e)); });
+    return () => { cancelled = true; };
+  }, [sessionId]);
+
+  if (error) return <div className="px-8 py-6"><div role="alert" className="rounded-card border border-error/40 bg-error/10 px-4 py-3 text-[13px] text-error">{error}</div></div>;
+  if (!session) return <div className="flex h-full items-center justify-center text-muted"><Loader2 size={18} className="animate-spin" /></div>;
+
+  const rankedAlternatives: RankedAlternative[] = rankingCandidates.length ? rankAlternatives(rankingCandidates) : [];
+  const recordRanking = async () => {
+    if (!isTauri || rankedAlternatives.length === 0) return;
+    setRankingRecording(true);
+    setRankingError(undefined);
+    try {
+      const record = await createAlternativeRankingRecord({
+        code: newId("ranking"),
+        sessionId: sessionId ?? session.id,
+        capturedAt: new Date().toISOString(),
+        context: { batchKg, currency },
+        rankings: rankedAlternatives,
+      });
+      await upsertRecords("alternative_rankings", [record]);
+      setRankingRecords((previous) => [record, ...previous]);
+    } catch (e) { setRankingError(String(e)); }
+    finally { setRankingRecording(false); }
+  };
+
+  const optimizeAlternative = async (alternativeId: string) => {
+    const index = cards.findIndex((candidate) => `${sessionId ?? session.id}:${candidate.version}` === alternativeId);
+    if (index < 0 || !cards[index]?.formula) return;
+    setActiveVersion(index);
+    setOptimizing(true);
+    try {
+      const selectedCard = cards[index];
+      const existing = promotedByVersion[selectedCard.version];
+      const promoted = existing ?? buildPromotedFormulation(session, selectedCard, batchKg);
+      if (!existing) {
+        await saveFormulation(promoted.formulation);
+        await saveFormulationVersion(promoted.version);
+        setPromotedByVersion((previous) => ({ ...previous, [selectedCard.version]: promoted }));
+      }
+      const ranked = rankedAlternatives.find((entry) => entry.candidate.alternativeId === alternativeId);
+      const params = new URLSearchParams({ project: promoted.formulation.id, sourceSessionId: sessionId ?? session.id, sourceAlternativeId: alternativeId });
+      if (ranked?.candidate.formulaFingerprint) params.set("sourceFormulaFingerprint", ranked.candidate.formulaFingerprint.digest);
+      if (rankingRecords[0]) params.set("rankingRecordCode", rankingRecords[0].code);
+      navigate(`/optimization?${params.toString()}`);
+    } finally { setOptimizing(false); }
+  };
   const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities, compatibilities, safeties, regulatories);
 
   // FVL-03.005/.006: promote the selected version (once per version,
@@ -379,6 +439,17 @@ export function FormulationResultPage() {
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
           <div className="min-w-0">
+            {tab === "ranking" ? (
+              <AlternativeRankingPanel
+                rankings={rankedAlternatives}
+                records={rankingRecords}
+                canPersist={isTauri}
+                recording={rankingRecording}
+                recordError={rankingError}
+                onRecord={() => void recordRanking()}
+                onOptimize={(alternativeId) => void optimizeAlternative(alternativeId)}
+              />
+            ) : (
             <TabContent
               tab={tab}
               card={card}
@@ -403,6 +474,7 @@ export function FormulationResultPage() {
               systemSubstituting={systemSubstituting}
               t={t}
             />
+            )}
           </div>
 
           <div className="flex flex-col gap-4">

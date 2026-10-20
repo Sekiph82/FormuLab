@@ -102,6 +102,13 @@ describe("OptimizationPage", () => {
     expect(screen.getByText("Scenarios")).toBeInTheDocument();
   });
 
+  it("retains the source ranking alternative when opened from a result card", async () => {
+    renderAtPath("/optimization?project=proj-1&sourceSessionId=session-1&sourceAlternativeId=session-1%3Av2&rankingRecordCode=ranking-1");
+    await screen.findByText("Test Project");
+    expect(screen.getByRole("status")).toHaveTextContent("session-1:v2");
+    expect(screen.getByRole("status")).toHaveTextContent("ranking-1");
+  });
+
   it("links out to the standalone what-if calculator instead of replacing it", async () => {
     renderAtPath("/optimization?project=proj-1");
     await screen.findByText("Test Project");

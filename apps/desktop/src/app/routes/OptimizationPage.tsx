@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AdvancedOptimizerPanel } from "@/components/formula/AdvancedOptimizerPanel";
 import { useFormulationWorkspace } from "@/hooks/useFormulationWorkspace";
 import { useProjectParam } from "@/hooks/useProjectParam";
@@ -17,6 +17,7 @@ import { ProjectContextBar, ProjectPicker } from "@/components/workspace/Project
 export function OptimizationPage() {
   const { t } = useTranslation("session");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { projectId, setProject } = useProjectParam();
   const ws = useFormulationWorkspace(projectId);
 
@@ -25,6 +26,18 @@ export function OptimizationPage() {
   if (!ws.draft.value) return null;
 
   const active = ws.project;
+  const sourceSessionId = searchParams.get("sourceSessionId");
+  const sourceAlternativeId = searchParams.get("sourceAlternativeId");
+  const sourceFormulaFingerprint = searchParams.get("sourceFormulaFingerprint");
+  const rankingRecordCode = searchParams.get("rankingRecordCode");
+  const sourceAlternative = sourceSessionId && sourceAlternativeId ? {
+    sessionId: sourceSessionId,
+    alternativeId: sourceAlternativeId,
+    ...(sourceFormulaFingerprint && /^[a-f0-9]{64}$/i.test(sourceFormulaFingerprint) ? {
+      formulaFingerprint: { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: sourceFormulaFingerprint.toLowerCase() },
+    } : {}),
+    ...(rankingRecordCode ? { rankingRecordCode } : {}),
+  } : undefined;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -34,6 +47,7 @@ export function OptimizationPage() {
           formulation={active}
           batchKg={ws.draft.value.basisBatchKg}
           currentLines={ws.draft.value.lines}
+          sourceAlternative={sourceAlternative}
           onApplyResult={(lines, runCode) => {
             ws.onApplyOptimizationResult(lines, runCode);
             navigate(`/formulation?project=${projectId}`);

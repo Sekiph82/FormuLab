@@ -435,7 +435,26 @@
       "regulatory": "Regulatory",
       "evidence": "Evidence & Sources",
       "alternatives": "Alternatives",
+      "ranking": "順位",
       "summary": "Summary"
+    },
+    "ranking": {
+      "title": "候補の順位付け",
+      "policy": "ポリシー1.0はハードゲートと順序付きの各指標を適用し、単一スコアには統合しません。",
+      "saving": "スナップショットを保存中…",
+      "record": "順位スナップショットを記録",
+      "predictionNotice": "生成された候補に対する承認済みモデル予測はありません。性能と不確実性は利用できません。",
+      "rank": "順位 {{rank}}",
+      "optimize": "高度なオプティマイザーを開く",
+      "gateReasons": "ゲート状態",
+      "history": "記録済み順位スナップショット",
+      "noHistory": "このセッションに記録済みの順位スナップショットはありません。",
+      "empty": "候補なし",
+      "policyVersion": "ポリシー {{version}}",
+      "checksum": "スナップショットのチェックサム",
+      "checksumAlgorithm": "SHA-256",
+      "class": "クラス",
+      "sources": "件の情報源"
     },
     "formula": {
       "untitled": "Untitled formula",

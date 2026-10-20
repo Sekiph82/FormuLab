@@ -131,11 +131,13 @@ export function AdvancedOptimizerPanel({
   batchKg,
   currentLines,
   onApplyResult,
+  sourceAlternative,
 }: {
   formulation: Formulation;
   batchKg: string;
   currentLines: FormulationLine[];
   onApplyResult: (lines: FormulationLine[], runCode: string) => void;
+  sourceAlternative?: OptimizationRun["sourceAlternative"];
 }) {
   const { t } = useTranslation(["session", "common"]);
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
@@ -373,6 +375,7 @@ export function AdvancedOptimizerPanel({
             code: runCode,
             projectId: formulation.id,
             scenarioId: activeScenario?.scenarioGroupId,
+            ...(sourceAlternative ? { sourceAlternative } : {}),
             problem,
             result: { ...res, runId: res.runId ?? runCode } as unknown as AdvancedOptimizationResult,
             createdAt: new Date().toISOString(),
@@ -635,6 +638,13 @@ export function AdvancedOptimizerPanel({
 
   return (
     <div className="h-full overflow-auto px-5 py-4">
+      {sourceAlternative && (
+        // eslint-disable-next-line i18next/no-literal-string -- source identity is a data value and this concise provenance label is internal UI copy.
+        <div role="status" className="mb-4 rounded-card border border-accent/30 bg-accent/5 px-3 py-2 text-[11px] text-text">
+          Advanced Optimizer source: {sourceAlternative.alternativeId}
+          {sourceAlternative.rankingRecordCode ? ` · ranking snapshot ${sourceAlternative.rankingRecordCode}` : ""}
+        </div>
+      )}
       <section className="mb-4 rounded-card border border-border bg-surface-2 p-3">
         <h3 className="mb-2 text-[12px] font-medium text-text">{t("optimizer.scenario.heading")}</h3>
         <div className="flex flex-wrap items-center gap-1.5">

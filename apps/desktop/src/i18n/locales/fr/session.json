@@ -435,7 +435,26 @@
       "regulatory": "Regulatory",
       "evidence": "Evidence & Sources",
       "alternatives": "Alternatives",
+      "ranking": "Classement",
       "summary": "Summary"
+    },
+    "ranking": {
+      "title": "Classement des alternatives",
+      "policy": "La politique 1.0 applique des blocages stricts et des dimensions ordonnées sans les réduire à un score.",
+      "saving": "Enregistrement de l’instantané…",
+      "record": "Enregistrer l’instantané du classement",
+      "predictionNotice": "Aucune prédiction de modèle acceptée n’est disponible pour ces alternatives générées. La performance et l’incertitude restent indisponibles.",
+      "rank": "Rang {{rank}}",
+      "optimize": "Ouvrir l’optimiseur avancé",
+      "gateReasons": "État des blocages",
+      "history": "Instantanés de classement enregistrés",
+      "noHistory": "Aucun instantané de classement n’a été enregistré pour cette session.",
+      "empty": "Aucune alternative",
+      "policyVersion": "Politique {{version}}",
+      "checksum": "Somme de contrôle de l’instantané",
+      "checksumAlgorithm": "SHA-256",
+      "class": "Classe",
+      "sources": "sources"
     },
     "formula": {
       "untitled": "Untitled formula",

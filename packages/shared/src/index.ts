@@ -610,6 +610,8 @@ export * from "./schemas/datasetPartition";
 export * from "./engine/datasetPartitioner";
 export * from "./schemas/predictiveModel";
 export * from "./engine/predictivePerformance";
+export * from "./schemas/alternativeRanking";
+export * from "./engine/alternativeRanking";
 export {
   PRECISION,
   CURRENCY_DP,

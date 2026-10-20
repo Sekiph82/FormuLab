@@ -435,7 +435,26 @@
       "regulatory": "Regulatory",
       "evidence": "Evidence & Sources",
       "alternatives": "Alternatives",
+      "ranking": "Rangfolge",
       "summary": "Summary"
+    },
+    "ranking": {
+      "title": "Alternativenrangfolge",
+      "policy": "Richtlinie 1.0 verwendet harte Sperren und geordnete Dimensionen ohne Gesamtpunktzahl.",
+      "saving": "Momentaufnahme wird gespeichert…",
+      "record": "Rangfolge-Momentaufnahme speichern",
+      "predictionNotice": "Für diese generierten Alternativen ist keine akzeptierte Modellvorhersage verfügbar. Leistung und Unsicherheit bleiben nicht verfügbar.",
+      "rank": "Rang {{rank}}",
+      "optimize": "Erweiterten Optimierer öffnen",
+      "gateReasons": "Sperrstatus",
+      "history": "Gespeicherte Rangfolge-Momentaufnahmen",
+      "noHistory": "Für diese Sitzung wurden keine Rangfolge-Momentaufnahmen gespeichert.",
+      "empty": "Keine Alternative",
+      "policyVersion": "Richtlinie {{version}}",
+      "checksum": "Prüfsumme der Momentaufnahme",
+      "checksumAlgorithm": "SHA-256",
+      "class": "Klasse",
+      "sources": "Quellen"
     },
     "formula": {
       "untitled": "Untitled formula",

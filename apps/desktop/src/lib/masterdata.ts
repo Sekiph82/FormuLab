@@ -9,6 +9,7 @@
 import type {
   ApprovalPolicy,
   ApprovalPolicyRevision,
+  AlternativeRankingRecord,
   ClaimEvidenceLink,
   ClaimReview,
   ClaimReviewRevocation,
@@ -133,6 +134,7 @@ interface CollectionTypes {
   optimization_profiles: OptimizationProfile;
   optimization_runs: OptimizationRun;
   optimization_scenarios: OptimizationScenario;
+  alternative_rankings: AlternativeRankingRecord;
   substitution_runs: SubstitutionRun;
   laboratory_trials: LaboratoryTrial;
   test_definitions: TestDefinition;

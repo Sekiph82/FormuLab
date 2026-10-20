@@ -438,7 +438,26 @@
       "regulatory": "Regulatory",
       "evidence": "Evidence & Sources",
       "alternatives": "Alternatives",
+      "ranking": "Ranking",
       "summary": "Summary"
+    },
+    "ranking": {
+      "title": "Alternative ranking",
+      "policy": "Policy 1.0 applies hard gates and ordered dimensions without combining them into a score.",
+      "saving": "Saving snapshot…",
+      "record": "Record ranking snapshot",
+      "predictionNotice": "No accepted model prediction is available for these generated alternatives. Performance and uncertainty remain unavailable.",
+      "rank": "Rank {{rank}}",
+      "optimize": "Open Advanced Optimizer",
+      "gateReasons": "Gate status",
+      "history": "Recorded ranking snapshots",
+      "noHistory": "No ranking snapshots have been recorded for this session.",
+      "empty": "No alternative",
+      "policyVersion": "Policy {{version}}",
+      "checksum": "Snapshot checksum",
+      "checksumAlgorithm": "SHA-256",
+      "class": "Class",
+      "sources": "sources"
     },
     "formula": {
       "untitled": "Untitled formula",

@@ -74,13 +74,14 @@ const FORMULATION: Formulation = {
 
 const CURRENT_LINES: FormulationLine[] = [];
 
-function renderPanel() {
+function renderPanel(sourceAlternative?: { sessionId: string; alternativeId: string; rankingRecordCode?: string; formulaFingerprint?: { algorithm: "sha256"; canonicalization: "formulab-canonical-json-v1"; digest: string } }) {
   return render(
     <AdvancedOptimizerPanel
       formulation={FORMULATION}
       batchKg="100"
       currentLines={CURRENT_LINES}
       onApplyResult={vi.fn()}
+      sourceAlternative={sourceAlternative}
     />,
   );
 }
@@ -196,6 +197,20 @@ describe("AdvancedOptimizerPanel — scenario lifecycle", () => {
 });
 
 describe("AdvancedOptimizerPanel — run and result rendering", () => {
+  it("persists the original ranking alternative link on the canonical optimizer run", async () => {
+    tauriBridge.run.mockResolvedValue({ status: "optimal", formulaLines: [], totals: { totalPercent: "100.0000", totalActiveMatterPercent: "0.0000" }, objectiveResults: [], constraintResults: [], propertyResults: [], warnings: [], solverMetadata: { isMixedInteger: false, solveTimeMs: 12 }, runId: "run-source" });
+    const sourceAlternative = { sessionId: "session-1", alternativeId: "session-1:v2", rankingRecordCode: "ranking-1", formulaFingerprint: { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: "a".repeat(64) } };
+    const user = userEvent.setup();
+    renderPanel(sourceAlternative);
+    await screen.findByText("Material A");
+    expect(screen.getByRole("status")).toHaveTextContent("session-1:v2");
+    await user.click(screen.getByLabelText(/Material A/));
+    await user.click(screen.getByRole("button", { name: /Run optimization/ }));
+    await waitFor(() => expect(bridge.upsertRecords).toHaveBeenCalledWith("optimization_runs", expect.any(Array)));
+    const savedRuns = bridge.upsertRecords.mock.calls.find(([collection]) => collection === "optimization_runs")?.[1] as Array<{ sourceAlternative?: unknown }>;
+    expect(savedRuns[0]?.sourceAlternative).toEqual(sourceAlternative);
+  });
+
   it("Run starts the solver and renders an optimal result", async () => {
     tauriBridge.run.mockResolvedValue({
       status: "optimal",

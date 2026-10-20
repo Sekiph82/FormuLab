@@ -24,6 +24,7 @@
 import { z } from "zod";
 import { decimalString, MATERIAL_FUNCTIONS } from "./formulation";
 import { DATA_STATES, IONIC_CHARACTERS } from "./materials";
+import { digestSchema } from "./datasetManifest";
 
 // ---------------------------------------------------------------------------
 // Shared vocabulary
@@ -739,6 +740,15 @@ export const optimizationRunSchema = z.object({
   projectId: z.string().min(1),
   formulaVersionId: z.string().optional(),
   scenarioId: z.string().optional(),
+  /** Optional immutable backlink when the Advanced Optimizer was opened
+   *  from one generated formulation alternative. The source session/card
+   *  identity remains distinct from a saved FormulationVersion id. */
+  sourceAlternative: z.object({
+    sessionId: z.string().min(1),
+    alternativeId: z.string().min(1),
+    formulaFingerprint: digestSchema.optional(),
+    rankingRecordCode: z.string().min(1).optional(),
+  }).optional(),
   problem: formulationProblemSchema,
   result: advancedOptimizationResultSchema,
   /** Set once a human applies this run's result to a new working draft.
