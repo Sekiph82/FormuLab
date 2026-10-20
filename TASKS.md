@@ -9,7 +9,7 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Milestone: FVL-08
 - Current Sprint: FVL-08-S01
 - Current Task: FVL-08.001 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
-- Current Task Status: READY
+- Current Task Status: IN_PROGRESS
 - Next Task: FVL-08.002 — Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -232,7 +232,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-08
 
 ## Sprint FVL-08-S01 — Performance ranking & optimizer integration
-- [ ] FVL-08.001 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
+- [~] FVL-08.001 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
 - [ ] FVL-08.002 — Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance
 - [ ] FVL-08.003 — Missing or out-of-domain prediction never masquerades as validated zero
 - [ ] FVL-08.004 — Cost dimension sourced only from existing Cost Engine
