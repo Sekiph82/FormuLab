@@ -9,7 +9,7 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Milestone: FVL-06
 - Current Sprint: FVL-06-S01
 - Current Task: FVL-06.001 — Define structured measured-response schema
-- Current Task Status: READY
+- Current Task Status: IN_PROGRESS
 - Next Task: FVL-06.002 — Define spectrophotometric/detergent-performance metric schema
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -192,7 +192,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-06
 
 ## Sprint FVL-06-S01 — Measured-response domain model
-- [ ] FVL-06.001 — Define structured measured-response schema
+- [~] FVL-06.001 — Define structured measured-response schema
 - [ ] FVL-06.002 — Define spectrophotometric/detergent-performance metric schema
 - [ ] FVL-06.003 — Raw measurement + normalized-performance field only when deterministic normalization exists
 - [ ] FVL-06.004 — Raw-file attachment/provenance linkage
