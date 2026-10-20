@@ -7,10 +7,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Project Status
 
 - Current Milestone: FVL-07
-- Current Sprint: FVL-07-S02
-- Current Task: FVL-07.007 — Baseline models before ML candidates
+- Current Sprint: FVL-07-S03
+- Current Task: FVL-07.012 — Prediction API with exact formula/version lineage and uncertainty where supported
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-07.008 — Prediction-model comparison with train/validation/test split and recorded seeds
+- Next Task: FVL-07.013 — Applicability-domain warning / out-of-domain refusal
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 119
-- Remaining Tasks: 52
-- Completion: 69.6%
+- Completed Tasks: 124
+- Remaining Tasks: 47
+- Completion: 72.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -216,14 +216,14 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-07.006 — Optional reproducible interaction features
 
 ## Sprint FVL-07-S02 — Training, model selection & registry
-- [~] FVL-07.007 — Baseline models before ML candidates
-- [ ] FVL-07.008 — Prediction-model comparison with train/validation/test split and recorded seeds
-- [ ] FVL-07.009 — Hyperparameter recording with no fabricated result
-- [ ] FVL-07.010 — Evaluation metrics, held-out performance vs baseline, failure thresholds and acceptance policy
-- [ ] FVL-07.011 — Model registry with dataset hash, schema version, algorithm, params, metrics and checksums
+- [x] FVL-07.007 — Baseline models before ML candidates
+- [x] FVL-07.008 — Prediction-model comparison with train/validation/test split and recorded seeds
+- [x] FVL-07.009 — Hyperparameter recording with no fabricated result
+- [x] FVL-07.010 — Evaluation metrics, held-out performance vs baseline, failure thresholds and acceptance policy
+- [x] FVL-07.011 — Model registry with dataset hash, schema version, algorithm, params, metrics and checksums
 
 ## Sprint FVL-07-S03 — Prediction serving & acceptance
-- [ ] FVL-07.012 — Prediction API with exact formula/version lineage and uncertainty where supported
+- [~] FVL-07.012 — Prediction API with exact formula/version lineage and uncertainty where supported
 - [ ] FVL-07.013 — Applicability-domain warning / out-of-domain refusal
 - [ ] FVL-07.014 — Hard rule: prediction cannot override regulatory/safety
 - [ ] FVL-07.015 — Per-product-family, per-target model training

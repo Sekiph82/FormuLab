@@ -4,6 +4,7 @@ import type { FormulaVersionBundleInput } from "./datasetManifestBuilder";
 import { buildDatasetManifest, buildFormulaVersionBundleManifest, canonicalizeForFingerprint, sha256Hex } from "./datasetManifestBuilder";
 import {
   APPLICABILITY_POLICY_VERSION,
+  ACCEPTANCE_POLICY_VERSION,
   DEFAULT_ELIGIBILITY_POLICY,
   MODEL_FEATURE_SCHEMA_VERSION,
   MODEL_FEATURE_CONTRACT_VERSION,
@@ -621,6 +622,7 @@ export async function trainPredictiveModel(input: PredictiveTrainingInput): Prom
     modelFeatureSchemaVersion: MODEL_FEATURE_SCHEMA_VERSION,
     featureContractVersion: expectedFeatureContract,
     trainingContractVersion: TRAINING_CONTRACT_VERSION,
+    acceptancePolicyVersion: ACCEPTANCE_POLICY_VERSION,
     trainingTimestamp: trainingAt,
     algorithm,
     algorithmVersion: "1.0",
@@ -754,8 +756,8 @@ export async function predictPerformance(input: PredictionInput): Promise<Predic
 /** Safety and Regulatory verdicts stay owned by FVL-03; this helper only gates use of an advisory prediction. */
 export function predictionDecisionGate(input: { prediction: PredictionResult; safetyVerdict: "PASS" | "FAIL" | "UNKNOWN"; regulatoryVerdict: "PASS" | "FAIL" | "UNKNOWN" }): { eligibleForConsideration: boolean; safetyVerdict: "PASS" | "FAIL" | "UNKNOWN"; regulatoryVerdict: "PASS" | "FAIL" | "UNKNOWN"; reasonCodes: string[] } {
   const reasonCodes: string[] = [];
-  if (input.safetyVerdict === "FAIL") reasonCodes.push("SAFETY_FAIL");
-  if (input.regulatoryVerdict === "FAIL") reasonCodes.push("REGULATORY_FAIL");
+  if (input.safetyVerdict !== "PASS") reasonCodes.push(input.safetyVerdict === "FAIL" ? "SAFETY_FAIL" : "SAFETY_NOT_PASS");
+  if (input.regulatoryVerdict !== "PASS") reasonCodes.push(input.regulatoryVerdict === "FAIL" ? "REGULATORY_FAIL" : "REGULATORY_NOT_PASS");
   if (input.prediction.status !== "PREDICTED") reasonCodes.push("PREDICTION_NOT_VALIDATED");
   return { eligibleForConsideration: reasonCodes.length === 0, safetyVerdict: input.safetyVerdict, regulatoryVerdict: input.regulatoryVerdict, reasonCodes };
 }

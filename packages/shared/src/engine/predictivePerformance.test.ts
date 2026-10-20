@@ -4,6 +4,8 @@ import {
   FEATURE_SCHEMA_VERSION,
   buildFormulaVersionBundleManifest,
   extractFormulaVersionDatasetRows,
+  formulaVersionDoeRowSchema,
+  formulaVersionProcessRowSchema,
   generateModelFeatures,
   partitionDataset,
   predictPerformance,
@@ -80,6 +82,56 @@ function targetRow(id: string, value: number, family = "SHAMPOO"): FormulaVersio
   };
 }
 
+function contextRows(compositionRow: FormulaVersionBundleInput["compositionRow"]) {
+  const identity = {
+    formulaId: compositionRow.formulaId, formulaCode: compositionRow.formulaCode,
+    formulaVersionId: compositionRow.formulaVersionId, formulaVersionNumber: compositionRow.formulaVersionNumber,
+  };
+  const processRow = formulaVersionProcessRowSchema.parse({
+    datasetSchemaVersion: DATASET_SCHEMA_VERSION,
+    sourceRecords: [
+      { sourceEntity: "formulationVersion", sourceRecordId: compositionRow.formulaVersionId },
+      { sourceEntity: "processParameter", sourceRecordId: "PROCESS-001" },
+      { sourceEntity: "laboratoryTrial", sourceRecordId: "TRIAL-001" },
+    ],
+    ...identity,
+    plannedProcedure: [{ schemaVersion: "1.0", code: "PROCESS-001", formulaCode: compositionRow.formulaCode, formulaVersion: compositionRow.formulaVersionNumber, stepNumber: 1, phase: "A", equipmentType: "mixer", temperatureTarget: "50", mixingSpeedTarget: "200", mixingTimeMinutes: "20", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+    trials: [{
+      trialId: "TRIAL-001", trialCode: "TRIAL-CODE-001",
+      plannedSteps: [{ processStepId: "STEP-001", stepNumber: 1, phase: "A", plannedInstruction: "Mix", requiredEquipment: [], plannedTemperatureMinC: "45", plannedTemperatureMaxC: "55" }],
+      actualStepObservations: [{ processStepId: "STEP-001", stepNumber: 1, status: "completed", actualTemperatureC: "49", actualMixingSpeedRpm: "180", actualDurationMinutes: "19", actualPh: "5.5", actualViscosity: "2000", viscosityUnit: "mPa.s" }],
+      observations: [],
+    }],
+  });
+  const doeRow = formulaVersionDoeRowSchema.parse({
+    datasetSchemaVersion: DATASET_SCHEMA_VERSION,
+    sourceRecords: [
+      { sourceEntity: "formulationVersion", sourceRecordId: compositionRow.formulaVersionId },
+      { sourceEntity: "doeStudy", sourceRecordId: "DOE-001" },
+      { sourceEntity: "doeDesign", sourceRecordId: "DESIGN-001" },
+      { sourceEntity: "doeRun", sourceRecordId: "RUN-001" },
+    ],
+    ...identity,
+    studies: [{
+      studyId: "DOE-001", studyCode: "DOE-CODE-001", studyRevision: 1,
+      designs: [{
+        design: {
+          schemaVersion: "1.0", id: "DESIGN-001", studyId: "DOE-001", studyRevision: 1, designType: "full_factorial",
+          factorSnapshot: [{ schemaVersion: "1.0", id: "FACTOR-001", studyId: "DOE-001", studyRevision: 1, factorCode: "TEMP", name: "Process temperature", factorType: "continuous", sourceType: "temperature", unit: "°C", lowValue: "40", centerValue: "50", highValue: "60", categoricalLevels: [], transformation: "none", precision: 2, isMixtureComponent: false, isProcessFactor: true, isControlled: true, createdAt: "2026-01-01T00:00:00.000Z" }],
+          constraintSnapshot: [], responseSnapshot: [{ schemaVersion: "1.0", id: "RESPONSE-001", studyId: "DOE-001", studyRevision: 1, responseCode: "VISC", name: "Viscosity", responseType: "continuous", objective: "observe_only", weight: "1", desirabilityShape: "linear", createdAt: "2026-01-01T00:00:00.000Z" }],
+          generationSettings: {}, seed: 1, runCount: 1, replicateCount: 0, centerPointCount: 0, blockCount: 1, generatedBy: "test", generatedAt: "2026-01-01T00:00:00.000Z",
+          diagnostics: { runCount: 1, degreesOfFreedom: 0, duplicateRunCount: 0, estimableTerms: [], aliasedTerms: [], isOrthogonal: true, isBalanced: true, centerPointCount: 0, replicateCount: 0, constraintViolationCount: 0, warnings: [] },
+        },
+        runs: [{
+          run: { schemaVersion: "1.0", id: "RUN-001", studyId: "DOE-001", studyRevision: 1, designId: "DESIGN-001", runNumber: 1, standardOrder: 1, randomizedOrder: 1, block: 1, replicate: 1, isCenterPoint: false, factorSettings: [{ factorCode: "TEMP", codedValue: "0", actualValue: "50" }], status: "completed", createdAt: "2026-01-01T00:00:00.000Z" },
+          observations: [{ schemaVersion: "1.0", id: "OBS-001", studyId: "DOE-001", studyRevision: 1, runId: "RUN-001", responseId: "RESPONSE-001", value: "999", status: "recorded", recordedBy: "test", recordedAt: "2026-01-01T00:00:00.000Z" }],
+        }],
+      }],
+    }],
+  });
+  return { processRow, doeRow };
+}
+
 async function makePipeline(size = 60, family = "SHAMPOO", labelledSize = size, percentAt: (index: number) => string = (index) => String(index + 1)) {
   const versions = Array.from({ length: size }, (_, index) => version(`${family}-${String(index + 1).padStart(3, "0")}`, percentAt(index)));
   const formulations = versions.map((item) => formulation(item.formulationId, family));
@@ -113,6 +165,17 @@ describe("FVL-07 predictive performance engine", () => {
     changedTargets[0]!.targetRow!.targetObservations[0]!.value = { kind: "numeric", raw: "999999", normalized: false };
     expect(generateModelFeatures(changedTargets, { interactionConfig: config })).toEqual(first);
     expect(generateModelFeatures(pipeline.bundles)[0]!.features.some((item) => item.name.startsWith("interaction."))).toBe(false);
+
+    const context = contextRows(pipeline.bundles[0]!.compositionRow);
+    const withContext = { ...pipeline.bundles[0]!, ...context };
+    const contextFeatures = generateModelFeatures([withContext])[0]!.features;
+    expect(contextFeatures).toContainEqual(expect.objectContaining({ name: "process.plan.step.1.temperatureTargetC", numericValue: 50, unit: "°C" }));
+    expect(contextFeatures).toContainEqual(expect.objectContaining({ name: "process.actual.step.1.temperatureC", numericValue: 49, unit: "°C" }));
+    expect(contextFeatures).toContainEqual(expect.objectContaining({ name: "testContext.doeFactor.TEMP.°C", numericValue: 50, unit: "°C" }));
+    expect(contextFeatures.some((item) => item.name.includes("actualPh") || item.name.includes("actualViscosity") || item.name.startsWith("doe.observation"))).toBe(false);
+    const changedDoe = structuredClone(withContext);
+    changedDoe.doeRow!.studies[0]!.designs[0]!.runs[0]!.observations[0]!.value = "-500";
+    expect(generateModelFeatures([changedDoe])[0]!.features).toEqual(contextFeatures);
   });
 
   it("returns a structured insufficient-data result and never registers a model below policy", async () => {
@@ -154,10 +217,14 @@ describe("FVL-07 predictive performance engine", () => {
     expect(training.outcome).toBe("ACCEPTED");
     if (training.outcome !== "ACCEPTED") return;
     const model = training.model;
+    const repeatedTraining = await trainPredictiveModel({ ...pipeline, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-20T12:00:00.000Z" });
+    expect(repeatedTraining).toEqual(training);
     expect(model.datasetFingerprint).toEqual(pipeline.partitionManifest.dataset);
     expect(model.partitionConfig.seed).toBe(1729);
     expect(model.tuningPerformed).toBe(false);
     expect(model.hyperparameters.tuningPerformed).toBe(false);
+    expect(model.acceptancePolicyVersion).toBe("1.0");
+    expect(model.algorithm).toBe("univariate_linear_regression");
     expect(model.evaluation.validation.metric).toBe("mae");
     expect(model.evaluation.validation.value).toBeLessThan(model.evaluation.baselineValidation.value);
     expect(model.evaluation.test.value).toBeLessThan(model.evaluation.baselineTest.value);
@@ -167,6 +234,9 @@ describe("FVL-07 predictive performance engine", () => {
     const roundTrip = await parsePredictiveModelRegistry(await serializePredictiveModelRegistry(registry));
     expect(roundTrip).toEqual(registry);
     await expect(registerPredictiveModel(registry, model)).rejects.toThrow("append-only");
+    const versionTwo = await trainPredictiveModel({ ...pipeline, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-21T12:00:00.000Z", modelVersion: 2 });
+    expect(versionTwo.outcome).toBe("ACCEPTED");
+    if (versionTwo.outcome === "ACCEPTED") expect((await registerPredictiveModel(registry, versionTwo.model)).models.map(({ version }) => version)).toEqual([1, 2]);
     const tampered = { ...model, modelParameters: { ...model.modelParameters, ...(model.modelParameters.kind === "linear" ? { slope: model.modelParameters.slope + 1 } : {}) } };
     await expect(parsePredictiveModelRegistry(JSON.stringify({ schemaVersion: "1.0", models: [tampered] }))).rejects.toThrow("checksum-valid");
   });
@@ -196,6 +266,7 @@ describe("FVL-07 predictive performance engine", () => {
     const bundles = [...shampoo.bundles, ...laundry.bundles];
     const featureRows = [...generateModelFeatures(shampoo.bundles), ...generateModelFeatures(laundry.bundles)];
     const partitionManifest = await partitionDataset(bundles, { ratios: { train: 0.6, validation: 0.2, test: 0.2 }, seed: 20261020 });
+    expect(await partitionDataset(bundles, { ratios: { train: 0.6, validation: 0.2, test: 0.2 }, seed: 20261020 })).toEqual(partitionManifest);
     const shampooNumeric = await trainPredictiveModel({ bundles, featureRows, partitionManifest, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-20T12:00:00.000Z" });
     const shampooClass = await trainPredictiveModel({ bundles, featureRows, partitionManifest, productFamilyCode: "SHAMPOO", targetDefinition: { ...targetDefinition, testDefinitionId: "PERFORMANCE-GRADE" }, trainingTimestamp: "2026-10-20T12:00:00.000Z" });
     const laundryNumeric = await trainPredictiveModel({ bundles, featureRows, partitionManifest, productFamilyCode: "LAUNDRY", targetDefinition: { ...targetDefinition, productFamilyCode: "LAUNDRY" }, trainingTimestamp: "2026-10-20T12:00:00.000Z" });
@@ -241,5 +312,7 @@ describe("FVL-07 predictive performance engine", () => {
     expect(predictionDecisionGate({ prediction, safetyVerdict: "FAIL", regulatoryVerdict: "PASS" })).toMatchObject({ eligibleForConsideration: false, safetyVerdict: "FAIL", reasonCodes: ["SAFETY_FAIL"] });
     expect(predictionDecisionGate({ prediction, safetyVerdict: "PASS", regulatoryVerdict: "FAIL" })).toMatchObject({ eligibleForConsideration: false, regulatoryVerdict: "FAIL", reasonCodes: ["REGULATORY_FAIL"] });
     expect(predictionDecisionGate({ prediction: { ...prediction, status: "OUT_OF_DOMAIN" }, safetyVerdict: "PASS", regulatoryVerdict: "PASS" }).eligibleForConsideration).toBe(false);
+    expect(predictionDecisionGate({ prediction, safetyVerdict: "UNKNOWN", regulatoryVerdict: "PASS" })).toMatchObject({ eligibleForConsideration: false, reasonCodes: ["SAFETY_NOT_PASS"] });
+    expect(Object.keys(prediction)).not.toContain("approval");
   });
 });

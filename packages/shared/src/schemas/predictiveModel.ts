@@ -6,6 +6,7 @@ export const MODEL_FEATURE_SCHEMA_VERSION = "1.0" as const;
 export const MODEL_FEATURE_CONTRACT_VERSION = "1.0" as const;
 export const PREDICTIVE_MODEL_SCHEMA_VERSION = "1.0" as const;
 export const TRAINING_CONTRACT_VERSION = "1.0" as const;
+export const ACCEPTANCE_POLICY_VERSION = "1.0" as const;
 export const ELIGIBILITY_POLICY_VERSION = "1.0" as const;
 export const APPLICABILITY_POLICY_VERSION = "1.0" as const;
 
@@ -144,6 +145,7 @@ export const predictiveModelArtifactSchema = z.object({
   modelFeatureSchemaVersion: z.literal(MODEL_FEATURE_SCHEMA_VERSION),
   featureContractVersion: z.string().min(1),
   trainingContractVersion: z.literal(TRAINING_CONTRACT_VERSION),
+  acceptancePolicyVersion: z.literal(ACCEPTANCE_POLICY_VERSION),
   trainingTimestamp: z.string().datetime({ offset: true }),
   algorithm: predictiveAlgorithmSchema,
   algorithmVersion: z.string().min(1),
