@@ -9,7 +9,7 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Milestone: FVL-06
 - Current Sprint: FVL-06-S02
 - Current Task: FVL-06.006 — CSV/Excel instrument import through existing Data Exchange
-- Current Task Status: READY
+- Current Task Status: IN_PROGRESS
 - Next Task: FVL-06.007 — Instrument-import validation rules for units and linkage
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -199,7 +199,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-06.005 — Measured-response linkage fields for formula version, trial, sample, test definition, timestamps
 
 ## Sprint FVL-06-S02 — Instrument ingestion & dataset integration
-- [ ] FVL-06.006 — CSV/Excel instrument import through existing Data Exchange
+- [~] FVL-06.006 — CSV/Excel instrument import through existing Data Exchange
 - [ ] FVL-06.007 — Instrument-import validation rules for units and linkage
 - [ ] FVL-06.008 — Reuse existing Data Exchange import-history/commit lifecycle
 - [ ] FVL-06.009 — Feed instrument/performance data into FVL-05 dataset extractors
