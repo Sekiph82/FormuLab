@@ -168,6 +168,14 @@ describe("FVL-06 measured-response contracts", () => {
     const missing = testResultSchema.parse(baseResult({ schemaVersion: "1.1", replicates: [{ replicateNumber: 1, isOutlier: false }] }));
     expect(missing.replicates[0].numericValue).toBeUndefined();
     expect(missing.replicates[0].normalizedPerformance).toBeUndefined();
+    expect(testResultSchema.safeParse({
+      ...missing,
+      replicates: [{
+        replicateNumber: 1,
+        normalizedPerformance: { value: "4", ruleId: "rule-v1", ruleVersion: "1", inputs: { scale: "source-defined" } },
+        isOutlier: false,
+      }],
+    }).success).toBe(false);
     expect(testResultSchema.safeParse({ ...missing, replicates: [{ replicateNumber: 1, numericValue: "5", normalizedPerformance: { value: "4", ruleId: "", ruleVersion: "1", inputs: {} }, isOutlier: false }] }).success).toBe(false);
   });
 

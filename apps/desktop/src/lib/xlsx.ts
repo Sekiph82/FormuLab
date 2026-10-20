@@ -171,10 +171,10 @@ export function rejectUnsupportedWorkbook(filename: string): string | null {
  * Read the first worksheet of a `.xlsx` file as rows of plain strings, in the
  * same shape `parseCsv` produces, so both feed the identical import pipeline.
  */
-export async function readWorkbookRows(bytes: ArrayBuffer): Promise<string[][]> {
+export async function readWorkbookRows(bytes: ArrayBuffer, sheetName?: string): Promise<string[][]> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(bytes);
-  const ws = wb.worksheets[0];
+  const ws = sheetName ? wb.getWorksheet(sheetName) : wb.worksheets[0];
   if (!ws) return [];
   const rows: string[][] = [];
   ws.eachRow((row) => {

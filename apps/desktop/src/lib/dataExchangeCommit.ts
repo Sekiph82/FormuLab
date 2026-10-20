@@ -112,8 +112,8 @@ interface CommitCtx {
   actorUserId: string;
   actorRole: ApprovalRole;
   sourceFile?: {
-    fileName: string;
-    fileType: "csv" | "xlsx";
+    fileName?: string;
+    fileType: "csv" | "xlsx" | "connector";
     sha256?: string;
     importJobId?: string;
     connectorId?: string;
@@ -196,7 +196,9 @@ const GROUPED_LINE_BUILDERS: Partial<Record<string, (rows: DataExchangeRowResult
         textValue: nn(row.record.text_value),
         wavelengthNm: nn(row.record.wavelength_nm),
         referenceContext: nn(row.record.reference_context),
+        acquiredAt: nn(row.record.acquired_at),
         sourceRowNumber: row.rowNumber,
+        sourceRecordId: row.sourceRecordId,
       })),
   stability_protocols: (rows) =>
     rows.map((row) => ({
@@ -803,6 +805,7 @@ const commitTestDefinitions: Handler = async (r) => {
       metricCode: r.metric_code,
       family: r.metric_family,
       description: nn(r.metric_description),
+      dimensionless: bool(r.metric_dimensionless),
       wavelengthNm: nn(r.metric_wavelength_nm),
       referenceContext: nn(r.metric_reference_context),
     } : undefined,
@@ -896,6 +899,13 @@ const commitLabResults: Handler = async (r, ctx) => {
   const testDef = await findByCode<{ code: string; resultType: string; unit?: string; metric?: { metricCode: string; family: string; description?: string; wavelengthNm?: string; referenceContext?: string } }>("test_definitions", "code", r.test_code);
   if (!testDef) throw new Error(`No test definition with code "${r.test_code}" exists yet — import or create it first.`);
   if (r.unit && testDef.unit && r.unit !== testDef.unit) throw new Error(`Unit "${r.unit}" does not match test definition "${r.test_code}" unit "${testDef.unit}".`);
+  const priorResults = (await listRecords("test_results")) as unknown as {
+    id: string; trialId: string; sampleId?: string; testDefinitionId: string; createdAt?: string;
+  }[];
+  const priorResult = priorResults
+    .filter((result) => result.trialId === trial.id && result.sampleId === nn(r.sample_code) && result.testDefinitionId === testDef.code)
+    .sort((a, b) => (a.createdAt ?? "") < (b.createdAt ?? "") ? -1 : (a.createdAt ?? "") > (b.createdAt ?? "") ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    .pop();
 
   // FVL-04.020 — the customer's own external formula/version reference is
   // cross-checked against the trial actually resolved, catching a
@@ -924,6 +934,8 @@ const commitLabResults: Handler = async (r, ctx) => {
   const replicates = (r as unknown as { __lines: {
     replicateNumber: number; numericValue?: string; normalizedPerformanceValue?: string; normalizationRuleId?: string;
     normalizationRuleVersion?: string; normalizationInputs?: string; textValue?: string; sourceRowNumber: number;
+    sourceRecordId?: string;
+    acquiredAt?: string;
   }[] }).__lines;
   const normalizationFor = (rep: typeof replicates[number]) => {
     const hasAny = [rep.normalizedPerformanceValue, rep.normalizationRuleId, rep.normalizationRuleVersion, rep.normalizationInputs].some((value) => value !== undefined);
@@ -941,12 +953,13 @@ const commitLabResults: Handler = async (r, ctx) => {
   const sourceProvenance = ctx.sourceFile ? replicates.map((rep) => ({
     fileName: ctx.sourceFile!.fileName,
     fileType: ctx.sourceFile!.fileType,
-    mimeType: ctx.sourceFile!.fileType === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    mimeType: ctx.sourceFile!.fileType === "csv" ? "text/csv" : ctx.sourceFile!.fileType === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : undefined,
     sha256: ctx.sourceFile!.sha256,
     importJobId: ctx.sourceFile!.importJobId,
     connectorId: ctx.sourceFile!.connectorId,
     rowNumber: rep.sourceRowNumber,
     sheetName: ctx.sourceFile!.sheetName,
+    sourceRecordId: rep.sourceRecordId,
   })) : undefined;
   const record = {
     schemaVersion: "1.1" as const,
@@ -959,10 +972,12 @@ const commitLabResults: Handler = async (r, ctx) => {
     testDefinitionId: testDef.code,
     metricSnapshot: testDef.metric,
     sampleId: nn(r.sample_code),
+    revisesResultId: priorResult?.id,
     resultType: (TEST_RESULT_TYPES.includes(testDef.resultType as (typeof TEST_RESULT_TYPES)[number]) ? testDef.resultType : "numeric") as (typeof TEST_RESULT_TYPES)[number],
     replicates: replicates.map((rep) => ({
       replicateNumber: rep.replicateNumber,
       numericValue: rep.numericValue,
+      measuredAt: rep.acquiredAt,
       normalizedPerformance: normalizationFor(rep),
       textValue: rep.textValue,
       isOutlier: false,

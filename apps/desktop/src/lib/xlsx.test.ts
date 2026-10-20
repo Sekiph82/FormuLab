@@ -86,6 +86,19 @@ describe("readWorkbookRows", () => {
     const bytes = await toBytes(() => {});
     expect(await readWorkbookRows(bytes)).toEqual([]);
   });
+
+  it("reads an explicitly selected worksheet without merging adjacent sheets", async () => {
+    const bytes = await toBytes((wb) => {
+      wb.addWorksheet("Cover").addRow(["not import data"]);
+      const results = wb.addWorksheet("Instrument Results");
+      results.addRow(["test_code", "numeric_value"]);
+      results.addRow(["TEST-1", "12.5"]);
+    });
+    expect(await readWorkbookRows(bytes, "Instrument Results")).toEqual([
+      ["test_code", "numeric_value"],
+      ["TEST-1", "12.5"],
+    ]);
+  });
 });
 
 describe("readWorkbookAllSheets — FVL-04.014", () => {

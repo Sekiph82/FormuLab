@@ -11,21 +11,207 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { evaluateMaterialAvailability, findRate, getDataExchangeTemplate, type ExchangeRate, type InventoryRecord } from "@formulab/shared";
+import { evaluateMaterialAvailability, findRate, getDataExchangeTemplate, parseCsv, type ExchangeRate, type InventoryRecord } from "@formulab/shared";
 import { DataExchangeImportDialog } from "./DataExchangeImportDialog";
 import { buildDataExchangeWorkbook } from "@/lib/dataExchangeXlsx";
+import { buildReferenceResolver, loadExistingFormulaBom } from "@/lib/dataExchangeExisting";
+import ExcelJS from "exceljs";
+import { readFileSync } from "node:fs";
+import {
+  extractFormulaVersionTargetRows,
+  extractFormulaVersionTestResultRows,
+  extractFormulaVersionFeatureRows,
+  formulaVersionCompositionRowSchema,
+  buildFormulaVersionBundleManifest,
+  partitionDataset,
+  DATASET_SCHEMA_VERSION,
+  type Formulation,
+  type FormulationVersion,
+  type LaboratoryTrial,
+  type TestResult,
+} from "@formulab/shared";
 
 const bridge = { listRecords: vi.fn(), upsertRecords: vi.fn() };
+const formulationsBridge = { listFormulations: vi.fn(), readFormulation: vi.fn() };
 vi.mock("@/lib/masterdata", () => ({
   listRecords: (...a: [string]) => bridge.listRecords(...a),
   upsertRecords: (...a: [string, unknown[]]) => bridge.upsertRecords(...a),
   nowIso: () => "2026-01-01T00:00:00.000Z",
+}));
+vi.mock("@/lib/formulations", () => ({
+  listFormulations: (...a: []) => formulationsBridge.listFormulations(...a),
+  readFormulation: (...a: [string]) => formulationsBridge.readFormulation(...a),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   bridge.listRecords.mockResolvedValue([]);
   bridge.upsertRecords.mockResolvedValue({ inserted: 1, updated: 0, total: 1 });
+  formulationsBridge.listFormulations.mockResolvedValue([]);
+  formulationsBridge.readFormulation.mockResolvedValue({ formulation: undefined, versions: [] });
+});
+
+describe("FVL-06 real instrument export acceptance", () => {
+  it("imports the repository CSV through preview and commit, then feeds exact records into FVL-05 dataset targets", async () => {
+    const fixturePath = "src/lib/__fixtures__/fvl06-spectrophotometer-export.csv";
+    const fixtureBefore = readFileSync(fixturePath, "utf8");
+    const formula: Formulation = {
+      schemaVersion: "1.0", id: "FVL06-FORM-ID", code: "FVL06-FORM-001", name: "Instrument acceptance formulation",
+      productFamilyCode: "FVL06-FAMILY", targetSkuCodes: [], targetMarkets: [], targetClaims: [], targetBatchKg: "100",
+      createdAt: "2026-03-01T00:00:00.000Z", updatedAt: "2026-03-01T00:00:00.000Z", archived: false,
+    };
+    const version: FormulationVersion = {
+      schemaVersion: "1.0", id: "FVL06-VERSION-ID", formulationId: formula.id, versionNumber: 3, status: "concept",
+      author: "acceptance", createdAt: "2026-03-02T00:00:00.000Z", lines: [], basisBatchKg: "100",
+      sourceRunIds: [], regulatoryFindingIds: [], compatibilityFindingIds: [], safetyFindingIds: [], approvalRecordIds: [],
+    };
+    const trial: LaboratoryTrial = {
+      schemaVersion: "1.0", id: "FVL06-TRIAL-ID", code: "FVL06-TRIAL-001", projectId: formula.id,
+      sourceType: "saved_version", sourceFormulaVersionId: version.id,
+      formulaSnapshot: { lines: [], basisBatchKg: "100", capturedAt: "2026-03-03T00:00:00.000Z" },
+      productFamilyId: "FVL06-FAMILY", targetPackagingSkuIds: [], title: "Instrument acceptance trial", batchSize: "1", batchUnit: "kg",
+      status: "completed", priority: "normal", equipmentIds: [], materialUsage: [], processSteps: [], observations: [],
+      hasOpenCriticalDeviation: false, createdAt: "2026-03-03T00:00:00.000Z", createdBy: "acceptance", updatedAt: "2026-03-03T00:00:00.000Z",
+    };
+    formulationsBridge.listFormulations.mockResolvedValue([formula]);
+    formulationsBridge.readFormulation.mockResolvedValue({ formulation: formula, versions: [version] });
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "laboratory_trials") return [trial];
+      if (collection === "test_definitions") return [{
+        schemaVersion: "1.1", code: "FVL06-REFLECT-405", name: "Reflectance at 405 nm", category: "performance",
+        unit: "% reflectance", metric: { metricCode: "REFLECT-405", family: "reflectance", wavelengthNm: "405", referenceContext: "unsoiled control" },
+        resultType: "numeric", createdAt: "2026-03-01T00:00:00.000Z", updatedAt: "2026-03-01T00:00:00.000Z",
+      }];
+      return [];
+    });
+    const resolveTrial = await buildReferenceResolver([{ referenceTemplate: "laboratory_trials", referenceField: "trial_code" }]);
+    expect(resolveTrial("laboratory_trials", "trial_code", trial.code)).toBe(true);
+    expect((await loadExistingFormulaBom()).naturalKeys.has(`${formula.code}::${version.versionNumber}`)).toBe(true);
+
+    const user = userEvent.setup();
+    const onCommitted = vi.fn();
+    render(<DataExchangeImportDialog template={getDataExchangeTemplate("lab_results")!} actorRole="administrator" actorUserId="acceptance" onCancel={() => {}} onCommitted={onCommitted} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File([fixtureBefore], "fvl06-spectrophotometer-export.csv", { type: "text/csv" });
+    await user.upload(dialog.querySelector('input[type="file"]') as HTMLInputElement, file);
+
+    expect(await within(dialog).findByText("3 row(s) ready to import")).toBeInTheDocument();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("test_results", expect.anything());
+    const commitButton = await within(dialog).findByRole("button", { name: "Commit import" });
+    expect(commitButton).not.toBeDisabled();
+    await user.click(commitButton);
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+
+    const savedResults = bridge.upsertRecords.mock.calls.find(([collection]) => collection === "test_results")?.[1] as TestResult[] | undefined;
+    expect(savedResults).toHaveLength(1);
+    const result = savedResults![0];
+    expect(result).toMatchObject({
+      formulaVersionId: version.id,
+      trialId: trial.id,
+      sampleId: "FVL06-SAMPLE-A",
+      testDefinitionId: "FVL06-REFLECT-405",
+      metricSnapshot: { metricCode: "REFLECT-405", family: "reflectance", wavelengthNm: "405", referenceContext: "unsoiled control" },
+      unit: "% reflectance",
+      measurementContext: { wavelengthNm: "405", referenceContext: "unsoiled control" },
+      instrument: "TEST Spectrophotometer",
+      performedAt: "2026-04-01T10:15:00.000Z",
+    });
+    expect(result.replicates.map((replicate) => replicate.numericValue)).toEqual(["71.25", "72", undefined]);
+    expect(result.replicates.map((replicate) => replicate.measuredAt)).toEqual([
+      "2026-04-01T10:15:00.000Z", "2026-04-01T10:15:03.000Z", "2026-04-01T10:15:06.000Z",
+    ]);
+    expect(result.sourceProvenance).toHaveLength(3);
+    expect(result.sourceProvenance?.map((source) => source.rowNumber)).toEqual([2, 3, 4]);
+    expect(result.sourceProvenance?.every((source) => source.fileName === "fvl06-spectrophotometer-export.csv" && source.fileType === "csv" && !!source.sha256 && !!source.importJobId)).toBe(true);
+
+    const jobs = bridge.upsertRecords.mock.calls.filter(([collection]) => collection === "data_exchange_import_jobs").map(([, records]) => records);
+    expect(jobs[jobs.length - 1]).toEqual(expect.arrayContaining([expect.objectContaining({ templateCode: "lab_results", status: "completed", createdRows: 3 })]));
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("data_exchange_import_row_results", expect.arrayContaining([
+      expect.objectContaining({ targetCollection: "test_results", targetRecordId: result.id, rowNumber: 2 }),
+    ]));
+    expect(onCommitted).toHaveBeenCalledWith(expect.objectContaining({ templateCode: "lab_results", status: "completed" }));
+
+    const testResultRows = extractFormulaVersionTestResultRows({
+      formulationVersionIds: [version.id], formulationVersions: [version], formulations: [formula], trials: [trial], testResults: savedResults!,
+    });
+    expect(testResultRows[0].trials[0].testResults[0].replicates[2].numericValue).toBeUndefined();
+    expect(testResultRows[0].sourceRecords).toContainEqual({ sourceEntity: "testResult", sourceRecordId: result.id });
+    const compositionRow = formulaVersionCompositionRowSchema.parse({
+      datasetSchemaVersion: DATASET_SCHEMA_VERSION,
+      sourceRecords: [{ sourceEntity: "formulation", sourceRecordId: formula.id }, { sourceEntity: "formulationVersion", sourceRecordId: version.id }],
+      formulaId: formula.id, formulaCode: formula.code, formulaVersionId: version.id, formulaVersionNumber: version.versionNumber,
+      composition: [], materials: [], productFamilyCode: formula.productFamilyCode,
+    });
+    const targetRows = extractFormulaVersionTargetRows({ formulaVersionIds: [version.id], compositionRows: [compositionRow], testResultRows });
+    expect(targetRows[0].targetObservations.map((observation) => observation.value)).toMatchObject([
+      { kind: "numeric", raw: "71.25", rawUnit: "% reflectance", normalized: false },
+      { kind: "numeric", raw: "72", rawUnit: "% reflectance", normalized: false },
+    ]);
+    expect(targetRows[0].targetObservations).toHaveLength(2);
+    expect(targetRows[0].sourceRecords).toContainEqual({ sourceEntity: "testResult", sourceRecordId: result.id });
+    const [featureRow] = extractFormulaVersionFeatureRows({ formulaVersionIds: [version.id], compositionRows: [compositionRow], testResultRows });
+    const bundle = { compositionRow, testResultRow: testResultRows[0], featureRow, targetRow: targetRows[0] };
+    const firstFingerprint = await buildFormulaVersionBundleManifest(bundle);
+    const repeatedFingerprint = await buildFormulaVersionBundleManifest(bundle);
+    expect(repeatedFingerprint).toEqual(firstFingerprint);
+    expect(firstFingerprint.rows.map((entry) => entry.family)).toContain("testResult");
+    const partitionConfig = { ratios: { train: 1, validation: 0, test: 0 }, seed: 605 };
+    const firstPartition = await partitionDataset([bundle], partitionConfig);
+    const repeatedPartition = await partitionDataset([bundle], partitionConfig);
+    expect(repeatedPartition).toEqual(firstPartition);
+    expect(firstPartition.entries[0].formulaVersionId).toBe(version.id);
+    expect(readFileSync(fixturePath, "utf8")).toBe(fixtureBefore);
+  });
+
+  it("rejects an incompatible instrument unit with a row-level message before commit", async () => {
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "test_definitions") return [{ code: "FVL06-REFLECT-405", unit: "% reflectance", metric_dimensionless: "false" }];
+      return [];
+    });
+    const fixturePath = "src/lib/__fixtures__/fvl06-spectrophotometer-export.csv";
+    const invalidCsv = readFileSync(fixturePath, "utf8").split("% reflectance").join("nm");
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={getDataExchangeTemplate("lab_results")!} actorRole="administrator" actorUserId="acceptance" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    await user.upload(dialog.querySelector('input[type="file"]') as HTMLInputElement, new File([invalidCsv], "invalid-instrument.csv", { type: "text/csv" }));
+    expect((await within(dialog).findAllByText(/does not match TestDefinition unit/)).length).toBeGreaterThan(0);
+    expect((await within(dialog).findAllByText(/does not exist in laboratory_trials/)).length).toBeGreaterThan(0);
+    expect(within(dialog).getByRole("button", { name: "Commit import" })).toBeDisabled();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("test_results", expect.anything());
+  });
+
+  it("imports lab measurements from the selected Excel worksheet and records that worksheet in provenance", async () => {
+    const fixturePath = "src/lib/__fixtures__/fvl06-spectrophotometer-export.csv";
+    const fixtureRows = parseCsv(readFileSync(fixturePath, "utf8"));
+    const measurementRows = fixtureRows.map((row) => row.slice(2));
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet("Cover").addRows([["Spectrophotometer export"], ["Select Measurements to import."]]);
+    workbook.addWorksheet("Measurements").addRows(measurementRows);
+    const bytes = (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
+    const trial = { id: "FVL06-TRIAL-ID", code: "FVL06-TRIAL-001", projectId: "FVL06-FORM-ID", sourceFormulaVersionId: "FVL06-VERSION-ID" };
+    bridge.listRecords.mockImplementation(async (collection: string) => {
+      if (collection === "laboratory_trials") return [trial];
+      if (collection === "test_definitions") return [{
+        code: "FVL06-REFLECT-405", unit: "% reflectance",
+        metric: { metricCode: "REFLECT-405", family: "reflectance", wavelengthNm: "405", referenceContext: "unsoiled control" },
+      }];
+      return [];
+    });
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={getDataExchangeTemplate("lab_results")!} actorRole="administrator" actorUserId="acceptance" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const file = new File([bytes], "fvl06-spectrophotometer-export.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    await user.upload(dialog.querySelector('input[type="file"]') as HTMLInputElement, file);
+    await user.selectOptions(await within(dialog).findByRole("combobox", { name: "Sheet" }), "Measurements");
+    expect(await within(dialog).findByText("3 row(s) ready to import")).toBeInTheDocument();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("test_results", expect.anything());
+    await user.click(within(dialog).getByRole("button", { name: "Commit import" }));
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    const result = bridge.upsertRecords.mock.calls.find(([collection]) => collection === "test_results")?.[1] as TestResult[];
+    expect(result[0].replicates.map((replicate) => replicate.numericValue)).toEqual(["71.25", "72", undefined]);
+    expect(result[0].sourceProvenance?.map((source) => source.sheetName)).toEqual(["Measurements", "Measurements", "Measurements"]);
+    expect(result[0].sourceProvenance?.every((source) => source.fileType === "xlsx" && !!source.sha256)).toBe(true);
+  });
 });
 
 describe("DataExchangeImportDialog — genuinely unsupported template", () => {
@@ -351,6 +537,28 @@ describe("DataExchangeImportDialog — Part A hardening: finished_product_specif
       "finished_product_specifications",
       expect.arrayContaining([expect.objectContaining({ skuCode: "FPS-SKU-002", minimum: "8000", maximum: "10000" })]),
     );
+  });
+
+  it("FVL-06: lets the user select the actual import worksheet from a multi-sheet workbook", async () => {
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet("Cover").addRows([["Instrument export"], ["Read the instrument notes before importing."]]);
+    const data = wb.addWorksheet("Instrument Data");
+    data.addRow(["material_code", "material_name"]);
+    data.addRow(["TEST-MAT-SHEET", "TEST Instrument Material"]);
+    const bytes = (await wb.xlsx.writeBuffer()) as ArrayBuffer;
+    const file = new File([bytes], "instrument-export.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const user = userEvent.setup();
+    render(<DataExchangeImportDialog template={getDataExchangeTemplate("raw_materials")!} actorRole="administrator" actorUserId="local" onCancel={() => {}} onCommitted={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/material_code/);
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Sheet" }), "Instrument Data");
+    expect(await within(dialog).findByText("1")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Commit import" }));
+    expect(await within(dialog).findByText(/Imported/)).toBeInTheDocument();
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("materials", expect.arrayContaining([expect.objectContaining({ code: "TEST-MAT-SHEET" })]));
+    expect(bridge.upsertRecords).toHaveBeenCalledWith("data_exchange_import_jobs", expect.arrayContaining([expect.objectContaining({ status: "cancelled" })]));
   });
 
   it("negative: a specification row missing the required effective_from natural key is refused, commit button stays disabled", async () => {

@@ -34,6 +34,8 @@ export interface DataExchangeRowResult {
    *  currency/percentage/integer values are normalized decimal strings so a
    *  commit handler never re-parses human-formatted text. */
   record: Record<string, string>;
+  /** Connector-provided source record identity, when this row came from a connector bridge. */
+  sourceRecordId?: string;
 }
 
 export interface DataExchangePreview {
@@ -92,6 +94,11 @@ export interface DataExchangeValidationOptions {
    * `resolveColumnReferenceField()` below).
    */
   resolveReference?: (referenceTemplate: string, referenceField: string, key: string) => boolean;
+  /** Resolved target row when cross-field validation needs canonical fields
+   *  such as the linked test's declared unit. */
+  resolveReferenceRecord?: (referenceTemplate: string, referenceField: string, key: string) => Record<string, string> | undefined;
+  /** Exact formula_code/version crosswalk for instrument results. */
+  resolveFormulaVersion?: (formulaCode: string, versionNumber: string) => boolean;
   /** Deep-compares a proposed row's mapped record against the existing
    *  one for the same natural key, to tell `unchanged` apart from
    *  `valid_update`. Optional — without it, every match against
@@ -340,7 +347,15 @@ export function previewDataExchangeImport(
           hasError = true;
         } else {
           const referenced = opts.resolveReference(column.referenceTemplate, fieldResolution.field, result.value);
-          if (!referenced) {
+          // A LIMS result may carry a new trial that is not yet in FormuLab.
+          // The existing commit handler can create it safely only from an
+          // exact, already-saved formula version; allow that explicit case.
+          const exactTrialCanBeCreated = template.templateCode === "lab_results"
+            && column.referenceTemplate === "laboratory_trials"
+            && !!record.project_code
+            && !!record.formula_version
+            && !!opts.resolveFormulaVersion?.(record.project_code, record.formula_version);
+          if (!referenced && !exactTrialCanBeCreated) {
             const msg = `"${column.key}" references "${result.value}", which does not exist in ${column.referenceTemplate}.`;
             if (column.required) {
               messages.push(msg);
@@ -392,6 +407,22 @@ export function previewDataExchangeImport(
       }
       if ((record.project_code === undefined) !== (record.formula_version === undefined)) {
         addRowError('"project_code" and "formula_version" must be supplied together for exact formula linkage.');
+      } else if (record.project_code && record.formula_version && opts.resolveFormulaVersion && !opts.resolveFormulaVersion(record.project_code, record.formula_version)) {
+        addRowError(`Formula version "${record.project_code}" version "${record.formula_version}" does not resolve to a saved canonical version.`);
+      }
+      const testDefinition = opts.resolveReferenceRecord?.("test_definitions", "test_code", record.test_code ?? "");
+      if (testDefinition && record.numeric_value !== undefined) {
+        const declaredUnit = testDefinition.unit;
+        const isDimensionless = testDefinition.metric_dimensionless === "true";
+        if (isDimensionless && record.unit !== undefined) {
+          addRowError('"unit" must be blank when the TestDefinition explicitly marks this metric dimensionless.');
+        } else if (declaredUnit && record.unit !== undefined && declaredUnit !== record.unit) {
+          addRowError(`"unit" "${record.unit}" does not match TestDefinition unit "${declaredUnit}".`);
+        } else if (!declaredUnit && !isDimensionless && record.unit !== undefined) {
+          addRowError('Unit compatibility cannot be verified because the linked TestDefinition has no declared unit.');
+        } else if (!declaredUnit && !isDimensionless && record.unit === undefined) {
+          addRowError('A numeric measurement requires a declared unit or an explicitly dimensionless TestDefinition.');
+        }
       }
     }
 

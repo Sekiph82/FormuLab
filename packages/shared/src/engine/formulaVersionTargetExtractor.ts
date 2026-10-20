@@ -127,8 +127,9 @@ interface MeasuredResultLike {
   testDefinitionId: string;
   resultType: string;
   unit?: string;
+  measurementContext?: { wavelengthNm?: string; referenceContext?: string };
   passFail: string;
-  replicates: { replicateNumber: number; numericValue?: string; isOutlier: boolean }[];
+  replicates: { replicateNumber: number; numericValue?: string; isOutlier: boolean; normalizedPerformance?: { value: string; unit?: string; ruleId: string; ruleVersion: string; inputs: Record<string, string> } }[];
   textValue?: string;
   categoricalValue?: string;
   booleanValue?: boolean;
@@ -146,9 +147,17 @@ function buildTestResultContext(result: {
   sampleId?: string;
   instrument?: string;
   methodSnapshot?: TestMethodSnapshot;
+  measurementContext?: { wavelengthNm?: string; referenceContext?: string };
+  normalization?: { ruleId: string; ruleVersion: string; inputs: Record<string, string> };
 }): TargetObservation["context"] {
-  if (result.sampleId === undefined && result.instrument === undefined && result.methodSnapshot === undefined) return undefined;
-  return { sampleId: result.sampleId, instrument: result.instrument, methodSnapshot: result.methodSnapshot };
+  if (result.sampleId === undefined && result.instrument === undefined && result.methodSnapshot === undefined && result.measurementContext === undefined && result.normalization === undefined) return undefined;
+  return {
+    ...(result.sampleId !== undefined ? { sampleId: result.sampleId } : {}),
+    ...(result.instrument !== undefined ? { instrument: result.instrument } : {}),
+    ...(result.methodSnapshot !== undefined ? { methodSnapshot: result.methodSnapshot } : {}),
+    ...(result.measurementContext !== undefined ? { measurementContext: result.measurementContext } : {}),
+    ...(result.normalization !== undefined ? { normalization: result.normalization } : {}),
+  };
 }
 
 /** Shared walk for `TestResult` and `StabilityResult` — structurally
@@ -182,6 +191,26 @@ function collectMeasuredResultTarget(
     for (const replicate of result.replicates) {
       const normalized = normalizeQuantity(replicate.numericValue, result.unit);
       if (normalized) push({ kind: "numeric", ...normalized }, String(replicate.replicateNumber), replicate.isOutlier);
+      if (sourceEntity === "testResult" && replicate.normalizedPerformance) {
+        const performanceValue = normalizeQuantity(replicate.normalizedPerformance.value, replicate.normalizedPerformance.unit);
+        if (performanceValue) {
+          observations.push({
+            targetDefinition: { ...buildDefinition(), measurementValueKind: "normalized_performance" },
+            value: { kind: "numeric", ...performanceValue },
+            detail: String(replicate.replicateNumber),
+            isOutlier: replicate.isOutlier,
+            context: {
+              ...(context ?? {}),
+              normalization: {
+                ruleId: replicate.normalizedPerformance.ruleId,
+                ruleVersion: replicate.normalizedPerformance.ruleVersion,
+                inputs: replicate.normalizedPerformance.inputs,
+              },
+            },
+            sourceRecords: citation,
+          });
+        }
+      }
     }
   } else if (result.resultType === "text") {
     if (result.textValue !== undefined) push({ kind: "text", text: result.textValue }, undefined, false);

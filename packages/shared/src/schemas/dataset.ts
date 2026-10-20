@@ -101,7 +101,17 @@ export type DatasetSchemaVersioned = z.infer<typeof datasetSchemaVersionedSchema
  *  (none is applicable). `featureSchemaVersionSchema` is a `z.literal` — a
  *  row still carrying `featureSchemaVersion: "1.0"` is now explicitly,
  *  structurally REJECTED (proven by `dataset.test.ts`). */
-export const FEATURE_SCHEMA_VERSION = "1.2" as const;
+export const FEATURE_SCHEMA_VERSION = "1.3" as const;
+
+/** THIRD BUMP (FVL-06.009): 1.2 -> 1.3. FVL-06 adds
+ *  optional measurementValueKind to target identity and optional exact
+ *  normalization rule/version/inputs plus instrument measurement context
+ *  to target observations. This lets an explicitly normalized performance
+ *  value become a separate target while retaining the original raw
+ *  replicate target and its exact lineage. These are persisted feature-row
+ *  contract changes, so the shared feature version advances. A repository
+ *  scan found no persisted feature rows outside tests; no migration is
+ *  applicable. */
 
 /** SECOND BUMP (FVL-05.010 corrective cycle, `AUDIT_FVL05_GPT_000015`,
  *  2026-08-27): `"1.1"` -> `"1.2"`. The corrective cycle added
@@ -1603,9 +1613,11 @@ export type FormulaVersionFeatureRow = z.infer<typeof formulaVersionFeatureRowSc
  * `DoeObservation`) already has a unique source-record citation and
  * leaves `detail` absent.
  *
- * FEATURE_SCHEMA_VERSION bumps `"1.0"` -> `"1.1"` for this brand-new row
- * type (see the constant's own header comment for the full precedent
- * chain). `DATASET_SCHEMA_VERSION` is untouched (stays `"1.6"`) — this
+ * FEATURE_SCHEMA_VERSION began at `"1.1"` for this brand-new row type,
+ * advanced to `"1.2"` in a corrective cycle and to `"1.3"` for FVL-06.009
+ * measured-response target fields (see the constant's own header comment
+ * for the full precedent chain). `DATASET_SCHEMA_VERSION` is untouched
+ * (stays `"1.6"`) — this
  * task adds no field to, and removes no field from, any FVL-05.003-.008
  * row shape; it only reads them.
  */
@@ -1643,6 +1655,9 @@ export const targetDefinitionSchema = z
     /** `testResult` ONLY — see `timePoint` immediately above; identical
      *  reasoning and identical current-writer-evidence disclosure. */
     storageCondition: z.string().optional(),
+    /** Separates the preserved instrument reading from an explicitly
+     *  reproducible normalized-performance target. Absent means raw. */
+    measurementValueKind: z.enum(["raw", "normalized_performance"]).optional(),
   })
   .superRefine((def, ctx) => {
     const fail = (message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, message });
@@ -1706,6 +1721,12 @@ export const targetObservationContextSchema = z.object({
   sampleId: z.string().optional(),
   instrument: z.string().optional(),
   methodSnapshot: testMethodSnapshotSchema.optional(),
+  measurementContext: z.object({ wavelengthNm: decimalString.optional(), referenceContext: z.string().optional() }).optional(),
+  normalization: z.object({
+    ruleId: nonBlankString("normalization.ruleId"),
+    ruleVersion: nonBlankString("normalization.ruleVersion"),
+    inputs: z.record(z.string(), nonBlankString("normalization input")),
+  }).optional(),
 });
 export type TargetObservationContext = z.infer<typeof targetObservationContextSchema>;
 
@@ -1721,6 +1742,22 @@ export const targetObservationSchema = z.object({
   /** See `targetObservationContextSchema`'s own header comment. */
   context: targetObservationContextSchema.optional(),
   sourceRecords: sourceRecordLineageSchema,
+}).superRefine((observation, ctx) => {
+  const normalizedPerformance = observation.targetDefinition.sourceEntity === "testResult"
+    && observation.targetDefinition.measurementValueKind === "normalized_performance";
+  if (normalizedPerformance && (observation.value.kind !== "numeric" || observation.context?.normalization === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["context", "normalization"],
+      message: "A normalized-performance target requires a numeric value and exact normalization rule provenance.",
+    });
+  } else if (!normalizedPerformance && observation.context?.normalization !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["targetDefinition", "measurementValueKind"],
+      message: "Normalization provenance is only valid on a normalized-performance target.",
+    });
+  }
 });
 export type TargetObservation = z.infer<typeof targetObservationSchema>;
 

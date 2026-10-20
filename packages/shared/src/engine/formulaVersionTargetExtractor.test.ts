@@ -248,8 +248,8 @@ describe("extractFormulaVersionTargetRows — row assembly", () => {
     expect(row.featureSchemaVersion).toBe(FEATURE_SCHEMA_VERSION);
   });
 
-  it("FEATURE_SCHEMA_VERSION is '1.2' (bumped again by the corrective cycle's additive targetDefinition/targetObservation fields)", () => {
-    expect(FEATURE_SCHEMA_VERSION).toBe("1.2");
+  it("FEATURE_SCHEMA_VERSION is '1.3' after adding reproducible normalized-performance target observations", () => {
+    expect(FEATURE_SCHEMA_VERSION).toBe("1.3");
   });
 
   it("DATASET_SCHEMA_VERSION is untouched by this task — stays '1.6'", () => {
@@ -491,6 +491,56 @@ describe("extractFormulaVersionTargetRows — TestResult targets", () => {
     const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
     expect(target.targetObservations).toHaveLength(1);
     expect(target.targetObservations[0].value).toMatchObject({ kind: "numeric", raw: "0", normalized: true, canonicalValue: "0.0000" });
+  });
+
+  it("emits raw and explicitly normalized performance as separate targets with the exact rule lineage", () => {
+    const row = testResultRow({
+      trials: [{
+        trialId: "TRIAL-0001",
+        trialCode: "TRL-0001",
+        testResults: [testResult({
+          unit: "% reflectance",
+          sampleId: "FVL06-SAMPLE-A",
+          instrument: "TEST Spectrophotometer",
+          measurementContext: { wavelengthNm: "405", referenceContext: "unsoiled control" },
+          replicates: [{
+            replicateNumber: 1,
+            numericValue: "71.25",
+            measuredAt: "2026-04-01T10:15:00.000Z",
+            normalizedPerformance: {
+              value: "0.7125",
+              ruleId: "reflectance-fraction-v1",
+              ruleVersion: "1",
+              inputs: { scale: "percent-to-fraction", sourceUnit: "% reflectance" },
+            },
+          }],
+        })],
+      }],
+    });
+    const [target] = extractFormulaVersionTargetRows(baseInput({ testResultRows: [row] }));
+    expect(target.targetObservations).toHaveLength(2);
+    expect(target.targetObservations[0]).toMatchObject({
+      value: { kind: "numeric", raw: "71.25", rawUnit: "% reflectance", normalized: false },
+      targetDefinition: { testDefinitionId: "TESTDEF-0001" },
+      context: { sampleId: "FVL06-SAMPLE-A", instrument: "TEST Spectrophotometer" },
+      detail: "1",
+    });
+    expect(target.targetObservations[1]).toMatchObject({
+      value: { kind: "numeric", raw: "0.7125", normalized: false },
+      targetDefinition: { testDefinitionId: "TESTDEF-0001", measurementValueKind: "normalized_performance" },
+      context: { normalization: { ruleId: "reflectance-fraction-v1", ruleVersion: "1", inputs: { scale: "percent-to-fraction", sourceUnit: "% reflectance" } } },
+      detail: "1",
+    });
+    expect(target.targetObservations[0].sourceRecords).toEqual(target.targetObservations[1].sourceRecords);
+  });
+
+  it("rejects a normalized-performance target that omits exact normalization provenance", () => {
+    const observationSchema = formulaVersionTargetRowSchema.shape.targetObservations.element;
+    expect(observationSchema.safeParse({
+      targetDefinition: { productFamilyCode: "HC-SHAMPOO-REG", sourceEntity: "testResult", testDefinitionId: "TESTDEF-1", measurementValueKind: "normalized_performance" },
+      value: { kind: "numeric", raw: "0.71", normalized: false },
+      sourceRecords: [{ sourceEntity: "testResult", sourceRecordId: "RESULT-1" }],
+    }).success).toBe(false);
   });
 
   it("extracts a text observation for resultType 'text'", () => {

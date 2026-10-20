@@ -455,6 +455,7 @@ const TEST_DEFINITION_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "metric_code", dataType: "string", description: "Stable measured metric identity." }),
   col({ key: "metric_family", dataType: "enum", enumValues: MEASURED_METRIC_FAMILIES, description: "Measurement family; descriptive only, with no implied equation or standard." }),
   col({ key: "metric_description", dataType: "string", description: "Source-defined metric description." }),
+  col({ key: "metric_dimensionless", dataType: "boolean", description: "Explicitly marks a metric as dimensionless." }),
   col({ key: "metric_wavelength_nm", dataType: "decimal", description: "Method wavelength in nanometers, when specified." }),
   col({ key: "metric_reference_context", dataType: "string", description: "Method reference context, when specified." }),
   col({ key: "unit", dataType: "string", description: "Result unit." }),
@@ -478,7 +479,7 @@ const TEST_DEFINITION_COLUMNS: DataExchangeColumnDefinition[] = [
 const LAB_RESULT_COLUMNS: DataExchangeColumnDefinition[] = [
   col({ key: "project_code", dataType: "string", description: "Owning project/formulation code." }),
   col({ key: "formula_version", dataType: "integer", description: "Formula version tested." }),
-  col({ key: "trial_code", dataType: "code_reference", description: "Laboratory trial this result belongs to.", ...REQ, example: "TEST-TRIAL-001" }),
+  col({ key: "trial_code", dataType: "code_reference", referenceTemplate: "laboratory_trials", referenceField: "trial_code", description: "Laboratory trial this result belongs to.", ...REQ, example: "TEST-TRIAL-001" }),
   col({ key: "sample_code", dataType: "string", description: "Sample identifier.", ...REQ, example: "S1" }),
   col({ key: "test_code", dataType: "code_reference", description: "Test performed.", ...REQ, referenceTemplate: "test_definitions", referenceField: "test_code", example: "TEST-TST-001" }),
   col({ key: "replicate_number", dataType: "integer", description: "Replicate number.", ...REQ, defaultValue: "1", example: "1" }),

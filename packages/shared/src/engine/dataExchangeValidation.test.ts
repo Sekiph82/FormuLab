@@ -117,6 +117,38 @@ describe("FVL-06 measured-response row validation", () => {
     expect(result.rows[0].state).toBe("invalid");
     expect(result.rows[0].messages.join(" ")).toMatch(/metric_code.*metric_family/);
   });
+
+  it("checks numeric units against the resolved TestDefinition during preview", () => {
+    const headers = ["trial_code", "sample_code", "test_code", "replicate_number", "numeric_value", "unit"];
+    const row = ["TRIAL-1", "S1", "TEST-1", "1", "12.5", "nm"];
+    const result = previewDataExchangeImport(labResults, [headers, row], {
+      resolveReferenceRecord: () => ({ test_code: "TEST-1", unit: "%" }),
+    });
+    expect(result.rows[0].state).toBe("invalid");
+    expect(result.rows[0].messages.join(" ")).toMatch(/does not match TestDefinition unit/);
+  });
+
+  it("requires formula imports to resolve the exact saved version rather than a latest fallback", () => {
+    const preview = previewDataExchangeImport(labResults, [
+      ["project_code", "formula_version", "trial_code", "sample_code", "test_code", "replicate_number"],
+      ["FORM-1", "3", "TRIAL-1", "S1", "TEST-1", "1"],
+    ], { resolveFormulaVersion: (code, version) => code === "FORM-1" && version === "2" });
+    expect(preview.rows[0].state).toBe("invalid");
+    expect(preview.rows[0].messages.join(" ")).toMatch(/does not resolve to a saved canonical version/);
+  });
+
+  it("requires either a canonical unit or an explicit dimensionless TestDefinition for numeric values", () => {
+    const headers = ["trial_code", "sample_code", "test_code", "replicate_number", "numeric_value"];
+    const row = ["TRIAL-1", "S1", "TEST-1", "1", "12.5"];
+    const noUnit = previewDataExchangeImport(labResults, [headers, row], {
+      resolveReferenceRecord: () => ({ test_code: "TEST-1" }),
+    });
+    expect(noUnit.rows[0].state).toBe("invalid");
+    const dimensionless = previewDataExchangeImport(labResults, [headers, row], {
+      resolveReferenceRecord: () => ({ test_code: "TEST-1", metric_dimensionless: "true" }),
+    });
+    expect(dimensionless.rows[0].state).toBe("valid_create");
+  });
 });
 
 describe("previewDataExchangeImport — row classification", () => {

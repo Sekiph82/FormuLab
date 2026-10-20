@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: FVL-06
-- Current Sprint: FVL-06-S02
-- Current Task: FVL-06.006 — CSV/Excel instrument import through existing Data Exchange
-- Current Task Status: IN_PROGRESS
-- Next Task: FVL-06.007 — Instrument-import validation rules for units and linkage
+- Current Milestone: FVL-07
+- Current Sprint: FVL-07-S01
+- Current Task: FVL-07.001 — Eligibility: minimum dataset size and target-observation thresholds
+- Current Task Status: READY
+- Next Task: FVL-07.002 — Eligibility: missing-data rules and applicability-domain requirements
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 108
-- Remaining Tasks: 63
-- Completion: 63.2%
+- Completed Tasks: 113
+- Remaining Tasks: 58
+- Completion: 66.1%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -199,11 +199,11 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-06.005 — Measured-response linkage fields for formula version, trial, sample, test definition, timestamps
 
 ## Sprint FVL-06-S02 — Instrument ingestion & dataset integration
-- [~] FVL-06.006 — CSV/Excel instrument import through existing Data Exchange
-- [ ] FVL-06.007 — Instrument-import validation rules for units and linkage
-- [ ] FVL-06.008 — Reuse existing Data Exchange import-history/commit lifecycle
-- [ ] FVL-06.009 — Feed instrument/performance data into FVL-05 dataset extractors
-- [ ] FVL-06.010 — Real sample instrument-export acceptance test
+- [x] FVL-06.006 — CSV/Excel instrument import through existing Data Exchange
+- [x] FVL-06.007 — Instrument-import validation rules for units and linkage
+- [x] FVL-06.008 — Reuse existing Data Exchange import-history/commit lifecycle
+- [x] FVL-06.009 — Feed instrument/performance data into FVL-05 dataset extractors
+- [x] FVL-06.010 — Real sample instrument-export acceptance test
 
 # FVL-07
 

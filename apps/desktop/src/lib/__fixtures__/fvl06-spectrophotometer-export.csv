@@ -1,0 +1,4 @@
+project_code,formula_version,trial_code,sample_code,test_code,replicate_number,numeric_value,text_value,unit,wavelength_nm,reference_context,acquired_at,analyst,instrument
+FVL06-FORM-001,3,FVL06-TRIAL-001,FVL06-SAMPLE-A,FVL06-REFLECT-405,1,71.25,,% reflectance,405,unsoiled control,2026-04-01T10:15:00.000Z,FVL06 Instrument Operator,TEST Spectrophotometer
+FVL06-FORM-001,3,FVL06-TRIAL-001,FVL06-SAMPLE-A,FVL06-REFLECT-405,2,72.00,,% reflectance,405,unsoiled control,2026-04-01T10:15:03.000Z,FVL06 Instrument Operator,TEST Spectrophotometer
+FVL06-FORM-001,3,FVL06-TRIAL-001,FVL06-SAMPLE-A,FVL06-REFLECT-405,3,,,% reflectance,405,unsoiled control,2026-04-01T10:15:06.000Z,FVL06 Instrument Operator,TEST Spectrophotometer

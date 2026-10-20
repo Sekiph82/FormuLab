@@ -43,6 +43,10 @@ async function flat(collection: Collection, keyField: string, toRow: (r: Record<
 }
 
 const LOADERS: Partial<Record<string, Loader>> = {
+  laboratory_trials: async () => {
+    const trials = (await listRecords("laboratory_trials")) as unknown as Record<string, unknown>[];
+    return { naturalKeys: new Set(trials.map((trial) => s(trial.code))), rows: trials.map((trial) => ({ trial_code: s(trial.code) })) };
+  },
   raw_materials: () =>
     flat("materials", "code", (r) => ({
       material_code: s(r.code),
@@ -293,6 +297,7 @@ const LOADERS: Partial<Record<string, Loader>> = {
       metric_code: s((r.metric as Record<string, unknown> | undefined)?.metricCode),
       metric_family: s((r.metric as Record<string, unknown> | undefined)?.family),
       metric_description: s((r.metric as Record<string, unknown> | undefined)?.description),
+      metric_dimensionless: s((r.metric as Record<string, unknown> | undefined)?.dimensionless),
       metric_wavelength_nm: s((r.metric as Record<string, unknown> | undefined)?.wavelengthNm),
       metric_reference_context: s((r.metric as Record<string, unknown> | undefined)?.referenceContext),
       unit: s(r.unit),
@@ -322,8 +327,11 @@ const LOADERS: Partial<Record<string, Loader>> = {
       const trialCode = s(trial.code);
       const testCode = s(testDef.code);
       const sampleCode = s(result.sampleId);
-      const replicates = (result.replicates as { replicateNumber?: number; numericValue?: string; textValue?: string; normalizedPerformance?: Record<string, unknown> }[] | undefined) ?? [];
+      const replicates = (result.replicates as { replicateNumber?: number; numericValue?: string; measuredAt?: string; textValue?: string; normalizedPerformance?: Record<string, unknown> }[] | undefined) ?? [];
       for (const rep of replicates) {
+        const measuredAt = typeof rep.measuredAt === "string"
+          ? rep.measuredAt
+          : typeof result.performedAt === "string" ? result.performedAt : undefined;
         const replicateNumber = s(rep.replicateNumber);
         naturalKeys.add(`${trialCode}::${sampleCode}::${testCode}::${replicateNumber}`);
         rows.push({
@@ -338,8 +346,8 @@ const LOADERS: Partial<Record<string, Loader>> = {
           normalization_inputs: rep.normalizedPerformance ? JSON.stringify(rep.normalizedPerformance.inputs) : "",
           text_value: s(rep.textValue),
           unit: s(result.unit),
-          result_date: s(typeof result.performedAt === "string" ? result.performedAt.slice(0, 10) : undefined),
-          acquired_at: s(typeof result.performedAt === "string" && result.performedAt.includes("T") ? result.performedAt : undefined),
+          result_date: s(measuredAt?.slice(0, 10)),
+          acquired_at: s(measuredAt?.includes("T") ? measuredAt : undefined),
           analyst: s(result.performedBy),
           instrument: s(result.instrument),
           wavelength_nm: s((result.measurementContext as Record<string, unknown> | undefined)?.wavelengthNm),
@@ -953,6 +961,28 @@ export async function buildReferenceResolver(requirements: Iterable<ReferenceReq
   }
 
   return (referenceTemplate, referenceField, key) => valuesByRequirement.get(`${referenceTemplate}::${referenceField}`)?.has(key) ?? false;
+}
+
+/** Same canonical lookups as `buildReferenceResolver`, exposing only the
+ *  matched exported row so validation can compare linked measurement units. */
+export async function buildReferenceRecordResolver(
+  requirements: Iterable<ReferenceRequirement>,
+): Promise<(referenceTemplate: string, referenceField: string, key: string) => Record<string, string> | undefined> {
+  const recordsByRequirement = new Map<string, Map<string, Record<string, string>>>();
+  const seen = new Set<string>();
+  for (const { referenceTemplate, referenceField } of requirements) {
+    const requirementKey = `${referenceTemplate}::${referenceField}`;
+    if (seen.has(requirementKey)) continue;
+    seen.add(requirementKey);
+    const lookup = await existingLookupFor(referenceTemplate);
+    const byValue = new Map<string, Record<string, string>>();
+    for (const row of lookup.rows) {
+      const value = row[referenceField];
+      if (value !== undefined && value !== "") byValue.set(value, row);
+    }
+    recordsByRequirement.set(requirementKey, byValue);
+  }
+  return (referenceTemplate, referenceField, key) => recordsByRequirement.get(`${referenceTemplate}::${referenceField}`)?.get(key);
 }
 
 /**

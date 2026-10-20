@@ -39,9 +39,9 @@ describe("dataset schema version", () => {
 
 describe("feature schema version", () => {
   it("is an explicit literal, not a free-form string", () => {
-    expect(FEATURE_SCHEMA_VERSION).toBe("1.2");
-    expect(featureSchemaVersionSchema.safeParse("1.2").success).toBe(true);
-    expect(featureSchemaVersionSchema.safeParse("1.3").success).toBe(false);
+    expect(FEATURE_SCHEMA_VERSION).toBe("1.3");
+    expect(featureSchemaVersionSchema.safeParse("1.2").success).toBe(false);
+    expect(featureSchemaVersionSchema.safeParse("1.3").success).toBe(true);
     expect(featureSchemaVersionSchema.safeParse("").success).toBe(false);
     expect(featureSchemaVersionSchema.safeParse(1.2).success).toBe(false);
   });

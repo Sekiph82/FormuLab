@@ -848,6 +848,27 @@ describe("commitDataExchangeRows — lab results (grouped, reference resolution)
     );
   });
 
+  it("FVL-06.008: re-import appends a result linked to the exact prior sample/test result revision", async () => {
+    bridge.listRecords.mockImplementation((collection: string) => {
+      if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-001" }]);
+      if (collection === "test_definitions") return Promise.resolve([{ code: "TEST-T-001", resultType: "numeric" }]);
+      if (collection === "test_results") return Promise.resolve([{
+        id: "prior-result", trialId: "trial-1", sampleId: "S1", testDefinitionId: "TEST-T-001",
+        createdAt: "2026-01-01T10:00:00.000Z",
+      }]);
+      return Promise.resolve([]);
+    });
+    const rows = [row({ trial_code: "TEST-TRIAL-001", sample_code: "S1", test_code: "TEST-T-001", replicate_number: "1", numeric_value: "5.1" })];
+    const outcomes = await commitDataExchangeRows(getDataExchangeTemplate("lab_results")!, rows, ctx);
+    expect(outcomes[0].outcome).toBe("created");
+    const saved = bridge.upsertRecords.mock.calls.find(([collection]) => collection === "test_results")![1][0] as {
+      id: string; revisesResultId?: string; passFail: string;
+    };
+    expect(saved.id).not.toBe("prior-result");
+    expect(saved.revisesResultId).toBe("prior-result");
+    expect(saved.passFail).toBe("not_evaluated");
+  });
+
   it("FVL-04.020: instrument/device is genuinely carried through onto the saved TestResult, never silently dropped", async () => {
     bridge.listRecords.mockImplementation((collection: string) => {
       if (collection === "laboratory_trials") return Promise.resolve([{ id: "trial-1", code: "TEST-TRIAL-001" }]);
@@ -904,10 +925,10 @@ describe("commitDataExchangeRows — lab results (grouped, reference resolution)
         importJobId: "dxjob-test-1", rowNumber: 7,
       }],
     });
-    expect((saved.replicates as { numericValue?: string; normalizedPerformance?: { value: string; ruleId: string; ruleVersion: string; inputs: Record<string, string> } }[])[0]).toEqual({
+    expect((saved.replicates as { numericValue?: string; measuredAt?: string; normalizedPerformance?: { value: string; ruleId: string; ruleVersion: string; inputs: Record<string, string> } }[])[0]).toEqual({
       replicateNumber: 1, numericValue: "0", normalizedPerformance: {
         value: "0", ruleId: "source-explicit-rule", ruleVersion: "2", inputs: { reference: "0", sample: "0" },
-      }, textValue: undefined, isOutlier: false,
+      }, measuredAt: "2026-04-01T11:59:00.000Z", textValue: undefined, isOutlier: false,
     });
     expect(saved.importedAt).toBeDefined();
     expect(saved.importedAt).not.toBe(saved.performedAt);

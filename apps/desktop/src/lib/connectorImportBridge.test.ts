@@ -492,11 +492,10 @@ describe("BR20 (Session 11 hardening, Part 4): a REAL DB-derived ordinal-fallbac
 
 describe("BR21 (Session 11/12 hardening, Part 7C/7D/8): a genuine RUNTIME commit-layer failure, with a CONFIGURED (not ordinal) source identity and a crosswalk target actually reviewed at prepare time — never a synthetic injected outcome", () => {
   it("a row with a CONFIGURED source identity, previewing cleanly, whose crosswalk target was configured and reviewed during prepare, but which fails for real inside the commit handler: outcome is truthfully failed, no crosswalk is persisted for that configured identity, and a later template in the same batch is never attempted", async () => {
-    // trial_code has no code_reference/referenceTemplate at all (see
-    // dataExchangeRegistry.ts) — the generic preview layer can never
-    // catch a nonexistent trial; only commitLabResults's own real
-    // findOrCreateTrial() logic does, at commit time. A perfect real
-    // runtime-only failure surface, not a fake injected one.
+    // Seed exact trial/test links so Data Exchange preview can validate
+    // them, then remove the test definition after prepare to exercise a
+    // genuine commit-time race in the existing canonical handler.
+    store.set("laboratory_trials", [{ id: "RTF-TRIAL-ID", code: "RTF-TRIAL-1", projectId: "RTF-FORM", sourceFormulaVersionId: "RTF-VERSION" }]);
     store.set("test_definitions", [{ code: "RTF-TEST-1", resultType: "numeric" }]);
 
     // Session 12 hardening (Part 8) — RecordID makes the failing row's
@@ -508,7 +507,7 @@ describe("BR21 (Session 11/12 hardening, Part 7C/7D/8): a genuine RUNTIME commit
     // the crosswalk COULD have persisted (identity is configured, a
     // target IS reviewed at prepare) but does not, because the commit
     // itself genuinely failed.
-    const csv = ["RecordID,MaterialID,MaterialName,TrialCode,SampleCode,TestCode,Replicate,NumericValue,SupplierID,SupplierName", "RTF-REC-1,RTF-MAT-1,RTF Material,RTF-TRIAL-NONEXISTENT,S1,RTF-TEST-1,1,5.0,RTF-SUP-1,RTF Supplier"].join("\n");
+    const csv = ["RecordID,MaterialID,MaterialName,TrialCode,SampleCode,TestCode,Replicate,NumericValue,SupplierID,SupplierName", "RTF-REC-1,RTF-MAT-1,RTF Material,RTF-TRIAL-1,S1,RTF-TEST-1,1,5.0,RTF-SUP-1,RTF Supplier"].join("\n");
     const connector = createFileConnector("BRIDGE_TEST", { fileName: "combo.csv", fileKind: "csv", text: csv }, { ...stageOpts, idField: "RecordID", requireExplicitId: true });
     const staged = await connector.extract("combo");
     const schema = discoverSourceSchema("BRIDGE_TEST", [{ entity: "combo", records: staged.records }]);
@@ -539,7 +538,7 @@ describe("BR21 (Session 11/12 hardening, Part 7C/7D/8): a genuine RUNTIME commit
       createdBy: "local",
     };
     const prepared = await prepareConnectorImport({ connector, entity: "combo", profile, crosswalkTargets: { lab_results: { canonicalEntity: "TestResult" } } });
-    expect(prepared.blockingIssues).toEqual([]); // previews cleanly — the trial issue is invisible to generic preview
+    expect(prepared.blockingIssues).toEqual([]);
     expect(prepared.templates.find((t) => t.targetTemplate === "lab_results")!.rows[0].sourceIdSource).toBe("configured"); // Part 8 — genuinely configured, not ordinal
     // raw_materials structurally depends on suppliers in THIS batch (its
     // own registry column preferred_supplier_code -> suppliers, present
@@ -549,9 +548,10 @@ describe("BR21 (Session 11/12 hardening, Part 7C/7D/8): a genuine RUNTIME commit
     // suppliers has committed.
     expect(prepared.commitOrder).toEqual(["lab_results", "suppliers", "raw_materials"]);
 
+    store.set("test_definitions", []); // exact preview-time reference is gone when canonical commit executes
     const confirmed = await confirmConnectorImport(prepared, ctx);
-    expect(confirmed.outcomesByTemplate.lab_results[0].outcome).toBe("failed"); // T1 genuinely failed for real, not a synthetic flag
-    expect(confirmed.outcomesByTemplate.lab_results[0].message).toMatch(/no project_code was provided/);
+    expect(confirmed.outcomesByTemplate.lab_results[0].outcome).toBe("failed");
+    expect(confirmed.outcomesByTemplate.lab_results[0].message).toMatch(/No test definition/);
     expect(confirmed.partialFailureStoppedAt).toBe("lab_results");
     expect(confirmed.outcomesByTemplate.suppliers).toBeUndefined(); // T2 never even attempted
     expect(confirmed.outcomesByTemplate.raw_materials).toBeUndefined(); // T3 never even attempted

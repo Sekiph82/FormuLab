@@ -11,7 +11,7 @@
  * classification.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildReferenceResolver, hasExistingLookup, loadExisting, loadPriorCommittedRows } from "./dataExchangeExisting";
+import { buildReferenceRecordResolver, buildReferenceResolver, hasExistingLookup, loadExisting, loadPriorCommittedRows } from "./dataExchangeExisting";
 
 const bridge = { listRecords: vi.fn() };
 vi.mock("@/lib/masterdata", () => ({
@@ -402,6 +402,18 @@ describe("FVL-04 hardening (Session 8, Part 1): buildReferenceResolver is field-
   it("an unresolved (referenceTemplate, referenceField) pair not in the requirement set resolves false, never throws", async () => {
     const resolve = await buildReferenceResolver([]);
     expect(resolve("raw_materials", "material_code", "ANYTHING")).toBe(false);
+  });
+});
+
+describe("FVL-06 unit validation reference rows", () => {
+  it("returns only the exact canonical test-definition export row for validation", async () => {
+    bridge.listRecords.mockImplementation(byCollection({ test_definitions: [
+      { code: "TEST-REF-1", name: "Reflectance", unit: "%", metric: { metricCode: "REF", family: "reflectance" } },
+      { code: "TEST-PH-1", name: "pH", unit: "pH" },
+    ] }));
+    const resolve = await buildReferenceRecordResolver([{ referenceTemplate: "test_definitions", referenceField: "test_code" }]);
+    expect(resolve("test_definitions", "test_code", "TEST-REF-1")).toMatchObject({ test_code: "TEST-REF-1", unit: "%" });
+    expect(resolve("test_definitions", "test_code", "missing")).toBeUndefined();
   });
 });
 

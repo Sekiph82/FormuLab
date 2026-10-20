@@ -16,9 +16,9 @@ import {
   type DataExchangeImportRowResult,
   type MissingFromSourceFinding,
 } from "@formulab/shared";
-import { readWorkbookRows, rejectUnsupportedWorkbook } from "@/lib/xlsx";
+import { readWorkbookAllSheets, rejectUnsupportedWorkbook } from "@/lib/xlsx";
 import { commitDataExchangeRows, isTemplateCommitSupported, type DataExchangeRowCommitOutcome } from "@/lib/dataExchangeCommit";
-import { buildReferenceResolver, loadExisting, loadExistingFormulaBom, loadPriorCommittedRows } from "@/lib/dataExchangeExisting";
+import { buildReferenceRecordResolver, buildReferenceResolver, loadExisting, loadExistingFormulaBom, loadPriorCommittedRows } from "@/lib/dataExchangeExisting";
 import { upsertRecords, nowIso } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 import { DisabledActionButton } from "@/components/help/DisabledActionButton";
@@ -61,6 +61,9 @@ export function DataExchangeImportDialog({
   const [fileType, setFileType] = useState<"csv" | "xlsx">("csv");
   const [fileSize, setFileSize] = useState(0);
   const [fileHash, setFileHash] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [workbookSheetNames, setWorkbookSheetNames] = useState<string[]>([]);
+  const [selectedSheetName, setSelectedSheetName] = useState("");
   const [preview, setPreview] = useState<DataExchangePreview | null>(null);
   const [allowPartial, setAllowPartial] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,12 +82,16 @@ export function DataExchangeImportDialog({
   // Exchange classification already follows.
   const [missingFromSource, setMissingFromSource] = useState<MissingFromSourceFinding[]>([]);
 
-  const onFile = async (file: File) => {
+  const onFile = async (file: File, requestedSheetName?: string) => {
     setFileError(null);
     setCommitted(null);
+    if (draftJob && !committed) {
+      await upsertRecords("data_exchange_import_jobs", [{ ...draftJob, status: "cancelled", completedAt: nowIso() }]);
+    }
     setDraftJob(null);
     setMissingFromSource([]);
     setFilename(file.name);
+    setSelectedFile(file);
     const isXlsx = /\.xlsx$/i.test(file.name);
     setFileType(isXlsx ? "xlsx" : "csv");
     const rejected = isXlsx ? rejectUnsupportedWorkbook(file.name) : null;
@@ -101,7 +108,13 @@ export function DataExchangeImportDialog({
       // guaranteed available in every runtime this ships to.
       const hash = await sha256Hex(bytes).catch(() => "");
       setFileHash(hash);
-      const rows = isXlsx ? await readWorkbookRows(bytes) : parseCsv(new TextDecoder("utf-8").decode(bytes));
+      const sheets = isXlsx ? await readWorkbookAllSheets(bytes) : [];
+      const preferredSheet = requestedSheetName ?? sheets.find((sheet) => sheet.sheetName === "Data")?.sheetName ?? sheets[0]?.sheetName ?? "";
+      setWorkbookSheetNames(sheets.map((sheet) => sheet.sheetName));
+      setSelectedSheetName(preferredSheet);
+      const rows = isXlsx
+        ? sheets.find((sheet) => sheet.sheetName === preferredSheet)?.rows ?? []
+        : parseCsv(new TextDecoder("utf-8").decode(bytes));
       const existing = await existingFor(template.templateCode);
       // Session 7 hardening (Part J): real code_reference existence
       // validation, wired to the same existing-record authority
@@ -129,11 +142,22 @@ export function DataExchangeImportDialog({
         })
         .filter((r): r is { referenceTemplate: string; referenceField: string } => r !== null);
       const resolveReference = await buildReferenceResolver(referenceRequirements);
+      const resolveReferenceRecord = await buildReferenceRecordResolver(referenceRequirements);
+      const headers = rows[0]?.map((header) => header.trim().toLowerCase()) ?? [];
+      const projectCodeIndex = headers.indexOf("project_code");
+      const formulaVersionIndex = headers.indexOf("formula_version");
+      const hasExplicitFormulaLink = template.templateCode === "lab_results" && projectCodeIndex >= 0 && formulaVersionIndex >= 0
+        && rows.slice(1).some((row) => !!row[projectCodeIndex]?.trim() && !!row[formulaVersionIndex]?.trim());
+      const formulaVersionLookup = hasExplicitFormulaLink ? await loadExistingFormulaBom() : undefined;
       const p = previewDataExchangeImport(template, rows, {
         actorRole,
         fileSizeBytes: bytes.byteLength,
         existingNaturalKeys: existing.naturalKeys,
         resolveReference,
+        resolveReferenceRecord,
+        resolveFormulaVersion: formulaVersionLookup
+          ? (formulaCode, versionNumber) => formulaVersionLookup.naturalKeys.has(`${formulaCode}::${versionNumber}`)
+          : undefined,
       });
       setPreview(p);
       // FVL-04.023 — a real, non-blocking signal that a record from the
@@ -229,7 +253,7 @@ export function DataExchangeImportDialog({
           fileType,
           sha256: fileHash || undefined,
           importJobId: draftJob?.id,
-          sheetName: fileType === "xlsx" ? "Data" : undefined,
+          sheetName: fileType === "xlsx" ? selectedSheetName || undefined : undefined,
         },
       });
       const created = outcomes.filter((o) => o.outcome === "created").length;
@@ -338,6 +362,25 @@ export function DataExchangeImportDialog({
               }}
             />
           </label>
+
+          {fileType === "xlsx" && workbookSheetNames.length > 1 && (
+            <label className="flex items-center gap-2 text-[12px] text-muted">
+              {t("dataExchange.connectors.explorer.sheet")}
+              <select
+                aria-label={t("dataExchange.connectors.explorer.sheet")}
+                value={selectedSheetName}
+                disabled={busy || !selectedFile}
+                onChange={(event) => {
+                  const nextSheet = event.currentTarget.value;
+                  setSelectedSheetName(nextSheet);
+                  if (selectedFile) void onFile(selectedFile, nextSheet);
+                }}
+                className="rounded-input border border-border bg-surface px-2 py-1 text-text"
+              >
+                {workbookSheetNames.map((sheetName) => <option key={sheetName} value={sheetName}>{sheetName}</option>)}
+              </select>
+            </label>
+          )}
 
           {fileError && (
             <div role="alert" className="flex items-center gap-1.5 rounded-input border border-error/40 bg-error/5 px-3 py-2 text-[12px] text-error">

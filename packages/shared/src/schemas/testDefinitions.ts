@@ -59,6 +59,8 @@ export const testMetricDefinitionSchema = z.object({
   metricCode: z.string().min(1),
   family: z.enum(MEASURED_METRIC_FAMILIES),
   description: z.string().optional(),
+  /** Explicit declaration for numeric methods that report a dimensionless quantity. */
+  dimensionless: z.boolean().optional(),
   /** Wavelength specified by the method, not a guessed default. */
   wavelengthNm: decimalString.optional(),
   referenceContext: z.string().optional(),
@@ -89,14 +91,22 @@ export type NormalizedPerformance = z.infer<typeof normalizedPerformanceSchema>;
  *  machine-specific paths. Raw bytes remain in the existing managed-file
  *  attachment lifecycle when a user attaches them. */
 export const measuredResponseSourceProvenanceSchema = z.object({
-  fileName: z.string().min(1),
-  fileType: z.enum(["csv", "xlsx"]),
+  fileName: z.string().min(1).optional(),
+  fileType: z.enum(["csv", "xlsx", "connector"]),
   mimeType: z.string().min(1).optional(),
   sha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
   importJobId: z.string().min(1).optional(),
   connectorId: z.string().min(1).optional(),
   rowNumber: z.number().int().positive().optional(),
   sheetName: z.string().min(1).optional(),
+  sourceRecordId: z.string().min(1).optional(),
+}).superRefine((source, ctx) => {
+  if (source.fileType === "connector" && !source.connectorId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Connector provenance requires a connectorId." });
+  }
+  if ((source.fileType === "csv" || source.fileType === "xlsx") && !source.fileName) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "File provenance requires a fileName." });
+  }
 });
 export type MeasuredResponseSourceProvenance = z.infer<typeof measuredResponseSourceProvenanceSchema>;
 
@@ -232,6 +242,7 @@ export type TestRequirementSnapshot = z.infer<typeof testRequirementSnapshotSche
 export const testReplicateSchema = z.object({
   replicateNumber: z.number().int().positive(),
   numericValue: decimalString.optional(),
+  measuredAt: z.string().optional(),
   /** Optional deterministic performance normalization; numericValue above
    *  always remains the raw instrument observation. */
   normalizedPerformance: normalizedPerformanceSchema.optional(),
@@ -242,6 +253,14 @@ export const testReplicateSchema = z.object({
    *  the caller's choice whether to exclude it from a recalculated mean. */
   isOutlier: z.boolean().default(false),
   outlierReason: z.string().optional(),
+}).superRefine((replicate, ctx) => {
+  if (replicate.normalizedPerformance !== undefined && replicate.numericValue === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["normalizedPerformance"],
+      message: "Normalized performance requires the raw numericValue to remain present.",
+    });
+  }
 });
 export type TestReplicate = z.infer<typeof testReplicateSchema>;
 

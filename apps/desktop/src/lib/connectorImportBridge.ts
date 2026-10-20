@@ -65,7 +65,7 @@ import {
   type ReimportState,
   type SourceConnector,
 } from "@formulab/shared";
-import { buildReferenceResolver, loadLiveCandidateFields, loadPriorCommittedRows, priorTargetExists } from "./dataExchangeExisting";
+import { buildReferenceResolver, loadExistingFormulaBom, loadLiveCandidateFields, loadPriorCommittedRows, priorTargetExists } from "./dataExchangeExisting";
 import { commitDataExchangeRows, type DataExchangeRowCommitOutcome } from "./dataExchangeCommit";
 import { loadCrosswalks, persistCrosswalkEntry } from "./connectorPersistence";
 import { upsertRecords, nowIso } from "./masterdata";
@@ -427,6 +427,7 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
     // own candidates is never accepted — it remains a real block (BR6).
     const liveResolver = await buildReferenceResolver(referenceRequirementsFor(template));
     const referenceResolver = withBatchOverlay(liveResolver, candidatesByTemplate, earlierTemplates);
+    const formulaVersionLookup = targetTemplate === "lab_results" ? await loadExistingFormulaBom() : undefined;
 
     const priorRows: PriorCommittedRow[] = await loadPriorCommittedRows(targetTemplate);
     const priorBySourceId = new Map(priorRows.filter((r) => r.sourceRecordId).map((r) => [r.sourceRecordId!, r]));
@@ -448,7 +449,12 @@ export async function prepareConnectorImport(input: PrepareConnectorImportInput)
 
     const rows: PreparedRow[] = await Promise.all(entries.map(async (entry) => {
       const values = headers.map((h) => entry.candidate.row[h] ?? "");
-      const preview = previewDataExchangeImport(template, [headers, values], { resolveReference: referenceResolver }).rows[0];
+      const preview = previewDataExchangeImport(template, [headers, values], {
+        resolveReference: referenceResolver,
+        resolveFormulaVersion: formulaVersionLookup
+          ? (formulaCode, versionNumber) => formulaVersionLookup.naturalKeys.has(`${formulaCode}::${versionNumber}`)
+          : undefined,
+      }).rows[0];
       const prior = priorBySourceId.get(entry.sourceRecordId);
       // Part A2/A3 (FVL-04 close-out) — the candidate side is fingerprinted
       // over exactly the KEYS this profile actually maps
@@ -711,8 +717,15 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
     // duplicatePolicy) — reusing that EXISTING signal here, scoped to
     // non-`create_or_update` templates only, to drive the EXISTING
     // commit-layer skip rather than inventing a second one.
-    const previewsForCommit = committableRows.map((r) => (template.duplicatePolicy !== "create_or_update" && r.reimportState === "UNCHANGED" ? { ...r.preview, state: "unchanged" as const } : r.preview));
-    const outcomes = await commitDataExchangeRows(template, previewsForCommit, ctx);
+    const jobId = newId("dxjob");
+    const previewsForCommit = committableRows.map((r) => ({
+      ...(template.duplicatePolicy !== "create_or_update" && r.reimportState === "UNCHANGED" ? { ...r.preview, state: "unchanged" as const } : r.preview),
+      sourceRecordId: r.sourceRecordId,
+    }));
+    const outcomes = await commitDataExchangeRows(template, previewsForCommit, {
+      ...ctx,
+      sourceFile: { fileType: "connector", connectorId: prepared.connectionCode, importJobId: jobId },
+    });
     outcomesByTemplate[targetTemplate] = outcomes;
 
     // F6 — real Import History provenance, through the EXISTING
@@ -725,7 +738,7 @@ export async function confirmConnectorImport(prepared: PreparedConnectorImport, 
     const failed = outcomes.filter((o) => o.outcome === "failed").length;
     const job: DataExchangeImportJob = {
       schemaVersion: "1.0",
-      id: newId("dxjob"),
+      id: jobId,
       templateCode: targetTemplate,
       templateSchemaVersion: template.schemaVersion,
       // Session 11 hardening (Part 7A) — a DATABASE/REST_API/FILE
