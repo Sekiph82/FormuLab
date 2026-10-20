@@ -7,10 +7,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Project Status
 
 - Current Milestone: FVL-07
-- Current Sprint: FVL-07-S01
-- Current Task: FVL-07.001 — Eligibility: minimum dataset size and target-observation thresholds
+- Current Sprint: FVL-07-S02
+- Current Task: FVL-07.007 — Baseline models before ML candidates
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-07.002 — Eligibility: missing-data rules and applicability-domain requirements
+- Next Task: FVL-07.008 — Prediction-model comparison with train/validation/test split and recorded seeds
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 113
-- Remaining Tasks: 58
-- Completion: 66.1%
+- Completed Tasks: 119
+- Remaining Tasks: 52
+- Completion: 69.6%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -208,15 +208,15 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-07
 
 ## Sprint FVL-07-S01 — Eligibility & feature engineering
-- [~] FVL-07.001 — Eligibility: minimum dataset size and target-observation thresholds
-- [ ] FVL-07.002 — Eligibility: missing-data rules and applicability-domain requirements
-- [ ] FVL-07.003 — Explicit INSUFFICIENT_DATA outcome below threshold
-- [ ] FVL-07.004 — Feature generation: composition + material/property features with provenance
-- [ ] FVL-07.005 — Feature generation: process + test-context + product-family features
-- [ ] FVL-07.006 — Optional reproducible interaction features
+- [x] FVL-07.001 — Eligibility: minimum dataset size and target-observation thresholds
+- [x] FVL-07.002 — Eligibility: missing-data rules and applicability-domain requirements
+- [x] FVL-07.003 — Explicit INSUFFICIENT_DATA outcome below threshold
+- [x] FVL-07.004 — Feature generation: composition + material/property features with provenance
+- [x] FVL-07.005 — Feature generation: process + test-context + product-family features
+- [x] FVL-07.006 — Optional reproducible interaction features
 
 ## Sprint FVL-07-S02 — Training, model selection & registry
-- [ ] FVL-07.007 — Baseline models before ML candidates
+- [~] FVL-07.007 — Baseline models before ML candidates
 - [ ] FVL-07.008 — Prediction-model comparison with train/validation/test split and recorded seeds
 - [ ] FVL-07.009 — Hyperparameter recording with no fabricated result
 - [ ] FVL-07.010 — Evaluation metrics, held-out performance vs baseline, failure thresholds and acceptance policy

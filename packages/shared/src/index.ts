@@ -608,6 +608,8 @@ export * from "./engine/datasetManifestBuilder";
 export type { FormulaVersionBundleInput } from "./engine/datasetManifestBuilder";
 export * from "./schemas/datasetPartition";
 export * from "./engine/datasetPartitioner";
+export * from "./schemas/predictiveModel";
+export * from "./engine/predictivePerformance";
 export {
   PRECISION,
   CURRENCY_DP,

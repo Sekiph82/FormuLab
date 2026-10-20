@@ -24,6 +24,9 @@ import {
   formulaVersionCompositionRowSchema,
   buildFormulaVersionBundleManifest,
   partitionDataset,
+  evaluatePredictiveEligibility,
+  generateModelFeatures,
+  trainPredictiveModel,
   DATASET_SCHEMA_VERSION,
   type Formulation,
   type FormulationVersion,
@@ -160,6 +163,21 @@ describe("FVL-06 real instrument export acceptance", () => {
     const repeatedPartition = await partitionDataset([bundle], partitionConfig);
     expect(repeatedPartition).toEqual(firstPartition);
     expect(firstPartition.entries[0].formulaVersionId).toBe(version.id);
+    const modelFeatureRows = generateModelFeatures([bundle]);
+    const targetDefinition = targetRows[0].targetObservations[0]!.targetDefinition;
+    const eligibility = await evaluatePredictiveEligibility({
+      bundles: [bundle], featureRows: modelFeatureRows, partitionManifest: firstPartition,
+      productFamilyCode: formula.productFamilyCode, targetDefinition,
+    });
+    expect(eligibility.outcome).toBe("INSUFFICIENT_DATA");
+    expect(eligibility.targetObservationCount).toBe(2);
+    const training = await trainPredictiveModel({
+      bundles: [bundle], featureRows: modelFeatureRows, partitionManifest: firstPartition,
+      productFamilyCode: formula.productFamilyCode, targetDefinition, trainingTimestamp: "2026-10-20T12:00:00.000Z",
+    });
+    expect(training.outcome).toBe("INSUFFICIENT_DATA");
+    expect(training.model).toBeUndefined();
+    expect(training.eligibility.reasons.map(({ code }) => code)).toContain("DATASET_ROWS_BELOW_MINIMUM");
     expect(readFileSync(fixturePath, "utf8")).toBe(fixtureBefore);
   });
 
