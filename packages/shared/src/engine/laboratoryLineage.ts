@@ -5,7 +5,7 @@
 export type LineageEntityType =
   | "generation_session" | "formulation" | "formulation_version" | "formulation_draft" | "corrective_action"
   | "doe_study" | "doe_design" | "doe_analysis" | "doe_candidate" | "doe_run" | "laboratory_trial"
-  | "test_result" | "stability_study" | "dataset" | "predictive_model" | "prediction"
+  | "doe_observation" | "test_result" | "stability_study" | "dataset" | "predictive_model" | "prediction" | "prediction_snapshot"
   | "ranking" | "optimization_run";
 
 export interface LineageNode {
@@ -35,6 +35,7 @@ export interface LaboratoryLineageRecordSet {
   doeAnalyses?: unknown[];
   doeCandidates?: unknown[];
   doeRuns?: unknown[];
+  doeObservations?: unknown[];
   laboratoryTrials?: unknown[];
   testResults?: unknown[];
   stabilityStudies?: unknown[];
@@ -91,7 +92,7 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
     ["formulation_version", records.formulationVersions], ["formulation_draft", records.formulationDrafts], ["corrective_action", records.correctiveActions],
     ["doe_study", records.doeStudies], ["doe_design", records.doeDesigns], ["doe_analysis", records.doeAnalyses],
     ["doe_candidate", records.doeCandidates], ["doe_run", records.doeRuns],
-    ["laboratory_trial", records.laboratoryTrials], ["test_result", records.testResults], ["stability_study", records.stabilityStudies],
+    ["laboratory_trial", records.laboratoryTrials], ["doe_observation", records.doeObservations], ["test_result", records.testResults], ["stability_study", records.stabilityStudies],
     ["dataset", records.datasets], ["predictive_model", records.predictiveModels],
     ["prediction", records.predictions], ["ranking", records.rankings],
     ["optimization_run", records.optimizationRuns],
@@ -173,8 +174,28 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
   });
   each("predictive_model", records.predictiveModels, row => {
     const fingerprint = asRecord(row.datasetFingerprint)?.digest;
+    const fingerprintId = text(fingerprint);
+    const retraining = asRecord(row.retrainingLineage);
+    if (fingerprintId && !ids.get("dataset")?.has(fingerprintId)) {
+      // The model embeds the immutable dataset fingerprint, but not a second
+      // dataset store. Expose its exact identity as a reference-only node.
+      ids.get("dataset")?.add(fingerprintId);
+      recordsById.get("dataset")?.set(fingerprintId, { id: fingerprintId, dataset: asRecord(row.datasetFingerprint), status: "fingerprint_reference" });
+      nodes.push({ entityType: "dataset", id: fingerprintId, version: text(row.datasetSchemaVersion), status: "fingerprint_reference", ...(text(row.trainingTimestamp) ? { timestamp: text(row.trainingTimestamp) } : {}) });
+    }
     const matching = (records.datasets ?? []).map(asRecord).find(dataset => dataset && asRecord(dataset.dataset)?.digest === fingerprint);
     link("predictive_model", row, "training_dataset", "dataset", (matching && (idOf(matching) ?? asRecord(matching.dataset)?.digest)) ?? fingerprint);
+    if (retraining) {
+      const measurementType = retraining.sourceType === "doe_observation" ? "doe_observation" : retraining.sourceType === "test_result" ? "test_result" : undefined;
+      const measurementIds = Array.isArray(retraining.measurementRecordIds) ? retraining.measurementRecordIds : [];
+      if (measurementType) for (const measurementId of measurementIds) link("predictive_model", row, retraining.sourceType === "doe_observation" ? "trained_from_measurement" : "trained_from_measurement", measurementType, measurementId);
+      const triggerIds = Array.isArray(retraining.triggerMeasurementIds) ? retraining.triggerMeasurementIds : [];
+      if (measurementType) for (const measurementId of triggerIds) link("predictive_model", row, "trigger_measurement", measurementType, measurementId, measurement => retraining.sourceType === "doe_observation" ? measurement.runId === retraining.triggeringRunId : measurement.trialId === retraining.triggeringTrialId);
+      for (const versionId of Array.isArray(retraining.formulaVersionIds) ? retraining.formulaVersionIds : []) link("predictive_model", row, "trained_from_formula_version", "formulation_version", versionId);
+      link("predictive_model", row, "triggering_run", "doe_run", retraining.triggeringRunId, run => idOf(run) === retraining.triggeringRunId && run.linkedTrialId === retraining.triggeringTrialId);
+      link("predictive_model", row, "triggering_trial", "laboratory_trial", retraining.triggeringTrialId, trial => idOf(trial) === retraining.triggeringTrialId && trial.sourceDoeRunId === retraining.triggeringRunId);
+      link("predictive_model", row, "retrained_from", "predictive_model", asRecord(retraining.priorModel)?.id, prior => prior.version === asRecord(retraining.priorModel)?.version && prior.artifactChecksum === asRecord(retraining.priorModel)?.artifactChecksum);
+    }
   });
   each("prediction", records.predictions, row => {
     link("prediction", row, "exact_model", "predictive_model", row.modelId, model =>
@@ -187,6 +208,34 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
       model.productFamilyCode === row.productFamilyCode && JSON.stringify(model.applicabilityDomain) === JSON.stringify(row.applicabilityDomainSnapshot));
     link("prediction", row, "formula_version", "formulation_version", row.formulaVersionId, version =>
       version.versionNumber === row.formulaVersionNumber && version.formulationId === row.formulaId);
+  });
+  each("ranking", records.rankings, ranking => {
+    const rankingId = idOf(ranking);
+    for (const item of Array.isArray(ranking.rankings) ? ranking.rankings : []) {
+      const ranked = asRecord(item);
+      const candidate = asRecord(ranked?.candidate);
+      const dimensions = asRecord(candidate?.dimensions);
+      const performance = asRecord(dimensions?.performance);
+      const snapshot = asRecord(asRecord(performance?.sourceSnapshot)?.prediction);
+      const candidateId = text(candidate?.candidateId);
+      if (!rankingId || !candidateId || !snapshot) continue;
+      const snapshotId = `${rankingId}/${candidateId}/performance`;
+      const snapshotRecord = { ...snapshot, id: snapshotId };
+      const known = ids.get("prediction_snapshot") ?? new Set<string>();
+      known.add(snapshotId);
+      ids.set("prediction_snapshot", known);
+      const byId = recordsById.get("prediction_snapshot") ?? new Map<string, RecordValue>();
+      byId.set(snapshotId, snapshotRecord);
+      recordsById.set("prediction_snapshot", byId);
+      nodes.push({ entityType: "prediction_snapshot", id: snapshotId, ...(text(snapshot.status) ? { status: text(snapshot.status) } : {}), ...(text(ranking.capturedAt) ? { timestamp: text(ranking.capturedAt) } : {}) });
+      edges.push({ from: `ranking:${rankingId}`, to: `prediction_snapshot:${snapshotId}`, relationship: "embedded_prediction_snapshot", status: "resolved" });
+      link("prediction_snapshot", snapshotRecord, "exact_model", "predictive_model", snapshot.modelId, model =>
+        model.version === snapshot.modelVersion && model.artifactChecksum === snapshot.modelChecksum &&
+        asRecord(model.datasetFingerprint)?.digest === asRecord(snapshot.datasetFingerprint)?.digest &&
+        model.schemaVersion === snapshot.modelArtifactSchemaVersion && model.productFamilyCode === snapshot.productFamilyCode);
+      link("prediction_snapshot", snapshotRecord, "formula_version", "formulation_version", snapshot.formulaVersionId, version =>
+        version.versionNumber === snapshot.formulaVersionNumber && version.formulationId === snapshot.formulaId);
+    }
   });
   each("ranking", records.rankings, row => {
     link("ranking", row, "generation_session", "generation_session", row.sessionId);

@@ -91,4 +91,34 @@ describe("buildLaboratoryLineage", () => {
     expect(lineage.brokenReferences).toEqual([]);
     expect(lineage.edges).toContainEqual(expect.objectContaining({ from: "formulation_version:version-1", to: "generation_session:session-1", relationship: "generated_from_session", status: "resolved" }));
   });
+
+  it("projects retraining evidence, prior model and fingerprint without healing missing references", () => {
+    const lineage = buildLaboratoryLineage({
+      formulationVersions: [{ id: "version-1", versionNumber: 1 }],
+      doeRuns: [{ id: "run-1", linkedTrialId: "trial-1" }],
+      laboratoryTrials: [{ id: "trial-1", sourceDoeRunId: "run-1" }],
+      testResults: [{ id: "result-1", trialId: "trial-1", formulaVersionId: "version-1" }],
+      predictiveModels: [
+        { id: "model-v1", version: 1, artifactChecksum: "a".repeat(64), datasetFingerprint: { digest: "1".repeat(64) } },
+        { id: "model-v2", version: 2, artifactChecksum: "b".repeat(64), datasetFingerprint: { digest: "2".repeat(64) }, datasetSchemaVersion: "1.0", trainingTimestamp: "2026-10-21T12:00:00.000Z", retrainingLineage: {
+          sourceType: "test_result", measurementRecordIds: ["result-1", "missing-result"], triggerMeasurementIds: ["result-1"], formulaVersionIds: ["version-1"],
+          triggeringRunId: "run-1", triggeringTrialId: "trial-1", priorModel: { id: "model-v1", version: 1, artifactChecksum: "a".repeat(64) },
+        } },
+      ],
+      datasets: [{ id: "dataset-one", dataset: { digest: "1".repeat(64) } }],
+    });
+
+    expect(lineage.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ from: "predictive_model:model-v2", to: "test_result:result-1", relationship: "trained_from_measurement", status: "resolved" }),
+      expect.objectContaining({ from: "predictive_model:model-v2", to: "test_result:missing-result", relationship: "trained_from_measurement", status: "missing" }),
+      expect.objectContaining({ from: "predictive_model:model-v2", to: "formulation_version:version-1", relationship: "trained_from_formula_version", status: "resolved" }),
+      expect.objectContaining({ from: "predictive_model:model-v2", to: "laboratory_trial:trial-1", relationship: "triggering_trial", status: "resolved" }),
+      expect.objectContaining({ from: "predictive_model:model-v2", to: "predictive_model:model-v1", relationship: "retrained_from", status: "resolved" }),
+      expect.objectContaining({ from: "predictive_model:model-v2", to: `dataset:${"2".repeat(64)}`, relationship: "training_dataset", status: "resolved" }),
+    ]));
+    expect(lineage.brokenReferences).toEqual(expect.arrayContaining([
+      expect.objectContaining({ to: "test_result:missing-result", status: "missing" }),
+    ]));
+    expect(lineage.nodes).toContainEqual(expect.objectContaining({ entityType: "dataset", id: "2".repeat(64), status: "fingerprint_reference" }));
+  });
 });

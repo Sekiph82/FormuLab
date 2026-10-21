@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-10
 - Current Sprint: FVL-10-S02
-- Current Task: FVL-10.009 — UI navigation across the full chain + audit trail view
+- Current Task: FVL-10.010 — Failure/retry behavior and human gates; no model may rewrite laboratory results
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-10.010 — Failure/retry behavior and human gates; no model may rewrite laboratory results
+- Next Task: FVL-11.001 — Acceptance matrix across genuinely different product families
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 155
-- Remaining Tasks: 16
-- Completion: 90.6%
+- Completed Tasks: 156
+- Remaining Tasks: 15
+- Completion: 91.2%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -272,8 +272,8 @@ Sprint grouping below is a management-only organization of the existing frozen t
 ## Sprint FVL-10-S02 — Model/retraining/UI linkage & gates
 - [x] FVL-10.007 — Prediction source-model linkage
 - [x] FVL-10.008 — Retraining lineage linking new data to model version
-- [~] FVL-10.009 — UI navigation across the full chain + audit trail view
-- [ ] FVL-10.010 — Failure/retry behavior and human gates; no model may rewrite laboratory results
+- [x] FVL-10.009 — UI navigation across the full chain + audit trail view
+- [~] FVL-10.010 — Failure/retry behavior and human gates; no model may rewrite laboratory results
 
 # FVL-11
 
