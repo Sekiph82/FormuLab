@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-08
 - Current Sprint: FVL-08-S01
-- Current Task: FVL-08.007 — Persistence + audit trail for every ranking input
+- Current Task: FVL-08.008 — Regression acceptance: Safety-FAIL alternative never outranks a passing one
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-08.008 — Regression acceptance: Safety-FAIL alternative never outranks a passing one
+- Next Task: FVL-09.001 — Candidate experiment-space definition over existing formula/DOE model
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 135
-- Remaining Tasks: 36
-- Completion: 78.9%
+- Completed Tasks: 136
+- Remaining Tasks: 35
+- Completion: 79.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -240,8 +240,8 @@ Sprint grouping below is a management-only organization of the existing frozen t
 
 ## Sprint FVL-08-S02 — Explainability, audit & acceptance
 - [x] FVL-08.006 — UI explains ranking by per-dimension breakdown
-- [~] FVL-08.007 — Persistence + audit trail for every ranking input
-- [ ] FVL-08.008 — Regression acceptance: Safety-FAIL alternative never outranks a passing one
+- [x] FVL-08.007 — Persistence + audit trail for every ranking input
+- [~] FVL-08.008 — Regression acceptance: Safety-FAIL alternative never outranks a passing one
 
 # FVL-09
 
