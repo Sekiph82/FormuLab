@@ -754,7 +754,7 @@ export function createDoeRunFromAcceptedCandidate(input: {
   const designRuns = input.existingRuns.filter((run) => run.studyId === input.study.id && run.designId === input.design.id);
   const runNumber = designRuns.reduce((maximum, run) => Math.max(maximum, run.runNumber), 0) + 1;
   const acceptedAt = input.acceptedAt ?? new Date().toISOString();
-  return {
+  const run: DoeRun = {
     schemaVersion: "1.0",
     id: newDoeId("doerun"),
     studyId: input.study.id,
@@ -774,6 +774,52 @@ export function createDoeRunFromAcceptedCandidate(input: {
     recommendationAcceptedAt: acceptedAt,
     createdAt: acceptedAt,
   };
+  assertAcceptedRecommendationRunCanCreateTrial({ candidate: input.candidate, run, study: input.study, design: input.design }, actor);
+  return run;
+}
+
+/** Revalidates persisted recommendation acceptance before a LaboratoryTrial
+ *  may be created. This is separate from the initial run-creation gate because
+ *  retries load persisted records that may be stale or malformed. */
+export function assertAcceptedRecommendationRunCanCreateTrial(input: {
+  candidate: DoeCandidate;
+  run: DoeRun;
+  study: DoeStudy;
+  design: DoeDesign;
+}, actor: Actor): void {
+  requireHumanActor(actor, "create a LaboratoryTrial from a DOE recommendation");
+  assertDoeCandidateHumanSelected(input.candidate, actor);
+
+  const { candidate, run, study, design } = input;
+  const experimentSpace = candidate.experimentSpace;
+  if (!experimentSpace) throw new Error("Recommendation has no persisted experiment-space lineage.");
+  if (candidate.recommendationPolicyVersion !== DOE_RECOMMENDATION_POLICY_VERSION || run.recommendationPolicyVersion !== candidate.recommendationPolicyVersion) {
+    throw new Error("Recommendation policy lineage is missing or does not match the accepted DOE run.");
+  }
+  if (run.recommendationId !== candidate.id) throw new Error("DOE run recommendation identity does not match the selected candidate.");
+  if (!run.recommendationAcceptedBy?.trim()) throw new Error("DOE run has no human acceptance actor provenance.");
+  if (!run.recommendationAcceptedAt || !Number.isFinite(Date.parse(run.recommendationAcceptedAt))) {
+    throw new Error("DOE run has no valid human acceptance timestamp provenance.");
+  }
+  if (candidate.studyId !== study.id || candidate.studyRevision !== study.revision || run.studyId !== study.id || run.studyRevision !== study.revision) {
+    throw new Error("Recommendation and DOE run study identity or revision does not match the active study.");
+  }
+  if (design.studyId !== study.id || design.studyRevision !== study.revision || experimentSpace.designId !== design.id || run.designId !== design.id) {
+    throw new Error("Recommendation and DOE run design lineage does not match the active design.");
+  }
+  if (experimentSpace.sourceFormulaVersionId !== study.baselineFormulaVersionId) {
+    throw new Error("Recommendation source formula version does not match the DOE study baseline.");
+  }
+  if (run.factorSettings.length !== candidate.factorSettings.length || run.factorSettings.some((setting, index) => {
+    const candidateSetting = candidate.factorSettings[index];
+    return !candidateSetting || setting.factorCode !== candidateSetting.factorCode || setting.codedValue !== candidateSetting.codedValue || setting.actualValue !== candidateSetting.actualValue;
+  })) {
+    throw new Error("DOE run factor settings do not match the accepted recommendation.");
+  }
+  if (run.linkedTrialId || run.linkedFormulaVersionId) throw new Error("DOE run already has a LaboratoryTrial or formula-version link.");
+  if (run.status !== "planned" && run.status !== "prepared") {
+    throw new Error("DOE run lifecycle state does not allow LaboratoryTrial creation.");
+  }
 }
 
 // ---------------------------------------------------------------------------

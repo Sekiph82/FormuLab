@@ -29,6 +29,7 @@ import {
   TRIAL_PRIORITIES,
   applyDoeCandidateToDraft,
   applyDoeFactorsToLines,
+  assertAcceptedRecommendationRunCanCreateTrial,
   assertDoeCandidateHumanSelected,
   evaluateDoeCandidateMaterialCost,
   calculateDesignDiagnostics,
@@ -508,6 +509,10 @@ export function DoePanel({
 
   // ------------------------------------------------------------- runs ---
   async function setRunStatus(run: DoeRun, status: DoeRunStatus) {
+    if (status === "trial_created") {
+      setError("A run can enter trial_created only through the guarded trial-creation workflow.");
+      return;
+    }
     const updated: DoeRun = { ...run, status, startedAt: status === "in_progress" ? new Date().toISOString() : run.startedAt, completedAt: status === "completed" ? new Date().toISOString() : run.completedAt };
     await upsertRecords("doe_runs", [updated]);
     await record("doe.run_status_changed", { metadata: { studyId: run.studyId, runId: run.id, status } });
@@ -530,6 +535,13 @@ export function DoePanel({
     await load();
   }
 
+  function hasRecommendationOrigin(run: DoeRun): boolean {
+    return run.recommendationId !== undefined
+      || run.recommendationPolicyVersion !== undefined
+      || run.recommendationAcceptedBy !== undefined
+      || run.recommendationAcceptedAt !== undefined;
+  }
+
   /** Builds a real `LaboratoryTrial` from the run's factor settings applied
    *  deterministically to the study's exact baseline saved version — never
    *  a different version, never a guessed composition. Fixed ingredients
@@ -537,48 +549,55 @@ export function DoePanel({
   async function generateTrialForRun(run: DoeRun) {
     if (!selectedStudy) return;
     setError(null);
-    const baseline = versions.find((v) => v.id === selectedStudy.baselineFormulaVersionId);
-    if (!baseline) {
-      setError(t("doe.runs.baselineVersionMissing"));
-      return;
+    try {
+      if (hasRecommendationOrigin(run)) {
+        const candidate = candidates.find((item) => item.id === run.recommendationId);
+        if (!candidate || !studyDesign) throw new Error("The accepted recommendation or its active DOE design is missing.");
+        assertAcceptedRecommendationRunCanCreateTrial({ candidate, run, study: selectedStudy, design: studyDesign }, actor);
+      }
+      if (trials.some((trial) => trial.sourceDoeRunId === run.id)) throw new Error("A LaboratoryTrial already exists for this DOE run.");
+      const baseline = versions.find((v) => v.id === selectedStudy.baselineFormulaVersionId);
+      if (!baseline) throw new Error(t("doe.runs.baselineVersionMissing"));
+      const composition = applyDoeFactorsToLines(baseline.lines, run.factorSettings, studyFactors);
+      const now = new Date().toISOString();
+      const trial: LaboratoryTrial = {
+        schemaVersion: "1.0",
+        id: newDoeId("trial"),
+        code: `${selectedStudy.studyCode}-R${run.runNumber}`,
+        projectId: formulation.id,
+        sourceType: "saved_version",
+        sourceFormulaVersionId: baseline.id,
+        formulaSnapshot: snapshotFormulaForTrial({ lines: composition.lines, basisBatchKg: baseline.basisBatchKg }),
+        productFamilyId: formulation.productFamilyCode,
+        targetPackagingSkuIds: [],
+        title: `${selectedStudy.title} — run ${run.runNumber}`,
+        objective: t("doe.runs.trialObjective", { study: selectedStudy.title }),
+        batchSize: baseline.basisBatchKg,
+        batchUnit: "kg",
+        status: "planned",
+        priority: TRIAL_PRIORITIES[1],
+        equipmentIds: [],
+        materialUsage: [],
+        processSteps: [],
+        observations: [],
+        hasOpenCriticalDeviation: false,
+        createdAt: now,
+        createdBy: actor.kind === "human" ? actor.userId : "local",
+        updatedAt: now,
+        sourceDoeStudyId: selectedStudy.id,
+        sourceDoeDesignId: run.designId,
+        sourceDoeRunId: run.id,
+      };
+      await upsertRecords("laboratory_trials", [trial]);
+      const updatedRun: DoeRun = { ...run, linkedTrialId: trial.id, linkedFormulaVersionId: baseline.id, status: "trial_created" };
+      await upsertRecords("doe_runs", [updatedRun]);
+      await record("doe.trials_generated", { metadata: { studyId: selectedStudy.id, runId: run.id, trialId: trial.id } });
+      for (const w of composition.warnings) await record("doe.trials_generated", { detail: w, metadata: { studyId: selectedStudy.id, runId: run.id } });
+      await onAuditChanged();
+      await load();
+    } catch (e) {
+      setError(String(e));
     }
-    const composition = applyDoeFactorsToLines(baseline.lines, run.factorSettings, studyFactors);
-    const now = new Date().toISOString();
-    const trial: LaboratoryTrial = {
-      schemaVersion: "1.0",
-      id: newDoeId("trial"),
-      code: `${selectedStudy.studyCode}-R${run.runNumber}`,
-      projectId: formulation.id,
-      sourceType: "saved_version",
-      sourceFormulaVersionId: baseline.id,
-      formulaSnapshot: snapshotFormulaForTrial({ lines: composition.lines, basisBatchKg: baseline.basisBatchKg }),
-      productFamilyId: formulation.productFamilyCode,
-      targetPackagingSkuIds: [],
-      title: `${selectedStudy.title} — run ${run.runNumber}`,
-      objective: t("doe.runs.trialObjective", { study: selectedStudy.title }),
-      batchSize: baseline.basisBatchKg,
-      batchUnit: "kg",
-      status: "planned",
-      priority: TRIAL_PRIORITIES[1],
-      equipmentIds: [],
-      materialUsage: [],
-      processSteps: [],
-      observations: [],
-      hasOpenCriticalDeviation: false,
-      createdAt: now,
-      createdBy: actor.kind === "human" ? actor.userId : "local",
-      updatedAt: now,
-      sourceDoeStudyId: selectedStudy.id,
-      sourceDoeDesignId: run.designId,
-      sourceDoeRunId: run.id,
-    };
-    await upsertRecords("laboratory_trials", [trial]);
-    const updatedRun: DoeRun = { ...run, linkedTrialId: trial.id, linkedFormulaVersionId: baseline.id, status: "trial_created" };
-    await upsertRecords("doe_runs", [updatedRun]);
-    await record("doe.trials_generated", { metadata: { studyId: selectedStudy.id, runId: run.id, trialId: trial.id } });
-    for (const w of composition.warnings) await record("doe.trials_generated", { detail: w, metadata: { studyId: selectedStudy.id, runId: run.id } });
-    await onAuditChanged();
-    await load();
   }
 
   async function createTrialFromRecommendation(candidate: DoeCandidate) {
@@ -602,6 +621,10 @@ export function DoePanel({
   }
 
   async function linkExistingTrial(run: DoeRun, trialId: string) {
+    if (hasRecommendationOrigin(run)) {
+      setError("Recommendation-origin runs can only create a trial through the accepted recommendation workflow.");
+      return;
+    }
     const updatedRun: DoeRun = { ...run, linkedTrialId: trialId || undefined };
     await upsertRecords("doe_runs", [updatedRun]);
     if (trialId) await record("doe.trial_linked", { metadata: { studyId: run.studyId, runId: run.id, trialId } });
@@ -1327,7 +1350,7 @@ function RunRow({
               <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-border pt-2">
                 {run.linkedTrialId ? (
                   <span className="text-[10.5px] text-muted">{t("doe.runs.linkedTrial")}: {trials.find((tr) => tr.id === run.linkedTrialId)?.code ?? run.linkedTrialId}</span>
-                ) : (
+                ) : run.recommendationId !== undefined || run.recommendationPolicyVersion !== undefined || run.recommendationAcceptedBy !== undefined || run.recommendationAcceptedAt !== undefined ? null : (
                   <>
                     <button onClick={onGenerateTrial} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface">
                       {t("doe.runs.generateTrial")}
