@@ -316,7 +316,13 @@ describe("StabilityPanel — result entry and automatic failure", () => {
     expect(correctiveActionsStore[0].sourceType).toBe("stability_failure");
 
     await user.click(await screen.findByRole("button", { name: "Create draft" }));
-    expect(onApplyDraft).toHaveBeenCalledWith([LINE_A], "100", expect.stringContaining(correctiveActionsStore[0].code));
+    expect(onApplyDraft).toHaveBeenCalledWith(
+      [LINE_A], "100", expect.stringContaining(correctiveActionsStore[0].code),
+      expect.objectContaining({
+        kind: "corrective_action", correctiveActionId: correctiveActionsStore[0].id,
+        sourceRecordId: studiesStore[0].id, sourceFormulaVersionId: "ver-1",
+      }),
+    );
   });
 
   it("opens the dedicated history browser from a recorded time-point result's View history action", async () => {

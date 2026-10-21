@@ -34,6 +34,7 @@ import {
   type CorrectiveAction,
   type Formulation,
   type FormulationLine,
+  type FormulationDraftOrigin,
   type FormulationVersion,
   type FormulaStatus,
   type PackagingBom,
@@ -95,7 +96,7 @@ export function StabilityPanel({
   baseVersion?: FormulationVersion;
   approvalStatus: FormulaStatus;
   packagingBoms: PackagingBom[];
-  onApplyDraft: (lines: FormulationLine[], basisBatchKg: string, note: string) => void;
+  onApplyDraft: (lines: FormulationLine[], basisBatchKg: string, note: string, origin?: FormulationDraftOrigin) => void;
 }) {
   const { t: tRaw } = useTranslation(["session", "common"]);
   const t = tRaw as SimpleT;
@@ -422,7 +423,16 @@ export function StabilityPanel({
       setError(t("trials.correctiveActionNeedsVersion"));
       return;
     }
-    onApplyDraft(baseVersion.lines.map((l) => ({ ...l })), baseVersion.basisBatchKg, t("stability.draftFromFailure", { code: action.code }));
+    const sourceStudy = studies.find((study) => study.id === action.sourceRecordId);
+    if (!sourceStudy || sourceStudy.sourceFormulaVersionId !== baseVersion.id) {
+      setError("The corrective action's exact stability formula version is not the current source version; no draft was created.");
+      return;
+    }
+    onApplyDraft(baseVersion.lines.map((l) => ({ ...l })), baseVersion.basisBatchKg, t("stability.draftFromFailure", { code: action.code }), {
+      kind: "corrective_action", correctiveActionId: action.id, sourceType: action.sourceType,
+      sourceRecordId: action.sourceRecordId, ...(action.deviationOrFailureId ? { deviationOrFailureId: action.deviationOrFailureId } : {}),
+      sourceFormulaVersionId: baseVersion.id,
+    });
   };
 
   return (

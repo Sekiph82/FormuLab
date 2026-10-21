@@ -3,9 +3,9 @@
  * canonical records and this module resolves only their explicit references.
  */
 export type LineageEntityType =
-  | "generation_session" | "formulation" | "formulation_version" | "corrective_action"
+  | "generation_session" | "formulation" | "formulation_version" | "formulation_draft" | "corrective_action"
   | "doe_study" | "doe_design" | "doe_analysis" | "doe_candidate" | "doe_run" | "laboratory_trial"
-  | "test_result" | "dataset" | "predictive_model" | "prediction"
+  | "test_result" | "stability_study" | "dataset" | "predictive_model" | "prediction"
   | "ranking" | "optimization_run";
 
 export interface LineageNode {
@@ -28,6 +28,7 @@ export interface LaboratoryLineageRecordSet {
   generationSessions?: unknown[];
   formulations?: unknown[];
   formulationVersions?: unknown[];
+  formulationDrafts?: unknown[];
   correctiveActions?: unknown[];
   doeStudies?: unknown[];
   doeDesigns?: unknown[];
@@ -36,6 +37,7 @@ export interface LaboratoryLineageRecordSet {
   doeRuns?: unknown[];
   laboratoryTrials?: unknown[];
   testResults?: unknown[];
+  stabilityStudies?: unknown[];
   datasets?: unknown[];
   predictiveModels?: unknown[];
   predictions?: unknown[];
@@ -53,7 +55,7 @@ type RecordValue = Record<string, unknown>;
 const asRecord = (value: unknown): RecordValue | undefined =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : undefined;
 const text = (value: unknown): string | undefined => typeof value === "string" && value.trim() ? value : undefined;
-const idOf = (record: RecordValue): string | undefined => text(record.id) ?? text(record.code);
+const idOf = (record: RecordValue): string | undefined => text(record.id) ?? text(record.code) ?? text(record.formulationId);
 
 /** Resolve direct immutable references only. No lookup by recency, label,
  * formula contents, or display code is performed. Missing targets stay visible. */
@@ -86,10 +88,10 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
   };
   const pools: Array<[LineageEntityType, unknown[] | undefined]> = [
     ["generation_session", records.generationSessions], ["formulation", records.formulations],
-    ["formulation_version", records.formulationVersions], ["corrective_action", records.correctiveActions],
+    ["formulation_version", records.formulationVersions], ["formulation_draft", records.formulationDrafts], ["corrective_action", records.correctiveActions],
     ["doe_study", records.doeStudies], ["doe_design", records.doeDesigns], ["doe_analysis", records.doeAnalyses],
     ["doe_candidate", records.doeCandidates], ["doe_run", records.doeRuns],
-    ["laboratory_trial", records.laboratoryTrials], ["test_result", records.testResults],
+    ["laboratory_trial", records.laboratoryTrials], ["test_result", records.testResults], ["stability_study", records.stabilityStudies],
     ["dataset", records.datasets], ["predictive_model", records.predictiveModels],
     ["prediction", records.predictions], ["ranking", records.rankings],
     ["optimization_run", records.optimizationRuns],
@@ -104,14 +106,33 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
     edges.push({ from: `${fromType}:${sourceId}`, to: `${toType}:${targetId}`, relationship: relation,
       status: !targetRecord ? "missing" : matches && !matches(targetRecord) ? "invalid" : "resolved" });
   };
-  const each = (type: LineageEntityType, rows: unknown[] | undefined, fn: (row: RecordValue) => void) => {
+  const each = (_type: LineageEntityType, rows: unknown[] | undefined, fn: (row: RecordValue) => void) => {
     for (const value of rows ?? []) { const row = asRecord(value); if (row) fn(row); }
   };
   each("formulation_version", records.formulationVersions, row => link("formulation_version", row, "version_of", "formulation", row.formulationId));
   each("corrective_action", records.correctiveActions, row => {
     const sourceType = text(row.sourceType);
-    link("corrective_action", row, "source_record", sourceType?.startsWith("trial_") ? "laboratory_trial" : "formulation", row.sourceRecordId);
+    if (sourceType?.startsWith("trial_")) link("corrective_action", row, "source_record", "laboratory_trial", row.sourceRecordId);
+    else if (sourceType === "stability_failure") link("corrective_action", row, "source_record", "stability_study", row.sourceRecordId);
     link("corrective_action", row, "created_draft", "formulation", row.createdDraftId);
+  });
+  each("formulation_draft", records.formulationDrafts, row => {
+    const origin = asRecord(row.origin);
+    if (!origin) return;
+    if (origin.kind === "corrective_action") {
+      link("formulation_draft", row, "derived_from_corrective_action", "corrective_action", origin.correctiveActionId);
+      if (text(origin.sourceType)?.startsWith("trial_")) link("formulation_draft", row, "source_record", "laboratory_trial", origin.sourceRecordId);
+      else if (origin.sourceType === "stability_failure") link("formulation_draft", row, "source_record", "stability_study", origin.sourceRecordId);
+      link("formulation_draft", row, "source_test_result", "test_result", origin.sourceTestResultId);
+      link("formulation_draft", row, "source_formula_version", "formulation_version", origin.sourceFormulaVersionId);
+    } else if (origin.kind === "doe_candidate") {
+      link("formulation_draft", row, "derived_from_doe_candidate", "doe_candidate", origin.candidateId);
+      link("formulation_draft", row, "source_formula_version", "formulation_version", origin.sourceFormulaVersionId);
+      link("formulation_draft", row, "study_revision", "doe_study", origin.studyId);
+      link("formulation_draft", row, "design", "doe_design", origin.designId);
+    } else if (origin.kind === "generation_alternative") {
+      link("formulation_draft", row, "generated_from_session", "generation_session", origin.generationSessionId);
+    }
   });
   each("doe_study", records.doeStudies, row => {
     link("doe_study", row, "baseline_formula_version", "formulation_version", row.baselineFormulaVersionId);

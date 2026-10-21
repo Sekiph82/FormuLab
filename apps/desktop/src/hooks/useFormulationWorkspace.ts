@@ -15,6 +15,7 @@ import {
   type CostSnapshot,
   type Formulation,
   type FormulationDraft,
+  type FormulationDraftOrigin,
   type FormulationLine,
   type FormulationVersion,
   type PackagingBom,
@@ -280,7 +281,7 @@ export function useFormulationWorkspace(formulationId: string | null) {
   );
 
   const onApplyCorrectiveActionDraft = useCallback(
-    (lines: FormulationLine[], newBasisBatchKg: string, note: string) => {
+    (lines: FormulationLine[], newBasisBatchKg: string, note: string, origin?: FormulationDraftOrigin) => {
       if (!project) return;
       draft.reset({
         schemaVersion: "1.0",
@@ -290,6 +291,7 @@ export function useFormulationWorkspace(formulationId: string | null) {
         basisBatchKg: newBasisBatchKg,
         updatedAt: new Date().toISOString(),
         dirty: true,
+        ...(origin ? { origin } : {}),
       });
       void appendAudit(auditEvent(project.id, "version.restored_to_draft", { detail: note }));
     },

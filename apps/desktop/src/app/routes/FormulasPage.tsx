@@ -17,6 +17,7 @@ import {
   type Formulation,
   type FormulationDraft,
   type FormulationLine,
+  type FormulationDraftOrigin,
   type CostSnapshot,
   type FormulationVersion,
   type PackagingBom,
@@ -339,16 +340,17 @@ export function FormulasPage() {
   /** A corrective action (from a trial deviation or a stability failure)
    *  produced a new formula draft — same never-overwrite-the-saved-version
    *  rule, and the draft carries no approval status to inherit. */
-  const onApplyCorrectiveActionDraft = (lines: FormulationLine[], newBasisBatchKg: string, note: string) => {
+  const onApplyCorrectiveActionDraft = (lines: FormulationLine[], newBasisBatchKg: string, note: string, origin?: FormulationDraftOrigin) => {
     if (!active) return;
     draft.reset({
       schemaVersion: "1.0",
       formulationId: active.id,
-      baseVersionId: baseVersion?.id,
+      baseVersionId: origin?.kind === "corrective_action" ? origin.sourceFormulaVersionId : baseVersion?.id,
       lines,
       basisBatchKg: newBasisBatchKg,
       updatedAt: new Date().toISOString(),
       dirty: true,
+      ...(origin ? { origin } : {}),
     });
     setTab("builder");
     void appendAudit(auditEvent(active.id, "version.restored_to_draft", { detail: note }));
@@ -548,8 +550,9 @@ export function FormulasPage() {
           <CorrectiveActionsPanel
             formulation={active}
             baseVersion={baseVersion}
+            versions={versions}
             approvalStatus={baseVersionApprovalStatus}
-            onApplyDraft={(note) => baseVersion && onApplyCorrectiveActionDraft(baseVersion.lines.map((l) => ({ ...l })), baseVersion.basisBatchKg, note)}
+            onApplyDraft={(note, origin, sourceVersion) => sourceVersion && onApplyCorrectiveActionDraft(sourceVersion.lines.map((l) => ({ ...l })), sourceVersion.basisBatchKg, note, origin)}
           />
         )}
 

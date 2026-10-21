@@ -6,7 +6,7 @@
  */
 import { newId, draftFromVersion } from "./versioning";
 import type { Actor } from "../schemas/status";
-import type { FormulationDraft, FormulationVersion } from "../schemas/formulation";
+import type { FormulationDraft, FormulationDraftOrigin, FormulationVersion } from "../schemas/formulation";
 import type {
   CorrectiveAction,
   CorrectiveActionSourceType,
@@ -145,8 +145,19 @@ export interface DraftFromCorrectiveActionResult {
 export function createDraftFromCorrectiveAction(
   action: CorrectiveAction,
   sourceVersion: FormulationVersion,
+  options: { sourceTestResultId?: string } = {},
 ): DraftFromCorrectiveActionResult {
-  const draft = draftFromVersion(sourceVersion);
+  if (action.projectId !== sourceVersion.formulationId) throw new Error("Corrective action and source formula version must belong to the same formulation.");
+  const origin: FormulationDraftOrigin = {
+    kind: "corrective_action",
+    correctiveActionId: action.id,
+    sourceType: action.sourceType,
+    sourceRecordId: action.sourceRecordId,
+    ...(action.deviationOrFailureId ? { deviationOrFailureId: action.deviationOrFailureId } : {}),
+    ...(options.sourceTestResultId ? { sourceTestResultId: options.sourceTestResultId } : {}),
+    sourceFormulaVersionId: sourceVersion.id,
+  };
+  const draft: FormulationDraft = { ...draftFromVersion(sourceVersion), origin };
   const updatedAction: CorrectiveAction = {
     ...action,
     createdDraftId: sourceVersion.formulationId,

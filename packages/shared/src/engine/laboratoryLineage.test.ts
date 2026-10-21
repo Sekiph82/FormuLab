@@ -62,4 +62,22 @@ describe("buildLaboratoryLineage", () => {
     ]));
     expect(lineage.brokenReferences).toHaveLength(2);
   });
+
+  it("connects a corrective-action-derived draft to its recorded source without healing missing links", () => {
+    const lineage = buildLaboratoryLineage({
+      correctiveActions: [{ id: "ca-1", sourceType: "trial_deviation", sourceRecordId: "trial-1", createdDraftId: "formula-1" }],
+      formulations: [{ id: "formula-1" }],
+      formulationVersions: [{ id: "version-1", formulationId: "formula-1", versionNumber: 1 }],
+      laboratoryTrials: [{ id: "trial-1", sourceFormulaVersionId: "version-1" }],
+      testResults: [{ id: "result-1", trialId: "trial-1", formulaVersionId: "version-1" }],
+      formulationDrafts: [{ formulationId: "formula-1", origin: { kind: "corrective_action", correctiveActionId: "ca-1", sourceType: "trial_deviation", sourceRecordId: "trial-1", sourceTestResultId: "result-1", sourceFormulaVersionId: "version-1" } }],
+    });
+
+    expect(lineage.brokenReferences).toEqual([]);
+    expect(lineage.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ from: "formulation_draft:formula-1", to: "corrective_action:ca-1", status: "resolved" }),
+      expect.objectContaining({ from: "formulation_draft:formula-1", to: "test_result:result-1", status: "resolved" }),
+      expect.objectContaining({ from: "formulation_draft:formula-1", to: "formulation_version:version-1", status: "resolved" }),
+    ]));
+  });
 });

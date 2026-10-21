@@ -15,6 +15,7 @@ import {
   type CorrectiveAction,
   type Formulation,
   type FormulationVersion,
+  type FormulationDraftOrigin,
   type FormulaStatus,
 } from "@formulab/shared";
 import { listRecords, upsertRecords } from "@/lib/masterdata";
@@ -31,12 +32,14 @@ export function CorrectiveActionsPanel({
   formulation,
   baseVersion,
   approvalStatus,
+  versions,
   onApplyDraft,
 }: {
   formulation: Formulation;
   baseVersion?: FormulationVersion;
   approvalStatus: FormulaStatus;
-  onApplyDraft: (note: string) => void;
+  versions: FormulationVersion[];
+  onApplyDraft: (note: string, origin?: FormulationDraftOrigin, sourceVersion?: FormulationVersion) => void;
 }) {
   const { t: tRaw } = useTranslation(["session", "common"]);
   const t = tRaw as SimpleT;
@@ -64,6 +67,30 @@ export function CorrectiveActionsPanel({
 
   const updateAttachments = (action: CorrectiveAction, attachments: AttachmentReference[]) =>
     void persist({ ...action, attachments, updatedAt: new Date().toISOString() });
+
+  const applyDraft = async (action: CorrectiveAction) => {
+    let sourceFormulaVersionId: string | undefined;
+    if (action.sourceType.startsWith("trial_")) {
+      const trials = await listRecords("laboratory_trials") as Array<{ id: string; sourceFormulaVersionId?: string }>;
+      sourceFormulaVersionId = trials.find((trial) => trial.id === action.sourceRecordId)?.sourceFormulaVersionId;
+    } else if (action.sourceType === "stability_failure") {
+      const studies = await listRecords("stability_studies") as Array<{ id: string; sourceFormulaVersionId?: string }>;
+      sourceFormulaVersionId = studies.find((study) => study.id === action.sourceRecordId)?.sourceFormulaVersionId;
+    } else {
+      sourceFormulaVersionId = baseVersion?.id;
+    }
+    const sourceVersion = sourceFormulaVersionId ? versions.find((version) => version.id === sourceFormulaVersionId) : undefined;
+    if (!sourceVersion) {
+      setError("The corrective action's exact source formula version is unavailable; no draft was created.");
+      return;
+    }
+    onApplyDraft(t("stability.draftFromFailure", { code: action.code }), {
+      kind: "corrective_action", correctiveActionId: action.id, sourceType: action.sourceType,
+      sourceRecordId: action.sourceRecordId,
+      ...(action.deviationOrFailureId ? { deviationOrFailureId: action.deviationOrFailureId } : {}),
+      sourceFormulaVersionId: sourceVersion.id,
+    }, sourceVersion);
+  };
 
   const exportCsv = () => {
     const { headers, rows } = correctiveActionReportRows(actions);
@@ -143,8 +170,8 @@ export function CorrectiveActionsPanel({
                   {t("correctiveActions.reassign")}: {action.owner}
                 </button>
               )}
-              {baseVersion && (
-                <button onClick={() => onApplyDraft(t("stability.draftFromFailure", { code: action.code }))} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2">
+              {versions.length > 0 && (
+                <button onClick={() => void applyDraft(action)} className="rounded-input border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2">
                   {t("trials.createDraft")}
                 </button>
               )}

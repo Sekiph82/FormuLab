@@ -111,6 +111,7 @@ describe("createDraftFromCorrectiveAction", () => {
     expect(draft.formulationId).toBe(version.formulationId);
     expect(draft.baseVersionId).toBe(version.id);
     expect(draft.lines).toHaveLength(1);
+    expect(draft.origin).toEqual(expect.objectContaining({ kind: "corrective_action", correctiveActionId: action.id, sourceRecordId: "trial-1", sourceFormulaVersionId: version.id }));
   });
 
   it("never inherits an approval status — a draft has none to carry", () => {
@@ -123,5 +124,12 @@ describe("createDraftFromCorrectiveAction", () => {
     const action = newAction();
     const { action: updated } = createDraftFromCorrectiveAction(action, version);
     expect(updated.createdDraftId).toBe(version.formulationId);
+  });
+
+  it("preserves an exact source test result and refuses a version from another formulation", () => {
+    const action = newAction();
+    const { draft } = createDraftFromCorrectiveAction(action, version, { sourceTestResultId: "result-7" });
+    expect(draft.origin).toEqual(expect.objectContaining({ sourceTestResultId: "result-7", sourceFormulaVersionId: "ver-1" }));
+    expect(() => createDraftFromCorrectiveAction(action, { ...version, formulationId: "other-formula" })).toThrow(/same formulation/);
   });
 });

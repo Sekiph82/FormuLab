@@ -76,8 +76,9 @@ export function LaboratoryPage() {
           <CorrectiveActionsPanel
             formulation={active}
             baseVersion={ws.baseVersion}
+            versions={ws.versions}
             approvalStatus={ws.baseVersionApprovalStatus}
-            onApplyDraft={(note) => ws.baseVersion && ws.onApplyCorrectiveActionDraft(ws.baseVersion.lines.map((l) => ({ ...l })), ws.baseVersion.basisBatchKg, note)}
+            onApplyDraft={(note, origin, sourceVersion) => sourceVersion && ws.onApplyCorrectiveActionDraft(sourceVersion.lines.map((l) => ({ ...l })), sourceVersion.basisBatchKg, note, origin)}
           />
         )}
       </div>

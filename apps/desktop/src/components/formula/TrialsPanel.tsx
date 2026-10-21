@@ -38,6 +38,7 @@ import {
   type CorrectiveAction,
   type Formulation,
   type FormulationLine,
+  type FormulationDraftOrigin,
   type FormulationVersion,
   type FormulaStatus,
   type DoeRun,
@@ -89,7 +90,7 @@ export function TrialsPanel({
   basisBatchKg: string;
   baseVersion?: FormulationVersion;
   approvalStatus: FormulaStatus;
-  onApplyDraft: (lines: FormulationLine[], basisBatchKg: string, note: string) => void;
+  onApplyDraft: (lines: FormulationLine[], basisBatchKg: string, note: string, origin?: FormulationDraftOrigin) => void;
 }) {
   const { t: tRaw } = useTranslation(["session", "common"]);
   const t = tRaw as SimpleT;
@@ -499,7 +500,16 @@ export function TrialsPanel({
       setError(t("trials.correctiveActionNeedsVersion"));
       return;
     }
-    onApplyDraft(baseVersion.lines.map((l) => ({ ...l })), baseVersion.basisBatchKg, t("trials.draftFromCorrectiveAction", { code: action.code }));
+    const sourceTrial = trials.find((trial) => trial.id === action.sourceRecordId);
+    if (!sourceTrial || sourceTrial.sourceFormulaVersionId !== baseVersion.id) {
+      setError("The corrective action's exact trial formula version is not the current source version; no draft was created.");
+      return;
+    }
+    onApplyDraft(baseVersion.lines.map((l) => ({ ...l })), baseVersion.basisBatchKg, t("trials.draftFromCorrectiveAction", { code: action.code }), {
+      kind: "corrective_action", correctiveActionId: action.id, sourceType: action.sourceType,
+      sourceRecordId: action.sourceRecordId, ...(action.deviationOrFailureId ? { deviationOrFailureId: action.deviationOrFailureId } : {}),
+      sourceFormulaVersionId: baseVersion.id,
+    });
   };
 
   return (

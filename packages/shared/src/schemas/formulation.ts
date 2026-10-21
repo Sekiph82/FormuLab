@@ -231,6 +231,43 @@ export const formulationSchema = z.object({
 });
 export type Formulation = z.infer<typeof formulationSchema>;
 
+/** Exact source lineage for drafts derived from a governed research record.
+ * This describes origin only; a draft remains mutable work and never signals
+ * validation, acceptance, or approval. */
+export const formulationDraftOriginSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("corrective_action"),
+    correctiveActionId: z.string().min(1),
+    sourceType: z.enum(["trial_deviation", "trial_failure", "stability_failure", "manual"]),
+    sourceRecordId: z.string().min(1),
+    deviationOrFailureId: z.string().optional(),
+    sourceTestResultId: z.string().optional(),
+    sourceFormulaVersionId: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal("doe_candidate"),
+    candidateId: z.string().min(1),
+    studyId: z.string().min(1),
+    studyRevision: z.number().int().positive(),
+    designId: z.string().min(1),
+    policyVersion: z.string().min(1).optional(),
+    sourceFormulaVersionId: z.string().min(1),
+    factorSettings: z.array(z.object({ factorCode: z.string().min(1), actualValue: z.string().min(1) })),
+    appliedAt: z.string(),
+  }),
+  z.object({
+    kind: z.literal("generation_alternative"),
+    generationSessionId: z.string().min(1),
+    alternativeId: z.string().min(1),
+    formulaFingerprint: z.object({
+      algorithm: z.literal("sha256"),
+      canonicalization: z.literal("formulab-canonical-json-v1"),
+      digest: z.string().regex(/^[a-f0-9]{64}$/),
+    }),
+  }),
+]);
+export type FormulationDraftOrigin = z.infer<typeof formulationDraftOriginSchema>;
+
 /**
  * The mutable working copy.
  *
@@ -249,6 +286,8 @@ export const formulationDraftSchema = z.object({
   updatedAt: z.string(),
   /** True once the draft diverges from its base version. */
   dirty: z.boolean().default(false),
+  /** Immutable origin pointer retained as the working draft is edited. */
+  origin: formulationDraftOriginSchema.optional(),
 });
 export type FormulationDraft = z.infer<typeof formulationDraftSchema>;
 
