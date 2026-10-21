@@ -192,6 +192,7 @@ describe("FormulationResultPage", () => {
     expect(handoff.get("rankingRecordCode")).toBeTruthy();
     expect(persistedRankings).toHaveLength(1);
     expect(persistedRankings[0]).toMatchObject({ code: handoff.get("rankingRecordCode"), sessionId: SESSION.id });
+    expect((persistedRankings[0] as { rankings: Array<{ candidate: { sourceFormulationVersionId?: string } }> }).rankings[0]?.candidate.sourceFormulationVersionId).toBe("saved-version");
   });
 });
 
