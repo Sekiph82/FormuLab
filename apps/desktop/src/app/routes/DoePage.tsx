@@ -27,14 +27,15 @@ export function DoePage() {
         formulation={ws.project}
         versions={ws.versions}
         auditLog={ws.auditLog}
-        onApplyCandidateLines={(materialQuantities) => {
-          if (!ws.draft.value) return;
+        onApplyCandidateLines={(materialQuantities, _note, origin) => {
+          if (origin.kind !== "doe_candidate" || !ws.draft.value || ws.draft.value.baseVersionId !== origin.sourceFormulaVersionId) return false;
           const byMaterialId = new Map(materialQuantities.map((m) => [m.materialId, m.quantity]));
           const lines = ws.draft.value.lines.map((line) => (line.materialId && byMaterialId.has(line.materialId) ? { ...line, percent: byMaterialId.get(line.materialId)! } : line));
           // Applying a candidate only ever updates the working draft's
           // composition — the human still saves a new version explicitly
           // through the existing Formulation workflow when ready.
-          ws.onLinesChange(lines, { checkpoint: true });
+          ws.onLinesChange(lines, { checkpoint: true, origin });
+          return true;
         }}
         onAuditChanged={ws.refreshAuditLog}
       />

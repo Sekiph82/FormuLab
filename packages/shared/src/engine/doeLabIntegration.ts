@@ -10,7 +10,8 @@
  * persistence paths, exactly as it does for every other trial/draft today.
  */
 import type { DoeFactor, DoeFactorSetting } from "../schemas/doe";
-import type { FormulationLine } from "../schemas/formulation";
+import type { DoeCandidate, DoeDesign, DoeStudy } from "../schemas/doe";
+import type { FormulationDraftOrigin, FormulationLine } from "../schemas/formulation";
 
 export interface DoeRunCompositionResult {
   lines: FormulationLine[];
@@ -23,6 +24,37 @@ export interface DoeRunCompositionResult {
    *  present in the baseline's lines (the factor is skipped, not fabricated
    *  as a new line — a human decides whether to add that material). */
   warnings: string[];
+}
+
+/** Capture the exact DOE proposal lineage before applying candidate values to
+ * a mutable draft. A stale study/design/baseline fails closed. */
+export function buildDoeCandidateDraftOrigin(input: {
+  candidate: Pick<DoeCandidate, "id" | "studyId" | "studyRevision" | "recommendationPolicyVersion" | "experimentSpace" | "factorSettings">;
+  study: Pick<DoeStudy, "id" | "revision" | "baselineFormulaVersionId">;
+  design: Pick<DoeDesign, "id" | "studyId" | "studyRevision">;
+  sourceFormulaVersionId: string;
+  appliedAt?: string;
+}): FormulationDraftOrigin {
+  const { candidate, study, design, sourceFormulaVersionId } = input;
+  if (candidate.studyId !== study.id || candidate.studyRevision !== study.revision ||
+    design.studyId !== study.id || design.studyRevision !== study.revision ||
+    study.baselineFormulaVersionId !== sourceFormulaVersionId) {
+    throw new Error("DOE candidate, study revision, design, and exact baseline formula version do not match.");
+  }
+  if (candidate.experimentSpace && (candidate.experimentSpace.designId !== design.id || candidate.experimentSpace.sourceFormulaVersionId !== sourceFormulaVersionId)) {
+    throw new Error("DOE candidate experiment-space lineage does not match the selected design and baseline formula version.");
+  }
+  return {
+    kind: "doe_candidate",
+    candidateId: candidate.id,
+    studyId: study.id,
+    studyRevision: study.revision,
+    designId: design.id,
+    ...(candidate.recommendationPolicyVersion ? { policyVersion: candidate.recommendationPolicyVersion } : {}),
+    sourceFormulaVersionId,
+    factorSettings: candidate.factorSettings.map(({ factorCode, actualValue }) => ({ factorCode, actualValue })),
+    appliedAt: input.appliedAt ?? new Date().toISOString(),
+  };
 }
 
 /** Applies a run's (or a candidate's) factor settings onto a baseline

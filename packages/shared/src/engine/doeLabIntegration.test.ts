@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DoeFactor } from "../schemas/doe";
 import type { FormulationLine } from "../schemas/formulation";
-import { applyDoeFactorsToLines } from "./doeLabIntegration";
+import { applyDoeFactorsToLines, buildDoeCandidateDraftOrigin } from "./doeLabIntegration";
 
 function line(overrides: Partial<FormulationLine> & Pick<FormulationLine, "id" | "displayName" | "percent">): FormulationLine {
   return {
@@ -84,5 +84,31 @@ describe("applyDoeFactorsToLines", () => {
     const settings = [{ factorCode: "Total", codedValue: "1", actualValue: "100" }];
     const result = applyDoeFactorsToLines(baseline, settings, factors);
     expect(result.processSettings).toHaveLength(0);
+  });
+});
+
+describe("buildDoeCandidateDraftOrigin", () => {
+  const candidate = {
+    id: "candidate-1", studyId: "study-1", studyRevision: 2,
+    recommendationPolicyVersion: "doe-recommendation/v1" as const,
+    experimentSpace: { policyVersion: "doe-experiment-space/v1" as const, designId: "design-1", sourceFormulaVersionId: "version-1", seed: 4, candidateCount: 1, manipulatedFactorCodes: ["A"], unchangedFormulaLineIds: ["line-b"] },
+    factorSettings: [{ factorCode: "A", codedValue: "1", actualValue: "15" }],
+  };
+  const study = { id: "study-1", revision: 2, baselineFormulaVersionId: "version-1" };
+  const design = { id: "design-1", studyId: "study-1", studyRevision: 2 };
+
+  it("captures candidate, study revision, design, policy, source version, and factor values", () => {
+    const origin = buildDoeCandidateDraftOrigin({ candidate, study, design, sourceFormulaVersionId: "version-1", appliedAt: "2026-10-21T10:00:00.000Z" });
+    expect(origin).toEqual({
+      kind: "doe_candidate", candidateId: "candidate-1", studyId: "study-1", studyRevision: 2,
+      designId: "design-1", policyVersion: "doe-recommendation/v1", sourceFormulaVersionId: "version-1",
+      factorSettings: [{ factorCode: "A", actualValue: "15" }], appliedAt: "2026-10-21T10:00:00.000Z",
+    });
+  });
+
+  it("fails closed when a stale study, design, or baseline is supplied", () => {
+    expect(() => buildDoeCandidateDraftOrigin({ candidate, study: { ...study, revision: 3 }, design, sourceFormulaVersionId: "version-1" })).toThrow(/do not match/);
+    expect(() => buildDoeCandidateDraftOrigin({ candidate, study, design: { ...design, id: "design-new" }, sourceFormulaVersionId: "version-1" })).toThrow(/lineage does not match/);
+    expect(() => buildDoeCandidateDraftOrigin({ candidate, study, design, sourceFormulaVersionId: "version-new" })).toThrow(/do not match/);
   });
 });

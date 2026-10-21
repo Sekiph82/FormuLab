@@ -245,8 +245,8 @@ export function useFormulationWorkspace(formulationId: string | null) {
   );
 
   const onLinesChange = useCallback(
-    (lines: FormulationLine[], opts?: { checkpoint?: boolean }) => {
-      draft.set((d) => (d ? { ...d, lines } : d), opts);
+    (lines: FormulationLine[], opts?: { checkpoint?: boolean; origin?: FormulationDraftOrigin }) => {
+      draft.set((d) => (d ? { ...d, lines, ...(opts?.origin ? { origin: opts.origin } : {}) } : d), opts);
     },
     [draft],
   );

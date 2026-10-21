@@ -29,6 +29,7 @@ import {
   TRIAL_PRIORITIES,
   applyDoeCandidateToDraft,
   applyDoeFactorsToLines,
+  buildDoeCandidateDraftOrigin,
   assertAcceptedRecommendationRunCanCreateTrial,
   assertDoeCandidateHumanSelected,
   evaluateDoeCandidateMaterialCost,
@@ -91,6 +92,7 @@ import {
   type DoeStudy,
   type DoeStudyStatus,
   type Formulation,
+  type FormulationDraftOrigin,
   type FormulationVersion,
   type LaboratoryTrial,
   type InventoryRecord,
@@ -335,7 +337,7 @@ export function DoePanel({
   formulation: Formulation;
   versions: FormulationVersion[];
   auditLog: AuditEvent[];
-  onApplyCandidateLines: (materialQuantities: { materialId: string; quantity: string }[], note: string) => void;
+  onApplyCandidateLines: (materialQuantities: { materialId: string; quantity: string }[], note: string, origin: FormulationDraftOrigin) => boolean | void;
   onAuditChanged: () => Promise<void>;
 }) {
   const { t: tRaw } = useTranslation(["session", "common"]);
@@ -789,7 +791,23 @@ export function DoePanel({
       setError(String(e));
       return;
     }
-    if (!studyDesign) return;
+    if (!studyDesign || !selectedStudy) {
+      setError("The DOE study and exact design must be available before applying a candidate.");
+      return;
+    }
+    if (candidate.status === "applied_to_draft" || candidate.appliedDraftId) {
+      setInfo(candidate.appliedDraftId === formulation.id ? "This candidate was already applied to this draft." : "This candidate was already applied to a different draft.");
+      return;
+    }
+    if (candidate.studyId !== selectedStudy.id || candidate.studyRevision !== selectedStudy.revision) {
+      setError("The DOE candidate no longer matches the active study revision; no draft was changed.");
+      return;
+    }
+    const sourceFormulaVersionId = candidate.experimentSpace?.sourceFormulaVersionId ?? selectedStudy.baselineFormulaVersionId;
+    if (!versions.some((version) => version.id === sourceFormulaVersionId)) {
+      setError("The DOE candidate's exact source formula version is unavailable; no draft was changed.");
+      return;
+    }
     const validation = validateDoeCandidate(candidate);
     if (!validation.valid) {
       setError(validation.issues.join(" "));
@@ -806,7 +824,18 @@ export function DoePanel({
       setInfo(t("doe.candidates.noMaterialFactors", { settings: settings || "—" }));
       return;
     }
-    onApplyCandidateLines(application.materialQuantities, `DOE candidate #${candidate.rank} (${selectedStudy?.title ?? ""})`);
+    let origin: FormulationDraftOrigin;
+    try {
+      origin = buildDoeCandidateDraftOrigin({ candidate, study: selectedStudy, design: studyDesign, sourceFormulaVersionId });
+    } catch (e) {
+      setError(String(e));
+      return;
+    }
+    const applied = onApplyCandidateLines(application.materialQuantities, `DOE candidate #${candidate.rank} (${selectedStudy.title})`, origin);
+    if (applied === false) {
+      setError("The working draft does not descend from this DOE study's exact baseline version; no candidate application was recorded.");
+      return;
+    }
     void (async () => {
       const updated: DoeCandidate = { ...candidate, status: "applied_to_draft", appliedDraftId: formulation.id, appliedAt: new Date().toISOString() };
       await upsertRecords("doe_candidates", [updated]);
