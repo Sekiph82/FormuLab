@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-08
 - Current Sprint: FVL-08-S01
-- Current Task: FVL-08.001 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
+- Current Task: FVL-08.002 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-08.002 — Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance
+- Next Task: FVL-08.003 — Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 130
-- Remaining Tasks: 41
-- Completion: 76.0%
+- Completed Tasks: 131
+- Remaining Tasks: 40
+- Completion: 76.6%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -232,8 +232,8 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-08
 
 ## Sprint FVL-08-S01 — Performance ranking & optimizer integration
-- [~] FVL-08.001 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
-- [ ] FVL-08.002 — Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance
+- [x] FVL-08.001 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
+- [~] FVL-08.002 — Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance
 - [ ] FVL-08.003 — Missing or out-of-domain prediction never masquerades as validated zero
 - [x] FVL-08.004 — Cost dimension sourced only from existing Cost Engine
 - [ ] FVL-08.005 — Optimization pass reuses existing Advanced Optimizer
