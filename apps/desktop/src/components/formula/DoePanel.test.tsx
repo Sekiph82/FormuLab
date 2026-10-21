@@ -138,12 +138,66 @@ describe("DOE recommendation to laboratory trial integration", () => {
     await user.click(screen.getByRole("button", { name: "Candidates" }));
     await user.click(await screen.findByTestId("doe-candidate-create-trial-candidate-1"));
     await waitFor(() => expect(stores.laboratory_trials).toHaveLength(1));
-    const createdRun = stores.doe_runs.find((run) => (run as { recommendationId?: string }).recommendationId === "candidate-1") as { id: string; status: string; linkedTrialId?: string; recommendationAcceptedBy?: string };
+    const createdRun = stores.doe_runs.find((run) => (run as { recommendationId?: string }).recommendationId === "candidate-1") as { id: string; status: string; linkedTrialId?: string; recommendationId: string; recommendationPolicyVersion: string; recommendationAcceptedBy?: string; recommendationAcceptedAt?: string };
     const createdTrial = stores.laboratory_trials.find((trial) => (trial as { sourceDoeRunId?: string }).sourceDoeRunId === createdRun.id) as { status: string; sourceDoeStudyId: string; sourceDoeDesignId: string; sourceDoeRunId: string; sourceFormulaVersionId: string };
-    expect(createdRun).toMatchObject({ status: "trial_created", recommendationAcceptedBy: "local" });
+    expect(createdRun).toMatchObject({ status: "trial_created", recommendationId: "candidate-1", recommendationPolicyVersion: "doe-recommendation/v1", recommendationAcceptedBy: "local", recommendationAcceptedAt: expect.any(String) });
     expect(createdTrial).toMatchObject({ status: "planned", sourceDoeStudyId: "study-1", sourceDoeDesignId: "design-1", sourceDoeRunId: createdRun.id, sourceFormulaVersionId: "version-1" });
     expect(createdRun.linkedTrialId).toBeTruthy();
     expect((stores.doe_candidates[0] as DoeCandidate).status).toBe("selected");
+  });
+
+  it("revalidates a persisted accepted run on retry and does not create a second trial", async () => {
+    const study: DoeStudy = { schemaVersion: "1.0", id: "study-1", studyCode: "DOE-1", title: "Selected study", projectId: "proj-1", formulationId: "proj-1", baselineFormulaVersionId: "version-1", status: "analysis_ready", designType: "full_factorial", randomizationEnabled: true, blockingEnabled: false, replicatePolicy: "none", centerPointPolicy: "none", revision: 1, createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const factor: DoeFactor = { schemaVersion: "1.0", id: "factor-a", studyId: "study-1", studyRevision: 1, factorCode: "A", name: "Material A", factorType: "continuous", sourceType: "formula_material", sourceEntityId: "material-a", lowValue: "5", centerValue: "10", highValue: "20", categoricalLevels: [], transformation: "none", precision: 2, isMixtureComponent: false, isProcessFactor: false, isControlled: true, createdAt: "2026-01-01T00:00:00.000Z" };
+    const design: DoeDesign = { schemaVersion: "1.0", id: "design-1", studyId: "study-1", studyRevision: 1, designType: "full_factorial", factorSnapshot: [factor], constraintSnapshot: [], responseSnapshot: [], generationSettings: {}, seed: 7, runCount: 1, replicateCount: 0, centerPointCount: 0, blockCount: 1, generatedBy: "alice", generatedAt: "2026-01-01T00:00:00.000Z", diagnostics: { runCount: 1, degreesOfFreedom: 0, duplicateRunCount: 0, estimableTerms: [], aliasedTerms: [], isOrthogonal: true, isBalanced: true, centerPointCount: 0, replicateCount: 0, constraintViolationCount: 0, warnings: [] } };
+    const candidate: DoeCandidate = { schemaVersion: "1.0", id: "candidate-1", studyId: "study-1", studyRevision: 1, analysisIds: ["analysis-1"], factorSettings: [{ factorCode: "A", codedValue: "1", actualValue: "20" }], predictedResponses: [], desirability: 0.8, constraintStatus: [], rank: 1, status: "selected", recommendationPolicyVersion: "doe-recommendation/v1", createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", experimentSpace: { policyVersion: "doe-experiment-space/v1", designId: "design-1", sourceFormulaVersionId: "version-1", seed: 7, candidateCount: 4, manipulatedFactorCodes: ["A"], unchangedFormulaLineIds: [] }, feasibility: { policyVersion: "doe-feasibility/v1", evaluatedAt: "2026-01-01T00:00:00.000Z", status: "FEASIBLE", reasons: [] }, hardExclusions: { policyVersion: "doe-hard-exclusions/v1", safety: { status: "PASS", findingIds: [], reasons: [] }, regulatory: { status: "PASS", findingIds: [], reasons: [] } }, acquisition: { policyVersion: "doe-acquisition/v1", method: "nearest_measured_run_distance", status: "AVAILABLE", value: 1, sourceRunIds: ["run-1"] } };
+    const run = { schemaVersion: "1.0", id: "accepted-run", studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 2, standardOrder: 2, randomizedOrder: 2, block: 1, replicate: 1, isCenterPoint: false, factorSettings: candidate.factorSettings, status: "planned", recommendationId: candidate.id, recommendationPolicyVersion: "doe-recommendation/v1", recommendationAcceptedBy: "alice", recommendationAcceptedAt: "2026-01-02T00:00:00.000Z", createdAt: "2026-01-02T00:00:00.000Z" };
+    stores.doe_studies = [study];
+    stores.doe_factors = [factor];
+    stores.doe_designs = [design];
+    stores.doe_candidates = [candidate];
+    stores.doe_runs = [run];
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByText(/Selected study/));
+    await user.click(screen.getByRole("button", { name: "Candidates" }));
+    await user.click(await screen.findByTestId("doe-candidate-create-trial-candidate-1"));
+    await waitFor(() => expect(stores.laboratory_trials).toHaveLength(1));
+    const trial = stores.laboratory_trials[0] as { sourceDoeRunId: string; status: string };
+    expect(trial).toMatchObject({ sourceDoeRunId: "accepted-run", status: "planned" });
+    expect(stores.doe_runs).toHaveLength(1);
+    expect(stores.doe_runs[0]).toMatchObject({ status: "trial_created", linkedTrialId: expect.any(String) });
+  });
+
+  it("blocks generic Runs actions and fails closed for a malformed recommendation-origin run", async () => {
+    const study: DoeStudy = { schemaVersion: "1.0", id: "study-1", studyCode: "DOE-1", title: "Selected study", projectId: "proj-1", formulationId: "proj-1", baselineFormulaVersionId: "version-1", status: "analysis_ready", designType: "full_factorial", randomizationEnabled: true, blockingEnabled: false, replicatePolicy: "none", centerPointPolicy: "none", revision: 1, createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const factor: DoeFactor = { schemaVersion: "1.0", id: "factor-a", studyId: "study-1", studyRevision: 1, factorCode: "A", name: "Material A", factorType: "continuous", sourceType: "formula_material", sourceEntityId: "material-a", lowValue: "5", centerValue: "10", highValue: "20", categoricalLevels: [], transformation: "none", precision: 2, isMixtureComponent: false, isProcessFactor: false, isControlled: true, createdAt: "2026-01-01T00:00:00.000Z" };
+    const design: DoeDesign = { schemaVersion: "1.0", id: "design-1", studyId: "study-1", studyRevision: 1, designType: "full_factorial", factorSnapshot: [factor], constraintSnapshot: [], responseSnapshot: [], generationSettings: {}, seed: 7, runCount: 1, replicateCount: 0, centerPointCount: 0, blockCount: 1, generatedBy: "alice", generatedAt: "2026-01-01T00:00:00.000Z", diagnostics: { runCount: 1, degreesOfFreedom: 0, duplicateRunCount: 0, estimableTerms: [], aliasedTerms: [], isOrthogonal: true, isBalanced: true, centerPointCount: 0, replicateCount: 0, constraintViolationCount: 0, warnings: [] } };
+    const candidate: DoeCandidate = { schemaVersion: "1.0", id: "candidate-1", studyId: "study-1", studyRevision: 1, analysisIds: ["analysis-1"], factorSettings: [{ factorCode: "A", codedValue: "1", actualValue: "20" }], predictedResponses: [], desirability: 0.8, constraintStatus: [], rank: 1, status: "selected", recommendationPolicyVersion: "doe-recommendation/v1", createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", experimentSpace: { policyVersion: "doe-experiment-space/v1", designId: "design-1", sourceFormulaVersionId: "version-1", seed: 7, candidateCount: 4, manipulatedFactorCodes: ["A"], unchangedFormulaLineIds: [] }, feasibility: { policyVersion: "doe-feasibility/v1", evaluatedAt: "2026-01-01T00:00:00.000Z", status: "FEASIBLE", reasons: [] }, hardExclusions: { policyVersion: "doe-hard-exclusions/v1", safety: { status: "PASS", findingIds: [], reasons: [] }, regulatory: { status: "PASS", findingIds: [], reasons: [] } }, acquisition: { policyVersion: "doe-acquisition/v1", method: "nearest_measured_run_distance", status: "AVAILABLE", value: 1, sourceRunIds: ["run-1"] } };
+    const run = { schemaVersion: "1.0", id: "malformed-run", studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 2, standardOrder: 2, randomizedOrder: 2, block: 1, replicate: 1, isCenterPoint: false, factorSettings: candidate.factorSettings, status: "planned", recommendationId: candidate.id, recommendationPolicyVersion: "doe-recommendation/v1", createdAt: "2026-01-02T00:00:00.000Z" };
+    stores.doe_studies = [study];
+    stores.doe_factors = [factor];
+    stores.doe_designs = [design];
+    stores.doe_candidates = [candidate];
+    stores.doe_runs = [run];
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByText(/Selected study/));
+    await user.click(screen.getByRole("button", { name: "Runs" }));
+    await user.click(await screen.findByRole("button", { name: /A=20/ }));
+    expect(screen.queryByRole("button", { name: /Generate trial/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/link existing trial/i)).not.toBeInTheDocument();
+    const statusSelect = screen.getAllByRole("combobox").find((select) => select.querySelector('option[value="trial_created"]'));
+    expect(statusSelect).toBeDefined();
+    await user.selectOptions(statusSelect!, "trial_created");
+    expect(stores.doe_runs[0]).toMatchObject({ status: "planned" });
+    expect(stores.laboratory_trials).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Candidates" }));
+    await user.click(await screen.findByTestId("doe-candidate-create-trial-candidate-1"));
+    expect(await screen.findByText(/no human acceptance actor provenance/i)).toBeInTheDocument();
+    expect(stores.laboratory_trials).toHaveLength(0);
+    expect(stores.doe_runs).toEqual([run]);
+    expect((stores.doe_runs[0] as { status: string }).status).toBe("planned");
   });
 });
 

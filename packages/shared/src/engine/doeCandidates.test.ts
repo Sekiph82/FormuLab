@@ -8,6 +8,7 @@ import type { SafetyRule } from "../schemas/safety";
 import type { RegulatoryRule } from "../schemas/regulatory";
 import {
   applyDoeCandidateToDraft,
+  assertAcceptedRecommendationRunCanCreateTrial,
   assertDoeCandidateHumanSelected,
   calculateOverallDesirability,
   calculateResponseDesirability,
@@ -445,12 +446,42 @@ describe("accepted recommendation DOE run linkage", () => {
     hardExclusions: { policyVersion: "doe-hard-exclusions/v1", safety: { status: "PASS", findingIds: [], reasons: [] }, regulatory: { status: "PASS", findingIds: [], reasons: [] } },
     acquisition: { policyVersion: "doe-acquisition/v1", method: "nearest_measured_run_distance", status: "AVAILABLE", value: 1, sourceRunIds: ["run-1"] },
   };
+  const acceptedRun: DoeRun = {
+    schemaVersion: "1.0", id: "run-accepted", studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 1, standardOrder: 1, randomizedOrder: 1, block: 1, replicate: 1, isCenterPoint: false,
+    factorSettings: recommendation.factorSettings, status: "planned", recommendationId: recommendation.id, recommendationPolicyVersion: "doe-recommendation/v1", recommendationAcceptedBy: "alice", recommendationAcceptedAt: "2026-01-02T00:00:00.000Z", createdAt: "2026-01-02T00:00:00.000Z",
+  };
 
   it("creates a planned real DOE run only after human selection and preserves recommendation/formula/run lineage", () => {
     expect(() => createDoeRunFromAcceptedCandidate({ candidate: { ...recommendation, status: "proposed" }, study, design, existingRuns: [] }, HUMAN)).toThrow(/explicit human selection/i);
     const result = createDoeRunFromAcceptedCandidate({ candidate: recommendation, study, design, existingRuns: [{ schemaVersion: "1.0", id: "run-5", studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 5, standardOrder: 5, randomizedOrder: 5, block: 1, replicate: 1, isCenterPoint: false, factorSettings: [], status: "completed", createdAt: "2026-01-01T00:00:00.000Z" }], acceptedAt: "2026-01-02T00:00:00.000Z" }, HUMAN);
     expect(result).toMatchObject({ studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 6, status: "planned", recommendationId: "candidate-1", recommendationPolicyVersion: "doe-recommendation/v1", recommendationAcceptedBy: "alice", recommendationAcceptedAt: "2026-01-02T00:00:00.000Z", factorSettings: recommendation.factorSettings });
     expect(result.linkedTrialId).toBeUndefined();
+  });
+
+  it("revalidates persisted human acceptance lineage before retrying LaboratoryTrial creation", () => {
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: acceptedRun, study, design }, HUMAN)).not.toThrow();
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: { ...recommendation, status: "proposed" }, run: acceptedRun, study, design }, HUMAN)).toThrow(/explicit human selection/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: { ...recommendation, status: "shortlisted" }, run: acceptedRun, study, design }, HUMAN)).toThrow(/explicit human selection/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: { ...recommendation, hardExclusions: { ...recommendation.hardExclusions!, safety: { status: "FAIL", findingIds: [], reasons: ["blocked"] } } }, run: acceptedRun, study, design }, HUMAN)).toThrow(/confirmed feasibility/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: { ...recommendation, hardExclusions: { ...recommendation.hardExclusions!, regulatory: { status: "FAIL", findingIds: [], reasons: ["blocked"] } } }, run: acceptedRun, study, design }, HUMAN)).toThrow(/confirmed feasibility/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: { ...recommendation, feasibility: { ...recommendation.feasibility!, status: "UNKNOWN" } }, run: acceptedRun, study, design }, HUMAN)).toThrow(/confirmed feasibility/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: { ...recommendation, feasibility: { ...recommendation.feasibility!, status: "INFEASIBLE" } }, run: acceptedRun, study, design }, HUMAN)).toThrow(/confirmed feasibility/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: { ...recommendation, acquisition: { ...recommendation.acquisition!, status: "UNAVAILABLE" } }, run: acceptedRun, study, design }, HUMAN)).toThrow(/confirmed feasibility/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, recommendationId: "other" }, study, design }, HUMAN)).toThrow(/recommendation identity/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, recommendationPolicyVersion: undefined }, study, design }, HUMAN)).toThrow(/policy lineage/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, recommendationAcceptedBy: " " }, study, design }, HUMAN)).toThrow(/acceptance actor/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, recommendationAcceptedAt: "invalid" }, study, design }, HUMAN)).toThrow(/timestamp/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, studyRevision: 2 }, study, design }, HUMAN)).toThrow(/study identity/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, designId: "other" }, study, design }, HUMAN)).toThrow(/design lineage/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: { ...recommendation, experimentSpace: { ...recommendation.experimentSpace!, sourceFormulaVersionId: "other" } }, run: acceptedRun, study, design }, HUMAN)).toThrow(/source formula version/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, status: "trial_created" }, study, design }, HUMAN)).toThrow(/lifecycle state/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, linkedTrialId: "trial-1" }, study, design }, HUMAN)).toThrow(/already has/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: { ...acceptedRun, factorSettings: [] }, study, design }, HUMAN)).toThrow(/factor settings/i);
+    expect(() => assertAcceptedRecommendationRunCanCreateTrial({ candidate: recommendation, run: acceptedRun, study, design }, { kind: "agent", runId: "agent-1" })).toThrow(/Only a human/i);
+  });
+
+  it("rejects a malformed acceptedAt timestamp before persisting a newly accepted run", () => {
+    expect(() => createDoeRunFromAcceptedCandidate({ candidate: recommendation, study, design, existingRuns: [], acceptedAt: "invalid" }, HUMAN)).toThrow(/timestamp/i);
   });
 });
 
