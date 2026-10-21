@@ -9,7 +9,7 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Milestone: FVL-10
 - Current Sprint: FVL-10-S01
 - Current Task: FVL-10.001 — ID/provenance model spanning the full laboratory-feedback chain
-- Current Task Status: READY
+- Current Task Status: IN_PROGRESS
 - Next Task: FVL-10.002 — Immutable references; later stages cite and never rewrite earlier records
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -262,7 +262,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-10
 
 ## Sprint FVL-10-S01 — Closed-loop lineage foundation
-- [ ] FVL-10.001 — ID/provenance model spanning the full laboratory-feedback chain
+- [~] FVL-10.001 — ID/provenance model spanning the full laboratory-feedback chain
 - [ ] FVL-10.002 — Immutable references; later stages cite and never rewrite earlier records
 - [ ] FVL-10.003 — Version relationships across formula, trial, result, dataset, model, prediction and recommendation
 - [ ] FVL-10.004 — Corrective-action-derived draft linkage
