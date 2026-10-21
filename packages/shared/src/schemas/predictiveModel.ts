@@ -4,7 +4,8 @@ import { digestSchema } from "./datasetManifest";
 
 export const MODEL_FEATURE_SCHEMA_VERSION = "1.0" as const;
 export const MODEL_FEATURE_CONTRACT_VERSION = "1.0" as const;
-export const PREDICTIVE_MODEL_SCHEMA_VERSION = "1.0" as const;
+export const PREDICTIVE_MODEL_SCHEMA_VERSION = "1.1" as const;
+export const SUPPORTED_PREDICTIVE_MODEL_SCHEMA_VERSIONS = ["1.0", PREDICTIVE_MODEL_SCHEMA_VERSION] as const;
 export const TRAINING_CONTRACT_VERSION = "1.0" as const;
 export const ACCEPTANCE_POLICY_VERSION = "1.0" as const;
 export const ELIGIBILITY_POLICY_VERSION = "1.0" as const;
@@ -154,7 +155,7 @@ export const predictiveRetrainingLineageSchema = z.object({
 export type PredictiveRetrainingLineage = z.infer<typeof predictiveRetrainingLineageSchema>;
 
 export const predictiveModelArtifactSchema = z.object({
-  schemaVersion: z.literal(PREDICTIVE_MODEL_SCHEMA_VERSION),
+  schemaVersion: z.enum(SUPPORTED_PREDICTIVE_MODEL_SCHEMA_VERSIONS),
   id: z.string().min(1),
   version: z.number().int().positive(),
   productFamilyCode: z.string().min(1),
@@ -241,7 +242,7 @@ export const predictionResultSchema = z.object({
   modelId: z.string().min(1),
   modelVersion: z.number().int().positive(),
   modelChecksum: z.string().regex(/^[a-f0-9]{64}$/),
-  modelArtifactSchemaVersion: z.literal(PREDICTIVE_MODEL_SCHEMA_VERSION),
+  modelArtifactSchemaVersion: z.enum(SUPPORTED_PREDICTIVE_MODEL_SCHEMA_VERSIONS),
   datasetFingerprint: digestSchema,
   datasetSchemaVersion: z.string().min(1),
   featureSchemaVersion: z.string().min(1),

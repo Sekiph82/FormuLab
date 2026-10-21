@@ -18,6 +18,7 @@ import {
   registerPredictiveModel,
   serializePredictiveModelRegistry,
   trainPredictiveModel,
+  predictiveModelArtifactSchema,
   sha256Hex,
   evaluatePredictiveEligibility,
   type FormulaVersionBundleInput,
@@ -233,6 +234,11 @@ describe("FVL-07 predictive performance engine", () => {
     expect(model.evaluation.validation.value).toBeLessThan(model.evaluation.baselineValidation.value);
     expect(model.evaluation.test.value).toBeLessThan(model.evaluation.baselineTest.value);
     expect(model.featureProvenance[0]!.sourceRecords.length).toBeGreaterThan(0);
+    const legacyPayload: Record<string, unknown> = { ...model, schemaVersion: "1.0" };
+    delete legacyPayload.artifactChecksum;
+    const legacyModel = predictiveModelArtifactSchema.parse({ ...legacyPayload, artifactChecksum: await sha256Hex(canonicalizeForFingerprint(legacyPayload)) });
+    expect(legacyModel.schemaVersion).toBe("1.0");
+    expect(legacyModel.retrainingLineage).toBeUndefined();
     const emptyRegistry = await createPredictiveModelRegistry();
     const registry = await registerPredictiveModel(emptyRegistry, model);
     const roundTrip = await parsePredictiveModelRegistry(await serializePredictiveModelRegistry(registry));
