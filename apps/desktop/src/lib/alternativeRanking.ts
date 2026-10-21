@@ -23,6 +23,7 @@ export interface BuildAlternativeRankingInput {
   regulatory: (GeneratedFormulaRegulatory | undefined)[];
   predictions?: ReadonlyMap<string, PredictionResult>;
   predictionFailures?: ReadonlyMap<string, { status: RankingPredictionFailureStatus; reason: string }>;
+  sourceFormulationVersionIds?: ReadonlyMap<string, string>;
 }
 
 function gateStatus(value: string | undefined): "PASS" | "WARNING" | "FAIL" | "UNKNOWN" {
@@ -133,6 +134,9 @@ export async function buildAlternativeRankingCandidates(input: BuildAlternativeR
       sessionId: input.sessionId,
       alternativeId: cardIdentity,
       versionLabel: card.version,
+      ...(input.sourceFormulationVersionIds?.get(card.version)
+        ? { sourceFormulationVersionId: input.sourceFormulationVersionIds.get(card.version)! }
+        : {}),
       ...(formulaFingerprint ? { formulaFingerprint } : {}),
       formulaStatus: formulaStatus(card, hasFormula),
       dimensions,

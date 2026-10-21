@@ -129,6 +129,7 @@ export function FormulationResultPage() {
   const [rankingCandidates, setRankingCandidates] = useState<Awaited<ReturnType<typeof buildAlternativeRankingCandidates>>>([]);
   const [rankingPredictions, setRankingPredictions] = useState<Map<string, import("@formulab/shared").PredictionResult>>(new Map());
   const [rankingPredictionFailures, setRankingPredictionFailures] = useState<Map<string, { status: import("@/lib/predictiveRanking").RankingPredictionFailureStatus; reason: string }>>(new Map());
+  const [rankingSourceVersionIds, setRankingSourceVersionIds] = useState<Map<string, string>>(new Map());
   const [rankingRecords, setRankingRecords] = useState<AlternativeRankingRecord[]>([]);
   const [rankingRecording, setRankingRecording] = useState(false);
   const [rankingError, setRankingError] = useState<string>();
@@ -239,6 +240,7 @@ export function FormulationResultPage() {
     const run = async () => {
       const predictions = new Map<string, import("@formulab/shared").PredictionResult>();
       const failures = new Map<string, { status: import("@/lib/predictiveRanking").RankingPredictionFailureStatus; reason: string }>();
+      const sourceVersionIds = new Map<string, string>();
       const cardsWithFormula = cards.filter((candidate) => candidate.formula && candidate.status !== "generation_failed");
       try {
         const registry = await readAcceptedPredictiveModels();
@@ -255,6 +257,7 @@ export function FormulationResultPage() {
             if (cancelled) return;
             try {
               const source = await ensureRankingPredictionSource({ session, card: candidate, batchKg, materials: costData.materials });
+              sourceVersionIds.set(candidate.version, source.version.id);
               const resolution = await predictSavedRankingAlternative({ model, ...source, materials: costData.materials });
               if (resolution.status === "PREDICTED") predictions.set(candidate.version, resolution.prediction);
               else failures.set(candidate.version, { status: resolution.status, reason: resolution.reason });
@@ -270,6 +273,7 @@ export function FormulationResultPage() {
       if (!cancelled) {
         setRankingPredictions(predictions);
         setRankingPredictionFailures(failures);
+        setRankingSourceVersionIds(sourceVersionIds);
       }
     };
     void run();
@@ -289,10 +293,11 @@ export function FormulationResultPage() {
       regulatory: regulatories,
       predictions: rankingPredictions,
       predictionFailures: rankingPredictionFailures,
+      sourceFormulationVersionIds: rankingSourceVersionIds,
     }).then((candidates) => { if (!cancelled) setRankingCandidates(candidates); })
       .catch((e) => { if (!cancelled) setRankingError(String(e)); });
     return () => { cancelled = true; };
-  }, [session, sessionId, cards, costSnapshots, inventoryFeasibilities, compatibilities, safeties, regulatories, rankingPredictions, rankingPredictionFailures]);
+  }, [session, sessionId, cards, costSnapshots, inventoryFeasibilities, compatibilities, safeties, regulatories, rankingPredictions, rankingPredictionFailures, rankingSourceVersionIds]);
 
   useEffect(() => {
     if (!sessionId) return;
