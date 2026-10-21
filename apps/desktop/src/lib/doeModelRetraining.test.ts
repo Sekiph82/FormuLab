@@ -68,9 +68,15 @@ describe("FVL-09 completed DOE result retraining", () => {
   });
 
   it("uses completed FVL-06 TestResults through the FVL-05 extractors and keeps a single-group model unaccepted", async () => {
+    const sourceTrials = structuredClone(store.rows.laboratory_trials);
+    const sourceResults = structuredClone(store.rows.test_results);
+    const sourceRuns = structuredClone(store.rows.doe_runs);
     const result = await retrainFromCompletedDoeTestResult({ trialId: "trial-1", testDefinitionId: "VISCOSITY" });
     expect(result.outcome).toBe("INSUFFICIENT_DATA");
     if (result.outcome === "INSUFFICIENT_DATA") expect(result.eligibility.reasons[0]?.code).toBe("DATASET_INSUFFICIENT_INDEPENDENT_GROUPS");
     expect(store.append).not.toHaveBeenCalled();
+    expect(store.rows.laboratory_trials).toEqual(sourceTrials);
+    expect(store.rows.test_results).toEqual(sourceResults);
+    expect(store.rows.doe_runs).toEqual(sourceRuns);
   });
 });

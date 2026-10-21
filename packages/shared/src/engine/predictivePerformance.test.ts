@@ -291,9 +291,11 @@ describe("FVL-07 predictive performance engine", () => {
       partitionConfig: { strategy: pipeline.partitionManifest.strategy, groupingStrategy: pipeline.partitionManifest.groupingStrategy, seed: pipeline.partitionManifest.seed, ratios: pipeline.partitionManifest.ratios },
     };
     const trainingRunId = `retraining-${await sha256Hex(canonicalizeForFingerprint({ productFamilyCode: "SHAMPOO", targetKey, datasetFingerprint: fingerprint.digest }))}`;
+    const sourceMeasurementSnapshot = structuredClone(pipeline.bundles);
     const accepted = await trainPredictiveModel({ ...pipeline, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-21T12:00:00.000Z", retrainingLineage: { ...lineageBase, trainingRunId } });
     expect(accepted.outcome).toBe("ACCEPTED");
     if (accepted.outcome !== "ACCEPTED") return;
+    expect(pipeline.bundles).toEqual(sourceMeasurementSnapshot);
     expect(accepted.model.retrainingLineage).toMatchObject({ trainingRunId, datasetFingerprint: fingerprint, measurementRecordIds: lineageBase.measurementRecordIds });
 
     const priorModelSnapshot = structuredClone(accepted.model);
@@ -370,6 +372,9 @@ describe("FVL-07 predictive performance engine", () => {
     const trained = await trainPredictiveModel({ ...pipeline, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-20T12:00:00.000Z" });
     expect(trained.outcome).toBe("ACCEPTED");
     if (trained.outcome !== "ACCEPTED") return;
+    const modelSnapshot = structuredClone(trained.model);
+    const sourceBundleSnapshot = structuredClone(pipeline.bundles);
+    const featureRowSnapshot = structuredClone(pipeline.featureRows);
     const featureName = trained.model.applicabilityDomain.featureName;
     const inDomainRow = pipeline.featureRows.find((row) => {
       const value = row.features.find((item) => item.name === featureName)?.numericValue;
@@ -404,6 +409,9 @@ describe("FVL-07 predictive performance engine", () => {
     const ood = await predictPerformance({ model: trained.model, featureRow: highFeature });
     expect(ood).toMatchObject({ status: "OUT_OF_DOMAIN", applicabilityDomain: { inDomain: false, reasonCode: "NUMERIC_RANGE_EXCEEDED" } });
     expect(ood).not.toHaveProperty("predictedNumericValue");
+    expect(trained.model).toEqual(modelSnapshot);
+    expect(pipeline.bundles).toEqual(sourceBundleSnapshot);
+    expect(pipeline.featureRows).toEqual(featureRowSnapshot);
   });
 
   it("keeps Safety and Regulatory FAIL authoritative even when prediction is present", () => {
