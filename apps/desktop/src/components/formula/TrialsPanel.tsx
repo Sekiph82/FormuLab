@@ -54,7 +54,7 @@ import {
 } from "@formulab/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
-import { retrainFromCompletedDoeTestResult } from "@/lib/doeModelRetraining";
+import { retrainingAuditMetadata, retrainFromCompletedDoeTestResult } from "@/lib/doeModelRetraining";
 import { cn } from "@/lib/cn";
 import { downloadBlob, downloadText } from "@/lib/download";
 import { buildXlsxBlob } from "@/lib/xlsx";
@@ -234,7 +234,7 @@ export function TrialsPanel({
             actor: actorId,
             actorKind: "human",
             detail,
-            metadata: { studyId: linkedRun.studyId, runId: linkedRun.id, trialId: trial.id, testDefinitionId, outcome: training.outcome, ...(training.outcome === "ACCEPTED" ? { modelId: training.model.id, modelVersion: String(training.model.version) } : {}) },
+            metadata: { studyId: linkedRun.studyId, runId: linkedRun.id, trialId: trial.id, testDefinitionId, outcome: training.outcome, ...retrainingAuditMetadata(training), ...(training.outcome === "ACCEPTED" ? { modelId: training.model.id, modelVersion: String(training.model.version) } : {}) },
           }));
         }
       }
@@ -397,7 +397,7 @@ export function TrialsPanel({
         actor: actorId,
         actorKind: "human",
         detail,
-        metadata: { trialId: selectedTrial.id, runId: selectedTrial.sourceDoeRunId, testDefinitionId: definition.code, outcome: training.outcome, ...(training.outcome === "ACCEPTED" ? { modelId: training.model.id, modelVersion: String(training.model.version) } : {}) },
+        metadata: { trialId: selectedTrial.id, runId: selectedTrial.sourceDoeRunId, testDefinitionId: definition.code, outcome: training.outcome, ...retrainingAuditMetadata(training), ...(training.outcome === "ACCEPTED" ? { modelId: training.model.id, modelVersion: String(training.model.version) } : {}) },
       }));
     }
   };

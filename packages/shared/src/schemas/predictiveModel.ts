@@ -130,6 +130,29 @@ export const predictiveAlgorithmSchema = z.enum([
 ]);
 export type PredictiveAlgorithm = z.infer<typeof predictiveAlgorithmSchema>;
 
+export const predictiveRetrainingLineageSchema = z.object({
+  trainingRunId: z.string().min(1),
+  sourceType: z.enum(["doe_observation", "test_result"]),
+  studyId: z.string().min(1),
+  studyRevision: z.number().int().positive(),
+  designId: z.string().min(1),
+  triggeringRunId: z.string().min(1),
+  triggeringTrialId: z.string().min(1),
+  triggerMeasurementIds: z.array(z.string().min(1)).min(1),
+  measurementRecordIds: z.array(z.string().min(1)).min(1),
+  formulaVersionIds: z.array(z.string().min(1)).min(1),
+  targetKey: z.string().min(1),
+  datasetFingerprint: digestSchema,
+  partitionConfig: z.object({
+    strategy: z.string().min(1),
+    groupingStrategy: z.string().min(1),
+    seed: z.number().int().safe(),
+    ratios: z.object({ train: z.number(), validation: z.number(), test: z.number() }),
+  }),
+  priorModel: z.object({ id: z.string().min(1), version: z.number().int().positive(), artifactChecksum: z.string().regex(/^[a-f0-9]{64}$/) }).optional(),
+});
+export type PredictiveRetrainingLineage = z.infer<typeof predictiveRetrainingLineageSchema>;
+
 export const predictiveModelArtifactSchema = z.object({
   schemaVersion: z.literal(PREDICTIVE_MODEL_SCHEMA_VERSION),
   id: z.string().min(1),
@@ -169,10 +192,40 @@ export const predictiveModelArtifactSchema = z.object({
   ]),
   interactionConfig: interactionConfigSchema.optional(),
   featureProvenance: z.array(z.object({ name: z.string().min(1), sourceRecords: sourceRecordLineageSchema })),
+  /** Present only for an FVL-10 retraining artifact; historical training
+   * artifacts remain valid and are never backfilled. */
+  retrainingLineage: predictiveRetrainingLineageSchema.optional(),
   artifactChecksum: z.string().regex(/^[0-9a-f]{64}$/),
 }).superRefine((model, ctx) => {
   if (model.tuningPerformed && model.hyperparameters.tuningTrials === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["hyperparameters", "tuningTrials"], message: "Tuned models must record evaluated tuning trials." });
+  }
+  if (model.retrainingLineage) {
+    if (model.retrainingLineage.targetKey !== model.targetKey ||
+      (model.retrainingLineage.sourceType === "doe_observation" && model.targetDefinition.sourceEntity !== "doeObservation") ||
+      (model.retrainingLineage.sourceType === "test_result" && model.targetDefinition.sourceEntity !== "testResult")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retrainingLineage", "targetKey"], message: "Retraining lineage must match the model's exact target and measured source type." });
+    }
+    if (model.retrainingLineage.datasetFingerprint.digest !== model.datasetFingerprint.digest) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retrainingLineage", "datasetFingerprint"], message: "Retraining lineage must cite the model's exact training dataset fingerprint." });
+    }
+    const lineagePartition = model.retrainingLineage.partitionConfig;
+    const modelPartition = model.partitionConfig;
+    if (lineagePartition.strategy !== modelPartition.strategy || lineagePartition.groupingStrategy !== modelPartition.groupingStrategy || lineagePartition.seed !== modelPartition.seed ||
+      lineagePartition.ratios.train !== modelPartition.ratios.train || lineagePartition.ratios.validation !== modelPartition.ratios.validation || lineagePartition.ratios.test !== modelPartition.ratios.test) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retrainingLineage", "partitionConfig"], message: "Retraining lineage must cite the model's exact partition configuration." });
+    }
+    if (new Set(model.retrainingLineage.measurementRecordIds).size !== model.retrainingLineage.measurementRecordIds.length ||
+      new Set(model.retrainingLineage.triggerMeasurementIds).size !== model.retrainingLineage.triggerMeasurementIds.length ||
+      model.retrainingLineage.triggerMeasurementIds.some((id) => !model.retrainingLineage!.measurementRecordIds.includes(id))) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retrainingLineage", "measurementRecordIds"], message: "Retraining trigger measurements must be unique members of the recorded training data." });
+    }
+    if (new Set(model.retrainingLineage.formulaVersionIds).size !== model.retrainingLineage.formulaVersionIds.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retrainingLineage", "formulaVersionIds"], message: "Retraining formula version references must be unique." });
+    }
+    if (model.retrainingLineage.priorModel && (model.retrainingLineage.priorModel.id === model.id || model.retrainingLineage.priorModel.version >= model.version)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retrainingLineage", "priorModel"], message: "A retrained model must cite a distinct earlier model version." });
+    }
   }
 });
 export type PredictiveModelArtifact = z.infer<typeof predictiveModelArtifactSchema>;

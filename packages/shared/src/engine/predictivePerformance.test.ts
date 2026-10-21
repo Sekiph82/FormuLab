@@ -3,10 +3,12 @@ import {
   DATASET_SCHEMA_VERSION,
   FEATURE_SCHEMA_VERSION,
   canonicalizeForFingerprint,
+  buildDatasetManifest,
   buildFormulaVersionBundleManifest,
   extractFormulaVersionDatasetRows,
   formulaVersionDoeRowSchema,
   formulaVersionProcessRowSchema,
+  formulaVersionTestResultRowSchema,
   generateModelFeatures,
   partitionDataset,
   predictPerformance,
@@ -248,6 +250,68 @@ describe("FVL-07 predictive performance engine", () => {
     }
     const tampered = { ...model, modelParameters: { ...model.modelParameters, ...(model.modelParameters.kind === "linear" ? { slope: model.modelParameters.slope + 1 } : {}) } };
     await expect(parsePredictiveModelRegistry(JSON.stringify({ schemaVersion: "1.0", models: [tampered] }))).rejects.toThrow("checksum-valid");
+  });
+
+  it("accepts retraining lineage only when measurements, formula versions, target and fingerprint match the exact training bundles", async () => {
+    const pipeline = await makePipeline();
+    pipeline.bundles.forEach((bundle, index) => {
+      const measurementId = bundle.targetRow!.targetObservations[0]!.sourceRecords[0]!.sourceRecordId;
+      const trialId = `TRIAL-${index + 1}`;
+      bundle.testResultRow = formulaVersionTestResultRowSchema.parse({
+        datasetSchemaVersion: DATASET_SCHEMA_VERSION,
+        sourceRecords: [{ sourceEntity: "testResult", sourceRecordId: measurementId }],
+        formulaId: bundle.compositionRow.formulaId,
+        formulaCode: bundle.compositionRow.formulaCode,
+        formulaVersionId: bundle.compositionRow.formulaVersionId,
+        formulaVersionNumber: bundle.compositionRow.formulaVersionNumber,
+        trials: [{ trialId, trialCode: trialId, testResults: [{
+          schemaVersion: "1.0", id: measurementId, trialId, testDefinitionId: "VISCOSITY", resultType: "numeric", unit: "cP",
+          replicates: [{ replicateNumber: 1, numericValue: String(index + 1) }], attachments: [], passFail: "not_evaluated",
+          performedBy: "test", performedAt: "2026-10-21T12:00:00.000Z", createdAt: "2026-10-21T12:00:00.000Z", updatedAt: "2026-10-21T12:00:00.000Z",
+        }] }],
+      });
+    });
+    pipeline.partitionManifest = await partitionDataset(pipeline.bundles, { ratios: { train: 0.6, validation: 0.2, test: 0.2 }, seed: 1729 });
+    const manifests = await Promise.all(pipeline.bundles.map(buildFormulaVersionBundleManifest));
+    const fingerprint = (await buildDatasetManifest(manifests)).dataset;
+    const targetKey = canonicalizeForFingerprint(targetDefinition);
+    const lineageBase = {
+      sourceType: "test_result" as const,
+      studyId: "DOE-1", studyRevision: 1, designId: "DESIGN-1", triggeringRunId: "RUN-1", triggeringTrialId: "TRIAL-1",
+      triggerMeasurementIds: ["TEST-SHAMPOO-001"],
+      measurementRecordIds: pipeline.bundles.map((bundle) => bundle.testResultRow!.sourceRecords[0]!.sourceRecordId).sort(),
+      formulaVersionIds: pipeline.bundles.map((bundle) => bundle.compositionRow.formulaVersionId).sort(), targetKey,
+      datasetFingerprint: fingerprint,
+      partitionConfig: { strategy: pipeline.partitionManifest.strategy, groupingStrategy: pipeline.partitionManifest.groupingStrategy, seed: pipeline.partitionManifest.seed, ratios: pipeline.partitionManifest.ratios },
+    };
+    const trainingRunId = `retraining-${await sha256Hex(canonicalizeForFingerprint({ productFamilyCode: "SHAMPOO", targetKey, datasetFingerprint: fingerprint.digest }))}`;
+    const accepted = await trainPredictiveModel({ ...pipeline, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-21T12:00:00.000Z", retrainingLineage: { ...lineageBase, trainingRunId } });
+    expect(accepted.outcome).toBe("ACCEPTED");
+    if (accepted.outcome !== "ACCEPTED") return;
+    expect(accepted.model.retrainingLineage).toMatchObject({ trainingRunId, datasetFingerprint: fingerprint, measurementRecordIds: lineageBase.measurementRecordIds });
+
+    const priorModelSnapshot = structuredClone(accepted.model);
+    pipeline.bundles[0]!.testResultRow!.trials[0]!.testResults[0]!.replicates[0]!.numericValue = "999";
+    pipeline.partitionManifest = await partitionDataset(pipeline.bundles, { ratios: { train: 0.6, validation: 0.2, test: 0.2 }, seed: 1729 });
+    const nextManifests = await Promise.all(pipeline.bundles.map(buildFormulaVersionBundleManifest));
+    const nextFingerprint = (await buildDatasetManifest(nextManifests)).dataset;
+    const nextTrainingRunId = `retraining-${await sha256Hex(canonicalizeForFingerprint({ productFamilyCode: "SHAMPOO", targetKey, datasetFingerprint: nextFingerprint.digest }))}`;
+    const retrained = await trainPredictiveModel({ ...pipeline, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-22T12:00:00.000Z", modelVersion: 2, retrainingLineage: {
+      ...lineageBase,
+      trainingRunId: nextTrainingRunId,
+      measurementRecordIds: lineageBase.measurementRecordIds,
+      formulaVersionIds: lineageBase.formulaVersionIds,
+      datasetFingerprint: nextFingerprint,
+      partitionConfig: { strategy: pipeline.partitionManifest.strategy, groupingStrategy: pipeline.partitionManifest.groupingStrategy, seed: pipeline.partitionManifest.seed, ratios: pipeline.partitionManifest.ratios },
+      priorModel: { id: accepted.model.id, version: accepted.model.version, artifactChecksum: accepted.model.artifactChecksum },
+    } });
+    expect(retrained.outcome).toBe("ACCEPTED");
+    if (retrained.outcome === "ACCEPTED") expect(retrained.model.retrainingLineage?.priorModel).toEqual({ id: accepted.model.id, version: accepted.model.version, artifactChecksum: accepted.model.artifactChecksum });
+    expect(accepted.model).toEqual(priorModelSnapshot);
+
+    const invalid = await trainPredictiveModel({ ...pipeline, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-21T12:00:00.000Z", retrainingLineage: { ...lineageBase, trainingRunId, measurementRecordIds: ["STALE-RESULT"] } });
+    expect(invalid.outcome).toBe("INVALID_DATA");
+    if (invalid.outcome === "INVALID_DATA") expect(invalid.reason).toMatch(/exact source measurements/);
   });
 
   it("returns a non-accepted result when a candidate does not improve the required baseline", async () => {

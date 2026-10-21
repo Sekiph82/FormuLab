@@ -102,7 +102,7 @@ import {
 } from "@formulab/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
-import { retrainFromCompletedDoeResponse } from "@/lib/doeModelRetraining";
+import { retrainingAuditMetadata, retrainFromCompletedDoeResponse } from "@/lib/doeModelRetraining";
 import { cn } from "@/lib/cn";
 import { InfoTooltip } from "@/components/help/InfoTooltip";
 
@@ -427,7 +427,7 @@ export function DoePanel({
         : result.outcome === "INVALID_DATA" || result.outcome === "NOT_ACCEPTED" ? result.reason : "Training did not produce an accepted model.";
     await record(result.outcome === "ACCEPTED" ? "doe.model_retraining_accepted" : "doe.model_retraining_not_accepted", {
       detail,
-      metadata: { studyId: run.studyId, runId: run.id, responseId, outcome: result.outcome, ...(result.outcome === "ACCEPTED" ? { modelId: result.model.id, modelVersion: String(result.model.version) } : {}) },
+      metadata: { studyId: run.studyId, runId: run.id, responseId, outcome: result.outcome, ...retrainingAuditMetadata(result), ...(result.outcome === "ACCEPTED" ? { modelId: result.model.id, modelVersion: String(result.model.version) } : {}) },
     });
   }
 

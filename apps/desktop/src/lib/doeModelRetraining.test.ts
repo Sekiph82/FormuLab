@@ -8,7 +8,7 @@ vi.mock("./formulations", () => ({
   readFormulation: (id: string) => Promise.resolve({ formulation: (store.rows.formulations ?? []).find((item) => (item as Formulation).id === id), versions: store.rows.formulation_versions ?? [] }),
 }));
 vi.mock("./predictiveModelRegistry", () => ({ readAcceptedPredictiveModels: async () => ({ models: [] }), appendAcceptedPredictiveModel: (...args: unknown[]) => store.append(...args) }));
-import { retrainFromCompletedDoeResponse, retrainFromCompletedDoeTestResult } from "./doeModelRetraining";
+import { hasAcceptedTrainingDataset, retrainingAuditMetadata, retrainFromCompletedDoeResponse, retrainFromCompletedDoeTestResult } from "./doeModelRetraining";
 
 const formulation: Formulation = { schemaVersion: "1.0", id: "formula-1", code: "F-1", name: "Formula", productFamilyCode: "SHAMPOO", targetSkuCodes: [], targetMarkets: [], targetClaims: [], targetBatchKg: "100", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", archived: false };
 const version: FormulationVersion = { schemaVersion: "1.0", id: "version-1", formulationId: "formula-1", versionNumber: 1, status: "pilot_approved", author: "alice", createdAt: "2026-01-01T00:00:00.000Z", lines: [], basisBatchKg: "100", sourceRunIds: [], regulatoryFindingIds: [], compatibilityFindingIds: [], safetyFindingIds: [], approvalRecordIds: [] };
@@ -39,6 +39,14 @@ describe("FVL-09 completed DOE result retraining", () => {
       expect(result.eligibility.datasetFingerprint.digest).toMatch(/^[a-f0-9]{64}$/);
     }
     expect(store.append).not.toHaveBeenCalled();
+    expect(retrainingAuditMetadata(result)).toMatchObject({ targetKey: result.eligibility.targetKey, datasetFingerprint: result.eligibility.datasetFingerprint.digest });
+  });
+
+  it("blocks duplicate registration for the same accepted immutable dataset, family and target", () => {
+    const accepted = { id: "model-1", productFamilyCode: "SHAMPOO", targetKey: "target-1", datasetFingerprint: { digest: "a".repeat(64) }, evaluation: { acceptance: "ACCEPTED" } } as const;
+    expect(hasAcceptedTrainingDataset([accepted as never], { productFamilyCode: "SHAMPOO", targetKey: "target-1", datasetDigest: "a".repeat(64) })).toBe(true);
+    expect(hasAcceptedTrainingDataset([accepted as never], { productFamilyCode: "SHAMPOO", targetKey: "target-2", datasetDigest: "a".repeat(64) })).toBe(false);
+    expect(hasAcceptedTrainingDataset([accepted as never], { productFamilyCode: "SHAMPOO", targetKey: "target-1", datasetDigest: "b".repeat(64) })).toBe(false);
   });
 
   it.each([

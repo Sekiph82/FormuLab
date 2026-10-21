@@ -11,6 +11,9 @@ import {
   generateModelFeatures,
   partitionDataset,
   trainPredictiveModel,
+  sha256Hex,
+  type PredictiveRetrainingLineage,
+  type PredictiveModelArtifact,
   type DatasetPartitionManifest,
   type DoeDesign,
   type DoeObservation,
@@ -26,11 +29,24 @@ import { listFormulations, readFormulation } from "./formulations";
 import { appendAcceptedPredictiveModel, readAcceptedPredictiveModels } from "./predictiveModelRegistry";
 
 const PARTITION_CONFIG = { ratios: { train: 0.6, validation: 0.2, test: 0.2 }, seed: 20261021 } as const;
+type DoeRetrainingResult = PredictiveTrainingResult & { registeredModelId?: string; retrainingLineage?: PredictiveRetrainingLineage };
+
+function sourceRecordIds(rows: Array<{ sourceRecords?: Array<{ sourceEntity: string; sourceRecordId: string }> }>, sourceEntity: string): string[] {
+  return [...new Set(rows.flatMap((row) => (row.sourceRecords ?? []).filter((source) => source.sourceEntity === sourceEntity).map((source) => source.sourceRecordId)))].sort();
+}
+
+export function hasAcceptedTrainingDataset(models: PredictiveModelArtifact[], input: { productFamilyCode: string; targetKey: string; datasetDigest: string }): boolean {
+  return models.some((model) => model.evaluation.acceptance === "ACCEPTED" && model.productFamilyCode === input.productFamilyCode && model.targetKey === input.targetKey && model.datasetFingerprint.digest === input.datasetDigest);
+}
+
+async function trainingRunId(lineage: Pick<PredictiveRetrainingLineage, "targetKey" | "datasetFingerprint">, productFamilyCode: string): Promise<string> {
+  return `retraining-${await sha256Hex(canonicalizeForFingerprint({ productFamilyCode, targetKey: lineage.targetKey, datasetFingerprint: lineage.datasetFingerprint.digest }))}`;
+}
 
 /** Retrains from FVL-05 bundles only when the triggering run and linked trial
  *  are completed and the selected response has a validated measured value.
  *  FVL-07 remains the eligibility, evaluation, and model-acceptance authority. */
-export async function retrainFromCompletedDoeResponse(input: { runId: string; responseId: string }): Promise<PredictiveTrainingResult & { registeredModelId?: string }> {
+export async function retrainFromCompletedDoeResponse(input: { runId: string; responseId: string }): Promise<DoeRetrainingResult> {
   const [formulations, materials, studies, designs, runs, observations, trials] = await Promise.all([
     listFormulations(),
     listRecords("materials") as Promise<RawMaterial[]>,
@@ -82,22 +98,30 @@ export async function retrainFromCompletedDoeResponse(input: { runId: string; re
   }
   const registry = await readAcceptedPredictiveModels();
   const targetKey = canonicalizeForFingerprint(targetDefinition);
+  const measurementRecordIds = sourceRecordIds(doeRows, "doeObservation");
+  const triggerMeasurementIds = validTriggerObservations.map((observation) => observation.id).filter((id) => measurementRecordIds.includes(id));
+  if (triggerMeasurementIds.length === 0) return await insufficient(input.runId, input.responseId, validTriggerObservations.length, "DOE_TRIGGER_MEASUREMENT_NOT_IN_DATASET", "The triggering measured DOE observation was not present in the exact training dataset; no model was created.", manifest.dataset);
+  const partitionConfig = { strategy: partitionManifest.strategy, groupingStrategy: partitionManifest.groupingStrategy, seed: partitionManifest.seed, ratios: partitionManifest.ratios };
+  const lineageBase = { sourceType: "doe_observation" as const, studyId: triggerStudy.id, studyRevision: triggeringRun.studyRevision, designId: triggerDesign.id, triggeringRunId: triggeringRun.id, triggeringTrialId: triggeringTrial.id, triggerMeasurementIds, measurementRecordIds, formulaVersionIds: manifest.entries.map((entry) => entry.formulaVersionId), targetKey, datasetFingerprint: manifest.dataset, partitionConfig };
+  const priorModels = registry.models.filter((model) => model.productFamilyCode === triggerFormulation.productFamilyCode && model.targetKey === targetKey).sort((a, b) => a.version - b.version);
+  const previousModel = priorModels[priorModels.length - 1];
+  const retrainingLineage: PredictiveRetrainingLineage = { ...lineageBase, trainingRunId: await trainingRunId(lineageBase, triggerFormulation.productFamilyCode), ...(previousModel ? { priorModel: { id: previousModel.id, version: previousModel.version, artifactChecksum: previousModel.artifactChecksum } } : {}) };
   const modelVersion = Math.max(0, ...registry.models.filter((model) => model.productFamilyCode === triggerFormulation.productFamilyCode && model.targetKey === targetKey).map((model) => model.version)) + 1;
-  const trained = await trainPredictiveModel({ bundles, featureRows, partitionManifest, productFamilyCode: triggerFormulation.productFamilyCode, targetDefinition, trainingTimestamp: new Date().toISOString(), modelVersion });
+  const trained = await trainPredictiveModel({ bundles, featureRows, partitionManifest, productFamilyCode: triggerFormulation.productFamilyCode, targetDefinition, trainingTimestamp: new Date().toISOString(), modelVersion, retrainingLineage });
   if (trained.outcome === "ACCEPTED") {
-    if (registry.models.some((model) => model.productFamilyCode === triggerFormulation.productFamilyCode && model.targetKey === targetKey && model.datasetFingerprint.digest === manifest.dataset.digest)) {
-      return { outcome: "NOT_ACCEPTED", eligibility: trained.eligibility, reason: "The exact FVL-05 dataset fingerprint already has an accepted immutable model; no duplicate version was created." };
+    if (hasAcceptedTrainingDataset(registry.models, { productFamilyCode: triggerFormulation.productFamilyCode, targetKey, datasetDigest: manifest.dataset.digest })) {
+      return { outcome: "NOT_ACCEPTED", eligibility: trained.eligibility, reason: "The exact FVL-05 dataset fingerprint already has an accepted immutable model; no duplicate version was created.", retrainingLineage };
     }
     await appendAcceptedPredictiveModel(trained.model);
-    return { ...trained, registeredModelId: trained.model.id };
+    return { ...trained, registeredModelId: trained.model.id, retrainingLineage };
   }
-  return trained;
+  return { ...trained, retrainingLineage };
 }
 
 /** FVL-06 measured-response entry point. Results are admitted only through
  *  the existing TestResult extractor and only for completed, linked DOE
  *  trials; FVL-05 fingerprints and partitions the full versioned bundle. */
-export async function retrainFromCompletedDoeTestResult(input: { trialId: string; testDefinitionId: string }): Promise<PredictiveTrainingResult & { registeredModelId?: string }> {
+export async function retrainFromCompletedDoeTestResult(input: { trialId: string; testDefinitionId: string }): Promise<DoeRetrainingResult> {
   const [formulations, materials, studies, designs, runs, observations, trials, testResults] = await Promise.all([
     listFormulations(),
     listRecords("materials") as Promise<RawMaterial[]>,
@@ -154,16 +178,24 @@ export async function retrainFromCompletedDoeTestResult(input: { trialId: string
   const targetDefinition = { productFamilyCode: formulation.productFamilyCode, sourceEntity: "testResult" as const, testDefinitionId: input.testDefinitionId };
   const registry = await readAcceptedPredictiveModels();
   const targetKey = canonicalizeForFingerprint(targetDefinition);
+  const measurementRecordIds = sourceRecordIds(testResultRows, "testResult");
+  const triggerMeasurementIds = matchingResults.map((result) => result.id).filter((id) => measurementRecordIds.includes(id));
+  if (triggerMeasurementIds.length === 0) return await insufficient(input.trialId, input.testDefinitionId, matchingResults.length, "TEST_RESULT_NOT_IN_TRAINING_DATASET", "The triggering TestResult was not present in the exact training dataset; no model was created.", manifest.dataset);
+  const partitionConfig = { strategy: partitionManifest.strategy, groupingStrategy: partitionManifest.groupingStrategy, seed: partitionManifest.seed, ratios: partitionManifest.ratios };
+  const lineageBase = { sourceType: "test_result" as const, studyId: study.id, studyRevision: run.studyRevision, designId: design.id, triggeringRunId: run.id, triggeringTrialId: trial.id, triggerMeasurementIds, measurementRecordIds, formulaVersionIds: manifest.entries.map((entry) => entry.formulaVersionId), targetKey, datasetFingerprint: manifest.dataset, partitionConfig };
+  const priorModels = registry.models.filter((model) => model.productFamilyCode === formulation.productFamilyCode && model.targetKey === targetKey).sort((a, b) => a.version - b.version);
+  const previousModel = priorModels[priorModels.length - 1];
+  const retrainingLineage: PredictiveRetrainingLineage = { ...lineageBase, trainingRunId: await trainingRunId(lineageBase, formulation.productFamilyCode), ...(previousModel ? { priorModel: { id: previousModel.id, version: previousModel.version, artifactChecksum: previousModel.artifactChecksum } } : {}) };
   const modelVersion = Math.max(0, ...registry.models.filter((model) => model.productFamilyCode === formulation.productFamilyCode && model.targetKey === targetKey).map((model) => model.version)) + 1;
-  const trained = await trainPredictiveModel({ bundles, featureRows, partitionManifest, productFamilyCode: formulation.productFamilyCode, targetDefinition, trainingTimestamp: new Date().toISOString(), modelVersion });
+  const trained = await trainPredictiveModel({ bundles, featureRows, partitionManifest, productFamilyCode: formulation.productFamilyCode, targetDefinition, trainingTimestamp: new Date().toISOString(), modelVersion, retrainingLineage });
   if (trained.outcome === "ACCEPTED") {
-    if (registry.models.some((model) => model.productFamilyCode === formulation.productFamilyCode && model.targetKey === targetKey && model.datasetFingerprint.digest === manifest.dataset.digest)) {
-      return { outcome: "NOT_ACCEPTED", eligibility: trained.eligibility, reason: "The exact FVL-05 dataset fingerprint already has an accepted immutable model; no duplicate version was created." };
+    if (hasAcceptedTrainingDataset(registry.models, { productFamilyCode: formulation.productFamilyCode, targetKey, datasetDigest: manifest.dataset.digest })) {
+      return { outcome: "NOT_ACCEPTED", eligibility: trained.eligibility, reason: "The exact FVL-05 dataset fingerprint already has an accepted immutable model; no duplicate version was created.", retrainingLineage };
     }
     await appendAcceptedPredictiveModel(trained.model);
-    return { ...trained, registeredModelId: trained.model.id };
+    return { ...trained, registeredModelId: trained.model.id, retrainingLineage };
   }
-  return trained;
+  return { ...trained, retrainingLineage };
 }
 
 async function insufficient(runId: string, responseId: string, observationCount: number, code: string, message: string, datasetFingerprint?: { algorithm: "sha256"; canonicalization: "formulab-canonical-json-v1"; digest: string }): Promise<PredictiveTrainingResult> {
@@ -171,4 +203,30 @@ async function insufficient(runId: string, responseId: string, observationCount:
   const fingerprint = datasetFingerprint ?? (await buildDatasetManifest([])).dataset;
   const eligibility = eligibilityResultSchema.parse({ outcome: "INSUFFICIENT_DATA", productFamilyCode: "unknown", targetKey: canonicalizeForFingerprint(targetDefinition), datasetFingerprint: fingerprint, observedRowCount: observationCount, usableRowCount: 0, targetObservationCount: observationCount, independentGroupCount: 0, missingTargetRatio: 1, missingFeatureRatio: 1, required: DEFAULT_ELIGIBILITY_POLICY, reasons: [{ code, message: `${message} (trigger run ${runId})` }] });
   return { outcome: "INSUFFICIENT_DATA", eligibility };
+}
+
+export function retrainingAuditMetadata(result: DoeRetrainingResult): Record<string, string> {
+  const lineage = result.retrainingLineage;
+  return {
+    targetKey: result.eligibility.targetKey,
+    datasetFingerprint: result.eligibility.datasetFingerprint.digest,
+    ...(lineage ? {
+      trainingRunId: lineage.trainingRunId,
+      sourceType: lineage.sourceType,
+      studyId: lineage.studyId,
+      studyRevision: String(lineage.studyRevision),
+      designId: lineage.designId,
+      triggeringRunId: lineage.triggeringRunId,
+      triggeringTrialId: lineage.triggeringTrialId,
+      triggerMeasurementIds: lineage.triggerMeasurementIds.join(","),
+      measurementRecordIds: lineage.measurementRecordIds.join(","),
+      formulaVersionIds: lineage.formulaVersionIds.join(","),
+      partitionConfig: canonicalizeForFingerprint(lineage.partitionConfig),
+      ...(lineage.priorModel ? {
+        priorModelId: lineage.priorModel.id,
+        priorModelVersion: String(lineage.priorModel.version),
+        priorModelChecksum: lineage.priorModel.artifactChecksum,
+      } : {}),
+    } : {}),
+  };
 }

@@ -25,6 +25,7 @@ import {
   type ModelFeatureRowWithInteractions,
   type PredictiveModelArtifact,
   type PredictiveModelRegistry,
+  type PredictiveRetrainingLineage,
   type PredictionResult,
 } from "../schemas/predictiveModel";
 import { FEATURE_SCHEMA_VERSION, targetDefinitionSchema, type TargetDefinition, type TargetObservation, type SourceRecordReference } from "../schemas/dataset";
@@ -415,6 +416,7 @@ export interface PredictiveTrainingInput extends EligibilityInput {
   interactionConfig?: InteractionConfig;
   requiredRelativeImprovement?: number;
   modelVersion?: number;
+  retrainingLineage?: PredictiveRetrainingLineage;
 }
 
 interface ScoredSample { sample: TrainingSample; x: number | string; y: number | string }
@@ -589,6 +591,25 @@ export async function trainPredictiveModel(input: PredictiveTrainingInput): Prom
   const bundleManifests = await Promise.all(input.bundles.map(buildFormulaVersionBundleManifest));
   const datasetManifest = await buildDatasetManifest(bundleManifests);
   if (canonicalizeForFingerprint(datasetManifest.dataset) !== canonicalizeForFingerprint(input.partitionManifest.dataset)) return { outcome: "INVALID_DATA", eligibility, reason: "FVL-05 partition fingerprint does not match the exact training bundle set." };
+  if (input.retrainingLineage) {
+    const lineage = input.retrainingLineage;
+    const measuredEntity = lineage.sourceType === "doe_observation" ? "doeObservation" : "testResult";
+    const actualMeasurementIds = [...new Set(input.bundles.flatMap((bundle) => {
+      const row = lineage.sourceType === "doe_observation" ? bundle.doeRow : bundle.testResultRow;
+      return (row?.sourceRecords ?? []).filter((source) => source.sourceEntity === measuredEntity).map((source) => source.sourceRecordId);
+    }))].sort();
+    const actualFormulaVersionIds = bundleManifests.map((manifest) => manifest.formulaVersionId).sort();
+    const expectedTargetKey = targetKeyFor(targetDefinitionSchema.parse(input.targetDefinition));
+    const expectedTrainingRunId = `retraining-${await sha256Hex(canonicalizeForFingerprint({ productFamilyCode: input.productFamilyCode, targetKey: expectedTargetKey, datasetFingerprint: datasetManifest.dataset.digest }))}`;
+    if (lineage.targetKey !== expectedTargetKey ||
+      canonicalizeForFingerprint(lineage.datasetFingerprint) !== canonicalizeForFingerprint(datasetManifest.dataset) ||
+      canonicalizeForFingerprint([...lineage.measurementRecordIds].sort()) !== canonicalizeForFingerprint(actualMeasurementIds) ||
+      canonicalizeForFingerprint([...lineage.formulaVersionIds].sort()) !== canonicalizeForFingerprint(actualFormulaVersionIds) ||
+      !lineage.triggerMeasurementIds.every((id) => actualMeasurementIds.includes(id)) ||
+      lineage.trainingRunId !== expectedTrainingRunId) {
+      return { outcome: "INVALID_DATA", eligibility, reason: "Retraining lineage does not match the exact source measurements, formula versions, target, dataset fingerprint, and deterministic training run." };
+    }
+  }
   const selectedSamples = scored.filter((item) => item.sample.features.get("__selected")?.name === selected.featureName);
   const versionMap = new Map(input.featureRows.map((row) => [row.formulaVersionId, row]));
   const refsByFeature = new Map<string, SourceRecordReference[]>();
@@ -635,6 +656,7 @@ export async function trainPredictiveModel(input: PredictiveTrainingInput): Prom
     ...(expectedInteractions ? { interactionConfig: expectedInteractions } : {}),
     modelParameters: selected.result.modelParameters,
     featureProvenance,
+    ...(input.retrainingLineage ? { retrainingLineage: input.retrainingLineage } : {}),
   };
   const artifactChecksum = await sha256Hex(canonicalizeForFingerprint(artifactBase));
   const model = predictiveModelArtifactSchema.parse({ ...artifactBase, artifactChecksum });
