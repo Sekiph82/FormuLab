@@ -180,7 +180,11 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
     link("prediction", row, "exact_model", "predictive_model", row.modelId, model =>
       model.version === row.modelVersion &&
       asRecord(model.datasetFingerprint)?.digest === asRecord(row.datasetFingerprint)?.digest &&
-      model.productFamilyCode === row.productFamilyCode);
+      model.artifactChecksum === row.modelChecksum && model.schemaVersion === row.modelArtifactSchemaVersion &&
+      model.datasetSchemaVersion === row.datasetSchemaVersion && model.featureSchemaVersion === row.featureSchemaVersion &&
+      model.modelFeatureSchemaVersion === row.modelFeatureSchemaVersion && model.featureContractVersion === row.featureContractVersion &&
+      model.trainingContractVersion === row.trainingContractVersion && model.acceptancePolicyVersion === row.acceptancePolicyVersion &&
+      model.productFamilyCode === row.productFamilyCode && JSON.stringify(model.applicabilityDomain) === JSON.stringify(row.applicabilityDomainSnapshot));
     link("prediction", row, "formula_version", "formulation_version", row.formulaVersionId, version =>
       version.versionNumber === row.formulaVersionNumber && version.formulationId === row.formulaId);
   });

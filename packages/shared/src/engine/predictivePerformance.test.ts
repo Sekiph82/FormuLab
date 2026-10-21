@@ -238,7 +238,14 @@ describe("FVL-07 predictive performance engine", () => {
     await expect(registerPredictiveModel(registry, model)).rejects.toThrow("append-only");
     const versionTwo = await trainPredictiveModel({ ...pipeline, productFamilyCode: "SHAMPOO", targetDefinition, trainingTimestamp: "2026-10-21T12:00:00.000Z", modelVersion: 2 });
     expect(versionTwo.outcome).toBe("ACCEPTED");
-    if (versionTwo.outcome === "ACCEPTED") expect((await registerPredictiveModel(registry, versionTwo.model)).models.map(({ version }) => version)).toEqual([1, 2]);
+    const historicalPrediction = await predictPerformance({ model, featureRow: pipeline.featureRows[0]! });
+    if (versionTwo.outcome === "ACCEPTED") {
+      expect((await registerPredictiveModel(registry, versionTwo.model)).models.map(({ version }) => version)).toEqual([1, 2]);
+      const newerPrediction = await predictPerformance({ model: versionTwo.model, featureRow: pipeline.featureRows[0]! });
+      expect(historicalPrediction).toMatchObject({ modelId: model.id, modelVersion: 1, modelChecksum: model.artifactChecksum });
+      expect(newerPrediction).toMatchObject({ modelId: versionTwo.model.id, modelVersion: 2, modelChecksum: versionTwo.model.artifactChecksum });
+      expect(historicalPrediction.modelChecksum).not.toBe(newerPrediction.modelChecksum);
+    }
     const tampered = { ...model, modelParameters: { ...model.modelParameters, ...(model.modelParameters.kind === "linear" ? { slope: model.modelParameters.slope + 1 } : {}) } };
     await expect(parsePredictiveModelRegistry(JSON.stringify({ schemaVersion: "1.0", models: [tampered] }))).rejects.toThrow("checksum-valid");
   });
@@ -299,7 +306,15 @@ describe("FVL-07 predictive performance engine", () => {
       return value !== undefined && value >= trained.model.applicabilityDomain.minNumeric! && value <= trained.model.applicabilityDomain.maxNumeric!;
     })!;
     const inDomain = await predictPerformance({ model: trained.model, featureRow: inDomainRow });
-    expect(inDomain).toMatchObject({ status: "PREDICTED", formulaId: inDomainRow.formulaId, formulaVersionId: inDomainRow.formulaVersionId, advisoryOnly: true, applicabilityDomain: { inDomain: true } });
+    expect(inDomain).toMatchObject({
+      status: "PREDICTED", formulaId: inDomainRow.formulaId, formulaVersionId: inDomainRow.formulaVersionId, advisoryOnly: true,
+      modelId: trained.model.id, modelVersion: trained.model.version, modelChecksum: trained.model.artifactChecksum,
+      modelArtifactSchemaVersion: trained.model.schemaVersion, datasetFingerprint: trained.model.datasetFingerprint,
+      datasetSchemaVersion: trained.model.datasetSchemaVersion, featureSchemaVersion: trained.model.featureSchemaVersion,
+      modelFeatureSchemaVersion: trained.model.modelFeatureSchemaVersion, featureContractVersion: trained.model.featureContractVersion,
+      trainingContractVersion: trained.model.trainingContractVersion, acceptancePolicyVersion: trained.model.acceptancePolicyVersion,
+      applicabilityDomainSnapshot: trained.model.applicabilityDomain, applicabilityDomain: { inDomain: true },
+    });
     expect(inDomain.uncertainty).toBeUndefined();
     for (const boundary of [trained.model.applicabilityDomain.minNumeric!, trained.model.applicabilityDomain.maxNumeric!]) {
       const row = pipeline.featureRows.find((candidate) => candidate.features.find((item) => item.name === featureName)?.numericValue === boundary)!;
@@ -322,7 +337,7 @@ describe("FVL-07 predictive performance engine", () => {
   });
 
   it("keeps Safety and Regulatory FAIL authoritative even when prediction is present", () => {
-    const prediction = { status: "PREDICTED", modelId: "M1", modelVersion: 1, datasetFingerprint: { algorithm: "sha256", canonicalization: "formulab-canonical-json-v1", digest: "a".repeat(64) }, productFamilyCode: "SHAMPOO", formulaId: "F1", formulaVersionId: "V1", formulaVersionNumber: 1, targetDefinition, predictedNumericValue: 999, applicabilityDomain: { policyVersion: "1.0", inDomain: true, reasonCode: "IN_DOMAIN", message: "within range" }, advisoryOnly: true } as const;
+    const prediction = { status: "PREDICTED", modelId: "M1", modelVersion: 1, modelChecksum: "a".repeat(64), modelArtifactSchemaVersion: "1.0", datasetFingerprint: { algorithm: "sha256", canonicalization: "formulab-canonical-json-v1", digest: "a".repeat(64) }, datasetSchemaVersion: "1.0", featureSchemaVersion: "1.0", modelFeatureSchemaVersion: "1.0", featureContractVersion: "1.0", trainingContractVersion: "1.0", acceptancePolicyVersion: "1.0", productFamilyCode: "SHAMPOO", formulaId: "F1", formulaVersionId: "V1", formulaVersionNumber: 1, targetDefinition, predictedNumericValue: 999, applicabilityDomainSnapshot: { version: "1.0", featureName: "x", categories: [] as string[] }, applicabilityDomain: { policyVersion: "1.0", inDomain: true, reasonCode: "IN_DOMAIN", message: "within range" }, advisoryOnly: true } as const;
     expect(predictionDecisionGate({ prediction, safetyVerdict: "FAIL", regulatoryVerdict: "PASS" })).toMatchObject({ eligibleForConsideration: false, safetyVerdict: "FAIL", reasonCodes: ["SAFETY_FAIL"] });
     expect(predictionDecisionGate({ prediction, safetyVerdict: "PASS", regulatoryVerdict: "FAIL" })).toMatchObject({ eligibleForConsideration: false, regulatoryVerdict: "FAIL", reasonCodes: ["REGULATORY_FAIL"] });
     expect(predictionDecisionGate({ prediction: { ...prediction, status: "OUT_OF_DOMAIN" }, safetyVerdict: "PASS", regulatoryVerdict: "PASS" }).eligibleForConsideration).toBe(false);

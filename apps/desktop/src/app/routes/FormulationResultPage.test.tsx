@@ -167,9 +167,14 @@ describe("FormulationResultPage", () => {
       status: "PREDICTED",
       prediction: {
         status: "PREDICTED", modelId: "model-shampoo-viscosity", modelVersion: 3,
+        modelChecksum: "a".repeat(64), modelArtifactSchemaVersion: "1.0",
+        datasetFingerprint: { algorithm: "sha256", canonicalization: "formulab-canonical-json-v1", digest: "b".repeat(64) },
+        datasetSchemaVersion: "1.0", featureSchemaVersion: "1.0", modelFeatureSchemaVersion: "1.0", featureContractVersion: "1.0", trainingContractVersion: "1.0", acceptancePolicyVersion: "1.0",
         formulaId: "saved-formula", formulaVersionId: "saved-version", formulaVersionNumber: 1,
         productFamilyCode: "SHAMPOO", targetDefinition: { productFamilyCode: "SHAMPOO", sourceEntity: "testResult", testDefinitionId: "VISCOSITY" },
-        targetUnit: "mPa.s", predictedNumericValue: 42, advisoryOnly: true,
+        targetUnit: "mPa.s", predictedNumericValue: 42,
+        applicabilityDomainSnapshot: { version: "1.0", featureName: "solids", unit: "%", minNumeric: 10, maxNumeric: 80, categories: [] },
+        applicabilityDomain: { policyVersion: "1.0", inDomain: true, reasonCode: "IN_DOMAIN", message: "within model range" }, advisoryOnly: true,
       },
     });
 

@@ -71,9 +71,12 @@ describe("FVL-08 result-page authority adapter", () => {
   it("preserves predicted, OOD, non-accepted, unavailable and contract-error statuses through immutable persistence", async () => {
     const base = {
       modelId: "model-1", modelVersion: 1,
+      modelChecksum: "c".repeat(64), modelArtifactSchemaVersion: "1.0" as const,
       datasetFingerprint: { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: "b".repeat(64) },
+      datasetSchemaVersion: "1.0", featureSchemaVersion: "1.0", modelFeatureSchemaVersion: "1.0", featureContractVersion: "1.0", trainingContractVersion: "1.0", acceptancePolicyVersion: "1.0",
       productFamilyCode: "SHAMPOO", formulaId: "FORM-1", formulaVersionId: "VERSION-1", formulaVersionNumber: 1,
       targetDefinition: { productFamilyCode: "SHAMPOO", sourceEntity: "testResult" as const, testDefinitionId: "VISCOSITY" },
+      applicabilityDomainSnapshot: { version: "1.0" as const, featureName: "solids", unit: "%", minNumeric: 10, maxNumeric: 80, categories: [] },
       targetUnit: "mPa.s", advisoryOnly: true as const,
     };
     const result = (status: PredictionResult["status"], inDomain: boolean, value?: number): PredictionResult => ({
