@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-08
 - Current Sprint: FVL-08-S01
-- Current Task: FVL-08.003 — Missing or out-of-domain prediction never masquerades as validated zero
+- Current Task: FVL-08.005 — Optimization pass reuses existing Advanced Optimizer
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-08.005 — Optimization pass reuses existing Advanced Optimizer
+- Next Task: FVL-08.006 — UI explains ranking by per-dimension breakdown
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 132
-- Remaining Tasks: 39
-- Completion: 77.2%
+- Completed Tasks: 133
+- Remaining Tasks: 38
+- Completion: 77.8%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -234,9 +234,9 @@ Sprint grouping below is a management-only organization of the existing frozen t
 ## Sprint FVL-08-S01 — Performance ranking & optimizer integration
 - [x] FVL-08.001 — Ranking model keeps performance, uncertainty, cost, availability, compatibility, safety, regulatory, manufacturing and evidence dimensions separate
 - [x] FVL-08.002 — Hard rule: Safety/Regulatory FAIL cannot be outweighed by predicted performance
-- [~] FVL-08.003 — Missing or out-of-domain prediction never masquerades as validated zero
+- [x] FVL-08.003 — Missing or out-of-domain prediction never masquerades as validated zero
 - [x] FVL-08.004 — Cost dimension sourced only from existing Cost Engine
-- [ ] FVL-08.005 — Optimization pass reuses existing Advanced Optimizer
+- [~] FVL-08.005 — Optimization pass reuses existing Advanced Optimizer
 
 ## Sprint FVL-08-S02 — Explainability, audit & acceptance
 - [ ] FVL-08.006 — UI explains ranking by per-dimension breakdown
