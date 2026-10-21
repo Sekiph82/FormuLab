@@ -21,7 +21,7 @@ export interface LineageEdge {
   from: string;
   to: string;
   relationship: string;
-  status: "resolved" | "missing";
+  status: "resolved" | "missing" | "invalid";
 }
 
 export interface LaboratoryLineageRecordSet {
@@ -61,14 +61,18 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
   const nodes: LineageNode[] = [];
   const edges: LineageEdge[] = [];
   const ids = new Map<LineageEntityType, Set<string>>();
+  const recordsById = new Map<LineageEntityType, Map<string, RecordValue>>();
   const addNodes = (entityType: LineageEntityType, rows: unknown[] = []) => {
     const known = ids.get(entityType) ?? new Set<string>();
     ids.set(entityType, known);
+    const byId = recordsById.get(entityType) ?? new Map<string, RecordValue>();
+    recordsById.set(entityType, byId);
     for (const value of rows) {
       const row = asRecord(value);
       const id = row && (idOf(row) ?? (entityType === "dataset" ? text(asRecord(row.dataset)?.digest) : undefined));
       if (!row || !id) continue;
       known.add(id);
+      byId.set(id, row);
       nodes.push({
         entityType, id, ...(text(row.code) ? { code: text(row.code) } : {}),
         ...(typeof row.version === "string" || typeof row.version === "number" ? { version: row.version } :
@@ -92,12 +96,13 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
   ];
   for (const [type, rows] of pools) addNodes(type, rows);
 
-  const link = (fromType: LineageEntityType, from: RecordValue, relation: string, toType: LineageEntityType, target: unknown) => {
+  const link = (fromType: LineageEntityType, from: RecordValue, relation: string, toType: LineageEntityType, target: unknown, matches?: (targetRecord: RecordValue) => boolean) => {
     const sourceId = idOf(from);
     const targetId = text(target);
     if (!sourceId || !targetId) return;
+    const targetRecord = recordsById.get(toType)?.get(targetId);
     edges.push({ from: `${fromType}:${sourceId}`, to: `${toType}:${targetId}`, relationship: relation,
-      status: ids.get(toType)?.has(targetId) ? "resolved" : "missing" });
+      status: !targetRecord ? "missing" : matches && !matches(targetRecord) ? "invalid" : "resolved" });
   };
   const each = (type: LineageEntityType, rows: unknown[] | undefined, fn: (row: RecordValue) => void) => {
     for (const value of rows ?? []) { const row = asRecord(value); if (row) fn(row); }
@@ -134,7 +139,10 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
   });
   each("test_result", records.testResults, row => {
     link("test_result", row, "laboratory_trial", "laboratory_trial", row.trialId);
-    link("test_result", row, "formula_version", "formulation_version", row.formulaVersionId);
+    link("test_result", row, "formula_version", "formulation_version", row.formulaVersionId, version => {
+      const trial = recordsById.get("laboratory_trial")?.get(text(row.trialId) ?? "");
+      return !trial || !text(trial.sourceFormulaVersionId) || text(trial.sourceFormulaVersionId) === idOf(version);
+    });
   });
   each("dataset", records.datasets, row => {
     for (const entry of Array.isArray(row.entries) ? row.entries : []) link("dataset", row, "formula_version_member", "formulation_version", asRecord(entry)?.formulaVersionId);
@@ -142,11 +150,15 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
   each("predictive_model", records.predictiveModels, row => {
     const fingerprint = asRecord(row.datasetFingerprint)?.digest;
     const matching = (records.datasets ?? []).map(asRecord).find(dataset => dataset && asRecord(dataset.dataset)?.digest === fingerprint);
-    link("predictive_model", row, "training_dataset", "dataset", matching && (idOf(matching) ?? asRecord(matching.dataset)?.digest));
+    link("predictive_model", row, "training_dataset", "dataset", (matching && (idOf(matching) ?? asRecord(matching.dataset)?.digest)) ?? fingerprint);
   });
   each("prediction", records.predictions, row => {
-    link("prediction", row, "exact_model", "predictive_model", row.modelId);
-    link("prediction", row, "formula_version", "formulation_version", row.formulaVersionId);
+    link("prediction", row, "exact_model", "predictive_model", row.modelId, model =>
+      model.version === row.modelVersion &&
+      asRecord(model.datasetFingerprint)?.digest === asRecord(row.datasetFingerprint)?.digest &&
+      model.productFamilyCode === row.productFamilyCode);
+    link("prediction", row, "formula_version", "formulation_version", row.formulaVersionId, version =>
+      version.versionNumber === row.formulaVersionNumber && version.formulationId === row.formulaId);
   });
   each("ranking", records.rankings, row => {
     link("ranking", row, "generation_session", "generation_session", row.sessionId);
@@ -167,5 +179,5 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
     if (alternative) link("optimization_run", row, "ranking_snapshot", "ranking", alternative.rankingRecordCode);
   });
 
-  return { nodes, edges, brokenReferences: edges.filter(edge => edge.status === "missing") };
+  return { nodes, edges, brokenReferences: edges.filter(edge => edge.status !== "resolved") };
 }

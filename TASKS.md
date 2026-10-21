@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-10
 - Current Sprint: FVL-10-S01
-- Current Task: FVL-10.002 — Immutable references; later stages cite and never rewrite earlier records
+- Current Task: FVL-10.003 — Version relationships across formula, trial, result, dataset, model, prediction and recommendation
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-10.003 — Version relationships across formula, trial, result, dataset, model, prediction and recommendation
+- Next Task: FVL-10.004 — Corrective-action-derived draft linkage
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 148
-- Remaining Tasks: 23
-- Completion: 86.5%
+- Completed Tasks: 149
+- Remaining Tasks: 22
+- Completion: 87.1%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -263,7 +263,8 @@ Sprint grouping below is a management-only organization of the existing frozen t
 
 ## Sprint FVL-10-S01 — Closed-loop lineage foundation
 - [x] FVL-10.001 — ID/provenance model spanning the full laboratory-feedback chain
-- [~] FVL-10.002 — Immutable references; later stages cite and never rewrite earlier records
+- [x] FVL-10.002 — Immutable references; later stages cite and never rewrite earlier records
+- [~] FVL-10.003 — Version relationships across formula, trial, result, dataset, model, prediction and recommendation
 - [ ] FVL-10.003 — Version relationships across formula, trial, result, dataset, model, prediction and recommendation
 - [ ] FVL-10.004 — Corrective-action-derived draft linkage
 - [ ] FVL-10.005 — DOE-derived draft linkage

@@ -13,8 +13,8 @@ describe("buildLaboratoryLineage", () => {
       laboratoryTrials: [{ id: "trial-1", code: "LT-1", sourceDoeRunId: "run-1", sourceFormulaVersionId: "version-1", status: "completed" }],
       testResults: [{ id: "result-1", trialId: "trial-1", formulaVersionId: "version-1" }],
       datasets: [{ entries: [{ formulaVersionId: "version-1" }], dataset: { digest: "a".repeat(64) } }],
-      predictiveModels: [{ id: "model-1", version: 1, datasetFingerprint: { digest: "a".repeat(64) } }],
-      predictions: [{ id: "prediction-1", modelId: "model-1", modelVersion: 1, formulaVersionId: "version-1" }],
+      predictiveModels: [{ id: "model-1", version: 1, productFamilyCode: "family-a", datasetFingerprint: { digest: "a".repeat(64) } }],
+      predictions: [{ id: "prediction-1", modelId: "model-1", modelVersion: 1, datasetFingerprint: { digest: "a".repeat(64) }, productFamilyCode: "family-a", formulaId: "formula-1", formulaVersionId: "version-1", formulaVersionNumber: 1 }],
       rankings: [{ code: "ranking-1", sessionId: "session-1", rankings: [{ candidate: { candidateId: "alternative-1", sourceFormulationVersionId: "version-1", dimensions: { performance: { sourceSnapshot: { modelId: "model-1" } } } } }] }],
       optimizationRuns: [{ code: "optimization-1", formulaVersionId: "version-1", sourceAlternative: { rankingRecordCode: "ranking-1" } }],
     });
@@ -45,5 +45,21 @@ describe("buildLaboratoryLineage", () => {
       expect.objectContaining({ from: "prediction:prediction-1", to: "predictive_model:model-missing", status: "missing" }),
     ]));
     expect(lineage.edges.some(edge => edge.to === "formulation_version:version-new")).toBe(false);
+  });
+
+  it("marks contradictory immutable version snapshots invalid", () => {
+    const lineage = buildLaboratoryLineage({
+      formulations: [{ id: "formula-1" }],
+      formulationVersions: [{ id: "version-1", formulationId: "formula-1", versionNumber: 1 }],
+      datasets: [{ entries: [], dataset: { digest: "a".repeat(64) } }],
+      predictiveModels: [{ id: "model-1", version: 2, productFamilyCode: "family-a", datasetFingerprint: { digest: "a".repeat(64) } }],
+      predictions: [{ id: "prediction-1", modelId: "model-1", modelVersion: 1, datasetFingerprint: { digest: "a".repeat(64) }, productFamilyCode: "family-a", formulaId: "formula-1", formulaVersionId: "version-1", formulaVersionNumber: 2 }],
+    });
+
+    expect(lineage.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ relationship: "exact_model", status: "invalid" }),
+      expect.objectContaining({ relationship: "formula_version", status: "invalid" }),
+    ]));
+    expect(lineage.brokenReferences).toHaveLength(2);
   });
 });
