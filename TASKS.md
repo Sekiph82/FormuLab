@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: FVL-10
-- Current Sprint: FVL-10-S01
-- Current Task: FVL-10.001 — ID/provenance model spanning the full laboratory-feedback chain
-- Current Task Status: READY
-- Next Task: FVL-10.002 — Immutable references; later stages cite and never rewrite earlier records
+- Current Milestone: FVL-09
+- Current Sprint: FVL-09-S02
+- Current Task: FVL-09.007 — Human selection required; no automatic lab execution
+- Current Task Status: IN_PROGRESS
+- Next Task: FVL-09.008 — Create/link real LaboratoryTrial or DOE run from accepted recommendation
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 147
-- Remaining Tasks: 24
-- Completion: 86.0%
+- Completed Tasks: 144
+- Remaining Tasks: 27
+- Completion: 84.2%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -254,10 +254,10 @@ Sprint grouping below is a management-only organization of the existing frozen t
 
 ## Sprint FVL-09-S02 — DOE/laboratory execution loop
 - [x] FVL-09.006 — DOE integration: recommendation ranking + rationale in existing workflow
-- [x] FVL-09.007 — Human selection required; no automatic lab execution
-- [x] FVL-09.008 — Create/link real LaboratoryTrial or DOE run from accepted recommendation
+- [~] FVL-09.007 — Human selection required; no automatic lab execution
+- [ ] FVL-09.008 — Create/link real LaboratoryTrial or DOE run from accepted recommendation
 - [x] FVL-09.009 — Completed-experiment ingestion triggers versioned model retraining
-- [x] FVL-09.010 — Regression test: unperformed recommendation is never labeled validated
+- [ ] FVL-09.010 — Regression test: unperformed recommendation is never labeled validated
 
 # FVL-10
 
