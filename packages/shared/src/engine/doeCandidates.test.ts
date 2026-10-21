@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
 import type { Actor } from "../schemas/status";
-import type { DoeCandidate, DoeConstraint, DoeDesign, DoeFactor, DoeResponse } from "../schemas/doe";
+import type { DoeCandidate, DoeConstraint, DoeDesign, DoeFactor, DoeObservation, DoeResponse, DoeRun, DoeStudy } from "../schemas/doe";
+import type { FormulationVersion } from "../schemas/formulation";
+import type { InventoryRecord, MaterialPrice, RawMaterial } from "../schemas/materials";
+import type { SafetyRule } from "../schemas/safety";
+import type { RegulatoryRule } from "../schemas/regulatory";
 import {
   applyDoeCandidateToDraft,
   calculateOverallDesirability,
   calculateResponseDesirability,
   createDoeCandidates,
+  defineDoeExperimentSpace,
+  evaluateDoeCandidateFeasibility,
+  evaluateDoeCandidateHardExclusions,
+  evaluateDoeCandidateAcquisition,
+  diversifyDoeCandidates,
+  evaluateDoeCandidateMaterialCost,
+  isDoeCandidateEligibleForSelection,
+  rankDoeCandidatesByAcquisition,
   rankDoeCandidates,
   searchDoeCandidateSpace,
   validateDoeCandidate,
@@ -202,6 +214,228 @@ describe("searchDoeCandidateSpace", () => {
     for (const c of results) {
       for (const p of c.predictedResponses) expect(p.analysisId).toBe("analysis-1");
     }
+  });
+
+  it("rejects empty or unbounded candidate requests instead of inventing a space", () => {
+    expect(() => searchDoeCandidateSpace({ factors: [], constraints: [], responses: [], analyses: [], seed: 1 })).toThrow(/at least one DOE factor/i);
+    expect(() => searchDoeCandidateSpace({ factors, constraints: [], responses: [], analyses: [], seed: 1, candidateCount: 501 })).toThrow(/from 1 to 500/i);
+  });
+});
+
+describe("defineDoeExperimentSpace", () => {
+  const materialFactor = factor({ factorCode: "A", sourceType: "formula_material", sourceEntityId: "material-a" });
+  const study: DoeStudy = {
+    schemaVersion: "1.0", id: "study-1", studyCode: "DOE-1", title: "Study", projectId: "project-1",
+    formulationId: "formula-1", baselineFormulaVersionId: "version-1", status: "analyzed", designType: "full_factorial",
+    randomizationEnabled: true, blockingEnabled: false, replicatePolicy: "none", centerPointPolicy: "none", revision: 1,
+    createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const design: DoeDesign = {
+    schemaVersion: "1.0", id: "design-1", studyId: "study-1", studyRevision: 1, designType: "full_factorial",
+    factorSnapshot: [materialFactor], constraintSnapshot: [], responseSnapshot: [], generationSettings: {}, seed: 42,
+    runCount: 2, replicateCount: 0, centerPointCount: 0, blockCount: 1, generatedBy: "alice", generatedAt: "2026-01-01T00:00:00.000Z",
+    diagnostics: { runCount: 2, degreesOfFreedom: 1, duplicateRunCount: 0, estimableTerms: [], aliasedTerms: [], isOrthogonal: true, isBalanced: true, centerPointCount: 0, replicateCount: 0, constraintViolationCount: 0, warnings: [] },
+  };
+  const baseline: FormulationVersion = {
+    schemaVersion: "1.0", id: "version-1", formulationId: "formula-1", versionNumber: 1, status: "pilot_approved", author: "alice",
+    createdAt: "2026-01-01T00:00:00.000Z", lines: [
+      { id: "line-a", lineNumber: 1, phase: "A", displayName: "Material A", materialId: "material-a", percent: "10", functions: [], isQsToHundred: false, provenance: { origin: "chemist_override", evidenceClaimIds: [] } },
+      { id: "line-water", lineNumber: 2, phase: "A", displayName: "Water", materialId: "water", percent: "90", functions: [], isQsToHundred: false, provenance: { origin: "chemist_override", evidenceClaimIds: [] } },
+    ], basisBatchKg: "100", sourceRunIds: [], regulatoryFindingIds: [], compatibilityFindingIds: [], safetyFindingIds: [], approvalRecordIds: [],
+  };
+  const input = { study, design, baselineFormulaVersion: baseline, factors: [materialFactor], constraints: [] as DoeConstraint[], responses: [] as DoeResponse[], seed: 42 };
+
+  it("defines a reproducible bounded space with exact DOE/formula lineage and unchanged formula lines", () => {
+    const first = defineDoeExperimentSpace(input);
+    expect(first).toEqual(defineDoeExperimentSpace(input));
+    expect(first).toMatchObject({ policyVersion: "doe-experiment-space/v1", studyId: "study-1", studyRevision: 1, designId: "design-1", sourceFormulaVersionId: "version-1", seed: 42, candidateCount: 200, manipulatedFactorCodes: ["A"], unchangedFormulaLineIds: ["line-water"] });
+  });
+
+  it("refuses stale, mismatched, empty, and invalid-range spaces", () => {
+    expect(() => defineDoeExperimentSpace({ ...input, seed: 8 })).toThrow(/match the frozen DOE design seed/i);
+    expect(() => defineDoeExperimentSpace({ ...input, study: { ...study, revision: 2 } })).toThrow(/current study revision/i);
+    expect(() => defineDoeExperimentSpace({ ...input, factors: [] })).toThrow(/at least one DOE factor/i);
+    const invalidRangeFactor = factor({ ...materialFactor, lowValue: undefined, highValue: undefined });
+    expect(() => defineDoeExperimentSpace({ ...input, design: { ...design, factorSnapshot: [invalidRangeFactor] }, factors: [invalidRangeFactor] })).toThrow(/finite, ordered/i);
+    expect(() => defineDoeExperimentSpace({ ...input, candidateCount: 501 })).toThrow(/from 1 to 500/i);
+  });
+});
+
+describe("evaluateDoeCandidateFeasibility", () => {
+  const baseline: FormulationVersion = {
+    schemaVersion: "1.0", id: "version-1", formulationId: "formula-1", versionNumber: 1, status: "pilot_approved", author: "alice",
+    createdAt: "2026-01-01T00:00:00.000Z", basisBatchKg: "100", sourceRunIds: [], regulatoryFindingIds: [], compatibilityFindingIds: [], safetyFindingIds: [], approvalRecordIds: [],
+    lines: [
+      { id: "line-a", lineNumber: 1, phase: "A", displayName: "Material A", materialId: "material-a", materialCode: "MAT-A", percent: "10", functions: [], isQsToHundred: false, provenance: { origin: "chemist_override", evidenceClaimIds: [] } },
+      { id: "line-water", lineNumber: 2, phase: "A", displayName: "Water", materialId: "water", materialCode: "WATER", percent: "90", functions: [], isQsToHundred: false, provenance: { origin: "chemist_override", evidenceClaimIds: [] } },
+    ],
+  };
+  const inventory = (materialCode: string, quantity: string): InventoryRecord => ({
+    schemaVersion: "1.0", code: `INV-${materialCode}`, materialCode, warehouse: "main", quantity, unit: "kg", reservedQuantity: "0",
+    coaStatus: "not_required", quarantined: false, released: true, updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const candidate = { factorSettings: [{ factorCode: "A", codedValue: "1", actualValue: "20" }], constraintStatus: [] };
+
+  it("uses the canonical inventory authority for a feasible candidate", () => {
+    const result = evaluateDoeCandidateFeasibility({ candidate, baselineFormulaVersion: baseline, factors: [factor({ factorCode: "A", sourceType: "formula_material", sourceEntityId: "material-a", isProcessFactor: false })], constraints: [], inventoryRecords: [inventory("MAT-A", "25"), inventory("WATER", "100")], evaluatedAt: "2026-01-01T00:00:00.000Z" });
+    expect(result.status).toBe("FEASIBLE");
+    expect(result.reasons).toEqual([]);
+  });
+
+  it("keeps missing inventory and process limits UNKNOWN and insufficient stock INFEASIBLE", () => {
+    const noInventory = evaluateDoeCandidateFeasibility({ candidate, baselineFormulaVersion: baseline, factors: [factor({ factorCode: "A", sourceType: "formula_material", sourceEntityId: "material-a", isProcessFactor: false })], constraints: [], inventoryRecords: [inventory("WATER", "100")], evaluatedAt: "2026-01-01T00:00:00.000Z" });
+    expect(noInventory.status).toBe("UNKNOWN");
+    expect(noInventory.reasons.some((reason) => reason.code === "MATERIAL_AVAILABILITY_UNKNOWN")).toBe(true);
+
+    const insufficient = evaluateDoeCandidateFeasibility({ candidate, baselineFormulaVersion: baseline, factors: [factor({ factorCode: "A", sourceType: "formula_material", sourceEntityId: "material-a", isProcessFactor: false })], constraints: [], inventoryRecords: [inventory("MAT-A", "1"), inventory("WATER", "100")], evaluatedAt: "2026-01-01T00:00:00.000Z" });
+    expect(insufficient.status).toBe("INFEASIBLE");
+    expect(insufficient.reasons.some((reason) => reason.code === "INSUFFICIENT_MATERIAL")).toBe(true);
+
+    const processFactor = factor({ factorCode: "TEMP", sourceType: "temperature", isProcessFactor: true });
+    const missingManufacturing = evaluateDoeCandidateFeasibility({ candidate: { factorSettings: [{ factorCode: "TEMP", codedValue: "1", actualValue: "20" }], constraintStatus: [] }, baselineFormulaVersion: baseline, factors: [processFactor], constraints: [], inventoryRecords: [inventory("MAT-A", "20"), inventory("WATER", "100")], evaluatedAt: "2026-01-01T00:00:00.000Z" });
+    expect(missingManufacturing.status).toBe("UNKNOWN");
+    expect(missingManufacturing.reasons.some((reason) => reason.code === "MANUFACTURING_LIMITS_UNAVAILABLE")).toBe(true);
+  });
+
+  it("preserves hard DOE constraint failures as machine-readable rejection reasons", () => {
+    const constraint: DoeConstraint = { schemaVersion: "1.0", id: "process-limit-1", studyId: "study-1", studyRevision: 1, constraintType: "process_limit", expression: "A <= 30", severity: "hard", appliesTo: ["A"], createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z" };
+    const result = evaluateDoeCandidateFeasibility({ candidate: { ...candidate, constraintStatus: [{ constraintId: constraint.id, satisfied: false, severity: "hard", message: "Temperature exceeds the declared limit." }] }, baselineFormulaVersion: baseline, factors: [], constraints: [constraint], inventoryRecords: [inventory("MAT-A", "20"), inventory("WATER", "100")], evaluatedAt: "2026-01-01T00:00:00.000Z" });
+    expect(result.status).toBe("INFEASIBLE");
+    expect(result.reasons).toContainEqual(expect.objectContaining({ code: "DOE_HARD_CONSTRAINT_FAILED", sourceId: constraint.id, message: "Temperature exceeds the declared limit." }));
+  });
+});
+
+describe("evaluateDoeCandidateHardExclusions", () => {
+  const lineBaseline: FormulationVersion = {
+    schemaVersion: "1.0", id: "version-1", formulationId: "formula-1", versionNumber: 1, status: "pilot_approved", author: "alice",
+    createdAt: "2026-01-01T00:00:00.000Z", basisBatchKg: "100", sourceRunIds: [], regulatoryFindingIds: [], compatibilityFindingIds: [], safetyFindingIds: [], approvalRecordIds: [],
+    lines: [{ id: "line-a", lineNumber: 1, phase: "A", displayName: "Material A", materialId: "material-a", materialCode: "MAT-A", percent: "10", functions: [], isQsToHundred: false, provenance: { origin: "chemist_override", evidenceClaimIds: [] } }],
+  };
+  const material: RawMaterial = {
+    schemaVersion: "1.0", code: "MAT-A", displayName: "Material A", casNumbers: [], ecNumbers: [], functions: [], activeMatterState: "known",
+    documents: [], regulatoryStatuses: [], hazardClassifications: [], allergens: [], incompatibilities: [], substituteCodes: [], active: true,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const safetyRule: SafetyRule = {
+    schemaVersion: "1.0", id: "safety-rule-1", version: "1", name: "Block material", status: "verified", severity: "blocking", category: "test",
+    ruleType: "forbidden_combination", conditions: [{ materialCodesAny: ["MAT-A"] }], message: "This material combination is blocked.", requiredPpe: [], requiredEngineeringControls: [],
+    sourceReferences: ["test-source"], verificationStatus: "verified", alwaysRequiresHumanReview: false, active: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const regulatoryRule: RegulatoryRule = {
+    schemaVersion: "1.0", id: "reg-rule-1", code: "KE-TEST-1", name: "Prohibit material", jurisdiction: "KE", authority: "test", ruleType: "ingredient_prohibition",
+    productCategories: [], requirement: "This material is prohibited.", severity: "blocking", status: "verified", conditions: [{ materialCodesAny: ["MAT-A"] }], claimKeywordsAny: [],
+    requiredEvidenceTypes: [], requiredLabelElements: [], requiredWarnings: [], requiredDocumentTypes: [], requiredTestTypes: [], requiredPackagingElements: [], requiredLanguages: [],
+    requiresRegistration: false, requiresNotification: false, requiresResponsiblePartyInMarket: false, requiresMarketSpecificIdentifier: false, version: 1, verificationStatus: "verified",
+    humanReviewStatus: "review_required", active: true, createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  it("preserves authoritative Safety and Regulatory FAIL as hard exclusions", () => {
+    const result = evaluateDoeCandidateHardExclusions({ candidate: { factorSettings: [] }, baselineFormulaVersion: lineBaseline, factors: [], materials: [material], safetyRules: [safetyRule], regulatoryRules: [regulatoryRule], jurisdictions: ["KE"] });
+    expect(result.safety.status).toBe("FAIL");
+    expect(result.safety.findingIds).toContain(`safety-finding:${safetyRule.id}:line-a:0`);
+    expect(result.regulatory.status).toBe("FAIL");
+    expect(result.regulatory.findingIds[0]).toContain(regulatoryRule.id);
+  });
+
+  it("does not turn absent or unverified Safety/Regulatory evidence into PASS", () => {
+    const absent = evaluateDoeCandidateHardExclusions({ candidate: { factorSettings: [] }, baselineFormulaVersion: lineBaseline, factors: [], materials: [material], safetyRules: [], regulatoryRules: [], jurisdictions: ["KE"] });
+    expect(absent.safety.status).toBe("UNKNOWN");
+    expect(absent.regulatory.status).toBe("UNKNOWN");
+
+    const unverified = evaluateDoeCandidateHardExclusions({ candidate: { factorSettings: [] }, baselineFormulaVersion: lineBaseline, factors: [], materials: [material], safetyRules: [{ ...safetyRule, status: "draft", verificationStatus: "not_verified" }], regulatoryRules: [{ ...regulatoryRule, status: "draft", verificationStatus: "not_verified" }], jurisdictions: ["KE"] });
+    expect(unverified.safety.status).not.toBe("PASS");
+    expect(unverified.regulatory.status).not.toBe("PASS");
+  });
+
+  it("keeps a high-scoring candidate out of the shortlist on any failed or unknown authority", () => {
+    const highScoringCandidate = {
+      feasibility: { policyVersion: "doe-feasibility/v1" as const, evaluatedAt: "2026-01-01T00:00:00.000Z", status: "FEASIBLE" as const, reasons: [] },
+      hardExclusions: { policyVersion: "doe-hard-exclusions/v1" as const, safety: { status: "FAIL" as const, findingIds: ["safety-fail"], reasons: ["blocked"] }, regulatory: { status: "PASS" as const, findingIds: ["reg-ok"], reasons: [] } },
+      acquisition: { policyVersion: "doe-acquisition/v1" as const, method: "nearest_measured_run_distance" as const, status: "AVAILABLE" as const, value: 2, sourceRunIds: ["run-1"] },
+      desirability: 1,
+      predictedResponses: [{ responseId: "response-1", predictedValue: 999, isExtrapolated: false, analysisId: "analysis-1" }],
+    };
+    expect(isDoeCandidateEligibleForSelection(highScoringCandidate)).toBe(false);
+    expect(isDoeCandidateEligibleForSelection({ ...highScoringCandidate, hardExclusions: { ...highScoringCandidate.hardExclusions, safety: { status: "PASS", findingIds: [], reasons: [] }, regulatory: { status: "UNKNOWN", findingIds: [], reasons: ["missing"] } } })).toBe(false);
+    expect(isDoeCandidateEligibleForSelection({ ...highScoringCandidate, hardExclusions: { ...highScoringCandidate.hardExclusions, safety: { status: "PASS", findingIds: [], reasons: [] } } })).toBe(true);
+  });
+});
+
+describe("evaluateDoeCandidateAcquisition", () => {
+  const studyRuns = (overrides: Partial<DoeRun> = {}): DoeRun => ({
+    schemaVersion: "1.0", id: "run-1", studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 1, standardOrder: 1, randomizedOrder: 1, block: 1, replicate: 1, isCenterPoint: false,
+    factorSettings: [{ factorCode: "A", codedValue: "-1", actualValue: "10" }], status: "completed", createdAt: "2026-01-01T00:00:00.000Z", ...overrides,
+  });
+  const observation = (runId: string, overrides: Partial<DoeObservation> = {}): DoeObservation => ({
+    schemaVersion: "1.0", id: `obs-${runId}`, studyId: "study-1", studyRevision: 1, runId, responseId: "response-1", value: "10", status: "validated",
+    recordedBy: "alice", recordedAt: "2026-01-01T00:00:00.000Z", ...overrides,
+  });
+
+  it("uses nearest completed measured-run distance as the versioned fallback, without calling it uncertainty", () => {
+    const factorA = factor({ factorCode: "A", isProcessFactor: false });
+    const candidate = { factorSettings: [{ factorCode: "A", codedValue: "1", actualValue: "20" }], predictedResponses: [] };
+    const result = evaluateDoeCandidateAcquisition({ candidate, factors: [factorA], runs: [studyRuns()], observations: [observation("run-1")] });
+    expect(result).toMatchObject({ policyVersion: "doe-acquisition/v1", method: "nearest_measured_run_distance", status: "AVAILABLE", value: 2, sourceRunIds: ["run-1"] });
+    expect(result.reason).toMatch(/not model uncertainty/i);
+  });
+
+  it("returns unavailable for missing measurements, incompatible factor lineage, and OOD predictions", () => {
+    const factorA = factor({ factorCode: "A", isProcessFactor: false });
+    const candidate = { factorSettings: [{ factorCode: "A", codedValue: "1", actualValue: "20" }], predictedResponses: [] };
+    expect(evaluateDoeCandidateAcquisition({ candidate, factors: [factorA], runs: [studyRuns()], observations: [] }).status).toBe("UNAVAILABLE");
+    expect(evaluateDoeCandidateAcquisition({ candidate: { ...candidate, predictedResponses: [{ responseId: "r1", predictedValue: 1, isExtrapolated: true, analysisId: "a1" }] }, factors: [factorA], runs: [studyRuns()], observations: [observation("run-1")] }).status).toBe("UNAVAILABLE");
+    expect(evaluateDoeCandidateAcquisition({ candidate, factors: [factorA], runs: [studyRuns({ factorSettings: [] })], observations: [observation("run-1")] }).status).toBe("UNAVAILABLE");
+  });
+
+  it("ranks by acquisition distance deterministically and preserves ties and unavailable order", () => {
+    const make = (value?: number) => ({ acquisition: value === undefined
+      ? { policyVersion: "doe-acquisition/v1" as const, method: "nearest_measured_run_distance" as const, status: "UNAVAILABLE" as const, sourceRunIds: [], reason: "no evidence" }
+      : { policyVersion: "doe-acquisition/v1" as const, method: "nearest_measured_run_distance" as const, status: "AVAILABLE" as const, value, sourceRunIds: ["run-1"] } });
+    const input = [make(0.5), make(1), make(1), make()];
+    const first = rankDoeCandidatesByAcquisition(input);
+    expect(first.map((candidate) => candidate.acquisition?.status === "AVAILABLE" ? candidate.acquisition.value : null)).toEqual([1, 1, 0.5, null]);
+    expect(rankDoeCandidatesByAcquisition(input)).toEqual(first);
+    expect(first.map((candidate) => candidate.rank)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("diversifyDoeCandidates", () => {
+  const candidate = (id: string, value: string) => ({ id, factorSettings: [{ factorCode: "A", codedValue: value }] });
+
+  it("uses explicit coded-factor maximin distance and deterministically moves near duplicates behind diverse points", () => {
+    const ranked = diversifyDoeCandidates([candidate("seed", "0"), candidate("near", "0.02"), candidate("far", "1")]);
+    expect(ranked.map((item) => item.id)).toEqual(["seed", "far", "near"]);
+    expect(ranked[1].diversity).toMatchObject({ policyVersion: "doe-diversity/v1", status: "AVAILABLE", distanceToSelected: 1, nearestSelectedCandidateIds: ["seed"] });
+    expect(ranked[2].diversity.reason).toMatch(/below configured minimum/i);
+  });
+
+  it("does not fabricate diversity when factor lineage is missing and rejects invalid configuration", () => {
+    expect(diversifyDoeCandidates([{ id: "missing", factorSettings: [] }])[0].diversity.status).toBe("UNAVAILABLE");
+    expect(() => diversifyDoeCandidates([candidate("one", "0")], { minimumDistance: -1 })).toThrow(/finite and non-negative/i);
+  });
+});
+
+describe("evaluateDoeCandidateMaterialCost", () => {
+  const baseline: FormulationVersion = {
+    schemaVersion: "1.0", id: "version-1", formulationId: "formula-1", versionNumber: 1, status: "pilot_approved", author: "alice", createdAt: "2026-01-01T00:00:00.000Z", basisBatchKg: "100",
+    lines: [
+      { id: "line-a", lineNumber: 1, phase: "A", displayName: "A", materialId: "material-a", materialCode: "MAT-A", percent: "10", functions: [], isQsToHundred: false, provenance: { origin: "chemist_override", evidenceClaimIds: [] } },
+      { id: "line-water", lineNumber: 2, phase: "A", displayName: "Water", materialId: "water", materialCode: "WATER", percent: "90", functions: [], isQsToHundred: false, provenance: { origin: "chemist_override", evidenceClaimIds: [] } },
+    ], sourceRunIds: [], regulatoryFindingIds: [], compatibilityFindingIds: [], safetyFindingIds: [], approvalRecordIds: [],
+  };
+  const materials: RawMaterial[] = ["MAT-A", "WATER"].map((code) => ({ schemaVersion: "1.0", code, displayName: code, casNumbers: [], ecNumbers: [], functions: [], activeMatterState: "missing", documents: [], regulatoryStatuses: [], hazardClassifications: [], allergens: [], incompatibilities: [], substituteCodes: [], active: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }));
+  const prices: MaterialPrice[] = [
+    { schemaVersion: "1.0", code: "price-a", materialCode: "MAT-A", price: "100", currency: "KES", priceUnit: "kg", effectiveFrom: "2026-01-01", allocationBasis: "per_kg", verification: "quoted", recordedAt: "2026-01-01T00:00:00.000Z", recordedBy: "alice" },
+    { schemaVersion: "1.0", code: "price-water", materialCode: "WATER", price: "1", currency: "KES", priceUnit: "kg", effectiveFrom: "2026-01-01", allocationBasis: "per_kg", verification: "quoted", recordedAt: "2026-01-01T00:00:00.000Z", recordedBy: "alice" },
+  ];
+
+  it("uses the canonical Cost Engine for a complete raw-material estimate and leaves missing price data unavailable", () => {
+    const candidate = { factorSettings: [{ factorCode: "A", codedValue: "0", actualValue: "10" }] };
+    const factors = [factor({ factorCode: "A", sourceType: "formula_material", sourceEntityId: "material-a", isProcessFactor: false })];
+    const result = evaluateDoeCandidateMaterialCost({ candidate, baselineFormulaVersion: baseline, factors, materials, prices, rates: [], currency: "KES", evaluatedAt: "2026-01-02T00:00:00.000Z" });
+    expect(result).toMatchObject({ policyVersion: "doe-estimated-material-cost/v1", status: "AVAILABLE", amount: 1090, currency: "KES", source: "FormuLab Cost Engine", priceRecordCodes: ["price-a", "price-water"] });
+    expect(result.reason).toMatch(/raw-material-only/i);
+    expect(evaluateDoeCandidateMaterialCost({ candidate, baselineFormulaVersion: baseline, factors, materials, prices: [prices[0]], rates: [], currency: "KES", evaluatedAt: "2026-01-02T00:00:00.000Z" })).toMatchObject({ status: "UNAVAILABLE" });
   });
 });
 

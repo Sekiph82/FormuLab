@@ -23,12 +23,22 @@ import {
   DOE_RESPONSE_TYPES,
   DOE_RUN_LOCKED_STATUSES,
   DOE_RUN_STATUSES,
+  REGULATORY_JURISDICTIONS,
+  SEED_REGULATORY_RULES,
+  SEED_SAFETY_RULES,
   TRIAL_PRIORITIES,
   applyDoeCandidateToDraft,
   applyDoeFactorsToLines,
+  evaluateDoeCandidateMaterialCost,
   calculateDesignDiagnostics,
   createDoeAnalysis,
   createDoeCandidates,
+  defineDoeExperimentSpace,
+  diversifyDoeCandidates,
+  evaluateDoeCandidateFeasibility,
+  evaluateDoeCandidateHardExclusions,
+  evaluateDoeCandidateAcquisition,
+  isDoeCandidateEligibleForSelection,
   createDoeStudy,
   deriveObservedCodedRanges,
   generateDoeDesign,
@@ -36,6 +46,7 @@ import {
   newDoeId,
   predictDoeResponse,
   rankDoeCandidates,
+  rankDoeCandidatesByAcquisition,
   resolveDoeRevisionChain,
   reviseDoeStudy,
   buildDoeStudyExportMeta,
@@ -79,8 +90,12 @@ import {
   type Formulation,
   type FormulationVersion,
   type LaboratoryTrial,
+  type InventoryRecord,
+  type ExchangeRate,
+  type MaterialPrice,
+  type RawMaterial,
 } from "@formulab/shared";
-import { listRecords, upsertRecords } from "@/lib/masterdata";
+import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
 import { cn } from "@/lib/cn";
 import { InfoTooltip } from "@/components/help/InfoTooltip";
@@ -626,17 +641,53 @@ export function DoePanel({
         setError(t("doe.candidates.noAnalysesYet"));
         return;
       }
+      const baseline = versions.find((version) => version.id === selectedStudy.baselineFormulaVersionId);
+      if (!baseline) throw new Error(t("doe.runs.baselineVersionMissing"));
+      const experimentSpace = defineDoeExperimentSpace({
+        study: selectedStudy,
+        design: studyDesign,
+        baselineFormulaVersion: baseline,
+        factors: studyFactors,
+        constraints: studyConstraints,
+        responses: studyResponses,
+        seed: studyDesign.seed,
+      });
       const raw = searchDoeCandidateSpace({
         factors: studyFactors,
         constraints: studyConstraints,
         responses: studyResponses,
         analyses: analysesForPrediction,
-        seed: studyDesign.seed,
+        seed: experimentSpace.seed,
+        candidateCount: experimentSpace.candidateCount,
       });
       const ranked = rankDoeCandidates(raw).slice(0, 10);
-      const created = createDoeCandidates({ studyId: selectedStudy.id, studyRevision: selectedStudy.revision, analysisIds: [...latestByResponse.values()].map((a) => a.id), ranked }, actor);
-      await upsertRecords("doe_candidates", created);
-      await record("doe.candidate_generated", { metadata: { studyId: selectedStudy.id, count: String(created.length) } });
+      const candidates = createDoeCandidates({ studyId: selectedStudy.id, studyRevision: selectedStudy.revision, analysisIds: [...latestByResponse.values()].map((a) => a.id), ranked, experimentSpace }, actor);
+      const [inventoryRecords, materials, prices, rates] = await Promise.all([
+        listRecords("inventory") as Promise<InventoryRecord[]>,
+        listRecords("materials") as Promise<RawMaterial[]>,
+        listRecords("material_prices") as Promise<MaterialPrice[]>,
+        listRecords("exchange_rates") as Promise<ExchangeRate[]>,
+      ]);
+      const safetyRules = await listRecordsSeeded("safety_rules", SEED_SAFETY_RULES);
+      const regulatoryRules = await listRecordsSeeded("regulatory_rules", SEED_REGULATORY_RULES);
+      const jurisdictions = (baseline.targetMarketsSnapshot ?? []).filter((market): market is typeof REGULATORY_JURISDICTIONS[number] => REGULATORY_JURISDICTIONS.includes(market as typeof REGULATORY_JURISDICTIONS[number]));
+      const evaluatedAt = new Date().toISOString();
+      const evaluated = candidates.map((candidate) => ({
+        ...candidate,
+        feasibility: evaluateDoeCandidateFeasibility({ candidate, baselineFormulaVersion: baseline, factors: studyFactors, constraints: studyConstraints, inventoryRecords, evaluatedAt }),
+        hardExclusions: evaluateDoeCandidateHardExclusions({ candidate, baselineFormulaVersion: baseline, factors: studyFactors, materials, safetyRules, regulatoryRules, jurisdictions, claims: baseline.targetClaimsSnapshot }),
+        acquisition: evaluateDoeCandidateAcquisition({ candidate, factors: studyFactors, runs: studyRuns, observations }),
+        estimatedMaterialCost: evaluateDoeCandidateMaterialCost({ candidate, baselineFormulaVersion: baseline, factors: studyFactors, materials, prices, rates, currency: "KES", evaluatedAt }),
+      }));
+      const acquisitionOrder = rankDoeCandidatesByAcquisition(evaluated);
+      const eligible = acquisitionOrder.filter(isDoeCandidateEligibleForSelection);
+      const ineligible = acquisitionOrder.filter((candidate) => !isDoeCandidateEligibleForSelection(candidate));
+      const recommendationOrder = [
+        ...diversifyDoeCandidates(eligible),
+        ...ineligible.map((candidate) => ({ ...candidate, diversity: { policyVersion: "doe-diversity/v1" as const, status: "UNAVAILABLE" as const, nearestSelectedCandidateIds: [], reason: "Hard-gated candidate is excluded from the eligible recommendation order." } })),
+      ].map((candidate, index) => ({ ...candidate, rank: index + 1 }));
+      await upsertRecords("doe_candidates", recommendationOrder);
+      await record("doe.candidate_generated", { metadata: { studyId: selectedStudy.id, count: String(recommendationOrder.length) } });
       await load();
     } catch (e) {
       setError(String(e));
@@ -644,6 +695,10 @@ export function DoePanel({
   }
 
   async function shortlistCandidate(candidate: DoeCandidate) {
+    if (!isDoeCandidateEligibleForSelection(candidate)) {
+      setError("A candidate with failed or unknown feasibility, Safety, Regulatory, or acquisition evidence cannot be shortlisted.");
+      return;
+    }
     const updated: DoeCandidate = { ...candidate, status: "shortlisted" };
     await upsertRecords("doe_candidates", [updated]);
     await record("doe.candidate_shortlisted", { metadata: { studyId: candidate.studyId, candidateId: candidate.id } });
@@ -651,6 +706,10 @@ export function DoePanel({
   }
 
   async function selectCandidate(candidate: DoeCandidate) {
+    if (!isDoeCandidateEligibleForSelection(candidate)) {
+      setError("A candidate needs confirmed material, manufacturing, safety, and regulatory clearance before it can be selected.");
+      return;
+    }
     const updated: DoeCandidate = { ...candidate, status: "selected" };
     await upsertRecords("doe_candidates", [updated]);
     await record("doe.candidate_selected", { metadata: { studyId: candidate.studyId, candidateId: candidate.id } });
@@ -658,6 +717,14 @@ export function DoePanel({
   }
 
   function applyCandidate(candidate: DoeCandidate) {
+    if (candidate.status !== "selected") {
+      setError("Select this recommendation as a human decision before applying it to the working draft.");
+      return;
+    }
+    if (!isDoeCandidateEligibleForSelection(candidate)) {
+      setError("This recommendation does not have confirmed material, manufacturing, safety, and regulatory clearance.");
+      return;
+    }
     if (!studyDesign) return;
     const validation = validateDoeCandidate(candidate);
     if (!validation.valid) {
@@ -934,14 +1001,43 @@ export function DoePanel({
                       </span>
                     ))}
                   </div>
+                  {c.feasibility && (
+                    <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-feasibility-${c.id}`}>
+                      <span className={c.feasibility.status === "FEASIBLE" ? "text-success" : c.feasibility.status === "INFEASIBLE" ? "text-error" : "text-warn"}>
+                        Feasibility: {c.feasibility.status}
+                      </span>
+                      {c.feasibility.reasons.map((reason) => <div key={`${reason.code}:${reason.sourceId ?? ""}`}>{reason.code}: {reason.message}</div>)}
+                    </div>
+                  )}
+                  {c.hardExclusions && (
+                    <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-hard-exclusions-${c.id}`}>
+                      <div>Safety: {c.hardExclusions.safety.status} · Regulatory: {c.hardExclusions.regulatory.status}</div>
+                      {[...c.hardExclusions.safety.reasons, ...c.hardExclusions.regulatory.reasons].map((reason, index) => <div key={`${index}:${reason}`}>{reason}</div>)}
+                    </div>
+                  )}
+                  {c.acquisition && (
+                    <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-acquisition-${c.id}`}>
+                      Acquisition: {c.acquisition.status === "AVAILABLE" ? c.acquisition.value?.toFixed(4) : "UNAVAILABLE"} · {c.acquisition.reason}
+                    </div>
+                  )}
+                  {c.diversity && (
+                    <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-diversity-${c.id}`}>
+                      Diversity: {c.diversity.status === "AVAILABLE" ? c.diversity.distanceToSelected?.toFixed(4) ?? "seed" : "UNAVAILABLE"} · {c.diversity.reason}
+                    </div>
+                  )}
+                  {c.estimatedMaterialCost && (
+                    <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-cost-${c.id}`}>
+                      Estimated material cost: {c.estimatedMaterialCost.status === "AVAILABLE" ? `${c.estimatedMaterialCost.amount?.toFixed(2)} ${c.estimatedMaterialCost.currency}` : "UNAVAILABLE"} · {c.estimatedMaterialCost.reason}
+                    </div>
+                  )}
                   <div className="mt-2 flex gap-2">
-                    <button onClick={() => void shortlistCandidate(c)} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface-2">
+                    <button disabled={!isDoeCandidateEligibleForSelection(c)} onClick={() => void shortlistCandidate(c)} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface-2 disabled:opacity-40">
                       {t("doe.candidates.shortlist")}
                     </button>
-                    <button onClick={() => void selectCandidate(c)} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface-2">
+                    <button disabled={!isDoeCandidateEligibleForSelection(c)} onClick={() => void selectCandidate(c)} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface-2 disabled:opacity-40">
                       {t("doe.candidates.select")}
                     </button>
-                    <button onClick={() => applyCandidate(c)} className="rounded-input bg-accent px-2 py-0.5 text-[10.5px] font-medium text-accent-foreground">
+                    <button disabled={c.status !== "selected" || !isDoeCandidateEligibleForSelection(c)} onClick={() => applyCandidate(c)} className="rounded-input bg-accent px-2 py-0.5 text-[10.5px] font-medium text-accent-foreground disabled:opacity-40">
                       {t("doe.candidates.applyToDraft")}
                     </button>
                     <button onClick={() => navigate(`/optimization?project=${formulation.id}`)} className="ml-auto rounded-input border border-border px-2 py-0.5 text-[10.5px] text-muted hover:bg-surface-2">

@@ -524,6 +524,62 @@ export const doeCandidateSchema = z.object({
   constraintStatus: z.array(doeConstraintStatusSchema).default([]),
   rank: z.number().int().positive(),
   status: z.enum(DOE_CANDIDATE_STATUSES).default("proposed"),
+  /** Additive FVL-09 linkage for experiment-space proposals. Older DOE
+   *  candidates remain valid and keep their historical interpretation. */
+  experimentSpace: z.object({
+    policyVersion: z.literal("doe-experiment-space/v1"),
+    designId: z.string().min(1),
+    sourceFormulaVersionId: z.string().min(1),
+    seed: z.number().int(),
+    candidateCount: z.number().int().positive(),
+    manipulatedFactorCodes: z.array(z.string().min(1)),
+    unchangedFormulaLineIds: z.array(z.string().min(1)),
+  }).optional(),
+  /** Canonical feasibility evidence is attached to the existing DOE
+   *  candidate. UNKNOWN is not treated as feasible. */
+  feasibility: z.object({
+    policyVersion: z.literal("doe-feasibility/v1"),
+    evaluatedAt: z.string(),
+    status: z.enum(["FEASIBLE", "INFEASIBLE", "UNKNOWN"]),
+    reasons: z.array(z.object({
+      code: z.string().min(1),
+      source: z.enum(["material_inventory", "doe_constraint", "manufacturing_context"]),
+      sourceId: z.string().optional(),
+      message: z.string().min(1),
+    })),
+  }).optional(),
+  hardExclusions: z.object({
+    policyVersion: z.literal("doe-hard-exclusions/v1"),
+    safety: z.object({ status: z.enum(["PASS", "FAIL", "UNKNOWN"]), findingIds: z.array(z.string()), reasons: z.array(z.string()) }),
+    regulatory: z.object({ status: z.enum(["PASS", "FAIL", "UNKNOWN"]), findingIds: z.array(z.string()), reasons: z.array(z.string()) }),
+  }).optional(),
+  /** Explicit FVL-09 fallback acquisition value. A nearest-measured-run
+   *  distance is space coverage, not fabricated model uncertainty. */
+  acquisition: z.object({
+    policyVersion: z.literal("doe-acquisition/v1"),
+    method: z.literal("nearest_measured_run_distance"),
+    status: z.enum(["AVAILABLE", "UNAVAILABLE"]),
+    value: z.number().finite().nonnegative().optional(),
+    sourceRunIds: z.array(z.string()),
+    reason: z.string().optional(),
+  }).optional(),
+  diversity: z.object({
+    policyVersion: z.literal("doe-diversity/v1"),
+    status: z.enum(["AVAILABLE", "UNAVAILABLE"]),
+    distanceToSelected: z.number().finite().nonnegative().optional(),
+    nearestSelectedCandidateIds: z.array(z.string()),
+    reason: z.string().optional(),
+  }).optional(),
+  estimatedMaterialCost: z.object({
+    policyVersion: z.literal("doe-estimated-material-cost/v1"),
+    status: z.enum(["AVAILABLE", "UNAVAILABLE"]),
+    amount: z.number().finite().nonnegative().optional(),
+    currency: z.string().optional(),
+    source: z.literal("FormuLab Cost Engine").optional(),
+    priceRecordCodes: z.array(z.string()),
+    exchangeRateCodes: z.array(z.string()),
+    reason: z.string().optional(),
+  }).optional(),
   createdBy: z.string().min(1),
   createdAt: z.string(),
   appliedDraftId: z.string().optional(),

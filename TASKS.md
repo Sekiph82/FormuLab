@@ -7,10 +7,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Project Status
 
 - Current Milestone: FVL-09
-- Current Sprint: FVL-09-S01
-- Current Task: FVL-09.001 — Candidate experiment-space definition over existing formula/DOE model
-- Current Task Status: READY
-- Next Task: FVL-09.002 — Feasibility filtering for materials and manufacturing
+- Current Sprint: FVL-09-S02
+- Current Task: FVL-09.006 — DOE integration: recommendation ranking + rationale in existing workflow
+- Current Task Status: IN_PROGRESS
+- Next Task: FVL-09.007 — Human selection required; no automatic lab execution
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 137
-- Remaining Tasks: 34
-- Completion: 80.1%
+- Completed Tasks: 142
+- Remaining Tasks: 29
+- Completion: 83.0%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -246,14 +246,14 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-09
 
 ## Sprint FVL-09-S01 — Experiment recommendation engine
-- [ ] FVL-09.001 — Candidate experiment-space definition over existing formula/DOE model
-- [ ] FVL-09.002 — Feasibility filtering for materials and manufacturing
-- [ ] FVL-09.003 — Safety/regulatory hard-exclusion filtering
-- [ ] FVL-09.004 — Uncertainty + defensible acquisition criterion
-- [ ] FVL-09.005 — Diversity + estimated experiment cost where real cost data exists
+- [x] FVL-09.001 — Candidate experiment-space definition over existing formula/DOE model
+- [x] FVL-09.002 — Feasibility filtering for materials and manufacturing
+- [x] FVL-09.003 — Safety/regulatory hard-exclusion filtering
+- [x] FVL-09.004 — Uncertainty + defensible acquisition criterion
+- [x] FVL-09.005 — Diversity + estimated experiment cost where real cost data exists
 
 ## Sprint FVL-09-S02 — DOE/laboratory execution loop
-- [ ] FVL-09.006 — DOE integration: recommendation ranking + rationale in existing workflow
+- [~] FVL-09.006 — DOE integration: recommendation ranking + rationale in existing workflow
 - [ ] FVL-09.007 — Human selection required; no automatic lab execution
 - [ ] FVL-09.008 — Create/link real LaboratoryTrial or DOE run from accepted recommendation
 - [ ] FVL-09.009 — Completed-experiment ingestion triggers versioned model retraining

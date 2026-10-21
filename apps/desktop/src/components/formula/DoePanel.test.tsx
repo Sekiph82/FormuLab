@@ -16,11 +16,13 @@ import { DoePanel } from "./DoePanel";
 
 const bridge = {
   listRecords: vi.fn(),
+  listRecordsSeeded: vi.fn(),
   upsertRecords: vi.fn(),
 };
 
 vi.mock("@/lib/masterdata", () => ({
   listRecords: (...a: [string]) => bridge.listRecords(...a),
+  listRecordsSeeded: (...a: [string, unknown[]]) => bridge.listRecordsSeeded(...a),
   upsertRecords: (...a: [string, unknown[]]) => bridge.upsertRecords(...a),
 }));
 
@@ -63,6 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   stores = Object.fromEntries(collections.map((c) => [c, []]));
   bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(stores[collection] ?? []));
+  bridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) => Promise.resolve((stores[collection]?.length ? stores[collection] : seed) ?? []));
   bridge.upsertRecords.mockImplementation((collection: string, records: { id: string }[]) => {
     stores[collection] = [...(stores[collection] ?? []), ...records];
     return Promise.resolve({ inserted: records.length, updated: 0, total: records.length });
