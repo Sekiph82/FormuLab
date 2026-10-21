@@ -80,4 +80,15 @@ describe("buildLaboratoryLineage", () => {
       expect.objectContaining({ from: "formulation_draft:formula-1", to: "formulation_version:version-1", status: "resolved" }),
     ]));
   });
+
+  it("links a promoted Phase-14 formula version to its exact generation session and alternative fingerprint", () => {
+    const lineage = buildLaboratoryLineage({
+      generationSessions: [{ id: "session-1" }],
+      formulations: [{ id: "formula-1" }],
+      formulationVersions: [{ id: "version-1", formulationId: "formula-1", versionNumber: 1, generatedSource: { sessionId: "session-1", alternativeId: "v2", formulaFingerprint: { algorithm: "sha256", canonicalization: "formulab-canonical-json-v1", digest: "a".repeat(64) } } }],
+    });
+
+    expect(lineage.brokenReferences).toEqual([]);
+    expect(lineage.edges).toContainEqual(expect.objectContaining({ from: "formulation_version:version-1", to: "generation_session:session-1", relationship: "generated_from_session", status: "resolved" }));
+  });
 });

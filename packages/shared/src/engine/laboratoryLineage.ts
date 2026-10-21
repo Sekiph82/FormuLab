@@ -109,7 +109,10 @@ export function buildLaboratoryLineage(records: LaboratoryLineageRecordSet): Lab
   const each = (_type: LineageEntityType, rows: unknown[] | undefined, fn: (row: RecordValue) => void) => {
     for (const value of rows ?? []) { const row = asRecord(value); if (row) fn(row); }
   };
-  each("formulation_version", records.formulationVersions, row => link("formulation_version", row, "version_of", "formulation", row.formulationId));
+  each("formulation_version", records.formulationVersions, row => {
+    link("formulation_version", row, "version_of", "formulation", row.formulationId);
+    link("formulation_version", row, "generated_from_session", "generation_session", asRecord(row.generatedSource)?.sessionId);
+  });
   each("corrective_action", records.correctiveActions, row => {
     const sourceType = text(row.sourceType);
     if (sourceType?.startsWith("trial_")) link("corrective_action", row, "source_record", "laboratory_trial", row.sourceRecordId);

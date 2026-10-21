@@ -159,6 +159,17 @@ export const validationSnapshotSchema = z.object({
 });
 export type ValidationSnapshot = z.infer<typeof validationSnapshotSchema>;
 
+export const generatedFormulaSourceSchema = z.object({
+  sessionId: z.string().min(1),
+  alternativeId: z.string().min(1),
+  formulaFingerprint: z.object({
+    algorithm: z.literal("sha256"),
+    canonicalization: z.literal("formulab-canonical-json-v1"),
+    digest: z.string().regex(/^[a-f0-9]{64}$/),
+  }),
+});
+export type GeneratedFormulaSource = z.infer<typeof generatedFormulaSourceSchema>;
+
 export const formulationVersionSchema = z.object({
   schemaVersion: z.literal("1.0"),
   id: z.string().min(1),
@@ -200,6 +211,8 @@ export const formulationVersionSchema = z.object({
    *  remains the common case. */
   appliedOptimizationRunCode: z.string().optional(),
   appliedSubstitutionRunCode: z.string().optional(),
+  /** Exact immutable provenance for a promoted Phase-14 generation card. */
+  generatedSource: generatedFormulaSourceSchema.optional(),
   /** Markdown rendering, for humans and export only. Never parsed back. */
   markdown: z.string().optional(),
 });
@@ -259,11 +272,7 @@ export const formulationDraftOriginSchema = z.discriminatedUnion("kind", [
     kind: z.literal("generation_alternative"),
     generationSessionId: z.string().min(1),
     alternativeId: z.string().min(1),
-    formulaFingerprint: z.object({
-      algorithm: z.literal("sha256"),
-      canonicalization: z.literal("formulab-canonical-json-v1"),
-      digest: z.string().regex(/^[a-f0-9]{64}$/),
-    }),
+    formulaFingerprint: generatedFormulaSourceSchema.shape.formulaFingerprint,
   }),
 ]);
 export type FormulationDraftOrigin = z.infer<typeof formulationDraftOriginSchema>;

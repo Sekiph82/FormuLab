@@ -1,6 +1,7 @@
 import { canonicalizeForFingerprint, extractFormulaVersionDatasetRows, sha256Hex, type Formulation, type FormulationVersion, type RawMaterial } from "@formulab/shared";
 import type { FormulationCard, SessionDetail } from "./formulationV2";
-import { buildPromotedFormulation } from "./promoteGeneratedFormula";
+import { buildPromotedFormulation, fingerprintGeneratedFormula } from "./promoteGeneratedFormula";
+export { fingerprintGeneratedFormula } from "./promoteGeneratedFormula";
 import { linesFromGeneratedFormula, listFormulations, readFormulation, saveFormulation, saveFormulationVersion } from "./formulations";
 
 function sourceIdentity(sessionId: string, versionLabel: string): { code: string; reason: string } {
@@ -13,17 +14,6 @@ function comparableLines(lines: FormulationVersion["lines"]): unknown[] {
   return lines.map(({ lineNumber, phase, materialCode, displayName, inciName, percent, isQsToHundred, functions, activeMatterPercent, technicalMaxPercent }) => ({
     lineNumber, phase, materialCode, displayName, inciName, percent, isQsToHundred, functions, activeMatterPercent, technicalMaxPercent,
   }));
-}
-
-/** The lineage fingerprint intentionally covers the stable formula content
- *  that survives promotion into an immutable FormulationVersion. Generated
- *  card metadata that is not persisted cannot be used as optimizer authority. */
-export async function fingerprintGeneratedFormula(formula: unknown) {
-  return {
-    algorithm: "sha256" as const,
-    canonicalization: "formulab-canonical-json-v1" as const,
-    digest: await sha256Hex(canonicalizeForFingerprint(comparableLines(linesFromGeneratedFormula(formula)))),
-  };
 }
 
 export async function fingerprintFormulationVersion(version: FormulationVersion) {
@@ -49,6 +39,7 @@ export async function ensureRankingPredictionSource(input: {
   materials: RawMaterial[];
 }): Promise<{ formulation: Formulation; version: FormulationVersion }> {
   const { code, reason } = sourceIdentity(input.session.id, input.card.version);
+  const expectedFingerprint = await fingerprintGeneratedFormula(input.card.formula);
   const matches = (await listFormulations()).filter((item) => item.code === code);
   if (matches.length > 1) throw new Error(`Generated prediction source code "${code}" is ambiguous.`);
   if (matches.length === 1) {
@@ -57,18 +48,22 @@ export async function ensureRankingPredictionSource(input: {
     if (linked.length > 1) throw new Error(`Generated prediction source "${code}" has multiple linked immutable versions.`);
     if (linked.length === 1) {
       if (!matchesCard(linked[0]!, input.card)) throw new Error(`Saved prediction source "${code}" no longer matches the immutable session card.`);
+      const generatedSource = linked[0]!.generatedSource;
+      if (!generatedSource || generatedSource.sessionId !== input.session.id || generatedSource.alternativeId !== input.card.version || generatedSource.formulaFingerprint.digest !== expectedFingerprint.digest) {
+        throw new Error(`Saved prediction source "${code}" has missing or conflicting immutable generation-session lineage.`);
+      }
       extractFormulaVersionDatasetRows({ formulationVersionIds: [linked[0]!.id], formulationVersions: [linked[0]!], formulations: [saved.formulation], materials: input.materials });
       return { formulation: saved.formulation, version: linked[0]! };
     }
     if (saved.versions.length > 0) throw new Error(`Generated prediction source "${code}" exists with unrelated formula versions.`);
-    const bridge = buildPromotedFormulation(input.session, input.card, input.batchKg, { code, changeReason: reason });
+    const bridge = await buildPromotedFormulation(input.session, input.card, input.batchKg, { code, changeReason: reason });
     bridge.version.formulationId = saved.formulation.id;
     extractFormulaVersionDatasetRows({ formulationVersionIds: [bridge.version.id], formulationVersions: [bridge.version], formulations: [saved.formulation], materials: input.materials });
     const version = await saveFormulationVersion(bridge.version);
     return { formulation: saved.formulation, version };
   }
 
-  const bridge = buildPromotedFormulation(input.session, input.card, input.batchKg, { code, changeReason: reason });
+  const bridge = await buildPromotedFormulation(input.session, input.card, input.batchKg, { code, changeReason: reason });
   extractFormulaVersionDatasetRows({ formulationVersionIds: [bridge.version.id], formulationVersions: [bridge.version], formulations: [bridge.formulation], materials: input.materials });
   const formulation = await saveFormulation(bridge.formulation);
   const version = await saveFormulationVersion(bridge.version);

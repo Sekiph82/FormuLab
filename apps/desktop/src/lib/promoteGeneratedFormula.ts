@@ -20,7 +20,7 @@
  * (`saveFormulation()`/`saveFormulationVersion()`) and for never writing
  * back to the source session, which stays exactly as generated.
  */
-import type { Formulation, FormulationVersion } from "@formulab/shared";
+import { canonicalizeForFingerprint, formulationVersionSchema, sha256Hex, type Formulation, type FormulationVersion } from "@formulab/shared";
 import { newFormulation, newVersion, linesFromGeneratedFormula } from "./formulations";
 import type { FormulationCard, SessionDetail } from "./formulationV2";
 
@@ -29,12 +29,27 @@ export interface PromotedFormulation {
   version: FormulationVersion;
 }
 
-export function buildPromotedFormulation(
+function comparableLines(lines: FormulationVersion["lines"]): unknown[] {
+  return lines.map(({ lineNumber, phase, materialCode, displayName, inciName, percent, isQsToHundred, functions, activeMatterPercent, technicalMaxPercent }) => ({
+    lineNumber, phase, materialCode, displayName, inciName, percent, isQsToHundred, functions, activeMatterPercent, technicalMaxPercent,
+  }));
+}
+
+export async function fingerprintGeneratedFormula(formula: unknown) {
+  const lines = linesFromGeneratedFormula(formula);
+  return {
+    algorithm: "sha256" as const,
+    canonicalization: "formulab-canonical-json-v1" as const,
+    digest: await sha256Hex(canonicalizeForFingerprint(comparableLines(lines))),
+  };
+}
+
+export async function buildPromotedFormulation(
   session: SessionDetail,
   card: FormulationCard,
   batchKg: string,
   options: { code?: string; changeReason?: string } = {},
-): PromotedFormulation {
+): Promise<PromotedFormulation> {
   const target = session.brief?.target?.trim() || "Formulation";
   const name = `${target} — ${card.version.toUpperCase()}`;
   // Real request data only — never a fabricated specific product family.
@@ -49,11 +64,12 @@ export function buildPromotedFormulation(
     targetBatchKg: batchKg,
   });
 
-  const version = newVersion(formulation.id, linesFromGeneratedFormula(card.formula), {
+  const formulaFingerprint = await fingerprintGeneratedFormula(card.formula);
+  const version = formulationVersionSchema.parse({ ...newVersion(formulation.id, linesFromGeneratedFormula(card.formula), {
     versionNumber: 1,
     basisBatchKg: batchKg,
     changeReason: options.changeReason ?? `Promoted from AI-generated session ${session.id}, ${card.version.toUpperCase()}, for Advanced Optimizer refinement.`,
-  });
+  }), generatedSource: { sessionId: session.id, alternativeId: card.version, formulaFingerprint } });
 
   return { formulation, version };
 }

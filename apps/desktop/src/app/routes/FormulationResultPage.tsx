@@ -374,7 +374,7 @@ export function FormulationResultPage() {
     if (!card || !card.formula) return undefined;
     const cached = promotedByVersion[card.version];
     if (cached) return cached;
-    const built = buildPromotedFormulation(session, card, batchKg);
+    const built = await buildPromotedFormulation(session, card, batchKg);
     await saveFormulation(built.formulation);
     await saveFormulationVersion(built.version);
     setPromotedByVersion((prev) => ({ ...prev, [card.version]: built }));

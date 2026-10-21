@@ -7,10 +7,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Project Status
 
 - Current Milestone: FVL-10
-- Current Sprint: FVL-10-S01
-- Current Task: FVL-10.006 — Phase-14-generated draft linkage to generation session
+- Current Sprint: FVL-10-S02
+- Current Task: FVL-10.007 — Prediction source-model linkage
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-10.007 — Prediction source-model linkage
+- Next Task: FVL-10.008 — Retraining lineage linking new data to model version
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 171
-- Completed Tasks: 152
-- Remaining Tasks: 19
-- Completion: 88.9%
+- Completed Tasks: 153
+- Remaining Tasks: 18
+- Completion: 89.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -267,10 +267,10 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-10.003 — Version relationships across formula, trial, result, dataset, model, prediction and recommendation
 - [x] FVL-10.004 — Corrective-action-derived draft linkage
 - [x] FVL-10.005 — DOE-derived draft linkage
-- [~] FVL-10.006 — Phase-14-generated draft linkage to generation session
+- [x] FVL-10.006 — Phase-14-generated draft linkage to generation session
 
 ## Sprint FVL-10-S02 — Model/retraining/UI linkage & gates
-- [ ] FVL-10.007 — Prediction source-model linkage
+- [~] FVL-10.007 — Prediction source-model linkage
 - [ ] FVL-10.008 — Retraining lineage linking new data to model version
 - [ ] FVL-10.009 — UI navigation across the full chain + audit trail view
 - [ ] FVL-10.010 — Failure/retry behavior and human gates; no model may rewrite laboratory results
