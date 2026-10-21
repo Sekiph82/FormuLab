@@ -612,6 +612,7 @@ export * from "./schemas/predictiveModel";
 export * from "./engine/predictivePerformance";
 export * from "./schemas/alternativeRanking";
 export * from "./engine/alternativeRanking";
+export * from "./engine/laboratoryLineage";
 export {
   PRECISION,
   CURRENCY_DP,
