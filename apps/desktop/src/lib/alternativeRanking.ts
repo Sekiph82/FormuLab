@@ -1,6 +1,4 @@
 import {
-  canonicalizeForFingerprint,
-  sha256Hex,
   type AlternativeRankingCandidate,
   type CostSnapshot,
   type PredictionResult,
@@ -12,6 +10,7 @@ import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibil
 import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
 import type { GeneratedFormulaSafety } from "./generatedFormulaSafety";
 import { asGeneratedFormula } from "./generatedFormula";
+import { fingerprintGeneratedFormula } from "./rankingPredictionSource";
 
 export interface BuildAlternativeRankingInput {
   sessionId: string;
@@ -123,11 +122,7 @@ export async function buildAlternativeRankingCandidates(input: BuildAlternativeR
       evidence: evidenceDimension(card, formula),
     };
     const formulaFingerprint = hasFormula
-      ? {
-          algorithm: "sha256" as const,
-          canonicalization: "formulab-canonical-json-v1" as const,
-          digest: await sha256Hex(canonicalizeForFingerprint(card.formula)),
-        }
+      ? await fingerprintGeneratedFormula(card.formula)
       : undefined;
     return {
       candidateId: cardIdentity,

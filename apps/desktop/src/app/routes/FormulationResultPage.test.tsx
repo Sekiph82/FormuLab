@@ -23,7 +23,10 @@ vi.mock("@/lib/masterdata", async (importOriginal) => {
   };
 });
 vi.mock("@/lib/predictiveModelRegistry", () => ({ readAcceptedPredictiveModels: () => rankingMocks.readModels() }));
-vi.mock("@/lib/rankingPredictionSource", () => ({ ensureRankingPredictionSource: (...args: unknown[]) => rankingMocks.ensureSource(...args) }));
+vi.mock("@/lib/rankingPredictionSource", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/rankingPredictionSource")>();
+  return { ...actual, ensureRankingPredictionSource: (...args: unknown[]) => rankingMocks.ensureSource(...args) };
+});
 vi.mock("@/lib/predictiveRanking", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/predictiveRanking")>();
   return { ...actual, predictSavedRankingAlternative: (...args: unknown[]) => rankingMocks.predictSaved(...args) };

@@ -44,6 +44,8 @@ import { resolveVerifiedRankingSource } from "@/lib/rankingOptimization";
 import { runAdvancedFormulationOptimize, cancelAdvancedFormulationOptimize } from "@/lib/tauri";
 import { cn } from "@/lib/cn";
 
+type VerifiedRankingSourceAlternative = NonNullable<Awaited<ReturnType<typeof resolveVerifiedRankingSource>>>["sourceAlternative"];
+
 /** A run whose formula lines are real and safe to persist/apply — includes
  *  `feasible_with_penalties` (every hard constraint held; at least one soft
  *  constraint was relaxed) alongside a clean `optimal`/`feasible`. */
@@ -352,16 +354,21 @@ export function AdvancedOptimizerPanel({
     setError(null);
     setResult(null);
     try {
-      let verifiedSourceAlternative: OptimizationRun["sourceAlternative"];
+      let verifiedSourceAlternative: VerifiedRankingSourceAlternative | undefined;
       if (sourceAlternative) {
         if (!("origin" in sourceAlternative) || sourceAlternative.origin !== "ranking" || !sourceAlternative.rankingRecordCode) {
           throw new Error("Ranking-originated optimization requires a verified immutable ranking record.");
         }
+        if (!("sourceFormulationVersionId" in sourceAlternative) || !sourceAlternative.sourceFormulationVersionId) {
+          throw new Error("Ranking-originated optimization requires an exact saved source FormulationVersion.");
+        }
         const resolved = await resolveVerifiedRankingSource({
           sourceSessionId: sourceAlternative.sessionId,
           sourceAlternativeId: sourceAlternative.alternativeId,
+          sourceFormulationVersionId: sourceAlternative.sourceFormulationVersionId,
           sourceFormulaFingerprint: sourceAlternative.formulaFingerprint?.digest ?? null,
           rankingRecordCode: sourceAlternative.rankingRecordCode,
+          projectId: formulation.id,
           records: await listRecords("alternative_rankings"),
         });
         if (!resolved) throw new Error("The ranking source could not be verified.");
@@ -390,6 +397,7 @@ export function AdvancedOptimizerPanel({
             schemaVersion: "1.0",
             code: runCode,
             projectId: formulation.id,
+            formulaVersionId: verifiedSourceAlternative?.sourceFormulationVersionId,
             scenarioId: activeScenario?.scenarioGroupId,
             ...(verifiedSourceAlternative ? { sourceAlternative: verifiedSourceAlternative } : {}),
             problem,

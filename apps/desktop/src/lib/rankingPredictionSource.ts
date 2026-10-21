@@ -1,4 +1,4 @@
-import { canonicalizeForFingerprint, extractFormulaVersionDatasetRows, type Formulation, type FormulationVersion, type RawMaterial } from "@formulab/shared";
+import { canonicalizeForFingerprint, extractFormulaVersionDatasetRows, sha256Hex, type Formulation, type FormulationVersion, type RawMaterial } from "@formulab/shared";
 import type { FormulationCard, SessionDetail } from "./formulationV2";
 import { buildPromotedFormulation } from "./promoteGeneratedFormula";
 import { linesFromGeneratedFormula, listFormulations, readFormulation, saveFormulation, saveFormulationVersion } from "./formulations";
@@ -13,6 +13,25 @@ function comparableLines(lines: FormulationVersion["lines"]): unknown[] {
   return lines.map(({ lineNumber, phase, materialCode, displayName, inciName, percent, isQsToHundred, functions, activeMatterPercent, technicalMaxPercent }) => ({
     lineNumber, phase, materialCode, displayName, inciName, percent, isQsToHundred, functions, activeMatterPercent, technicalMaxPercent,
   }));
+}
+
+/** The lineage fingerprint intentionally covers the stable formula content
+ *  that survives promotion into an immutable FormulationVersion. Generated
+ *  card metadata that is not persisted cannot be used as optimizer authority. */
+export async function fingerprintGeneratedFormula(formula: unknown) {
+  return {
+    algorithm: "sha256" as const,
+    canonicalization: "formulab-canonical-json-v1" as const,
+    digest: await sha256Hex(canonicalizeForFingerprint(comparableLines(linesFromGeneratedFormula(formula)))),
+  };
+}
+
+export async function fingerprintFormulationVersion(version: FormulationVersion) {
+  return {
+    algorithm: "sha256" as const,
+    canonicalization: "formulab-canonical-json-v1" as const,
+    digest: await sha256Hex(canonicalizeForFingerprint(comparableLines(version.lines))),
+  };
 }
 
 function matchesCard(version: FormulationVersion, card: FormulationCard): boolean {

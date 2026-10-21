@@ -5,10 +5,48 @@ import {
   verifyAlternativeRankingRecord,
   type AlternativeRankingRecord,
   type RankedAlternative,
+  type Formulation,
+  type FormulationVersion,
 } from "@formulab/shared";
+import { listFormulations, readFormulation } from "./formulations";
+import { fingerprintFormulationVersion } from "./rankingPredictionSource";
 
 export class RankingHandoffError extends Error {
   constructor(message: string) { super(message); this.name = "RankingHandoffError"; }
+}
+
+export async function loadUniqueSavedVersion(sourceFormulationVersionId: string): Promise<{ formulation: Formulation; version: FormulationVersion }> {
+  const owners = await Promise.all((await listFormulations()).map(async (listed) => {
+    const saved = await readFormulation(listed.id);
+    return saved.versions.filter((version) => version.id === sourceFormulationVersionId)
+      .map((version) => ({ formulation: saved.formulation, version }));
+  }));
+  const matches = owners.flat();
+  if (matches.length !== 1) throw new RankingHandoffError("The ranked source FormulationVersion is missing or has ambiguous ownership.");
+  const match = matches[0]!;
+  if (match.version.formulationId !== match.formulation.id) throw new RankingHandoffError("The ranked source FormulationVersion owner identity is invalid.");
+  return match;
+}
+
+async function verifyProjectLineage(input: {
+  projectId: string;
+  sourceFormulationVersionId: string;
+  expectedFingerprint?: string;
+  loadVersion?: (id: string) => Promise<{ formulation: Formulation; version: FormulationVersion }>;
+}): Promise<void> {
+  const source = await (input.loadVersion ?? loadUniqueSavedVersion)(input.sourceFormulationVersionId);
+  if (source.version.id !== input.sourceFormulationVersionId || source.version.formulationId !== source.formulation.id) {
+    throw new RankingHandoffError("The ranked source FormulationVersion does not resolve to its owning Formulation.");
+  }
+  if (source.formulation.id !== input.projectId) {
+    throw new RankingHandoffError("The selected optimizer project does not own the ranked source FormulationVersion.");
+  }
+  if (input.expectedFingerprint) {
+    const actual = await fingerprintFormulationVersion(source.version);
+    if (actual.digest.toLowerCase() !== input.expectedFingerprint.toLowerCase()) {
+      throw new RankingHandoffError("The saved source formula content no longer matches the verified ranking fingerprint.");
+    }
+  }
 }
 
 export function assertRankingEntryCanOptimize(entry: RankedAlternative | undefined): asserts entry is RankedAlternative {
@@ -59,11 +97,14 @@ export async function ensureCurrentRankingSnapshot(input: {
 }
 
 export async function resolveVerifiedRankingSource(input: {
+  projectId: string;
   sourceSessionId: string | null;
   sourceAlternativeId: string | null;
+  sourceFormulationVersionId?: string | null;
   sourceFormulaFingerprint: string | null;
   rankingRecordCode: string | null;
   records: unknown[];
+  loadVersion?: (id: string) => Promise<{ formulation: Formulation; version: FormulationVersion }>;
 }) {
   const hasSource = !!(input.sourceSessionId || input.sourceAlternativeId || input.sourceFormulaFingerprint || input.rankingRecordCode);
   if (!hasSource) return undefined;
@@ -83,6 +124,17 @@ export async function resolveVerifiedRankingSource(input: {
   if (input.sourceFormulaFingerprint && input.sourceFormulaFingerprint.toLowerCase() !== savedFingerprint?.toLowerCase()) {
     throw new RankingHandoffError("The source formula fingerprint does not match the verified ranking snapshot.");
   }
+  const sourceFormulationVersionId = entry.candidate.sourceFormulationVersionId;
+  if (!sourceFormulationVersionId) throw new RankingHandoffError("The verified ranking candidate has no saved source FormulationVersion identity.");
+  if (input.sourceFormulationVersionId && input.sourceFormulationVersionId !== sourceFormulationVersionId) {
+    throw new RankingHandoffError("The requested source FormulationVersion does not match the verified ranking candidate.");
+  }
+  await verifyProjectLineage({
+    projectId: input.projectId,
+    sourceFormulationVersionId,
+    expectedFingerprint: savedFingerprint,
+    loadVersion: input.loadVersion,
+  });
   return {
     record,
     entry,
@@ -90,6 +142,7 @@ export async function resolveVerifiedRankingSource(input: {
       origin: "ranking" as const,
       sessionId: record.sessionId,
       alternativeId: entry.candidate.alternativeId,
+      sourceFormulationVersionId,
       ...(entry.candidate.formulaFingerprint ? { formulaFingerprint: entry.candidate.formulaFingerprint } : {}),
       rankingRecordCode: record.code,
     },

@@ -183,6 +183,7 @@ describe("FVL-08 strict production acceptance", () => {
     });
     expect(rankAlternatives(record.rankings.map(({ candidate: storedCandidate }) => storedCandidate))).toEqual(record.rankings);
     const verified = await resolveVerifiedRankingSource({
+      projectId: saved.formulation.id,
       sourceSessionId: session.id, sourceAlternativeId: candidate!.alternativeId,
       sourceFormulaFingerprint: candidate!.formulaFingerprint?.digest ?? null, rankingRecordCode: record.code, records: store.rankings,
     });
@@ -202,7 +203,8 @@ describe("FVL-08 strict production acceptance", () => {
     await waitFor(() => expect(store.solver).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(store.runs).toHaveLength(1));
     expect(store.runs[0]).toMatchObject({ sourceAlternative: verified!.sourceAlternative });
-    expect((store.runs[0] as { sourceAlternative: { rankingRecordCode: string } }).sourceAlternative.rankingRecordCode).toBe(record.code);
+    expect((store.runs[0] as { sourceAlternative: { rankingRecordCode: string; sourceFormulationVersionId: string }; formulaVersionId: string }).sourceAlternative).toMatchObject({ rankingRecordCode: record.code, sourceFormulationVersionId: saved.version.id });
+    expect((store.runs[0] as { formulaVersionId: string }).formulaVersionId).toBe(saved.version.id);
     expect(store.versions[0]).toMatchObject({ approvalRecordIds: [] });
   });
 });

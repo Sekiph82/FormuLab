@@ -14,15 +14,26 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationLine, OptimizationScenario, RawMaterial } from "@formulab/shared";
+import type { Formulation, FormulationLine, FormulationVersion, OptimizationScenario, RawMaterial } from "@formulab/shared";
 import { createAlternativeRankingRecord, rankAlternatives } from "@formulab/shared";
 import { AdvancedOptimizerPanel } from "./AdvancedOptimizerPanel";
+import { fingerprintFormulationVersion } from "@/lib/rankingPredictionSource";
 
 const bridge = {
   listRecords: vi.fn(),
   listRecordsSeeded: vi.fn(),
   upsertRecords: vi.fn(),
 };
+const formulationsBridge = vi.hoisted(() => ({ listFormulations: vi.fn(), readFormulation: vi.fn() }));
+
+vi.mock("@/lib/formulations", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/formulations")>();
+  return {
+    ...actual,
+    listFormulations: () => formulationsBridge.listFormulations(),
+    readFormulation: (id: string) => formulationsBridge.readFormulation(id),
+  };
+});
 
 vi.mock("@/lib/masterdata", () => ({
   listRecords: (...a: [string]) => bridge.listRecords(...a),
@@ -74,11 +85,12 @@ const FORMULATION: Formulation = {
 };
 
 const CURRENT_LINES: FormulationLine[] = [];
+const SOURCE_VERSION = { schemaVersion: "1.0", id: "version-1", formulationId: "proj-1", versionNumber: 1, status: "concept", author: "local", createdAt: "2026-01-01T00:00:00.000Z", lines: [], basisBatchKg: "100", sourceRunIds: [], regulatoryFindingIds: [], compatibilityFindingIds: [], safetyFindingIds: [], approvalRecordIds: [] } as FormulationVersion;
 
-function renderPanel(sourceAlternative?: { sessionId: string; alternativeId: string; rankingRecordCode?: string; formulaFingerprint?: { algorithm: "sha256"; canonicalization: "formulab-canonical-json-v1"; digest: string } }) {
+function renderPanel(sourceAlternative?: { sessionId: string; alternativeId: string; sourceFormulationVersionId?: string; rankingRecordCode?: string; formulaFingerprint?: { algorithm: "sha256"; canonicalization: "formulab-canonical-json-v1"; digest: string } }, formulation = FORMULATION) {
   return render(
     <AdvancedOptimizerPanel
-      formulation={FORMULATION}
+      formulation={formulation}
       batchKg="100"
       currentLines={CURRENT_LINES}
       onApplyResult={vi.fn()}
@@ -97,6 +109,8 @@ beforeEach(() => {
   bridge.listRecords.mockImplementation(collectionResult);
   bridge.listRecordsSeeded.mockImplementation((collection: string) => collectionResult(collection));
   bridge.upsertRecords.mockResolvedValue({ inserted: 1, updated: 0, total: 1 });
+  formulationsBridge.listFormulations.mockResolvedValue([FORMULATION]);
+  formulationsBridge.readFormulation.mockResolvedValue({ formulation: FORMULATION, versions: [SOURCE_VERSION] });
 });
 
 describe("AdvancedOptimizerPanel — opens without exception", () => {
@@ -198,12 +212,26 @@ describe("AdvancedOptimizerPanel — scenario lifecycle", () => {
 });
 
 describe("AdvancedOptimizerPanel — run and result rendering", () => {
+  async function eligibleRankingRecord(code: string) {
+    const formulaFingerprint = await fingerprintFormulationVersion(SOURCE_VERSION);
+    const candidate = {
+      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const,
+      sourceFormulationVersionId: SOURCE_VERSION.id, formulaFingerprint,
+      dimensions: {
+        performance: { status: "UNAVAILABLE_MODEL" as const }, uncertainty: { status: "UNKNOWN" as const },
+        cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
+        availability: { status: "FEASIBLE" as const }, compatibility: { status: "PASS" as const }, safety: { status: "PASS" as const }, regulatory: { status: "PASS" as const },
+        manufacturing: { status: "READY" as const }, evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+      },
+    };
+    return createAlternativeRankingRecord({ code, sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
+  }
+
   it("persists the original ranking alternative link on the canonical optimizer run", async () => {
     tauriBridge.run.mockResolvedValue({ status: "optimal", formulaLines: [], totals: { totalPercent: "100.0000", totalActiveMatterPercent: "0.0000" }, objectiveResults: [], constraintResults: [], propertyResults: [], warnings: [], solverMetadata: { isMixedInteger: false, solveTimeMs: 12 }, runId: "run-source" });
-    const formulaFingerprint = { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: "a".repeat(64) };
-    const sourceAlternative = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", rankingRecordCode: "ranking-1", formulaFingerprint };
+    const sourceAlternative = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", sourceFormulationVersionId: "version-1", rankingRecordCode: "ranking-1" };
     const candidate = {
-      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const, formulaFingerprint,
+      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const, sourceFormulationVersionId: "version-1",
       dimensions: {
         performance: { status: "UNAVAILABLE_MODEL" as const }, uncertainty: { status: "UNKNOWN" as const },
         cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
@@ -225,9 +253,8 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
   });
 
   it("refuses a persisted Safety BLOCKED ranking before invoking the solver", async () => {
-    const formulaFingerprint = { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: "b".repeat(64) };
     const candidate = {
-      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const, formulaFingerprint,
+      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const, sourceFormulationVersionId: "version-1",
       dimensions: {
         performance: { status: "UNAVAILABLE_MODEL" as const }, uncertainty: { status: "UNKNOWN" as const },
         cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
@@ -237,7 +264,7 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
     };
     const rankingRecord = await createAlternativeRankingRecord({ code: "ranking-blocked", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
     bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [rankingRecord] : collectionResult(collection)));
-    const sourceAlternative = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", rankingRecordCode: rankingRecord.code, formulaFingerprint };
+    const sourceAlternative = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", sourceFormulationVersionId: "version-1", rankingRecordCode: rankingRecord.code };
     const user = userEvent.setup();
     renderPanel(sourceAlternative);
     await screen.findByText("Material A");
@@ -246,6 +273,92 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/blocked/i);
     expect(tauriBridge.run).not.toHaveBeenCalled();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("optimization_runs", expect.anything());
+  });
+
+  it("refuses a persisted Regulatory BLOCKED ranking before invoking the solver or writing a run", async () => {
+    const candidate = {
+      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const, sourceFormulationVersionId: "version-1",
+      dimensions: {
+        performance: { status: "UNAVAILABLE_MODEL" as const }, uncertainty: { status: "UNKNOWN" as const },
+        cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
+        availability: { status: "FEASIBLE" as const }, compatibility: { status: "PASS" as const }, safety: { status: "PASS" as const }, regulatory: { status: "FAIL" as const },
+        manufacturing: { status: "READY" as const }, evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+      },
+    };
+    const record = await createAlternativeRankingRecord({ code: "ranking-regulatory-blocked", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [record] : collectionResult(collection)));
+    const source = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", sourceFormulationVersionId: "version-1", rankingRecordCode: record.code };
+    const user = userEvent.setup();
+    renderPanel(source);
+    await screen.findByText("Material A");
+    await user.click(screen.getByLabelText(/Material A/));
+    await user.click(screen.getByRole("button", { name: /Run optimization/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/blocked/i);
+    expect(tauriBridge.run).not.toHaveBeenCalled();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("optimization_runs", expect.anything());
+  });
+
+  it("refuses a historical ranking link without an exact saved source version before invoking the solver", async () => {
+    const source = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", rankingRecordCode: "ranking-legacy" };
+    const user = userEvent.setup();
+    renderPanel(source);
+    await screen.findByText("Material A");
+    await user.click(screen.getByLabelText(/Material A/));
+    await user.click(screen.getByRole("button", { name: /Run optimization/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/exact saved source FormulationVersion/i);
+    expect(tauriBridge.run).not.toHaveBeenCalled();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("optimization_runs", expect.anything());
+  });
+
+  it.each(["wrong-version", "tampered-checksum", "changed-saved-formula"] as const)("keeps the solver and run store untouched for %s lineage", async (failure) => {
+    const record = await eligibleRankingRecord(`ranking-${failure}`);
+    let storedRecord = record;
+    const sourceVersionId = failure === "wrong-version" ? "version-substituted" : SOURCE_VERSION.id;
+    const formulaFingerprint = await fingerprintFormulationVersion(SOURCE_VERSION);
+
+    if (failure === "tampered-checksum") storedRecord = { ...record, artifactChecksum: { ...record.artifactChecksum, digest: "0".repeat(64) } };
+    if (failure === "changed-saved-formula") {
+      const changedVersion = { ...SOURCE_VERSION, lines: [{ id: "line-1", lineNumber: 0, displayName: "Changed source", percent: "100" }] as FormulationVersion["lines"] };
+      formulationsBridge.readFormulation.mockResolvedValue({ formulation: FORMULATION, versions: [changedVersion] });
+    }
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [storedRecord] : collectionResult(collection)));
+
+    const source = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", sourceFormulationVersionId: sourceVersionId, formulaFingerprint, rankingRecordCode: record.code };
+    const user = userEvent.setup();
+    renderPanel(source);
+    await screen.findByText("Material A");
+    await user.click(screen.getByLabelText(/Material A/));
+    await user.click(screen.getByRole("button", { name: /Run optimization/ }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(tauriBridge.run).not.toHaveBeenCalled();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("optimization_runs", expect.anything());
+  });
+
+  it("refuses ranking A when the solver panel is bound to project B without calling the solver or writing a run", async () => {
+    const candidate = {
+      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const, sourceFormulationVersionId: "version-1",
+      dimensions: {
+        performance: { status: "UNAVAILABLE_MODEL" as const }, uncertainty: { status: "UNKNOWN" as const },
+        cost: { status: "MISSING" as const }, availability: { status: "UNKNOWN" as const }, compatibility: { status: "PASS" as const },
+        safety: { status: "PASS" as const }, regulatory: { status: "PASS" as const }, manufacturing: { status: "READY" as const },
+        evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 0, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+      },
+    };
+    const record = await createAlternativeRankingRecord({ code: "ranking-project-mismatch", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [record] : collectionResult(collection)));
+    const source = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", sourceFormulationVersionId: "version-1", rankingRecordCode: record.code };
+    const wrongProject = { ...FORMULATION, id: "proj-B" };
+    const user = userEvent.setup();
+    renderPanel(source, wrongProject);
+    await screen.findByText("Material A");
+    await user.click(screen.getByLabelText(/Material A/));
+    await user.click(screen.getByRole("button", { name: /Run optimization/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/does not own/i);
+    expect(tauriBridge.run).not.toHaveBeenCalled();
+    expect(bridge.upsertRecords).not.toHaveBeenCalledWith("optimization_runs", expect.anything());
   });
 
   it("Run starts the solver and renders an optimal result", async () => {

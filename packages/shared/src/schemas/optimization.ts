@@ -748,6 +748,17 @@ export const optimizationRunSchema = z.object({
       origin: z.literal("ranking"),
       sessionId: z.string().min(1),
       alternativeId: z.string().min(1),
+      sourceFormulationVersionId: z.string().min(1),
+      formulaFingerprint: digestSchema.optional(),
+      rankingRecordCode: z.string().min(1),
+    }),
+    // Historical ranking-originated runs were saved before exact source
+    // version binding was introduced. Preserve their origin and lineage
+    // fields when reading them; new handoffs are verified before creation.
+    z.object({
+      origin: z.literal("ranking"),
+      sessionId: z.string().min(1),
+      alternativeId: z.string().min(1),
       formulaFingerprint: digestSchema.optional(),
       rankingRecordCode: z.string().min(1),
     }),

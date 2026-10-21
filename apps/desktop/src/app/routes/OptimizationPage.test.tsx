@@ -22,11 +22,12 @@ vi.mock("@/lib/masterdata", async (importOriginal) => {
   };
 });
 
-const formulationsBridge = { readFormulation: vi.fn(), readDraft: vi.fn(), readAuditLog: vi.fn() };
+const formulationsBridge = { listFormulations: vi.fn(), readFormulation: vi.fn(), readDraft: vi.fn(), readAuditLog: vi.fn() };
 vi.mock("@/lib/formulations", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/formulations")>();
   return {
     ...actual,
+    listFormulations: (...a: []) => formulationsBridge.listFormulations(...a),
     readFormulation: (...a: [string]) => formulationsBridge.readFormulation(...a),
     readDraft: (...a: [string]) => formulationsBridge.readDraft(...a),
     readAuditLog: (...a: [string]) => formulationsBridge.readAuditLog(...a),
@@ -84,6 +85,7 @@ beforeEach(() => {
   masterdataBridge.listRecordsSeeded.mockImplementation((_collection: string, seed: unknown[]) => Promise.resolve(seed));
   masterdataBridge.upsertRecords.mockResolvedValue({ inserted: 0, updated: 0, total: 0 });
   formulationsBridge.readFormulation.mockResolvedValue({ formulation: FORMULATION, versions: [VERSION_1] });
+  formulationsBridge.listFormulations.mockResolvedValue([FORMULATION]);
   formulationsBridge.readDraft.mockResolvedValue(null);
   formulationsBridge.readAuditLog.mockResolvedValue([]);
 });
@@ -98,7 +100,7 @@ function renderAtPath(path: string) {
 
 function rankedSource(safety: "PASS" | "FAIL" = "PASS") {
   const candidate: AlternativeRankingCandidate = {
-    candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID",
+    candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", sourceFormulationVersionId: "version-1", formulaStatus: "VALID",
     dimensions: {
       performance: { status: "UNAVAILABLE_MODEL" }, uncertainty: { status: "UNKNOWN" }, cost: { status: "MISSING" }, availability: { status: "UNKNOWN" },
       compatibility: { status: "PASS" }, safety: { status: safety }, regulatory: { status: "PASS" }, manufacturing: { status: "READY" },
@@ -132,6 +134,14 @@ describe("OptimizationPage", () => {
     expect(screen.queryByText("Scenarios")).not.toBeInTheDocument();
   });
 
+  it("blocks a valid ranking source when only the project URL parameter is changed", async () => {
+    const record = await rankedSource();
+    masterdataBridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [record] : []));
+    renderAtPath("/optimization?project=proj-B&sourceSessionId=session-1&sourceAlternativeId=session-1%3Av2&rankingRecordCode=ranking-1");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/does not own/i);
+    expect(screen.queryByText("Scenarios")).not.toBeInTheDocument();
+  });
+
   it("fails closed when a ranking-originated URL omits its immutable record", async () => {
     renderAtPath("/optimization?project=proj-1&sourceSessionId=session-1&sourceAlternativeId=session-1%3Av2");
     expect(await screen.findByRole("alert")).toHaveTextContent(/immutable ranking record/i);
@@ -145,6 +155,7 @@ describe("OptimizationPage", () => {
   });
 
   it("shows a project picker when no project is selected", async () => {
+    formulationsBridge.listFormulations.mockResolvedValueOnce([]);
     renderAtPath("/optimization");
     expect(await screen.findByText(/no projects yet/i)).toBeInTheDocument();
   });

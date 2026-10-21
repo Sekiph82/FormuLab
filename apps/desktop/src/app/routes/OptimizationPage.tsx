@@ -25,10 +25,10 @@ export function OptimizationPage() {
   const sourceAlternativeId = searchParams.get("sourceAlternativeId");
   const sourceFormulaFingerprint = searchParams.get("sourceFormulaFingerprint");
   const rankingRecordCode = searchParams.get("rankingRecordCode");
-  const sourceKey = [sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode].join("\u0000");
+  const { projectId, setProject } = useProjectParam();
+  const sourceKey = [projectId, sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode].join("\u0000");
   const hasRankingOrigin = !!(sourceSessionId || sourceAlternativeId || sourceFormulaFingerprint || rankingRecordCode);
   const [verifiedSource, setVerifiedSource] = useState<{ key: string; status: "pending" | "ready" | "error"; sourceAlternative?: NonNullable<Awaited<ReturnType<typeof resolveVerifiedRankingSource>>>["sourceAlternative"]; message?: string }>({ key: "", status: "pending" });
-  const { projectId, setProject } = useProjectParam();
   const ws = useFormulationWorkspace(projectId);
 
   useEffect(() => {
@@ -38,8 +38,12 @@ export function OptimizationPage() {
       return () => { cancelled = true; };
     }
     setVerifiedSource({ key: sourceKey, status: "pending" });
+    if (!projectId) {
+      setVerifiedSource({ key: sourceKey, status: "error", message: "A project must be selected to verify ranking lineage." });
+      return () => { cancelled = true; };
+    }
     listRecords("alternative_rankings")
-      .then((records) => resolveVerifiedRankingSource({ sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode, records }))
+      .then((records) => resolveVerifiedRankingSource({ projectId, sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode, records }))
       .then((resolved) => {
         if (!resolved) throw new Error("Ranking-originated optimizer source was not resolved.");
         if (!cancelled) setVerifiedSource({ key: sourceKey, status: "ready", sourceAlternative: resolved.sourceAlternative });
@@ -48,11 +52,10 @@ export function OptimizationPage() {
         if (!cancelled) setVerifiedSource({ key: sourceKey, status: "error", message: error instanceof Error ? error.message : String(error) });
       });
     return () => { cancelled = true; };
-  }, [sourceKey, hasRankingOrigin, sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode]);
+  }, [sourceKey, hasRankingOrigin, projectId, sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode]);
 
   if (!projectId) return <ProjectPicker onPick={setProject} />;
   if (!ws.project) return <p className="px-6 py-8 text-center text-[13px] text-muted">{t("builder.loadingProject")}</p>;
-  if (!ws.draft.value) return null;
 
   if (hasRankingOrigin && (verifiedSource.key !== sourceKey || verifiedSource.status === "pending")) {
     return <p role="status" className="px-6 py-8 text-center text-[13px] text-muted">{t("optimizer.verifyingRankingSource")}</p>;
@@ -60,6 +63,7 @@ export function OptimizationPage() {
   if (hasRankingOrigin && verifiedSource.status === "error") {
     return <p role="alert" className="px-6 py-8 text-center text-[13px] text-error">{t("optimizer.rankingSourceBlocked", { reason: verifiedSource.message })}</p>;
   }
+  if (!ws.draft.value) return null;
 
   const active = ws.project;
   const sourceAlternative = hasRankingOrigin ? verifiedSource.sourceAlternative : undefined;
