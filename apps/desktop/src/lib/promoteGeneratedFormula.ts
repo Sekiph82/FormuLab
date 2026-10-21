@@ -33,6 +33,7 @@ export function buildPromotedFormulation(
   session: SessionDetail,
   card: FormulationCard,
   batchKg: string,
+  options: { code?: string; changeReason?: string } = {},
 ): PromotedFormulation {
   const target = session.brief?.target?.trim() || "Formulation";
   const name = `${target} — ${card.version.toUpperCase()}`;
@@ -43,6 +44,7 @@ export function buildPromotedFormulation(
   const productFamilyCode = session.brief?.category?.trim() || "general";
 
   const formulation = newFormulation(name, productFamilyCode, {
+    ...(options.code ? { code: options.code } : {}),
     brief: target,
     targetBatchKg: batchKg,
   });
@@ -50,7 +52,7 @@ export function buildPromotedFormulation(
   const version = newVersion(formulation.id, linesFromGeneratedFormula(card.formula), {
     versionNumber: 1,
     basisBatchKg: batchKg,
-    changeReason: `Promoted from AI-generated session ${session.id}, ${card.version.toUpperCase()}, for Advanced Optimizer refinement.`,
+    changeReason: options.changeReason ?? `Promoted from AI-generated session ${session.id}, ${card.version.toUpperCase()}, for Advanced Optimizer refinement.`,
   });
 
   return { formulation, version };

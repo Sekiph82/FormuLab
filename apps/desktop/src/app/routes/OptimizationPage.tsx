@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { listRecords } from "@/lib/masterdata";
+import { resolveVerifiedRankingSource } from "@/lib/rankingOptimization";
 import { AdvancedOptimizerPanel } from "@/components/formula/AdvancedOptimizerPanel";
 import { useFormulationWorkspace } from "@/hooks/useFormulationWorkspace";
 import { useProjectParam } from "@/hooks/useProjectParam";
@@ -18,26 +21,48 @@ export function OptimizationPage() {
   const { t } = useTranslation("session");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const sourceSessionId = searchParams.get("sourceSessionId");
+  const sourceAlternativeId = searchParams.get("sourceAlternativeId");
+  const sourceFormulaFingerprint = searchParams.get("sourceFormulaFingerprint");
+  const rankingRecordCode = searchParams.get("rankingRecordCode");
+  const sourceKey = [sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode].join("\u0000");
+  const hasRankingOrigin = !!(sourceSessionId || sourceAlternativeId || sourceFormulaFingerprint || rankingRecordCode);
+  const [verifiedSource, setVerifiedSource] = useState<{ key: string; status: "pending" | "ready" | "error"; sourceAlternative?: NonNullable<Awaited<ReturnType<typeof resolveVerifiedRankingSource>>>["sourceAlternative"]; message?: string }>({ key: "", status: "pending" });
   const { projectId, setProject } = useProjectParam();
   const ws = useFormulationWorkspace(projectId);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!hasRankingOrigin) {
+      setVerifiedSource({ key: sourceKey, status: "ready" });
+      return () => { cancelled = true; };
+    }
+    setVerifiedSource({ key: sourceKey, status: "pending" });
+    listRecords("alternative_rankings")
+      .then((records) => resolveVerifiedRankingSource({ sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode, records }))
+      .then((resolved) => {
+        if (!resolved) throw new Error("Ranking-originated optimizer source was not resolved.");
+        if (!cancelled) setVerifiedSource({ key: sourceKey, status: "ready", sourceAlternative: resolved.sourceAlternative });
+      })
+      .catch((error) => {
+        if (!cancelled) setVerifiedSource({ key: sourceKey, status: "error", message: error instanceof Error ? error.message : String(error) });
+      });
+    return () => { cancelled = true; };
+  }, [sourceKey, hasRankingOrigin, sourceSessionId, sourceAlternativeId, sourceFormulaFingerprint, rankingRecordCode]);
 
   if (!projectId) return <ProjectPicker onPick={setProject} />;
   if (!ws.project) return <p className="px-6 py-8 text-center text-[13px] text-muted">{t("builder.loadingProject")}</p>;
   if (!ws.draft.value) return null;
 
+  if (hasRankingOrigin && (verifiedSource.key !== sourceKey || verifiedSource.status === "pending")) {
+    return <p role="status" className="px-6 py-8 text-center text-[13px] text-muted">{t("optimizer.verifyingRankingSource")}</p>;
+  }
+  if (hasRankingOrigin && verifiedSource.status === "error") {
+    return <p role="alert" className="px-6 py-8 text-center text-[13px] text-error">{t("optimizer.rankingSourceBlocked", { reason: verifiedSource.message })}</p>;
+  }
+
   const active = ws.project;
-  const sourceSessionId = searchParams.get("sourceSessionId");
-  const sourceAlternativeId = searchParams.get("sourceAlternativeId");
-  const sourceFormulaFingerprint = searchParams.get("sourceFormulaFingerprint");
-  const rankingRecordCode = searchParams.get("rankingRecordCode");
-  const sourceAlternative = sourceSessionId && sourceAlternativeId ? {
-    sessionId: sourceSessionId,
-    alternativeId: sourceAlternativeId,
-    ...(sourceFormulaFingerprint && /^[a-f0-9]{64}$/i.test(sourceFormulaFingerprint) ? {
-      formulaFingerprint: { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: sourceFormulaFingerprint.toLowerCase() },
-    } : {}),
-    ...(rankingRecordCode ? { rankingRecordCode } : {}),
-  } : undefined;
+  const sourceAlternative = hasRankingOrigin ? verifiedSource.sourceAlternative : undefined;
 
   return (
     <div className="flex h-full min-h-0 flex-col">

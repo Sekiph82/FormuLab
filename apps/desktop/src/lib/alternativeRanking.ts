@@ -6,6 +6,7 @@ import {
   type PredictionResult,
 } from "@formulab/shared";
 import type { FormulationCard } from "./formulationV2";
+import type { RankingPredictionFailureStatus } from "./predictiveRanking";
 import type { FormulaInventoryFeasibility } from "./generatedFormulaInventory";
 import type { GeneratedFormulaCompatibility } from "./generatedFormulaCompatibility";
 import type { GeneratedFormulaRegulatory } from "./generatedFormulaRegulatory";
@@ -21,6 +22,7 @@ export interface BuildAlternativeRankingInput {
   safety: (GeneratedFormulaSafety | undefined)[];
   regulatory: (GeneratedFormulaRegulatory | undefined)[];
   predictions?: ReadonlyMap<string, PredictionResult>;
+  predictionFailures?: ReadonlyMap<string, { status: RankingPredictionFailureStatus; reason: string }>;
 }
 
 function gateStatus(value: string | undefined): "PASS" | "WARNING" | "FAIL" | "UNKNOWN" {
@@ -80,6 +82,7 @@ export async function buildAlternativeRankingCandidates(input: BuildAlternativeR
     const formula = asGeneratedFormula(card.formula);
     const hasFormula = formula !== undefined;
     const prediction = input.predictions?.get(card.version);
+    const predictionFailure = input.predictionFailures?.get(card.version);
     const cost = costDimension(input.costSnapshots[index]);
     const inventory = input.availability[index];
     const compatibility = input.compatibility[index];
@@ -98,7 +101,9 @@ export async function buildAlternativeRankingCandidates(input: BuildAlternativeR
             modelVersion: prediction.modelVersion,
             sourceSnapshot: { authority: "FVL-07 Predictive Performance", prediction },
           }
-        : { status: "UNAVAILABLE_MODEL" as const },
+        : predictionFailure
+          ? { status: predictionFailure.status, sourceSnapshot: { authority: "FVL-07 Predictive Performance", reason: predictionFailure.reason } }
+          : { status: "UNAVAILABLE_MODEL" as const },
       uncertainty: prediction?.status === "PREDICTED"
         ? { status: "UNSUPPORTED" as const, sourceSnapshot: { authority: "FVL-07 Predictive Performance", modelId: prediction.modelId, modelVersion: prediction.modelVersion, uncertainty: prediction.uncertainty } }
         : { status: prediction ? "UNKNOWN" as const : "UNKNOWN" as const },

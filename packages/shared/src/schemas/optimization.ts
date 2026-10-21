@@ -743,12 +743,23 @@ export const optimizationRunSchema = z.object({
   /** Optional immutable backlink when the Advanced Optimizer was opened
    *  from one generated formulation alternative. The source session/card
    *  identity remains distinct from a saved FormulationVersion id. */
-  sourceAlternative: z.object({
-    sessionId: z.string().min(1),
-    alternativeId: z.string().min(1),
-    formulaFingerprint: digestSchema.optional(),
-    rankingRecordCode: z.string().min(1).optional(),
-  }).optional(),
+  sourceAlternative: z.union([
+    z.object({
+      origin: z.literal("ranking"),
+      sessionId: z.string().min(1),
+      alternativeId: z.string().min(1),
+      formulaFingerprint: digestSchema.optional(),
+      rankingRecordCode: z.string().min(1),
+    }),
+    // Historical FVL-03 links predate ranking snapshots. Keep those records
+    // readable, while every new ranking-originated link uses the strict arm.
+    z.object({
+      sessionId: z.string().min(1),
+      alternativeId: z.string().min(1),
+      formulaFingerprint: digestSchema.optional(),
+      rankingRecordCode: z.string().min(1).optional(),
+    }),
+  ]).optional(),
   problem: formulationProblemSchema,
   result: advancedOptimizationResultSchema,
   /** Set once a human applies this run's result to a new working draft.

@@ -8,6 +8,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Formulation, FormulationLine, FormulationVersion } from "@formulab/shared";
+import { createAlternativeRankingRecord, rankAlternatives, type AlternativeRankingCandidate } from "@formulab/shared";
 import { OptimizationPage } from "./OptimizationPage";
 
 const masterdataBridge = { listRecords: vi.fn(), listRecordsSeeded: vi.fn(), upsertRecords: vi.fn() };
@@ -95,6 +96,18 @@ function renderAtPath(path: string) {
   );
 }
 
+function rankedSource(safety: "PASS" | "FAIL" = "PASS") {
+  const candidate: AlternativeRankingCandidate = {
+    candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID",
+    dimensions: {
+      performance: { status: "UNAVAILABLE_MODEL" }, uncertainty: { status: "UNKNOWN" }, cost: { status: "MISSING" }, availability: { status: "UNKNOWN" },
+      compatibility: { status: "PASS" }, safety: { status: safety }, regulatory: { status: "PASS" }, manufacturing: { status: "READY" },
+      evidence: { status: "NO_LINKED_EVIDENCE", ingredientCount: 0, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+    },
+  };
+  return createAlternativeRankingRecord({ code: "ranking-1", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00.000Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
+}
+
 describe("OptimizationPage", () => {
   it("renders the Advanced Optimizer bound to the selected project's current draft", async () => {
     renderAtPath("/optimization?project=proj-1");
@@ -102,11 +115,27 @@ describe("OptimizationPage", () => {
     expect(screen.getByText("Scenarios")).toBeInTheDocument();
   });
 
-  it("retains the source ranking alternative when opened from a result card", async () => {
+  it("retains only a checksum-verified source ranking when opened from a result card", async () => {
+    const record = await rankedSource();
+    masterdataBridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [record] : []));
     renderAtPath("/optimization?project=proj-1&sourceSessionId=session-1&sourceAlternativeId=session-1%3Av2&rankingRecordCode=ranking-1");
     await screen.findByText("Test Project");
-    expect(screen.getByRole("status")).toHaveTextContent("session-1:v2");
+    expect(await screen.findByRole("status")).toHaveTextContent("session-1:v2");
     expect(screen.getByRole("status")).toHaveTextContent("ranking-1");
+  });
+
+  it("blocks a direct optimizer URL whose immutable ranking source is Safety BLOCKED", async () => {
+    const record = await rankedSource("FAIL");
+    masterdataBridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [record] : []));
+    renderAtPath("/optimization?project=proj-1&sourceSessionId=session-1&sourceAlternativeId=session-1%3Av2&rankingRecordCode=ranking-1");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Safety/i);
+    expect(screen.queryByText("Scenarios")).not.toBeInTheDocument();
+  });
+
+  it("fails closed when a ranking-originated URL omits its immutable record", async () => {
+    renderAtPath("/optimization?project=proj-1&sourceSessionId=session-1&sourceAlternativeId=session-1%3Av2");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/immutable ranking record/i);
+    expect(screen.queryByText("Scenarios")).not.toBeInTheDocument();
   });
 
   it("links out to the standalone what-if calculator instead of replacing it", async () => {

@@ -15,6 +15,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Formulation, FormulationLine, OptimizationScenario, RawMaterial } from "@formulab/shared";
+import { createAlternativeRankingRecord, rankAlternatives } from "@formulab/shared";
 import { AdvancedOptimizerPanel } from "./AdvancedOptimizerPanel";
 
 const bridge = {
@@ -199,7 +200,19 @@ describe("AdvancedOptimizerPanel — scenario lifecycle", () => {
 describe("AdvancedOptimizerPanel — run and result rendering", () => {
   it("persists the original ranking alternative link on the canonical optimizer run", async () => {
     tauriBridge.run.mockResolvedValue({ status: "optimal", formulaLines: [], totals: { totalPercent: "100.0000", totalActiveMatterPercent: "0.0000" }, objectiveResults: [], constraintResults: [], propertyResults: [], warnings: [], solverMetadata: { isMixedInteger: false, solveTimeMs: 12 }, runId: "run-source" });
-    const sourceAlternative = { sessionId: "session-1", alternativeId: "session-1:v2", rankingRecordCode: "ranking-1", formulaFingerprint: { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: "a".repeat(64) } };
+    const formulaFingerprint = { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: "a".repeat(64) };
+    const sourceAlternative = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", rankingRecordCode: "ranking-1", formulaFingerprint };
+    const candidate = {
+      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const, formulaFingerprint,
+      dimensions: {
+        performance: { status: "UNAVAILABLE_MODEL" as const }, uncertainty: { status: "UNKNOWN" as const },
+        cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
+        availability: { status: "FEASIBLE" as const }, compatibility: { status: "PASS" as const }, safety: { status: "PASS" as const }, regulatory: { status: "PASS" as const },
+        manufacturing: { status: "READY" as const }, evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+      },
+    };
+    const rankingRecord = await createAlternativeRankingRecord({ code: "ranking-1", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [rankingRecord] : collectionResult(collection)));
     const user = userEvent.setup();
     renderPanel(sourceAlternative);
     await screen.findByText("Material A");
@@ -209,6 +222,30 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
     await waitFor(() => expect(bridge.upsertRecords).toHaveBeenCalledWith("optimization_runs", expect.any(Array)));
     const savedRuns = bridge.upsertRecords.mock.calls.find(([collection]) => collection === "optimization_runs")?.[1] as Array<{ sourceAlternative?: unknown }>;
     expect(savedRuns[0]?.sourceAlternative).toEqual(sourceAlternative);
+  });
+
+  it("refuses a persisted Safety BLOCKED ranking before invoking the solver", async () => {
+    const formulaFingerprint = { algorithm: "sha256" as const, canonicalization: "formulab-canonical-json-v1" as const, digest: "b".repeat(64) };
+    const candidate = {
+      candidateId: "session-1:v2", sessionId: "session-1", alternativeId: "session-1:v2", versionLabel: "v2", formulaStatus: "VALID" as const, formulaFingerprint,
+      dimensions: {
+        performance: { status: "UNAVAILABLE_MODEL" as const }, uncertainty: { status: "UNKNOWN" as const },
+        cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
+        availability: { status: "FEASIBLE" as const }, compatibility: { status: "PASS" as const }, safety: { status: "FAIL" as const }, regulatory: { status: "PASS" as const },
+        manufacturing: { status: "READY" as const }, evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+      },
+    };
+    const rankingRecord = await createAlternativeRankingRecord({ code: "ranking-blocked", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
+    bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(collection === "alternative_rankings" ? [rankingRecord] : collectionResult(collection)));
+    const sourceAlternative = { origin: "ranking" as const, sessionId: "session-1", alternativeId: "session-1:v2", rankingRecordCode: rankingRecord.code, formulaFingerprint };
+    const user = userEvent.setup();
+    renderPanel(sourceAlternative);
+    await screen.findByText("Material A");
+    await user.click(screen.getByLabelText(/Material A/));
+    await user.click(screen.getByRole("button", { name: /Run optimization/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/blocked/i);
+    expect(tauriBridge.run).not.toHaveBeenCalled();
   });
 
   it("Run starts the solver and renders an optimal result", async () => {

@@ -57,6 +57,7 @@ import type {
   OptimizationProfile,
   OptimizationRun,
   OptimizationScenario,
+  PredictiveModelArtifact,
   PackagingBom,
   PackagingComponent,
   ProcessParameter,
@@ -134,6 +135,7 @@ interface CollectionTypes {
   optimization_profiles: OptimizationProfile;
   optimization_runs: OptimizationRun;
   optimization_scenarios: OptimizationScenario;
+  predictive_models: PredictiveModelArtifact;
   alternative_rankings: AlternativeRankingRecord;
   substitution_runs: SubstitutionRun;
   laboratory_trials: LaboratoryTrial;

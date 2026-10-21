@@ -1,7 +1,33 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const rankingMocks = vi.hoisted(() => ({
+  isTauri: false,
+  readModels: vi.fn(),
+  ensureSource: vi.fn(),
+  predictSaved: vi.fn(),
+  listRecords: vi.fn(async (..._args: unknown[]) => [] as unknown[]),
+  upsertRecords: vi.fn(async (..._args: unknown[]) => ({ inserted: 0, updated: 0, total: 0 })),
+}));
+
+vi.mock("@/lib/tauri", () => ({ get isTauri() { return rankingMocks.isTauri; } }));
+vi.mock("@/lib/masterdata", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/masterdata")>();
+  return {
+    ...actual,
+    listRecords: (...args: unknown[]) => rankingMocks.listRecords(...args),
+    listRecordsSeeded: (_collection: string, seed: unknown[]) => Promise.resolve(seed),
+    upsertRecords: (...args: unknown[]) => rankingMocks.upsertRecords(...args),
+  };
+});
+vi.mock("@/lib/predictiveModelRegistry", () => ({ readAcceptedPredictiveModels: () => rankingMocks.readModels() }));
+vi.mock("@/lib/rankingPredictionSource", () => ({ ensureRankingPredictionSource: (...args: unknown[]) => rankingMocks.ensureSource(...args) }));
+vi.mock("@/lib/predictiveRanking", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/predictiveRanking")>();
+  return { ...actual, predictSavedRankingAlternative: (...args: unknown[]) => rankingMocks.predictSaved(...args) };
+});
 
 const readSession = vi.fn();
 vi.mock("@/lib/formulationV2", () => ({
@@ -45,15 +71,30 @@ function renderPage() {
     <MemoryRouter initialEntries={["/formulation-result/2026-01-01-1200-test"]}>
       <Routes>
         <Route path="/formulation-result/:sessionId" element={<FormulationResultPage />} />
+        <Route path="*" element={<CurrentLocation />} />
       </Routes>
     </MemoryRouter>,
   );
+}
+
+function CurrentLocation() {
+  const location = useLocation();
+  return <output data-testid="current-location">{`${location.pathname}${location.search}`}</output>;
 }
 
 describe("FormulationResultPage", () => {
   beforeEach(() => {
     readSession.mockReset();
     readSession.mockResolvedValue(SESSION);
+    rankingMocks.isTauri = false;
+    rankingMocks.readModels.mockReset();
+    rankingMocks.readModels.mockResolvedValue({ models: [], rejectedModels: [] });
+    rankingMocks.ensureSource.mockReset();
+    rankingMocks.predictSaved.mockReset();
+    rankingMocks.listRecords.mockReset();
+    rankingMocks.listRecords.mockResolvedValue([]);
+    rankingMocks.upsertRecords.mockReset();
+    rankingMocks.upsertRecords.mockResolvedValue({ inserted: 0, updated: 0, total: 0 });
   });
 
   it("shows the original request fixed at the top, verbatim", async () => {
@@ -108,6 +149,49 @@ describe("FormulationResultPage", () => {
     expect(screen.getAllByText("uncertainty").length).toBe(2);
     expect(screen.getAllByText("safety").length).toBe(2);
     expect(screen.getAllByText("regulatory").length).toBe(2);
+  });
+
+  it("passes an accepted FVL-07 result through the production ranking page with model lineage", async () => {
+    rankingMocks.isTauri = true;
+    readSession.mockResolvedValue({
+      ...SESSION,
+      brief: { ...SESSION.brief, category: "SHAMPOO" },
+      cards: SESSION.cards.map((card) => ({ ...card, formula_state: "complete" as const })),
+    });
+    rankingMocks.readModels.mockResolvedValue({ models: [{ id: "model-shampoo-viscosity", productFamilyCode: "SHAMPOO", targetKey: "VISCOSITY", version: 3 }], rejectedModels: [] });
+    rankingMocks.ensureSource.mockResolvedValue({ formulation: { id: "saved-formula" }, version: { id: "saved-version", formulationId: "saved-formula" } });
+    rankingMocks.predictSaved.mockResolvedValue({
+      status: "PREDICTED",
+      prediction: {
+        status: "PREDICTED", modelId: "model-shampoo-viscosity", modelVersion: 3,
+        formulaId: "saved-formula", formulaVersionId: "saved-version", formulaVersionNumber: 1,
+        productFamilyCode: "SHAMPOO", targetDefinition: { productFamilyCode: "SHAMPOO", sourceEntity: "testResult", testDefinitionId: "VISCOSITY" },
+        targetUnit: "mPa.s", predictedNumericValue: 42, advisoryOnly: true,
+      },
+    });
+
+    renderPage();
+    await screen.findByText(SESSION.brief.target);
+    await userEvent.click(screen.getByRole("tab", { name: "Ranking" }));
+    expect((await screen.findAllByText(/42 mPa\.s/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Prediction lineage")[0]).toHaveTextContent("model model-shampoo-viscosity · v3 · target VISCOSITY");
+    expect(rankingMocks.ensureSource).toHaveBeenCalled();
+    expect(rankingMocks.predictSaved).toHaveBeenCalledWith(expect.objectContaining({ model: expect.objectContaining({ id: "model-shampoo-viscosity" }) }));
+
+    const persistedRankings: unknown[] = [];
+    rankingMocks.listRecords.mockImplementation(async (...args: unknown[]) => args[0] === "alternative_rankings" ? persistedRankings : []);
+    rankingMocks.upsertRecords.mockImplementation(async (...args: unknown[]) => {
+      const records = args[1] as unknown[];
+      persistedRankings.push(...records);
+      return { inserted: records.length, updated: 0, total: persistedRankings.length };
+    });
+    const optimize = screen.getAllByRole("button", { name: /Open Advanced Optimizer/ })[0]!;
+    await userEvent.click(optimize);
+    const location = await screen.findByTestId("current-location");
+    const handoff = new URLSearchParams(location.textContent?.split("?")[1]);
+    expect(handoff.get("rankingRecordCode")).toBeTruthy();
+    expect(persistedRankings).toHaveLength(1);
+    expect(persistedRankings[0]).toMatchObject({ code: handoff.get("rankingRecordCode"), sessionId: SESSION.id });
   });
 });
 

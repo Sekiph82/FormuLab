@@ -23,6 +23,8 @@ const RANKING_COPY = {
   checksumAlgorithm: "checksumAlgorithm",
   class: "class",
   sources: "sources",
+  reviewWarning: "reviewWarning",
+  predictionLineage: "predictionLineage",
 } as const;
 
 function humanizeRankingKey(key: string): string {
@@ -88,14 +90,26 @@ export function AlternativeRankingPanel({
                   <span className="text-[12px] font-semibold text-text">{candidate.versionLabel}</span>
                   <Disposition disposition={disposition} label={rankingText} />
                 </div>
-                <button type="button" onClick={() => onOptimize(candidate.alternativeId)} className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline">
+                <button
+                  type="button"
+                  onClick={() => onOptimize(candidate.alternativeId)}
+                  disabled={disposition === "BLOCKED" || disposition === "UNAVAILABLE" || candidate.formulaStatus === "UNAVAILABLE" || candidate.formulaStatus === "INVALID"}
+                  aria-describedby={gateReasons.length > 0 ? `ranking-reasons-${candidate.candidateId}` : undefined}
+                  title={disposition === "BLOCKED" ? gateReasons.map((reason) => rankingText(`reason.${reason}`)).join("; ") : undefined}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+                >
                   {rankingText(RANKING_COPY.optimize)}
                   <ArrowUpRight size={12} />
                 </button>
               </div>
               {gateReasons.length > 0 && (
-                <p className="mt-2 text-[10.5px] leading-relaxed text-muted">
+                <p id={`ranking-reasons-${candidate.candidateId}`} className="mt-2 text-[10.5px] leading-relaxed text-muted">
                   <span className="font-semibold text-text">{rankingText(RANKING_COPY.gateReasons)}: </span>{gateReasons.map((reason) => rankingText(`reason.${reason}`)).join(" · ")}
+                </p>
+              )}
+              {disposition === "REVIEW_REQUIRED" && (
+                <p role="status" className="mt-2 text-[10.5px] leading-relaxed text-warning">
+                  {rankingText(RANKING_COPY.reviewWarning)}
                 </p>
               )}
               <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -136,9 +150,17 @@ function Dimension({ name, entry, label }: { name: (typeof DIMENSIONS)[number]; 
   const dimension = entry.candidate.dimensions[name];
   const status = dimension.status;
   let value = "";
+  let predictionLineage: string | undefined;
   if (name === "performance") {
     const performance = entry.candidate.dimensions.performance;
     value = performance.numericValue !== undefined ? `${performance.numericValue}${performance.unit ? ` ${performance.unit}` : ""}` : performance.categoryValue ?? "";
+    if (performance.status === "PREDICTED") {
+      predictionLineage = [
+        performance.modelId ? `model ${performance.modelId}` : undefined,
+        performance.modelVersion ? `v${performance.modelVersion}` : undefined,
+        performance.targetKey ? `target ${performance.targetKey}` : undefined,
+      ].filter(Boolean).join(" · ");
+    }
   } else if (name === "uncertainty") {
     const uncertainty = entry.candidate.dimensions.uncertainty;
     value = uncertainty.numericValue !== undefined ? `${uncertainty.numericValue}${uncertainty.unit ? ` ${uncertainty.unit}` : ""}` : "";
@@ -155,6 +177,7 @@ function Dimension({ name, entry, label }: { name: (typeof DIMENSIONS)[number]; 
     <div className="rounded-input border border-border-faint bg-surface px-2.5 py-2">
       <dt className="text-[10px] font-medium uppercase tracking-wide text-muted">{label(`dimension.${name}`)}</dt>
       <dd className="mt-0.5 text-[11px] text-text">{statusLabel}{value ? <span className="ml-1 text-muted">· {value}</span> : null}</dd>
+      {predictionLineage && <dd aria-label={label(RANKING_COPY.predictionLineage)} className="mt-0.5 text-[9px] text-muted">{predictionLineage}</dd>}
       {typeof authority === "string" && <dd className="mt-0.5 text-[9px] text-muted">{authority}</dd>}
     </div>
   );

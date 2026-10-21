@@ -40,6 +40,7 @@ import {
   type ScenarioComparison,
 } from "@formulab/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
+import { resolveVerifiedRankingSource } from "@/lib/rankingOptimization";
 import { runAdvancedFormulationOptimize, cancelAdvancedFormulationOptimize } from "@/lib/tauri";
 import { cn } from "@/lib/cn";
 
@@ -351,6 +352,21 @@ export function AdvancedOptimizerPanel({
     setError(null);
     setResult(null);
     try {
+      let verifiedSourceAlternative: OptimizationRun["sourceAlternative"];
+      if (sourceAlternative) {
+        if (!("origin" in sourceAlternative) || sourceAlternative.origin !== "ranking" || !sourceAlternative.rankingRecordCode) {
+          throw new Error("Ranking-originated optimization requires a verified immutable ranking record.");
+        }
+        const resolved = await resolveVerifiedRankingSource({
+          sourceSessionId: sourceAlternative.sessionId,
+          sourceAlternativeId: sourceAlternative.alternativeId,
+          sourceFormulaFingerprint: sourceAlternative.formulaFingerprint?.digest ?? null,
+          rankingRecordCode: sourceAlternative.rankingRecordCode,
+          records: await listRecords("alternative_rankings"),
+        });
+        if (!resolved) throw new Error("The ranking source could not be verified.");
+        verifiedSourceAlternative = resolved.sourceAlternative;
+      }
       const problem = buildProblem();
       const res = (await runAdvancedFormulationOptimize(problem)) as OptimizeResult | null;
       if (!res) {
@@ -375,7 +391,7 @@ export function AdvancedOptimizerPanel({
             code: runCode,
             projectId: formulation.id,
             scenarioId: activeScenario?.scenarioGroupId,
-            ...(sourceAlternative ? { sourceAlternative } : {}),
+            ...(verifiedSourceAlternative ? { sourceAlternative: verifiedSourceAlternative } : {}),
             problem,
             result: { ...res, runId: res.runId ?? runCode } as unknown as AdvancedOptimizationResult,
             createdAt: new Date().toISOString(),

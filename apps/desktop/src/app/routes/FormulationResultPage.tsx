@@ -47,6 +47,10 @@ import { GeneratedSafetySummary } from "@/components/safety/GeneratedSafetySumma
 import { GeneratedRegulatorySummary } from "@/components/regulatory/GeneratedRegulatorySummary";
 import { cn } from "@/lib/cn";
 import { buildAlternativeRankingCandidates } from "@/lib/alternativeRanking";
+import { ensureRankingPredictionSource } from "@/lib/rankingPredictionSource";
+import { predictSavedRankingAlternative, resolveRankingModel, unavailableRankingModelStatus } from "@/lib/predictiveRanking";
+import { readAcceptedPredictiveModels } from "@/lib/predictiveModelRegistry";
+import { assertRankingEntryCanOptimize, ensureCurrentRankingSnapshot } from "@/lib/rankingOptimization";
 import { isTauri } from "@/lib/tauri";
 import { listRecords, upsertRecords } from "@/lib/masterdata";
 import { AlternativeRankingPanel } from "@/components/formula/AlternativeRankingPanel";
@@ -123,6 +127,8 @@ export function FormulationResultPage() {
   // covers 2+ rows at once).
   const [systemSubstituting, setSystemSubstituting] = useState(false);
   const [rankingCandidates, setRankingCandidates] = useState<Awaited<ReturnType<typeof buildAlternativeRankingCandidates>>>([]);
+  const [rankingPredictions, setRankingPredictions] = useState<Map<string, import("@formulab/shared").PredictionResult>>(new Map());
+  const [rankingPredictionFailures, setRankingPredictionFailures] = useState<Map<string, { status: import("@/lib/predictiveRanking").RankingPredictionFailureStatus; reason: string }>>(new Map());
   const [rankingRecords, setRankingRecords] = useState<AlternativeRankingRecord[]>([]);
   const [rankingRecording, setRankingRecording] = useState(false);
   const [rankingError, setRankingError] = useState<string>();
@@ -228,6 +234,49 @@ export function FormulationResultPage() {
     : cards.map((c) => (c.formula ? evaluateGeneratedFormulaInventory(c.formula, batchKg, inventoryData.records) : undefined)), [cards, inventoryData.loading, inventoryData.records, batchKg]);
 
   useEffect(() => {
+    if (!session || costData.loading || !isTauri) return;
+    let cancelled = false;
+    const run = async () => {
+      const predictions = new Map<string, import("@formulab/shared").PredictionResult>();
+      const failures = new Map<string, { status: import("@/lib/predictiveRanking").RankingPredictionFailureStatus; reason: string }>();
+      const cardsWithFormula = cards.filter((candidate) => candidate.formula && candidate.status !== "generation_failed");
+      try {
+        const registry = await readAcceptedPredictiveModels();
+        const productFamilyCode = session.brief?.category?.trim() || "general";
+        const model = resolveRankingModel({ models: registry.models, productFamilyCode });
+        if (!model) {
+          const status = unavailableRankingModelStatus({ rejectedModels: registry.rejectedModels, productFamilyCode });
+          const reason = status === "MODEL_NOT_ACCEPTED"
+            ? "A model exists for this product family, but it has not passed the FVL-07 acceptance policy."
+            : "No unique accepted model exists for this exact product-family and target scope.";
+          for (const candidate of cardsWithFormula) failures.set(candidate.version, { status, reason });
+        } else {
+          for (const candidate of cardsWithFormula) {
+            if (cancelled) return;
+            try {
+              const source = await ensureRankingPredictionSource({ session, card: candidate, batchKg, materials: costData.materials });
+              const resolution = await predictSavedRankingAlternative({ model, ...source, materials: costData.materials });
+              if (resolution.status === "PREDICTED") predictions.set(candidate.version, resolution.prediction);
+              else failures.set(candidate.version, { status: resolution.status, reason: resolution.reason });
+            } catch (error) {
+              failures.set(candidate.version, { status: "INVALID_CONTRACT", reason: error instanceof Error ? error.message : String(error) });
+            }
+          }
+        }
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        for (const candidate of cardsWithFormula) failures.set(candidate.version, { status: "INVALID_CONTRACT", reason });
+      }
+      if (!cancelled) {
+        setRankingPredictions(predictions);
+        setRankingPredictionFailures(failures);
+      }
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [session, cards, batchKg, costData.loading, costData.materials]);
+
+  useEffect(() => {
     if (!session) return;
     let cancelled = false;
     buildAlternativeRankingCandidates({
@@ -238,10 +287,12 @@ export function FormulationResultPage() {
       compatibility: compatibilities,
       safety: safeties,
       regulatory: regulatories,
+      predictions: rankingPredictions,
+      predictionFailures: rankingPredictionFailures,
     }).then((candidates) => { if (!cancelled) setRankingCandidates(candidates); })
       .catch((e) => { if (!cancelled) setRankingError(String(e)); });
     return () => { cancelled = true; };
-  }, [session, sessionId, cards, costSnapshots, inventoryFeasibilities, compatibilities, safeties, regulatories]);
+  }, [session, sessionId, cards, costSnapshots, inventoryFeasibilities, compatibilities, safeties, regulatories, rankingPredictions, rankingPredictionFailures]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -276,24 +327,37 @@ export function FormulationResultPage() {
 
   const optimizeAlternative = async (alternativeId: string) => {
     const index = cards.findIndex((candidate) => `${sessionId ?? session.id}:${candidate.version}` === alternativeId);
-    if (index < 0 || !cards[index]?.formula) return;
-    setActiveVersion(index);
-    setOptimizing(true);
+    const ranked = rankedAlternatives.find((entry) => entry.candidate.alternativeId === alternativeId);
     try {
-      const selectedCard = cards[index];
-      const existing = promotedByVersion[selectedCard.version];
-      const promoted = existing ?? buildPromotedFormulation(session, selectedCard, batchKg);
-      if (!existing) {
-        await saveFormulation(promoted.formulation);
-        await saveFormulationVersion(promoted.version);
-        setPromotedByVersion((previous) => ({ ...previous, [selectedCard.version]: promoted }));
-      }
-      const ranked = rankedAlternatives.find((entry) => entry.candidate.alternativeId === alternativeId);
-      const params = new URLSearchParams({ project: promoted.formulation.id, sourceSessionId: sessionId ?? session.id, sourceAlternativeId: alternativeId });
-      if (ranked?.candidate.formulaFingerprint) params.set("sourceFormulaFingerprint", ranked.candidate.formulaFingerprint.digest);
-      if (rankingRecords[0]) params.set("rankingRecordCode", rankingRecords[0].code);
+      // Domain hard stop occurs before any persistent promotion or navigation.
+      assertRankingEntryCanOptimize(ranked);
+      if (index < 0 || !cards[index]?.formula) throw new Error("The source formula is unavailable.");
+      setRankingError(undefined);
+      setActiveVersion(index);
+      setOptimizing(true);
+      const sourceSessionId = sessionId ?? session.id;
+      const snapshot = await ensureCurrentRankingSnapshot({
+        sessionId: sourceSessionId,
+        context: { batchKg, currency },
+        rankings: rankedAlternatives,
+        existingRecords: await listRecords("alternative_rankings"),
+        createCode: () => newId("ranking"),
+        now: () => new Date().toISOString(),
+        append: async (record) => { await upsertRecords("alternative_rankings", [record]); },
+        readBack: () => listRecords("alternative_rankings"),
+      });
+      const selectedCard = cards[index]!;
+      const source = await ensureRankingPredictionSource({ session, card: selectedCard, batchKg, materials: costData.materials });
+      setPromotedByVersion((previous) => ({ ...previous, [selectedCard.version]: source }));
+      setRankingRecords((previous) => [snapshot, ...previous.filter((record) => record.code !== snapshot.code)]);
+      const params = new URLSearchParams({ project: source.formulation.id, sourceSessionId, sourceAlternativeId: alternativeId, rankingRecordCode: snapshot.code });
+      if (ranked.candidate.formulaFingerprint) params.set("sourceFormulaFingerprint", ranked.candidate.formulaFingerprint.digest);
       navigate(`/optimization?${params.toString()}`);
-    } finally { setOptimizing(false); }
+    } catch (cause) {
+      setRankingError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setOptimizing(false);
+    }
   };
   const mostFeasibleIndex = pickMostInventoryFeasibleVersion(cards, inventoryFeasibilities, compatibilities, safeties, regulatories);
 

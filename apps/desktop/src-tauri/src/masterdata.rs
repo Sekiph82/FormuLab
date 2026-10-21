@@ -16,6 +16,7 @@
 //   data/master/optimization_runs.json
 //   data/master/optimization_scenarios.json
 //   data/master/alternative_rankings.json
+//   data/master/predictive_models.json
 //   data/master/substitution_runs.json
 //   data/master/laboratory_trials.json
 //   data/master/test_definitions.json
@@ -125,7 +126,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 95] = [
+const COLLECTIONS: [(&str, bool); 96] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -157,6 +158,9 @@ const COLLECTIONS: [(&str, bool); 95] = [
     // A ranking record freezes every decision input, policy version and
     // deterministic ordering for one generated formulation session.
     ("alternative_rankings", true),
+    // FVL-07 accepted model artifacts are immutable, checksum-verified
+    // inputs to prediction serving; a new model version is a new row.
+    ("predictive_models", true),
     // Substitution engine: a run (the request + its scored candidates, and
     // which one was applied) is immutable for the same reason.
     ("substitution_runs", true),
@@ -639,6 +643,14 @@ fn apply_upsert(
 }
 
 /// Remove a row by code. Refused on append-only collections.
+fn ensure_master_delete_allowed(name: &str, append_only: bool) -> Result<(), String> {
+    if append_only {
+        return Err(format!(
+            "{name} is append-only: deleting a historical record would change what a past snapshot was based on. Supersede it with a new record instead."
+        ));
+    }
+    Ok(())
+}
 ///
 /// Materials are deactivated rather than deleted in the UI; this command exists
 /// for genuinely mistaken rows, and it snapshots the file first.
@@ -667,12 +679,7 @@ pub async fn delete_master_record(
 ) -> Result<serde_json::Value, String> {
     let (name, append_only) = collection_spec(&collection)?;
     authz::authorize_app(&app, &token, "projects", "delete")?;
-    if append_only {
-        return Err(format!(
-            "{name} is append-only: deleting a historical record would change what a \
-             past cost snapshot was based on. Supersede it with a new record instead."
-        ));
-    }
+    ensure_master_delete_allowed(name, append_only)?;
     let path = collection_path(&app, name)?;
     let mut rows = read_array(&path);
     backup_collection(&app, name)?;
@@ -953,7 +960,93 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 95);
+        assert_eq!(COLLECTIONS.len(), 96);
+    }
+
+    #[test]
+    fn alternative_rankings_and_predictive_models_are_allow_listed_append_only() {
+        assert_eq!(collection_spec("alternative_rankings"), Ok(("alternative_rankings", true)));
+        assert_eq!(collection_spec("predictive_models"), Ok(("predictive_models", true)));
+    }
+
+    #[test]
+    fn alternative_rankings_first_insert_is_accepted() {
+        let (rows, inserted, updated) = apply_upsert(
+            vec![], vec![serde_json::json!({"code": "ranking-v1", "version": 1})], true, "alternative_rankings",
+        ).unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert_eq!(rows, vec![serde_json::json!({"code": "ranking-v1", "version": 1})]);
+    }
+
+    #[test]
+    fn alternative_rankings_reject_same_identity_overwrite() {
+        let result = apply_upsert(
+            vec![serde_json::json!({"code": "ranking-v1", "version": 1})],
+            vec![serde_json::json!({"code": "ranking-v1", "version": 2})],
+            true,
+            "alternative_rankings",
+        );
+        assert!(result.unwrap_err().contains("already exists"));
+    }
+
+    #[test]
+    fn alternative_rankings_accept_a_new_snapshot_identity() {
+        let (rows, inserted, updated) = apply_upsert(
+            vec![serde_json::json!({"code": "ranking-v1"})],
+            vec![serde_json::json!({"code": "ranking-v2"})],
+            true,
+            "alternative_rankings",
+        ).unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0], serde_json::json!({"code": "ranking-v1"}));
+    }
+
+    #[test]
+    fn alternative_rankings_delete_is_refused() {
+        assert!(ensure_master_delete_allowed("alternative_rankings", true).is_err());
+    }
+
+    #[test]
+    fn predictive_models_first_insert_is_accepted() {
+        let (rows, inserted, updated) = apply_upsert(
+            vec![],
+            vec![serde_json::json!({"id": "model-v1", "version": 1})],
+            true,
+            "predictive_models",
+        ).unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert_eq!(rows, vec![serde_json::json!({"id": "model-v1", "version": 1})]);
+    }
+
+    #[test]
+    fn predictive_models_reject_same_identity_overwrite() {
+        let result = apply_upsert(
+            vec![serde_json::json!({"id": "model-v1", "version": 1})],
+            vec![serde_json::json!({"id": "model-v1", "version": 2})],
+            true,
+            "predictive_models",
+        );
+        assert!(result.unwrap_err().contains("already exists"));
+    }
+
+    #[test]
+    fn predictive_models_accept_a_new_model_identity() {
+        let (rows, inserted, updated) = apply_upsert(
+            vec![serde_json::json!({"id": "model-v1", "version": 1})],
+            vec![serde_json::json!({"id": "model-v2", "version": 2})],
+            true,
+            "predictive_models",
+        ).unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["version"], 1);
+    }
+
+    #[test]
+    fn predictive_models_delete_is_refused() {
+        let error = ensure_master_delete_allowed("predictive_models", true).unwrap_err();
+        assert!(error.contains("append-only"));
     }
 
     #[test]
