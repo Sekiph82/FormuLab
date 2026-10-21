@@ -181,6 +181,7 @@ describe("FVL-08 strict production acceptance", () => {
       createCode: () => "strict-ranking-1", now: () => "2026-10-21T12:00:00.000Z",
       append: async (item) => { store.rankings.push(item); }, readBack: async () => store.rankings,
     });
+    expect(rankAlternatives(record.rankings.map(({ candidate: storedCandidate }) => storedCandidate))).toEqual(record.rankings);
     const verified = await resolveVerifiedRankingSource({
       sourceSessionId: session.id, sourceAlternativeId: candidate!.alternativeId,
       sourceFormulaFingerprint: candidate!.formulaFingerprint?.digest ?? null, rankingRecordCode: record.code, records: store.rankings,
