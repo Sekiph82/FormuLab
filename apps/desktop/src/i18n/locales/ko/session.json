@@ -2595,6 +2595,37 @@
       "openInOptimization": "Open Optimization",
       "openInStability": "Open Stability",
       "exportCsv": "Export candidate list",
+      "evidence": {
+
+        "feasibility": "실현 가능성",
+
+        "safety": "안전",
+
+        "regulatory": "규제",
+
+        "acquisition": "획득 기준",
+
+        "diversity": "다양성",
+
+        "seed": "기준",
+
+        "estimatedMaterialCost": "예상 원료 비용",
+
+        "formulaVersion": "공식 버전",
+
+        "design": "DOE 설계",
+
+        "analysisProvenance": "DOE 분석 출처",
+
+        "modelVersionUnavailable": "현재 DOE 분석 계약에서 FVL-07 모델 버전을 사용할 수 없습니다.",
+
+        "uncertaintyUnavailable": "현재 DOE 예측 계약에서 예측 불확실성을 사용할 수 없습니다.",
+
+        "policyVersions": "정책 버전",
+
+        "unavailable": "사용 불가"
+      },
+
       "noMaterialFactors": "This candidate has no formula-material factors — its process-parameter setting(s) were not applied to any draft line. Apply manually: {{settings}}"
     },
     "history": {

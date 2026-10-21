@@ -2595,6 +2595,37 @@
       "openInOptimization": "Optimizasyonu Aç",
       "openInStability": "Stabiliteyi Aç",
       "exportCsv": "Aday listesini dışa aktar",
+      "evidence": {
+
+        "feasibility": "Uygulanabilirlik",
+
+        "safety": "Güvenlik",
+
+        "regulatory": "Mevzuat",
+
+        "acquisition": "Edinim",
+
+        "diversity": "Çeşitlilik",
+
+        "seed": "başlangıç",
+
+        "estimatedMaterialCost": "Tahmini malzeme maliyeti",
+
+        "formulaVersion": "Formül sürümü",
+
+        "design": "DOE tasarımı",
+
+        "analysisProvenance": "DOE analiz kaynağı",
+
+        "modelVersionUnavailable": "FVL-07 model sürümü geçerli DOE analiz sözleşmesinde bulunmuyor.",
+
+        "uncertaintyUnavailable": "Tahmin belirsizliği geçerli DOE tahmin sözleşmesinde bulunmuyor.",
+
+        "policyVersions": "Politika sürümleri",
+
+        "unavailable": "KULLANILAMIYOR"
+      },
+
       "noMaterialFactors": "Bu adayda formül-malzeme faktörü yok — süreç parametresi ayarları hiçbir taslak satırına uygulanmadı. Elle uygulayın: {{settings}}"
     },
     "history": {

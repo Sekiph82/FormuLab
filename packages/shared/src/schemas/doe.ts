@@ -357,6 +357,12 @@ export const doeRunSchema = z.object({
   status: z.enum(DOE_RUN_STATUSES).default("planned"),
   linkedTrialId: z.string().optional(),
   linkedFormulaVersionId: z.string().optional(),
+  /** Immutable creation-time linkage when a run originates from an accepted
+   *  FVL-09 recommendation. */
+  recommendationId: z.string().optional(),
+  recommendationPolicyVersion: z.literal("doe-recommendation/v1").optional(),
+  recommendationAcceptedBy: z.string().optional(),
+  recommendationAcceptedAt: z.string().optional(),
   createdAt: z.string(),
   startedAt: z.string().optional(),
   completedAt: z.string().optional(),
@@ -524,6 +530,7 @@ export const doeCandidateSchema = z.object({
   constraintStatus: z.array(doeConstraintStatusSchema).default([]),
   rank: z.number().int().positive(),
   status: z.enum(DOE_CANDIDATE_STATUSES).default("proposed"),
+  recommendationPolicyVersion: z.literal("doe-recommendation/v1").optional(),
   /** Additive FVL-09 linkage for experiment-space proposals. Older DOE
    *  candidates remain valid and keep their historical interpretation. */
   experimentSpace: z.object({

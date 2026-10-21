@@ -29,10 +29,12 @@ import {
   TRIAL_PRIORITIES,
   applyDoeCandidateToDraft,
   applyDoeFactorsToLines,
+  assertDoeCandidateHumanSelected,
   evaluateDoeCandidateMaterialCost,
   calculateDesignDiagnostics,
   createDoeAnalysis,
   createDoeCandidates,
+  createDoeRunFromAcceptedCandidate,
   defineDoeExperimentSpace,
   diversifyDoeCandidates,
   evaluateDoeCandidateFeasibility,
@@ -97,6 +99,7 @@ import {
 } from "@formulab/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
+import { retrainFromCompletedDoeResponse } from "@/lib/doeModelRetraining";
 import { cn } from "@/lib/cn";
 import { InfoTooltip } from "@/components/help/InfoTooltip";
 
@@ -413,6 +416,18 @@ export function DoePanel({
     await appendAudit(auditEvent(formulation.id, action, { actor: "local", actorKind: "human", ...opts }));
   }
 
+  async function retrainAfterCompletedResponse(run: DoeRun, responseId: string) {
+    const result = await retrainFromCompletedDoeResponse({ runId: run.id, responseId });
+    const detail = result.outcome === "INSUFFICIENT_DATA"
+      ? result.eligibility.reasons.map((reason) => `${reason.code}: ${reason.message}`).join(" ")
+      : result.outcome === "ACCEPTED" ? `Accepted immutable predictive model ${result.model.id} v${result.model.version}.`
+        : result.outcome === "INVALID_DATA" || result.outcome === "NOT_ACCEPTED" ? result.reason : "Training did not produce an accepted model.";
+    await record(result.outcome === "ACCEPTED" ? "doe.model_retraining_accepted" : "doe.model_retraining_not_accepted", {
+      detail,
+      metadata: { studyId: run.studyId, runId: run.id, responseId, outcome: result.outcome, ...(result.outcome === "ACCEPTED" ? { modelId: result.model.id, modelVersion: String(result.model.version) } : {}) },
+    });
+  }
+
   // ------------------------------------------------------------ wizard ---
   function updateWizard<K extends keyof WizardState>(key: K, value: WizardState[K]) {
     setWizard((w) => ({ ...w, [key]: value }));
@@ -496,6 +511,13 @@ export function DoePanel({
     const updated: DoeRun = { ...run, status, startedAt: status === "in_progress" ? new Date().toISOString() : run.startedAt, completedAt: status === "completed" ? new Date().toISOString() : run.completedAt };
     await upsertRecords("doe_runs", [updated]);
     await record("doe.run_status_changed", { metadata: { studyId: run.studyId, runId: run.id, status } });
+    if (status === "completed") {
+      for (const response of studyResponses) {
+        if (observations.some((observation) => observation.runId === run.id && observation.responseId === response.id && observation.status === "validated" && (observation.value !== undefined || observation.textValue !== undefined))) {
+          await retrainAfterCompletedResponse(updated, response.id);
+        }
+      }
+    }
     await onAuditChanged();
     await load();
   }
@@ -559,6 +581,26 @@ export function DoePanel({
     await load();
   }
 
+  async function createTrialFromRecommendation(candidate: DoeCandidate) {
+    if (!selectedStudy || !studyDesign) return;
+    setError(null);
+    try {
+      const existingRun = studyRuns.find((run) => run.recommendationId === candidate.id);
+      if (existingRun?.linkedTrialId) {
+        setError("This recommendation already links to a LaboratoryTrial.");
+        return;
+      }
+      const run = existingRun ?? createDoeRunFromAcceptedCandidate({ candidate, study: selectedStudy, design: studyDesign, existingRuns: studyRuns }, actor);
+      if (!existingRun) {
+        await upsertRecords("doe_runs", [run]);
+        await record("doe.recommendation_run_created", { metadata: { studyId: selectedStudy.id, candidateId: candidate.id, runId: run.id, recommendationPolicyVersion: run.recommendationPolicyVersion ?? "unknown" } });
+      }
+      await generateTrialForRun(run);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   async function linkExistingTrial(run: DoeRun, trialId: string) {
     const updatedRun: DoeRun = { ...run, linkedTrialId: trialId || undefined };
     await upsertRecords("doe_runs", [updatedRun]);
@@ -585,6 +627,7 @@ export function DoePanel({
       exclusionReason: status === "excluded" ? exclusionReason : undefined,
     };
     await upsertRecords("doe_observations", [row]);
+    if (run.status === "completed" && status === "validated") await retrainAfterCompletedResponse(run, response.id);
     const action = status === "excluded" ? "doe.observation_excluded" : existing ? "doe.observation_recorded" : "doe.observation_recorded";
     await record(action, { metadata: { studyId: run.studyId, runId: run.id, responseId: response.id, status } });
     await load();
@@ -717,12 +760,10 @@ export function DoePanel({
   }
 
   function applyCandidate(candidate: DoeCandidate) {
-    if (candidate.status !== "selected") {
-      setError("Select this recommendation as a human decision before applying it to the working draft.");
-      return;
-    }
-    if (!isDoeCandidateEligibleForSelection(candidate)) {
-      setError("This recommendation does not have confirmed material, manufacturing, safety, and regulatory clearance.");
+    try {
+      assertDoeCandidateHumanSelected(candidate, actor);
+    } catch (e) {
+      setError(String(e));
       return;
     }
     if (!studyDesign) return;
@@ -993,6 +1034,7 @@ export function DoePanel({
                       </span>
                     ))}
                   </div>
+                  <CandidateLineageEvidence candidate={c} t={t} />
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] text-text">
                     {c.predictedResponses.map((p) => (
                       <span key={p.responseId} className={p.isExtrapolated ? "text-warn" : undefined}>
@@ -1004,30 +1046,30 @@ export function DoePanel({
                   {c.feasibility && (
                     <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-feasibility-${c.id}`}>
                       <span className={c.feasibility.status === "FEASIBLE" ? "text-success" : c.feasibility.status === "INFEASIBLE" ? "text-error" : "text-warn"}>
-                        Feasibility: {c.feasibility.status}
+                        {t("doe.candidates.evidence.feasibility")}: {c.feasibility.status}
                       </span>
                       {c.feasibility.reasons.map((reason) => <div key={`${reason.code}:${reason.sourceId ?? ""}`}>{reason.code}: {reason.message}</div>)}
                     </div>
                   )}
                   {c.hardExclusions && (
                     <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-hard-exclusions-${c.id}`}>
-                      <div>Safety: {c.hardExclusions.safety.status} · Regulatory: {c.hardExclusions.regulatory.status}</div>
+                      <div>{t("doe.candidates.evidence.safety")}: {c.hardExclusions.safety.status} · {t("doe.candidates.evidence.regulatory")}: {c.hardExclusions.regulatory.status}</div>
                       {[...c.hardExclusions.safety.reasons, ...c.hardExclusions.regulatory.reasons].map((reason, index) => <div key={`${index}:${reason}`}>{reason}</div>)}
                     </div>
                   )}
                   {c.acquisition && (
                     <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-acquisition-${c.id}`}>
-                      Acquisition: {c.acquisition.status === "AVAILABLE" ? c.acquisition.value?.toFixed(4) : "UNAVAILABLE"} · {c.acquisition.reason}
+                      {t("doe.candidates.evidence.acquisition")}: {c.acquisition.status === "AVAILABLE" ? c.acquisition.value?.toFixed(4) : t("doe.candidates.evidence.unavailable")} · {c.acquisition.reason}
                     </div>
                   )}
                   {c.diversity && (
                     <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-diversity-${c.id}`}>
-                      Diversity: {c.diversity.status === "AVAILABLE" ? c.diversity.distanceToSelected?.toFixed(4) ?? "seed" : "UNAVAILABLE"} · {c.diversity.reason}
+                      {t("doe.candidates.evidence.diversity")}: {c.diversity.status === "AVAILABLE" ? c.diversity.distanceToSelected?.toFixed(4) ?? t("doe.candidates.evidence.seed") : t("doe.candidates.evidence.unavailable")} · {c.diversity.reason}
                     </div>
                   )}
                   {c.estimatedMaterialCost && (
                     <div className="mt-1 text-[10.5px]" data-testid={`doe-candidate-cost-${c.id}`}>
-                      Estimated material cost: {c.estimatedMaterialCost.status === "AVAILABLE" ? `${c.estimatedMaterialCost.amount?.toFixed(2)} ${c.estimatedMaterialCost.currency}` : "UNAVAILABLE"} · {c.estimatedMaterialCost.reason}
+                      {t("doe.candidates.evidence.estimatedMaterialCost")}: {c.estimatedMaterialCost.status === "AVAILABLE" ? `${c.estimatedMaterialCost.amount?.toFixed(2)} ${c.estimatedMaterialCost.currency}` : t("doe.candidates.evidence.unavailable")} · {c.estimatedMaterialCost.reason}
                     </div>
                   )}
                   <div className="mt-2 flex gap-2">
@@ -1037,6 +1079,11 @@ export function DoePanel({
                     <button disabled={!isDoeCandidateEligibleForSelection(c)} onClick={() => void selectCandidate(c)} className="rounded-input border border-border px-2 py-0.5 text-[10.5px] text-text hover:bg-surface-2 disabled:opacity-40">
                       {t("doe.candidates.select")}
                     </button>
+                    {c.status === "selected" && isDoeCandidateEligibleForSelection(c) && (
+                      <button onClick={() => void createTrialFromRecommendation(c)} className="rounded-input border border-accent px-2 py-0.5 text-[10.5px] text-accent hover:bg-accent/10" data-testid={`doe-candidate-create-trial-${c.id}`}>
+                        {t("doe.runs.generateTrial")}
+                      </button>
+                    )}
                     <button disabled={c.status !== "selected" || !isDoeCandidateEligibleForSelection(c)} onClick={() => applyCandidate(c)} className="rounded-input bg-accent px-2 py-0.5 text-[10.5px] font-medium text-accent-foreground disabled:opacity-40">
                       {t("doe.candidates.applyToDraft")}
                     </button>
@@ -1107,6 +1154,24 @@ export function DoePanel({
 }
 
 // ------------------------------------------------------------ subparts ---
+
+export function CandidateLineageEvidence({ candidate, t }: { candidate: DoeCandidate; t: SimpleT }) {
+  return (
+    <div className="mt-1 space-y-0.5 text-[10.5px] text-muted" data-testid={`doe-candidate-lineage-${candidate.id}`}>
+      <div>{t("doe.candidates.evidence.formulaVersion")}: {candidate.experimentSpace?.sourceFormulaVersionId ?? t("doe.candidates.evidence.unavailable")} · {t("doe.candidates.evidence.design")}: {candidate.experimentSpace?.designId ?? t("doe.candidates.evidence.unavailable")}</div>
+      <div>{t("doe.candidates.evidence.analysisProvenance")}: {candidate.analysisIds.join(", ") || t("doe.candidates.evidence.unavailable")} · {t("doe.candidates.evidence.modelVersionUnavailable")}</div>
+      <div>{t("doe.candidates.evidence.uncertaintyUnavailable")}</div>
+      <div>{t("doe.candidates.evidence.policyVersions")}: {[
+        candidate.experimentSpace?.policyVersion,
+        candidate.feasibility?.policyVersion,
+        candidate.hardExclusions?.policyVersion,
+        candidate.acquisition?.policyVersion,
+        candidate.diversity?.policyVersion,
+        candidate.estimatedMaterialCost?.policyVersion,
+      ].filter(Boolean).join(" · ") || t("doe.candidates.evidence.unavailable")}</div>
+    </div>
+  );
+}
 
 function DesignSection({
   t,

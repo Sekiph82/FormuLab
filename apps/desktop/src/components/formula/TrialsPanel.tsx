@@ -40,6 +40,7 @@ import {
   type FormulationLine,
   type FormulationVersion,
   type FormulaStatus,
+  type DoeRun,
   type LaboratoryTrial,
   type TestDefinition,
   type TestResult,
@@ -52,6 +53,7 @@ import {
 } from "@formulab/shared";
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { appendAudit, auditEvent } from "@/lib/formulations";
+import { retrainFromCompletedDoeTestResult } from "@/lib/doeModelRetraining";
 import { cn } from "@/lib/cn";
 import { downloadBlob, downloadText } from "@/lib/download";
 import { buildXlsxBlob } from "@/lib/xlsx";
@@ -213,6 +215,29 @@ export function TrialsPanel({
       updatedAt: now,
     };
     await persistTrial(updated);
+    if (to === "completed" && trial.sourceDoeRunId) {
+      const doeRuns = await listRecords("doe_runs") as DoeRun[];
+      const linkedRun = doeRuns.find((run) => run.id === trial.sourceDoeRunId);
+      if (linkedRun) {
+        const completedRun: DoeRun = { ...linkedRun, status: "completed", completedAt: now };
+        await upsertRecords("doe_runs", [completedRun]);
+        const completedTestDefinitionIds = [...new Set(testResults.filter((result) => result.trialId === trial.id).map((result) => result.testDefinitionId))];
+        for (const testDefinitionId of completedTestDefinitionIds) {
+          const training = await retrainFromCompletedDoeTestResult({ trialId: trial.id, testDefinitionId });
+          const detail = training.outcome === "ACCEPTED"
+            ? `Accepted immutable predictive model ${training.model.id} v${training.model.version}.`
+            : training.outcome === "INSUFFICIENT_DATA"
+              ? training.eligibility.reasons.map((reason) => `${reason.code}: ${reason.message}`).join(" ")
+              : training.outcome === "INVALID_DATA" || training.outcome === "NOT_ACCEPTED" ? training.reason : "Training did not produce an accepted model.";
+          await appendAudit(auditEvent(formulation.id, training.outcome === "ACCEPTED" ? "doe.model_retraining_accepted" : "doe.model_retraining_not_accepted", {
+            actor: actorId,
+            actorKind: "human",
+            detail,
+            metadata: { studyId: linkedRun.studyId, runId: linkedRun.id, trialId: trial.id, testDefinitionId, outcome: training.outcome, ...(training.outcome === "ACCEPTED" ? { modelId: training.model.id, modelVersion: String(training.model.version) } : {}) },
+          }));
+        }
+      }
+    }
   };
 
   const updateMaterialUsage = async (usageId: string, actualWeight: string) => {
@@ -360,6 +385,20 @@ export function TrialsPanel({
     };
     await upsertRecords("test_results", [result]);
     setTestResults((prev) => (prev.some((r) => r.id === result.id) ? prev : [...prev, result]));
+    if (selectedTrial.status === "completed" && selectedTrial.sourceDoeRunId) {
+      const training = await retrainFromCompletedDoeTestResult({ trialId: selectedTrial.id, testDefinitionId: definition.code });
+      const detail = training.outcome === "ACCEPTED"
+        ? `Accepted immutable predictive model ${training.model.id} v${training.model.version}.`
+        : training.outcome === "INSUFFICIENT_DATA"
+          ? training.eligibility.reasons.map((reason) => `${reason.code}: ${reason.message}`).join(" ")
+        : training.outcome === "INVALID_DATA" || training.outcome === "NOT_ACCEPTED" ? training.reason : "Training did not produce an accepted model.";
+      await appendAudit(auditEvent(formulation.id, training.outcome === "ACCEPTED" ? "doe.model_retraining_accepted" : "doe.model_retraining_not_accepted", {
+        actor: actorId,
+        actorKind: "human",
+        detail,
+        metadata: { trialId: selectedTrial.id, runId: selectedTrial.sourceDoeRunId, testDefinitionId: definition.code, outcome: training.outcome, ...(training.outcome === "ACCEPTED" ? { modelId: training.model.id, modelVersion: String(training.model.version) } : {}) },
+      }));
+    }
   };
 
   /** `test_results` is append-only, so replacing a finalized attachment

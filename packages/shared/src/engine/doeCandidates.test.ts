@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { Actor } from "../schemas/status";
 import type { DoeCandidate, DoeConstraint, DoeDesign, DoeFactor, DoeObservation, DoeResponse, DoeRun, DoeStudy } from "../schemas/doe";
+import { doeCandidateSchema } from "../schemas/doe";
 import type { FormulationVersion } from "../schemas/formulation";
 import type { InventoryRecord, MaterialPrice, RawMaterial } from "../schemas/materials";
 import type { SafetyRule } from "../schemas/safety";
 import type { RegulatoryRule } from "../schemas/regulatory";
 import {
   applyDoeCandidateToDraft,
+  assertDoeCandidateHumanSelected,
   calculateOverallDesirability,
   calculateResponseDesirability,
   createDoeCandidates,
+  createDoeRunFromAcceptedCandidate,
   defineDoeExperimentSpace,
   evaluateDoeCandidateFeasibility,
   evaluateDoeCandidateHardExclusions,
@@ -415,6 +418,42 @@ describe("diversifyDoeCandidates", () => {
   });
 });
 
+describe("human selection gate", () => {
+  const evidence = {
+    feasibility: { policyVersion: "doe-feasibility/v1" as const, evaluatedAt: "2026-01-01T00:00:00.000Z", status: "FEASIBLE" as const, reasons: [] },
+    hardExclusions: { policyVersion: "doe-hard-exclusions/v1" as const, safety: { status: "PASS" as const, findingIds: [], reasons: [] }, regulatory: { status: "PASS" as const, findingIds: [], reasons: [] } },
+    acquisition: { policyVersion: "doe-acquisition/v1" as const, method: "nearest_measured_run_distance" as const, status: "AVAILABLE" as const, value: 1, sourceRunIds: ["run-1"] },
+  };
+  it("blocks an unselected recommendation and permits only an eligible human-selected candidate", () => {
+    expect(() => assertDoeCandidateHumanSelected({ ...evidence, status: "proposed" }, HUMAN)).toThrow(/explicit human selection/i);
+    expect(() => assertDoeCandidateHumanSelected({ ...evidence, status: "selected", feasibility: { ...evidence.feasibility, status: "UNKNOWN" } }, HUMAN)).toThrow(/confirmed feasibility/i);
+    expect(() => assertDoeCandidateHumanSelected({ ...evidence, status: "selected" }, HUMAN)).not.toThrow();
+  });
+});
+
+describe("accepted recommendation DOE run linkage", () => {
+  const study: DoeStudy = {
+    schemaVersion: "1.0", id: "study-1", studyCode: "DOE-1", title: "Study", projectId: "project-1", formulationId: "formula-1", baselineFormulaVersionId: "version-1", status: "analysis_ready", designType: "full_factorial", randomizationEnabled: true, blockingEnabled: false, replicatePolicy: "none", centerPointPolicy: "none", revision: 1, createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const design: DoeDesign = {
+    schemaVersion: "1.0", id: "design-1", studyId: "study-1", studyRevision: 1, designType: "full_factorial", factorSnapshot: [], constraintSnapshot: [], responseSnapshot: [], generationSettings: {}, seed: 11, runCount: 1, replicateCount: 0, centerPointCount: 0, blockCount: 1, generatedBy: "alice", generatedAt: "2026-01-01T00:00:00.000Z", diagnostics: { runCount: 1, degreesOfFreedom: 0, duplicateRunCount: 0, estimableTerms: [], aliasedTerms: [], isOrthogonal: true, isBalanced: true, centerPointCount: 0, replicateCount: 0, constraintViolationCount: 0, warnings: [] },
+  };
+  const recommendation: DoeCandidate = {
+    schemaVersion: "1.0", id: "candidate-1", studyId: "study-1", studyRevision: 1, analysisIds: ["analysis-1"], factorSettings: [{ factorCode: "A", codedValue: "1", actualValue: "20" }], predictedResponses: [], desirability: 0.8, constraintStatus: [], rank: 1, status: "selected", recommendationPolicyVersion: "doe-recommendation/v1", createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z",
+    experimentSpace: { policyVersion: "doe-experiment-space/v1", designId: "design-1", sourceFormulaVersionId: "version-1", seed: 11, candidateCount: 4, manipulatedFactorCodes: ["A"], unchangedFormulaLineIds: [] },
+    feasibility: { policyVersion: "doe-feasibility/v1", evaluatedAt: "2026-01-01T00:00:00.000Z", status: "FEASIBLE", reasons: [] },
+    hardExclusions: { policyVersion: "doe-hard-exclusions/v1", safety: { status: "PASS", findingIds: [], reasons: [] }, regulatory: { status: "PASS", findingIds: [], reasons: [] } },
+    acquisition: { policyVersion: "doe-acquisition/v1", method: "nearest_measured_run_distance", status: "AVAILABLE", value: 1, sourceRunIds: ["run-1"] },
+  };
+
+  it("creates a planned real DOE run only after human selection and preserves recommendation/formula/run lineage", () => {
+    expect(() => createDoeRunFromAcceptedCandidate({ candidate: { ...recommendation, status: "proposed" }, study, design, existingRuns: [] }, HUMAN)).toThrow(/explicit human selection/i);
+    const result = createDoeRunFromAcceptedCandidate({ candidate: recommendation, study, design, existingRuns: [{ schemaVersion: "1.0", id: "run-5", studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 5, standardOrder: 5, randomizedOrder: 5, block: 1, replicate: 1, isCenterPoint: false, factorSettings: [], status: "completed", createdAt: "2026-01-01T00:00:00.000Z" }], acceptedAt: "2026-01-02T00:00:00.000Z" }, HUMAN);
+    expect(result).toMatchObject({ studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 6, status: "planned", recommendationId: "candidate-1", recommendationPolicyVersion: "doe-recommendation/v1", recommendationAcceptedBy: "alice", recommendationAcceptedAt: "2026-01-02T00:00:00.000Z", factorSettings: recommendation.factorSettings });
+    expect(result.linkedTrialId).toBeUndefined();
+  });
+});
+
 describe("evaluateDoeCandidateMaterialCost", () => {
   const baseline: FormulationVersion = {
     schemaVersion: "1.0", id: "version-1", formulationId: "formula-1", versionNumber: 1, status: "pilot_approved", author: "alice", createdAt: "2026-01-01T00:00:00.000Z", basisBatchKg: "100",
@@ -478,6 +517,19 @@ describe("createDoeCandidates", () => {
   it("refuses a non-human actor", () => {
     const ranked = [{ factorSettings: [], predictedResponses: [], desirability: 0.8, constraintStatus: [], rank: 1 }];
     expect(() => createDoeCandidates({ studyId: "study-1", studyRevision: 1, analysisIds: [], ranked }, { kind: "import" } as Actor)).toThrow();
+  });
+
+  it("keeps an unperformed recommendation proposed and rejects a validated recommendation status", () => {
+    const [candidate] = createDoeCandidates({
+      studyId: "study-1",
+      studyRevision: 1,
+      analysisIds: ["analysis-1"],
+      ranked: [{ factorSettings: [], predictedResponses: [], desirability: 0.8, constraintStatus: [], rank: 1 }],
+    }, HUMAN);
+
+    expect(candidate.status).toBe("proposed");
+    expect(doeCandidateSchema.safeParse(candidate).success).toBe(true);
+    expect(doeCandidateSchema.safeParse({ ...candidate, status: "validated" }).success).toBe(false);
   });
 });
 

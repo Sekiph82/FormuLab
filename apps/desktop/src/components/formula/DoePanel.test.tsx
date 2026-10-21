@@ -7,24 +7,26 @@
  * DossierPanel.test.tsx / ClaimsLabelsPanel.test.tsx — only `@/lib/masterdata`
  * is mocked; engine correctness itself is covered by the doe*.test.ts suites.
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Formulation, FormulationVersion } from "@formulab/shared";
-import { DoePanel } from "./DoePanel";
+import type { DoeCandidate, DoeDesign, DoeFactor, DoeStudy, Formulation, FormulationVersion } from "@formulab/shared";
+import { CandidateLineageEvidence, DoePanel } from "./DoePanel";
 
 const bridge = {
   listRecords: vi.fn(),
   listRecordsSeeded: vi.fn(),
   upsertRecords: vi.fn(),
 };
+const auditBridge = vi.hoisted(() => ({ appendAudit: vi.fn() }));
 
 vi.mock("@/lib/masterdata", () => ({
   listRecords: (...a: [string]) => bridge.listRecords(...a),
   listRecordsSeeded: (...a: [string, unknown[]]) => bridge.listRecordsSeeded(...a),
   upsertRecords: (...a: [string, unknown[]]) => bridge.upsertRecords(...a),
 }));
+vi.mock("@/lib/formulations", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/formulations")>()), appendAudit: (...args: unknown[]) => auditBridge.appendAudit(...args) }));
 
 const FORMULATION: Formulation = {
   schemaVersion: "1.0",
@@ -67,9 +69,11 @@ beforeEach(() => {
   bridge.listRecords.mockImplementation((collection: string) => Promise.resolve(stores[collection] ?? []));
   bridge.listRecordsSeeded.mockImplementation((collection: string, seed: unknown[]) => Promise.resolve((stores[collection]?.length ? stores[collection] : seed) ?? []));
   bridge.upsertRecords.mockImplementation((collection: string, records: { id: string }[]) => {
-    stores[collection] = [...(stores[collection] ?? []), ...records];
+    const ids = new Set(records.map((record) => record.id));
+    stores[collection] = [...(stores[collection] ?? []).filter((record) => !ids.has((record as { id: string }).id)), ...records];
     return Promise.resolve({ inserted: records.length, updated: 0, total: records.length });
   });
+  auditBridge.appendAudit.mockResolvedValue(undefined);
 });
 
 function renderPanel(versions: FormulationVersion[] = [VERSION_1]) {
@@ -92,6 +96,54 @@ describe("DoePanel — studies list and empty state", () => {
     renderPanel();
     await user.click(screen.getByRole("button", { name: "Runs" }));
     expect(await screen.findByText(/Select a study from the Studies tab first/i)).toBeInTheDocument();
+  });
+});
+
+describe("DOE recommendation evidence rendering", () => {
+  it("renders the source formula/design, analysis provenance, unavailable uncertainty, and policy versions", () => {
+    const candidate: DoeCandidate = {
+      schemaVersion: "1.0", id: "candidate-1", studyId: "study-1", studyRevision: 1, analysisIds: ["analysis-1"], factorSettings: [], predictedResponses: [], desirability: 0.8, constraintStatus: [], rank: 1, status: "proposed", createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z",
+      experimentSpace: { policyVersion: "doe-experiment-space/v1", designId: "design-1", sourceFormulaVersionId: "version-1", seed: 7, candidateCount: 4, manipulatedFactorCodes: ["A"], unchangedFormulaLineIds: [] },
+      feasibility: { policyVersion: "doe-feasibility/v1", evaluatedAt: "2026-01-01T00:00:00.000Z", status: "FEASIBLE", reasons: [] },
+      hardExclusions: { policyVersion: "doe-hard-exclusions/v1", safety: { status: "PASS", findingIds: [], reasons: [] }, regulatory: { status: "PASS", findingIds: [], reasons: [] } },
+      acquisition: { policyVersion: "doe-acquisition/v1", method: "nearest_measured_run_distance", status: "AVAILABLE", value: 1, sourceRunIds: ["run-1"] },
+      diversity: { policyVersion: "doe-diversity/v1", status: "AVAILABLE", nearestSelectedCandidateIds: [] },
+      estimatedMaterialCost: { policyVersion: "doe-estimated-material-cost/v1", status: "UNAVAILABLE", priceRecordCodes: [], exchangeRateCodes: [], reason: "missing prices" },
+    };
+    const { getByTestId } = render(<CandidateLineageEvidence candidate={candidate} t={(key) => ({ "doe.candidates.evidence.modelVersionUnavailable": "Model version unavailable", "doe.candidates.evidence.uncertaintyUnavailable": "Prediction uncertainty unavailable" })[key] ?? key} />);
+    const evidence = getByTestId("doe-candidate-lineage-candidate-1");
+    expect(evidence).toHaveTextContent("version-1");
+    expect(evidence).toHaveTextContent("design-1");
+    expect(evidence).toHaveTextContent("analysis-1");
+    expect(evidence).toHaveTextContent("Prediction uncertainty unavailable");
+    expect(evidence).toHaveTextContent("doe-diversity/v1");
+  });
+});
+
+describe("DOE recommendation to laboratory trial integration", () => {
+  it("creates a real linked run and planned LaboratoryTrial only from a selected recommendation", async () => {
+    const study: DoeStudy = { schemaVersion: "1.0", id: "study-1", studyCode: "DOE-1", title: "Selected study", projectId: "proj-1", formulationId: "proj-1", baselineFormulaVersionId: "version-1", status: "analysis_ready", designType: "full_factorial", randomizationEnabled: true, blockingEnabled: false, replicatePolicy: "none", centerPointPolicy: "none", revision: 1, createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const factor: DoeFactor = { schemaVersion: "1.0", id: "factor-a", studyId: "study-1", studyRevision: 1, factorCode: "A", name: "Material A", factorType: "continuous", sourceType: "formula_material", sourceEntityId: "material-a", lowValue: "5", centerValue: "10", highValue: "20", categoricalLevels: [], transformation: "none", precision: 2, isMixtureComponent: false, isProcessFactor: false, isControlled: true, createdAt: "2026-01-01T00:00:00.000Z" };
+    const design: DoeDesign = { schemaVersion: "1.0", id: "design-1", studyId: "study-1", studyRevision: 1, designType: "full_factorial", factorSnapshot: [factor], constraintSnapshot: [], responseSnapshot: [], generationSettings: {}, seed: 7, runCount: 1, replicateCount: 0, centerPointCount: 0, blockCount: 1, generatedBy: "alice", generatedAt: "2026-01-01T00:00:00.000Z", diagnostics: { runCount: 1, degreesOfFreedom: 0, duplicateRunCount: 0, estimableTerms: [], aliasedTerms: [], isOrthogonal: true, isBalanced: true, centerPointCount: 0, replicateCount: 0, constraintViolationCount: 0, warnings: [] } };
+    const candidate: DoeCandidate = { schemaVersion: "1.0", id: "candidate-1", studyId: "study-1", studyRevision: 1, analysisIds: ["analysis-1"], factorSettings: [{ factorCode: "A", codedValue: "1", actualValue: "20" }], predictedResponses: [], desirability: 0.8, constraintStatus: [], rank: 1, status: "selected", recommendationPolicyVersion: "doe-recommendation/v1", createdBy: "alice", createdAt: "2026-01-01T00:00:00.000Z", experimentSpace: { policyVersion: "doe-experiment-space/v1", designId: "design-1", sourceFormulaVersionId: "version-1", seed: 7, candidateCount: 4, manipulatedFactorCodes: ["A"], unchangedFormulaLineIds: [] }, feasibility: { policyVersion: "doe-feasibility/v1", evaluatedAt: "2026-01-01T00:00:00.000Z", status: "FEASIBLE", reasons: [] }, hardExclusions: { policyVersion: "doe-hard-exclusions/v1", safety: { status: "PASS", findingIds: [], reasons: [] }, regulatory: { status: "PASS", findingIds: [], reasons: [] } }, acquisition: { policyVersion: "doe-acquisition/v1", method: "nearest_measured_run_distance", status: "AVAILABLE", value: 1, sourceRunIds: ["run-1"] } };
+    const baseline: FormulationVersion = { ...VERSION_1, lines: [{ id: "line-a", lineNumber: 1, phase: "A", displayName: "Material A", materialId: "material-a", materialCode: "MAT-A", percent: "10", functions: [], isQsToHundred: false, provenance: { origin: "chemist_override", evidenceClaimIds: [] } }] };
+    stores.doe_studies = [study];
+    stores.doe_factors = [factor];
+    stores.doe_designs = [design];
+    stores.doe_candidates = [candidate];
+    stores.doe_runs = [{ schemaVersion: "1.0", id: "run-1", studyId: "study-1", studyRevision: 1, designId: "design-1", runNumber: 1, standardOrder: 1, randomizedOrder: 1, block: 1, replicate: 1, isCenterPoint: false, factorSettings: [{ factorCode: "A", codedValue: "-1", actualValue: "5" }], status: "completed", createdAt: "2026-01-01T00:00:00.000Z" }];
+    const user = userEvent.setup();
+    renderPanel([baseline]);
+    await user.click(await screen.findByText(/Selected study/));
+    await user.click(screen.getByRole("button", { name: "Candidates" }));
+    await user.click(await screen.findByTestId("doe-candidate-create-trial-candidate-1"));
+    await waitFor(() => expect(stores.laboratory_trials).toHaveLength(1));
+    const createdRun = stores.doe_runs.find((run) => (run as { recommendationId?: string }).recommendationId === "candidate-1") as { id: string; status: string; linkedTrialId?: string; recommendationAcceptedBy?: string };
+    const createdTrial = stores.laboratory_trials.find((trial) => (trial as { sourceDoeRunId?: string }).sourceDoeRunId === createdRun.id) as { status: string; sourceDoeStudyId: string; sourceDoeDesignId: string; sourceDoeRunId: string; sourceFormulaVersionId: string };
+    expect(createdRun).toMatchObject({ status: "trial_created", recommendationAcceptedBy: "local" });
+    expect(createdTrial).toMatchObject({ status: "planned", sourceDoeStudyId: "study-1", sourceDoeDesignId: "design-1", sourceDoeRunId: createdRun.id, sourceFormulaVersionId: "version-1" });
+    expect(createdRun.linkedTrialId).toBeTruthy();
+    expect((stores.doe_candidates[0] as DoeCandidate).status).toBe("selected");
   });
 });
 

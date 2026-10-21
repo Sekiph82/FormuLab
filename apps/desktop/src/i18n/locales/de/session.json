@@ -2595,6 +2595,37 @@
       "openInOptimization": "Open Optimization",
       "openInStability": "Open Stability",
       "exportCsv": "Export candidate list",
+      "evidence": {
+
+        "feasibility": "Machbarkeit",
+
+        "safety": "Sicherheit",
+
+        "regulatory": "Regulierung",
+
+        "acquisition": "Akquisition",
+
+        "diversity": "Diversität",
+
+        "seed": "Ausgang",
+
+        "estimatedMaterialCost": "Geschätzte Materialkosten",
+
+        "formulaVersion": "Formelversion",
+
+        "design": "DOE-Design",
+
+        "analysisProvenance": "DOE-Analyseherkunft",
+
+        "modelVersionUnavailable": "FVL-07-Modellversion im aktuellen DOE-Analysevertrag nicht verfügbar.",
+
+        "uncertaintyUnavailable": "Vorhersageunsicherheit im aktuellen DOE-Vorhersagevertrag nicht verfügbar.",
+
+        "policyVersions": "Richtlinienversionen",
+
+        "unavailable": "NICHT VERFÜGBAR"
+      },
+
       "noMaterialFactors": "This candidate has no formula-material factors — its process-parameter setting(s) were not applied to any draft line. Apply manually: {{settings}}"
     },
     "history": {

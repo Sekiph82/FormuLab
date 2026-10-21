@@ -95,6 +95,7 @@ import {
   type LaboratoryTrial,
 } from "@formulab/shared";
 import { listRecords, upsertRecords, nowIso, type Collection } from "./masterdata";
+import { retrainFromCompletedDoeTestResult } from "./doeModelRetraining";
 
 const PHYSICAL_FORMS = ["liquid", "powder", "granule", "paste", "flake", "pellet", "gas", "solid", "gel"] as const;
 import { listFormulations, readFormulation, saveFormulation, saveFormulationVersion, newFormulation } from "./formulations";
@@ -851,8 +852,8 @@ const commitTestDefinitions: Handler = async (r) => {
  * project/formula still fails exactly as before — there is nothing
  * honest to construct.
  */
-async function findOrCreateTrial(r: RowRecord): Promise<{ id: string; projectId: string; sourceFormulaVersionId?: string }> {
-  const existing = await findByCode<{ id: string; projectId: string; sourceFormulaVersionId?: string }>("laboratory_trials", "code", r.trial_code);
+async function findOrCreateTrial(r: RowRecord): Promise<{ id: string; projectId: string; sourceFormulaVersionId?: string; status?: string; sourceDoeRunId?: string }> {
+  const existing = await findByCode<{ id: string; projectId: string; sourceFormulaVersionId?: string; status?: string; sourceDoeRunId?: string }>("laboratory_trials", "code", r.trial_code);
   if (existing) return existing;
   if (!r.project_code) {
     throw new Error(`No laboratory trial with code "${r.trial_code}" exists yet, and no project_code was provided to auto-create one from a migrated formula — create the trial in the Laboratory workspace first, or provide project_code (and optionally formula_version).`);
@@ -996,6 +997,9 @@ const commitLabResults: Handler = async (r, ctx) => {
     updatedAt: createdAt,
   };
   await upsertRecords("test_results", [record as never]);
+  if (trial.status === "completed" && trial.sourceDoeRunId) {
+    await retrainFromCompletedDoeTestResult({ trialId: trial.id, testDefinitionId: testDef.code });
+  }
   return { outcome: "created", targetCollection: "test_results", targetRecordId: record.id };
 };
 

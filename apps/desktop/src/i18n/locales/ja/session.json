@@ -2595,6 +2595,37 @@
       "openInOptimization": "Open Optimization",
       "openInStability": "Open Stability",
       "exportCsv": "Export candidate list",
+      "evidence": {
+
+        "feasibility": "実現可能性",
+
+        "safety": "安全性",
+
+        "regulatory": "規制",
+
+        "acquisition": "取得基準",
+
+        "diversity": "多様性",
+
+        "seed": "基準",
+
+        "estimatedMaterialCost": "推定材料費",
+
+        "formulaVersion": "処方バージョン",
+
+        "design": "DOE設計",
+
+        "analysisProvenance": "DOE分析の出所",
+
+        "modelVersionUnavailable": "現在のDOE分析契約ではFVL-07モデルバージョンを利用できません。",
+
+        "uncertaintyUnavailable": "現在のDOE予測契約では予測不確実性を利用できません。",
+
+        "policyVersions": "ポリシーバージョン",
+
+        "unavailable": "利用不可"
+      },
+
       "noMaterialFactors": "This candidate has no formula-material factors — its process-parameter setting(s) were not applied to any draft line. Apply manually: {{settings}}"
     },
     "history": {

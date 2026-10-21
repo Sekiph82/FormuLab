@@ -128,6 +128,7 @@ export interface AnalysisForPrediction {
 }
 
 export const DOE_EXPERIMENT_SPACE_POLICY_VERSION = "doe-experiment-space/v1" as const;
+export const DOE_RECOMMENDATION_POLICY_VERSION = "doe-recommendation/v1" as const;
 export const MAX_DOE_EXPERIMENT_CANDIDATES = 500;
 
 /** A reproducible configuration over an existing frozen DOE design. This is
@@ -480,6 +481,14 @@ export function isDoeCandidateEligibleForSelection(candidate: Pick<DoeCandidate,
   return candidate.feasibility?.status === "FEASIBLE" && candidate.hardExclusions?.safety.status === "PASS" && candidate.hardExclusions?.regulatory.status === "PASS" && candidate.acquisition?.status === "AVAILABLE";
 }
 
+/** Shared gate for every conversion from a proposal to an executable action.
+ *  Selection is a human lifecycle state and cannot be inferred from rank. */
+export function assertDoeCandidateHumanSelected(candidate: Pick<DoeCandidate, "status" | "feasibility" | "hardExclusions" | "acquisition">, actor: Actor): void {
+  requireHumanActor(actor, "accept DOE recommendation for execution");
+  if (candidate.status !== "selected") throw new Error("Explicit human selection is required before creating a DOE run or laboratory trial.");
+  if (!isDoeCandidateEligibleForSelection(candidate)) throw new Error("Recommendation cannot be executed without confirmed feasibility, Safety, Regulatory, and acquisition evidence.");
+}
+
 export interface DoeCandidateAcquisition {
   policyVersion: "doe-acquisition/v1";
   method: "nearest_measured_run_distance";
@@ -706,6 +715,7 @@ export function createDoeCandidates(input: CreateDoeCandidatesInput, actor: Acto
       constraintStatus: c.constraintStatus,
       rank: c.rank,
       status: "proposed",
+      recommendationPolicyVersion: DOE_RECOMMENDATION_POLICY_VERSION,
       experimentSpace: input.experimentSpace ? {
         policyVersion: input.experimentSpace.policyVersion,
         designId: input.experimentSpace.designId,
@@ -719,6 +729,51 @@ export function createDoeCandidates(input: CreateDoeCandidatesInput, actor: Acto
       createdAt: now,
     }),
   );
+}
+
+/** Creates an existing-domain DOE run from an explicitly selected proposal.
+ *  It appends after the current design runs and retains recommendation and
+ *  human-acceptance lineage on the new run. No trial is started or executed. */
+export function createDoeRunFromAcceptedCandidate(input: {
+  candidate: DoeCandidate;
+  study: DoeStudy;
+  design: DoeDesign;
+  existingRuns: readonly DoeRun[];
+  acceptedAt?: string;
+}, actor: Actor): DoeRun {
+  assertDoeCandidateHumanSelected(input.candidate, actor);
+  if (input.candidate.studyId !== input.study.id || input.candidate.studyRevision !== input.study.revision) {
+    throw new Error("Recommendation study identity or revision does not match the active DOE study.");
+  }
+  if (input.design.studyId !== input.study.id || input.design.studyRevision !== input.study.revision || input.candidate.experimentSpace?.designId !== input.design.id) {
+    throw new Error("Recommendation DOE design lineage does not match the active design.");
+  }
+  if (input.candidate.experimentSpace.sourceFormulaVersionId !== input.study.baselineFormulaVersionId) {
+    throw new Error("Recommendation source formula version does not match the DOE study baseline.");
+  }
+  const designRuns = input.existingRuns.filter((run) => run.studyId === input.study.id && run.designId === input.design.id);
+  const runNumber = designRuns.reduce((maximum, run) => Math.max(maximum, run.runNumber), 0) + 1;
+  const acceptedAt = input.acceptedAt ?? new Date().toISOString();
+  return {
+    schemaVersion: "1.0",
+    id: newDoeId("doerun"),
+    studyId: input.study.id,
+    studyRevision: input.study.revision,
+    designId: input.design.id,
+    runNumber,
+    standardOrder: runNumber,
+    randomizedOrder: runNumber,
+    block: 1,
+    replicate: 1,
+    isCenterPoint: false,
+    factorSettings: input.candidate.factorSettings,
+    status: "planned",
+    recommendationId: input.candidate.id,
+    recommendationPolicyVersion: input.candidate.recommendationPolicyVersion ?? DOE_RECOMMENDATION_POLICY_VERSION,
+    recommendationAcceptedBy: actor.kind === "human" ? actor.userId : undefined,
+    recommendationAcceptedAt: acceptedAt,
+    createdAt: acceptedAt,
+  };
 }
 
 // ---------------------------------------------------------------------------

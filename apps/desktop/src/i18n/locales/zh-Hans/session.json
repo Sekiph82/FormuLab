@@ -2595,6 +2595,37 @@
       "openInOptimization": "Open Optimization",
       "openInStability": "Open Stability",
       "exportCsv": "Export candidate list",
+      "evidence": {
+
+        "feasibility": "可行性",
+
+        "safety": "安全",
+
+        "regulatory": "法规",
+
+        "acquisition": "采集准则",
+
+        "diversity": "多样性",
+
+        "seed": "基准",
+
+        "estimatedMaterialCost": "预计材料成本",
+
+        "formulaVersion": "配方版本",
+
+        "design": "DOE设计",
+
+        "analysisProvenance": "DOE分析来源",
+
+        "modelVersionUnavailable": "当前DOE分析合同中没有FVL-07模型版本。",
+
+        "uncertaintyUnavailable": "当前DOE预测合同中没有预测不确定性。",
+
+        "policyVersions": "策略版本",
+
+        "unavailable": "不可用"
+      },
+
       "noMaterialFactors": "This candidate has no formula-material factors — its process-parameter setting(s) were not applied to any draft line. Apply manually: {{settings}}"
     },
     "history": {
