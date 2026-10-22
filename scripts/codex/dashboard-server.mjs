@@ -1,13 +1,15 @@
 import { createReadStream } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { createServer } from "node:http";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServerClient } from "./app-server-client.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultRoot = resolve(scriptDirectory, "../..");
-const cacheDurationMs = 20_000;
+const cacheDurationMs = 1_000;
+const workflowStages = ["SPEC", "BUILD", "REVIEW", "APPROVE", "MERGED", "ESCALATED"];
+const reviewLenses = ["rules", "code", "tests"];
 const projectCatalog = [
   { id: "packlab", name: "PackLab", kind: "Codex", names: ["PackLab"], pathSegments: ["PackLab"] },
   { id: "formulab", name: "Formulab", kind: "Codex", names: ["Formulab", "FormuLab"], pathSegments: ["FormuLab"] },
@@ -35,6 +37,61 @@ function trackerSummary(source) {
     requiredActor: get("Required Actor"),
     completion: get("Completion"),
   };
+}
+
+function isWithinDirectory(parent, candidate) {
+  const pathFromParent = relative(parent, candidate);
+  return pathFromParent === "" || (!pathFromParent.startsWith(`..${sep}`) && pathFromParent !== ".." && !isAbsolute(pathFromParent));
+}
+
+export async function readWorkflowJobs(root) {
+  const jobsDirectory = resolve(root, "project-control/codex/jobs");
+  let entries;
+  try {
+    entries = await readdir(jobsDirectory, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+  const canonicalRoot = await realpath(root);
+  const canonicalJobsDirectory = await realpath(jobsDirectory);
+  if (!isWithinDirectory(canonicalRoot, canonicalJobsDirectory)) return [];
+  const jobs = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    try {
+      const jobDirectory = join(canonicalJobsDirectory, entry.name);
+      const canonicalJobDirectory = await realpath(jobDirectory);
+      if (!isWithinDirectory(canonicalJobsDirectory, canonicalJobDirectory)) continue;
+      const jobPath = join(jobDirectory, "job.json");
+      const canonicalJobPath = await realpath(jobPath);
+      if (!isWithinDirectory(canonicalJobDirectory, canonicalJobPath)) continue;
+      const fileInfo = await lstat(jobPath);
+      if (fileInfo.isSymbolicLink() || !fileInfo.isFile()) continue;
+      const value = JSON.parse(await readFile(canonicalJobPath, "utf8"));
+      if (!value || typeof value !== "object" || Array.isArray(value) ||
+          !/^[A-Z][A-Z0-9]*-\d+\.\d+$/.test(value.id ?? "") ||
+          typeof value.task !== "string" || !value.task.trim() ||
+          !workflowStages.includes(value.stage) ||
+          !Number.isInteger(value.round) || value.round < 1 ||
+          !value.reviews || typeof value.reviews !== "object" || Array.isArray(value.reviews)) continue;
+      const reviews = Object.fromEntries(reviewLenses.map((lens) => [
+        lens,
+        ["pending", "pass", "changes"].includes(value.reviews[lens]) ? value.reviews[lens] : "pending",
+      ]));
+      jobs.push({
+        id: value.id,
+        task: value.task.slice(0, 240),
+        stage: value.stage,
+        round: value.round,
+        reviews,
+        updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : null,
+      });
+    } catch (error) {
+      if (error?.code !== "ENOENT" && error?.code !== "ELOOP" && !(error instanceof SyntaxError)) throw error;
+    }
+  }
+  return jobs.sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
 }
 
 function normalizePath(value) {
@@ -141,6 +198,7 @@ export function createDashboardServer({
       try {
         const trackerSource = await readFile(resolve(root, "TASKS.md"), "utf8");
         const tracker = trackerSummary(trackerSource);
+        const jobs = await readWorkflowJobs(root);
         client ??= clientFactory();
         if (!initialized) {
           await client.initialize();
@@ -168,6 +226,7 @@ export function createDashboardServer({
           activeThreadCount: projects.reduce((count, project) => count + project.threads.length, 0),
           truncated: Boolean(projectListing.truncated || threadListing.truncated),
           task: tracker,
+          jobs,
         };
         cache = { loadedAt: Date.now(), value };
         return value;

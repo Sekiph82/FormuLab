@@ -1,4 +1,5 @@
 const projectsElement = document.querySelector("#projects");
+const threadsElement = document.querySelector("#threads");
 const noticeElement = document.querySelector("#notice");
 const searchElement = document.querySelector("#search");
 const projectSelect = document.querySelector("#project-select");
@@ -119,21 +120,25 @@ function render() {
   const filteredThreads = (selectedProject?.threads ?? []).filter((thread) =>
     `${thread.title} ${thread.cwd} ${thread.status} ${thread.source}`.toLowerCase().includes(query)
   );
+  const isFormuLab = selectedProject && (selectedProject.id === "formulab" || selectedProject.name.toLowerCase() === "formulab");
+  const filteredJobs = (isFormuLab ? overview.jobs ?? [] : []).filter((job) =>
+    `${job.id} ${job.task} ${job.stage}`.toLowerCase().includes(query)
+  );
   projectsElement.replaceChildren();
   if (!selectedProject) {
     projectsElement.append(element("div", "empty-card", "No selected projects are available."));
     selectedProjectElement.replaceChildren();
-  } else if (!filteredThreads.length) {
-    projectsElement.append(element("div", "empty-card", query ? "No tasks match this filter." : "No Codex threads for this project yet."));
-    renderSelectedProject(selectedProject);
+    threadsElement.replaceChildren(element("div", "empty-card", "No project selected."));
   } else {
     renderSelectedProject(selectedProject);
-    for (const thread of filteredThreads) projectsElement.append(renderThread(thread));
+    projectsElement.append(renderBoard(filteredJobs, isFormuLab, query));
+    threadsElement.replaceChildren(...(filteredThreads.length
+      ? filteredThreads.map(renderThread)
+      : [element("div", "empty-card", query ? "No threads match this filter." : "No Codex threads for this project yet.")]));
   }
 
   document.querySelector("#project-count").textContent = String(overview.projectCount);
   document.querySelector("#thread-count").textContent = String(overview.activeThreadCount ?? projects.reduce((count, project) => count + project.threads.length, 0));
-  const isFormuLab = selectedProject && (selectedProject.id === "formulab" || selectedProject.name.toLowerCase() === "formulab");
   taskSummaryElement.hidden = !isFormuLab;
   taskDetailsElement.hidden = !isFormuLab;
   const task = isFormuLab ? overview.task : null;
@@ -143,7 +148,9 @@ function render() {
   document.querySelector("#task-scope").textContent = [task?.milestone, task?.sprint].filter(Boolean).join(" / ") || "—";
   document.querySelector("#next-task").textContent = task?.nextTask ?? "—";
   document.querySelector("#completion").textContent = task?.completion ?? "—";
-  document.querySelector("#project-subtitle").textContent = selectedProject ? `${selectedProject.threads.length} recent Codex ${selectedProject.threads.length === 1 ? "thread" : "threads"} · refreshes every minute` : "Choose a project to see its latest Codex work";
+  document.querySelector("#project-subtitle").textContent = selectedProject
+    ? `${filteredJobs.length} workflow ${filteredJobs.length === 1 ? "job" : "jobs"} · refreshes every 2 seconds`
+    : "Choose a project to see its latest Codex work";
   document.querySelector("#updated").textContent = `Updated ${dateLabel(overview.generatedAt)}`;
   document.querySelector("#source").textContent = overview.source;
 
@@ -154,6 +161,48 @@ function render() {
   } else if (overview.truncated) {
     noticeElement.textContent = "The App Server page limit was reached. Some recent projects or tasks may not be shown.";
   }
+}
+
+const boardStages = ["SPEC", "BUILD", "REVIEW", "APPROVE", "MERGED", "ESCALATED"];
+
+function renderBoard(jobs, isFormuLab, query) {
+  const board = element("div", "activity-board");
+  board.setAttribute("aria-label", "Project activity kanban");
+  for (const stage of boardStages) {
+    const column = element("section", `board-column stage-${stage.toLowerCase()}`);
+    column.setAttribute("aria-label", `${stage} stage`);
+    const heading = element("h3", "column-title", stage);
+    column.append(heading);
+    const stageJobs = jobs.filter((job) => job.stage === stage);
+    if (stageJobs.length) {
+      for (const job of stageJobs) column.append(renderJob(job));
+    } else {
+      const message = !isFormuLab
+        ? "Workflow stage data is not available for this project."
+        : query && !jobs.length
+          ? "No matching jobs."
+          : stage === "BUILD" && !jobs.length
+            ? "No active workflow job."
+            : "";
+      if (message) column.append(element("p", "column-empty", message));
+    }
+    board.append(column);
+  }
+  return board;
+}
+
+function renderJob(job) {
+  const card = element("article", `job-card${job.stage === "ESCALATED" ? " escalated" : ""}`);
+  card.append(element("h4", "job-title", job.id));
+  card.append(element("p", "job-description", job.task));
+  if (job.stage === "BUILD" || job.stage === "REVIEW") card.append(element("p", "job-round", `round ${job.round}`));
+  const chips = element("div", "review-chips");
+  for (const lens of ["rules", "code", "tests"]) {
+    const status = job.reviews?.[lens] ?? "pending";
+    chips.append(element("span", `review-chip ${status}`, lens));
+  }
+  card.append(chips);
+  return card;
 }
 
 function renderThread(thread) {
@@ -171,6 +220,8 @@ function renderThread(thread) {
 }
 
 async function refresh() {
+  if (refreshing) return;
+  refreshing = true;
   const button = document.querySelector("#refresh");
   button.disabled = true;
   try {
@@ -194,8 +245,11 @@ async function refresh() {
     }
   } finally {
     button.disabled = false;
+    refreshing = false;
   }
 }
+
+let refreshing = false;
 
 document.querySelector("#refresh").addEventListener("click", refresh);
 themeButton.addEventListener("click", () => {
@@ -209,4 +263,4 @@ projectSelect.addEventListener("change", () => {
   render();
 });
 refresh();
-setInterval(refresh, 60_000);
+setInterval(refresh, 2_000);

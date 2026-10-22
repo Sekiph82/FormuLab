@@ -39,9 +39,10 @@ function allText(element) {
 }
 
 test("keeps the last successful project view when a refresh fails", async () => {
-  const selectors = ["#projects", "#notice", "#search", "#project-select", "#selected-project", "#task-summary", "#task-details", "#refresh", "#project-count", "#thread-count", "#task-id", "#task-title", "#task-status", "#task-scope", "#next-task", "#completion", "#project-subtitle", "#updated", "#source", "#theme-toggle"];
+  const selectors = ["#projects", "#threads", "#notice", "#search", "#project-select", "#selected-project", "#task-summary", "#task-details", "#refresh", "#project-count", "#thread-count", "#task-id", "#task-title", "#task-status", "#task-scope", "#next-task", "#completion", "#project-subtitle", "#updated", "#source", "#theme-toggle"];
   const elements = new Map(selectors.map((selector) => [selector, new FakeElement()]));
   let refreshTimer;
+  let refreshInterval;
   let fetchCount = 0;
   const overview = {
     generatedAt: "2026-10-22T10:00:00.000Z",
@@ -50,6 +51,7 @@ test("keeps the last successful project view when a refresh fails", async () => 
     projectCount: 1,
     activeThreadCount: 1,
     truncated: false,
+    jobs: [{ id: "DEVX-01.003", task: "Build the live activity board", stage: "BUILD", round: 1, reviews: { rules: "pending", code: "pending", tests: "pending" } }],
     task: {
       milestone: "DEVX-01",
       sprint: "DEVX-01-S01",
@@ -91,13 +93,19 @@ test("keeps the last successful project view when a refresh fails", async () => 
     window: { matchMedia() { return { matches: false }; } },
     localStorage: { getItem() { return null; }, setItem() {} },
     fetch,
-    setInterval(callback) { refreshTimer = callback; },
+    setInterval(callback, milliseconds) { refreshTimer = callback; refreshInterval = milliseconds; },
     Date,
     Number,
     String,
   });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(allText(elements.get("#projects")).includes("Visible task"), true);
+  assert.equal(refreshInterval, 2_000);
+  assert.equal(allText(elements.get("#projects")).includes("Visible task"), false);
+  assert.equal(allText(elements.get("#threads")).includes("Visible task"), true);
+  for (const stage of ["SPEC", "BUILD", "REVIEW", "APPROVE", "MERGED", "ESCALATED"]) {
+    assert.equal(allText(elements.get("#projects")).includes(stage), true);
+  }
+  assert.equal(allText(elements.get("#projects")).includes("DEVX-01.003"), true);
   assert.equal(elements.get("#project-count").textContent, "1");
   assert.equal(elements.get("#project-select").value, "project-1");
   assert.equal(elements.get("#task-status").textContent, "IN_PROGRESS");
@@ -107,15 +115,16 @@ test("keeps the last successful project view when a refresh fails", async () => 
 
   elements.get("#project-select").value = "project-2";
   elements.get("#project-select").listeners.get("change")();
-  assert.equal(allText(elements.get("#projects")).includes("Other project's work"), true);
-  assert.equal(allText(elements.get("#projects")).includes("Visible task"), false);
+  assert.equal(allText(elements.get("#threads")).includes("Other project's work"), true);
+  assert.equal(allText(elements.get("#threads")).includes("Visible task"), false);
+  assert.match(allText(elements.get("#projects")), /Workflow stage data is not available for this project/);
   assert.equal(elements.get("#task-summary").hidden, true);
   assert.equal(elements.get("#task-details").hidden, true);
   assert.match(allText(elements.get("#selected-project")), /1 active Codex task/);
 
   await refreshTimer();
 
-  assert.equal(allText(elements.get("#projects")).includes("Other project's work"), true);
+  assert.equal(allText(elements.get("#threads")).includes("Other project's work"), true);
   assert.equal(elements.get("#project-count").textContent, "1");
   assert.match(elements.get("#notice").textContent, /Showing the last successful data/);
 });

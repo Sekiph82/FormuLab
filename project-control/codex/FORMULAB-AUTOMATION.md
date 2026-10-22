@@ -12,6 +12,13 @@ This file defines how a Codex run may execute the explicit current task in the r
 6. Work on one task at a time with one implementation worker. Use one read-only reviewer; use a specialist only when the task's security, data-integrity, or UI acceptance requires it.
 7. After acceptance, update the completed row, `Project Status`, `Next Task`, and derived counts together. Publish that transition, then immediately repeat the SPEC / Autonomous Queue pass for the newly explicit current task when the authorized run covers it.
 
+## Project activity stages
+
+- After the published queue claim, create or update `project-control/codex/jobs/<task-id>/job.json` for the current task. This file is read-only dashboard activity metadata, not a task ledger; `TASKS.md` remains the sole authority for task selection and completion.
+- Keep `id` and `task` equal to the explicit current `TASKS.md` entry. Set `stage` to `SPEC` while recording scope and acceptance, then `BUILD`, `REVIEW`, and `APPROVE` only when those actions begin. Use `MERGED` only after the accepted task change is pushed; use `ESCALATED` when work stops for a human gate or the bounded retry limit.
+- Store the positive review `round` and `reviews` values (`pending`, `pass`, or `changes`) for `rules`, `code`, and `tests`. The single independent reviewer required by this repository may evaluate all three lenses; do not claim separate reviewer agents ran when they did not.
+- Update `updatedAt` whenever the stage, round, or review result changes. Never infer a task stage from Codex thread titles or statuses. The dashboard validates and reads these files only; it never creates, edits, or deletes them.
+
 ## Acceptance and tests
 
 - Review task acceptance criteria and changed files at each task boundary. Avoid full-project test suites during intermediate tasks.

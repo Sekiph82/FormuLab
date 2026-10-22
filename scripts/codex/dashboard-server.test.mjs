@@ -1,17 +1,32 @@
 import assert from "node:assert/strict";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { request } from "node:http";
 import { afterEach, test } from "node:test";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDashboardServer } from "./dashboard-server.mjs";
+import { createDashboardServer, readWorkflowJobs } from "./dashboard-server.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const openServers = new Set();
+const fixtureRoots = new Set();
 
 afterEach(async () => {
   await Promise.all([...openServers].map((server) => server.close()));
   openServers.clear();
+  await Promise.all([...fixtureRoots].map((path) => rm(path, { recursive: true, force: true })));
+  fixtureRoots.clear();
 });
+
+async function makeJobFixtureRoot() {
+  const root = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-jobs-test-"));
+  fixtureRoots.add(root);
+  await mkdir(join(root, "project-control/codex/jobs"), { recursive: true });
+  return root;
+}
+
+function rootPath() {
+  return root;
+}
 
 async function startServer({ projectList = { rows: [], truncated: false }, threads = [] } = {}) {
   const app = createDashboardServer({
@@ -61,6 +76,8 @@ test("serves a read-only overview grouped by saved Codex project", async () => {
   assert.equal(payload.projects.some((project) => ["deneme scrubbots piksel art uretimi", "Beach Cocktails - Merge", "H!veAI", "OUTPUTS", "ScrubBots"].includes(project.name)), false);
   assert.deepEqual(payload.projects.filter((project) => project.kind === "GitHub").map((project) => project.name), ["Wonder_Pop", "The_Fractured_Realms", "Dino_Islands", "Garage_Legends", "Coral_Rescue"]);
   assert.match(payload.task.currentTask.id, /^[A-Z][A-Z0-9]*-\d+\.\d+$/);
+  assert.equal(payload.jobs.some((job) => job.id === "DEVX-01.003" && job.stage === "APPROVE"), true);
+  assert.equal(payload.jobs[0].reviews.rules, "pass");
 });
 
 test("returns a safe unsupported notice without reading Codex storage directly", async () => {
@@ -144,4 +161,38 @@ test("serves local assets and rejects writes and foreign Host headers", async ()
     foreignHost.end();
   });
   assert.equal(foreignHostStatus, 403);
+});
+
+test("ignores malformed job JSON without failing the dashboard overview", async () => {
+  const fixtureRoot = await makeJobFixtureRoot();
+  const jobs = join(fixtureRoot, "project-control/codex/jobs");
+  for (const [name, value] of [["null-job", "null"], ["array-job", "[]"], ["invalid-json", "{"]]) {
+    const directory = join(jobs, name);
+    await mkdir(directory);
+    await writeFile(join(directory, "job.json"), value, "utf8");
+  }
+  const listed = await readWorkflowJobs(fixtureRoot);
+  assert.deepEqual(listed, []);
+});
+
+test("does not follow a job.json symlink outside the project root", async (context) => {
+  const fixtureRoot = await makeJobFixtureRoot();
+  const outsidePath = join(fixtureRoot, "outside.json");
+  const jobDirectory = join(fixtureRoot, "project-control/codex/jobs/escape");
+  await mkdir(jobDirectory);
+  await writeFile(outsidePath, JSON.stringify({
+    id: "TEST-01.001", task: "Outside file", stage: "BUILD", round: 1,
+    reviews: { rules: "pending", code: "pending", tests: "pending" },
+  }), "utf8");
+  try {
+    await symlink(outsidePath, join(jobDirectory, "job.json"), "file");
+  } catch (error) {
+    if (["EPERM", "EACCES", "ENOTSUP"].includes(error?.code)) {
+      context.skip("File symlinks are not available in this Windows environment.");
+      return;
+    }
+    throw error;
+  }
+  assert.deepEqual(await readWorkflowJobs(fixtureRoot), []);
+  assert.equal((await readFile(outsidePath, "utf8")).includes("Outside file"), true);
 });
