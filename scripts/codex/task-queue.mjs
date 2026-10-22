@@ -32,6 +32,7 @@ export function claimCurrentTask(source) {
 
   if (!current) throw new Error("Current Task must explicitly identify one task before the queue can start it.");
   if (actor !== "CODEX") throw new Error(`Required Actor must be CODEX; found ${actor ?? "missing"}.`);
+  if (!next) throw new Error("Next Task must be explicit, or set to None, before the queue can start.");
   if (tasks.length !== total) throw new Error(`TASKS.md says ${total} tasks, but its ledger has ${tasks.length}.`);
   if (new Set(tasks.map((task) => task.id)).size !== tasks.length) throw new Error("Task IDs must be unique before claiming work.");
   const currentRows = tasks.filter((task) => task.id === current[1] && task.title === current[2]);
@@ -94,14 +95,21 @@ async function runQueueClaim() {
 
   if (existsSync(temporaryTrackerPath)) throw new Error("TASKS.md.claim.tmp already exists; queue claim refused.");
   await writeFile(temporaryTrackerPath, claim.source, "utf8");
+  let stagedByQueue = false;
   try {
     await rename(temporaryTrackerPath, trackerPath);
     execFileSync(process.execPath, [resolve(repositoryRoot, "scripts/codex/validate-task-state.mjs")], { cwd: repositoryRoot, stdio: "inherit" });
     git("add", "--", "TASKS.md");
+    stagedByQueue = true;
     git("commit", "-m", `chore(tasks): claim ${claim.id}`);
+    stagedByQueue = false;
     git("push", "origin", branch);
     console.log(`Autonomous Queue claimed and published ${claim.id}: ${claim.title}`);
   } catch (error) {
+    if (git("rev-parse", "HEAD") === head) {
+      if (stagedByQueue) git("restore", "--staged", "--", "TASKS.md");
+      await writeFile(trackerPath, source, "utf8");
+    }
     try {
       await unlink(temporaryTrackerPath);
     } catch {
