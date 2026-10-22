@@ -1,0 +1,12 @@
+{
+  "id": "FVL-11.001",
+  "task": "Acceptance matrix across genuinely different product families",
+  "stage": "APPROVE",
+  "round": 1,
+  "reviews": {
+    "rules": "pass",
+    "code": "pass",
+    "tests": "pass"
+  },
+  "updatedAt": "2026-10-22T14:55:00Z"
+}

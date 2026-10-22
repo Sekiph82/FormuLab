@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-11
 - Current Sprint: FVL-11-S01
-- Current Task: FVL-11.001 — Acceptance matrix across genuinely different product families
+- Current Task: FVL-11.002 — Full-chain acceptance run 1 through report
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-11.002 — Full-chain acceptance run 1 through report
+- Next Task: FVL-11.003 — Full-chain acceptance run 2 through lab, model, active learning and retraining
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 164
-- Remaining Tasks: 14
-- Completion: 92.1%
+- Completed Tasks: 165
+- Remaining Tasks: 13
+- Completion: 92.7%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -295,8 +295,8 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-11
 
 ## Sprint FVL-11-S01 — Integrated acceptance
-- [~] FVL-11.001 — Acceptance matrix across genuinely different product families
-- [ ] FVL-11.002 — Full-chain acceptance run 1 through report
+- [x] FVL-11.001 — Acceptance matrix across genuinely different product families
+- [~] FVL-11.002 — Full-chain acceptance run 1 through report
 - [ ] FVL-11.003 — Full-chain acceptance run 2 through lab, model, active learning and retraining
 - [ ] FVL-11.004 — Backward compatibility for historical sessions
 - [ ] FVL-11.005 — Old vs new formulation UI decision after acceptance proof
