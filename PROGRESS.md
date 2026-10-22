@@ -1,5 +1,7 @@
 # Progress
 
+2026-10-22 14:03 · DEVX-01 dashboard now shows the seven retained Codex workspaces and five selected GitHub repositories; removed the five excluded Codex groups, linked repository cards, and kept FVL-11.001 READY; dashboard checks 5/5.
+
 2026-10-22 13:56 · DEVX-01 dashboard recovery: transient App Server failures now recycle the client while the UI keeps the last successful project data; 5 dashboard tests and live CLI/API smoke passed; FVL-11.001 remains READY.
 
 2026-10-22 00:28 · FVL-10 complete: exact immutable lineage now spans generation, DOE recommendation, trial/results, dataset, versioned retraining, historical prediction, ranking and optimization; retry, failed persistence, human-gate and no-source-mutation acceptance passed with shared 2,297/2,297 and desktop 1,793/1,793, both typechecks, ESLint and production build; FVL-11.001 is READY and not started.

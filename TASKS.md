@@ -19,10 +19,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 176
-- Completed Tasks: 162
+- Total Tasks: 177
+- Completed Tasks: 163
 - Remaining Tasks: 14
-- Completion: 92.0%
+- Completion: 92.1%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -303,6 +303,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
 - [x] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
 - [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
+- [x] DEVX-01.006 — Curate the dashboard project list and link selected GitHub repositories
 
 ## Historical Detail & Evidence
 
