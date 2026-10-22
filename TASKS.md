@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-11
 - Current Sprint: FVL-11-S02
-- Current Task: FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
+- Current Task: FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
+- Next Task: FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 172
-- Remaining Tasks: 6
-- Completion: 96.6%
+- Completed Tasks: 173
+- Remaining Tasks: 5
+- Completion: 97.2%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -306,8 +306,8 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-11.008 — Data integrity + backup/restore re-verified for new record types
 
 ## Sprint FVL-11-S02 — Regression, installer & v1 closure
-- [~] FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
-- [ ] FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
+- [x] FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
+- [~] FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
 - [ ] FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
 - [ ] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
 - [ ] FVL-11.013 — Current handoff updated to closure state
