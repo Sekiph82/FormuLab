@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 163
-- Remaining Tasks: 15
-- Completion: 91.6%
+- Completed Tasks: 162
+- Remaining Tasks: 16
+- Completion: 91.0%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
