@@ -1,0 +1,8 @@
+{
+  "id": "FVL-11.014",
+  "task": "Explicit FormuLab v1 COMPLETE declaration after every prior task is complete",
+  "branch": "main",
+  "stage": "approved",
+  "round": 1,
+  "reviews": { "rules": "PASS", "code": "PASS", "tests": "PASS" }
+}

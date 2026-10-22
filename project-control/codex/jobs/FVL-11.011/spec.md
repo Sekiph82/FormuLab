@@ -1,3 +1,3 @@
 # FVL-11.011 Desktop FormuLab.lnk verification
 
-Verify the existing user Desktop shortcut target and its current executable without changing the shortcut or replacing user-local project build outputs. Compare its resolved target and SHA-256 with the fresh FVL-11.010 executable. If it does not match, record a precise owner decision needed to choose the safe target/update path; do not overwrite an owner checkout or change the shortcut speculatively.
+Apply owner decision Q-FVL-11.011-1: the desktop executable must open the latest current FormuLab project each time. Verify the stable Desktop shortcut resolves to the current `main` checkout release executable, that executable is the latest build for current application source, and the running application uses that path. Preserve unrelated owner files and avoid shortcut changes when the path already satisfies the decision.

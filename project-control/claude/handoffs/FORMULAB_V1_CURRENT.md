@@ -1,8 +1,8 @@
-## Canonical FormuLab v1 queue status — 2026-10-22
+## Canonical FormuLab v1 closure — 2026-10-22
 
-The root `TASKS.md` on `main` is the sole task-state authority. FVL-11 remains open at 174/178 complete. Fresh unsigned Windows x64 `formulab.exe`, MSI, and NSIS artifacts were built and recorded under `project-control/codex/jobs/FVL-11.010/`. Published `main` is synchronized at `ac83194d5a759438f49a2378e2991c14e5c82ea2`.
+The root `TASKS.md` on `main` is the sole task-state authority. FormuLab v1 is COMPLETE: 178/178 tasks are validated complete, `Current Task` and `Next Task` are `None`, and no blockers remain. Owner decision `Q-FVL-11.011-1` is recorded exactly once in `Owner Decisions`.
 
-Closure is waiting on owner question `Q-FVL-11.011-1`: the user Desktop shortcut points into the separate Desktop checkout, and its executable hash differs from the fresh main build. The shortcut and existing executable were left unchanged to preserve local work. FVL-11.011 and dependent FVL-11.012 remain blocked; FVL-11.014 must not declare v1 complete until every prior task is complete. Resume from the canonical `TASKS.md` after the owner answer appears in the dashboard inbox.
+The Desktop shortcut resolves to `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`. Post-answer verification confirmed the target is the latest current main checkout release executable and is the active process image. The shortcut remains at its stable path so subsequent builds at that path are opened by the same shortcut. FVL-11.010 unsigned EXE/MSI/NSIS artifact hashes and FVL-11.011-014 closure evidence are in `project-control/codex/jobs/`.
 
 ---
 # FormuLab v1 — Current Execution Pointer

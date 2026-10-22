@@ -2,8 +2,8 @@
   "id": "FVL-11.011",
   "task": "Desktop FormuLab.lnk verification against fresh build",
   "branch": "main",
-  "stage": "escalated",
-  "round": 1,
-  "reviews": { "rules": "CHANGES", "code": "PASS", "tests": "PASS" },
-  "blocker": "Q-FVL-11.011-1"
+  "stage": "approved",
+  "round": 2,
+  "reviews": { "rules": "PASS", "code": "PASS", "tests": "PASS" },
+  "ownerDecision": "Q-FVL-11.011-1"
 }

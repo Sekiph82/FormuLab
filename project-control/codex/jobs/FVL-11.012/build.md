@@ -1,3 +1,3 @@
-STATUS: BLOCKED
+STATUS: READY
 
-`git rev-parse HEAD` and `git ls-remote origin refs/heads/main` both returned `cc511de91994fd1d9bee9e850ddc779a19dba038`, confirming local `main` matches published `origin/main`. However, the branch has an outstanding owner decision Q-FVL-11.011-1 because the Desktop shortcut target differs from the fresh build. Therefore the acceptance condition “no outstanding blocking issue” is false and FVL-11.012 cannot be closed until that question is resolved.
+Canonical local `main` and `origin/main` both resolve to `4b3841cd0fecb2a087313c16dee62edc61b348d7`. Canonical `TASKS.md` reports 178/178 complete and no open blocker. The Q-FVL-11.011-1 owner decision is recorded once under `Owner Decisions` and removed from open questions. The Desktop shortcut/executable check passed under that decision; no task-blocking issue remains.
