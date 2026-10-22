@@ -9,7 +9,7 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 - Current Milestone: FVL-11
 - Current Sprint: FVL-11-S01
 - Current Task: FVL-11.001 — Acceptance matrix across genuinely different product families
-- Current Task Status: READY
+- Current Task Status: IN_PROGRESS
 - Next Task: FVL-11.002 — Full-chain acceptance run 1 through report
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
@@ -278,7 +278,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 # FVL-11
 
 ## Sprint FVL-11-S01 — Integrated acceptance
-- [ ] FVL-11.001 — Acceptance matrix across genuinely different product families
+- [~] FVL-11.001 — Acceptance matrix across genuinely different product families
 - [ ] FVL-11.002 — Full-chain acceptance run 1 through report
 - [ ] FVL-11.003 — Full-chain acceptance run 2 through lab, model, active learning and retraining
 - [ ] FVL-11.004 — Backward compatibility for historical sessions
