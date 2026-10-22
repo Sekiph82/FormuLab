@@ -100,6 +100,17 @@ SQLite + JSONL provenance.
 - Do not route active implementation to Claude by default; Codex is the primary executor.
 - Reserve full regression, release builds, installers, and native verification for closure sessions.
 
+## Codex milestone automation
+
+- The explicit `Current Task` in root `TASKS.md` is the only task an automated run may start. Never select the first unchecked row or cross a milestone boundary implicitly.
+- Run one implementation worker at a time. Use one independent read-only reviewer; add a specialist only for a security, data-integrity, or UI-specific acceptance need.
+- Update the selected task and `Project Status` together when work starts, then update `TASKS.md` at every task transition. Do not create another task ledger.
+- Do not run the full project suite for each task. Record task-level review evidence and run the milestone's complete acceptance suite at its explicit closure task. If fixes change code after a failing suite, rerun affected checks and validate the final state before closing.
+- Use one task-owned worktree/branch for a milestone. Keep it isolated from owner work, merge only after milestone acceptance, and remove only exact worktrees, branches, and temporary paths created by that run.
+- Record free space before and after on the same volume. Never sweep shared TEMP, Codex/AppData, package caches, or other user data. Report unavoidable OS/application writes; do not promise an exact free-space match.
+- Stop for human approval, authentication, regulated human decisions, ambiguous acceptance, external publication not explicitly authorized by `TASKS.md`, owner-data risk, or a genuine blocker. Routine implementation choices and safe in-worktree edits do not require owner input.
+- For app-initialized local session workspaces, do not add a remote or push. For the canonical FormuLab repository, follow the publication step explicitly required by root `TASKS.md`; these are different workspace types.
+
 ## Data integrity
 
 - Preserve `.FormuLab/runs.db`.

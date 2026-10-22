@@ -19,10 +19,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 171
-- Completed Tasks: 157
+- Total Tasks: 175
+- Completed Tasks: 161
 - Remaining Tasks: 14
-- Completion: 91.8%
+- Completion: 92.0%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -294,6 +294,14 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [ ] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
 - [ ] FVL-11.013 — Current handoff updated to closure state
 - [ ] FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
+
+# DEVX-01
+
+## Sprint DEVX-01-S01 — Governed Codex automation and dashboard
+- [x] DEVX-01.001 — Define sequential Codex automation and owner-intervention gates
+- [x] DEVX-01.002 — Implement TASKS-driven sequential Codex runner guidance
+- [x] DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
+- [x] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
 
 ## Historical Detail & Evidence
 
