@@ -9,14 +9,29 @@ const trackerPath = resolve(repositoryRoot, "TASKS.md");
 const temporaryTrackerPath = resolve(repositoryRoot, "TASKS.md.claim.tmp");
 
 function field(source, name) {
-  return source.match(new RegExp(`^- ${name}:\\s*(.+)$`, "m"))?.[1]?.trim() ?? null;
+  const matches = [...source.matchAll(new RegExp(`^- ${name}:\\s*(.+)$`, "gm"))];
+  if (matches.length !== 1) throw new Error(`${name} must appear exactly once in TASKS.md.`);
+  return matches[0][1].trim();
 }
 
 function readTasks(source) {
-  return source.split(/\r?\n/).flatMap((line) => {
+  const lines = source.split(/\r?\n/);
+  const taskHeadings = lines.flatMap((line, index) => line === "## Tasks" ? [index] : []);
+  if (taskHeadings.length !== 1) throw new Error("TASKS.md must contain exactly one canonical ## Tasks ledger.");
+  const historicalHeading = lines.findIndex((line, index) => index > taskHeadings[0] && line === "## Historical Detail & Evidence");
+  const end = historicalHeading < 0 ? lines.length : historicalHeading;
+  const tasks = [];
+  for (const line of lines.slice(taskHeadings[0] + 1, end)) {
     const match = line.match(/^- \[([ x~!])\] ([A-Z][A-Z0-9]*-\d+\.\d+) — (.+)$/);
-    return match ? [{ marker: match[1], id: match[2], title: match[3] }] : [];
-  });
+    if (match) {
+      tasks.push({ marker: match[1], id: match[2], title: match[3] });
+      continue;
+    }
+    if (/^- /.test(line) || /\b[A-Z][A-Z0-9]*-\d+\.\d+\b/.test(line)) {
+      throw new Error(`Malformed task row in canonical ledger: ${line}`);
+    }
+  }
+  return tasks;
 }
 
 export function claimCurrentTask(source) {
@@ -50,12 +65,13 @@ export function claimCurrentTask(source) {
   }
 
   const row = currentRows[0];
+  const expectedMarker = { READY: " ", IN_PROGRESS: "~", BLOCKED: "!" }[status];
+  if (!expectedMarker) throw new Error(`Unsupported Current Task Status: ${status}.`);
+  if (row.marker !== expectedMarker) throw new Error(`Current Task Status ${status} does not match its canonical checkbox row.`);
   if (status === "IN_PROGRESS") {
-    if (row.marker !== "~") throw new Error(`Current task ${current[1]} is IN_PROGRESS but its ledger row is not [~].`);
     return { source, changed: false, id: current[1], title: current[2] };
   }
   if (status !== "READY") throw new Error(`Queue cannot claim a task in ${status ?? "an unset"} state.`);
-  if (row.marker !== " ") throw new Error(`Current task ${current[1]} is READY but its ledger row is not [ ].`);
 
   const updated = source
     .replace(`- Current Task Status: READY`, "- Current Task Status: IN_PROGRESS")
@@ -64,8 +80,24 @@ export function claimCurrentTask(source) {
   return { source: updated, changed: true, id: current[1], title: current[2] };
 }
 
+export function matchesExpectedQueueClaim(parentTracker, actualTracker, currentTaskId) {
+  const expected = claimCurrentTask(parentTracker);
+  return expected.changed && expected.id === currentTaskId && expected.source === actualTracker;
+}
+
+export function isRecoverableQueueClaim({ aheadCount, subject, changedFiles, clean, mergeBaseIsRemote, contentMatchesClaim, branch, expectedBranch, currentTaskId }) {
+  return aheadCount === 1 &&
+    subject === `chore(tasks): claim ${currentTaskId}` &&
+    changedFiles.length === 1 && changedFiles[0] === "TASKS.md" &&
+    clean && mergeBaseIsRemote && contentMatchesClaim && branch === expectedBranch;
+}
+
 function git(...args) {
-  return execFileSync("git", args, { cwd: repositoryRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  return gitRaw(...args).trim();
+}
+
+function gitRaw(...args) {
+  return execFileSync("git", args, { cwd: repositoryRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
 function normalizeRepository(value) {
@@ -82,9 +114,30 @@ async function runQueueClaim() {
   if (normalizeRepository(git("remote", "get-url", "origin")) !== normalizeRepository(trackingRepository)) {
     throw new Error("origin does not match the canonical Tracking Repository in TASKS.md.");
   }
+  git("fetch", "--quiet", "origin", branch);
   const head = git("rev-parse", "HEAD");
   const remoteHead = git("rev-parse", `origin/${branch}`);
-  if (head !== remoteHead) throw new Error(`Local ${branch} must exactly match origin/${branch} before a queue claim.`);
+  if (head !== remoteHead) {
+    const currentBranch = git("branch", "--show-current");
+    const changedFiles = git("diff", "--name-only", `origin/${branch}..HEAD`).split(/\r?\n/).filter(Boolean);
+    const remoteTracker = gitRaw("show", `origin/${branch}:TASKS.md`);
+    const localTracker = gitRaw("show", "HEAD:TASKS.md");
+    const canRecover = isRecoverableQueueClaim({
+      aheadCount: Number(git("rev-list", "--count", `origin/${branch}..HEAD`)),
+      subject: git("show", "--format=%s", "--no-patch", "HEAD"),
+      changedFiles,
+      clean: !git("status", "--porcelain"),
+      mergeBaseIsRemote: git("merge-base", "HEAD", `origin/${branch}`) === remoteHead,
+      contentMatchesClaim: matchesExpectedQueueClaim(remoteTracker, localTracker, claim.id),
+      branch: currentBranch,
+      expectedBranch: branch,
+      currentTaskId: claim.id,
+    });
+    if (!canRecover) throw new Error(`Local ${branch} differs from origin/${branch}; only a single clean, task-claim-only commit can be retried automatically.`);
+    git("push", "origin", branch);
+    console.log(`Autonomous Queue recovered and published the existing claim for ${claim.id}.`);
+    return;
+  }
   if (git("diff", "--cached", "--name-only")) throw new Error("Uncommitted staged changes exist; queue claim refused.");
   if (git("status", "--porcelain", "--", "TASKS.md")) throw new Error("TASKS.md already has local changes; queue claim refused to preserve them.");
 
