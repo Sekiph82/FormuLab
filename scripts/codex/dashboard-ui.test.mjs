@@ -38,6 +38,13 @@ function allText(element) {
   return [element.textContent, ...element.children.map(allText)].join(" ");
 }
 
+function findAllByClass(element, className) {
+  return [
+    ...(element.className.split(/\s+/).includes(className) ? [element] : []),
+    ...element.children.flatMap((child) => findAllByClass(child, className)),
+  ];
+}
+
 test("keeps the last successful project view when a refresh fails", async () => {
   const selectors = ["#projects", "#threads", "#notice", "#search", "#project-select", "#selected-project", "#task-summary", "#task-details", "#owner-questions", "#questions-list", "#refresh", "#project-count", "#thread-count", "#task-id", "#task-title", "#task-status", "#task-scope", "#next-task", "#completion", "#project-subtitle", "#updated", "#source", "#theme-toggle"];
   const elements = new Map(selectors.map((selector) => [selector, new FakeElement()]));
@@ -112,6 +119,30 @@ test("keeps the last successful project view when a refresh fails", async () => 
   assert.equal(allText(elements.get("#projects")).includes("DEVX-01.003"), true);
   assert.equal(elements.get("#project-count").textContent, "1");
   assert.equal(elements.get("#project-select").value, "project-1");
+  let jobCard = findAllByClass(elements.get("#projects"), "job-card")[0];
+  let chips = jobCard.children.find((child) => child.className === "review-chips").children;
+  assert.deepEqual(chips.map((chip) => [chip.textContent, chip.className]), [
+    ["rules", "review-chip pass"],
+    ["code", "review-chip pass"],
+    ["tests", "review-chip pending"],
+  ]);
+
+  overview.jobs[0].stage = "SPEC";
+  elements.get("#project-select").listeners.get("change")();
+  jobCard = findAllByClass(elements.get("#projects"), "job-card")[0];
+  chips = jobCard.children.find((child) => child.className === "review-chips").children;
+  assert.deepEqual(chips.map((chip) => chip.className), [
+    "review-chip pass", "review-chip pending", "review-chip pending",
+  ]);
+
+  overview.jobs[0].stage = "REVIEW";
+  elements.get("#project-select").listeners.get("change")();
+  jobCard = findAllByClass(elements.get("#projects"), "job-card")[0];
+  chips = jobCard.children.find((child) => child.className === "review-chips").children;
+  assert.deepEqual(chips.map((chip) => chip.className), [
+    "review-chip pass", "review-chip pass", "review-chip pass",
+  ]);
+
   assert.equal(elements.get("#task-status").textContent, "IN_PROGRESS");
   assert.match(allText(elements.get("#selected-project")), /1 active Codex task/);
   assert.equal(elements.get("#task-summary").hidden, false);

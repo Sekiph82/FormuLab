@@ -256,8 +256,15 @@ function renderJob(job) {
   card.append(element("p", "job-description", job.task));
   if (job.stage === "BUILD" || job.stage === "REVIEW") card.append(element("p", "job-round", `round ${job.round}`));
   const chips = element("div", "review-chips");
+  const completedReviews = {
+    SPEC: ["rules"],
+    BUILD: ["rules", "code"],
+    REVIEW: ["rules", "code", "tests"],
+    APPROVE: ["rules", "code", "tests"],
+    MERGED: ["rules", "code", "tests"],
+  }[job.stage] ?? [];
   for (const lens of ["rules", "code", "tests"]) {
-    const status = job.reviews?.[lens] ?? "pending";
+    const status = completedReviews.includes(lens) ? "pass" : job.reviews?.[lens] ?? "pending";
     chips.append(element("span", `review-chip ${status}`, lens));
   }
   card.append(chips);
