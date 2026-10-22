@@ -1,12 +1,12 @@
 {
   "id": "FVL-11.002",
   "task": "Full-chain acceptance run 1 through report",
-  "stage": "SPEC",
+  "stage": "MERGED",
   "round": 1,
   "reviews": {
-    "rules": "pending",
-    "code": "pending",
-    "tests": "pending"
+    "rules": "pass",
+    "code": "pass",
+    "tests": "pass"
   },
-  "updatedAt": "2026-10-22T14:52:32Z"
+  "updatedAt": "2026-10-22T15:23:02Z"
 }
