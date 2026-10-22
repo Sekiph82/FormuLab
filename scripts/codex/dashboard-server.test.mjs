@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { request } from "node:http";
 import { afterEach, test } from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,6 +85,19 @@ test("serves local assets and rejects writes and foreign Host headers", async ()
   const write = await fetch(`${baseUrl}/api/overview`, { method: "POST" });
   assert.equal(write.status, 405);
 
-  const foreignHost = await fetch(`${baseUrl}/health`, { headers: { Host: "example.com" } });
-  assert.equal(foreignHost.status, 403);
+  const address = new URL(baseUrl);
+  const foreignHostStatus = await new Promise((resolve, reject) => {
+    const foreignHost = request({
+      hostname: address.hostname,
+      port: address.port,
+      path: "/health",
+      headers: { Host: "example.com" },
+    }, (response) => {
+      response.resume();
+      response.on("end", () => resolve(response.statusCode));
+    });
+    foreignHost.on("error", reject);
+    foreignHost.end();
+  });
+  assert.equal(foreignHostStatus, 403);
 });
