@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-11
 - Current Sprint: FVL-11-S02
-- Current Task: FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
+- Current Task: FVL-11.013 — Current handoff updated to closure state
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
+- Next Task: FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -54,6 +54,8 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Questions for Şekip
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
+
+- Q-FVL-11.011-1 | The Desktop shortcut resolves to C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe, but that executable SHA-256 (0958C88C1B672ECD8640C75D2D3CC1B1D9C27D65B80AC547FDD39620BD1E796E) differs from the fresh FVL-11.010 main build (0F8CCE42D0F21EC590F2C06617D1FF4C72740F90F071B0B3B2279D212A9BD447). Should I replace that exact ignored executable with the fresh build, retarget the shortcut to another path (provide it), or preserve the current target? | TASK: FVL-11.011
 
 ## Owner Decisions
 
@@ -308,9 +310,9 @@ Sprint grouping below is a management-only organization of the existing frozen t
 ## Sprint FVL-11-S02 — Regression, installer & v1 closure
 - [x] FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
 - [x] FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
-- [~] FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
-- [ ] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
-- [ ] FVL-11.013 — Current handoff updated to closure state
+- [!] FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
+- [!] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
+- [~] FVL-11.013 — Current handoff updated to closure state
 - [ ] FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
 
 # DEVX-01

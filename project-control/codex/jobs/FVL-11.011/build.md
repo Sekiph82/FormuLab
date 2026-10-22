@@ -1,0 +1,5 @@
+STATUS: BLOCKED
+
+Read-only inspection of `C:\Users\sekip\Desktop\FormuLab.lnk` resolved the shortcut to `C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe`. That existing executable is 24,872,448 bytes, version 0.4.0, SHA-256 `0958C88C1B672ECD8640C75D2D3CC1B1D9C27D65B80AC547FDD39620BD1E796E`. The fresh FVL-11.010 main build executable is 24,681,472 bytes, version 0.4.0, SHA-256 `0F8CCE42D0F21EC590F2C06617D1FF4C72740F90F071B0B3B2279D212A9BD447`. The shortcut resolves, but it does not point to the fresh build artifact. The target belongs to the user's separate Desktop checkout, which contains unrelated local changes; no shortcut or executable was changed.
+
+Owner decision Q-FVL-11.011-1 is recorded in `TASKS.md`: choose whether to replace that exact ignored executable with the fresh main build, retarget the shortcut to another install/build path (provide the path), or preserve the current target. This task cannot pass until the owner chooses a safe target/update action.

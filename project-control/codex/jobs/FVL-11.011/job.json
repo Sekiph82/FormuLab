@@ -2,7 +2,8 @@
   "id": "FVL-11.011",
   "task": "Desktop FormuLab.lnk verification against fresh build",
   "branch": "main",
-  "stage": "build",
+  "stage": "escalated",
   "round": 1,
-  "reviews": { "rules": "PENDING", "code": "PENDING", "tests": "PENDING" }
+  "reviews": { "rules": "CHANGES", "code": "PASS", "tests": "PASS" },
+  "blocker": "Q-FVL-11.011-1"
 }
