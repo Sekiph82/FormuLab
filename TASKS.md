@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: FVL-11
-- Current Sprint: FVL-11-S01
-- Current Task: FVL-11.001 — Acceptance matrix across genuinely different product families
-- Current Task Status: READY
-- Next Task: FVL-11.002 — Full-chain acceptance run 1 through report
+- Current Milestone: DEVX-01
+- Current Sprint: DEVX-01-S01
+- Current Task: DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
+- Current Task Status: IN_PROGRESS
+- Next Task: DEVX-01.004 — Run milestone acceptance and clean task-owned resources
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -19,10 +19,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 171
+- Total Tasks: 175
 - Completed Tasks: 157
-- Remaining Tasks: 14
-- Completion: 91.8%
+- Remaining Tasks: 18
+- Completion: 89.7%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -294,6 +294,14 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [ ] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
 - [ ] FVL-11.013 — Current handoff updated to closure state
 - [ ] FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
+
+# DEVX-01
+
+## Sprint DEVX-01-S01 — Governed Codex automation and dashboard
+- [x] DEVX-01.001 — Define sequential Codex automation and owner-intervention gates
+- [x] DEVX-01.002 — Implement TASKS-driven sequential Codex runner guidance
+- [~] DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
+- [ ] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
 
 ## Historical Detail & Evidence
 
