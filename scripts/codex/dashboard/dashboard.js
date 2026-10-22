@@ -24,7 +24,15 @@ function renderProject(project) {
   const card = element("article", "project-card");
   const top = element("div", "project-top");
   const heading = element("div");
-  heading.append(element("h3", "project-name", project.name));
+  if (project.repositoryUrl) {
+    const link = element("a", "project-name", project.name);
+    link.href = project.repositoryUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    heading.append(link);
+  } else {
+    heading.append(element("h3", "project-name", project.name));
+  }
   if (project.roots?.[0]) heading.append(element("div", "project-path", project.roots[0]));
   top.append(heading, element("span", "project-count", `${project.threads.length} ${project.threads.length === 1 ? "task" : "tasks"}`));
   card.append(top);
@@ -53,7 +61,7 @@ function render() {
   if (!overview) return;
   const query = searchElement.value.trim().toLowerCase();
   const filtered = overview.projects.filter((project) => {
-    const searchText = [project.name, ...project.roots, ...project.threads.map((thread) => `${thread.title} ${thread.cwd}`)].join(" ").toLowerCase();
+    const searchText = [project.name, project.repositoryUrl, ...project.roots, ...project.threads.map((thread) => `${thread.title} ${thread.cwd}`)].join(" ").toLowerCase();
     return searchText.includes(query);
   });
   projectsElement.replaceChildren();

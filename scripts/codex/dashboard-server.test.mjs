@@ -53,10 +53,13 @@ test("serves a read-only overview grouped by saved Codex project", async () => {
   const response = await fetch(`${baseUrl}/api/overview`);
   assert.equal(response.status, 200);
   const payload = await response.json();
-  assert.equal(payload.projectCount, 1);
+  assert.equal(payload.projectCount, 12);
   assert.equal(payload.activeThreadCount, 1);
-  assert.equal(payload.projects[0].name, "FormuLab");
-  assert.equal(payload.projects[0].threads[0].title, "FVL-11 acceptance");
+  const formulab = payload.projects.find((project) => project.id === "project-1");
+  assert.equal(formulab.name, "Formulab");
+  assert.equal(formulab.threads[0].title, "FVL-11 acceptance");
+  assert.equal(payload.projects.some((project) => ["deneme scrubbots piksel art uretimi", "Beach Cocktails - Merge", "H!veAI", "OUTPUTS", "ScrubBots"].includes(project.name)), false);
+  assert.deepEqual(payload.projects.filter((project) => project.kind === "GitHub").map((project) => project.name), ["Wonder_Pop", "The_Fractured_Realms", "Dino_Islands", "Garage_Legends", "Coral_Rescue"]);
   assert.match(payload.task.currentTask.id, /^[A-Z][A-Z0-9]*-\d+\.\d+$/);
 });
 
@@ -72,8 +75,8 @@ test("returns a safe unsupported notice without reading Codex storage directly",
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.projectListState, "unsupported");
-  assert.equal(payload.projects[0].id, "unassigned");
-  assert.equal(payload.projects[0].threads[0].id, "thread-2");
+  assert.equal(payload.projectCount, 12);
+  assert.equal(payload.projects.some((project) => project.id === "unassigned"), false);
 });
 
 test("recreates the App Server client after a transient listing failure", async () => {
@@ -89,11 +92,11 @@ test("recreates the App Server client after a transient listing failure", async 
       return {
         async initialize() {},
         async listProjects() {
-          return { rows: [], truncated: false };
+          return { rows: [{ id: "project-1", name: "PackLab", roots: [{ path: "C:\\work\\PackLab" }] }], truncated: false };
         },
         async listThreads() {
           if (isFirstClient) throw new Error("Codex App Server exited.");
-          return { rows: [{ id: "recovered-thread", title: "Recovered", cwd: "C:\\work", status: "idle" }], truncated: false };
+          return { rows: [{ id: "recovered-thread", title: "Recovered", cwd: "C:\\work\\PackLab", status: "idle", projectId: "project-1" }], truncated: false };
         },
         async close() {
           if (isFirstClient) firstClientClosed = true;
@@ -121,7 +124,7 @@ test("serves local assets and rejects writes and foreign Host headers", async ()
   const { baseUrl } = await startServer();
   const page = await fetch(baseUrl);
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /All your Codex projects/);
+  assert.match(await page.text(), /Selected projects/);
 
   const write = await fetch(`${baseUrl}/api/overview`, { method: "POST" });
   assert.equal(write.status, 405);

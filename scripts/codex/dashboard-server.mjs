@@ -8,6 +8,20 @@ import { CodexAppServerClient } from "./app-server-client.mjs";
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultRoot = resolve(scriptDirectory, "../..");
 const cacheDurationMs = 20_000;
+const projectCatalog = [
+  { id: "packlab", name: "PackLab", kind: "Codex", names: ["PackLab"], pathSegments: ["PackLab"] },
+  { id: "formulab", name: "Formulab", kind: "Codex", names: ["Formulab", "FormuLab"], pathSegments: ["FormuLab"] },
+  { id: "fmcg-erp-system-main", name: "fmcg-erp-system-main", kind: "Codex", names: ["fmcg-erp-system-main"], pathSegments: ["fmcg-erp-system-main"] },
+  { id: "match3-visual-ui-factory", name: "MATCH3-Visual-UI-Factory", kind: "Codex", names: ["MATCH3-Visual-UI-Factory"], pathSegments: ["MATCH3-Visual-UI-Factory"] },
+  { id: "match3-level-factory", name: "Match3-Level-Factory", kind: "Codex", names: ["Match3-Level-Factory"], pathSegments: ["Match3-Level-Factory"] },
+  { id: "scrubbots-level-factory", name: "ScrubBots Level Factory", kind: "Codex", names: ["ScrubBots Level Factory"], pathSegments: ["Scrubbots - Pixel Art Generator"] },
+  { id: "match3-engine", name: "MATCH3_ENGINE", kind: "Codex", names: ["MATCH3_ENGINE"], pathSegments: ["MATCH3_ENGINE"] },
+  { id: "wonder-pop", name: "Wonder_Pop", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/Wonder_Pop", names: ["Wonder_Pop"], pathSegments: ["Wonder_Pop"] },
+  { id: "the-fractured-realms", name: "The_Fractured_Realms", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/The_Fractured_Realms", names: ["The_Fractured_Realms"], pathSegments: ["The_Fractured_Realms"] },
+  { id: "dino-islands", name: "Dino_Islands", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/Dino_Islands", names: ["Dino_Islands"], pathSegments: ["Dino_Islands"] },
+  { id: "garage-legends", name: "Garage_Legends", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/Garage_Legends", names: ["Garage_Legends"], pathSegments: ["Garage_Legends"] },
+  { id: "coral-rescue", name: "Coral_Rescue", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/Coral_Rescue", names: ["Coral_Rescue"], pathSegments: ["Coral_Rescue"] },
+];
 
 function trackerSummary(source) {
   const get = (name) => source.match(new RegExp(`^- ${name}:\\s*(.+)$`, "m"))?.[1]?.trim() ?? null;
@@ -25,6 +39,11 @@ function trackerSummary(source) {
 
 function normalizePath(value) {
   return typeof value === "string" ? value.replaceAll("\\", "/").replace(/\/$/, "").toLowerCase() : "";
+}
+
+function pathHasSegment(path, segments) {
+  const pathSegments = normalizePath(path).split("/");
+  return segments.some((segment) => pathSegments.includes(segment.toLowerCase()));
 }
 
 function getRoots(project) {
@@ -57,32 +76,33 @@ function sanitizeThread(thread) {
   };
 }
 
-function groupThreads(projects, threads) {
-  const groups = projects.map((project) => ({
-    id: String(project.id ?? ""),
-    name: String(project.name ?? "Untitled project").slice(0, 140),
-    roots: getRoots(project),
-    updatedAt: threadUpdatedAt({ updatedAt: project.updatedAt ?? project.updated_at ?? project.recencyAt }),
-    threads: [],
-  }));
-  const unassigned = {
-    id: "unassigned",
-    name: "Threads without a saved project",
-    roots: [],
-    updatedAt: null,
-    threads: [],
-  };
+function projectMatches(project, definition) {
+  return definition.names.some((name) => String(project?.name ?? "").toLowerCase() === name.toLowerCase()) ||
+    getRoots(project).some((root) => pathHasSegment(root, definition.pathSegments));
+}
 
-  for (const original of threads) {
-    const thread = sanitizeThread(original);
-    const cwd = normalizePath(thread.cwd);
-    const group = groups.find((project) =>
-      (thread.projectId && thread.projectId === project.id) ||
-      project.roots.some((root) => normalizePath(root) === cwd)
+function groupThreads(projects, threads) {
+  const safeThreads = threads.map(sanitizeThread);
+  return projectCatalog.map((definition) => {
+    const source = projects.find((project) => projectMatches(project, definition));
+    const sourceId = typeof source?.id === "string" ? source.id : null;
+    const roots = getRoots(source);
+    const matchingThreads = safeThreads.filter((thread) =>
+      (sourceId && thread.projectId === sourceId) ||
+      roots.some((root) => normalizePath(root) === normalizePath(thread.cwd)) ||
+      pathHasSegment(thread.cwd, definition.pathSegments)
     );
-    (group ?? unassigned).threads.push(thread);
-  }
-  return [...groups, ...(unassigned.threads.length ? [unassigned] : [])];
+    const threadRoots = matchingThreads.map((thread) => thread.cwd).filter(Boolean);
+    return {
+      id: sourceId ?? definition.id,
+      name: definition.name,
+      kind: definition.kind,
+      repositoryUrl: definition.repositoryUrl ?? null,
+      roots: roots.length ? roots : [...new Set(threadRoots)],
+      updatedAt: threadUpdatedAt({ updatedAt: source?.updatedAt ?? source?.updated_at ?? source?.recencyAt }),
+      threads: matchingThreads,
+    };
+  });
 }
 
 function statusCodeFor(error) {
@@ -136,11 +156,11 @@ export function createDashboardServer({
         const projects = groupThreads(projectListing.rows, threadListing.rows);
         const value = {
           generatedAt: new Date().toISOString(),
-          source: "Codex App Server read-only APIs",
+          source: "Codex App Server and selected GitHub repositories",
           projectListState,
           projects,
-          projectCount: projectListing.rows.length,
-          activeThreadCount: threadListing.rows.length,
+          projectCount: projects.length,
+          activeThreadCount: projects.reduce((count, project) => count + project.threads.length, 0),
           truncated: Boolean(projectListing.truncated || threadListing.truncated),
           task: tracker,
         };
