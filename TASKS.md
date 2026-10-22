@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-11
 - Current Sprint: FVL-11-S01
-- Current Task: FVL-11.004 — Backward compatibility for historical sessions
+- Current Task: FVL-11.006 — Authorization/role and approval gates re-verified; no AI auto-approval
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-11.005 — Old vs new formulation UI decision after acceptance proof
+- Next Task: FVL-11.007 — Zero-LLM formulation regression re-confirmed
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 167
-- Remaining Tasks: 11
-- Completion: 93.8%
+- Completed Tasks: 168
+- Remaining Tasks: 10
+- Completion: 94.4%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -54,6 +54,7 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Questions for Şekip
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
+- Q-FVL-11.005-1 | After FVL-11 acceptance evidence, which formulation experience should be the v1 default: keep the existing UI, switch to the new UI, or retain both with a user-selectable choice? | TASK: FVL-11.005
 
 ## Owner Decisions
 
@@ -298,9 +299,9 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-11.001 — Acceptance matrix across genuinely different product families
 - [x] FVL-11.002 — Full-chain acceptance run 1 through report
 - [x] FVL-11.003 — Full-chain acceptance run 2 through lab, model, active learning and retraining
-- [~] FVL-11.004 — Backward compatibility for historical sessions
-- [ ] FVL-11.005 — Old vs new formulation UI decision after acceptance proof
-- [ ] FVL-11.006 — Authorization/role and approval gates re-verified; no AI auto-approval
+- [x] FVL-11.004 — Backward compatibility for historical sessions
+- [!] FVL-11.005 — Old vs new formulation UI decision after acceptance proof
+- [~] FVL-11.006 — Authorization/role and approval gates re-verified; no AI auto-approval
 - [ ] FVL-11.007 — Zero-LLM formulation regression re-confirmed
 - [ ] FVL-11.008 — Data integrity + backup/restore re-verified for new record types
 

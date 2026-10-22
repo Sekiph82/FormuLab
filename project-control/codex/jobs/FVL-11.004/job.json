@@ -1,0 +1,12 @@
+{
+  "id": "FVL-11.004",
+  "task": "Backward compatibility for historical sessions",
+  "stage": "MERGED",
+  "round": 1,
+  "reviews": {
+    "rules": "pass",
+    "code": "pass",
+    "tests": "pass"
+  },
+  "updatedAt": "2026-10-22T15:32:43Z"
+}
