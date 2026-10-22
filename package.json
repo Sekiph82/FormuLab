@@ -11,6 +11,8 @@
     "typecheck": "pnpm --filter @formulab/desktop typecheck",
     "lint": "pnpm --filter @formulab/desktop lint",
     "codex:tasks:check": "node scripts/codex/validate-task-state.mjs",
+    "codex:tasks:claim": "node scripts/codex/task-queue.mjs",
+    "codex:tasks:test": "node --test scripts/codex/task-queue.test.mjs",
     "codex:dashboard": "node scripts/codex/dashboard-server.mjs",
     "codex:dashboard:test": "node --test scripts/codex/dashboard-server.test.mjs scripts/codex/dashboard-ui.test.mjs",
     "docs:fixture:seed": "tsx scripts/dev/seed-docs-fixture.ts",

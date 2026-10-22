@@ -4,11 +4,13 @@ This file defines how a Codex run may execute the explicit current task in the r
 
 ## Run boundary
 
-1. Read root `AGENTS.md`, `TASKS.md`, and the current task's referenced acceptance material.
-2. Confirm `Current Task`, `Current Task Status`, `Required Actor`, `Current Milestone`, and `Next Task` explicitly. Never infer a task from checkbox order.
-3. Confirm the repository is on the tracked project branch or an isolated task-owned worktree. Inspect owner changes before creating or modifying files. Stop before touching unrelated changes.
-4. Work on one task at a time with one implementation worker. Use one read-only reviewer; use a specialist only when the task's security, data-integrity, or UI acceptance requires it.
-5. Update the task row and `Project Status` in the same task transition. Keep the tracker counts derived from its checkbox rows. Commit task-scoped changes; do not claim remote state until publication succeeds.
+1. Run the **SPEC / Autonomous Queue** pass before implementation. The primary Codex orchestrator performs this pass; it does not need a separate long-lived agent.
+2. Read root `AGENTS.md`, `TASKS.md`, and the explicit current task's referenced acceptance material. Treat `Current Task` and `Next Task` as the queue; never infer work from the first unchecked row or create scope from a dashboard card.
+3. Confirm `Current Task`, `Current Task Status`, `Required Actor`, `Current Milestone`, and `Next Task` explicitly. Run `pnpm codex:tasks:check`, then `pnpm codex:tasks:claim` before implementation.
+4. The queue-claim command validates the explicit task, branch, canonical remote, clean task file, and ledger totals. If the current task is `READY`, it changes only that row to `[~]`, sets `Current Task Status: IN_PROGRESS`, validates, commits only `TASKS.md`, and pushes the tracked branch. If already `IN_PROGRESS`, it resumes that task without editing. It never selects from checkbox order, changes `Next Task`, or claims a blocked task. If any check or publication fails, implementation must not start.
+5. Confirm the repository is on the tracked project branch or an isolated task-owned worktree. Inspect owner changes before creating or modifying files. Stop before touching unrelated changes.
+6. Work on one task at a time with one implementation worker. Use one read-only reviewer; use a specialist only when the task's security, data-integrity, or UI acceptance requires it.
+7. After acceptance, update the completed row, `Project Status`, `Next Task`, and derived counts together. Publish that transition, then immediately repeat the SPEC / Autonomous Queue pass for the newly explicit current task when the authorized run covers it.
 
 ## Acceptance and tests
 
