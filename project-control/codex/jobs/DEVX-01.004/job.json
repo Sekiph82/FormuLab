@@ -1,0 +1,12 @@
+{
+  "id": "DEVX-01.004",
+  "task": "Add dashboard owner Q&A, run milestone acceptance and clean task-owned resources",
+  "stage": "APPROVE",
+  "round": 1,
+  "reviews": {
+    "rules": "pass",
+    "code": "pass",
+    "tests": "pass"
+  },
+  "updatedAt": "2026-10-22T14:48:00Z"
+}

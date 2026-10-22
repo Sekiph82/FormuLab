@@ -21,7 +21,8 @@ const tasks = lines.flatMap((line) => {
   return match ? [{ status: match[1], id: match[2], title: match[3] }] : [];
 });
 
-const current = field("Current Task")?.match(/^([A-Z][A-Z0-9]*-\d+\.\d+) — (.+)$/);
+const currentField = field("Current Task");
+const current = currentField === "None" ? null : currentField?.match(/^([A-Z][A-Z0-9]*-\d+\.\d+) — (.+)$/);
 const currentStatus = field("Current Task Status");
 const requiredActor = field("Required Actor");
 const next = field("Next Task");
@@ -30,7 +31,7 @@ const completed = Number(field("Completed Tasks"));
 const remaining = Number(field("Remaining Tasks"));
 const completion = Number(field("Completion")?.replace(/%$/, ""));
 
-if (!current) fail("Current Task must contain one explicit task ID and title.");
+if (!current && currentField !== "None") fail("Current Task must contain one explicit task ID and title, or None when the queue is complete.");
 if (requiredActor !== "CODEX") fail(`Required Actor must be CODEX; found ${requiredActor ?? "missing"}.`);
 if (tasks.length !== total) fail(`Total Tasks says ${total}, but the checkbox ledger has ${tasks.length} tasks.`);
 
@@ -52,6 +53,9 @@ if (current) {
     }
     if (matches[0].title !== current[2]) fail(`Current Task title does not match ledger row ${current[1]}.`);
   }
+}
+if (currentField === "None" && (currentStatus !== "COMPLETE" || next !== "None" || actualRemaining !== 0)) {
+  fail("Current Task may be None only when Current Task Status is COMPLETE, Next Task is None, and every task is complete.");
 }
 
 const inProgress = tasks.filter((task) => task.status === "~");

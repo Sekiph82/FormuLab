@@ -36,7 +36,8 @@ function readTasks(source) {
 
 export function claimCurrentTask(source) {
   const tasks = readTasks(source);
-  const current = field(source, "Current Task")?.match(/^([A-Z][A-Z0-9]*-\d+\.\d+) — (.+)$/);
+  const currentField = field(source, "Current Task");
+  const current = currentField === "None" ? null : currentField?.match(/^([A-Z][A-Z0-9]*-\d+\.\d+) — (.+)$/);
   const status = field(source, "Current Task Status");
   const actor = field(source, "Required Actor");
   const next = field(source, "Next Task");
@@ -45,18 +46,24 @@ export function claimCurrentTask(source) {
   const remaining = Number(field(source, "Remaining Tasks"));
   const completion = Number(field(source, "Completion")?.replace(/%$/, ""));
 
-  if (!current) throw new Error("Current Task must explicitly identify one task before the queue can start it.");
   if (actor !== "CODEX") throw new Error(`Required Actor must be CODEX; found ${actor ?? "missing"}.`);
   if (!next) throw new Error("Next Task must be explicit, or set to None, before the queue can start.");
   if (tasks.length !== total) throw new Error(`TASKS.md says ${total} tasks, but its ledger has ${tasks.length}.`);
   if (new Set(tasks.map((task) => task.id)).size !== tasks.length) throw new Error("Task IDs must be unique before claiming work.");
-  const currentRows = tasks.filter((task) => task.id === current[1] && task.title === current[2]);
-  if (currentRows.length !== 1) throw new Error(`Current Task ${current[1]} must match exactly one ledger row.`);
   if (completed !== tasks.filter((task) => task.marker === "x").length || remaining !== tasks.length - completed) {
     throw new Error("Task totals do not match the canonical checkbox ledger.");
   }
   const expectedCompletion = tasks.length ? Math.round((completed / tasks.length) * 1000) / 10 : 0;
   if (completion !== expectedCompletion) throw new Error(`Completion must be ${expectedCompletion}%, not ${completion}%.`);
+  if (currentField === "None") {
+    if (status !== "COMPLETE" || next !== "None" || completed !== total) {
+      throw new Error("Current Task may be None only when the explicit queue is complete.");
+    }
+    return { source, changed: false, complete: true, id: null, title: null };
+  }
+  if (!current) throw new Error("Current Task must explicitly identify one task before the queue can start it.");
+  const currentRows = tasks.filter((task) => task.id === current[1] && task.title === current[2]);
+  if (currentRows.length !== 1) throw new Error(`Current Task ${current[1]} must match exactly one ledger row.`);
   if (next && next !== "None") {
     const nextTask = next.match(/^([A-Z][A-Z0-9]*-\d+\.\d+) — (.+)$/);
     if (!nextTask || !tasks.some((task) => task.id === nextTask[1] && task.title === nextTask[2])) {
@@ -117,6 +124,13 @@ async function runQueueClaim() {
   git("fetch", "--quiet", "origin", branch);
   const head = git("rev-parse", "HEAD");
   const remoteHead = git("rev-parse", `origin/${branch}`);
+  if (claim.complete) {
+    if (head !== remoteHead || git("status", "--porcelain", "--", "TASKS.md") || gitRaw("show", "HEAD:TASKS.md") !== source) {
+      throw new Error("Queue completion must be committed, published, and identical to origin before it is accepted.");
+    }
+    console.log("Autonomous Queue complete: no tasks remain.");
+    return;
+  }
   if (head !== remoteHead) {
     const currentBranch = git("branch", "--show-current");
     const changedFiles = git("diff", "--name-only", `origin/${branch}..HEAD`).split(/\r?\n/).filter(Boolean);

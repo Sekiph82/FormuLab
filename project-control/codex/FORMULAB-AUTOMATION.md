@@ -10,11 +10,13 @@ This file defines how a Codex run may execute the explicit current task in the r
 4. The queue-claim command validates the explicit task, branch, canonical remote, clean task file, and ledger totals. If the current task is `READY`, it changes only that row to `[~]`, sets `Current Task Status: IN_PROGRESS`, validates, commits only `TASKS.md`, and pushes the tracked branch. If already `IN_PROGRESS`, it resumes that task without editing. It never selects from checkbox order, changes `Next Task`, or claims a blocked task. If any check or publication fails, implementation must not start.
 5. Confirm the repository is on the tracked project branch or an isolated task-owned worktree. Inspect owner changes before creating or modifying files. Stop before touching unrelated changes.
 6. Work on one task at a time with one implementation worker. Use one read-only reviewer; use a specialist only when the task's security, data-integrity, or UI acceptance requires it.
-7. After acceptance, update the completed row, `Project Status`, `Next Task`, and derived counts together. Publish that transition, then immediately repeat the SPEC / Autonomous Queue pass for the newly explicit current task when the authorized run covers it.
+7. After acceptance, update the completed row, `Project Status`, `Next Task`, and derived counts together. Publish that transition, then immediately repeat the SPEC / Autonomous Queue pass for the newly explicit current task. Autonomous continuation is already authorized: do not stop at task, sprint, or milestone boundaries; continue until the queue is empty.
+8. Before starting each task, inspect `TASKS.md` Questions for Şekip and the dashboard answer inbox. Process each unanswered inbox record exactly once: copy its exact answer under `Owner Decisions` with Q-ID and task ID, remove that Q-ID from open questions, and return only its blocked task to `[ ]`/READY. A question accepts one answer; the server rejects duplicate submissions while the Q-ID remains open. Do not interrupt unrelated work already in progress; process answers at the next task boundary. Surface genuine owner decisions through the dashboard Questions panel, mark only the affected task blocked, then advance to the next READY task that does not depend on that answer. Never wait for an answer while unrelated READY work remains. Stop only if no unrelated READY task exists and no answer has arrived, or the queue is empty.
+9. When every canonical checkbox task is `[x]`, set `Current Task: None`, `Current Task Status: COMPLETE`, and `Next Task: None`; validate this terminal state and let the queue claimant return without selecting another task.
 
 ## Project activity stages
 
-- After the published queue claim, create or update `project-control/codex/jobs/<task-id>/job.json` for the current task. This file is read-only dashboard activity metadata, not a task ledger; `TASKS.md` remains the sole authority for task selection and completion.
+- After the published queue claim, create or update `project-control/codex/jobs/<task-id>/job.json` for the current task. This file is dashboard activity metadata, not a task ledger; `TASKS.md` remains the sole authority for task selection and completion. The dashboard may append owner-submitted responses only to `project-control/codex/owner-answers.jsonl`; the runner, never the dashboard, applies those answers to `TASKS.md`.
 - Keep `id` and `task` equal to the explicit current `TASKS.md` entry. Set `stage` to `SPEC` while recording scope and acceptance, then `BUILD`, `REVIEW`, and `APPROVE` only when those actions begin. Use `MERGED` only after the accepted task change is pushed; use `ESCALATED` when work stops for a human gate or the bounded retry limit.
 - Store the positive review `round` and `reviews` values (`pending`, `pass`, or `changes`) for `rules`, `code`, and `tests`. The single independent reviewer required by this repository may evaluate all three lenses; do not claim separate reviewer agents ran when they did not.
 - Update `updatedAt` whenever the stage, round, or review result changes. Never infer a task stage from Codex thread titles or statuses. The dashboard validates and reads these files only; it never creates, edits, or deletes them.
@@ -28,11 +30,12 @@ This file defines how a Codex run may execute the explicit current task in the r
 
 ## Human gates
 
-Continue without asking about routine coding decisions, local source edits, or safe read-only inspection. Stop and ask only when a named human decision, required approval, authentication, acceptance clarification, owner-data protection, or external publication decision is necessary. Never impersonate a human approval or verification.
+Continue without asking about routine coding decisions, local source edits, or safe read-only inspection. For a required human decision, approval, authentication, acceptance clarification, owner-data protection, or external publication decision, record and surface the exact question, block only dependent work, and continue unrelated READY tasks. Never impersonate a human approval or verification. Do not wait while unrelated READY work remains.
 
 ## Workspace and cleanup
 
 - Use one task-owned worktree and branch for the milestone; do not create a worktree per reviewer or per small task.
+- Before switching milestones, copy `project-control/codex/owner-answers.jsonl` byte-for-byte into the successor worktree, verify hashes, and retain the prior copy until the answer is recorded under `TASKS.md` Owner Decisions and published. Never remove an inbox containing an unprocessed answer; reconnect the dashboard to the successor only after verifying the handoff.
 - Record volume free space before creating the worktree and after cleanup. Keep build outputs, logs, and temporary files under the task-owned workspace where possible.
 - Remove only exact worktrees, branches, and temporary paths created by the run, after verifying the merge and path identity. Do not recursively clean shared TEMP, global AppData, Codex state, package caches, or owner files.
 - Do not promise identical free-space readings. Report the measured delta and any application or operating-system writes that the run cannot own or remove.
@@ -46,6 +49,6 @@ Continue without asking about routine coding decisions, local source edits, or s
 
 ## Dashboard boundary
 
-The Codex project dashboard is a separate local developer tool, not part of the FormuLab desktop product. It reads Codex project/thread state and the root `TASKS.md`; it never writes task state or reads Codex's private storage directly. Bind only to `127.0.0.1:9000`.
+The Codex project dashboard is a separate local developer tool, not part of the FormuLab desktop product. It reads Codex project/thread state and the root `TASKS.md`; it never writes task state or reads Codex's private storage directly. Its only write is an owner-submitted answer appended to `project-control/codex/owner-answers.jsonl`. Bind only to `127.0.0.1:9000`.
 
 Start it with `pnpm codex:dashboard`, then open `http://127.0.0.1:9000`. Press Ctrl+C in that terminal to stop both the dashboard and its task-owned App Server process. The dashboard uses `thread/list` with `useStateDbOnly: true`; if that read-only source or `project/list` is unavailable, show a clear error instead of scanning or repairing Codex storage.

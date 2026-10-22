@@ -6,11 +6,11 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: DEVX-01
-- Current Sprint: DEVX-01-S01
-- Current Task: DEVX-01.004 — Run milestone acceptance and clean task-owned resources
-- Current Task Status: IN_PROGRESS
-- Next Task: FVL-11.001 — Acceptance matrix across genuinely different product families
+- Current Milestone: FVL-11
+- Current Sprint: FVL-11-S01
+- Current Task: FVL-11.001 — Acceptance matrix across genuinely different product families
+- Current Task Status: READY
+- Next Task: FVL-11.002 — Full-chain acceptance run 1 through report
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 163
-- Remaining Tasks: 15
-- Completion: 91.6%
+- Completed Tasks: 164
+- Remaining Tasks: 14
+- Completion: 92.1%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -41,6 +41,23 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 - When work starts, update the selected row to `[~]` and update Project Status in the same commit.
 - When independently accepted/validated complete, update the row to `[x]`, advance Project Status, and push the tracked branch.
 - Do not create or revive `.hiveai` task/state/handoff/event files as a competing tracker.
+
+## Autonomous Queue Continuation
+
+- `Current Task` is the only task the runner may claim; `Next Task` is the next explicit queue entry. The checkbox ledger remains the complete queue and this file remains its only authority.
+- Autonomous continuation is already authorized for this run. After accepting a task, update its row and all summary fields, publish the transition, then immediately claim and execute the new `Current Task`. Continue across task, sprint, and milestone boundaries; none is a stopping point.
+- Before starting each task, inspect the Dashboard Owner Questions panel and its answer inbox. Process each answer exactly once: copy the exact response under `Owner Decisions` with its Q-ID and task ID, remove that Q-ID from open questions, and return its blocked task to `[ ]` / READY. Do not interrupt an unrelated task already in progress; process new answers at the next task boundary. Each open Q-ID accepts one answer.
+- If a genuine human decision or action is required, record one concise question in `Questions for Şekip` and surface it in the dashboard. Mark only the affected task `[!]` / `BLOCKED`, advance `Current Task` and `Next Task` to the next READY task that does not depend on that answer, and continue immediately. Never wait for an answer when unrelated READY work remains. When its answer arrives, record it in this file first, resolve the question, and return the affected task to the queue.
+- Continue selecting the next READY task whose acceptance does not depend on an unanswered owner decision. Continue until the queue is empty or every remaining task depends on pending owner input. Never treat elapsed time, a task/sprint/milestone boundary, or routine implementation choice as a reason to stop. Do not invent approval, bypass a gate, or mark blocked work complete.
+- Once all checkbox tasks are `[x]`, set `Current Task: None`, `Current Task Status: COMPLETE`, and `Next Task: None` together. The task validator and queue claimant treat this as the only terminal queue state.
+
+## Questions for Şekip
+
+<!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
+
+## Owner Decisions
+
+<!-- Append processed dashboard answers here with their Q-ID and affected task before doing dependent work. -->
 
 ## Tasks
 
@@ -301,7 +318,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] DEVX-01.001 — Define sequential Codex automation and owner-intervention gates
 - [x] DEVX-01.002 — Implement TASKS-driven sequential Codex runner guidance
 - [x] DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
-- [~] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
+- [x] DEVX-01.004 — Add dashboard owner Q&A, run milestone acceptance and clean task-owned resources
 - [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
 - [x] DEVX-01.006 — Curate the dashboard project list and link selected GitHub repositories
 - [x] DEVX-01.007 — Add persistent light and dark dashboard themes

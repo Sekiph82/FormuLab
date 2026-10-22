@@ -44,6 +44,22 @@ test("is idempotent for a valid in-progress queue claim", () => {
   assert.equal(result.source, claimed);
 });
 
+test("recognizes a fully completed explicit queue without trying to claim a task", () => {
+  const completeQueue = readyQueue
+    .replace("Current Task: TEST-01.002 — Implement queue claim", "Current Task: None")
+    .replace("Current Task Status: READY", "Current Task Status: COMPLETE")
+    .replace("Next Task: TEST-01.003 — Verify queue claim", "Next Task: None")
+    .replace("Completed Tasks: 1", "Completed Tasks: 3")
+    .replace("Remaining Tasks: 2", "Remaining Tasks: 0")
+    .replace("Completion: 33.3%", "Completion: 100%")
+    .replace("- [ ] TEST-01.002 — Implement queue claim", "- [x] TEST-01.002 — Implement queue claim")
+    .replace("- [ ] TEST-01.003 — Verify queue claim", "- [x] TEST-01.003 — Verify queue claim");
+  const result = claimCurrentTask(completeQueue);
+  assert.equal(result.complete, true);
+  assert.equal(result.changed, false);
+  assert.throws(() => claimCurrentTask(completeQueue.replace("Current Task Status: COMPLETE", "Current Task Status: READY")), /explicit queue is complete/);
+});
+
 test("refuses to infer a task or claim a blocked task", () => {
   assert.throws(() => claimCurrentTask(readyQueue.replace("TEST-01.002 — Implement queue claim", "TEST-01.099 — Untracked task")), /match exactly one ledger row/);
   assert.throws(() => claimCurrentTask(readyQueue.replace("Current Task Status: READY", "Current Task Status: BLOCKED").replace("- [ ] TEST-01.002", "- [!] TEST-01.002")), /cannot claim a task in BLOCKED state/);

@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { lstat, readFile, readdir, realpath } from "node:fs/promises";
+import { appendFile, lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { createServer } from "node:http";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +37,70 @@ function trackerSummary(source) {
     requiredActor: get("Required Actor"),
     completion: get("Completion"),
   };
+}
+
+function trackerQuestions(source) {
+  const section = source.split(/^## Questions for Şekip\s*$/m)[1]?.split(/^## /m, 1)[0] ?? "";
+  return section.split(/\r?\n/).flatMap((line) => {
+    const match = line.match(/^\s*[-*]\s+(Q-[A-Z0-9.-]+)\s*\|\s*(.+?)\s*\|\s*TASK:\s*([A-Z][A-Z0-9]*-\d+\.\d+)\s*$/);
+    return match ? [{ id: match[1], question: match[2].slice(0, 1_000), taskId: match[3] }] : [];
+  });
+}
+
+async function readOwnerAnswers(root) {
+  const path = resolve(root, "project-control/codex/owner-answers.jsonl");
+  try {
+    const info = await lstat(path);
+    if (info.isSymbolicLink() || !info.isFile()) return [];
+    const source = await readFile(path, "utf8");
+    return source.split(/\r?\n/).flatMap((line) => {
+      if (!line || line.length > 8_500) return [];
+      try {
+        const answer = JSON.parse(line);
+        return typeof answer?.questionId === "string" && typeof answer?.answer === "string" && typeof answer?.submittedAt === "string"
+          ? [{ questionId: answer.questionId, answer: answer.answer.slice(0, 4_000), submittedAt: answer.submittedAt }]
+          : [];
+      } catch {
+        return [];
+      }
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function saveOwnerAnswer(root, questionId, answer, source) {
+  const questions = trackerQuestions(source);
+  if (!questions.some((question) => question.id === questionId)) return { status: 404, error: "That question is no longer open." };
+  if ((await readOwnerAnswers(root)).some((entry) => entry.questionId === questionId)) {
+    return { status: 409, error: "An answer has already been submitted for this question." };
+  }
+  const entry = { questionId, answer, submittedAt: new Date().toISOString() };
+  const path = resolve(root, "project-control/codex/owner-answers.jsonl");
+  try {
+    const info = await lstat(path);
+    if (info.isSymbolicLink() || !info.isFile()) return { status: 400, error: "The answer inbox is not a regular file." };
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  await appendFile(path, `${JSON.stringify(entry)}\n`, { encoding: "utf8", flag: "a" });
+  return { status: 201, entry };
+}
+
+async function readJsonBody(request, maximumBytes = 8_192) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > maximumBytes) throw Object.assign(new Error("Request body is too large."), { status: 413 });
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw Object.assign(new Error("Request body must be valid JSON."), { status: 400 });
+  }
 }
 
 function isWithinDirectory(parent, candidate) {
@@ -198,6 +262,8 @@ export function createDashboardServer({
       try {
         const trackerSource = await readFile(resolve(root, "TASKS.md"), "utf8");
         const tracker = trackerSummary(trackerSource);
+        const questions = trackerQuestions(trackerSource);
+        const answers = await readOwnerAnswers(root);
         const jobs = await readWorkflowJobs(root);
         client ??= clientFactory();
         if (!initialized) {
@@ -226,6 +292,10 @@ export function createDashboardServer({
           activeThreadCount: projects.reduce((count, project) => count + project.threads.length, 0),
           truncated: Boolean(projectListing.truncated || threadListing.truncated),
           task: tracker,
+          questions: questions.map((question) => ({
+            ...question,
+            answer: answers.filter((answer) => answer.questionId === question.id).at(-1) ?? null,
+          })),
           jobs,
         };
         cache = { loadedAt: Date.now(), value };
@@ -250,12 +320,42 @@ export function createDashboardServer({
       response.writeHead(403).end("Forbidden");
       return;
     }
-    if (request.method !== "GET") {
-      response.writeHead(405, { Allow: "GET" }).end("Method not allowed");
+    const pathname = new URL(request.url ?? "/", `http://${host}:${port}`).pathname;
+    if (request.method === "POST" && pathname === "/api/owner-answers") {
+      const allowedOrigin = `http://${hostHeader}`;
+      if (request.headers.origin && request.headers.origin !== allowedOrigin) {
+        response.writeHead(403).end("Forbidden");
+        return;
+      }
+      if (!String(request.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+        response.writeHead(415).end("Content-Type must be application/json.");
+        return;
+      }
+      try {
+        const payload = await readJsonBody(request);
+        const questionId = typeof payload?.questionId === "string" ? payload.questionId.trim() : "";
+        const answer = typeof payload?.answer === "string" ? payload.answer.trim() : "";
+        if (!/^Q-[A-Z0-9.-]+$/.test(questionId) || !answer || answer.length > 4_000) {
+          response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: "Provide an open question ID and an answer of 1 to 4000 characters." }));
+          return;
+        }
+        const trackerSource = await readFile(resolve(root, "TASKS.md"), "utf8");
+        const result = await saveOwnerAnswer(root, questionId, answer, trackerSource);
+        if (result.status !== 201) {
+          response.writeHead(result.status, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: result.error }));
+          return;
+        }
+        cache = undefined;
+        response.writeHead(201, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ submittedAt: result.entry.submittedAt }));
+      } catch (error) {
+        response.writeHead(error?.status ?? 500, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: error?.status ? error.message : "The answer could not be saved." }));
+      }
       return;
     }
-
-    const pathname = new URL(request.url ?? "/", `http://${host}:${port}`).pathname;
+    if (request.method !== "GET") {
+      response.writeHead(405, { Allow: "GET, POST" }).end("Method not allowed");
+      return;
+    }
     if (pathname === "/health") {
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ ok: true }));
       return;

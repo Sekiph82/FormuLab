@@ -28,9 +28,9 @@ function rootPath() {
   return root;
 }
 
-async function startServer({ projectList = { rows: [], truncated: false }, threads = [] } = {}) {
+async function startServer({ projectRoot = root, projectList = { rows: [], truncated: false }, threads = [] } = {}) {
   const app = createDashboardServer({
-    root,
+    root: projectRoot,
     host: "127.0.0.1",
     port: 0,
     clientFactory: () => ({
@@ -76,8 +76,8 @@ test("serves a read-only overview grouped by saved Codex project", async () => {
   assert.equal(payload.projects.some((project) => ["deneme scrubbots piksel art uretimi", "Beach Cocktails - Merge", "H!veAI", "OUTPUTS", "ScrubBots"].includes(project.name)), false);
   assert.deepEqual(payload.projects.filter((project) => project.kind === "GitHub").map((project) => project.name), ["Wonder_Pop", "The_Fractured_Realms", "Dino_Islands", "Garage_Legends", "Coral_Rescue"]);
   assert.match(payload.task.currentTask.id, /^[A-Z][A-Z0-9]*-\d+\.\d+$/);
-  assert.equal(payload.jobs.some((job) => job.id === "DEVX-01.003" && job.stage === "APPROVE"), true);
-  assert.equal(payload.jobs[0].reviews.rules, "pass");
+  assert.equal(payload.jobs.some((job) => job.id === "DEVX-01.003" && job.stage === "MERGED"), true);
+  assert.equal(payload.jobs.find((job) => job.id === "DEVX-01.003").reviews.rules, "pass");
 });
 
 test("returns a safe unsupported notice without reading Codex storage directly", async () => {
@@ -161,6 +161,59 @@ test("serves local assets and rejects writes and foreign Host headers", async ()
     foreignHost.end();
   });
   assert.equal(foreignHostStatus, 403);
+});
+
+test("dashboard collects owner answers without changing TASKS.md", async () => {
+  const projectRoot = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-answers-test-"));
+  fixtureRoots.add(projectRoot);
+  await mkdir(join(projectRoot, "project-control/codex"), { recursive: true });
+  const tracker = `# Tasks\n\n## Questions for Şekip\n\n- Q-DEVX-01.004-1 | Which acceptance path should be used? | TASK: DEVX-01.004\n\n## Owner Decisions\n`;
+  await writeFile(join(projectRoot, "TASKS.md"), tracker, "utf8");
+  const { baseUrl } = await startServer({ projectRoot });
+
+  const before = await fetch(`${baseUrl}/api/overview`);
+  const overview = await before.json();
+  assert.equal(overview.questions[0].id, "Q-DEVX-01.004-1");
+  assert.equal(overview.questions[0].answer, null);
+
+  const submitted = await fetch(`${baseUrl}/api/owner-answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ questionId: "Q-DEVX-01.004-1", answer: "Use the existing acceptance matrix." }),
+  });
+  assert.equal(submitted.status, 201);
+  const after = await (await fetch(`${baseUrl}/api/overview`)).json();
+  assert.equal(after.questions[0].answer.answer, "Use the existing acceptance matrix.");
+  assert.equal(await readFile(join(projectRoot, "TASKS.md"), "utf8"), tracker);
+  assert.match(await readFile(join(projectRoot, "project-control/codex/owner-answers.jsonl"), "utf8"), /Use the existing acceptance matrix/);
+
+  const duplicate = await fetch(`${baseUrl}/api/owner-answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ questionId: "Q-DEVX-01.004-1", answer: "A different answer." }),
+  });
+  assert.equal(duplicate.status, 409);
+
+  const unknown = await fetch(`${baseUrl}/api/owner-answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ questionId: "Q-UNKNOWN-1", answer: "Not applicable." }),
+  });
+  assert.equal(unknown.status, 404);
+});
+
+test("answer submission rejects cross-origin requests", async () => {
+  const projectRoot = await mkdtemp(join(rootPath(), "scripts/codex/.dashboard-origin-test-"));
+  fixtureRoots.add(projectRoot);
+  await mkdir(join(projectRoot, "project-control/codex"), { recursive: true });
+  await writeFile(join(projectRoot, "TASKS.md"), "## Questions for Şekip\n\n- Q-TEST-01.001-1 | Test question? | TASK: TEST-01.001\n", "utf8");
+  const { baseUrl } = await startServer({ projectRoot });
+  const response = await fetch(`${baseUrl}/api/owner-answers`, {
+    method: "POST",
+    headers: { Origin: "http://example.com", "Content-Type": "application/json" },
+    body: JSON.stringify({ questionId: "Q-TEST-01.001-1", answer: "No." }),
+  });
+  assert.equal(response.status, 403);
 });
 
 test("ignores malformed job JSON without failing the dashboard overview", async () => {

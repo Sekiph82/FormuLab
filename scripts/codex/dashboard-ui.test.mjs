@@ -39,7 +39,7 @@ function allText(element) {
 }
 
 test("keeps the last successful project view when a refresh fails", async () => {
-  const selectors = ["#projects", "#threads", "#notice", "#search", "#project-select", "#selected-project", "#task-summary", "#task-details", "#refresh", "#project-count", "#thread-count", "#task-id", "#task-title", "#task-status", "#task-scope", "#next-task", "#completion", "#project-subtitle", "#updated", "#source", "#theme-toggle"];
+  const selectors = ["#projects", "#threads", "#notice", "#search", "#project-select", "#selected-project", "#task-summary", "#task-details", "#owner-questions", "#questions-list", "#refresh", "#project-count", "#thread-count", "#task-id", "#task-title", "#task-status", "#task-scope", "#next-task", "#completion", "#project-subtitle", "#updated", "#source", "#theme-toggle"];
   const elements = new Map(selectors.map((selector) => [selector, new FakeElement()]));
   let refreshTimer;
   let refreshInterval;
@@ -60,6 +60,7 @@ test("keeps the last successful project view when a refresh fails", async () => 
       nextTask: "FVL-11.001 — Acceptance matrix",
       completion: "91.6%",
     },
+    questions: [{ id: "Q-DEVX-01.004-1", question: "Which acceptance path should be used?", taskId: "DEVX-01.004", answer: null }],
     projects: [{
       id: "project-1",
       name: "FormuLab",
@@ -82,7 +83,10 @@ test("keeps the last successful project view when a refresh fails", async () => 
     },
     documentElement: { dataset: {} },
   };
-  const fetch = async () => {
+  const requests = [];
+  const fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (options.method === "POST") return { ok: true, async json() { return { submittedAt: "2026-10-22T10:01:00Z" }; } };
     fetchCount += 1;
     if (fetchCount === 1) return { ok: true, async json() { return overview; } };
     return { ok: false, async json() { return { error: "Codex App Server data is temporarily unavailable." }; } };
@@ -112,6 +116,14 @@ test("keeps the last successful project view when a refresh fails", async () => 
   assert.match(allText(elements.get("#selected-project")), /1 active Codex task/);
   assert.equal(elements.get("#task-summary").hidden, false);
   assert.equal(elements.get("#task-details").hidden, false);
+  assert.equal(elements.get("#owner-questions").hidden, false);
+  assert.match(allText(elements.get("#questions-list")), /Which acceptance path should be used/);
+  const questionCard = elements.get("#questions-list").children[0];
+  const form = questionCard.children.find((child) => child.className === "answer-form");
+  const input = form.children[0];
+  input.value = "Use the existing acceptance matrix.";
+  await form.listeners.get("submit")({ preventDefault() {} });
+  assert.equal(requests.some(({ url, options }) => url === "/api/owner-answers" && JSON.parse(options.body).answer === "Use the existing acceptance matrix."), true);
 
   elements.get("#project-select").value = "project-2";
   elements.get("#project-select").listeners.get("change")();

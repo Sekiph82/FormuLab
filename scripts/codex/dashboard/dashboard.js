@@ -6,6 +6,8 @@ const projectSelect = document.querySelector("#project-select");
 const taskSummaryElement = document.querySelector("#task-summary");
 const taskDetailsElement = document.querySelector("#task-details");
 const selectedProjectElement = document.querySelector("#selected-project");
+const questionsSection = document.querySelector("#owner-questions");
+const questionsList = document.querySelector("#questions-list");
 const themeButton = document.querySelector("#theme-toggle");
 let overview;
 let selectedProjectId = readSelectedProject();
@@ -142,6 +144,9 @@ function render() {
   taskSummaryElement.hidden = !isFormuLab;
   taskDetailsElement.hidden = !isFormuLab;
   const task = isFormuLab ? overview.task : null;
+  questionsSection.hidden = !isFormuLab;
+  if (isFormuLab) renderQuestions(overview.questions ?? []);
+  else questionsList.replaceChildren();
   document.querySelector("#task-id").textContent = task?.currentTask?.id ?? (isFormuLab ? "Not set" : "—");
   document.querySelector("#task-title").textContent = task?.currentTask?.title ?? (isFormuLab ? "No current task in TASKS.md" : "Select FormuLab to view its task state");
   document.querySelector("#task-status").textContent = task?.currentTaskStatus ?? "—";
@@ -160,6 +165,60 @@ function render() {
     noticeElement.textContent = "This installed Codex version does not expose project/list. Threads are grouped by workspace path; no private Codex files were scanned.";
   } else if (overview.truncated) {
     noticeElement.textContent = "The App Server page limit was reached. Some recent projects or tasks may not be shown.";
+  }
+}
+
+function renderQuestions(questions) {
+  questionsList.replaceChildren();
+  if (!questions.length) {
+    questionsList.append(element("p", "no-questions", "No owner decisions are waiting."));
+    return;
+  }
+  for (const question of questions) {
+    const card = element("article", "question-card");
+    const heading = element("div", "question-topline");
+    heading.append(element("strong", "question-id", question.id), element("span", "question-task", question.taskId));
+    card.append(heading, element("p", "question-prompt", question.question));
+    if (question.answer) {
+      card.append(element("p", "answer-received", `Answer received · ${dateLabel(question.answer.submittedAt)}`));
+      card.append(element("blockquote", "question-answer", question.answer.answer));
+    } else {
+      const form = element("form", "answer-form");
+      const input = element("textarea", "answer-input");
+      input.name = "answer";
+      input.rows = 3;
+      input.maxLength = 4_000;
+      input.placeholder = "Type your decision or answer";
+      input.required = true;
+      input.setAttribute("aria-label", `Answer ${question.id}`);
+      const submit = element("button", "answer-submit", "Send answer");
+      submit.type = "submit";
+      const status = element("span", "answer-status", "");
+      form.append(input, submit, status);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const answer = input.value.trim();
+        if (!answer) return;
+        submit.disabled = true;
+        status.textContent = "Saving answer…";
+        try {
+          const response = await fetch("/api/owner-answers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ questionId: question.id, answer }),
+          });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || "Answer could not be saved.");
+          status.textContent = "Answer saved. The automation will apply it at the next task boundary.";
+          await refresh();
+        } catch (error) {
+          status.textContent = error.message;
+          submit.disabled = false;
+        }
+      });
+      card.append(form);
+    }
+    questionsList.append(card);
   }
 }
 
