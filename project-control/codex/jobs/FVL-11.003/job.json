@@ -1,0 +1,12 @@
+{
+  "id": "FVL-11.003",
+  "task": "Full-chain acceptance run 2 through lab, model, active learning and retraining",
+  "stage": "MERGED",
+  "round": 1,
+  "reviews": {
+    "rules": "pass",
+    "code": "pass",
+    "tests": "pass"
+  },
+  "updatedAt": "2026-10-22T15:31:09Z"
+}

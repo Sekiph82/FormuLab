@@ -192,7 +192,7 @@ describe("FVL-11.002 full-chain acceptance run 1 — synthetic fixture only, no 
     // the fixture DOI, abstract, and PDF payload are all explicitly synthetic.
     expect(card.research_corpus).toMatchObject({ status: "full", full_text_count: 15 });
 
-    const papers = JSON.parse(readFileSync(join(sessionDir, "literature", "papers.json"), "utf8")) as SessionDetail["literature"];
+    const papers = JSON.parse(readFileSync(join(sessionDir, "literature", "papers.json"), "utf8")) as Array<{ doi?: string; abstract?: string }>;
     expect(papers).toHaveLength(15);
     expect(papers.every((paper) => paper.doi?.startsWith("10.55555/formulab-fixture-") && paper.abstract?.includes("SYNTHETIC TEST FIXTURE ONLY"))).toBe(true);
     const session = {
