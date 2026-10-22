@@ -1,0 +1,9 @@
+{
+  "id": "FVL-11.010",
+  "task": "Fresh installer build: formulab.exe + MSI/NSIS",
+  "branch": "main",
+  "sourceHead": "f0b5fbbc1dc84f24702b64067854a0780e427637",
+  "stage": "approved",
+  "round": 1,
+  "reviews": { "rules": "PASS", "code": "PASS", "tests": "PASS" }
+}
