@@ -38,3 +38,5 @@ Continue without asking about routine coding decisions, local source edits, or s
 ## Dashboard boundary
 
 The Codex project dashboard is a separate local developer tool, not part of the FormuLab desktop product. It reads Codex project/thread state and the root `TASKS.md`; it never writes task state or reads Codex's private storage directly. Bind only to `127.0.0.1:9000`.
+
+Start it with `pnpm codex:dashboard`, then open `http://127.0.0.1:9000`. Press Ctrl+C in that terminal to stop both the dashboard and its task-owned App Server process. The dashboard uses `thread/list` with `useStateDbOnly: true`; if that read-only source or `project/list` is unavailable, show a clear error instead of scanning or repairing Codex storage.

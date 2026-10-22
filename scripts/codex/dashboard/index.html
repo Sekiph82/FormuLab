@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Codex Projects</title>
+    <link rel="stylesheet" href="/dashboard.css">
+    <script src="/dashboard.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">C</span><span>Codex <span class="muted">/ Projects</span></span></div>
+        <div class="top-actions"><span class="live"><span></span>Local view</span><button id="refresh" class="icon-button" type="button" aria-label="Refresh project data">Refresh</button></div>
+      </header>
+
+      <section class="intro">
+        <div>
+          <p class="eyebrow">WORKSPACE OVERVIEW</p>
+          <h1>All your Codex projects</h1>
+          <p class="subtitle">A read-only view of projects and active tasks from Codex.</p>
+        </div>
+        <div class="updated"><span class="pulse"></span><span id="updated">Connecting to Codex…</span></div>
+      </section>
+
+      <section class="summary" aria-label="Overview">
+        <article class="summary-card"><span class="summary-label">Projects</span><strong id="project-count">—</strong></article>
+        <article class="summary-card"><span class="summary-label">Active tasks</span><strong id="thread-count">—</strong></article>
+        <article class="summary-card current"><span class="summary-label">FormuLab task</span><strong id="task-id">—</strong><span id="task-title" class="current-title">Reading TASKS.md</span></article>
+      </section>
+
+      <section id="notice" class="notice" hidden></section>
+
+      <section class="list-header">
+        <div><h2>Projects</h2><p>Recent Codex work, grouped by project</p></div>
+        <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Filter projects or tasks" autocomplete="off"></label>
+      </section>
+
+      <section id="projects" class="projects" aria-live="polite">
+        <div class="loading-card">Loading Codex projects…</div>
+      </section>
+
+      <footer><span>Read-only · 127.0.0.1</span><span id="source">Codex App Server</span></footer>
+    </main>
+  </body>
+</html>
