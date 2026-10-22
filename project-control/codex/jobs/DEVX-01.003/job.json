@@ -1,12 +1,12 @@
 {
   "id": "DEVX-01.003",
   "task": "Implement read-only all-project Codex dashboard on 127.0.0.1:9000",
-  "stage": "APPROVE",
+  "stage": "MERGED",
   "round": 1,
   "reviews": {
     "rules": "pass",
     "code": "pass",
     "tests": "pass"
   },
-  "updatedAt": "2026-10-22T14:25:06Z"
+  "updatedAt": "2026-10-22T14:27:07Z"
 }
