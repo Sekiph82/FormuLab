@@ -1,5 +1,7 @@
 # Progress
 
+2026-10-22 14:07 · DEVX-01.007 added an accessible light/dark theme toggle with system-theme default and persisted user preference; browser verified both themes and dark preference after reload; FVL-11.001 remains READY.
+
 2026-10-22 14:03 · DEVX-01 dashboard now shows the seven retained Codex workspaces and five selected GitHub repositories; removed the five excluded Codex groups, linked repository cards, and kept FVL-11.001 READY; dashboard checks 5/5.
 
 2026-10-22 13:56 · DEVX-01 dashboard recovery: transient App Server failures now recycle the client while the UI keeps the last successful project data; 5 dashboard tests and live CLI/API smoke passed; FVL-11.001 remains READY.

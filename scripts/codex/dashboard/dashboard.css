@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --canvas: #f5f6f8;
   --surface: #ffffff;
   --surface-muted: #fafbfc;
@@ -82,10 +82,41 @@ footer { display: flex; justify-content: space-between; padding: 22px 2px 34px; 
   .search { width: 100%; }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root { --canvas: #11151b; --surface: #1a2028; --surface-muted: #202832; --ink: #edf1f6; --muted: #9ba6b3; --line: #2c3540; --accent: #8daaff; --accent-soft: #202d48; --green: #68d7a2; --green-soft: #1d382d; --amber: #e8bd69; --amber-soft: #3a301f; --red: #ed898d; --red-soft: #3a2225; --shadow: 0 8px 28px rgb(0 0 0 / 12%); }
-  .brand-mark { background: #e7ecf4; color: #17202b; }
-  .current-title { color: #b7c6e0; }
-  .notice { border-color: #5a4826; }
-  .notice.error { border-color: #593337; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #11151b;
+  --surface: #1a2028;
+  --surface-muted: #202832;
+  --ink: #edf1f6;
+  --muted: #9ba6b3;
+  --line: #2c3540;
+  --accent: #8daaff;
+  --accent-soft: #202d48;
+  --green: #68d7a2;
+  --green-soft: #1d382d;
+  --amber: #e8bd69;
+  --amber-soft: #3a301f;
+  --red: #ed898d;
+  --red-soft: #3a2225;
+  --shadow: 0 8px 28px rgb(0 0 0 / 12%);
 }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { color-scheme: dark; --canvas: #11151b; --surface: #1a2028; --surface-muted: #202832; --ink: #edf1f6; --muted: #9ba6b3; --line: #2c3540; --accent: #8daaff; --accent-soft: #202d48; --green: #68d7a2; --green-soft: #1d382d; --amber: #e8bd69; --amber-soft: #3a301f; --red: #ed898d; --red-soft: #3a2225; --shadow: 0 8px 28px rgb(0 0 0 / 12%); }
+  :root[data-theme="dark"] .brand-mark,
+  :root:not([data-theme]) .brand-mark { background: #e7ecf4; color: #17202b; }
+  :root[data-theme="dark"] .current-title,
+  :root:not([data-theme]) .current-title { color: #b7c6e0; }
+  :root[data-theme="dark"] .notice,
+  :root:not([data-theme]) .notice { border-color: #5a4826; }
+  :root[data-theme="dark"] .notice.error,
+  :root:not([data-theme]) .notice.error { border-color: #593337; }
+}
+
+:root[data-theme="dark"] .brand-mark {
+  background: #e7ecf4;
+  color: #17202b;
+}
+:root[data-theme="dark"] .current-title { color: #b7c6e0; }
+:root[data-theme="dark"] .notice { border-color: #5a4826; }
+:root[data-theme="dark"] .notice.error { border-color: #593337; }
