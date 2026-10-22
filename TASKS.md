@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: DEVX-01
 - Current Sprint: DEVX-01-S01
-- Current Task: DEVX-01.002 — Implement TASKS-driven sequential Codex runner guidance
+- Current Task: DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
 - Current Task Status: IN_PROGRESS
-- Next Task: DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
+- Next Task: DEVX-01.004 — Run milestone acceptance and clean task-owned resources
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -299,9 +299,9 @@ Sprint grouping below is a management-only organization of the existing frozen t
 
 ## Sprint DEVX-01-S01 — Governed Codex automation and dashboard
 - [x] DEVX-01.001 — Define sequential Codex automation and owner-intervention gates
-- [~] DEVX-01.002 — Implement TASKS-driven sequential Codex runner guidance
-- [ ] DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
-- [x] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
+- [x] DEVX-01.002 — Implement TASKS-driven sequential Codex runner guidance
+- [~] DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
+- [ ] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
 - [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
 - [x] DEVX-01.006 — Curate the dashboard project list and link selected GitHub repositories
 - [x] DEVX-01.007 — Add persistent light and dark dashboard themes
