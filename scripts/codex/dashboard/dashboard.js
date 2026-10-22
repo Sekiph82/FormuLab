@@ -89,11 +89,18 @@ async function refresh() {
     overview = payload;
     render();
   } catch (error) {
-    noticeElement.hidden = false;
-    noticeElement.className = "notice error";
-    noticeElement.textContent = `${error.message} Start Codex Desktop or check the installed Codex CLI, then refresh.`;
-    projectsElement.replaceChildren(element("div", "empty-card", "Project data could not be loaded."));
-    document.querySelector("#updated").textContent = "Connection unavailable";
+    if (overview) {
+      render();
+      noticeElement.hidden = false;
+      noticeElement.className = "notice error";
+      noticeElement.textContent = `Refresh failed: ${error.message} Showing the last successful data.`;
+    } else {
+      noticeElement.hidden = false;
+      noticeElement.className = "notice error";
+      noticeElement.textContent = `${error.message} Check the Codex CLI connection, then refresh.`;
+      projectsElement.replaceChildren(element("div", "empty-card", "Project data could not be loaded."));
+      document.querySelector("#updated").textContent = "Connection unavailable";
+    }
   } finally {
     button.disabled = false;
   }

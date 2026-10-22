@@ -186,6 +186,14 @@ export function createDashboardServer({
           detail: error?.code === -32601 ? "unsupported" : "unavailable",
           generatedAt: new Date().toISOString(),
         }));
+        const failedClient = client;
+        client = undefined;
+        initialized = false;
+        try {
+          await failedClient?.close();
+        } catch {
+          // A failed connection must not prevent the next refresh from reconnecting.
+        }
       }
       return;
     }
