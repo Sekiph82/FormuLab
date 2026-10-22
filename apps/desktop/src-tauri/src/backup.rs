@@ -1483,6 +1483,121 @@ mod tests {
     }
 
     #[test]
+    fn new_optimizer_doe_and_laboratory_records_survive_backup_restore_integrity_path() {
+        let stamp = format!("{}-{}", std::process::id(), now_secs());
+        let source_root = std::env::temp_dir().join(format!("formulab-backup-fvl11-source-{stamp}"));
+        let restore_root = std::env::temp_dir().join(format!("formulab-backup-fvl11-restore-{stamp}"));
+        let package_dir = std::env::temp_dir().join(format!("formulab-backup-fvl11-package-{stamp}"));
+        let _ = std::fs::remove_dir_all(&source_root);
+        let _ = std::fs::remove_dir_all(&restore_root);
+        let _ = std::fs::remove_dir_all(&package_dir);
+        std::fs::create_dir_all(source_root.join("data/master")).unwrap();
+        std::fs::create_dir_all(&package_dir).unwrap();
+
+        let records: [(&str, &[u8]); 8] = [
+            ("alternative_rankings.json", br#"[{"id":"rank-1","schemaVersion":"1.0"}]"#),
+            ("predictive_models.json", br#"[{"id":"model-1","schemaVersion":"1.0"}]"#),
+            ("optimization_runs.json", br#"[{"id":"optimization-1","schemaVersion":"1.0"}]"#),
+            ("doe_studies.json", br#"[{"id":"study-1","schemaVersion":"1.0"}]"#),
+            ("doe_runs.json", br#"[{"id":"doe-run-1","schemaVersion":"1.0"}]"#),
+            ("doe_analyses.json", br#"[{"id":"analysis-1","schemaVersion":"1.0"}]"#),
+            ("laboratory_trials.json", br#"[{"id":"trial-1","schemaVersion":"1.0"}]"#),
+            ("test_results.json", br#"[{"id":"result-1","schemaVersion":"1.0"}]"#),
+        ];
+        for (name, bytes) in records {
+            std::fs::write(source_root.join("data/master").join(name), bytes).unwrap();
+        }
+
+        let source_roots = RootPaths {
+            project_root: source_root.clone(),
+            workspace_root: source_root.clone(),
+            base_root: source_root.clone(),
+        };
+        let (files, warnings) = collect_included(&source_roots).unwrap();
+        assert!(warnings.is_empty());
+        assert_eq!(files.len(), records.len());
+
+        let mut manifest = base_manifest();
+        let mut entries = Vec::new();
+        for (source, archive_path) in &files {
+            let bytes = std::fs::read(source).unwrap();
+            manifest.total_bytes += bytes.len() as u64;
+            manifest.included.push(archive_path.clone());
+            manifest.file_inventory.push(FileEntry {
+                path: archive_path.clone(),
+                bytes: bytes.len() as u64,
+                sha256: sha256_bytes(&bytes),
+            });
+            entries.push((archive_path.clone(), bytes));
+        }
+        for name in [
+            "alternative_rankings.json",
+            "predictive_models.json",
+            "optimization_runs.json",
+            "doe_studies.json",
+            "doe_runs.json",
+            "doe_analyses.json",
+            "laboratory_trials.json",
+            "test_results.json",
+        ] {
+            assert!(
+                manifest.included.iter().any(|path| path == &format!("data/master/{name}")),
+                "new master record collection {name} was omitted from the backup"
+            );
+        }
+        let package_path = package_dir.join("records.formulab-backup");
+        let package_entries: Vec<_> = entries
+            .iter()
+            .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+            .collect();
+        write_test_package(&package_path, &manifest, &package_entries);
+
+        let report = verify_backup_report(&package_path);
+        assert!(
+            matches!(report.status, VerificationStatus::Valid),
+            "backup verification errors: {:?}",
+            report.errors.iter().map(|error| error.code.as_str()).collect::<Vec<_>>()
+        );
+        assert_eq!(report.manifest.unwrap().file_inventory.len(), records.len());
+
+        let restore_roots = RootPaths {
+            project_root: restore_root.clone(),
+            workspace_root: restore_root.clone(),
+            base_root: restore_root.clone(),
+        };
+        let staging_dir = package_dir.join("staging");
+        std::fs::create_dir_all(&staging_dir).unwrap();
+        let mut archive = open_zip(&package_path).unwrap();
+        let mut staged = Vec::new();
+        for (index, entry) in manifest.file_inventory.iter().enumerate() {
+            let mut archive_entry = archive.by_name(&entry.path).unwrap();
+            let mut bytes = Vec::new();
+            archive_entry.read_to_end(&mut bytes).unwrap();
+            assert_eq!(bytes.len() as u64, entry.bytes, "size mismatch for {}", entry.path);
+            assert_eq!(sha256_bytes(&bytes), entry.sha256, "hash mismatch for {}", entry.path);
+            assert!(serde_json::from_slice::<serde_json::Value>(&bytes).is_ok(), "invalid JSON for {}", entry.path);
+
+            let live_target = archive_path_to_live(&restore_roots, &entry.path).unwrap();
+            std::fs::create_dir_all(live_target.parent().unwrap()).unwrap();
+            std::fs::write(&live_target, b"pre-restore data").unwrap();
+            let staged_path = staging_dir.join(format!("{index}.bin"));
+            std::fs::write(&staged_path, &bytes).unwrap();
+            staged.push((entry.path.clone(), live_target));
+        }
+
+        let restored = activate_staged_files(&staged, &staging_dir).unwrap();
+        assert_eq!(restored.len(), records.len());
+        for (archive_path, expected) in entries {
+            let live_path = archive_path_to_live(&restore_roots, &archive_path).unwrap();
+            assert_eq!(std::fs::read(live_path).unwrap(), expected, "restored bytes differ for {archive_path}");
+        }
+
+        let _ = std::fs::remove_dir_all(&source_root);
+        let _ = std::fs::remove_dir_all(&restore_root);
+        let _ = std::fs::remove_dir_all(&package_dir);
+    }
+
+    #[test]
     fn verify_reports_valid_for_a_well_formed_package() {
         let dir = verify_tmp_dir("valid");
         let content: &[u8] = b"[{\"code\":\"M1\",\"schemaVersion\":\"1.0\"}]";

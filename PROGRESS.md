@@ -466,3 +466,5 @@
 2026-07-02 07:04 · Initialized project skeleton: monorepo directory tree (apps / packages / runtime / docs / examples / scripts), AGENTS.md + CLAUDE.md symlink, README, MIT LICENSE, .gitignore, and English PRD + TECHNICAL_DESIGN docs. No build tooling yet.
 2026-10-22 00:03 FVL-10.008 retraining lineage links exact source measurements, dataset fingerprint, partition, prior model, and immutable model artifact; focused acceptance passed.
 2026-10-22 00:13 FVL-10.009 added read-only exact-record lineage navigation and human-gate audit context to Laboratory, with partial, broken and historical-model coverage.
+# 2026-10-22 15:38 — FVL-11.008 added backup integrity and restore activation coverage for optimizer, DOE, and laboratory record collections; backup test group passed.
+# 2026-10-22 15:38 — FVL-11.005 owner decision recorded: make the workspace UI the v1 default after feature parity and historical-project access are confirmed; retain legacy compatibility routes.

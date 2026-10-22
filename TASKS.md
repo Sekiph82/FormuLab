@@ -7,10 +7,10 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Project Status
 
 - Current Milestone: FVL-11
-- Current Sprint: FVL-11-S01
-- Current Task: FVL-11.008 — Data integrity + backup/restore re-verified for new record types
+- Current Sprint: FVL-11-S02
+- Current Task: FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
+- Next Task: FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 170
-- Remaining Tasks: 8
-- Completion: 95.5%
+- Completed Tasks: 172
+- Remaining Tasks: 6
+- Completion: 96.6%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -54,11 +54,11 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 ## Questions for Şekip
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
-- Q-FVL-11.005-1 | After FVL-11 acceptance evidence, which formulation experience should be the v1 default: keep the existing UI, switch to the new UI, or retain both with a user-selectable choice? | TASK: FVL-11.005
 
 ## Owner Decisions
 
 <!-- Append processed dashboard answers here with their Q-ID and affected task before doing dependent work. -->
+- Q-FVL-11.005-1 | FVL-11.005 | Switch to the new formulation UI as the v1 default. Do not keep both UIs as a permanent user-selectable choice. Retain the existing/legacy UI only as a temporary compatibility bridge or redirect for historical deep links and workflows that are not yet fully mapped. After FVL-11 acceptance confirms feature parity and historical-project access, the new workspace-based UI should be the single default v1 experience. Do not delete historical data, audit evidence, or compatibility routes merely to simplify the UI.
 
 ## Tasks
 
@@ -300,13 +300,13 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-11.002 — Full-chain acceptance run 1 through report
 - [x] FVL-11.003 — Full-chain acceptance run 2 through lab, model, active learning and retraining
 - [x] FVL-11.004 — Backward compatibility for historical sessions
-- [!] FVL-11.005 — Old vs new formulation UI decision after acceptance proof
+- [x] FVL-11.005 — Old vs new formulation UI decision after acceptance proof
 - [x] FVL-11.006 — Authorization/role and approval gates re-verified; no AI auto-approval
 - [x] FVL-11.007 — Zero-LLM formulation regression re-confirmed
-- [~] FVL-11.008 — Data integrity + backup/restore re-verified for new record types
+- [x] FVL-11.008 — Data integrity + backup/restore re-verified for new record types
 
 ## Sprint FVL-11-S02 — Regression, installer & v1 closure
-- [ ] FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
+- [~] FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
 - [ ] FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
 - [ ] FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
 - [ ] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
