@@ -8,9 +8,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-11
 - Current Sprint: FVL-11-S01
-- Current Task: FVL-11.007 — Zero-LLM formulation regression re-confirmed
+- Current Task: FVL-11.008 — Data integrity + backup/restore re-verified for new record types
 - Current Task Status: IN_PROGRESS
-- Next Task: FVL-11.008 — Data integrity + backup/restore re-verified for new record types
+- Next Task: FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
@@ -20,9 +20,9 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 169
-- Remaining Tasks: 9
-- Completion: 94.9%
+- Completed Tasks: 170
+- Remaining Tasks: 8
+- Completion: 95.5%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -302,8 +302,8 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-11.004 — Backward compatibility for historical sessions
 - [!] FVL-11.005 — Old vs new formulation UI decision after acceptance proof
 - [x] FVL-11.006 — Authorization/role and approval gates re-verified; no AI auto-approval
-- [~] FVL-11.007 — Zero-LLM formulation regression re-confirmed
-- [ ] FVL-11.008 — Data integrity + backup/restore re-verified for new record types
+- [x] FVL-11.007 — Zero-LLM formulation regression re-confirmed
+- [~] FVL-11.008 — Data integrity + backup/restore re-verified for new record types
 
 ## Sprint FVL-11-S02 — Regression, installer & v1 closure
 - [ ] FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check

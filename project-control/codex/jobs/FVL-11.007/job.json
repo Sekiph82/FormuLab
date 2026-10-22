@@ -1,0 +1,12 @@
+{
+  "id": "FVL-11.007",
+  "task": "Zero-LLM formulation regression re-confirmed",
+  "stage": "MERGED",
+  "round": 1,
+  "reviews": {
+    "rules": "pass",
+    "code": "pass",
+    "tests": "pass"
+  },
+  "updatedAt": "2026-10-22T15:36:03Z"
+}
