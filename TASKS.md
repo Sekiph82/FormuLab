@@ -301,7 +301,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] DEVX-01.001 — Define sequential Codex automation and owner-intervention gates
 - [x] DEVX-01.002 — Implement TASKS-driven sequential Codex runner guidance
 - [x] DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
-- [ ] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
+- [~] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
 - [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
 - [x] DEVX-01.006 — Curate the dashboard project list and link selected GitHub repositories
 - [x] DEVX-01.007 — Add persistent light and dark dashboard themes
