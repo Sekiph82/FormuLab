@@ -6,23 +6,23 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: FVL-11
-- Current Sprint: FVL-11-S02
-- Current Task: FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
-- Current Task Status: BLOCKED
-- Next Task: FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
+- Current Milestone: None
+- Current Sprint: None
+- Current Task: None
+- Current Task Status: COMPLETE
+- Next Task: None
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Blockers/Waits: Q-FVL-11.011-1 — Desktop shortcut target differs from fresh main build; owner decision required
+- Blockers/Waits: None
 
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 175
-- Remaining Tasks: 3
-- Completion: 98.3%
+- Completed Tasks: 178
+- Remaining Tasks: 0
+- Completion: 100%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -55,12 +55,12 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 
 <!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
 
-- Q-FVL-11.011-1 | The Desktop shortcut resolves to C:\Users\sekip\Desktop\FormuLab\apps\desktop\src-tauri\target\release\formulab.exe, but that executable SHA-256 (0958C88C1B672ECD8640C75D2D3CC1B1D9C27D65B80AC547FDD39620BD1E796E) differs from the fresh FVL-11.010 main build (0F8CCE42D0F21EC590F2C06617D1FF4C72740F90F071B0B3B2279D212A9BD447). Should I replace that exact ignored executable with the fresh build, retarget the shortcut to another path (provide it), or preserve the current target? | TASK: FVL-11.011
 
 ## Owner Decisions
 
 <!-- Append processed dashboard answers here with their Q-ID and affected task before doing dependent work. -->
 - Q-FVL-11.005-1 | FVL-11.005 | Switch to the new formulation UI as the v1 default. Do not keep both UIs as a permanent user-selectable choice. Retain the existing/legacy UI only as a temporary compatibility bridge or redirect for historical deep links and workflows that are not yet fully mapped. After FVL-11 acceptance confirms feature parity and historical-project access, the new workspace-based UI should be the single default v1 experience. Do not delete historical data, audit evidence, or compatibility routes merely to simplify the UI.
+- Q-FVL-11.011-1 | FVL-11.011 | o exe dosyasi projenin en son guncel halini acmali her seferinde. buna gore ayarla
 
 ## Tasks
 
@@ -310,10 +310,10 @@ Sprint grouping below is a management-only organization of the existing frozen t
 ## Sprint FVL-11-S02 — Regression, installer & v1 closure
 - [x] FVL-11.009 — Full regression suite across Python, Rust, Vitest, TypeScript, ESLint and diff check
 - [x] FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
-- [!] FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
-- [!] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
+- [x] FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
+- [x] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
 - [x] FVL-11.013 — Current handoff updated to closure state
-- [!] FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
+- [x] FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
 
 # DEVX-01
 
