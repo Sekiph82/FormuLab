@@ -15,6 +15,7 @@ class FakeElement {
   hidden = false;
   className = "";
   disabled = false;
+  attributes = new Map();
 
   append(...nodes) {
     this.children.push(...nodes);
@@ -27,6 +28,10 @@ class FakeElement {
   addEventListener(name, listener) {
     this.listeners.set(name, listener);
   }
+
+  setAttribute(name, value) {
+    this.attributes.set(name, value);
+  }
 }
 
 function allText(element) {
@@ -34,7 +39,7 @@ function allText(element) {
 }
 
 test("keeps the last successful project view when a refresh fails", async () => {
-  const selectors = ["#projects", "#notice", "#search", "#refresh", "#project-count", "#thread-count", "#task-id", "#task-title", "#updated", "#source"];
+  const selectors = ["#projects", "#notice", "#search", "#project-select", "#selected-project", "#task-summary", "#task-details", "#refresh", "#project-count", "#thread-count", "#task-id", "#task-title", "#task-status", "#task-scope", "#next-task", "#completion", "#project-subtitle", "#updated", "#source", "#theme-toggle"];
   const elements = new Map(selectors.map((selector) => [selector, new FakeElement()]));
   let refreshTimer;
   let fetchCount = 0;
@@ -45,12 +50,25 @@ test("keeps the last successful project view when a refresh fails", async () => 
     projectCount: 1,
     activeThreadCount: 1,
     truncated: false,
-    task: { currentTask: { id: "DEVX-01.005", title: "Dashboard recovery" } },
+    task: {
+      milestone: "DEVX-01",
+      sprint: "DEVX-01-S01",
+      currentTask: { id: "DEVX-01.006", title: "Curate project list" },
+      currentTaskStatus: "IN_PROGRESS",
+      nextTask: "FVL-11.001 — Acceptance matrix",
+      completion: "91.6%",
+    },
     projects: [{
       id: "project-1",
       name: "FormuLab",
       roots: ["C:\\work\\FormuLab"],
-      threads: [{ id: "thread-1", title: "Visible task", cwd: "C:\\work\\FormuLab", status: "idle", updatedAt: null, source: "Codex" }],
+      threads: [{ id: "thread-1", title: "Visible task", cwd: "C:\\work\\FormuLab", status: "running", updatedAt: null, source: "Codex" }],
+    }, {
+      id: "project-2",
+      name: "Wonder_Pop",
+      repositoryUrl: "https://github.com/Sekiph82/Wonder_Pop",
+      roots: [],
+      threads: [{ id: "thread-2", title: "Other project's work", cwd: "C:\\work\\Wonder_Pop", status: "needsAttention", updatedAt: null, source: "Codex" }],
     }],
   };
   const document = {
@@ -60,6 +78,7 @@ test("keeps the last successful project view when a refresh fails", async () => 
     createElement() {
       return new FakeElement();
     },
+    documentElement: { dataset: {} },
   };
   const fetch = async () => {
     fetchCount += 1;
@@ -69,6 +88,8 @@ test("keeps the last successful project view when a refresh fails", async () => 
 
   runInNewContext(await readFile(dashboardPath, "utf8"), {
     document,
+    window: { matchMedia() { return { matches: false }; } },
+    localStorage: { getItem() { return null; }, setItem() {} },
     fetch,
     setInterval(callback) { refreshTimer = callback; },
     Date,
@@ -78,10 +99,23 @@ test("keeps the last successful project view when a refresh fails", async () => 
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(allText(elements.get("#projects")).includes("Visible task"), true);
   assert.equal(elements.get("#project-count").textContent, "1");
+  assert.equal(elements.get("#project-select").value, "project-1");
+  assert.equal(elements.get("#task-status").textContent, "IN_PROGRESS");
+  assert.match(allText(elements.get("#selected-project")), /1 active Codex task/);
+  assert.equal(elements.get("#task-summary").hidden, false);
+  assert.equal(elements.get("#task-details").hidden, false);
+
+  elements.get("#project-select").value = "project-2";
+  elements.get("#project-select").listeners.get("change")();
+  assert.equal(allText(elements.get("#projects")).includes("Other project's work"), true);
+  assert.equal(allText(elements.get("#projects")).includes("Visible task"), false);
+  assert.equal(elements.get("#task-summary").hidden, true);
+  assert.equal(elements.get("#task-details").hidden, true);
+  assert.match(allText(elements.get("#selected-project")), /1 active Codex task/);
 
   await refreshTimer();
 
-  assert.equal(allText(elements.get("#projects")).includes("Visible task"), true);
+  assert.equal(allText(elements.get("#projects")).includes("Other project's work"), true);
   assert.equal(elements.get("#project-count").textContent, "1");
   assert.match(elements.get("#notice").textContent, /Showing the last successful data/);
 });

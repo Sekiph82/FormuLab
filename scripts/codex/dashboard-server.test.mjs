@@ -43,7 +43,7 @@ test("serves a read-only overview grouped by saved Codex project", async () => {
     },
     threads: [{
       id: "thread-1",
-      title: "FVL-11 acceptance",
+      preview: "FVL-11 acceptance",
       cwd: "C:\\work\\FormuLab",
       status: { type: "idle" },
       updatedAt: 1_800_000_000,

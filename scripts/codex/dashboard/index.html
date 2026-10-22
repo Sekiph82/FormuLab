@@ -26,15 +26,27 @@
 
       <section class="summary" aria-label="Overview">
         <article class="summary-card"><span class="summary-label">Projects</span><strong id="project-count">—</strong></article>
-        <article class="summary-card"><span class="summary-label">Active tasks</span><strong id="thread-count">—</strong></article>
-        <article class="summary-card current"><span class="summary-label">FormuLab task</span><strong id="task-id">—</strong><span id="task-title" class="current-title">Reading TASKS.md</span></article>
+        <article class="summary-card"><span class="summary-label">Codex threads</span><strong id="thread-count">—</strong></article>
+        <article id="task-summary" class="summary-card current"><span class="summary-label">Current FormuLab task</span><strong id="task-id">—</strong><span id="task-title" class="current-title">Reading TASKS.md</span></article>
+      </section>
+
+      <section id="task-details" class="task-details" aria-label="Current FormuLab task">
+        <div class="task-detail"><span>Task status</span><strong id="task-status">—</strong></div>
+        <div class="task-detail"><span>Milestone / sprint</span><strong id="task-scope">—</strong></div>
+        <div class="task-detail"><span>Next task</span><strong id="next-task">—</strong></div>
+        <div class="task-detail"><span>Completion</span><strong id="completion">—</strong></div>
       </section>
 
       <section id="notice" class="notice" hidden></section>
 
+      <section id="selected-project" class="selected-project" aria-live="polite"></section>
+
       <section class="list-header">
-        <div><h2>Projects</h2><p>Seven Codex workspaces and five selected GitHub repositories</p></div>
-        <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Filter projects or tasks" autocomplete="off"></label>
+        <div><h2>Project activity</h2><p id="project-subtitle">Choose a project to see its latest Codex work</p></div>
+        <div class="project-controls">
+          <label class="project-picker">Project<select id="project-select" aria-label="Select active project"><option value="">Loading projects…</option></select></label>
+          <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Filter this project's tasks" autocomplete="off"></label>
+        </div>
       </section>
 
       <section id="projects" class="projects" aria-live="polite">

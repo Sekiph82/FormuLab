@@ -20,7 +20,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--canvas); color: var(--ink); }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 .shell { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
 .topbar { height: 72px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .brand, .top-actions, .live, .updated { display: flex; align-items: center; }
@@ -43,32 +43,44 @@ h1 { font-size: clamp(28px, 3vw, 38px); letter-spacing: -.045em; line-height: 1.
 .summary-card strong { font-size: 26px; letter-spacing: -.04em; line-height: 1; }
 .summary-label { color: var(--muted); font-size: 11px; font-weight: 550; }
 .summary-card.current { background: var(--accent-soft); border-color: #dce5ff; }
+#task-summary[hidden] { display: none; }
 .current-title { color: #52637f; font-size: 12px; }
+.task-details { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.task-details[hidden] { display: none; }
+.task-detail { min-width: 0; display: flex; flex-direction: column; gap: 7px; padding: 13px 15px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.task-detail span { color: var(--muted); font-size: 10px; }
+.task-detail strong { overflow-wrap: anywhere; font-size: 11px; font-weight: 600; }
 .notice { margin-top: 15px; padding: 12px 15px; color: var(--amber); background: var(--amber-soft); border: 1px solid #f5dfab; border-radius: 9px; font-size: 12px; line-height: 1.5; }
 .notice.error { color: var(--red); background: var(--red-soft); border-color: #f1cece; }
-.list-header { display: flex; align-items: end; justify-content: space-between; margin: 40px 0 15px; }
+.selected-project { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 22px; padding: 14px 17px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.selected-project:empty { display: none; }
+.selected-project-name { font-size: 13px; font-weight: 650; }
+.selected-project-activity { color: var(--muted); font-size: 11px; }
+.selected-project-path { overflow: hidden; max-width: 100%; color: var(--muted); font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.repository-link { margin-left: auto; color: var(--accent); font-size: 11px; text-decoration: none; }
+.repository-link:hover { text-decoration: underline; }
+.list-header { display: flex; align-items: end; justify-content: space-between; margin: 30px 0 15px; }
 h2 { margin: 0; font-size: 18px; letter-spacing: -.025em; }
 .list-header p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.project-controls { display: flex; align-items: end; gap: 10px; }
+.project-picker { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
+.project-picker select { min-width: 185px; max-width: 260px; height: 36px; padding: 0 30px 0 11px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 11px; }
 .search { height: 36px; min-width: 230px; display: flex; align-items: center; gap: 8px; padding: 0 11px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .search span { font-size: 19px; line-height: 1; }
 .search input { width: 100%; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 11px; }
-.projects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.project-card, .loading-card, .empty-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
-.project-card { min-width: 0; padding: 17px 18px 12px; }
-.project-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.project-name { overflow-wrap: anywhere; margin: 0; font-size: 14px; font-weight: 630; letter-spacing: -.015em; }
-a.project-name { display: inline-block; color: inherit; text-decoration: none; }
-a.project-name:hover { text-decoration: underline; }
-.project-path { overflow: hidden; color: var(--muted); font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; margin-top: 5px; }
-.project-count { flex: 0 0 auto; padding: 4px 8px; color: #52637f; background: var(--surface-muted); border-radius: 20px; font-size: 10px; }
-.thread-list { display: grid; gap: 1px; margin-top: 14px; border-top: 1px solid var(--line); }
-.thread-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; padding: 11px 0 8px; }
-.thread-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 540; }
+.projects { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.thread-card, .loading-card, .empty-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+.thread-card { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 15px 17px; }
+.thread-card-main { min-width: 0; }
+.thread-path { overflow: hidden; max-width: min(45vw, 600px); text-overflow: ellipsis; white-space: nowrap; }
+.thread-title { margin: 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 600; }
 .thread-meta { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 9px; margin-top: 5px; }
 .status { align-self: start; padding: 4px 7px; border-radius: 20px; color: var(--muted); background: var(--surface-muted); font-size: 9px; text-transform: capitalize; white-space: nowrap; }
 .status.running, .status.inprogress { color: var(--green); background: var(--green-soft); }
+.status.active { color: var(--green); background: var(--green-soft); }
 .status.waiting, .status.needsattention { color: var(--amber); background: var(--amber-soft); }
-.no-threads { padding: 13px 0 3px; color: var(--muted); font-size: 11px; }
+.status.completed, .status.done { color: var(--green); background: var(--green-soft); }
+.status.notloaded { color: var(--muted); background: var(--surface-muted); }
 .loading-card, .empty-card { grid-column: 1 / -1; padding: 34px; text-align: center; color: var(--muted); font-size: 12px; }
 footer { display: flex; justify-content: space-between; padding: 22px 2px 34px; color: var(--muted); font-size: 10px; }
 
@@ -77,9 +89,12 @@ footer { display: flex; justify-content: space-between; padding: 22px 2px 34px; 
   .intro { align-items: flex-start; flex-direction: column; gap: 17px; padding-top: 34px; }
   .summary { grid-template-columns: 1fr 1fr; }
   .summary-card.current { grid-column: 1 / -1; }
-  .projects { grid-template-columns: 1fr; }
+  .task-details { grid-template-columns: 1fr 1fr; }
   .list-header { align-items: flex-start; flex-direction: column; gap: 13px; }
+  .project-controls { width: 100%; align-items: stretch; flex-direction: column; }
+  .project-picker select { width: 100%; max-width: none; }
   .search { width: 100%; }
+  .thread-path { max-width: 75vw; }
 }
 
 :root[data-theme="dark"] {

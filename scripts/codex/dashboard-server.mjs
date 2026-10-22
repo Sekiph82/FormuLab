@@ -65,9 +65,14 @@ function threadUpdatedAt(thread) {
 }
 
 function sanitizeThread(thread) {
+  const title = typeof thread?.title === "string" && thread.title.trim()
+    ? thread.title
+    : typeof thread?.preview === "string" && thread.preview.trim()
+      ? thread.preview
+      : "Untitled Codex task";
   return {
     id: typeof thread?.id === "string" ? thread.id : "",
-    title: typeof thread?.title === "string" ? thread.title.slice(0, 180) : "Untitled Codex task",
+    title: title.slice(0, 180),
     cwd: typeof thread?.cwd === "string" ? thread.cwd : "",
     status: threadStatus(thread),
     updatedAt: threadUpdatedAt(thread),

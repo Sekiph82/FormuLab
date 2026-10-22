@@ -1,8 +1,21 @@
 const projectsElement = document.querySelector("#projects");
 const noticeElement = document.querySelector("#notice");
 const searchElement = document.querySelector("#search");
+const projectSelect = document.querySelector("#project-select");
+const taskSummaryElement = document.querySelector("#task-summary");
+const taskDetailsElement = document.querySelector("#task-details");
+const selectedProjectElement = document.querySelector("#selected-project");
 const themeButton = document.querySelector("#theme-toggle");
 let overview;
+let selectedProjectId = readSelectedProject();
+
+function readSelectedProject() {
+  try {
+    return localStorage.getItem("codex-dashboard-project") ?? "";
+  } catch {
+    return "";
+  }
+}
 
 function savedTheme() {
   try {
@@ -48,61 +61,89 @@ function statusClass(status) {
   return String(status ?? "idle").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function renderProject(project) {
-  const card = element("article", "project-card");
-  const top = element("div", "project-top");
-  const heading = element("div");
+function isActiveStatus(status) {
+  return ["active", "running", "inprogress", "waiting", "needsattention"].includes(statusClass(status));
+}
+
+function activityLabel(project) {
+  const activeCount = project.threads.filter((thread) => isActiveStatus(thread.status)).length;
+  if (activeCount) return `${activeCount} active Codex ${activeCount === 1 ? "task" : "tasks"}`;
+  const unloadedCount = project.threads.filter((thread) => statusClass(thread.status) === "notloaded").length;
+  if (unloadedCount) return `No live status for ${unloadedCount} saved ${unloadedCount === 1 ? "thread" : "threads"} in the read-only App Server list.`;
+  return "No Codex task is currently running or awaiting attention.";
+}
+
+function persistSelectedProject(projectId) {
+  try {
+    localStorage.setItem("codex-dashboard-project", projectId);
+  } catch {
+    // Project selection still applies until this page is closed.
+  }
+}
+
+function renderSelectedProject(project) {
+  const details = [
+    element("strong", "selected-project-name", project.name),
+    element("span", "selected-project-activity", activityLabel(project)),
+  ];
+  if (project.roots?.[0]) details.push(element("span", "selected-project-path", project.roots[0]));
   if (project.repositoryUrl) {
-    const link = element("a", "project-name", project.name);
+    const link = element("a", "repository-link", "Open repository");
     link.href = project.repositoryUrl;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    heading.append(link);
-  } else {
-    heading.append(element("h3", "project-name", project.name));
+    details.push(link);
   }
-  if (project.roots?.[0]) heading.append(element("div", "project-path", project.roots[0]));
-  top.append(heading, element("span", "project-count", `${project.threads.length} ${project.threads.length === 1 ? "task" : "tasks"}`));
-  card.append(top);
-
-  if (!project.threads.length) {
-    card.append(element("div", "no-threads", "No active Codex tasks"));
-    return card;
-  }
-
-  const list = element("div", "thread-list");
-  for (const thread of project.threads) {
-    const row = element("div", "thread-row");
-    const details = element("div");
-    details.append(element("div", "thread-title", thread.title));
-    const meta = element("div", "thread-meta");
-    meta.append(element("span", "", thread.source), element("span", "", dateLabel(thread.updatedAt)));
-    details.append(meta);
-    row.append(details, element("span", `status ${statusClass(thread.status)}`, thread.status));
-    list.append(row);
-  }
-  card.append(list);
-  return card;
+  selectedProjectElement.replaceChildren(...details);
 }
 
 function render() {
   if (!overview) return;
+  const projects = overview.projects ?? [];
+  const currentSelectionExists = projects.some((project) => project.id === selectedProjectId);
+  if (!currentSelectionExists) {
+    selectedProjectId = projects.find((project) => project.id === "formulab" || project.name.toLowerCase() === "formulab")?.id ?? projects[0]?.id ?? "";
+    persistSelectedProject(selectedProjectId);
+  }
+
+  projectSelect.replaceChildren();
+  for (const project of projects) {
+    const option = element("option", "", project.name);
+    option.value = project.id;
+    projectSelect.append(option);
+  }
+  projectSelect.value = selectedProjectId;
+
+  const selectedProject = projects.find((project) => project.id === selectedProjectId);
   const query = searchElement.value.trim().toLowerCase();
-  const filtered = overview.projects.filter((project) => {
-    const searchText = [project.name, project.repositoryUrl, ...project.roots, ...project.threads.map((thread) => `${thread.title} ${thread.cwd}`)].join(" ").toLowerCase();
-    return searchText.includes(query);
-  });
+  const filteredThreads = (selectedProject?.threads ?? []).filter((thread) =>
+    `${thread.title} ${thread.cwd} ${thread.status} ${thread.source}`.toLowerCase().includes(query)
+  );
   projectsElement.replaceChildren();
-  if (!filtered.length) {
-    projectsElement.append(element("div", "empty-card", query ? "No projects match this filter." : "No Codex projects found."));
+  if (!selectedProject) {
+    projectsElement.append(element("div", "empty-card", "No selected projects are available."));
+    selectedProjectElement.replaceChildren();
+  } else if (!filteredThreads.length) {
+    projectsElement.append(element("div", "empty-card", query ? "No tasks match this filter." : "No Codex threads for this project yet."));
+    renderSelectedProject(selectedProject);
   } else {
-    for (const project of filtered) projectsElement.append(renderProject(project));
+    renderSelectedProject(selectedProject);
+    for (const thread of filteredThreads) projectsElement.append(renderThread(thread));
   }
 
   document.querySelector("#project-count").textContent = String(overview.projectCount);
-  document.querySelector("#thread-count").textContent = String(overview.activeThreadCount);
-  document.querySelector("#task-id").textContent = overview.task?.currentTask?.id ?? "Not set";
-  document.querySelector("#task-title").textContent = overview.task?.currentTask?.title ?? "No current task in TASKS.md";
+  document.querySelector("#thread-count").textContent = String(overview.activeThreadCount ?? projects.reduce((count, project) => count + project.threads.length, 0));
+  const isFormuLab = selectedProject && (selectedProject.id === "formulab" || selectedProject.name.toLowerCase() === "formulab");
+  taskSummaryElement.hidden = !isFormuLab;
+  taskDetailsElement.hidden = !isFormuLab;
+  const task = isFormuLab ? overview.task : null;
+  document.querySelector("#task-id").textContent = task?.currentTask?.id ?? (isFormuLab ? "Not set" : "—");
+  document.querySelector("#task-title").textContent = task?.currentTask?.title ?? (isFormuLab ? "No current task in TASKS.md" : "Select FormuLab to view its task state");
+  document.querySelector("#task-status").textContent = task?.currentTaskStatus ?? "—";
+  document.querySelector("#task-scope").textContent = [task?.milestone, task?.sprint].filter(Boolean).join(" / ") || "—";
+  document.querySelector("#next-task").textContent = task?.nextTask ?? "—";
+  document.querySelector("#completion").textContent = task?.completion ?? "—";
+  document.querySelector("#project-subtitle").textContent = selectedProject ? `${selectedProject.threads.length} recent Codex ${selectedProject.threads.length === 1 ? "thread" : "threads"} · refreshes every minute` : "Choose a project to see its latest Codex work";
   document.querySelector("#updated").textContent = `Updated ${dateLabel(overview.generatedAt)}`;
   document.querySelector("#source").textContent = overview.source;
 
@@ -113,6 +154,20 @@ function render() {
   } else if (overview.truncated) {
     noticeElement.textContent = "The App Server page limit was reached. Some recent projects or tasks may not be shown.";
   }
+}
+
+function renderThread(thread) {
+  const row = element("article", "thread-card");
+  const details = element("div", "thread-card-main");
+  details.append(element("h3", "thread-title", thread.title));
+  const meta = element("div", "thread-meta");
+  meta.append(element("span", "", thread.source), element("span", "", dateLabel(thread.updatedAt)));
+  if (thread.cwd) meta.append(element("span", "thread-path", thread.cwd));
+  details.append(meta);
+  const status = element("span", `status ${statusClass(thread.status)}`, thread.status);
+  status.setAttribute("aria-label", `Task status: ${thread.status}`);
+  row.append(details, status);
+  return row;
 }
 
 async function refresh() {
@@ -147,5 +202,11 @@ themeButton.addEventListener("click", () => {
   applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
 });
 searchElement.addEventListener("input", render);
+projectSelect.addEventListener("change", () => {
+  selectedProjectId = projectSelect.value;
+  persistSelectedProject(selectedProjectId);
+  searchElement.value = "";
+  render();
+});
 refresh();
 setInterval(refresh, 60_000);
