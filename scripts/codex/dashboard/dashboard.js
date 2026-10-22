@@ -1,7 +1,35 @@
 const projectsElement = document.querySelector("#projects");
 const noticeElement = document.querySelector("#notice");
 const searchElement = document.querySelector("#search");
+const themeButton = document.querySelector("#theme-toggle");
 let overview;
+
+function savedTheme() {
+  try {
+    const value = localStorage.getItem("codex-dashboard-theme");
+    return value === "light" || value === "dark" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyTheme(theme, persist = false) {
+  document.documentElement.dataset.theme = theme;
+  const dark = theme === "dark";
+  themeButton.textContent = dark ? "Light mode" : "Dark mode";
+  themeButton.setAttribute("aria-label", `Switch to ${dark ? "light" : "dark"} mode`);
+  themeButton.setAttribute("aria-pressed", String(dark));
+  if (persist) {
+    try {
+      localStorage.setItem("codex-dashboard-theme", theme);
+    } catch {
+      // The selected theme still applies for this page when storage is unavailable.
+    }
+  }
+}
+
+const initialTheme = savedTheme() ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+applyTheme(initialTheme);
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -115,6 +143,9 @@ async function refresh() {
 }
 
 document.querySelector("#refresh").addEventListener("click", refresh);
+themeButton.addEventListener("click", () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
+});
 searchElement.addEventListener("input", render);
 refresh();
 setInterval(refresh, 60_000);
