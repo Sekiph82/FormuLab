@@ -8,21 +8,21 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 - Current Milestone: FVL-11
 - Current Sprint: FVL-11-S02
-- Current Task: FVL-11.013 — Current handoff updated to closure state
-- Current Task Status: IN_PROGRESS
-- Next Task: FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
+- Current Task: FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
+- Current Task Status: BLOCKED
+- Next Task: FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
 - Tracking Branch: main
 - Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
-- Blockers/Waits: None
+- Blockers/Waits: Q-FVL-11.011-1 — Desktop shortcut target differs from fresh main build; owner decision required
 
 ## Progress
 
 - Total Tasks: 178
-- Completed Tasks: 174
-- Remaining Tasks: 4
-- Completion: 97.8%
+- Completed Tasks: 175
+- Remaining Tasks: 3
+- Completion: 98.3%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -312,8 +312,8 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] FVL-11.010 — Fresh installer build: formulab.exe + MSI/NSIS
 - [!] FVL-11.011 — Desktop FormuLab.lnk verification against fresh build
 - [!] FVL-11.012 — GitHub branch state confirmed with no outstanding blocking issue
-- [~] FVL-11.013 — Current handoff updated to closure state
-- [ ] FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
+- [x] FVL-11.013 — Current handoff updated to closure state
+- [!] FVL-11.014 — Explicit FormuLab v1 COMPLETE declaration after every prior task is complete
 
 # DEVX-01
 

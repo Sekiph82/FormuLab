@@ -1,0 +1,8 @@
+{
+  "id": "FVL-11.013",
+  "task": "Current handoff updated to closure state",
+  "branch": "main",
+  "stage": "approved",
+  "round": 1,
+  "reviews": { "rules": "PASS", "code": "PASS", "tests": "PASS" }
+}
