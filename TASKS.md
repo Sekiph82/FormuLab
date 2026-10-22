@@ -19,8 +19,8 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 175
-- Completed Tasks: 161
+- Total Tasks: 176
+- Completed Tasks: 162
 - Remaining Tasks: 14
 - Completion: 92.0%
 
@@ -302,6 +302,7 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] DEVX-01.002 — Implement TASKS-driven sequential Codex runner guidance
 - [x] DEVX-01.003 — Implement read-only all-project Codex dashboard on 127.0.0.1:9000
 - [x] DEVX-01.004 — Run milestone acceptance and clean task-owned resources
+- [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
 
 ## Historical Detail & Evidence
 

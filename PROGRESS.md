@@ -1,5 +1,7 @@
 # Progress
 
+2026-10-22 13:56 · DEVX-01 dashboard recovery: transient App Server failures now recycle the client while the UI keeps the last successful project data; 5 dashboard tests and live CLI/API smoke passed; FVL-11.001 remains READY.
+
 2026-10-22 00:28 · FVL-10 complete: exact immutable lineage now spans generation, DOE recommendation, trial/results, dataset, versioned retraining, historical prediction, ranking and optimization; retry, failed persistence, human-gate and no-source-mutation acceptance passed with shared 2,297/2,297 and desktop 1,793/1,793, both typechecks, ESLint and production build; FVL-11.001 is READY and not started.
 
 2026-10-20 23:49 · FVL-08 complete: versioned multi-dimensional ranking, authoritative hard gates, canonical Cost Engine inputs, Advanced Optimizer linkage, explainable UI, and immutable checksummed snapshots passed regression; shared 2,263/2,263, desktop 1,745/1,745, typecheck, lint, and production build passed; Rust unit tests remain blocked by the missing bundled `binaries/uv-x86_64-pc-windows-msvc.exe` resource.

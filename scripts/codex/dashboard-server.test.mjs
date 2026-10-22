@@ -76,6 +76,47 @@ test("returns a safe unsupported notice without reading Codex storage directly",
   assert.equal(payload.projects[0].threads[0].id, "thread-2");
 });
 
+test("recreates the App Server client after a transient listing failure", async () => {
+  let clientCount = 0;
+  let firstClientClosed = false;
+  const app = createDashboardServer({
+    root,
+    host: "127.0.0.1",
+    port: 0,
+    clientFactory: () => {
+      clientCount += 1;
+      const isFirstClient = clientCount === 1;
+      return {
+        async initialize() {},
+        async listProjects() {
+          return { rows: [], truncated: false };
+        },
+        async listThreads() {
+          if (isFirstClient) throw new Error("Codex App Server exited.");
+          return { rows: [{ id: "recovered-thread", title: "Recovered", cwd: "C:\\work", status: "idle" }], truncated: false };
+        },
+        async close() {
+          if (isFirstClient) firstClientClosed = true;
+        },
+      };
+    },
+  });
+  await app.listen();
+  openServers.add(app);
+  const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+  const failedResponse = await fetch(`${baseUrl}/api/overview`);
+  assert.equal(failedResponse.status, 503);
+  assert.equal(firstClientClosed, true);
+
+  const recoveredResponse = await fetch(`${baseUrl}/api/overview`);
+  assert.equal(recoveredResponse.status, 200);
+  const payload = await recoveredResponse.json();
+  assert.equal(clientCount, 2);
+  assert.equal(payload.activeThreadCount, 1);
+  assert.equal(payload.projects[0].threads[0].id, "recovered-thread");
+});
+
 test("serves local assets and rejects writes and foreign Host headers", async () => {
   const { baseUrl } = await startServer();
   const page = await fetch(baseUrl);

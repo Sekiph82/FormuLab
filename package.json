@@ -12,7 +12,7 @@
     "lint": "pnpm --filter @formulab/desktop lint",
     "codex:tasks:check": "node scripts/codex/validate-task-state.mjs",
     "codex:dashboard": "node scripts/codex/dashboard-server.mjs",
-    "codex:dashboard:test": "node --test scripts/codex/dashboard-server.test.mjs",
+    "codex:dashboard:test": "node --test scripts/codex/dashboard-server.test.mjs scripts/codex/dashboard-ui.test.mjs",
     "docs:fixture:seed": "tsx scripts/dev/seed-docs-fixture.ts",
     "docs:fixture:reset": "tsx scripts/dev/seed-docs-fixture.ts --reset",
     "docs:guide:generate": "tsx scripts/dev/generate-user-guide.ts",
