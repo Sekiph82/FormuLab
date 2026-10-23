@@ -1,54 +1,70 @@
 import { createReadStream } from "node:fs";
-import { appendFile, lstat, readFile, readdir, realpath } from "node:fs/promises";
+import { appendFile, lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
 import { createServer } from "node:http";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServerClient } from "./app-server-client.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
-const defaultRoot = resolve(scriptDirectory, "../..");
 const cacheDurationMs = 1_000;
 const workflowStages = ["SPEC", "BUILD", "REVIEW", "APPROVE", "MERGED", "ESCALATED"];
 const reviewLenses = ["rules", "code", "tests"];
-const projectCatalog = [
-  { id: "packlab", name: "PackLab", kind: "Codex", names: ["PackLab"], pathSegments: ["PackLab"] },
-  { id: "formulab", name: "Formulab", kind: "Codex", names: ["Formulab", "FormuLab"], pathSegments: ["FormuLab"] },
-  { id: "fmcg-erp-system-main", name: "fmcg-erp-system-main", kind: "Codex", names: ["fmcg-erp-system-main"], pathSegments: ["fmcg-erp-system-main"] },
-  { id: "match3-visual-ui-factory", name: "MATCH3-Visual-UI-Factory", kind: "Codex", names: ["MATCH3-Visual-UI-Factory"], pathSegments: ["MATCH3-Visual-UI-Factory"] },
-  { id: "match3-level-factory", name: "Match3-Level-Factory", kind: "Codex", names: ["Match3-Level-Factory"], pathSegments: ["Match3-Level-Factory"] },
-  { id: "scrubbots-level-factory", name: "ScrubBots Level Factory", kind: "Codex", names: ["ScrubBots Level Factory"], pathSegments: ["Scrubbots - Pixel Art Generator"] },
-  { id: "match3-engine", name: "MATCH3_ENGINE", kind: "Codex", names: ["MATCH3_ENGINE"], pathSegments: ["MATCH3_ENGINE"] },
-  { id: "wonder-pop", name: "Wonder_Pop", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/Wonder_Pop", names: ["Wonder_Pop"], pathSegments: ["Wonder_Pop"] },
-  { id: "the-fractured-realms", name: "The_Fractured_Realms", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/The_Fractured_Realms", names: ["The_Fractured_Realms"], pathSegments: ["The_Fractured_Realms"] },
-  { id: "dino-islands", name: "Dino_Islands", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/Dino_Islands", names: ["Dino_Islands"], pathSegments: ["Dino_Islands"] },
-  { id: "garage-legends", name: "Garage_Legends", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/Garage_Legends", names: ["Garage_Legends"], pathSegments: ["Garage_Legends"] },
-  { id: "coral-rescue", name: "Coral_Rescue", kind: "GitHub", repositoryUrl: "https://github.com/Sekiph82/Coral_Rescue", names: ["Coral_Rescue"], pathSegments: ["Coral_Rescue"] },
-];
+const ownerAnswerLocks = new Map();
 
 function trackerSummary(source) {
   const get = (name) => source.match(new RegExp(`^- ${name}:\\s*(.+)$`, "m"))?.[1]?.trim() ?? null;
-  const task = get("Current Task")?.match(/^([A-Z][A-Z0-9]*-\d+\.\d+) — (.+)$/);
+  const task = get("Current Task")?.match(/^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+(?:\.\d{1,4})?) — (.+)$/);
   return {
     milestone: get("Current Milestone"),
     sprint: get("Current Sprint"),
     currentTask: task ? { id: task[1], title: task[2] } : null,
     currentTaskStatus: get("Current Task Status"),
-    nextTask: get("Next Task"),
+    nextTask: get("Next Task") ?? get("Next Task/Action"),
     requiredActor: get("Required Actor"),
     completion: get("Completion"),
   };
 }
 
 function trackerQuestions(source) {
-  const section = source.split(/^## Questions for Şekip\s*$/m)[1]?.split(/^## /m, 1)[0] ?? "";
+  const questionSection = source.split(/^## /m).find((candidate) => {
+    const heading = candidate.split(/\r?\n/, 1)[0]?.trim() ?? "";
+    return /^(?:Questions(?: for .+)?|Owner Questions)$/i.test(heading);
+  });
+  const section = questionSection?.slice(questionSection.indexOf("\n") + 1) ?? "";
   return section.split(/\r?\n/).flatMap((line) => {
-    const match = line.match(/^\s*[-*]\s+(Q-[A-Z0-9.-]+)\s*\|\s*(.+?)\s*\|\s*TASK:\s*([A-Z][A-Z0-9]*-\d+\.\d+)\s*$/);
+    const match = line.match(/^\s*[-*]\s+(Q-[A-Z0-9.-]+)\s*\|\s*(.+?)\s*\|\s*TASK:\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+(?:\.\d{1,4})?)\s*$/);
     return match ? [{ id: match[1], question: match[2].slice(0, 1_000), taskId: match[3] }] : [];
   });
 }
 
+async function ownerInboxPath(root, { create = false } = {}) {
+  const canonicalRoot = await realpath(root);
+  let current = canonicalRoot;
+  for (const segment of ["project-control", "codex"]) {
+    current = resolve(current, segment);
+    if (create) {
+      try {
+        await mkdir(current);
+      } catch (error) {
+        if (error?.code !== "EEXIST") throw error;
+      }
+    }
+    const info = await lstat(current);
+    if (info.isSymbolicLink() || !info.isDirectory() || !isWithinDirectory(canonicalRoot, await realpath(current))) {
+      throw new Error("Owner answer inbox directories must be regular directories inside the project root.");
+    }
+  }
+  return resolve(current, "owner-answers.jsonl");
+}
+
 async function readOwnerAnswers(root) {
-  const path = resolve(root, "project-control/codex/owner-answers.jsonl");
+  let path;
+  try {
+    path = await ownerInboxPath(root);
+  } catch (error) {
+    if (["ENOENT", "ENOTDIR", "ELOOP"].includes(error?.code)) return [];
+    throw error;
+  }
   try {
     const info = await lstat(path);
     if (info.isSymbolicLink() || !info.isFile()) return [];
@@ -58,7 +74,7 @@ async function readOwnerAnswers(root) {
       try {
         const answer = JSON.parse(line);
         return typeof answer?.questionId === "string" && typeof answer?.answer === "string" && typeof answer?.submittedAt === "string"
-          ? [{ questionId: answer.questionId, answer: answer.answer.slice(0, 4_000), submittedAt: answer.submittedAt }]
+          ? [{ questionId: answer.questionId, answer: answer.answer.slice(0, 4_000), submittedAt: answer.submittedAt, taskId: typeof answer.taskId === "string" ? answer.taskId : null }]
           : [];
       } catch {
         return [];
@@ -70,14 +86,14 @@ async function readOwnerAnswers(root) {
   }
 }
 
-async function saveOwnerAnswer(root, questionId, answer, source) {
-  const questions = trackerQuestions(source);
-  if (!questions.some((question) => question.id === questionId)) return { status: 404, error: "That question is no longer open." };
+async function saveOwnerAnswerUnlocked(root, questionId, answer, source) {
+  const question = trackerQuestions(source).find((entry) => entry.id === questionId);
+  if (!question) return { status: 404, error: "That question is no longer open." };
   if ((await readOwnerAnswers(root)).some((entry) => entry.questionId === questionId)) {
     return { status: 409, error: "An answer has already been submitted for this question." };
   }
-  const entry = { questionId, answer, submittedAt: new Date().toISOString() };
-  const path = resolve(root, "project-control/codex/owner-answers.jsonl");
+  const entry = { questionId, taskId: question.taskId, answer, submittedAt: new Date().toISOString() };
+  const path = await ownerInboxPath(root, { create: true });
   try {
     const info = await lstat(path);
     if (info.isSymbolicLink() || !info.isFile()) return { status: 400, error: "The answer inbox is not a regular file." };
@@ -86,6 +102,21 @@ async function saveOwnerAnswer(root, questionId, answer, source) {
   }
   await appendFile(path, `${JSON.stringify(entry)}\n`, { encoding: "utf8", flag: "a" });
   return { status: 201, entry };
+}
+
+async function saveOwnerAnswer(root, questionId, answer, source) {
+  const key = resolve(root).toLowerCase();
+  const previous = ownerAnswerLocks.get(key) ?? Promise.resolve();
+  let release;
+  const current = new Promise((resolveLock) => { release = resolveLock; });
+  ownerAnswerLocks.set(key, current);
+  await previous;
+  try {
+    return await saveOwnerAnswerUnlocked(root, questionId, answer, source);
+  } finally {
+    release();
+    if (ownerAnswerLocks.get(key) === current) ownerAnswerLocks.delete(key);
+  }
 }
 
 async function readJsonBody(request, maximumBytes = 8_192) {
@@ -134,14 +165,35 @@ export async function readWorkflowJobs(root) {
       if (fileInfo.isSymbolicLink() || !fileInfo.isFile()) continue;
       const value = JSON.parse(await readFile(canonicalJobPath, "utf8"));
       if (!value || typeof value !== "object" || Array.isArray(value) ||
-          !/^[A-Z][A-Z0-9]*-\d+\.\d+$/.test(value.id ?? "") ||
+          !/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+(?:\.\d{1,4})?$/.test(value.id ?? "") ||
           typeof value.task !== "string" || !value.task.trim() ||
           !workflowStages.includes(value.stage) ||
           !Number.isInteger(value.round) || value.round < 1 ||
           !value.reviews || typeof value.reviews !== "object" || Array.isArray(value.reviews)) continue;
+      const reviewEvidence = Object.fromEntries(reviewLenses.map((lens) => {
+        const reference = value.reviewEvidence?.[lens];
+        return [lens, null];
+      }));
+      await Promise.all(reviewLenses.map(async (lens) => {
+        const reference = value.reviewEvidence?.[lens];
+        if (typeof reference !== "string" || !reference.trim() || isAbsolute(reference) || /^https?:\/\//i.test(reference)) return;
+        const evidencePath = resolve(canonicalRoot, reference);
+        if (!isWithinDirectory(canonicalRoot, evidencePath)) return;
+        try {
+          const evidenceInfo = await lstat(evidencePath);
+          const canonicalEvidencePath = await realpath(evidencePath);
+          if (!evidenceInfo.isSymbolicLink() && evidenceInfo.isFile() && isWithinDirectory(canonicalRoot, canonicalEvidencePath)) {
+            reviewEvidence[lens] = reference.replaceAll("\\", "/").slice(0, 1_000);
+          }
+        } catch (error) {
+          if (!['ENOENT', 'ENOTDIR', 'ELOOP'].includes(error?.code)) throw error;
+        }
+      }));
       const reviews = Object.fromEntries(reviewLenses.map((lens) => [
         lens,
-        ["pending", "pass", "changes"].includes(value.reviews[lens]) ? value.reviews[lens] : "pending",
+        value.reviews[lens] === "pass" && reviewEvidence[lens]
+          ? "pass"
+          : value.reviews[lens] === "changes" ? "changes" : "pending",
       ]));
       jobs.push({
         id: value.id,
@@ -149,6 +201,7 @@ export async function readWorkflowJobs(root) {
         stage: value.stage,
         round: value.round,
         reviews,
+        reviewEvidence,
         updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : null,
       });
     } catch (error) {
@@ -162,14 +215,60 @@ function normalizePath(value) {
   return typeof value === "string" ? value.replaceAll("\\", "/").replace(/\/$/, "").toLowerCase() : "";
 }
 
-function pathHasSegment(path, segments) {
-  const pathSegments = normalizePath(path).split("/");
-  return segments.some((segment) => pathSegments.includes(segment.toLowerCase()));
+function pathContains(root, candidate) {
+  const normalizedRoot = normalizePath(root);
+  const normalizedCandidate = normalizePath(candidate);
+  return Boolean(normalizedRoot && normalizedCandidate &&
+    (normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}/`)));
 }
 
 function getRoots(project) {
   const roots = Array.isArray(project?.roots) ? project.roots : [];
-  return roots.map((root) => typeof root === "string" ? root : root?.path).filter((root) => typeof root === "string");
+  const candidates = [
+    ...roots.map((root) => typeof root === "string" ? root : root?.path),
+    project?.root,
+    project?.path,
+  ];
+  const seen = new Set();
+  return candidates.filter((root) => {
+    if (typeof root !== "string" || !isAbsolute(root)) return false;
+    const normalized = normalizePath(root);
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+async function readProjectWorkflow(root) {
+  try {
+    if (!isAbsolute(root)) return null;
+    const rootInfo = await lstat(root);
+    if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) return null;
+    const canonicalRoot = await realpath(root);
+    const trackerPath = resolve(canonicalRoot, "TASKS.md");
+    const trackerInfo = await lstat(trackerPath);
+    if (trackerInfo.isSymbolicLink() || !trackerInfo.isFile()) return null;
+    const canonicalTrackerPath = await realpath(trackerPath);
+    if (!isWithinDirectory(canonicalRoot, canonicalTrackerPath)) return null;
+
+    const trackerSource = await readFile(canonicalTrackerPath, "utf8");
+    const answers = await readOwnerAnswers(canonicalRoot);
+    const questions = trackerQuestions(trackerSource).map((question) => ({
+      ...question,
+      answer: answers.filter((answer) => answer.questionId === question.id && answer.taskId === question.taskId).at(-1) ?? null,
+    }));
+    return {
+      root: canonicalRoot,
+      task: trackerSummary(trackerSource),
+      questions,
+      jobs: await readWorkflowJobs(canonicalRoot),
+      workflowState: "available",
+      trackerSource,
+    };
+  } catch (error) {
+    if (["ENOENT", "ENOTDIR", "ELOOP"].includes(error?.code)) return null;
+    throw error;
+  }
 }
 
 function threadStatus(thread) {
@@ -202,33 +301,83 @@ function sanitizeThread(thread) {
   };
 }
 
-function projectMatches(project, definition) {
-  return definition.names.some((name) => String(project?.name ?? "").toLowerCase() === name.toLowerCase()) ||
-    getRoots(project).some((root) => pathHasSegment(root, definition.pathSegments));
-}
-
 function groupThreads(projects, threads) {
   const safeThreads = threads.map(sanitizeThread);
-  return projectCatalog.map((definition) => {
-    const source = projects.find((project) => projectMatches(project, definition));
-    const sourceId = typeof source?.id === "string" ? source.id : null;
-    const roots = getRoots(source);
-    const matchingThreads = safeThreads.filter((thread) =>
-      (sourceId && thread.projectId === sourceId) ||
-      roots.some((root) => normalizePath(root) === normalizePath(thread.cwd)) ||
-      pathHasSegment(thread.cwd, definition.pathSegments)
-    );
-    const threadRoots = matchingThreads.map((thread) => thread.cwd).filter(Boolean);
+  const entries = [];
+  projects.forEach((source, index) => {
+    const sourceId = typeof source?.id === "string" ? source.id : `project-${index + 1}`;
+    const declaredRoots = getRoots(source);
+    const inferredRoots = declaredRoots.length ? [] : [...new Set(safeThreads
+      .filter((thread) => thread.projectId === sourceId && isAbsolute(thread.cwd))
+      .map((thread) => thread.cwd))];
+    const roots = declaredRoots.length ? declaredRoots : inferredRoots;
+    if (!roots.length) {
+      entries.push({ source, sourceId, id: sourceId, root: null, roots: [], threads: [] });
+      return;
+    }
+    roots.forEach((root, rootIndex) => {
+      const multipleRoots = roots.length > 1;
+      const rootName = basename(root);
+      entries.push({
+        source,
+        sourceId,
+        id: multipleRoots ? `${sourceId}::root-${rootIndex + 1}` : sourceId,
+        root,
+        roots: [root],
+        name: multipleRoots ? `${typeof source?.name === "string" && source.name.trim() ? source.name.trim() : sourceId} — ${rootName}` : null,
+        threads: [],
+      });
+    });
+  });
+  const matchedThreads = new Set();
+  for (const thread of safeThreads) {
+    const candidates = entries.filter((candidate) => !thread.projectId || candidate.sourceId === thread.projectId);
+    const entry = candidates
+      .filter((candidate) => candidate.root && pathContains(candidate.root, thread.cwd))
+      .sort((left, right) => normalizePath(right.root).length - normalizePath(left.root).length)[0]
+      ?? (candidates.length === 1 && !candidates[0].root ? candidates[0] : null);
+    if (entry) {
+      entry.threads.push(thread);
+      matchedThreads.add(thread);
+    }
+  }
+
+  const grouped = entries.map(({ source, id, root, roots, name, threads: matchingThreads }) => {
+    const fallbackName = root ? basename(root) : "Unnamed project";
     return {
-      id: sourceId ?? definition.id,
-      name: definition.name,
-      kind: definition.kind,
-      repositoryUrl: definition.repositoryUrl ?? null,
-      roots: roots.length ? roots : [...new Set(threadRoots)],
+      id,
+      name: name ?? (typeof source?.name === "string" && source.name.trim() ? source.name.trim() : fallbackName),
+      kind: typeof source?.kind === "string" ? source.kind : "Codex",
+      repositoryUrl: typeof source?.repositoryUrl === "string" ? source.repositoryUrl : null,
+      roots,
       updatedAt: threadUpdatedAt({ updatedAt: source?.updatedAt ?? source?.updated_at ?? source?.recencyAt }),
       threads: matchingThreads,
     };
   });
+
+  const unmatchedThreads = safeThreads.filter((thread) => !matchedThreads.has(thread));
+  const workspaceGroups = new Map();
+  for (const thread of unmatchedThreads) {
+    const root = isAbsolute(thread.cwd) ? thread.cwd : "";
+    const key = thread.projectId ? `project:${thread.projectId}` : root ? `root:${normalizePath(root)}` : `thread:${thread.id}`;
+    const group = workspaceGroups.get(key) ?? { root, threads: [] };
+    group.threads.push(thread);
+    workspaceGroups.set(key, group);
+  }
+  for (const [key, group] of workspaceGroups) {
+    const root = group.root;
+    grouped.push({
+      id: key,
+      name: root ? basename(root) : "Codex workspace",
+      kind: "Codex",
+      repositoryUrl: null,
+      roots: root ? [root] : [],
+      updatedAt: null,
+      threads: group.threads,
+    });
+  }
+
+  return grouped;
 }
 
 function statusCodeFor(error) {
@@ -245,7 +394,6 @@ function safeMessage(error) {
 }
 
 export function createDashboardServer({
-  root = defaultRoot,
   host = "127.0.0.1",
   port = 9000,
   clientFactory = () => new CodexAppServerClient(),
@@ -254,17 +402,13 @@ export function createDashboardServer({
   let initialized = false;
   let cache;
   let loading;
+  let workflowRoots = new Map();
 
   async function snapshot() {
     if (cache && Date.now() - cache.loadedAt < cacheDurationMs) return cache.value;
     if (loading) return loading;
     loading = (async () => {
       try {
-        const trackerSource = await readFile(resolve(root, "TASKS.md"), "utf8");
-        const tracker = trackerSummary(trackerSource);
-        const questions = trackerQuestions(trackerSource);
-        const answers = await readOwnerAnswers(root);
-        const jobs = await readWorkflowJobs(root);
         client ??= clientFactory();
         if (!initialized) {
           await client.initialize();
@@ -282,21 +426,33 @@ export function createDashboardServer({
         }
 
         const threadListing = await client.listThreads();
-        const projects = groupThreads(projectListing.rows, threadListing.rows);
+        const groupedProjects = groupThreads(projectListing.rows, threadListing.rows);
+        const nextWorkflowRoots = new Map();
+        const projects = await Promise.all(groupedProjects.map(async (project) => {
+          let workflow = null;
+          for (const candidate of project.roots) {
+            try {
+              workflow = await readProjectWorkflow(candidate);
+            } catch {
+              workflow = null;
+            }
+            if (workflow) break;
+          }
+          if (workflow?.root) nextWorkflowRoots.set(project.id, workflow.root);
+          const { root: _root, trackerSource: _trackerSource, ...publicWorkflow } = workflow ?? {
+            task: null, questions: [], jobs: [], workflowState: "unavailable",
+          };
+          return { ...project, ...publicWorkflow };
+        }));
+        workflowRoots = nextWorkflowRoots;
         const value = {
           generatedAt: new Date().toISOString(),
-          source: "Codex App Server and selected GitHub repositories",
+          source: "Codex App Server and each project's local TASKS.md",
           projectListState,
           projects,
           projectCount: projects.length,
           activeThreadCount: projects.reduce((count, project) => count + project.threads.length, 0),
           truncated: Boolean(projectListing.truncated || threadListing.truncated),
-          task: tracker,
-          questions: questions.map((question) => ({
-            ...question,
-            answer: answers.filter((answer) => answer.questionId === question.id).at(-1) ?? null,
-          })),
-          jobs,
         };
         cache = { loadedAt: Date.now(), value };
         return value;
@@ -335,12 +491,24 @@ export function createDashboardServer({
         const payload = await readJsonBody(request);
         const questionId = typeof payload?.questionId === "string" ? payload.questionId.trim() : "";
         const answer = typeof payload?.answer === "string" ? payload.answer.trim() : "";
+        const projectId = typeof payload?.projectId === "string" ? payload.projectId.trim() : "";
         if (!/^Q-[A-Z0-9.-]+$/.test(questionId) || !answer || answer.length > 4_000) {
           response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: "Provide an open question ID and an answer of 1 to 4000 characters." }));
           return;
         }
-        const trackerSource = await readFile(resolve(root, "TASKS.md"), "utf8");
-        const result = await saveOwnerAnswer(root, questionId, answer, trackerSource);
+        const overview = await snapshot();
+        const project = overview.projects.find((entry) => entry.id === projectId);
+        const projectRoot = workflowRoots.get(projectId);
+        if (!project || !projectRoot) {
+          response.writeHead(404, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: "That project has no validated local task root." }));
+          return;
+        }
+        const workflow = await readProjectWorkflow(projectRoot);
+        if (!workflow) {
+          response.writeHead(404, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: "That project task file is unavailable." }));
+          return;
+        }
+        const result = await saveOwnerAnswer(workflow.root, questionId, answer, workflow.trackerSource);
         if (result.status !== 201) {
           response.writeHead(result.status, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify({ error: result.error }));
           return;

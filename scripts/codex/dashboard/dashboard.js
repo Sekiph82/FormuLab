@@ -11,6 +11,7 @@ const questionsList = document.querySelector("#questions-list");
 const themeButton = document.querySelector("#theme-toggle");
 let overview;
 let selectedProjectId = readSelectedProject();
+const expandedStages = new Set();
 
 function readSelectedProject() {
   try {
@@ -105,7 +106,7 @@ function render() {
   const projects = overview.projects ?? [];
   const currentSelectionExists = projects.some((project) => project.id === selectedProjectId);
   if (!currentSelectionExists) {
-    selectedProjectId = projects.find((project) => project.id === "formulab" || project.name.toLowerCase() === "formulab")?.id ?? projects[0]?.id ?? "";
+    selectedProjectId = projects[0]?.id ?? "";
     persistSelectedProject(selectedProjectId);
   }
 
@@ -122,8 +123,8 @@ function render() {
   const filteredThreads = (selectedProject?.threads ?? []).filter((thread) =>
     `${thread.title} ${thread.cwd} ${thread.status} ${thread.source}`.toLowerCase().includes(query)
   );
-  const isFormuLab = selectedProject && (selectedProject.id === "formulab" || selectedProject.name.toLowerCase() === "formulab");
-  const filteredJobs = (isFormuLab ? overview.jobs ?? [] : []).filter((job) =>
+  const workflowAvailable = selectedProject?.workflowState === "available";
+  const filteredJobs = (selectedProject?.jobs ?? []).filter((job) =>
     `${job.id} ${job.task} ${job.stage}`.toLowerCase().includes(query)
   );
   projectsElement.replaceChildren();
@@ -133,7 +134,7 @@ function render() {
     threadsElement.replaceChildren(element("div", "empty-card", "No project selected."));
   } else {
     renderSelectedProject(selectedProject);
-    projectsElement.append(renderBoard(filteredJobs, isFormuLab, query));
+    projectsElement.append(renderBoard(filteredJobs, workflowAvailable, query));
     threadsElement.replaceChildren(...(filteredThreads.length
       ? filteredThreads.map(renderThread)
       : [element("div", "empty-card", query ? "No threads match this filter." : "No Codex threads for this project yet.")]));
@@ -141,20 +142,23 @@ function render() {
 
   document.querySelector("#project-count").textContent = String(overview.projectCount);
   document.querySelector("#thread-count").textContent = String(overview.activeThreadCount ?? projects.reduce((count, project) => count + project.threads.length, 0));
-  taskSummaryElement.hidden = !isFormuLab;
-  taskDetailsElement.hidden = !isFormuLab;
-  const task = isFormuLab ? overview.task : null;
-  questionsSection.hidden = !isFormuLab;
-  if (isFormuLab) renderQuestions(overview.questions ?? []);
+  taskSummaryElement.hidden = !selectedProject;
+  taskDetailsElement.hidden = !selectedProject;
+  const task = selectedProject?.task ?? null;
+  const questions = selectedProject?.questions ?? [];
+  questionsSection.hidden = !selectedProject || !workflowAvailable;
+  if (selectedProject && workflowAvailable) renderQuestions(questions, selectedProject.id);
   else questionsList.replaceChildren();
-  document.querySelector("#task-id").textContent = task?.currentTask?.id ?? (isFormuLab ? "Not set" : "—");
-  document.querySelector("#task-title").textContent = task?.currentTask?.title ?? (isFormuLab ? "No current task in TASKS.md" : "Select FormuLab to view its task state");
+  document.querySelector("#task-id").textContent = task?.currentTask?.id ?? (selectedProject ? "Not set" : "—");
+  document.querySelector("#task-title").textContent = task?.currentTask?.title ?? (selectedProject ? "No current task in this project's TASKS.md" : "Select a project to view task state");
   document.querySelector("#task-status").textContent = task?.currentTaskStatus ?? "—";
   document.querySelector("#task-scope").textContent = [task?.milestone, task?.sprint].filter(Boolean).join(" / ") || "—";
   document.querySelector("#next-task").textContent = task?.nextTask ?? "—";
   document.querySelector("#completion").textContent = task?.completion ?? "—";
   document.querySelector("#project-subtitle").textContent = selectedProject
-    ? `${filteredJobs.length} workflow ${filteredJobs.length === 1 ? "job" : "jobs"} · refreshes every 2 seconds`
+    ? workflowAvailable
+      ? `${filteredJobs.length} workflow ${filteredJobs.length === 1 ? "job" : "jobs"} · refreshes every 2 seconds`
+      : "Task workflow data is unavailable for this project"
     : "Choose a project to see its latest Codex work";
   document.querySelector("#updated").textContent = `Updated ${dateLabel(overview.generatedAt)}`;
   document.querySelector("#source").textContent = overview.source;
@@ -168,7 +172,9 @@ function render() {
   }
 }
 
-function renderQuestions(questions) {
+function renderQuestions(questions, projectId) {
+  const activeAnswer = document.activeElement;
+  if (activeAnswer?.matches(".answer-input") && activeAnswer.dataset.projectId === projectId) return;
   questionsList.replaceChildren();
   if (!questions.length) {
     questionsList.append(element("p", "no-questions", "No owner decisions are waiting."));
@@ -190,6 +196,7 @@ function renderQuestions(questions) {
       input.maxLength = 4_000;
       input.placeholder = "Type your decision or answer";
       input.required = true;
+      input.dataset.projectId = projectId;
       input.setAttribute("aria-label", `Answer ${question.id}`);
       const submit = element("button", "answer-submit", "Send answer");
       submit.type = "submit";
@@ -205,7 +212,7 @@ function renderQuestions(questions) {
           const response = await fetch("/api/owner-answers", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ questionId: question.id, answer }),
+            body: JSON.stringify({ projectId, questionId: question.id, answer }),
           });
           const payload = await response.json();
           if (!response.ok) throw new Error(payload.error || "Answer could not be saved.");
@@ -224,7 +231,7 @@ function renderQuestions(questions) {
 
 const boardStages = ["SPEC", "BUILD", "REVIEW", "APPROVE", "MERGED", "ESCALATED"];
 
-function renderBoard(jobs, isFormuLab, query) {
+function renderBoard(jobs, workflowAvailable, query) {
   const board = element("div", "activity-board");
   board.setAttribute("aria-label", "Project activity kanban");
   for (const stage of boardStages) {
@@ -234,10 +241,35 @@ function renderBoard(jobs, isFormuLab, query) {
     column.append(heading);
     const stageJobs = jobs.filter((job) => job.stage === stage);
     if (stageJobs.length) {
-      for (const job of stageJobs) column.append(renderJob(job));
+      const orderedJobs = stage === "MERGED"
+        ? [...stageJobs].sort((left, right) => {
+          const leftTime = Date.parse(left.updatedAt ?? "");
+          const rightTime = Date.parse(right.updatedAt ?? "");
+          const leftValid = Number.isFinite(leftTime);
+          const rightValid = Number.isFinite(rightTime);
+          if (leftValid !== rightValid) return leftValid ? -1 : 1;
+          return leftValid ? rightTime - leftTime : 0;
+        })
+        : stageJobs;
+      const expansionKey = `${selectedProjectId}:${stage}`;
+      const expanded = expandedStages.has(expansionKey);
+      const visibleJobs = stage === "MERGED" && !expanded ? orderedJobs.slice(0, 3) : orderedJobs;
+      for (const job of visibleJobs) column.append(renderJob(job));
+      if (stage === "MERGED" && orderedJobs.length > 3) {
+        const remaining = orderedJobs.length - 3;
+        const toggle = element("button", "more-jobs", expanded ? "Show fewer" : `+${remaining} more`);
+        toggle.type = "button";
+        toggle.setAttribute("aria-expanded", String(expanded));
+        toggle.addEventListener("click", () => {
+          if (expandedStages.has(expansionKey)) expandedStages.delete(expansionKey);
+          else expandedStages.add(expansionKey);
+          render();
+        });
+        column.append(toggle);
+      }
     } else {
-      const message = !isFormuLab
-        ? "Workflow stage data is not available for this project."
+      const message = !workflowAvailable
+        ? "Local task workflow data is not available for this project."
         : query && !jobs.length
           ? "No matching jobs."
           : stage === "BUILD" && !jobs.length
@@ -256,7 +288,7 @@ function renderJob(job) {
   card.append(element("p", "job-description", job.task));
   if (job.stage === "BUILD" || job.stage === "REVIEW") card.append(element("p", "job-round", `round ${job.round}`));
   const chips = element("div", "review-chips");
-  const completedReviews = {
+  const eligibleReviews = {
     SPEC: ["rules"],
     BUILD: ["rules", "code"],
     REVIEW: ["rules", "code", "tests"],
@@ -264,8 +296,11 @@ function renderJob(job) {
     MERGED: ["rules", "code", "tests"],
   }[job.stage] ?? [];
   for (const lens of ["rules", "code", "tests"]) {
-    const status = completedReviews.includes(lens) ? "pass" : job.reviews?.[lens] ?? "pending";
-    chips.append(element("span", `review-chip ${status}`, lens));
+    const recorded = job.reviews?.[lens] ?? "pending";
+    const status = eligibleReviews.includes(lens) && recorded === "pass" ? "pass" : recorded === "changes" ? "changes" : "pending";
+    const chip = element("span", `review-chip ${status}`, lens);
+    if (job.reviewEvidence?.[lens]) chip.setAttribute("title", `Evidence: ${job.reviewEvidence[lens]}`);
+    chips.append(chip);
   }
   card.append(chips);
   return card;

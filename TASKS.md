@@ -19,8 +19,8 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Progress
 
-- Total Tasks: 178
-- Completed Tasks: 178
+- Total Tasks: 179
+- Completed Tasks: 179
 - Remaining Tasks: 0
 - Completion: 100%
 
@@ -39,26 +39,26 @@ H!veAI derives metrics from the checkbox rows below. These summary numbers are h
 - Detailed historical implementation evidence from the pre-TASKS-only tracker is preserved under `docs/migration/legacy-task-trackers/` and is non-authoritative.
 - Scope/governance documents may explain a task, but task state changes only here.
 - When work starts, update the selected row to `[~]` and update Project Status in the same commit.
-- When independently accepted/validated complete, update the row to `[x]`, advance Project Status, and push the tracked branch.
+- When independently accepted/validated complete, update the row to `[x]`, advance Project Status, and commit the transition locally. Never set a remote or push from autonomous task execution.
 - Do not create or revive `.hiveai` task/state/handoff/event files as a competing tracker.
 
 ## Autonomous Queue Continuation
 
 - `Current Task` is the only task the runner may claim; `Next Task` is the next explicit queue entry. The checkbox ledger remains the complete queue and this file remains its only authority.
-- Autonomous continuation is already authorized for this run. After accepting a task, update its row and all summary fields, publish the transition, then immediately claim and execute the new `Current Task`. Continue across task, sprint, and milestone boundaries; none is a stopping point.
-- Before starting each task, inspect the Dashboard Owner Questions panel and its answer inbox. Process each answer exactly once: copy the exact response under `Owner Decisions` with its Q-ID and task ID, remove that Q-ID from open questions, and return its blocked task to `[ ]` / READY. Do not interrupt an unrelated task already in progress; process new answers at the next task boundary. Each open Q-ID accepts one answer.
-- If a genuine human decision or action is required, record one concise question in `Questions for Şekip` and surface it in the dashboard. Mark only the task that depends on that answer `[!]` / `BLOCKED`; advance `Current Task` and `Next Task` to the next READY task that does not depend on any unanswered owner decision, and continue immediately. If that next task needs a different owner decision, record its own question, block only that task, and keep scanning the queue. Never wait for an answer while any unrelated READY task remains. When an answer arrives, record it in this file first, resolve only its matching Q-ID, and return only the affected task to the READY queue.
+- Autonomous continuation is already authorized for this run. After accepting a task, update its row and all summary fields, commit the transition locally, then immediately claim and execute the new `Current Task`. Continue across task, sprint, and milestone boundaries; none is a stopping point. Never create tasks after this canonical queue reaches its terminal state.
+- Before starting each task, check this conversation for owner answers to open Q-IDs. Process each answer exactly once: copy the exact response under `Owner Decisions` with its Q-ID and task ID, remove that Q-ID from open questions, and return its blocked task to `[ ]` / READY. Do not interrupt an unrelated task already in progress; process new answers at the next task boundary. Each open Q-ID accepts one answer. Do not use the dashboard or an answer inbox for owner questions or answers.
+- If a genuine human decision or action is required, record one concise question in `Questions for Şekip` and ask it directly in the current Codex conversation. Mark only the task that depends on that answer `[!]` / `BLOCKED`; advance `Current Task` and `Next Task` to the next READY task that does not depend on any unanswered owner decision, and continue immediately. If that next task needs a different owner decision, record and ask its own question, block only that task, and keep scanning the queue. Never wait for an answer while any unrelated READY task remains. When an answer arrives in this conversation, record it in this file first, resolve only its matching Q-ID, and return only the affected task to the READY queue.
 - At every task boundary, keep selecting the next READY task whose acceptance does not depend on any unanswered owner decision; skip every blocked task and continue even when several open questions exist. Do not stop at a task, sprint, or milestone boundary, or because an answer is pending. Wait only when the queue is empty or no READY task can proceed without pending owner input. Do not invent approval, bypass a gate, or mark blocked work complete.
 - Once all checkbox tasks are `[x]`, set `Current Task: None`, `Current Task Status: COMPLETE`, and `Next Task: None` together. The task validator and queue claimant treat this as the only terminal queue state.
 
 ## Questions for Şekip
 
-<!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. The dashboard answer panel reads these entries. -->
+<!-- Add one line per genuine owner decision: Q-<task-id>-<sequence> | <question> | TASK: <task-id>. Ask the owner in the current Codex conversation. -->
 
 
 ## Owner Decisions
 
-<!-- Append processed dashboard answers here with their Q-ID and affected task before doing dependent work. -->
+<!-- Append owner answers received in the current Codex conversation here with their Q-ID and affected task before doing dependent work. -->
 - Q-FVL-11.005-1 | FVL-11.005 | Switch to the new formulation UI as the v1 default. Do not keep both UIs as a permanent user-selectable choice. Retain the existing/legacy UI only as a temporary compatibility bridge or redirect for historical deep links and workflows that are not yet fully mapped. After FVL-11 acceptance confirms feature parity and historical-project access, the new workspace-based UI should be the single default v1 experience. Do not delete historical data, audit evidence, or compatibility routes merely to simplify the UI.
 - Q-FVL-11.011-1 | FVL-11.011 | o exe dosyasi projenin en son guncel halini acmali her seferinde. buna gore ayarla
 
@@ -325,6 +325,11 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
 - [x] DEVX-01.006 — Curate the dashboard project list and link selected GitHub repositories
 - [x] DEVX-01.007 — Add persistent light and dark dashboard themes
+
+# DEVX-02
+
+## Sprint DEVX-02-S01 — Project-aware workflow dashboard
+- [x] DEVX-02.001 — Read workflow data from each configured project root and expand merged items after the latest three
 
 ## Historical Detail & Evidence
 
