@@ -6,23 +6,23 @@ GitHub repository metadata, the tracked branch, and this file are the project-ma
 
 ## Project Status
 
-- Current Milestone: None
-- Current Sprint: None
-- Current Task: None
-- Current Task Status: COMPLETE
-- Next Task: None
+- Current Milestone: SDI-01
+- Current Sprint: SDI-01-S01
+- Current Task: SDI-01.001 — Define supplier-document provider adapter contract and capability model
+- Current Task Status: READY
+- Next Task: SDI-01.002 — Implement provider registry, routing and deterministic provider selection
 - Required Actor: CODEX
 - Tracking Repository: https://github.com/Sekiph82/FormuLab
-- Tracking Branch: main
-- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/main/TASKS.md
+- Tracking Branch: feature/supplier-document-intelligence
+- Canonical Tasks URL: https://github.com/Sekiph82/FormuLab/blob/feature/supplier-document-intelligence/TASKS.md
 - Blockers/Waits: None
 
 ## Progress
 
-- Total Tasks: 178
+- Total Tasks: 214
 - Completed Tasks: 178
-- Remaining Tasks: 0
-- Completion: 100%
+- Remaining Tasks: 36
+- Completion: 83.2%
 
 H!veAI derives metrics from the checkbox rows below. These summary numbers are human-readable mirrors and must remain consistent with the ledger.
 
@@ -325,6 +325,52 @@ Sprint grouping below is a management-only organization of the existing frozen t
 - [x] DEVX-01.005 — Recover dashboard data after transient Codex App Server disconnects
 - [x] DEVX-01.006 — Curate the dashboard project list and link selected GitHub repositories
 - [x] DEVX-01.007 — Add persistent light and dark dashboard themes
+
+# SDI-01
+
+## Sprint SDI-01-S01 — Supplier Document Intelligence foundation
+- [ ] SDI-01.001 — Define supplier-document provider adapter contract and capability model
+- [ ] SDI-01.002 — Implement provider registry, routing and deterministic provider selection
+- [ ] SDI-01.003 — Define access modes: public, partial-public, authenticated portal and contact/manual-assist
+- [ ] SDI-01.004 — Implement credential/session boundary with no plaintext secrets in project data, logs, exports or backups
+- [ ] SDI-01.005 — Implement immutable document acquisition record with source URL, provider, product identity, fetched-at timestamp and SHA-256
+- [ ] SDI-01.006 — Implement binary document storage and content-addressed deduplication
+- [ ] SDI-01.007 — Implement document revision/supersession lineage without deleting historical SDS/TDS records
+- [ ] SDI-01.008 — Define access-policy/terms-aware acquisition behavior and fail-safe assisted-download fallback
+
+## Sprint SDI-01-S02 — Manufacturer provider adapters
+- [ ] SDI-01.009 — Implement Dow public SDS/technical-document adapter
+- [ ] SDI-01.010 — Implement Clariant public Document Finder adapter
+- [ ] SDI-01.011 — Implement Nouryon public/partial-public SDS adapter
+- [ ] SDI-01.012 — Implement BASF document-center/product-document adapter
+- [ ] SDI-01.013 — Implement Evonik mixed public/portal adapter
+- [ ] SDI-01.014 — Implement Croda provider discovery/document adapter
+- [ ] SDI-01.015 — Implement Archroma provider discovery/document adapter
+- [ ] SDI-01.016 — Implement CHT authenticated/myCHT adapter with user-authenticated session support
+- [ ] SDI-01.017 — Implement DyStar provider discovery/authenticated adapter
+- [ ] SDI-01.018 — Add provider conformance tests, rate limits, timeout/retry behavior and unavailable-provider handling
+
+## Sprint SDI-01-S03 — SDS composition extraction
+- [ ] SDI-01.019 — Implement SDS PDF ingestion using text extraction first and bounded fallback for non-text PDFs
+- [ ] SDI-01.020 — Extract Section 1 product, manufacturer, trade-name and supplier identity
+- [ ] SDI-01.021 — Extract Section 3 composition entries with chemical name, CAS/EC and concentration/range provenance
+- [ ] SDI-01.022 — Extract useful Section 9 physical-property evidence without treating it as verified canonical material data
+- [ ] SDI-01.023 — Normalize CAS, EC, chemical-name aliases and concentration ranges deterministically
+- [ ] SDI-01.024 — Add canonical chemical library identities and alias mapping for FormuLab material chemistry
+- [ ] SDI-01.025 — Resolve single-chemical commercial products to canonical chemicals using exact evidence first
+- [ ] SDI-01.026 — Resolve multi-component commercial products as blends without collapsing them into a false single chemical
+- [ ] SDI-01.027 — Derive bounded active-matter/concentration evidence only when supported by the SDS
+- [ ] SDI-01.028 — Represent proprietary, withheld and incomplete SDS composition as PARTIAL/AMBIGUOUS/UNKNOWN rather than fabricating identity
+
+## Sprint SDI-01-S04 — Commercial product resolver & human review
+- [ ] SDI-01.029 — Introduce commercial-product identity records preserving manufacturer, trade name and original supplier product code
+- [ ] SDI-01.030 — Link commercial products to canonical chemical/component identities with exact evidence and confidence state
+- [ ] SDI-01.031 — Implement confidence classes EXACT, HIGH_CONFIDENCE, PARTIAL, AMBIGUOUS and UNKNOWN with auditable reasons
+- [ ] SDI-01.032 — Add human review workflow for proposed SDS-extracted identity and material-property claims
+- [ ] SDI-01.033 — Apply only explicitly accepted claims to RawMaterial; never silently overwrite canonical material fields
+- [ ] SDI-01.034 — Add material UI for acquired documents, extracted composition, resolved identity, provenance and review status
+- [ ] SDI-01.035 — Add reference-formula normalization hook so supplier trade products can map to canonical chemistry while preserving the original formula line
+- [ ] SDI-01.036 — Run integrated acceptance across provider acquisition, SDS extraction, resolver, human review, backup/restore and no-fabrication regressions
 
 ## Historical Detail & Evidence
 
