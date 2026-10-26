@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 76
-- Remaining: 80
-- Completion: 48.7%
-- Current task: V01-05.001 - Implement immutable reference-formulation source schema
+- Completed: 77
+- Remaining: 79
+- Completion: 49.4%
+- Current task: V01-05.002 - Implement layout-agnostic formulation parser contract
 - Current status: IN PROGRESS
-- Next task: V01-05.002 - Implement layout-agnostic formulation parser contract
+- Next task: V01-05.003 - Implement conditional formulation OCR
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Acceptance note: V01-04.001 adds the independent commercial-product identity schema and passes focused tests, shared typecheck, task-state validation, and read-only review. No canonical chemistry is assigned in this identity record.
 - Acceptance note: V01-04.002 adds a provenance-backed canonical chemical schema with stable opaque IDs and distinct chemical/functional families. Focused tests, shared typecheck, and read-only review passed; CAS/EC values remain unnormalized for V01-04.003.
@@ -125,6 +125,7 @@ Codex must execute the tasks below in the exact order listed.
 - Acceptance note: V01-04.018 prepares only accepted supported identity/active-matter proposals as full target-preserving `raw_materials` rows for the existing Data Exchange preview, verifies the persisted accepted review and current target snapshot, and withholds a row for unsupported/lossy updates. Data Exchange authorization and a human commit remain required; no write or verification occurs here. The existing raw-material template currently requires administrator authorization for preview/commit. Focused tests (4), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-04.019 adds append-only resolver-evidence revisions and formula-line mapping revisions; changed, older, or unordered SDS evidence remains pending review, and historical mappings change only through a new revision backed by an accepted field review from the same currently authorized human, bound to that mapping and exact normalized snapshot. Focused tests (3), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-04.020 exercises all eight named supplier products in a conservative missing-SDS fallback: original supplier/trade identity is preserved while product type and chemical identity remain UNKNOWN with no canonical candidate. Focused tests (8), shared typecheck and independent read-only review passed. The supplier SDS PDFs are absent from this checkout, so this is not actual-PDF verification; product-specific document acceptance remains explicit in V01-10.
+- Acceptance note: V01-05.001 adds a formulation source snapshot linked to the existing immutable supplier-document acquisition receipt, retaining supplier/provider/surface/product identity, exact PDF hash and URL or selected-file provenance, publication/revision metadata, parser version and evidence-backed rights metadata. Rights and license URLs cannot imply unsupported permissions or retain URL secrets. Focused tests (2), shared typecheck and independent read-only review passed.
 - Required actor: CODEX
 - Branch: V01
 
@@ -221,8 +222,8 @@ Codex must execute the tasks below in the exact order listed.
 
 ## Milestone V01-05 - Supplier formulation PDF ingestion
 
-- [~] **V01-05.001 - Implement immutable reference-formulation source schema**: Store supplier, source PDF hash, URL/file identity, publication/revision/date, formulation code, title, market/language, parser version, rights metadata and acquisition provenance.
-- [ ] **V01-05.002 - Implement layout-agnostic formulation parser contract**: Parse supplier formulation PDFs by semantic tables/headings and page structure rather than fixed Croda coordinates.
+- [x] **V01-05.001 - Implement immutable reference-formulation source schema**: Store supplier, source PDF hash, URL/file identity, publication/revision/date, formulation code, title, market/language, parser version, rights metadata and acquisition provenance.
+- [~] **V01-05.002 - Implement layout-agnostic formulation parser contract**: Parse supplier formulation PDFs by semantic tables/headings and page structure rather than fixed Croda coordinates.
 - [ ] **V01-05.003 - Implement conditional formulation OCR**: Reuse the bounded PDF/OCR pipeline for scanned formulations only.
 - [ ] **V01-05.004 - Implement formulation identity extraction**: Extract supplier, application/product family, formulation title, formulation code, revision/date, document version, page and source identity.
 - [ ] **V01-05.005 - Implement ingredient-line extraction**: Extract original ingredient/trade name, supplier product code when present, INCI/chemical wording, functionality, phase/order, amount, unit/basis, q.s. semantics and page evidence.
