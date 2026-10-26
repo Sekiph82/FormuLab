@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 3
-- Remaining: 153
-- Completion: 1.9%
-- Current task: V01-00.004 - Inventory current formulation generation inputs
+- Completed: 4
+- Remaining: 152
+- Completion: 2.6%
+- Current task: V01-00.005 - Inventory current persisted collections and backup coverage
 - Current status: IN PROGRESS
-- Next task: V01-00.005 - Inventory current persisted collections and backup coverage
+- Next task: V01-00.006 - Define V01 terminology and identity vocabulary
 - Required actor: CODEX
 - Branch: V01
 
@@ -112,8 +112,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-00.001 - Audit the existing FVL-04 connector/data-exchange foundation**: Verify SourceConnector, FILE, REST_API, schema discovery, mapping profiles, crosswalk, transformations, incremental re-import, Connector -> Data Exchange bridge, material_documents, backup/restore, and production UI paths. Produce a code-level reuse map before adding new authorities.
 - [x] **V01-00.002 - Freeze no-duplication architecture boundaries**: Document in code comments/tests which existing FVL-04 authorities must be extended rather than duplicated. Add architectural regression tests where practical.
 - [x] **V01-00.003 - Inventory current material and document schemas**: Identify reusable RawMaterial, Supplier, MaterialDocument, attachment/blob, audit, approval, verification, and provenance fields plus exact gaps for V01.
-- [~] **V01-00.004 - Inventory current formulation generation inputs**: Trace the deterministic zero-LLM generator, material library, safety, regulatory, compatibility, cost, availability, process, ranking, and evidence paths that reference intelligence may later enrich.
-- [ ] **V01-00.005 - Inventory current persisted collections and backup coverage**: List every new or extended V01 collection that will require backup/restore and migration compatibility.
+- [x] **V01-00.004 - Inventory current formulation generation inputs**: Trace the deterministic zero-LLM generator, material library, safety, regulatory, compatibility, cost, availability, process, ranking, and evidence paths that reference intelligence may later enrich.
+- [~] **V01-00.005 - Inventory current persisted collections and backup coverage**: List every new or extended V01 collection that will require backup/restore and migration compatibility.
 - [ ] **V01-00.006 - Define V01 terminology and identity vocabulary**: Define supplier, provider, surface, commercial product, grade, trade name, supplier product code, canonical chemical, component, blend, source formula, reference formula, normalized formula, evidence claim, and review decision.
 - [ ] **V01-00.007 - Define scientific evidence classes**: Separate source document fact, supplier formulation evidence, SDS composition evidence, typical physical property, supplier recommendation, canonical identity proposal, measured laboratory result, prediction, and validation.
 - [ ] **V01-00.008 - Define no-fabrication invariants**: Codify that unknown stays unknown, missing SDS components stay missing, supplier reference formula is not measured validation, SDS is not performance proof, Section 3 concentration is not automatically active matter, and supplier function text is not canonical truth.
