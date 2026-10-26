@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 44
-- Remaining: 112
-- Completion: 28.2%
-- Current task: V01-03.003 - Implement bounded conditional OCR fallback
+- Completed: 45
+- Remaining: 111
+- Completion: 28.8%
+- Current task: V01-03.004 - Implement multilingual/layout-tolerant SDS section detection
 - Current status: IN PROGRESS
-- Next task: V01-03.004 - Implement multilingual/layout-tolerant SDS section detection
+- Next task: V01-03.005 - Implement SDS document identity extraction
 - Required actor: CODEX
 - Branch: V01
 
@@ -162,8 +162,8 @@ Codex must execute the tasks below in the exact order listed.
 
 - [x] **V01-03.001 - Implement document admission and quarantine**: Validate MIME/signature, encryption, malformed structure, maximum pages/size, safe filename, and parser suitability before processing.
 - [x] **V01-03.002 - Implement reproducible page-aware PDF text extraction**: Preserve page boundaries, line/region coordinates where available, document hash, parser version, and extraction warnings.
-- [~] **V01-03.003 - Implement bounded conditional OCR fallback**: Use OCR only when page text is insufficient; preserve OCR confidence/source and never OCR digital text unnecessarily.
-- [ ] **V01-03.004 - Implement multilingual/layout-tolerant SDS section detection**: Recognize section semantics across Croda, Evonik, Clariant, Dow and future layouts rather than hard-coding one supplier template.
+- [x] **V01-03.003 - Implement bounded conditional OCR fallback**: Use OCR only when page text is insufficient; preserve OCR confidence/source and never OCR digital text unnecessarily.
+- [~] **V01-03.004 - Implement multilingual/layout-tolerant SDS section detection**: Recognize section semantics across Croda, Evonik, Clariant, Dow and future layouts rather than hard-coding one supplier template.
 - [ ] **V01-03.005 - Implement SDS document identity extraction**: Extract supplier/manufacturer, product/trade name, product/material code, SDS version, revision/issue/print dates, market/regulatory regime, language, and source identifiers.
 - [ ] **V01-03.006 - Implement Section 1 commercial identity extraction**: Extract declared chemical name, chemical nature, CAS/EC when stated, recommended use, restrictions, industry sector and product-level description as separate evidence.
 - [ ] **V01-03.007 - Implement Section 2 hazard extraction**: Extract classification scheme, hazard classes/categories, signal word, H/P statements, pictograms where available, PBT/vPvB/endocrine statements and market context without making approval decisions.
