@@ -599,6 +599,7 @@ export * from "./engine/nouryonPublicSdsAdapter";
 export * from "./engine/myNouryonAdapter";
 export * from "./engine/chtPublicDiscoveryAdapter";
 export * from "./engine/myChtAdapter";
+export * from "./engine/basfDocumentCenterAdapter";
 export * from "./engine/xmlParser";
 export * from "./engine/fileConnector";
 export * from "./engine/databaseConnector";
