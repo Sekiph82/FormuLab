@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 68
-- Remaining: 88
-- Completion: 43.6%
-- Current task: V01-04.013 - Implement composition-fraction model
+- Completed: 69
+- Remaining: 87
+- Completion: 44.2%
+- Current task: V01-04.014 - Implement active-matter evidence model
 - Current status: IN PROGRESS
-- Next task: V01-04.014 - Implement active-matter evidence model
+- Next task: V01-04.015 - Implement bounded formula contribution calculator
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Acceptance note: V01-04.001 adds the independent commercial-product identity schema and passes focused tests, shared typecheck, task-state validation, and read-only review. No canonical chemistry is assigned in this identity record.
 - Acceptance note: V01-04.002 adds a provenance-backed canonical chemical schema with stable opaque IDs and distinct chemical/functional families. Focused tests, shared typecheck, and read-only review passed; CAS/EC values remain unnormalized for V01-04.003.
@@ -117,6 +117,7 @@ Codex must execute the tasks below in the exact order listed.
 - Acceptance note: V01-04.010 preserves each blend component, raw/exact/ranged concentration, independent identifier candidate state, and explicit undisclosed remainder without flattening or active-matter inference. Exported schemas verify source-derived ranges and remainder-state consistency. Focused tests, typecheck, and read-only review passed.
 - Acceptance note: V01-04.011 preserves trade-secret/withheld and generic-family text with source references, distinguishes PARTIAL/AMBIGUOUS/UNKNOWN, and never invents components or canonical identities. Cross-section conflicts require an explicit validated reconciliation; unlinked refs are excluded. Focused tests, typecheck, and read-only review passed.
 - Acceptance note: V01-04.012 adds a deterministic cited-evidence confidence engine with EXACT, HIGH_CONFIDENCE, PARTIAL, AMBIGUOUS and UNKNOWN states; result validation rejects unsupported or contradictory state/reason combinations, and no numeric confidence or inferred identity is created. Focused tests (8), shared typecheck, task-state validation, and independent read-only review passed.
+- Acceptance note: V01-04.013 adds a source-linked component mass-fraction record, normalizes only explicit SDS `% w/w` values into exact/ranged 0-1 fractions, and leaves unparsed or missing values unasserted. Its quantity kind and basis separate it from product concentration, solids, assay, active matter and formula contribution; persisted lineage is checked against the immutable SDS source. Focused tests (3), shared typecheck and independent read-only review passed.
 - Required actor: CODEX
 - Branch: V01
 
@@ -202,8 +203,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-04.010 - Implement multicomponent blend resolver**: Represent each disclosed component, concentration/range, known remainder and unknown remainder; never flatten blends into one false chemical.
 - [x] **V01-04.011 - Implement proprietary/partial disclosure resolver**: Preserve trade-secret/withheld/generic-family evidence and classify PARTIAL, AMBIGUOUS or UNKNOWN rather than fabricating composition.
 - [x] **V01-04.012 - Implement confidence-state engine**: Use EXACT, HIGH_CONFIDENCE, PARTIAL, AMBIGUOUS and UNKNOWN with machine-readable reasons, supporting evidence and deterministic rules.
-- [~] **V01-04.013 - Implement composition-fraction model**: Store exact/range component fraction separately from product concentration, solids, assay, active matter and formulation contribution.
-- [ ] **V01-04.014 - Implement active-matter evidence model**: Accept active matter/solids/assay only when explicitly supported by SDS/TDS/other authorized evidence; never infer it solely from a hazard-disclosure range.
+- [x] **V01-04.013 - Implement composition-fraction model**: Store exact/range component fraction separately from product concentration, solids, assay, active matter and formulation contribution.
+- [~] **V01-04.014 - Implement active-matter evidence model**: Accept active matter/solids/assay only when explicitly supported by SDS/TDS/other authorized evidence; never infer it solely from a hazard-disclosure range.
 - [ ] **V01-04.015 - Implement bounded formula contribution calculator**: When evidence supports component fraction/active content, calculate supplier-product-percent x component-fraction as exact or bounded range with full lineage.
 - [ ] **V01-04.016 - Implement physical-property evidence linkage**: Link condition-bound Section 9 values to the commercial product without silently copying them into RawMaterial master fields.
 - [ ] **V01-04.017 - Implement human identity review workflow**: Allow authorized user accept/edit/reject/needs-review for commercial-product type, canonical identity, components, concentration/active claims and aliases.
