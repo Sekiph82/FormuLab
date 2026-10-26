@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 34
-- Remaining: 122
-- Completion: 21.8%
-- Current task: V01-02.013 - Implement CHT public discovery profile
+- Completed: 35
+- Remaining: 121
+- Completion: 22.4%
+- Current task: V01-02.014 - Implement myCHT authenticated profile
 - Current status: IN PROGRESS
-- Next task: V01-02.014 - Implement myCHT authenticated profile
+- Next task: V01-02.015 - Implement BASF document-center profile
 - Required actor: CODEX
 - Branch: V01
 
@@ -149,8 +149,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-02.010 - Implement Croda provider profile**: Support Croda Home Care and other verified surfaces for product documents and formulation PDFs, with manual-assisted fallback.
 - [x] **V01-02.011 - Implement Nouryon public SDS adapter**: Support public SDS discovery with honest product-family/market/language scope and distinguish no result from unscanned/inaccessible.
 - [x] **V01-02.012 - Implement My Nouryon profile**: Support authorized account scope if technically and contractually available; otherwise complete the same task with a user-attended/manual-assisted route.
-- [~] **V01-02.013 - Implement CHT public discovery profile**: Map public CHT technical/product surfaces and their limits.
-- [ ] **V01-02.014 - Implement myCHT authenticated profile**: Support authorized user-attended session based acquisition; if automation is not permitted, complete a guided manual-assisted workflow with equivalent provenance.
+- [x] **V01-02.013 - Implement CHT public discovery profile**: Map public CHT technical/product surfaces and their limits.
+- [~] **V01-02.014 - Implement myCHT authenticated profile**: Support authorized user-attended session based acquisition; if automation is not permitted, complete a guided manual-assisted workflow with equivalent provenance.
 - [ ] **V01-02.015 - Implement BASF document-center profile**: Support verified BASF public download/document surfaces by product family, market and language.
 - [ ] **V01-02.016 - Implement BASF portal profiles**: Model sector-specific/customer surfaces separately; if direct automation is unsuitable, complete user-attended/manual-assisted capability.
 - [ ] **V01-02.017 - Implement Archroma provider profile**: Separate public discovery from authenticated/specialized surfaces and preserve product-line/market scope.
