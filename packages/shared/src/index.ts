@@ -598,6 +598,7 @@ export * from "./schemas/identityConfidence";
 export * from "./schemas/compositionFraction";
 export * from "./schemas/activeMatterEvidence";
 export * from "./schemas/formulaContribution";
+export * from "./schemas/physicalPropertyEvidence";
 export * from "./schemas/supplierAcquisition";
 export * from "./schemas/supplierCoverage";
 export * from "./engine/connectorFingerprint";
