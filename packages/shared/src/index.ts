@@ -593,6 +593,7 @@ export * from "./schemas/solutionResolver";
 export * from "./schemas/canonicalPolymer";
 export * from "./schemas/polymerResolver";
 export * from "./schemas/blendResolver";
+export * from "./schemas/proprietaryDisclosureResolver";
 export * from "./schemas/supplierAcquisition";
 export * from "./schemas/supplierCoverage";
 export * from "./engine/connectorFingerprint";
