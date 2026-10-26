@@ -616,6 +616,7 @@ export * from "./engine/supplierManualAdapter";
 export * from "./engine/supplierSdsSectionDetection";
 export * from "./engine/supplierSdsDocumentIdentity";
 export * from "./engine/referenceFormulationParserContract";
+export * from "./engine/referenceFormulationIdentityExtraction";
 export * from "./engine/supplierSdsSection1Extraction";
 export * from "./engine/supplierSdsSection2HazardExtraction";
 export * from "./engine/supplierSdsSection3CompositionExtraction";
