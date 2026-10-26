@@ -43,6 +43,12 @@ export interface SupplierRestAdapterProfile {
   fields: SupplierRestAdapterFieldMap;
   scope: { markets: string[]; languages: string[]; productLines: string[] };
   maxPages?: number;
+  /** Required only when a REST endpoint is reachable through an authenticated
+   * portal. It records that a human completed the supplier's own login flow. */
+  userAttendedAuthentication?: {
+    lifecycleState: "authenticated";
+    authenticatedAt: string;
+  };
 }
 
 export interface SupplierRestAdapterDeps {
@@ -68,9 +74,19 @@ function declaredHttpsUrl(value: string, declaredHosts: readonly string[]): URL 
 }
 
 function validateProfile(profile: SupplierRestAdapterProfile): string[] {
-  if (profile.surface.capabilities.authorizationMode !== "public"
-    && profile.surface.capabilities.authorizationMode !== "api") {
-    throw new Error("Supplier REST adapter requires a public or API surface.");
+  const mode = profile.surface.capabilities.authorizationMode;
+  if (mode !== "public" && mode !== "api" && mode !== "authenticated_portal" && mode !== "user_attended") {
+    throw new Error("Supplier REST adapter requires an explicitly supported access mode.");
+  }
+  if (mode === "authenticated_portal" || mode === "user_attended") {
+    const session = profile.userAttendedAuthentication;
+    if (!session || session.lifecycleState !== "authenticated"
+      || !/^formulab-credential:v1:[a-f0-9]{32}$/.test(profile.connectionRef)
+      || !Number.isFinite(Date.parse(session.authenticatedAt))) {
+      throw new Error("Authenticated supplier portals require a user-attended login and an OS credential reference.");
+    }
+  } else if (profile.userAttendedAuthentication) {
+    throw new Error("Public/API supplier surfaces cannot carry portal session state.");
   }
   if (profile.surface.capabilities.catalogDiscovery !== true) {
     throw new Error("Supplier REST surface does not declare catalog discovery.");

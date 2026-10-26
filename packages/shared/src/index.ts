@@ -588,6 +588,7 @@ export * from "./engine/connectorFingerprint";
 export * from "./engine/supplierProviderRegistry";
 export * from "./engine/supplierAdapterConformance";
 export * from "./engine/supplierRestAdapter";
+export * from "./engine/supplierPortalAdapter";
 export * from "./engine/xmlParser";
 export * from "./engine/fileConnector";
 export * from "./engine/databaseConnector";
