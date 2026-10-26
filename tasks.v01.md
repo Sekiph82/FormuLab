@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 42
-- Remaining: 114
-- Completion: 26.9%
-- Current task: V01-03.001 - Implement document admission and quarantine
+- Completed: 43
+- Remaining: 113
+- Completion: 27.6%
+- Current task: V01-03.002 - Implement reproducible page-aware PDF text extraction
 - Current status: IN PROGRESS
-- Next task: V01-03.002 - Implement reproducible page-aware PDF text extraction
+- Next task: V01-03.003 - Implement bounded conditional OCR fallback
 - Required actor: CODEX
 - Branch: V01
 
@@ -160,8 +160,8 @@ Codex must execute the tasks below in the exact order listed.
 
 ## Milestone V01-03 - PDF admission, parsing, and universal SDS extraction
 
-- [~] **V01-03.001 - Implement document admission and quarantine**: Validate MIME/signature, encryption, malformed structure, maximum pages/size, safe filename, and parser suitability before processing.
-- [ ] **V01-03.002 - Implement reproducible page-aware PDF text extraction**: Preserve page boundaries, line/region coordinates where available, document hash, parser version, and extraction warnings.
+- [x] **V01-03.001 - Implement document admission and quarantine**: Validate MIME/signature, encryption, malformed structure, maximum pages/size, safe filename, and parser suitability before processing.
+- [~] **V01-03.002 - Implement reproducible page-aware PDF text extraction**: Preserve page boundaries, line/region coordinates where available, document hash, parser version, and extraction warnings.
 - [ ] **V01-03.003 - Implement bounded conditional OCR fallback**: Use OCR only when page text is insufficient; preserve OCR confidence/source and never OCR digital text unnecessarily.
 - [ ] **V01-03.004 - Implement multilingual/layout-tolerant SDS section detection**: Recognize section semantics across Croda, Evonik, Clariant, Dow and future layouts rather than hard-coding one supplier template.
 - [ ] **V01-03.005 - Implement SDS document identity extraction**: Extract supplier/manufacturer, product/trade name, product/material code, SDS version, revision/issue/print dates, market/regulatory regime, language, and source identifiers.
