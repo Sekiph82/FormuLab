@@ -64,6 +64,7 @@ describe("reference formulation layout parser contract", () => {
       ] }] }],
     });
     expect(ambiguous.ingredientTables).toHaveLength(1);
+    expect(ambiguous.ingredientTables[0]?.ambiguousHeaderRows).toEqual([0, 1]);
     expect(ambiguous.warnings).toContain("ambiguous_table_headers");
     expect(ambiguous.ingredientTables[0]?.reviewRequired).toBe(true);
   });

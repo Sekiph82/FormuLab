@@ -60,6 +60,7 @@ export interface ReferenceFormulationTableCandidate {
   columns: Partial<Record<ReferenceFormulationTableColumn, number>>;
   rawHeaders: string[];
   dataRowCount: number;
+  ambiguousHeaderRows: number[];
   source: z.infer<typeof sourceKind>;
   reviewRequired: true;
 }
@@ -91,7 +92,7 @@ const HEADING_ALIASES: Record<ReferenceFormulationHeading["kind"], readonly stri
 };
 
 const HEADER_ALIASES: Record<ReferenceFormulationTableColumn, readonly string[]> = {
-  ingredient: ["ingredient", "raw material", "trade name", "commercial product", "material"],
+  ingredient: ["ingredient", "ingredients", "raw material", "raw materials", "trade name", "commercial product", "material"],
   product_code: ["product code", "material code", "item code", "supplier code"],
   inci_or_chemical_name: ["inci", "inci name", "chemical name", "chemical identity"],
   function: ["function", "role", "purpose"],
@@ -160,6 +161,7 @@ export function analyzeReferenceFormulationLayout(input: ReferenceFormulationLay
         columns: selected.columns,
         rawHeaders: [...headerSearchRows[selected.index]!],
         dataRowCount: Math.max(0, block.rows.length - selected.index - 1),
+        ambiguousHeaderRows: candidates.length > 1 ? candidates.map(({ index }) => index) : [],
         source: block.source,
         reviewRequired: true,
       });
