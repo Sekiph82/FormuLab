@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 51
-- Remaining: 105
-- Completion: 32.7%
-- Current task: V01-03.010 - Implement Section 8 exposure-control extraction
+- Completed: 52
+- Remaining: 104
+- Completion: 33.3%
+- Current task: V01-03.011 - Implement Section 9 physical-property extraction
 - Current status: IN PROGRESS
-- Next task: V01-03.011 - Implement Section 9 physical-property extraction
+- Next task: V01-03.012 - Implement measurement-context model
 - Required actor: CODEX
 - Branch: V01
 
@@ -169,8 +169,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-03.007 - Implement Section 2 hazard extraction**: Extract classification scheme, hazard classes/categories, signal word, H/P statements, pictograms where available, PBT/vPvB/endocrine statements and market context without making approval decisions.
 - [x] **V01-03.008 - Implement Section 3 substance/mixture and composition extraction**: Extract substance-vs-mixture declaration, component original name, CAS, EC, exact/range concentration, unit/basis, trade-secret flags, M-factors/SCL/ATE when present, and undisclosed remainder state.
 - [x] **V01-03.009 - Implement Section 7 storage and handling extraction**: Extract storage temperature, container/material compatibility, shelf/storage stability, incompatibilities, and explicit handling constraints as evidence.
-- [~] **V01-03.010 - Implement Section 8 exposure-control extraction**: Extract OEL/TWA/STEL, regulation/source, units, PPE, glove material/breakthrough/thickness, respiratory requirements, and engineering controls as safety evidence.
-- [ ] **V01-03.011 - Implement Section 9 physical-property extraction**: Extract physical state, color, odor, pH, freezing/boiling/flash points, density/relative density, solubility, vapor pressure, logP, viscosity, molecular weight and related values with units and context.
+- [x] **V01-03.010 - Implement Section 8 exposure-control extraction**: Extract OEL/TWA/STEL, regulation/source, units, PPE, glove material/breakthrough/thickness, respiratory requirements, and engineering controls as safety evidence.
+- [~] **V01-03.011 - Implement Section 9 physical-property extraction**: Extract physical state, color, odor, pH, freezing/boiling/flash points, density/relative density, solubility, vapor pressure, logP, viscosity, molecular weight and related values with units and context.
 - [ ] **V01-03.012 - Implement measurement-context model**: For every physical value preserve temperature, sample concentration, delivered-form basis, method/standard, typical/specification wording, measured/literature/estimated status, page/section, original text and normalized value.
 - [ ] **V01-03.013 - Implement Sections 10-15 evidence extraction**: Extract stability/reactivity, incompatible materials, transport, ecological/regulatory and other structured evidence needed by existing safety/regulatory systems without automatically changing their verdicts.
 - [ ] **V01-03.014 - Universal SDS extraction acceptance matrix**: Verify Croda, Evonik, Clariant and Dow fixtures, including layout differences, pure substance, solution, polymer, complex blend, partial disclosure, trade secret, condition-bound pH/viscosity/density, and typical-value warnings.
