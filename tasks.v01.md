@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 54
-- Remaining: 102
-- Completion: 34.6%
-- Current task: V01-03.013 - Implement Sections 10-15 evidence extraction
+- Completed: 55
+- Remaining: 101
+- Completion: 35.3%
+- Current task: V01-03.014 - Universal SDS extraction acceptance matrix
 - Current status: IN PROGRESS
-- Next task: V01-03.014 - Universal SDS extraction acceptance matrix
+- Next task: V01-04.001 - Implement commercial-product identity schema
 - Required actor: CODEX
 - Branch: V01
 
@@ -172,8 +172,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-03.010 - Implement Section 8 exposure-control extraction**: Extract OEL/TWA/STEL, regulation/source, units, PPE, glove material/breakthrough/thickness, respiratory requirements, and engineering controls as safety evidence.
 - [x] **V01-03.011 - Implement Section 9 physical-property extraction**: Extract physical state, color, odor, pH, freezing/boiling/flash points, density/relative density, solubility, vapor pressure, logP, viscosity, molecular weight and related values with units and context.
 - [x] **V01-03.012 - Implement measurement-context model**: For every physical value preserve temperature, sample concentration, delivered-form basis, method/standard, typical/specification wording, measured/literature/estimated status, page/section, original text and normalized value.
-- [~] **V01-03.013 - Implement Sections 10-15 evidence extraction**: Extract stability/reactivity, incompatible materials, transport, ecological/regulatory and other structured evidence needed by existing safety/regulatory systems without automatically changing their verdicts.
-- [ ] **V01-03.014 - Universal SDS extraction acceptance matrix**: Verify Croda, Evonik, Clariant and Dow fixtures, including layout differences, pure substance, solution, polymer, complex blend, partial disclosure, trade secret, condition-bound pH/viscosity/density, and typical-value warnings.
+- [x] **V01-03.013 - Implement Sections 10-15 evidence extraction**: Extract stability/reactivity, incompatible materials, transport, ecological/regulatory and other structured evidence needed by existing safety/regulatory systems without automatically changing their verdicts.
+- [~] **V01-03.014 - Universal SDS extraction acceptance matrix**: Verify Croda, Evonik, Clariant and Dow fixtures, including layout differences, pure substance, solution, polymer, complex blend, partial disclosure, trade secret, condition-bound pH/viscosity/density, and typical-value warnings.
 
 ## Milestone V01-04 - Commercial product identity and canonical chemical resolver
 
