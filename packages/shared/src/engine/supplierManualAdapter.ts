@@ -39,6 +39,27 @@ export interface SupplierManualCatalogSource {
   fields: { supplierItemCode?: string; tradeName?: string; grade?: string };
 }
 
+export const supplierManualSurfaceCheckSchema = z.object({
+  market: z.string().trim().min(1).max(160),
+  language: z.string().trim().min(1).max(160),
+  productLine: z.string().trim().min(1).max(160),
+  outcome: z.enum(["documents_found", "no_results", "access_required", "unsupported_scope", "not_scanned"]),
+  documentsFound: z.number().int().nonnegative().max(100_000),
+  checkedAt: z.string().datetime({ offset: true }),
+  checkedBy: z.string().trim().min(1).max(160),
+}).strict().superRefine((check, context) => {
+  if (check.outcome === "no_results" && check.documentsFound !== 0) {
+    context.addIssue({ code: "custom", path: ["documentsFound"], message: "A no-result check must report zero documents." });
+  }
+  if (check.outcome === "documents_found" && check.documentsFound < 1) {
+    context.addIssue({ code: "custom", path: ["documentsFound"], message: "A result check must report at least one document." });
+  }
+  if ((check.outcome === "access_required" || check.outcome === "unsupported_scope" || check.outcome === "not_scanned") && check.documentsFound !== 0) {
+    context.addIssue({ code: "custom", path: ["documentsFound"], message: "An inaccessible or unsupported check cannot report results." });
+  }
+});
+export type SupplierManualSurfaceCheck = z.infer<typeof supplierManualSurfaceCheckSchema>;
+
 export interface SupplierManualDocumentSelection {
   selection: SupplierManualFileSelection;
   sourceProductId: string;
@@ -58,6 +79,9 @@ export interface SupplierManualAdapterProfile {
   catalogSources: SupplierManualCatalogSource[];
   documents: SupplierManualDocumentSelection[];
   scope: { markets: string[]; languages: string[]; productLines: string[] };
+  /** User-attested surface outcomes preserve a completed zero-result search
+   * separately from a scope that was never checked. */
+  surfaceChecks?: SupplierManualSurfaceCheck[];
 }
 
 export interface SupplierManualAdapterDeps {
@@ -107,7 +131,7 @@ export function createManualAssistedSupplierAdapter(
   if (profile.surface.providerId !== profile.providerId || !profile.supplierId.trim()) {
     throw new Error("Manual supplier identity does not match its registered surface.");
   }
-  if (profile.catalogSources.length === 0 && profile.documents.length === 0) {
+  if (profile.catalogSources.length === 0 && profile.documents.length === 0 && (profile.surfaceChecks?.length ?? 0) === 0) {
     throw new Error("Manual supplier adapter requires at least one user-selected source file.");
   }
   profile.catalogSources.forEach((source) => {
@@ -123,6 +147,12 @@ export function createManualAssistedSupplierAdapter(
     if (!document.market.trim() || !document.language.trim()) throw new Error("Manual supplier document requires a known market and language.");
     if (sourceUrl) safeSupplierDocumentSourceUrl(sourceUrl);
   });
+  const surfaceChecks = (profile.surfaceChecks ?? []).map((check) => supplierManualSurfaceCheckSchema.parse(check));
+  const checkKeys = surfaceChecks.map(({ market, language, productLine }) =>
+    `${market.toLocaleLowerCase("en-US")}\u0000${language.toLocaleLowerCase("en-US")}\u0000${productLine.toLocaleLowerCase("en-US")}`);
+  if (new Set(checkKeys).size !== checkKeys.length) {
+    throw new Error("Manual surface checks must be unique per market, language and product line.");
+  }
   if (new Set(profile.documents.map(({ selection }) => selection.selectionId)).size !== profile.documents.length) {
     throw new Error("Manual supplier document selections require unique immutable identities.");
   }
@@ -224,25 +254,66 @@ export function createManualAssistedSupplierAdapter(
       if (!profile.surface.capabilities.documentFetch) unsupported.push("document_fetch");
       if (!profile.surface.capabilities.formulationDiscovery) unsupported.push("formulation_discovery");
       if (unsupported.length) gaps.add("capability_unsupported");
-      const started = filesChecked > 0 || documentsFound.size > 0;
+      const inaccessibleChecks = surfaceChecks.filter(({ outcome }) => outcome === "access_required");
+      const unsupportedChecks = surfaceChecks.filter(({ outcome }) => outcome === "unsupported_scope");
+      const scannedChecks = surfaceChecks.filter(({ outcome }) => outcome === "no_results" || outcome === "documents_found");
+      const scannedValues = {
+        markets: new Set(scannedChecks.map(({ market }) => market)),
+        languages: new Set(scannedChecks.map(({ language }) => language)),
+        productLines: new Set(scannedChecks.map(({ productLine }) => productLine)),
+      };
+      const scannedScope = surfaceChecks.length > 0
+        ? {
+          markets: [...scannedValues.markets],
+          languages: [...scannedValues.languages],
+          productLines: [...scannedValues.productLines],
+        }
+        : filesChecked > 0 || documentsFound.size > 0 ? profile.scope : { markets: [], languages: [], productLines: [] };
+      const unscannedGaps: SupplierCoverageReport["gaps"] = [];
+      if (filesChecked === 0) {
+        for (const [dimension, requested, scanned] of [
+          ["market", profile.scope.markets, scannedScope.markets],
+          ["language", profile.scope.languages, scannedScope.languages],
+          ["product_line", profile.scope.productLines, scannedScope.productLines],
+        ] as const) {
+          requested.filter((value) => !scanned.some((item) => item.toLocaleLowerCase("en-US") === value.toLocaleLowerCase("en-US")))
+            .forEach((scopeValue) => unscannedGaps.push({ code: "scope_unscanned", dimension, scopeValue }));
+        }
+      }
+      const accessGap = inaccessibleChecks.length > 0;
+      if (accessGap) gaps.add("authorization_required");
+      unsupportedChecks.forEach(({ productLine }) => unscannedGaps.push({
+        code: "capability_unsupported",
+        dimension: "product_line",
+        scopeValue: productLine,
+      }));
+      const started = filesChecked > 0 || surfaceChecks.length > 0 || documentsFound.size > 0;
       const selection = profile.catalogSources[0]?.selection ?? profile.documents[0]?.selection;
+      const reportSeed = selection?.selectionId
+        ?? `${profile.surface.surfaceId}:${surfaceChecks.map(({ market, language, productLine, checkedAt }) => `${market}:${language}:${productLine}:${checkedAt}`).join("|")}`;
+      const reportGeneratedAt = surfaceChecks[surfaceChecks.length - 1]?.checkedAt ?? selection?.selectedAt;
+      if (!reportGeneratedAt) throw new Error("Manual supplier coverage requires a selected source or a recorded surface check.");
+      const coverageGaps = [...new Map([
+        ...[...gaps].map((code) => ({ code })),
+        ...unscannedGaps,
+      ].map((gap) => [JSON.stringify(gap), gap])).values()];
       return supplierCoverageReportSchema.parse({
         schemaVersion: "1.0",
         supplierId: profile.supplierId,
         providerId: profile.providerId,
         surfaceId: profile.surface.surfaceId,
-        acquisitionJobId: `manual:${selection!.selectionId}`,
+        acquisitionJobId: `manual:${reportSeed}`,
         completion: gaps.size > 0 ? "partial" : started ? "complete" : "not_started",
         requestedScope: profile.scope,
-        scannedScope: started ? profile.scope : { markets: [], languages: [], productLines: [] },
+        scannedScope,
         pagesChecked: 0,
         productsChecked: productsChecked.size,
-        documentsFound: documentsFound.size,
+        documentsFound: Math.max(documentsFound.size, surfaceChecks.reduce((count, check) => count + check.documentsFound, 0)),
         documentsAcquired: documentsAcquired.size,
-        inaccessibleSurfaces: [],
+        inaccessibleSurfaces: accessGap ? [{ surfaceId: profile.surface.surfaceId, reason: "authorization_required" }] : [],
         unsupportedCapabilities: unsupported,
-        gaps: [...gaps].map((code) => ({ code })),
-        generatedAt: selection!.selectedAt,
+        gaps: coverageGaps,
+        generatedAt: reportGeneratedAt,
       });
     },
   };
