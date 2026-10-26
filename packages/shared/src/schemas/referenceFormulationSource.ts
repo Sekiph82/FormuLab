@@ -22,6 +22,19 @@ export const referenceFormulationRightsSchema = z.object({
   licenseUrl: persistedSourceUrl.optional(),
   permissionReference: z.string().trim().min(1).max(500).optional(),
   evidenceRefs: z.array(z.string().trim().min(1).max(500)).default([]),
+  // Optional for backward compatibility. Missing decisions are interpreted as unknown and fail closed.
+  usePermissions: z.object({
+    internalResearch: z.object({ status: z.enum(["unknown", "allowed", "prohibited"]), evidenceRefs: z.array(z.string().trim().min(1).max(500)).default([]) }).strict().optional(),
+    sameSupplierPrior: z.object({ status: z.enum(["unknown", "allowed", "prohibited"]), evidenceRefs: z.array(z.string().trim().min(1).max(500)).default([]) }).strict().optional(),
+    crossSupplierPrior: z.object({ status: z.enum(["unknown", "allowed", "prohibited"]), evidenceRefs: z.array(z.string().trim().min(1).max(500)).default([]) }).strict().optional(),
+    sourceExport: z.object({ status: z.enum(["unknown", "allowed", "prohibited"]), evidenceRefs: z.array(z.string().trim().min(1).max(500)).default([]) }).strict().optional(),
+    derivedExport: z.object({ status: z.enum(["unknown", "allowed", "prohibited"]), evidenceRefs: z.array(z.string().trim().min(1).max(500)).default([]) }).strict().optional(),
+  }).strict().optional(),
+  retentionPolicy: z.object({
+    status: z.enum(["unknown", "retain_until_revoked", "retain_until_date", "delete_after_use"]),
+    expiresAt: z.string().datetime({ offset: true }).optional(),
+    evidenceRefs: z.array(z.string().trim().min(1).max(500)).default([]),
+  }).strict().optional(),
 }).strict().superRefine((rights, context) => {
   if ((rights.status !== "unknown" || rights.redistribution !== "unknown") && rights.evidenceRefs.length === 0) {
     context.addIssue({ code: "custom", path: ["evidenceRefs"], message: "Asserted rights status requires traceable rights evidence." });
@@ -31,6 +44,20 @@ export const referenceFormulationRightsSchema = z.object({
   }
   if (rights.status === "permission_granted" && !rights.permissionReference) {
     context.addIssue({ code: "custom", path: ["permissionReference"], message: "Granted permission requires a traceable permission reference." });
+  }
+  for (const [use, decision] of Object.entries(rights.usePermissions ?? {})) {
+    if (decision?.status !== "unknown" && decision?.evidenceRefs.length === 0) {
+      context.addIssue({ code: "custom", path: ["usePermissions", use, "evidenceRefs"], message: "Asserted source-use permission requires traceable evidence." });
+    }
+  }
+  if (rights.retentionPolicy) {
+    const { status, expiresAt, evidenceRefs } = rights.retentionPolicy;
+    if (status !== "unknown" && evidenceRefs.length === 0) {
+      context.addIssue({ code: "custom", path: ["retentionPolicy", "evidenceRefs"], message: "Asserted retention policy requires traceable evidence." });
+    }
+    if ((status === "retain_until_date") !== (expiresAt !== undefined)) {
+      context.addIssue({ code: "custom", path: ["retentionPolicy", "expiresAt"], message: "Only retain_until_date requires an expiry timestamp." });
+    }
   }
 });
 
