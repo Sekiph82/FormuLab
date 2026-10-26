@@ -222,3 +222,17 @@ These invariants apply across acquisition, parsing/OCR, identity resolution, nor
 | Generator and reference intelligence | Use only eligible, reviewed reference evidence under an explicit deterministic policy; preserve source class and source IDs in influence/explanation. Keep hard safety/regulatory/compatibility/manufacturing/availability gates above popularity. | Treating a frequency prior as chemistry truth, performance validation, compatibility proof or a reason to bypass an explicit constraint/hard gate. |
 
 When a parser cannot distinguish among materially different interpretations, it must emit the alternatives and request field-level review or keep the value unresolved. It must not choose the most convenient value simply to complete a record or keep an autonomous scan moving.
+
+## V01-00.010 focused green baseline
+
+Baseline checkpoint run on 2026-10-26 in the isolated V01 worktree before V01-01 implementation. These are focused existing acceptance suites; the full regression/build suite is reserved for V01-10 closure.
+
+| Area | Focused command/scope | Result |
+|---|---|---|
+| Shared connector, mapping, Data Exchange, domain engines and lineage | `pnpm --filter @formulab/shared exec vitest run` across 26 named connector, schema, mapping, crosswalk, transformation, Data Exchange, safety, regulatory, compatibility, cost, inventory, ranking and formula-version lineage suites | 26 files, 704 tests passed |
+| Desktop connector/import, material-derived formula gates, ranking and backup scheduling | `pnpm --filter @formulab/desktop exec vitest run` across 16 named connector, Data Exchange, generated-formula, formulation, ranking and automatic-backup suites | 16 files, 399 tests passed |
+| Deterministic Python formulation/evidence/process pipeline | `python -m pytest` across `test_engine.py`, `test_pipeline.py`, `test_materials.py`, `test_master_materials_adapter.py`, `test_evidence.py`, `test_scientific_formulation.py`, `test_manufacturing.py`, `test_provenance.py` and `test_strategy.py` | 235 tests passed |
+| Rust backup/restore round trip | `cargo test --lib full_backup_then_restore_round_trip_is_byte_identical` with a process-only `TAURI_CONFIG` override clearing the bundle-only external binary requirement | 1 passed; normal test compilation otherwise requires the intentionally ignored/fetched `uv` sidecar, which was not added or downloaded |
+| V01 queue-state checker | `pnpm codex:v01:tasks:check` and `pnpm codex:v01:tasks:test` | Plan valid; 6 helper tests passed |
+
+Focused baseline total: **1,345 passing tests** (704 + 399 + 235 + 1 + 6). No full regression suite was run at this checkpoint. The initial plain Cargo invocation failed before compilation because the ignored Windows `uv` sidecar was absent; the process-only config override allowed the targeted backup test to compile and pass without changing tracked configuration or fetching a binary.
