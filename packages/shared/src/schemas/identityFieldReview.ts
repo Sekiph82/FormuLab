@@ -47,12 +47,15 @@ export const identityFieldReviewSchema = z.object({
 export type IdentityFieldReview = z.infer<typeof identityFieldReviewSchema>;
 export type RecordIdentityFieldReviewInput = Omit<IdentityFieldReview, "schemaVersion" | "reviewedBy" | "reviewerRole" | "reviewedAt"> & { reviewedAt?: string };
 
+export function isAuthorizedIdentityFieldReviewer(actor: Actor): actor is Extract<Actor, { kind: "human" }> {
+  return actor.kind === "human" && actor.userId.trim().length > 0
+    && (can(actor.role, "rawMaterials", "edit") || can(actor.role, "supplierDocuments", "edit"));
+}
+
 function requireIdentityReviewer(actor: Actor): asserts actor is Extract<Actor, { kind: "human" }> {
-  if (actor.kind !== "human"
-    || (!can(actor.role, "rawMaterials", "edit") && !can(actor.role, "supplierDocuments", "edit"))) {
-    throw new Error("Only a human with raw-material or supplier-document edit access may review commercial-product identity fields.");
+  if (!isAuthorizedIdentityFieldReviewer(actor)) {
+    throw new Error("Only a named human with raw-material or supplier-document edit access may review commercial-product identity fields.");
   }
-  if (!actor.userId.trim()) throw new Error("Identity review requires a named human reviewer.");
 }
 
 /** Record a named human's field-level decision while preserving the proposal and evidence snapshots. */

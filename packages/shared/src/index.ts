@@ -601,6 +601,7 @@ export * from "./schemas/formulaContribution";
 export * from "./schemas/physicalPropertyEvidence";
 export * from "./schemas/identityFieldReview";
 export * from "./schemas/rawMaterialApplicationProposal";
+export * from "./schemas/resolverRevision";
 export * from "./schemas/supplierAcquisition";
 export * from "./schemas/supplierCoverage";
 export * from "./engine/connectorFingerprint";
