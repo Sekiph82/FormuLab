@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 88
-- Remaining: 68
-- Completion: 56.4%
-- Current task: V01-05.013 - Cross-supplier formulation layout harness
+- Completed: 89
+- Remaining: 67
+- Completion: 57.1%
+- Current task: V01-05.014 - Formulation extraction review workflow
 - Current status: IN PROGRESS
-- Next task: V01-05.014 - Formulation extraction review workflow
+- Next task: V01-06.001 - Implement original-versus-normalized dual representation
+- Acceptance note: V01-05.013 adds two clearly synthetic parser-layout families: a single-row trade-name table and a multi-row raw-material composition table. The harness checks distinct column maps plus extracted ingredient, amount, function, product code/basis, cell evidence, source hash, and mandatory review; placeholder labels make no real supplier or chemistry claims. Focused parser/harness tests (3 files/9 tests), shared typecheck, and independent read-only review passed.
 - Acceptance note: V01-05.012 accepts the owner-supplied Croda HC/DW/22 Hand Dishwash Detergent Liquid fixture: title/code, inline procedure and pH ~7, eight ingredient/function/%w/w lines, 100% arithmetic, and ~375 cP viscosity. Four supplied Croda SDS identities are review-only alias candidates; SLE(3)S and EBC Crothix remain unresolved/acquisition-ready. Safe product-name parentheses are admitted, and control-character PDF text is marked `unsupported_character_encoding`; supplied PDFs stayed out of git because redistribution rights are unknown. Focused shared tests (7 files/25 tests), desktop admission tests (16), real-PDF smoke checks (5 source files), shared/desktop typechecks, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-05.011 adds a source-linked structured reference-formula snapshot containing identity comparisons, original ingredient rows, arithmetic, process and target evidence, product candidates and unresolved work. It persists to a dedicated append-only `reference_formulations` collection, with immutable retry handling; the schema rejects production approval/lifecycle fields and validates source, candidate, queue and revision-comparison lineage. Shared schema/parity tests (8), desktop persistence tests (2), shared/desktop typechecks and independent read-only review passed. Rust unit execution could not start because this checkout lacks `apps/desktop/src-tauri/binaries/uv-x86_64-pc-windows-msvc.exe`.
 - Acceptance note: V01-05.010 builds acquisition/review-ready entries for every supplier-formulation line, retains the full raw line snapshot, identifies missing SDS support from same-supplier linked acquisition receipts, and proposes SDS/TDS acquisition or identity review without executing either or approving links. Source and field-evidence hashes are checked. Focused tests (4), shared typecheck and independent read-only review passed.
@@ -245,8 +246,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-05.010 - Implement unresolved ingredient queue**: Keep formula lines without supporting supplier/SDS evidence as unresolved and acquisition/review-ready while preserving the full reference formula.
 - [x] **V01-05.011 - Implement structured reference-formula record**: Persist queryable reference formulas separately from production Formulation/FormulationVersion and never create a validated or approved production formula on import.
 - [x] **V01-05.012 - Croda HC/DW/22 formulation acceptance**: Parse the supplied Hand Dishwash Detergent Liquid fixture: source identity, procedure, all ingredient/function/%w/w lines, pH ~7 instruction and ~375 cP value. Match supplied Croda SDS products and keep unsupported SLE(3)S/Crothix unresolved.
-- [~] **V01-05.013 - Cross-supplier formulation layout harness**: Add parser fixtures for at least two additional supplier layout families before claiming generic support. If external fixtures are not yet available, create structurally different authorized test fixtures without fabricating chemical claims.
-- [ ] **V01-05.014 - Formulation extraction review workflow**: Provide side-by-side source evidence and extracted formula identity/lines/process/targets with accept/edit/reject/needs-review decisions.
+- [x] **V01-05.013 - Cross-supplier formulation layout harness**: Add parser fixtures for at least two additional supplier layout families before claiming generic support. If external fixtures are not yet available, create structurally different authorized test fixtures without fabricating chemical claims.
+- [~] **V01-05.014 - Formulation extraction review workflow**: Provide side-by-side source evidence and extracted formula identity/lines/process/targets with accept/edit/reject/needs-review decisions.
 
 ## Milestone V01-06 - Reference formulation normalization, indexing, and corpus ingestion
 
