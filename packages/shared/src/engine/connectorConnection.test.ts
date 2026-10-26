@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { databaseSourceFromConnection, httpFetchConfigFromConnection, restSourceFromConnection } from "./connectorConnection";
-import type { ConnectorConnection } from "../schemas/connector";
+import { databaseSourceFromConnection, httpFetchConfigFromConnection, restSourceFromConnection, transitionConnectorLifecycle } from "./connectorConnection";
+import { connectorConnectionSchema, type ConnectorConnection } from "../schemas/connector";
 
 function baseConnection(overrides: Partial<ConnectorConnection>): ConnectorConnection {
   return {
@@ -80,6 +80,41 @@ describe("httpFetchConfigFromConnection — pagination (RESTP1-RESTP5)", () => {
     expect(() => httpFetchConfigFromConnection(withBase({ paginationKind: "page" }))).toThrow(/page pagination selected but is missing/);
     expect(() => httpFetchConfigFromConnection(withBase({ paginationKind: "offset" }))).toThrow(/offset pagination selected but is missing/);
     expect(() => httpFetchConfigFromConnection(withBase({ paginationKind: "cursor" }))).toThrow(/cursor pagination selected but is missing/);
+  });
+});
+
+describe("connector lifecycle — V01-01.003", () => {
+  it("reads existing saved connections without a lifecycle field as configured-compatible records", () => {
+    const legacy = baseConnection({ connectorType: "FILE" });
+    const parsed = connectorConnectionSchema.parse(legacy);
+    expect(parsed.lifecycleState).toBeUndefined();
+    expect(transitionConnectorLifecycle(parsed, "configured", { updatedAt: parsed.updatedAt }).lifecycleState).toBe("configured");
+  });
+
+  it("treats pre-existing records as configured and supports explicit manual-assisted/unavailable transitions", () => {
+    const legacy = baseConnection({ connectorType: "REST_API", connectionRef: "opaque-credential-ref" });
+    const manual = transitionConnectorLifecycle(legacy, "manual_assisted", { updatedAt: "2026-10-26T10:00:00Z" });
+    const unavailable = transitionConnectorLifecycle(manual, "unavailable", { updatedAt: "2026-10-26T10:05:00Z" });
+
+    expect(manual.lifecycleState).toBe("manual_assisted");
+    expect(unavailable.lifecycleState).toBe("unavailable");
+    expect(unavailable.status).toBe("never_tested");
+    expect(unavailable.connectionRef).toBe("opaque-credential-ref");
+    expect(unavailable.updatedAt).toBe("2026-10-26T10:05:00Z");
+  });
+
+  it("requires an explicit successful authentication result and models expiry/revocation transitions", () => {
+    const connection = baseConnection({ connectorType: "REST_API" });
+    expect(() => transitionConnectorLifecycle(connection, "authenticated", { updatedAt: "now" })).toThrow(/explicit successful authentication result/);
+    const authenticated = transitionConnectorLifecycle(connection, "authenticated", { updatedAt: "now", authenticationConfirmed: true });
+    const expired = transitionConnectorLifecycle(authenticated, "expired", { updatedAt: "later" });
+    const revoked = transitionConnectorLifecycle(expired, "revoked", { updatedAt: "later-still" });
+    const reconfigured = transitionConnectorLifecycle(revoked, "configured", { updatedAt: "new-config" });
+
+    expect([authenticated.lifecycleState, expired.lifecycleState, revoked.lifecycleState, reconfigured.lifecycleState]).toEqual([
+      "authenticated", "expired", "revoked", "configured",
+    ]);
+    expect(() => transitionConnectorLifecycle(connection, "expired", { updatedAt: "now" })).toThrow(/cannot transition/);
   });
 });
 

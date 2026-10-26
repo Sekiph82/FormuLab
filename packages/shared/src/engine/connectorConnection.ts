@@ -9,10 +9,37 @@
  * a connection of the wrong type or missing a genuinely required field
  * — never silently substitutes a guessed default.
  */
-import type { ConnectorConnection } from "../schemas/connector";
+import type { ConnectorConnection, ConnectorLifecycleState } from "../schemas/connector";
 import type { DatabaseConnectorSource, DatabaseTableSelector } from "./databaseConnector";
 import type { HttpFetchAdapterConfig, RestPaginationConfig } from "./httpFetchAdapter";
 import type { RestConnectorSource } from "./restApiConnector";
+
+const LIFECYCLE_TRANSITIONS: Record<ConnectorLifecycleState, readonly ConnectorLifecycleState[]> = {
+  configured: ["authenticated", "unavailable", "revoked", "manual_assisted"],
+  authenticated: ["expired", "revoked", "unavailable", "manual_assisted"],
+  expired: ["configured", "authenticated", "revoked", "unavailable", "manual_assisted"],
+  revoked: ["configured"],
+  unavailable: ["configured", "authenticated", "revoked", "manual_assisted"],
+  manual_assisted: ["configured", "authenticated", "unavailable", "revoked"],
+};
+
+/** Apply a lifecycle status transition to the existing persisted connector
+ *  record. This is a pure state change, not an authentication or revocation
+ *  operation; those effects belong to the credential/session manager. */
+export function transitionConnectorLifecycle(
+  connection: ConnectorConnection,
+  next: ConnectorLifecycleState,
+  options: { updatedAt: string; authenticationConfirmed?: boolean },
+): ConnectorConnection {
+  const current = connection.lifecycleState ?? "configured";
+  if (current !== next && !LIFECYCLE_TRANSITIONS[current].includes(next)) {
+    throw new Error(`Connector lifecycle cannot transition from "${current}" to "${next}".`);
+  }
+  if (next === "authenticated" && options.authenticationConfirmed !== true) {
+    throw new Error("Connector lifecycle cannot be marked authenticated without an explicit successful authentication result.");
+  }
+  return { ...connection, lifecycleState: next, updatedAt: options.updatedAt };
+}
 
 export function restSourceFromConnection(conn: ConnectorConnection, entity: string): RestConnectorSource {
   if (conn.connectorType !== "REST_API") throw new Error(`"${conn.name}" is not a REST_API connection.`);

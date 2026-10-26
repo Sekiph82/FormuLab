@@ -595,6 +595,19 @@ export interface CrosswalkConflict {
 export const CONNECTOR_CONNECTION_STATUSES = ["never_tested", "ready", "error"] as const;
 export type ConnectorConnectionStatus = (typeof CONNECTOR_CONNECTION_STATUSES)[number];
 
+/** Connection lifecycle is intentionally separate from `status`, which is
+ *  only the last connector test outcome. These states do not carry secrets
+ *  or imply a successful provider-side authorization check by themselves. */
+export const CONNECTOR_LIFECYCLE_STATES = [
+  "configured",
+  "authenticated",
+  "expired",
+  "revoked",
+  "unavailable",
+  "manual_assisted",
+] as const;
+export type ConnectorLifecycleState = (typeof CONNECTOR_LIFECYCLE_STATES)[number];
+
 export const CONNECTOR_FILE_KINDS = ["csv", "json", "xml", "xlsx"] as const;
 export type ConnectorFileKind = (typeof CONNECTOR_FILE_KINDS)[number];
 
@@ -661,6 +674,8 @@ export const connectorConnectionSchema = z.object({
   requireExplicitId: z.boolean().optional(),
 
   status: z.enum(CONNECTOR_CONNECTION_STATUSES).default("never_tested"),
+  /** Optional for backward compatibility with saved v1 connector records. */
+  lifecycleState: z.enum(CONNECTOR_LIFECYCLE_STATES).optional(),
   lastTestedAt: z.string().optional(),
   /** A sanitized, human-readable outcome message ONLY — never raw
    *  response bodies, headers, connection strings, or any value a real
