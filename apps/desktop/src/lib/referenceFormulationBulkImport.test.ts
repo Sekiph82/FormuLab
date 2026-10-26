@@ -40,6 +40,7 @@ vi.mock("./referenceFormulationOcr", () => ({
 }));
 
 import { resumeReferenceFormulationBulkImport, startReferenceFormulationBulkImport } from "./referenceFormulationBulkImport";
+import { rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
 
 const metadata = {
   supplierId: "supplier-croda",
@@ -194,5 +195,40 @@ describe("reference formulation bulk import", () => {
     expect(duplicate.files[0]?.status).toBe("duplicate");
     expect(storePdfMock).toHaveBeenCalledTimes(1);
     expect(collections.get("reference_formulations")).toHaveLength(1);
+  });
+
+  it("ingests a multi-supplier fixture corpus, rebuilds its index, and leaves production master data untouched", async () => {
+    const suppliers = ["supplier-croda", "supplier-evonik", "supplier-dow"];
+    const supplierBytes = new Map<string, Uint8Array>();
+    for (const [index, supplierId] of suppliers.entries()) {
+      const bytes = await validPdf(280 + index * 20);
+      supplierBytes.set(supplierId, bytes);
+      await startReferenceFormulationBulkImport(
+        [selectedFile(`${supplierId}-synthetic.pdf`, bytes)],
+        { ...metadata, supplierId, rights: { ...metadata.rights, evidenceRefs: [`fixture:${supplierId}`] } },
+      );
+    }
+    const sourceRecords = collections.get("reference_formulations") ?? [];
+    expect(sourceRecords).toHaveLength(3);
+    expect(new Set(sourceRecords.map((row) => (row.source as { supplierId: string }).supplierId))).toEqual(new Set(suppliers));
+    expect(sourceRecords.every((row) => row.reviewStatus === "unreviewed")).toBe(true);
+    expect(collections.get("supplier_document_acquisitions")).toHaveLength(3);
+    expect(collections.has("materials")).toBe(false);
+    expect(collections.has("formulations")).toBe(false);
+    expect(collections.has("formula_versions")).toBe(false);
+
+    const firstRebuild = await rebuildReferenceFormulationCorpusIndex();
+    const secondRebuild = await rebuildReferenceFormulationCorpusIndex();
+    expect(firstRebuild).toEqual(secondRebuild);
+    expect(firstRebuild.queryRecords.map((record) => record.supplierId).sort()).toEqual([...suppliers].sort());
+    expect(firstRebuild.index.queryRecordIds).toHaveLength(3);
+
+    const duplicate = await startReferenceFormulationBulkImport(
+      [selectedFile("supplier-croda-duplicate.pdf", supplierBytes.get("supplier-croda")!)],
+      { ...metadata, supplierId: "supplier-croda" },
+    );
+    expect(duplicate.job.duplicateFiles).toBe(1);
+    expect(collections.get("reference_formulations")).toHaveLength(3);
+    expect(collections.has("materials")).toBe(false);
   });
 });
