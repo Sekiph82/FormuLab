@@ -68,6 +68,33 @@ describe("supplier document acquisition persistence — V01-01.006", () => {
     expect(upsertRecordsMock).not.toHaveBeenCalled();
   });
 
+  it("persists manual file provenance without fabricating a supplier URL and deduplicates retries", async () => {
+    const manualInput = {
+      ...acquisition,
+      acquisitionMethod: "manual_assisted" as const,
+      documentType: "FORMULATION" as const,
+      sourceUrl: undefined,
+      sourceFileSelection: {
+        selectionId: "selection-formula-1",
+        originalFilename: "supplier-formulation.pdf",
+        sourceFileSha256: "b".repeat(64),
+        selectedAt: "2026-10-26T08:01:00.000Z",
+        selectedBy: "chemist-1",
+      },
+    };
+    const first = await recordSupplierDocumentAcquisition(manualInput);
+    expect(first.acquisitionMethod).toBe("manual_assisted");
+    expect(first.sourceUrl).toBeUndefined();
+    expect(first.sourceFileSelection?.selectionId).toBe("selection-formula-1");
+    listRecordsMock.mockResolvedValue([first]);
+
+    const retry = await recordSupplierDocumentAcquisition(manualInput);
+
+    expect(retry).toEqual(first);
+    expect(upsertRecordsMock).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(first)).not.toMatch(/C:\\\\|Users\\\\|AppData/);
+  });
+
   it("links a later dated document to the unique latest prior revision", async () => {
     listRecordsMock.mockResolvedValue([{
       ...acquisition,

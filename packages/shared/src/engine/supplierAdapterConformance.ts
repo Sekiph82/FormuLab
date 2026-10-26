@@ -28,7 +28,14 @@ export interface SupplierAdapterDocument {
   sourceDocumentId: string;
   sourceProductId: string;
   documentType: "SDS" | "TDS" | "FORMULATION" | "CERTIFICATE" | "OTHER";
-  sourceUrl: string;
+  sourceUrl?: string;
+  manualSourceSelection?: {
+    selectionId: string;
+    originalFilename: string;
+    sourceFileSha256: string;
+    selectedAt: string;
+    selectedBy: string;
+  };
 }
 
 export type SupplierAdapterResult<T> =

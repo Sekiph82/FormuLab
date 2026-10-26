@@ -16,11 +16,21 @@ export async function sha256Identity(value: string): Promise<string> {
 /** Stable exact-source identity for retry deduplication; source provenance remains part of the key. */
 export async function supplierDocumentAcquisitionIdempotencyKey(
   input: Pick<NewSupplierDocumentAcquisition,
-    "supplierId" | "providerId" | "surfaceId" | "documentType" | "sourceUrl" | "sourceProduct" | "market" | "language" | "sha256"
+    | "supplierId" | "providerId" | "surfaceId" | "documentType" | "sourceUrl" | "sourceProduct" | "market" | "language" | "sha256"
+    | "acquisitionMethod" | "sourceFileSelection"
   >,
 ): Promise<string> {
-  const sourceUrl = new URL(safeSupplierDocumentSourceUrl(input.sourceUrl));
-  sourceUrl.searchParams.sort();
+  const acquisitionMethod = input.acquisitionMethod ?? "automated";
+  const sourceUrl = input.sourceUrl ? new URL(safeSupplierDocumentSourceUrl(input.sourceUrl)) : undefined;
+  sourceUrl?.searchParams.sort();
+  const sourceIdentity = acquisitionMethod === "manual_assisted"
+    ? {
+      selectionId: input.sourceFileSelection?.selectionId,
+      originalFilename: input.sourceFileSelection?.originalFilename
+        ? normalizeIdentity(input.sourceFileSelection.originalFilename) : undefined,
+      sourceFileSha256: input.sourceFileSelection?.sourceFileSha256.toLowerCase(),
+    }
+    : sourceUrl?.toString();
   const sourceProduct = Object.fromEntries(
     Object.entries(input.sourceProduct)
       .filter((entry): entry is [string, string] => typeof entry[1] === "string")
@@ -32,7 +42,8 @@ export async function supplierDocumentAcquisitionIdempotencyKey(
     providerId: normalizeIdentity(input.providerId),
     surfaceId: normalizeIdentity(input.surfaceId),
     documentType: input.documentType,
-    sourceUrl: sourceUrl.toString(),
+    acquisitionMethod,
+    sourceIdentity,
     sourceProduct,
     market: normalizeIdentity(input.market),
     language: normalizeIdentity(input.language),

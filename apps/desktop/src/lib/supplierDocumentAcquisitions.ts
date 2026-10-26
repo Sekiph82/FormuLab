@@ -18,8 +18,12 @@ export async function recordSupplierDocumentAcquisition(
   input: NewSupplierDocumentAcquisition,
 ): Promise<SupplierDocumentAcquisition> {
   const timestamp = nowIso();
-  const sourceUrl = safeSupplierDocumentSourceUrl(input.sourceUrl);
-  const normalizedInput = { ...input, sourceUrl };
+  const sourceUrl = input.sourceUrl ? safeSupplierDocumentSourceUrl(input.sourceUrl) : undefined;
+  const normalizedInput = {
+    ...input,
+    acquisitionMethod: input.acquisitionMethod ?? "automated",
+    ...(sourceUrl ? { sourceUrl } : {}),
+  };
   const idempotencyKey = await supplierDocumentAcquisitionIdempotencyKey(normalizedInput);
   const existing = await listRecords("supplier_document_acquisitions");
   for (const candidate of existing) {

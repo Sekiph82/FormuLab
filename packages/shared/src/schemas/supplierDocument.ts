@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-export const SUPPLIER_DOCUMENT_KINDS = ["SDS", "TDS", "COA", "CERTIFICATE", "OTHER"] as const;
+export const SUPPLIER_DOCUMENT_KINDS = ["SDS", "TDS", "FORMULATION", "COA", "CERTIFICATE", "OTHER"] as const;
 export type SupplierDocumentKind = (typeof SUPPLIER_DOCUMENT_KINDS)[number];
+export const SUPPLIER_DOCUMENT_ACQUISITION_METHODS = ["automated", "manual_assisted"] as const;
 
 export const SUPPLIER_DOCUMENT_PARSER_STATUSES = ["not_started", "completed", "failed", "unsupported"] as const;
 export type SupplierDocumentParserStatus = (typeof SUPPLIER_DOCUMENT_PARSER_STATUSES)[number];
@@ -19,6 +20,7 @@ export const supplierDocumentAcquisitionSchema = z.object({
   providerId: z.string().min(1),
   surfaceId: z.string().min(1),
   documentType: z.enum(SUPPLIER_DOCUMENT_KINDS),
+  acquisitionMethod: z.enum(SUPPLIER_DOCUMENT_ACQUISITION_METHODS).default("automated"),
   /** Query values are redacted before persistence; userinfo and fragments are forbidden. */
   sourceUrl: z.string().url().refine((value) => {
     try {
@@ -31,7 +33,21 @@ export const supplierDocumentAcquisitionSchema = z.object({
     } catch {
       return false;
     }
-  }, "Source URL must be HTTPS, contain no credentials or fragment, and have query values redacted."),
+  }, "Source URL must be HTTPS, contain no credentials or fragment, and have query values redacted.").optional(),
+  /** File provenance for user-selected imports. This is metadata only; absolute local paths and file bytes are excluded. */
+  sourceFileSelection: z.object({
+    selectionId: z.string().trim().min(1).max(160),
+    originalFilename: z.string().min(1).max(160).refine((value) =>
+      !/[\\/:\u0000-\u001f\u007f]/.test(value)
+        && !value.endsWith(".")
+        && !value.endsWith(" ")
+        && value !== "."
+        && value !== "..",
+    "Filename must be a safe basename."),
+    sourceFileSha256: z.string().regex(/^[a-f0-9]{64}$/i).transform((value) => value.toLowerCase()),
+    selectedAt: z.string().datetime({ offset: true }),
+    selectedBy: z.string().trim().min(1).max(160),
+  }).strict().optional(),
   sourceProduct: z.object({
     sourceProductId: z.string().trim().min(1).optional(),
     supplierItemCode: z.string().trim().min(1).optional(),
@@ -69,10 +85,21 @@ export const supplierDocumentAcquisitionSchema = z.object({
   if (record.supersedesCode && record.supersedesCode === record.code) {
     context.addIssue({ code: "custom", path: ["supersedesCode"], message: "An acquisition cannot supersede itself." });
   }
+  if (record.acquisitionMethod === "automated" && !record.sourceUrl) {
+    context.addIssue({ code: "custom", path: ["sourceUrl"], message: "Automated acquisitions require a safe supplier source URL." });
+  }
+  if (record.acquisitionMethod === "manual_assisted" && !record.sourceFileSelection) {
+    context.addIssue({ code: "custom", path: ["sourceFileSelection"], message: "Manual acquisitions require user-selected file provenance." });
+  }
+  if (record.acquisitionMethod === "automated" && record.sourceFileSelection) {
+    context.addIssue({ code: "custom", path: ["sourceFileSelection"], message: "Automated acquisitions cannot claim a manual file selection." });
+  }
 });
 
 export type SupplierDocumentAcquisition = z.infer<typeof supplierDocumentAcquisitionSchema>;
-export type NewSupplierDocumentAcquisition = Omit<SupplierDocumentAcquisition, "schemaVersion" | "code" | "acquiredAt" | "createdAt" | "idempotencyKey">;
+export type NewSupplierDocumentAcquisition = Omit<SupplierDocumentAcquisition,
+  "schemaVersion" | "code" | "acquiredAt" | "createdAt" | "idempotencyKey" | "acquisitionMethod"
+> & { acquisitionMethod?: SupplierDocumentAcquisition["acquisitionMethod"] };
 
 type SupplierDocumentRevisionIdentity = Pick<
   SupplierDocumentAcquisition,

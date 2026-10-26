@@ -35,6 +35,44 @@ describe("supplierDocumentAcquisitionSchema — immutable source receipt", () =>
     expect(() => supplierDocumentAcquisitionSchema.parse({ ...validRecord, sourceUrl: "https://docs.example.com/sds?token=private" })).toThrow();
   });
 
+  it("accepts user-selected file provenance without inventing a supplier URL", () => {
+    const parsed = supplierDocumentAcquisitionSchema.parse({
+      ...validRecord,
+      code: "supplierdoc-manual-1",
+      documentType: "FORMULATION",
+      acquisitionMethod: "manual_assisted",
+      sourceUrl: undefined,
+      sourceFileSelection: {
+        selectionId: "selection-1",
+        originalFilename: "supplier-formula.pdf",
+        sourceFileSha256: "b".repeat(64),
+        selectedAt: "2026-10-26T09:00:00.000Z",
+        selectedBy: "chemist-1",
+      },
+    });
+    expect(parsed.documentType).toBe("FORMULATION");
+    expect(parsed.sourceUrl).toBeUndefined();
+    expect(parsed.sourceFileSelection?.sourceFileSha256).toBe("b".repeat(64));
+  });
+
+  it("requires manual source evidence and forbids local paths in selection metadata", () => {
+    expect(() => supplierDocumentAcquisitionSchema.parse({
+      ...validRecord,
+      acquisitionMethod: "manual_assisted",
+      sourceUrl: undefined,
+    })).toThrow(/user-selected file provenance/);
+    expect(() => supplierDocumentAcquisitionSchema.parse({
+      ...validRecord,
+      sourceFileSelection: {
+        selectionId: "selection-1",
+        originalFilename: "C:\\private\\supplier.pdf",
+        sourceFileSha256: "b".repeat(64),
+        selectedAt: "2026-10-26T09:00:00.000Z",
+        selectedBy: "chemist-1",
+      },
+    })).toThrow(/safe basename/);
+  });
+
   it("requires a source product identity and a safe basename", () => {
     expect(() => supplierDocumentAcquisitionSchema.parse({ ...validRecord, sourceProduct: {} })).toThrow(/supplier product identifier/);
     expect(() => supplierDocumentAcquisitionSchema.parse({ ...validRecord, originalFilename: "../../secrets.pdf" })).toThrow(/safe basename/);

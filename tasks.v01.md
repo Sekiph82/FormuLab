@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 26
-- Remaining: 130
-- Completion: 16.7%
-- Current task: V01-02.005 - Implement manual-assisted supplier profile over existing FILE/Data Exchange paths
+- Completed: 27
+- Remaining: 129
+- Completion: 17.3%
+- Current task: V01-02.006 - Implement provider delta/recheck behavior
 - Current status: IN PROGRESS
-- Next task: V01-02.006 - Implement provider delta/recheck behavior
+- Next task: V01-02.007 - Implement Dow provider profile and SDS/technical-library adapter
 - Required actor: CODEX
 - Branch: V01
 
@@ -141,8 +141,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-02.002 - Implement coverage reporting contract**: Every adapter must report scanned scope, markets/languages/product lines, pages/products checked, documents found/acquired, inaccessible surfaces, unsupported capabilities, and gaps.
 - [x] **V01-02.003 - Implement public/API supplier profile over existing REST connector**: Reuse FVL-04 REST authority for declared hosts, pagination, rate limits, source links, and response normalization.
 - [x] **V01-02.004 - Implement authenticated portal profile**: Support user-attended authentication and secure session references without bypassing MFA/CAPTCHA or supplier controls.
-- [~] **V01-02.005 - Implement manual-assisted supplier profile over existing FILE/Data Exchange paths**: Allow user-selected catalog, formulation, SDS, TDS, or bundle import with complete provenance and no automatic master-data approval.
-- [ ] **V01-02.006 - Implement provider delta/recheck behavior**: Use revision/date/hash/cursor capabilities when available and honest full rescans when not available.
+- [x] **V01-02.005 - Implement manual-assisted supplier profile over existing FILE/Data Exchange paths**: Allow user-selected catalog, formulation, SDS, TDS, or bundle import with complete provenance and no automatic master-data approval.
+- [~] **V01-02.006 - Implement provider delta/recheck behavior**: Use revision/date/hash/cursor capabilities when available and honest full rescans when not available.
 - [ ] **V01-02.007 - Implement Dow provider profile and SDS/technical-library adapter**: Support verified Dow public/document surfaces and manual-assisted fallback for unsupported scope. Preserve product, market, language, revision, source and hash.
 - [ ] **V01-02.008 - Implement Clariant provider profile and Document Finder adapter**: Support public Document Finder and separate any authenticated ClariHub capability. Preserve business-unit/product-line scope.
 - [ ] **V01-02.009 - Implement Evonik provider profile**: Support verified public/document surfaces and user-attended/manual-assisted routes for portal-only content.
