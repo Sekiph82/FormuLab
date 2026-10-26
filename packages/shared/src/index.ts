@@ -591,6 +591,7 @@ export * from "./engine/supplierAdapterConformance";
 export * from "./engine/supplierRestAdapter";
 export * from "./engine/supplierPortalAdapter";
 export * from "./engine/supplierManualAdapter";
+export * from "./engine/dowSupplierAdapter";
 export * from "./engine/xmlParser";
 export * from "./engine/fileConnector";
 export * from "./engine/databaseConnector";

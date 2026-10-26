@@ -46,6 +46,9 @@ export interface SupplierManualDocumentSelection {
   market: string;
   language: string;
   sourceUrl?: string;
+  sourceRevision?: string;
+  revisionDate?: string;
+  publicationDate?: string;
 }
 
 export interface SupplierManualAdapterProfile {
@@ -71,6 +74,9 @@ export interface SupplierManualAdapterDeps {
     language: string;
     selection: SupplierManualFileSelection;
     sourceUrl?: string;
+    sourceRevision?: string;
+    revisionDate?: string;
+    publicationDate?: string;
   }) => Promise<SupplierAdapterResult<SupplierAdapterDownload>>;
 }
 
@@ -176,6 +182,9 @@ export function createManualAssistedSupplierAdapter(
           sourceProductId: document.sourceProductId,
           documentType: document.documentType,
           ...(sourceUrl ? { sourceUrl } : {}),
+          ...(document.sourceRevision ? { sourceRevision: document.sourceRevision } : {}),
+          ...(document.revisionDate ? { revisionDate: document.revisionDate } : {}),
+          ...(document.publicationDate ? { publicationDate: document.publicationDate } : {}),
           manualSourceSelection: document.selection,
         });
       }
@@ -199,6 +208,9 @@ export function createManualAssistedSupplierAdapter(
         language: document.language,
         selection: document.selection,
         ...(document.sourceUrl ? { sourceUrl: safeSupplierDocumentSourceUrl(document.sourceUrl) } : {}),
+        ...(document.sourceRevision ? { sourceRevision: document.sourceRevision } : {}),
+        ...(document.revisionDate ? { revisionDate: document.revisionDate } : {}),
+        ...(document.publicationDate ? { publicationDate: document.publicationDate } : {}),
       });
       if (result.status === "ok" || result.status === "partial") documentsAcquired.add(input.sourceDocumentId);
       if (result.status === "partial") gaps.add("item_failures");
