@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 20
-- Remaining: 136
-- Completion: 12.8%
-- Current task: V01-01.011 - Extend backup/restore for acquired binaries and metadata
+- Completed: 21
+- Remaining: 135
+- Completion: 13.5%
+- Current task: V01-01.012 - Supplier document foundation acceptance
 - Current status: IN PROGRESS
-- Next task: V01-01.012 - Supplier document foundation acceptance
+- Next task: V01-02.001 - Implement shared supplier adapter conformance harness
 - Required actor: CODEX
 - Branch: V01
 
@@ -132,8 +132,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-01.008 - Implement document revision and supersession lineage**: Detect same-document revisions by product identity plus revision/date/hash and link new records with supersedes without deleting historical evidence.
 - [x] **V01-01.009 - Implement acquisition job state machine**: Support queued, discovery, downloading, parsing, review-ready, completed-with-gaps, failed-item, cancelled, and resumed states at item/job level without global task blocking.
 - [x] **V01-01.010 - Implement resumable checkpoints and idempotency**: Resume catalog scans/downloads after interruption without duplicating products, documents, or audit records.
-- [~] **V01-01.011 - Extend backup/restore for acquired binaries and metadata**: Preserve hashes, document lineage, provider identities, reviews, and storage references; verify restore does not retarget historical links.
-- [ ] **V01-01.012 - Supplier document foundation acceptance**: Run storage, secret-leak, SSRF, redirect, malformed-file, duplicate, retry, supersession, backup/restore, and backward-compatibility tests.
+- [x] **V01-01.011 - Extend backup/restore for acquired binaries and metadata**: Preserve hashes, document lineage, provider identities, reviews, and storage references; verify restore does not retarget historical links.
+- [~] **V01-01.012 - Supplier document foundation acceptance**: Run storage, secret-leak, SSRF, redirect, malformed-file, duplicate, retry, supersession, backup/restore, and backward-compatibility tests.
 
 ## Milestone V01-02 - Supplier adapter framework and provider implementations
 
