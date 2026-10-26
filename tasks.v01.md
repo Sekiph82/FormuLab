@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 31
-- Remaining: 125
-- Completion: 19.9%
-- Current task: V01-02.010 - Implement Croda provider profile
+- Completed: 32
+- Remaining: 124
+- Completion: 20.5%
+- Current task: V01-02.011 - Implement Nouryon public SDS adapter
 - Current status: IN PROGRESS
-- Next task: V01-02.011 - Implement Nouryon public SDS adapter
+- Next task: V01-02.012 - Implement My Nouryon profile
 - Required actor: CODEX
 - Branch: V01
 
@@ -146,8 +146,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-02.007 - Implement Dow provider profile and SDS/technical-library adapter**: Support verified Dow public/document surfaces and manual-assisted fallback for unsupported scope. Preserve product, market, language, revision, source and hash.
 - [x] **V01-02.008 - Implement Clariant provider profile and Document Finder adapter**: Support public Document Finder and separate any authenticated ClariHub capability. Preserve business-unit/product-line scope.
 - [x] **V01-02.009 - Implement Evonik provider profile**: Support verified public/document surfaces and user-attended/manual-assisted routes for portal-only content.
-- [~] **V01-02.010 - Implement Croda provider profile**: Support Croda Home Care and other verified surfaces for product documents and formulation PDFs, with manual-assisted fallback.
-- [ ] **V01-02.011 - Implement Nouryon public SDS adapter**: Support public SDS discovery with honest product-family/market/language scope and distinguish no result from unscanned/inaccessible.
+- [x] **V01-02.010 - Implement Croda provider profile**: Support Croda Home Care and other verified surfaces for product documents and formulation PDFs, with manual-assisted fallback.
+- [~] **V01-02.011 - Implement Nouryon public SDS adapter**: Support public SDS discovery with honest product-family/market/language scope and distinguish no result from unscanned/inaccessible.
 - [ ] **V01-02.012 - Implement My Nouryon profile**: Support authorized account scope if technically and contractually available; otherwise complete the same task with a user-attended/manual-assisted route.
 - [ ] **V01-02.013 - Implement CHT public discovery profile**: Map public CHT technical/product surfaces and their limits.
 - [ ] **V01-02.014 - Implement myCHT authenticated profile**: Support authorized user-attended session based acquisition; if automation is not permitted, complete a guided manual-assisted workflow with equivalent provenance.
