@@ -585,6 +585,7 @@ export * from "./schemas/supplierDocument";
 export * from "./schemas/commercialProduct";
 export * from "./schemas/canonicalChemical";
 export * from "./schemas/chemicalIdentifiers";
+export * from "./schemas/chemicalNameNormalization";
 export * from "./schemas/supplierAcquisition";
 export * from "./schemas/supplierCoverage";
 export * from "./engine/connectorFingerprint";
