@@ -81,6 +81,8 @@ import type {
   RegulatoryRuleRevision,
   ReferenceFormulationRecord,
   ReferenceFormulationNormalizationVersion,
+  ReferenceFormulationImportJob,
+  ReferenceFormulationImportFile,
   ReferenceFormulationReview,
   ReverseFormulationStudy,
   BenchmarkProduct,
@@ -204,6 +206,8 @@ interface CollectionTypes {
   reference_formulations: ReferenceFormulationRecord;
   reference_formulation_reviews: ReferenceFormulationReview;
   reference_formulation_normalizations: ReferenceFormulationNormalizationVersion;
+  reference_formulation_import_jobs: ReferenceFormulationImportJob;
+  reference_formulation_import_files: ReferenceFormulationImportFile;
   supplier_acquisition_jobs: SupplierAcquisitionJob;
   supplier_acquisition_job_items: SupplierAcquisitionJobItem;
   process_parameters: ProcessParameter;
@@ -287,6 +291,15 @@ export async function appendReferenceFormulationNormalizationRecord(
   normalization: ReferenceFormulationNormalizationVersion,
 ): Promise<ReferenceFormulationNormalizationVersion> {
   return call<ReferenceFormulationNormalizationVersion>("append_reference_formulation_normalization", { normalization });
+}
+
+/** Store owner-selected PDF bytes by verified content hash in the project document store. */
+export async function storeSupplierDocumentPdf(
+  bytes: Uint8Array,
+  expectedSha256: string,
+): Promise<{ sha256: string; byte_size: number; relative_path: string; deduplicated: boolean }> {
+  if (!/^[a-f0-9]{64}$/i.test(expectedSha256)) throw new Error("Supplier document hash is invalid.");
+  return call("store_supplier_document_pdf", { bytes: Array.from(bytes), expectedSha256 });
 }
 
 export async function deleteRecord(collection: Collection, code: string): Promise<void> {

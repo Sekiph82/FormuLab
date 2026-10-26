@@ -53,11 +53,7 @@ export const supplierDocumentAcquisitionSchema = z.object({
     supplierItemCode: z.string().trim().min(1).optional(),
     tradeName: z.string().trim().min(1).optional(),
     grade: z.string().trim().min(1).optional(),
-  }).strict().superRefine((identity, context) => {
-    if (!identity.sourceProductId && !identity.supplierItemCode && !identity.tradeName && !identity.grade) {
-      context.addIssue({ code: "custom", message: "At least one original supplier product identifier is required." });
-    }
-  }),
+  }).strict(),
   market: z.string().trim().min(1),
   language: z.string().trim().min(1),
   /** Printed by the supplier when available; ordering is never inferred from an opaque label. */
@@ -82,6 +78,11 @@ export const supplierDocumentAcquisitionSchema = z.object({
   acquiredAt: z.string().datetime({ offset: true }),
   createdAt: z.string().datetime({ offset: true }),
 }).strict().superRefine((record, context) => {
+  if (record.documentType !== "FORMULATION"
+    && !record.sourceProduct.sourceProductId && !record.sourceProduct.supplierItemCode
+    && !record.sourceProduct.tradeName && !record.sourceProduct.grade) {
+    context.addIssue({ code: "custom", path: ["sourceProduct"], message: "Non-formulation acquisitions require an original supplier product identifier." });
+  }
   if (record.supersedesCode && record.supersedesCode === record.code) {
     context.addIssue({ code: "custom", path: ["supersedesCode"], message: "An acquisition cannot supersede itself." });
   }

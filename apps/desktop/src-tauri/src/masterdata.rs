@@ -385,6 +385,10 @@ const COLLECTIONS: [(&str, bool); 103] = [
     ("reference_formulation_reviews", true),
     // Versioned product/chemistry links remain separate from original source lines.
     ("reference_formulation_normalizations", true),
+    // Bulk source ingestion progress is mutable operational state; source documents,
+    // acquisitions, and extracted formulation snapshots remain in their own records.
+    ("reference_formulation_import_jobs", false),
+    ("reference_formulation_import_files", false),
     // Supplier discovery/download work is mutable operational state. The
     // immutable acquired-document evidence remains in its separate collection.
     ("supplier_acquisition_jobs", false),

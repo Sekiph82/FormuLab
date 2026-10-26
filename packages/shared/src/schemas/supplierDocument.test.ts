@@ -75,6 +75,9 @@ describe("supplierDocumentAcquisitionSchema — immutable source receipt", () =>
 
   it("requires a source product identity and a safe basename", () => {
     expect(() => supplierDocumentAcquisitionSchema.parse({ ...validRecord, sourceProduct: {} })).toThrow(/supplier product identifier/);
+    expect(supplierDocumentAcquisitionSchema.parse({
+      ...validRecord, documentType: "FORMULATION", sourceProduct: {},
+    }).sourceProduct).toEqual({});
     expect(() => supplierDocumentAcquisitionSchema.parse({ ...validRecord, originalFilename: "../../secrets.pdf" })).toThrow(/safe basename/);
   });
 

@@ -15,9 +15,8 @@ use tauri::AppHandle;
 const MAX_PDF_BYTES: usize = 100 * 1024 * 1024;
 const STORE_RELATIVE_ROOT: &str = "supplier-documents/sha256";
 
-#[allow(dead_code)] // Returned to V01-02 provider code for linking acquisition records to stored blobs.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StoredSupplierPdf {
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct StoredSupplierPdf {
     pub sha256: String,
     pub byte_size: u64,
     /// Relative to the project `data/` root; it never contains user input.
@@ -147,6 +146,25 @@ pub(crate) fn store_pdf_for_app(
 ) -> Result<StoredSupplierPdf, String> {
     let data_root = crate::formulation_v2::project_data_dir(app, "data")?;
     store_pdf_bytes(&data_root, bytes, expected_sha256)
+}
+
+/// Store owner-selected formulation PDFs through the same content-addressed
+/// boundary used for provider downloads. No renderer-supplied path is accepted.
+#[tauri::command(async)]
+pub async fn store_supplier_document_pdf(
+    app: AppHandle,
+    token: String,
+    bytes: Vec<u8>,
+    expected_sha256: String,
+) -> Result<StoredSupplierPdf, String> {
+    const WRITE_CAPABILITIES: [&str; 2] = ["create", "edit"];
+    crate::authz::authorize_any_app(&app, &token, "formulation", &WRITE_CAPABILITIES)?;
+    let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        store_pdf_bytes(&data_root, &bytes, Some(&expected_sha256))
+    })
+    .await
+    .map_err(|_| "supplier document storage failed".to_string())?
 }
 
 /// Read a blob only by its validated content identity and verify it again on

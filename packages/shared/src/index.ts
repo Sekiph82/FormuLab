@@ -693,6 +693,7 @@ export * from "./engine/referenceFormulationProcedureExtraction";
 export * from "./schemas/referenceFormulationProcessNormalization";
 export * from "./schemas/referenceFormulationTargetNormalization";
 export * from "./schemas/referenceFormulationQuery";
+export * from "./schemas/referenceFormulationBulkImport";
 export * from "./engine/referenceFormulationIndex";
 export * from "./engine/referenceFormulationTargetExtraction";
 export * from "./engine/referenceFormulationProductMatching";
