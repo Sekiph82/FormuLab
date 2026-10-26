@@ -1,4 +1,5 @@
 import { detectSupplierSdsSections, type SupplierSdsSectionDetectionResult, type SupplierSdsSectionLine } from "./supplierSdsSectionDetection";
+import { createSupplierSdsMeasurementContext, type SupplierSdsMeasurementContext } from "./supplierSdsMeasurementContext";
 
 export const SUPPLIER_SDS_SECTION9_PARSER_VERSION = "formulab-sds-section9-v1";
 
@@ -42,6 +43,7 @@ export interface SupplierSdsPhysicalPropertyCandidate {
   rawValue: string;
   extractionMethod: "explicit_label" | "explicit_property_code";
   evidence: SupplierSdsPhysicalPropertyEvidence[];
+  measurementContext: SupplierSdsMeasurementContext;
   reviewRequired: true;
 }
 
@@ -129,7 +131,8 @@ function evidence(hash: string, line: SupplierSdsSectionLine): SupplierSdsPhysic
 }
 
 function candidate(field: SupplierSdsPhysicalPropertyField, rawValue: string, evidenceLines: SupplierSdsSectionLine[], hash: string, extractionMethod: SupplierSdsPhysicalPropertyCandidate["extractionMethod"]): SupplierSdsPhysicalPropertyCandidate {
-  return { field, rawValue, extractionMethod, evidence: evidenceLines.map((line) => evidence(hash, line)), reviewRequired: true };
+  const item = { field, rawValue, extractionMethod, evidence: evidenceLines.map((line) => evidence(hash, line)) };
+  return { ...item, measurementContext: createSupplierSdsMeasurementContext(item), reviewRequired: true };
 }
 
 function isSubsectionHeading(line: SupplierSdsSectionLine): boolean {

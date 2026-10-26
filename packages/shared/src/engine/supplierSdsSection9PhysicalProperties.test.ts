@@ -39,6 +39,12 @@ describe("supplier SDS Section 9 physical-property extraction", () => {
       ["partition_coefficient", "3.2"], ["viscosity", "120 mPa·s at 25 °C"], ["molecular_weight", "58.08 g/mol"],
     ]);
     expect(result.candidates.every((candidate) => candidate.reviewRequired && candidate.evidence[0]?.sectionNumber === 9)).toBe(true);
+    expect(result.candidates.find(({ field }) => field === "ph")?.measurementContext).toMatchObject({
+      originalText: "5.0–6.0 (10% solution, 20 °C)",
+      normalizedValue: { status: "range_normalized", lowerBound: 5, upperBound: 6 },
+      temperature: { value: 20, unit: "°C" },
+      sampleConcentration: { value: 10, basis: "percent" },
+    });
     expect(result.warnings).toContain("human_review_required");
   });
 

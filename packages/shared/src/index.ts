@@ -600,6 +600,7 @@ export * from "./engine/supplierSdsSection3CompositionExtraction";
 export * from "./engine/supplierSdsSection7StorageHandling";
 export * from "./engine/supplierSdsSection8ExposureExtraction";
 export * from "./engine/supplierSdsSection9PhysicalProperties";
+export * from "./engine/supplierSdsMeasurementContext";
 export * from "./engine/dowSupplierAdapter";
 export * from "./engine/clariantSupplierAdapter";
 export * from "./engine/evonikSupplierAdapter";
