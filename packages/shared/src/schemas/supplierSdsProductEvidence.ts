@@ -16,6 +16,7 @@ export const supplierSdsSection1ProductEvidenceSchema = z.object({
   chemicalNature: supplierSdsCitedFactSchema.optional(),
   casNumber: supplierSdsCitedFactSchema.optional(),
   ecNumber: supplierSdsCitedFactSchema.optional(),
+  materialNumber: supplierSdsCitedFactSchema.optional(),
   productDescription: supplierSdsCitedFactSchema.optional(),
 }).strict();
 
@@ -29,6 +30,7 @@ export const supplierSdsSection3CompositionEvidenceSchema = z.object({
     componentName: supplierSdsCitedFactSchema.optional(),
     casNumber: supplierSdsCitedFactSchema.optional(),
     ecNumber: supplierSdsCitedFactSchema.optional(),
+    materialNumber: supplierSdsCitedFactSchema.optional(),
     concentration: supplierSdsCitedFactSchema.optional(),
     disclosure: z.enum(["disclosed", "trade_secret", "withheld", "unknown"]).default("unknown"),
   }).strict()).default([]),
@@ -59,6 +61,7 @@ export const supplierSdsProductEvidenceSchema = z.object({
     record.section1.chemicalNature?.id,
     record.section1.casNumber?.id,
     record.section1.ecNumber?.id,
+    record.section1.materialNumber?.id,
     record.section1.productDescription?.id,
   ].filter((id): id is string => id !== undefined);
   const section1Facts = new Set(section1FactIds);
@@ -72,6 +75,7 @@ export const supplierSdsProductEvidenceSchema = z.object({
       component.componentName?.id,
       component.casNumber?.id,
       component.ecNumber?.id,
+      component.materialNumber?.id,
       component.concentration?.id,
     ]),
   ].filter((id): id is string => id !== undefined);
@@ -121,11 +125,13 @@ export const supplierSdsProductEvidenceSchema = z.object({
       const linkedSection1Fact = [
         record.section1.casNumber,
         record.section1.ecNumber,
+        record.section1.materialNumber,
         record.section1.declaredChemicalName,
         record.section1.chemicalNature,
         record.section1.productDescription,
       ].find((fact) => fact?.id === reconciliation.section1FactId);
       const componentFacts = [component?.componentName, component?.casNumber, component?.ecNumber,
+        component?.materialNumber,
         ...(reconciliation.basis === "human_review" ? [component?.concentration] : [])]
         .filter((fact): fact is SupplierSdsCitedFact => fact !== undefined);
       const requiredRefs = [
@@ -147,7 +153,7 @@ export function reconcileSection1WithSection3Component(
   section1: Section1ProductEvidence,
   component: Section3ComponentEvidence,
 ): z.infer<typeof supplierSdsSectionReconciliationSchema> {
-  const section1FactId = section1.casNumber?.id ?? section1.ecNumber?.id ?? section1.declaredChemicalName?.id
+  const section1FactId = section1.casNumber?.id ?? section1.ecNumber?.id ?? section1.materialNumber?.id ?? section1.declaredChemicalName?.id
     ?? section1.chemicalNature?.id ?? section1.productDescription?.id;
   if (!section1FactId) throw new Error("Section 1 identity evidence is required for explicit reconciliation.");
   const compared: Array<{ kind: "exact_cas" | "exact_ec"; left?: SupplierSdsCitedFact; right?: SupplierSdsCitedFact; equal: boolean; valid: boolean }> = [];
@@ -166,15 +172,17 @@ export function reconcileSection1WithSection3Component(
       valid: normalizedLeft.ok && normalizedRight.ok,
     });
   }
-  const linkedSection1Fact = [section1.casNumber, section1.ecNumber, section1.declaredChemicalName,
+  const linkedSection1Fact = [section1.casNumber, section1.ecNumber, section1.materialNumber, section1.declaredChemicalName,
     section1.chemicalNature, section1.productDescription].find((fact) => fact?.id === section1FactId);
   const evidenceRefs = [...new Set([
     linkedSection1Fact,
     section1.casNumber,
     section1.ecNumber,
+    section1.materialNumber,
     component.componentName,
     component.casNumber,
     component.ecNumber,
+    component.materialNumber,
   ].flatMap((fact) => fact?.evidenceRefs ?? []))];
   const conflicting = compared.some((item) => item.valid && !item.equal);
   const invalid = compared.some((item) => !item.valid);

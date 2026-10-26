@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 64
-- Remaining: 92
-- Completion: 41.0%
-- Current task: V01-04.009 - Implement polymer resolver
+- Completed: 65
+- Remaining: 91
+- Completion: 41.7%
+- Current task: V01-04.010 - Implement multicomponent blend resolver
 - Current status: IN PROGRESS
-- Next task: V01-04.010 - Implement multicomponent blend resolver
+- Next task: V01-04.011 - Implement proprietary/partial disclosure resolver
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Acceptance note: V01-04.001 adds the independent commercial-product identity schema and passes focused tests, shared typecheck, task-state validation, and read-only review. No canonical chemistry is assigned in this identity record.
 - Acceptance note: V01-04.002 adds a provenance-backed canonical chemical schema with stable opaque IDs and distinct chemical/functional families. Focused tests, shared typecheck, and read-only review passed; CAS/EC values remain unnormalized for V01-04.003.
@@ -113,6 +113,7 @@ Codex must execute the tasks below in the exact order listed.
 - Acceptance note: V01-04.006 preserves Section 1 product facts and Section 3 composition as separate source-backed records; reconciliation is explicit, exact CAS/EC outcomes are revalidated, and unresolved/conflicting evidence remains visible. Focused tests, shared typecheck, and read-only review passed.
 - Acceptance note: V01-04.007 proposes a canonical candidate only with a cited pure/near-pure classification, one disclosed component, explicit majority (>50%) concentration from the linked raw `% w/w` evidence, validated Section 1/3 identifiers, and one matching canonical record. It never mutates source/master data and always requires human review; focused tests, typecheck, and read-only review passed.
 - Acceptance note: V01-04.008 resolves a solution's reviewed, source-linked solute and carrier separately, stores exact or ranged source `% w/w` concentration without converting it to active matter, and retains source record/reviewer/disclosure lineage. Focused tests, typecheck, and read-only review passed.
+- Acceptance note: V01-04.009 adds a separate provenance-backed canonical polymer model and resolves only explicit polymer evidence through shared CAS/EC/material-number identifiers. Polymer properties and monomer references remain separate from small-molecule identities; conflicting identifiers stay unresolved and candidates require human review. Focused tests, typecheck, and read-only review passed.
 - Required actor: CODEX
 - Branch: V01
 
@@ -194,8 +195,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-04.006 - Implement Section 1 vs Section 3 evidence separation**: Store product-level chemical description separately from component-level composition and reconcile only through explicit resolver logic.
 - [x] **V01-04.007 - Implement single/near-pure component resolver**: Resolve products to canonical chemistry when Section 1/3 identifiers and concentration evidence support one dominant identity.
 - [x] **V01-04.008 - Implement solution resolver**: Represent a known solute in solvent/carrier without pretending the concentration range is exact or automatically active matter.
-- [~] **V01-04.009 - Implement polymer resolver**: Support polymers/crosspolymers/macromolecular materials, canonical polymer identity, material number/CAS, and polymer-specific properties without forcing small-molecule assumptions.
-- [ ] **V01-04.010 - Implement multicomponent blend resolver**: Represent each disclosed component, concentration/range, known remainder and unknown remainder; never flatten blends into one false chemical.
+- [x] **V01-04.009 - Implement polymer resolver**: Support polymers/crosspolymers/macromolecular materials, canonical polymer identity, material number/CAS, and polymer-specific properties without forcing small-molecule assumptions.
+- [~] **V01-04.010 - Implement multicomponent blend resolver**: Represent each disclosed component, concentration/range, known remainder and unknown remainder; never flatten blends into one false chemical.
 - [ ] **V01-04.011 - Implement proprietary/partial disclosure resolver**: Preserve trade-secret/withheld/generic-family evidence and classify PARTIAL, AMBIGUOUS or UNKNOWN rather than fabricating composition.
 - [ ] **V01-04.012 - Implement confidence-state engine**: Use EXACT, HIGH_CONFIDENCE, PARTIAL, AMBIGUOUS and UNKNOWN with machine-readable reasons, supporting evidence and deterministic rules.
 - [ ] **V01-04.013 - Implement composition-fraction model**: Store exact/range component fraction separately from product concentration, solids, assay, active matter and formulation contribution.
