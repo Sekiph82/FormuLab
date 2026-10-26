@@ -1695,6 +1695,16 @@ mod tests {
         std::fs::create_dir_all(source_root.join("data/master")).unwrap();
         let metadata_path = source_root.join("data/master/supplier_document_acquisitions.json");
         std::fs::write(&metadata_path, &metadata).unwrap();
+        let corpus_metadata: [(&str, &[u8]); 5] = [
+            ("reference_formulations.json", br#"[{"id":"reference-formula-1","sourceDocumentHash":"source-hash"}]"#),
+            ("reference_formulation_normalizations.json", br#"[{"id":"normalization-1","sourceDocumentHash":"source-hash"}]"#),
+            ("reference_formulation_reviews.json", br#"[{"id":"review-1","sourceDocumentHash":"source-hash"}]"#),
+            ("supplier_sds_product_evidence.json", br#"[{"id":"sds-evidence-1","acquisitionCode":"supplierdoc-current"}]"#),
+            ("external_id_crosswalks.json", br#"[{"id":"crosswalk-1","sourceId":"supplier-product-1"}]"#),
+        ];
+        for (name, bytes) in corpus_metadata {
+            std::fs::write(source_root.join("data/master").join(name), bytes).unwrap();
+        }
 
         let source_roots = RootPaths {
             project_root: source_root.clone(),
@@ -1702,7 +1712,7 @@ mod tests {
             base_root: source_root.clone(),
         };
         let (files, warnings) = collect_included(&source_roots).unwrap();
-        assert_eq!(files.len(), 2);
+        assert_eq!(files.len(), 7);
         let mut manifest = base_manifest();
         manifest.warnings = warnings;
         let mut package_contents = Vec::<(String, Vec<u8>)>::new();
@@ -1750,7 +1760,7 @@ mod tests {
             staged.push((entry.path.clone(), live));
         }
         let restored_paths = activate_staged_files(&staged, &staging).unwrap();
-        assert_eq!(restored_paths.len(), 2);
+        assert_eq!(restored_paths.len(), 7);
         assert_eq!(std::fs::read(restore_root.join(format!(
             "data/supplier-documents/sha256/{}/{}.pdf", &digest[..2], digest
         ))).unwrap(), pdf_bytes);
@@ -1758,6 +1768,9 @@ mod tests {
             std::fs::read(restore_root.join("data/master/supplier_document_acquisitions.json")).unwrap(),
             metadata
         );
+        for (name, bytes) in corpus_metadata {
+            assert_eq!(std::fs::read(restore_root.join("data/master").join(name)).unwrap(), bytes);
+        }
 
         let _ = std::fs::remove_dir_all(&source_root);
         let _ = std::fs::remove_dir_all(&restore_root);

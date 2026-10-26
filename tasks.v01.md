@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 102
-- Remaining: 54
-- Completion: 65.4%
-- Current task: V01-06.013 - Implement corpus backup/restore and index rebuild
+- Completed: 103
+- Remaining: 53
+- Completion: 66.0%
+- Current task: V01-06.014 - Corpus ingestion acceptance
 - Current status: IN PROGRESS
-- Next task: V01-06.014 - Corpus ingestion acceptance
+- Next task: V01-07.001 - Implement reviewed-corpus eligibility filter
+- Acceptance note: V01-06.013 confirms the existing project backup includes immutable source/acquisition/SDS/normalization/review/crosswalk JSON and hash-addressed PDF bytes, with byte-identical restoration coverage. It adds deterministic query-projection/index rebuilding from restored source and latest normalization snapshots, validates source/history/SDS identities, rejects orphan or duplicate evidence IDs, and performs no writes. Fixed two Rust compile defects that blocked the focused backup run. Focused desktop tests (7), shared/desktop typechecks, Rust backup round-trip test (1), `git diff --check`, tracker validation, and independent review passed. Rust test used a temporary Tauri config to omit the missing packaged uv executable; bundle/release validation not performed. Full regression not run.
 - Acceptance note: V01-06.012 extends the existing review page with immutable normalization-version traces for every source formula line and component contribution. The data service joins each line to its exact source record/hash and each SDS contribution to its persisted evidence record, Section 3 component/fact, acquisition and matching document hash; it rejects duplicate IDs and mismatched formulation/SDS suppliers. The UI shows candidate-only chemistry/product/function links, formula amounts, contribution ranges, disclosure, citations, and explicit unknown/missing evidence without changing RawMaterial or production formulas. Focused desktop tests (10), shared/desktop typechecks, `git diff --check`, V01 tracker validation, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-06.011 adds backward-compatible, evidence-bearing per-use rights and retention metadata; missing permissions and retention fail closed, public availability alone grants no reuse, source export additionally requires redistribution permission, expiry and delete-after-use are enforced. Supplier concentration reports share, HHI and effective supplier count without inventing a cutoff; prior candidates are rights-filtered by same/cross-supplier use and weighted equally per eligible supplier with deterministic ordering. Focused shared tests (5), shared/desktop typechecks, `git diff --check`, V01 tracker validation, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-06.010 adds a deterministic quality report over the latest normalization snapshot per immutable source formula, with a 2,000-formula target, product-family coverage, supplier distribution, candidate-only resolved/unresolved/ambiguous line rates, source-line evidence coverage, parser-confidence mean and sample coverage, as-of revision age, and source-field review completion. Unknown confidence is excluded rather than treated as zero; future, missing and ambiguous/unparseable revision dates remain separate. Unique normalization candidate IDs, process steps/conditions, and targets that still require review are counted separately from source-field review completion. The report validates source/hash lineage, duplicate versions/reviews, denominators and metric consistency. Focused shared tests (7), shared and desktop typechecks, `git diff --check`, independent read-only review, and tracker validation passed. Full regression not run.
@@ -276,8 +277,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-06.010 - Implement 2,000-formula corpus quality metrics**: Report product-family coverage, supplier distribution, resolved-line rate, unresolved-line rate, evidence coverage, parser confidence, revision age and review completion.
 - [x] **V01-06.011 - Implement supplier-bias and rights metadata**: Track supplier dominance and source-use/retention/reuse constraints so priors and exports can respect both bias and rights.
 - [x] **V01-06.012 - Implement corpus review UI/data service**: Allow tracing every normalized line and contribution back to source formulation and SDS evidence.
-- [~] **V01-06.013 - Implement corpus backup/restore and index rebuild**: Preserve immutable source identities, mappings, reviews and evidence; rebuild derived indexes deterministically after restore.
-- [ ] **V01-06.014 - Corpus ingestion acceptance**: Ingest a multi-supplier fixture corpus, verify deterministic normalization/indexing, unresolved handling, deduplication, restore and no production-formula side effects.
+- [x] **V01-06.013 - Implement corpus backup/restore and index rebuild**: Preserve immutable source identities, mappings, reviews and evidence; rebuild derived indexes deterministically after restore.
+- [~] **V01-06.014 - Corpus ingestion acceptance**: Ingest a multi-supplier fixture corpus, verify deterministic normalization/indexing, unresolved handling, deduplication, restore and no production-formula side effects.
 
 ## Milestone V01-07 - Reference formulation intelligence
 

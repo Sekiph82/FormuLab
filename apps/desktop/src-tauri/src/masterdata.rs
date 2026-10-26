@@ -133,7 +133,7 @@ static SUPPLIER_SDS_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 103] = [
+const COLLECTIONS: [(&str, bool); 105] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -1022,10 +1022,9 @@ fn validate_normalization_version(
         if !seen_ids.insert(line_id) {
             return Err("normalization may reference each source line only once".to_string());
         }
-        let source_line_exists = source_lines.iter().any(|candidate| candidate["id"].as_str() == Some(line_id));
-        if !source_line_exists {
-            return Err("normalization line does not exist in the immutable source".to_string());
-        }
+        let source_line = source_lines.iter()
+            .find(|candidate| candidate["id"].as_str() == Some(line_id))
+            .ok_or_else(|| "normalization line does not exist in the immutable source".to_string())?;
         let match_record = product_matches.iter()
             .find(|candidate| candidate["ingredientLineId"].as_str() == Some(line_id))
             .ok_or_else(|| "source product match for a line is missing".to_string())?;

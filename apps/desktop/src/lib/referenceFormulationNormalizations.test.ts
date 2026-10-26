@@ -17,7 +17,7 @@ import {
 import { supplierDocumentAcquisitionSchema } from "@formulab/shared";
 import { createReferenceFormulationSource } from "@formulab/shared";
 import { createReferenceFormulationRecord } from "@formulab/shared";
-import { appendReferenceFormulationNormalization, listReferenceFormulationNormalizations } from "./referenceFormulationNormalizations";
+import { appendReferenceFormulationNormalization, listReferenceFormulationNormalizations, rebuildReferenceFormulationCorpusIndex } from "./referenceFormulationNormalizations";
 import { createReferenceFormulationNormalizationVersion } from "@formulab/shared";
 import { appendReferenceFormulationNormalizationRecord, listRecords } from "./masterdata";
 import { getReferenceFormulationCorpusReviewData } from "./referenceFormulationCorpusReview";
@@ -42,7 +42,7 @@ const commercialProduct: CommercialProduct = {
   aliases: [], sourceDocumentCodes: [], sourceFormulationReferences: [], lifecycleStatus: "active", reviewStatus: "unreviewed",
 };
 
-function sourceRecord(products: CommercialProduct[] = []) {
+function sourceRecord(products: CommercialProduct[] = [], recordId = "normalization-source-record") {
   const source = createReferenceFormulationSource({
     id: "normalization-source", acquisition: acquisition(), title: "Example formula", parserVersion: "formulab-reference-formulation-layout-v1",
     rights: { status: "unknown", redistribution: "unknown", evidenceRefs: [] }, createdAt: "2026-10-26T08:01:00.000Z",
@@ -65,7 +65,7 @@ function sourceRecord(products: CommercialProduct[] = []) {
   const productMatches = matchReferenceFormulationProducts({ source, lines: ingredientResult.lines, products });
   const unresolved = buildReferenceFormulationUnresolvedQueue({ source, lines: ingredientResult.lines, matching: productMatches, products });
   return createReferenceFormulationRecord({
-    id: "normalization-source-record", code: "normalization-source-record", source,
+    id: recordId, code: recordId, source,
     identityCandidates: identity.candidates, identityMetadataComparisons: identity.metadataComparisons, identityWarnings: identity.warnings,
     ingredientLines: ingredientResult.lines, arithmetic, procedureSteps: procedure.steps, procedureWarnings: procedure.warnings,
     targetCandidates: targets.candidates, targetWarnings: targets.warnings,
@@ -251,5 +251,32 @@ describe("reference formulation normalization persistence", () => {
       : collection === "supplier_sds_product_evidence" ? [sds] as never
       : collection === "supplier_document_acquisitions" ? [{ ...sdsAcquisition, sha256: "d".repeat(64) }] as never : [] as never);
     await expect(getReferenceFormulationCorpusReviewData(source.id)).rejects.toThrow(/matching acquired SDS hash/);
+  });
+
+  it("rebuilds query records and postings deterministically from restored immutable records", async () => {
+    const first = sourceRecord([], "restored-source-a");
+    const second = sourceRecord([], "restored-source-b");
+    const sdsEvidence = supplierSdsProductEvidenceRecordSchema.parse({
+      schemaVersion: "1.0", code: "restored-sds-evidence", acquisitionCode: "restored-sds-acquisition", extractionStatus: "unreviewed",
+      createdAt: "2026-10-26T10:00:00.000Z",
+      evidence: supplierSdsProductEvidenceSchema.parse({
+        schemaVersion: "1.0", id: "restored-sds-evidence", commercialProductId: "restored-product",
+        section1: { sectionNumber: 1, sourceDocumentHash: HASH },
+        section3: { sectionNumber: 3, sourceDocumentHash: HASH, components: [] },
+      }),
+    });
+    let sourceRows = [first, second];
+    let sdsRows = [sdsEvidence];
+    vi.mocked(listRecords).mockImplementation(async (collection) => collection === "reference_formulations"
+      ? sourceRows as never : collection === "supplier_sds_product_evidence" ? sdsRows as never : [] as never);
+    const rebuilt = await rebuildReferenceFormulationCorpusIndex();
+    sourceRows = [second, first];
+    const restored = await rebuildReferenceFormulationCorpusIndex();
+    expect(rebuilt).toEqual(restored);
+    expect(rebuilt.queryRecords.map((record) => record.sourceRecordId)).toEqual(["restored-source-a", "restored-source-b"]);
+    expect(rebuilt.index.queryRecordIds).toEqual(rebuilt.queryRecords.map((record) => record.id).sort());
+    expect(rebuilt.index.schemaVersion).toBe("formulab-reference-formulation-local-index-v1");
+    sdsRows = [sdsEvidence, { ...sdsEvidence, acquisitionCode: "duplicate-sds-acquisition" }];
+    await expect(rebuildReferenceFormulationCorpusIndex()).rejects.toThrow(/duplicate immutable SDS evidence IDs/);
   });
 });

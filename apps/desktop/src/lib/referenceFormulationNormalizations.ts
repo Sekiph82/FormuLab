@@ -1,4 +1,6 @@
 import {
+  buildReferenceFormulationLocalIndex,
+  createReferenceFormulationQueryRecord,
   createReferenceFormulationNormalizationVersion,
   referenceFormulationNormalizationVersionSchema,
   referenceFormulationRecordSchema,
@@ -14,6 +16,8 @@ import {
   validateReferenceFormulationTargetNormalizationAgainstSource,
   supplierSdsProductEvidenceRecordSchema,
   type SupplierSdsProductEvidenceRecord,
+  type ReferenceFormulationQueryRecord,
+  type ReferenceFormulationLocalIndex,
 } from "@formulab/shared";
 import { appendReferenceFormulationNormalizationRecord, listRecords, nowIso } from "./masterdata";
 
@@ -35,6 +39,53 @@ export async function listReferenceFormulationNormalizations(
     .sort((left, right) => left.version - right.version);
   validateNormalizationHistory(parsedSource, linkedVersions, sdsEvidence.map((record) => supplierSdsProductEvidenceRecordSchema.parse(record)));
   return linkedVersions;
+}
+
+/** Rebuild query projections and deterministic postings from restored immutable source and normalization records. */
+export async function rebuildReferenceFormulationCorpusIndex(): Promise<{
+  queryRecords: ReferenceFormulationQueryRecord[];
+  index: ReferenceFormulationLocalIndex;
+}> {
+  const [sourceRows, versionRows, sdsRows] = await Promise.all([
+    listRecords("reference_formulations"),
+    listRecords("reference_formulation_normalizations"),
+    listRecords("supplier_sds_product_evidence"),
+  ]);
+  const sources = sourceRows.map((record) => referenceFormulationRecordSchema.parse(record))
+    .sort((left, right) => compareStable(left.id, right.id));
+  if (new Set(sources.map((source) => source.id)).size !== sources.length) {
+    throw new Error("Corpus index rebuild cannot contain duplicate immutable source record IDs.");
+  }
+  const sourceById = new Map(sources.map((source) => [source.id, source]));
+  const versions = versionRows.map((record) => referenceFormulationNormalizationVersionSchema.parse(record));
+  if (new Set(versions.map((version) => version.id)).size !== versions.length) {
+    throw new Error("Corpus index rebuild cannot contain duplicate normalization version IDs.");
+  }
+  const versionsBySource = new Map<string, ReferenceFormulationNormalizationVersion[]>();
+  for (const version of versions) {
+    if (!sourceById.has(version.referenceFormulationRecordId)) {
+      throw new Error("Corpus index rebuild found a normalization version without its immutable source record.");
+    }
+    const sourceVersions = versionsBySource.get(version.referenceFormulationRecordId) ?? [];
+    sourceVersions.push(version);
+    versionsBySource.set(version.referenceFormulationRecordId, sourceVersions);
+  }
+  const sdsEvidence = sdsRows.map((record) => supplierSdsProductEvidenceRecordSchema.parse(record));
+  if (new Set(sdsEvidence.map((record) => record.code)).size !== sdsEvidence.length) {
+    throw new Error("Corpus index rebuild cannot contain duplicate immutable SDS evidence IDs.");
+  }
+  const queryRecords = sources.map((source) => {
+    const history = (versionsBySource.get(source.id) ?? []).sort((left, right) => left.version - right.version);
+    validateNormalizationHistory(source, history, sdsEvidence);
+    const latest = history[history.length - 1] ?? createReferenceFormulationNormalizationVersion({
+      id: `derived-normalization:${source.id}:${source.sourceDocumentHash}`,
+      source,
+      version: 1,
+      createdAt: source.createdAt,
+    });
+    return createReferenceFormulationQueryRecord({ source, normalization: latest });
+  });
+  return { queryRecords, index: buildReferenceFormulationLocalIndex(queryRecords) };
 }
 
 /** Append a new candidate-only normalization version without modifying the source formula or RawMaterial. */
@@ -117,4 +168,8 @@ function validateNormalizationHistory(
       throw new Error("Normalization versions must form one unbroken append-only predecessor chain.");
     }
   });
+}
+
+function compareStable(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
