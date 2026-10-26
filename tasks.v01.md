@@ -98,20 +98,20 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 1
-- Remaining: 155
-- Completion: 0.6%
-- Current task: V01-00.002 - Freeze no-duplication architecture boundaries
+- Completed: 2
+- Remaining: 154
+- Completion: 1.3%
+- Current task: V01-00.003 - Inventory current material and document schemas
 - Current status: IN PROGRESS
-- Next task: V01-00.003 - Inventory current material and document schemas
+- Next task: V01-00.004 - Inventory current formulation generation inputs
 - Required actor: CODEX
 - Branch: V01
 
 ## Milestone V01-00 - Baseline audit and reuse map
 
 - [x] **V01-00.001 - Audit the existing FVL-04 connector/data-exchange foundation**: Verify SourceConnector, FILE, REST_API, schema discovery, mapping profiles, crosswalk, transformations, incremental re-import, Connector -> Data Exchange bridge, material_documents, backup/restore, and production UI paths. Produce a code-level reuse map before adding new authorities.
-- [~] **V01-00.002 - Freeze no-duplication architecture boundaries**: Document in code comments/tests which existing FVL-04 authorities must be extended rather than duplicated. Add architectural regression tests where practical.
-- [ ] **V01-00.003 - Inventory current material and document schemas**: Identify reusable RawMaterial, Supplier, MaterialDocument, attachment/blob, audit, approval, verification, and provenance fields plus exact gaps for V01.
+- [x] **V01-00.002 - Freeze no-duplication architecture boundaries**: Document in code comments/tests which existing FVL-04 authorities must be extended rather than duplicated. Add architectural regression tests where practical.
+- [~] **V01-00.003 - Inventory current material and document schemas**: Identify reusable RawMaterial, Supplier, MaterialDocument, attachment/blob, audit, approval, verification, and provenance fields plus exact gaps for V01.
 - [ ] **V01-00.004 - Inventory current formulation generation inputs**: Trace the deterministic zero-LLM generator, material library, safety, regulatory, compatibility, cost, availability, process, ranking, and evidence paths that reference intelligence may later enrich.
 - [ ] **V01-00.005 - Inventory current persisted collections and backup coverage**: List every new or extended V01 collection that will require backup/restore and migration compatibility.
 - [ ] **V01-00.006 - Define V01 terminology and identity vocabulary**: Define supplier, provider, surface, commercial product, grade, trade name, supplier product code, canonical chemical, component, blend, source formula, reference formula, normalized formula, evidence claim, and review decision.
