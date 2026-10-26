@@ -17,6 +17,7 @@ import { createReferenceFormulationSource, referenceFormulationSourceSchema } fr
 import { createReferenceFormulationRecord, referenceFormulationRecordSchema } from "./referenceFormulationRecord";
 import { createReferenceFormulationNormalizationVersion } from "./referenceFormulationNormalization";
 import { validateReferenceFormulationFunctionNormalizationAgainstSource } from "./referenceFormulationFunction";
+import { createReferenceFormulationQueryRecord, referenceFormulationQueryRecordSchema } from "./referenceFormulationQuery";
 
 const HASH = "a".repeat(64);
 const acquisition = () => supplierDocumentAcquisitionSchema.parse({
@@ -237,5 +238,77 @@ describe("reference formulation record schema", () => {
     expect(() => referenceFormulationRecordSchema.parse({
       ...consistentSnapshot, identityMetadataComparisons: [{ ...comparison, extractedValues: [] }],
     })).toThrow();
+  });
+
+  it("builds a candidate-only query projection across source identity, lines, process and targets", () => {
+    const base = generatedRecord();
+    const source = referenceFormulationRecordSchema.parse({
+      ...base,
+      identityCandidates: [...base.identityCandidates, {
+        field: "product_family",
+        rawValue: "Hand Dishwash",
+        extractionMethod: "labeled_field",
+        evidence: [{ sourceDocumentHash: HASH, pageNumber: 1, blockIndex: 0, excerpt: "Product family: Hand Dishwash", source: "digital" }],
+        reviewRequired: true,
+      }],
+    });
+    const lineId = source.ingredientLines[0]!.id;
+    const contribution = createReferenceFormulationContribution({ source, sourceFormulaLineId: lineId });
+    const normalization = createReferenceFormulationNormalizationVersion({
+      id: "normalization-query-v1", source, version: 1,
+      canonicalChemicalCandidates: { [lineId]: ["chemical-candidate-1"] },
+      canonicalFunctionCandidates: { [lineId]: ["anionic_surfactant"] },
+      componentContributions: { [lineId]: [contribution] },
+      createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    const query = createReferenceFormulationQueryRecord({ source, normalization });
+    expect(query).toMatchObject({
+      sourceRecordId: source.id,
+      sourceDocumentHash: HASH,
+      supplierId: source.source.supplierId,
+      productFamily: { status: "proposed", candidates: [{ rawValue: "Hand Dishwash" }] },
+      market: source.source.market,
+      language: source.source.language,
+      lines: [{
+        sourceLineId: lineId,
+        commercialProducts: { status: "unresolved", candidateIds: [] },
+        canonicalChemistry: { status: "proposed", candidateIds: ["chemical-candidate-1"] },
+        canonicalFunctions: { status: "proposed", candidateIds: ["anionic_surfactant"] },
+        amount: { originalValue: "4.0", unit: "%", basis: "w/w", quantitySemantics: "explicit_amount" },
+        componentContributions: [{
+          status: "unknown",
+          formulaAmount: { interpretation: "exact", percentRange: { lowerBound: 4, upperBound: 4 } },
+          sourceSds: { status: "missing", interpretation: "unknown" },
+        }],
+      }],
+      activeMatterClaims: [],
+      processSteps: [{ originalInstruction: "Add the ingredient and mix until clear." }],
+      targets: [{ property: "ph", originalValue: "5.0–5.5", valueShape: "range" }],
+      reviewRequired: true,
+    });
+    const acceptedCandidate = structuredClone(query);
+    (acceptedCandidate.lines[0]!.canonicalChemistry as { status: string }).status = "accepted";
+    expect(() => referenceFormulationQueryRecordSchema.parse(acceptedCandidate)).toThrow();
+    expect(() => createReferenceFormulationQueryRecord({
+      source: { ...source, id: "different-source" }, normalization,
+    })).toThrow(/matching immutable source/);
+
+    const invalidBounds = structuredClone(query);
+    invalidBounds.lines[0]!.componentContributions[0]!.formulaAmount.percentRange = { lowerBound: 5, upperBound: 4 };
+    expect(() => referenceFormulationQueryRecordSchema.parse(invalidBounds)).toThrow(/ascending/);
+
+    const mismatchedInterpretation = structuredClone(query);
+    mismatchedInterpretation.lines[0]!.componentContributions[0]!.formulaAmount.interpretation = "range";
+    expect(() => referenceFormulationQueryRecordSchema.parse(mismatchedInterpretation)).toThrow(/must match its bounds/);
+
+    const inconsistentSupplierFunction = structuredClone(query);
+    inconsistentSupplierFunction.lines[0]!.supplierFunction = {
+      status: "not_stated", originalValue: "surfactant", evidenceRefs: ["formula:evidence"],
+    };
+    expect(() => referenceFormulationQueryRecordSchema.parse(inconsistentSupplierFunction)).toThrow(/cannot carry wording or citations/);
+
+    const missingUnknownReason = structuredClone(query);
+    missingUnknownReason.lines[0]!.componentContributions[0]!.unknownReasons = [];
+    expect(() => referenceFormulationQueryRecordSchema.parse(missingUnknownReason)).toThrow(/require explicit reasons/);
   });
 });
