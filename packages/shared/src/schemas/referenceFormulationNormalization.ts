@@ -7,6 +7,10 @@ import {
 } from "./referenceFormulationFunction";
 import type { MaterialFunction } from "./primitives";
 import {
+  createReferenceFormulationProcessNormalization,
+  referenceFormulationProcessNormalizationSchema,
+} from "./referenceFormulationProcessNormalization";
+import {
   referenceFormulationContributionSchema,
   validateReferenceFormulationContributionAgainstSource,
   type ReferenceFormulationContribution,
@@ -54,6 +58,8 @@ export const referenceFormulationNormalizationVersionSchema = z.object({
   normalizerVersion: z.literal(REFERENCE_FORMULATION_NORMALIZATION_VERSION),
   version: z.number().int().positive(),
   supersedesNormalizationId: z.string().trim().min(1).optional(),
+  /** Optional only for pre-V01-06.005 immutable versions; new versions always populate it. */
+  processNormalization: referenceFormulationProcessNormalizationSchema.optional(),
   lines: z.array(referenceFormulationNormalizedLineSchema),
   createdAt: z.string().datetime({ offset: true }),
 }).strict().superRefine((record, context) => {
@@ -131,6 +137,7 @@ export function createReferenceFormulationNormalizationVersion(input: {
     sourceDocumentHash: input.source.sourceDocumentHash,
     normalizerVersion: REFERENCE_FORMULATION_NORMALIZATION_VERSION,
     version: input.version,
+    processNormalization: createReferenceFormulationProcessNormalization(input.source),
     ...(input.supersedesNormalizationId ? { supersedesNormalizationId: input.supersedesNormalizationId } : {}),
     lines: input.source.ingredientLines.map((line) => ({
       sourceLineId: line.id,

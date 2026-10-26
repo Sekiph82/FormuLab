@@ -2,10 +2,11 @@ import { z } from "zod";
 import { referenceFormulationSourceSchema, type ReferenceFormulationSource } from "../schemas/referenceFormulationSource";
 import { referenceFormulationLayoutInputSchema, type ReferenceFormulationLayoutInput } from "./referenceFormulationParserContract";
 
-export const REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION = "formulab-reference-formulation-procedure-v1";
+export const REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION = "formulab-reference-formulation-procedure-v2";
+export const LEGACY_REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION = "formulab-reference-formulation-procedure-v1";
 
 export const REFERENCE_FORMULATION_PROCESS_ACTIONS = [
-  "addition", "dissolve", "mix", "hold", "heat", "cool", "adjust_ph", "thicken", "appearance_check", "other",
+  "addition", "dissolve", "mix", "hold", "heat", "cool", "adjust_ph", "thicken", "appearance_check", "finish", "other",
 ] as const;
 
 const processEvidenceSchema = z.object({
@@ -26,11 +27,17 @@ const processConditionSchema = z.object({
   evidence: processEvidenceSchema,
 }).strict();
 
+const processPhaseSchema = z.object({
+  rawValue: z.string().trim().min(1),
+  evidence: processEvidenceSchema,
+}).strict();
+
 export const referenceFormulationProcedureStepSchema = z.object({
   id: z.string().trim().min(1),
   sequenceOrder: z.number().int().positive(),
   printedStepNumber: z.string().trim().min(1).optional(),
   rawInstruction: z.string().trim().min(1).max(4000),
+  phase: processPhaseSchema.optional(),
   rawContextCells: z.array(z.string()),
   actions: z.array(z.enum(REFERENCE_FORMULATION_PROCESS_ACTIONS)).min(1),
   conditions: z.array(processConditionSchema),
@@ -84,6 +91,7 @@ function detectActions(text: string): Array<typeof REFERENCE_FORMULATION_PROCESS
   add("adjust_ph", /\b(?:adjust\s+(?:(?:the\s+)?(?:solution|mixture|product)\s+)?p\s*h|p\s*h\s*(?:adjust|adjustment)|neutralize|neutralise|p\s*h\s*adjustment)\b/i);
   add("thicken", /\b(?:thicken|thickening|viscosity|thickener|increase viscosity|verdicken|épaissir|espesar)\b/i);
   add("appearance_check", /\b(?:clear|clarity|transparent|appearance|visual inspection)\b/i);
+  add("finish", /\b(?:finish|finishing|finalize|finalise|complete|final step)\b/i);
   if (actions.length === 0) actions.push("other");
   return actions;
 }
@@ -128,6 +136,7 @@ export function extractReferenceFormulationProcedure(input: {
     conditionSources?: Array<{ text: string; cellIndex?: number; kind?: z.infer<typeof processConditionSchema>["kind"] }>;
     sourceKind: "digital" | "ocr" | "mixed" | "unknown"; confidence?: number; position?: { x: number; y: number };
     extractionMethod: "procedure_section_text" | "procedure_table_column"; stepNumber?: string; cellIndex?: number;
+    phaseCell?: { rawValue: string; cellIndex: number };
   }) => {
     const rawInstruction = inputStep.text.trim();
     if (!rawInstruction) return;
@@ -148,6 +157,10 @@ export function extractReferenceFormulationProcedure(input: {
       sequenceOrder: steps.length + 1,
       ...(printedStepNumber ? { printedStepNumber } : {}),
       rawInstruction,
+      ...(inputStep.phaseCell ? { phase: processPhaseSchema.parse({
+        rawValue: inputStep.phaseCell.rawValue,
+        evidence: { ...evidence, cellIndex: inputStep.phaseCell.cellIndex, excerpt: inputStep.phaseCell.rawValue },
+      }) } : {}),
       rawContextCells: [...inputStep.rawContextCells],
       actions: detectActions(rawInstruction),
       conditions: (inputStep.conditionSources ?? [{ text: rawInstruction }]).flatMap((conditionSource) => {
@@ -214,6 +227,7 @@ export function extractReferenceFormulationProcedure(input: {
       if (!procedureColumn) continue;
       if (!inProcedure) foundSection = true;
       const stepColumn = headerRows[procedureColumn.rowIndex]!.findIndex((cell) => STEP_TABLE_HEADERS.has(normalizeLabel(cell)));
+      const phaseColumn = headerRows[procedureColumn.rowIndex]!.findIndex((cell) => /\bphase\b/.test(normalizeLabel(cell)));
       const conditionKindForHeader = (header: string): z.infer<typeof processConditionSchema>["kind"] | undefined => {
         const label = normalizeLabel(header);
         if (/\b(?:temperature|temp)\b/.test(label)) return "temperature";
@@ -233,6 +247,7 @@ export function extractReferenceFormulationProcedure(input: {
           pageNumber: page.pageNumber, blockIndex: block.blockIndex, rowIndex, cellIndex: procedureColumn.cellIndex,
           text: instruction, rawContextCells: [...row], sourceKind: block.source,
           conditionSources: row.flatMap((text, cellIndex) => text.trim() ? [{ text, cellIndex, ...(conditionKindForHeader(headerRows[procedureColumn.rowIndex]![cellIndex] ?? "") ? { kind: conditionKindForHeader(headerRows[procedureColumn.rowIndex]![cellIndex]!) } : {}) }] : []),
+          ...(phaseColumn >= 0 && row[phaseColumn]?.trim() ? { phaseCell: { rawValue: row[phaseColumn]!.trim(), cellIndex: phaseColumn } } : {}),
           ...(block.confidence !== undefined ? { confidence: block.confidence } : {}),
           ...(block.position ? { position: block.position } : {}), extractionMethod: "procedure_table_column",
           ...(printed ? { stepNumber: printed } : {}),

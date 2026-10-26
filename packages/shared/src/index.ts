@@ -690,6 +690,7 @@ export {
   type PrecisionKind,
 } from "./engine/decimal";
 export * from "./engine/referenceFormulationProcedureExtraction";
+export * from "./schemas/referenceFormulationProcessNormalization";
 export * from "./engine/referenceFormulationTargetExtraction";
 export * from "./engine/referenceFormulationProductMatching";
 export * from "./engine/referenceFormulationUnresolvedQueue";

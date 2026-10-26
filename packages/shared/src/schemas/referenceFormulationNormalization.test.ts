@@ -16,6 +16,8 @@ const sourceRecord = () => ({
     { ingredientLineId: "line-1", candidates: [{ commercialProductId: "cp-1" }] },
     { ingredientLineId: "line-2", candidates: [] },
   ],
+  procedureSteps: [],
+  procedureWarnings: [],
 }) as unknown as ReferenceFormulationRecord;
 
 describe("referenceFormulationNormalizationVersionSchema", () => {
@@ -50,6 +52,7 @@ describe("referenceFormulationNormalizationVersionSchema", () => {
     expect(JSON.stringify(normalized)).not.toContain("Original Croda trade name");
     expect(normalized.lines[0]?.functionNormalization?.supplierFunction.originalValue).toBe("Supplier wording");
     expect(normalized.lines[0]?.functionNormalization?.canonicalFunction.candidateIds).toEqual([]);
+    expect(normalized.processNormalization).toMatchObject({ sourceStatus: "no_steps_extracted", steps: [], reviewRequired: true });
   });
 
   it("requires every later normalization version to link its predecessor", () => {

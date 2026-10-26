@@ -8,6 +8,7 @@ import {
   matchReferenceFormulationProducts,
   extractReferenceFormulationTargets,
   buildReferenceFormulationUnresolvedQueue,
+  validateReferenceFormulationProcessNormalizationAgainstSource,
 } from "@formulab/shared";
 import { supplierDocumentAcquisitionSchema } from "@formulab/shared";
 import { createReferenceFormulationSource } from "@formulab/shared";
@@ -39,6 +40,8 @@ function sourceRecord() {
   const pages = [{ pageNumber: 1, blocks: [
     { type: "heading" as const, blockIndex: 0, text: "Formula Composition", source: "digital" as const },
     { type: "table" as const, blockIndex: 1, source: "digital" as const, rows: [["Ingredient", "Amount"], ["Known Product", "4.0"]] },
+    { type: "heading" as const, blockIndex: 2, text: "Manufacturing Procedure", source: "digital" as const },
+    { type: "table" as const, blockIndex: 3, source: "digital" as const, rows: [["Step", "Phase", "Operation"], ["1", "A", "Add and mix at 70°C for 10 min."]] },
   ] }];
   const identity = extractReferenceFormulationIdentity({ acquisition: acquisition(), pages });
   const ingredientResult = extractReferenceFormulationIngredientLines({ source, pages });
@@ -79,6 +82,18 @@ describe("reference formulation normalization persistence", () => {
       canonicalChemicalCandidates: { [source.ingredientLines[0]!.id]: ["chemical-a"] },
     });
     expect(first).toMatchObject({ version: 1, sourceDocumentHash: HASH });
+    expect(first.processNormalization).toMatchObject({
+      sourceStatus: "available",
+      steps: [{
+        sequenceOrder: 1,
+        originalInstruction: "Add and mix at 70°C for 10 min.",
+        actionCandidates: ["addition", "mix"],
+        phaseCandidates: { status: "proposed", candidateValues: [{ rawValue: "A" }] },
+        conditions: [{ kind: "temperature", rawValue: "70°C" }, { kind: "time", rawValue: "10 min" }],
+        reviewRequired: true,
+      }],
+      reviewRequired: true,
+    });
     expect(second).toMatchObject({ version: 2, supersedesNormalizationId: first.id, sourceDocumentHash: HASH });
     expect(await listReferenceFormulationNormalizations(source.id)).toHaveLength(2);
   });
@@ -109,6 +124,20 @@ describe("reference formulation normalization persistence", () => {
       ? [source] as never
       : collection === "reference_formulation_normalizations" ? [corrupted] as never : [] as never);
     await expect(listReferenceFormulationNormalizations(source.id)).rejects.toThrow(/match the immutable source match snapshot/);
+  });
+
+  it("validates process candidates against immutable instructions and reads older versions without them", async () => {
+    const source = sourceRecord();
+    const current = createReferenceFormulationNormalizationVersion({ id: "normalization-v1", source, version: 1, createdAt: "2026-10-26T10:00:00.000Z" });
+    const tampered = structuredClone(current.processNormalization!);
+    tampered.steps[0]!.conditions[0]!.rawValue = "100°C";
+    expect(() => validateReferenceFormulationProcessNormalizationAgainstSource(tampered, source)).toThrow(/must match the immutable source procedure snapshot/);
+
+    const legacy = { ...current, processNormalization: undefined };
+    vi.mocked(listRecords).mockImplementation(async (collection) => collection === "reference_formulations"
+      ? [source] as never
+      : collection === "reference_formulation_normalizations" ? [legacy] as never : [] as never);
+    await expect(listReferenceFormulationNormalizations(source.id)).resolves.toHaveLength(1);
   });
 
   it("persists unknown component contributions inside the next immutable normalization version", async () => {

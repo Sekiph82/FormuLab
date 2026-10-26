@@ -91,6 +91,22 @@ describe("reference formulation procedure extraction", () => {
     expect(result.warnings).not.toContain("procedure_section_not_detected");
   });
 
+  it("retains an explicit Phase column cell and indexes finish instructions", () => {
+    const result = extractReferenceFormulationProcedure({ source: source(), pages: [{ pageNumber: 3, blocks: [
+      { type: "table", blockIndex: 2, source: "digital", rows: [
+        ["Step", "Phase", "Operation"],
+        ["4", "A", "Finish by mixing until homogeneous."],
+      ] },
+    ] }] });
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0]).toMatchObject({
+      sequenceOrder: 1,
+      printedStepNumber: "4",
+      phase: { rawValue: "A", evidence: { pageNumber: 3, blockIndex: 2, rowIndex: 1, cellIndex: 1, excerpt: "A" } },
+      actions: ["mix", "finish"],
+    });
+  });
+
   it("does not infer steps outside procedure sections and reports ambiguous table columns", () => {
     const noProcedure = extractReferenceFormulationProcedure({ source: source(), pages: [{ pageNumber: 1, blocks: [
       { type: "text", blockIndex: 0, text: "Add water and mix.", source: "digital" },

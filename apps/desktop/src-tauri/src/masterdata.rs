@@ -960,7 +960,7 @@ fn validate_normalization_version(
         &[
             "schemaVersion", "recordKind", "id", "code", "referenceFormulationRecordId",
             "sourceDocumentHash", "normalizerVersion", "version", "supersedesNormalizationId",
-            "lines", "createdAt",
+            "processNormalization", "lines", "createdAt",
         ],
         "normalization",
     )?;
@@ -993,6 +993,7 @@ fn validate_normalization_version(
     if normalization["version"].as_u64() != Some(expected_version) {
         return Err("normalization version must append the next source version".to_string());
     }
+    validate_reference_formulation_process_normalization(&normalization["processNormalization"], source)?;
     let expected_predecessor = history.last().and_then(|row| row["id"].as_str());
     if normalization["supersedesNormalizationId"].as_str() != expected_predecessor {
         return Err("normalization must link the latest immutable predecessor".to_string());
@@ -1499,6 +1500,133 @@ fn validate_reference_formulation_function_normalization(
     }
     if source_function.is_none() && !candidates.is_empty() {
         return Err("canonical function candidates require explicit supplier-function evidence".to_string());
+    }
+    Ok(())
+}
+
+fn process_evidence_ref(evidence: &serde_json::Value) -> Result<String, String> {
+    let hash = evidence["sourceDocumentHash"].as_str()
+        .ok_or_else(|| "process evidence is missing its source hash".to_string())?;
+    let page = evidence["pageNumber"].as_u64()
+        .ok_or_else(|| "process evidence page is invalid".to_string())?;
+    let block = evidence["blockIndex"].as_u64()
+        .ok_or_else(|| "process evidence block is invalid".to_string())?;
+    let row = evidence.get("rowIndex").and_then(|value| value.as_u64()).map(|value| value.to_string()).unwrap_or_else(|| "text".to_string());
+    let cell = evidence.get("cellIndex").and_then(|value| value.as_u64()).map(|value| value.to_string()).unwrap_or_else(|| "text".to_string());
+    Ok(format!("formula:{hash}:{page}:{block}:{row}:{cell}"))
+}
+
+fn explicit_phase_values(instruction: &str, explicit_phase: Option<&serde_json::Value>, step_evidence_ref: &str) -> Result<Vec<(String, Vec<String>)>, String> {
+    let lower = instruction.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
+    let mut values: Vec<(String, Vec<String>)> = Vec::new();
+    if let Some(phase) = explicit_phase {
+        ensure_object_keys(phase, &["rawValue", "evidence"], "source process phase")?;
+        let raw_value = phase["rawValue"].as_str().filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "source process phase value is invalid".to_string())?;
+        values.push((raw_value.to_string(), vec![process_evidence_ref(&phase["evidence"])?]));
+    }
+    let mut cursor = 0;
+    while cursor + 6 <= bytes.len() {
+        let Some(relative) = lower[cursor..].find("phase ") else { break; };
+        let start = cursor + relative + 6;
+        let end = bytes[start..].iter().position(|byte| !byte.is_ascii_alphanumeric() && *byte != b'_' && *byte != b'-')
+            .map(|offset| start + offset).unwrap_or(bytes.len());
+        if end > start {
+            let value = instruction[start..end].to_string();
+            if let Some((_, refs)) = values.iter_mut().find(|(existing, _)| existing.eq_ignore_ascii_case(&value)) {
+                if !refs.contains(&step_evidence_ref.to_string()) { refs.push(step_evidence_ref.to_string()); }
+            } else {
+                values.push((value, vec![step_evidence_ref.to_string()]));
+            }
+        }
+        cursor = end.max(start + 1);
+    }
+    Ok(values)
+}
+
+fn validate_reference_formulation_process_normalization(
+    normalization: &serde_json::Value,
+    source: &serde_json::Value,
+) -> Result<(), String> {
+    ensure_object_keys(normalization, &["normalizerVersion", "sourceStatus", "steps", "sourceWarnings", "reviewRequired"], "process normalization")?;
+    if normalization["normalizerVersion"].as_str() != Some("formulab-reference-formulation-process-normalization-v1")
+        || normalization["reviewRequired"].as_bool() != Some(true)
+    {
+        return Err("process normalization version or review state is invalid".to_string());
+    }
+    let source_steps = source["procedureSteps"].as_array()
+        .ok_or_else(|| "immutable formulation procedure steps are missing".to_string())?;
+    let steps = normalization["steps"].as_array()
+        .ok_or_else(|| "normalized process steps must be an array".to_string())?;
+    if steps.len() != source_steps.len()
+        || normalization["sourceWarnings"] != source["procedureWarnings"]
+        || normalization["sourceStatus"].as_str() != Some(if source_steps.is_empty() { "no_steps_extracted" } else { "available" })
+    {
+        return Err("normalized process coverage and warnings must match the immutable source procedure snapshot".to_string());
+    }
+    for (index, (normalized, source_step)) in steps.iter().zip(source_steps).enumerate() {
+        ensure_object_keys(normalized, &["sourceProcedureStepId", "sequenceOrder", "printedStepNumber", "originalInstruction", "actionCandidates", "phaseCandidates", "conditions", "evidenceRefs", "reviewRequired"], "normalized process step")?;
+        let step_id = source_step["id"].as_str().ok_or_else(|| "source process step identity is invalid".to_string())?;
+        let raw_instruction = source_step["rawInstruction"].as_str().ok_or_else(|| "source process instruction is invalid".to_string())?;
+        let source_hash = source["sourceDocumentHash"].as_str().ok_or_else(|| "source formulation hash is invalid".to_string())?;
+        for evidence in std::iter::once(&source_step["evidence"])
+            .chain(source_step.get("phase").map(|phase| &phase["evidence"]))
+            .chain(source_step["conditions"].as_array().into_iter().flatten().map(|condition| &condition["evidence"]))
+        {
+            if evidence["sourceDocumentHash"].as_str().map_or(true, |hash| !hash.eq_ignore_ascii_case(source_hash)) {
+                return Err("source process fact evidence must cite the immutable formulation document".to_string());
+            }
+        }
+        let step_evidence = process_evidence_ref(&source_step["evidence"])?;
+        let expected_refs = serde_json::json!([step_evidence]);
+        let expected_phases = explicit_phase_values(raw_instruction, source_step.get("phase"), &step_evidence)?;
+        let expected_phase_status = match expected_phases.len() { 0 => "unresolved", 1 => "proposed", _ => "ambiguous" };
+        let phase = &normalized["phaseCandidates"];
+        ensure_object_keys(phase, &["status", "candidateValues"], "process phase candidates")?;
+        let phase_values = phase["candidateValues"].as_array()
+            .ok_or_else(|| "process phase candidates must be an array".to_string())?;
+        if phase["status"].as_str() != Some(expected_phase_status)
+            || phase_values.len() != expected_phases.len()
+        {
+            return Err("process phase candidates must match explicit source wording".to_string());
+        }
+        for (candidate, (expected_value, expected_phase_refs)) in phase_values.iter().zip(&expected_phases) {
+            ensure_object_keys(candidate, &["rawValue", "evidenceRefs"], "process phase candidate")?;
+            if candidate["rawValue"].as_str() != Some(expected_value)
+                || candidate["evidenceRefs"] != serde_json::json!(expected_phase_refs)
+            {
+                return Err("process phase candidates must retain explicit wording and source evidence".to_string());
+            }
+        }
+        let source_actions = source_step["actions"].as_array()
+            .ok_or_else(|| "source process actions are invalid".to_string())?;
+        let source_conditions = source_step["conditions"].as_array()
+            .ok_or_else(|| "source process conditions are invalid".to_string())?;
+        let normalized_conditions = normalized["conditions"].as_array()
+            .ok_or_else(|| "normalized process conditions must be an array".to_string())?;
+        if normalized["sourceProcedureStepId"].as_str() != Some(step_id)
+            || normalized["sequenceOrder"].as_u64() != Some(index as u64 + 1)
+            || normalized["sequenceOrder"] != source_step["sequenceOrder"]
+            || normalized["originalInstruction"].as_str() != Some(raw_instruction)
+            || normalized["actionCandidates"].as_array() != Some(source_actions)
+            || normalized["evidenceRefs"] != expected_refs
+            || normalized["reviewRequired"].as_bool() != Some(true)
+            || normalized_conditions.len() != source_conditions.len()
+            || normalized.get("printedStepNumber") != source_step.get("printedStepNumber")
+        {
+            return Err("normalized process step must match its immutable source instruction and sequence".to_string());
+        }
+        for (condition, source_condition) in normalized_conditions.iter().zip(source_conditions) {
+            ensure_object_keys(condition, &["kind", "rawValue", "evidenceRefs", "reviewRequired"], "normalized process condition")?;
+            if condition["kind"] != source_condition["kind"]
+                || condition["rawValue"] != source_condition["rawValue"]
+                || condition["evidenceRefs"] != serde_json::json!([process_evidence_ref(&source_condition["evidence"])?])
+                || condition["reviewRequired"].as_bool() != Some(true)
+            {
+                return Err("normalized process conditions and citations must match immutable source facts".to_string());
+            }
+        }
     }
     Ok(())
 }
@@ -2305,6 +2433,16 @@ mod tests {
                 "unit": { "rawValue": "%", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 3 } },
                 "basis": { "rawValue": "w/w", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 4 } }
             }],
+            "procedureWarnings": [],
+            "procedureSteps": [{
+                "id": "source-1:process:p2:b1:1:1", "sequenceOrder": 1, "rawInstruction": "Add and mix at 70°C for 10 min.",
+                "phase": { "rawValue": "A", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 2, "blockIndex": 1, "rowIndex": 1, "cellIndex": 1, "excerpt": "A", "source": "digital" } },
+                "actions": ["addition", "mix"], "conditions": [
+                    { "kind": "temperature", "rawValue": "70°C", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 2, "blockIndex": 1, "rowIndex": 1, "cellIndex": 2, "excerpt": "70°C", "source": "digital" } },
+                    { "kind": "time", "rawValue": "10 min", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 2, "blockIndex": 1, "rowIndex": 1, "cellIndex": 2, "excerpt": "10 min", "source": "digital" } }
+                ],
+                "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 2, "blockIndex": 1, "rowIndex": 1, "cellIndex": 2, "excerpt": "Add and mix at 70°C for 10 min.", "source": "digital" }
+            }],
             "productMatches": [{ "ingredientLineId": "line-1", "candidates": [{ "commercialProductId": "product-source-candidate" }] }]
         });
         let normalization = serde_json::json!({
@@ -2312,6 +2450,19 @@ mod tests {
             "id": "normalization-1", "code": "normalization-1",
             "referenceFormulationRecordId": "source-1", "sourceDocumentHash": "A".repeat(64),
             "normalizerVersion": "formulab-reference-formulation-normalization-v1", "version": 1,
+            "processNormalization": {
+                "normalizerVersion": "formulab-reference-formulation-process-normalization-v1", "sourceStatus": "available",
+                "steps": [{
+                    "sourceProcedureStepId": "source-1:process:p2:b1:1:1", "sequenceOrder": 1,
+                    "originalInstruction": "Add and mix at 70°C for 10 min.", "actionCandidates": ["addition", "mix"],
+                    "phaseCandidates": { "status": "proposed", "candidateValues": [{ "rawValue": "A", "evidenceRefs": [format!("formula:{}:2:1:1:1", "a".repeat(64))] }] },
+                    "conditions": [
+                        { "kind": "temperature", "rawValue": "70°C", "evidenceRefs": [format!("formula:{}:2:1:1:2", "a".repeat(64))], "reviewRequired": true },
+                        { "kind": "time", "rawValue": "10 min", "evidenceRefs": [format!("formula:{}:2:1:1:2", "a".repeat(64))], "reviewRequired": true }
+                    ],
+                    "evidenceRefs": [format!("formula:{}:2:1:1:2", "a".repeat(64))], "reviewRequired": true
+                }], "sourceWarnings": [], "reviewRequired": true
+            },
             "lines": [{
                 "sourceLineId": "line-1",
                 "commercialProduct": { "status": "proposed", "candidateIds": ["product-source-candidate"] },
@@ -2331,6 +2482,12 @@ mod tests {
         let mut invalid_function_candidate = normalization.clone();
         invalid_function_candidate["lines"][0]["functionNormalization"]["canonicalFunction"]["candidateIds"] = serde_json::json!(["invented_function"]);
         assert!(validate_normalization_version(&invalid_function_candidate, &source, &[], &[], &[]).unwrap_err().contains("shared MaterialFunction vocabulary"));
+        let mut forged_process_condition = normalization.clone();
+        forged_process_condition["processNormalization"]["steps"][0]["conditions"][0]["rawValue"] = serde_json::json!("100°C");
+        assert!(validate_normalization_version(&forged_process_condition, &source, &[], &[], &[]).unwrap_err().contains("match immutable source facts"));
+        let mut invented_process_phase = normalization.clone();
+        invented_process_phase["processNormalization"]["steps"][0]["phaseCandidates"]["candidateValues"][0]["rawValue"] = serde_json::json!("B");
+        assert!(validate_normalization_version(&invented_process_phase, &source, &[], &[], &[]).unwrap_err().contains("match explicit source wording"));
         let mut forged = normalization.clone();
         forged["lines"][0]["commercialProduct"]["candidateIds"] = serde_json::json!(["forged-product"]);
         assert!(validate_normalization_version(&forged, &source, &[], &[], &[]).unwrap_err().contains("match the immutable source"));

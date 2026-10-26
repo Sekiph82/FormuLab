@@ -2,7 +2,7 @@ import { z } from "zod";
 import { REFERENCE_FORMULATION_ARITHMETIC_VERSION, type ReferenceFormulationArithmeticResult } from "../engine/referenceFormulationArithmetic";
 import { referenceFormulationIdentityCandidateSchema, REFERENCE_FORMULATION_IDENTITY_PARSER_VERSION } from "../engine/referenceFormulationIdentityExtraction";
 import { REFERENCE_FORMULATION_INGREDIENT_PARSER_VERSION, referenceFormulationIngredientLineSchema } from "../engine/referenceFormulationIngredientExtraction";
-import { REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION, referenceFormulationProcedureStepSchema } from "../engine/referenceFormulationProcedureExtraction";
+import { LEGACY_REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION, REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION, referenceFormulationProcedureStepSchema } from "../engine/referenceFormulationProcedureExtraction";
 import { REFERENCE_FORMULATION_PRODUCT_MATCHER_VERSION } from "../engine/referenceFormulationProductMatching";
 import { REFERENCE_FORMULATION_TARGET_PARSER_VERSION, referenceFormulationTargetCandidateSchema } from "../engine/referenceFormulationTargetExtraction";
 import { REFERENCE_FORMULATION_UNRESOLVED_QUEUE_VERSION, referenceFormulationUnresolvedEntrySchema } from "../engine/referenceFormulationUnresolvedQueue";
@@ -86,7 +86,7 @@ export const referenceFormulationRecordSchema = z.object({
     identity: z.literal(REFERENCE_FORMULATION_IDENTITY_PARSER_VERSION),
     ingredients: z.literal(REFERENCE_FORMULATION_INGREDIENT_PARSER_VERSION),
     arithmetic: z.literal(REFERENCE_FORMULATION_ARITHMETIC_VERSION),
-    procedure: z.literal(REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION),
+    procedure: z.enum([LEGACY_REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION, REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION]),
     targets: z.literal(REFERENCE_FORMULATION_TARGET_PARSER_VERSION),
     productMatcher: z.enum(["formulab-reference-formulation-product-matcher-v1", REFERENCE_FORMULATION_PRODUCT_MATCHER_VERSION]),
     unresolvedQueue: z.literal(REFERENCE_FORMULATION_UNRESOLVED_QUEUE_VERSION),
@@ -128,7 +128,11 @@ export const referenceFormulationRecordSchema = z.object({
       context.addIssue({ code: "custom", path: ["ingredientLines", index], message: "Ingredient field evidence must reference the record's immutable PDF." });
     }
   }
-  const procedureEvidence = record.procedureSteps.flatMap((step) => [step.evidence, ...step.conditions.map((condition) => condition.evidence)]);
+  const procedureEvidence = record.procedureSteps.flatMap((step) => [
+    step.evidence,
+    ...(step.phase ? [step.phase.evidence] : []),
+    ...step.conditions.map((condition) => condition.evidence),
+  ]);
   if (procedureEvidence.some((evidence) => evidence.sourceDocumentHash.toLowerCase() !== hash)) {
     context.addIssue({ code: "custom", path: ["procedureSteps"], message: "Every process fact must reference the record's immutable PDF." });
   }
