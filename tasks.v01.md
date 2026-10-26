@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 11
-- Remaining: 145
-- Completion: 7.1%
-- Current task: V01-01.002 - Implement provider and surface registry
+- Completed: 12
+- Remaining: 144
+- Completion: 7.7%
+- Current task: V01-01.003 - Implement connection lifecycle
 - Current status: IN PROGRESS
-- Next task: V01-01.003 - Implement connection lifecycle
+- Next task: V01-01.004 - Implement secure credential/session references
 - Required actor: CODEX
 - Branch: V01
 
@@ -123,8 +123,8 @@ Codex must execute the tasks below in the exact order listed.
 ## Milestone V01-01 - Supplier document domain, secure acquisition, and storage
 
 - [x] **V01-01.001 - Extend existing connector capability model for supplier documents**: Reuse SourceConnector and add only missing supplier capabilities: catalog search/listing, document discovery, document fetch, formulation discovery, pagination, authorization mode, coverage and limitations.
-- [~] **V01-01.002 - Implement provider and surface registry**: Represent supplier and each public/API/portal/manual surface separately, including market, language, product line, supported document types, and access mode.
-- [ ] **V01-01.003 - Implement connection lifecycle**: Add configured, authenticated, expired, revoked, unavailable, and manual-assisted connection states without storing plaintext credentials.
+- [x] **V01-01.002 - Implement provider and surface registry**: Represent supplier and each public/API/portal/manual surface separately, including market, language, product line, supported document types, and access mode.
+- [~] **V01-01.003 - Implement connection lifecycle**: Add configured, authenticated, expired, revoked, unavailable, and manual-assisted connection states without storing plaintext credentials.
 - [ ] **V01-01.004 - Implement secure credential/session references**: Use OS credential manager/keychain references and user-attended login sessions. Ensure secrets never enter logs, exports, crash reports, audit payloads, or project backups.
 - [ ] **V01-01.005 - Implement network admission policy**: Enforce HTTPS, declared hosts, redirect validation, SSRF/private-IP defenses, timeouts, size limits, safe filenames, content type/signature checks, and bounded downloads.
 - [ ] **V01-01.006 - Implement immutable acquired-document record**: Persist provider/surface, source URL, original filename, MIME type, source product identity, market/language, revision/publication dates, acquisition time, SHA-256, and parser status.
