@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 70
-- Remaining: 86
-- Completion: 44.9%
-- Current task: V01-04.015 - Implement bounded formula contribution calculator
+- Completed: 71
+- Remaining: 85
+- Completion: 45.5%
+- Current task: V01-04.016 - Implement physical-property evidence linkage
 - Current status: IN PROGRESS
-- Next task: V01-04.016 - Implement physical-property evidence linkage
+- Next task: V01-04.017 - Implement human identity review workflow
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Acceptance note: V01-04.001 adds the independent commercial-product identity schema and passes focused tests, shared typecheck, task-state validation, and read-only review. No canonical chemistry is assigned in this identity record.
 - Acceptance note: V01-04.002 adds a provenance-backed canonical chemical schema with stable opaque IDs and distinct chemical/functional families. Focused tests, shared typecheck, and read-only review passed; CAS/EC values remain unnormalized for V01-04.003.
@@ -119,6 +119,7 @@ Codex must execute the tasks below in the exact order listed.
 - Acceptance note: V01-04.012 adds a deterministic cited-evidence confidence engine with EXACT, HIGH_CONFIDENCE, PARTIAL, AMBIGUOUS and UNKNOWN states; result validation rejects unsupported or contradictory state/reason combinations, and no numeric confidence or inferred identity is created. Focused tests (8), shared typecheck, task-state validation, and independent read-only review passed.
 - Acceptance note: V01-04.013 adds a source-linked component mass-fraction record, normalizes only explicit SDS `% w/w` values into exact/ranged 0-1 fractions, and leaves unparsed or missing values unasserted. Its quantity kind and basis separate it from product concentration, solids, assay, active matter and formula contribution; persisted lineage is checked against the immutable SDS source. Focused tests (3), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-04.014 adds cited, explicitly labeled active-matter/solids/assay claims as separate provisional evidence with exact/range/unparsed percent values and source/document/fact lineage. SDS Section 3 hazard composition is rejected, negative/unsupported labels fail, and no RawMaterial write occurs. Focused tests (3), shared typecheck and independent read-only review passed.
+- Acceptance note: V01-04.015 calculates conservative supplier-product contribution intervals from a cited formula-line percentage and exact/ranged component fraction or explicitly as-supplied active-matter evidence. Results retain both source lineages, validate the interval arithmetic and same-product identity, and reject unparsed, mismatched, solids/assay, or non-as-supplied inputs. Focused tests (2), shared typecheck and independent read-only review passed.
 - Required actor: CODEX
 - Branch: V01
 
@@ -206,8 +207,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-04.012 - Implement confidence-state engine**: Use EXACT, HIGH_CONFIDENCE, PARTIAL, AMBIGUOUS and UNKNOWN with machine-readable reasons, supporting evidence and deterministic rules.
 - [x] **V01-04.013 - Implement composition-fraction model**: Store exact/range component fraction separately from product concentration, solids, assay, active matter and formulation contribution.
 - [x] **V01-04.014 - Implement active-matter evidence model**: Accept active matter/solids/assay only when explicitly supported by SDS/TDS/other authorized evidence; never infer it solely from a hazard-disclosure range.
-- [~] **V01-04.015 - Implement bounded formula contribution calculator**: When evidence supports component fraction/active content, calculate supplier-product-percent x component-fraction as exact or bounded range with full lineage.
-- [ ] **V01-04.016 - Implement physical-property evidence linkage**: Link condition-bound Section 9 values to the commercial product without silently copying them into RawMaterial master fields.
+- [x] **V01-04.015 - Implement bounded formula contribution calculator**: When evidence supports component fraction/active content, calculate supplier-product-percent x component-fraction as exact or bounded range with full lineage.
+- [~] **V01-04.016 - Implement physical-property evidence linkage**: Link condition-bound Section 9 values to the commercial product without silently copying them into RawMaterial master fields.
 - [ ] **V01-04.017 - Implement human identity review workflow**: Allow authorized user accept/edit/reject/needs-review for commercial-product type, canonical identity, components, concentration/active claims and aliases.
 - [ ] **V01-04.018 - Implement RawMaterial application proposal**: Route explicitly accepted field proposals through existing Data Exchange/material authorities; no silent RawMaterial overwrite or auto-verification.
 - [ ] **V01-04.019 - Implement resolver conflict and revision behavior**: Newer SDS evidence creates new/revised resolution evidence without rewriting historical reference-formula mappings unless an authorized review updates the normalized mapping version.
