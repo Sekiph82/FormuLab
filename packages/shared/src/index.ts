@@ -585,6 +585,7 @@ export * from "./schemas/supplierDocument";
 export * from "./schemas/referenceFormulationSource";
 export * from "./schemas/referenceFormulationRecord";
 export * from "./schemas/referenceFormulationReview";
+export * from "./schemas/referenceFormulationNormalization";
 export * from "./schemas/commercialProduct";
 export * from "./schemas/canonicalChemical";
 export * from "./schemas/chemicalIdentifiers";

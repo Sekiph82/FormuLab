@@ -136,6 +136,7 @@ pub fn run() {
             masterdata::list_master_records,
             masterdata::upsert_master_records,
             masterdata::append_reference_formulation_review,
+            masterdata::append_reference_formulation_normalization,
             masterdata::delete_master_record,
             masterdata::backup_master_collection,
             masterdata::list_master_collections,

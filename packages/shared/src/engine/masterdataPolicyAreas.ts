@@ -107,6 +107,7 @@ export const MASTERDATA_COLLECTIONS = [
   "supplier_document_acquisitions",
   "reference_formulations",
   "reference_formulation_reviews",
+  "reference_formulation_normalizations",
   "supplier_acquisition_jobs",
   "supplier_acquisition_job_items",
   "process_parameters",
@@ -133,7 +134,7 @@ export const MASTERDATA_COLLECTIONS = [
 ] as const;
 export type MasterdataCollection = (typeof MASTERDATA_COLLECTIONS)[number];
 
-/** Every one of the 101 collections mapped to exactly one `PolicyArea`.
+/** Every one of the 102 collections mapped to exactly one `PolicyArea`.
  *  `Record<MasterdataCollection, PolicyArea>` makes an unmapped collection
  *  a compile error, not just a test failure — TypeScript won't build if a
  *  new entry is added to `MASTERDATA_COLLECTIONS` without a matching entry
@@ -152,6 +153,7 @@ export const MASTERDATA_COLLECTION_POLICY_AREAS: Record<MasterdataCollection, Po
   supplier_document_acquisitions: "rawMaterials",
   reference_formulations: "formulation",
   reference_formulation_reviews: "formulation",
+  reference_formulation_normalizations: "formulation",
   supplier_acquisition_jobs: "dataExchange",
   supplier_acquisition_job_items: "dataExchange",
   product_families: "rawMaterials",

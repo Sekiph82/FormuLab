@@ -80,6 +80,7 @@ import type {
   RegulatoryRule,
   RegulatoryRuleRevision,
   ReferenceFormulationRecord,
+  ReferenceFormulationNormalizationVersion,
   ReferenceFormulationReview,
   ReverseFormulationStudy,
   BenchmarkProduct,
@@ -114,7 +115,7 @@ import { currentSessionToken } from "./sessionToken";
 import type { MasterdataCollection } from "@formulab/shared";
 
 /** Phase 13 Session 4A: now derived from `@formulab/shared`'s
- *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 100-name
+ *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 102-name
  *  list `masterdata.rs`'s `COLLECTIONS` and the generated policy-area
  *  fixture both answer to, not a second hand-typed union that could drift
  *  from either. */
@@ -199,6 +200,7 @@ interface CollectionTypes {
   supplier_document_acquisitions: SupplierDocumentAcquisition;
   reference_formulations: ReferenceFormulationRecord;
   reference_formulation_reviews: ReferenceFormulationReview;
+  reference_formulation_normalizations: ReferenceFormulationNormalizationVersion;
   supplier_acquisition_jobs: SupplierAcquisitionJob;
   supplier_acquisition_job_items: SupplierAcquisitionJobItem;
   process_parameters: ProcessParameter;
@@ -267,6 +269,13 @@ export async function appendReferenceFormulationReviewRecord(
   review: ReferenceFormulationReview,
 ): Promise<ReferenceFormulationReview> {
   return call<ReferenceFormulationReview>("append_reference_formulation_review", { review });
+}
+
+/** Persist a candidate-only normalization version through native source/version validation. */
+export async function appendReferenceFormulationNormalizationRecord(
+  normalization: ReferenceFormulationNormalizationVersion,
+): Promise<ReferenceFormulationNormalizationVersion> {
+  return call<ReferenceFormulationNormalizationVersion>("append_reference_formulation_normalization", { normalization });
 }
 
 export async function deleteRecord(collection: Collection, code: string): Promise<void> {

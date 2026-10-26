@@ -119,18 +119,20 @@
 //     updates rows instead of creating a second copy of the factory's inventory.
 //   * Append-only collections (prices, cost snapshots) are never rewritten. A
 //     price change must not silently rewrite what a formula cost last March.
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Mutex};
 
 use tauri::AppHandle;
 
 use crate::authz;
+
+static REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Collections the UI may address, and whether history is preserved.
 ///
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 101] = [
+const COLLECTIONS: [(&str, bool); 102] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -379,6 +381,8 @@ const COLLECTIONS: [(&str, bool); 101] = [
     // Human parser decisions are separate append-only review events; they
     // never mutate the source snapshot or promote data into production.
     ("reference_formulation_reviews", true),
+    // Versioned product/chemistry links remain separate from original source lines.
+    ("reference_formulation_normalizations", true),
     // Supplier discovery/download work is mutable operational state. The
     // immutable acquired-document evidence remains in its separate collection.
     ("supplier_acquisition_jobs", false),
@@ -481,7 +485,7 @@ pub fn list_master_collections() -> Vec<(String, bool)> {
 }
 
 /// Phase 13 Session 4A: this used to be a hand-typed Rust `match` over all
-/// 101 collection names (V01-01.009). It is now a thin delegator to
+/// 102 collection names (V01-01.009). It is now a thin delegator to
 /// `role_policy::masterdata_area_for`, which reads the same generated JSON
 /// fixture (`masterdataCollectionAreas.generated.json`) TypeScript's
 /// `masterdataPolicyAreas.ts` is parity-tested against — closing the
@@ -654,6 +658,178 @@ pub async fn append_reference_formulation_review(
     Ok(review)
 }
 
+/// Append a candidate-only normalization version. Source links and candidate
+/// product IDs are checked against the immutable formulation while a native
+/// process lock serializes version allocation.
+#[tauri::command(async)]
+pub async fn append_reference_formulation_normalization(
+    app: AppHandle,
+    token: String,
+    mut normalization: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    authz::authorize_any_app(&app, &token, "formulation", &WRITE_CAPABILITIES)?;
+    let _guard = REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK
+        .lock()
+        .map_err(|_| "normalization storage is unavailable".to_string())?;
+
+    let source_id = normalization["referenceFormulationRecordId"]
+        .as_str()
+        .ok_or_else(|| "normalization is missing its source formulation identity".to_string())?;
+    let source_path = collection_path(&app, "reference_formulations")?;
+    let source_rows = read_array(&source_path);
+    let source = source_rows.iter().find(|row| row["id"].as_str() == Some(source_id))
+        .ok_or_else(|| "normalization source formulation was not found".to_string())?;
+    let path = collection_path(&app, "reference_formulation_normalizations")?;
+    let rows = read_array(&path);
+    let mut history = rows.iter()
+        .filter(|row| row["referenceFormulationRecordId"].as_str() == Some(source_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    history.sort_by_key(|row| row["version"].as_u64().unwrap_or(0));
+    validate_normalization_version(&normalization, source, &history)?;
+    if let Some(object) = normalization.as_object_mut() {
+        object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
+    }
+    let (next_rows, inserted, _) = apply_upsert(
+        rows,
+        vec![normalization.clone()],
+        true,
+        "reference_formulation_normalizations",
+    )?;
+    if inserted != 1 {
+        return Err("normalization version was not appended".to_string());
+    }
+    write_array(&path, &next_rows)?;
+    Ok(normalization)
+}
+
+fn validate_normalization_version(
+    normalization: &serde_json::Value,
+    source: &serde_json::Value,
+    history: &[serde_json::Value],
+) -> Result<(), String> {
+    ensure_object_keys(
+        normalization,
+        &[
+            "schemaVersion", "recordKind", "id", "code", "referenceFormulationRecordId",
+            "sourceDocumentHash", "normalizerVersion", "version", "supersedesNormalizationId",
+            "lines", "createdAt",
+        ],
+        "normalization",
+    )?;
+    let id = normalization["id"].as_str().filter(|id| !id.trim().is_empty());
+    if normalization["schemaVersion"].as_str() != Some("1.0")
+        || normalization["recordKind"].as_str() != Some("reference_formulation_normalization")
+        || id.is_none()
+        || id != normalization["code"].as_str()
+        || normalization["normalizerVersion"].as_str() != Some("formulab-reference-formulation-normalization-v1")
+        || normalization["referenceFormulationRecordId"].as_str() != source["id"].as_str()
+    {
+        return Err("normalization identity or schema version is invalid".to_string());
+    }
+    let source_hash = source["sourceDocumentHash"].as_str()
+        .ok_or_else(|| "source formulation is missing its document hash".to_string())?;
+    if normalization["sourceDocumentHash"].as_str()
+        .map_or(true, |hash| !hash.eq_ignore_ascii_case(source_hash))
+    {
+        return Err("normalization must retain the immutable source document hash".to_string());
+    }
+    let expected_version = history.len() as u64 + 1;
+    for (index, prior) in history.iter().enumerate() {
+        let expected_prior = if index == 0 { None } else { history[index - 1]["id"].as_str() };
+        if prior["version"].as_u64() != Some(index as u64 + 1)
+            || prior["supersedesNormalizationId"].as_str() != expected_prior
+        {
+            return Err("stored normalization history must form one unbroken predecessor chain".to_string());
+        }
+    }
+    if normalization["version"].as_u64() != Some(expected_version) {
+        return Err("normalization version must append the next source version".to_string());
+    }
+    let expected_predecessor = history.last().and_then(|row| row["id"].as_str());
+    if normalization["supersedesNormalizationId"].as_str() != expected_predecessor {
+        return Err("normalization must link the latest immutable predecessor".to_string());
+    }
+
+    let source_lines = source["ingredientLines"].as_array()
+        .ok_or_else(|| "source formulation has no ingredient lines".to_string())?;
+    let normalized_lines = normalization["lines"].as_array()
+        .ok_or_else(|| "normalization has no line references".to_string())?;
+    if normalized_lines.len() != source_lines.len() {
+        return Err("normalization must retain every source line exactly once".to_string());
+    }
+    let product_matches = source["productMatches"].as_array()
+        .ok_or_else(|| "source product matching snapshot is missing".to_string())?;
+    let mut seen_ids = std::collections::HashSet::new();
+    for line in normalized_lines {
+        ensure_object_keys(line, &["sourceLineId", "commercialProduct", "canonicalChemistry"], "normalization line")?;
+        let line_id = line["sourceLineId"].as_str()
+            .ok_or_else(|| "normalized line is missing its source line identity".to_string())?;
+        if !seen_ids.insert(line_id) {
+            return Err("normalization may reference each source line only once".to_string());
+        }
+        let source_line_exists = source_lines.iter().any(|candidate| candidate["id"].as_str() == Some(line_id));
+        if !source_line_exists {
+            return Err("normalization line does not exist in the immutable source".to_string());
+        }
+        let match_record = product_matches.iter()
+            .find(|candidate| candidate["ingredientLineId"].as_str() == Some(line_id))
+            .ok_or_else(|| "source product match for a line is missing".to_string())?;
+        let source_candidate_ids = match_record["candidates"].as_array()
+            .ok_or_else(|| "source product candidates are invalid".to_string())?
+            .iter()
+            .map(|candidate| candidate["commercialProductId"].as_str()
+                .filter(|id| !id.trim().is_empty())
+                .map(str::to_string)
+                .ok_or_else(|| "source product candidate identity is invalid".to_string()))
+            .collect::<Result<Vec<_>, _>>()?;
+        if source_candidate_ids.iter().collect::<std::collections::HashSet<_>>().len() != source_candidate_ids.len() {
+            return Err("source product candidate IDs must be unique".to_string());
+        }
+        let normalized_product = &line["commercialProduct"];
+        let normalized_product_ids = validate_normalization_candidates(normalized_product, "commercial product")?;
+        if source_candidate_ids != normalized_product_ids
+        {
+            return Err("commercial product candidates must match the immutable source match snapshot".to_string());
+        }
+        let chemistry = &line["canonicalChemistry"];
+        validate_normalization_candidates(chemistry, "canonical chemistry")?;
+    }
+    Ok(())
+}
+
+fn ensure_object_keys(value: &serde_json::Value, allowed: &[&str], label: &str) -> Result<(), String> {
+    let object = value.as_object().ok_or_else(|| format!("{label} must be an object"))?;
+    if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(format!("{label} contains an unsupported field"));
+    }
+    Ok(())
+}
+
+fn validate_normalization_candidates(value: &serde_json::Value, label: &str) -> Result<Vec<String>, String> {
+    ensure_object_keys(value, &["status", "candidateIds"], &format!("{label} candidates"))?;
+    let ids = value["candidateIds"].as_array()
+        .ok_or_else(|| format!("{label} candidate IDs must be an array"))?
+        .iter()
+        .map(|candidate| candidate.as_str()
+            .filter(|id| !id.trim().is_empty() && *id == id.trim())
+            .map(str::to_string)
+            .ok_or_else(|| format!("{label} candidate identity is invalid")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let unique_ids = ids.iter().collect::<std::collections::HashSet<_>>();
+    if unique_ids.len() != ids.len() {
+        return Err(format!("{label} candidate IDs must be unique"));
+    }
+    if !normalization_candidate_status_matches(value["status"].as_str(), ids.len()) {
+        return Err(format!("{label} candidate status does not match its candidate count"));
+    }
+    Ok(ids)
+}
+
+fn normalization_candidate_status_matches(status: Option<&str>, count: usize) -> bool {
+    matches!((status, count), (Some("unresolved"), 0) | (Some("proposed"), 1) | (Some("ambiguous"), 2..))
+}
+
 fn stamp_reference_formulation_review(
     mut review: serde_json::Value,
     user_id: &str,
@@ -719,8 +895,8 @@ fn stamp_reference_formulation_review(
 }
 
 fn ensure_generic_collection_write_allowed(name: &str) -> Result<(), String> {
-    if name == "reference_formulation_reviews" {
-        return Err("reference formulation reviews must use the authenticated append command".to_string());
+    if matches!(name, "reference_formulation_reviews" | "reference_formulation_normalizations") {
+        return Err("reference formulation records must use their dedicated append command".to_string());
     }
     Ok(())
 }
@@ -1224,7 +1400,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 101);
+        assert_eq!(COLLECTIONS.len(), 102);
     }
 
     #[test]
@@ -1305,6 +1481,9 @@ mod tests {
         let (rows, inserted, updated) = apply_upsert(vec![], vec![review.clone()], true, "reference_formulation_reviews").unwrap();
         assert_eq!((inserted, updated), (1, 0));
         assert!(apply_upsert(rows, vec![review], true, "reference_formulation_reviews").is_err());
+        assert_eq!(collection_spec("reference_formulation_normalizations"), Ok(("reference_formulation_normalizations", true)));
+        assert!(ensure_generic_collection_write_allowed("reference_formulation_normalizations").is_err());
+        assert!(ensure_generic_collection_write_allowed("reference_formulations").is_ok());
     }
 
     #[test]
@@ -1360,6 +1539,38 @@ mod tests {
         assert!(validate_review_evidence(&forged, &source).unwrap_err().contains("immutable source evidence"));
         assert!(ensure_generic_collection_write_allowed("reference_formulation_reviews").is_err());
         assert!(ensure_generic_collection_write_allowed("reference_formulations").is_ok());
+    }
+
+    #[test]
+    fn normalization_versions_must_match_source_lines_and_commercial_product_candidates() {
+        let source = serde_json::json!({
+            "id": "source-1", "sourceDocumentHash": "a".repeat(64),
+            "ingredientLines": [{ "id": "line-1" }],
+            "productMatches": [{ "ingredientLineId": "line-1", "candidates": [{ "commercialProductId": "product-source-candidate" }] }]
+        });
+        let normalization = serde_json::json!({
+            "schemaVersion": "1.0", "recordKind": "reference_formulation_normalization",
+            "id": "normalization-1", "code": "normalization-1",
+            "referenceFormulationRecordId": "source-1", "sourceDocumentHash": "A".repeat(64),
+            "normalizerVersion": "formulab-reference-formulation-normalization-v1", "version": 1,
+            "lines": [{
+                "sourceLineId": "line-1",
+                "commercialProduct": { "status": "proposed", "candidateIds": ["product-source-candidate"] },
+                "canonicalChemistry": { "status": "unresolved", "candidateIds": [] }
+            }]
+        });
+        validate_normalization_version(&normalization, &source, &[]).unwrap();
+        let mut forged = normalization.clone();
+        forged["lines"][0]["commercialProduct"]["candidateIds"] = serde_json::json!(["forged-product"]);
+        assert!(validate_normalization_version(&forged, &source, &[]).unwrap_err().contains("match the immutable source"));
+        let mut extra_field = normalization.clone();
+        extra_field["approved"] = serde_json::json!(true);
+        assert!(validate_normalization_version(&extra_field, &source, &[]).unwrap_err().contains("unsupported field"));
+        let duplicate = serde_json::json!({ "status": "ambiguous", "candidateIds": ["chemical-1", "chemical-1"] });
+        assert!(validate_normalization_candidates(&duplicate, "canonical chemistry").unwrap_err().contains("must be unique"));
+        let padded = serde_json::json!({ "status": "proposed", "candidateIds": [" chemical-1 "] });
+        assert!(validate_normalization_candidates(&padded, "canonical chemistry").unwrap_err().contains("identity is invalid"));
+        assert!(!normalization_candidate_status_matches(Some("accepted"), 1));
     }
 
     #[test]
