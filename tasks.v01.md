@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 7
-- Remaining: 149
-- Completion: 4.5%
-- Current task: V01-00.008 - Define no-fabrication invariants
+- Completed: 8
+- Remaining: 148
+- Completion: 5.1%
+- Current task: V01-00.009 - Define branch-local V01 task transition helper/check
 - Current status: IN PROGRESS
-- Next task: V01-00.009 - Define branch-local V01 task transition helper/check
+- Next task: V01-00.010 - Baseline acceptance checkpoint
 - Required actor: CODEX
 - Branch: V01
 
@@ -116,8 +116,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-00.005 - Inventory current persisted collections and backup coverage**: List every new or extended V01 collection that will require backup/restore and migration compatibility.
 - [x] **V01-00.006 - Define V01 terminology and identity vocabulary**: Define supplier, provider, surface, commercial product, grade, trade name, supplier product code, canonical chemical, component, blend, source formula, reference formula, normalized formula, evidence claim, and review decision.
 - [x] **V01-00.007 - Define scientific evidence classes**: Separate source document fact, supplier formulation evidence, SDS composition evidence, typical physical property, supplier recommendation, canonical identity proposal, measured laboratory result, prediction, and validation.
-- [~] **V01-00.008 - Define no-fabrication invariants**: Codify that unknown stays unknown, missing SDS components stay missing, supplier reference formula is not measured validation, SDS is not performance proof, Section 3 concentration is not automatically active matter, and supplier function text is not canonical truth.
-- [ ] **V01-00.009 - Define branch-local V01 task transition helper/check**: Add a simple task-order validation script or test that verifies unique task IDs and sequential state transitions in tasks.v01.md without changing root TASKS.md.
+- [x] **V01-00.008 - Define no-fabrication invariants**: Codify that unknown stays unknown, missing SDS components stay missing, supplier reference formula is not measured validation, SDS is not performance proof, Section 3 concentration is not automatically active matter, and supplier function text is not canonical truth.
+- [~] **V01-00.009 - Define branch-local V01 task transition helper/check**: Add a simple task-order validation script or test that verifies unique task IDs and sequential state transitions in tasks.v01.md without changing root TASKS.md.
 - [ ] **V01-00.010 - Baseline acceptance checkpoint**: Run focused existing FVL-04, material, data-exchange, generator, safety/regulatory, backup, and lineage tests. Record the exact starting green baseline for V01.
 
 ## Milestone V01-01 - Supplier document domain, secure acquisition, and storage
