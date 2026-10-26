@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createReferenceFormulationContribution,
+  supplierSdsProductEvidenceSchema,
+  supplierSdsProductEvidenceRecordSchema,
+  type CommercialProduct,
   extractReferenceFormulationIdentity,
   extractReferenceFormulationIngredientLines,
   validateReferenceFormulationArithmetic,
@@ -17,6 +20,7 @@ import { createReferenceFormulationRecord } from "@formulab/shared";
 import { appendReferenceFormulationNormalization, listReferenceFormulationNormalizations } from "./referenceFormulationNormalizations";
 import { createReferenceFormulationNormalizationVersion } from "@formulab/shared";
 import { appendReferenceFormulationNormalizationRecord, listRecords } from "./masterdata";
+import { getReferenceFormulationCorpusReviewData } from "./referenceFormulationCorpusReview";
 
 vi.mock("./masterdata", () => ({
   listRecords: vi.fn(),
@@ -33,7 +37,12 @@ const acquisition = () => supplierDocumentAcquisitionSchema.parse({
   sha256: HASH, byteSize: 2048, parserStatus: "completed", acquiredAt: "2026-10-26T08:00:00.000Z", createdAt: "2026-10-26T08:00:00.000Z",
 });
 
-function sourceRecord() {
+const commercialProduct: CommercialProduct = {
+  schemaVersion: "1.0", id: "commercial-product-1", supplierId: "supplier-croda", tradeName: "Known Product",
+  aliases: [], sourceDocumentCodes: [], sourceFormulationReferences: [], lifecycleStatus: "active", reviewStatus: "unreviewed",
+};
+
+function sourceRecord(products: CommercialProduct[] = []) {
   const source = createReferenceFormulationSource({
     id: "normalization-source", acquisition: acquisition(), title: "Example formula", parserVersion: "formulab-reference-formulation-layout-v1",
     rights: { status: "unknown", redistribution: "unknown", evidenceRefs: [] }, createdAt: "2026-10-26T08:01:00.000Z",
@@ -53,8 +62,8 @@ function sourceRecord() {
   const arithmetic = validateReferenceFormulationArithmetic({ source, lines: ingredientResult.lines });
   const procedure = extractReferenceFormulationProcedure({ source, pages });
   const targets = extractReferenceFormulationTargets({ source, pages });
-  const productMatches = matchReferenceFormulationProducts({ source, lines: ingredientResult.lines, products: [] });
-  const unresolved = buildReferenceFormulationUnresolvedQueue({ source, lines: ingredientResult.lines, matching: productMatches, products: [] });
+  const productMatches = matchReferenceFormulationProducts({ source, lines: ingredientResult.lines, products });
+  const unresolved = buildReferenceFormulationUnresolvedQueue({ source, lines: ingredientResult.lines, matching: productMatches, products });
   return createReferenceFormulationRecord({
     id: "normalization-source-record", code: "normalization-source-record", source,
     identityCandidates: identity.candidates, identityMetadataComparisons: identity.metadataComparisons, identityWarnings: identity.warnings,
@@ -182,5 +191,65 @@ describe("reference formulation normalization persistence", () => {
       referenceFormulationRecordId: source.id,
       lines: expect.arrayContaining([expect.objectContaining({ componentContributions: [contribution] })]),
     }));
+  });
+
+  it("joins normalized formula lines to the exact supplier SDS Section 3 fact and acquisition hash", async () => {
+    const source = sourceRecord([commercialProduct]);
+    const sdsHash = "c".repeat(64);
+    const sds = supplierSdsProductEvidenceRecordSchema.parse({
+      schemaVersion: "1.0", code: "sds-evidence-trace", acquisitionCode: "sds-acquisition-trace", extractionStatus: "unreviewed",
+      createdAt: "2026-10-26T10:00:00.000Z",
+      evidence: supplierSdsProductEvidenceSchema.parse({
+        schemaVersion: "1.0", id: "sds-evidence-trace", commercialProductId: commercialProduct.id,
+        section1: { sectionNumber: 1, sourceDocumentHash: sdsHash },
+        section3: { sectionNumber: 3, sourceDocumentHash: sdsHash, components: [{
+          id: "section3-component", componentName: { id: "component-name", rawValue: "Sodium laureth sulfate", evidenceRefs: ["sds:p3:concentration"] },
+          concentration: { id: "component-concentration", rawValue: "20-40% w/w", evidenceRefs: ["sds:p3:concentration"] }, disclosure: "disclosed",
+        }] },
+      }),
+    });
+    const sdsAcquisition = supplierDocumentAcquisitionSchema.parse({
+      schemaVersion: "1.0", code: "sds-acquisition-trace", supplierId: "supplier-croda", providerId: "croda-public", surfaceId: "sds-library",
+      documentType: "SDS", acquisitionMethod: "manual_assisted",
+      sourceFileSelection: { selectionId: "sds-selection", originalFilename: "product-sds.pdf", sourceFileSha256: sdsHash, selectedAt: "2026-10-26T10:00:00.000Z", selectedBy: "owner-1" },
+      sourceProduct: { tradeName: "Known Product" }, market: "EU", language: "en", originalFilename: "product-sds.pdf", mimeType: "application/pdf",
+      sha256: sdsHash, byteSize: 1024, parserStatus: "completed", acquiredAt: "2026-10-26T10:00:00.000Z", createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    const line = source.ingredientLines[0]!;
+    const contribution = createReferenceFormulationContribution({
+      source, sourceFormulaLineId: line.id, commercialProductId: commercialProduct.id, sourceSds: sds, sourceComponentId: "section3-component",
+    });
+    const version = createReferenceFormulationNormalizationVersion({
+      id: "normalization-trace-v1", source, version: 1, componentContributions: { [line.id]: [contribution] },
+      supplierSdsEvidenceRecords: [sds], createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    vi.mocked(listRecords).mockImplementation(async (collection) => {
+      if (collection === "reference_formulations") return [source] as never;
+      if (collection === "reference_formulation_normalizations") return [version] as never;
+      if (collection === "supplier_sds_product_evidence") return [sds] as never;
+      if (collection === "supplier_document_acquisitions") return [sdsAcquisition] as never;
+      return [] as never;
+    });
+    const trace = await getReferenceFormulationCorpusReviewData(source.id);
+    expect(trace.versions[0]?.lines[0]).toMatchObject({
+      sourceLine: { id: line.id },
+      normalizedLine: { sourceLineId: line.id },
+      contributions: [{
+        contribution: { sourceFormulaLineId: line.id, sourceSds: { evidenceId: sds.code, sourceFactId: "component-concentration" } },
+        sds: { evidence: { code: sds.code }, acquisition: { code: sdsAcquisition.code, sha256: sdsHash }, sourceComponent: { id: "section3-component" } },
+      }],
+    });
+    vi.mocked(listRecords).mockImplementation(async (collection) => collection === "reference_formulations"
+      ? [source] as never
+      : collection === "reference_formulation_normalizations" ? [version] as never
+      : collection === "supplier_sds_product_evidence" ? [sds] as never
+      : collection === "supplier_document_acquisitions" ? [{ ...sdsAcquisition, supplierId: "supplier-dow" }] as never : [] as never);
+    await expect(getReferenceFormulationCorpusReviewData(source.id)).rejects.toThrow(/supplier must match/);
+    vi.mocked(listRecords).mockImplementation(async (collection) => collection === "reference_formulations"
+      ? [source] as never
+      : collection === "reference_formulation_normalizations" ? [version] as never
+      : collection === "supplier_sds_product_evidence" ? [sds] as never
+      : collection === "supplier_document_acquisitions" ? [{ ...sdsAcquisition, sha256: "d".repeat(64) }] as never : [] as never);
+    await expect(getReferenceFormulationCorpusReviewData(source.id)).rejects.toThrow(/matching acquired SDS hash/);
   });
 });

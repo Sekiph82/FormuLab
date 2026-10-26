@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 101
-- Remaining: 55
-- Completion: 64.7%
-- Current task: V01-06.012 - Implement corpus review UI/data service
+- Completed: 102
+- Remaining: 54
+- Completion: 65.4%
+- Current task: V01-06.013 - Implement corpus backup/restore and index rebuild
 - Current status: IN PROGRESS
-- Next task: V01-06.013 - Implement corpus backup/restore and index rebuild
+- Next task: V01-06.014 - Corpus ingestion acceptance
+- Acceptance note: V01-06.012 extends the existing review page with immutable normalization-version traces for every source formula line and component contribution. The data service joins each line to its exact source record/hash and each SDS contribution to its persisted evidence record, Section 3 component/fact, acquisition and matching document hash; it rejects duplicate IDs and mismatched formulation/SDS suppliers. The UI shows candidate-only chemistry/product/function links, formula amounts, contribution ranges, disclosure, citations, and explicit unknown/missing evidence without changing RawMaterial or production formulas. Focused desktop tests (10), shared/desktop typechecks, `git diff --check`, V01 tracker validation, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-06.011 adds backward-compatible, evidence-bearing per-use rights and retention metadata; missing permissions and retention fail closed, public availability alone grants no reuse, source export additionally requires redistribution permission, expiry and delete-after-use are enforced. Supplier concentration reports share, HHI and effective supplier count without inventing a cutoff; prior candidates are rights-filtered by same/cross-supplier use and weighted equally per eligible supplier with deterministic ordering. Focused shared tests (5), shared/desktop typechecks, `git diff --check`, V01 tracker validation, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-06.010 adds a deterministic quality report over the latest normalization snapshot per immutable source formula, with a 2,000-formula target, product-family coverage, supplier distribution, candidate-only resolved/unresolved/ambiguous line rates, source-line evidence coverage, parser-confidence mean and sample coverage, as-of revision age, and source-field review completion. Unknown confidence is excluded rather than treated as zero; future, missing and ambiguous/unparseable revision dates remain separate. Unique normalization candidate IDs, process steps/conditions, and targets that still require review are counted separately from source-field review completion. The report validates source/hash lineage, duplicate versions/reviews, denominators and metric consistency. Focused shared tests (7), shared and desktop typechecks, `git diff --check`, independent read-only review, and tracker validation passed. Full regression not run.
 - Acceptance note: V01-06.009 adds a durable 5,000-file supplier-formula import job with 25 MiB per-PDF admission, safe basenames, content hashes, source-scoped idempotency, cross-job deduplication, bounded per-file errors, resumable processing, pause/reselection, partial-manifest recovery with ordered identity checks, and append-only review-required reference records. PDFs use the existing content-addressed project store and acquisition receipts; extracted identities and lines remain candidates/unresolved, and RawMaterial is never written. Hashless failed files stay terminal until a new job can establish identity. Focused desktop suites passed (37), shared schema/policy suites passed (16), shared and desktop typechecks, policy parity, tracker validation, `git diff --check`, and independent read-only review passed. `cargo check` could not complete because `apps/desktop/src-tauri/binaries/uv-x86_64-pc-windows-msvc.exe` is absent; full regression not run.
@@ -274,8 +275,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-06.009 - Implement bulk supplier-formula import job**: Support hundreds/thousands of PDFs with resumable ingestion, source-hash deduplication, per-file errors, review queues and idempotent re-import.
 - [x] **V01-06.010 - Implement 2,000-formula corpus quality metrics**: Report product-family coverage, supplier distribution, resolved-line rate, unresolved-line rate, evidence coverage, parser confidence, revision age and review completion.
 - [x] **V01-06.011 - Implement supplier-bias and rights metadata**: Track supplier dominance and source-use/retention/reuse constraints so priors and exports can respect both bias and rights.
-- [~] **V01-06.012 - Implement corpus review UI/data service**: Allow tracing every normalized line and contribution back to source formulation and SDS evidence.
-- [ ] **V01-06.013 - Implement corpus backup/restore and index rebuild**: Preserve immutable source identities, mappings, reviews and evidence; rebuild derived indexes deterministically after restore.
+- [x] **V01-06.012 - Implement corpus review UI/data service**: Allow tracing every normalized line and contribution back to source formulation and SDS evidence.
+- [~] **V01-06.013 - Implement corpus backup/restore and index rebuild**: Preserve immutable source identities, mappings, reviews and evidence; rebuild derived indexes deterministically after restore.
 - [ ] **V01-06.014 - Corpus ingestion acceptance**: Ingest a multi-supplier fixture corpus, verify deterministic normalization/indexing, unresolved handling, deduplication, restore and no production-formula side effects.
 
 ## Milestone V01-07 - Reference formulation intelligence

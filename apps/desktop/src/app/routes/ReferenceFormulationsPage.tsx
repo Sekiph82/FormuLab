@@ -6,6 +6,7 @@ import { useTrustedActor } from "@/lib/currentActor";
 import { appendReferenceFormulationReview, listReferenceFormulationReviews } from "@/lib/referenceFormulationReviews";
 import { listReferenceFormulations } from "@/lib/referenceFormulations";
 import { buildReferenceFormulationReviewItems, type ReferenceFormulationReviewItem } from "@/lib/referenceFormulationReviewItems";
+import { getReferenceFormulationCorpusReviewData, type ReferenceFormulationCorpusReviewData } from "@/lib/referenceFormulationCorpusReview";
 
 const DECISIONS = [
   { value: "accepted", label: "Accept", icon: Check },
@@ -20,6 +21,7 @@ export function ReferenceFormulationsPage() {
   const { recordId } = useParams();
   const [records, setRecords] = useState<ReferenceFormulationRecord[]>([]);
   const [reviews, setReviews] = useState<ReferenceFormulationReview[]>([]);
+  const [traceData, setTraceData] = useState<ReferenceFormulationCorpusReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -31,8 +33,16 @@ export function ReferenceFormulationsPage() {
     try {
       const available = await listReferenceFormulations();
       setRecords(available.sort((left, right) => left.source.title.localeCompare(right.source.title)));
-      if (recordId) setReviews(await listReferenceFormulationReviews(recordId));
-      else setReviews([]);
+      if (recordId) {
+        const [reviewHistory, trace] = await Promise.all([
+          listReferenceFormulationReviews(recordId), getReferenceFormulationCorpusReviewData(recordId),
+        ]);
+        setReviews(reviewHistory);
+        setTraceData(trace);
+      } else {
+        setReviews([]);
+        setTraceData(null);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -115,7 +125,7 @@ export function ReferenceFormulationsPage() {
           <ClipboardCheck size={20} className="mt-1 text-accent" />
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold text-text">{selected.source.title}</h1>
-            <p className="mt-1 text-sm text-muted">{selected.source.supplierId} · {selected.source.formulationCode ?? selected.code}</p>
+            <p className="mt-1 text-sm text-muted">{selected.source.supplierId} · {selected.source.formulationCode ?? selected.code} · {selected.source.originalFilename} · acquisition {selected.source.acquisitionCode}</p>
             <p className="mt-2 break-all font-mono text-[11px] text-muted">Source SHA-256: {selected.sourceDocumentHash}</p>
           </div>
         </div>
@@ -133,7 +143,58 @@ export function ReferenceFormulationsPage() {
           {items.map((item) => <ReviewCard key={item.targetKey} item={item} review={latestByTarget.get(item.targetKey)} disabled={!actor} onSave={saveDecision} />)}
         </div>
       )}
+      {traceData && <ReferenceFormulationNormalizationTrace data={traceData} />}
     </main>
+  );
+}
+
+function ReferenceFormulationNormalizationTrace({ data }: { data: ReferenceFormulationCorpusReviewData }) {
+  return (
+    <section aria-label="Normalization source trace" className="mt-8 rounded-lg border border-border bg-surface p-5">
+      <h2 className="text-lg font-semibold text-text">Normalized lines and contribution evidence</h2>
+      <p className="mb-5 mt-1 text-sm text-muted">Each candidate remains review-required. Source formulation lines and SDS Section 3 facts are linked by immutable record IDs and document hashes; SDS disclosure is not treated as a complete commercial composition.</p>
+      {data.versions.length === 0 ? <p className="rounded border border-border bg-surface-2 p-4 text-sm text-muted">No normalization versions have been recorded for this source.</p> : (
+        <div className="space-y-5">
+          {data.versions.map(({ version, lines }) => <section key={version.id} aria-label={`Normalization version ${version.version}`} className="rounded-md border border-border p-4">
+            <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-medium text-text">Version {version.version} · {version.createdAt}</h3>
+              <span className="font-mono text-[10px] text-muted">{version.id} · source {version.sourceDocumentHash}</span>
+            </header>
+            <div className="space-y-3">
+              {lines.map(({ sourceLine, normalizedLine, contributions }) => <article key={sourceLine.id} aria-label={`Normalized source line ${sourceLine.id}`} className="rounded border border-border bg-surface-2 p-4">
+                <h4 className="text-sm font-semibold text-text">Source line {sourceLine.orderIndex} · {sourceLine.id}</h4>
+                <p className="mt-1 break-words text-sm text-text">{sourceLine.rawRow.join(" | ")}</p>
+                <p className="mt-1 break-all font-mono text-[10px] text-muted">{sourceLine.ingredientName?.evidence.pageNumber !== undefined ? `Page ${sourceLine.ingredientName.evidence.pageNumber} · block ${sourceLine.ingredientName.evidence.blockIndex} · ` : ""}{sourceLine.ingredientName?.evidence.excerpt ?? "Source-row evidence retained with the immutable formulation record."} · {data.source.sourceDocumentHash}</p>
+                <div className="mt-3 grid gap-3 text-xs md:grid-cols-2">
+                  <div><span className="font-semibold text-text">Commercial product candidates:</span> <span className="text-muted">{normalizedLine.commercialProduct.candidateIds.join(", ") || "unresolved"} · review required</span></div>
+                  <div><span className="font-semibold text-text">Canonical chemistry candidates:</span> <span className="text-muted">{normalizedLine.canonicalChemistry.candidateIds.join(", ") || "unresolved"} · review required</span></div>
+                  <div><span className="font-semibold text-text">Supplier function:</span> <span className="text-muted">{normalizedLine.functionNormalization?.supplierFunction.originalValue ?? "not stated"}</span></div>
+                  <div><span className="font-semibold text-text">Function candidates:</span> <span className="text-muted">{normalizedLine.functionNormalization?.canonicalFunction.candidateIds.join(", ") || "unresolved"} · review required</span></div>
+                </div>
+                {contributions.length === 0 ? <p className="mt-3 rounded border border-border p-3 text-xs text-muted">No component contribution has been recorded for this line in this normalization version.</p> : (
+                  <div className="mt-3 space-y-2">
+                    {contributions.map(({ contribution, sds }) => <section key={contribution.id} aria-label={`Component contribution ${contribution.id}`} className="rounded border border-border p-3">
+                      <h5 className="text-xs font-semibold text-text">Component contribution · {contribution.id} · {contribution.status} · review required</h5>
+                      <p className="mt-1 text-xs text-muted">Component chemistry candidates: {contribution.canonicalChemistry.candidateIds.join(", ") || "unresolved"} · review required</p>
+                      <p className="mt-1 text-xs text-muted">Formula amount: {contribution.formulaAmount.originalValue ?? "unknown"} {contribution.formulaAmount.unit ?? ""} {contribution.formulaAmount.basis ?? ""} · source line {contribution.sourceFormulaLineId} · formula SHA-256 {contribution.sourceFormulaDocumentHash}</p>
+                      <p className="mt-1 text-xs text-muted">Calculated contribution: {contribution.contributionPercentRange ? `${contribution.contributionPercentRange.lowerBound}–${contribution.contributionPercentRange.upperBound}% w/w` : "unknown"} · evidence refs: {[...contribution.formulaAmount.evidenceRefs, ...contribution.sourceSds.evidenceRefs].join(", ") || "none"}</p>
+                      {!sds ? <p className="mt-2 rounded bg-surface-2 p-2 text-xs text-muted">SDS evidence missing; composition remains unknown. Reasons: {contribution.unknownReasons.join(", ") || "not supplied"}.</p> : (
+                        <div className="mt-2 rounded bg-surface-2 p-3 text-xs text-muted">
+                          <p><span className="font-semibold text-text">SDS:</span> {sds.acquisition.sourceProduct.tradeName ?? sds.acquisition.sourceProduct.supplierItemCode ?? sds.acquisition.originalFilename} · supplier {sds.acquisition.supplierId} · acquisition {sds.acquisition.code} · {sds.acquisition.revisionDate ?? sds.acquisition.sourceRevision ?? "revision not stated"}</p>
+                          <p className="mt-1 break-all font-mono text-[10px]">Evidence {sds.evidence.code} · SDS SHA-256 {sds.acquisition.sha256} · Section 3 component {contribution.sourceSds.sourceComponentId ?? "not resolved"} · fact {contribution.sourceSds.sourceFactId ?? "not resolved"}</p>
+                          <p className="mt-1">Disclosure: {contribution.sourceSds.disclosure ?? "unknown"} · source value: {contribution.sourceSds.originalValue ?? "not disclosed or not extracted"} · normalized fraction: {contribution.sourceSds.fractionRange ? `${contribution.sourceSds.fractionRange.lowerBound}–${contribution.sourceSds.fractionRange.upperBound}` : "unknown"}</p>
+                          <p className="mt-1 break-words">Section 3 component: {sds.sourceComponent?.componentName?.rawValue ?? "name not disclosed"} · CAS {sds.sourceComponent?.casNumber?.rawValue ?? "not stated"} · EC {sds.sourceComponent?.ecNumber?.rawValue ?? "not stated"} · material number {sds.sourceComponent?.materialNumber?.rawValue ?? "not stated"} · cited evidence: {contribution.sourceSds.evidenceRefs.join(", ") || "none"}</p>
+                        </div>
+                      )}
+                    </section>)}
+                  </div>
+                )}
+              </article>)}
+            </div>
+          </section>)}
+        </div>
+      )}
+    </section>
   );
 }
 
