@@ -701,6 +701,7 @@ export * from "./engine/referenceFormulationEligibility";
 export * from "./engine/referenceFormulationIngredientFrequencyPriors";
 export * from "./engine/referenceFormulationDosageDistributions";
 export * from "./engine/referenceFormulationCooccurrence";
+export * from "./engine/referenceFormulationContributionDistributions";
 export * from "./engine/referenceFormulationTargetExtraction";
 export * from "./engine/referenceFormulationProductMatching";
 export * from "./engine/referenceFormulationUnresolvedQueue";

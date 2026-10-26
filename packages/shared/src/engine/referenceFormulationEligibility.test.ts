@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildReferenceFormulationUnresolvedQueue,
+  calculateReferenceFormulationContributionDistributions,
   createReferenceFormulationRecord,
   createReferenceFormulationSource,
   extractReferenceFormulationIdentity,
@@ -425,5 +426,101 @@ describe("reference formulation corpus eligibility", () => {
       denominatorScope: "eligible_component_formulas_in_family", firstId: "component-chem-a", secondId: "component-chem-c",
       formulaCount: 1, eligibleFormulaCount: 1, frequency: 1, compatibilityEvidence: false,
     }]);
+  });
+
+  it("computes active and disclosed component contribution ranges only after exact source review", () => {
+    const active = query({ sourceRecordId: "contribution-active", supplierId: "supplier-a" });
+    active.activeMatterClaims = [{ originalValue: "10-15% w/w", percentRange: { lowerBound: 10, upperBound: 15 }, evidenceRefs: [`formula:${HASH}:1:1:text:text`], reviewRequired: true }];
+    const activeReview = review({
+      sourceRecordId: active.sourceRecordId, targetType: "target", targetKey: "active_matter_claim:0:percentRange",
+      fieldPath: "activeMatterClaims[0].percentRange", sourceValue: "10-15% w/w",
+    });
+    const unsupportedActive = query({ sourceRecordId: "contribution-active-unsupported", supplierId: "supplier-a" });
+    unsupportedActive.activeMatterClaims = [{ originalValue: "12%", percentRange: { lowerBound: 12, upperBound: 12 }, evidenceRefs: [`formula:${HASH}:1:1:text:text`], reviewRequired: true }];
+    const unsupportedActiveReview = review({
+      sourceRecordId: unsupportedActive.sourceRecordId, targetType: "target", targetKey: "active_matter_claim:0:percentRange",
+      fieldPath: "activeMatterClaims[0].percentRange", sourceValue: "12%",
+    });
+    const component = query({ sourceRecordId: "contribution-component", supplierId: "supplier-b" });
+    component.lines[0]!.commercialProducts = { status: "proposed", candidateIds: ["product-a"], reviewRequired: true };
+    component.lines[0]!.componentContributions = [{
+      contributionId: "contribution-1", status: "exact", commercialProductId: "product-a",
+      canonicalChemistry: { status: "proposed", candidateIds: ["component-chem-a"], reviewRequired: true },
+      formulaAmount: {
+        originalValue: "10", unit: "%", basis: "w/w", interpretation: "exact", percentRange: { lowerBound: 10, upperBound: 10 },
+        evidenceRefs: [...component.lines[0]!.sourceLineEvidenceRefs, ...component.lines[0]!.amount.evidenceRefs],
+      },
+      componentContributionPercentRange: { lowerBound: 5, upperBound: 5 },
+      sourceSds: {
+        status: "available", evidenceId: "sds-evidence-1", acquisitionCode: "sds-acquisition-1", commercialProductId: "product-a",
+        documentHash: "b".repeat(64), sectionNumber: 3, sourceComponentId: "sds-component-1", disclosure: "disclosed",
+        sourceFactId: "sds-fact-1", originalValue: "50% w/w", interpretation: "exact", fractionRange: { lowerBound: 0.5, upperBound: 0.5 },
+        evidenceRefs: ["pdf:section3:component-1:fact-1"],
+      },
+      unknownReasons: [], reviewRequired: true,
+    }];
+    component.lines[0]!.componentContributions.push({
+      contributionId: "contribution-unknown-same-chemistry", status: "unknown", commercialProductId: "product-a",
+      canonicalChemistry: { status: "proposed", candidateIds: ["component-chem-a"], reviewRequired: true },
+      formulaAmount: { interpretation: "unknown", evidenceRefs: [] },
+      sourceSds: { status: "missing", interpretation: "unknown", evidenceRefs: [] },
+      unknownReasons: ["formula_amount_missing", "sds_evidence_missing"], reviewRequired: true,
+    });
+    const componentId = "component-chem-a";
+    const componentReview = review({
+      sourceRecordId: component.sourceRecordId, targetType: "ingredient",
+      targetKey: `normalization:${component.normalizationId}:contribution:contribution-1:canonicalChemistry:${componentId}`,
+      fieldPath: `normalizations[${component.normalizationId}].lines[${component.lines[0]!.sourceLineId}].componentContributions[contribution-1].canonicalChemistry`,
+      sourceValue: componentId,
+    });
+    const cleanComponent = query({ sourceRecordId: "contribution-component-clean", supplierId: "supplier-c" });
+    cleanComponent.lines[0]!.commercialProducts = { status: "proposed", candidateIds: ["product-a"], reviewRequired: true };
+    cleanComponent.lines[0]!.componentContributions = [structuredClone(component.lines[0]!.componentContributions[0]!)];
+    cleanComponent.lines[0]!.componentContributions[0]!.contributionId = "contribution-clean";
+    const cleanComponentReview = review({
+      sourceRecordId: cleanComponent.sourceRecordId, targetType: "ingredient",
+      targetKey: `normalization:${cleanComponent.normalizationId}:contribution:contribution-clean:canonicalChemistry:${componentId}`,
+      fieldPath: `normalizations[${cleanComponent.normalizationId}].lines[${cleanComponent.lines[0]!.sourceLineId}].componentContributions[contribution-clean].canonicalChemistry`,
+      sourceValue: componentId,
+    });
+    const unknownComponent = query({ sourceRecordId: "contribution-component-unknown", supplierId: "supplier-b" });
+    unknownComponent.lines[0]!.commercialProducts = { status: "ambiguous", candidateIds: ["product-unknown", "different-product"], reviewRequired: true };
+    unknownComponent.lines[0]!.componentContributions = [{
+      contributionId: "contribution-unknown", status: "unknown", commercialProductId: "product-unknown",
+      canonicalChemistry: { status: "proposed", candidateIds: ["component-chem-unknown"], reviewRequired: true },
+      formulaAmount: { interpretation: "unknown", evidenceRefs: [] },
+      sourceSds: { status: "missing", interpretation: "unknown", evidenceRefs: [] },
+      unknownReasons: ["formula_amount_missing", "sds_evidence_missing"], reviewRequired: true,
+    }];
+    const mismatchedProductContribution = structuredClone(component.lines[0]!.componentContributions[0]!);
+    mismatchedProductContribution.contributionId = "contribution-product-mismatch";
+    mismatchedProductContribution.commercialProductId = "product-unknown";
+    mismatchedProductContribution.canonicalChemistry.candidateIds = ["component-chem-mismatch"];
+    mismatchedProductContribution.sourceSds.commercialProductId = "different-product";
+    unknownComponent.lines[0]!.componentContributions.push(mismatchedProductContribution);
+    const mismatchReview = review({
+      sourceRecordId: unknownComponent.sourceRecordId, targetType: "ingredient",
+      targetKey: `normalization:${unknownComponent.normalizationId}:contribution:contribution-product-mismatch:canonicalChemistry:component-chem-mismatch`,
+      fieldPath: `normalizations[${unknownComponent.normalizationId}].lines[${unknownComponent.lines[0]!.sourceLineId}].componentContributions[contribution-product-mismatch].canonicalChemistry`,
+      sourceValue: "component-chem-mismatch",
+    });
+    const reviews = [
+      ...acceptedDosageReviews(component), ...acceptedDosageReviews(cleanComponent), ...acceptedDosageReviews(unknownComponent),
+      ...acceptedReviews(active), ...acceptedReviews(unsupportedActive), activeReview, unsupportedActiveReview, componentReview, cleanComponentReview, mismatchReview,
+    ];
+    const result = calculateReferenceFormulationContributionDistributions({ ...allowed([active, unsupportedActive, component, cleanComponent, unknownComponent], reviews) });
+
+    expect(result).toMatchObject({ eligibleFormulaCount: 5, excludedFormulaCount: 0, excludedSampleCount: 4,
+      excludedSamplesByReason: { active_claim_percent_not_supported: 1, component_evidence_incomplete: 1, component_not_quantified: 2 } });
+    expect(result.distributions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        quantityKind: "active_matter_claim", formulaCount: 1, minimumLowerBound: 10, maximumUpperBound: 15,
+        sourceRecordIds: ["contribution-active"], evidenceRefs: [`formula:${HASH}:1:1:text:text`],
+      }),
+      expect.objectContaining({
+        quantityKind: "component_contribution", canonicalChemistryId: componentId, formulaCount: 1,
+        minimumLowerBound: 5, maximumUpperBound: 5, sourceRecordIds: ["contribution-component-clean"],
+      }),
+    ]));
   });
 });
