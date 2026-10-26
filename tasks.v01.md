@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 21
-- Remaining: 135
-- Completion: 13.5%
-- Current task: V01-01.012 - Supplier document foundation acceptance
+- Completed: 22
+- Remaining: 134
+- Completion: 14.1%
+- Current task: V01-02.001 - Implement shared supplier adapter conformance harness
 - Current status: IN PROGRESS
-- Next task: V01-02.001 - Implement shared supplier adapter conformance harness
+- Next task: V01-02.002 - Implement coverage reporting contract
 - Required actor: CODEX
 - Branch: V01
 
@@ -133,11 +133,11 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-01.009 - Implement acquisition job state machine**: Support queued, discovery, downloading, parsing, review-ready, completed-with-gaps, failed-item, cancelled, and resumed states at item/job level without global task blocking.
 - [x] **V01-01.010 - Implement resumable checkpoints and idempotency**: Resume catalog scans/downloads after interruption without duplicating products, documents, or audit records.
 - [x] **V01-01.011 - Extend backup/restore for acquired binaries and metadata**: Preserve hashes, document lineage, provider identities, reviews, and storage references; verify restore does not retarget historical links.
-- [~] **V01-01.012 - Supplier document foundation acceptance**: Run storage, secret-leak, SSRF, redirect, malformed-file, duplicate, retry, supersession, backup/restore, and backward-compatibility tests.
+- [x] **V01-01.012 - Supplier document foundation acceptance**: Run storage, secret-leak, SSRF, redirect, malformed-file, duplicate, retry, supersession, backup/restore, and backward-compatibility tests.
 
 ## Milestone V01-02 - Supplier adapter framework and provider implementations
 
-- [ ] **V01-02.001 - Implement shared supplier adapter conformance harness**: Create deterministic fixtures for search, pagination, rate limit, timeout, authorization, partial scope, unavailable surface, document discovery, download, cancellation, and retry.
+- [~] **V01-02.001 - Implement shared supplier adapter conformance harness**: Create deterministic fixtures for search, pagination, rate limit, timeout, authorization, partial scope, unavailable surface, document discovery, download, cancellation, and retry.
 - [ ] **V01-02.002 - Implement coverage reporting contract**: Every adapter must report scanned scope, markets/languages/product lines, pages/products checked, documents found/acquired, inaccessible surfaces, unsupported capabilities, and gaps.
 - [ ] **V01-02.003 - Implement public/API supplier profile over existing REST connector**: Reuse FVL-04 REST authority for declared hosts, pagination, rate limits, source links, and response normalization.
 - [ ] **V01-02.004 - Implement authenticated portal profile**: Support user-attended authentication and secure session references without bypassing MFA/CAPTCHA or supplier controls.
