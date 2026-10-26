@@ -98,13 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 55
-- Remaining: 101
-- Completion: 35.3%
-- Current task: V01-03.014 - Universal SDS extraction acceptance matrix
+- Completed: 56
+- Remaining: 100
+- Completion: 35.9%
+- Current task: V01-04.001 - Implement commercial-product identity schema
 - Current status: IN PROGRESS
-- Next task: V01-04.001 - Implement commercial-product identity schema
-- Acceptance note: V01-03.014 currently has authored synthetic supplier-style conformance cases; no vendor SDS PDF fixtures are present in this checkout. Do not claim vendor-PDF acceptance until rights-cleared source fixtures are available.
+- Next task: V01-04.002 - Implement canonical chemical library schema
+- Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Required actor: CODEX
 - Branch: V01
 
@@ -174,11 +174,11 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-03.011 - Implement Section 9 physical-property extraction**: Extract physical state, color, odor, pH, freezing/boiling/flash points, density/relative density, solubility, vapor pressure, logP, viscosity, molecular weight and related values with units and context.
 - [x] **V01-03.012 - Implement measurement-context model**: For every physical value preserve temperature, sample concentration, delivered-form basis, method/standard, typical/specification wording, measured/literature/estimated status, page/section, original text and normalized value.
 - [x] **V01-03.013 - Implement Sections 10-15 evidence extraction**: Extract stability/reactivity, incompatible materials, transport, ecological/regulatory and other structured evidence needed by existing safety/regulatory systems without automatically changing their verdicts.
-- [~] **V01-03.014 - Universal SDS extraction acceptance matrix**: Verify Croda, Evonik, Clariant and Dow fixtures, including layout differences, pure substance, solution, polymer, complex blend, partial disclosure, trade secret, condition-bound pH/viscosity/density, and typical-value warnings.
+- [x] **V01-03.014 - Universal SDS extraction acceptance matrix**: Verify Croda, Evonik, Clariant and Dow fixtures, including layout differences, pure substance, solution, polymer, complex blend, partial disclosure, trade secret, condition-bound pH/viscosity/density, and typical-value warnings.
 
 ## Milestone V01-04 - Commercial product identity and canonical chemical resolver
 
-- [ ] **V01-04.001 - Implement commercial-product identity schema**: Preserve supplier, trade name, product code/grade, regional/language aliases, source documents, source formulation references, lifecycle and review status separately from canonical chemistry.
+- [~] **V01-04.001 - Implement commercial-product identity schema**: Preserve supplier, trade name, product code/grade, regional/language aliases, source documents, source formulation references, lifecycle and review status separately from canonical chemistry.
 - [ ] **V01-04.002 - Implement canonical chemical library schema**: Support stable canonical IDs, preferred name, CAS/EC, INCI where appropriate, abbreviations/synonyms, chemical family, functional families, and provenance for library entries.
 - [ ] **V01-04.003 - Implement deterministic CAS and EC normalization**: Validate formats/check digits where applicable, preserve original strings, and refuse conflicting identities.
 - [ ] **V01-04.004 - Implement chemical-name and synonym normalization**: Normalize controlled aliases without collapsing distinct materials solely because names are similar.
