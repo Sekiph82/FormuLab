@@ -18,25 +18,56 @@ import type { ReferenceFormulationRecord } from "../schemas/referenceFormulation
 import { filterEligibleReferenceFormulationCorpus } from "./referenceFormulationEligibility";
 import { calculateReferenceFormulationIngredientFrequencyPriors } from "./referenceFormulationIngredientFrequencyPriors";
 import { calculateReferenceFormulationDosageDistributions } from "./referenceFormulationDosageDistributions";
+import { calculateReferenceFormulationCooccurrence } from "./referenceFormulationCooccurrence";
 
 const HASH = "a".repeat(64);
 const AS_OF = "2026-10-26T12:00:00.000Z";
 
 function query(input: {
   sourceRecordId?: string; normalizationId?: string; normalizationVersion?: number; supplierId?: string; chemicalId?: string;
-  amountValue?: string; functionId?: string;
+  amountValue?: string; functionId?: string; functionIds?: string[]; ingredientNames?: string[]; chemicalIds?: string[];
   familyStatus?: "unresolved" | "proposed" | "ambiguous"; chemistryStatus?: "unresolved" | "proposed" | "ambiguous";
 } = {}): ReferenceFormulationQueryRecord {
   const sourceRecordId = input.sourceRecordId ?? "source-1";
   const supplierId = input.supplierId ?? "supplier-1";
-  const chemicalId = input.chemicalId ?? "chemical-1";
   const normalizationId = input.normalizationId ?? "normalization-1";
   const familyStatus = input.familyStatus ?? "proposed";
   const chemistryStatus = input.chemistryStatus ?? "proposed";
-  const source = sourceRecord(sourceRecordId, allowedRights, true, supplierId, input.amountValue ?? "10");
-  const sourceLine = source.ingredientLines[0]!;
-  const sourceLineId = sourceLine.id;
+  const source = sourceRecord(sourceRecordId, allowedRights, true, supplierId, input.amountValue ?? "10", input.ingredientNames);
   const familyCandidate = source.identityCandidates.find((candidate) => candidate.field === "product_family");
+  const lines = source.ingredientLines.map((sourceLine, index) => {
+    const sourceLineId = sourceLine.id;
+    const chemistryId = input.chemicalIds?.[index] ?? input.chemicalId ?? "chemical-1";
+    const functionId = input.functionIds?.[index] ?? input.functionId;
+    return {
+      sourceLineId,
+      ...(sourceLine.ingredientName ? { sourceIngredientName: sourceLine.ingredientName.rawValue } : {}),
+      ...(sourceLine.inciOrChemicalName ? { inciOrChemicalName: sourceLine.inciOrChemicalName.rawValue } : {}),
+      ...(sourceLine.supplierProductCode ? { supplierProductCode: sourceLine.supplierProductCode.rawValue } : {}),
+      sourceLineEvidenceRefs: [sourceLine.ingredientName, sourceLine.supplierProductCode, sourceLine.inciOrChemicalName]
+        .filter((field) => field !== undefined)
+        .map((field) => `formula:${HASH}:${field.evidence.pageNumber}:${field.evidence.blockIndex}:${field.evidence.rowIndex ?? "text"}:${field.evidence.cellIndex ?? "text"}`),
+      commercialProducts: { status: "unresolved" as const, candidateIds: [], reviewRequired: true as const },
+      canonicalChemistry: {
+        status: chemistryStatus,
+        candidateIds: chemistryStatus === "unresolved" ? [] : chemistryStatus === "ambiguous" ? [chemistryId, "chemical-2"] : [chemistryId],
+        reviewRequired: true as const,
+      },
+      supplierFunction: { status: "not_stated" as const, evidenceRefs: [] },
+      canonicalFunctions: functionId
+        ? { status: "proposed" as const, candidateIds: [functionId], reviewRequired: true as const }
+        : { status: "unresolved" as const, candidateIds: [], reviewRequired: true as const },
+      amount: {
+        ...(sourceLine.amount ? { originalValue: sourceLine.amount.rawValue } : {}),
+        ...(sourceLine.unit ? { unit: sourceLine.unit.rawValue } : {}),
+        ...(sourceLine.basis ? { basis: sourceLine.basis.rawValue } : {}),
+        quantitySemantics: sourceLine.quantitySemantics,
+        evidenceRefs: [sourceLine.amount, sourceLine.unit, sourceLine.basis].filter((field) => field !== undefined)
+          .map((field) => `formula:${HASH}:${field.evidence.pageNumber}:${field.evidence.blockIndex}:${field.evidence.rowIndex ?? "text"}:${field.evidence.cellIndex ?? "text"}`),
+      },
+      componentContributions: [], reviewRequired: true as const,
+    };
+  });
   return referenceFormulationQueryRecordSchema.parse({
     schemaVersion: "formulab-reference-formulation-query-v1", recordKind: "reference_formulation_query",
     id: `query:${sourceRecordId}:${normalizationId}`, sourceRecordId, normalizationId,
@@ -52,34 +83,7 @@ function query(input: {
       reviewRequired: true,
     },
     market: "EU", language: "en", sourceRevision: { identityCandidates: [] },
-    lines: [{
-      sourceLineId,
-      ...(sourceLine.ingredientName ? { sourceIngredientName: sourceLine.ingredientName.rawValue } : {}),
-      ...(sourceLine.inciOrChemicalName ? { inciOrChemicalName: sourceLine.inciOrChemicalName.rawValue } : {}),
-      ...(sourceLine.supplierProductCode ? { supplierProductCode: sourceLine.supplierProductCode.rawValue } : {}),
-      sourceLineEvidenceRefs: [sourceLine.ingredientName, sourceLine.supplierProductCode, sourceLine.inciOrChemicalName]
-        .filter((field) => field !== undefined)
-        .map((field) => `formula:${HASH}:${field.evidence.pageNumber}:${field.evidence.blockIndex}:${field.evidence.rowIndex ?? "text"}:${field.evidence.cellIndex ?? "text"}`),
-      commercialProducts: { status: "unresolved", candidateIds: [], reviewRequired: true },
-      canonicalChemistry: {
-        status: chemistryStatus,
-        candidateIds: chemistryStatus === "unresolved" ? [] : chemistryStatus === "ambiguous" ? [chemicalId, "chemical-2"] : [chemicalId],
-        reviewRequired: true,
-      },
-      supplierFunction: { status: "not_stated", evidenceRefs: [] },
-      canonicalFunctions: input.functionId
-        ? { status: "proposed", candidateIds: [input.functionId], reviewRequired: true }
-        : { status: "unresolved", candidateIds: [], reviewRequired: true },
-      amount: {
-        ...(sourceLine.amount ? { originalValue: sourceLine.amount.rawValue } : {}),
-        ...(sourceLine.unit ? { unit: sourceLine.unit.rawValue } : {}),
-        ...(sourceLine.basis ? { basis: sourceLine.basis.rawValue } : {}),
-        quantitySemantics: sourceLine.quantitySemantics,
-        evidenceRefs: [sourceLine.amount, sourceLine.unit, sourceLine.basis].filter((field) => field !== undefined)
-          .map((field) => `formula:${HASH}:${field.evidence.pageNumber}:${field.evidence.blockIndex}:${field.evidence.rowIndex ?? "text"}:${field.evidence.cellIndex ?? "text"}`),
-      },
-      componentContributions: [], reviewRequired: true,
-    }],
+    lines,
     activeMatterClaims: [], processSteps: [], targets: [], reviewRequired: true,
   });
 }
@@ -104,41 +108,54 @@ function review(input: {
 function acceptedReviews(record = query()): ReferenceFormulationReview[] {
   const source = sourceRecord(record.sourceRecordId);
   const familyIndex = source.identityCandidates.findIndex((candidate) => candidate.field === "product_family");
-  const lineId = record.lines[0]!.sourceLineId;
-  return [
-    review({ sourceRecordId: record.sourceRecordId, targetType: "identity", targetKey: `identity:product_family:${familyIndex}`, fieldPath: `identityCandidates[${familyIndex}].product_family`, sourceValue: "Hand Dishwash" }),
-    review({ sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${lineId}:ingredientName`, fieldPath: `ingredientLines[${lineId}].ingredientName`, sourceValue: "Surfactant A" }),
-    review({
-      sourceRecordId: record.sourceRecordId,
-      targetType: "ingredient", targetKey: `normalization:${record.normalizationId}:line:${lineId}:canonicalChemistry:${record.lines[0]!.canonicalChemistry.candidateIds[0]}`,
-      fieldPath: `normalizations[${record.normalizationId}].lines[${lineId}].canonicalChemistry`, sourceValue: record.lines[0]!.canonicalChemistry.candidateIds[0]!,
-    }),
-  ];
+  return [review({ sourceRecordId: record.sourceRecordId, targetType: "identity", targetKey: `identity:product_family:${familyIndex}`, fieldPath: `identityCandidates[${familyIndex}].product_family`, sourceValue: "Hand Dishwash" }),
+    ...record.lines.flatMap((line) => {
+      const lineId = line.sourceLineId;
+      const identityField = line.sourceIngredientName ? "ingredientName" : line.inciOrChemicalName ? "inciOrChemicalName" : "supplierProductCode";
+      const identityValue = line.sourceIngredientName ?? line.inciOrChemicalName ?? line.supplierProductCode!;
+      const chemistryId = line.canonicalChemistry.candidateIds[0]!;
+      return [
+        review({ sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${lineId}:${identityField}`, fieldPath: `ingredientLines[${lineId}].${identityField}`, sourceValue: identityValue }),
+        review({
+          sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `normalization:${record.normalizationId}:line:${lineId}:canonicalChemistry:${chemistryId}`,
+          fieldPath: `normalizations[${record.normalizationId}].lines[${lineId}].canonicalChemistry`, sourceValue: chemistryId,
+        }),
+      ];
+    })];
 }
 
 function acceptedDosageReviews(record: ReferenceFormulationQueryRecord): ReferenceFormulationReview[] {
-  const line = record.lines[0]!;
-  const amount = line.amount;
   const reviews = acceptedReviews(record);
-  if (amount.originalValue) reviews.push(review({
-    sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${line.sourceLineId}:amount`,
-    fieldPath: `ingredientLines[${line.sourceLineId}].amount`, sourceValue: amount.originalValue,
-  }));
-  if (amount.unit) reviews.push(review({
-    sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${line.sourceLineId}:unit`,
-    fieldPath: `ingredientLines[${line.sourceLineId}].unit`, sourceValue: amount.unit,
-  }));
-  if (amount.basis) reviews.push(review({
-    sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${line.sourceLineId}:basis`,
-    fieldPath: `ingredientLines[${line.sourceLineId}].basis`, sourceValue: amount.basis,
-  }));
-  const functionId = line.canonicalFunctions.candidateIds[0];
-  if (functionId) reviews.push(review({
+  for (const line of record.lines) {
+    const amount = line.amount;
+    if (amount.originalValue) reviews.push(review({
+      sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${line.sourceLineId}:amount`,
+      fieldPath: `ingredientLines[${line.sourceLineId}].amount`, sourceValue: amount.originalValue,
+    }));
+    if (amount.unit) reviews.push(review({
+      sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${line.sourceLineId}:unit`,
+      fieldPath: `ingredientLines[${line.sourceLineId}].unit`, sourceValue: amount.unit,
+    }));
+    if (amount.basis) reviews.push(review({
+      sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${line.sourceLineId}:basis`,
+      fieldPath: `ingredientLines[${line.sourceLineId}].basis`, sourceValue: amount.basis,
+    }));
+    const functionId = line.canonicalFunctions.candidateIds[0];
+    if (functionId) reviews.push(review({
+      sourceRecordId: record.sourceRecordId, targetType: "ingredient",
+      targetKey: `normalization:${record.normalizationId}:line:${line.sourceLineId}:canonicalFunction:${functionId}`,
+      fieldPath: `normalizations[${record.normalizationId}].lines[${line.sourceLineId}].canonicalFunction`, sourceValue: functionId,
+    }));
+  }
+  return reviews;
+}
+
+function acceptedFunctionReviews(record: ReferenceFormulationQueryRecord): ReferenceFormulationReview[] {
+  return [...acceptedReviews(record), ...record.lines.flatMap((line) => line.canonicalFunctions.candidateIds.map((functionId) => review({
     sourceRecordId: record.sourceRecordId, targetType: "ingredient",
     targetKey: `normalization:${record.normalizationId}:line:${line.sourceLineId}:canonicalFunction:${functionId}`,
     fieldPath: `normalizations[${record.normalizationId}].lines[${line.sourceLineId}].canonicalFunction`, sourceValue: functionId,
-  }));
-  return reviews;
+  })))];
 }
 
 const allowedRights: ReferenceFormulationRights = {
@@ -147,7 +164,7 @@ const allowedRights: ReferenceFormulationRights = {
     retentionPolicy: { status: "retain_until_revoked", evidenceRefs: ["owner:retention"] },
 };
 
-function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRights, includeFamily = true, supplierId = "supplier-1", amountValue = "10"): ReferenceFormulationRecord {
+function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRights, includeFamily = true, supplierId = "supplier-1", amountValue = "10", ingredientNames = ["Surfactant A"]): ReferenceFormulationRecord {
   const acquisition = supplierDocumentAcquisitionSchema.parse({
     schemaVersion: "1.0", code: `acquisition:${id}`, supplierId, providerId: "provider-1", surfaceId: "surface-1",
     documentType: "FORMULATION", acquisitionMethod: "manual_assisted",
@@ -161,7 +178,7 @@ function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRi
   const pages = [{ pageNumber: 1, blocks: [
     ...(includeFamily ? [{ type: "text" as const, blockIndex: 0, text: "Product family: Hand Dishwash", source: "digital" as const }] : []),
     { type: "text" as const, blockIndex: 1, text: "Formulation title: Hand Dishwash Formula", source: "digital" as const },
-    { type: "table" as const, blockIndex: 2, source: "digital" as const, rows: [["Ingredient", "Amount", "Unit", "Basis"], ["Surfactant A", amountValue, "%", "w/w"]] },
+    { type: "table" as const, blockIndex: 2, source: "digital" as const, rows: [["Ingredient", "Amount", "Unit", "Basis"], ...ingredientNames.map((name) => [name, amountValue, "%", "w/w"])] },
   ] }];
   const identity = extractReferenceFormulationIdentity({ acquisition, pages });
   const ingredients = extractReferenceFormulationIngredientLines({ source, pages });
@@ -183,7 +200,8 @@ const allowed = (records: ReferenceFormulationQueryRecord[], reviews: ReferenceF
   queryRecords: records, reviews,
   sourceRecords: [...new Set(records.map((record) => record.sourceRecordId))].map((id) => {
     const record = records.find((item) => item.sourceRecordId === id)!;
-    return sourceRecord(id, allowedRights, record.productFamily.status !== "unresolved", record.supplierId, record.lines[0]?.amount.originalValue ?? "");
+    const ingredientNames = record.lines.map((line) => line.sourceIngredientName ?? line.inciOrChemicalName ?? line.supplierProductCode ?? "Unknown source line");
+    return sourceRecord(id, allowedRights, record.productFamily.status !== "unresolved", record.supplierId, record.lines[0]?.amount.originalValue ?? "", ingredientNames);
   }),
   asOf: AS_OF,
 });
@@ -344,5 +362,68 @@ describe("reference formulation corpus eligibility", () => {
     });
     expect(result.distributions.find((sample) => sample.functionAssignment === "unassigned_or_unreviewed"))
       .toMatchObject({ formulaCount: 1, functionAssignment: "unassigned_or_unreviewed", sourceRecordIds: ["dosage-function-unknown"] });
+  });
+
+  it("reports reviewed material and function co-occurrence as empirical appearance only", () => {
+    const first = query({ sourceRecordId: "co-formula-a", supplierId: "supplier-a", ingredientNames: ["Surfactant A", "Preservative B"], chemicalIds: ["chem-a", "chem-b"], functionIds: ["nonionic_surfactant", "preservative"] });
+    const second = query({ sourceRecordId: "co-formula-b", supplierId: "supplier-b", ingredientNames: ["Surfactant A", "Preservative B"], chemicalIds: ["chem-a", "chem-b"], functionIds: ["nonionic_surfactant", "preservative"] });
+    const third = query({ sourceRecordId: "co-formula-c", supplierId: "supplier-a", chemicalId: "chem-a" });
+    const result = calculateReferenceFormulationCooccurrence({
+      ...allowed([first, second, third], [...acceptedFunctionReviews(first), ...acceptedFunctionReviews(second), ...acceptedReviews(third)]),
+    });
+
+    expect(result).toMatchObject({ eligibleFormulaCount: 3, excludedFormulaCount: 0, interpretation: "empirical_cooccurrence_only", compatibilityEvidence: false });
+    expect(result.cooccurrences).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        pairKind: "material_pair", scope: "same_formula", firstId: "chem-a", secondId: "chem-b",
+        formulaCount: 2, eligibleFormulaCount: 3, frequency: 2 / 3,
+        suppliers: [
+          { supplierId: "supplier-a", formulaCount: 1, share: 0.5 },
+          { supplierId: "supplier-b", formulaCount: 1, share: 0.5 },
+        ], sourceRecordIds: ["co-formula-a", "co-formula-b"], compatibilityEvidence: false,
+      }),
+      expect.objectContaining({ pairKind: "function_pair", firstId: "nonionic_surfactant", secondId: "preservative", formulaCount: 2, compatibilityEvidence: false }),
+      expect.objectContaining({ pairKind: "material_function_pair", firstId: "chem-a", secondId: "nonionic_surfactant", formulaCount: 2, compatibilityEvidence: false }),
+    ]));
+    expect(calculateReferenceFormulationCooccurrence({
+      ...allowed([third, second, first], [...acceptedFunctionReviews(first), ...acceptedFunctionReviews(second), ...acceptedReviews(third)]),
+    })).toEqual(result);
+  });
+
+  it("groups component pairs by exact SDS product evidence and excludes unknown compositions", () => {
+    const record = query({ sourceRecordId: "co-components", ingredientNames: ["Surfactant A", "Surfactant B"] });
+    record.lines[0]!.commercialProducts = { status: "ambiguous", candidateIds: ["product-a", "product-b"], reviewRequired: true };
+    record.lines[1]!.commercialProducts = { status: "proposed", candidateIds: ["product-b"], reviewRequired: true };
+    const contribution = (contributionId: string, productId: string, chemistryId: string, hash: string) => ({
+      contributionId, status: "unknown" as const, commercialProductId: productId,
+      formulaAmount: { interpretation: "unknown" as const, evidenceRefs: [] },
+      sourceSds: {
+        status: "available" as const, evidenceId: `evidence:${productId}`, acquisitionCode: `acquisition:${productId}`,
+        commercialProductId: productId, documentHash: hash, sectionNumber: 3 as const,
+        sourceComponentId: `component:${contributionId}`, disclosure: "disclosed" as const,
+        interpretation: "unknown" as const, evidenceRefs: [`sds:${hash}:3`],
+      },
+      canonicalChemistry: { status: "proposed" as const, candidateIds: [chemistryId], reviewRequired: true as const },
+      unknownReasons: ["formula_amount_missing" as const, "sds_concentration_missing" as const], reviewRequired: true as const,
+    });
+    record.lines[0]!.componentContributions = [
+      contribution("component-a", "product-a", "component-chem-a", "b".repeat(64)),
+      contribution("component-b", "product-b", "component-chem-b", "c".repeat(64)),
+      contribution("component-c", "product-a", "component-chem-c", "b".repeat(64)),
+    ];
+    record.lines[1]!.componentContributions = [contribution("component-d", "product-b", "component-chem-d", "d".repeat(64))];
+    const componentReviews = record.lines.flatMap((line) => line.componentContributions.map((item) => review({
+      sourceRecordId: record.sourceRecordId, targetType: "ingredient",
+      targetKey: `normalization:${record.normalizationId}:contribution:${item.contributionId}:canonicalChemistry:${item.canonicalChemistry.candidateIds[0]}`,
+      fieldPath: `normalizations[${record.normalizationId}].lines[${line.sourceLineId}].componentContributions[${item.contributionId}].canonicalChemistry`,
+      sourceValue: item.canonicalChemistry.candidateIds[0]!,
+    })));
+    const result = calculateReferenceFormulationCooccurrence({ ...allowed([record], [...acceptedReviews(record), ...componentReviews]) });
+    expect(result.excludedComponentCandidateCount).toBe(0);
+    expect(result.cooccurrences.filter((pair) => pair.pairKind === "composition_component_pair")).toMatchObject([{
+      pairKind: "composition_component_pair", scope: "same_sds_product_composition",
+      denominatorScope: "eligible_component_formulas_in_family", firstId: "component-chem-a", secondId: "component-chem-c",
+      formulaCount: 1, eligibleFormulaCount: 1, frequency: 1, compatibilityEvidence: false,
+    }]);
   });
 });
