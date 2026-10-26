@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { admitSupplierPdf, SUPPLIER_PDF_DEFAULT_MAX_BYTES } from "./supplierDocumentAdmission";
+import { extractSupplierPdfText, SUPPLIER_PDF_TEXT_PARSER_VERSION } from "./supplierPdfTextExtraction";
 
 async function validPdf(pageCount = 1): Promise<Uint8Array> {
   const document = await PDFDocument.create();
-  for (let page = 0; page < pageCount; page += 1) document.addPage();
+  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+    const page = document.addPage();
+    page.drawText(`Supplier page ${pageIndex + 1}`, { x: 72, y: 720 });
+  }
   return document.save();
 }
 
@@ -50,5 +54,29 @@ describe("supplier PDF admission and quarantine", () => {
       .resolves.toMatchObject({ status: "admitted" });
     await expect(admitSupplierPdf({ bytes, filename: "source.pdf", declaredMimeType: "application/pdf" }, { maxPages: 5_001 }))
       .rejects.toThrow(/limits exceed the supported policy/);
+  });
+
+  it("extracts page-separated lines with stable parser version and document hash", async () => {
+    const bytes = await validPdf(2);
+    const result = await extractSupplierPdfText({ bytes, filename: "supplier.pdf", declaredMimeType: "application/pdf" });
+    expect(result).toMatchObject({ status: "extracted", pageCount: 2, parserVersion: SUPPLIER_PDF_TEXT_PARSER_VERSION });
+    if (result.status !== "extracted") return;
+    expect(result.documentHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.pages.map(({ pageNumber }) => pageNumber)).toEqual([1, 2]);
+    expect(result.pages[0]?.lines.map(({ text }) => text).join(" ")).toContain("Supplier page 1");
+    expect(result.pages[1]?.lines.map(({ text }) => text).join(" ")).toContain("Supplier page 2");
+    expect(result.pages[0]?.lines[0]?.position).toBeDefined();
+  });
+
+  it("keeps a deterministic character cap and reports truncation", async () => {
+    const result = await extractSupplierPdfText({
+      bytes: await validPdf(),
+      filename: "supplier.pdf",
+      declaredMimeType: "application/pdf",
+    }, { maxChars: 6 });
+    expect(result.status).toBe("extracted");
+    if (result.status !== "extracted") return;
+    expect(result.pages.flatMap(({ lines }) => lines).map(({ text }) => text).join("").length).toBeLessThanOrEqual(6);
+    expect(result.warnings).toContain("text_limit_reached");
   });
 });
