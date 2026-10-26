@@ -1,10 +1,14 @@
 import { commercialProductSchema, type CommercialProduct } from "../schemas/commercialProduct";
+import { type ExternalIdCrosswalk } from "../schemas/connector";
 import { referenceFormulationSourceSchema, type ReferenceFormulationSource } from "../schemas/referenceFormulationSource";
 import { referenceFormulationIngredientLineSchema, type ReferenceFormulationIngredientLine } from "./referenceFormulationIngredientExtraction";
+import { crosswalkCode, resolveCrosswalk } from "./crosswalk";
 
-export const REFERENCE_FORMULATION_PRODUCT_MATCHER_VERSION = "formulab-reference-formulation-product-matcher-v1";
+export const REFERENCE_FORMULATION_PRODUCT_MATCHER_VERSION = "formulab-reference-formulation-product-matcher-v2";
+export const REFERENCE_FORMULATION_SUPPLIER_PRODUCT_SOURCE_ENTITY = "supplier_products";
+export const REFERENCE_FORMULATION_COMMERCIAL_PRODUCT_ENTITY = "CommercialProduct";
 
-export type ReferenceFormulationProductMatchTier = "exact" | "controlled_alias" | "fuzzy_proposal";
+export type ReferenceFormulationProductMatchTier = "external_id_crosswalk" | "exact" | "controlled_alias" | "fuzzy_proposal";
 export type ReferenceFormulationProductMatchOn = "product_code" | "trade_name" | "alias";
 
 export interface ReferenceFormulationProductCandidate {
@@ -13,13 +17,14 @@ export interface ReferenceFormulationProductCandidate {
   matchedOn: ReferenceFormulationProductMatchOn[];
   matchedValues: string[];
   sourceDocumentCodes: string[];
+  externalIdCrosswalkCode?: string;
   similarity?: number;
 }
 
 export interface ReferenceFormulationProductLineMatch {
   ingredientLineId: string;
   sourceSupplierId: string;
-  resolution: "exact_match_candidate" | "alias_match_candidate" | "fuzzy_proposal" | "ambiguous" | "unmatched";
+  resolution: "external_id_crosswalk_candidate" | "exact_match_candidate" | "alias_match_candidate" | "fuzzy_proposal" | "ambiguous" | "unmatched";
   candidates: ReferenceFormulationProductCandidate[];
   autoLinked: false;
   reviewRequired: true;
@@ -65,17 +70,18 @@ function uniqueCandidates(candidates: ReferenceFormulationProductCandidate[]): R
       byProduct.set(candidate.commercialProductId, { ...candidate, matchedOn: [...new Set(candidate.matchedOn)], matchedValues: [...new Set(candidate.matchedValues)], sourceDocumentCodes: [...new Set(candidate.sourceDocumentCodes)] });
       continue;
     }
-    const tierRank = { exact: 0, controlled_alias: 1, fuzzy_proposal: 2 } as const;
+    const tierRank = { external_id_crosswalk: 0, exact: 1, controlled_alias: 2, fuzzy_proposal: 3 } as const;
     if (tierRank[candidate.tier] < tierRank[current.tier]) current.tier = candidate.tier;
     current.matchedOn = [...new Set([...current.matchedOn, ...candidate.matchedOn])];
     current.matchedValues = [...new Set([...current.matchedValues, ...candidate.matchedValues])];
     current.sourceDocumentCodes = [...new Set([...current.sourceDocumentCodes, ...candidate.sourceDocumentCodes])];
+    if (candidate.externalIdCrosswalkCode) current.externalIdCrosswalkCode = candidate.externalIdCrosswalkCode;
     if (candidate.similarity !== undefined) current.similarity = Math.max(current.similarity ?? 0, candidate.similarity);
   }
   return [...byProduct.values()];
 }
 
-function resultForLine(line: ReferenceFormulationIngredientLine, source: ReferenceFormulationSource, products: CommercialProduct[]): ReferenceFormulationProductLineMatch {
+function resultForLine(line: ReferenceFormulationIngredientLine, source: ReferenceFormulationSource, products: CommercialProduct[], crosswalks: ExternalIdCrosswalk[]): ReferenceFormulationProductLineMatch {
   line = referenceFormulationIngredientLineSchema.parse(line);
   if (line.sourceDocumentHash.toLowerCase() !== source.sourcePdfSha256.toLowerCase()) {
     throw new Error("Ingredient line " + line.id + " is linked to a different immutable source PDF.");
@@ -106,11 +112,33 @@ function resultForLine(line: ReferenceFormulationIngredientLine, source: Referen
     if (matchedOn.length) candidates.push({ commercialProductId: product.id, tier: "exact", matchedOn, matchedValues, sourceDocumentCodes: [...product.sourceDocumentCodes] });
   }
   const exact = uniqueCandidates(candidates);
-  if (exact.length) return {
+  const crosswalkCandidates: ReferenceFormulationProductCandidate[] = [];
+  if (sourceCode) {
+    const canonicalRecordId = resolveCrosswalk(
+      crosswalks,
+      source.providerId,
+      REFERENCE_FORMULATION_SUPPLIER_PRODUCT_SOURCE_ENTITY,
+      sourceCode,
+      REFERENCE_FORMULATION_COMMERCIAL_PRODUCT_ENTITY,
+    );
+    const crosswalkProduct = canonicalRecordId ? sameSupplier.find((product) => product.id === canonicalRecordId) : undefined;
+    if (crosswalkProduct) {
+      crosswalkCandidates.push({
+        commercialProductId: crosswalkProduct.id,
+        tier: "external_id_crosswalk",
+        matchedOn: ["product_code"],
+        matchedValues: [sourceCode],
+        sourceDocumentCodes: [...crosswalkProduct.sourceDocumentCodes],
+        externalIdCrosswalkCode: crosswalkCode(source.providerId, REFERENCE_FORMULATION_SUPPLIER_PRODUCT_SOURCE_ENTITY, sourceCode, REFERENCE_FORMULATION_COMMERCIAL_PRODUCT_ENTITY),
+      });
+    }
+  }
+  const exactWithCrosswalk = uniqueCandidates([...crosswalkCandidates, ...exact]);
+  if (exactWithCrosswalk.length) return {
     ingredientLineId: line.id,
     sourceSupplierId: source.supplierId,
-    resolution: exact.length === 1 ? "exact_match_candidate" : "ambiguous",
-    candidates: exact,
+    resolution: exactWithCrosswalk.length === 1 ? (crosswalkCandidates.length ? "external_id_crosswalk_candidate" : "exact_match_candidate") : "ambiguous",
+    candidates: exactWithCrosswalk,
     autoLinked: false,
     reviewRequired: true,
   };
@@ -175,13 +203,15 @@ export function matchReferenceFormulationProducts(input: {
   source: ReferenceFormulationSource;
   lines: ReferenceFormulationIngredientLine[];
   products: CommercialProduct[];
+  /** Existing FVL-04.017 records. Only configured provider/product-code tuples resolving to a local, same-supplier CommercialProduct are considered. */
+  crosswalks?: ExternalIdCrosswalk[];
 }): ReferenceFormulationProductMatchingResult {
   const source = referenceFormulationSourceSchema.parse(input.source);
   const products = input.products.map((product) => commercialProductSchema.parse(product));
   if (new Set(products.map((product) => product.id)).size !== products.length) {
     throw new Error("Commercial product IDs must be unique within a matching catalog.");
   }
-  const lines = input.lines.map((line) => resultForLine(line, source, products));
+  const lines = input.lines.map((line) => resultForLine(line, source, products, input.crosswalks ?? []));
   const warnings = new Set<ReferenceFormulationProductMatchingResult["warnings"][number]>();
   if (lines.some((line) => line.resolution === "ambiguous")) warnings.add("ambiguous_product_candidates");
   if (lines.some((line) => line.resolution === "fuzzy_proposal")) warnings.add("fuzzy_matches_are_proposals_only");

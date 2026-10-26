@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CommercialProduct } from "../schemas/commercialProduct";
 import { referenceFormulationSourceSchema } from "../schemas/referenceFormulationSource";
 import { referenceFormulationIngredientLineSchema } from "./referenceFormulationIngredientExtraction";
+import { crosswalkCode } from "./crosswalk";
 import { matchReferenceFormulationProducts } from "./referenceFormulationProductMatching";
 
 const HASH = "b".repeat(64);
@@ -67,6 +68,56 @@ describe("reference formulation commercial-product matching", () => {
     expect(result.lines[0]?.candidates).toHaveLength(2);
     expect(result.warnings).toEqual(expect.arrayContaining(["ambiguous_product_candidates", "unmatched_ingredient_lines"]));
     expect(result.lines.every((item) => item.autoLinked === false && item.reviewRequired)).toBe(true);
+  });
+
+  it("reuses only an exact FVL-04 supplier product crosswalk and keeps its candidate review-only", () => {
+    const mapping = {
+      schemaVersion: "1.0" as const,
+      code: crosswalkCode("croda-public", "supplier_products", "CRODA-42", "CommercialProduct"),
+      sourceSystemId: "croda-public",
+      sourceEntity: "supplier_products",
+      sourceRecordId: "CRODA-42",
+      canonicalEntity: "CommercialProduct",
+      canonicalRecordId: "mapped-product",
+      firstSeenAt: "2026-10-26T08:00:00.000Z",
+      lastSeenAt: "2026-10-26T08:00:00.000Z",
+      status: "active" as const,
+    };
+    const mappedProduct = product({ id: "mapped-product", tradeName: "Different display name", productCode: "OTHER-CODE" });
+    const result = matchReferenceFormulationProducts({
+      source: source(),
+      lines: [line("line-crosswalk", "Unmatched display wording", "CRODA-42")],
+      products: [mappedProduct],
+      crosswalks: [mapping],
+    });
+    expect(result.lines[0]).toMatchObject({
+      resolution: "external_id_crosswalk_candidate",
+      autoLinked: false,
+      reviewRequired: true,
+      candidates: [{
+        commercialProductId: "mapped-product",
+        tier: "external_id_crosswalk",
+        externalIdCrosswalkCode: mapping.code,
+      }],
+    });
+
+    const wrongProvider = matchReferenceFormulationProducts({
+      source: source(), lines: [line("line-provider", undefined, "CRODA-42")], products: [mappedProduct],
+      crosswalks: [{ ...mapping, sourceSystemId: "other-provider", code: crosswalkCode("other-provider", "supplier_products", "CRODA-42", "CommercialProduct") }],
+    });
+    expect(wrongProvider.lines[0]?.resolution).toBe("unmatched");
+
+    const forgedTuple = matchReferenceFormulationProducts({
+      source: source(), lines: [line("line-forged", undefined, "CRODA-42")], products: [mappedProduct],
+      crosswalks: [{ ...mapping, sourceSystemId: "other-provider" }],
+    });
+    expect(forgedTuple.lines[0]?.resolution).toBe("unmatched");
+
+    const wrongSupplier = matchReferenceFormulationProducts({
+      source: source(), lines: [line("line-supplier", undefined, "CRODA-42")],
+      products: [product({ id: "mapped-product", supplierId: "supplier-evonik", tradeName: "Mapped" })], crosswalks: [mapping],
+    });
+    expect(wrongSupplier.lines[0]?.resolution).toBe("unmatched");
   });
 
   it("rejects ingredient evidence linked to another source PDF", () => {

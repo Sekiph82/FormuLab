@@ -45,17 +45,22 @@ const arithmeticSnapshotSchema = z.object({
 
 const productMatchCandidateSchema = z.object({
   commercialProductId: z.string().trim().min(1),
-  tier: z.enum(["exact", "controlled_alias", "fuzzy_proposal"]),
+  tier: z.enum(["external_id_crosswalk", "exact", "controlled_alias", "fuzzy_proposal"]),
   matchedOn: z.array(z.enum(["product_code", "trade_name", "alias"])),
   matchedValues: z.array(z.string().trim().min(1)),
   sourceDocumentCodes: z.array(z.string().trim().min(1)),
+  externalIdCrosswalkCode: z.string().trim().min(1).optional(),
   similarity: z.number().finite().min(0).max(1).optional(),
-}).strict();
+}).strict().superRefine((candidate, context) => {
+  if ((candidate.tier === "external_id_crosswalk") !== (candidate.externalIdCrosswalkCode !== undefined)) {
+    context.addIssue({ code: "custom", path: ["externalIdCrosswalkCode"], message: "Only an exact external-ID crosswalk candidate may carry the source crosswalk code." });
+  }
+});
 
 const productLineMatchSchema = z.object({
   ingredientLineId: z.string().trim().min(1),
   sourceSupplierId: z.string().trim().min(1),
-  resolution: z.enum(["exact_match_candidate", "alias_match_candidate", "fuzzy_proposal", "ambiguous", "unmatched"]),
+  resolution: z.enum(["external_id_crosswalk_candidate", "exact_match_candidate", "alias_match_candidate", "fuzzy_proposal", "ambiguous", "unmatched"]),
   candidates: z.array(productMatchCandidateSchema),
   autoLinked: z.literal(false),
   reviewRequired: z.literal(true),
@@ -83,7 +88,7 @@ export const referenceFormulationRecordSchema = z.object({
     arithmetic: z.literal(REFERENCE_FORMULATION_ARITHMETIC_VERSION),
     procedure: z.literal(REFERENCE_FORMULATION_PROCEDURE_PARSER_VERSION),
     targets: z.literal(REFERENCE_FORMULATION_TARGET_PARSER_VERSION),
-    productMatcher: z.literal(REFERENCE_FORMULATION_PRODUCT_MATCHER_VERSION),
+    productMatcher: z.enum(["formulab-reference-formulation-product-matcher-v1", REFERENCE_FORMULATION_PRODUCT_MATCHER_VERSION]),
     unresolvedQueue: z.literal(REFERENCE_FORMULATION_UNRESOLVED_QUEUE_VERSION),
   }).strict(),
   identityCandidates: z.array(referenceFormulationIdentityCandidateSchema),

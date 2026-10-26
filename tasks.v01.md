@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 91
-- Remaining: 65
-- Completion: 58.3%
-- Current task: V01-06.002 - Reuse existing FVL-04 crosswalk authority for supplier product mapping
+- Completed: 92
+- Remaining: 64
+- Completion: 59.0%
+- Current task: V01-06.003 - Implement normalized ingredient contribution records
 - Current status: IN PROGRESS
-- Next task: V01-06.003 - Implement normalized ingredient contribution records
+- Next task: V01-06.004 - Implement supplier-function versus canonical-function separation
+- Acceptance note: V01-06.002 reuses the FVL-04 `external_id_crosswalks` collection for exact supplier product-code mapping: provider ID + `supplier_products` + source code -> `CommercialProduct` ID. The matcher reads existing crosswalks through the desktop persistence bridge, validates the complete stored tuple as well as the deterministic key, restricts results to same-supplier catalog products, and records crosswalk provenance as a review-only candidate; mismatched/forged tuples remain unresolved and no RawMaterial write or second registry is introduced. Shared crosswalk/matcher/record/unresolved/Croda tests (23), desktop persistence/normalization tests (16), shared and desktop typechecks, `git diff --check`, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-06.001 adds a separate append-only normalization-version record that references immutable source line IDs and carries independent commercial-product and canonical-chemistry candidate links; candidates remain proposed/ambiguous/unresolved and never replace original wording or write to RawMaterial. Version creation serializes allocation natively, validates source hash, exact line coverage, source-derived commercial-product candidates, predecessor chain and strict candidate/object shapes, and stamps creation time; generic and raw collection writes reject the normalization collection. Shared schema/parity tests (8), desktop normalization service tests (3), shared/desktop typechecks, and independent read-only review passed. Rust unit execution could not start because this checkout lacks `apps/desktop/src-tauri/binaries/uv-x86_64-pc-windows-msvc.exe`; full regression not run.
 - Acceptance note: V01-05.014 adds side-by-side immutable source excerpts and extracted identity/ingredient/process/target candidates with field-level accept/edit/reject/needs-review events in a separate append-only collection. The native command enforces formulation write authorization, stamps trusted actor/time, derives evidence and location from the immutable source snapshot, and generic/raw collection writes reject this review collection; decisions never alter source snapshots or production formulas/RawMaterial. Shared schema/parity tests (7), desktop review/help/sidebar tests (67), locale/sidebar i18n tests (24), shared/desktop typechecks, and independent read-only review passed. Rust unit execution could not start because this checkout lacks `apps/desktop/src-tauri/binaries/uv-x86_64-pc-windows-msvc.exe`; full regression not run.
 - Acceptance note: V01-05.013 adds two clearly synthetic parser-layout families: a single-row trade-name table and a multi-row raw-material composition table. The harness checks distinct column maps plus extracted ingredient, amount, function, product code/basis, cell evidence, source hash, and mandatory review; placeholder labels make no real supplier or chemistry claims. Focused parser/harness tests (3 files/9 tests), shared typecheck, and independent read-only review passed.
@@ -254,8 +255,8 @@ Codex must execute the tasks below in the exact order listed.
 ## Milestone V01-06 - Reference formulation normalization, indexing, and corpus ingestion
 
 - [x] **V01-06.001 - Implement original-versus-normalized dual representation**: Never rewrite original source text/amount/function; attach separately versioned commercial-product and canonical-chemistry normalization.
-- [~] **V01-06.002 - Reuse existing FVL-04 crosswalk authority for supplier product mapping**: Extend semantics only where necessary and avoid a second generic crosswalk registry.
-- [ ] **V01-06.003 - Implement normalized ingredient contribution records**: Store exact/ranged/unknown canonical component contributions with source SDS/formula lineage.
+- [x] **V01-06.002 - Reuse existing FVL-04 crosswalk authority for supplier product mapping**: Extend semantics only where necessary and avoid a second generic crosswalk registry.
+- [~] **V01-06.003 - Implement normalized ingredient contribution records**: Store exact/ranged/unknown canonical component contributions with source SDS/formula lineage.
 - [ ] **V01-06.004 - Implement supplier-function versus canonical-function separation**: Preserve supplier-stated functionality as evidence and keep canonical functional classification independently reviewed.
 - [ ] **V01-06.005 - Implement normalized process representation**: Index explicit addition order, phase, pH adjustment, temperature, mixing, hold, finish and other process facts without filling missing steps.
 - [ ] **V01-06.006 - Implement normalized target/property representation**: Index formula-level pH/viscosity/density/appearance and other targets/typical results with context and source semantics.

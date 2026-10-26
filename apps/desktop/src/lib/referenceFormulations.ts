@@ -1,7 +1,13 @@
 import {
+  matchReferenceFormulationProducts,
   referenceFormulationRecordSchema,
+  type CommercialProduct,
+  type ReferenceFormulationIngredientLine,
   type ReferenceFormulationRecord,
+  type ReferenceFormulationSource,
+  type ReferenceFormulationProductMatchingResult,
 } from "@formulab/shared";
+import { loadCrosswalks } from "./connectorPersistence";
 import { listRecords, upsertRecords } from "./masterdata";
 
 function canonicalJson(value: unknown): string {
@@ -32,4 +38,14 @@ export async function recordReferenceFormulation(input: ReferenceFormulationReco
 export async function listReferenceFormulations(): Promise<ReferenceFormulationRecord[]> {
   const records = await listRecords("reference_formulations");
   return records.map((record) => referenceFormulationRecordSchema.parse(record));
+}
+
+/** Resolve supplier product-code candidates against the existing FVL-04 crosswalk collection. */
+export async function matchReferenceFormulationProductCandidates(input: {
+  source: ReferenceFormulationSource;
+  lines: ReferenceFormulationIngredientLine[];
+  products: CommercialProduct[];
+}): Promise<ReferenceFormulationProductMatchingResult> {
+  const crosswalks = await loadCrosswalks();
+  return matchReferenceFormulationProducts({ ...input, crosswalks });
 }

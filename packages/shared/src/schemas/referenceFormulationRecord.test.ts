@@ -72,6 +72,19 @@ describe("reference formulation record schema", () => {
     expect(referenceFormulationRecordSchema.parse(record)).toEqual(record);
   });
 
+  it("continues to read immutable records produced by the prior product-matcher version", () => {
+    const currentRecord = generatedRecord();
+    const priorVersionRecord = {
+      ...currentRecord,
+      parserVersions: {
+        ...currentRecord.parserVersions,
+        productMatcher: "formulab-reference-formulation-product-matcher-v1",
+      },
+    };
+    expect(referenceFormulationRecordSchema.parse(priorVersionRecord).parserVersions.productMatcher)
+      .toBe("formulab-reference-formulation-product-matcher-v1");
+  });
+
   it("rejects production approval/lifecycle fields and cross-source evidence", () => {
     const record = generatedRecord();
     expect(() => referenceFormulationRecordSchema.parse({ ...record, reviewStatus: "approved" })).toThrow();
