@@ -2,7 +2,11 @@ import {
   createReferenceFormulationNormalizationVersion,
   referenceFormulationNormalizationVersionSchema,
   referenceFormulationRecordSchema,
+  validateReferenceFormulationContributionAgainstSource,
   type ReferenceFormulationNormalizationVersion,
+  type ReferenceFormulationContribution,
+  supplierSdsProductEvidenceRecordSchema,
+  type SupplierSdsProductEvidenceRecord,
 } from "@formulab/shared";
 import { appendReferenceFormulationNormalizationRecord, listRecords, nowIso } from "./masterdata";
 
@@ -10,9 +14,10 @@ import { appendReferenceFormulationNormalizationRecord, listRecords, nowIso } fr
 export async function listReferenceFormulationNormalizations(
   referenceFormulationRecordId: string,
 ): Promise<ReferenceFormulationNormalizationVersion[]> {
-  const [sources, versions] = await Promise.all([
+  const [sources, versions, sdsEvidence] = await Promise.all([
     listRecords("reference_formulations"),
     listRecords("reference_formulation_normalizations"),
+    listRecords("supplier_sds_product_evidence"),
   ]);
   const source = sources.find((record) => record.id === referenceFormulationRecordId);
   if (!source) throw new Error("Reference formulation record was not found.");
@@ -21,7 +26,7 @@ export async function listReferenceFormulationNormalizations(
     .map((version) => referenceFormulationNormalizationVersionSchema.parse(version))
     .filter((version) => version.referenceFormulationRecordId === referenceFormulationRecordId)
     .sort((left, right) => left.version - right.version);
-  validateNormalizationHistory(parsedSource, linkedVersions);
+  validateNormalizationHistory(parsedSource, linkedVersions, sdsEvidence.map((record) => supplierSdsProductEvidenceRecordSchema.parse(record)));
   return linkedVersions;
 }
 
@@ -29,10 +34,12 @@ export async function listReferenceFormulationNormalizations(
 export async function appendReferenceFormulationNormalization(input: {
   referenceFormulationRecordId: string;
   canonicalChemicalCandidates?: Record<string, string[]>;
+  componentContributions?: Record<string, ReferenceFormulationContribution[]>;
 }): Promise<ReferenceFormulationNormalizationVersion> {
-  const [sourceRecords, existingRecords] = await Promise.all([
+  const [sourceRecords, existingRecords, sdsEvidenceRecords] = await Promise.all([
     listRecords("reference_formulations"),
     listRecords("reference_formulation_normalizations"),
+    listRecords("supplier_sds_product_evidence"),
   ]);
   const sourceValue = sourceRecords.find((record) => record.id === input.referenceFormulationRecordId);
   if (!sourceValue) throw new Error("Reference formulation record was not found.");
@@ -41,7 +48,8 @@ export async function appendReferenceFormulationNormalization(input: {
     .map((record) => referenceFormulationNormalizationVersionSchema.parse(record))
     .filter((record) => record.referenceFormulationRecordId === source.id)
     .sort((left, right) => right.version - left.version);
-  validateNormalizationHistory(source, [...existing].reverse());
+  const parsedSdsEvidence = sdsEvidenceRecords.map((record) => supplierSdsProductEvidenceRecordSchema.parse(record));
+  validateNormalizationHistory(source, [...existing].reverse(), parsedSdsEvidence);
   const latest = existing[0];
   const version = createReferenceFormulationNormalizationVersion({
     id: `normalization-${globalThis.crypto.randomUUID()}`,
@@ -49,6 +57,8 @@ export async function appendReferenceFormulationNormalization(input: {
     version: (latest?.version ?? 0) + 1,
     ...(latest ? { supersedesNormalizationId: latest.id } : {}),
     canonicalChemicalCandidates: input.canonicalChemicalCandidates,
+    componentContributions: input.componentContributions,
+    supplierSdsEvidenceRecords: parsedSdsEvidence,
     createdAt: nowIso(),
   });
   const saved = await appendReferenceFormulationNormalizationRecord(version);
@@ -58,6 +68,7 @@ export async function appendReferenceFormulationNormalization(input: {
 function validateNormalizationHistory(
   source: ReturnType<typeof referenceFormulationRecordSchema.parse>,
   versions: ReferenceFormulationNormalizationVersion[],
+  sdsEvidenceRecords: SupplierSdsProductEvidenceRecord[] = [],
 ): void {
   const sourceLineIds = source.ingredientLines.map((line) => line.id).sort();
   const productCandidates = new Map(source.productMatches.map((match) => [
@@ -75,6 +86,12 @@ function validateNormalizationHistory(
     for (const line of version.lines) {
       if (JSON.stringify(line.commercialProduct.candidateIds) !== JSON.stringify(productCandidates.get(line.sourceLineId) ?? [])) {
         throw new Error("Commercial product candidates must match the immutable source match snapshot.");
+      }
+      for (const contribution of line.componentContributions) {
+        if (contribution.sourceFormulaLineId !== line.sourceLineId) {
+          throw new Error("Component contribution must remain attached to its immutable normalization source line.");
+        }
+        validateReferenceFormulationContributionAgainstSource(contribution, source, sdsEvidenceRecords);
       }
     }
     if (version.version !== index + 1

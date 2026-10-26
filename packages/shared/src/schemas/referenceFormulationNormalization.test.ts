@@ -35,11 +35,13 @@ describe("referenceFormulationNormalizationVersionSchema", () => {
         sourceLineId: "line-1",
         commercialProduct: { status: "proposed", candidateIds: ["cp-1"] },
         canonicalChemistry: { status: "proposed", candidateIds: ["chemical-1"] },
+        componentContributions: [],
       },
       {
         sourceLineId: "line-2",
         commercialProduct: { status: "unresolved", candidateIds: [] },
         canonicalChemistry: { status: "unresolved", candidateIds: [] },
+        componentContributions: [],
       },
     ]);
     expect(JSON.stringify(source.ingredientLines)).toBe(JSON.stringify(original));

@@ -8,9 +8,14 @@ import { extractReferenceFormulationProcedure } from "../engine/referenceFormula
 import { matchReferenceFormulationProducts } from "../engine/referenceFormulationProductMatching";
 import { extractReferenceFormulationTargets } from "../engine/referenceFormulationTargetExtraction";
 import { buildReferenceFormulationUnresolvedQueue } from "../engine/referenceFormulationUnresolvedQueue";
+import { createReferenceFormulationContribution } from "./referenceFormulationContribution";
 import { supplierDocumentAcquisitionSchema } from "./supplierDocument";
+import { supplierSdsProductEvidenceSchema } from "./supplierSdsProductEvidence";
+import { supplierSdsProductEvidenceRecordSchema } from "./supplierSdsProductEvidence";
+import type { CommercialProduct } from "./commercialProduct";
 import { createReferenceFormulationSource, referenceFormulationSourceSchema } from "./referenceFormulationSource";
 import { createReferenceFormulationRecord, referenceFormulationRecordSchema } from "./referenceFormulationRecord";
+import { createReferenceFormulationNormalizationVersion } from "./referenceFormulationNormalization";
 
 const HASH = "a".repeat(64);
 const acquisition = () => supplierDocumentAcquisitionSchema.parse({
@@ -35,16 +40,16 @@ const pages = [
   ] },
 ];
 
-function generatedRecord() {
+function generatedRecord(products: CommercialProduct[] = []) {
   const source = formulaSource();
   const identity = extractReferenceFormulationIdentity({ acquisition: acquisition(), pages });
   const ingredientResult = extractReferenceFormulationIngredientLines({ source, pages });
   const arithmetic = validateReferenceFormulationArithmetic({ source, lines: ingredientResult.lines });
   const procedure = extractReferenceFormulationProcedure({ source, pages });
   const targets = extractReferenceFormulationTargets({ source, pages });
-  const matching = matchReferenceFormulationProducts({ source, lines: ingredientResult.lines, products: [] });
+  const matching = matchReferenceFormulationProducts({ source, lines: ingredientResult.lines, products });
   const unresolved = buildReferenceFormulationUnresolvedQueue({
-    source, lines: ingredientResult.lines, matching, products: [],
+    source, lines: ingredientResult.lines, matching, products,
   });
   return createReferenceFormulationRecord({
     id: "reference-formula-record-1", code: "reference-formula-record-1", source,
@@ -83,6 +88,78 @@ describe("reference formulation record schema", () => {
     };
     expect(referenceFormulationRecordSchema.parse(priorVersionRecord).parserVersions.productMatcher)
       .toBe("formulab-reference-formulation-product-matcher-v1");
+  });
+
+  it("stores exact or ranged component contribution with formula/SDS lineage and keeps missing evidence unknown", () => {
+    const product: CommercialProduct = {
+      schemaVersion: "1.0", id: "commercial-product-1", supplierId: "supplier-croda", tradeName: "Known Product",
+      aliases: [], sourceDocumentCodes: [], sourceFormulationReferences: [], lifecycleStatus: "active", reviewStatus: "unreviewed",
+    };
+    const source = generatedRecord([product]);
+    const sds = supplierSdsProductEvidenceSchema.parse({
+      schemaVersion: "1.0", id: "sds-evidence-1", commercialProductId: product.id,
+      section1: { sectionNumber: 1, sourceDocumentHash: "c".repeat(64), declaredChemicalName: { id: "sds-name", rawValue: "Known Product", evidenceRefs: ["sds:p1:name"] } },
+      section3: { sectionNumber: 3, sourceDocumentHash: "c".repeat(64), components: [
+        { id: "sds-component-1", concentration: { id: "sds-concentration-1", rawValue: "20-40% w/w", evidenceRefs: ["sds:p3:concentration"] }, disclosure: "disclosed" },
+      ] },
+    });
+    const sdsRecord = supplierSdsProductEvidenceRecordSchema.parse({
+      schemaVersion: "1.0", code: sds.id, acquisitionCode: "acquisition-sds-1", evidence: sds,
+      extractionStatus: "unreviewed", createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    const line = source.ingredientLines[0]!;
+    const ranged = createReferenceFormulationContribution({
+      source, sourceFormulaLineId: line.id, commercialProductId: product.id, sourceSds: sdsRecord,
+      sourceComponentId: "sds-component-1", canonicalChemicalCandidateIds: ["component-chemical-candidate"],
+    });
+    expect(ranged).toMatchObject({
+      quantityKind: "component_contribution", status: "range", sourceFormulationRecordId: source.id,
+      sourceFormulaDocumentHash: HASH, sourceFormulaLineId: line.id, sourceSds: { evidenceId: sds.id, acquisitionCode: "acquisition-sds-1", sectionNumber: 3, sourceFactId: "sds-concentration-1", fractionRange: { lowerBound: 0.2, upperBound: 0.4 } },
+      contributionPercentRange: { lowerBound: 0.8, upperBound: 1.6 }, canonicalChemistry: { status: "proposed", candidateIds: ["component-chemical-candidate"] },
+      reviewRequired: true,
+    });
+    const normalization = createReferenceFormulationNormalizationVersion({
+      id: "normalization-contribution-v1", source, version: 1,
+      componentContributions: { [line.id]: [ranged] }, supplierSdsEvidenceRecords: [sdsRecord], createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    expect(normalization.lines[0]?.componentContributions).toEqual([ranged]);
+    expect(normalization.lines[0]?.canonicalChemistry).toMatchObject({ status: "unresolved", candidateIds: [] });
+
+    const exactSds = supplierSdsProductEvidenceSchema.parse({
+      ...sds,
+      id: "sds-evidence-exact",
+      section3: { ...sds.section3, components: [
+        { id: "sds-component-exact", concentration: { id: "sds-concentration-exact", rawValue: "30% w/w", evidenceRefs: ["sds:p3:exact"] }, disclosure: "disclosed" },
+      ] },
+    });
+    const exactSdsRecord = supplierSdsProductEvidenceRecordSchema.parse({
+      schemaVersion: "1.0", code: exactSds.id, acquisitionCode: "acquisition-sds-exact", evidence: exactSds,
+      extractionStatus: "unreviewed", createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    const exact = createReferenceFormulationContribution({
+      source, sourceFormulaLineId: line.id, commercialProductId: product.id, sourceSds: exactSdsRecord,
+      sourceComponentId: "sds-component-exact",
+    });
+    expect(exact).toMatchObject({ status: "exact", contributionPercentRange: { lowerBound: 1.2, upperBound: 1.2 }, sourceSds: { interpretation: "exact" } });
+
+    const emptyDisclosureEvidence = supplierSdsProductEvidenceSchema.parse({
+      ...sds, id: "sds-evidence-empty-section3", section3: { ...sds.section3, components: [] },
+    });
+    const emptyDisclosureRecord = supplierSdsProductEvidenceRecordSchema.parse({
+      schemaVersion: "1.0", code: emptyDisclosureEvidence.id, acquisitionCode: "acquisition-sds-empty",
+      evidence: emptyDisclosureEvidence, extractionStatus: "unreviewed", createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    const unresolvedComponent = createReferenceFormulationContribution({
+      source, sourceFormulaLineId: line.id, commercialProductId: product.id, sourceSds: emptyDisclosureRecord,
+    });
+    expect(unresolvedComponent).toMatchObject({
+      status: "unknown", unknownReasons: ["sds_component_unresolved"], sourceSds: { status: "available", interpretation: "unknown", evidenceRefs: [] },
+    });
+    expect(unresolvedComponent).not.toHaveProperty("contributionPercentRange");
+
+    const unknown = createReferenceFormulationContribution({ source, sourceFormulaLineId: line.id, commercialProductId: product.id });
+    expect(unknown).toMatchObject({ status: "unknown", unknownReasons: ["sds_evidence_missing"], canonicalChemistry: { status: "unresolved", candidateIds: [] } });
+    expect(unknown).not.toHaveProperty("contributionPercentRange");
   });
 
   it("rejects production approval/lifecycle fields and cross-source evidence", () => {

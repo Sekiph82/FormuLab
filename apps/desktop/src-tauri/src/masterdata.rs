@@ -126,13 +126,14 @@ use tauri::AppHandle;
 use crate::authz;
 
 static REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static SUPPLIER_SDS_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Collections the UI may address, and whether history is preserved.
 ///
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 102] = [
+const COLLECTIONS: [(&str, bool); 103] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -375,6 +376,7 @@ const COLLECTIONS: [(&str, bool); 102] = [
     // outcomes are separate records; the acquired document receipt itself
     // must never be silently rewritten.
     ("supplier_document_acquisitions", true),
+    ("supplier_sds_product_evidence", true),
     // Supplier formulation extraction snapshots are immutable reference
     // evidence, separate from production Formulation/FormulationVersion.
     ("reference_formulations", true),
@@ -485,7 +487,7 @@ pub fn list_master_collections() -> Vec<(String, bool)> {
 }
 
 /// Phase 13 Session 4A: this used to be a hand-typed Rust `match` over all
-/// 102 collection names (V01-01.009). It is now a thin delegator to
+/// 103 collection names (V01-01.009). It is now a thin delegator to
 /// `role_policy::masterdata_area_for`, which reads the same generated JSON
 /// fixture (`masterdataCollectionAreas.generated.json`) TypeScript's
 /// `masterdataPolicyAreas.ts` is parity-tested against — closing the
@@ -679,6 +681,10 @@ pub async fn append_reference_formulation_normalization(
     let source_rows = read_array(&source_path);
     let source = source_rows.iter().find(|row| row["id"].as_str() == Some(source_id))
         .ok_or_else(|| "normalization source formulation was not found".to_string())?;
+    let sds_evidence_path = collection_path(&app, "supplier_sds_product_evidence")?;
+    let sds_evidence_rows = read_array(&sds_evidence_path);
+    let acquisition_path = collection_path(&app, "supplier_document_acquisitions")?;
+    let acquisition_rows = read_array(&acquisition_path);
     let path = collection_path(&app, "reference_formulation_normalizations")?;
     let rows = read_array(&path);
     let mut history = rows.iter()
@@ -686,7 +692,7 @@ pub async fn append_reference_formulation_normalization(
         .cloned()
         .collect::<Vec<_>>();
     history.sort_by_key(|row| row["version"].as_u64().unwrap_or(0));
-    validate_normalization_version(&normalization, source, &history)?;
+    validate_normalization_version(&normalization, source, &history, &sds_evidence_rows, &acquisition_rows)?;
     if let Some(object) = normalization.as_object_mut() {
         object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
     }
@@ -703,10 +709,251 @@ pub async fn append_reference_formulation_normalization(
     Ok(normalization)
 }
 
+/// Persist extracted SDS facts as an immutable, explicitly unreviewed evidence snapshot.
+#[tauri::command(async)]
+pub async fn append_supplier_sds_product_evidence(
+    app: AppHandle,
+    token: String,
+    mut evidence: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    authz::authorize_any_app(&app, &token, "rawMaterials", &WRITE_CAPABILITIES)?;
+    let _guard = SUPPLIER_SDS_EVIDENCE_WRITE_LOCK
+        .lock()
+        .map_err(|_| "supplier SDS evidence storage is unavailable".to_string())?;
+    let acquisition_code = evidence["acquisitionCode"].as_str()
+        .ok_or_else(|| "SDS evidence is missing its acquisition identity".to_string())?;
+    let acquisition_path = collection_path(&app, "supplier_document_acquisitions")?;
+    let acquisition_rows = read_array(&acquisition_path);
+    let acquisition = acquisition_rows.iter().find(|row| row["code"].as_str() == Some(acquisition_code))
+        .ok_or_else(|| "SDS evidence must reference a persisted supplier document acquisition".to_string())?;
+    let crosswalk_path = collection_path(&app, "external_id_crosswalks")?;
+    let crosswalk_rows = read_array(&crosswalk_path);
+    validate_supplier_sds_product_evidence_record(&evidence, acquisition, &crosswalk_rows)?;
+    if let Some(object) = evidence.as_object_mut() {
+        object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
+    }
+    let path = collection_path(&app, "supplier_sds_product_evidence")?;
+    let rows = read_array(&path);
+    let (next_rows, inserted, _) = apply_upsert(rows, vec![evidence.clone()], true, "supplier_sds_product_evidence")?;
+    if inserted != 1 {
+        return Err("supplier SDS evidence was not appended".to_string());
+    }
+    write_array(&path, &next_rows)?;
+    Ok(evidence)
+}
+
+fn validate_supplier_sds_product_evidence_record(
+    record: &serde_json::Value,
+    acquisition: &serde_json::Value,
+    crosswalk_rows: &[serde_json::Value],
+) -> Result<(), String> {
+    ensure_object_keys(record, &["schemaVersion", "code", "acquisitionCode", "evidence", "extractionStatus", "createdAt"], "supplier SDS evidence record")?;
+    let evidence = &record["evidence"];
+    ensure_object_keys(evidence, &["schemaVersion", "id", "commercialProductId", "section1", "section3", "reconciliations"], "supplier SDS product evidence")?;
+    let section1 = &evidence["section1"];
+    ensure_object_keys(section1, &["sectionNumber", "sourceDocumentHash", "declaredChemicalName", "chemicalNature", "casNumber", "ecNumber", "materialNumber", "productDescription"], "supplier SDS Section 1 evidence")?;
+    let section3 = &evidence["section3"];
+    ensure_object_keys(section3, &["sectionNumber", "sourceDocumentHash", "substanceOrMixture", "components", "undisclosedRemainder"], "supplier SDS Section 3 evidence")?;
+    if record["schemaVersion"].as_str() != Some("1.0")
+        || record["extractionStatus"].as_str() != Some("unreviewed")
+        || record["code"].as_str() != evidence["id"].as_str()
+        || evidence["schemaVersion"].as_str() != Some("1.0")
+        || evidence["commercialProductId"].as_str().map_or(true, |value| value.trim().is_empty())
+        || record["acquisitionCode"].as_str().map_or(true, |value| value.trim().is_empty())
+        || acquisition["documentType"].as_str() != Some("SDS")
+        || record["acquisitionCode"].as_str() != acquisition["code"].as_str()
+        || section1["sectionNumber"].as_u64() != Some(1)
+        || section3["sectionNumber"].as_u64() != Some(3)
+        || section1["sourceDocumentHash"].as_str().map_or(true, |value| !value.eq_ignore_ascii_case(acquisition["sha256"].as_str().unwrap_or("")))
+        || section3["sourceDocumentHash"].as_str().map_or(true, |value| !value.eq_ignore_ascii_case(acquisition["sha256"].as_str().unwrap_or("")))
+        || !is_sha256_hex(acquisition["sha256"].as_str().unwrap_or(""))
+        || section3["components"].as_array().is_none()
+        || evidence["reconciliations"].as_array().is_none()
+    {
+        return Err("SDS extraction evidence must match the acquired SDS hash and remain unreviewed".to_string());
+    }
+    let source_product = &acquisition["sourceProduct"];
+    let source_product_id = source_product["supplierItemCode"].as_str().or_else(|| source_product["sourceProductId"].as_str())
+        .ok_or_else(|| "SDS acquisition must identify a supplier product before composition evidence can be normalized".to_string())?;
+    let exact_crosswalks = crosswalk_rows.iter().filter(|crosswalk| {
+        crosswalk["sourceSystemId"].as_str() == acquisition["providerId"].as_str()
+            && crosswalk["sourceEntity"].as_str() == Some("supplier_products")
+            && crosswalk["sourceRecordId"].as_str() == Some(source_product_id)
+            && crosswalk["canonicalEntity"].as_str() == Some("CommercialProduct")
+    }).collect::<Vec<_>>();
+    let expected_crosswalk_code = format!("{}::supplier_products::{}::CommercialProduct", acquisition["providerId"].as_str().unwrap_or(""), source_product_id);
+    if exact_crosswalks.len() != 1
+        || exact_crosswalks[0]["code"].as_str() != Some(expected_crosswalk_code.as_str())
+        || exact_crosswalks[0]["canonicalRecordId"].as_str() != evidence["commercialProductId"].as_str()
+        || exact_crosswalks[0]["status"].as_str() != Some("active")
+    {
+        return Err("SDS evidence product must match an active exact supplier-product crosswalk".to_string());
+    }
+    for key in ["declaredChemicalName", "chemicalNature", "casNumber", "ecNumber", "materialNumber", "productDescription"] {
+        validate_optional_sds_fact(section1, key)?;
+    }
+    for key in ["substanceOrMixture", "undisclosedRemainder"] {
+        validate_optional_sds_fact(section3, key)?;
+    }
+    let mut all_ids = std::collections::HashSet::new();
+    let mut section1_fact_ids = std::collections::HashSet::new();
+    for key in ["declaredChemicalName", "chemicalNature", "casNumber", "ecNumber", "materialNumber", "productDescription"] {
+        if let Some(id) = section1.get(key).and_then(|fact| fact.get("id")).and_then(|value| value.as_str()) {
+            if !all_ids.insert(id.to_string()) { return Err("SDS fact and component identities must be unique".to_string()); }
+            section1_fact_ids.insert(id.to_string());
+        }
+    }
+    for key in ["substanceOrMixture", "undisclosedRemainder"] {
+        if let Some(id) = section3.get(key).and_then(|fact| fact.get("id")).and_then(|value| value.as_str()) {
+            if !all_ids.insert(id.to_string()) { return Err("SDS fact and component identities must be unique".to_string()); }
+        }
+    }
+    let mut section3_component_ids = std::collections::HashSet::new();
+    for component in section3["components"].as_array().unwrap() {
+        ensure_object_keys(component, &["id", "componentName", "casNumber", "ecNumber", "materialNumber", "concentration", "disclosure"], "supplier SDS component")?;
+        if component["id"].as_str().map_or(true, |value| value.trim().is_empty())
+            || !["disclosed", "trade_secret", "withheld", "unknown"].contains(&component["disclosure"].as_str().unwrap_or(""))
+        {
+            return Err("SDS component identity and disclosure are invalid".to_string());
+        }
+        let component_id = component["id"].as_str().unwrap().to_string();
+        if !all_ids.insert(component_id.clone()) { return Err("SDS fact and component identities must be unique".to_string()); }
+        section3_component_ids.insert(component_id);
+        for key in ["componentName", "casNumber", "ecNumber", "materialNumber", "concentration"] {
+            validate_optional_sds_fact(component, key)?;
+            if let Some(id) = component.get(key).and_then(|fact| fact.get("id")).and_then(|value| value.as_str()) {
+                if !all_ids.insert(id.to_string()) { return Err("SDS fact and component identities must be unique".to_string()); }
+            }
+        }
+    }
+    for reconciliation in evidence["reconciliations"].as_array().unwrap() {
+        ensure_object_keys(reconciliation, &["section1FactId", "section3ComponentId", "outcome", "basis", "evidenceRefs", "rationaleCode", "reviewedBy"], "supplier SDS reconciliation")?;
+        if reconciliation["section1FactId"].as_str().map_or(true, |value| value.trim().is_empty())
+            || reconciliation["section3ComponentId"].as_str().map_or(true, |value| value.trim().is_empty())
+            || reconciliation["rationaleCode"].as_str().map_or(true, |value| value.trim().is_empty())
+            || !["consistent", "conflict", "unresolved"].contains(&reconciliation["outcome"].as_str().unwrap_or(""))
+            || !["exact_cas", "exact_ec", "human_review", "insufficient_evidence"].contains(&reconciliation["basis"].as_str().unwrap_or(""))
+            || reconciliation["evidenceRefs"].as_array().map_or(true, |refs| refs.is_empty() || refs.iter().any(|item| item.as_str().map_or(true, |value| value.trim().is_empty())))
+        {
+            return Err("SDS section reconciliation fields and citations are invalid".to_string());
+        }
+        if !section1_fact_ids.contains(reconciliation["section1FactId"].as_str().unwrap())
+            || !section3_component_ids.contains(reconciliation["section3ComponentId"].as_str().unwrap())
+        {
+            return Err("SDS section reconciliation must reference existing product facts and Section 3 components".to_string());
+        }
+        if reconciliation["basis"].as_str() == Some("human_review")
+            && reconciliation["reviewedBy"].as_str().map_or(true, |value| value.trim().is_empty())
+        {
+            return Err("human SDS reconciliation requires a named reviewer".to_string());
+        }
+        if reconciliation["basis"].as_str() == Some("insufficient_evidence")
+            && reconciliation["outcome"].as_str() != Some("unresolved")
+        {
+            return Err("insufficient SDS reconciliation evidence must remain unresolved".to_string());
+        }
+        validate_sds_reconciliation_evidence(reconciliation, section1, section3)?;
+    }
+    Ok(())
+}
+
+fn validate_optional_sds_fact(value: &serde_json::Value, key: &str) -> Result<(), String> {
+    let Some(fact) = value.as_object().and_then(|object| object.get(key)) else { return Ok(()); };
+    ensure_object_keys(fact, &["id", "rawValue", "evidenceRefs"], "supplier SDS cited fact")?;
+    if fact["id"].as_str().map_or(true, |text| text.trim().is_empty())
+        || fact["rawValue"].as_str().map_or(true, |text| text.trim().is_empty())
+        || fact["evidenceRefs"].as_array().map_or(true, |refs| refs.is_empty() || refs.iter().any(|item| item.as_str().map_or(true, |text| text.trim().is_empty())))
+    {
+        return Err("SDS cited fact must retain its identity, original value, and evidence references".to_string());
+    }
+    Ok(())
+}
+
+fn validate_sds_reconciliation_evidence(
+    reconciliation: &serde_json::Value,
+    section1: &serde_json::Value,
+    section3: &serde_json::Value,
+) -> Result<(), String> {
+    let section1_id = reconciliation["section1FactId"].as_str().unwrap_or("");
+    let component_id = reconciliation["section3ComponentId"].as_str().unwrap_or("");
+    let component = section3["components"].as_array().into_iter().flatten()
+        .find(|candidate| candidate["id"].as_str() == Some(component_id))
+        .ok_or_else(|| "SDS reconciliation component does not exist".to_string())?;
+    let basis = reconciliation["basis"].as_str().unwrap_or("");
+    let reconciliation_refs = reconciliation["evidenceRefs"].as_array().unwrap();
+    if basis == "exact_cas" || basis == "exact_ec" {
+        let (key, normalizer): (&str, fn(&str) -> Option<String>) = if basis == "exact_cas" {
+            ("casNumber", normalize_sds_cas_identifier)
+        } else {
+            ("ecNumber", normalize_sds_ec_identifier)
+        };
+        let left = section1.get(key).filter(|fact| fact["id"].as_str() == Some(section1_id))
+            .ok_or_else(|| "Exact SDS reconciliation must reference the matching Section 1 identifier fact".to_string())?;
+        let right = component.get(key).ok_or_else(|| "Exact SDS reconciliation must reference a matching Section 3 identifier fact".to_string())?;
+        let left_value = left["rawValue"].as_str().and_then(normalizer)
+            .ok_or_else(|| "Exact SDS reconciliation requires valid source identifiers".to_string())?;
+        let right_value = right["rawValue"].as_str().and_then(normalizer)
+            .ok_or_else(|| "Exact SDS reconciliation requires valid source identifiers".to_string())?;
+        let equal = left_value == right_value;
+        if (reconciliation["outcome"].as_str() == Some("consistent")) != equal
+            || reconciliation["outcome"].as_str() == Some("unresolved")
+        {
+            return Err("Exact SDS reconciliation outcome must match its validated identifiers".to_string());
+        }
+        for fact in [left, right] {
+            let refs = fact["evidenceRefs"].as_array().ok_or_else(|| "Exact SDS identifiers must carry evidence references".to_string())?;
+            if refs.iter().any(|reference| !reconciliation_refs.contains(reference)) {
+                return Err("Exact SDS reconciliation must cite both linked identifier facts".to_string());
+            }
+        }
+    } else if basis == "human_review" || basis == "insufficient_evidence" {
+        let section1_fact = ["casNumber", "ecNumber", "materialNumber", "declaredChemicalName", "chemicalNature", "productDescription"]
+            .iter().filter_map(|key| section1.get(*key)).find(|fact| fact["id"].as_str() == Some(section1_id))
+            .ok_or_else(|| "Manual or unresolved SDS reconciliation must reference an existing Section 1 fact".to_string())?;
+        let mut linked_facts: Vec<&serde_json::Value> = vec![section1_fact];
+        for key in ["componentName", "casNumber", "ecNumber", "materialNumber"] {
+            if let Some(fact) = component.get(key) { linked_facts.push(fact); }
+        }
+        if basis == "human_review" {
+            if let Some(fact) = component.get("concentration") { linked_facts.push(fact); }
+        }
+        for fact in linked_facts {
+            if fact["evidenceRefs"].as_array().map_or(true, |refs| refs.iter().any(|reference| !reconciliation_refs.contains(reference))) {
+                return Err("Manual or unresolved SDS reconciliation must cite its linked source facts".to_string());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn normalize_sds_cas_identifier(value: &str) -> Option<String> {
+    let parts = value.trim().split('-').collect::<Vec<_>>();
+    if parts.len() != 3 || !(2..=7).contains(&parts[0].len()) || parts[1].len() != 2 || parts[2].len() != 1
+        || parts.iter().any(|part| part.bytes().any(|byte| !byte.is_ascii_digit()))
+    { return None; }
+    let body = format!("{}{}", parts[0], parts[1]);
+    let sum = body.bytes().rev().enumerate().map(|(index, byte)| usize::from(byte - b'0') * (index + 1)).sum::<usize>();
+    if sum % 10 != parts[2].parse::<usize>().ok()? { return None; }
+    Some(format!("{}-{}-{}", parts[0], parts[1], parts[2]))
+}
+
+fn normalize_sds_ec_identifier(value: &str) -> Option<String> {
+    let parts = value.trim().split('-').collect::<Vec<_>>();
+    if parts.len() != 3 || parts[0].len() != 3 || parts[1].len() != 3 || parts[2].len() != 1
+        || parts.iter().any(|part| part.bytes().any(|byte| !byte.is_ascii_digit()))
+    { return None; }
+    let digits = format!("{}{}", parts[0], parts[1]);
+    let sum = digits.bytes().enumerate().map(|(index, byte)| usize::from(byte - b'0') * (index + 1)).sum::<usize>();
+    if sum % 11 != parts[2].parse::<usize>().ok()? { return None; }
+    Some(format!("{}-{}-{}", parts[0], parts[1], parts[2]))
+}
+
 fn validate_normalization_version(
     normalization: &serde_json::Value,
     source: &serde_json::Value,
     history: &[serde_json::Value],
+    sds_evidence_rows: &[serde_json::Value],
+    acquisition_rows: &[serde_json::Value],
 ) -> Result<(), String> {
     ensure_object_keys(
         normalization,
@@ -761,8 +1008,9 @@ fn validate_normalization_version(
     let product_matches = source["productMatches"].as_array()
         .ok_or_else(|| "source product matching snapshot is missing".to_string())?;
     let mut seen_ids = std::collections::HashSet::new();
+    let mut seen_contribution_ids = std::collections::HashSet::new();
     for line in normalized_lines {
-        ensure_object_keys(line, &["sourceLineId", "commercialProduct", "canonicalChemistry"], "normalization line")?;
+        ensure_object_keys(line, &["sourceLineId", "commercialProduct", "canonicalChemistry", "componentContributions"], "normalization line")?;
         let line_id = line["sourceLineId"].as_str()
             .ok_or_else(|| "normalized line is missing its source line identity".to_string())?;
         if !seen_ids.insert(line_id) {
@@ -793,9 +1041,381 @@ fn validate_normalization_version(
             return Err("commercial product candidates must match the immutable source match snapshot".to_string());
         }
         let chemistry = &line["canonicalChemistry"];
-        validate_normalization_candidates(chemistry, "canonical chemistry")?;
+        let canonical_candidate_ids = validate_normalization_candidates(chemistry, "canonical chemistry")?;
+        let contributions = line["componentContributions"].as_array()
+            .ok_or_else(|| "normalization component contributions must be an array".to_string())?;
+        for contribution in contributions {
+            let contribution_id = contribution["id"].as_str().filter(|id| !id.trim().is_empty())
+                .ok_or_else(|| "component contribution identity is invalid".to_string())?;
+            if !seen_contribution_ids.insert(contribution_id.to_string()) {
+                return Err("component contribution identities must be unique within a normalization version".to_string());
+            }
+            validate_reference_formulation_component_contribution(
+                contribution,
+                source,
+                line_id,
+                &source_candidate_ids,
+                sds_evidence_rows,
+                acquisition_rows,
+            )?;
+        }
     }
     Ok(())
+}
+
+fn validate_reference_formulation_component_contribution(
+    contribution: &serde_json::Value,
+    source: &serde_json::Value,
+    source_line_id: &str,
+    source_product_candidate_ids: &[String],
+    sds_evidence_rows: &[serde_json::Value],
+    acquisition_rows: &[serde_json::Value],
+) -> Result<(), String> {
+    ensure_object_keys(
+        contribution,
+        &[
+            "schemaVersion", "id", "quantityKind", "status", "sourceFormulationRecordId",
+            "sourceFormulaDocumentHash", "sourceFormulaLineId", "commercialProductId", "formulaAmount",
+            "sourceSds", "canonicalChemistry", "contributionPercentRange", "unknownReasons", "evidenceRefs",
+            "reviewRequired",
+        ],
+        "component contribution",
+    )?;
+    if contribution["schemaVersion"].as_str() != Some("1.0")
+        || contribution["quantityKind"].as_str() != Some("component_contribution")
+        || contribution["reviewRequired"].as_bool() != Some(true)
+        || contribution["sourceFormulationRecordId"].as_str() != source["id"].as_str()
+        || contribution["sourceFormulaLineId"].as_str() != Some(source_line_id)
+        || contribution["sourceFormulaDocumentHash"].as_str().map_or(true, |hash| !hash.eq_ignore_ascii_case(source["sourceDocumentHash"].as_str().unwrap_or("")))
+    {
+        return Err("component contribution must remain linked to its source formulation line and document".to_string());
+    }
+    let source_line = source["ingredientLines"].as_array()
+        .and_then(|lines| lines.iter().find(|line| line["id"].as_str() == Some(source_line_id)))
+        .ok_or_else(|| "component contribution source line is missing".to_string())?;
+    let product_id = optional_json_string(contribution, "commercialProductId", "component contribution commercial product")?;
+    if let Some(product_id) = product_id {
+        if product_id.trim().is_empty() {
+            return Err("component contribution commercial product identity is invalid".to_string());
+        }
+        if !source_product_candidate_ids.iter().any(|candidate| candidate == product_id) {
+            return Err("component contribution product must match an immutable source product candidate".to_string());
+        }
+    }
+    let formula = &contribution["formulaAmount"];
+    ensure_object_keys(formula, &["originalValue", "unit", "basis", "interpretation", "percentRange", "evidenceRefs"], "contribution formula amount")?;
+    let formula_interpretation = formula["interpretation"].as_str()
+        .ok_or_else(|| "contribution formula amount interpretation is required".to_string())?;
+    if !matches!(formula_interpretation, "exact" | "range" | "unknown") {
+        return Err("contribution formula amount interpretation is invalid".to_string());
+    }
+    for (contribution_field, source_field) in [("originalValue", "amount"), ("unit", "unit"), ("basis", "basis")] {
+        let contribution_value = optional_json_string(formula, contribution_field, "contribution formula amount")?;
+        let source_value = optional_nested_raw_string(source_line, source_field)?;
+        if contribution_value != source_value {
+            return Err("contribution formula amount must preserve its source line value, unit and basis".to_string());
+        }
+    }
+    let mut expected_formula_refs = Vec::new();
+    for field_name in ["ingredientName", "supplierProductCode", "inciOrChemicalName", "amount", "unit", "basis"] {
+        if let Some(field) = source_line[field_name].as_object() {
+            if let Some(evidence) = field.get("evidence") {
+                let source_hash = evidence["sourceDocumentHash"].as_str().unwrap_or("");
+                let page = evidence["pageNumber"].as_u64().unwrap_or(0);
+                let block = evidence["blockIndex"].as_u64().unwrap_or(0);
+                let row = evidence["rowIndex"].as_u64().unwrap_or(0);
+                let cell = evidence["cellIndex"].as_u64().unwrap_or(0);
+                let reference = format!("formula:{source_hash}:{page}:{block}:{row}:{cell}");
+                if !expected_formula_refs.contains(&reference) { expected_formula_refs.push(reference); }
+            }
+        }
+    }
+    if expected_formula_refs.is_empty() {
+        expected_formula_refs.push(format!("formula:{}:{}", source["sourceDocumentHash"].as_str().unwrap_or(""), source_line_id));
+    }
+    let supplied_formula_refs = formula["evidenceRefs"].as_array()
+        .ok_or_else(|| "contribution formula evidence references must be an array".to_string())?;
+    if supplied_formula_refs.len() != expected_formula_refs.len()
+        || supplied_formula_refs.iter().zip(expected_formula_refs.iter()).any(|(left, right)| left.as_str() != Some(right.as_str()))
+    {
+        return Err("contribution formula evidence references must match the immutable source line".to_string());
+    }
+    let formula_range = if formula_interpretation == "unknown" {
+        if !formula["percentRange"].is_null() { return Err("unknown formula amount cannot carry normalized bounds".to_string()); }
+        None
+    } else {
+        let bounds = validate_contribution_bounds(&formula["percentRange"], 100.0, "formula amount")?;
+        let source_amount = formula["originalValue"].as_str().unwrap_or("");
+        if source_amount.trim().is_empty()
+            || !formula["evidenceRefs"].as_array().map_or(false, |refs| !refs.is_empty())
+        {
+            return Err("calculated formula amount requires its value and citations".to_string());
+        }
+        let parse_input = if source_amount.contains('%') {
+            source_amount.to_string()
+        } else {
+            let unit = formula["unit"].as_str().unwrap_or("").trim().to_ascii_lowercase();
+            if ["%", "percent", "percentage", "wt%", "wt.%"].contains(&unit.as_str()) {
+                format!("{}% {}", source_amount, formula["basis"].as_str().unwrap_or(""))
+            } else {
+                String::new()
+            }
+        };
+        let parsed = parse_explicit_w_w_percent_range(&parse_input)
+            .ok_or_else(|| "normalized formula amount is not an explicit % w/w source value".to_string())?;
+        if !contribution_bounds_equal(bounds, parsed) {
+            return Err("normalized formula amount bounds must match the immutable source line".to_string());
+        }
+        validate_contribution_interpretation(formula_interpretation, bounds, "formula amount")?;
+        Some(bounds)
+    };
+    let sds = &contribution["sourceSds"];
+    ensure_object_keys(sds, &["status", "evidenceId", "acquisitionCode", "commercialProductId", "documentHash", "sectionNumber", "sourceComponentId", "disclosure", "sourceFactId", "originalValue", "fractionRange", "interpretation", "evidenceRefs"], "contribution SDS lineage")?;
+    let sds_status = sds["status"].as_str().ok_or_else(|| "contribution SDS status is required".to_string())?;
+    let sds_interpretation = sds["interpretation"].as_str().ok_or_else(|| "contribution SDS interpretation is required".to_string())?;
+    if !matches!(sds_interpretation, "exact" | "range" | "unknown") {
+        return Err("contribution SDS interpretation is invalid".to_string());
+    }
+    let sds_range = if sds_interpretation == "unknown" {
+        if !sds["fractionRange"].is_null() { return Err("unknown SDS fraction cannot carry normalized bounds".to_string()); }
+        None
+    } else {
+        let bounds = validate_contribution_bounds(&sds["fractionRange"], 1.0, "SDS fraction")?;
+        let parsed = parse_explicit_w_w_percent_range(sds["originalValue"].as_str().unwrap_or(""))
+            .ok_or_else(|| "normalized SDS fraction is not an explicit Section 3 % w/w value".to_string())?;
+        if !contribution_bounds_equal(bounds, (parsed.0 / 100.0, parsed.1 / 100.0)) {
+            return Err("normalized SDS fraction bounds must match the cited Section 3 value".to_string());
+        }
+        if sds["sourceComponentId"].as_str().map_or(true, |value| value.trim().is_empty())
+            || sds["sourceFactId"].as_str().map_or(true, |value| value.trim().is_empty())
+            || sds["evidenceRefs"].as_array().map_or(true, |refs| refs.is_empty())
+        {
+            return Err("calculated SDS fraction requires its component fact and citations".to_string());
+        }
+        validate_contribution_interpretation(sds_interpretation, bounds, "SDS fraction")?;
+        Some(bounds)
+    };
+    match sds_status {
+        "missing" => {
+            if sds_interpretation != "unknown"
+                || ["evidenceId", "acquisitionCode", "commercialProductId", "documentHash", "sectionNumber", "sourceComponentId", "disclosure", "sourceFactId", "originalValue"]
+                    .iter().any(|key| !sds[*key].is_null())
+                || !sds["evidenceRefs"].as_array().map_or(false, |refs| refs.is_empty())
+            {
+                return Err("missing SDS evidence cannot carry component facts".to_string());
+            }
+        }
+        "available" => {
+            if sds["evidenceId"].as_str().map_or(true, |value| value.trim().is_empty())
+                || sds["commercialProductId"].as_str() != contribution["commercialProductId"].as_str()
+                || sds["documentHash"].as_str().map_or(true, |value| !is_sha256_hex(value))
+                || sds["sectionNumber"].as_u64() != Some(3)
+            {
+                return Err("available SDS contribution evidence must identify Section 3".to_string());
+            }
+            validate_persisted_sds_contribution_evidence(sds, source, sds_evidence_rows, acquisition_rows)?;
+            if !sds["sourceComponentId"].is_null()
+                && !["disclosed", "trade_secret", "withheld", "unknown"].contains(&sds["disclosure"].as_str().unwrap_or(""))
+            {
+                return Err("SDS component disclosure status must be retained".to_string());
+            }
+            if !sds["sourceFactId"].is_null()
+                && (sds["sourceComponentId"].as_str().map_or(true, |value| value.trim().is_empty())
+                    || sds["originalValue"].as_str().map_or(true, |value| value.trim().is_empty())
+                    || !sds["evidenceRefs"].as_array().map_or(false, |refs| !refs.is_empty()))
+            {
+                return Err("SDS concentration fact must retain its component, value, and citations".to_string());
+            }
+        }
+        _ => return Err("contribution SDS status is invalid".to_string()),
+    }
+    let chemistry = &contribution["canonicalChemistry"];
+    validate_normalization_candidates(chemistry, "contribution canonical chemistry")?;
+    let unknown_reasons = contribution["unknownReasons"].as_array()
+        .ok_or_else(|| "contribution unknown reasons must be an array".to_string())?;
+    let allowed_unknown_reasons = [
+        "formula_amount_missing", "formula_amount_qs", "formula_amount_basis_unknown", "formula_amount_unparsed",
+        "sds_evidence_missing", "sds_component_unresolved", "sds_concentration_missing", "sds_concentration_unparsed",
+    ];
+    let mut unique_unknown_reasons = std::collections::HashSet::new();
+    if unknown_reasons.iter().any(|reason| reason.as_str().map_or(true, |value| !allowed_unknown_reasons.contains(&value) || !unique_unknown_reasons.insert(value))) {
+        return Err("component contribution has an invalid or duplicate unknown reason".to_string());
+    }
+    let formula_unknown_reason_count = unknown_reasons.iter().filter(|reason| reason.as_str().unwrap_or("").starts_with("formula_amount_")).count();
+    let sds_unknown_reason_count = unknown_reasons.iter().filter(|reason| reason.as_str().unwrap_or("").starts_with("sds_")).count();
+    if (formula_interpretation == "unknown") != (formula_unknown_reason_count > 0)
+        || (sds_interpretation == "unknown") != (sds_unknown_reason_count > 0)
+        || (sds_status == "missing" && !unknown_reasons.iter().any(|reason| reason.as_str() == Some("sds_evidence_missing")))
+    {
+        return Err("unknown contribution reasons must match the missing formula or SDS evidence".to_string());
+    }
+    let status = contribution["status"].as_str().ok_or_else(|| "contribution status is required".to_string())?;
+    let contribution_range = contribution.get("contributionPercentRange");
+    if status == "unknown" {
+        if contribution_range.map_or(false, |range| !range.is_null()) || unknown_reasons.is_empty() || (formula_range.is_some() && sds_range.is_some()) {
+            return Err("unknown contribution requires reasons and cannot carry calculated bounds".to_string());
+        }
+    } else if matches!(status, "exact" | "range") {
+        if !unknown_reasons.is_empty() { return Err("calculated contribution cannot carry unknown reasons".to_string()); }
+        let formula_bounds = formula_range.ok_or_else(|| "calculated contribution requires formula bounds".to_string())?;
+        let component_bounds = sds_range.ok_or_else(|| "calculated contribution requires SDS component bounds".to_string())?;
+        let contribution_value = contribution_range.ok_or_else(|| "calculated contribution bounds are required".to_string())?;
+        let contribution_bounds = validate_contribution_bounds(contribution_value, 100.0, "calculated contribution")?;
+        let expected_lower = formula_bounds.0 * component_bounds.0;
+        let expected_upper = formula_bounds.1 * component_bounds.1;
+        if (contribution_bounds.0 - expected_lower).abs() > 1e-9 || (contribution_bounds.1 - expected_upper).abs() > 1e-9 {
+            return Err("calculated contribution bounds do not match source formula and SDS values".to_string());
+        }
+        let exact = (contribution_bounds.0 - contribution_bounds.1).abs() <= 1e-12;
+        if (status == "exact") != exact { return Err("exact/range status must match calculated bounds".to_string()); }
+    } else {
+        return Err("contribution status is invalid".to_string());
+    }
+    let evidence_refs = contribution["evidenceRefs"].as_array()
+        .ok_or_else(|| "contribution evidence references must be an array".to_string())?;
+    if evidence_refs.is_empty() { return Err("component contribution requires source evidence references".to_string()); }
+    for refs_key in ["evidenceRefs"] {
+        for ref_value in formula[refs_key].as_array().into_iter().flatten().chain(sds[refs_key].as_array().into_iter().flatten()) {
+            if !evidence_refs.iter().any(|candidate| candidate == ref_value) {
+                return Err("component contribution must retain formula and SDS evidence references".to_string());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn optional_json_string<'a>(value: &'a serde_json::Value, key: &str, label: &str) -> Result<Option<&'a str>, String> {
+    match value.as_object().and_then(|object| object.get(key)) {
+        None => Ok(None),
+        Some(serde_json::Value::String(text)) => Ok(Some(text.as_str())),
+        Some(_) => Err(format!("{label} optional field {key} must be a string when present")),
+    }
+}
+
+fn optional_nested_raw_string<'a>(value: &'a serde_json::Value, key: &str) -> Result<Option<&'a str>, String> {
+    match value.as_object().and_then(|object| object.get(key)) {
+        None => Ok(None),
+        Some(field) => {
+            let field_object = field.as_object().ok_or_else(|| format!("source line {key} must be an object when present"))?;
+            match field_object.get("rawValue") {
+                Some(serde_json::Value::String(text)) => Ok(Some(text.as_str())),
+                _ => Err(format!("source line {key} rawValue must be a string")),
+            }
+        }
+    }
+}
+
+fn validate_persisted_sds_contribution_evidence(
+    lineage: &serde_json::Value,
+    source: &serde_json::Value,
+    evidence_rows: &[serde_json::Value],
+    acquisition_rows: &[serde_json::Value],
+) -> Result<(), String> {
+    let evidence_id = lineage["evidenceId"].as_str().ok_or_else(|| "SDS evidence identity is required".to_string())?;
+    let evidence = evidence_rows.iter().find(|row| row["code"].as_str() == Some(evidence_id))
+        .ok_or_else(|| "SDS contribution must reference a persisted extraction evidence record".to_string())?;
+    let acquisition_code = lineage["acquisitionCode"].as_str().ok_or_else(|| "SDS acquisition identity is required".to_string())?;
+    if evidence["acquisitionCode"].as_str() != Some(acquisition_code)
+        || evidence["extractionStatus"].as_str() != Some("unreviewed")
+        || evidence["evidence"]["id"].as_str() != Some(evidence_id)
+        || evidence["evidence"]["commercialProductId"].as_str() != lineage["commercialProductId"].as_str()
+    {
+        return Err("SDS contribution must match its persisted unreviewed extraction snapshot".to_string());
+    }
+    let acquisition = acquisition_rows.iter().find(|row| row["code"].as_str() == Some(acquisition_code))
+        .ok_or_else(|| "SDS evidence must reference a persisted supplier document acquisition".to_string())?;
+    let source_supplier = source["source"]["supplierId"].as_str();
+    if acquisition["documentType"].as_str() != Some("SDS")
+        || acquisition["sha256"].as_str().map_or(true, |hash| !hash.eq_ignore_ascii_case(lineage["documentHash"].as_str().unwrap_or("")))
+        || source_supplier.is_none()
+        || acquisition["supplierId"].as_str() != source_supplier
+        || evidence["evidence"]["section1"]["sourceDocumentHash"].as_str().map_or(true, |hash| !hash.eq_ignore_ascii_case(lineage["documentHash"].as_str().unwrap_or("")))
+        || evidence["evidence"]["section3"]["sourceDocumentHash"].as_str().map_or(true, |hash| !hash.eq_ignore_ascii_case(lineage["documentHash"].as_str().unwrap_or("")))
+    {
+        return Err("SDS evidence must match the acquired SDS hash and formulation supplier".to_string());
+    }
+    let Some(component_id) = lineage["sourceComponentId"].as_str() else {
+        if !lineage["sourceFactId"].is_null()
+            || !lineage["originalValue"].is_null()
+            || !lineage["fractionRange"].is_null()
+            || lineage["evidenceRefs"].as_array().map_or(true, |refs| !refs.is_empty())
+        {
+            return Err("SDS component facts cannot be present without a persisted component identity".to_string());
+        }
+        return Ok(());
+    };
+    let component = evidence["evidence"]["section3"]["components"].as_array()
+        .and_then(|rows| rows.iter().find(|row| row["id"].as_str() == Some(component_id)))
+        .ok_or_else(|| "SDS component must exist in the persisted Section 3 evidence".to_string())?;
+    let component_refs = ["componentName", "casNumber", "ecNumber", "materialNumber", "concentration"]
+        .iter()
+        .filter_map(|key| component.get(*key))
+        .flat_map(|fact| fact["evidenceRefs"].as_array().into_iter().flatten())
+        .filter_map(|reference| reference.as_str())
+        .fold(Vec::<String>::new(), |mut refs, reference| {
+            if !refs.iter().any(|existing| existing == reference) { refs.push(reference.to_string()); }
+            refs
+        });
+    let concentration = component.get("concentration");
+    let concentration_matches = match concentration {
+        Some(fact) => fact["id"].as_str() == lineage["sourceFactId"].as_str()
+            && fact["rawValue"].as_str() == lineage["originalValue"].as_str(),
+        None => lineage["sourceFactId"].is_null() && lineage["originalValue"].is_null(),
+    };
+    if !concentration_matches
+        || component["disclosure"].as_str() != lineage["disclosure"].as_str()
+        || serde_json::json!(component_refs) != lineage["evidenceRefs"]
+        || evidence["evidence"]["commercialProductId"].as_str() != lineage["commercialProductId"].as_str()
+    {
+        return Err("SDS component, concentration, disclosure, and citations must match the persisted evidence".to_string());
+    }
+    Ok(())
+}
+
+fn validate_contribution_bounds(value: &serde_json::Value, maximum: f64, label: &str) -> Result<(f64, f64), String> {
+    ensure_object_keys(value, &["lowerBound", "upperBound"], label)?;
+    let lower = value["lowerBound"].as_f64().filter(|number| number.is_finite() && *number >= 0.0 && *number <= maximum)
+        .ok_or_else(|| format!("{label} lower bound is invalid"))?;
+    let upper = value["upperBound"].as_f64().filter(|number| number.is_finite() && *number >= lower && *number <= maximum)
+        .ok_or_else(|| format!("{label} upper bound is invalid"))?;
+    Ok((lower, upper))
+}
+
+fn validate_contribution_interpretation(interpretation: &str, bounds: (f64, f64), label: &str) -> Result<(), String> {
+    let exact = (bounds.0 - bounds.1).abs() <= 1e-12;
+    if (interpretation == "exact") != exact || !matches!(interpretation, "exact" | "range") {
+        return Err(format!("{label} exact/range interpretation does not match its bounds"));
+    }
+    Ok(())
+}
+
+fn contribution_bounds_equal(left: (f64, f64), right: (f64, f64)) -> bool {
+    (left.0 - right.0).abs() <= 1e-9 && (left.1 - right.1).abs() <= 1e-9
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn parse_explicit_w_w_percent_range(value: &str) -> Option<(f64, f64)> {
+    let (amount, basis) = value.trim().split_once('%')?;
+    let normalized_basis = basis.trim().to_ascii_lowercase().replace(' ', "");
+    if normalized_basis != "w/w" && normalized_basis != "weight/weight" && normalized_basis != "mass/mass" && normalized_basis != "byweight" {
+        return None;
+    }
+    let amount = amount.trim().replace(',', ".");
+    let separator = amount.char_indices().find(|(_, character)| matches!(character, '-' | '–' | '—'));
+    let (lower_text, upper_text) = match separator {
+        Some((index, character)) => (&amount[..index], Some(&amount[index + character.len_utf8()..])),
+        None => (amount.as_str(), None),
+    };
+    let lower = lower_text.trim().parse::<f64>().ok()?;
+    let upper = match upper_text {
+        Some(value) => value.trim().parse::<f64>().ok()?,
+        None => lower,
+    };
+    if !lower.is_finite() || !upper.is_finite() || lower < 0.0 || upper < lower || upper > 100.0 { return None; }
+    Some((lower, upper))
 }
 
 fn ensure_object_keys(value: &serde_json::Value, allowed: &[&str], label: &str) -> Result<(), String> {
@@ -895,8 +1515,8 @@ fn stamp_reference_formulation_review(
 }
 
 fn ensure_generic_collection_write_allowed(name: &str) -> Result<(), String> {
-    if matches!(name, "reference_formulation_reviews" | "reference_formulation_normalizations") {
-        return Err("reference formulation records must use their dedicated append command".to_string());
+    if matches!(name, "reference_formulation_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence") {
+        return Err("immutable evidence and normalization records must use their dedicated append command".to_string());
     }
     Ok(())
 }
@@ -1400,7 +2020,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 102);
+        assert_eq!(COLLECTIONS.len(), 103);
     }
 
     #[test]
@@ -1484,6 +2104,81 @@ mod tests {
         assert_eq!(collection_spec("reference_formulation_normalizations"), Ok(("reference_formulation_normalizations", true)));
         assert!(ensure_generic_collection_write_allowed("reference_formulation_normalizations").is_err());
         assert!(ensure_generic_collection_write_allowed("reference_formulations").is_ok());
+        assert_eq!(collection_spec("supplier_sds_product_evidence"), Ok(("supplier_sds_product_evidence", true)));
+        assert!(ensure_generic_collection_write_allowed("supplier_sds_product_evidence").is_err());
+    }
+
+    #[test]
+    fn supplier_sds_product_evidence_must_match_an_immutable_sds_acquisition() {
+        let acquisition = serde_json::json!({
+            "code": "sds-acquisition-1", "documentType": "SDS", "sha256": "c".repeat(64),
+            "providerId": "croda-public", "sourceProduct": {"supplierItemCode": "CRODA-001"}
+        });
+        let crosswalk = serde_json::json!({
+            "code": "croda-public::supplier_products::CRODA-001::CommercialProduct",
+            "sourceSystemId": "croda-public", "sourceEntity": "supplier_products", "sourceRecordId": "CRODA-001",
+            "canonicalEntity": "CommercialProduct", "canonicalRecordId": "commercial-product-1", "status": "active"
+        });
+        let record = serde_json::json!({
+            "schemaVersion": "1.0", "code": "sds-evidence-1", "acquisitionCode": "sds-acquisition-1",
+            "extractionStatus": "unreviewed", "createdAt": "2026-10-26T10:00:00Z",
+            "evidence": {
+                "schemaVersion": "1.0", "id": "sds-evidence-1", "commercialProductId": "commercial-product-1",
+                "section1": {"sectionNumber": 1, "sourceDocumentHash": "c".repeat(64)},
+                "section3": {"sectionNumber": 3, "sourceDocumentHash": "c".repeat(64), "components": [], "reconciliations": []}
+            }
+        });
+        validate_supplier_sds_product_evidence_record(&record, &acquisition, &[crosswalk.clone()]).unwrap();
+        let mut wrong_hash = record.clone();
+        wrong_hash["evidence"]["section3"]["sourceDocumentHash"] = serde_json::json!("d".repeat(64));
+        assert!(validate_supplier_sds_product_evidence_record(&wrong_hash, &acquisition, &[crosswalk.clone()]).unwrap_err().contains("match the acquired SDS hash"));
+        let mut wrong_kind = acquisition.clone();
+        wrong_kind["documentType"] = serde_json::json!("TDS");
+        assert!(validate_supplier_sds_product_evidence_record(&record, &wrong_kind, &[crosswalk.clone()]).unwrap_err().contains("match the acquired SDS hash"));
+        let mut wrong_product = record.clone();
+        wrong_product["evidence"]["commercialProductId"] = serde_json::json!("different-product");
+        assert!(validate_supplier_sds_product_evidence_record(&wrong_product, &acquisition, &[crosswalk]).unwrap_err().contains("active exact supplier-product crosswalk"));
+        let forged_crosswalk_code = serde_json::json!({
+            "code": "caller-invented", "sourceSystemId": "croda-public", "sourceEntity": "supplier_products", "sourceRecordId": "CRODA-001",
+            "canonicalEntity": "CommercialProduct", "canonicalRecordId": "commercial-product-1", "status": "active"
+        });
+        assert!(validate_supplier_sds_product_evidence_record(&record, &acquisition, &[forged_crosswalk_code]).unwrap_err().contains("active exact supplier-product crosswalk"));
+        let crosswalk = serde_json::json!({
+            "code": "croda-public::supplier_products::CRODA-001::CommercialProduct",
+            "sourceSystemId": "croda-public", "sourceEntity": "supplier_products", "sourceRecordId": "CRODA-001",
+            "canonicalEntity": "CommercialProduct", "canonicalRecordId": "commercial-product-1", "status": "active"
+        });
+        let mut duplicate_component = record.clone();
+        duplicate_component["evidence"]["section3"]["components"] = serde_json::json!([
+            {"id": "duplicate", "disclosure": "disclosed"}, {"id": "duplicate", "disclosure": "disclosed"}
+        ]);
+        assert!(validate_supplier_sds_product_evidence_record(&duplicate_component, &acquisition, &[crosswalk.clone()]).unwrap_err().contains("identities must be unique"));
+        let mut broken_reconciliation = record.clone();
+        broken_reconciliation["evidence"]["section1"]["declaredChemicalName"] = serde_json::json!({"id": "s1-name", "rawValue": "Product", "evidenceRefs": ["sds:p1:name"]});
+        broken_reconciliation["evidence"]["section3"]["components"] = serde_json::json!([{"id": "component-1", "disclosure": "disclosed"}]);
+        broken_reconciliation["evidence"]["reconciliations"] = serde_json::json!([{
+            "section1FactId": "missing-fact", "section3ComponentId": "component-1", "outcome": "unresolved",
+            "basis": "insufficient_evidence", "evidenceRefs": ["sds:p1:name"], "rationaleCode": "unresolved"
+        }]);
+        assert!(validate_supplier_sds_product_evidence_record(&broken_reconciliation, &acquisition, &[crosswalk]).unwrap_err().contains("reference existing product facts"));
+        let crosswalk = serde_json::json!({
+            "code": "croda-public::supplier_products::CRODA-001::CommercialProduct",
+            "sourceSystemId": "croda-public", "sourceEntity": "supplier_products", "sourceRecordId": "CRODA-001",
+            "canonicalEntity": "CommercialProduct", "canonicalRecordId": "commercial-product-1", "status": "active"
+        });
+        let mut incorrect_exact_match = record.clone();
+        incorrect_exact_match["evidence"]["section1"]["casNumber"] = serde_json::json!({"id": "s1-cas", "rawValue": "64-17-5", "evidenceRefs": ["sds:p1:cas"]});
+        incorrect_exact_match["evidence"]["section3"]["components"] = serde_json::json!([{
+            "id": "component-1", "casNumber": {"id": "s3-cas", "rawValue": "7647-14-5", "evidenceRefs": ["sds:p3:cas"]}, "disclosure": "disclosed"
+        }]);
+        incorrect_exact_match["evidence"]["reconciliations"] = serde_json::json!([{
+            "section1FactId": "s1-cas", "section3ComponentId": "component-1", "outcome": "consistent",
+            "basis": "exact_cas", "evidenceRefs": ["sds:p1:cas", "sds:p3:cas"], "rationaleCode": "claimed_match"
+        }]);
+        assert!(validate_supplier_sds_product_evidence_record(&incorrect_exact_match, &acquisition, &[crosswalk.clone()]).unwrap_err().contains("outcome must match"));
+        incorrect_exact_match["evidence"]["section3"]["components"][0]["casNumber"]["rawValue"] = serde_json::json!("64-17-5");
+        incorrect_exact_match["evidence"]["reconciliations"][0]["evidenceRefs"] = serde_json::json!(["sds:p1:cas"]);
+        assert!(validate_supplier_sds_product_evidence_record(&incorrect_exact_match, &acquisition, &[crosswalk]).unwrap_err().contains("must cite both linked"));
     }
 
     #[test]
@@ -1545,7 +2240,13 @@ mod tests {
     fn normalization_versions_must_match_source_lines_and_commercial_product_candidates() {
         let source = serde_json::json!({
             "id": "source-1", "sourceDocumentHash": "a".repeat(64),
-            "ingredientLines": [{ "id": "line-1" }],
+            "ingredientLines": [{
+                "id": "line-1", "sourceDocumentHash": "a".repeat(64),
+                "ingredientName": { "rawValue": "Known Product", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 0 } },
+                "amount": { "rawValue": "4.0", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 2 } },
+                "unit": { "rawValue": "%", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 3 } },
+                "basis": { "rawValue": "w/w", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 4 } }
+            }],
             "productMatches": [{ "ingredientLineId": "line-1", "candidates": [{ "commercialProductId": "product-source-candidate" }] }]
         });
         let normalization = serde_json::json!({
@@ -1556,16 +2257,105 @@ mod tests {
             "lines": [{
                 "sourceLineId": "line-1",
                 "commercialProduct": { "status": "proposed", "candidateIds": ["product-source-candidate"] },
-                "canonicalChemistry": { "status": "unresolved", "candidateIds": [] }
+                "canonicalChemistry": { "status": "unresolved", "candidateIds": [] },
+                "componentContributions": []
             }]
         });
-        validate_normalization_version(&normalization, &source, &[]).unwrap();
+        validate_normalization_version(&normalization, &source, &[], &[], &[]).unwrap();
         let mut forged = normalization.clone();
         forged["lines"][0]["commercialProduct"]["candidateIds"] = serde_json::json!(["forged-product"]);
-        assert!(validate_normalization_version(&forged, &source, &[]).unwrap_err().contains("match the immutable source"));
+        assert!(validate_normalization_version(&forged, &source, &[], &[], &[]).unwrap_err().contains("match the immutable source"));
         let mut extra_field = normalization.clone();
         extra_field["approved"] = serde_json::json!(true);
-        assert!(validate_normalization_version(&extra_field, &source, &[]).unwrap_err().contains("unsupported field"));
+        assert!(validate_normalization_version(&extra_field, &source, &[], &[], &[]).unwrap_err().contains("unsupported field"));
+
+        let mut with_contribution = normalization.clone();
+        let formula_refs = vec![
+            format!("formula:{}:1:1:0:0", "a".repeat(64)),
+            format!("formula:{}:1:1:0:2", "a".repeat(64)),
+            format!("formula:{}:1:1:0:3", "a".repeat(64)),
+            format!("formula:{}:1:1:0:4", "a".repeat(64)),
+        ];
+        let mut all_refs = formula_refs.clone();
+        all_refs.push("sds:p3:concentration".to_string());
+        with_contribution["lines"][0]["componentContributions"] = serde_json::json!([{
+            "schemaVersion": "1.0", "id": "contribution-1", "quantityKind": "component_contribution", "status": "exact",
+            "sourceFormulationRecordId": "source-1", "sourceFormulaDocumentHash": "a".repeat(64), "sourceFormulaLineId": "line-1",
+            "commercialProductId": "product-source-candidate",
+            "formulaAmount": { "originalValue": "4.0", "unit": "%", "basis": "w/w", "interpretation": "exact", "percentRange": { "lowerBound": 4.0, "upperBound": 4.0 }, "evidenceRefs": formula_refs },
+            "sourceSds": { "status": "available", "evidenceId": "sds-1", "commercialProductId": "product-source-candidate", "documentHash": "c".repeat(64), "sectionNumber": 3,
+                "sourceComponentId": "component-1", "disclosure": "disclosed", "sourceFactId": "concentration-1", "originalValue": "30% w/w", "fractionRange": { "lowerBound": 0.3, "upperBound": 0.3 }, "interpretation": "exact", "evidenceRefs": ["sds:p3:concentration"] },
+            "canonicalChemistry": { "status": "unresolved", "candidateIds": [] },
+            "contributionPercentRange": { "lowerBound": 1.2, "upperBound": 1.2 }, "unknownReasons": [], "evidenceRefs": all_refs, "reviewRequired": true
+        }]);
+        let source_with_supplier = serde_json::json!({"source": {"supplierId": "supplier-croda"}});
+        let mut persisted_source = source.clone();
+        persisted_source["source"] = source_with_supplier["source"].clone();
+        let sds_evidence_row = serde_json::json!({
+            "schemaVersion": "1.0", "code": "sds-1", "acquisitionCode": "sds-acquisition-1", "extractionStatus": "unreviewed",
+            "evidence": {
+                "schemaVersion": "1.0", "id": "sds-1", "commercialProductId": "product-source-candidate",
+                "section1": {"sectionNumber": 1, "sourceDocumentHash": "c".repeat(64)},
+                "section3": {"sectionNumber": 3, "sourceDocumentHash": "c".repeat(64), "components": [{
+                    "id": "component-1", "concentration": {"id": "concentration-1", "rawValue": "30% w/w", "evidenceRefs": ["sds:p3:concentration"]}, "disclosure": "disclosed"
+                }]},
+                "reconciliations": []
+            }
+        });
+        let acquisition_row = serde_json::json!({"code": "sds-acquisition-1", "supplierId": "supplier-croda", "documentType": "SDS", "sha256": "c".repeat(64)});
+        let sds_evidence_rows = vec![sds_evidence_row];
+        let acquisition_rows = vec![acquisition_row];
+        with_contribution["lines"][0]["componentContributions"][0]["sourceSds"]["acquisitionCode"] = serde_json::json!("sds-acquisition-1");
+        validate_normalization_version(&with_contribution, &persisted_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap();
+        assert!(validate_normalization_version(&with_contribution, &persisted_source, &[], &[], &acquisition_rows).unwrap_err().contains("persisted extraction evidence"));
+        let mut altered_sds_lineage = with_contribution.clone();
+        altered_sds_lineage["lines"][0]["componentContributions"][0]["sourceSds"]["originalValue"] = serde_json::json!("31% w/w");
+        assert!(validate_normalization_version(&altered_sds_lineage, &persisted_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err().contains("source component, concentration"));
+        let mut unknown_without_component = with_contribution.clone();
+        let unknown_row = &mut unknown_without_component["lines"][0]["componentContributions"][0];
+        unknown_row["status"] = serde_json::json!("unknown");
+        unknown_row.as_object_mut().unwrap().remove("contributionPercentRange");
+        unknown_row["unknownReasons"] = serde_json::json!(["sds_component_unresolved"]);
+        let unknown_sds = &mut unknown_row["sourceSds"];
+        for key in ["sourceComponentId", "disclosure", "sourceFactId", "originalValue", "fractionRange"] {
+            unknown_sds.as_object_mut().unwrap().remove(key);
+        }
+        unknown_sds["interpretation"] = serde_json::json!("unknown");
+        unknown_sds["evidenceRefs"] = serde_json::json!([]);
+        unknown_row["evidenceRefs"] = serde_json::json!(formula_refs);
+        let mut no_component_evidence_rows = sds_evidence_rows.clone();
+        no_component_evidence_rows[0]["evidence"]["section3"]["components"] = serde_json::json!([]);
+        validate_normalization_version(&unknown_without_component, &persisted_source, &[], &no_component_evidence_rows, &acquisition_rows).unwrap();
+        with_contribution["lines"][0]["componentContributions"][0]["contributionPercentRange"]["lowerBound"] = serde_json::json!(2.0);
+        assert!(validate_normalization_version(&with_contribution, &persisted_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err().contains("do not match source formula and SDS values"));
+
+        let mut absent_optional_source = source.clone();
+        absent_optional_source["ingredientLines"][0].as_object_mut().unwrap().remove("unit");
+        absent_optional_source["ingredientLines"][0].as_object_mut().unwrap().remove("basis");
+        absent_optional_source["ingredientLines"][0]["amount"]["rawValue"] = serde_json::json!("4% w/w");
+        let mut absent_optional_fields = with_contribution.clone();
+        let formula_amount = &mut absent_optional_fields["lines"][0]["componentContributions"][0]["formulaAmount"];
+        formula_amount["originalValue"] = serde_json::json!("4% w/w");
+        formula_amount.as_object_mut().unwrap().remove("unit");
+        formula_amount.as_object_mut().unwrap().remove("basis");
+        let reduced_formula_refs = vec![formula_refs[0].clone(), formula_refs[1].clone()];
+        formula_amount["evidenceRefs"] = serde_json::json!(reduced_formula_refs);
+        absent_optional_fields["lines"][0]["componentContributions"][0]["evidenceRefs"] = serde_json::json!([
+            formula_refs[0], formula_refs[1], "sds:p3:concentration"
+        ]);
+        absent_optional_fields["lines"][0]["componentContributions"][0]["contributionPercentRange"]["lowerBound"] = serde_json::json!(1.2);
+        absent_optional_source["source"] = source_with_supplier["source"].clone();
+        validate_normalization_version(&absent_optional_fields, &absent_optional_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap();
+        let mut malformed_unit = absent_optional_fields.clone();
+        malformed_unit["lines"][0]["componentContributions"][0]["formulaAmount"]["unit"] = serde_json::json!(12);
+        assert!(validate_normalization_version(&malformed_unit, &absent_optional_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err().contains("optional field unit must be a string"));
+        let mut malformed_basis = absent_optional_fields.clone();
+        malformed_basis["lines"][0]["componentContributions"][0]["formulaAmount"]["basis"] = serde_json::json!({});
+        assert!(validate_normalization_version(&malformed_basis, &absent_optional_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err().contains("optional field basis must be a string"));
+        let mut malformed_product_id = normalization.clone();
+        malformed_product_id["lines"][0]["componentContributions"] = absent_optional_fields["lines"][0]["componentContributions"].clone();
+        malformed_product_id["lines"][0]["componentContributions"][0]["commercialProductId"] = serde_json::json!({});
+        assert!(validate_normalization_version(&malformed_product_id, &absent_optional_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err().contains("optional field commercialProductId must be a string"));
         let duplicate = serde_json::json!({ "status": "ambiguous", "candidateIds": ["chemical-1", "chemical-1"] });
         assert!(validate_normalization_candidates(&duplicate, "canonical chemistry").unwrap_err().contains("must be unique"));
         let padded = serde_json::json!({ "status": "proposed", "candidateIds": [" chemical-1 "] });

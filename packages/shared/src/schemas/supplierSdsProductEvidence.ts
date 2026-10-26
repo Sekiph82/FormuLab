@@ -199,3 +199,19 @@ export function reconcileSection1WithSection3Component(
 
 export type SupplierSdsCitedFact = z.infer<typeof supplierSdsCitedFactSchema>;
 export type SupplierSdsProductEvidence = z.infer<typeof supplierSdsProductEvidenceSchema>;
+
+/** Persisted, immutable extraction snapshot linked to the exact acquired SDS bytes. */
+export const supplierSdsProductEvidenceRecordSchema = z.object({
+  schemaVersion: z.literal("1.0"),
+  code: z.string().trim().min(1),
+  acquisitionCode: z.string().trim().min(1),
+  evidence: supplierSdsProductEvidenceSchema,
+  extractionStatus: z.literal("unreviewed"),
+  createdAt: z.string().datetime({ offset: true }),
+}).strict().superRefine((record, context) => {
+  if (record.code !== record.evidence.id) {
+    context.addIssue({ code: "custom", path: ["code"], message: "Persisted SDS evidence code must match its immutable evidence identity." });
+  }
+});
+
+export type SupplierSdsProductEvidenceRecord = z.infer<typeof supplierSdsProductEvidenceRecordSchema>;

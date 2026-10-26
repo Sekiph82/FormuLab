@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createReferenceFormulationContribution,
   extractReferenceFormulationIdentity,
   extractReferenceFormulationIngredientLines,
   validateReferenceFormulationArithmetic,
@@ -104,7 +105,34 @@ describe("reference formulation normalization persistence", () => {
         commercialProduct: { status: "proposed" as const, candidateIds: ["forged-product"] },
       } : line),
     };
-    vi.mocked(listRecords).mockImplementation(async (collection) => collection === "reference_formulations" ? [source] as never : [corrupted] as never);
+    vi.mocked(listRecords).mockImplementation(async (collection) => collection === "reference_formulations"
+      ? [source] as never
+      : collection === "reference_formulation_normalizations" ? [corrupted] as never : [] as never);
     await expect(listReferenceFormulationNormalizations(source.id)).rejects.toThrow(/match the immutable source match snapshot/);
+  });
+
+  it("persists unknown component contributions inside the next immutable normalization version", async () => {
+    const source = sourceRecord();
+    let versions: unknown[] = [];
+    vi.mocked(listRecords).mockImplementation(async (collection) => {
+      if (collection === "reference_formulations") return [source] as never;
+      if (collection === "reference_formulation_normalizations") return versions as never;
+      return [] as never;
+    });
+    vi.mocked(appendReferenceFormulationNormalizationRecord).mockImplementation(async (record) => {
+      versions = [...versions, record];
+      return record;
+    });
+    const sourceLine = source.ingredientLines[0]!;
+    const contribution = createReferenceFormulationContribution({ source, sourceFormulaLineId: sourceLine.id });
+    const saved = await appendReferenceFormulationNormalization({
+      referenceFormulationRecordId: source.id,
+      componentContributions: { [sourceLine.id]: [contribution] },
+    });
+    expect(saved.lines[0]?.componentContributions).toEqual([contribution]);
+    expect(appendReferenceFormulationNormalizationRecord).toHaveBeenCalledWith(expect.objectContaining({
+      referenceFormulationRecordId: source.id,
+      lines: expect.arrayContaining([expect.objectContaining({ componentContributions: [contribution] })]),
+    }));
   });
 });

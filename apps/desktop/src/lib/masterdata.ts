@@ -105,6 +105,7 @@ import type {
   SupplierAcquisitionJob,
   SupplierAcquisitionJobItem,
   SupplierDocumentAcquisition,
+  SupplierSdsProductEvidenceRecord,
   TestDefinition,
   TestResult,
   TrialComparison,
@@ -113,9 +114,10 @@ import type {
 import { isTauri } from "./tauri";
 import { currentSessionToken } from "./sessionToken";
 import type { MasterdataCollection } from "@formulab/shared";
+import { supplierSdsProductEvidenceRecordSchema } from "@formulab/shared";
 
 /** Phase 13 Session 4A: now derived from `@formulab/shared`'s
- *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 102-name
+ *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 103-name
  *  list `masterdata.rs`'s `COLLECTIONS` and the generated policy-area
  *  fixture both answer to, not a second hand-typed union that could drift
  *  from either. */
@@ -198,6 +200,7 @@ interface CollectionTypes {
   finished_product_specifications: FinishedProductSpecification;
   material_documents: MaterialDocument;
   supplier_document_acquisitions: SupplierDocumentAcquisition;
+  supplier_sds_product_evidence: SupplierSdsProductEvidenceRecord;
   reference_formulations: ReferenceFormulationRecord;
   reference_formulation_reviews: ReferenceFormulationReview;
   reference_formulation_normalizations: ReferenceFormulationNormalizationVersion;
@@ -242,6 +245,14 @@ export async function listRecords<C extends Collection>(
 ): Promise<CollectionTypes[C][]> {
   if (!isTauri) return [];
   return call<CollectionTypes[C][]>("list_master_records", { collection });
+}
+
+/** Persist one immutable SDS extraction snapshot after the document acquisition exists. */
+export async function appendSupplierSdsProductEvidenceRecord(
+  evidence: SupplierSdsProductEvidenceRecord,
+): Promise<SupplierSdsProductEvidenceRecord> {
+  const parsed = supplierSdsProductEvidenceRecordSchema.parse(evidence);
+  return call<SupplierSdsProductEvidenceRecord>("append_supplier_sds_product_evidence", { evidence: parsed });
 }
 
 export interface UpsertResult {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconcileSection1WithSection3Component, supplierSdsProductEvidenceSchema } from "./supplierSdsProductEvidence";
+import { reconcileSection1WithSection3Component, supplierSdsProductEvidenceRecordSchema, supplierSdsProductEvidenceSchema } from "./supplierSdsProductEvidence";
 
 const fact = (id: string, rawValue: string) => ({ id, rawValue, evidenceRefs: [`pdf-sha:page:${id}`] });
 const validEvidence = {
@@ -45,6 +45,20 @@ describe("supplierSdsProductEvidenceSchema", () => {
     expect(parsed.reconciliations[0]?.outcome).toBe("conflict");
     expect(parsed).not.toHaveProperty("canonicalChemicalId");
     expect(parsed).not.toHaveProperty("rawMaterial");
+  });
+
+  it("requires persisted extraction snapshots to keep evidence identity and acquisition provenance", () => {
+    const record = supplierSdsProductEvidenceRecordSchema.parse({
+      schemaVersion: "1.0", code: validEvidence.id, acquisitionCode: "supplier-sds-acquisition-1",
+      evidence: validEvidence, extractionStatus: "unreviewed", createdAt: "2026-10-26T10:00:00Z",
+    });
+    expect(record.extractionStatus).toBe("unreviewed");
+    expect(() => supplierSdsProductEvidenceRecordSchema.parse({
+      ...record, code: "different-evidence-code",
+    })).toThrow(/must match its immutable evidence identity/);
+    expect(() => supplierSdsProductEvidenceRecordSchema.parse({
+      ...record, extractionStatus: "verified",
+    })).toThrow();
   });
 
   it("rejects evidence placed in the wrong SDS section and non-cited claims", () => {
