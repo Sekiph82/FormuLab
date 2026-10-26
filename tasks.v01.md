@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 84
-- Remaining: 72
-- Completion: 53.8%
-- Current task: V01-05.009 - Implement source-line to commercial-product candidate matching
+- Completed: 85
+- Remaining: 71
+- Completion: 54.5%
+- Current task: V01-05.010 - Implement unresolved ingredient queue
 - Current status: IN PROGRESS
-- Next task: V01-05.010 - Implement unresolved ingredient queue
+- Next task: V01-05.011 - Implement structured reference-formula record
+- Acceptance note: V01-05.009 matches source lines to same-supplier commercial products by exact product code/trade name, then controlled aliases; edit-distance candidates remain fuzzy proposals only. Conflicts are ambiguous, all results require review and none auto-link, and source PDF hashes for the line and matching field evidence are verified. Focused tests (4), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-05.008 extracts cited pH, viscosity, density, appearance and generic property results from semantic sections and property tables, preserves raw units/context and exact/range/approximate/approximate-range distinctions, and keeps candidates review-required. Procedure/ingredient tables are excluded; OCR/mixed-source evidence requires review. Focused tests (4), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-05.007 extracts ordered, source-cited process steps from semantic procedure sections and clearly labeled process tables, retains explicit condition values and cell/page evidence, flags OCR/mixed-source steps for review, and does not infer steps outside supported sections. Focused tests (4), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
@@ -237,8 +238,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-05.006 - Implement formula arithmetic validation**: Compute totals, preserve source total, detect inconsistencies/duplicates/unknown units, and never silently repair source values.
 - [x] **V01-05.007 - Implement procedure/process extraction**: Extract ordered additions, dissolve/mix/hold instructions, temperatures, speeds, times, pH adjustment, thickening, clarity/homogeneity and other explicit process facts.
 - [x] **V01-05.008 - Implement finished-product target/result extraction**: Extract source-stated pH, viscosity, density, appearance and other targets/typical results with approximate/range/context semantics.
-- [~] **V01-05.009 - Implement source-line to commercial-product candidate matching**: Match exact supplier + trade name/product code first, then controlled aliases. Fuzzy similarity alone may propose but never auto-link.
-- [ ] **V01-05.010 - Implement unresolved ingredient queue**: Keep formula lines without supporting supplier/SDS evidence as unresolved and acquisition/review-ready while preserving the full reference formula.
+- [x] **V01-05.009 - Implement source-line to commercial-product candidate matching**: Match exact supplier + trade name/product code first, then controlled aliases. Fuzzy similarity alone may propose but never auto-link.
+- [~] **V01-05.010 - Implement unresolved ingredient queue**: Keep formula lines without supporting supplier/SDS evidence as unresolved and acquisition/review-ready while preserving the full reference formula.
 - [ ] **V01-05.011 - Implement structured reference-formula record**: Persist queryable reference formulas separately from production Formulation/FormulationVersion and never create a validated or approved production formula on import.
 - [ ] **V01-05.012 - Croda HC/DW/22 formulation acceptance**: Parse the supplied Hand Dishwash Detergent Liquid fixture: source identity, procedure, all ingredient/function/%w/w lines, pH ~7 instruction and ~375 cP value. Match supplied Croda SDS products and keep unsupported SLE(3)S/Crothix unresolved.
 - [ ] **V01-05.013 - Cross-supplier formulation layout harness**: Add parser fixtures for at least two additional supplier layout families before claiming generic support. If external fixtures are not yet available, create structurally different authorized test fixtures without fabricating chemical claims.
