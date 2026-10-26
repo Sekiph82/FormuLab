@@ -589,6 +589,7 @@ export * from "./engine/supplierProviderRegistry";
 export * from "./engine/supplierRecheck";
 export * from "./engine/supplierAdapterConformance";
 export * from "./engine/supplierRestAdapter";
+export * from "./engine/supplierAdapterRuntime";
 export * from "./engine/supplierPortalAdapter";
 export * from "./engine/supplierManualAdapter";
 export * from "./engine/dowSupplierAdapter";
