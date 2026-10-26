@@ -583,6 +583,7 @@ export * from "./schemas/connector";
 export * from "./schemas/supplierProvider";
 export * from "./schemas/supplierDocument";
 export * from "./schemas/supplierAcquisition";
+export * from "./schemas/supplierCoverage";
 export * from "./engine/connectorFingerprint";
 export * from "./engine/supplierProviderRegistry";
 export * from "./engine/supplierAdapterConformance";

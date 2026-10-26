@@ -1,3 +1,5 @@
+import { supplierCoverageReportSchema, type SupplierCoverageReport } from "../schemas/supplierCoverage";
+
 /** Normalized boundary shared by supplier-specific adapters and their tests.
  * Provider cursors remain in adapter memory; persistence checkpoints use the
  * existing safe acquisition-job contract instead. */
@@ -50,6 +52,7 @@ export interface SupplierAdapterConformanceTarget {
   searchCatalog(input: { query: string; pageToken?: string }, signal?: AbortSignal): Promise<SupplierAdapterResult<SupplierAdapterCatalogPage>>;
   discoverDocuments(input: { sourceProductId: string }, signal?: AbortSignal): Promise<SupplierAdapterResult<SupplierAdapterDocument[]>>;
   downloadDocument(input: { sourceDocumentId: string }, signal?: AbortSignal): Promise<SupplierAdapterResult<SupplierAdapterDownload>>;
+  getCoverageReport(): Promise<SupplierCoverageReport>;
 }
 
 export type SupplierAdapterFixtureScenario =
@@ -107,6 +110,10 @@ export function createDeterministicSupplierAdapterFixture(
   scenario: SupplierAdapterFixtureScenario = "success",
 ): SupplierAdapterConformanceTarget {
   let rateLimitReturned = false;
+  let pagesChecked = 0;
+  const productsChecked = new Set<string>();
+  const documentsFound = new Set<string>();
+  const documentsAcquired = new Set<string>();
 
   const failureForScenario = <T>(): SupplierAdapterResult<T> | undefined => {
     switch (scenario) {
@@ -129,8 +136,14 @@ export function createDeterministicSupplierAdapterFixture(
       if (aborted) return aborted;
       const failure = failureForScenario<SupplierAdapterCatalogPage>();
       if (failure) return failure;
+      pagesChecked += 1;
       if (input.query !== "fixture") return { status: "ok", value: { products: [] } };
-      if (input.pageToken === "fixture-page-2") return { status: "ok", value: { products: [{ ...product, sourceProductId: "fixture-product-002", supplierItemCode: "FIX-002" }] } };
+      if (input.pageToken === "fixture-page-2") {
+        const secondProduct = { ...product, sourceProductId: "fixture-product-002", supplierItemCode: "FIX-002" };
+        productsChecked.add(secondProduct.sourceProductId);
+        return { status: "ok", value: { products: [secondProduct] } };
+      }
+      productsChecked.add(product.sourceProductId);
       const page: SupplierAdapterCatalogPage = { products: [product], nextPageToken: "fixture-page-2" };
       return scenario === "partial_scope"
         ? { status: "partial", value: page, gaps: ["Second market requires user-attended access."] }
@@ -141,7 +154,9 @@ export function createDeterministicSupplierAdapterFixture(
       if (aborted) return aborted;
       const failure = failureForScenario<SupplierAdapterDocument[]>();
       if (failure) return failure;
-      return { status: "ok", value: documents.filter((document) => document.sourceProductId === input.sourceProductId) };
+      const found = documents.filter((document) => document.sourceProductId === input.sourceProductId);
+      found.forEach((document) => documentsFound.add(document.sourceDocumentId));
+      return { status: "ok", value: found };
     },
     async downloadDocument(input, signal) {
       const aborted = cancellation<SupplierAdapterDownload>(signal);
@@ -151,7 +166,36 @@ export function createDeterministicSupplierAdapterFixture(
       if (!documents.some((document) => document.sourceDocumentId === input.sourceDocumentId)) {
         return unavailable("network_error", false);
       }
+      documentsAcquired.add(input.sourceDocumentId);
       return { status: "ok", value: { bytes: pdfFixture.slice(), filename: "fixture-sds-001.pdf", mimeType: "application/pdf" } };
+    },
+    async getCoverageReport() {
+      const partial = scenario === "partial_scope";
+      return supplierCoverageReportSchema.parse({
+        schemaVersion: "1.0",
+        supplierId: "supplier-fixture",
+        providerId: "fixture-adapter",
+        surfaceId: "fixture-public-surface",
+        acquisitionJobId: "fixture-job-001",
+        completion: partial ? "partial" : "complete",
+        requestedScope: { markets: ["EU", "NA"], languages: ["en"], productLines: ["Home Care", "Industrial"] },
+        scannedScope: { markets: ["EU"], languages: ["en"], productLines: ["Home Care"] },
+        pagesChecked,
+        productsChecked: productsChecked.size,
+        documentsFound: documentsFound.size,
+        documentsAcquired: documentsAcquired.size,
+        inaccessibleSurfaces: scenario === "authorization_required"
+          ? [{ surfaceId: "fixture-customer-portal", reason: "authorization_required" }]
+          : [],
+        unsupportedCapabilities: partial ? ["formulation_discovery"] : [],
+        gaps: partial
+          ? [
+            { code: "scope_unscanned", dimension: "market", scopeValue: "NA" },
+            { code: "capability_unsupported", dimension: "capability", scopeValue: "formulation_discovery" },
+          ]
+          : [],
+        generatedAt: "2026-10-26T08:30:00.000Z",
+      });
     },
   };
 }
@@ -246,6 +290,18 @@ export async function runSupplierAdapterConformance(
     const result = await createAdapter("authorization_required").searchCatalog({ query: "fixture" });
     const serialized = JSON.stringify(result);
     if (/password|token|cookie|do-not-store/i.test(serialized)) throw new Error();
+  });
+
+  await check("coverage reports actual scoped counts and acquisition outcome", async () => {
+    const adapter = createAdapter();
+    const first = await adapter.searchCatalog({ query: "fixture" });
+    if (first.status !== "ok" || !first.value.nextPageToken) throw new Error();
+    await adapter.searchCatalog({ query: "fixture", pageToken: first.value.nextPageToken });
+    await adapter.discoverDocuments({ sourceProductId: "fixture-product-001" });
+    await adapter.downloadDocument({ sourceDocumentId: "fixture-sds-001" });
+    const report = await adapter.getCoverageReport();
+    if (report.pagesChecked < 2 || report.productsChecked < 2 || report.documentsFound < 2
+      || report.documentsAcquired < 1 || report.scannedScope.markets.length === 0) throw new Error();
   });
 
   return checks;

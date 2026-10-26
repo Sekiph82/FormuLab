@@ -33,6 +33,11 @@ describe("supplier adapter conformance fixtures — V01-02.001", () => {
       expect(result.value.products).toHaveLength(1);
       expect(result.gaps).toContain("Second market requires user-attended access.");
     }
+    const coverage = await adapter.getCoverageReport();
+    expect(coverage.completion).toBe("partial");
+    expect(coverage.requestedScope.markets).toContain("NA");
+    expect(coverage.scannedScope.markets).not.toContain("NA");
+    expect(coverage.gaps.some(({ scopeValue }) => scopeValue === "NA")).toBe(true);
   });
 
   it("normalizes rate limits, honors retry metadata, and allows a bounded retry", async () => {
