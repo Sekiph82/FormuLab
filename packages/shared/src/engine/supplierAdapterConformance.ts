@@ -38,18 +38,20 @@ export type SupplierAdapterResult<T> =
 
 export interface SupplierAdapterCatalogPage {
   products: SupplierAdapterProduct[];
-  /** Opaque, transient provider token. Never persist this field directly. */
-  nextPageToken?: string;
+  /** Number of source pages consumed by the adapter's existing connector. */
+  pagesChecked: number;
 }
 
 export interface SupplierAdapterDownload {
-  bytes: Uint8Array;
+  acquisitionCode: string;
+  sha256: string;
+  byteSize: number;
   filename: string;
   mimeType: "application/pdf" | "application/octet-stream";
 }
 
 export interface SupplierAdapterConformanceTarget {
-  searchCatalog(input: { query: string; pageToken?: string }, signal?: AbortSignal): Promise<SupplierAdapterResult<SupplierAdapterCatalogPage>>;
+  searchCatalog(input: { query: string }, signal?: AbortSignal): Promise<SupplierAdapterResult<SupplierAdapterCatalogPage>>;
   discoverDocuments(input: { sourceProductId: string }, signal?: AbortSignal): Promise<SupplierAdapterResult<SupplierAdapterDocument[]>>;
   downloadDocument(input: { sourceDocumentId: string }, signal?: AbortSignal): Promise<SupplierAdapterResult<SupplierAdapterDownload>>;
   getCoverageReport(): Promise<SupplierCoverageReport>;
@@ -94,7 +96,7 @@ const documents: SupplierAdapterDocument[] = [
   },
 ];
 
-const pdfFixture = new TextEncoder().encode("%PDF-1.7\nFormuLab deterministic supplier fixture\n%%EOF\n");
+const pdfFixtureBytes = new TextEncoder().encode("%PDF-1.7\nFormuLab deterministic supplier fixture\n%%EOF\n");
 
 function unavailable<T>(code: SupplierAdapterFailureCode, retryable: boolean, retryAfterMs?: number): SupplierAdapterResult<T> {
   return { status: "unavailable", failure: { code, retryable, ...(retryAfterMs === undefined ? {} : { retryAfterMs }) } };
@@ -136,18 +138,19 @@ export function createDeterministicSupplierAdapterFixture(
       if (aborted) return aborted;
       const failure = failureForScenario<SupplierAdapterCatalogPage>();
       if (failure) return failure;
-      pagesChecked += 1;
-      if (input.query !== "fixture") return { status: "ok", value: { products: [] } };
-      if (input.pageToken === "fixture-page-2") {
-        const secondProduct = { ...product, sourceProductId: "fixture-product-002", supplierItemCode: "FIX-002" };
-        productsChecked.add(secondProduct.sourceProductId);
-        return { status: "ok", value: { products: [secondProduct] } };
+      if (input.query !== "fixture") {
+        pagesChecked += 1;
+        return { status: "ok", value: { products: [], pagesChecked: 1 } };
       }
       productsChecked.add(product.sourceProductId);
-      const page: SupplierAdapterCatalogPage = { products: [product], nextPageToken: "fixture-page-2" };
-      return scenario === "partial_scope"
-        ? { status: "partial", value: page, gaps: ["Second market requires user-attended access."] }
-        : { status: "ok", value: page };
+      if (scenario === "partial_scope") {
+        pagesChecked += 1;
+        return { status: "partial", value: { products: [product], pagesChecked: 1 }, gaps: ["Second market requires user-attended access."] };
+      }
+      const secondProduct = { ...product, sourceProductId: "fixture-product-002", supplierItemCode: "FIX-002" };
+      productsChecked.add(secondProduct.sourceProductId);
+      pagesChecked += 2;
+      return { status: "ok", value: { products: [product, secondProduct], pagesChecked: 2 } };
     },
     async discoverDocuments(input, signal) {
       const aborted = cancellation<SupplierAdapterDocument[]>(signal);
@@ -167,7 +170,16 @@ export function createDeterministicSupplierAdapterFixture(
         return unavailable("network_error", false);
       }
       documentsAcquired.add(input.sourceDocumentId);
-      return { status: "ok", value: { bytes: pdfFixture.slice(), filename: "fixture-sds-001.pdf", mimeType: "application/pdf" } };
+      return {
+        status: "ok",
+        value: {
+          acquisitionCode: "supplierdoc-fixture-sds-001",
+          sha256: "a".repeat(64),
+          byteSize: pdfFixtureBytes.byteLength,
+          filename: "fixture-sds-001.pdf",
+          mimeType: "application/pdf",
+        },
+      };
     },
     async getCoverageReport() {
       const partial = scenario === "partial_scope";
@@ -220,7 +232,6 @@ export async function runSupplierAdapterConformance(
     const adapter = createAdapter();
     const first = await adapter.searchCatalog({ query: "fixture" });
     if (first.status !== "ok" || first.value.products[0]?.sourceProductId !== "fixture-product-001") throw new Error();
-    if (first.value.nextPageToken !== "fixture-page-2") throw new Error();
     const repeated = await adapter.searchCatalog({ query: "fixture" });
     if (JSON.stringify(first) !== JSON.stringify(repeated)) throw new Error();
   });
@@ -228,11 +239,8 @@ export async function runSupplierAdapterConformance(
   await check("pagination advances and terminates", async () => {
     const adapter = createAdapter();
     const first = await adapter.searchCatalog({ query: "fixture" });
-    if (first.status !== "ok" || !first.value.nextPageToken) throw new Error();
-    const second = await adapter.searchCatalog({ query: "fixture", pageToken: first.value.nextPageToken });
-    if (second.status !== "ok" || second.value.products[0]?.sourceProductId !== "fixture-product-002") throw new Error();
-    if (second.value.nextPageToken !== undefined) throw new Error();
-    if (first.value.products[0]?.sourceProductId === second.value.products[0]?.sourceProductId) throw new Error();
+    if (first.status !== "ok" || first.value.pagesChecked !== 2 || first.value.products.length !== 2) throw new Error();
+    if (first.value.products[0]?.sourceProductId === first.value.products[1]?.sourceProductId) throw new Error();
   });
 
   await check("partial scope remains distinguishable", async () => {
@@ -268,10 +276,12 @@ export async function runSupplierAdapterConformance(
       || !result.value.some((document) => document.documentType === "TDS")) throw new Error();
   });
 
-  await check("document download returns bounded PDF-shaped fixture bytes", async () => {
+  await check("document download returns a metadata receipt without exposing binary bytes", async () => {
     const result = await createAdapter().downloadDocument({ sourceDocumentId: "fixture-sds-001" });
     if (result.status !== "ok" || result.value.mimeType !== "application/pdf"
-      || !new TextDecoder().decode(result.value.bytes).startsWith("%PDF-")) throw new Error();
+      || !/^supplierdoc-/.test(result.value.acquisitionCode)
+      || !/^[a-f0-9]{64}$/.test(result.value.sha256) || result.value.byteSize <= 0
+      || "bytes" in result.value) throw new Error();
   });
 
   await check("cancellation is honored by search, discovery and download", async () => {
@@ -295,8 +305,7 @@ export async function runSupplierAdapterConformance(
   await check("coverage reports actual scoped counts and acquisition outcome", async () => {
     const adapter = createAdapter();
     const first = await adapter.searchCatalog({ query: "fixture" });
-    if (first.status !== "ok" || !first.value.nextPageToken) throw new Error();
-    await adapter.searchCatalog({ query: "fixture", pageToken: first.value.nextPageToken });
+    if (first.status !== "ok") throw new Error();
     await adapter.discoverDocuments({ sourceProductId: "fixture-product-001" });
     await adapter.downloadDocument({ sourceDocumentId: "fixture-sds-001" });
     const report = await adapter.getCoverageReport();

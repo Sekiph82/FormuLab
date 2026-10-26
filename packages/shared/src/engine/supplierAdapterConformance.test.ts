@@ -11,17 +11,15 @@ describe("supplier adapter conformance fixtures — V01-02.001", () => {
     expect(checks.every(({ passed }) => passed)).toBe(true);
   });
 
-  it("searches deterministically and advances through stable paginated products", async () => {
+  it("searches deterministically across connector-managed pages without exposing raw cursors", async () => {
     const adapter = createDeterministicSupplierAdapterFixture();
     const first = await adapter.searchCatalog({ query: "fixture" });
     expect(first.status).toBe("ok");
     if (first.status !== "ok") return;
     expect(first.value.products[0]?.sourceProductId).toBe("fixture-product-001");
-    expect(first.value.nextPageToken).toBe("fixture-page-2");
-
-    const second = await adapter.searchCatalog({ query: "fixture", pageToken: first.value.nextPageToken });
-    expect(second.status).toBe("ok");
-    if (second.status === "ok") expect(second.value.products[0]?.sourceProductId).toBe("fixture-product-002");
+    expect(first.value.products[1]?.sourceProductId).toBe("fixture-product-002");
+    expect(first.value.pagesChecked).toBe(2);
+    expect("nextPageToken" in first.value).toBe(false);
     expect(await adapter.searchCatalog({ query: "fixture" })).toEqual(first);
   });
 
@@ -58,7 +56,7 @@ describe("supplier adapter conformance fixtures — V01-02.001", () => {
     expect(result).toEqual({ status: "unavailable", failure: { code, retryable } });
   });
 
-  it("discovers typed supplier documents and fetches deterministic PDF bytes", async () => {
+  it("discovers typed supplier documents and receives a metadata-only download receipt", async () => {
     const adapter = createDeterministicSupplierAdapterFixture();
     const found = await adapter.discoverDocuments({ sourceProductId: "fixture-product-001" });
     expect(found.status).toBe("ok");
@@ -68,7 +66,9 @@ describe("supplier adapter conformance fixtures — V01-02.001", () => {
     expect(downloaded.status).toBe("ok");
     if (downloaded.status === "ok") {
       expect(downloaded.value.mimeType).toBe("application/pdf");
-      expect(new TextDecoder().decode(downloaded.value.bytes)).toMatch(/^%PDF-/);
+      expect(downloaded.value.acquisitionCode).toBe("supplierdoc-fixture-sds-001");
+      expect(downloaded.value.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect("bytes" in downloaded.value).toBe(false);
     }
     expect((await adapter.downloadDocument({ sourceDocumentId: "missing" })).status).toBe("unavailable");
   });
