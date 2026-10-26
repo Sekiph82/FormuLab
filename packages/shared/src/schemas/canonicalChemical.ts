@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeCasIdentifier, normalizeEcIdentifier } from "./chemicalIdentifiers";
 
 export const CANONICAL_CHEMICAL_PROVENANCE_TYPES = [
   "supplier_sds",
@@ -16,11 +17,32 @@ export const canonicalChemicalSynonymSchema = z.object({
   provenanceId: z.string().trim().min(1).optional(),
 }).strict();
 
-export const canonicalChemicalIdentifierSchema = z.object({
-  /** Original identifier text is retained; syntax/check-digit normalization is handled by V01-04.003. */
-  value: z.string().trim().min(1).max(100),
+const canonicalIdentifierFields = {
+  /** Keep source spelling intact; normalizedValue is a separate deterministic comparison key. */
+  originalValue: z.string().min(1).max(100),
+  normalizedValue: z.string().min(1).max(100),
   provenanceId: z.string().trim().min(1).optional(),
-}).strict();
+};
+
+export const canonicalCasIdentifierSchema = z.object(canonicalIdentifierFields).strict().superRefine((record, context) => {
+  const result = normalizeCasIdentifier(record.originalValue);
+  if (!result.ok) {
+    context.addIssue({ code: "custom", path: ["originalValue"], message: `CAS identifier is invalid: ${result.error}.` });
+  } else if (result.normalizedValue !== record.normalizedValue) {
+    context.addIssue({ code: "custom", path: ["normalizedValue"], message: "Normalized CAS value must match the original identifier." });
+  }
+});
+
+export const canonicalEcIdentifierSchema = z.object(canonicalIdentifierFields).strict().superRefine((record, context) => {
+  const result = normalizeEcIdentifier(record.originalValue);
+  if (!result.ok) {
+    context.addIssue({ code: "custom", path: ["originalValue"], message: `EC identifier is invalid: ${result.error}.` });
+  } else if (result.normalizedValue !== record.normalizedValue) {
+    context.addIssue({ code: "custom", path: ["normalizedValue"], message: "Normalized EC value must match the original identifier." });
+  }
+});
+
+export const canonicalChemicalIdentifierSchema = z.union([canonicalCasIdentifierSchema, canonicalEcIdentifierSchema]);
 
 export const canonicalChemicalProvenanceSchema = z.object({
   id: z.string().trim().min(1),
@@ -37,8 +59,8 @@ export const canonicalChemicalSchema = z.object({
   /** Stable opaque library key. It is not derived from a name, CAS or EC value. */
   id: z.string().trim().min(1),
   preferredName: z.string().trim().min(1).max(240),
-  casIdentifiers: z.array(canonicalChemicalIdentifierSchema).default([]),
-  ecIdentifiers: z.array(canonicalChemicalIdentifierSchema).default([]),
+  casIdentifiers: z.array(canonicalCasIdentifierSchema).default([]),
+  ecIdentifiers: z.array(canonicalEcIdentifierSchema).default([]),
   /** INCI applies only where an ingredient declaration name is relevant. */
   inciName: z.string().trim().min(1).max(240).optional(),
   synonyms: z.array(canonicalChemicalSynonymSchema).default([]),
