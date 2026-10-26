@@ -602,6 +602,7 @@ export * from "./engine/myChtAdapter";
 export * from "./engine/basfDocumentCenterAdapter";
 export * from "./engine/basfPortalAdapter";
 export * from "./engine/archromaSupplierAdapter";
+export * from "./engine/dystarSupplierAdapter";
 export * from "./engine/xmlParser";
 export * from "./engine/fileConnector";
 export * from "./engine/databaseConnector";
