@@ -90,7 +90,11 @@ function assertQueryMatchesSource(source: ReferenceFormulationRecord, query: Ref
     if (!sourceLine
       || line.sourceIngredientName !== sourceLine.ingredientName?.rawValue
       || line.inciOrChemicalName !== sourceLine.inciOrChemicalName?.rawValue
-      || line.supplierProductCode !== sourceLine.supplierProductCode?.rawValue) {
+      || line.supplierProductCode !== sourceLine.supplierProductCode?.rawValue
+      || line.amount.originalValue !== sourceLine.amount?.rawValue
+      || line.amount.unit !== sourceLine.unit?.rawValue
+      || line.amount.basis !== sourceLine.basis?.rawValue
+      || line.amount.quantitySemantics !== sourceLine.quantitySemantics) {
       throw new Error("Eligibility query line identity fields must exactly match their immutable source line.");
     }
     const expectedEvidenceRefs = [sourceLine.ingredientName, sourceLine.supplierProductCode, sourceLine.inciOrChemicalName]
@@ -98,6 +102,12 @@ function assertQueryMatchesSource(source: ReferenceFormulationRecord, query: Ref
       .map((field) => formulaEvidenceRef(source.sourceDocumentHash, field.evidence));
     if (JSON.stringify(line.sourceLineEvidenceRefs) !== JSON.stringify(expectedEvidenceRefs)) {
       throw new Error("Eligibility query line citations must exactly match immutable source field evidence.");
+    }
+    const expectedAmountEvidenceRefs = [sourceLine.amount, sourceLine.unit, sourceLine.basis]
+      .filter((field) => field !== undefined)
+      .map((field) => formulaEvidenceRef(source.sourceDocumentHash, field.evidence));
+    if (JSON.stringify(line.amount.evidenceRefs) !== JSON.stringify(expectedAmountEvidenceRefs)) {
+      throw new Error("Eligibility query dosage citations must exactly match immutable amount, unit and basis evidence.");
     }
   }
 }

@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 106
-- Remaining: 50
-- Completion: 67.9%
-- Current task: V01-07.003 - Implement dosage distributions
+- Completed: 107
+- Remaining: 49
+- Completion: 68.6%
+- Current task: V01-07.004 - Implement co-occurrence intelligence
 - Current status: IN PROGRESS
-- Next task: V01-07.004 - Implement co-occurrence intelligence
+- Next task: V01-07.005 - Implement active/component contribution distributions
+- Acceptance note: V01-07.003 adds dosage distributions for eligible family/material samples and explicitly reviewed canonical functions. It requires accepted amount, unit and basis decisions, validates these fields and citations against the immutable source, and parses only explicit % w/w values. Exact and ranged samples retain separate lower/upper bounds with deterministic nearest-rank quantiles; q.s., unreviewed and non-mass-percent samples are counted as exclusions rather than zero. Samples retain formula/supplier counts and source IDs; repeated lines for the same material/function are summed once per formula using decimal arithmetic, while unresolved function mappings remain explicitly unassigned. Focused shared suite (8), shared/desktop typechecks, V01 tracker validation, `git diff --check`, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-07.002 computes deterministic ingredient-presence priors from the V01-07.001 eligibility gate and matching immutable source records. It counts each canonical chemistry at most once per eligible formula, uses eligible formulas in the family as the denominator, reports per-family/per-ingredient supplier mix and source formula IDs, and excludes unresolved, ambiguous, unreviewed, stale-normalization, or rights-ineligible snapshots. A fixture verifies 2/3 and 1/3 frequencies, supplier shares, latest-version deduplication, excluded unresolved chemistry, and input-order independence. Focused shared suite (7), shared/desktop typechecks, V01 tracker validation, `git diff --check`, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-07.001 adds a deterministic eligibility filter that selects only the latest normalization snapshot per source, validates each query projection and its supplier/product/family/line evidence against the immutable source, and requires accepted human decisions for product family, each line identity and each candidate canonical-chemistry link. It fails closed for unresolved/ambiguous critical identity, stale or mismatched decisions, unknown/expired internal-research rights and retention, and malformed or altered source/query joins. Focused eligibility suite (6), shared/desktop typechecks, V01 tracker validation, `git diff --check`, and independent read-only review passed. The existing authenticated native review write path stamps reviewer identity; this filter consumes its append-only records. Full regression not run.
 - Acceptance note: V01-06.014 ingests a synthetic three-supplier fixture corpus across distinct table layouts and verifies deterministic source-linked normalization/query projections, unresolved product and SDS evidence, explicit unknown/q.s. handling, stable index rebuilds, duplicate rejection, supplier isolation, and absence of production-formula fields. Desktop bulk-import acceptance verifies three source/acquisition records, deterministic query-index rebuild, repeated-byte deduplication, and no RawMaterial/formula collection writes. The desktop integration fixtures use blank PDFs and therefore validate persistence/deduplication rather than extracted ingredient rows; parser-to-normalization behavior is covered by the shared synthetic semantic-table harness. V01-06.013 supplies byte-identical backup/restore coverage. Focused tests (shared 1, desktop 9), shared/desktop typechecks, V01 tracker validation, and independent read-only review passed. Full regression not run.
@@ -287,8 +288,8 @@ Codex must execute the tasks below in the exact order listed.
 
 - [x] **V01-07.001 - Implement reviewed-corpus eligibility filter**: Only reviewed/eligible normalized records contribute to intelligence; unresolved critical identity does not silently enter statistics.
 - [x] **V01-07.002 - Implement product-family ingredient frequency priors**: Compute counts/frequencies with sample size, supplier mix and evidence eligibility.
-- [~] **V01-07.003 - Implement dosage distributions**: Compute min/max, quantiles and robust summaries per product family/material/function while preserving supplier/sample counts.
-- [ ] **V01-07.004 - Implement co-occurrence intelligence**: Compute material/function/component co-occurrence as advisory empirical evidence, never chemical compatibility proof.
+- [x] **V01-07.003 - Implement dosage distributions**: Compute min/max, quantiles and robust summaries per product family/material/function while preserving supplier/sample counts.
+- [~] **V01-07.004 - Implement co-occurrence intelligence**: Compute material/function/component co-occurrence as advisory empirical evidence, never chemical compatibility proof.
 - [ ] **V01-07.005 - Implement active/component contribution distributions**: Use only formulas with defensible composition/active evidence; preserve bounded ranges and exclude unsupported point estimates.
 - [ ] **V01-07.006 - Implement process-pattern intelligence**: Compute explicit addition-order, phase, pH-adjustment, thickening, temperature, mixing and finish patterns without inventing missing process details.
 - [ ] **V01-07.007 - Implement target/property distributions**: Compute reviewed reference distributions for pH, viscosity, density and other source-supported formula properties with measurement context.
