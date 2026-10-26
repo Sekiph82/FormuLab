@@ -588,6 +588,7 @@ export * from "./schemas/chemicalIdentifiers";
 export * from "./schemas/chemicalNameNormalization";
 export * from "./schemas/commercialProductType";
 export * from "./schemas/supplierSdsProductEvidence";
+export * from "./schemas/singleComponentResolver";
 export * from "./schemas/supplierAcquisition";
 export * from "./schemas/supplierCoverage";
 export * from "./engine/connectorFingerprint";
