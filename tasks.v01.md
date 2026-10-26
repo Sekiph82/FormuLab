@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 81
-- Remaining: 75
-- Completion: 51.9%
-- Current task: V01-05.006 - Implement formula arithmetic validation
+- Completed: 82
+- Remaining: 74
+- Completion: 52.6%
+- Current task: V01-05.007 - Implement procedure/process extraction
 - Current status: IN PROGRESS
-- Next task: V01-05.007 - Implement procedure/process extraction
+- Next task: V01-05.008 - Implement finished-product target/result extraction
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Acceptance note: V01-04.001 adds the independent commercial-product identity schema and passes focused tests, shared typecheck, task-state validation, and read-only review. No canonical chemistry is assigned in this identity record.
 - Acceptance note: V01-04.002 adds a provenance-backed canonical chemical schema with stable opaque IDs and distinct chemical/functional families. Focused tests, shared typecheck, and read-only review passed; CAS/EC values remain unnormalized for V01-04.003.
@@ -130,6 +130,7 @@ Codex must execute the tasks below in the exact order listed.
 - Acceptance note: V01-05.003 adapts formulation acquisitions to the existing bounded local conditional-PDF-OCR pipeline, requiring FORMULATION document type and matching acquisition, extracted-document and optional original-byte hashes. Sufficient digital-text pages skip OCR; OCR output keeps page, confidence, parser lineage and review status, with unavailable/low-confidence cases remaining manual-review outcomes. Focused tests (3), desktop/shared typechecks and independent read-only review passed; OCR yields text lines, while table reconstruction remains a later task.
 - Acceptance note: V01-05.004 extracts supplier, application, product family, formulation title/code, revision/date, document version and source ID as cited candidates tied to the exact acquisition/hash and page/block. Conflicting values and acquisition metadata differences remain warnings for review; no candidate is accepted automatically. A semantic-title false-positive edge was fixed and retested. Focused tests (4), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-05.005 extracts semantic ingredient rows with original name/code/INCI/function/phase/amount/unit/basis, deterministic row order, explicit q.s. semantics and per-cell page/table/row evidence. Raw values are unchanged, missing-name rows remain visible, and OCR rows require review. Competing header rows or duplicate ingredient columns produce warnings and no extracted rows. Focused tests (7), shared typecheck and independent read-only review passed.
+- Acceptance note: V01-05.006 calculates exact or interval totals only for explicit, compatible % w/w values, preserves the source-declared total and citations, and flags mismatches, overlaps, duplicate lines, q.s., missing values and unsupported units without deduplicating or repairing inputs. Line and total evidence must match the same PDF hash; OCR-derived totals require review. Focused tests (5), shared typecheck and independent read-only review passed.
 - Required actor: CODEX
 - Branch: V01
 
@@ -231,8 +232,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-05.003 - Implement conditional formulation OCR**: Reuse the bounded PDF/OCR pipeline for scanned formulations only.
 - [x] **V01-05.004 - Implement formulation identity extraction**: Extract supplier, application/product family, formulation title, formulation code, revision/date, document version, page and source identity.
 - [x] **V01-05.005 - Implement ingredient-line extraction**: Extract original ingredient/trade name, supplier product code when present, INCI/chemical wording, functionality, phase/order, amount, unit/basis, q.s. semantics and page evidence.
-- [~] **V01-05.006 - Implement formula arithmetic validation**: Compute totals, preserve source total, detect inconsistencies/duplicates/unknown units, and never silently repair source values.
-- [ ] **V01-05.007 - Implement procedure/process extraction**: Extract ordered additions, dissolve/mix/hold instructions, temperatures, speeds, times, pH adjustment, thickening, clarity/homogeneity and other explicit process facts.
+- [x] **V01-05.006 - Implement formula arithmetic validation**: Compute totals, preserve source total, detect inconsistencies/duplicates/unknown units, and never silently repair source values.
+- [~] **V01-05.007 - Implement procedure/process extraction**: Extract ordered additions, dissolve/mix/hold instructions, temperatures, speeds, times, pH adjustment, thickening, clarity/homogeneity and other explicit process facts.
 - [ ] **V01-05.008 - Implement finished-product target/result extraction**: Extract source-stated pH, viscosity, density, appearance and other targets/typical results with approximate/range/context semantics.
 - [ ] **V01-05.009 - Implement source-line to commercial-product candidate matching**: Match exact supplier + trade name/product code first, then controlled aliases. Fuzzy similarity alone may propose but never auto-link.
 - [ ] **V01-05.010 - Implement unresolved ingredient queue**: Keep formula lines without supporting supplier/SDS evidence as unresolved and acquisition/review-ready while preserving the full reference formula.

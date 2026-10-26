@@ -27,6 +27,7 @@ const citedCellSchema = z.object({ rawValue: z.string().trim().min(1), evidence:
 
 export const referenceFormulationIngredientLineSchema = z.object({
   id: z.string().trim().min(1),
+  sourceDocumentHash: z.string().regex(/^[a-f0-9]{64}$/i).transform((value) => value.toLowerCase()),
   orderIndex: z.number().int().positive(),
   pageNumber: z.number().int().positive(),
   tableBlockIndex: z.number().int().nonnegative(),
@@ -169,6 +170,7 @@ export function extractReferenceFormulationIngredientLines(input: {
       if (block.source === "ocr") warnings.add("ocr_ingredient_rows_require_review");
       lines.push(referenceFormulationIngredientLineSchema.parse({
         id: `${source.id}:p${candidate.pageNumber}:b${candidate.blockIndex}:r${rowIndex}`,
+        sourceDocumentHash: source.sourcePdfSha256,
         orderIndex: lines.length + 1,
         pageNumber: candidate.pageNumber,
         tableBlockIndex: candidate.blockIndex,
