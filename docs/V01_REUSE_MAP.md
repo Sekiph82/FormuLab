@@ -176,3 +176,27 @@ Use these terms consistently in schemas, adapter contracts, UI and exported reco
 3. Keep source text, normalized value and identity proposal together. Normalization never deletes or rewrites the source value.
 4. Treat region, language, product line, grade and document revision as identity context; matching a name across contexts does not prove equivalence.
 5. A component amount/range is not active-matter concentration unless the document explicitly supports that interpretation. Unknown, proprietary, and undisclosed remain distinct states.
+
+## V01 scientific evidence classes
+
+Assign evidence class from what the source actually establishes, not from the parser's confidence or how useful the value would be. A record can contain multiple claims of different classes; do not promote an entire document or product to its strongest-looking class.
+
+| Evidence class | Meaning and minimum context | Does not establish |
+|---|---|---|
+| Source document fact | A faithfully transcribed statement or datum appearing in a specific immutable source document revision, with source location and original wording/value retained. | Truth beyond the source, current validity, complete disclosure, independent verification or applicability to another market/grade. |
+| Supplier formulation evidence | A formula, recipe, example composition or procedure the supplier explicitly publishes for a named product/application. Preserve amounts, basis, sequence, conditions, product family and source location. | Reproducibility, general applicability, safety/compliance, efficacy, commercial release, customer acceptance or measured validation in FormuLab. |
+| SDS composition evidence | A Section 3 substance/mixture declaration or disclosed constituent/range as stated in a specific SDS revision and regulatory market. Preserve CAS/EC, exact/ranged amount, basis, trade-secret/undisclosed state and section location. | Full commercial formulation, absence of components not listed, active matter, function, compatibility or performance. |
+| Typical physical-property evidence | A supplier-reported typical or representative property (for example pH, density, viscosity or appearance), preserving test method, temperature, concentration, unit, basis and wording such as “typical”. | A guaranteed specification limit, batch-specific measured result, acceptance limit, or a value transferable to a different grade/condition. |
+| Supplier recommendation | A supplier's explicit recommended use, dosage, application, storage or process guidance, scoped to the stated product/application and source revision. | A universal optimum, regulatory permission, validated efficacy, mandatory process setting or an automatically applicable formulation parameter. |
+| Canonical identity proposal | A candidate mapping from a trade name/product code/component label to canonical chemical or existing material identity, with identifiers, source evidence, resolver method, alternatives and uncertainty. | A verified supplier-product identity, complete blend composition, authorized RawMaterial change or safety/regulatory verification. |
+| Measured laboratory result | A value or outcome produced by a recorded FormuLab LaboratoryTrial/TestResult or other explicitly governed experiment, tied to formula version, sample, method, conditions, instrument/operator and units as applicable. | A generally validated claim, regulatory approval, reproducibility beyond its study design or a result for a different formula/sample/condition. |
+| Prediction | A model-produced estimate tied to model/version, exact input formula/version, feature/source snapshot, output and uncertainty/limitations. Keep it visibly model-derived. | An observation, measurement, validation, causal explanation, safety determination or ground truth. |
+| Validation | A governed conclusion that specified acceptance criteria were met by suitable, attributable experimental evidence for a defined formula/product/use context, reviewed by the required authorized person(s). Preserve criterion, scope, evidence and decision lineage. | A blanket guarantee outside its tested scope, a consequence of model confidence, literature mention, supplier example, SDS fact or automatic system/parser decision. |
+
+### Evidence class assignment and transitions
+
+1. Store source fact and interpreted claim separately when extraction or normalization adds meaning. The source quotation/value remains the evidence anchor.
+2. One document may support source-document facts, SDS composition evidence, typical property evidence and supplier recommendations simultaneously; classify each field claim independently.
+3. A supplier formulation stays supplier formulation evidence after normalization, indexing, similarity retrieval or use as a generator prior. Those operations do not upgrade its class.
+4. A lab measurement remains a measured result until the applicable validation criteria and authorized review are completed. A prediction can prioritize an experiment but cannot substitute for its outcome.
+5. Confidence describes extraction/match uncertainty, not evidence strength or regulatory approval. Keep these dimensions separate in storage and presentation.
