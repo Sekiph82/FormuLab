@@ -18,6 +18,8 @@ const sourceRecord = () => ({
   ],
   procedureSteps: [],
   procedureWarnings: [],
+  targetCandidates: [],
+  targetWarnings: ["no_target_result_section", "no_target_result_candidates"],
 }) as unknown as ReferenceFormulationRecord;
 
 describe("referenceFormulationNormalizationVersionSchema", () => {
@@ -53,6 +55,7 @@ describe("referenceFormulationNormalizationVersionSchema", () => {
     expect(normalized.lines[0]?.functionNormalization?.supplierFunction.originalValue).toBe("Supplier wording");
     expect(normalized.lines[0]?.functionNormalization?.canonicalFunction.candidateIds).toEqual([]);
     expect(normalized.processNormalization).toMatchObject({ sourceStatus: "no_steps_extracted", steps: [], reviewRequired: true });
+    expect(normalized.targetNormalization).toMatchObject({ sourceStatus: "no_candidates", targets: [], reviewRequired: true });
   });
 
   it("requires every later normalization version to link its predecessor", () => {

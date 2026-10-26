@@ -9,6 +9,7 @@ import {
   extractReferenceFormulationTargets,
   buildReferenceFormulationUnresolvedQueue,
   validateReferenceFormulationProcessNormalizationAgainstSource,
+  validateReferenceFormulationTargetNormalizationAgainstSource,
 } from "@formulab/shared";
 import { supplierDocumentAcquisitionSchema } from "@formulab/shared";
 import { createReferenceFormulationSource } from "@formulab/shared";
@@ -42,6 +43,10 @@ function sourceRecord() {
     { type: "table" as const, blockIndex: 1, source: "digital" as const, rows: [["Ingredient", "Amount"], ["Known Product", "4.0"]] },
     { type: "heading" as const, blockIndex: 2, text: "Manufacturing Procedure", source: "digital" as const },
     { type: "table" as const, blockIndex: 3, source: "digital" as const, rows: [["Step", "Phase", "Operation"], ["1", "A", "Add and mix at 70°C for 10 min."]] },
+    { type: "heading" as const, blockIndex: 4, text: "Target Values", source: "digital" as const },
+    { type: "table" as const, blockIndex: 5, source: "digital" as const, rows: [["Target pH", "Target Viscosity", "Target Density", "Target Appearance"], ["5.0–5.5", "~375 cP at 25°C", "1.02 g/mL", "Clear yellow"]] },
+    { type: "heading" as const, blockIndex: 6, text: "Typical Results", source: "digital" as const },
+    { type: "table" as const, blockIndex: 7, source: "digital" as const, rows: [["Typical Result"], ["Stable after 24 h"]] },
   ] }];
   const identity = extractReferenceFormulationIdentity({ acquisition: acquisition(), pages });
   const ingredientResult = extractReferenceFormulationIngredientLines({ source, pages });
@@ -94,6 +99,17 @@ describe("reference formulation normalization persistence", () => {
       }],
       reviewRequired: true,
     });
+    expect(first.targetNormalization).toMatchObject({
+      sourceStatus: "available",
+      targets: [
+        { property: "ph", originalValue: "5.0–5.5", valueShape: "range", resultSemantics: "target", reviewRequired: true },
+        { property: "viscosity", originalValue: "~375 cP at 25°C", valueShape: "approximate", resultSemantics: "target", sourceContext: "Target Viscosity: ~375 cP at 25°C" },
+        { property: "density", originalValue: "1.02 g/mL", resultSemantics: "target" },
+        { property: "appearance", originalValue: "Clear yellow", resultSemantics: "target" },
+        { property: "other", originalValue: "Stable after 24 h", resultSemantics: "typical_result" },
+      ],
+      reviewRequired: true,
+    });
     expect(second).toMatchObject({ version: 2, supersedesNormalizationId: first.id, sourceDocumentHash: HASH });
     expect(await listReferenceFormulationNormalizations(source.id)).toHaveLength(2);
   });
@@ -132,8 +148,11 @@ describe("reference formulation normalization persistence", () => {
     const tampered = structuredClone(current.processNormalization!);
     tampered.steps[0]!.conditions[0]!.rawValue = "100°C";
     expect(() => validateReferenceFormulationProcessNormalizationAgainstSource(tampered, source)).toThrow(/must match the immutable source procedure snapshot/);
+    const tamperedTarget = structuredClone(current.targetNormalization!);
+    tamperedTarget.targets[0]!.originalValue = "7.0";
+    expect(() => validateReferenceFormulationTargetNormalizationAgainstSource(tamperedTarget, source)).toThrow(/must match the immutable source target snapshot/);
 
-    const legacy = { ...current, processNormalization: undefined };
+    const legacy = { ...current, processNormalization: undefined, targetNormalization: undefined };
     vi.mocked(listRecords).mockImplementation(async (collection) => collection === "reference_formulations"
       ? [source] as never
       : collection === "reference_formulation_normalizations" ? [legacy] as never : [] as never);

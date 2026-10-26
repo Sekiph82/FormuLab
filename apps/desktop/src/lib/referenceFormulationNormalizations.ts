@@ -10,6 +10,8 @@ import {
   validateReferenceFormulationFunctionNormalizationAgainstSource,
   createReferenceFormulationProcessNormalization,
   validateReferenceFormulationProcessNormalizationAgainstSource,
+  createReferenceFormulationTargetNormalization,
+  validateReferenceFormulationTargetNormalizationAgainstSource,
   supplierSdsProductEvidenceRecordSchema,
   type SupplierSdsProductEvidenceRecord,
 } from "@formulab/shared";
@@ -108,6 +110,8 @@ function validateNormalizationHistory(
     }
     const processNormalization = version.processNormalization ?? createReferenceFormulationProcessNormalization(source);
     validateReferenceFormulationProcessNormalizationAgainstSource(processNormalization, source);
+    const targetNormalization = version.targetNormalization ?? createReferenceFormulationTargetNormalization(source);
+    validateReferenceFormulationTargetNormalizationAgainstSource(targetNormalization, source);
     if (version.version !== index + 1
       || (index === 0 ? version.supersedesNormalizationId !== undefined : version.supersedesNormalizationId !== versions[index - 1]?.id)) {
       throw new Error("Normalization versions must form one unbroken append-only predecessor chain.");

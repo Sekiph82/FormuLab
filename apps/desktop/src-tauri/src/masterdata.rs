@@ -960,7 +960,7 @@ fn validate_normalization_version(
         &[
             "schemaVersion", "recordKind", "id", "code", "referenceFormulationRecordId",
             "sourceDocumentHash", "normalizerVersion", "version", "supersedesNormalizationId",
-            "processNormalization", "lines", "createdAt",
+            "processNormalization", "targetNormalization", "lines", "createdAt",
         ],
         "normalization",
     )?;
@@ -994,6 +994,7 @@ fn validate_normalization_version(
         return Err("normalization version must append the next source version".to_string());
     }
     validate_reference_formulation_process_normalization(&normalization["processNormalization"], source)?;
+    validate_reference_formulation_target_normalization(&normalization["targetNormalization"], source)?;
     let expected_predecessor = history.last().and_then(|row| row["id"].as_str());
     if normalization["supersedesNormalizationId"].as_str() != expected_predecessor {
         return Err("normalization must link the latest immutable predecessor".to_string());
@@ -1626,6 +1627,61 @@ fn validate_reference_formulation_process_normalization(
             {
                 return Err("normalized process conditions and citations must match immutable source facts".to_string());
             }
+        }
+    }
+    Ok(())
+}
+
+fn validate_reference_formulation_target_normalization(
+    normalization: &serde_json::Value,
+    source: &serde_json::Value,
+) -> Result<(), String> {
+    ensure_object_keys(normalization, &["normalizerVersion", "sourceStatus", "targets", "sourceWarnings", "reviewRequired"], "target normalization")?;
+    if normalization["normalizerVersion"].as_str() != Some("formulab-reference-formulation-target-normalization-v1")
+        || normalization["reviewRequired"].as_bool() != Some(true)
+    {
+        return Err("target normalization version or review state is invalid".to_string());
+    }
+    let source_targets = source["targetCandidates"].as_array()
+        .ok_or_else(|| "immutable formulation target candidates are missing".to_string())?;
+    let targets = normalization["targets"].as_array()
+        .ok_or_else(|| "normalized target candidates must be an array".to_string())?;
+    if targets.len() != source_targets.len()
+        || normalization["sourceWarnings"] != source["targetWarnings"]
+        || normalization["sourceStatus"].as_str() != Some(if source_targets.is_empty() { "no_candidates" } else { "available" })
+    {
+        return Err("normalized target coverage and warnings must match the immutable source snapshot".to_string());
+    }
+    let source_hash = source["sourceDocumentHash"].as_str()
+        .ok_or_else(|| "source formulation hash is invalid".to_string())?;
+    let mut seen_ids = std::collections::HashSet::new();
+    for (target, source_target) in targets.iter().zip(source_targets) {
+        ensure_object_keys(target, &["sourceTargetId", "property", "originalLabel", "originalValue", "valueShape", "resultSemantics", "sourceContext", "evidenceRefs", "reviewRequired"], "normalized target")?;
+        let source_id = source_target["id"].as_str().filter(|id| !id.trim().is_empty())
+            .ok_or_else(|| "source target identity is invalid".to_string())?;
+        if !seen_ids.insert(source_id.to_string()) {
+            return Err("source target identities must be unique".to_string());
+        }
+        let evidence = &source_target["evidence"];
+        if evidence["sourceDocumentHash"].as_str().map_or(true, |hash| !hash.eq_ignore_ascii_case(source_hash)) {
+            return Err("source target evidence must cite the immutable formulation document".to_string());
+        }
+        let evidence_ref = format!("formula:{}:{}:{}:{}:{}",
+            evidence["sourceDocumentHash"].as_str().unwrap_or(""),
+            evidence["pageNumber"].as_u64().unwrap_or(0), evidence["blockIndex"].as_u64().unwrap_or(0),
+            evidence.get("rowIndex").and_then(|value| value.as_u64()).map(|value| value.to_string()).unwrap_or_else(|| "text".to_string()),
+            evidence.get("cellIndex").and_then(|value| value.as_u64()).map(|value| value.to_string()).unwrap_or_else(|| "text".to_string()));
+        if target["sourceTargetId"].as_str() != Some(source_id)
+            || target["property"] != source_target["field"]
+            || target["originalLabel"] != source_target["rawPropertyLabel"]
+            || target["originalValue"] != source_target["rawValue"]
+            || target["valueShape"] != source_target["valueShape"]
+            || target["resultSemantics"] != source_target["resultSemantics"]
+            || target["sourceContext"] != evidence["excerpt"]
+            || target["evidenceRefs"] != serde_json::json!([evidence_ref])
+            || target["reviewRequired"].as_bool() != Some(true)
+        {
+            return Err("normalized target values, context and citations must match the immutable source candidate".to_string());
         }
     }
     Ok(())
@@ -2443,6 +2499,12 @@ mod tests {
                 ],
                 "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 2, "blockIndex": 1, "rowIndex": 1, "cellIndex": 2, "excerpt": "Add and mix at 70°C for 10 min.", "source": "digital" }
             }],
+            "targetWarnings": [],
+            "targetCandidates": [{
+                "id": "source-1:target:p3:b1:r1:c0:1", "field": "ph", "rawPropertyLabel": "Target pH", "rawValue": "5.0-5.5",
+                "valueShape": "range", "resultSemantics": "target", "reviewRequired": true,
+                "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 3, "blockIndex": 1, "rowIndex": 1, "cellIndex": 0, "excerpt": "Target pH: 5.0-5.5", "source": "digital" }
+            }],
             "productMatches": [{ "ingredientLineId": "line-1", "candidates": [{ "commercialProductId": "product-source-candidate" }] }]
         });
         let normalization = serde_json::json!({
@@ -2461,6 +2523,14 @@ mod tests {
                         { "kind": "time", "rawValue": "10 min", "evidenceRefs": [format!("formula:{}:2:1:1:2", "a".repeat(64))], "reviewRequired": true }
                     ],
                     "evidenceRefs": [format!("formula:{}:2:1:1:2", "a".repeat(64))], "reviewRequired": true
+                }], "sourceWarnings": [], "reviewRequired": true
+            },
+            "targetNormalization": {
+                "normalizerVersion": "formulab-reference-formulation-target-normalization-v1", "sourceStatus": "available",
+                "targets": [{
+                    "sourceTargetId": "source-1:target:p3:b1:r1:c0:1", "property": "ph", "originalLabel": "Target pH", "originalValue": "5.0-5.5",
+                    "valueShape": "range", "resultSemantics": "target", "sourceContext": "Target pH: 5.0-5.5",
+                    "evidenceRefs": [format!("formula:{}:3:1:1:0", "a".repeat(64))], "reviewRequired": true
                 }], "sourceWarnings": [], "reviewRequired": true
             },
             "lines": [{
@@ -2488,6 +2558,9 @@ mod tests {
         let mut invented_process_phase = normalization.clone();
         invented_process_phase["processNormalization"]["steps"][0]["phaseCandidates"]["candidateValues"][0]["rawValue"] = serde_json::json!("B");
         assert!(validate_normalization_version(&invented_process_phase, &source, &[], &[], &[]).unwrap_err().contains("match explicit source wording"));
+        let mut forged_target = normalization.clone();
+        forged_target["targetNormalization"]["targets"][0]["originalValue"] = serde_json::json!("7.0");
+        assert!(validate_normalization_version(&forged_target, &source, &[], &[], &[]).unwrap_err().contains("match the immutable source candidate"));
         let mut forged = normalization.clone();
         forged["lines"][0]["commercialProduct"]["candidateIds"] = serde_json::json!(["forged-product"]);
         assert!(validate_normalization_version(&forged, &source, &[], &[], &[]).unwrap_err().contains("match the immutable source"));
