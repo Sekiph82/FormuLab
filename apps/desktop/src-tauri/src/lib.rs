@@ -24,6 +24,7 @@ mod compute;
 mod connector_sqlite;
 mod credential_store;
 mod network_admission;
+mod supplier_document_store;
 mod jupyter;
 mod kernel;
 mod large_file;

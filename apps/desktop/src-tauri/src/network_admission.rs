@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use reqwest::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE, LOCATION};
 use reqwest::{redirect::Policy, Client, Url};
+use tauri::AppHandle;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_TIMEOUT: Duration = Duration::from_secs(120);
@@ -49,6 +50,18 @@ pub(crate) struct AdmittedDocument {
     pub content_type: String,
     pub source_url: String,
     pub bytes: Vec<u8>,
+}
+
+#[allow(dead_code)] // Consumed by supplier adapter commands in the following V01 milestone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StoredSupplierDocument {
+    pub filename: String,
+    pub content_type: String,
+    pub source_url: String,
+    pub sha256: String,
+    pub byte_size: u64,
+    pub relative_path: String,
+    pub deduplicated: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -331,6 +344,40 @@ pub(crate) async fn fetch_supplier_pdf(
     fetch_with(initial_url, policy)
         .await
         .map_err(|_| "supplier document request was rejected or failed".to_string())
+}
+
+/// Complete the native, bounded download-to-blob path. PDF bytes stay inside
+/// Rust and are dropped after successful content-addressed persistence; only
+/// metadata needed for the immutable acquisition receipt is returned.
+#[allow(dead_code)]
+pub(crate) async fn fetch_and_store_supplier_pdf(
+    app: &AppHandle,
+    initial_url: &str,
+    policy: &NetworkAdmissionPolicy,
+) -> Result<StoredSupplierDocument, String> {
+    let document = fetch_with(initial_url, policy)
+        .await
+        .map_err(|_| "supplier document request was rejected or failed".to_string())?;
+    let data_root = crate::formulation_v2::project_data_dir(app, "data")?;
+    let (filename, content_type, source_url) = (
+        document.filename.clone(),
+        document.content_type.clone(),
+        document.source_url.clone(),
+    );
+    let stored = tauri::async_runtime::spawn_blocking(move || {
+        crate::supplier_document_store::store_pdf_bytes(&data_root, &document.bytes, None)
+    })
+    .await
+    .map_err(|_| "supplier document storage failed".to_string())??;
+    Ok(StoredSupplierDocument {
+        filename,
+        content_type,
+        source_url,
+        sha256: stored.sha256,
+        byte_size: stored.byte_size,
+        relative_path: stored.relative_path,
+        deduplicated: stored.deduplicated,
+    })
 }
 
 async fn fetch_with(
