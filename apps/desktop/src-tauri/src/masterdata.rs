@@ -130,7 +130,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 100] = [
+const COLLECTIONS: [(&str, bool); 101] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -376,6 +376,9 @@ const COLLECTIONS: [(&str, bool); 100] = [
     // Supplier formulation extraction snapshots are immutable reference
     // evidence, separate from production Formulation/FormulationVersion.
     ("reference_formulations", true),
+    // Human parser decisions are separate append-only review events; they
+    // never mutate the source snapshot or promote data into production.
+    ("reference_formulation_reviews", true),
     // Supplier discovery/download work is mutable operational state. The
     // immutable acquired-document evidence remains in its separate collection.
     ("supplier_acquisition_jobs", false),
@@ -478,7 +481,7 @@ pub fn list_master_collections() -> Vec<(String, bool)> {
 }
 
 /// Phase 13 Session 4A: this used to be a hand-typed Rust `match` over all
-/// 100 collection names (V01-01.009). It is now a thin delegator to
+/// 101 collection names (V01-01.009). It is now a thin delegator to
 /// `role_policy::masterdata_area_for`, which reads the same generated JSON
 /// fixture (`masterdataCollectionAreas.generated.json`) TypeScript's
 /// `masterdataPolicyAreas.ts` is parity-tested against — closing the
@@ -589,6 +592,7 @@ pub async fn upsert_master_records(
     records: Vec<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let (name, append_only) = collection_spec(&collection)?;
+    ensure_generic_collection_write_allowed(name)?;
     let area = area_for_collection(name)
         .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
     authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
@@ -602,6 +606,250 @@ pub async fn upsert_master_records(
         "updated": updated,
         "total": rows.len(),
     }))
+}
+
+/// Append a reference-formulation decision using the authenticated actor from
+/// the native session. The renderer may propose a review payload, but it may
+/// not choose the reviewer identity or attach the decision to a different
+/// immutable source snapshot.
+#[tauri::command(async)]
+pub async fn append_reference_formulation_review(
+    app: AppHandle,
+    token: String,
+    review: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let actor = authz::authorize_any_app(&app, &token, "formulation", &WRITE_CAPABILITIES)?;
+    let review = stamp_reference_formulation_review(
+        review,
+        &actor.user_id,
+        &actor.display_name,
+        &now_rfc3339_utc(),
+    )?;
+    let source_path = collection_path(&app, "reference_formulations")?;
+    let source_rows = read_array(&source_path);
+    let source = source_rows.iter().find(|row| {
+        row.get("id").and_then(|value| value.as_str())
+            == review["referenceFormulationRecordId"].as_str()
+            && row.get("sourceDocumentHash").and_then(|value| value.as_str())
+                .zip(review["sourceDocumentHash"].as_str())
+                .map_or(false, |(left, right)| left.eq_ignore_ascii_case(right))
+    });
+    let Some(source) = source else {
+        return Err("review must cite an existing immutable reference formulation source".to_string());
+    };
+    validate_review_evidence(&review, source)?;
+
+    let path = collection_path(&app, "reference_formulation_reviews")?;
+    let rows = read_array(&path);
+    let (rows, inserted, _) = apply_upsert(
+        rows,
+        vec![review.clone()],
+        true,
+        "reference_formulation_reviews",
+    )?;
+    if inserted != 1 {
+        return Err("review decision was not appended".to_string());
+    }
+    write_array(&path, &rows)?;
+    Ok(review)
+}
+
+fn stamp_reference_formulation_review(
+    mut review: serde_json::Value,
+    user_id: &str,
+    display_name: &str,
+    reviewed_at: &str,
+) -> Result<serde_json::Value, String> {
+    let object = review
+        .as_object_mut()
+        .ok_or_else(|| "review payload must be an object".to_string())?;
+    for field in [
+        "id",
+        "code",
+        "referenceFormulationRecordId",
+        "sourceDocumentHash",
+        "targetType",
+        "targetKey",
+        "fieldPath",
+        "sourceValue",
+        "evidenceExcerpt",
+    ] {
+        if object.get(field).and_then(|value| value.as_str()).map_or(true, |value| value.trim().is_empty()) {
+            return Err(format!("review field {field} is required"));
+        }
+    }
+    if object.get("schemaVersion").and_then(|value| value.as_str()) != Some("1.0") {
+        return Err("review schema version is invalid".to_string());
+    }
+    if object.get("id").and_then(|value| value.as_str()) != object.get("code").and_then(|value| value.as_str()) {
+        return Err("review id and append-only code must match".to_string());
+    }
+    let hash = object.get("sourceDocumentHash").and_then(|value| value.as_str()).unwrap_or_default();
+    if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("review source document hash must be a SHA-256 hex digest".to_string());
+    }
+    let target_type = object.get("targetType").and_then(|value| value.as_str()).unwrap_or_default();
+    if !["identity", "ingredient", "procedure", "target"].contains(&target_type) {
+        return Err("review target type is invalid".to_string());
+    }
+    let decision = object
+        .get("decision")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| "review decision is required".to_string())?;
+    if !["accepted", "edited", "rejected", "needs_review"].contains(&decision) {
+        return Err("review decision is invalid".to_string());
+    }
+    if decision == "edited"
+        && object
+            .get("reviewedValue")
+            .and_then(|value| value.as_str())
+            .map_or(true, |value| value.trim().is_empty())
+    {
+        return Err("edited decisions require a proposed value".to_string());
+    }
+    if decision != "edited" && object.contains_key("reviewedValue") {
+        return Err("only edited decisions may include a proposed value".to_string());
+    }
+    object.insert(
+        "reviewer".to_string(),
+        serde_json::json!({ "userId": user_id, "displayName": display_name }),
+    );
+    object.insert("reviewedAt".to_string(), serde_json::Value::String(reviewed_at.to_string()));
+    Ok(review)
+}
+
+fn ensure_generic_collection_write_allowed(name: &str) -> Result<(), String> {
+    if name == "reference_formulation_reviews" {
+        return Err("reference formulation reviews must use the authenticated append command".to_string());
+    }
+    Ok(())
+}
+
+fn validate_review_evidence(review: &serde_json::Value, source: &serde_json::Value) -> Result<(), String> {
+    let target_key = review["targetKey"].as_str().unwrap_or_default();
+    let expected = expected_reference_formulation_evidence(target_key, source)
+        .ok_or_else(|| "review target does not exist in the immutable source snapshot".to_string())?;
+    for field in ["targetType", "targetKey", "fieldPath", "sourceValue", "evidenceExcerpt", "pageNumber", "blockIndex", "rowIndex", "cellIndex"] {
+        if review.get(field) != expected.get(field) {
+            return Err(format!("review field {field} does not match the immutable source evidence"));
+        }
+    }
+    Ok(())
+}
+
+fn expected_reference_formulation_evidence(target_key: &str, source: &serde_json::Value) -> Option<serde_json::Value> {
+    for (index, candidate) in source.get("identityCandidates")?.as_array()?.iter().enumerate() {
+        let field = candidate.get("field")?.as_str()?;
+        let key = format!("identity:{field}:{index}");
+        if key == target_key {
+            let evidence = candidate.get("evidence")?.as_array()?.first()?;
+            let mut expected = serde_json::json!({
+                "targetType": "identity", "targetKey": key,
+                "fieldPath": format!("identityCandidates[{index}].{field}"),
+                "sourceValue": candidate.get("rawValue")?,
+                "evidenceExcerpt": evidence.get("excerpt")?,
+            });
+            merge_evidence_location(&mut expected, evidence);
+            return Some(expected);
+        }
+    }
+    let ingredient_fields = ["ingredientName", "supplierProductCode", "inciOrChemicalName", "function", "phase", "amount", "unit", "basis"];
+    for line in source.get("ingredientLines")?.as_array()? {
+        let line_id = line.get("id")?.as_str()?;
+        for field in ingredient_fields {
+            let key = format!("ingredient:{line_id}:{field}");
+            let Some(value) = line.get(field) else { continue };
+            if key == target_key {
+                return Some(serde_json::json!({
+                    "targetType": "ingredient", "targetKey": key,
+                    "fieldPath": format!("ingredientLines[{line_id}].{field}"),
+                    "sourceValue": value.get("rawValue")?,
+                    "evidenceExcerpt": line.get("rawRow")?.as_array()?.iter().map(|v| v.as_str().unwrap_or_default()).collect::<Vec<_>>().join(" | "),
+                    "pageNumber": value.get("evidence")?.get("pageNumber")?,
+                    "blockIndex": value.get("evidence")?.get("blockIndex")?,
+                    "rowIndex": value.get("evidence")?.get("rowIndex")?,
+                    "cellIndex": value.get("evidence")?.get("cellIndex")?,
+                }));
+            }
+        }
+    }
+    for step in source.get("procedureSteps")?.as_array()? {
+        let step_id = step.get("id")?.as_str()?;
+        let instruction_key = format!("procedure:{step_id}:instruction");
+        if instruction_key == target_key {
+            let evidence = step.get("evidence")?;
+            let mut expected = serde_json::json!({
+                "targetType": "procedure", "targetKey": instruction_key,
+                "fieldPath": format!("procedureSteps[{step_id}].rawInstruction"),
+                "sourceValue": step.get("rawInstruction")?,
+                "evidenceExcerpt": evidence.get("excerpt")?,
+            });
+            merge_evidence_location(&mut expected, evidence);
+            return Some(expected);
+        }
+        for (index, condition) in step.get("conditions")?.as_array()?.iter().enumerate() {
+            let key = format!("procedure:{step_id}:condition:{index}");
+            if key == target_key {
+                let evidence = condition.get("evidence")?;
+                let mut expected = serde_json::json!({
+                    "targetType": "procedure", "targetKey": key,
+                    "fieldPath": format!("procedureSteps[{step_id}].conditions[{index}]"),
+                    "sourceValue": condition.get("rawValue")?,
+                    "evidenceExcerpt": evidence.get("excerpt")?,
+                });
+                merge_evidence_location(&mut expected, evidence);
+                return Some(expected);
+            }
+        }
+    }
+    for candidate in source.get("targetCandidates")?.as_array()? {
+        let id = candidate.get("id")?.as_str()?;
+        let key = format!("target:{id}");
+        if key == target_key {
+            let field = candidate.get("field")?.as_str()?;
+            let evidence = candidate.get("evidence")?;
+            let mut expected = serde_json::json!({
+                "targetType": "target", "targetKey": key,
+                "fieldPath": format!("targetCandidates[{id}].{field}"),
+                "sourceValue": candidate.get("rawValue")?,
+                "evidenceExcerpt": evidence.get("excerpt")?,
+            });
+            merge_evidence_location(&mut expected, evidence);
+            return Some(expected);
+        }
+    }
+    None
+}
+
+fn merge_evidence_location(expected: &mut serde_json::Value, evidence: &serde_json::Value) {
+    if let Some(object) = expected.as_object_mut() {
+        for field in ["pageNumber", "blockIndex", "rowIndex", "cellIndex"] {
+            if let Some(value) = evidence.get(field) {
+                object.insert(field.to_string(), value.clone());
+            }
+        }
+    }
+}
+
+fn now_rfc3339_utc() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let seconds = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let days = seconds.div_euclid(86_400);
+    let day_seconds = seconds.rem_euclid(86_400);
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let mut year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    year += if month <= 2 { 1 } else { 0 };
+    let hour = day_seconds / 3_600;
+    let minute = (day_seconds % 3_600) / 60;
+    let second = day_seconds % 60;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
 /// FVL-04.016 hardening (Session 7, Part M) — the real merge/append-only-
@@ -753,6 +1001,7 @@ pub async fn write_master_collection_raw(
     records: Vec<serde_json::Value>,
 ) -> Result<(), String> {
     let (name, _) = collection_spec(&collection)?;
+    ensure_generic_collection_write_allowed(name)?;
     let area = area_for_collection(name)
         .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
     authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
@@ -975,7 +1224,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 100);
+        assert_eq!(COLLECTIONS.len(), 101);
     }
 
     #[test]
@@ -1046,6 +1295,71 @@ mod tests {
         .unwrap();
         assert_eq!((inserted, updated), (1, 0));
         assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn reference_formulation_reviews_are_only_writable_through_the_dedicated_append_command() {
+        assert_eq!(collection_spec("reference_formulation_reviews"), Ok(("reference_formulation_reviews", true)));
+        assert!(ensure_generic_collection_write_allowed("reference_formulation_reviews").is_err());
+        let review = serde_json::json!({ "id": "review-1", "decision": "accepted" });
+        let (rows, inserted, updated) = apply_upsert(vec![], vec![review.clone()], true, "reference_formulation_reviews").unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert!(apply_upsert(rows, vec![review], true, "reference_formulation_reviews").is_err());
+    }
+
+    #[test]
+    fn reference_formulation_review_identity_is_stamped_and_edit_decisions_are_validated() {
+        let payload = serde_json::json!({
+            "schemaVersion": "1.0",
+            "id": "review-1",
+            "code": "review-1",
+            "referenceFormulationRecordId": "reference-1",
+            "sourceDocumentHash": "a".repeat(64),
+            "targetType": "identity",
+            "targetKey": "identity:formulation_code:0",
+            "fieldPath": "identityCandidates[0].formulation_code",
+            "sourceValue": "HC/DW/22",
+            "evidenceExcerpt": "Formulation HC/DW/22",
+            "pageNumber": 1,
+            "blockIndex": 4,
+            "reviewedAt": "2000-01-01T00:00:00Z",
+            "decision": "accepted",
+            "reviewer": { "userId": "spoofed", "displayName": "Spoofed" }
+        });
+        let stamped = stamp_reference_formulation_review(payload, "trusted-user", "Trusted Reviewer", "2026-10-26T10:00:00Z").unwrap();
+        assert_eq!(stamped["reviewer"]["userId"], "trusted-user");
+        assert_eq!(stamped["reviewer"]["displayName"], "Trusted Reviewer");
+        assert_eq!(stamped["reviewedAt"], "2026-10-26T10:00:00Z");
+        assert!(stamp_reference_formulation_review(
+            serde_json::json!({
+                "schemaVersion": "1.0", "id": "r", "code": "r",
+                "referenceFormulationRecordId": "f", "sourceDocumentHash": "a".repeat(64),
+                "targetType": "ingredient", "targetKey": "r1", "fieldPath": "amount",
+                "sourceValue": "10%", "evidenceExcerpt": "row", "reviewedAt": "2026-10-26T10:00:00Z",
+                "decision": "edited"
+            }), "u", "Reviewer", "2026-10-26T10:00:00Z"
+        ).unwrap_err().contains("require a proposed value"));
+        assert!(stamp_reference_formulation_review(
+            serde_json::json!({
+                "schemaVersion": "1.0", "id": "r", "code": "r",
+                "referenceFormulationRecordId": "f", "sourceDocumentHash": "a".repeat(64),
+                "targetType": "ingredient", "targetKey": "r1", "fieldPath": "amount",
+                "sourceValue": "10%", "evidenceExcerpt": "row", "reviewedAt": "2026-10-26T10:00:00Z",
+                "decision": "accepted", "reviewedValue": "tampered"
+            }), "u", "Reviewer", "2026-10-26T10:00:00Z"
+        ).unwrap_err().contains("only edited decisions"));
+        let source = serde_json::json!({
+            "identityCandidates": [{
+                "field": "formulation_code", "rawValue": "HC/DW/22",
+                "evidence": [{ "excerpt": "Formulation HC/DW/22", "pageNumber": 1, "blockIndex": 4 }]
+            }]
+        });
+        validate_review_evidence(&stamped, &source).unwrap();
+        let mut forged = stamped.clone();
+        forged["evidenceExcerpt"] = serde_json::json!("invented evidence");
+        assert!(validate_review_evidence(&forged, &source).unwrap_err().contains("immutable source evidence"));
+        assert!(ensure_generic_collection_write_allowed("reference_formulation_reviews").is_err());
+        assert!(ensure_generic_collection_write_allowed("reference_formulations").is_ok());
     }
 
     #[test]

@@ -80,6 +80,7 @@ import type {
   RegulatoryRule,
   RegulatoryRuleRevision,
   ReferenceFormulationRecord,
+  ReferenceFormulationReview,
   ReverseFormulationStudy,
   BenchmarkProduct,
   BenchmarkEvidenceItem,
@@ -197,6 +198,7 @@ interface CollectionTypes {
   material_documents: MaterialDocument;
   supplier_document_acquisitions: SupplierDocumentAcquisition;
   reference_formulations: ReferenceFormulationRecord;
+  reference_formulation_reviews: ReferenceFormulationReview;
   supplier_acquisition_jobs: SupplierAcquisitionJob;
   supplier_acquisition_job_items: SupplierAcquisitionJobItem;
   process_parameters: ProcessParameter;
@@ -258,6 +260,13 @@ export async function upsertRecords<C extends Collection>(
   records: CollectionTypes[C][],
 ): Promise<UpsertResult> {
   return call<UpsertResult>("upsert_master_records", { collection, records });
+}
+
+/** Persist a field-level formulation review through the native authorization boundary. */
+export async function appendReferenceFormulationReviewRecord(
+  review: ReferenceFormulationReview,
+): Promise<ReferenceFormulationReview> {
+  return call<ReferenceFormulationReview>("append_reference_formulation_review", { review });
 }
 
 export async function deleteRecord(collection: Collection, code: string): Promise<void> {

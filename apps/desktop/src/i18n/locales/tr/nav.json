@@ -36,7 +36,8 @@
     "reports": "Raporlar",
     "administration": "Yönetim",
     "dataExchange": "Veri Alışverişi",
-    "reverseFormulation": "Ters Formülasyon"
+    "reverseFormulation": "Ters Formülasyon",
+    "referenceFormulations": "Referans Formüller"
   },
   "workspace": {
     "noProjectsYet": "Henüz proje yok — başlamak için Projeler'den bir tane oluşturun.",

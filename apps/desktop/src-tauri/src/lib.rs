@@ -135,6 +135,7 @@ pub fn run() {
             attachments::open_attachment,
             masterdata::list_master_records,
             masterdata::upsert_master_records,
+            masterdata::append_reference_formulation_review,
             masterdata::delete_master_record,
             masterdata::backup_master_collection,
             masterdata::list_master_collections,
