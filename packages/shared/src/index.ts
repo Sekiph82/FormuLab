@@ -685,3 +685,4 @@ export {
   type PrecisionKind,
 } from "./engine/decimal";
 export * from "./engine/referenceFormulationProcedureExtraction";
+export * from "./engine/referenceFormulationTargetExtraction";
