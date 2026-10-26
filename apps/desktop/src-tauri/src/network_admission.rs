@@ -47,6 +47,7 @@ impl Default for NetworkAdmissionPolicy {
 pub(crate) struct AdmittedDocument {
     pub filename: String,
     pub content_type: String,
+    pub source_url: String,
     pub bytes: Vec<u8>,
 }
 
@@ -248,6 +249,22 @@ fn safe_filename(raw: &str) -> String {
     }
 }
 
+fn safe_source_url(url: &Url) -> String {
+    let mut safe = url.clone();
+    let keys = safe
+        .query_pairs()
+        .map(|(key, _)| key.into_owned())
+        .collect::<Vec<_>>();
+    {
+        let mut pairs = safe.query_pairs_mut();
+        pairs.clear();
+        for key in keys {
+            pairs.append_pair(&key, "[redacted]");
+        }
+    }
+    safe.to_string()
+}
+
 fn response_filename(response: &reqwest::Response, url: &Url) -> String {
     if let Some(value) = response
         .headers()
@@ -400,6 +417,7 @@ async fn fetch_with(
         return Ok(AdmittedDocument {
             filename,
             content_type,
+            source_url: safe_source_url(&current),
             bytes,
         });
     }
@@ -538,6 +556,17 @@ mod tests {
             validate_pdf_signature(b"<html>login page</html>"),
             Err(AdmissionError::InvalidSignature)
         );
+    }
+
+    #[test]
+    fn provenance_url_redacts_every_query_value() {
+        let url =
+            Url::parse("https://supplier.example/docs/123?product=ABC&token=private").unwrap();
+        let safe = safe_source_url(&url);
+        assert!(safe.contains("product=%5Bredacted%5D"));
+        assert!(safe.contains("token=%5Bredacted%5D"));
+        assert!(!safe.contains("ABC"));
+        assert!(!safe.contains("private"));
     }
 
     #[test]

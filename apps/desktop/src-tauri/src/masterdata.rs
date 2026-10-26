@@ -69,6 +69,7 @@
 //   data/master/finished_products.json
 //   data/master/finished_product_specifications.json
 //   data/master/material_documents.json
+//   data/master/supplier_document_acquisitions.json
 //   data/master/process_parameters.json
 //   data/master/formula_cost_overrides.json
 //   data/master/data_exchange_import_jobs.json
@@ -126,7 +127,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 96] = [
+const COLLECTIONS: [(&str, bool); 97] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -365,6 +366,10 @@ const COLLECTIONS: [(&str, bool); 96] = [
     // silently rewrite what a batch was actually evaluated against.
     ("finished_product_specifications", true),
     ("material_documents", false),
+    // Immutable supplier source evidence. Later parser or human-review
+    // outcomes are separate records; the acquired document receipt itself
+    // must never be silently rewritten.
+    ("supplier_document_acquisitions", true),
     ("process_parameters", false),
     ("formula_cost_overrides", true),
     ("data_exchange_import_jobs", false),
@@ -463,7 +468,7 @@ pub fn list_master_collections() -> Vec<(String, bool)> {
 }
 
 /// Phase 13 Session 4A: this used to be a hand-typed Rust `match` over all
-/// 90 collection names (Session 4). It is now a thin delegator to
+/// 97 collection names (Session 4). It is now a thin delegator to
 /// `role_policy::masterdata_area_for`, which reads the same generated JSON
 /// fixture (`masterdataCollectionAreas.generated.json`) TypeScript's
 /// `masterdataPolicyAreas.ts` is parity-tested against — closing the
@@ -536,7 +541,7 @@ fn row_key(row: &serde_json::Value) -> Option<String> {
 /// `workflow_gates.rs` uses for `raw_material_verification`/
 /// `supplier_document_verification`: does a real row with this `code`/`id`
 /// exist in this allow-listed collection? `collection` must already be one
-/// of the 90 real names (`collection_spec` rejects anything else, same
+/// of the 97 real names (`collection_spec` rejects anything else, same
 /// default-deny discipline as every other collection lookup in this file).
 pub(crate) fn collection_has_code(app: &AppHandle, collection: &str, code: &str) -> Result<bool, String> {
     let (name, _) = collection_spec(collection)?;
@@ -960,7 +965,42 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 96);
+        assert_eq!(COLLECTIONS.len(), 97);
+    }
+
+    #[test]
+    fn supplier_document_acquisitions_are_allow_listed_and_append_only() {
+        assert_eq!(
+            collection_spec("supplier_document_acquisitions"),
+            Ok(("supplier_document_acquisitions", true))
+        );
+        let first = serde_json::json!({ "code": "supplierdoc-v1", "sha256": "a".repeat(64) });
+        let (rows, inserted, updated) = apply_upsert(
+            vec![],
+            vec![first.clone()],
+            true,
+            "supplier_document_acquisitions",
+        )
+        .unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert!(apply_upsert(
+            rows.clone(),
+            vec![first],
+            true,
+            "supplier_document_acquisitions"
+        )
+        .unwrap_err()
+        .contains("already exists"));
+        assert!(ensure_master_delete_allowed("supplier_document_acquisitions", true).is_err());
+        let (rows, inserted, updated) = apply_upsert(
+            rows,
+            vec![serde_json::json!({ "code": "supplierdoc-v2", "sha256": "b".repeat(64) })],
+            true,
+            "supplier_document_acquisitions",
+        )
+        .unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert_eq!(rows.len(), 2);
     }
 
     #[test]
