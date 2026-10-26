@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 17
-- Remaining: 139
-- Completion: 10.9%
-- Current task: V01-01.008 - Implement document revision and supersession lineage
+- Completed: 18
+- Remaining: 138
+- Completion: 11.5%
+- Current task: V01-01.009 - Implement acquisition job state machine
 - Current status: IN PROGRESS
-- Next task: V01-01.009 - Implement acquisition job state machine
+- Next task: V01-01.010 - Implement resumable checkpoints and idempotency
 - Required actor: CODEX
 - Branch: V01
 
@@ -129,8 +129,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-01.005 - Implement network admission policy**: Enforce HTTPS, declared hosts, redirect validation, SSRF/private-IP defenses, timeouts, size limits, safe filenames, content type/signature checks, and bounded downloads.
 - [x] **V01-01.006 - Implement immutable acquired-document record**: Persist provider/surface, source URL, original filename, MIME type, source product identity, market/language, revision/publication dates, acquisition time, SHA-256, and parser status.
 - [x] **V01-01.007 - Implement content-addressed binary document store**: Store PDF/document bytes by cryptographic hash, deduplicate identical content, preserve multiple source provenance records, and keep old revisions.
-- [~] **V01-01.008 - Implement document revision and supersession lineage**: Detect same-document revisions by product identity plus revision/date/hash and link new records with supersedes without deleting historical evidence.
-- [ ] **V01-01.009 - Implement acquisition job state machine**: Support queued, discovery, downloading, parsing, review-ready, completed-with-gaps, failed-item, cancelled, and resumed states at item/job level without global task blocking.
+- [x] **V01-01.008 - Implement document revision and supersession lineage**: Detect same-document revisions by product identity plus revision/date/hash and link new records with supersedes without deleting historical evidence.
+- [~] **V01-01.009 - Implement acquisition job state machine**: Support queued, discovery, downloading, parsing, review-ready, completed-with-gaps, failed-item, cancelled, and resumed states at item/job level without global task blocking.
 - [ ] **V01-01.010 - Implement resumable checkpoints and idempotency**: Resume catalog scans/downloads after interruption without duplicating products, documents, or audit records.
 - [ ] **V01-01.011 - Extend backup/restore for acquired binaries and metadata**: Preserve hashes, document lineage, provider identities, reviews, and storage references; verify restore does not retarget historical links.
 - [ ] **V01-01.012 - Supplier document foundation acceptance**: Run storage, secret-leak, SSRF, redirect, malformed-file, duplicate, retry, supersession, backup/restore, and backward-compatibility tests.

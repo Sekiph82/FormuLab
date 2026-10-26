@@ -40,6 +40,21 @@ describe("supplierDocumentAcquisitionSchema — immutable source receipt", () =>
     expect(() => supplierDocumentAcquisitionSchema.parse({ ...validRecord, originalFilename: "../../secrets.pdf" })).toThrow(/safe basename/);
   });
 
+  it("accepts source revision lineage and rejects self-supersession", () => {
+    const parsed = supplierDocumentAcquisitionSchema.parse({
+      ...validRecord,
+      sourceRevision: "Rev. 2",
+      revisionDate: "2026-09-30",
+      supersedesCode: "supplierdoc-prior",
+    });
+    expect(parsed.sourceRevision).toBe("Rev. 2");
+    expect(parsed.supersedesCode).toBe("supplierdoc-prior");
+    expect(() => supplierDocumentAcquisitionSchema.parse({
+      ...validRecord,
+      supersedesCode: validRecord.code,
+    })).toThrow(/cannot supersede itself/);
+  });
+
   it("redacts all query values and rejects credentials or fragments in persisted URLs", () => {
     expect(safeSupplierDocumentSourceUrl("https://docs.example.com/item?id=123&token=secret"))
       .toBe("https://docs.example.com/item?id=%5Bredacted%5D&token=%5Bredacted%5D");
