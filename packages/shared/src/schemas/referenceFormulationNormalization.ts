@@ -2,6 +2,11 @@ import { z } from "zod";
 import type { ReferenceFormulationRecord } from "./referenceFormulationRecord";
 import type { SupplierSdsProductEvidenceRecord } from "./supplierSdsProductEvidence";
 import {
+  createReferenceFormulationFunctionNormalization,
+  referenceFormulationFunctionNormalizationSchema,
+} from "./referenceFormulationFunction";
+import type { MaterialFunction } from "./primitives";
+import {
   referenceFormulationContributionSchema,
   validateReferenceFormulationContributionAgainstSource,
   type ReferenceFormulationContribution,
@@ -35,6 +40,8 @@ export const referenceFormulationNormalizedLineSchema = z.object({
   canonicalChemistry: referenceFormulationNormalizationCandidatesSchema,
   /** Derived component contribution evidence remains inside its immutable normalization version. */
   componentContributions: z.array(referenceFormulationContributionSchema).default([]),
+  /** Optional only for pre-V01-06.004 immutable versions; new versions always populate it. */
+  functionNormalization: referenceFormulationFunctionNormalizationSchema.optional(),
 }).strict();
 
 export const referenceFormulationNormalizationVersionSchema = z.object({
@@ -89,6 +96,7 @@ export function createReferenceFormulationNormalizationVersion(input: {
   supersedesNormalizationId?: string;
   canonicalChemicalCandidates?: Record<string, string[]>;
   componentContributions?: Record<string, ReferenceFormulationContribution[]>;
+  canonicalFunctionCandidates?: Record<string, MaterialFunction[]>;
   supplierSdsEvidenceRecords?: SupplierSdsProductEvidenceRecord[];
   createdAt: string;
 }): ReferenceFormulationNormalizationVersion {
@@ -103,6 +111,9 @@ export function createReferenceFormulationNormalizationVersion(input: {
   const contributionsByLine = input.componentContributions ?? {};
   const unknownContributionLineIds = Object.keys(contributionsByLine).filter((id) => !sourceLineIds.has(id));
   if (unknownContributionLineIds.length > 0) throw new Error(`Component contributions reference unknown source line(s): ${unknownContributionLineIds.join(", ")}`);
+  const functionCandidates = input.canonicalFunctionCandidates ?? {};
+  const unknownFunctionLineIds = Object.keys(functionCandidates).filter((id) => !sourceLineIds.has(id));
+  if (unknownFunctionLineIds.length > 0) throw new Error(`Canonical function candidates reference unknown source line(s): ${unknownFunctionLineIds.join(", ")}`);
 
   const candidates = (ids: string[]): ReferenceFormulationNormalizationCandidates => {
     const uniqueIds = [...new Set(ids)];
@@ -125,6 +136,11 @@ export function createReferenceFormulationNormalizationVersion(input: {
       sourceLineId: line.id,
       commercialProduct: candidates(productMatches.get(line.id) ?? []),
       canonicalChemistry: candidates(canonicalCandidates[line.id] ?? []),
+      functionNormalization: createReferenceFormulationFunctionNormalization({
+        source: input.source,
+        sourceFormulaLineId: line.id,
+        canonicalFunctionCandidates: functionCandidates[line.id],
+      }),
       componentContributions: (contributionsByLine[line.id] ?? []).map((contribution) => {
         const validated = validateReferenceFormulationContributionAgainstSource(
           referenceFormulationContributionSchema.parse(contribution),

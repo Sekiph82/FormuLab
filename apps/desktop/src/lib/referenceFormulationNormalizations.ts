@@ -5,6 +5,9 @@ import {
   validateReferenceFormulationContributionAgainstSource,
   type ReferenceFormulationNormalizationVersion,
   type ReferenceFormulationContribution,
+  type MaterialFunction,
+  createReferenceFormulationFunctionNormalization,
+  validateReferenceFormulationFunctionNormalizationAgainstSource,
   supplierSdsProductEvidenceRecordSchema,
   type SupplierSdsProductEvidenceRecord,
 } from "@formulab/shared";
@@ -35,6 +38,7 @@ export async function appendReferenceFormulationNormalization(input: {
   referenceFormulationRecordId: string;
   canonicalChemicalCandidates?: Record<string, string[]>;
   componentContributions?: Record<string, ReferenceFormulationContribution[]>;
+  canonicalFunctionCandidates?: Record<string, MaterialFunction[]>;
 }): Promise<ReferenceFormulationNormalizationVersion> {
   const [sourceRecords, existingRecords, sdsEvidenceRecords] = await Promise.all([
     listRecords("reference_formulations"),
@@ -57,6 +61,7 @@ export async function appendReferenceFormulationNormalization(input: {
     version: (latest?.version ?? 0) + 1,
     ...(latest ? { supersedesNormalizationId: latest.id } : {}),
     canonicalChemicalCandidates: input.canonicalChemicalCandidates,
+    canonicalFunctionCandidates: input.canonicalFunctionCandidates,
     componentContributions: input.componentContributions,
     supplierSdsEvidenceRecords: parsedSdsEvidence,
     createdAt: nowIso(),
@@ -93,6 +98,11 @@ function validateNormalizationHistory(
         }
         validateReferenceFormulationContributionAgainstSource(contribution, source, sdsEvidenceRecords);
       }
+      const functionNormalization = line.functionNormalization ?? createReferenceFormulationFunctionNormalization({
+        source,
+        sourceFormulaLineId: line.sourceLineId,
+      });
+      validateReferenceFormulationFunctionNormalizationAgainstSource(functionNormalization, source, line.sourceLineId);
     }
     if (version.version !== index + 1
       || (index === 0 ? version.supersedesNormalizationId !== undefined : version.supersedesNormalizationId !== versions[index - 1]?.id)) {

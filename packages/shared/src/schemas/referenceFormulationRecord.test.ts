@@ -16,6 +16,7 @@ import type { CommercialProduct } from "./commercialProduct";
 import { createReferenceFormulationSource, referenceFormulationSourceSchema } from "./referenceFormulationSource";
 import { createReferenceFormulationRecord, referenceFormulationRecordSchema } from "./referenceFormulationRecord";
 import { createReferenceFormulationNormalizationVersion } from "./referenceFormulationNormalization";
+import { validateReferenceFormulationFunctionNormalizationAgainstSource } from "./referenceFormulationFunction";
 
 const HASH = "a".repeat(64);
 const acquisition = () => supplierDocumentAcquisitionSchema.parse({
@@ -32,7 +33,7 @@ const formulaSource = () => createReferenceFormulationSource({
 const pages = [
   { pageNumber: 1, blocks: [
     { type: "heading" as const, blockIndex: 0, text: "Formula Composition", source: "digital" as const },
-    { type: "table" as const, blockIndex: 1, source: "digital" as const, rows: [["Ingredient", "Amount", "Unit", "Basis"], ["Known Product", "4.0", "%", "w/w"]] },
+    { type: "table" as const, blockIndex: 1, source: "digital" as const, rows: [["Ingredient", "Amount", "Unit", "Basis", "Function"], ["Known Product", "4.0", "%", "w/w", "Supplier function wording"]] },
     { type: "heading" as const, blockIndex: 2, text: "Procedure", source: "digital" as const },
     { type: "text" as const, blockIndex: 3, text: "Add the ingredient and mix until clear.", source: "digital" as const },
     { type: "heading" as const, blockIndex: 4, text: "Target Values", source: "digital" as const },
@@ -120,10 +121,22 @@ describe("reference formulation record schema", () => {
     });
     const normalization = createReferenceFormulationNormalizationVersion({
       id: "normalization-contribution-v1", source, version: 1,
-      componentContributions: { [line.id]: [ranged] }, supplierSdsEvidenceRecords: [sdsRecord], createdAt: "2026-10-26T10:00:00.000Z",
+      componentContributions: { [line.id]: [ranged] }, supplierSdsEvidenceRecords: [sdsRecord],
+      canonicalFunctionCandidates: { [line.id]: ["nonionic_surfactant"] }, createdAt: "2026-10-26T10:00:00.000Z",
     });
     expect(normalization.lines[0]?.componentContributions).toEqual([ranged]);
     expect(normalization.lines[0]?.canonicalChemistry).toMatchObject({ status: "unresolved", candidateIds: [] });
+    expect(normalization.lines[0]?.functionNormalization).toMatchObject({
+      supplierFunction: { status: "stated", originalValue: "Supplier function wording" },
+      canonicalFunction: { status: "proposed", candidateIds: ["nonionic_surfactant"] },
+      reviewRequired: true,
+    });
+    expect(normalization.lines[0]?.functionNormalization?.supplierFunction).not.toHaveProperty("approved");
+    const tamperedFunction = structuredClone(normalization.lines[0]!.functionNormalization!);
+    tamperedFunction.supplierFunction.originalValue = "Changed wording";
+    expect(() => validateReferenceFormulationFunctionNormalizationAgainstSource(
+      tamperedFunction, source, line.id,
+    )).toThrow(/must match the immutable source/);
 
     const exactSds = supplierSdsProductEvidenceSchema.parse({
       ...sds,

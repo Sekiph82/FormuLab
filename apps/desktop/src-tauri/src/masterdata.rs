@@ -1010,7 +1010,7 @@ fn validate_normalization_version(
     let mut seen_ids = std::collections::HashSet::new();
     let mut seen_contribution_ids = std::collections::HashSet::new();
     for line in normalized_lines {
-        ensure_object_keys(line, &["sourceLineId", "commercialProduct", "canonicalChemistry", "componentContributions"], "normalization line")?;
+        ensure_object_keys(line, &["sourceLineId", "commercialProduct", "canonicalChemistry", "functionNormalization", "componentContributions"], "normalization line")?;
         let line_id = line["sourceLineId"].as_str()
             .ok_or_else(|| "normalized line is missing its source line identity".to_string())?;
         if !seen_ids.insert(line_id) {
@@ -1041,7 +1041,8 @@ fn validate_normalization_version(
             return Err("commercial product candidates must match the immutable source match snapshot".to_string());
         }
         let chemistry = &line["canonicalChemistry"];
-        let canonical_candidate_ids = validate_normalization_candidates(chemistry, "canonical chemistry")?;
+        let _canonical_candidate_ids = validate_normalization_candidates(chemistry, "canonical chemistry")?;
+        validate_reference_formulation_function_normalization(&line["functionNormalization"], source_line)?;
         let contributions = line["componentContributions"].as_array()
             .ok_or_else(|| "normalization component contributions must be an array".to_string())?;
         for contribution in contributions {
@@ -1444,6 +1445,62 @@ fn validate_normalization_candidates(value: &serde_json::Value, label: &str) -> 
         return Err(format!("{label} candidate status does not match its candidate count"));
     }
     Ok(ids)
+}
+
+fn validate_reference_formulation_function_normalization(
+    normalization: &serde_json::Value,
+    source_line: &serde_json::Value,
+) -> Result<(), String> {
+    ensure_object_keys(normalization, &["supplierFunction", "canonicalFunction", "reviewRequired"], "function normalization")?;
+    if normalization["reviewRequired"].as_bool() != Some(true) {
+        return Err("canonical function candidates must remain review-required".to_string());
+    }
+    let supplier_function = &normalization["supplierFunction"];
+    ensure_object_keys(supplier_function, &["status", "originalValue", "evidenceRefs"], "supplier function evidence")?;
+    let refs = supplier_function["evidenceRefs"].as_array()
+        .ok_or_else(|| "supplier function evidence references must be an array".to_string())?;
+    let source_function = source_line.get("function");
+    match source_function {
+        None => {
+            if supplier_function["status"].as_str() != Some("not_stated")
+                || supplier_function.get("originalValue").is_some()
+                || !refs.is_empty()
+            {
+                return Err("unstated supplier function cannot carry inferred wording or evidence".to_string());
+            }
+        }
+        Some(field) => {
+            let source_value = field["rawValue"].as_str()
+                .ok_or_else(|| "source supplier function must retain its raw value".to_string())?;
+            let evidence = &field["evidence"];
+            let expected_ref = format!("formula:{}:{}:{}:{}:{}", evidence["sourceDocumentHash"].as_str().unwrap_or(""),
+                evidence["pageNumber"].as_u64().unwrap_or(0), evidence["blockIndex"].as_u64().unwrap_or(0),
+                evidence["rowIndex"].as_u64().unwrap_or(0), evidence["cellIndex"].as_u64().unwrap_or(0));
+            if supplier_function["status"].as_str() != Some("stated")
+                || supplier_function["originalValue"].as_str() != Some(source_value)
+                || refs.len() != 1
+                || refs[0].as_str() != Some(expected_ref.as_str())
+            {
+                return Err("supplier function wording and citation must match the immutable source line".to_string());
+            }
+        }
+    }
+    let canonical_function = &normalization["canonicalFunction"];
+    let candidates = validate_normalization_candidates(canonical_function, "canonical function")?;
+    const MATERIAL_FUNCTIONS: &[&str] = &[
+        "anionic_surfactant", "nonionic_surfactant", "amphoteric_surfactant", "cationic_surfactant", "builder",
+        "chelating_agent", "preservative", "fragrance", "colorant", "enzyme", "bleaching_agent", "oxygen_donor",
+        "abrasive", "humectant", "emollient", "conditioning_agent", "rheology_modifier", "ph_adjuster", "solvent",
+        "disinfectant_active", "qac_active", "chlorhexidine_active", "fluoride_active", "antioxidant",
+        "anti_redeposition_agent", "optical_brightener", "foam_controller", "opacifier", "filler", "water",
+    ];
+    if candidates.iter().any(|candidate| !MATERIAL_FUNCTIONS.contains(&candidate.as_str())) {
+        return Err("canonical function candidate is outside the shared MaterialFunction vocabulary".to_string());
+    }
+    if source_function.is_none() && !candidates.is_empty() {
+        return Err("canonical function candidates require explicit supplier-function evidence".to_string());
+    }
+    Ok(())
 }
 
 fn normalization_candidate_status_matches(status: Option<&str>, count: usize) -> bool {
@@ -2244,6 +2301,7 @@ mod tests {
                 "id": "line-1", "sourceDocumentHash": "a".repeat(64),
                 "ingredientName": { "rawValue": "Known Product", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 0 } },
                 "amount": { "rawValue": "4.0", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 2 } },
+                "function": { "rawValue": "Supplier wording", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 5 } },
                 "unit": { "rawValue": "%", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 3 } },
                 "basis": { "rawValue": "w/w", "evidence": { "sourceDocumentHash": "a".repeat(64), "pageNumber": 1, "blockIndex": 1, "rowIndex": 0, "cellIndex": 4 } }
             }],
@@ -2258,10 +2316,21 @@ mod tests {
                 "sourceLineId": "line-1",
                 "commercialProduct": { "status": "proposed", "candidateIds": ["product-source-candidate"] },
                 "canonicalChemistry": { "status": "unresolved", "candidateIds": [] },
+                "functionNormalization": {
+                    "supplierFunction": { "status": "stated", "originalValue": "Supplier wording", "evidenceRefs": [format!("formula:{}:1:1:0:5", "a".repeat(64))] },
+                    "canonicalFunction": { "status": "proposed", "candidateIds": ["nonionic_surfactant"] },
+                    "reviewRequired": true
+                },
                 "componentContributions": []
             }]
         });
         validate_normalization_version(&normalization, &source, &[], &[], &[]).unwrap();
+        let mut forged_function = normalization.clone();
+        forged_function["lines"][0]["functionNormalization"]["supplierFunction"]["originalValue"] = serde_json::json!("Changed wording");
+        assert!(validate_normalization_version(&forged_function, &source, &[], &[], &[]).unwrap_err().contains("match the immutable source formula line"));
+        let mut invalid_function_candidate = normalization.clone();
+        invalid_function_candidate["lines"][0]["functionNormalization"]["canonicalFunction"]["candidateIds"] = serde_json::json!(["invented_function"]);
+        assert!(validate_normalization_version(&invalid_function_candidate, &source, &[], &[], &[]).unwrap_err().contains("shared MaterialFunction vocabulary"));
         let mut forged = normalization.clone();
         forged["lines"][0]["commercialProduct"]["candidateIds"] = serde_json::json!(["forged-product"]);
         assert!(validate_normalization_version(&forged, &source, &[], &[], &[]).unwrap_err().contains("match the immutable source"));

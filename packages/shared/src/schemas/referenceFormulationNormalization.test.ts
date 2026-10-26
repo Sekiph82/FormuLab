@@ -9,7 +9,7 @@ const sourceRecord = () => ({
   id: "croda-formula-1",
   sourceDocumentHash: "a".repeat(64),
   ingredientLines: [
-    { id: "line-1", ingredientName: { rawValue: "Original Croda trade name" }, amount: { rawValue: "4.5" }, function: { rawValue: "Supplier wording" } },
+    { id: "line-1", ingredientName: { rawValue: "Original Croda trade name" }, amount: { rawValue: "4.5" }, function: { rawValue: "Supplier wording", evidence: { sourceDocumentHash: "a".repeat(64), pageNumber: 1, blockIndex: 2, rowIndex: 3, cellIndex: 4 } } },
     { id: "line-2", ingredientName: { rawValue: "Unknown blend" }, amount: { rawValue: "q.s." } },
   ],
   productMatches: [
@@ -35,18 +35,21 @@ describe("referenceFormulationNormalizationVersionSchema", () => {
         sourceLineId: "line-1",
         commercialProduct: { status: "proposed", candidateIds: ["cp-1"] },
         canonicalChemistry: { status: "proposed", candidateIds: ["chemical-1"] },
+        functionNormalization: { supplierFunction: { status: "stated", originalValue: "Supplier wording", evidenceRefs: [`formula:${"a".repeat(64)}:1:2:3:4`] }, canonicalFunction: { status: "unresolved", candidateIds: [] }, reviewRequired: true },
         componentContributions: [],
       },
       {
         sourceLineId: "line-2",
         commercialProduct: { status: "unresolved", candidateIds: [] },
         canonicalChemistry: { status: "unresolved", candidateIds: [] },
+        functionNormalization: { supplierFunction: { status: "not_stated", evidenceRefs: [] }, canonicalFunction: { status: "unresolved", candidateIds: [] }, reviewRequired: true },
         componentContributions: [],
       },
     ]);
     expect(JSON.stringify(source.ingredientLines)).toBe(JSON.stringify(original));
     expect(JSON.stringify(normalized)).not.toContain("Original Croda trade name");
-    expect(JSON.stringify(normalized)).not.toContain("Supplier wording");
+    expect(normalized.lines[0]?.functionNormalization?.supplierFunction.originalValue).toBe("Supplier wording");
+    expect(normalized.lines[0]?.functionNormalization?.canonicalFunction.candidateIds).toEqual([]);
   });
 
   it("requires every later normalization version to link its predecessor", () => {
@@ -76,5 +79,37 @@ describe("referenceFormulationNormalizationVersionSchema", () => {
       id: "normalization-v1", source, version: 1, createdAt: "2026-10-26T10:00:00.000Z",
     });
     expect(() => referenceFormulationNormalizationVersionSchema.parse({ ...record, lines: [record.lines[0], record.lines[0]] })).toThrow(/only once/);
+  });
+
+  it("keeps canonical function candidates separate, source-backed, and review-required", () => {
+    const source = sourceRecord();
+    const normalized = createReferenceFormulationNormalizationVersion({
+      id: "normalization-v1", source, version: 1,
+      canonicalFunctionCandidates: { "line-1": ["nonionic_surfactant"] },
+      createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    const functionNormalization = normalized.lines[0]!.functionNormalization!;
+    expect(functionNormalization).toMatchObject({
+      supplierFunction: { status: "stated", originalValue: "Supplier wording", evidenceRefs: [`formula:${"a".repeat(64)}:1:2:3:4`] },
+      canonicalFunction: { status: "proposed", candidateIds: ["nonionic_surfactant"] },
+      reviewRequired: true,
+    });
+    expect(() => createReferenceFormulationNormalizationVersion({
+      id: "normalization-v1", source, version: 1,
+      canonicalFunctionCandidates: { "line-2": ["nonionic_surfactant"] },
+      createdAt: "2026-10-26T10:00:00.000Z",
+    })).toThrow(/require explicit supplier-function evidence/);
+  });
+
+  it("keeps legacy immutable normalization lines readable without function snapshots", () => {
+    const source = sourceRecord();
+    const current = createReferenceFormulationNormalizationVersion({
+      id: "normalization-v1", source, version: 1, createdAt: "2026-10-26T10:00:00.000Z",
+    });
+    const legacy = {
+      ...current,
+      lines: current.lines.map(({ functionNormalization: _functionNormalization, ...line }) => line),
+    };
+    expect(referenceFormulationNormalizationVersionSchema.parse(legacy).lines[0]).not.toHaveProperty("functionNormalization");
   });
 });
