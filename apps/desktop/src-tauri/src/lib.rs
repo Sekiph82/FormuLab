@@ -22,6 +22,7 @@ mod git_snapshot;
 mod identity;
 mod compute;
 mod connector_sqlite;
+mod credential_store;
 mod jupyter;
 mod kernel;
 mod large_file;
@@ -98,6 +99,8 @@ pub fn run() {
             connector_sqlite::connector_sqlite_list_tables,
             connector_sqlite::connector_sqlite_describe_table,
             connector_sqlite::connector_sqlite_read_page,
+            credential_store::store_connector_credential,
+            credential_store::delete_connector_credential,
             jupyter::jupyter_status,
             jupyter::setup_jupyter,
             jupyter::start_jupyter,

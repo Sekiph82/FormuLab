@@ -26,6 +26,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-notification = "2"
 getrandom = "0.4.3"
+keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
+zeroize = "1.8"
 opener = { version = "0.8.5", features = ["reveal"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "native-tls"] }

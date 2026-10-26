@@ -9,6 +9,16 @@
  */
 import { newId, type ConnectorConnection, type ConnectorType } from "@formulab/shared";
 import { deleteRecord, listRecords, nowIso, upsertRecords } from "./masterdata";
+import { isTauri } from "./tauri";
+
+async function invokeCredentialCommand<T>(command: string, args: Record<string, unknown>): Promise<T> {
+  if (!isTauri) throw new Error("supplier credentials require the FormuLab desktop app");
+  const [{ invoke }, { currentSessionToken }] = await Promise.all([
+    import("@tauri-apps/api/core"),
+    import("./sessionToken"),
+  ]);
+  return invoke<T>(command, { token: currentSessionToken(), ...args });
+}
 
 export async function loadConnections(): Promise<ConnectorConnection[]> {
   const rows = await listRecords("connector_connections");
@@ -47,7 +57,42 @@ export async function saveConnection(connection: ConnectorConnection): Promise<v
  *  for a connection with committed import history; the UI only offers
  *  this action when that is true (see `ConnectionsScreen.tsx`). */
 export async function deleteConnection(code: string): Promise<void> {
+  const connection = (await loadConnections()).find((row) => row.code === code);
+  if (connection?.connectionRef) {
+    await invokeCredentialCommand<void>("delete_connector_credential", { credentialRef: connection.connectionRef });
+  }
   await deleteRecord("connector_connections", code);
+}
+
+/**
+ * Store a manually entered supplier password, API token, or user-attended
+ * session value in the OS credential manager, then persist only its opaque
+ * reference on the connection. The secret is never part of a connection row.
+ */
+export async function saveConnectionCredential(
+  connection: ConnectorConnection,
+  secret: string,
+): Promise<ConnectorConnection> {
+  const credentialRef = await invokeCredentialCommand<string>("store_connector_credential", { secret });
+  const updated = { ...connection, connectionRef: credentialRef };
+  try {
+    await saveConnection(updated);
+  } catch (error) {
+    // Best effort cleanup if persistence of the opaque reference fails.
+    try {
+      await invokeCredentialCommand<void>("delete_connector_credential", { credentialRef });
+    } catch {
+      // Keep the original persistence error; never expose OS-store details.
+    }
+    throw error;
+  }
+
+  if (connection.connectionRef && connection.connectionRef !== credentialRef) {
+    await invokeCredentialCommand<void>("delete_connector_credential", {
+      credentialRef: connection.connectionRef,
+    });
+  }
+  return updated;
 }
 
 /** A safe, real duplicate: a NEW connection record with a fresh code,
@@ -62,6 +107,9 @@ export async function duplicateConnection(source: ConnectorConnection, createdBy
     name: `${source.name} (copy)`,
     status: "never_tested",
     lifecycleState: "configured",
+    // Credential references belong to one connection identity and must never
+    // be shared accidentally by a duplicate.
+    connectionRef: undefined,
     lastTestedAt: undefined,
     lastTestMessage: undefined,
     mappingProfileCount: 0,
