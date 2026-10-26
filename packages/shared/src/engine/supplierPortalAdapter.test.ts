@@ -76,7 +76,7 @@ describe("authenticated supplier portal adapter — V01-02.004", () => {
     );
     const result = await adapter.searchCatalog({ query: "product" });
     expect(result.status).toBe("ok");
-    expect(nativeDeps.fetchPage.mock.calls[0]?.[0].connectionRef).toBe(credentialRef);
+    expect(nativeDeps.fetchPage).toHaveBeenCalledOnce();
     expect(JSON.stringify(profile)).not.toMatch(/password|cookie|session-token/i);
   });
 

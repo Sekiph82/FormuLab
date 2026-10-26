@@ -586,6 +586,7 @@ export * from "./schemas/supplierAcquisition";
 export * from "./schemas/supplierCoverage";
 export * from "./engine/connectorFingerprint";
 export * from "./engine/supplierProviderRegistry";
+export * from "./engine/supplierRecheck";
 export * from "./engine/supplierAdapterConformance";
 export * from "./engine/supplierRestAdapter";
 export * from "./engine/supplierPortalAdapter";
