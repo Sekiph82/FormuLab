@@ -9,7 +9,7 @@ export const dominantConcentrationEvidenceSchema = z.object({
   evidenceRefs: z.array(z.string().trim().min(1)).min(1),
 }).strict();
 
-function parseExplicitMassPercentageRange(rawValue: string): { lowerBound: number; upperBound: number } | undefined {
+export function parseExplicitMassPercentageRange(rawValue: string): { lowerBound: number; upperBound: number } | undefined {
   const match = rawValue.match(/^\s*(?<lower>\d+(?:[.,]\d+)?)\s*(?:[-–—]\s*(?<upper>\d+(?:[.,]\d+)?))?\s*%\s*w\s*\/\s*w\s*$/i);
   if (!match?.groups) return undefined;
   const lowerBound = Number(match.groups.lower!.replace(",", "."));
