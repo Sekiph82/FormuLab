@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildReferenceFormulationUnresolvedQueue,
   calculateReferenceFormulationContributionDistributions,
+  calculateReferenceFormulationProcessPatterns,
   createReferenceFormulationRecord,
   createReferenceFormulationSource,
   extractReferenceFormulationIdentity,
@@ -20,6 +21,7 @@ import { filterEligibleReferenceFormulationCorpus } from "./referenceFormulation
 import { calculateReferenceFormulationIngredientFrequencyPriors } from "./referenceFormulationIngredientFrequencyPriors";
 import { calculateReferenceFormulationDosageDistributions } from "./referenceFormulationDosageDistributions";
 import { calculateReferenceFormulationCooccurrence } from "./referenceFormulationCooccurrence";
+import { createReferenceFormulationProcessNormalization } from "../schemas/referenceFormulationProcessNormalization";
 
 const HASH = "a".repeat(64);
 const AS_OF = "2026-10-26T12:00:00.000Z";
@@ -27,6 +29,8 @@ const AS_OF = "2026-10-26T12:00:00.000Z";
 function query(input: {
   sourceRecordId?: string; normalizationId?: string; normalizationVersion?: number; supplierId?: string; chemicalId?: string;
   amountValue?: string; functionId?: string; functionIds?: string[]; ingredientNames?: string[]; chemicalIds?: string[];
+  processInstructions?: string[];
+  processPhases?: Array<string | undefined>;
   familyStatus?: "unresolved" | "proposed" | "ambiguous"; chemistryStatus?: "unresolved" | "proposed" | "ambiguous";
 } = {}): ReferenceFormulationQueryRecord {
   const sourceRecordId = input.sourceRecordId ?? "source-1";
@@ -34,7 +38,8 @@ function query(input: {
   const normalizationId = input.normalizationId ?? "normalization-1";
   const familyStatus = input.familyStatus ?? "proposed";
   const chemistryStatus = input.chemistryStatus ?? "proposed";
-  const source = sourceRecord(sourceRecordId, allowedRights, true, supplierId, input.amountValue ?? "10", input.ingredientNames);
+  const source = sourceRecord(sourceRecordId, allowedRights, true, supplierId, input.amountValue ?? "10", input.ingredientNames, input.processInstructions, input.processPhases);
+  const processSteps = createReferenceFormulationProcessNormalization(source).steps;
   const familyCandidate = source.identityCandidates.find((candidate) => candidate.field === "product_family");
   const lines = source.ingredientLines.map((sourceLine, index) => {
     const sourceLineId = sourceLine.id;
@@ -85,7 +90,7 @@ function query(input: {
     },
     market: "EU", language: "en", sourceRevision: { identityCandidates: [] },
     lines,
-    activeMatterClaims: [], processSteps: [], targets: [], reviewRequired: true,
+    activeMatterClaims: [], processSteps, targets: [], reviewRequired: true,
   });
 }
 
@@ -159,13 +164,26 @@ function acceptedFunctionReviews(record: ReferenceFormulationQueryRecord): Refer
   })))];
 }
 
+function acceptedProcessReviews(record: ReferenceFormulationQueryRecord): ReferenceFormulationReview[] {
+  return record.processSteps.flatMap((step) => [review({
+    sourceRecordId: record.sourceRecordId, targetType: "procedure", targetKey: `procedure:${step.sourceProcedureStepId}:instruction`,
+    fieldPath: `procedureSteps[${step.sourceProcedureStepId}].rawInstruction`, sourceValue: step.originalInstruction,
+  }), ...(step.phaseCandidates.candidateValues.some((candidate) => candidate.evidenceRefs.some((ref) => !step.evidenceRefs.includes(ref)))
+    ? [review({ sourceRecordId: record.sourceRecordId, targetType: "procedure", targetKey: `procedure:${step.sourceProcedureStepId}:phase`,
+      fieldPath: `procedureSteps[${step.sourceProcedureStepId}].phase`, sourceValue: step.phaseCandidates.candidateValues[0]!.rawValue })] : []),
+  ...step.conditions.map((condition, index) => review({
+    sourceRecordId: record.sourceRecordId, targetType: "procedure", targetKey: `procedure:${step.sourceProcedureStepId}:condition:${index}`,
+    fieldPath: `procedureSteps[${step.sourceProcedureStepId}].conditions[${index}]`, sourceValue: condition.rawValue,
+  }))]);
+}
+
 const allowedRights: ReferenceFormulationRights = {
     status: "owner_provided", redistribution: "unknown", evidenceRefs: ["owner:fixture"],
     usePermissions: { internalResearch: { status: "allowed", evidenceRefs: ["owner:research"] } },
     retentionPolicy: { status: "retain_until_revoked", evidenceRefs: ["owner:retention"] },
 };
 
-function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRights, includeFamily = true, supplierId = "supplier-1", amountValue = "10", ingredientNames = ["Surfactant A"]): ReferenceFormulationRecord {
+function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRights, includeFamily = true, supplierId = "supplier-1", amountValue = "10", ingredientNames = ["Surfactant A"], processInstructions: string[] = [], processPhases?: Array<string | undefined>): ReferenceFormulationRecord {
   const acquisition = supplierDocumentAcquisitionSchema.parse({
     schemaVersion: "1.0", code: `acquisition:${id}`, supplierId, providerId: "provider-1", surfaceId: "surface-1",
     documentType: "FORMULATION", acquisitionMethod: "manual_assisted",
@@ -180,6 +198,9 @@ function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRi
     ...(includeFamily ? [{ type: "text" as const, blockIndex: 0, text: "Product family: Hand Dishwash", source: "digital" as const }] : []),
     { type: "text" as const, blockIndex: 1, text: "Formulation title: Hand Dishwash Formula", source: "digital" as const },
     { type: "table" as const, blockIndex: 2, source: "digital" as const, rows: [["Ingredient", "Amount", "Unit", "Basis"], ...ingredientNames.map((name) => [name, amountValue, "%", "w/w"])] },
+    ...(processInstructions.length && processPhases
+      ? [{ type: "table" as const, blockIndex: 3, source: "digital" as const, rows: [["Step", "Phase", "Procedure"], ...processInstructions.map((text, index) => [`${index + 1}`, processPhases[index] ?? "", text])] }]
+      : processInstructions.map((text, index) => ({ type: "text" as const, blockIndex: 3 + index, text: `Procedure: ${text}`, source: "digital" as const }))),
   ] }];
   const identity = extractReferenceFormulationIdentity({ acquisition, pages });
   const ingredients = extractReferenceFormulationIngredientLines({ source, pages });
@@ -202,7 +223,12 @@ const allowed = (records: ReferenceFormulationQueryRecord[], reviews: ReferenceF
   sourceRecords: [...new Set(records.map((record) => record.sourceRecordId))].map((id) => {
     const record = records.find((item) => item.sourceRecordId === id)!;
     const ingredientNames = record.lines.map((line) => line.sourceIngredientName ?? line.inciOrChemicalName ?? line.supplierProductCode ?? "Unknown source line");
-    return sourceRecord(id, allowedRights, record.productFamily.status !== "unresolved", record.supplierId, record.lines[0]?.amount.originalValue ?? "", ingredientNames);
+    const processPhases = record.processSteps.map((step) => {
+      const candidate = step.phaseCandidates.candidateValues[0];
+      return candidate && candidate.evidenceRefs.some((ref) => !step.evidenceRefs.includes(ref)) ? candidate.rawValue : undefined;
+    });
+    return sourceRecord(id, allowedRights, record.productFamily.status !== "unresolved", record.supplierId, record.lines[0]?.amount.originalValue ?? "", ingredientNames,
+      record.processSteps.map((step) => step.originalInstruction), processPhases.some(Boolean) ? processPhases : undefined);
   }),
   asOf: AS_OF,
 });
@@ -522,5 +548,53 @@ describe("reference formulation corpus eligibility", () => {
         minimumLowerBound: 5, maximumUpperBound: 5, sourceRecordIds: ["contribution-component-clean"],
       }),
     ]));
+  });
+
+  it("counts only accepted source-exact process actions, phases and condition values", () => {
+    const first = query({ sourceRecordId: "process-a", supplierId: "supplier-a", processInstructions: [
+      "Add water and mix in Phase A at 40°C for 10 min.", "Adjust pH to 5.5 and finish.",
+    ], processPhases: ["A", undefined] });
+    const second = query({ sourceRecordId: "process-b", supplierId: "supplier-b", processInstructions: [
+      "Add water and mix in Phase A at 40 °C for 10 min.", "Thicken until homogeneous.",
+    ] });
+    const third = query({ sourceRecordId: "process-c", supplierId: "supplier-c", processInstructions: [
+      "Adjust pH to 5.5.", "Add water and mix in Phase A at 40°C for 10 min.",
+    ] });
+    const negative = query({ sourceRecordId: "process-negated", supplierId: "supplier-d", processInstructions: ["Avoid adding fragrance or stirring; do not heat."] });
+    expect(first.processSteps).toHaveLength(2);
+    expect(second.processSteps).toHaveLength(2);
+    expect(first.processSteps[0]!.phaseCandidates.candidateValues[0]!.evidenceRefs).toHaveLength(2);
+    const result = calculateReferenceFormulationProcessPatterns({
+      ...allowed([first, second, third, negative], [
+        ...acceptedReviews(first), ...acceptedReviews(second), ...acceptedReviews(third), ...acceptedReviews(negative),
+        ...acceptedProcessReviews(first), ...acceptedProcessReviews(second), ...acceptedProcessReviews(third), ...acceptedProcessReviews(negative),
+      ]),
+    });
+
+    expect(result).toMatchObject({ eligibleFormulaCount: 4, excludedFormulaCount: 0, eligibleProcessFormulaCount: 4, excludedProcessEvidenceCount: 0,
+      interpretation: "supplier_reference_process_only" });
+    expect(result.patterns.find((pattern) => pattern.patternKind === "action" && pattern.patternId === "mix"))
+      .toMatchObject({ formulaCount: 3, eligibleProcessFormulaCount: 4, frequency: 3 / 4, sourceRecordIds: ["process-a", "process-b", "process-c"] });
+    expect(result.patterns.find((pattern) => pattern.patternKind === "action" && pattern.patternId === "adjust_ph"))
+      .toMatchObject({ formulaCount: 2, frequency: 1 / 2, sourceRecordIds: ["process-a", "process-c"] });
+    expect(result.patterns.find((pattern) => pattern.patternKind === "action_sequence" && pattern.patternId === "addition->adjust_ph"))
+      .toMatchObject({ formulaCount: 1, sourceRecordIds: ["process-a"] });
+    expect(result.patterns.find((pattern) => pattern.patternKind === "action_sequence" && pattern.patternId === "adjust_ph->addition"))
+      .toMatchObject({ formulaCount: 1, sourceRecordIds: ["process-c"] });
+    expect(result.patterns.find((pattern) => pattern.patternKind === "phase" && pattern.patternId === "a"))
+      .toMatchObject({ sourceValue: "A", formulaCount: 3, frequency: 3 / 4 });
+    expect(result.patterns.find((pattern) => pattern.patternKind === "condition" && pattern.patternId === "temperature:40°c"))
+      .toMatchObject({ sourceValue: "40 °C", sourceValues: ["40 °C", "40°C"], formulaCount: 3, frequency: 3 / 4 });
+    expect(result.patterns.some((pattern) => pattern.patternKind === "action" && ["addition", "mix", "heat"].includes(pattern.patternId) && pattern.sourceRecordIds.includes("process-negated"))).toBe(false);
+    expect(calculateReferenceFormulationProcessPatterns({
+      ...allowed([negative, third, first, second], [
+        ...acceptedReviews(first), ...acceptedReviews(second), ...acceptedReviews(third), ...acceptedReviews(negative),
+        ...acceptedProcessReviews(first), ...acceptedProcessReviews(second), ...acceptedProcessReviews(third), ...acceptedProcessReviews(negative),
+      ]),
+    })).toEqual(result);
+
+    const noReviews = calculateReferenceFormulationProcessPatterns({ ...allowed([first], acceptedReviews(first)) });
+    expect(noReviews).toMatchObject({ eligibleProcessFormulaCount: 0, excludedProcessEvidenceCount: first.processSteps.length });
+    expect(noReviews.patterns).toEqual([]);
   });
 });

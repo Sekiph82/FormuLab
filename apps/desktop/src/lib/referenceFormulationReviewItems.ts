@@ -55,6 +55,16 @@ export function buildReferenceFormulationReviewItems(record: ReferenceFormulatio
       blockIndex: evidence.blockIndex, rowIndex: evidence.rowIndex, cellIndex: evidence.cellIndex,
       sourceKind: evidence.source, confidence: evidence.confidence,
     });
+    if (step.phase) {
+      const phaseEvidence = step.phase.evidence;
+      items.push({
+        targetType: "procedure", targetKey: `procedure:${step.id}:phase`,
+        fieldPath: `procedureSteps[${step.id}].phase`, label: `Step ${step.sequenceOrder} phase`,
+        sourceValue: step.phase.rawValue, evidenceExcerpt: phaseEvidence.excerpt, pageNumber: phaseEvidence.pageNumber,
+        blockIndex: phaseEvidence.blockIndex, rowIndex: phaseEvidence.rowIndex, cellIndex: phaseEvidence.cellIndex,
+        sourceKind: phaseEvidence.source, confidence: phaseEvidence.confidence,
+      });
+    }
     step.conditions.forEach((condition, index) => {
       const conditionEvidence = condition.evidence;
       items.push({

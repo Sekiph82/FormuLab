@@ -1815,6 +1815,19 @@ fn expected_reference_formulation_evidence(target_key: &str, source: &serde_json
     }
     for step in source.get("procedureSteps")?.as_array()? {
         let step_id = step.get("id")?.as_str()?;
+        let phase_key = format!("procedure:{step_id}:phase");
+        if phase_key == target_key {
+            let phase = step.get("phase")?;
+            let evidence = phase.get("evidence")?;
+            let mut expected = serde_json::json!({
+                "targetType": "procedure", "targetKey": phase_key,
+                "fieldPath": format!("procedureSteps[{step_id}].phase"),
+                "sourceValue": phase.get("rawValue")?,
+                "evidenceExcerpt": evidence.get("excerpt")?,
+            });
+            merge_evidence_location(&mut expected, evidence);
+            return Some(expected);
+        }
         let instruction_key = format!("procedure:{step_id}:instruction");
         if instruction_key == target_key {
             let evidence = step.get("evidence")?;
@@ -2473,6 +2486,23 @@ mod tests {
             }]
         });
         validate_review_evidence(&stamped, &source).unwrap();
+        let phase_source = serde_json::json!({
+            "identityCandidates": [],
+            "ingredientLines": [],
+            "procedureSteps": [{
+                "id": "step-1", "rawInstruction": "Add and mix.",
+                "phase": { "rawValue": "A", "evidence": {
+                    "excerpt": "Phase A", "pageNumber": 2, "blockIndex": 5, "rowIndex": 3, "cellIndex": 1
+                } },
+                "conditions": []
+            }]
+        });
+        let phase_review = serde_json::json!({
+            "targetType": "procedure", "targetKey": "procedure:step-1:phase",
+            "fieldPath": "procedureSteps[step-1].phase", "sourceValue": "A", "evidenceExcerpt": "Phase A",
+            "pageNumber": 2, "blockIndex": 5, "rowIndex": 3, "cellIndex": 1
+        });
+        validate_review_evidence(&phase_review, &phase_source).unwrap();
         let mut forged = stamped.clone();
         forged["evidenceExcerpt"] = serde_json::json!("invented evidence");
         assert!(validate_review_evidence(&forged, &source).unwrap_err().contains("immutable source evidence"));
