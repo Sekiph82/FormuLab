@@ -99,6 +99,8 @@ import type {
   StabilityStudy,
   SubstitutionRun,
   Supplier,
+  SupplierAcquisitionJob,
+  SupplierAcquisitionJobItem,
   SupplierDocumentAcquisition,
   TestDefinition,
   TestResult,
@@ -110,7 +112,7 @@ import { currentSessionToken } from "./sessionToken";
 import type { MasterdataCollection } from "@formulab/shared";
 
 /** Phase 13 Session 4A: now derived from `@formulab/shared`'s
- *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 97-name
+ *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 99-name
  *  list `masterdata.rs`'s `COLLECTIONS` and the generated policy-area
  *  fixture both answer to, not a second hand-typed union that could drift
  *  from either. */
@@ -193,6 +195,8 @@ interface CollectionTypes {
   finished_product_specifications: FinishedProductSpecification;
   material_documents: MaterialDocument;
   supplier_document_acquisitions: SupplierDocumentAcquisition;
+  supplier_acquisition_jobs: SupplierAcquisitionJob;
+  supplier_acquisition_job_items: SupplierAcquisitionJobItem;
   process_parameters: ProcessParameter;
   formula_cost_overrides: FormulaCostOverride;
   data_exchange_import_jobs: DataExchangeImportJob;

@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 18
-- Remaining: 138
-- Completion: 11.5%
-- Current task: V01-01.009 - Implement acquisition job state machine
+- Completed: 19
+- Remaining: 137
+- Completion: 12.2%
+- Current task: V01-01.010 - Implement resumable checkpoints and idempotency
 - Current status: IN PROGRESS
-- Next task: V01-01.010 - Implement resumable checkpoints and idempotency
+- Next task: V01-01.011 - Extend backup/restore for acquired binaries and metadata
 - Required actor: CODEX
 - Branch: V01
 
@@ -130,8 +130,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-01.006 - Implement immutable acquired-document record**: Persist provider/surface, source URL, original filename, MIME type, source product identity, market/language, revision/publication dates, acquisition time, SHA-256, and parser status.
 - [x] **V01-01.007 - Implement content-addressed binary document store**: Store PDF/document bytes by cryptographic hash, deduplicate identical content, preserve multiple source provenance records, and keep old revisions.
 - [x] **V01-01.008 - Implement document revision and supersession lineage**: Detect same-document revisions by product identity plus revision/date/hash and link new records with supersedes without deleting historical evidence.
-- [~] **V01-01.009 - Implement acquisition job state machine**: Support queued, discovery, downloading, parsing, review-ready, completed-with-gaps, failed-item, cancelled, and resumed states at item/job level without global task blocking.
-- [ ] **V01-01.010 - Implement resumable checkpoints and idempotency**: Resume catalog scans/downloads after interruption without duplicating products, documents, or audit records.
+- [x] **V01-01.009 - Implement acquisition job state machine**: Support queued, discovery, downloading, parsing, review-ready, completed-with-gaps, failed-item, cancelled, and resumed states at item/job level without global task blocking.
+- [~] **V01-01.010 - Implement resumable checkpoints and idempotency**: Resume catalog scans/downloads after interruption without duplicating products, documents, or audit records.
 - [ ] **V01-01.011 - Extend backup/restore for acquired binaries and metadata**: Preserve hashes, document lineage, provider identities, reviews, and storage references; verify restore does not retarget historical links.
 - [ ] **V01-01.012 - Supplier document foundation acceptance**: Run storage, secret-leak, SSRF, redirect, malformed-file, duplicate, retry, supersession, backup/restore, and backward-compatibility tests.
 

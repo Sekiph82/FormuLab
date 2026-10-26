@@ -70,6 +70,8 @@
 //   data/master/finished_product_specifications.json
 //   data/master/material_documents.json
 //   data/master/supplier_document_acquisitions.json
+//   data/master/supplier_acquisition_jobs.json
+//   data/master/supplier_acquisition_job_items.json
 //   data/master/process_parameters.json
 //   data/master/formula_cost_overrides.json
 //   data/master/data_exchange_import_jobs.json
@@ -127,7 +129,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 97] = [
+const COLLECTIONS: [(&str, bool); 99] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -370,6 +372,10 @@ const COLLECTIONS: [(&str, bool); 97] = [
     // outcomes are separate records; the acquired document receipt itself
     // must never be silently rewritten.
     ("supplier_document_acquisitions", true),
+    // Supplier discovery/download work is mutable operational state. The
+    // immutable acquired-document evidence remains in its separate collection.
+    ("supplier_acquisition_jobs", false),
+    ("supplier_acquisition_job_items", false),
     ("process_parameters", false),
     ("formula_cost_overrides", true),
     ("data_exchange_import_jobs", false),
@@ -468,7 +474,7 @@ pub fn list_master_collections() -> Vec<(String, bool)> {
 }
 
 /// Phase 13 Session 4A: this used to be a hand-typed Rust `match` over all
-/// 97 collection names (Session 4). It is now a thin delegator to
+/// 99 collection names (V01-01.009). It is now a thin delegator to
 /// `role_policy::masterdata_area_for`, which reads the same generated JSON
 /// fixture (`masterdataCollectionAreas.generated.json`) TypeScript's
 /// `masterdataPolicyAreas.ts` is parity-tested against — closing the
@@ -541,7 +547,7 @@ fn row_key(row: &serde_json::Value) -> Option<String> {
 /// `workflow_gates.rs` uses for `raw_material_verification`/
 /// `supplier_document_verification`: does a real row with this `code`/`id`
 /// exist in this allow-listed collection? `collection` must already be one
-/// of the 97 real names (`collection_spec` rejects anything else, same
+/// of the 99 real names (`collection_spec` rejects anything else, same
 /// default-deny discipline as every other collection lookup in this file).
 pub(crate) fn collection_has_code(app: &AppHandle, collection: &str, code: &str) -> Result<bool, String> {
     let (name, _) = collection_spec(collection)?;
@@ -965,7 +971,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 97);
+        assert_eq!(COLLECTIONS.len(), 99);
     }
 
     #[test]
@@ -1001,6 +1007,36 @@ mod tests {
         .unwrap();
         assert_eq!((inserted, updated), (1, 0));
         assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn supplier_acquisition_job_collections_are_allow_listed_and_mutable() {
+        assert_eq!(
+            collection_spec("supplier_acquisition_jobs"),
+            Ok(("supplier_acquisition_jobs", false))
+        );
+        assert_eq!(
+            collection_spec("supplier_acquisition_job_items"),
+            Ok(("supplier_acquisition_job_items", false))
+        );
+        let queued = serde_json::json!({ "id": "job-1", "status": "queued" });
+        let (rows, inserted, updated) = apply_upsert(
+            vec![],
+            vec![queued],
+            false,
+            "supplier_acquisition_jobs",
+        )
+        .unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        let (rows, inserted, updated) = apply_upsert(
+            rows,
+            vec![serde_json::json!({ "id": "job-1", "status": "downloading" })],
+            false,
+            "supplier_acquisition_jobs",
+        )
+        .unwrap();
+        assert_eq!((inserted, updated), (0, 1));
+        assert_eq!(rows[0]["status"], "downloading");
     }
 
     #[test]
