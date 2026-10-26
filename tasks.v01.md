@@ -98,14 +98,15 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 57
-- Remaining: 99
-- Completion: 36.5%
-- Current task: V01-04.002 - Implement canonical chemical library schema
+- Completed: 58
+- Remaining: 98
+- Completion: 37.2%
+- Current task: V01-04.003 - Implement deterministic CAS and EC normalization
 - Current status: IN PROGRESS
-- Next task: V01-04.003 - Implement deterministic CAS and EC normalization
+- Next task: V01-04.004 - Implement chemical-name and synonym normalization
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Acceptance note: V01-04.001 adds the independent commercial-product identity schema and passes focused tests, shared typecheck, task-state validation, and read-only review. No canonical chemistry is assigned in this identity record.
+- Acceptance note: V01-04.002 adds a provenance-backed canonical chemical schema with stable opaque IDs and distinct chemical/functional families. Focused tests, shared typecheck, and read-only review passed; CAS/EC values remain unnormalized for V01-04.003.
 - Required actor: CODEX
 - Branch: V01
 
@@ -180,8 +181,8 @@ Codex must execute the tasks below in the exact order listed.
 ## Milestone V01-04 - Commercial product identity and canonical chemical resolver
 
 - [x] **V01-04.001 - Implement commercial-product identity schema**: Preserve supplier, trade name, product code/grade, regional/language aliases, source documents, source formulation references, lifecycle and review status separately from canonical chemistry.
-- [~] **V01-04.002 - Implement canonical chemical library schema**: Support stable canonical IDs, preferred name, CAS/EC, INCI where appropriate, abbreviations/synonyms, chemical family, functional families, and provenance for library entries.
-- [ ] **V01-04.003 - Implement deterministic CAS and EC normalization**: Validate formats/check digits where applicable, preserve original strings, and refuse conflicting identities.
+- [x] **V01-04.002 - Implement canonical chemical library schema**: Support stable canonical IDs, preferred name, CAS/EC, INCI where appropriate, abbreviations/synonyms, chemical family, functional families, and provenance for library entries.
+- [~] **V01-04.003 - Implement deterministic CAS and EC normalization**: Validate formats/check digits where applicable, preserve original strings, and refuse conflicting identities.
 - [ ] **V01-04.004 - Implement chemical-name and synonym normalization**: Normalize controlled aliases without collapsing distinct materials solely because names are similar.
 - [ ] **V01-04.005 - Implement commercial product type classifier**: Classify evidence-backed product type as PURE_OR_NEAR_PURE, SOLUTION, POLYMER, MULTICOMPONENT_BLEND, PROPRIETARY_BLEND, PARTIALLY_DISCLOSED, or UNKNOWN.
 - [ ] **V01-04.006 - Implement Section 1 vs Section 3 evidence separation**: Store product-level chemical description separately from component-level composition and reconcile only through explicit resolver logic.
