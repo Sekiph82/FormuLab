@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 73
-- Remaining: 83
-- Completion: 46.8%
-- Current task: V01-04.018 - Implement RawMaterial application proposal
+- Completed: 74
+- Remaining: 82
+- Completion: 47.4%
+- Current task: V01-04.019 - Implement resolver conflict and revision behavior
 - Current status: IN PROGRESS
-- Next task: V01-04.019 - Implement resolver conflict and revision behavior
+- Next task: V01-04.020 - Resolver acceptance using all supplied fixtures
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Acceptance note: V01-04.001 adds the independent commercial-product identity schema and passes focused tests, shared typecheck, task-state validation, and read-only review. No canonical chemistry is assigned in this identity record.
 - Acceptance note: V01-04.002 adds a provenance-backed canonical chemical schema with stable opaque IDs and distinct chemical/functional families. Focused tests, shared typecheck, and read-only review passed; CAS/EC values remain unnormalized for V01-04.003.
@@ -122,6 +122,7 @@ Codex must execute the tasks below in the exact order listed.
 - Acceptance note: V01-04.015 calculates conservative supplier-product contribution intervals from a cited formula-line percentage and exact/ranged component fraction or explicitly as-supplied active-matter evidence. Results retain both source lineages, validate the interval arithmetic and same-product identity, and reject unparsed, mismatched, solids/assay, or non-as-supplied inputs. Focused tests (2), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-04.016 links Section 9 SDS property candidates to commercial product and immutable document identity, retaining original values, conditions, method/evidence context and page/line citations. Persisted records validate context/citation consistency and product/source/hash linkage; no RawMaterial write path exists. Focused tests (2), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-04.017 adds append-only, evidence-backed field decisions for product type, canonical identity, components, concentrations, active claims and aliases. Decisions require a named human with existing raw-material or supplier-document edit access; edits/rejections/needs-review capture notes and value snapshots, and supersession is limited to the same product/target/field. Focused tests (2), shared typecheck and independent read-only review passed; no RawMaterial write occurs.
+- Acceptance note: V01-04.018 prepares only accepted supported identity/active-matter proposals as full target-preserving `raw_materials` rows for the existing Data Exchange preview, verifies the persisted accepted review and current target snapshot, and withholds a row for unsupported/lossy updates. Data Exchange authorization and a human commit remain required; no write or verification occurs here. The existing raw-material template currently requires administrator authorization for preview/commit. Focused tests (4), shared typecheck and independent read-only review passed.
 - Required actor: CODEX
 - Branch: V01
 
@@ -212,8 +213,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-04.015 - Implement bounded formula contribution calculator**: When evidence supports component fraction/active content, calculate supplier-product-percent x component-fraction as exact or bounded range with full lineage.
 - [x] **V01-04.016 - Implement physical-property evidence linkage**: Link condition-bound Section 9 values to the commercial product without silently copying them into RawMaterial master fields.
 - [x] **V01-04.017 - Implement human identity review workflow**: Allow authorized user accept/edit/reject/needs-review for commercial-product type, canonical identity, components, concentration/active claims and aliases.
-- [~] **V01-04.018 - Implement RawMaterial application proposal**: Route explicitly accepted field proposals through existing Data Exchange/material authorities; no silent RawMaterial overwrite or auto-verification.
-- [ ] **V01-04.019 - Implement resolver conflict and revision behavior**: Newer SDS evidence creates new/revised resolution evidence without rewriting historical reference-formula mappings unless an authorized review updates the normalized mapping version.
+- [x] **V01-04.018 - Implement RawMaterial application proposal**: Route explicitly accepted field proposals through existing Data Exchange/material authorities; no silent RawMaterial overwrite or auto-verification.
+- [~] **V01-04.019 - Implement resolver conflict and revision behavior**: Newer SDS evidence creates new/revised resolution evidence without rewriting historical reference-formula mappings unless an authorized review updates the normalized mapping version.
 - [ ] **V01-04.020 - Resolver acceptance using all supplied fixtures**: Prove correct handling of Croda Incromine, ECO Brij, NatraSense, Crodateric; Evonik ABIL ME 45 and DERMOFEEL PA; Clariant Aristoflex TAC; Dow DPM. Verify original trade identity is preserved and unsupported chemistry stays unresolved.
 
 ## Milestone V01-05 - Supplier formulation PDF ingestion
