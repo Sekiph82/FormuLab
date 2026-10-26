@@ -98,17 +98,18 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 60
-- Remaining: 96
-- Completion: 38.5%
-- Current task: V01-04.005 - Implement commercial product type classifier
+- Completed: 61
+- Remaining: 95
+- Completion: 39.1%
+- Current task: V01-04.006 - Implement Section 1 vs Section 3 evidence separation
 - Current status: IN PROGRESS
-- Next task: V01-04.006 - Implement Section 1 vs Section 3 evidence separation
+- Next task: V01-04.007 - Implement single/near-pure component resolver
 - Acceptance note: V01-03.014 passed the authored synthetic supplier-style conformance matrix; no vendor SDS PDFs are present in this checkout, so this acceptance does not claim vendor-PDF verification. Product-specific source acceptance remains explicit in V01-10.
 - Acceptance note: V01-04.001 adds the independent commercial-product identity schema and passes focused tests, shared typecheck, task-state validation, and read-only review. No canonical chemistry is assigned in this identity record.
 - Acceptance note: V01-04.002 adds a provenance-backed canonical chemical schema with stable opaque IDs and distinct chemical/functional families. Focused tests, shared typecheck, and read-only review passed; CAS/EC values remain unnormalized for V01-04.003.
 - Acceptance note: V01-04.003 validates CAS and numeric EC formats/check digits, preserves source strings alongside deterministic normalized values, and refuses conflicting identifier sets. Focused tests, shared typecheck, task-state validation, and read-only review passed.
 - Acceptance note: V01-04.004 adds versioned deterministic name keys and exact preferred-name/synonym matching with ambiguity reporting. Identity-bearing punctuation and stereochemical descriptors remain distinct; focused tests, shared typecheck, and read-only review passed.
+- Acceptance note: V01-04.005 adds evidence-referenced product-type classification with conservative unknown/conflict outcomes; disclosure signals override product-type assertions, and purity requires explicit type evidence or cited composition completeness. Focused tests, shared typecheck, and read-only review passed.
 - Required actor: CODEX
 - Branch: V01
 
@@ -186,8 +187,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-04.002 - Implement canonical chemical library schema**: Support stable canonical IDs, preferred name, CAS/EC, INCI where appropriate, abbreviations/synonyms, chemical family, functional families, and provenance for library entries.
 - [x] **V01-04.003 - Implement deterministic CAS and EC normalization**: Validate formats/check digits where applicable, preserve original strings, and refuse conflicting identities.
 - [x] **V01-04.004 - Implement chemical-name and synonym normalization**: Normalize controlled aliases without collapsing distinct materials solely because names are similar.
-- [~] **V01-04.005 - Implement commercial product type classifier**: Classify evidence-backed product type as PURE_OR_NEAR_PURE, SOLUTION, POLYMER, MULTICOMPONENT_BLEND, PROPRIETARY_BLEND, PARTIALLY_DISCLOSED, or UNKNOWN.
-- [ ] **V01-04.006 - Implement Section 1 vs Section 3 evidence separation**: Store product-level chemical description separately from component-level composition and reconcile only through explicit resolver logic.
+- [x] **V01-04.005 - Implement commercial product type classifier**: Classify evidence-backed product type as PURE_OR_NEAR_PURE, SOLUTION, POLYMER, MULTICOMPONENT_BLEND, PROPRIETARY_BLEND, PARTIALLY_DISCLOSED, or UNKNOWN.
+- [~] **V01-04.006 - Implement Section 1 vs Section 3 evidence separation**: Store product-level chemical description separately from component-level composition and reconcile only through explicit resolver logic.
 - [ ] **V01-04.007 - Implement single/near-pure component resolver**: Resolve products to canonical chemistry when Section 1/3 identifiers and concentration evidence support one dominant identity.
 - [ ] **V01-04.008 - Implement solution resolver**: Represent a known solute in solvent/carrier without pretending the concentration range is exact or automatically active matter.
 - [ ] **V01-04.009 - Implement polymer resolver**: Support polymers/crosspolymers/macromolecular materials, canonical polymer identity, material number/CAS, and polymer-specific properties without forcing small-molecule assumptions.
