@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 86
-- Remaining: 70
-- Completion: 55.1%
-- Current task: V01-05.011 - Implement structured reference-formula record
+- Completed: 87
+- Remaining: 69
+- Completion: 55.8%
+- Current task: V01-05.012 - Croda HC/DW/22 formulation acceptance
 - Current status: IN PROGRESS
-- Next task: V01-05.012 - Croda HC/DW/22 formulation acceptance
+- Next task: V01-05.013 - Cross-supplier formulation layout harness
+- Acceptance note: V01-05.011 adds a source-linked structured reference-formula snapshot containing identity comparisons, original ingredient rows, arithmetic, process and target evidence, product candidates and unresolved work. It persists to a dedicated append-only `reference_formulations` collection, with immutable retry handling; the schema rejects production approval/lifecycle fields and validates source, candidate, queue and revision-comparison lineage. Shared schema/parity tests (8), desktop persistence tests (2), shared/desktop typechecks and independent read-only review passed. Rust unit execution could not start because this checkout lacks `apps/desktop/src-tauri/binaries/uv-x86_64-pc-windows-msvc.exe`.
 - Acceptance note: V01-05.010 builds acquisition/review-ready entries for every supplier-formulation line, retains the full raw line snapshot, identifies missing SDS support from same-supplier linked acquisition receipts, and proposes SDS/TDS acquisition or identity review without executing either or approving links. Source and field-evidence hashes are checked. Focused tests (4), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-05.009 matches source lines to same-supplier commercial products by exact product code/trade name, then controlled aliases; edit-distance candidates remain fuzzy proposals only. Conflicts are ambiguous, all results require review and none auto-link, and source PDF hashes for the line and matching field evidence are verified. Focused tests (4), shared typecheck and independent read-only review passed.
 - Acceptance note: V01-05.008 extracts cited pH, viscosity, density, appearance and generic property results from semantic sections and property tables, preserves raw units/context and exact/range/approximate/approximate-range distinctions, and keeps candidates review-required. Procedure/ingredient tables are excluded; OCR/mixed-source evidence requires review. Focused tests (4), shared typecheck and independent read-only review passed.
@@ -241,8 +242,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-05.008 - Implement finished-product target/result extraction**: Extract source-stated pH, viscosity, density, appearance and other targets/typical results with approximate/range/context semantics.
 - [x] **V01-05.009 - Implement source-line to commercial-product candidate matching**: Match exact supplier + trade name/product code first, then controlled aliases. Fuzzy similarity alone may propose but never auto-link.
 - [x] **V01-05.010 - Implement unresolved ingredient queue**: Keep formula lines without supporting supplier/SDS evidence as unresolved and acquisition/review-ready while preserving the full reference formula.
-- [~] **V01-05.011 - Implement structured reference-formula record**: Persist queryable reference formulas separately from production Formulation/FormulationVersion and never create a validated or approved production formula on import.
-- [ ] **V01-05.012 - Croda HC/DW/22 formulation acceptance**: Parse the supplied Hand Dishwash Detergent Liquid fixture: source identity, procedure, all ingredient/function/%w/w lines, pH ~7 instruction and ~375 cP value. Match supplied Croda SDS products and keep unsupported SLE(3)S/Crothix unresolved.
+- [x] **V01-05.011 - Implement structured reference-formula record**: Persist queryable reference formulas separately from production Formulation/FormulationVersion and never create a validated or approved production formula on import.
+- [~] **V01-05.012 - Croda HC/DW/22 formulation acceptance**: Parse the supplied Hand Dishwash Detergent Liquid fixture: source identity, procedure, all ingredient/function/%w/w lines, pH ~7 instruction and ~375 cP value. Match supplied Croda SDS products and keep unsupported SLE(3)S/Crothix unresolved.
 - [ ] **V01-05.013 - Cross-supplier formulation layout harness**: Add parser fixtures for at least two additional supplier layout families before claiming generic support. If external fixtures are not yet available, create structurally different authorized test fixtures without fabricating chemical claims.
 - [ ] **V01-05.014 - Formulation extraction review workflow**: Provide side-by-side source evidence and extracted formula identity/lines/process/targets with accept/edit/reject/needs-review decisions.
 

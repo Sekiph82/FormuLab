@@ -70,6 +70,7 @@
 //   data/master/finished_product_specifications.json
 //   data/master/material_documents.json
 //   data/master/supplier_document_acquisitions.json
+//   data/master/reference_formulations.json
 //   data/master/supplier_acquisition_jobs.json
 //   data/master/supplier_acquisition_job_items.json
 //   data/master/process_parameters.json
@@ -129,7 +130,7 @@ use crate::authz;
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 99] = [
+const COLLECTIONS: [(&str, bool); 100] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -372,6 +373,9 @@ const COLLECTIONS: [(&str, bool); 99] = [
     // outcomes are separate records; the acquired document receipt itself
     // must never be silently rewritten.
     ("supplier_document_acquisitions", true),
+    // Supplier formulation extraction snapshots are immutable reference
+    // evidence, separate from production Formulation/FormulationVersion.
+    ("reference_formulations", true),
     // Supplier discovery/download work is mutable operational state. The
     // immutable acquired-document evidence remains in its separate collection.
     ("supplier_acquisition_jobs", false),
@@ -474,7 +478,7 @@ pub fn list_master_collections() -> Vec<(String, bool)> {
 }
 
 /// Phase 13 Session 4A: this used to be a hand-typed Rust `match` over all
-/// 99 collection names (V01-01.009). It is now a thin delegator to
+/// 100 collection names (V01-01.009). It is now a thin delegator to
 /// `role_policy::masterdata_area_for`, which reads the same generated JSON
 /// fixture (`masterdataCollectionAreas.generated.json`) TypeScript's
 /// `masterdataPolicyAreas.ts` is parity-tested against — closing the
@@ -547,7 +551,7 @@ fn row_key(row: &serde_json::Value) -> Option<String> {
 /// `workflow_gates.rs` uses for `raw_material_verification`/
 /// `supplier_document_verification`: does a real row with this `code`/`id`
 /// exist in this allow-listed collection? `collection` must already be one
-/// of the 99 real names (`collection_spec` rejects anything else, same
+/// of the 100 real names (`collection_spec` rejects anything else, same
 /// default-deny discipline as every other collection lookup in this file).
 pub(crate) fn collection_has_code(app: &AppHandle, collection: &str, code: &str) -> Result<bool, String> {
     let (name, _) = collection_spec(collection)?;
@@ -971,7 +975,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 99);
+        assert_eq!(COLLECTIONS.len(), 100);
     }
 
     #[test]
@@ -1003,6 +1007,41 @@ mod tests {
             vec![serde_json::json!({ "code": "supplierdoc-v2", "sha256": "b".repeat(64) })],
             true,
             "supplier_document_acquisitions",
+        )
+        .unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert_eq!(rows.len(), 2);
+    }
+
+    #[test]
+    fn reference_formulations_are_allow_listed_and_append_only() {
+        assert_eq!(
+            collection_spec("reference_formulations"),
+            Ok(("reference_formulations", true))
+        );
+        assert!(ensure_master_delete_allowed("reference_formulations", true).is_err());
+        let first = serde_json::json!({ "code": "reference-formula-v1", "sourceDocumentHash": "a".repeat(64) });
+        let (rows, inserted, updated) = apply_upsert(
+            vec![],
+            vec![first.clone()],
+            true,
+            "reference_formulations",
+        )
+        .unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert!(apply_upsert(
+            rows.clone(),
+            vec![first],
+            true,
+            "reference_formulations"
+        )
+        .unwrap_err()
+        .contains("already exists"));
+        let (rows, inserted, updated) = apply_upsert(
+            rows,
+            vec![serde_json::json!({ "code": "reference-formula-v2", "sourceDocumentHash": "b".repeat(64) })],
+            true,
+            "reference_formulations",
         )
         .unwrap();
         assert_eq!((inserted, updated), (1, 0));

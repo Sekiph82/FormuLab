@@ -79,6 +79,7 @@ import type {
   RegulatoryReviewRevocation,
   RegulatoryRule,
   RegulatoryRuleRevision,
+  ReferenceFormulationRecord,
   ReverseFormulationStudy,
   BenchmarkProduct,
   BenchmarkEvidenceItem,
@@ -112,7 +113,7 @@ import { currentSessionToken } from "./sessionToken";
 import type { MasterdataCollection } from "@formulab/shared";
 
 /** Phase 13 Session 4A: now derived from `@formulab/shared`'s
- *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 99-name
+ *  `MasterdataCollection` (`masterdataPolicyAreas.ts`) — the same 100-name
  *  list `masterdata.rs`'s `COLLECTIONS` and the generated policy-area
  *  fixture both answer to, not a second hand-typed union that could drift
  *  from either. */
@@ -195,6 +196,7 @@ interface CollectionTypes {
   finished_product_specifications: FinishedProductSpecification;
   material_documents: MaterialDocument;
   supplier_document_acquisitions: SupplierDocumentAcquisition;
+  reference_formulations: ReferenceFormulationRecord;
   supplier_acquisition_jobs: SupplierAcquisitionJob;
   supplier_acquisition_job_items: SupplierAcquisitionJobItem;
   process_parameters: ProcessParameter;
