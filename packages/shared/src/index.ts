@@ -595,6 +595,7 @@ export * from "./engine/supplierManualAdapter";
 export * from "./engine/supplierSdsSectionDetection";
 export * from "./engine/supplierSdsDocumentIdentity";
 export * from "./engine/supplierSdsSection1Extraction";
+export * from "./engine/supplierSdsSection2HazardExtraction";
 export * from "./engine/dowSupplierAdapter";
 export * from "./engine/clariantSupplierAdapter";
 export * from "./engine/evonikSupplierAdapter";

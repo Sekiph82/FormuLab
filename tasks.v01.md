@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 48
-- Remaining: 108
-- Completion: 30.8%
-- Current task: V01-03.007 - Implement Section 2 hazard extraction
+- Completed: 49
+- Remaining: 107
+- Completion: 31.4%
+- Current task: V01-03.008 - Implement Section 3 substance/mixture and composition extraction
 - Current status: IN PROGRESS
-- Next task: V01-03.008 - Implement Section 3 substance/mixture and composition extraction
+- Next task: V01-03.009 - Implement Section 7 storage and handling extraction
 - Required actor: CODEX
 - Branch: V01
 
@@ -166,8 +166,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-03.004 - Implement multilingual/layout-tolerant SDS section detection**: Recognize section semantics across Croda, Evonik, Clariant, Dow and future layouts rather than hard-coding one supplier template.
 - [x] **V01-03.005 - Implement SDS document identity extraction**: Extract supplier/manufacturer, product/trade name, product/material code, SDS version, revision/issue/print dates, market/regulatory regime, language, and source identifiers.
 - [x] **V01-03.006 - Implement Section 1 commercial identity extraction**: Extract declared chemical name, chemical nature, CAS/EC when stated, recommended use, restrictions, industry sector and product-level description as separate evidence.
-- [~] **V01-03.007 - Implement Section 2 hazard extraction**: Extract classification scheme, hazard classes/categories, signal word, H/P statements, pictograms where available, PBT/vPvB/endocrine statements and market context without making approval decisions.
-- [ ] **V01-03.008 - Implement Section 3 substance/mixture and composition extraction**: Extract substance-vs-mixture declaration, component original name, CAS, EC, exact/range concentration, unit/basis, trade-secret flags, M-factors/SCL/ATE when present, and undisclosed remainder state.
+- [x] **V01-03.007 - Implement Section 2 hazard extraction**: Extract classification scheme, hazard classes/categories, signal word, H/P statements, pictograms where available, PBT/vPvB/endocrine statements and market context without making approval decisions.
+- [~] **V01-03.008 - Implement Section 3 substance/mixture and composition extraction**: Extract substance-vs-mixture declaration, component original name, CAS, EC, exact/range concentration, unit/basis, trade-secret flags, M-factors/SCL/ATE when present, and undisclosed remainder state.
 - [ ] **V01-03.009 - Implement Section 7 storage and handling extraction**: Extract storage temperature, container/material compatibility, shelf/storage stability, incompatibilities, and explicit handling constraints as evidence.
 - [ ] **V01-03.010 - Implement Section 8 exposure-control extraction**: Extract OEL/TWA/STEL, regulation/source, units, PPE, glove material/breakthrough/thickness, respiratory requirements, and engineering controls as safety evidence.
 - [ ] **V01-03.011 - Implement Section 9 physical-property extraction**: Extract physical state, color, odor, pH, freezing/boiling/flash points, density/relative density, solubility, vapor pressure, logP, viscosity, molecular weight and related values with units and context.
