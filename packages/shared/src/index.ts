@@ -585,6 +585,7 @@ export * from "./schemas/supplierDocument";
 export * from "./schemas/supplierAcquisition";
 export * from "./engine/connectorFingerprint";
 export * from "./engine/supplierProviderRegistry";
+export * from "./engine/supplierAdapterConformance";
 export * from "./engine/xmlParser";
 export * from "./engine/fileConnector";
 export * from "./engine/databaseConnector";

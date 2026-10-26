@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 22
-- Remaining: 134
-- Completion: 14.1%
-- Current task: V01-02.001 - Implement shared supplier adapter conformance harness
+- Completed: 23
+- Remaining: 133
+- Completion: 14.7%
+- Current task: V01-02.002 - Implement coverage reporting contract
 - Current status: IN PROGRESS
-- Next task: V01-02.002 - Implement coverage reporting contract
+- Next task: V01-02.003 - Implement public/API supplier profile over existing REST connector
 - Required actor: CODEX
 - Branch: V01
 
@@ -137,8 +137,8 @@ Codex must execute the tasks below in the exact order listed.
 
 ## Milestone V01-02 - Supplier adapter framework and provider implementations
 
-- [~] **V01-02.001 - Implement shared supplier adapter conformance harness**: Create deterministic fixtures for search, pagination, rate limit, timeout, authorization, partial scope, unavailable surface, document discovery, download, cancellation, and retry.
-- [ ] **V01-02.002 - Implement coverage reporting contract**: Every adapter must report scanned scope, markets/languages/product lines, pages/products checked, documents found/acquired, inaccessible surfaces, unsupported capabilities, and gaps.
+- [x] **V01-02.001 - Implement shared supplier adapter conformance harness**: Create deterministic fixtures for search, pagination, rate limit, timeout, authorization, partial scope, unavailable surface, document discovery, download, cancellation, and retry.
+- [~] **V01-02.002 - Implement coverage reporting contract**: Every adapter must report scanned scope, markets/languages/product lines, pages/products checked, documents found/acquired, inaccessible surfaces, unsupported capabilities, and gaps.
 - [ ] **V01-02.003 - Implement public/API supplier profile over existing REST connector**: Reuse FVL-04 REST authority for declared hosts, pagination, rate limits, source links, and response normalization.
 - [ ] **V01-02.004 - Implement authenticated portal profile**: Support user-attended authentication and secure session references without bypassing MFA/CAPTCHA or supplier controls.
 - [ ] **V01-02.005 - Implement manual-assisted supplier profile over existing FILE/Data Exchange paths**: Allow user-selected catalog, formulation, SDS, TDS, or bundle import with complete provenance and no automatic master-data approval.
