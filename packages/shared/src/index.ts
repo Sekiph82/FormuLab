@@ -592,6 +592,7 @@ export * from "./engine/supplierRestAdapter";
 export * from "./engine/supplierAdapterRuntime";
 export * from "./engine/supplierPortalAdapter";
 export * from "./engine/supplierManualAdapter";
+export * from "./engine/supplierSdsSectionDetection";
 export * from "./engine/dowSupplierAdapter";
 export * from "./engine/clariantSupplierAdapter";
 export * from "./engine/evonikSupplierAdapter";
