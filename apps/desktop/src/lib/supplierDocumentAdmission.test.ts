@@ -20,6 +20,12 @@ describe("supplier PDF admission and quarantine", () => {
     expect("bytes" in result).toBe(false);
   });
 
+  it("admits supplier filenames with safe product-name parentheses", async () => {
+    const filename = "HA42553_INCROMINE OXIDE C-LQ-(MH)_USENSDS.pdf";
+    const result = await admitSupplierPdf({ bytes: await validPdf(), filename, declaredMimeType: "application/pdf" });
+    expect(result).toMatchObject({ status: "admitted", safeFilename: filename });
+  });
+
   it.each([
     ["", "application/pdf", "empty_file"],
     ["<html>not pdf</html>", "application/pdf", "invalid_signature"],

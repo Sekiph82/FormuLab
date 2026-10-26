@@ -81,7 +81,7 @@ function detectActions(text: string): Array<typeof REFERENCE_FORMULATION_PROCESS
   add("hold", /\b(?:hold|maintain|keep at|hold for|maintain for|stehen lassen|maintenir|mantener)\b/i);
   add("heat", /\b(?:heat|warm|heating|raise temperature|erhitzen|chauffer|calentar|riscaldare)\b/i);
   add("cool", /\b(?:cool|cooling|cool down|abkühlen|refroidir|enfriar|raffreddare)\b/i);
-  add("adjust_ph", /\b(?:adjust\s+(?:the\s+)?p\s*h|p\s*h\s*(?:adjust|adjustment)|neutralize|neutralise|p\s*h\s*adjustment)\b/i);
+  add("adjust_ph", /\b(?:adjust\s+(?:(?:the\s+)?(?:solution|mixture|product)\s+)?p\s*h|p\s*h\s*(?:adjust|adjustment)|neutralize|neutralise|p\s*h\s*adjustment)\b/i);
   add("thicken", /\b(?:thicken|thickening|viscosity|thickener|increase viscosity|verdicken|épaissir|espesar)\b/i);
   add("appearance_check", /\b(?:clear|clarity|transparent|appearance|visual inspection)\b/i);
   if (actions.length === 0) actions.push("other");
@@ -93,9 +93,9 @@ function conditionsFor(text: string, evidence: z.infer<typeof processEvidenceSch
     { kind: "temperature", pattern: /-?\d+(?:[.,]\d+)?(?:\s*(?:-|–|—|to)\s*-?\d+(?:[.,]\d+)?)?\s*(?:°\s*[CF]|°[CF]|degrees?\s*[CF])/gi },
     { kind: "time", pattern: /\b\d+(?:[.,]\d+)?(?:\s*(?:-|–|—|to)\s*\d+(?:[.,]\d+)?)?\s*(?:seconds?|secs?|s|min(?:ute)?s?|h(?:ours?)?|hrs?)\b/gi },
     { kind: "speed", pattern: /\b\d+(?:[.,]\d+)?(?:\s*(?:-|–|—|to)\s*\d+(?:[.,]\d+)?)?\s*(?:rpm|r\s*\/\s*min|rev(?:olutions?)?\s*\/\s*min)\b/gi },
-    { kind: "ph", pattern: /\bp\s*h\s*(?:(?:adjust(?:ed)?|to|at|of|=|:)?\s*)\d+(?:[.,]\d+)?(?:\s*(?:-|–|—|to)\s*\d+(?:[.,]\d+)?)?/gi },
+    { kind: "ph", pattern: /\bp\s*h\s*(?:(?:adjust(?:ed)?|to|at|of|=|:)?\s*)[~≈]?\s*\d+(?:[.,]\d+)?(?:\s*(?:-|–|—|to)\s*[~≈]?\s*\d+(?:[.,]\d+)?)?/gi },
     { kind: "appearance", pattern: /\b(?:clear|clarity|transparent|appearance)\b/gi },
-    { kind: "homogeneity", pattern: /\b(?:homogeneous|homogeneous mixture|uniform|homogeneity|homogen(?:e|i)ous)\b/gi },
+    { kind: "homogeneity", pattern: /\b(?:homogeneous|homogenous|uniform|homogeneity)\b/gi },
   ];
   const conditions: z.infer<typeof processConditionSchema>[] = [];
   for (const candidate of candidates) {
@@ -181,6 +181,16 @@ export function extractReferenceFormulationProcedure(input: {
         continue;
       }
       if (block.type === "text") {
+        const inlineProcedure = block.text.match(/^\s*procedure\s*[:：]\s*(?<instruction>[\s\S]+?)\s*$/i);
+        if (inlineProcedure?.groups?.instruction) {
+          foundSection = true;
+          appendStep({
+            pageNumber: page.pageNumber, blockIndex: block.blockIndex, text: inlineProcedure.groups.instruction,
+            rawContextCells: [], sourceKind: block.source, ...(block.confidence !== undefined ? { confidence: block.confidence } : {}),
+            ...(block.position ? { position: block.position } : {}), extractionMethod: "procedure_section_text",
+          });
+          continue;
+        }
         if (!inProcedure) continue;
         appendStep({
           pageNumber: page.pageNumber, blockIndex: block.blockIndex, text: block.text, rawContextCells: [],

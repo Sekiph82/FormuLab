@@ -209,6 +209,13 @@ function decodePageStreams(document: PDFDocument, pageIndex: number, warnings: S
   return decoded;
 }
 
+function hasLikelyCorruptText(pages: SupplierPdfTextPage[]): boolean {
+  const text = pages.flatMap((page) => page.lines).map((line) => line.text).join("");
+  if (!text) return false;
+  const controls = text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g)?.length ?? 0;
+  return controls / text.length > 0.01;
+}
+
 async function sha256(bytes: Uint8Array): Promise<string> {
   const ownedBytes = new Uint8Array(bytes.byteLength);
   ownedBytes.set(bytes);
@@ -243,6 +250,7 @@ export async function extractSupplierPdfText(input: {
       break;
     }
   }
+  if (hasLikelyCorruptText(pages)) warnings.add("unsupported_character_encoding");
   if (pages.every(({ lines }) => lines.length === 0)) warnings.add("no_text_layer");
   return {
     status: "extracted",

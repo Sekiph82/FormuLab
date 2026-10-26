@@ -92,10 +92,10 @@ const HEADING_ALIASES: Record<ReferenceFormulationHeading["kind"], readonly stri
 };
 
 const HEADER_ALIASES: Record<ReferenceFormulationTableColumn, readonly string[]> = {
-  ingredient: ["ingredient", "ingredients", "raw material", "raw materials", "trade name", "commercial product", "material"],
+  ingredient: ["ingredient", "ingredients", "ingredient/inci name", "ingredient inci name", "raw material", "raw materials", "trade name", "commercial product", "material"],
   product_code: ["product code", "material code", "item code", "supplier code"],
   inci_or_chemical_name: ["inci", "inci name", "chemical name", "chemical identity"],
-  function: ["function", "role", "purpose"],
+  function: ["function", "functionality", "role", "purpose"],
   phase: ["phase", "step", "stage"],
   amount: ["amount", "quantity", "dosage", "concentration", "percentage", "%", "% w/w", "w/w %", "weight percent"],
   unit: ["unit", "units"],

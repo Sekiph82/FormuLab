@@ -158,7 +158,13 @@ export function validateReferenceFormulationArithmetic(input: {
       complete = false;
       continue;
     }
-    const interval = parsePercentInterval(line.amount.rawValue, line.unit?.rawValue, line.basis?.rawValue);
+    const amountHeader = line.amount.evidence.header;
+    const headerCarriesPercentBasis = /%\s*w\s*\/\s*w|\bweight\s*percent\b/i.test(amountHeader);
+    const interval = parsePercentInterval(
+      line.amount.rawValue,
+      line.unit?.rawValue ?? (headerCarriesPercentBasis ? amountHeader : undefined),
+      line.basis?.rawValue,
+    );
     if (!interval) {
       const amountHasNumericValue = /^\s*\d+(?:[.,]\d+)?(?:\s*(?:-|–|—|to)\s*\d+(?:[.,]\d+)?)?\s*(?:%|wt\s*%)?\s*$/i.test(line.amount.rawValue);
       warnings.add(amountHasNumericValue ? "unknown_unit_or_basis" : "invalid_amount_format");

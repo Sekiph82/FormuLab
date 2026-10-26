@@ -56,6 +56,7 @@ export type ReferenceFormulationIngredientExtractionWarning =
   | "ingredient_name_missing"
   | "ambiguous_ingredient_columns"
   | "ambiguous_table_headers"
+  | "summary_rows_excluded"
   | "quantity_semantics_q_s_requires_review"
   | "ocr_ingredient_rows_require_review";
 
@@ -139,6 +140,15 @@ export function extractReferenceFormulationIngredientLines(input: {
     block.rows.slice(candidate.headerRowIndex + 1).forEach((row, rowOffset) => {
       if (row.every((cell) => !cell.trim())) return;
       const rowIndex = candidate.headerRowIndex + 1 + rowOffset;
+      const ingredientColumn = candidate.columns.ingredient;
+      const functionColumn = candidate.columns.function;
+      const label = ingredientColumn === undefined ? "" : (row[ingredientColumn] ?? "").normalize("NFKC").trim();
+      const functionLabel = functionColumn === undefined ? "" : (row[functionColumn] ?? "").trim();
+      const summaryLabel = /^(?:total|(?:viscosity|density|specific gravity|relative density|ph|appearance)(?:\s*\([^)]*\))?)$/i.test(label);
+      if (summaryLabel && (!functionLabel || /^[-–—]$/.test(functionLabel))) {
+        warnings.add("summary_rows_excluded");
+        return;
+      }
       const common = {
         candidate,
         sourceDocumentHash: source.sourcePdfSha256,

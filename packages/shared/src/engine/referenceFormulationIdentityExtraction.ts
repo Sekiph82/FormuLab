@@ -23,7 +23,7 @@ const identityEvidenceSchema = z.object({
 export const referenceFormulationIdentityCandidateSchema = z.object({
   field: fieldSchema,
   rawValue: z.string().trim().min(1).max(500),
-  extractionMethod: z.enum(["labeled_field", "semantic_heading"]),
+  extractionMethod: z.enum(["labeled_field", "semantic_heading", "embedded_formulation_code"]),
   evidence: z.array(identityEvidenceSchema).min(1),
   reviewRequired: z.literal(true),
 }).strict();
@@ -85,6 +85,14 @@ function semanticTitleHeading(text: string): boolean {
   return ["formulation title", "formulation name", "formula title", "formula name"].some((label) => normalizeLabel(label) === normalized);
 }
 
+function embeddedFormulationIdentity(text: string): { title: string; code: string } | undefined {
+  const match = text.trim().match(/^(?<title>.+?)\s+(?<code>[A-Z]{1,8}\/[A-Z]{1,8}\/\d{1,4})$/i);
+  if (!match?.groups) return undefined;
+  const title = match.groups.title!.trim();
+  if (!isSafeSemanticTitleValue(title)) return undefined;
+  return { title, code: match.groups.code! };
+}
+
 function isSafeSemanticTitleValue(text: string): boolean {
   const value = text.trim();
   return value.length > 2 && !labeledField(value) && !/^\d+(?:\.\d+)*$/.test(value);
@@ -109,7 +117,7 @@ export function extractReferenceFormulationIdentity(input: {
     parserVersion: REFERENCE_FORMULATION_IDENTITY_PARSER_VERSION,
   });
   const candidates: ReferenceFormulationIdentityCandidate[] = [];
-  const addCandidate = (field: ReferenceFormulationIdentityField, rawValue: string, pageNumber: number, block: z.infer<typeof referenceFormulationLayoutInputSchema>["pages"][number]["blocks"][number], extractionMethod: "labeled_field" | "semantic_heading") => {
+  const addCandidate = (field: ReferenceFormulationIdentityField, rawValue: string, pageNumber: number, block: z.infer<typeof referenceFormulationLayoutInputSchema>["pages"][number]["blocks"][number], extractionMethod: "labeled_field" | "semantic_heading" | "embedded_formulation_code") => {
     if (!rawValue.trim()) return;
     candidates.push(referenceFormulationIdentityCandidateSchema.parse({
       field,
@@ -134,6 +142,11 @@ export function extractReferenceFormulationIdentity(input: {
       if (block.type === "table") return;
       const labeled = labeledField(block.text);
       if (labeled) addCandidate(labeled.field, labeled.value, page.pageNumber, block, "labeled_field");
+      const embedded = embeddedFormulationIdentity(block.text);
+      if (embedded) {
+        addCandidate("formulation_title", embedded.title, page.pageNumber, block, "embedded_formulation_code");
+        addCandidate("formulation_code", embedded.code, page.pageNumber, block, "embedded_formulation_code");
+      }
       if (block.type === "heading" && semanticTitleHeading(block.text)) {
         const following = ordered[index + 1];
         if (following?.type === "text" && isSafeSemanticTitleValue(following.text)) {

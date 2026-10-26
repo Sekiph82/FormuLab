@@ -61,7 +61,7 @@ function normalizeLabel(value: string): string {
 function propertyForLabel(label: string): ReferenceFormulationTargetCandidate["field"] | undefined {
   const normalized = normalizeLabel(label);
   if (/^(?:ph|ph value|target ph)$/.test(normalized)) return "ph";
-  if (/^(?:viscosity|viscosity at|target viscosity)$/.test(normalized)) return "viscosity";
+  if (/^(?:viscosity|viscosity at|target viscosity|viscosity cp|viscosity cps)$/.test(normalized)) return "viscosity";
   if (/^(?:density|specific gravity|relative density|target density)$/.test(normalized)) return "density";
   if (/^(?:appearance|aspect|visual appearance|target appearance)$/.test(normalized)) return "appearance";
   if (/^(?:property|characteristic|result|target|typical result)$/.test(normalized)) return "other";
@@ -181,6 +181,32 @@ export function extractReferenceFormulationTargets(input: {
       if (inKnownNonTargetSection && !inTargetResultSection) continue;
 
       const headerRows = block.rows.slice(0, Math.min(3, block.rows.length));
+      const ingredientTableHeader = headerRows.findIndex((row) => row.some((label) =>
+        /^(?:ingredient|ingredients|ingredient inci name|raw material|raw materials|trade name|commercial product|material|amount|quantity|dosage|phase|function|functionality)$/i.test(normalizeLabel(label)),
+      ));
+      if (ingredientTableHeader >= 0) {
+        for (let offset = ingredientTableHeader + 1; offset < block.rows.length; offset += 1) {
+          const row = block.rows[offset]!;
+          const label = row[0]?.trim() ?? "";
+          const field = propertyForLabel(label);
+          if (!field) continue;
+          let valueIndex = -1;
+          for (let index = row.length - 1; index > 0; index -= 1) {
+            if (row[index]!.trim() && !/^[-–—]$/.test(row[index]!.trim())) {
+              valueIndex = index;
+              break;
+            }
+          }
+          if (valueIndex < 0 || valueIndex === 0) continue;
+          addCandidate({
+            field, label, value: row[valueIndex]!, pageNumber: page.pageNumber, blockIndex: block.blockIndex,
+            rowIndex: offset, cellIndex: valueIndex, sourceKind: block.source,
+            ...(block.confidence !== undefined ? { confidence: block.confidence } : {}),
+            ...(block.position ? { position: block.position } : {}), context: "Ingredient table summary row",
+          });
+        }
+        continue;
+      }
       const mapped = headerRows.flatMap((row, rowIndex) => row.flatMap((label, cellIndex) => {
         const field = propertyForLabel(label);
         return field ? [{ rowIndex, cellIndex, field, label }] : [];
@@ -191,7 +217,7 @@ export function extractReferenceFormulationTargets(input: {
         continue;
       }
       const ingredientLikeHeader = headerRows.some((row) => row.some((label) =>
-        /^(?:ingredient|ingredients|raw material|raw materials|trade name|material|amount|quantity|dosage|phase|function)$/i.test(normalizeLabel(label)),
+        /^(?:ingredient|ingredients|ingredient inci name|raw material|raw materials|trade name|material|amount|quantity|dosage|phase|function|functionality)$/i.test(normalizeLabel(label)),
       ));
       if (!inTargetResultSection && ingredientLikeHeader) continue;
       const processLikeHeader = headerRows.some((row) => row.some((label) =>
