@@ -23,6 +23,7 @@ mod identity;
 mod compute;
 mod connector_sqlite;
 mod credential_store;
+mod network_admission;
 mod jupyter;
 mod kernel;
 mod large_file;

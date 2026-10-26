@@ -2,6 +2,9 @@ import { z } from "zod";
 import { supplierDocumentCapabilitiesSchema } from "./connector";
 
 const registryIdSchema = z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/);
+const declaredHostnameSchema = z.string().trim().min(1).max(253)
+  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i)
+  .refine((host) => host.includes(".") && host.toLowerCase() !== "localhost" && !/^\d+(?:\.\d+){3}$/.test(host), "Declared host must be a DNS hostname, not an IP literal or localhost.");
 
 /** Supplier is the commercial organization. A provider adapter and its
  *  access surfaces are separate records because one supplier can expose
@@ -35,10 +38,23 @@ export const supplierSurfaceProfileSchema = z.object({
   providerId: registryIdSchema,
   displayName: z.string().trim().min(1),
   kind: z.enum(SUPPLIER_SURFACE_KINDS),
+  /** Exact DNS hosts the adapter is authorized to contact. Wildcards and IP
+   *  literals are rejected by the schema; an empty/omitted list means the
+   *  surface is not eligible for automated network access. */
+  declaredHosts: z.array(declaredHostnameSchema).optional(),
   /** Carries explicit access mode, coverage scope, supported document
    *  operations, pagination and limitations from the connector contract. */
   capabilities: supplierDocumentCapabilitiesSchema,
-}).strict();
+}).strict().superRefine((surface, context) => {
+  const seen = new Set<string>();
+  (surface.declaredHosts ?? []).forEach((host, index) => {
+    const normalized = host.toLowerCase();
+    if (seen.has(normalized)) {
+      context.addIssue({ code: "custom", path: ["declaredHosts", index], message: `Duplicate declared host ${host}.` });
+    }
+    seen.add(normalized);
+  });
+});
 export type SupplierSurfaceProfile = z.infer<typeof supplierSurfaceProfileSchema>;
 
 export const supplierProviderRegistrySchema = z.object({

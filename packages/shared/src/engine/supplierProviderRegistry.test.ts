@@ -64,4 +64,16 @@ describe("supplier provider and surface registry — V01-01.002", () => {
       providers: [{ ...definition.providers[0], apiKey: "do-not-store" }],
     } as unknown as SupplierProviderRegistryDefinition)).toThrow();
   });
+
+  it("admits only explicit exact DNS host declarations for provider surfaces", () => {
+    const surface = { ...definition.surfaces[0], declaredHosts: ["docs.example.com", "cdn.example.com"] };
+    expect(createSupplierProviderRegistry({ ...definition, surfaces: [surface, definition.surfaces[1]] })
+      .getSurface("example-public")?.declaredHosts).toEqual(["docs.example.com", "cdn.example.com"]);
+    for (const declaredHosts of [["*.example.com"], ["127.0.0.1"], ["localhost"], ["docs.example.com", "DOCS.EXAMPLE.COM"]]) {
+      expect(() => createSupplierProviderRegistry({
+        ...definition,
+        surfaces: [{ ...surface, declaredHosts }, definition.surfaces[1]],
+      })).toThrow();
+    }
+  });
 });
