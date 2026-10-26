@@ -596,6 +596,7 @@ export * from "./engine/clariantSupplierAdapter";
 export * from "./engine/evonikSupplierAdapter";
 export * from "./engine/crodaSupplierAdapter";
 export * from "./engine/nouryonPublicSdsAdapter";
+export * from "./engine/myNouryonAdapter";
 export * from "./engine/xmlParser";
 export * from "./engine/fileConnector";
 export * from "./engine/databaseConnector";
