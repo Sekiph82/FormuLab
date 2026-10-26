@@ -50,6 +50,8 @@ export const supplierDocumentAcquisitionSchema = z.object({
   publicationDate: z.string().trim().min(1).optional(),
   /** Previous immutable acquisition in this product/document revision chain. */
   supersedesCode: z.string().trim().min(1).optional(),
+  /** Deterministic exact-source retry identity; absent on pre-V01-01.010 records. */
+  idempotencyKey: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional(),
   originalFilename: z.string().min(1).max(160).refine((value) =>
     !/[\\/:\u0000-\u001f\u007f]/.test(value)
       && !value.endsWith(".")
@@ -70,7 +72,7 @@ export const supplierDocumentAcquisitionSchema = z.object({
 });
 
 export type SupplierDocumentAcquisition = z.infer<typeof supplierDocumentAcquisitionSchema>;
-export type NewSupplierDocumentAcquisition = Omit<SupplierDocumentAcquisition, "schemaVersion" | "code" | "acquiredAt" | "createdAt">;
+export type NewSupplierDocumentAcquisition = Omit<SupplierDocumentAcquisition, "schemaVersion" | "code" | "acquiredAt" | "createdAt" | "idempotencyKey">;
 
 type SupplierDocumentRevisionIdentity = Pick<
   SupplierDocumentAcquisition,

@@ -50,6 +50,16 @@ describe("supplier document acquisition persistence — V01-01.006", () => {
     expect(result).not.toHaveProperty("extractedFields");
   });
 
+  it("returns the existing immutable receipt on an exact retry without appending an audit row", async () => {
+    const first = await recordSupplierDocumentAcquisition(acquisition);
+    listRecordsMock.mockResolvedValue([first]);
+
+    const retry = await recordSupplierDocumentAcquisition(acquisition);
+
+    expect(retry).toEqual(first);
+    expect(upsertRecordsMock).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects unsafe source URLs before persistence", async () => {
     await expect(recordSupplierDocumentAcquisition({
       ...acquisition,
@@ -104,6 +114,7 @@ describe("supplier document acquisition persistence — V01-01.006", () => {
       ...acquisition,
       schemaVersion: "1.0",
       code: "supplierdoc-same-bytes",
+      sourceUrl: "https://docs.example.com/sds/previous-source",
       sha256: "a".repeat(64),
       revisionDate: "2024-03-10",
       acquiredAt: "2024-03-11T00:00:00.000Z",
@@ -112,10 +123,12 @@ describe("supplier document acquisition persistence — V01-01.006", () => {
 
     const result = await recordSupplierDocumentAcquisition({
       ...acquisition,
+      sourceUrl: "https://docs.example.com/sds/alternate-source",
       revisionDate: "2025-04-12",
     });
 
     expect(result.sha256).toBe("a".repeat(64));
+    expect(result.code).not.toBe("supplierdoc-same-bytes");
     expect(result.supersedesCode).toBeUndefined();
   });
 

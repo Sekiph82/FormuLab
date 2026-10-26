@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   canTransitionSupplierAcquisitionJob,
   canTransitionSupplierAcquisitionItem,
+  advanceSupplierAcquisitionCheckpoint,
   supplierAcquisitionJobItemSchema,
   supplierAcquisitionJobSchema,
+  supplierAcquisitionCheckpointSchema,
   summarizeSupplierAcquisitionJobStatus,
   transitionSupplierAcquisitionJob,
   transitionSupplierAcquisitionJobItem,
@@ -30,6 +32,7 @@ const item = supplierAcquisitionJobItemSchema.parse({
   schemaVersion: "1.0",
   id: "acq-item-1",
   jobId: "acq-job-1",
+  idempotencyKey: `sha256:${"a".repeat(64)}`,
   kind: "supplier_document",
   documentType: "SDS",
   status: "queued",
@@ -65,5 +68,42 @@ describe("supplier acquisition job state machine", () => {
     expect(summarizeSupplierAcquisitionJobStatus(["acquired", "failed_item"])).toBe("completed_with_gaps");
     expect(summarizeSupplierAcquisitionJobStatus(["acquired", "acquired"])).toBe("completed");
     expect(summarizeSupplierAcquisitionJobStatus(["cancelled", "cancelled"])).toBe("cancelled");
+  });
+
+  it("advances safe scan checkpoints monotonically and accepts only opaque credential references", () => {
+    const firstCheckpoint = supplierAcquisitionCheckpointSchema.parse({
+      strategy: "page_number",
+      sequence: 1,
+      pageNumber: 1,
+      checkpointedAt: now,
+    });
+    const first = advanceSupplierAcquisitionCheckpoint(job, firstCheckpoint, now);
+    const secondCheckpoint = supplierAcquisitionCheckpointSchema.parse({
+      strategy: "page_number",
+      sequence: 2,
+      pageNumber: 2,
+      checkpointedAt: now,
+      lastCompletedItemId: "acq-item-1",
+    });
+    const second = advanceSupplierAcquisitionCheckpoint(first, secondCheckpoint, now);
+
+    expect(second.checkpoint?.pageNumber).toBe(2);
+    expect(advanceSupplierAcquisitionCheckpoint(second, secondCheckpoint, now)).toBe(second);
+    expect(() => advanceSupplierAcquisitionCheckpoint(second, { ...firstCheckpoint, sequence: 1 }, now))
+      .toThrow(/cannot move backwards/);
+    expect(() => advanceSupplierAcquisitionCheckpoint(second, { ...secondCheckpoint, sequence: 3, pageNumber: 1 }, now))
+      .toThrow(/page checkpoint cannot move backwards/);
+    expect(() => supplierAcquisitionCheckpointSchema.parse({
+      strategy: "secure_continuation_ref",
+      sequence: 1,
+      continuationRef: "supplier-secret-cursor",
+      checkpointedAt: now,
+    })).toThrow();
+    expect(supplierAcquisitionCheckpointSchema.parse({
+      strategy: "secure_continuation_ref",
+      sequence: 1,
+      continuationRef: `formulab-credential:v1:${"b".repeat(32)}`,
+      checkpointedAt: now,
+    }).continuationRef).toContain("formulab-credential:v1:");
   });
 });

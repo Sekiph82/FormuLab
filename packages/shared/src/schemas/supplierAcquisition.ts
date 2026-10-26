@@ -29,6 +29,35 @@ export const SUPPLIER_ACQUISITION_ITEM_STATUSES = [
 export type SupplierAcquisitionItemStatus = (typeof SUPPLIER_ACQUISITION_ITEM_STATUSES)[number];
 
 export const SUPPLIER_ACQUISITION_ITEM_KINDS = ["catalog_product", "supplier_document"] as const;
+const CREDENTIAL_REFERENCE = /^formulab-credential:v1:[a-f0-9]{32}$/;
+
+export const supplierAcquisitionCheckpointSchema = z.object({
+  strategy: z.enum(["page_number", "offset", "secure_continuation_ref", "manual_restart"]),
+  sequence: z.number().int().nonnegative(),
+  pageNumber: z.number().int().positive().optional(),
+  offset: z.number().int().nonnegative().optional(),
+  /** Only an OS credential-manager reference is allowed; never a raw supplier cursor/token. */
+  continuationRef: z.string().regex(CREDENTIAL_REFERENCE).optional(),
+  lastCompletedItemId: z.string().trim().min(1).optional(),
+  checkpointedAt: z.string().datetime({ offset: true }),
+}).strict().superRefine((checkpoint, context) => {
+  const hasPage = checkpoint.pageNumber !== undefined;
+  const hasOffset = checkpoint.offset !== undefined;
+  const hasContinuation = checkpoint.continuationRef !== undefined;
+  if (checkpoint.strategy === "page_number" && (!hasPage || hasOffset || hasContinuation)) {
+    context.addIssue({ code: "custom", path: ["pageNumber"], message: "Page checkpoints require only a page number." });
+  }
+  if (checkpoint.strategy === "offset" && (!hasOffset || hasPage || hasContinuation)) {
+    context.addIssue({ code: "custom", path: ["offset"], message: "Offset checkpoints require only an offset." });
+  }
+  if (checkpoint.strategy === "secure_continuation_ref" && (!hasContinuation || hasPage || hasOffset)) {
+    context.addIssue({ code: "custom", path: ["continuationRef"], message: "Cursor checkpoints require only an OS credential reference." });
+  }
+  if (checkpoint.strategy === "manual_restart" && (hasPage || hasOffset || hasContinuation)) {
+    context.addIssue({ code: "custom", path: ["strategy"], message: "Manual restart checkpoints cannot contain provider cursor data." });
+  }
+});
+export type SupplierAcquisitionCheckpoint = z.infer<typeof supplierAcquisitionCheckpointSchema>;
 
 /** Mutable operational state only; document facts live in immutable acquisition receipts. */
 export const supplierAcquisitionJobSchema = z.object({
@@ -45,6 +74,7 @@ export const supplierAcquisitionJobSchema = z.object({
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
   completedAt: z.string().datetime({ offset: true }).optional(),
+  checkpoint: supplierAcquisitionCheckpointSchema.optional(),
 }).strict().superRefine((job, context) => {
   if (job.acquiredItems + job.failedItems > job.totalItems) {
     context.addIssue({ code: "custom", path: ["totalItems"], message: "Acquisition result counts cannot exceed total items." });
@@ -60,10 +90,14 @@ export const supplierAcquisitionJobItemSchema = z.object({
   schemaVersion: z.literal("1.0"),
   id: z.string().trim().min(1),
   jobId: z.string().trim().min(1),
+  /** Stable within a job and derived from source identity, never from mutable status. */
+  idempotencyKey: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   kind: z.enum(SUPPLIER_ACQUISITION_ITEM_KINDS),
   status: z.enum(SUPPLIER_ACQUISITION_ITEM_STATUSES),
   sourceProductId: z.string().trim().min(1).optional(),
   supplierItemCode: z.string().trim().min(1).optional(),
+  sourceProductTradeName: z.string().trim().min(1).optional(),
+  sourceProductGrade: z.string().trim().min(1).optional(),
   documentType: z.enum(["SDS", "TDS", "COA", "CERTIFICATE", "OTHER"]).optional(),
   acquisitionCode: z.string().trim().min(1).optional(),
   /** Closed diagnostic vocabulary; never store raw server responses or URLs here. */
@@ -85,6 +119,9 @@ export const supplierAcquisitionJobItemSchema = z.object({
   if (item.kind === "supplier_document" && !item.documentType) {
     context.addIssue({ code: "custom", path: ["documentType"], message: "Supplier document items require a document type." });
   }
+  if (!item.sourceProductId && !item.supplierItemCode && !(item.sourceProductTradeName && item.sourceProductGrade)) {
+    context.addIssue({ code: "custom", path: ["supplierItemCode"], message: "Acquisition items require a stable source-product identity." });
+  }
   if (item.status === "failed_item" && !item.failureCode) {
     context.addIssue({ code: "custom", path: ["failureCode"], message: "Failed items require a bounded failure code." });
   }
@@ -95,11 +132,11 @@ export const supplierAcquisitionJobItemSchema = z.object({
 export type SupplierAcquisitionJobItem = z.infer<typeof supplierAcquisitionJobItemSchema>;
 
 const JOB_TRANSITIONS: Record<SupplierAcquisitionJobStatus, readonly SupplierAcquisitionJobStatus[]> = {
-  queued: ["discovery", "cancelled", "failed"],
-  discovery: ["downloading", "review_ready", "completed_with_gaps", "cancelled", "failed"],
-  downloading: ["parsing", "review_ready", "completed_with_gaps", "cancelled", "failed"],
-  parsing: ["review_ready", "completed", "completed_with_gaps", "cancelled", "failed"],
-  review_ready: ["completed", "completed_with_gaps", "cancelled", "failed"],
+  queued: ["discovery", "resumed", "cancelled", "failed"],
+  discovery: ["downloading", "review_ready", "completed_with_gaps", "resumed", "cancelled", "failed"],
+  downloading: ["parsing", "review_ready", "completed_with_gaps", "resumed", "cancelled", "failed"],
+  parsing: ["review_ready", "completed", "completed_with_gaps", "resumed", "cancelled", "failed"],
+  review_ready: ["completed", "completed_with_gaps", "resumed", "cancelled", "failed"],
   completed: [],
   completed_with_gaps: ["resumed"],
   failed: ["resumed"],
@@ -108,11 +145,11 @@ const JOB_TRANSITIONS: Record<SupplierAcquisitionJobStatus, readonly SupplierAcq
 };
 
 const ITEM_TRANSITIONS: Record<SupplierAcquisitionItemStatus, readonly SupplierAcquisitionItemStatus[]> = {
-  queued: ["discovery", "downloading", "skipped", "cancelled"],
-  discovery: ["downloading", "review_ready", "skipped", "failed_item", "cancelled"],
-  downloading: ["parsing", "failed_item", "cancelled"],
-  parsing: ["review_ready", "acquired", "failed_item", "cancelled"],
-  review_ready: ["acquired", "failed_item", "cancelled"],
+  queued: ["discovery", "downloading", "resumed", "skipped", "cancelled"],
+  discovery: ["downloading", "review_ready", "resumed", "skipped", "failed_item", "cancelled"],
+  downloading: ["parsing", "resumed", "failed_item", "cancelled"],
+  parsing: ["review_ready", "resumed", "acquired", "failed_item", "cancelled"],
+  review_ready: ["resumed", "acquired", "failed_item", "cancelled"],
   acquired: [],
   skipped: ["resumed"],
   failed_item: ["resumed"],
@@ -177,4 +214,30 @@ export function summarizeSupplierAcquisitionJobStatus(
   if (itemStatuses.every((status) => status === "cancelled")) return "cancelled";
   if (itemStatuses.every((status) => status === "acquired")) return "completed";
   return "completed_with_gaps";
+}
+
+/** Persist monotonically advancing page/offset checkpoints without accepting raw provider cursors. */
+export function advanceSupplierAcquisitionCheckpoint(
+  job: SupplierAcquisitionJob,
+  checkpointInput: SupplierAcquisitionCheckpoint,
+  updatedAt: string,
+): SupplierAcquisitionJob {
+  const checkpoint = supplierAcquisitionCheckpointSchema.parse(checkpointInput);
+  const previous = job.checkpoint;
+  if (previous) {
+    if (checkpoint.sequence < previous.sequence) throw new Error("Supplier acquisition checkpoint cannot move backwards.");
+    if (checkpoint.sequence === previous.sequence) {
+      if (JSON.stringify(checkpoint) === JSON.stringify(previous)) return job;
+      throw new Error("Supplier acquisition checkpoint sequence is already used.");
+    }
+    if (checkpoint.strategy === previous.strategy && checkpoint.strategy === "page_number"
+      && checkpoint.pageNumber! < previous.pageNumber!) {
+      throw new Error("Supplier acquisition page checkpoint cannot move backwards.");
+    }
+    if (checkpoint.strategy === previous.strategy && checkpoint.strategy === "offset"
+      && checkpoint.offset! < previous.offset!) {
+      throw new Error("Supplier acquisition offset checkpoint cannot move backwards.");
+    }
+  }
+  return supplierAcquisitionJobSchema.parse({ ...job, checkpoint, updatedAt });
 }
