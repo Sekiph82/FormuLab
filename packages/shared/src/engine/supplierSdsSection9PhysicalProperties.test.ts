@@ -73,6 +73,22 @@ describe("supplier SDS Section 9 physical-property extraction", () => {
     expect(result.candidates).toMatchObject([{ field: "density_or_relative_density", rawValue: "1.04" }]);
   });
 
+  it("warns that a source-stated typical physical value is not a specification", () => {
+    const lines = [
+      line(1, 1, "SECTION 9: Physical and chemical properties"),
+      line(1, 2, "Density: Typical value 0.951 g/cm³ at 25 °C"),
+      line(1, 3, "SECTION 10: Stability and reactivity"),
+    ];
+    const result = extractSupplierSdsSection9PhysicalProperties({ sourceDocumentHash: HASH, lines });
+    expect(result.candidates[0]?.measurementContext).toMatchObject({
+      originalText: "Typical value 0.951 g/cm³ at 25 °C",
+      claimKind: "typical",
+      deliveredFormBasis: "unspecified",
+      temperature: { value: 25, unit: "°C" },
+    });
+    expect(result.warnings).toContain("section_9_typical_value_not_specification");
+  });
+
   it("does not read beyond the explicit Section 10 boundary or infer missing values", () => {
     const complete = [
       line(1, 1, "SECTION 9: Physical and chemical properties"),

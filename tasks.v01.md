@@ -104,6 +104,7 @@ Codex must execute the tasks below in the exact order listed.
 - Current task: V01-03.014 - Universal SDS extraction acceptance matrix
 - Current status: IN PROGRESS
 - Next task: V01-04.001 - Implement commercial-product identity schema
+- Acceptance note: V01-03.014 currently has authored synthetic supplier-style conformance cases; no vendor SDS PDF fixtures are present in this checkout. Do not claim vendor-PDF acceptance until rights-cleared source fixtures are available.
 - Required actor: CODEX
 - Branch: V01
 

@@ -54,6 +54,7 @@ export type SupplierSdsSection9Warning =
   | "conflicting_section_9_candidates"
   | "section_9_ocr_requires_review"
   | "section_9_provenance_requires_review"
+  | "section_9_typical_value_not_specification"
   | "human_review_required";
 
 export interface SupplierSdsSection9Result {
@@ -209,6 +210,7 @@ export function extractSupplierSdsSection9PhysicalProperties(input: {
   if ([...valuesByField.values()].some((values) => values.size > 1)) warnings.push("conflicting_section_9_candidates");
   if (candidates.some((item) => item.evidence.some((source) => source.source === "ocr"))) warnings.push("section_9_ocr_requires_review");
   if (candidates.some((item) => item.evidence.some((source) => source.source === "unknown" || source.source === "mixed"))) warnings.push("section_9_provenance_requires_review");
+  if (candidates.some((item) => item.measurementContext.claimKind === "typical")) warnings.push("section_9_typical_value_not_specification");
   if (candidates.length > 0) warnings.push("human_review_required");
   return { ...base, candidates, warnings };
 }
