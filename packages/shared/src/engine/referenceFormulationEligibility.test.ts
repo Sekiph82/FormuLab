@@ -16,19 +16,22 @@ import type { ReferenceFormulationReview } from "../schemas/referenceFormulation
 import type { ReferenceFormulationRights } from "../schemas/referenceFormulationSource";
 import type { ReferenceFormulationRecord } from "../schemas/referenceFormulationRecord";
 import { filterEligibleReferenceFormulationCorpus } from "./referenceFormulationEligibility";
+import { calculateReferenceFormulationIngredientFrequencyPriors } from "./referenceFormulationIngredientFrequencyPriors";
 
 const HASH = "a".repeat(64);
 const AS_OF = "2026-10-26T12:00:00.000Z";
 
 function query(input: {
-  sourceRecordId?: string; normalizationId?: string; normalizationVersion?: number;
+  sourceRecordId?: string; normalizationId?: string; normalizationVersion?: number; supplierId?: string; chemicalId?: string;
   familyStatus?: "unresolved" | "proposed" | "ambiguous"; chemistryStatus?: "unresolved" | "proposed" | "ambiguous";
 } = {}): ReferenceFormulationQueryRecord {
   const sourceRecordId = input.sourceRecordId ?? "source-1";
+  const supplierId = input.supplierId ?? "supplier-1";
+  const chemicalId = input.chemicalId ?? "chemical-1";
   const normalizationId = input.normalizationId ?? "normalization-1";
   const familyStatus = input.familyStatus ?? "proposed";
   const chemistryStatus = input.chemistryStatus ?? "proposed";
-  const source = sourceRecord(sourceRecordId);
+  const source = sourceRecord(sourceRecordId, allowedRights, true, supplierId);
   const sourceLine = source.ingredientLines[0]!;
   const sourceLineId = sourceLine.id;
   const familyCandidate = source.identityCandidates.find((candidate) => candidate.field === "product_family");
@@ -36,7 +39,7 @@ function query(input: {
     schemaVersion: "formulab-reference-formulation-query-v1", recordKind: "reference_formulation_query",
     id: `query:${sourceRecordId}:${normalizationId}`, sourceRecordId, normalizationId,
     normalizationVersion: input.normalizationVersion ?? 1, sourceDocumentHash: HASH,
-    supplierId: "supplier-1", providerId: "provider-1", surfaceId: "surface-1",
+    supplierId, providerId: "provider-1", surfaceId: "surface-1",
     supplierProduct: { tradeName: "Supplier Blend" }, formulationTitle: "Hand Dishwash Formula",
     productFamily: {
       status: familyStatus,
@@ -58,7 +61,7 @@ function query(input: {
       commercialProducts: { status: "unresolved", candidateIds: [], reviewRequired: true },
       canonicalChemistry: {
         status: chemistryStatus,
-        candidateIds: chemistryStatus === "unresolved" ? [] : chemistryStatus === "ambiguous" ? ["chemical-1", "chemical-2"] : ["chemical-1"],
+        candidateIds: chemistryStatus === "unresolved" ? [] : chemistryStatus === "ambiguous" ? [chemicalId, "chemical-2"] : [chemicalId],
         reviewRequired: true,
       },
       supplierFunction: { status: "not_stated", evidenceRefs: [] },
@@ -96,8 +99,8 @@ function acceptedReviews(record = query()): ReferenceFormulationReview[] {
     review({ sourceRecordId: record.sourceRecordId, targetType: "ingredient", targetKey: `ingredient:${lineId}:ingredientName`, fieldPath: `ingredientLines[${lineId}].ingredientName`, sourceValue: "Surfactant A" }),
     review({
       sourceRecordId: record.sourceRecordId,
-      targetType: "ingredient", targetKey: `normalization:${record.normalizationId}:line:${lineId}:canonicalChemistry:chemical-1`,
-      fieldPath: `normalizations[${record.normalizationId}].lines[${lineId}].canonicalChemistry`, sourceValue: "chemical-1",
+      targetType: "ingredient", targetKey: `normalization:${record.normalizationId}:line:${lineId}:canonicalChemistry:${record.lines[0]!.canonicalChemistry.candidateIds[0]}`,
+      fieldPath: `normalizations[${record.normalizationId}].lines[${lineId}].canonicalChemistry`, sourceValue: record.lines[0]!.canonicalChemistry.candidateIds[0]!,
     }),
   ];
 }
@@ -108,9 +111,9 @@ const allowedRights: ReferenceFormulationRights = {
     retentionPolicy: { status: "retain_until_revoked", evidenceRefs: ["owner:retention"] },
 };
 
-function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRights, includeFamily = true): ReferenceFormulationRecord {
+function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRights, includeFamily = true, supplierId = "supplier-1"): ReferenceFormulationRecord {
   const acquisition = supplierDocumentAcquisitionSchema.parse({
-    schemaVersion: "1.0", code: `acquisition:${id}`, supplierId: "supplier-1", providerId: "provider-1", surfaceId: "surface-1",
+    schemaVersion: "1.0", code: `acquisition:${id}`, supplierId, providerId: "provider-1", surfaceId: "surface-1",
     documentType: "FORMULATION", acquisitionMethod: "manual_assisted",
     sourceFileSelection: { selectionId: `selection:${id}`, originalFilename: `${id}.pdf`, sourceFileSha256: HASH, selectedAt: AS_OF, selectedBy: "owner-1" },
     sourceProduct: { tradeName: "Supplier Blend" }, market: "EU", language: "en", originalFilename: `${id}.pdf`, mimeType: "application/pdf",
@@ -144,7 +147,7 @@ const allowed = (records: ReferenceFormulationQueryRecord[], reviews: ReferenceF
   queryRecords: records, reviews,
   sourceRecords: [...new Set(records.map((record) => record.sourceRecordId))].map((id) => {
     const record = records.find((item) => item.sourceRecordId === id)!;
-    return sourceRecord(id, allowedRights, record.productFamily.status !== "unresolved");
+    return sourceRecord(id, allowedRights, record.productFamily.status !== "unresolved", record.supplierId);
   }),
   asOf: AS_OF,
 });
@@ -224,13 +227,50 @@ describe("reference formulation corpus eligibility", () => {
 
   it("rejects query projections whose supplier or source-line identities were altered", () => {
     const wrongSupplier = query();
+    const wrongSupplierSource = sourceRecord(wrongSupplier.sourceRecordId);
     wrongSupplier.supplierId = "different-supplier";
-    expect(() => filterEligibleReferenceFormulationCorpus(allowed([wrongSupplier], acceptedReviews(wrongSupplier))))
+    expect(() => filterEligibleReferenceFormulationCorpus({
+      ...allowed([wrongSupplier], acceptedReviews(wrongSupplier)), sourceRecords: [wrongSupplierSource],
+    }))
       .toThrow(/supplier metadata must match/u);
 
     const wrongLine = query({ sourceRecordId: "source-line-mismatch" });
+    const wrongLineSource = sourceRecord(wrongLine.sourceRecordId);
     wrongLine.lines[0]!.sourceIngredientName = "Different ingredient";
-    expect(() => filterEligibleReferenceFormulationCorpus(allowed([wrongLine], acceptedReviews(wrongLine))))
+    expect(() => filterEligibleReferenceFormulationCorpus({
+      ...allowed([wrongLine], acceptedReviews(wrongLine)), sourceRecords: [wrongLineSource],
+    }))
       .toThrow(/line identity fields must exactly match/u);
+  });
+
+  it("computes formula-presence frequency and supplier mix only from eligible latest snapshots", () => {
+    const oldA = query({ sourceRecordId: "formula-a", normalizationId: "normalization-a1", normalizationVersion: 1, supplierId: "supplier-a", chemicalId: "chem-a" });
+    const currentA = query({ sourceRecordId: "formula-a", normalizationId: "normalization-a2", normalizationVersion: 2, supplierId: "supplier-a", chemicalId: "chem-a" });
+    const formulaB = query({ sourceRecordId: "formula-b", supplierId: "supplier-a", chemicalId: "chem-a" });
+    const formulaC = query({ sourceRecordId: "formula-c", supplierId: "supplier-b", chemicalId: "chem-b" });
+    const unresolved = query({ sourceRecordId: "formula-d", supplierId: "supplier-b", chemistryStatus: "unresolved" });
+    const reviews = [...acceptedReviews(currentA), ...acceptedReviews(formulaB), ...acceptedReviews(formulaC)];
+    const result = calculateReferenceFormulationIngredientFrequencyPriors({
+      ...allowed([oldA, currentA, formulaB, formulaC, unresolved], reviews),
+    });
+
+    expect(result.eligibleFormulaCount).toBe(3);
+    expect(result.excludedFormulaCount).toBe(1);
+    expect(result.eligibilityDecisions).toHaveLength(4);
+    expect(result.productFamilies).toHaveLength(1);
+    expect(result.productFamilies[0]).toMatchObject({
+      productFamilyKey: "hand dishwash", eligibleFormulaCount: 3, supplierCount: 2,
+      suppliers: [
+        { supplierId: "supplier-a", formulaCount: 2, familyShare: 2 / 3 },
+        { supplierId: "supplier-b", formulaCount: 1, familyShare: 1 / 3 },
+      ],
+      ingredients: [
+        { canonicalChemistryId: "chem-a", formulaCount: 2, frequency: 2 / 3, sourceRecordIds: ["formula-a", "formula-b"] },
+        { canonicalChemistryId: "chem-b", formulaCount: 1, frequency: 1 / 3, sourceRecordIds: ["formula-c"] },
+      ],
+    });
+    expect(calculateReferenceFormulationIngredientFrequencyPriors({
+      ...allowed([unresolved, formulaC, formulaB, currentA, oldA], reviews),
+    })).toEqual(result);
   });
 });
