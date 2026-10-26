@@ -127,6 +127,13 @@ function statementCandidate(field: "hazard_statement" | "precautionary_statement
   };
 }
 
+function isHazardStatementBoundary(line: SupplierSdsSectionLine): boolean {
+  const normalized = normalize(line.text);
+  return SIGNAL_WORDS.has(normalized)
+    || [...line.text.matchAll(PICTOGRAM_CODE)].length > 0
+    || /^(?:signal word|signalwort|mention d['’]avertissement|palabra de advertencia|avvertenza|signaalwoord|hasło ostrzegawcze|palavra-sinal|uyarı kelimesi|işaret kelimesi)\s*[:：]?$/i.test(line.text.trim());
+}
+
 function statementContinuation(lines: SupplierSdsSectionLine[], startIndex: number): SupplierSdsSectionLine[] {
   const collected = [lines[startIndex]!];
   for (let index = startIndex + 1; index < lines.length; index += 1) {
@@ -134,7 +141,8 @@ function statementContinuation(lines: SupplierSdsSectionLine[], startIndex: numb
     const previous = lines[index - 1]!;
     if (line.pageNumber !== previous.pageNumber || line.lineNumber !== previous.lineNumber + 1 || !line.text.trim()
       || parseLabeled(line) || /^\s*2\.\d+(?:\s|[.):\-–—]|$)/u.test(line.text)
-      || [...line.text.matchAll(HAZARD_CODE)].length > 0 || [...line.text.matchAll(PRECAUTION_CODE)].length > 0) break;
+      || [...line.text.matchAll(HAZARD_CODE)].length > 0 || [...line.text.matchAll(PRECAUTION_CODE)].length > 0
+      || isHazardStatementBoundary(line)) break;
     collected.push(line);
   }
   return collected;
