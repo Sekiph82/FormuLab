@@ -2611,36 +2611,21 @@
       "openInStability": "Stabiliteyi Aç",
       "exportCsv": "Aday listesini dışa aktar",
       "evidence": {
-
         "feasibility": "Uygulanabilirlik",
-
         "safety": "Güvenlik",
-
         "regulatory": "Mevzuat",
-
         "acquisition": "Edinim",
-
         "diversity": "Çeşitlilik",
-
         "seed": "başlangıç",
-
         "estimatedMaterialCost": "Tahmini malzeme maliyeti",
-
         "formulaVersion": "Formül sürümü",
-
         "design": "DOE tasarımı",
-
         "analysisProvenance": "DOE analiz kaynağı",
-
         "modelVersionUnavailable": "FVL-07 model sürümü geçerli DOE analiz sözleşmesinde bulunmuyor.",
-
         "uncertaintyUnavailable": "Tahmin belirsizliği geçerli DOE tahmin sözleşmesinde bulunmuyor.",
-
         "policyVersions": "Politika sürümleri",
-
         "unavailable": "KULLANILAMIYOR"
       },
-
       "noMaterialFactors": "Bu adayda formül-malzeme faktörü yok — süreç parametresi ayarları hiçbir taslak satırına uygulanmadı. Elle uygulayın: {{settings}}"
     },
     "history": {
@@ -3045,15 +3030,30 @@
         "retry": "Öğeyi yeniden dene",
         "retrying": "İşaretleniyor…",
         "status": {
-          "queued": "Kuyrukta", "discovery": "Aranıyor", "downloading": "İndiriliyor", "parsing": "Ayrıştırılıyor",
-          "review_ready": "İncelemeye hazır", "completed": "Tamamlandı", "completed_with_gaps": "Eksiklerle tamamlandı",
-          "failed": "Başarısız", "cancelled": "İptal edildi", "resumed": "Sürdürülmek üzere işaretlendi", "acquired": "Edinildi",
-          "skipped": "Atlandı", "failed_item": "Başarısız"
+          "queued": "Kuyrukta",
+          "discovery": "Aranıyor",
+          "downloading": "İndiriliyor",
+          "parsing": "Ayrıştırılıyor",
+          "review_ready": "İncelemeye hazır",
+          "completed": "Tamamlandı",
+          "completed_with_gaps": "Eksiklerle tamamlandı",
+          "failed": "Başarısız",
+          "cancelled": "İptal edildi",
+          "resumed": "Sürdürülmek üzere işaretlendi",
+          "acquired": "Edinildi",
+          "skipped": "Atlandı",
+          "failed_item": "Başarısız"
         },
         "failure": {
-          "authorization_required": "Yetkilendirme gerekli", "not_found": "Bulunamadı", "unsupported_document": "Desteklenmeyen belge",
-          "invalid_document": "Geçersiz belge", "network_rejected": "Ağ isteği reddedildi", "timeout": "Zaman aşımı",
-          "storage_failed": "Depolama başarısız", "parser_failed": "Ayrıştırma başarısız", "unknown_failure": "Bilinmeyen hata"
+          "authorization_required": "Yetkilendirme gerekli",
+          "not_found": "Bulunamadı",
+          "unsupported_document": "Desteklenmeyen belge",
+          "invalid_document": "Geçersiz belge",
+          "network_rejected": "Ağ isteği reddedildi",
+          "timeout": "Zaman aşımı",
+          "storage_failed": "Depolama başarısız",
+          "parser_failed": "Ayrıştırma başarısız",
+          "unknown_failure": "Bilinmeyen hata"
         }
       },
       "sdsReview": {
@@ -3128,7 +3128,8 @@
         "mapping": "Eşleme Profilleri",
         "crosswalks": "Kimlik Eşleştirmeleri",
         "runs": "İçe Aktarma Çalıştırmaları",
-        "review": "Çakışmalar / İnceleme"
+        "review": "Çakışmalar / İnceleme",
+        "productResolver": "Ürün çözümleme"
       },
       "connections": {
         "empty": "Henüz hiçbir bağlantı yapılandırılmadı. Dış veri almaya başlamak için bir tane ekleyin.",
@@ -3427,6 +3428,52 @@
         "conflictRequiredActionText": "Yukarıdaki değerleri inceleyin, ardından yeniden hazırlamadan önce ilgili eşleme profilini, çapraz bağlantıyı veya kaynak verisini düzeltin. Bu araç asla otomatik birleştirme, zorla içe aktarma veya engelleyici bir çakışmayı atlama yapmaz.",
         "sourceMissingTargetCollection": "Önceki hedef koleksiyonu",
         "sourceMissingTargetRecordId": "Önceki hedef kayıt kimliği"
+      },
+      "productResolver": {
+        "title": "Ticari Ürün Çözümleyici",
+        "intro": "Tedarikçi ürün kimliğini ve SDS’de açıklanan bileşenleri inceleyin. Sınıflandırma ve aday gösterimleri yalnızca kanıta bağlı önerilerdir.",
+        "refresh": "Yenile",
+        "loading": "Ürün kayıtları yükleniyor…",
+        "loadError": "Ürün kayıtları yüklenemedi.",
+        "empty": "Edinilmiş SDS belgesi yok.",
+        "select": "Edinilmiş SDS",
+        "sourceProduct": "Tedarikçinin orijinal ürünü",
+        "tradeName": "Ticari ad",
+        "productCode": "Tedarikçi ürün kodu",
+        "grade": "Grade",
+        "supplierMarket": "Tedarikçi / pazar / dil",
+        "document": "Kaynak belge",
+        "commercialProductId": "Bağlı ticari ürün kimliği",
+        "noProductRecord": "Bağlı ürün kanıtı yok",
+        "noEvidence": "Bu SDS’ye bağlı kayıtlı Bölüm 1/3 kanıtı yok. Ürün tipi ve bileşen çözümlemesi kullanılamıyor.",
+        "productType": "Kanıta dayalı ürün tipi",
+        "reviewRequired": "İnceleme gerekli",
+        "typeReasons": "Deterministik kanıt gerekçeleri: {{reasons}}. Bu sınıflandırma bir öneridir ve incelenmelidir.",
+        "typeEvidenceExcerpt": "SDS Bölüm 3 kanıtı",
+        "components": "SDS’de açıklanan bileşenler",
+        "section3Limit": "SDS Bölüm 3 yalnızca bildirilmesi gereken tehlikeli bileşenleri listeleyebilir. Ticari formülün tamamı değildir; bir bileşenin listelenmemesi onun bulunmadığını kanıtlamaz.",
+        "noComponents": "Bu SDS kanıtında bileşen kaydı yok.",
+        "nameNotDisclosed": "Bileşen adı kaydedilmemiş",
+        "cas": "CAS",
+        "ec": "EC",
+        "materialNumber": "Tedarikçi malzeme numarası",
+        "concentration": "Belgede belirtilen konsantrasyon",
+        "canonicalCandidate": "Kanonik kimya adayı",
+        "canonicalCatalogUnavailable": "Değerlendirilmedi: projede aranabilir kalıcı bir kanonik kimyasal kataloğu yok. Hiçbir RawMaterial kaydı kanonik kimya olarak kullanılmıyor.",
+        "componentEvidenceExcerpt": "SDS Bölüm 3 bileşen kanıtı",
+        "unresolvedRemainder": "Çözülmemiş / açıklanmamış kalan",
+        "remainderNotReported": "Açıkça açıklanmamış bir kalan kaydedilmedi. SDS açıklaması yine de kısmi olabilir.",
+        "readOnly": "Salt okunur inceleme. Hiçbir kimlik kabul edilmez ve RawMaterial veya tedarikçi kaydı değiştirilmez.",
+        "pageLink": "Kaynak sayfa {{page}}, satır {{line}}",
+        "pdfError": "Atıf yapılan kaynak PDF okunamadı.",
+        "notReported": "Belirtilmemiş",
+        "disclosure": {
+          "disclosed": "Açıklanmış",
+          "trade_secret": "Ticari sır",
+          "withheld": "Saklanmış",
+          "unknown": "Açıklama durumu bilinmiyor"
+        },
+        "evidenceHashMismatch": "Bağlı SDS çıkarımının kaynak hash’i seçili PDF ile eşleşmiyor. Bu belge için kimlik çözümlemesi ve sayfa atıfları gizlendi."
       }
     }
   },

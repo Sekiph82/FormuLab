@@ -2611,36 +2611,21 @@
       "openInStability": "Open Stability",
       "exportCsv": "Export candidate list",
       "evidence": {
-
         "feasibility": "Feasibility",
-
         "safety": "Safety",
-
         "regulatory": "Regulatory",
-
         "acquisition": "Acquisition",
-
         "diversity": "Diversity",
-
         "seed": "seed",
-
         "estimatedMaterialCost": "Estimated material cost",
-
         "formulaVersion": "Formula version",
-
         "design": "DOE design",
-
         "analysisProvenance": "DOE analysis provenance",
-
         "modelVersionUnavailable": "FVL-07 model version unavailable in the current DOE analysis contract.",
-
         "uncertaintyUnavailable": "Prediction uncertainty unavailable in the current DOE prediction contract.",
-
         "policyVersions": "Policy versions",
-
         "unavailable": "UNAVAILABLE"
       },
-
       "noMaterialFactors": "This candidate has no formula-material factors — its process-parameter setting(s) were not applied to any draft line. Apply manually: {{settings}}"
     },
     "history": {
@@ -3045,15 +3030,30 @@
         "retry": "Retry item",
         "retrying": "Marking…",
         "status": {
-          "queued": "Queued", "discovery": "Searching", "downloading": "Downloading", "parsing": "Parsing",
-          "review_ready": "Ready for review", "completed": "Completed", "completed_with_gaps": "Completed with gaps",
-          "failed": "Failed", "cancelled": "Cancelled", "resumed": "Marked for resume", "acquired": "Acquired",
-          "skipped": "Skipped", "failed_item": "Failed"
+          "queued": "Queued",
+          "discovery": "Searching",
+          "downloading": "Downloading",
+          "parsing": "Parsing",
+          "review_ready": "Ready for review",
+          "completed": "Completed",
+          "completed_with_gaps": "Completed with gaps",
+          "failed": "Failed",
+          "cancelled": "Cancelled",
+          "resumed": "Marked for resume",
+          "acquired": "Acquired",
+          "skipped": "Skipped",
+          "failed_item": "Failed"
         },
         "failure": {
-          "authorization_required": "Authorization required", "not_found": "Not found", "unsupported_document": "Unsupported document",
-          "invalid_document": "Invalid document", "network_rejected": "Network request rejected", "timeout": "Timed out",
-          "storage_failed": "Storage failed", "parser_failed": "Parser failed", "unknown_failure": "Unknown failure"
+          "authorization_required": "Authorization required",
+          "not_found": "Not found",
+          "unsupported_document": "Unsupported document",
+          "invalid_document": "Invalid document",
+          "network_rejected": "Network request rejected",
+          "timeout": "Timed out",
+          "storage_failed": "Storage failed",
+          "parser_failed": "Parser failed",
+          "unknown_failure": "Unknown failure"
         }
       },
       "sdsReview": {
@@ -3128,7 +3128,8 @@
         "mapping": "Mapping Profiles",
         "crosswalks": "Crosswalks",
         "runs": "Import Runs",
-        "review": "Conflicts / Review"
+        "review": "Conflicts / Review",
+        "productResolver": "Product Resolver"
       },
       "connections": {
         "empty": "No connections configured yet. Add one to start bringing in external data.",
@@ -3427,6 +3428,52 @@
         "conflictRequiredActionText": "Review the values above, then correct the underlying mapping profile, crosswalk, or source data before re-preparing. This tool never auto-merges, force-imports, or bypasses a blocking conflict.",
         "sourceMissingTargetCollection": "Prior target collection",
         "sourceMissingTargetRecordId": "Prior target record ID"
+      },
+      "productResolver": {
+        "title": "Commercial Product Resolver",
+        "intro": "Review supplier product identity and disclosed SDS components. Classification and candidate displays are evidence-linked proposals only.",
+        "refresh": "Refresh",
+        "loading": "Loading product records…",
+        "loadError": "Product records could not be loaded.",
+        "empty": "No acquired SDS documents are available.",
+        "select": "Acquired SDS",
+        "sourceProduct": "Original supplier product",
+        "tradeName": "Trade name",
+        "productCode": "Supplier product code",
+        "grade": "Grade",
+        "supplierMarket": "Supplier / market / language",
+        "document": "Source document",
+        "commercialProductId": "Linked commercial product ID",
+        "noProductRecord": "No linked product evidence",
+        "noEvidence": "No saved Section 1/3 evidence is linked to this SDS. Product type and component resolution remain unavailable.",
+        "productType": "Evidence-based product type",
+        "reviewRequired": "Review required",
+        "typeReasons": "Deterministic evidence reasons: {{reasons}}. This classification is a proposal and requires review.",
+        "typeEvidenceExcerpt": "SDS Section 3 evidence",
+        "components": "Disclosed SDS components",
+        "section3Limit": "SDS Section 3 may list only reportable hazardous components. It is not a complete commercial formula; an absent component is not evidence of absence.",
+        "noComponents": "No components are recorded in this SDS evidence.",
+        "nameNotDisclosed": "Component name not recorded",
+        "cas": "CAS",
+        "ec": "EC",
+        "materialNumber": "Supplier material number",
+        "concentration": "As-stated concentration",
+        "canonicalCandidate": "Canonical chemistry candidate",
+        "canonicalCatalogUnavailable": "Not evaluated: this project currently has no persisted canonical-chemical catalogue to search. No RawMaterial records are treated as canonical chemistry.",
+        "componentEvidenceExcerpt": "SDS Section 3 component evidence",
+        "unresolvedRemainder": "Unresolved / undisclosed remainder",
+        "remainderNotReported": "No explicit undisclosed remainder was recorded. SDS disclosure may still be partial.",
+        "readOnly": "Read-only review. No identity is accepted and no RawMaterial or supplier record is changed.",
+        "pageLink": "View source page {{page}}, line {{line}}",
+        "pdfError": "The cited source PDF could not be read.",
+        "notReported": "Not reported",
+        "disclosure": {
+          "disclosed": "Disclosed",
+          "trade_secret": "Trade secret",
+          "withheld": "Withheld",
+          "unknown": "Disclosure unknown"
+        },
+        "evidenceHashMismatch": "The linked SDS extraction source hash does not match this PDF. Identity resolution and page citations are hidden for this document."
       }
     }
   },

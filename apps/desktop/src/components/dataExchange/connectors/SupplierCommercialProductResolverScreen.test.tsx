@@ -1,0 +1,106 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+const { listRecordsMock, readMock } = vi.hoisted(() => ({ listRecordsMock: vi.fn(), readMock: vi.fn() }));
+vi.mock("@/lib/masterdata", () => ({ listRecords: listRecordsMock, readSupplierDocumentPdf: readMock }));
+vi.mock("./SupplierSdsPdfPagePreview", () => ({
+  SupplierSdsPdfPagePreview: ({ pageNumber, lineNumber }: { pageNumber: number; lineNumber: number }) => <div>PDF page {pageNumber} · cited line {lineNumber}</div>,
+}));
+
+import { SupplierCommercialProductResolverScreen } from "./SupplierCommercialProductResolverScreen";
+
+const timestamp = "2026-10-27T08:00:00.000Z";
+const acquisition = {
+  schemaVersion: "1.0", code: "supplierdoc-sds-1", supplierId: "croda", providerId: "croda", surfaceId: "croda-public", documentType: "SDS", acquisitionMethod: "automated",
+  sourceUrl: "https://supplier.example/cda38.pdf", sourceProduct: { supplierItemCode: "CDA-38", tradeName: "Crodateric CDA 38", grade: "38" }, market: "US", language: "en",
+  originalFilename: "cda-38-sds.pdf", mimeType: "application/pdf", sha256: "a".repeat(64), byteSize: 4096, parserStatus: "completed", acquiredAt: timestamp, createdAt: timestamp,
+};
+const evidence = {
+  schemaVersion: "1.0", code: "sds-evidence-1", acquisitionCode: "supplierdoc-sds-1", extractionStatus: "unreviewed", createdAt: timestamp,
+  evidence: {
+    schemaVersion: "1.0", id: "sds-evidence-1", commercialProductId: "commercial-product-1",
+    section1: { sectionNumber: 1, sourceDocumentHash: "a".repeat(64), declaredChemicalName: { id: "name", rawValue: "Crodateric CDA 38", evidenceRefs: ["sds:page:p1:l4"] } },
+    section3: {
+      sectionNumber: 3, sourceDocumentHash: "a".repeat(64),
+      substanceOrMixture: { id: "nature", rawValue: "Mixture", evidenceRefs: ["sds:page:p3:l1"] },
+      components: [{ id: "component-1", componentName: { id: "component-name", rawValue: "Amine oxide", evidenceRefs: ["sds:page:p3:l2"] }, casNumber: { id: "cas", rawValue: "1643-20-5", evidenceRefs: ["sds:page:p3:l3"] }, concentration: { id: "concentration", rawValue: "30-35%", evidenceRefs: ["sds:page:p3:l4"] }, disclosure: "disclosed" }],
+      undisclosedRemainder: { id: "remainder", rawValue: "Remaining percentage is proprietary", evidenceRefs: ["sds:page:p3:l5"] },
+    },
+    reconciliations: [],
+  },
+};
+
+describe("SupplierCommercialProductResolverScreen", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listRecordsMock.mockImplementation((collection: string) => Promise.resolve(collection === "supplier_document_acquisitions" ? [acquisition] : [evidence]));
+    readMock.mockResolvedValue(new Uint8Array([1, 2, 3]));
+  });
+
+  it("shows supplier identity, cited type/components, unresolved disclosure and honest catalog availability", async () => {
+    const user = userEvent.setup();
+    render(<SupplierCommercialProductResolverScreen />);
+    expect(await screen.findByText("Crodateric CDA 38")).toBeInTheDocument();
+    expect(screen.getByText("commercial-product-1")).toBeInTheDocument();
+    expect(screen.getByText("PARTIALLY_DISCLOSED")).toBeInTheDocument();
+    expect(screen.getByText("Amine oxide")).toBeInTheDocument();
+    expect(screen.getByText("1643-20-5")).toBeInTheDocument();
+    expect(screen.getByText("Remaining percentage is proprietary")).toBeInTheDocument();
+    expect(screen.getAllByText(/no persisted canonical-chemical catalogue/u)).toHaveLength(1);
+    await user.click(screen.getAllByRole("button", { name: "View source page 3, line 2" })[0]!);
+    expect(await screen.findByText("PDF page 3 · cited line 2")).toBeInTheDocument();
+    expect(readMock).toHaveBeenCalledWith("a".repeat(64));
+    expect(listRecordsMock).toHaveBeenCalledTimes(2);
+    expect(listRecordsMock.mock.calls.map(([collection]) => collection)).toEqual(["supplier_document_acquisitions", "supplier_sds_product_evidence"]);
+  });
+
+  it("keeps missing SDS evidence unresolved and distinguishes a load failure", async () => {
+    listRecordsMock.mockImplementation((collection: string) => Promise.resolve(collection === "supplier_document_acquisitions" ? [acquisition] : []));
+    const view = render(<SupplierCommercialProductResolverScreen />);
+    expect(await screen.findByText(/No saved Section 1\/3 evidence/u)).toBeInTheDocument();
+    view.unmount();
+    listRecordsMock.mockRejectedValueOnce(new Error("store unavailable"));
+    render(<SupplierCommercialProductResolverScreen />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Product records could not be loaded.");
+  });
+
+  it("hides classifications and citations when the linked evidence hash differs from the selected PDF", async () => {
+    listRecordsMock.mockImplementation((collection: string) => Promise.resolve(collection === "supplier_document_acquisitions" ? [acquisition] : [{
+      ...evidence,
+      evidence: {
+        ...evidence.evidence,
+        section1: { ...evidence.evidence.section1, sourceDocumentHash: "b".repeat(64) },
+        section3: { ...evidence.evidence.section3, sourceDocumentHash: "b".repeat(64) },
+      },
+    }]));
+    render(<SupplierCommercialProductResolverScreen />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("source hash does not match this PDF");
+    expect(screen.queryByText("PARTIALLY_DISCLOSED")).not.toBeInTheDocument();
+    expect(screen.queryByText("Amine oxide")).not.toBeInTheDocument();
+    expect(screen.queryByText(/No saved Section 1\/3 evidence/u)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /View source page/u })).not.toBeInTheDocument();
+    expect(readMock).not.toHaveBeenCalled();
+  });
+
+  it("discards a delayed PDF read after the selected document changes", async () => {
+    const secondDocument = {
+      ...acquisition,
+      code: "supplierdoc-sds-2",
+      sourceProduct: { supplierItemCode: "OTHER", tradeName: "Other product", grade: "A" },
+      sha256: "c".repeat(64),
+    };
+    listRecordsMock.mockImplementation((collection: string) => Promise.resolve(collection === "supplier_document_acquisitions" ? [acquisition, secondDocument] : [evidence]));
+    let resolvePdf!: (bytes: Uint8Array) => void;
+    readMock.mockImplementationOnce(() => new Promise<Uint8Array>((resolve) => { resolvePdf = resolve; }));
+    const user = userEvent.setup();
+    render(<SupplierCommercialProductResolverScreen />);
+    await screen.findByText("Crodateric CDA 38");
+    await user.click(screen.getAllByRole("button", { name: "View source page 3, line 2" })[0]!);
+    expect(readMock).toHaveBeenCalledWith("a".repeat(64));
+    await user.selectOptions(screen.getByRole("combobox"), "supplierdoc-sds-2");
+    resolvePdf(new Uint8Array([9, 9, 9]));
+    await waitFor(() => expect(screen.queryByText("PDF page 3 · cited line 2")).not.toBeInTheDocument());
+    expect(screen.getByText("Other product")).toBeInTheDocument();
+  });
+});
