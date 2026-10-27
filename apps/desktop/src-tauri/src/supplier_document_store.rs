@@ -13,6 +13,7 @@ use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 
 const MAX_PDF_BYTES: usize = 100 * 1024 * 1024;
+const MAX_REVIEW_PDF_BYTES: usize = 25 * 1024 * 1024;
 const STORE_RELATIVE_ROOT: &str = "supplier-documents/sha256";
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -199,6 +200,27 @@ pub async fn open_supplier_document_pdf(
     })
     .await
     .map_err(|_| "could not open supplier document".to_string())?
+}
+
+/// Read a bounded, hash-verified source PDF for local extraction in the
+/// renderer. No path or arbitrary file read is exposed to the renderer.
+#[tauri::command(async)]
+pub async fn read_supplier_document_pdf(
+    app: AppHandle,
+    token: String,
+    sha256: String,
+) -> Result<Vec<u8>, String> {
+    crate::authz::authorize_any_app(&app, &token, "formulation", &["view"])?;
+    let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = read_pdf_bytes(&data_root, &sha256)?;
+        if bytes.len() > MAX_REVIEW_PDF_BYTES {
+            return Err("supplier document exceeds the local review size limit".to_string());
+        }
+        Ok(bytes)
+    })
+    .await
+    .map_err(|_| "could not read supplier document".to_string())?
 }
 
 /// Read a blob only by its validated content identity and verify it again on

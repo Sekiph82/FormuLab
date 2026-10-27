@@ -11,10 +11,11 @@ import { PrepareReviewScreen } from "./PrepareReviewScreen";
 import { SupplierConnectionsScreen } from "./SupplierConnectionsScreen";
 import { SupplierAcquisitionJobsScreen } from "./SupplierAcquisitionJobsScreen";
 import { SupplierAcquiredDocumentsScreen } from "./SupplierAcquiredDocumentsScreen";
+import { SupplierSdsExtractionReviewScreen } from "./SupplierSdsExtractionReviewScreen";
 import { Card, Empty } from "./ui";
 
-type ConnectorTab = "connections" | "suppliers" | "acquisitions" | "documents" | "explorer" | "mapping" | "crosswalks" | "runs" | "review";
-const TABS: ConnectorTab[] = ["connections", "suppliers", "acquisitions", "documents", "explorer", "mapping", "crosswalks", "runs", "review"];
+type ConnectorTab = "connections" | "suppliers" | "acquisitions" | "documents" | "sdsReview" | "explorer" | "mapping" | "crosswalks" | "runs" | "review";
+const TABS: ConnectorTab[] = ["connections", "suppliers", "acquisitions", "documents", "sdsReview", "explorer", "mapping", "crosswalks", "runs", "review"];
 
 /** Section 2 — the Connector Management shell, mounted as a new section
  *  inside the EXISTING Data Exchange Center (`DataExchangePage.tsx`) —
@@ -93,6 +94,7 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
       {tab === "suppliers" && <SupplierConnectionsScreen />}
       {tab === "acquisitions" && <SupplierAcquisitionJobsScreen />}
       {tab === "documents" && <SupplierAcquiredDocumentsScreen />}
+      {tab === "sdsReview" && <SupplierSdsExtractionReviewScreen />}
       {tab === "explorer" && (
         <SourceExplorerScreen
           connection={selected}

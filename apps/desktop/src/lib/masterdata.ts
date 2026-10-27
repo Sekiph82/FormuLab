@@ -308,6 +308,13 @@ export async function openSupplierDocumentPdf(sha256: string): Promise<void> {
   await call("open_supplier_document_pdf", { sha256 });
 }
 
+/** Read a source PDF only by its stored, native-verified content hash. */
+export async function readSupplierDocumentPdf(sha256: string): Promise<Uint8Array> {
+  if (!/^[a-f0-9]{64}$/i.test(sha256)) throw new Error("Supplier document hash is invalid.");
+  const bytes = await call<number[]>("read_supplier_document_pdf", { sha256 });
+  return Uint8Array.from(bytes);
+}
+
 export async function deleteRecord(collection: Collection, code: string): Promise<void> {
   await call("delete_master_record", { collection, code });
 }
