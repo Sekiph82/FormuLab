@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 139
-- Remaining: 17
-- Completion: 89.1%
-- Current task: V01-10.002 - Implement no-auto-approval tests
+- Completed: 140
+- Remaining: 16
+- Completion: 89.7%
+- Current task: V01-10.003 - Implement unknown/missing-data regressions
 - Current status: IN PROGRESS
-- Next task: V01-10.003 - Implement unknown/missing-data regressions
+- Next task: V01-10.004 - Implement revision immutability regressions
+- Acceptance note: V01-10.002 prevents imported safety/compatibility rules from self-verifying, routes native verified-rule writes through the canonical `rawMaterials.verify` capability, and permits verify-only roles to promote an existing draft without editing its content. Safety-resolution writes now bind attribution to the authenticated native actor; raw migration writes cannot create/rewrite/delete safety decisions or create/change/remove verified rules, including duplicate-ID replacement attempts. Tests cover all non-human actor kinds for identity, safety, regulatory and laboratory decisions; Data Exchange and rule imports remain unverified. Focused desktop suites (187 tests across RuleManager, locale parity, Data Exchange commit/import), shared suites (113 tests), native masterdata acceptance tests (4), shared/desktop typechecks, ESLint, task validation, `git diff --check`, and independent read-only review passed. The broader masterdata module suite had 3 unrelated existing failures (collection-count expectation 103 vs actual 106; normalization fixture assertion; SDS evidence fixture assertion); the four task-specific Rust tests passed. Rust formatting check on masterdata.rs reports existing file-wide formatting differences. Full regression remains for milestone closure.
 - Acceptance note: V01-10.001 adds regression coverage proving that supplier recommendation provenance is distinct from lab-result provenance; supplier formula records, SDS product evidence, and recommendations cannot form measured-target definitions; supplier formula records cannot parse as laboratory trials or test results; and a structured measured result requires a trial identity. Existing nearest-reference interpretation remains explicitly non-validation. Focused shared tests (67 across invariant, reference-record and target-extractor suites), shared typecheck, V01 task validation, `git diff --check`, and independent read-only review passed. Full regression remains for milestone closure.
 - Acceptance note: V01-09.010 localized the reference-formulation browser/review route and SDS review identity, added keyboard-search coverage and confirmed labeled controls, live result status, headings, alerts, non-color-only decision text, empty/error/retry states, and explicit source-only/non-validation guidance. Failed corpus or normalization loads no longer appear as genuine empty/no-match results, and detail failures expose a retry. Focused UI/locale tests (47), desktop typecheck, targeted ESLint, V01 task validation, `git diff --check`, and independent read-only review passed. Full regression remains for milestone closure.
 - Acceptance note: V01-09.007 adds an append-only, authorized field-review path for SDS Section 1 CAS/EC identifiers and compares each accepted value with the selected RawMaterial. The generated proposal is revalidated against the persisted accepted review and current material, then routed through the existing Data Exchange preview/commit dialog; the proposal file is locked and exact review/evidence IDs and citations are preserved in the existing import job and row history. No direct RawMaterial write or auto-verification was added. Focused desktop tests (53), shared tests (9), desktop typecheck, a focused native Rust test (1), V01 task validation, `git diff --check`, and independent read-only review passed. Full regression remains for milestone closure.
@@ -371,8 +372,8 @@ Codex must execute the tasks below in the exact order listed.
 ## Milestone V01-10 - Scientific integrity, security, and end-to-end acceptance
 
 - [x] **V01-10.001 - Implement no-validation invariant tests**: Prove supplier formula != measured validation, SDS != performance proof, supplier recommendation != validation, and only authoritative LaboratoryTrial/TestResult can satisfy measured semantics.
-- [~] **V01-10.002 - Implement no-auto-approval tests**: Prove import/parser/resolver/generator/system/AI actors cannot approve or verify RawMaterial, Safety, Regulatory, Laboratory or supplier identity decisions reserved for authorized humans.
-- [ ] **V01-10.003 - Implement unknown/missing-data regressions**: Verify missing CAS, undisclosed remainder, unknown active matter, missing SDS/TDS, absent process values and unsupported properties remain unknown/unresolved.
+- [x] **V01-10.002 - Implement no-auto-approval tests**: Prove import/parser/resolver/generator/system/AI actors cannot approve or verify RawMaterial, Safety, Regulatory, Laboratory or supplier identity decisions reserved for authorized humans.
+- [~] **V01-10.003 - Implement unknown/missing-data regressions**: Verify missing CAS, undisclosed remainder, unknown active matter, missing SDS/TDS, absent process values and unsupported properties remain unknown/unresolved.
 - [ ] **V01-10.004 - Implement revision immutability regressions**: Historical formulas, mappings, SDS extractions and generator evidence remain pinned to exact source versions after newer documents/mappings exist.
 - [ ] **V01-10.005 - Implement security acceptance**: Test SSRF, redirect abuse, path traversal, spoofed MIME, oversized/encrypted/malformed PDFs, parser failures, secret leakage and hostile filenames.
 - [ ] **V01-10.006 - Implement retry/idempotency acceptance**: Verify interrupted scans/downloads/parsing/bulk imports resume without duplicate blobs/products/reference formulas/reviews or split-brain lineage.

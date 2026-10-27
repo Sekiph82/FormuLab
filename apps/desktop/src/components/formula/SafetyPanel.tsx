@@ -10,6 +10,8 @@ import {
   evaluateSafety,
   newId,
   summarizeSafetyFindings,
+  recordSafetyResolution,
+  can,
   type Formulation,
   type FormulationLine,
   type RawMaterial,
@@ -21,6 +23,7 @@ import {
 import { listRecords, listRecordsSeeded, upsertRecords } from "@/lib/masterdata";
 import { RuleManager } from "./RuleManager";
 import { cn } from "@/lib/cn";
+import { useTrustedActor } from "@/lib/currentActor";
 
 const SEVERITY_TONE: Record<RuleSeverity, string> = {
   blocking: "border-error/50 bg-error/10 text-error",
@@ -43,6 +46,8 @@ export function SafetyPanel({
   onFocusLine: (lineId: string) => void;
 }) {
   const { t } = useTranslation(["session", "common"]);
+  const actor = useTrustedActor();
+  const canResolveSafety = Boolean(actor && can(actor.role, "formulation", "edit"));
   const [tab, setTab] = useState<"findings" | "rules">("findings");
   const [rules, setRules] = useState<SafetyRule[]>([]);
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
@@ -114,37 +119,28 @@ export function SafetyPanel({
     }
   };
 
-  const acknowledgeClassification = async (reviewerName: string, reason: string) => {
-    await upsertRecords("safety_resolutions", [
-      {
-        schemaVersion: "1.0",
-        id: newId("safetyres"),
-        formulationId: formulation.id,
-        versionId: versionId ?? "draft",
-        findingId: `classification:${classification}`,
-        reviewerName,
-        resolvedAt: new Date().toISOString(),
-        resolutionReason: reason,
-        resolutionKind: "accepted_risk",
-      },
-    ]);
+  const persistResolution = async (findingId: string, reason: string, resolutionKind: SafetyResolution["resolutionKind"]) => {
+    if (!actor) throw new Error("A signed-in human is required to record a safety resolution.");
+    const resolution = recordSafetyResolution({
+      schemaVersion: "1.0",
+      id: newId("safetyres"),
+      formulationId: formulation.id,
+      versionId: versionId ?? "draft",
+      findingId,
+      resolvedAt: new Date().toISOString(),
+      resolutionReason: reason,
+      resolutionKind,
+    }, { kind: "human", role: actor.role, userId: actor.userId });
+    await upsertRecords("safety_resolutions", [resolution]);
     await load();
   };
 
-  const resolveFinding = async (finding: SafetyFinding, reviewerName: string, reason: string, kind: SafetyResolution["resolutionKind"]) => {
-    await upsertRecords("safety_resolutions", [
-      {
-        schemaVersion: "1.0",
-        id: newId("safetyres"),
-        formulationId: formulation.id,
-        versionId: versionId ?? "draft",
-        findingId: finding.id,
-        reviewerName,
-        resolvedAt: new Date().toISOString(),
-        resolutionReason: reason,
-        resolutionKind: kind,
-      },
-    ]);
+  const acknowledgeClassification = async (reason: string) => {
+    await persistResolution(`classification:${classification}`, reason, "accepted_risk");
+  };
+
+  const resolveFinding = async (finding: SafetyFinding, reason: string, kind: SafetyResolution["resolutionKind"]) => {
+    await persistResolution(finding.id, reason, kind);
     setResolving(null);
     await load();
   };
@@ -166,7 +162,7 @@ export function SafetyPanel({
         {needsHumanReview && !reviewAcknowledged && (
           <div className="mt-2">
             <p className="text-[11px] text-warn">{t("safety.humanReviewRequired")}</p>
-            <AcknowledgeForm onSubmit={acknowledgeClassification} t={t} />
+            {canResolveSafety && actor ? <AcknowledgeForm reviewerName={actor.displayName} onSubmit={acknowledgeClassification} t={t} /> : <p role="alert" className="mt-2 text-[11px] text-error">{actor ? t("safety.formulationEditRequired") : t("safety.signInToResolve")}</p>}
           </div>
         )}
         {needsHumanReview && reviewAcknowledged && (
@@ -246,6 +242,7 @@ export function SafetyPanel({
               key={f.id}
               finding={f}
               resolved={resolvedIds.has(f.id)}
+              canResolve={canResolveSafety}
               lineName={lineName}
               onFocusLine={onFocusLine}
               onResolve={() => setResolving(f)}
@@ -255,11 +252,12 @@ export function SafetyPanel({
         </ul>
       )}
 
-      {resolving && (
+      {resolving && canResolveSafety && (
         <ResolveDialog
           finding={resolving}
+          reviewerName={actor?.displayName ?? ""}
           onCancel={() => setResolving(null)}
-          onSubmit={(name, reason, kind) => void resolveFinding(resolving, name, reason, kind)}
+          onSubmit={(reason, kind) => void resolveFinding(resolving, reason, kind)}
           t={t}
         />
       )}
@@ -268,21 +266,22 @@ export function SafetyPanel({
 }
 
 function AcknowledgeForm({
+  reviewerName,
   onSubmit,
   t,
 }: {
-  onSubmit: (reviewerName: string, reason: string) => Promise<void>;
+  reviewerName: string;
+  onSubmit: (reason: string) => Promise<void>;
   t: TFunction<readonly ["session", "common"]>;
 }) {
-  const [name, setName] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (!name.trim() || !reason.trim()) return;
+    if (!reason.trim()) return;
     setBusy(true);
     try {
-      await onSubmit(name.trim(), reason.trim());
+      await onSubmit(reason.trim());
     } finally {
       setBusy(false);
     }
@@ -290,15 +289,7 @@ function AcknowledgeForm({
 
   return (
     <div className="mt-2 flex flex-wrap items-end gap-2">
-      <label className="block">
-        <span className="mb-1 block text-[11px] text-muted">{t("safety.reviewerName")}</span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          aria-label={t("safety.reviewerName")}
-          className="w-40 rounded-input border border-border bg-surface px-2 py-1 text-[12px] text-text outline-none focus:border-accent"
-        />
-      </label>
+      <span className="text-[11px] text-muted">{t("safety.reviewerName")}: {reviewerName}</span>
       <label className="block">
         <span className="mb-1 block text-[11px] text-muted">{t("safety.resolutionReason")}</span>
         <input
@@ -310,7 +301,7 @@ function AcknowledgeForm({
       </label>
       <button
         onClick={() => void submit()}
-        disabled={busy || !name.trim() || !reason.trim()}
+        disabled={busy || !reason.trim()}
         className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
       >
         {t("safety.acknowledge")}
@@ -322,6 +313,7 @@ function AcknowledgeForm({
 function FindingCard({
   finding,
   resolved,
+  canResolve,
   lineName,
   onFocusLine,
   onResolve,
@@ -329,6 +321,7 @@ function FindingCard({
 }: {
   finding: SafetyFinding;
   resolved: boolean;
+  canResolve: boolean;
   lineName: (lineId: string) => string;
   onFocusLine: (lineId: string) => void;
   onResolve: () => void;
@@ -377,7 +370,7 @@ function FindingCard({
               {lineName(id)}
             </button>
           ))}
-          {finding.severity === "blocking" && !resolved && (
+          {finding.severity === "blocking" && !resolved && canResolve && (
             <button
               onClick={onResolve}
               className="rounded-input border border-border bg-surface px-2 py-1 text-[11px] text-text hover:bg-surface-2"
@@ -393,16 +386,17 @@ function FindingCard({
 
 function ResolveDialog({
   finding,
+  reviewerName,
   onCancel,
   onSubmit,
   t,
 }: {
   finding: SafetyFinding;
+  reviewerName: string;
   onCancel: () => void;
-  onSubmit: (reviewerName: string, reason: string, kind: SafetyResolution["resolutionKind"]) => void;
+  onSubmit: (reason: string, kind: SafetyResolution["resolutionKind"]) => void;
   t: TFunction<readonly ["session", "common"]>;
 }) {
-  const [name, setName] = useState("");
   const [reason, setReason] = useState("");
   const [kind, setKind] = useState<SafetyResolution["resolutionKind"]>("accepted_risk");
 
@@ -417,14 +411,7 @@ function ResolveDialog({
         <h2 className="border-b border-border px-5 py-3 text-[14px] font-medium text-text">{t("safety.resolveDialogTitle")}</h2>
         <div className="space-y-3 px-5 py-4">
           <p className="text-[12px] text-text">{finding.message}</p>
-          <label className="block">
-            <span className="mb-1 block text-[11px] font-medium text-muted">{t("safety.reviewerName")}</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-input border border-border bg-surface px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent"
-            />
-          </label>
+          <p className="text-[11px] text-muted">{t("safety.reviewerName")}: {reviewerName}</p>
           <label className="block">
             <span className="mb-1 block text-[11px] font-medium text-muted">{t("safety.resolutionKind")}</span>
             <select
@@ -455,8 +442,8 @@ function ResolveDialog({
             {t("common:actions.cancel")}
           </button>
           <button
-            onClick={() => onSubmit(name.trim(), reason.trim(), kind)}
-            disabled={!name.trim() || !reason.trim()}
+            onClick={() => onSubmit(reason.trim(), kind)}
+            disabled={!reason.trim()}
             className="rounded-input bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-40"
           >
             {t("safety.confirmResolve")}

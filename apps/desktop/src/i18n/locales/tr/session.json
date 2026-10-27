@@ -1280,6 +1280,8 @@
     },
     "humanReviewRequired": "Bu sınıflandırma, formül onaylanmadan önce adlandırılmış bir insanın inceleyip onaylamasını gerektirir.",
     "humanReviewAcknowledged": "İncelendi ve onaylandı.",
+    "signInToResolve": "Güvenlik kararını kaydetmek için insan hesabıyla oturum açın.",
+    "formulationEditRequired": "Rolünüz bu güvenlik kararını kaydetmek için formülasyonu düzenleyemez.",
     "reviewerName": "İnceleyen adı",
     "resolutionReason": "Neden",
     "acknowledge": "Onayla",
@@ -1302,6 +1304,9 @@
   "ruleManager": {
     "newRuleName": "Yeni kural",
     "invalidJson": "Bu geçerli bir JSON değil.",
+    "signInRequired": "Kuralları yönetmek için insan hesabıyla oturum açın.",
+    "editorRequired": "Rolünüz ham madde güvenlik veya uyumluluk kurallarını düzenleyemez.",
+    "verifierRequired": "Rolünüz güvenlik veya uyumluluk kurallarını doğrulama yetkisine sahip değil.",
     "invalidShape": "Her kural en azından bir id, bir ad ve koşullar gerektirir.",
     "importResult": "{{count}} kural içe aktarıldı.",
     "backToFindings": "Bulgular",

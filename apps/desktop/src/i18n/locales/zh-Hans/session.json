@@ -1280,6 +1280,8 @@
     },
     "humanReviewRequired": "This classification requires a named human to review and acknowledge before the formula can be approved.",
     "humanReviewAcknowledged": "Reviewed and acknowledged.",
+    "signInToResolve": "Sign in with a human account to record a safety resolution.",
+    "formulationEditRequired": "Your role cannot edit this formulation to record a safety resolution.",
     "reviewerName": "Reviewer name",
     "resolutionReason": "Reason",
     "acknowledge": "Acknowledge",
@@ -1302,6 +1304,9 @@
   "ruleManager": {
     "newRuleName": "New rule",
     "invalidJson": "That is not valid JSON.",
+    "signInRequired": "Sign in with a human account to manage rules.",
+    "editorRequired": "Your role cannot edit raw-material safety or compatibility rules.",
+    "verifierRequired": "Your role cannot verify safety or compatibility rules.",
     "invalidShape": "Every rule needs at least an id, a name and conditions.",
     "importResult": "{{count}} rule(s) imported.",
     "backToFindings": "Findings",

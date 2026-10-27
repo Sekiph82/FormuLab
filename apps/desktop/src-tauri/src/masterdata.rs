@@ -609,9 +609,18 @@ pub async fn upsert_master_records(
     ensure_generic_collection_write_allowed(name)?;
     let area = area_for_collection(name)
         .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
-    authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
     let path = collection_path(&app, name)?;
     let rows = read_array(&path);
+    let actor = authorize_masterdata_records(&app, &token, name, area, &rows, &records)?;
+    let records = validate_verified_rule_writes(name, &rows, records, &actor.role)?;
+    let records = if name == "safety_resolutions" {
+        records
+            .into_iter()
+            .map(|record| stamp_safety_resolution(record, &actor))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        records
+    };
     let (rows, inserted, updated) = apply_upsert(rows, records, append_only, name)?;
 
     write_array(&path, &rows)?;
@@ -2160,9 +2169,175 @@ pub async fn write_master_collection_raw(
     ensure_generic_collection_write_allowed(name)?;
     let area = area_for_collection(name)
         .ok_or_else(|| format!("{name} has no policy area mapping and cannot be written"))?;
-    authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
+    let actor = authz::authorize_any_app(&app, &token, area, &WRITE_CAPABILITIES)?;
     let path = collection_path(&app, name)?;
+    let existing = read_array(&path);
+    validate_raw_sensitive_write(name, &existing, &records, &actor.role)?;
     write_array(&path, &records)
+}
+
+fn validate_verified_rule_writes(
+    collection: &str,
+    existing: &[serde_json::Value],
+    records: Vec<serde_json::Value>,
+    role: &str,
+) -> Result<Vec<serde_json::Value>, String> {
+    if !matches!(collection, "safety_rules" | "compatibility_rules") {
+        return Ok(records);
+    }
+    let can_verify = crate::role_policy::can(role, "rawMaterials", "verify");
+    let can_edit = crate::role_policy::can(role, "rawMaterials", "edit");
+    let existing_by_id = existing
+        .iter()
+        .filter_map(|row| row_key(row).map(|id| (id, row)))
+        .collect::<std::collections::HashMap<_, _>>();
+    for record in &records {
+        let prior = row_key(record).and_then(|id| existing_by_id.get(&id).copied());
+        let was_verified = prior.map_or(false, |row| {
+            row["status"] == "verified" || row["verificationStatus"] == "verified"
+        });
+        let is_verified = record["status"] == "verified" || record["verificationStatus"] == "verified";
+        if (was_verified || is_verified) && !can_verify {
+            return Err("not authorized to verify or modify a verified safety or compatibility rule".to_string());
+        }
+        if (was_verified || is_verified) && !can_edit {
+            let Some(prior) = prior else {
+                return Err("a verifier may verify only an existing safety or compatibility rule".to_string());
+            };
+            if was_verified || record["status"] != "verified" || record["verificationStatus"] != "verified" {
+                return Err("verification-only access may promote a draft rule once; it cannot edit or re-verify a rule".to_string());
+            }
+            let mut old_content = prior.clone();
+            let mut new_content = record.clone();
+            for value in [&mut old_content, &mut new_content] {
+                if let Some(object) = value.as_object_mut() {
+                    object.remove("status");
+                    object.remove("verificationStatus");
+                    object.remove("updatedAt");
+                }
+            }
+            if old_content != new_content {
+                return Err("verification-only access may change only rule verification state".to_string());
+            }
+        }
+    }
+    Ok(records)
+}
+
+fn rule_write_requires_verify(
+    collection: &str,
+    existing: &[serde_json::Value],
+    record: &serde_json::Value,
+) -> bool {
+    if !matches!(collection, "safety_rules" | "compatibility_rules") {
+        return false;
+    }
+    let existing_verified = row_key(record)
+        .and_then(|id| {
+            existing
+                .iter()
+                .find(|row| row_key(row).as_deref() == Some(id.as_str()))
+        })
+        .map_or(false, |row| {
+            row["status"] == "verified" || row["verificationStatus"] == "verified"
+        });
+    existing_verified || record["status"] == "verified" || record["verificationStatus"] == "verified"
+}
+
+fn authorize_masterdata_records(
+    app: &AppHandle,
+    token: &str,
+    collection: &str,
+    area: &str,
+    existing: &[serde_json::Value],
+    records: &[serde_json::Value],
+) -> Result<authz::TrustedActor, String> {
+    if !matches!(collection, "safety_rules" | "compatibility_rules") {
+        return authz::authorize_any_app(app, token, area, &WRITE_CAPABILITIES);
+    }
+    let actor = match authz::current_actor_app(app, token) {
+        Ok(actor) => actor,
+        Err(_) => return authz::authorize_any_app(app, token, area, &WRITE_CAPABILITIES),
+    };
+    if records.is_empty() {
+        authz::authorize_any_app(app, token, area, &WRITE_CAPABILITIES)?;
+        return Ok(actor);
+    }
+    for record in records {
+        if rule_write_requires_verify(collection, existing, record) {
+            authz::authorize_app(app, token, area, "verify")?;
+        } else {
+            authz::authorize_any_app(app, token, area, &WRITE_CAPABILITIES)?;
+        }
+    }
+    Ok(actor)
+}
+
+fn stamp_safety_resolution(
+    mut record: serde_json::Value,
+    actor: &authz::TrustedActor,
+) -> Result<serde_json::Value, String> {
+    ensure_object_keys(
+        &record,
+        &[
+            "schemaVersion", "id", "formulationId", "versionId", "findingId",
+            "reviewerName", "reviewerRole", "resolvedAt", "resolutionReason", "resolutionKind",
+        ],
+        "safety resolution",
+    )?;
+    for key in ["schemaVersion", "id", "formulationId", "versionId", "findingId", "resolvedAt", "resolutionReason", "resolutionKind"] {
+        if record[key].as_str().map_or(true, |value| value.trim().is_empty()) {
+            return Err(format!("safety resolution requires {key}"));
+        }
+    }
+    if record["schemaVersion"] != "1.0"
+        || !matches!(record["resolutionKind"].as_str(), Some("accepted_risk" | "formula_changed" | "rule_disputed")) {
+        return Err("safety resolution has an unsupported schema or resolution kind".to_string());
+    }
+    record["reviewerName"] = serde_json::Value::String(actor.user_id.clone());
+    record["reviewerRole"] = serde_json::Value::String(actor.role.clone());
+    Ok(record)
+}
+
+fn validate_raw_sensitive_write(
+    collection: &str,
+    existing: &[serde_json::Value],
+    incoming: &[serde_json::Value],
+    _role: &str,
+) -> Result<(), String> {
+    if collection == "safety_resolutions" {
+        let existing_by_id = existing.iter().filter_map(|row| row["id"].as_str().map(|id| (id, row))).collect::<std::collections::HashMap<_, _>>();
+        let mut seen = std::collections::HashSet::new();
+        let same_rows = incoming.len() == existing.len() && incoming.iter().all(|row| {
+            let Some(id) = row["id"].as_str() else { return false; };
+            seen.insert(id.to_string()) && existing_by_id.get(id).map_or(false, |old| *old == row)
+        });
+        if !same_rows || seen.len() != existing_by_id.len() {
+            return Err("raw migration cannot create safety decisions or change their reviewer attribution".to_string());
+        }
+    }
+    if matches!(collection, "safety_rules" | "compatibility_rules") {
+        let old_by_id = existing.iter().filter_map(|row| row_key(row).map(|id| (id, row))).collect::<std::collections::HashMap<_, _>>();
+        let mut preserved_verified_ids = std::collections::HashSet::new();
+        for old in existing.iter().filter(|row| row["status"] == "verified" || row["verificationStatus"] == "verified") {
+            let id = row_key(old).ok_or_else(|| "verified rule has no stable identity".to_string())?;
+            let matches = incoming.iter().filter(|new| row_key(new).as_deref() == Some(id.as_str()) && *new == old).count();
+            if matches != 1 || !preserved_verified_ids.insert(id) {
+                return Err("raw migration cannot remove or change a verified rule; use the review workflow".to_string());
+            }
+        }
+        for new in incoming {
+            let claims_verified = new["status"] == "verified" || new["verificationStatus"] == "verified";
+            if !claims_verified { continue; }
+            let preserved = row_key(new).and_then(|id| old_by_id.get(&id)).map_or(false, |old| {
+                (old["status"] == "verified" || old["verificationStatus"] == "verified") && *old == new
+            });
+            if !preserved || row_key(new).map_or(true, |id| !preserved_verified_ids.contains(&id)) {
+                return Err("raw migration cannot create or change a verified rule; use the review workflow".to_string());
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -3053,5 +3228,73 @@ mod tests {
             );
         }
         assert!(!WRITE_CAPABILITIES.iter().any(|cap| crate::role_policy::can("regulatory", "rawMaterials", cap)));
+    }
+
+    #[test]
+    fn generic_rule_upsert_requires_the_native_verify_capability_for_verified_status() {
+        let verified = serde_json::json!({ "id": "rule-1", "status": "verified", "verificationStatus": "verified" });
+        assert!(rule_write_requires_verify("safety_rules", &[], &verified));
+        assert!(crate::role_policy::can("production_manager", "rawMaterials", "verify"));
+        assert!(validate_verified_rule_writes("safety_rules", &[], vec![verified.clone()], "production_manager").is_err(), "new rules cannot be created already verified");
+        let draft = serde_json::json!({ "id": "rule-1", "status": "draft", "verificationStatus": "not_verified", "name": "Rule" });
+        let promoted = serde_json::json!({ "id": "rule-1", "status": "verified", "verificationStatus": "verified", "name": "Rule" });
+        assert!(rule_write_requires_verify("compatibility_rules", &[draft.clone()], &promoted));
+        assert!(validate_verified_rule_writes("compatibility_rules", &[draft.clone()], vec![promoted.clone()], "production_manager").is_ok());
+        let edited_while_verifying = serde_json::json!({ "id": "rule-1", "status": "verified", "verificationStatus": "verified", "name": "Changed" });
+        assert!(validate_verified_rule_writes("compatibility_rules", &[draft], vec![edited_while_verifying], "production_manager").is_err());
+        assert!(validate_verified_rule_writes("safety_rules", &[], vec![verified.clone()], "raw_material").is_err());
+        let draft = serde_json::json!({ "id": "rule-1", "status": "draft", "verificationStatus": "not_verified" });
+        assert!(!rule_write_requires_verify("safety_rules", &[], &draft));
+        assert!(validate_verified_rule_writes("safety_rules", &[], vec![draft], "raw_material").is_ok());
+    }
+
+    #[test]
+    fn generic_safety_resolution_write_overrides_caller_attribution_with_trusted_actor() {
+        let actor = authz::TrustedActor { user_id: "user-7".into(), role: "researcher".into(), display_name: "Researcher Seven".into() };
+        let record = serde_json::json!({
+            "schemaVersion": "1.0", "id": "safety-1", "formulationId": "formula-1", "versionId": "v1",
+            "findingId": "finding-1", "reviewerName": "forged", "reviewerRole": "administrator",
+            "resolvedAt": "2026-10-27T10:00:00Z", "resolutionReason": "Reviewed evidence.", "resolutionKind": "accepted_risk"
+        });
+        let stamped = stamp_safety_resolution(record, &actor).unwrap();
+        assert_eq!(stamped["reviewerName"], "user-7");
+        assert_eq!(stamped["reviewerRole"], "researcher");
+    }
+
+    #[test]
+    fn raw_migration_cannot_create_or_rewrite_safety_resolutions() {
+        let existing = vec![serde_json::json!({
+            "schemaVersion": "1.0", "id": "safety-1", "formulationId": "formula-1", "versionId": "v1",
+            "findingId": "finding-1", "reviewerName": "user-7", "reviewerRole": "researcher",
+            "resolvedAt": "2026-10-27T10:00:00Z", "resolutionReason": "Reviewed evidence.", "resolutionKind": "accepted_risk"
+        })];
+        assert!(validate_raw_sensitive_write("safety_resolutions", &existing, &existing, "administrator").is_ok());
+        assert!(validate_raw_sensitive_write("safety_resolutions", &existing, &[], "administrator").is_err());
+        let forged = vec![serde_json::json!({
+            "schemaVersion": "1.0", "id": "safety-1", "formulationId": "formula-1", "versionId": "v1",
+            "findingId": "finding-1", "reviewerName": "forged", "reviewerRole": "administrator",
+            "resolvedAt": "2026-10-27T10:00:00Z", "resolutionReason": "Reviewed evidence.", "resolutionKind": "accepted_risk"
+        })];
+        assert!(validate_raw_sensitive_write("safety_resolutions", &existing, &forged, "administrator").is_err());
+        let second = serde_json::json!({ "id": "safety-2", "reviewerName": "user-8", "reviewerRole": "quality" });
+        let two_existing = vec![existing[0].clone(), second.clone()];
+        let duplicate_first = vec![existing[0].clone(), existing[0].clone()];
+        assert!(validate_raw_sensitive_write("safety_resolutions", &two_existing, &duplicate_first, "administrator").is_err());
+    }
+
+    #[test]
+    fn raw_migration_cannot_promote_or_remove_a_verified_safety_rule() {
+        let existing = vec![serde_json::json!({ "id": "rule-1", "status": "verified", "verificationStatus": "verified" })];
+        assert!(validate_raw_sensitive_write("safety_rules", &existing, &existing, "raw_material").is_ok());
+        assert!(validate_raw_sensitive_write("safety_rules", &existing, &[], "administrator").is_err());
+        let edited_content = vec![serde_json::json!({ "id": "rule-1", "status": "verified", "verificationStatus": "verified", "message": "Changed meaning" })];
+        let prior_content = vec![serde_json::json!({ "id": "rule-1", "status": "verified", "verificationStatus": "verified", "message": "Original meaning" })];
+        assert!(validate_raw_sensitive_write("safety_rules", &prior_content, &edited_content, "administrator").is_err());
+        let duplicate_verified = vec![existing[0].clone(), existing[0].clone()];
+        assert!(validate_raw_sensitive_write("safety_rules", &existing, &duplicate_verified, "administrator").is_err());
+        let promoted = vec![serde_json::json!({ "id": "rule-2", "status": "verified", "verificationStatus": "verified" })];
+        assert!(validate_raw_sensitive_write("safety_rules", &[], &promoted, "administrator").is_err());
+        let demoted = vec![serde_json::json!({ "id": "rule-1", "status": "draft", "verificationStatus": "not_verified" })];
+        assert!(validate_raw_sensitive_write("safety_rules", &existing, &demoted, "administrator").is_err());
     }
 }

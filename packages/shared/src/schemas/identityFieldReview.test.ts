@@ -4,7 +4,11 @@ import type { Actor } from "./status";
 
 const rawMaterialReviewer: Actor = { kind: "human", role: "raw_material", userId: "reviewer-1" };
 const procurementReviewer: Actor = { kind: "human", role: "procurement", userId: "reviewer-2" };
-const automatedActor: Actor = { kind: "agent", runId: "agent-1" };
+const automatedActors: Actor[] = [
+  { kind: "agent", runId: "agent-1" },
+  { kind: "system", reason: "document parser" },
+  { kind: "import", source: "supplier-catalog.csv" },
+];
 const base = {
   id: "identity-review-1", commercialProductId: "product-1", sourceEvidenceId: "sds-1", targetRecordId: "component-1", field: "component" as const,
   decision: "accepted" as const, proposedValueSnapshot: JSON.stringify({ name: "Surfactant", cas: "123-45-6" }),
@@ -29,7 +33,9 @@ describe("commercial-product identity field review", () => {
   });
 
   it("requires evidence, preserves edit values and rejects automation or unauthorized roles", () => {
-    expect(() => recordIdentityFieldReview(base, automatedActor)).toThrow(/Only a human/);
+    for (const actor of automatedActors) {
+      expect(() => recordIdentityFieldReview(base, actor)).toThrow(/Only a human/);
+    }
     expect(() => recordIdentityFieldReview(base, { kind: "human", role: "researcher", userId: "researcher-1" })).toThrow(/edit access/);
     expect(() => identityFieldReviewSchema.parse({ ...base, reviewedBy: "", reviewerRole: "raw_material", schemaVersion: "1.0" })).toThrow();
     expect(() => recordIdentityFieldReview({ ...base, decision: "edited" }, rawMaterialReviewer)).toThrow(/edited decisions require/);
