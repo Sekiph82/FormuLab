@@ -505,6 +505,7 @@ export function CandidateReferenceEvidence({ candidate }: { candidate: Generated
         <h4 className="font-medium text-text">{t("reverseFormulation.candidates.referenceEvidence")}</h4>
         {candidate.referenceProductFamilyKey && <span className="font-mono text-muted">{candidate.referenceProductFamilyKey}</span>}
       </div>
+      <p role="note" className="mb-2 rounded border border-warning/30 bg-warning/5 p-2 text-xs font-medium text-text">{t("reverseFormulation.candidates.referenceAdvisory")}</p>
       <div className="space-y-2.5">
         {candidate.referenceSupportQuality && (
           <div className="border-t border-border-faint pt-2 first:border-0 first:pt-0" data-testid="reference-support-quality">
@@ -584,7 +585,6 @@ export function CandidateReferenceEvidence({ candidate }: { candidate: Generated
           </div>
         ))}
       </div>
-      <p className="mt-2 border-t border-border-faint pt-2 text-muted">{t("reverseFormulation.candidates.referenceAdvisory")}</p>
     </section>
   );
 }

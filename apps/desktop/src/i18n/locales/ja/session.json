@@ -3606,7 +3606,7 @@
       "referenceSupportQuality": "Reference support: {{status}}",
       "referenceSupportQualityCounts": "{{family}} family records; {{eligible}} fully eligible reviewed formulas across {{suppliers}} suppliers; identity resolved {{resolved}}/{{family}} ({{resolution}}%); cited ingredient lines {{cited}}/{{lines}} ({{coverage}}%).",
       "referenceSupportQualityCriteria": "Deterministic tiers: BROAD ≥10 eligible formulas, ≥3 suppliers, ≥80% identity resolution and ≥90% citation coverage; MODERATE ≥3, ≥2, ≥60% and ≥75%; SPARSE has eligible evidence below those thresholds; UNAVAILABLE has none. This is corpus coverage, not AI confidence or product validation.",
-      "referenceAdvisory": "Historical supplier examples are advisory evidence only; they do not establish suitability, safety, compatibility, efficacy, or validation.",
+      "referenceAdvisory": "過去のサプライヤー参考処方は参考情報に限られ、測定による検証でも候補性能の予測でもありません。適合性、安全性、相溶性、有効性を証明するものではありません。",
       "referenceIngredient": "Ingredient {{material}}",
       "referenceFrequency": "{{count}} / {{total}} reviewed formulas; formula-weighted {{weighted}}%, equal-supplier mean {{neutral}}%; {{suppliers}} suppliers",
       "referenceCooccurrenceFrequency": "{{count}} / {{total}} reviewed formulas ({{frequency}}%); observed across {{suppliers}} suppliers",

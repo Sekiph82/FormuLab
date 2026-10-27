@@ -45,6 +45,7 @@ describe("candidate reference evidence", () => {
     render(<MemoryRouter><CandidateReferenceEvidence candidate={candidate} /></MemoryRouter>);
 
     expect(screen.getByRole("region", { name: "Reviewed reference evidence" })).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("not measured validation or a prediction of candidate performance");
     expect(screen.getByText("hand_dishwash")).toBeInTheDocument();
     expect(screen.getByText("Reference support: BROAD")).toBeInTheDocument();
     expect(screen.getByText(/10 family records; 10 fully eligible reviewed formulas across 3 suppliers; identity resolved 9\/10 \(90.0%\)/)).toBeInTheDocument();

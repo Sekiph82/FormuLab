@@ -3606,7 +3606,7 @@
       "referenceSupportQuality": "Referans desteği: {{status}}",
       "referenceSupportQualityCounts": "{{family}} aile kaydı; {{suppliers}} tedarikçiden {{eligible}} tam uygun, incelenmiş formül; kimliği çözülen {{resolved}}/{{family}} ({{resolution}}%); kaynak atıflı içerik satırı {{cited}}/{{lines}} ({{coverage}}%).",
       "referenceSupportQualityCriteria": "Belirlenimci düzeyler: BROAD için ≥10 uygun formül, ≥3 tedarikçi, ≥%80 kimlik çözümü ve ≥%90 atıf kapsamı; MODERATE için ≥3, ≥2, ≥%60 ve ≥%75; SPARSE bu eşiklerin altında uygun kanıt bulunduğunu, UNAVAILABLE ise uygun kanıt olmadığını gösterir. Bu, korpus kapsamıdır; yapay zekâ güveni veya ürün doğrulaması değildir.",
-      "referenceAdvisory": "Geçmiş tedarikçi örnekleri yalnızca danışma amaçlı kanıttır; uygunluk, güvenlik, uyumluluk, etkinlik veya doğrulama göstermez.",
+      "referenceAdvisory": "Geçmiş tedarikçi referans formülleri yalnızca danışma amaçlı kanıttır; ölçülmüş doğrulama veya aday performansı tahmini değildir. Uygunluk, güvenlik, uyumluluk ya da etkinlik göstermez.",
       "referenceIngredient": "Bileşen {{material}}",
       "referenceFrequency": "İncelenmiş {{total}} formülün {{count}} tanesinde; formül ağırlıklı %{{weighted}}, tedarikçi eşit ağırlıklı ortalama %{{neutral}}; {{suppliers}} tedarikçi",
       "referenceCooccurrenceFrequency": "İncelenmiş {{total}} formülün {{count}} tanesinde (%{{frequency}}); {{suppliers}} tedarikçide gözlendi",
