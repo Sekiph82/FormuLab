@@ -12,6 +12,8 @@ import { createReferenceFormulationContribution } from "./referenceFormulationCo
 import { supplierDocumentAcquisitionSchema } from "./supplierDocument";
 import { supplierSdsProductEvidenceSchema } from "./supplierSdsProductEvidence";
 import { supplierSdsProductEvidenceRecordSchema } from "./supplierSdsProductEvidence";
+import { laboratoryTrialSchema } from "./laboratory";
+import { testResultSchema } from "./testDefinitions";
 import type { CommercialProduct } from "./commercialProduct";
 import { createReferenceFormulationSource, referenceFormulationSourceSchema } from "./referenceFormulationSource";
 import { createReferenceFormulationRecord, referenceFormulationRecordSchema } from "./referenceFormulationRecord";
@@ -77,6 +79,8 @@ describe("reference formulation record schema", () => {
     expect(record).not.toHaveProperty("formulationId");
     expect(record).not.toHaveProperty("approvalStatus");
     expect(referenceFormulationRecordSchema.parse(record)).toEqual(record);
+    expect(laboratoryTrialSchema.safeParse(record).success).toBe(false);
+    expect(testResultSchema.safeParse(record).success).toBe(false);
   });
 
   it("continues to read immutable records produced by the prior product-matcher version", () => {
