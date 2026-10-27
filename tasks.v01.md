@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 129
-- Remaining: 27
-- Completion: 82.7%
-- Current task: V01-09.002 - Implement catalog/document acquisition UI
+- Completed: 130
+- Remaining: 26
+- Completion: 83.3%
+- Current task: V01-09.003 - Implement acquired document browser
 - Current status: IN PROGRESS
-- Next task: V01-09.003 - Implement acquired document browser
+- Next task: V01-09.004 - Implement SDS extraction review UI
+- Acceptance note: V01-09.002 adds an acquisition jobs tab backed by the existing supplier acquisition job and item collections. It shows item-based product progress, found/acquired/skipped/failed document counts, page or scan checkpoint, checkpoint time, item status, attempt count and bounded failure codes. Progress excludes queued, cancelled and resumed items; focused acceptance verifies the retry state moves from failed to resumed and the started count updates from 4/4 to 3/4. Per-item retry calls the existing failed-item resume transition and reports that the provider workflow must continue it; this screen does not claim to run a provider worker or log into supplier portals. Store errors remain distinct from an empty queue, and opaque continuation references/raw provider errors are not rendered. Focused UI tests (2), connector architecture tests (8), locale parity (23), desktop typecheck, task validator, `git diff --check`, and independent read-only review passed.
 - Acceptance note: V01-09.001 adds a read-only Supplier Surfaces tab inside existing Data Exchange connector management. It lists the declared CHT, Croda, Nouryon, Clariant, Dow, BASF, DyStar, Archroma and Evonik surfaces with provider/surface IDs, public/authenticated/supplier-delivered access mode, document types, stated product scope and limitations. Market/language gaps are explicit; authentication and last-check values come only from an exact surface-ID connection record and are labeled as saved state, not proof of supplier authorization or a fresh supplier check. Store failures render an alert and unknown state instead of “not linked.” No login, crawling, or credential persistence was added. Focused UI assertions (2), connector architecture tests (8), locale parity (23), desktop typecheck, task validator, `git diff --check`, and independent read-only review passed.
 - Acceptance note: V01-08.012 closes reference-intelligence integration acceptance. Focused suites passed and full regression passed (shared: 173 files / 2,681 tests; desktop: 188 files / 1,865 tests), along with shared/desktop typechecks, V01 task validation and `git diff --check`. Six locale files now satisfy candidate-key parity; 26 newly supplied strings currently use English text pending localization refinement. Independent read-only review confirmed the closure fixture updates preserve production behavior and introduce no source/reference mutation. The existing comparison harness verifies deterministic zero-network behavior, unchanged formulas/scores, excluded-material hard-gate precedence, and source-linked reference influence.
 - Acceptance note: V01-08.011 adds a deterministic reference-intelligence on/off comparison harness over the same generator input. Formula lines, estimated properties and match scores remain exactly equal while the enabled run exposes eligible-family counts and source-record-linked reference metadata; repeated enabled runs remain identical and make no network request. The harness also proves an excluded-material hard constraint yields exactly the same rejection output with reference context enabled or disabled. Focused shared candidate-generator tests (14), shared typecheck, V01 task validation, `git diff --check`, and independent read-only review passed. Full regression deferred to the milestone closure task.
@@ -347,8 +348,8 @@ Codex must execute the tasks below in the exact order listed.
 ## Milestone V01-09 - User workflows and review surfaces
 
 - [x] **V01-09.001 - Implement Supplier Connections UI**: Show provider/surface, access mode, authentication state, last check, scope and coverage limitations.
-- [~] **V01-09.002 - Implement catalog/document acquisition UI**: Show search/scan progress, pages/products scanned, documents found/acquired/skipped/failed and per-item retry.
-- [ ] **V01-09.003 - Implement acquired document browser**: Open stored source PDFs, metadata, hash, provider, source URL, revision lineage and extraction state.
+- [x] **V01-09.002 - Implement catalog/document acquisition UI**: Show search/scan progress, pages/products scanned, documents found/acquired/skipped/failed and per-item retry.
+- [~] **V01-09.003 - Implement acquired document browser**: Open stored source PDFs, metadata, hash, provider, source URL, revision lineage and extraction state.
 - [ ] **V01-09.004 - Implement SDS extraction review UI**: Show Section 1/3/7/8/9 and other evidence, original text, normalized value, context, confidence and page link.
 - [ ] **V01-09.005 - Implement commercial-product resolver UI**: Show original supplier product, product type, disclosed components, canonical candidates, confidence reasons and unresolved remainder.
 - [ ] **V01-09.006 - Implement formulation extraction review UI**: Show source PDF alongside extracted formula lines, functions, amounts, procedure, targets and commercial-product links.
