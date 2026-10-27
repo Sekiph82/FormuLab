@@ -40,19 +40,22 @@ describe("reference formulation nearest references", () => {
       { key: "canonical_chemistry", group: "canonical_chemistry", value: "different-chemical" },
       { key: "process:action", group: "process", value: "heat" },
     ], dosage: { lower: 30, upper: 30 } });
+    const newerRevision = { ...best, sourceRecordId: "z-best-revision-v2", sourceDocumentHash: "f".repeat(64) };
     const differentFamily = formula({ sourceRecordId: "d-other", family: "shampoo", categorical: [{ key: "canonical_chemistry", group: "canonical_chemistry", value: "chemical-a" }] });
     const noOverlap = formula({ sourceRecordId: "e-no-overlap", categorical: [{ key: "other_dimension", group: "canonical_chemistry", value: "other" }] });
 
-    const result = retrieveNearestReferenceFormulations({ query, references: [next, differentFamily, best, query, noOverlap], limit: 1 });
+    const result = retrieveNearestReferenceFormulations({ query, references: [next, differentFamily, best, newerRevision, query, noOverlap], limit: 1 });
     expect(result).toMatchObject({
-      querySourceRecordId: "a-query", productFamilyKey: "hand dishwash", requestedLimit: 1, candidateCount: 5,
+      querySourceRecordId: "a-query", productFamilyKey: "hand dishwash", requestedLimit: 1, candidateCount: 6,
       interpretation: "empirical_reference_similarity_not_validation_or_compatibility",
-      minimumFeatureCoverage: 0.5, excludedDifferentFamilyCount: 1, excludedSelfCount: 1, excludedInsufficientCoverageCount: 1, comparableCandidateCount: 2,
+      minimumFeatureCoverage: 0.5, excludedDifferentFamilyCount: 1, excludedSelfCount: 1, excludedInsufficientCoverageCount: 1, comparableCandidateCount: 3,
       references: [{ sourceRecordId: "b-best", distance: 0, similarity: 1, featureCoverage: 1, comparedFeatureCount: 3,
         contributingFeatures: expect.arrayContaining([
           expect.objectContaining({ featureKey: "dosage:chemical-a:surfactant", relation: "overlapping_ranges", distance: 0 }),
         ]), evidenceRefs: expect.arrayContaining(["dosage:a-query", "dosage:b-best"]) }],
     });
+    expect(result.references[0]?.sourceDocumentHash).toBe(best.sourceDocumentHash);
+    expect(result.references[0]?.sourceDocumentHash).not.toBe(newerRevision.sourceDocumentHash);
     expect(retrieveNearestReferenceFormulations({ query, references: [noOverlap, query, best, differentFamily, next] })).toEqual(
       retrieveNearestReferenceFormulations({ query, references: [next, differentFamily, best, query, noOverlap] }));
     expect(JSON.stringify(result)).not.toContain("supplierId");

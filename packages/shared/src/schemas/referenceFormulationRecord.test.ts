@@ -9,7 +9,7 @@ import { matchReferenceFormulationProducts } from "../engine/referenceFormulatio
 import { extractReferenceFormulationTargets } from "../engine/referenceFormulationTargetExtraction";
 import { buildReferenceFormulationUnresolvedQueue } from "../engine/referenceFormulationUnresolvedQueue";
 import { createReferenceFormulationContribution } from "./referenceFormulationContribution";
-import { supplierDocumentAcquisitionSchema } from "./supplierDocument";
+import { supplierDocumentAcquisitionSchema, type SupplierDocumentAcquisition } from "./supplierDocument";
 import { supplierSdsProductEvidenceSchema } from "./supplierSdsProductEvidence";
 import { supplierSdsProductEvidenceRecordSchema } from "./supplierSdsProductEvidence";
 import { laboratoryTrialSchema } from "./laboratory";
@@ -22,16 +22,18 @@ import { validateReferenceFormulationFunctionNormalizationAgainstSource } from "
 import { createReferenceFormulationQueryRecord, referenceFormulationQueryRecordSchema } from "./referenceFormulationQuery";
 
 const HASH = "a".repeat(64);
-const acquisition = () => supplierDocumentAcquisitionSchema.parse({
+const acquisition = (overrides: Partial<SupplierDocumentAcquisition> = {}) => supplierDocumentAcquisitionSchema.parse({
   schemaVersion: "1.0", code: "supplierdoc-formula-record", supplierId: "supplier-croda", providerId: "croda-public", surfaceId: "formulation-library",
   documentType: "FORMULATION", acquisitionMethod: "manual_assisted",
   sourceFileSelection: { selectionId: "selection-record", originalFilename: "formula.pdf", sourceFileSha256: HASH, selectedAt: "2026-10-26T08:00:00.000Z", selectedBy: "owner-1" },
   sourceProduct: { tradeName: "Example formulation" }, market: "EU", language: "en", originalFilename: "formula.pdf", mimeType: "application/pdf",
   sha256: HASH, byteSize: 2048, parserStatus: "completed", acquiredAt: "2026-10-26T08:00:00.000Z", createdAt: "2026-10-26T08:00:00.000Z",
+  ...overrides,
 });
-const formulaSource = () => createReferenceFormulationSource({
-  id: "reference-source-record-1", acquisition: acquisition(), title: "Example supplier formula", parserVersion: "formulab-reference-formulation-layout-v1",
-  rights: { status: "unknown", redistribution: "unknown", evidenceRefs: [] }, createdAt: "2026-10-26T08:01:00.000Z",
+const formulaSource = (sourceAcquisition = acquisition(), id = "reference-source-record-1", supersedesSourceId?: string) => createReferenceFormulationSource({
+  id, acquisition: sourceAcquisition, title: "Example supplier formula", parserVersion: "formulab-reference-formulation-layout-v1",
+  rights: { status: "unknown", redistribution: "unknown", evidenceRefs: [] },
+  ...(supersedesSourceId ? { supersedesSourceId } : {}), createdAt: "2026-10-26T08:01:00.000Z",
 });
 const pages = [
   { pageNumber: 1, blocks: [
@@ -44,9 +46,9 @@ const pages = [
   ] },
 ];
 
-function generatedRecord(products: CommercialProduct[] = []) {
-  const source = formulaSource();
-  const identity = extractReferenceFormulationIdentity({ acquisition: acquisition(), pages });
+function generatedRecord(products: CommercialProduct[] = [], sourceAcquisition = acquisition(), sourceId = "reference-source-record-1", supersedesSourceId?: string) {
+  const source = formulaSource(sourceAcquisition, sourceId, supersedesSourceId);
+  const identity = extractReferenceFormulationIdentity({ acquisition: sourceAcquisition, pages });
   const ingredientResult = extractReferenceFormulationIngredientLines({ source, pages });
   const arithmetic = validateReferenceFormulationArithmetic({ source, lines: ingredientResult.lines });
   const procedure = extractReferenceFormulationProcedure({ source, pages });
@@ -56,7 +58,7 @@ function generatedRecord(products: CommercialProduct[] = []) {
     source, lines: ingredientResult.lines, matching, products,
   });
   return createReferenceFormulationRecord({
-    id: "reference-formula-record-1", code: "reference-formula-record-1", source,
+    id: `${sourceId}-record`, code: `${sourceId}-record`, source,
     identityCandidates: identity.candidates, identityMetadataComparisons: identity.metadataComparisons, identityWarnings: identity.warnings,
     ingredientLines: ingredientResult.lines, arithmetic,
     procedureSteps: procedure.steps, procedureWarnings: procedure.warnings,
@@ -94,6 +96,40 @@ describe("reference formulation record schema", () => {
     };
     expect(referenceFormulationRecordSchema.parse(priorVersionRecord).parserVersions.productMatcher)
       .toBe("formulab-reference-formulation-product-matcher-v1");
+  });
+
+  it("keeps a historical formula pinned to its exact PDF after a newer source revision is added", () => {
+    const historical = generatedRecord();
+    const historicalSnapshot = structuredClone(historical);
+    const nextHash = "b".repeat(64);
+    const nextAcquisition = acquisition({
+      code: "supplierdoc-formula-record-v2",
+      sha256: nextHash,
+      sourceRevision: "Rev 2",
+      supersedesCode: "supplierdoc-formula-record",
+      sourceFileSelection: {
+        selectionId: "selection-record-v2",
+        originalFilename: "formula.pdf",
+        sourceFileSha256: nextHash,
+        selectedAt: "2026-10-27T08:00:00.000Z",
+        selectedBy: "owner-1",
+      },
+      acquiredAt: "2026-10-27T08:00:00.000Z",
+      createdAt: "2026-10-27T08:00:00.000Z",
+    });
+
+    const newer = generatedRecord([], nextAcquisition, "reference-source-record-2", historical.source.id);
+
+    expect(historical).toEqual(historicalSnapshot);
+    expect(historical.sourceDocumentHash).toBe(HASH);
+    expect(historical.ingredientLines[0]?.sourceDocumentHash).toBe(HASH);
+    expect(newer).toMatchObject({
+      source: { sourcePdfSha256: nextHash, supersedesSourceId: historical.source.id, sourceRevision: "Rev 2" },
+      sourceDocumentHash: nextHash,
+      ingredientLines: [{ sourceDocumentHash: nextHash }],
+    });
+    expect(referenceFormulationRecordSchema.parse(historical)).toEqual(historicalSnapshot);
+    expect(referenceFormulationRecordSchema.parse(newer)).toEqual(newer);
   });
 
   it("stores exact or ranged component contribution with formula/SDS lineage and keeps missing evidence unknown", () => {

@@ -2662,7 +2662,8 @@ mod tests {
             "evidence": {
                 "schemaVersion": "1.0", "id": "sds-evidence-1", "commercialProductId": "commercial-product-1",
                 "section1": {"sectionNumber": 1, "sourceDocumentHash": "c".repeat(64)},
-                "section3": {"sectionNumber": 3, "sourceDocumentHash": "c".repeat(64), "components": [], "reconciliations": []}
+                "section3": {"sectionNumber": 3, "sourceDocumentHash": "c".repeat(64), "components": []},
+                "reconciliations": []
             }
         });
         validate_supplier_sds_product_evidence_record(&record, &acquisition, &[crosswalk.clone()]).unwrap();
@@ -2716,6 +2717,60 @@ mod tests {
         incorrect_exact_match["evidence"]["section3"]["components"][0]["casNumber"]["rawValue"] = serde_json::json!("64-17-5");
         incorrect_exact_match["evidence"]["reconciliations"][0]["evidenceRefs"] = serde_json::json!(["sds:p1:cas"]);
         assert!(validate_supplier_sds_product_evidence_record(&incorrect_exact_match, &acquisition, &[crosswalk]).unwrap_err().contains("must cite both linked"));
+    }
+
+    #[test]
+    fn newer_sds_revision_does_not_retarget_historical_extraction_evidence() {
+        let acquisition_v1 = serde_json::json!({
+            "code": "sds-acquisition-v1", "documentType": "SDS", "sha256": "c".repeat(64),
+            "providerId": "croda-public", "sourceProduct": {"supplierItemCode": "CRODA-001"}
+        });
+        let acquisition_v2 = serde_json::json!({
+            "code": "sds-acquisition-v2", "documentType": "SDS", "sha256": "d".repeat(64),
+            "providerId": "croda-public", "sourceProduct": {"supplierItemCode": "CRODA-001"},
+            "sourceRevision": "Rev 2", "supersedesCode": "sds-acquisition-v1"
+        });
+        let evidence_v1 = serde_json::json!({
+            "schemaVersion": "1.0", "code": "sds-evidence-v1", "acquisitionCode": "sds-acquisition-v1",
+            "extractionStatus": "unreviewed", "createdAt": "2026-10-26T10:00:00Z",
+            "evidence": {
+                "schemaVersion": "1.0", "id": "sds-evidence-v1", "commercialProductId": "commercial-product-1",
+                "section1": {"sectionNumber": 1, "sourceDocumentHash": "c".repeat(64)},
+                "section3": {"sectionNumber": 3, "sourceDocumentHash": "c".repeat(64), "components": []},
+                "reconciliations": []
+            }
+        });
+        let evidence_v2 = serde_json::json!({
+            "schemaVersion": "1.0", "code": "sds-evidence-v2", "acquisitionCode": "sds-acquisition-v2",
+            "extractionStatus": "unreviewed", "createdAt": "2026-10-27T10:00:00Z",
+            "evidence": {
+                "schemaVersion": "1.0", "id": "sds-evidence-v2", "commercialProductId": "commercial-product-1",
+                "section1": {"sectionNumber": 1, "sourceDocumentHash": "d".repeat(64)},
+                "section3": {"sectionNumber": 3, "sourceDocumentHash": "d".repeat(64), "components": []},
+                "reconciliations": []
+            }
+        });
+        let crosswalk = serde_json::json!({
+            "code": "croda-public::supplier_products::CRODA-001::CommercialProduct",
+            "sourceSystemId": "croda-public", "sourceEntity": "supplier_products", "sourceRecordId": "CRODA-001",
+            "canonicalEntity": "CommercialProduct", "canonicalRecordId": "commercial-product-1", "status": "active"
+        });
+
+        validate_supplier_sds_product_evidence_record(&evidence_v1, &acquisition_v1, &[crosswalk.clone()]).unwrap();
+        validate_supplier_sds_product_evidence_record(&evidence_v2, &acquisition_v2, &[crosswalk.clone()]).unwrap();
+        assert!(validate_supplier_sds_product_evidence_record(&evidence_v1, &acquisition_v2, &[crosswalk.clone()])
+            .unwrap_err().contains("match the acquired SDS hash"));
+
+        let (acquisitions, inserted, updated) = apply_upsert(
+            vec![acquisition_v1.clone()], vec![acquisition_v2], true, "supplier_document_acquisitions",
+        ).unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert_eq!(acquisitions[0], acquisition_v1);
+        let (extractions, inserted, updated) = apply_upsert(
+            vec![evidence_v1.clone()], vec![evidence_v2], true, "supplier_sds_product_evidence",
+        ).unwrap();
+        assert_eq!((inserted, updated), (1, 0));
+        assert_eq!(extractions[0], evidence_v1);
     }
 
     #[test]
