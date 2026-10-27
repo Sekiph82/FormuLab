@@ -88,6 +88,21 @@ describe("supplier SDS Section 1 commercial identity extraction", () => {
     expect(result.warnings).toEqual(["no_section_1_candidates"]);
   });
 
+  it("leaves CAS unknown when Section 1 declares a product but no CAS identifier", () => {
+    const lines = [
+      line(1, 1, "SECTION 1: Identification of the substance/mixture and of the company/undertaking"),
+      line(1, 2, "Chemical name: Supplier blend Q"),
+      line(1, 3, "Chemical nature: mixture"),
+      line(1, 4, "SECTION 2: Hazards identification"),
+    ];
+
+    const result = extractSupplierSdsSection1({ sourceDocumentHash: HASH, lines });
+
+    expect(result.candidates.map(({ field }) => field)).toEqual(["declared_chemical_name", "chemical_nature"]);
+    expect(result.candidates.some(({ field }) => field === "cas_number")).toBe(false);
+    expect(result.warnings).toEqual([]);
+  });
+
   it("returns a clear absence warning when Section 1 is not detected", () => {
     const result = extractSupplierSdsSection1({ sourceDocumentHash: HASH, lines: [line(1, 1, "Supplier: Example")] });
     expect(result.candidates).toEqual([]);

@@ -120,4 +120,15 @@ describe("reference formulation procedure extraction", () => {
     expect(ambiguous.steps).toEqual([]);
     expect(ambiguous.warnings).toContain("ambiguous_procedure_columns");
   });
+
+  it("keeps absent process conditions absent instead of filling default temperature, time or speed", () => {
+    const result = extractReferenceFormulationProcedure({ source: source(), pages: [{ pageNumber: 1, blocks: [
+      { type: "heading", blockIndex: 0, text: "Manufacturing Procedure", source: "digital" },
+      { type: "text", blockIndex: 1, text: "Add the surfactant slowly and mix.", source: "digital" },
+    ] }] });
+
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0]?.conditions).toEqual([]);
+    expect(result.steps[0]?.rawInstruction).toBe("Add the surfactant slowly and mix.");
+  });
 });

@@ -110,4 +110,18 @@ describe("supplier SDS Section 9 physical-property extraction", () => {
     expect(extractSupplierSdsSection9PhysicalProperties({ sourceDocumentHash: HASH, lines: [] }).warnings).toEqual(["section_9_not_detected"]);
     expect(() => extractSupplierSdsSection9PhysicalProperties({ sourceDocumentHash: "bad", lines: [] })).toThrow(/SHA-256/u);
   });
+
+  it("leaves unsupported or absent Section 9 properties unavailable", () => {
+    const lines = [
+      line(1, 1, "SECTION 9: Physical and chemical properties"),
+      line(1, 2, "Active matter: 40%"),
+      line(1, 3, "Unknown supplier property: proprietary value"),
+      line(1, 4, "SECTION 10: Stability and reactivity"),
+    ];
+
+    const result = extractSupplierSdsSection9PhysicalProperties({ sourceDocumentHash: HASH, lines });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.warnings).toContain("no_section_9_property_candidates");
+  });
 });

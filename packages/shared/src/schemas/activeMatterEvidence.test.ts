@@ -50,6 +50,15 @@ describe("explicit active matter, solids and assay evidence", () => {
     })).toThrow(/bounds are inconsistent/);
   });
 
+  it("does not derive active matter from Section 3 component concentrations", () => {
+    expect(() => createActiveMatterEvidence(claim({
+      sourceDocumentType: "SDS",
+      sourceSectionNumber: 3,
+      explicitPropertyLabel: "Composition concentration",
+      originalValue: "38-42%",
+    }))).toThrow(/Section 3 hazard-disclosure composition/);
+  });
+
   it("keeps claims provisional and verifies persisted lineage against the extracted source claim", () => {
     const sourceClaim = claim();
     const record = createActiveMatterEvidence(sourceClaim);
