@@ -3,6 +3,7 @@ import {
   buildReferenceFormulationUnresolvedQueue,
   calculateReferenceFormulationContributionDistributions,
   calculateReferenceFormulationProcessPatterns,
+  calculateReferenceFormulationTargetDistributions,
   createReferenceFormulationRecord,
   createReferenceFormulationSource,
   extractReferenceFormulationIdentity,
@@ -22,6 +23,7 @@ import { calculateReferenceFormulationIngredientFrequencyPriors } from "./refere
 import { calculateReferenceFormulationDosageDistributions } from "./referenceFormulationDosageDistributions";
 import { calculateReferenceFormulationCooccurrence } from "./referenceFormulationCooccurrence";
 import { createReferenceFormulationProcessNormalization } from "../schemas/referenceFormulationProcessNormalization";
+import { createReferenceFormulationTargetNormalization } from "../schemas/referenceFormulationTargetNormalization";
 
 const HASH = "a".repeat(64);
 const AS_OF = "2026-10-26T12:00:00.000Z";
@@ -31,6 +33,7 @@ function query(input: {
   amountValue?: string; functionId?: string; functionIds?: string[]; ingredientNames?: string[]; chemicalIds?: string[];
   processInstructions?: string[];
   processPhases?: Array<string | undefined>;
+  targetValues?: Array<{ label: string; value: string; section?: "target" | "typical" | "unspecified" }>;
   familyStatus?: "unresolved" | "proposed" | "ambiguous"; chemistryStatus?: "unresolved" | "proposed" | "ambiguous";
 } = {}): ReferenceFormulationQueryRecord {
   const sourceRecordId = input.sourceRecordId ?? "source-1";
@@ -38,7 +41,7 @@ function query(input: {
   const normalizationId = input.normalizationId ?? "normalization-1";
   const familyStatus = input.familyStatus ?? "proposed";
   const chemistryStatus = input.chemistryStatus ?? "proposed";
-  const source = sourceRecord(sourceRecordId, allowedRights, true, supplierId, input.amountValue ?? "10", input.ingredientNames, input.processInstructions, input.processPhases);
+  const source = sourceRecord(sourceRecordId, allowedRights, true, supplierId, input.amountValue ?? "10", input.ingredientNames, input.processInstructions, input.processPhases, input.targetValues);
   const processSteps = createReferenceFormulationProcessNormalization(source).steps;
   const familyCandidate = source.identityCandidates.find((candidate) => candidate.field === "product_family");
   const lines = source.ingredientLines.map((sourceLine, index) => {
@@ -90,7 +93,7 @@ function query(input: {
     },
     market: "EU", language: "en", sourceRevision: { identityCandidates: [] },
     lines,
-    activeMatterClaims: [], processSteps, targets: [], reviewRequired: true,
+    activeMatterClaims: [], processSteps, targets: createReferenceFormulationTargetNormalization(source).targets, reviewRequired: true,
   });
 }
 
@@ -177,13 +180,20 @@ function acceptedProcessReviews(record: ReferenceFormulationQueryRecord): Refere
   }))]);
 }
 
+function acceptedTargetReviews(record: ReferenceFormulationQueryRecord): ReferenceFormulationReview[] {
+  return record.targets.map((target) => review({
+    sourceRecordId: record.sourceRecordId, targetType: "target", targetKey: `target:${target.sourceTargetId}`,
+    fieldPath: `targetCandidates[${target.sourceTargetId}].${target.property}`, sourceValue: target.originalValue,
+  }));
+}
+
 const allowedRights: ReferenceFormulationRights = {
     status: "owner_provided", redistribution: "unknown", evidenceRefs: ["owner:fixture"],
     usePermissions: { internalResearch: { status: "allowed", evidenceRefs: ["owner:research"] } },
     retentionPolicy: { status: "retain_until_revoked", evidenceRefs: ["owner:retention"] },
 };
 
-function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRights, includeFamily = true, supplierId = "supplier-1", amountValue = "10", ingredientNames = ["Surfactant A"], processInstructions: string[] = [], processPhases?: Array<string | undefined>): ReferenceFormulationRecord {
+function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRights, includeFamily = true, supplierId = "supplier-1", amountValue = "10", ingredientNames = ["Surfactant A"], processInstructions: string[] = [], processPhases?: Array<string | undefined>, targetValues: Array<{ label: string; value: string; section?: "target" | "typical" | "unspecified" }> = []): ReferenceFormulationRecord {
   const acquisition = supplierDocumentAcquisitionSchema.parse({
     schemaVersion: "1.0", code: `acquisition:${id}`, supplierId, providerId: "provider-1", surfaceId: "surface-1",
     documentType: "FORMULATION", acquisitionMethod: "manual_assisted",
@@ -201,6 +211,10 @@ function sourceRecord(id: string, rights: ReferenceFormulationRights = allowedRi
     ...(processInstructions.length && processPhases
       ? [{ type: "table" as const, blockIndex: 3, source: "digital" as const, rows: [["Step", "Phase", "Procedure"], ...processInstructions.map((text, index) => [`${index + 1}`, processPhases[index] ?? "", text])] }]
       : processInstructions.map((text, index) => ({ type: "text" as const, blockIndex: 3 + index, text: `Procedure: ${text}`, source: "digital" as const }))),
+    ...targetValues.flatMap((target, index) => [
+      { type: "heading" as const, blockIndex: 20 + index * 2, text: target.section === "typical" ? "Typical Results" : target.section === "unspecified" ? "Product Properties" : "Target Values", source: "digital" as const },
+      { type: "text" as const, blockIndex: 21 + index * 2, text: `${target.label}: ${target.value}`, source: "digital" as const },
+    ]),
   ] }];
   const identity = extractReferenceFormulationIdentity({ acquisition, pages });
   const ingredients = extractReferenceFormulationIngredientLines({ source, pages });
@@ -227,8 +241,12 @@ const allowed = (records: ReferenceFormulationQueryRecord[], reviews: ReferenceF
       const candidate = step.phaseCandidates.candidateValues[0];
       return candidate && candidate.evidenceRefs.some((ref) => !step.evidenceRefs.includes(ref)) ? candidate.rawValue : undefined;
     });
+    const targetValues = record.targets.map((target) => ({
+      label: target.originalLabel, value: target.originalValue,
+      section: target.resultSemantics === "typical_result" ? "typical" as const : target.resultSemantics === "unspecified" ? "unspecified" as const : "target" as const,
+    }));
     return sourceRecord(id, allowedRights, record.productFamily.status !== "unresolved", record.supplierId, record.lines[0]?.amount.originalValue ?? "", ingredientNames,
-      record.processSteps.map((step) => step.originalInstruction), processPhases.some(Boolean) ? processPhases : undefined);
+      record.processSteps.map((step) => step.originalInstruction), processPhases.some(Boolean) ? processPhases : undefined, targetValues);
   }),
   asOf: AS_OF,
 });
@@ -596,5 +614,40 @@ describe("reference formulation corpus eligibility", () => {
     const noReviews = calculateReferenceFormulationProcessPatterns({ ...allowed([first], acceptedReviews(first)) });
     expect(noReviews).toMatchObject({ eligibleProcessFormulaCount: 0, excludedProcessEvidenceCount: first.processSteps.length });
     expect(noReviews.patterns).toEqual([]);
+  });
+
+  it("computes source-reviewed target distributions with unit and measurement-context separation", () => {
+    const first = query({ sourceRecordId: "target-a", supplierId: "supplier-a", targetValues: [
+      { label: "pH", value: "5.0–5.5" }, { label: "Viscosity", value: "200 cP at 20°C" },
+      { label: "Density", value: "1.00 g/mL at 25°C" }, { label: "Appearance", value: "Clear liquid" },
+      { label: "Viscosity", value: "about 210 cP at 20°C" }, { label: "Viscosity", value: "220 cPfoo at 20°C" },
+      { label: "Viscosity", value: "230 cP/s at 20°C" },
+      { label: "Density", value: "1,000 kg/m³ at 25°C" }, { label: "Density", value: "1.000 kg/m³ at 25°C" },
+    ] });
+    const second = query({ sourceRecordId: "target-b", supplierId: "supplier-b", targetValues: [
+      { label: "pH", value: "5.2" }, { label: "Viscosity", value: "250 mPa·s at 20 °C" },
+      { label: "Density", value: "1000 kg/m³ at 25 °C" }, { label: "Appearance", value: "Pale yellow liquid" },
+    ] });
+    const reviews = [...acceptedReviews(first), ...acceptedReviews(second), ...acceptedTargetReviews(first), ...acceptedTargetReviews(second)];
+    const result = calculateReferenceFormulationTargetDistributions({ ...allowed([first, second], reviews) });
+    expect(result).toMatchObject({ eligibleFormulaCount: 2, excludedFormulaCount: 0, excludedTargetCount: 5,
+      excludedTargetsByReason: { approximate_or_unparsed: 1, unsupported_unit: 4 } });
+    expect(result.distributions.find((item) => item.property === "ph" && "canonicalUnit" in item))
+      .toMatchObject({ formulaCount: 2, canonicalUnit: "pH", measurementContext: "not stated", minimumLowerBound: 5, maximumUpperBound: 5.5, sourceRecordIds: ["target-a", "target-b"] });
+    expect(result.distributions.find((item) => item.property === "viscosity" && "canonicalUnit" in item))
+      .toMatchObject({ formulaCount: 2, canonicalUnit: "mPa·s", measurementContext: "at 20°c", minimumLowerBound: 200, maximumUpperBound: 250 });
+    expect(result.distributions.find((item) => item.property === "density" && "canonicalUnit" in item))
+      .toMatchObject({ formulaCount: 2, canonicalUnit: "g/mL", measurementContext: "at 25°c", minimumLowerBound: 1, maximumUpperBound: 1 });
+    expect(result.distributions.find((item) => item.property === "appearance" && "categories" in item))
+      .toMatchObject({ formulaCount: 2, categories: [{ value: "clear liquid", formulaCount: 1 }, { value: "pale yellow liquid", formulaCount: 1 }] });
+    const withoutTargetReviews = calculateReferenceFormulationTargetDistributions({ ...allowed([first], acceptedReviews(first)) });
+    expect(withoutTargetReviews).toMatchObject({ excludedTargetCount: 9, excludedTargetsByReason: { target_not_reviewed: 9 }, distributions: [] });
+    const duplicate = query({ sourceRecordId: "target-duplicate", targetValues: [
+      { label: "pH", value: "5.0" }, { label: "pH", value: "5.5" },
+    ] });
+    const duplicateResult = calculateReferenceFormulationTargetDistributions({
+      ...allowed([duplicate], [...acceptedReviews(duplicate), ...acceptedTargetReviews(duplicate)]),
+    });
+    expect(duplicateResult).toMatchObject({ excludedTargetCount: 2, excludedTargetsByReason: { duplicate_property_context: 2 }, distributions: [] });
   });
 });
