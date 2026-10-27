@@ -9,6 +9,14 @@ import { extractReferenceFormulationProcedure } from "./referenceFormulationProc
 import { matchReferenceFormulationProducts } from "./referenceFormulationProductMatching";
 import { extractReferenceFormulationTargets } from "./referenceFormulationTargetExtraction";
 import { buildReferenceFormulationUnresolvedQueue } from "./referenceFormulationUnresolvedQueue";
+import { createReferenceFormulationNormalizationVersion } from "../schemas/referenceFormulationNormalization";
+import { createReferenceFormulationQueryRecord } from "../schemas/referenceFormulationQuery";
+import { createReferenceFormulationRecord } from "../schemas/referenceFormulationRecord";
+import { supplierSdsProductEvidenceRecordSchema, supplierSdsProductEvidenceSchema } from "../schemas/supplierSdsProductEvidence";
+import { buildReferenceFormulationLocalIndex, searchReferenceFormulationLocalIndex } from "./referenceFormulationIndex";
+import { detectSupplierSdsSections, type SupplierSdsSectionLine } from "./supplierSdsSectionDetection";
+import { extractSupplierSdsSection1 } from "./supplierSdsSection1Extraction";
+import { commercialProductSchema } from "../schemas/commercialProduct";
 
 const NOW = "2026-10-26T12:00:00.000Z";
 const FORMULATION_HASH = "78540c2399aa20c813aab5ff176dfa1229cc59509ec31ea707a331a9f642f38b";
@@ -216,5 +224,115 @@ describe("Croda HC/DW/22 supplied-source acceptance", () => {
       status: "ready_for_acquisition", reasons: ["product_identity_unmatched", "supporting_sds_missing"],
     });
     expect(unresolved.sourceLines).toEqual(extraction.lines);
+  });
+
+  it("carries a four-document Croda fixture through source-linked review, normalization, indexing, and retrieval", () => {
+    // These are synthetic parser inputs keyed to the supplied document names and hashes;
+    // they do not claim to reproduce or disclose the contents of supplier SDS PDFs.
+    const fixtureFormulaAcquisition = acquisition({
+      code: "croda-formulation-e2e-synthetic", filename: "synthetic-Croda_787_Hand_Dishwash_Detergent_Liquid.pdf",
+      hash: "f".repeat(64), byteSize: 1024, documentType: "FORMULATION", tradeName: "Hand Dishwash Detergent Liquid",
+    });
+    const fixtureSource = createReferenceFormulationSource({
+      id: "reference-source-croda-hc-dw-22-e2e-fixture", acquisition: fixtureFormulaAcquisition,
+      formulationCode: "HC/DW/22", title: "Hand Dishwash Detergent Liquid",
+      parserVersion: "formulab-reference-formulation-layout-v1",
+      rights: { status: "unknown", redistribution: "unknown", evidenceRefs: [] }, createdAt: NOW,
+    });
+    const extractedIdentity = extractReferenceFormulationIdentity({ acquisition: fixtureFormulaAcquisition, pages: formulaPages });
+    const extractedLines = extractReferenceFormulationIngredientLines({ source: fixtureSource, pages: formulaPages });
+    const arithmetic = validateReferenceFormulationArithmetic({
+      source: fixtureSource,
+      lines: extractedLines.lines,
+      sourceDeclaredTotal: {
+        rawValue: "100.0", unit: "% w/w",
+        evidence: { sourceDocumentHash: fixtureSource.sourcePdfSha256, pageNumber: 1, blockIndex: 3, excerpt: "Total - 100.0", source: "digital" },
+      },
+    });
+    const procedure = extractReferenceFormulationProcedure({ source: fixtureSource, pages: formulaPages });
+    const targets = extractReferenceFormulationTargets({ source: fixtureSource, pages: formulaPages });
+
+    const sdsRecords = sdsDocuments.map(({ item }, index) => {
+      const syntheticHash = String(index + 1).repeat(64);
+      const acquisitionRecord = supplierDocumentAcquisitionSchema.parse({
+        ...acquisition({ ...item, hash: syntheticHash, filename: `synthetic-${item.filename}`, documentType: "SDS" }),
+        sourceProduct: { supplierItemCode: item.productCode, tradeName: item.tradeName },
+      });
+      const lines: SupplierSdsSectionLine[] = [
+        { pageNumber: 1, lineNumber: 1, text: "SECTION 1: Identification of the substance/mixture and of the company/undertaking", source: "digital" },
+        { pageNumber: 1, lineNumber: 2, text: `Chemical name: ${item.tradeName}`, source: "digital" },
+        { pageNumber: 1, lineNumber: 3, text: "SECTION 2: Hazards identification", source: "digital" },
+        { pageNumber: 1, lineNumber: 4, text: "SECTION 3: Composition/information on ingredients", source: "digital" },
+        { pageNumber: 1, lineNumber: 5, text: "SECTION 4: First aid measures", source: "digital" },
+      ];
+      const sections = detectSupplierSdsSections(lines);
+      const section1 = extractSupplierSdsSection1({ sourceDocumentHash: syntheticHash, lines, sections });
+      const nameCandidate = section1.candidates.find((candidate) => candidate.field === "declared_chemical_name");
+      expect(nameCandidate?.rawValue).toBe(item.tradeName);
+      const evidence = supplierSdsProductEvidenceSchema.parse({
+        schemaVersion: "1.0", id: `sds-evidence-${item.productCode}`,
+        commercialProductId: `commercial-${item.productCode!.toLowerCase()}`,
+        section1: {
+          sectionNumber: 1, sourceDocumentHash: syntheticHash,
+          declaredChemicalName: {
+            id: `sds-name-${item.productCode}`, rawValue: nameCandidate!.rawValue,
+            evidenceRefs: nameCandidate!.evidence.map((entry) => `${item.code}:page:${entry.pageNumber}:line:${entry.lineNumber}`),
+          },
+        },
+        section3: { sectionNumber: 3, sourceDocumentHash: syntheticHash, components: [] },
+      });
+      const product = commercialProductSchema.parse({
+        schemaVersion: "1.0", id: `commercial-${item.productCode!.toLowerCase()}`, supplierId: "supplier-croda",
+        tradeName: nameCandidate!.rawValue, productCode: item.productCode,
+        aliases: [{ value: item.formulaAlias, kind: "trade_name", sourceDocumentCode: acquisitionRecord.code }],
+        sourceDocumentCodes: [acquisitionRecord.code], sourceFormulationReferences: [],
+        lifecycleStatus: "active", reviewStatus: "unreviewed",
+      });
+      return { acquisition: acquisitionRecord, evidence, product };
+    });
+
+    const products = sdsRecords.map(({ product }) => product);
+    const matching = matchReferenceFormulationProducts({ source: fixtureSource, lines: extractedLines.lines, products });
+    const unresolved = buildReferenceFormulationUnresolvedQueue({
+      source: fixtureSource, lines: extractedLines.lines, matching, products,
+      supplierDocuments: sdsRecords.map(({ acquisition: record }) => record),
+    });
+    const record = createReferenceFormulationRecord({
+      id: "reference-formula-croda-hc-dw-22-e2e-fixture", code: "reference-formula-croda-hc-dw-22-e2e-fixture", source: fixtureSource,
+      identityCandidates: extractedIdentity.candidates, identityMetadataComparisons: extractedIdentity.metadataComparisons,
+      identityWarnings: extractedIdentity.warnings, ingredientLines: extractedLines.lines, arithmetic,
+      procedureSteps: procedure.steps, procedureWarnings: procedure.warnings,
+      targetCandidates: targets.candidates, targetWarnings: targets.warnings,
+      productMatches: matching.lines, productMatchWarnings: matching.warnings,
+      unresolvedEntries: unresolved.entries, createdAt: NOW,
+    });
+    const normalization = createReferenceFormulationNormalizationVersion({
+      id: "normalization-croda-hc-dw-22-e2e-fixture", source: record, version: 1,
+      supplierSdsEvidenceRecords: sdsRecords.map(({ acquisition: acquired, evidence }) => supplierSdsProductEvidenceRecordSchema.parse({
+        schemaVersion: "1.0", code: evidence.id, acquisitionCode: acquired.code, evidence, extractionStatus: "unreviewed", createdAt: NOW,
+      })),
+      createdAt: NOW,
+    });
+    const queryRecord = createReferenceFormulationQueryRecord({ source: record, normalization });
+    const index = buildReferenceFormulationLocalIndex([queryRecord]);
+
+    expect(sdsRecords).toHaveLength(4);
+    expect(sdsRecords.every(({ evidence, acquisition: acquired }) =>
+      evidence.section1.sourceDocumentHash === acquired.sha256.toLowerCase()
+      && evidence.section3.sourceDocumentHash === acquired.sha256.toLowerCase())).toBe(true);
+    expect(record.sourceDocumentHash).toBe("f".repeat(64));
+    expect(record.identityCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "formulation_code", rawValue: "HC/DW/22" }),
+    ]));
+    expect(record.arithmetic.arithmeticStatus).toBe("consistent");
+    expect(record.productMatches.filter((match) => match.resolution === "alias_match_candidate")).toHaveLength(4);
+    expect(record.productMatches.every((match) => match.autoLinked === false && match.reviewRequired)).toBe(true);
+    expect(record.unresolvedEntries.filter((entry) => entry.status === "ready_for_acquisition").map((entry) => entry.ingredientLine.ingredientName?.rawValue))
+      .toEqual(["DI Water", "SLE(3)S (30%, aq.)", "Citric acid (25%, aq.)", "EBC Crothix™ Liquid HC MBAL"]);
+    expect(normalization.lines.every((line) => line.canonicalChemistry.status === "unresolved")).toBe(true);
+    expect(searchReferenceFormulationLocalIndex(index, { supplierIds: ["supplier-croda"], aliases: ["HC/DW/22"] }))
+      .toEqual([queryRecord.id]);
+    expect(queryRecord).not.toHaveProperty("productionFormulaId");
+    expect(queryRecord).not.toHaveProperty("rawMaterial");
   });
 });
