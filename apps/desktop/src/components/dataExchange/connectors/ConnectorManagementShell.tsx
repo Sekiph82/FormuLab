@@ -8,10 +8,11 @@ import { MappingProfilesScreen } from "./MappingProfilesScreen";
 import { CrosswalksScreen } from "./CrosswalksScreen";
 import { ImportRunsScreen } from "./ImportRunsScreen";
 import { PrepareReviewScreen } from "./PrepareReviewScreen";
+import { SupplierConnectionsScreen } from "./SupplierConnectionsScreen";
 import { Card, Empty } from "./ui";
 
-type ConnectorTab = "connections" | "explorer" | "mapping" | "crosswalks" | "runs" | "review";
-const TABS: ConnectorTab[] = ["connections", "explorer", "mapping", "crosswalks", "runs", "review"];
+type ConnectorTab = "connections" | "suppliers" | "explorer" | "mapping" | "crosswalks" | "runs" | "review";
+const TABS: ConnectorTab[] = ["connections", "suppliers", "explorer", "mapping", "crosswalks", "runs", "review"];
 
 /** Section 2 — the Connector Management shell, mounted as a new section
  *  inside the EXISTING Data Exchange Center (`DataExchangePage.tsx`) —
@@ -87,6 +88,7 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
           }}
         />
       )}
+      {tab === "suppliers" && <SupplierConnectionsScreen />}
       {tab === "explorer" && (
         <SourceExplorerScreen
           connection={selected}
