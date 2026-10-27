@@ -21,6 +21,9 @@ import { DataExchangeImportDialog } from "../DataExchangeImportDialog";
 import { Badge, Card } from "./ui";
 
 type Citation = { pageNumber: number; lineNumber: number; excerpt: string };
+const RAW_MATERIALS_TEMPLATE_KEY = "raw_materials";
+const REVIEWABLE_IDENTIFIER_FIELDS = ["casNumber", "ecNumber"] as const;
+const RAW_MATERIAL_IDENTIFIER_FIELDS = { casNumber: "casNumbers", ecNumber: "ecNumbers" } as const;
 
 export function SupplierCommercialProductResolverScreen({ actorUserId, actorRole }: { actorUserId: string; actorRole: ApprovalRole }) {
   const { t } = useTranslation("session");
@@ -240,7 +243,7 @@ export function SupplierCommercialProductResolverScreen({ actorUserId, actorRole
         </div>
       )}
       {proposalImport && evidenceRecord && <DataExchangeImportDialog
-        template={getDataExchangeTemplate("raw_materials")!}
+        template={getDataExchangeTemplate(RAW_MATERIALS_TEMPLATE_KEY)!}
         actorRole={actorRole}
         actorUserId={actorUserId}
         initialFile={proposalImport.file}
@@ -329,8 +332,8 @@ function RawMaterialProposalPanel({
         </select>
       </label>}
     {selectedMaterial && <div className="space-y-2">
-      {(["casNumber", "ecNumber"] as const).map((sourceField) => {
-        const targetField = sourceField === "casNumber" ? "casNumbers" : "ecNumbers";
+      {REVIEWABLE_IDENTIFIER_FIELDS.map((sourceField) => {
+        const targetField = RAW_MATERIAL_IDENTIFIER_FIELDS[sourceField];
         const fact = evidence.evidence.section1[sourceField];
         const current = sourceField === "casNumber" ? selectedMaterial.casNumbers : selectedMaterial.ecNumbers;
         const review = reviewByField.get(targetField);

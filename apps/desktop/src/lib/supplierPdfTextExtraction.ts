@@ -43,6 +43,7 @@ export type SupplierPdfTextExtractionResult =
 
 type ContentToken = { kind: "text"; value: string } | { kind: "position"; operator: string; values: number[] };
 
+// eslint-disable-next-line no-useless-escape -- escaped brackets make PDF array delimiters explicit.
 const CONTENT_OPERATORS = /\(((?:\\.|[^\\()])*)\)\s*Tj|\[((?:\\.|[^\[\]])*)\]\s*TJ|<([\da-f\s]+)>\s*Tj|-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+-?[\d.]+\s+Tm|-?[\d.]+\s+-?[\d.]+\s+T[dD]|-?[\d.]+\s+TL|T\*/gi;
 const LITERAL_PARTS = /\(((?:\\.|[^\\()])*)\)|<([\da-f\s]+)>/gi;
 
@@ -212,6 +213,7 @@ function decodePageStreams(document: PDFDocument, pageIndex: number, warnings: S
 function hasLikelyCorruptText(pages: SupplierPdfTextPage[]): boolean {
   const text = pages.flatMap((page) => page.lines).map((line) => line.text).join("");
   if (!text) return false;
+  // eslint-disable-next-line no-control-regex -- decoded PDF text with control bytes is treated as corrupt input.
   const controls = text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g)?.length ?? 0;
   return controls / text.length > 0.01;
 }

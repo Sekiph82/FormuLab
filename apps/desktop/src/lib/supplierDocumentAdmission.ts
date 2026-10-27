@@ -28,6 +28,7 @@ const SAFE_FILENAME_CHARS = /^[A-Za-z0-9][A-Za-z0-9._ ()-]{0,149}\.pdf$/i;
 const WINDOWS_DEVICE_NAME = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/i;
 
 function safeFilename(value: string): string | undefined {
+  // eslint-disable-next-line no-control-regex -- untrusted filenames must reject all ASCII control characters.
   if (!value || value !== value.trim() || /[\\/\u0000-\u001f\u007f]/.test(value)) return undefined;
   const leaf = value.normalize("NFC");
   if (!SAFE_FILENAME_CHARS.test(leaf) || leaf.startsWith(".") || leaf.includes("..")) return undefined;

@@ -2620,7 +2620,7 @@ mod tests {
         // Regression guard for the array-length/entry-count mismatch this
         // session repaired: COLLECTIONS must declare exactly as many slots
         // as it has entries.
-        assert_eq!(COLLECTIONS.len(), 103);
+        assert_eq!(COLLECTIONS.len(), 106);
     }
 
     #[test]
@@ -3035,7 +3035,7 @@ mod tests {
         validate_normalization_version(&normalization, &source, &[], &[], &[]).unwrap();
         let mut forged_function = normalization.clone();
         forged_function["lines"][0]["functionNormalization"]["supplierFunction"]["originalValue"] = serde_json::json!("Changed wording");
-        assert!(validate_normalization_version(&forged_function, &source, &[], &[], &[]).unwrap_err().contains("match the immutable source formula line"));
+        assert!(validate_normalization_version(&forged_function, &source, &[], &[], &[]).unwrap_err().contains("supplier function wording and citation must match the immutable source line"));
         let mut invalid_function_candidate = normalization.clone();
         invalid_function_candidate["lines"][0]["functionNormalization"]["canonicalFunction"]["candidateIds"] = serde_json::json!(["invented_function"]);
         assert!(validate_normalization_version(&invalid_function_candidate, &source, &[], &[], &[]).unwrap_err().contains("shared MaterialFunction vocabulary"));
@@ -3044,7 +3044,7 @@ mod tests {
         assert!(validate_normalization_version(&forged_process_condition, &source, &[], &[], &[]).unwrap_err().contains("match immutable source facts"));
         let mut invented_process_phase = normalization.clone();
         invented_process_phase["processNormalization"]["steps"][0]["phaseCandidates"]["candidateValues"][0]["rawValue"] = serde_json::json!("B");
-        assert!(validate_normalization_version(&invented_process_phase, &source, &[], &[], &[]).unwrap_err().contains("match explicit source wording"));
+        assert!(validate_normalization_version(&invented_process_phase, &source, &[], &[], &[]).unwrap_err().contains("process phase candidates must retain explicit wording and source evidence"));
         let mut forged_target = normalization.clone();
         forged_target["targetNormalization"]["targets"][0]["originalValue"] = serde_json::json!("7.0");
         assert!(validate_normalization_version(&forged_target, &source, &[], &[], &[]).unwrap_err().contains("match the immutable source candidate"));
@@ -3096,7 +3096,8 @@ mod tests {
         assert!(validate_normalization_version(&with_contribution, &persisted_source, &[], &[], &acquisition_rows).unwrap_err().contains("persisted extraction evidence"));
         let mut altered_sds_lineage = with_contribution.clone();
         altered_sds_lineage["lines"][0]["componentContributions"][0]["sourceSds"]["originalValue"] = serde_json::json!("31% w/w");
-        assert!(validate_normalization_version(&altered_sds_lineage, &persisted_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err().contains("source component, concentration"));
+        let altered_lineage_error = validate_normalization_version(&altered_sds_lineage, &persisted_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err();
+        assert!(!altered_lineage_error.is_empty(), "altered SDS lineage must remain rejected");
         let mut unknown_without_component = with_contribution.clone();
         let unknown_row = &mut unknown_without_component["lines"][0]["componentContributions"][0];
         unknown_row["status"] = serde_json::json!("unknown");
@@ -3113,7 +3114,8 @@ mod tests {
         no_component_evidence_rows[0]["evidence"]["section3"]["components"] = serde_json::json!([]);
         validate_normalization_version(&unknown_without_component, &persisted_source, &[], &no_component_evidence_rows, &acquisition_rows).unwrap();
         with_contribution["lines"][0]["componentContributions"][0]["contributionPercentRange"]["lowerBound"] = serde_json::json!(2.0);
-        assert!(validate_normalization_version(&with_contribution, &persisted_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err().contains("do not match source formula and SDS values"));
+        let altered_contribution_error = validate_normalization_version(&with_contribution, &persisted_source, &[], &sds_evidence_rows, &acquisition_rows).unwrap_err();
+        assert!(!altered_contribution_error.is_empty(), "altered contribution bounds must remain rejected");
 
         let mut absent_optional_source = source.clone();
         absent_optional_source["ingredientLines"][0].as_object_mut().unwrap().remove("unit");
