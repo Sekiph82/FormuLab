@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { generateCandidates, type GenerationInput } from "./candidateGenerator";
+import {
+  adaptGenerationInputWithReferenceContext,
+  createReferenceFormulationGenerationContext,
+  retrieveNearestReferenceFormulations,
+  referenceFormulationGenerationContextSchema,
+  type ReferenceFormulationIngredientFrequencyPriors,
+} from "..";
 import type { RawMaterial } from "../schemas/materials";
 import type { IngredientDeclarationLine, ReverseConstraintSet, TargetProductProfile } from "../schemas/reverseFormulation";
 import type { AnalyticalAnalysis } from "./analyticalInference";
@@ -105,6 +112,78 @@ function baseInput(overrides: Partial<GenerationInput> = {}): GenerationInput {
 }
 
 describe("generateCandidates", () => {
+  it("attaches eligible supplier-neutral priors and nearest references without replacing the deterministic generator", () => {
+    const asOf = "2026-10-26T12:00:00.000Z";
+    const ingredientPriors: ReferenceFormulationIngredientFrequencyPriors = {
+      schemaVersion: "formulab-reference-formulation-ingredient-frequency-prior-v2",
+      asOf, eligibleFormulaCount: 2, excludedFormulaCount: 0,
+      eligibilityDecisions: ["reference-1", "reference-2"].map((sourceRecordId, index) => ({
+        sourceRecordId, queryRecordId: `query-${index + 1}`, normalizationId: `normalization-${index + 1}`, eligible: true, reasons: [],
+      })),
+      productFamilies: [{
+        productFamilyKey: "hand dishwash", productFamilyLabel: "Hand Dishwash", eligibleFormulaCount: 2, supplierCount: 2,
+        suppliers: [
+          { supplierId: "supplier-a", formulaCount: 1, familyShare: 0.5, sourceRecordIds: ["reference-1"] },
+          { supplierId: "supplier-b", formulaCount: 1, familyShare: 0.5, sourceRecordIds: ["reference-2"] },
+        ],
+        ingredients: [{
+          canonicalChemistryId: "chemical-a", formulaCount: 1, frequency: 0.5, frequencyWeighting: "formula_weighted_corpus",
+          supplierNeutral: { weighting: "equal_supplier", supplierCount: 2, interpretation: "equal_supplier_mean_of_supplier_formula_prevalence", pooledFrequency: 0.5,
+            suppliers: [
+              { supplierId: "supplier-a", eligibleFormulaCount: 1, ingredientFormulaCount: 1, frequency: 1, equalSupplierWeight: 0.5, sourceRecordIds: ["reference-1"] },
+              { supplierId: "supplier-b", eligibleFormulaCount: 1, ingredientFormulaCount: 0, frequency: 0, equalSupplierWeight: 0.5, sourceRecordIds: [] },
+            ] },
+          supplierCount: 1,
+          suppliers: [{ supplierId: "supplier-a", formulaCount: 1, familyShare: 0.5, ingredientShare: 1 }],
+          sourceRecordIds: ["reference-1"],
+        }],
+      }],
+    };
+    const formulaFeatures = (sourceRecordId: string, fill: string) => {
+      const family = { featureKey: "family:hand dishwash", dimensionKey: "product_family", group: "product_family" as const, value: "hand dishwash", evidenceRefs: [`family:${sourceRecordId}`] };
+      const chemistry = { featureKey: `chemistry:${fill}`, dimensionKey: "canonical_chemistry", group: "canonical_chemistry" as const, value: fill, evidenceRefs: [`chemistry:${sourceRecordId}`] };
+      return {
+        sourceRecordId, queryRecordId: `query:${sourceRecordId}`, sourceDocumentHash: sourceRecordId === "new-request" ? "a".repeat(64) : "b".repeat(64),
+        productFamilyKey: "hand dishwash", productFamilyLabel: "Hand Dishwash", categoricalFeatures: [family, chemistry], quantitativeFeatures: [],
+        evidenceRefs: [...family.evidenceRefs, ...chemistry.evidenceRefs].sort(), interpretation: "reviewed_reference_similarity_features_only" as const,
+      };
+    };
+    const query = formulaFeatures("new-request", "chemical-a");
+    const nearestReferences = retrieveNearestReferenceFormulations({
+      query, references: [formulaFeatures("reference-1", "chemical-a")],
+    });
+    const context = createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences });
+    const original = baseInput();
+    const adapted = adaptGenerationInputWithReferenceContext(original, context);
+
+    expect(context).toMatchObject({ available: true, eligibleFormulaCount: 2, supplierCount: 2,
+      ingredientPriors: [{ canonicalChemistryId: "chemical-a", formulaWeightedFrequency: 0.5, supplierNeutralFrequency: 0.5,
+        supplierMix: [{ supplierId: "supplier-a", frequency: 1 }, { supplierId: "supplier-b", frequency: 0 }] }],
+      nearestReferences: [{ sourceRecordId: "reference-1", distance: 0, evidenceRefs: expect.arrayContaining(["chemistry:new-request", "chemistry:reference-1"]) }],
+      interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval" });
+    expect(original.referenceContext).toBeUndefined();
+    expect(adapted.referenceContext).toEqual(context);
+    expect(generateCandidates(adapted)).toEqual(generateCandidates(original));
+    expect(() => referenceFormulationGenerationContextSchema.parse({ ...context,
+      ingredientPriors: [{ ...context.ingredientPriors[0]!, supplierNeutralFrequency: 0.9 }] })).toThrow(/supplier-neutral source evidence/);
+    expect(() => referenceFormulationGenerationContextSchema.parse({ ...context,
+      ingredientPriors: [{ ...context.ingredientPriors[0]!, formulaWeightedFrequency: 0.9 }] })).toThrow(/supplier-neutral source evidence/);
+    expect(() => referenceFormulationGenerationContextSchema.parse({ ...context,
+      ingredientPriors: [{ ...context.ingredientPriors[0]!, supplierMix: [
+        { ...context.ingredientPriors[0]!.supplierMix[0]!, eligibleFormulaCount: 2, frequency: 0.5 },
+        context.ingredientPriors[0]!.supplierMix[1]!,
+      ] }] })).toThrow(/complete, unique/);
+    expect(() => referenceFormulationGenerationContextSchema.parse({ ...context,
+      nearestReferences: [{ ...context.nearestReferences[0]!, similarity: 0.4 }] })).toThrow(/complementary/);
+    expect(() => createReferenceFormulationGenerationContext({ productFamilyKey: "shampoo", ingredientPriors, nearestReferences })).toThrow(/requested canonical product family/);
+    const unavailable = createReferenceFormulationGenerationContext({
+      productFamilyKey: "hand dishwash",
+      ingredientPriors: { ...ingredientPriors, eligibleFormulaCount: 0, eligibilityDecisions: [], productFamilies: [] },
+      nearestReferences,
+    });
+    expect(unavailable).toMatchObject({ available: false, unavailableReason: "no_eligible_family_prior", eligibleFormulaCount: 0, ingredientPriors: [], nearestReferences: [] });
+  });
+
   it("returns an explicit empty-formula fallback rather than fabricating a candidate for no mapped ingredients", () => {
     const candidates = generateCandidates(baseInput({ mappedIngredients: [] }));
     expect(candidates).toHaveLength(1);

@@ -7,6 +7,7 @@ import {
   IngredientDeclarationLine,
 } from '../schemas/reverseFormulation';
 import { computeTargetMatchScore } from './scoringModel';
+import type { ReferenceFormulationGenerationContext } from './referenceFormulationGenerationContext';
 
 /**
  * Input for candidate generation.
@@ -25,6 +26,8 @@ export interface GenerationInput {
   constraints: ReverseConstraintSet;
   /** Available materials in catalog (filtered by constraints). */
   availableMaterials: RawMaterial[];
+  /** Optional reviewed, source-linked reference context. Generation remains valid without it. */
+  referenceContext?: ReferenceFormulationGenerationContext;
 }
 
 /**
