@@ -147,19 +147,41 @@ describe("generateCandidates", () => {
       dosageGuidanceUnavailableReason: "no_reviewed_family_dosage",
       interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
     });
-    const input = adaptGenerationInputWithReferenceContext(baseInput(), referenceContext);
+    const baselineInput = baseInput({
+      mappedIngredients: [{ line: declLine(), mapping: mapping(), canonicalIdentityReview: canonicalIdentityReview("MAT-001", "chemical-a") }],
+      target: { ...TARGET, productFamilyCode: "hand dishwash" },
+      canonicalProductFamilyKey: "hand dishwash",
+    });
+    const input = adaptGenerationInputWithReferenceContext(baselineInput, referenceContext);
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     let first: ReturnType<typeof generateCandidates>;
     let second: ReturnType<typeof generateCandidates>;
+    let withoutReference: ReturnType<typeof generateCandidates>;
     try {
       first = generateCandidates(input);
       second = generateCandidates(input);
+      withoutReference = generateCandidates(baselineInput);
     } finally {
       fetchSpy.mockRestore();
     }
     expect(input.referenceContext?.available).toBe(true);
     expect(first!).toEqual(second!);
     expect(first![0]!.formula.length).toBeGreaterThan(0);
+    // On/off comparison harness: the exact same deterministic request keeps
+    // generated formula, property estimate and match score invariant.
+    expect(first!.map(({ formula, estimatedProperties, matchScore }) => ({ formula, estimatedProperties, matchScore })))
+      .toEqual(withoutReference!.map(({ formula, estimatedProperties, matchScore }) => ({ formula, estimatedProperties, matchScore })));
+    // The enabled run differs only through source-linked explanatory metadata.
+    expect(withoutReference![0]!.referenceCorpusGuidance).toBeUndefined();
+    expect(first![0]!.referenceCorpusGuidance).toMatchObject({
+      eligibleFormulaCount: 1, supplierCount: 1, sourceRecordIds: ["reference-1"],
+    });
+    expect(first![0]!.referenceProductFamilyKey).toBe("hand dishwash");
+    const excludedInput = { ...baselineInput, constraints: { ...baselineInput.constraints, excludedMaterials: ["MAT-001"] } };
+    const excludedOn = generateCandidates({ ...excludedInput, referenceContext, canonicalProductFamilyKey: "hand dishwash" });
+    const excludedOff = generateCandidates(excludedInput);
+    expect(excludedOn).toEqual(excludedOff);
+    expect(excludedOn.every((candidate) => candidate.formula.length === 0)).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
