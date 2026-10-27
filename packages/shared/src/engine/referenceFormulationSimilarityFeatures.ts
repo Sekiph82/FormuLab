@@ -9,13 +9,14 @@ import { referenceFormulationReviewSchema, type ReferenceFormulationReview } fro
 import { calculateReferenceFormulationContributionDistributions } from "./referenceFormulationContributionDistributions";
 import { filterEligibleReferenceFormulationCorpus, referenceFormulationEligibilityDecisionSchema } from "./referenceFormulationEligibility";
 
-export const REFERENCE_FORMULATION_SIMILARITY_FEATURES_VERSION = "formulab-reference-formulation-similarity-features-v1";
+export const REFERENCE_FORMULATION_SIMILARITY_FEATURES_VERSION = "formulab-reference-formulation-similarity-features-v2";
 const categoricalFeatureSchema = z.object({
-  featureKey: z.string().trim().min(1), group: z.enum(["product_family", "canonical_chemistry", "canonical_function", "process", "target"]),
+  featureKey: z.string().trim().min(1), dimensionKey: z.string().trim().min(1),
+  group: z.enum(["product_family", "canonical_chemistry", "canonical_function", "process", "target"]),
   value: z.string().trim().min(1), evidenceRefs: z.array(z.string().trim().min(1)).min(1),
 }).strict();
 const quantitativeFeatureSchema = z.object({
-  featureKey: z.string().trim().min(1), group: z.enum(["dosage", "component_contribution"]),
+  featureKey: z.string().trim().min(1), dimensionKey: z.string().trim().min(1), group: z.enum(["dosage", "component_contribution"]),
   canonicalChemistryId: z.string().trim().min(1), canonicalFunctionId: z.string().trim().min(1).optional(),
   lowerBound: z.number().finite().min(0).max(100), upperBound: z.number().finite().min(0).max(100),
   unit: z.literal("% w/w"), evidenceRefs: z.array(z.string().trim().min(1)).min(1),
@@ -30,6 +31,7 @@ export const referenceFormulationFormulaSimilarityFeaturesSchema = z.object({
 }).strict().superRefine((formula, context) => {
   if (new Set(formula.categoricalFeatures.map((feature) => feature.featureKey)).size !== formula.categoricalFeatures.length
     || new Set(formula.quantitativeFeatures.map((feature) => feature.featureKey)).size !== formula.quantitativeFeatures.length
+    || new Set(formula.quantitativeFeatures.map((feature) => feature.dimensionKey)).size !== formula.quantitativeFeatures.length
     || formula.categoricalFeatures.some((feature) => feature.evidenceRefs.some((ref) => !formula.evidenceRefs.includes(ref)))
     || formula.quantitativeFeatures.some((feature) => feature.evidenceRefs.some((ref) => !formula.evidenceRefs.includes(ref)))) {
     context.addIssue({ code: "custom", path: ["evidenceRefs"], message: "Similarity features must have unique keys and retain every cited source reference." });
@@ -107,26 +109,26 @@ export function createReferenceFormulationSimilarityFeatures(input: {
       targets: query.targets, sourceWarnings: source.targetWarnings, reviewRequired: true,
     }, source);
     const family = query.productFamily.candidates[0]!;
-    const categorical = new Map<string, { featureKey: string; group: "product_family" | "canonical_chemistry" | "canonical_function" | "process" | "target"; value: string; evidenceRefs: Set<string> }>();
+    const categorical = new Map<string, { featureKey: string; dimensionKey: string; group: "product_family" | "canonical_chemistry" | "canonical_function" | "process" | "target"; value: string; evidenceRefs: Set<string> }>();
     const quantitative: Array<z.infer<typeof quantitativeFeatureSchema>> = [];
     const dosageGroups = new Map<string, { chemistryId: string; functionId?: string; lower: Decimal; upper: Decimal; refs: Set<string>; valid: boolean }>();
     const contributionGroups = new Map<string, { lower: Decimal; upper: Decimal; refs: Set<string> }>();
-    const addCategorical = (group: "product_family" | "canonical_chemistry" | "canonical_function" | "process" | "target", featureKey: string, value: string, refs: string[]) => {
+    const addCategorical = (group: "product_family" | "canonical_chemistry" | "canonical_function" | "process" | "target", featureKey: string, dimensionKey: string, value: string, refs: string[]) => {
       const existing = categorical.get(featureKey);
       if (existing) for (const ref of refs) existing.evidenceRefs.add(ref);
-      else categorical.set(featureKey, { featureKey, group, value, evidenceRefs: new Set(refs) });
+      else categorical.set(featureKey, { featureKey, dimensionKey, group, value, evidenceRefs: new Set(refs) });
     };
-    addCategorical("product_family", `family:${familyKey(family.rawValue)}`, familyKey(family.rawValue), family.evidenceRefs);
+    addCategorical("product_family", `family:${familyKey(family.rawValue)}`, "product_family", familyKey(family.rawValue), family.evidenceRefs);
 
     for (const line of query.lines) {
-      for (const chemistryId of line.canonicalChemistry.candidateIds) addCategorical("canonical_chemistry", `chemistry:${chemistryId}`, chemistryId, line.sourceLineEvidenceRefs);
+      for (const chemistryId of line.canonicalChemistry.candidateIds) addCategorical("canonical_chemistry", `chemistry:${chemistryId}`, "canonical_chemistry", chemistryId, line.sourceLineEvidenceRefs);
       if (line.canonicalFunctions.status === "proposed" && line.canonicalFunctions.candidateIds.length === 1) {
         const functionId = line.canonicalFunctions.candidateIds[0]!;
         const targetKey = `normalization:${query.normalizationId}:line:${line.sourceLineId}:canonicalFunction:${functionId}`;
         const fieldPath = `normalizations[${query.normalizationId}].lines[${line.sourceLineId}].canonicalFunction`;
         if (accepted({ latest, query, targetKey, fieldPath, sourceValue: functionId, targetType: "ingredient" })) {
           const refs = [...line.sourceLineEvidenceRefs, ...line.supplierFunction.evidenceRefs];
-          addCategorical("canonical_function", `function:${functionId}`, functionId, refs);
+          addCategorical("canonical_function", `function:${functionId}`, "canonical_function", functionId, refs);
         }
       }
       const chemistryId = line.canonicalChemistry.candidateIds[0];
@@ -171,13 +173,15 @@ export function createReferenceFormulationSimilarityFeatures(input: {
       }
     }
 
-    for (const [key, group] of [...dosageGroups.entries()].sort(([a], [b]) => compare(a, b))) {
+    for (const group of [...dosageGroups.values()].sort((a, b) => compare(`${a.chemistryId}\u0000${a.functionId ?? "unassigned"}`, `${b.chemistryId}\u0000${b.functionId ?? "unassigned"}`))) {
       if (!group.valid || !group.refs.size) continue;
-      quantitative.push(quantitativeFeatureSchema.parse({ featureKey: `dosage:${key.replace("\u0000", ":")}`, group: "dosage", canonicalChemistryId: group.chemistryId,
+      const dimensionKey = `dosage:${group.chemistryId}:${group.functionId ?? "unassigned"}`;
+      quantitative.push(quantitativeFeatureSchema.parse({ featureKey: dimensionKey, dimensionKey, group: "dosage", canonicalChemistryId: group.chemistryId,
         ...(group.functionId ? { canonicalFunctionId: group.functionId } : {}), lowerBound: group.lower.toNumber(), upperBound: group.upper.toNumber(), unit: "% w/w", evidenceRefs: [...group.refs].sort(compare) }));
     }
     for (const [chemistryId, group] of [...contributionGroups.entries()].sort(([a], [b]) => compare(a, b))) {
-      quantitative.push(quantitativeFeatureSchema.parse({ featureKey: `component-contribution:${chemistryId}`, group: "component_contribution", canonicalChemistryId: chemistryId,
+      const dimensionKey = `component_contribution:${chemistryId}`;
+      quantitative.push(quantitativeFeatureSchema.parse({ featureKey: dimensionKey, dimensionKey, group: "component_contribution", canonicalChemistryId: chemistryId,
         lowerBound: group.lower.toNumber(), upperBound: group.upper.toNumber(), unit: "% w/w", evidenceRefs: [...group.refs].sort(compare) }));
     }
 
@@ -188,7 +192,7 @@ export function createReferenceFormulationSimilarityFeatures(input: {
       if (!accepted({ latest, query, targetKey: instructionKey, fieldPath: instructionPath, sourceValue: step.originalInstruction, targetType: "procedure" })) continue;
       const stepRef = step.evidenceRefs[0]!;
       const actions = reviewedActions(step);
-      for (const action of actions) addCategorical("process", `process:action:${action}`, action, [stepRef]);
+      for (const action of actions) addCategorical("process", `process:action:${action}`, "process:action", action, [stepRef]);
       reviewedActionSteps.push({ step, actions });
       const sourceStep = source.procedureSteps.find((item) => item.id === step.sourceProcedureStepId)!;
       if (step.phaseCandidates.status === "proposed" && step.phaseCandidates.candidateValues.length === 1) {
@@ -196,12 +200,12 @@ export function createReferenceFormulationSimilarityFeatures(input: {
         const phaseAccepted = (!sourceStep.phase || phase.rawValue === sourceStep.phase.rawValue)
           && accepted({ latest, query, targetKey: `procedure:${step.sourceProcedureStepId}:phase`,
             fieldPath: `procedureSteps[${step.sourceProcedureStepId}].phase`, sourceValue: phase.rawValue, targetType: "procedure" });
-        if (phaseAccepted) addCategorical("process", `process:phase:${normalized(phase.rawValue)}`, `phase:${normalized(phase.rawValue)}`, phase.evidenceRefs);
+        if (phaseAccepted) addCategorical("process", `process:phase:${normalized(phase.rawValue)}`, "process:phase", `phase:${normalized(phase.rawValue)}`, phase.evidenceRefs);
       }
       for (const [index, condition] of step.conditions.entries()) {
         if (accepted({ latest, query, targetKey: `procedure:${step.sourceProcedureStepId}:condition:${index}`,
           fieldPath: `procedureSteps[${step.sourceProcedureStepId}].conditions[${index}]`, sourceValue: condition.rawValue, targetType: "procedure" })) {
-          addCategorical("process", `process:condition:${condition.kind}:${normalized(condition.rawValue)}`,
+          addCategorical("process", `process:condition:${condition.kind}:${normalized(condition.rawValue)}`, `process:condition:${condition.kind}`,
             `condition:${condition.kind}:${normalized(condition.rawValue)}`, condition.evidenceRefs);
         }
       }
@@ -210,7 +214,7 @@ export function createReferenceFormulationSimilarityFeatures(input: {
       const earlier = reviewedActionSteps[i]!; const later = reviewedActionSteps[j]!;
       for (const firstAction of earlier.actions) for (const secondAction of later.actions) {
         const key = `process:sequence:${firstAction}->${secondAction}`;
-        addCategorical("process", key, `${firstAction}->${secondAction}`, [...earlier.step.evidenceRefs, ...later.step.evidenceRefs]);
+        addCategorical("process", key, "process:sequence", `${firstAction}->${secondAction}`, [...earlier.step.evidenceRefs, ...later.step.evidenceRefs]);
       }
     }
     for (const target of query.targets) {
@@ -218,7 +222,8 @@ export function createReferenceFormulationSimilarityFeatures(input: {
       if (!accepted({ latest, query, targetKey: `target:${target.sourceTargetId}`, fieldPath: `targetCandidates[${target.sourceTargetId}].${target.property}`,
         sourceValue: target.originalValue, targetType: "target" })) continue;
       const value = `${target.property}:${target.resultSemantics}:${normalized(target.sourceContext)}:${normalized(target.originalValue)}`;
-      addCategorical("target", `target:${target.property}:${target.resultSemantics}:${normalized(target.originalValue)}:${normalized(target.sourceContext)}`, value, target.evidenceRefs);
+      const dimensionKey = `target:${target.property}:${target.resultSemantics}:${normalized(target.sourceContext)}`;
+      addCategorical("target", `target:${target.property}:${target.resultSemantics}:${normalized(target.originalValue)}:${normalized(target.sourceContext)}`, dimensionKey, value, target.evidenceRefs);
     }
 
     const categoricalFeatures = [...categorical.values()].map((feature) => ({ ...feature, evidenceRefs: [...feature.evidenceRefs].sort(compare) }))
