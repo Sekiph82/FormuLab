@@ -331,6 +331,13 @@ export const dataExchangeImportJobSchema = z.object({
    *  provenance field above — never fabricated when the connector had
    *  none to report. */
   sourceResourceName: z.string().optional(),
+  /** Optional accepted RawMaterial proposal lineage from the existing
+   *  field-review flow. Stored on the normal Data Exchange job so a
+   *  reviewed proposal remains traceable after an authorized import. */
+  applicationProposalId: z.string().optional(),
+  acceptedReviewId: z.string().optional(),
+  sourceEvidenceId: z.string().optional(),
+  sourceEvidenceRefs: z.array(z.string()).optional(),
 });
 export type DataExchangeImportJob = z.infer<typeof dataExchangeImportJobSchema>;
 
@@ -373,6 +380,12 @@ export const dataExchangeImportRowResultSchema = z.object({
    *  this record locally since the last import" (E6/CANONICAL_LOCAL_CONFLICT).
    *  Never the full canonical record itself, never a raw payload. */
   canonicalCandidateFingerprint: z.string().optional(),
+  /** Field-level proposal lineage, when this row was committed from an
+   *  accepted RawMaterial evidence proposal. */
+  applicationProposalId: z.string().optional(),
+  acceptedReviewId: z.string().optional(),
+  sourceEvidenceId: z.string().optional(),
+  sourceEvidenceRefs: z.array(z.string()).optional(),
 });
 export type DataExchangeImportRowResult = z.infer<typeof dataExchangeImportRowResultSchema>;
 

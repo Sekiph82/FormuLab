@@ -23,7 +23,7 @@
  */
 import { POLICY_AREAS, type PolicyArea } from "./rolePolicy";
 
-/** The 101 allow-listed masterdata collection names — the TypeScript mirror
+/** The 106 allow-listed masterdata collection names — the TypeScript mirror
  *  of `masterdata.rs`'s `COLLECTIONS` array (names only; append-only-ness
  *  is a Rust-side storage detail, not a policy concern). Order matches
  *  `apps/desktop/src/lib/masterdata.ts`'s `Collection` union, which now
@@ -106,6 +106,7 @@ export const MASTERDATA_COLLECTIONS = [
   "material_documents",
   "supplier_document_acquisitions",
   "supplier_sds_product_evidence",
+  "identity_field_reviews",
   "reference_formulations",
   "reference_formulation_reviews",
   "reference_formulation_normalizations",
@@ -155,6 +156,7 @@ export const MASTERDATA_COLLECTION_POLICY_AREAS: Record<MasterdataCollection, Po
   material_documents: "rawMaterials",
   supplier_document_acquisitions: "rawMaterials",
   supplier_sds_product_evidence: "rawMaterials",
+  identity_field_reviews: "rawMaterials",
   reference_formulations: "formulation",
   reference_formulation_reviews: "formulation",
   reference_formulation_normalizations: "formulation",

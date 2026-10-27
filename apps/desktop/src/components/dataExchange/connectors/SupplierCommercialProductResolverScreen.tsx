@@ -1,29 +1,44 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  can,
   classifyCommercialProductType,
+  createRawMaterialApplicationProposal,
+  previewRawMaterialApplicationProposal,
   supplierDocumentAcquisitionSchema,
   supplierSdsProductEvidenceRecordSchema,
+  identityFieldReviewSchema,
+  getDataExchangeTemplate,
+  type IdentityFieldReview,
+  type RawMaterial,
+  type ApprovalRole,
   type SupplierDocumentAcquisition,
   type SupplierSdsProductEvidenceRecord,
 } from "@formulab/shared";
-import { listRecords, readSupplierDocumentPdf } from "@/lib/masterdata";
+import { appendIdentityFieldReviewRecord, listRecords, readSupplierDocumentPdf } from "@/lib/masterdata";
 import { SupplierSdsPdfPagePreview } from "./SupplierSdsPdfPagePreview";
+import { DataExchangeImportDialog } from "../DataExchangeImportDialog";
 import { Badge, Card } from "./ui";
 
 type Citation = { pageNumber: number; lineNumber: number; excerpt: string };
 
-export function SupplierCommercialProductResolverScreen() {
+export function SupplierCommercialProductResolverScreen({ actorUserId, actorRole }: { actorUserId: string; actorRole: ApprovalRole }) {
   const { t } = useTranslation("session");
   const [documents, setDocuments] = useState<SupplierDocumentAcquisition[]>([]);
   const [evidenceRecords, setEvidenceRecords] = useState<SupplierSdsProductEvidenceRecord[]>([]);
+  const [materials, setMaterials] = useState<RawMaterial[]>([]);
+  const [identityReviews, setIdentityReviews] = useState<IdentityFieldReview[]>([]);
   const [selectedCode, setSelectedCode] = useState("");
+  const [selectedMaterialCode, setSelectedMaterialCode] = useState("");
+  const [reviewError, setReviewError] = useState(false);
+  const [reviewSaving, setReviewSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<{ sha256: string; bytes: Uint8Array } | null>(null);
   const pdfReadToken = useRef(0);
   const [citation, setCitation] = useState<Citation | null>(null);
   const [pdfError, setPdfError] = useState(false);
+  const [proposalImport, setProposalImport] = useState<{ file: File; lineage: { applicationProposalId: string; acceptedReviewId: string; sourceEvidenceId: string; sourceEvidenceRefs: string[] } } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -37,11 +52,18 @@ export function SupplierCommercialProductResolverScreen() {
         listRecords("supplier_document_acquisitions"),
         listRecords("supplier_sds_product_evidence"),
       ]);
+      const [materialRows, reviewRows] = await Promise.all([
+        listRecords("materials"),
+        listRecords("identity_field_reviews"),
+      ]);
       const sdsDocuments = documentRows.map((row) => supplierDocumentAcquisitionSchema.parse(row))
         .filter((document) => document.documentType === "SDS")
         .sort((left, right) => right.acquiredAt.localeCompare(left.acquiredAt));
       setDocuments(sdsDocuments);
       setEvidenceRecords(evidenceRows.map((row) => supplierSdsProductEvidenceRecordSchema.parse(row)));
+      setMaterials(materialRows);
+      setIdentityReviews(reviewRows.map((row) => identityFieldReviewSchema.parse(row)));
+      setSelectedMaterialCode((current) => materialRows.some((material) => material.code === current) ? current : materialRows[0]?.code ?? "");
       setSelectedCode((current) => sdsDocuments.some((document) => document.code === current) ? current : sdsDocuments[0]?.code ?? "");
     } catch {
       setLoadFailed(true);
@@ -62,6 +84,37 @@ export function SupplierCommercialProductResolverScreen() {
     && linkedEvidenceRecord.evidence.section3.sourceDocumentHash.toLowerCase() === document.sha256.toLowerCase());
   const evidenceRecord = evidenceMatchesDocument ? linkedEvidenceRecord : undefined;
   const classification = useMemo(() => evidenceRecord ? classifyEvidenceProductType(evidenceRecord) : undefined, [evidenceRecord]);
+  const selectedMaterial = materials.find((material) => material.code === selectedMaterialCode);
+  const acceptedIdentityReviews = identityReviews.filter((review) => review.decision === "accepted"
+    && review.sourceEvidenceId === evidenceRecord?.evidence.id
+    && review.commercialProductId === evidenceRecord?.evidence.commercialProductId
+    && review.targetRecordId === selectedMaterial?.code);
+
+  const reviewIdentityField = async (sourceField: "casNumber" | "ecNumber", targetField: "casNumbers" | "ecNumbers") => {
+    if (!evidenceRecord || !selectedMaterial || !isNamedAuthorizedReviewer(actorUserId, actorRole)) return;
+    const fact = evidenceRecord.evidence.section1[sourceField];
+    if (!fact) return;
+    setReviewSaving(true);
+    setReviewError(false);
+    try {
+      const review = await appendIdentityFieldReviewRecord({
+        schemaVersion: "1.0",
+        id: `identity-review:${crypto.randomUUID()}`,
+        commercialProductId: evidenceRecord.evidence.commercialProductId,
+        sourceEvidenceId: evidenceRecord.evidence.id,
+        targetRecordId: selectedMaterial.code,
+        field: "canonical_identity",
+        decision: "accepted",
+        proposedValueSnapshot: JSON.stringify({ [targetField]: [fact.rawValue] }),
+        evidenceRefs: fact.evidenceRefs,
+      });
+      setIdentityReviews((current) => [...current, identityFieldReviewSchema.parse(review)]);
+    } catch {
+      setReviewError(true);
+    } finally {
+      setReviewSaving(false);
+    }
+  };
 
   const openCitation = async (reference: string, excerpt: string) => {
     const match = /(?:^|:)p(\d+)(?::l(\d+))?\b/u.exec(reference);
@@ -92,7 +145,7 @@ export function SupplierCommercialProductResolverScreen() {
       {!loadFailed && documents.length > 0 && (
         <label className="mb-3 block text-[10px] text-muted">
           <span className="mb-1 block">{t("dataExchange.connectors.productResolver.select")}</span>
-          <select value={selectedCode} onChange={(event) => { pdfReadToken.current += 1; setSelectedCode(event.target.value); setPdfPreview(null); setCitation(null); setPdfError(false); }} className="w-full rounded-input border border-border bg-surface-1 px-2 py-1.5 text-text">
+          <select aria-label={t("dataExchange.connectors.productResolver.select")} value={selectedCode} onChange={(event) => { pdfReadToken.current += 1; setSelectedCode(event.target.value); setPdfPreview(null); setCitation(null); setPdfError(false); }} className="w-full rounded-input border border-border bg-surface-1 px-2 py-1.5 text-text">
             {documents.map((item) => <option key={item.code} value={item.code}>{item.sourceProduct.tradeName ?? item.sourceProduct.supplierItemCode ?? item.code} · {item.sourceProduct.grade ?? item.sourceRevision ?? item.code}</option>)}
           </select>
         </label>
@@ -156,11 +209,45 @@ export function SupplierCommercialProductResolverScreen() {
               </section>
             </>
           )}
+          {evidenceRecord && (
+            <RawMaterialProposalPanel
+              evidence={evidenceRecord}
+              materials={materials}
+              selectedMaterial={selectedMaterial}
+              selectedMaterialCode={selectedMaterialCode}
+              actorUserId={actorUserId}
+              actorRole={actorRole}
+              reviews={acceptedIdentityReviews}
+              onSelectMaterial={setSelectedMaterialCode}
+              onReview={reviewIdentityField}
+              reviewSaving={reviewSaving}
+              reviewError={reviewError}
+              onOpenCitation={openCitation}
+              onImportProposal={(proposal, review) => {
+                const file = proposalCsvFile(proposal.dataExchangeRow!);
+                setProposalImport({ file, lineage: {
+                  applicationProposalId: proposal.id,
+                  acceptedReviewId: review.id,
+                  sourceEvidenceId: review.sourceEvidenceId,
+                  sourceEvidenceRefs: review.evidenceRefs,
+                } });
+              }}
+            />
+          )}
           {citation && pdfPreview?.sha256.toLowerCase() === document.sha256.toLowerCase() && <SupplierSdsPdfPagePreview bytes={pdfPreview.bytes} pageNumber={citation.pageNumber} lineNumber={citation.lineNumber} />}
           {pdfError && <p role="alert" className="text-[10px] text-error">{t("dataExchange.connectors.productResolver.pdfError")}</p>}
           <p className="rounded-input border border-border-faint p-2 text-[10px] text-muted">{t("dataExchange.connectors.productResolver.readOnly")}</p>
         </div>
       )}
+      {proposalImport && evidenceRecord && <DataExchangeImportDialog
+        template={getDataExchangeTemplate("raw_materials")!}
+        actorRole={actorRole}
+        actorUserId={actorUserId}
+        initialFile={proposalImport.file}
+        proposalLineage={proposalImport.lineage}
+        onCancel={() => setProposalImport(null)}
+        onCommitted={() => {}}
+      />}
     </Card>
   );
 }
@@ -196,4 +283,126 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 function humanizeCode(value: string): string {
   return value.replace(/_/gu, " ").replace(/\b\w/gu, (letter) => letter.toLocaleUpperCase("en-US"));
+}
+
+function isNamedAuthorizedReviewer(userId: string, role: ApprovalRole): boolean {
+  return userId.trim().length > 0 && can(role, "rawMaterials", "edit");
+}
+
+function RawMaterialProposalPanel({
+  evidence, materials, selectedMaterial, selectedMaterialCode, actorUserId, actorRole, reviews,
+  onSelectMaterial, onReview, reviewSaving, reviewError,
+  onOpenCitation,
+  onImportProposal,
+}: {
+  evidence: SupplierSdsProductEvidenceRecord;
+  materials: RawMaterial[];
+  selectedMaterial?: RawMaterial;
+  selectedMaterialCode: string;
+  actorUserId: string;
+  actorRole: ApprovalRole;
+  reviews: IdentityFieldReview[];
+  onSelectMaterial: (code: string) => void;
+  onReview: (sourceField: "casNumber" | "ecNumber", targetField: "casNumbers" | "ecNumbers") => void;
+  reviewSaving: boolean;
+  reviewError: boolean;
+  onOpenCitation: (reference: string, excerpt: string) => void;
+  onImportProposal: (proposal: ReturnType<typeof createRawMaterialApplicationProposal>, review: IdentityFieldReview) => void;
+}) {
+  const { t } = useTranslation("session");
+  const reviewByField = new Map<string, IdentityFieldReview>();
+  for (const review of reviews) {
+    const parsed = JSON.parse(review.proposedValueSnapshot) as Record<string, unknown>;
+    if (typeof parsed.casNumbers !== "undefined") reviewByField.set("casNumbers", review);
+    if (typeof parsed.ecNumbers !== "undefined") reviewByField.set("ecNumbers", review);
+  }
+  const mayReview = isNamedAuthorizedReviewer(actorUserId, actorRole);
+  return <section className="rounded-input border border-border-faint p-3">
+    <h4 className="mb-1 text-xs font-semibold text-text">{t("dataExchange.connectors.productResolver.rawMaterialProposals.title")}</h4>
+    <p className="mb-2 text-[10px] text-muted">{t("dataExchange.connectors.productResolver.rawMaterialProposals.intro")}</p>
+    {materials.length === 0
+      ? <p className="text-[10px] text-muted">{t("dataExchange.connectors.productResolver.rawMaterialProposals.noMaterials")}</p>
+      : <label className="mb-3 block text-[10px] text-muted">
+        <span className="mb-1 block">{t("dataExchange.connectors.productResolver.rawMaterialProposals.target")}</span>
+        <select aria-label={t("dataExchange.connectors.productResolver.rawMaterialProposals.target")} value={selectedMaterialCode} onChange={(event) => onSelectMaterial(event.target.value)} className="w-full rounded-input border border-border bg-surface-1 px-2 py-1.5 text-text">
+          {materials.map((material) => <option key={material.code} value={material.code}>{material.code} · {material.displayName}</option>)}
+        </select>
+      </label>}
+    {selectedMaterial && <div className="space-y-2">
+      {(["casNumber", "ecNumber"] as const).map((sourceField) => {
+        const targetField = sourceField === "casNumber" ? "casNumbers" : "ecNumbers";
+        const fact = evidence.evidence.section1[sourceField];
+        const current = sourceField === "casNumber" ? selectedMaterial.casNumbers : selectedMaterial.ecNumbers;
+        const review = reviewByField.get(targetField);
+        return <article key={sourceField} className="grid gap-2 rounded border border-border-faint bg-surface-1 p-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
+          <div><p className="text-[10px] text-muted">{t(`dataExchange.connectors.productResolver.rawMaterialProposals.${sourceField}`)}</p><p className="break-all text-[11px] font-medium text-text">{fact?.rawValue ?? t("dataExchange.connectors.productResolver.notReported")}</p></div>
+          <div><p className="text-[10px] text-muted">{t("dataExchange.connectors.productResolver.rawMaterialProposals.currentValue")}</p><p className="break-all text-[11px] font-medium text-text">{current.length ? current.join("; ") : t("dataExchange.connectors.productResolver.rawMaterialProposals.emptyValue")}</p></div>
+          {fact && <button type="button" disabled={!mayReview || reviewSaving || Boolean(review) || !evidenceMatchesHash(fact, evidence)} onClick={() => onReview(sourceField, targetField)} className="rounded-input border border-border px-2 py-1 text-[10px] text-text disabled:opacity-50">
+            {review ? t("dataExchange.connectors.productResolver.rawMaterialProposals.accepted") : t("dataExchange.connectors.productResolver.rawMaterialProposals.acceptField")}
+          </button>}
+        </article>;
+      })}
+    </div>}
+    {!mayReview && <p className="mt-2 text-[10px] text-muted">{t("dataExchange.connectors.productResolver.rawMaterialProposals.authorizationRequired")}</p>}
+    {reviewError && <p role="alert" className="mt-2 text-[10px] text-error">{t("dataExchange.connectors.productResolver.rawMaterialProposals.reviewError")}</p>}
+    {selectedMaterial && reviews.length > 0 && <div className="mt-3 space-y-2">
+      <h5 className="text-[10px] font-semibold text-text">{t("dataExchange.connectors.productResolver.rawMaterialProposals.proposalTitle")}</h5>
+      {reviews.map((review) => {
+        const proposal = createRawMaterialApplicationProposal({ target: selectedMaterial, review });
+        const preview = previewRawMaterialApplicationProposal({ proposal, currentTarget: selectedMaterial, acceptedReview: review, actorRole });
+        return <article key={review.id} className="rounded border border-border-faint p-2">
+          <div className="grid gap-1 text-[10px] sm:grid-cols-3">
+            <Fact label={t("dataExchange.connectors.productResolver.rawMaterialProposals.field")} value={reviewFieldName(review)} />
+            <Fact label={t("dataExchange.connectors.productResolver.rawMaterialProposals.proposedValue")} value={proposedIdentityValue(review)} />
+            <Fact label={t("dataExchange.connectors.productResolver.rawMaterialProposals.status")} value={t(`dataExchange.connectors.productResolver.rawMaterialProposals.${preview.status}`)} />
+          </div>
+          {proposal.reasonCodes.length > 0 && <p className="mt-1 break-words text-[10px] text-muted">{proposal.reasonCodes.join(" · ")}</p>}
+          <EvidenceLinks references={review.evidenceRefs} excerpt={t("dataExchange.connectors.productResolver.rawMaterialProposals.sourceEvidence")} onOpen={onOpenCitation} />
+          {preview.preview && <>
+            <p className="mt-2 text-[10px] text-muted">{t("dataExchange.connectors.productResolver.rawMaterialProposals.dataExchangeRows", { count: preview.preview.rows.length })}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" onClick={() => onImportProposal(proposal, review)} className="rounded-input border border-accent px-2 py-1 text-[10px] text-accent">{t("dataExchange.connectors.productResolver.rawMaterialProposals.reviewAndApply")}</button>
+              <button type="button" onClick={() => downloadProposalCsv(proposal.dataExchangeRow!, t("dataExchange.connectors.productResolver.rawMaterialProposals.downloadCsv"))} className="rounded-input border border-border px-2 py-1 text-[10px] text-muted">{t("dataExchange.connectors.productResolver.rawMaterialProposals.downloadCsv")}</button>
+            </div>
+          </>}
+          <p className="mt-2 text-[10px] text-muted">{t("dataExchange.connectors.productResolver.rawMaterialProposals.applyGate")}</p>
+        </article>;
+      })}
+    </div>}
+  </section>;
+}
+
+function evidenceMatchesHash(fact: { evidenceRefs: string[] }, evidence: SupplierSdsProductEvidenceRecord): boolean {
+  return evidence.evidence.section1.sourceDocumentHash.toLowerCase() === evidence.evidence.section3.sourceDocumentHash.toLowerCase()
+    && fact.evidenceRefs.length > 0;
+}
+
+function reviewFieldName(review: IdentityFieldReview): string {
+  const value = JSON.parse(review.proposedValueSnapshot) as Record<string, unknown>;
+  return "casNumbers" in value ? "CAS" : "EC";
+}
+
+function proposedIdentityValue(review: IdentityFieldReview): string {
+  const value = JSON.parse(review.proposedValueSnapshot) as Record<string, unknown>;
+  const item = value.casNumbers ?? value.ecNumbers;
+  return Array.isArray(item) ? item.join("; ") : "—";
+}
+
+function proposalCsvFile(row: Record<string, string>): File {
+  const headers = Object.keys(row);
+  const csv = [headers, headers.map((header) => row[header])]
+    .map((values) => values.map((value) => `"${String(value).replace(/"/gu, '""')}"`).join(","))
+    .join("\r\n");
+  return new File([`\uFEFF${csv}`], `raw-material-proposal-${Date.now()}.csv`, { type: "text/csv;charset=utf-8" });
+}
+
+function downloadProposalCsv(row: Record<string, string>, label: string): void {
+  const file = proposalCsvFile(row);
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  link.setAttribute("aria-label", label);
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

@@ -127,13 +127,14 @@ use crate::authz;
 
 static REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static SUPPLIER_SDS_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static IDENTITY_FIELD_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Collections the UI may address, and whether history is preserved.
 ///
 /// An explicit allow-list rather than a free-text filename: the collection name
 /// arrives from the webview, and joining untrusted text onto a path is how a
 /// renderer bug becomes an arbitrary file write.
-const COLLECTIONS: [(&str, bool); 105] = [
+const COLLECTIONS: [(&str, bool); 106] = [
     // (name, append_only)
     ("materials", false),
     ("suppliers", false),
@@ -377,6 +378,9 @@ const COLLECTIONS: [(&str, bool); 105] = [
     // must never be silently rewritten.
     ("supplier_document_acquisitions", true),
     ("supplier_sds_product_evidence", true),
+    // Named human decisions on supplier evidence are immutable and appended
+    // through the dedicated command, never through generic collection writes.
+    ("identity_field_reviews", true),
     // Supplier formulation extraction snapshots are immutable reference
     // evidence, separate from production Formulation/FormulationVersion.
     ("reference_formulations", true),
@@ -744,6 +748,105 @@ pub async fn append_supplier_sds_product_evidence(
     }
     write_array(&path, &next_rows)?;
     Ok(evidence)
+}
+
+/// Append an authorized human's field-level identity decision against the
+/// exact immutable SDS extraction and an existing RawMaterial. The renderer
+/// cannot supply reviewer identity or write this append-only collection.
+#[tauri::command(async)]
+pub async fn append_identity_field_review(
+    app: AppHandle,
+    token: String,
+    mut review: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let actor = authz::authorize_any_app(&app, &token, "rawMaterials", &WRITE_CAPABILITIES)?;
+    let _guard = IDENTITY_FIELD_REVIEW_WRITE_LOCK.lock()
+        .map_err(|_| "identity review storage is unavailable".to_string())?;
+    ensure_object_keys(&review, &["schemaVersion", "id", "commercialProductId", "sourceEvidenceId", "targetRecordId", "field", "decision", "proposedValueSnapshot", "reviewedValueSnapshot", "evidenceRefs", "decisionNote", "reviewedBy", "reviewerRole", "reviewedAt", "supersedesReviewId"], "identity field review")?;
+    if review["schemaVersion"].as_str() != Some("1.0")
+        || review["field"].as_str() != Some("canonical_identity")
+        || !matches!(review["decision"].as_str(), Some("accepted" | "edited" | "rejected" | "needs_review")) {
+        return Err("identity review must be a supported canonical-identity decision".to_string());
+    }
+    if ["id", "commercialProductId", "sourceEvidenceId", "targetRecordId"].iter().any(|key| {
+        review[*key].as_str().map_or(true, |value| value.trim().is_empty())
+    }) {
+        return Err("identity review identifiers must be non-empty".to_string());
+    }
+    let decision = review["decision"].as_str().unwrap_or_default();
+    if (decision == "edited") != review.get("reviewedValueSnapshot").is_some()
+        || (["edited", "rejected", "needs_review"].contains(&decision)
+            && review["decisionNote"].as_str().map_or(true, |note| note.trim().is_empty()))
+        || (decision == "accepted" && review.get("decisionNote").and_then(|note| note.as_str()).map_or(false, |note| note.trim().is_empty())) {
+        return Err("identity review decision snapshot or note is invalid".to_string());
+    }
+    if let Some(snapshot) = review.get("reviewedValueSnapshot").and_then(|value| value.as_str()) {
+        serde_json::from_str::<serde_json::Value>(snapshot)
+            .map_err(|_| "reviewed identity snapshot must be valid JSON".to_string())?;
+    }
+    let source_id = review["sourceEvidenceId"].as_str().ok_or_else(|| "identity review is missing source evidence".to_string())?;
+    let product_id = review["commercialProductId"].as_str().ok_or_else(|| "identity review is missing commercial product".to_string())?;
+    let target_code = review["targetRecordId"].as_str().ok_or_else(|| "identity review is missing its RawMaterial target".to_string())?;
+    let evidence_path = collection_path(&app, "supplier_sds_product_evidence")?;
+    let evidence_rows = read_array(&evidence_path);
+    let source = evidence_rows.iter().find(|row| row["evidence"]["id"].as_str() == Some(source_id)
+        && row["evidence"]["commercialProductId"].as_str() == Some(product_id))
+        .ok_or_else(|| "identity review must cite persisted SDS evidence for this commercial product".to_string())?;
+    let material_path = collection_path(&app, "materials")?;
+    if !read_array(&material_path).iter().any(|row| row["code"].as_str() == Some(target_code)) {
+        return Err("identity review target RawMaterial does not exist".to_string());
+    }
+    let refs = review["evidenceRefs"].as_array().ok_or_else(|| "identity review requires source evidence references".to_string())?;
+    let source_section = &source["evidence"]["section1"];
+    let source_facts = ["declaredChemicalName", "casNumber", "ecNumber"]
+        .iter().filter_map(|key| source_section[*key].as_object())
+        .collect::<Vec<_>>();
+    if refs.is_empty() || refs.iter().any(|reference| {
+        let value = reference.as_str().unwrap_or_default();
+        !source_facts.iter().any(|fact| fact["evidenceRefs"].as_array()
+            .map_or(false, |source_refs| source_refs.iter().any(|source_ref| source_ref.as_str() == Some(value))))
+    }) {
+        return Err("identity review references must come from Section 1 of the cited SDS evidence".to_string());
+    }
+    let proposed: serde_json::Value = serde_json::from_str(review["proposedValueSnapshot"].as_str()
+        .ok_or_else(|| "identity review proposal must be a JSON snapshot".to_string())?)
+        .map_err(|_| "identity review proposal must be valid JSON".to_string())?;
+    if !proposed.is_object() || proposed.as_object().map_or(true, |object| object.is_empty())
+        || proposed.as_object().map_or(false, |object| object.keys().any(|key| !["casNumbers", "ecNumbers"].contains(&key.as_str()))) {
+        return Err("supplier identity proposal may contain only cited CAS or EC identifiers".to_string());
+    }
+    for (proposal_key, source_key) in [("casNumbers", "casNumber"), ("ecNumbers", "ecNumber")] {
+        if let Some(values) = proposed.get(proposal_key) {
+            let values = values.as_array().filter(|items| !items.is_empty())
+                .ok_or_else(|| "proposed CAS and EC values must be non-empty arrays".to_string())?;
+            let source_value = source_section[source_key]["rawValue"].as_str().unwrap_or_default();
+            if values.iter().any(|item| item.as_str().map_or(true, |value| value.trim().is_empty() || value != source_value))
+                || source_section[source_key].is_null()
+                || !refs.iter().any(|reference| source_section[source_key]["evidenceRefs"].as_array()
+                    .map_or(false, |source_refs| source_refs.contains(reference))) {
+                return Err("each proposed identifier must cite its matching Section 1 source field".to_string());
+            }
+        }
+    }
+    if let Some(supersedes) = review.get("supersedesReviewId").and_then(|value| value.as_str()) {
+        let prior_path = collection_path(&app, "identity_field_reviews")?;
+        let prior_rows = read_array(&prior_path);
+        if !prior_rows.iter().any(|prior| prior["id"].as_str() == Some(supersedes)
+            && prior["commercialProductId"] == review["commercialProductId"]
+            && prior["targetRecordId"] == review["targetRecordId"]
+            && prior["field"] == review["field"]) {
+            return Err("superseded identity review must match the same product, target and field".to_string());
+        }
+    }
+    review["reviewedBy"] = serde_json::Value::String(actor.user_id.clone());
+    review["reviewerRole"] = serde_json::Value::String(actor.role.clone());
+    review["reviewedAt"] = serde_json::Value::String(now_rfc3339_utc());
+    let path = collection_path(&app, "identity_field_reviews")?;
+    let rows = read_array(&path);
+    let (next_rows, inserted, _) = apply_upsert(rows, vec![review.clone()], true, "identity_field_reviews")?;
+    if inserted != 1 { return Err("identity field review was not appended".to_string()); }
+    write_array(&path, &next_rows)?;
+    Ok(review)
 }
 
 fn validate_supplier_sds_product_evidence_record(
@@ -1759,7 +1862,7 @@ fn stamp_reference_formulation_review(
 }
 
 fn ensure_generic_collection_write_allowed(name: &str) -> Result<(), String> {
-    if matches!(name, "reference_formulation_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence") {
+    if matches!(name, "reference_formulation_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence" | "identity_field_reviews") {
         return Err("immutable evidence and normalization records must use their dedicated append command".to_string());
     }
     Ok(())
@@ -2354,6 +2457,8 @@ mod tests {
     fn reference_formulation_reviews_are_only_writable_through_the_dedicated_append_command() {
         assert_eq!(collection_spec("reference_formulation_reviews"), Ok(("reference_formulation_reviews", true)));
         assert!(ensure_generic_collection_write_allowed("reference_formulation_reviews").is_err());
+        assert_eq!(collection_spec("identity_field_reviews"), Ok(("identity_field_reviews", true)));
+        assert!(ensure_generic_collection_write_allowed("identity_field_reviews").is_err());
         let review = serde_json::json!({ "id": "review-1", "decision": "accepted" });
         let (rows, inserted, updated) = apply_upsert(vec![], vec![review.clone()], true, "reference_formulation_reviews").unwrap();
         assert_eq!((inserted, updated), (1, 0));

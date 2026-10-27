@@ -2900,6 +2900,7 @@
       "title": "İçe Aktar — {{template}}",
       "chooseFile": "Bir CSV veya Excel dosyası seçin",
       "fileUnreadable": "Bu dosya okunamadı. Biçimi kontrol edip tekrar deneyin.",
+      "proposalLineageInvalid": "Bu öneri artık kabul edilmiş kaynak incelemesiyle veya güncel RawMaterial kaydıyla eşleşmiyor. İçe aktarmadan önce öneriyi yeniden oluşturun.",
       "unmapped": "Tanınmayan sütun(lar), yok sayıldı: {{headers}}",
       "missingFromSource": "{{count}} kayıt, bu şablonun önceki içe aktarımında vardı ancak bu dosyada yok — hiçbir şey silinmedi; bunun beklenen bir durum olup olmadığını gözden geçirin.",
       "missingFromSourceItem": "{{key}} (son olarak {{collection}} içine aktarıldı)",
@@ -3473,7 +3474,33 @@
           "withheld": "Saklanmış",
           "unknown": "Açıklama durumu bilinmiyor"
         },
-        "evidenceHashMismatch": "Bağlı SDS çıkarımının kaynak hash’i seçili PDF ile eşleşmiyor. Bu belge için kimlik çözümlemesi ve sayfa atıfları gizlendi."
+        "evidenceHashMismatch": "Bağlı SDS çıkarımının kaynak hash’i seçili PDF ile eşleşmiyor. Bu belge için kimlik çözümlemesi ve sayfa atıfları gizlendi.",
+        "rawMaterialProposals": {
+          "title": "RawMaterial alan önerileri",
+          "intro": "Section 1 kaynaklı tanımlayıcıları seçilen ana kayıtla karşılaştırın. Kabul edilen alan, normal Data Exchange önizleme ve kaydetme akışına kadar yalnızca öneridir.",
+          "noMaterials": "Kullanılabilir RawMaterial kaydı yok.",
+          "target": "Hedef RawMaterial",
+          "casNumber": "SDS Section 1 CAS",
+          "ecNumber": "SDS Section 1 EC",
+          "currentValue": "Mevcut ana kayıt değeri",
+          "emptyValue": "Değer kaydedilmemiş",
+          "acceptField": "Bu alanı incele ve kabul et",
+          "accepted": "Kabul edildi; öneri hazır",
+          "authorizationRequired": "Kimlik alanlarını kabul etmek için RawMaterial düzenleme yetkili adlı bir kullanıcı gerekir.",
+          "reviewError": "Alan kararı kaydedilemedi. Yeniden denemeden önce projeyi yenileyip veriyi doğrulayın.",
+          "proposalTitle": "Kabul edilen alan önerileri",
+          "field": "Alan",
+          "proposedValue": "Önerilen değer",
+          "status": "Data Exchange önizleme durumu",
+          "previewed": "Data Exchange önizlemesine hazır",
+          "manual_merge_required": "Elle birleştirme gerekli; mevcut alanlar kaybolabilir",
+          "stale_target_requires_reproposal": "Hedef değişti; öneriyi yeniden inceleyin",
+          "dataExchangeRows": "Mevcut Data Exchange önizlemesinde {{count}} satır var.",
+          "downloadCsv": "Data Exchange için öneri CSV'sini indir",
+          "reviewAndApply": "Data Exchange incelemesi ve uygulamaya geç",
+          "applyGate": "Bu ekran RawMaterial kaydetmez. Alan değişikliğini uygulamak için CSV'yi mevcut Data Exchange inceleme ve kaydetme akışından içe aktarın.",
+          "sourceEvidence": "Kabul edilen tedarikçi kanıtı"
+        }
       }
     }
   },

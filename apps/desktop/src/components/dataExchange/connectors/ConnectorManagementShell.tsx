@@ -96,7 +96,7 @@ export function ConnectorManagementShell({ actorUserId, actorRole }: { actorUser
       {tab === "acquisitions" && <SupplierAcquisitionJobsScreen />}
       {tab === "documents" && <SupplierAcquiredDocumentsScreen />}
       {tab === "sdsReview" && <SupplierSdsExtractionReviewScreen />}
-      {tab === "productResolver" && <SupplierCommercialProductResolverScreen />}
+      {tab === "productResolver" && <SupplierCommercialProductResolverScreen actorUserId={actorUserId} actorRole={actorRole} />}
       {tab === "explorer" && (
         <SourceExplorerScreen
           connection={selected}

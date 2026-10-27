@@ -88,6 +88,7 @@ import type {
   BenchmarkProduct,
   BenchmarkEvidenceItem,
   IngredientDeclarationLine,
+  IdentityFieldReview,
   AnalyticalCompositionResult,
   TargetProductProfile,
   ReverseConstraintSet,
@@ -203,6 +204,7 @@ interface CollectionTypes {
   material_documents: MaterialDocument;
   supplier_document_acquisitions: SupplierDocumentAcquisition;
   supplier_sds_product_evidence: SupplierSdsProductEvidenceRecord;
+  identity_field_reviews: IdentityFieldReview;
   reference_formulations: ReferenceFormulationRecord;
   reference_formulation_reviews: ReferenceFormulationReview;
   reference_formulation_normalizations: ReferenceFormulationNormalizationVersion;
@@ -257,6 +259,13 @@ export async function appendSupplierSdsProductEvidenceRecord(
 ): Promise<SupplierSdsProductEvidenceRecord> {
   const parsed = supplierSdsProductEvidenceRecordSchema.parse(evidence);
   return call<SupplierSdsProductEvidenceRecord>("append_supplier_sds_product_evidence", { evidence: parsed });
+}
+
+/** Persist a named human's immutable, field-level supplier identity decision. */
+export async function appendIdentityFieldReviewRecord(
+  review: Omit<IdentityFieldReview, "reviewedBy" | "reviewerRole" | "reviewedAt">,
+): Promise<IdentityFieldReview> {
+  return call<IdentityFieldReview>("append_identity_field_review", { review });
 }
 
 export interface UpsertResult {

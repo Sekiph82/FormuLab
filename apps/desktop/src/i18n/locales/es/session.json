@@ -2900,6 +2900,7 @@
       "title": "Import — {{template}}",
       "chooseFile": "Choose a CSV or Excel file",
       "fileUnreadable": "This file could not be read. Check the format and try again.",
+      "proposalLineageInvalid": "This proposal no longer matches its accepted source review or current RawMaterial. Rebuild the proposal before importing.",
       "unmapped": "Unrecognized column(s), ignored: {{headers}}",
       "missingFromSource": "{{count}} record(s) that were in the previous import of this template are not in this file — nothing has been deleted; review whether this is expected.",
       "missingFromSourceItem": "{{key}} (last imported into {{collection}})",
@@ -3473,7 +3474,33 @@
           "withheld": "Withheld",
           "unknown": "Disclosure unknown"
         },
-        "evidenceHashMismatch": "The linked SDS extraction source hash does not match this PDF. Identity resolution and page citations are hidden for this document."
+        "evidenceHashMismatch": "The linked SDS extraction source hash does not match this PDF. Identity resolution and page citations are hidden for this document.",
+        "rawMaterialProposals": {
+          "title": "RawMaterial field proposals",
+          "intro": "Compare source-backed Section 1 identifiers with the selected master record. Each accepted field remains a proposal until the normal Data Exchange preview and commit.",
+          "noMaterials": "No RawMaterial records are available.",
+          "target": "Target RawMaterial",
+          "casNumber": "SDS Section 1 CAS",
+          "ecNumber": "SDS Section 1 EC",
+          "currentValue": "Current master value",
+          "emptyValue": "No value recorded",
+          "acceptField": "Review and accept this field",
+          "accepted": "Accepted; proposal ready",
+          "authorizationRequired": "A named user with RawMaterial edit permission is required to accept identity fields.",
+          "reviewError": "The field decision could not be saved. Refresh and verify the project data before retrying.",
+          "proposalTitle": "Accepted field proposals",
+          "field": "Field",
+          "proposedValue": "Proposed value",
+          "status": "Data Exchange preview status",
+          "previewed": "Ready for Data Exchange preview",
+          "manual_merge_required": "Manual merge required; existing fields would be lost",
+          "stale_target_requires_reproposal": "Target changed; review this proposal again",
+          "dataExchangeRows": "Existing Data Exchange preview contains {{count}} row(s).",
+          "downloadCsv": "Download proposal CSV for Data Exchange",
+          "reviewAndApply": "Review and apply in Data Exchange",
+          "applyGate": "This screen does not write RawMaterial. Import the CSV through the existing Data Exchange review and commit flow to apply the field change.",
+          "sourceEvidence": "Accepted supplier evidence"
+        }
       }
     }
   },

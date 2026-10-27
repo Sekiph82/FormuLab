@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Upload } from "lucide-react";
 import {
   COMMITTABLE_ROW_STATES,
+  createRawMaterialApplicationProposal,
   detectMissingFromSource,
+  identityFieldReviewSchema,
   newId,
   parseCsv,
   previewDataExchangeImport,
@@ -19,7 +21,7 @@ import {
 import { readWorkbookAllSheets, rejectUnsupportedWorkbook } from "@/lib/xlsx";
 import { commitDataExchangeRows, isTemplateCommitSupported, type DataExchangeRowCommitOutcome } from "@/lib/dataExchangeCommit";
 import { buildReferenceRecordResolver, buildReferenceResolver, loadExisting, loadExistingFormulaBom, loadPriorCommittedRows } from "@/lib/dataExchangeExisting";
-import { upsertRecords, nowIso } from "@/lib/masterdata";
+import { listRecords, upsertRecords, nowIso } from "@/lib/masterdata";
 import { cn } from "@/lib/cn";
 import { DisabledActionButton } from "@/components/help/DisabledActionButton";
 import type { DisabledReason } from "@/lib/help/disabledReason";
@@ -49,12 +51,16 @@ export function DataExchangeImportDialog({
   actorUserId,
   onCancel,
   onCommitted,
+  initialFile,
+  proposalLineage,
 }: {
   template: DataExchangeTemplateDefinition;
   actorRole: ApprovalRole;
   actorUserId: string;
   onCancel: () => void;
   onCommitted: (job: DataExchangeImportJob) => void;
+  initialFile?: File;
+  proposalLineage?: Pick<DataExchangeImportJob, "applicationProposalId" | "acceptedReviewId" | "sourceEvidenceId" | "sourceEvidenceRefs">;
 }) {
   const { t } = useTranslation(["session", "common"]);
   const [filename, setFilename] = useState("");
@@ -81,6 +87,13 @@ export function DataExchangeImportDialog({
   // human reviews and decides, the same discipline every other Data
   // Exchange classification already follows.
   const [missingFromSource, setMissingFromSource] = useState<MissingFromSourceFinding[]>([]);
+
+  useEffect(() => {
+    if (initialFile) void onFile(initialFile);
+    // The generated proposal file and its lineage are a single launch
+    // payload; process them once when this dialog mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onFile = async (file: File, requestedSheetName?: string) => {
     setFileError(null);
@@ -159,6 +172,11 @@ export function DataExchangeImportDialog({
           ? (formulaCode, versionNumber) => formulaVersionLookup.naturalKeys.has(`${formulaCode}::${versionNumber}`)
           : undefined,
       });
+      if (proposalLineage && !await proposalLineageMatchesImport(proposalLineage, template.templateCode, p.rows)) {
+        setFileError(t("dataExchange.import.proposalLineageInvalid"));
+        setPreview(null);
+        return;
+      }
       setPreview(p);
       // FVL-04.023 — a real, non-blocking signal that a record from the
       // last completed import of this template didn't reappear in this
@@ -192,6 +210,7 @@ export function DataExchangeImportDialog({
           startedBy: actorUserId,
           startedAt: nowIso(),
           notes: p.fatalError,
+          ...proposalLineage,
         };
         await upsertRecords("data_exchange_import_jobs", [job]);
         setDraftJob(job);
@@ -285,6 +304,7 @@ export function DataExchangeImportDialog({
         committedAt: nowIso(),
         completedAt: nowIso(),
         notes: failed > 0 ? `${failed} row(s) failed to commit.` : undefined,
+        ...proposalLineage,
       };
       await upsertRecords("data_exchange_import_jobs", [job]);
       const rowResults: DataExchangeImportRowResult[] = outcomes.map((o) => ({
@@ -297,6 +317,7 @@ export function DataExchangeImportDialog({
         messages: o.message ? [o.message] : [],
         targetCollection: o.targetCollection,
         targetRecordId: o.targetRecordId,
+        ...proposalLineage,
       }));
       await upsertRecords("data_exchange_import_row_results", rowResults);
       setCommitted({ job, outcomes });
@@ -356,6 +377,7 @@ export function DataExchangeImportDialog({
               type="file"
               accept=".csv,text/csv,text/plain,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
+              disabled={Boolean(proposalLineage)}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) void onFile(f);
@@ -508,6 +530,30 @@ export function DataExchangeImportDialog({
       </div>
     </div>
   );
+}
+
+async function proposalLineageMatchesImport(
+  lineage: Pick<DataExchangeImportJob, "applicationProposalId" | "acceptedReviewId" | "sourceEvidenceId" | "sourceEvidenceRefs">,
+  templateCode: string,
+  rows: DataExchangePreview["rows"],
+): Promise<boolean> {
+  if (templateCode !== "raw_materials" || !lineage.applicationProposalId || !lineage.acceptedReviewId || !lineage.sourceEvidenceId || !lineage.sourceEvidenceRefs?.length || rows.length !== 1) return false;
+  const [reviewRows, materials] = await Promise.all([listRecords("identity_field_reviews"), listRecords("materials")]);
+  const savedReview = reviewRows.find((row) => row.id === lineage.acceptedReviewId);
+  if (!savedReview) return false;
+  const review = identityFieldReviewSchema.parse(savedReview);
+  if (review.decision !== "accepted" || review.id !== lineage.acceptedReviewId
+    || review.sourceEvidenceId !== lineage.sourceEvidenceId
+    || review.evidenceRefs.length !== lineage.sourceEvidenceRefs.length
+    || review.evidenceRefs.some((reference, index) => reference !== lineage.sourceEvidenceRefs![index])
+    || lineage.applicationProposalId !== `raw-material-application:${review.id}`) return false;
+  const target = materials.find((row) => row.code === review.targetRecordId);
+  if (!target) return false;
+  const proposal = createRawMaterialApplicationProposal({ target, review });
+  if (proposal.status !== "ready_for_data_exchange_preview" || !proposal.dataExchangeRow) return false;
+  const imported = rows[0]?.record as Record<string, string> | undefined;
+  return Boolean(imported && imported.material_code === proposal.targetMaterialCode
+    && Object.entries(proposal.dataExchangeRow).every(([field, value]) => (imported[field] ?? "") === value));
 }
 
 function Pill({ tone, label, value }: { tone: "ok" | "warn" | "error" | "neutral"; label: string; value: number }) {
