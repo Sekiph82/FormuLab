@@ -69,6 +69,31 @@ export interface GeneratedCandidate {
     sourceRecordIds: string[];
     interpretation: "advisory_reviewed_empirical_dosage_not_hard_constraint_or_validated_recommendation";
   }>;
+  /** Formula-presence evidence is descriptive; it never states that an ingredient is suitable or effective. */
+  ingredientGuidance?: Array<{
+    materialId: string;
+    canonicalChemistryId: string;
+    formulaCount: number;
+    eligibleFormulaCount: number;
+    formulaWeightedFrequency: number;
+    supplierNeutralFrequency: number;
+    supplierCount: number;
+    sourceRecordIds: string[];
+    interpretation: "reviewed_formula_appearance_only_not_suitability_safety_compatibility_or_efficacy";
+  }>;
+  /** Joint appearance in reviewed corpus formulas; never a compatibility or function assignment decision. */
+  cooccurrenceGuidance?: Array<{
+    materialId: string;
+    canonicalChemistryId: string;
+    pairKind: "material_pair" | "material_function_pair";
+    otherId: string;
+    formulaCount: number;
+    eligibleFormulaCount: number;
+    frequency: number;
+    supplierCount: number;
+    sourceRecordIds: string[];
+    interpretation: "empirical_joint_appearance_only_not_compatibility_or_function_assignment";
+  }>;
 }
 
 /** Result of one generation method: a candidate, or an honest reason it
@@ -131,6 +156,7 @@ export function generateCandidates(input: GenerationInput): GeneratedCandidate[]
 
   for (const candidate of candidates) {
     applyEmpiricalDosageGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
+    applyEmpiricalIngredientGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
   }
 
   // If we have no candidates, return an explicit, explained fallback rather
@@ -214,6 +240,75 @@ function reviewedCanonicalChemistryId(review: IdentityFieldReview | undefined, m
       : undefined;
   } catch {
     return undefined;
+  }
+}
+
+/** Attach only identity-bound family presence and co-occurrence context; never alter the formula or its hard gates. */
+function applyEmpiricalIngredientGuidance(
+  candidate: GeneratedCandidate,
+  mappedIngredients: GenerationInput["mappedIngredients"],
+  referenceContext: ReferenceFormulationGenerationContext | undefined,
+  canonicalProductFamilyKey: string | undefined,
+): void {
+  if (!referenceContext?.available || canonicalProductFamilyKey !== referenceContext.productFamilyKey) return;
+  const ingredientGuidance: NonNullable<GeneratedCandidate["ingredientGuidance"]> = [];
+  const cooccurrenceGuidance: NonNullable<GeneratedCandidate["cooccurrenceGuidance"]> = [];
+  const seenIngredients = new Set<string>();
+  const seenPairs = new Set<string>();
+  for (const item of mappedIngredients) {
+    const material = item.mapping.material;
+    const canonicalChemistryId = reviewedCanonicalChemistryId(item.canonicalIdentityReview, material?.code);
+    if (!material || !canonicalChemistryId || !candidate.formula.some((line) => line.materialId === material.code)) continue;
+    const prior = referenceContext.ingredientPriors.find((entry) => entry.canonicalChemistryId === canonicalChemistryId);
+    if (!prior) continue;
+    const ingredientKey = `${material.code}\u0000${canonicalChemistryId}`;
+    if (!seenIngredients.has(ingredientKey)) {
+      seenIngredients.add(ingredientKey);
+      ingredientGuidance.push({
+        materialId: material.code,
+        canonicalChemistryId,
+        formulaCount: prior.formulaCount,
+        eligibleFormulaCount: prior.eligibleFormulaCount,
+        formulaWeightedFrequency: prior.formulaWeightedFrequency,
+        supplierNeutralFrequency: prior.supplierNeutralFrequency,
+        supplierCount: prior.supplierCount,
+        sourceRecordIds: prior.sourceRecordIds,
+        interpretation: "reviewed_formula_appearance_only_not_suitability_safety_compatibility_or_efficacy",
+      });
+    }
+
+    for (const pair of referenceContext.cooccurrenceGuidance) {
+      if (pair.pairKind !== "material_pair" && pair.pairKind !== "material_function_pair") continue;
+      const isFirst = pair.firstId === canonicalChemistryId;
+      const isSecond = pair.secondId === canonicalChemistryId;
+      if (!isFirst && !isSecond) continue;
+      const otherId = isFirst ? pair.secondId : pair.firstId;
+      const pairKey = `${material.code}\u0000${pair.pairKind}\u0000${canonicalChemistryId}\u0000${otherId}`;
+      if (seenPairs.has(pairKey)) continue;
+      seenPairs.add(pairKey);
+      cooccurrenceGuidance.push({
+        materialId: material.code,
+        canonicalChemistryId,
+        pairKind: pair.pairKind,
+        otherId,
+        formulaCount: pair.formulaCount,
+        eligibleFormulaCount: pair.eligibleFormulaCount,
+        frequency: pair.frequency,
+        supplierCount: pair.supplierCount,
+        sourceRecordIds: pair.sourceRecordIds,
+        interpretation: "empirical_joint_appearance_only_not_compatibility_or_function_assignment",
+      });
+    }
+  }
+  if (ingredientGuidance.length > 0) {
+    candidate.ingredientGuidance = ingredientGuidance;
+    candidate.notes.push(...ingredientGuidance.map((item) =>
+      `Reviewed ${referenceContext.productFamilyKey} formula appearance for ${item.materialId}: ${item.formulaCount}/${item.eligibleFormulaCount} eligible formulas (${(item.formulaWeightedFrequency * 100).toFixed(1)}% formula-weighted; ${(item.supplierNeutralFrequency * 100).toFixed(1)}% equal-supplier average across ${item.supplierCount} suppliers; source records: ${item.sourceRecordIds.join(", ")}). Appearance only; this does not establish suitability, safety, compatibility, or efficacy.`));
+  }
+  if (cooccurrenceGuidance.length > 0) {
+    candidate.cooccurrenceGuidance = cooccurrenceGuidance;
+    candidate.notes.push(...cooccurrenceGuidance.map((item) =>
+      `Reviewed ${referenceContext.productFamilyKey} formulas jointly included ${item.materialId} and ${item.otherId} in ${item.formulaCount}/${item.eligibleFormulaCount} eligible formulas (${(item.frequency * 100).toFixed(1)}%; ${item.supplierCount} suppliers; source records: ${item.sourceRecordIds.join(", ")}). Joint appearance only; it is not a compatibility result or function assignment.`));
   }
 }
 

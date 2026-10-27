@@ -449,10 +449,10 @@ describe("reference formulation corpus eligibility", () => {
       expect.objectContaining({
         pairKind: "material_pair", scope: "same_formula", firstId: "chem-a", secondId: "chem-b",
         formulaCount: 2, eligibleFormulaCount: 3, frequency: 2 / 3,
-        suppliers: [
-          { supplierId: "supplier-a", formulaCount: 1, share: 0.5 },
-          { supplierId: "supplier-b", formulaCount: 1, share: 0.5 },
-        ], sourceRecordIds: ["co-formula-a", "co-formula-b"], compatibilityEvidence: false,
+        suppliers: expect.arrayContaining([
+          expect.objectContaining({ supplierId: "supplier-a", formulaCount: 1, share: 0.5, sourceRecordIds: ["co-formula-a"] }),
+          expect.objectContaining({ supplierId: "supplier-b", formulaCount: 1, share: 0.5, sourceRecordIds: ["co-formula-b"] }),
+        ]), sourceRecordIds: ["co-formula-a", "co-formula-b"], compatibilityEvidence: false,
       }),
       expect.objectContaining({ pairKind: "function_pair", firstId: "nonionic_surfactant", secondId: "preservative", formulaCount: 2, compatibilityEvidence: false }),
       expect.objectContaining({ pairKind: "material_function_pair", firstId: "chem-a", secondId: "nonionic_surfactant", formulaCount: 2, compatibilityEvidence: false }),

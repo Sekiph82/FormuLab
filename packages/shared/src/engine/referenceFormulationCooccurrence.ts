@@ -7,7 +7,7 @@ import {
   referenceFormulationEligibilityDecisionSchema,
 } from "./referenceFormulationEligibility";
 
-export const REFERENCE_FORMULATION_COOCCURRENCE_VERSION = "formulab-reference-formulation-cooccurrence-v1";
+export const REFERENCE_FORMULATION_COOCCURRENCE_VERSION = "formulab-reference-formulation-cooccurrence-v2";
 
 const cooccurrenceSchema = z.object({
   productFamilyKey: z.string().trim().min(1),
@@ -21,7 +21,10 @@ const cooccurrenceSchema = z.object({
   eligibleFormulaCount: z.number().int().positive(),
   frequency: z.number().finite().min(0).max(1),
   supplierCount: z.number().int().positive(),
-  suppliers: z.array(z.object({ supplierId: z.string().trim().min(1), formulaCount: z.number().int().positive(), share: z.number().finite().min(0).max(1) }).strict()),
+  suppliers: z.array(z.object({
+    supplierId: z.string().trim().min(1), formulaCount: z.number().int().positive(), share: z.number().finite().min(0).max(1),
+    sourceRecordIds: z.array(z.string().trim().min(1)).min(1),
+  }).strict()),
   sourceRecordIds: z.array(z.string().trim().min(1)),
   interpretation: z.literal("empirical_cooccurrence_only"),
   compatibilityEvidence: z.literal(false),
@@ -32,7 +35,9 @@ const cooccurrenceSchema = z.object({
     || new Set(value.sourceRecordIds).size !== value.sourceRecordIds.length
     || value.suppliers.length !== value.supplierCount
     || value.suppliers.reduce((total, supplier) => total + supplier.formulaCount, 0) !== value.formulaCount
-    || value.suppliers.some((supplier) => supplier.share !== supplier.formulaCount / value.formulaCount)
+    || value.suppliers.some((supplier) => supplier.share !== supplier.formulaCount / value.formulaCount
+      || supplier.sourceRecordIds.length !== supplier.formulaCount || new Set(supplier.sourceRecordIds).size !== supplier.sourceRecordIds.length)
+    || JSON.stringify(value.suppliers.flatMap((supplier) => supplier.sourceRecordIds).sort(stableCompare)) !== JSON.stringify([...value.sourceRecordIds].sort(stableCompare))
     || (value.pairKind === "composition_component_pair") !== (value.scope === "same_sds_product_composition")
     || (value.pairKind === "composition_component_pair") !== (value.denominatorScope === "eligible_component_formulas_in_family")) {
     context.addIssue({ code: "custom", path: ["frequency"], message: "Co-occurrence must use distinct pair members, unique formula evidence and consistent supplier/sample arithmetic." });
@@ -46,13 +51,20 @@ export const referenceFormulationCooccurrenceResultSchema = z.object({
   excludedFormulaCount: z.number().int().nonnegative(),
   excludedComponentCandidateCount: z.number().int().nonnegative(),
   eligibilityDecisions: z.array(referenceFormulationEligibilityDecisionSchema),
+  eligibleSourceRecordIdsByProductFamily: z.record(z.string().trim().min(1), z.array(z.string().trim().min(1))),
   cooccurrences: z.array(cooccurrenceSchema),
   interpretation: z.literal("empirical_cooccurrence_only"),
   compatibilityEvidence: z.literal(false),
 }).strict().superRefine((result, context) => {
   if (result.eligibleFormulaCount + result.excludedFormulaCount !== result.eligibilityDecisions.length
     || result.eligibleFormulaCount !== result.eligibilityDecisions.filter((decision) => decision.eligible).length
-    || result.excludedFormulaCount !== result.eligibilityDecisions.filter((decision) => !decision.eligible).length) {
+    || result.excludedFormulaCount !== result.eligibilityDecisions.filter((decision) => !decision.eligible).length
+    || new Set(Object.values(result.eligibleSourceRecordIdsByProductFamily).flat()).size !== result.eligibleFormulaCount
+    || JSON.stringify(Object.values(result.eligibleSourceRecordIdsByProductFamily).flat().sort(stableCompare))
+      !== JSON.stringify(result.eligibilityDecisions.filter((decision) => decision.eligible).map((decision) => decision.sourceRecordId).sort(stableCompare))
+    || Object.values(result.eligibleSourceRecordIdsByProductFamily).some((sourceIds) => new Set(sourceIds).size !== sourceIds.length)
+    || result.cooccurrences.some((pair) => pair.sourceRecordIds.some((sourceRecordId) =>
+      !result.eligibleSourceRecordIdsByProductFamily[pair.productFamilyKey]?.includes(sourceRecordId)))) {
     context.addIssue({ code: "custom", path: ["eligibilityDecisions"], message: "Co-occurrence sample counts must match the eligibility decisions." });
   }
 });
@@ -184,9 +196,13 @@ export function calculateReferenceFormulationCooccurrence(input: {
   const latest = latestReviews(input.reviews);
   const eligibleFormulaCounts = new Map<string, number>();
   const eligibleComponentFormulaCounts = new Map<string, number>();
+  const eligibleSourceRecordIdsByProductFamily = new Map<string, string[]>();
   for (const query of eligibility.eligible) {
     const family = normalizeFamily(query.productFamily.candidates[0]!.rawValue);
     eligibleFormulaCounts.set(family, (eligibleFormulaCounts.get(family) ?? 0) + 1);
+    const sourceIds = eligibleSourceRecordIdsByProductFamily.get(family) ?? [];
+    sourceIds.push(query.sourceRecordId);
+    eligibleSourceRecordIdsByProductFamily.set(family, sourceIds);
   }
 
   const builders = new Map<string, PairBuilder>();
@@ -238,7 +254,10 @@ export function calculateReferenceFormulationCooccurrence(input: {
       productFamilyKey: familyKey, productFamilyLabel: pair.familyLabel, pairKind: pair.pairKind, scope: pair.scope, denominatorScope,
       firstId: pair.firstId, secondId: pair.secondId, formulaCount, eligibleFormulaCount,
       frequency: formulaCount / (eligibleFormulaCount || 1), supplierCount: supplierCounts.size,
-      suppliers: [...supplierCounts.entries()].sort(([left], [right]) => stableCompare(left, right)).map(([supplierId, count]) => ({ supplierId, formulaCount: count, share: count / formulaCount })),
+      suppliers: [...supplierCounts.entries()].sort(([left], [right]) => stableCompare(left, right)).map(([supplierId, count]) => ({
+        supplierId, formulaCount: count, share: count / formulaCount,
+        sourceRecordIds: observations.filter((observation) => observation.supplierId === supplierId).map((observation) => observation.sourceRecordId),
+      })),
       sourceRecordIds: observations.map((observation) => observation.sourceRecordId),
       interpretation: "empirical_cooccurrence_only" as const, compatibilityEvidence: false as const,
     };
@@ -248,6 +267,9 @@ export function calculateReferenceFormulationCooccurrence(input: {
     schemaVersion: REFERENCE_FORMULATION_COOCCURRENCE_VERSION, asOf: input.asOf,
     eligibleFormulaCount: eligibility.eligible.length, excludedFormulaCount: eligibility.excluded.length,
     excludedComponentCandidateCount, eligibilityDecisions: eligibility.decisions, cooccurrences,
+    eligibleSourceRecordIdsByProductFamily: Object.fromEntries([...eligibleSourceRecordIdsByProductFamily.entries()]
+      .sort(([left], [right]) => stableCompare(left, right))
+      .map(([familyKey, sourceIds]) => [familyKey, sourceIds.sort(stableCompare)])),
     interpretation: "empirical_cooccurrence_only", compatibilityEvidence: false,
   });
 }
