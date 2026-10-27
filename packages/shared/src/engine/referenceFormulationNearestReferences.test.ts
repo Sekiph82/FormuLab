@@ -76,4 +76,55 @@ describe("reference formulation nearest references", () => {
     const familyOnly = formula({ sourceRecordId: "z-family-only" });
     expect(() => retrieveNearestReferenceFormulations({ query: familyOnly, references: [candidate], minimumFeatureCoverage: 0 })).toThrow(/discriminative feature/);
   });
+
+  it("excludes same-document and exact-formula leakage, and near duplicates only in evaluation mode", () => {
+    const query = formula({ sourceRecordId: "a-query", categorical: [
+      { key: "canonical_chemistry", group: "canonical_chemistry", value: "chemical-a" },
+    ], dosage: { lower: 10, upper: 10 } });
+    const originalDosage = query.quantitativeFeatures[0]!;
+    query.quantitativeFeatures = [
+      { ...originalDosage, featureKey: "dosage:chemical-a:function-one", dimensionKey: "dosage:chemical-a:function-one",
+        canonicalFunctionId: "function-one", lowerBound: 0.1, upperBound: 0.1, evidenceRefs: ["dosage:query:function-one"] },
+      { ...originalDosage, featureKey: "dosage:chemical-a:function-two", dimensionKey: "dosage:chemical-a:function-two",
+        canonicalFunctionId: "function-two", lowerBound: 0.2, upperBound: 0.2, evidenceRefs: ["dosage:query:function-two"] },
+    ];
+    query.evidenceRefs = [...new Set([...query.evidenceRefs, ...query.quantitativeFeatures.flatMap((feature) => feature.evidenceRefs)])].sort();
+    const copy = (sourceRecordId: string): ReferenceFormulationFormulaSimilarityFeatures => ({
+      ...structuredClone(query), sourceRecordId, queryRecordId: `query:${sourceRecordId}`,
+      sourceDocumentHash: sourceRecordId.charCodeAt(0).toString(16).padStart(64, "0"),
+    });
+    const sameHash = { ...copy("b-same-hash"), sourceDocumentHash: query.sourceDocumentHash };
+    const exactFormula = copy("c-exact-formula");
+    exactFormula.quantitativeFeatures = [{ ...originalDosage, featureKey: "dosage:chemical-a:different-reviewed-function",
+      dimensionKey: "dosage:chemical-a:different-reviewed-function", canonicalFunctionId: "different-reviewed-function",
+      lowerBound: 0.3, upperBound: 0.3, evidenceRefs: ["dosage:exact:different-function"] }];
+    exactFormula.evidenceRefs = [...new Set([...exactFormula.evidenceRefs, ...exactFormula.quantitativeFeatures[0]!.evidenceRefs])].sort();
+    const documentAndExact = retrieveNearestReferenceFormulations({ query, references: [sameHash, exactFormula] });
+    expect(documentAndExact).toMatchObject({ candidateCount: 2, excludedSameDocumentHashCount: 1, excludedExactFormulaCount: 1, references: [] });
+
+    const denseQuery = formula({ sourceRecordId: "d-dense-query" });
+    denseQuery.categoricalFeatures = [denseQuery.categoricalFeatures[0]!, ...Array.from({ length: 10 }, (_, index) => ({
+      featureKey: `chemistry:chemical-${index}`, dimensionKey: "canonical_chemistry" as const,
+      group: "canonical_chemistry" as const, value: `chemical-${index}`, evidenceRefs: [`chemistry:${index}:query`],
+    }))];
+    denseQuery.quantitativeFeatures = Array.from({ length: 10 }, (_, index) => ({
+      featureKey: `dosage:chemical-${index}:unassigned`, dimensionKey: `dosage:chemical-${index}:unassigned`, group: "dosage" as const,
+      canonicalChemistryId: `chemical-${index}`, lowerBound: 10, upperBound: 10, unit: "% w/w" as const, evidenceRefs: [`dosage:${index}:query`],
+    }));
+    denseQuery.evidenceRefs = [...new Set([...denseQuery.categoricalFeatures.flatMap((feature) => feature.evidenceRefs), ...denseQuery.quantitativeFeatures.flatMap((feature) => feature.evidenceRefs)])].sort();
+    const nearDuplicate = copy("e-near-duplicate");
+    nearDuplicate.productFamilyKey = denseQuery.productFamilyKey;
+    nearDuplicate.categoricalFeatures = [denseQuery.categoricalFeatures[0]!, ...denseQuery.categoricalFeatures.slice(1).map((feature) => ({ ...feature, evidenceRefs: [`${feature.featureKey}:near`] })), {
+      featureKey: "chemistry:chemical-extra", dimensionKey: "canonical_chemistry", group: "canonical_chemistry", value: "chemical-extra", evidenceRefs: ["chemistry:extra:near"],
+    }];
+    nearDuplicate.quantitativeFeatures = [...denseQuery.quantitativeFeatures.map((feature) => ({ ...feature, upperBound: 10.5, evidenceRefs: [`${feature.featureKey}:near`] })), {
+      featureKey: "dosage:chemical-extra:unassigned", dimensionKey: "dosage:chemical-extra:unassigned", group: "dosage",
+      canonicalChemistryId: "chemical-extra", lowerBound: 1, upperBound: 1, unit: "% w/w", evidenceRefs: ["dosage:extra:near"],
+    }];
+    nearDuplicate.evidenceRefs = [...new Set([...nearDuplicate.categoricalFeatures.flatMap((feature) => feature.evidenceRefs), ...nearDuplicate.quantitativeFeatures.flatMap((feature) => feature.evidenceRefs)])].sort();
+    const discovery = retrieveNearestReferenceFormulations({ query: denseQuery, references: [nearDuplicate] });
+    expect(discovery.excludedNearDuplicateCount).toBe(0);
+    const evaluation = retrieveNearestReferenceFormulations({ query: denseQuery, references: [nearDuplicate], evaluationMode: true });
+    expect(evaluation).toMatchObject({ evaluationMode: true, nearDuplicateDosageDimensionOverlapThreshold: 0.9, excludedNearDuplicateCount: 1, references: [] });
+  });
 });
