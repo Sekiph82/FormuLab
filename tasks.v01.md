@@ -314,7 +314,7 @@ Codex must execute the tasks below in the exact order listed.
 
 ## Milestone V01-08 - Generator, ranking, and explainability integration
 
-- [ ] **V01-08.001 - Implement reference-context adapter for existing deterministic generator**: Feed eligible priors and nearest references into the current generator without creating a second generation engine.
+- [~] **V01-08.001 - Implement reference-context adapter for existing deterministic generator**: Feed eligible priors and nearest references into the current generator without creating a second generation engine.
 - [ ] **V01-08.002 - Preserve zero-LLM operation**: Prove reference intelligence works with the deterministic generator when all LLM features are unavailable.
 - [ ] **V01-08.003 - Implement empirical dosage guidance**: Use reviewed family priors as soft empirical guidance, never hard chemistry truth unless an existing hard rule separately requires it.
 - [ ] **V01-08.004 - Implement empirical ingredient/function guidance**: Use frequency/co-occurrence as advisory candidate context while preserving compatibility, safety, regulatory, manufacturing and availability authorities.
