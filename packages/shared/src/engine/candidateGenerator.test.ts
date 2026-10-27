@@ -507,6 +507,12 @@ describe("generateCandidates", () => {
     })]);
     expect(knownActiveCandidate.formula).toEqual(withoutGuidance!.formula);
     expect(withGuidance!.notes.some((note) => /advisory only; not a hard constraint, safety approval, or validated recommendation/i.test(note))).toBe(true);
+    const exclusionConstraints = { ...input.constraints, excludedMaterials: ["MAT-001"] };
+    const withPopularityAndExclusion = generateCandidates({ ...input, constraints: exclusionConstraints });
+    const withoutPopularityAndExclusion = generateCandidates({ ...original, constraints: exclusionConstraints });
+    expect(withPopularityAndExclusion).toEqual(withoutPopularityAndExclusion);
+    expect(withPopularityAndExclusion.every((candidate) => candidate.formula.length === 0)).toBe(true);
+    expect(withPopularityAndExclusion[0]!.notes.join(" ")).toMatch(/excluded by constraints/i);
     const unlinked = generateCandidates({ ...input, mappedIngredients: original.mappedIngredients })[0]!;
     expect(unlinked.dosageGuidance).toBeUndefined();
     expect(unlinked.ingredientGuidance).toBeUndefined();

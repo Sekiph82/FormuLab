@@ -2,7 +2,7 @@ import { z } from "zod";
 import { digestSchema } from "./datasetManifest";
 
 export const ALTERNATIVE_RANKING_SCHEMA_VERSION = "1.0" as const;
-export const ALTERNATIVE_RANKING_POLICY_VERSION = "1.0" as const;
+export const ALTERNATIVE_RANKING_POLICY_VERSION = "1.1" as const;
 
 export const RANKING_DIMENSION_ORDER = [
   "performance",
@@ -118,7 +118,8 @@ export type RankedAlternative = z.infer<typeof rankedAlternativeSchema>;
 export const alternativeRankingRecordSchema = z.object({
   schemaVersion: z.literal(ALTERNATIVE_RANKING_SCHEMA_VERSION),
   code: z.string().min(1),
-  rankingPolicyVersion: z.literal(ALTERNATIVE_RANKING_POLICY_VERSION),
+  /** Keep parsing immutable v1.0 ranking records after the v1.1 gate-policy update. */
+  rankingPolicyVersion: z.enum(["1.0", ALTERNATIVE_RANKING_POLICY_VERSION]),
   sessionId: z.string().min(1),
   capturedAt: z.string().datetime({ offset: true }),
   context: z.object({ batchKg: z.string(), currency: z.string() }),

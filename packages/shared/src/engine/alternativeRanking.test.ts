@@ -15,11 +15,11 @@ function candidate(id: string, overrides: Partial<AlternativeRankingCandidate["d
       performance: { status: "UNAVAILABLE_MODEL" },
       uncertainty: { status: "UNKNOWN" },
       cost: { status: "MISSING", sourceSnapshot: dimensionSnapshot },
-      availability: { status: "UNKNOWN", sourceSnapshot: dimensionSnapshot },
+      availability: { status: "FEASIBLE", sourceSnapshot: dimensionSnapshot },
       compatibility: { status: "PASS", sourceSnapshot: dimensionSnapshot },
       safety: { status: "PASS", sourceSnapshot: dimensionSnapshot },
       regulatory: { status: "PASS", sourceSnapshot: dimensionSnapshot },
-      manufacturing: { status: "UNKNOWN", sourceSnapshot: dimensionSnapshot },
+      manufacturing: { status: "READY", sourceSnapshot: dimensionSnapshot },
       evidence: { status: "NO_LINKED_EVIDENCE", ingredientCount: 2, linkedIngredientCount: 0, uniqueSourceCount: 0, sourceSnapshot: dimensionSnapshot },
       ...overrides,
     },
@@ -53,18 +53,52 @@ describe("FVL-08 alternative ranking", () => {
     expect(rankAlternatives([...tied].reverse()).map(({ candidate: row }) => row.candidateId)).toEqual(["alpha", "mu", "zeta"]);
   });
 
-  it.each(["safety", "regulatory"] as const)("never lets a %s FAIL outrank a PASS on other dimensions", (failedGate) => {
+  it.each(["compatibility", "safety", "regulatory"] as const)("never lets a %s FAIL outrank a PASS on other dimensions or evidence support", (failedGate) => {
     const passing = candidate("passing", { performance: { status: "PREDICTED", numericValue: 1 } });
     const failing = candidate("failing", {
       performance: { status: "PREDICTED", numericValue: 1_000_000 },
       cost: { status: "AVAILABLE", costPerKg: 0, currency: "KES" },
       availability: { status: "FEASIBLE" },
+      manufacturing: { status: "READY" },
+      evidence: { status: "LINKED", ingredientCount: 2, linkedIngredientCount: 2, bestEvidenceClass: "A", uniqueSourceCount: 100 },
       [failedGate]: { status: "FAIL", sourceSnapshot: { verdict: "FAIL" } },
     });
     const result = rankAlternatives([failing, passing]);
     expect(result[0]!.candidate.candidateId).toBe("passing");
     expect(result[1]!.disposition).toBe("BLOCKED");
     expect(result[1]!.gateReasons).toContain(`${failedGate.toUpperCase()}_FAIL`);
+  });
+
+  it.each([
+    ["availability", "INFEASIBLE", "AVAILABILITY_INFEASIBLE"],
+    ["manufacturing", "NOT_READY", "MANUFACTURING_NOT_READY"],
+  ] as const)("blocks a candidate with %s infeasibility regardless of performance/evidence", (dimension, status, reason) => {
+    const passing = candidate("feasible", { performance: { status: "PREDICTED", numericValue: 1 } });
+    const blocked = candidate("blocked", {
+      performance: { status: "PREDICTED", numericValue: 1_000_000 },
+      evidence: { status: "LINKED", ingredientCount: 2, linkedIngredientCount: 2, bestEvidenceClass: "A", uniqueSourceCount: 100 },
+      [dimension]: { status, sourceSnapshot: { status } },
+    });
+    const result = rankAlternatives([blocked, passing]);
+    expect(result[0]!.candidate.candidateId).toBe("feasible");
+    expect(result[0]!.disposition).toBe("ELIGIBLE");
+    expect(result[1]!.disposition).toBe("BLOCKED");
+    expect(result[1]!.gateReasons).toContain(reason);
+  });
+
+  it.each([
+    ["availability", "UNKNOWN", "AVAILABILITY_NOT_CONFIRMED_FEASIBLE"],
+    ["manufacturing", "UNKNOWN", "MANUFACTURING_NOT_CONFIRMED_READY"],
+  ] as const)("requires review when %s is %s", (dimension, status, reason) => {
+    const eligible = candidate("eligible", { performance: { status: "PREDICTED", numericValue: 1 } });
+    const uncertain = candidate("uncertain", {
+      performance: { status: "PREDICTED", numericValue: 1_000_000 },
+      [dimension]: { status, sourceSnapshot: { status } },
+    });
+    const result = rankAlternatives([uncertain, eligible]);
+    expect(result[0]!.candidate.candidateId).toBe("eligible");
+    expect(result[1]!.disposition).toBe("REVIEW_REQUIRED");
+    expect(result[1]!.gateReasons).toContain(reason);
   });
 
   it("preserves both failed authoritative verdicts and unknown is not treated as PASS", () => {
@@ -108,7 +142,8 @@ describe("FVL-08 alternative ranking", () => {
       context: { batchKg: "100", currency: "KES" },
       rankings: rankAlternatives([candidate("A")]),
     });
-    expect(record.rankingPolicyVersion).toBe("1.0");
+    expect(record.rankingPolicyVersion).toBe("1.1");
+    expect(alternativeRankingRecordSchema.shape.rankingPolicyVersion.safeParse("1.0").success).toBe(true);
     expect(record.dimensionOrder).toEqual(["performance", "uncertainty", "cost", "availability", "compatibility", "safety", "regulatory", "manufacturing", "evidence"]);
     expect(await verifyAlternativeRankingRecord(record)).toBe(true);
     const roundTripped = alternativeRankingRecordSchema.parse(JSON.parse(JSON.stringify(record)));
