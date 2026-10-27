@@ -5,8 +5,11 @@ import { createReferenceFormulationProcessNormalization } from "../schemas/refer
 import { referenceFormulationReviewSchema, type ReferenceFormulationReview } from "../schemas/referenceFormulationReview";
 import { filterEligibleReferenceFormulationCorpus, referenceFormulationEligibilityDecisionSchema } from "./referenceFormulationEligibility";
 
-export const REFERENCE_FORMULATION_PROCESS_PATTERNS_VERSION = "formulab-reference-formulation-process-patterns-v1";
-const supplierSchema = z.object({ supplierId: z.string().trim().min(1), formulaCount: z.number().int().positive(), share: z.number().finite().min(0).max(1) }).strict();
+export const REFERENCE_FORMULATION_PROCESS_PATTERNS_VERSION = "formulab-reference-formulation-process-patterns-v2";
+const supplierSchema = z.object({
+  supplierId: z.string().trim().min(1), formulaCount: z.number().int().positive(), share: z.number().finite().min(0).max(1),
+  sourceRecordIds: z.array(z.string().trim().min(1)).min(1),
+}).strict();
 const patternSchema = z.object({
   productFamilyKey: z.string().trim().min(1), productFamilyLabel: z.string().trim().min(1),
   patternKind: z.enum(["action", "action_sequence", "phase", "condition"]), patternId: z.string().trim().min(1), sourceValue: z.string().trim().min(1), sourceValues: z.array(z.string().trim().min(1)).min(1),
@@ -20,7 +23,10 @@ const patternSchema = z.object({
     || pattern.occurrenceCount < pattern.formulaCount || pattern.sourceRecordIds.length !== pattern.formulaCount
     || new Set(pattern.sourceRecordIds).size !== pattern.formulaCount || pattern.suppliers.length !== pattern.supplierCount
     || pattern.suppliers.reduce((sum, item) => sum + item.formulaCount, 0) !== pattern.formulaCount
-    || pattern.suppliers.some((item) => item.share !== item.formulaCount / pattern.formulaCount)
+    || pattern.suppliers.some((item) => item.share !== item.formulaCount / pattern.formulaCount
+      || item.sourceRecordIds.length !== item.formulaCount || new Set(item.sourceRecordIds).size !== item.sourceRecordIds.length)
+    || new Set(pattern.suppliers.flatMap((item) => item.sourceRecordIds)).size !== pattern.formulaCount
+    || JSON.stringify(pattern.suppliers.flatMap((item) => item.sourceRecordIds).sort(compare)) !== JSON.stringify([...pattern.sourceRecordIds].sort(compare))
     || pattern.minimumSequenceOrder > pattern.maximumSequenceOrder) {
     context.addIssue({ code: "custom", path: ["formulaCount"], message: "Process pattern samples, supplier counts, source IDs and sequence bounds must agree." });
   }
@@ -30,14 +36,37 @@ export const referenceFormulationProcessPatternsSchema = z.object({
   schemaVersion: z.literal(REFERENCE_FORMULATION_PROCESS_PATTERNS_VERSION), asOf: z.string().datetime({ offset: true }),
   eligibleFormulaCount: z.number().int().nonnegative(), excludedFormulaCount: z.number().int().nonnegative(),
   eligibleProcessFormulaCount: z.number().int().nonnegative(), excludedProcessEvidenceCount: z.number().int().nonnegative(),
-  eligibilityDecisions: z.array(referenceFormulationEligibilityDecisionSchema), patterns: z.array(patternSchema),
+  eligibilityDecisions: z.array(referenceFormulationEligibilityDecisionSchema),
+  eligibleSourceRecordIdsByProductFamily: z.record(z.string().trim().min(1), z.array(z.string().trim().min(1))),
+  eligibleProcessSourceRecordIdsByProductFamily: z.record(z.string().trim().min(1), z.array(z.string().trim().min(1))),
+  eligibleProcessSupplierSourceRecordIdsByProductFamily: z.record(z.string().trim().min(1), z.record(z.string().trim().min(1), z.array(z.string().trim().min(1)))),
+  patterns: z.array(patternSchema),
   interpretation: z.literal("supplier_reference_process_only"),
 }).strict().superRefine((value, context) => {
   if (value.eligibleFormulaCount + value.excludedFormulaCount !== value.eligibilityDecisions.length
     || value.eligibleFormulaCount !== value.eligibilityDecisions.filter((item) => item.eligible).length
     || value.excludedFormulaCount !== value.eligibilityDecisions.filter((item) => !item.eligible).length
-    || value.eligibleProcessFormulaCount > value.eligibleFormulaCount) {
+    || value.eligibleProcessFormulaCount > value.eligibleFormulaCount
+    || new Set(Object.values(value.eligibleSourceRecordIdsByProductFamily).flat()).size !== value.eligibleFormulaCount
+    || JSON.stringify(Object.values(value.eligibleSourceRecordIdsByProductFamily).flat().sort(compare))
+      !== JSON.stringify(value.eligibilityDecisions.filter((item) => item.eligible).map((item) => item.sourceRecordId).sort(compare))
+    || Object.values(value.eligibleSourceRecordIdsByProductFamily).some((ids) => new Set(ids).size !== ids.length)) {
     context.addIssue({ code: "custom", path: ["eligibilityDecisions"], message: "Process-pattern denominators must match reviewed corpus eligibility." });
+  }
+  const processSourceIds = Object.values(value.eligibleProcessSourceRecordIdsByProductFamily).flat();
+  const processSupplierSourceIds = Object.values(value.eligibleProcessSupplierSourceRecordIdsByProductFamily).flatMap((suppliers) => Object.values(suppliers).flat());
+  if (processSourceIds.length !== value.eligibleProcessFormulaCount || new Set(processSourceIds).size !== processSourceIds.length
+    || Object.entries(value.eligibleProcessSourceRecordIdsByProductFamily).some(([familyKey, ids]) => new Set(ids).size !== ids.length
+      || ids.some((id) => !value.eligibleSourceRecordIdsByProductFamily[familyKey]?.includes(id)))
+    || Object.values(value.eligibleProcessSupplierSourceRecordIdsByProductFamily).some((suppliers) =>
+      Object.values(suppliers).some((ids) => ids.length === 0 || new Set(ids).size !== ids.length))
+    || new Set(processSupplierSourceIds).size !== processSupplierSourceIds.length
+    || JSON.stringify([...processSupplierSourceIds].sort(compare)) !== JSON.stringify([...processSourceIds].sort(compare))
+    || value.patterns.some((pattern) => pattern.eligibleProcessFormulaCount !== (value.eligibleProcessSourceRecordIdsByProductFamily[pattern.productFamilyKey]?.length ?? 0)
+      || pattern.sourceRecordIds.some((id) => !value.eligibleProcessSourceRecordIdsByProductFamily[pattern.productFamilyKey]?.includes(id))
+      || pattern.suppliers.some((supplier) => supplier.sourceRecordIds.some((id) =>
+        !value.eligibleProcessSupplierSourceRecordIdsByProductFamily[pattern.productFamilyKey]?.[supplier.supplierId]?.includes(id))))) {
+    context.addIssue({ code: "custom", path: ["patterns"], message: "Process samples must retain exact eligible family and supplier source evidence." });
   }
 });
 export type ReferenceFormulationProcessPatterns = z.infer<typeof referenceFormulationProcessPatternsSchema>;
@@ -114,7 +143,10 @@ export function calculateReferenceFormulationProcessPatterns(input: {
   const sourceById = new Map(input.sourceRecords.map((source) => [source.id, source]));
   const latest = latestReviews(input.reviews);
   const builders = new Map<string, Builder>();
+  const eligibleSourceRecordIdsByFamily = new Map<string, string[]>();
   const eligibleProcessByFamily = new Map<string, number>();
+  const eligibleProcessSourceIdsByFamily = new Map<string, string[]>();
+  const eligibleProcessSupplierSourceIdsByFamily = new Map<string, Map<string, string[]>>();
   let eligibleProcessFormulaCount = 0;
   let excludedProcessEvidenceCount = 0;
   const add = (query: ReferenceFormulationQueryRecord, kind: Builder["patternKind"], id: string, value: string, order: number, refs: string[]) => {
@@ -130,6 +162,10 @@ export function calculateReferenceFormulationProcessPatterns(input: {
   };
 
   for (const query of eligibility.eligible) {
+    const familyId = familyKey(query.productFamily.candidates[0]!.rawValue);
+    const familySourceIds = eligibleSourceRecordIdsByFamily.get(familyId) ?? [];
+    familySourceIds.push(query.sourceRecordId);
+    eligibleSourceRecordIdsByFamily.set(familyId, familySourceIds);
     const source = sourceById.get(query.sourceRecordId)!;
     const expected = createReferenceFormulationProcessNormalization(source).steps;
     if (JSON.stringify(query.processSteps) !== JSON.stringify(expected)) throw new Error("Process-pattern query steps must match the immutable source procedure snapshot.");
@@ -170,8 +206,15 @@ export function calculateReferenceFormulationProcessPatterns(input: {
     }
     if (hasReviewedProcess) {
       eligibleProcessFormulaCount += 1;
-      const key = familyKey(query.productFamily.candidates[0]!.rawValue);
-      eligibleProcessByFamily.set(key, (eligibleProcessByFamily.get(key) ?? 0) + 1);
+      eligibleProcessByFamily.set(familyId, (eligibleProcessByFamily.get(familyId) ?? 0) + 1);
+      const processSourceIds = eligibleProcessSourceIdsByFamily.get(familyId) ?? [];
+      processSourceIds.push(query.sourceRecordId);
+      eligibleProcessSourceIdsByFamily.set(familyId, processSourceIds);
+      const familySuppliers = eligibleProcessSupplierSourceIdsByFamily.get(familyId) ?? new Map<string, string[]>();
+      const supplierSourceIds = familySuppliers.get(query.supplierId) ?? [];
+      supplierSourceIds.push(query.sourceRecordId);
+      familySuppliers.set(query.supplierId, supplierSourceIds);
+      eligibleProcessSupplierSourceIdsByFamily.set(familyId, familySuppliers);
     }
   }
 
@@ -191,7 +234,10 @@ export function calculateReferenceFormulationProcessPatterns(input: {
       productFamilyKey: familyId, productFamilyLabel: builder.familyLabel, patternKind: builder.patternKind, patternId: builder.patternId,
       sourceValue: sourceValues[0]!, sourceValues, formulaCount, eligibleProcessFormulaCount: denominator, frequency: formulaCount / denominator,
       occurrenceCount: sequenceOrders.length, supplierCount: suppliers.size,
-      suppliers: [...suppliers.entries()].sort(([a], [b]) => compare(a, b)).map(([supplierId, count]) => ({ supplierId, formulaCount: count, share: count / formulaCount })),
+      suppliers: [...suppliers.entries()].sort(([a], [b]) => compare(a, b)).map(([supplierId, count]) => ({
+        supplierId, formulaCount: count, share: count / formulaCount,
+        sourceRecordIds: formulaObservations.filter(([, occurrences]) => occurrences[0]!.supplierId === supplierId).map(([id]) => id),
+      })),
       minimumSequenceOrder: Math.min(...sequenceOrders), maximumSequenceOrder: Math.max(...sequenceOrders),
       sourceRecordIds: formulaObservations.map(([id]) => id), evidenceRefs: [...new Set(formulaObservations.flatMap(([, items]) => items.flatMap((item) => item.evidenceRefs)))].sort(compare),
       interpretation: "reviewed_supplier_process_pattern" as const,
@@ -200,7 +246,15 @@ export function calculateReferenceFormulationProcessPatterns(input: {
   return referenceFormulationProcessPatternsSchema.parse({
     schemaVersion: REFERENCE_FORMULATION_PROCESS_PATTERNS_VERSION, asOf: input.asOf,
     eligibleFormulaCount: eligibility.eligible.length, excludedFormulaCount: eligibility.excluded.length,
-    eligibleProcessFormulaCount, excludedProcessEvidenceCount, eligibilityDecisions: eligibility.decisions, patterns,
+    eligibleProcessFormulaCount, excludedProcessEvidenceCount, eligibilityDecisions: eligibility.decisions,
+    eligibleSourceRecordIdsByProductFamily: Object.fromEntries([...eligibleSourceRecordIdsByFamily.entries()]
+      .sort(([left], [right]) => compare(left, right)).map(([key, ids]) => [key, ids.sort(compare)])),
+    eligibleProcessSourceRecordIdsByProductFamily: Object.fromEntries([...eligibleProcessSourceIdsByFamily.entries()]
+      .sort(([left], [right]) => compare(left, right)).map(([key, ids]) => [key, ids.sort(compare)])),
+    eligibleProcessSupplierSourceRecordIdsByProductFamily: Object.fromEntries([...eligibleProcessSupplierSourceIdsByFamily.entries()]
+      .sort(([left], [right]) => compare(left, right)).map(([key, suppliers]) => [key, Object.fromEntries([...suppliers.entries()]
+        .sort(([left], [right]) => compare(left, right)).map(([supplierId, ids]) => [supplierId, ids.sort(compare)]))])),
+    patterns,
     interpretation: "supplier_reference_process_only",
   });
 }

@@ -124,6 +124,23 @@ export interface GeneratedCandidate {
     unavailableReason: "candidate_component_composition_not_available";
     interpretation: "reviewed_component_distribution_not_candidate_composition_or_validation";
   }>;
+  /** Reviewed supplier process evidence is descriptive; it is never a generated or required procedure. */
+  processPatternGuidance?: Array<{
+    asOf: string;
+    patternKind: "action" | "action_sequence" | "phase" | "condition";
+    patternId: string;
+    sourceValue: string;
+    sourceValues: string[];
+    formulaCount: number;
+    eligibleProcessFormulaCount: number;
+    frequency: number;
+    occurrenceCount: number;
+    supplierCount: number;
+    suppliers: Array<{ supplierId: string; formulaCount: number; share: number; sourceRecordIds: string[] }>;
+    sourceRecordIds: string[];
+    evidenceRefs: string[];
+    interpretation: "reviewed_supplier_process_pattern_not_candidate_recipe_or_requirement";
+  }>;
 }
 
 /** Result of one generation method: a candidate, or an honest reason it
@@ -188,6 +205,7 @@ export function generateCandidates(input: GenerationInput): GeneratedCandidate[]
     applyEmpiricalDosageGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
     applyEmpiricalIngredientGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
     applyEmpiricalContributionGuidance(candidate, input.availableMaterials, referenceContext, input.canonicalProductFamilyKey);
+    applyEmpiricalProcessGuidance(candidate, referenceContext, input.canonicalProductFamilyKey);
   }
 
   // If we have no candidates, return an explicit, explained fallback rather
@@ -408,6 +426,33 @@ function applyEmpiricalContributionGuidance(
     }));
     candidate.notes.push(`Reviewed component-contribution ranges exist for ${componentSamples.length} component identity or identities, but candidate component amounts are unavailable because the generator input has no source-reviewed raw-material composition mapping. SDS component ranges were not assumed to represent candidate composition.`);
   }
+}
+
+/** Attach exact-family reviewed process patterns as historical context, without proposing process controls. */
+function applyEmpiricalProcessGuidance(
+  candidate: GeneratedCandidate,
+  referenceContext: ReferenceFormulationGenerationContext | undefined,
+  canonicalProductFamilyKey: string | undefined,
+): void {
+  if (!referenceContext?.available || !referenceContext.processGuidanceAvailable
+    || canonicalProductFamilyKey !== referenceContext.productFamilyKey) return;
+  candidate.processPatternGuidance = referenceContext.processGuidance.map((pattern) => ({
+    asOf: pattern.asOf,
+    patternKind: pattern.patternKind,
+    patternId: pattern.patternId,
+    sourceValue: pattern.sourceValue,
+    sourceValues: pattern.sourceValues,
+    formulaCount: pattern.formulaCount,
+    eligibleProcessFormulaCount: pattern.eligibleProcessFormulaCount,
+    frequency: pattern.frequency,
+    occurrenceCount: pattern.occurrenceCount,
+    supplierCount: pattern.supplierCount,
+    suppliers: pattern.suppliers,
+    sourceRecordIds: pattern.sourceRecordIds,
+    evidenceRefs: pattern.evidenceRefs,
+    interpretation: "reviewed_supplier_process_pattern_not_candidate_recipe_or_requirement",
+  }));
+  candidate.notes.push(`Reviewed supplier process examples are available for ${referenceContext.productFamilyKey} (${candidate.processPatternGuidance.length} patterns; sources: ${[...new Set(candidate.processPatternGuidance.flatMap((pattern) => pattern.sourceRecordIds))].join(", ")}). They describe cited historical evidence only; no missing temperatures, times, speeds, or required process steps were inferred.`);
 }
 
 /** Canonical, order-independent identity of a formula: same materials at

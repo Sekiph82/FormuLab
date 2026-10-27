@@ -19,9 +19,13 @@ import {
   referenceFormulationContributionDistributionsSchema,
   type ReferenceFormulationContributionDistributions,
 } from "./referenceFormulationContributionDistributions";
+import {
+  referenceFormulationProcessPatternsSchema,
+  type ReferenceFormulationProcessPatterns,
+} from "./referenceFormulationProcessPatterns";
 import type { GenerationInput } from "./candidateGenerator";
 
-export const REFERENCE_FORMULATION_GENERATION_CONTEXT_VERSION = "formulab-reference-formulation-generation-context-v4";
+export const REFERENCE_FORMULATION_GENERATION_CONTEXT_VERSION = "formulab-reference-formulation-generation-context-v5";
 const ingredientPriorSchema = z.object({
   canonicalChemistryId: z.string().trim().min(1),
   formulaCount: z.number().int().positive(),
@@ -168,6 +172,40 @@ const contributionGuidanceSchema = z.object({
     context.addIssue({ code: "custom", path: ["sourceRecordIds"], message: "Contribution guidance must preserve reviewed bounds, exact supplier source samples and quantity identity." });
   }
 });
+const processGuidanceSchema = z.object({
+  asOf: z.string().datetime({ offset: true }),
+  patternKind: z.enum(["action", "action_sequence", "phase", "condition"]),
+  patternId: z.string().trim().min(1),
+  sourceValue: z.string().trim().min(1),
+  sourceValues: z.array(z.string().trim().min(1)).min(1),
+  formulaCount: z.number().int().positive(),
+  eligibleProcessFormulaCount: z.number().int().positive(),
+  frequency: z.number().finite().min(0).max(1),
+  occurrenceCount: z.number().int().positive(),
+  supplierCount: z.number().int().positive(),
+  suppliers: z.array(z.object({
+    supplierId: z.string().trim().min(1), formulaCount: z.number().int().positive(), share: z.number().finite().min(0).max(1),
+    sourceRecordIds: z.array(z.string().trim().min(1)).min(1),
+  }).strict()).min(1),
+  minimumSequenceOrder: z.number().int().positive(),
+  maximumSequenceOrder: z.number().int().positive(),
+  sourceRecordIds: z.array(z.string().trim().min(1)).min(1),
+  evidenceRefs: z.array(z.string().trim().min(1)).min(1),
+  interpretation: z.literal("reviewed_supplier_process_pattern"),
+}).strict().superRefine((pattern, context) => {
+  const supplierSourceIds = pattern.suppliers.flatMap((supplier) => supplier.sourceRecordIds);
+  if (pattern.formulaCount > pattern.eligibleProcessFormulaCount || pattern.frequency !== pattern.formulaCount / pattern.eligibleProcessFormulaCount
+    || pattern.suppliers.length !== pattern.supplierCount
+    || pattern.suppliers.reduce((sum, supplier) => sum + supplier.formulaCount, 0) !== pattern.formulaCount
+    || pattern.suppliers.some((supplier) => supplier.share !== supplier.formulaCount / pattern.formulaCount
+      || supplier.sourceRecordIds.length !== supplier.formulaCount || new Set(supplier.sourceRecordIds).size !== supplier.sourceRecordIds.length)
+    || pattern.sourceRecordIds.length !== pattern.formulaCount || new Set(pattern.sourceRecordIds).size !== pattern.sourceRecordIds.length
+    || new Set(supplierSourceIds).size !== supplierSourceIds.length
+    || JSON.stringify([...supplierSourceIds].sort()) !== JSON.stringify([...pattern.sourceRecordIds].sort())
+    || pattern.minimumSequenceOrder > pattern.maximumSequenceOrder) {
+    context.addIssue({ code: "custom", path: ["sourceRecordIds"], message: "Process guidance must retain source-exact pattern and supplier samples." });
+  }
+});
 export const referenceFormulationGenerationContextSchema = z.object({
   schemaVersion: z.literal(REFERENCE_FORMULATION_GENERATION_CONTEXT_VERSION),
   available: z.boolean(),
@@ -186,6 +224,11 @@ export const referenceFormulationGenerationContextSchema = z.object({
   contributionGuidance: z.array(contributionGuidanceSchema),
   contributionGuidanceAvailable: z.boolean(),
   contributionGuidanceUnavailableReason: z.enum(["no_reviewed_family_contributions"]).optional(),
+  processGuidance: z.array(processGuidanceSchema),
+  processGuidanceAvailable: z.boolean(),
+  processGuidanceUnavailableReason: z.enum(["no_reviewed_family_process_pattern"]).optional(),
+  processGuidanceEligibleSourceRecordIds: z.array(z.string().trim().min(1)),
+  processGuidanceEligibleSupplierSourceRecordIds: z.record(z.string().trim().min(1), z.array(z.string().trim().min(1))),
   dosageGuidance: z.array(dosageGuidanceSchema),
   dosageGuidanceAvailable: z.boolean(),
   dosageGuidanceUnavailableReason: z.enum(["no_reviewed_family_dosage"]).optional(),
@@ -225,6 +268,20 @@ export const referenceFormulationGenerationContextSchema = z.object({
         ? Object.values(contextValue.eligibleSupplierSourceRecordIds).flat().length : 0)
       || sample.suppliers.some((supplier) => !contextValue.eligibleSupplierSourceRecordIds[supplier.supplierId]
         || supplier.sourceRecordIds.some((sourceId) => !contextValue.eligibleSupplierSourceRecordIds[supplier.supplierId]!.includes(sourceId))))
+    || (contextValue.processGuidanceAvailable !== (contextValue.processGuidance.length > 0))
+    || (contextValue.processGuidanceAvailable === (contextValue.processGuidanceUnavailableReason !== undefined))
+    || new Set(contextValue.processGuidanceEligibleSourceRecordIds).size !== contextValue.processGuidanceEligibleSourceRecordIds.length
+    || contextValue.processGuidanceEligibleSourceRecordIds.some((sourceId) => !contextValue.eligibleSourceRecordIds.includes(sourceId))
+    || new Set(Object.values(contextValue.processGuidanceEligibleSupplierSourceRecordIds).flat()).size !== contextValue.processGuidanceEligibleSourceRecordIds.length
+    || JSON.stringify(Object.values(contextValue.processGuidanceEligibleSupplierSourceRecordIds).flat().sort())
+      !== JSON.stringify([...contextValue.processGuidanceEligibleSourceRecordIds].sort())
+    || Object.entries(contextValue.processGuidanceEligibleSupplierSourceRecordIds).some(([supplierId, ids]) =>
+      ids.length === 0 || new Set(ids).size !== ids.length
+        || ids.some((sourceId) => !contextValue.eligibleSupplierSourceRecordIds[supplierId]?.includes(sourceId)))
+    || contextValue.processGuidance.some((pattern) => pattern.eligibleProcessFormulaCount !== contextValue.processGuidanceEligibleSourceRecordIds.length
+      || pattern.sourceRecordIds.some((sourceId) => !contextValue.processGuidanceEligibleSourceRecordIds.includes(sourceId))
+      || pattern.suppliers.some((supplier) => !contextValue.processGuidanceEligibleSupplierSourceRecordIds[supplier.supplierId]
+        || supplier.sourceRecordIds.some((sourceId) => !contextValue.processGuidanceEligibleSupplierSourceRecordIds[supplier.supplierId]!.includes(sourceId))))
     || contextValue.cooccurrenceGuidance.some((pair) => {
       const materialIds = pair.pairKind === "material_pair" ? [pair.firstId, pair.secondId]
         : pair.pairKind === "material_function_pair" ? [pair.firstId, pair.secondId].filter((id) => contextValue.ingredientPriors.some((prior) => prior.canonicalChemistryId === id))
@@ -261,6 +318,7 @@ export function createReferenceFormulationGenerationContext(input: {
   dosageDistributions?: ReferenceFormulationDosageDistributions;
   cooccurrence?: ReferenceFormulationCooccurrenceResult;
   contributionDistributions?: ReferenceFormulationContributionDistributions;
+  processPatterns?: ReferenceFormulationProcessPatterns;
 }): ReferenceFormulationGenerationContext {
   const productFamilyKey = input.productFamilyKey.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
   if (!productFamilyKey) throw new Error("A canonical product family key is required for generator reference context.");
@@ -274,6 +332,9 @@ export function createReferenceFormulationGenerationContext(input: {
     : undefined;
   const contributions = input.contributionDistributions
     ? referenceFormulationContributionDistributionsSchema.parse(input.contributionDistributions)
+    : undefined;
+  const processPatterns = input.processPatterns
+    ? referenceFormulationProcessPatternsSchema.parse(input.processPatterns)
     : undefined;
   if (nearest.productFamilyKey !== productFamilyKey) throw new Error("Nearest references must be retrieved for the requested canonical product family.");
   const family = priors.productFamilies.find((item) => item.productFamilyKey === productFamilyKey);
@@ -296,6 +357,33 @@ export function createReferenceFormulationGenerationContext(input: {
   if (contributions && family && JSON.stringify([...familyEligibleSourceIds].sort()) !== JSON.stringify(familySourceRecordIds)) {
     throw new Error("Contribution and ingredient guidance must use the same eligible reviewed family corpus.");
   }
+  const processFamilySourceIds = processPatterns?.eligibleSourceRecordIdsByProductFamily[productFamilyKey] ?? [];
+  if (processPatterns && family && JSON.stringify([...processFamilySourceIds].sort()) !== JSON.stringify(familySourceRecordIds)) {
+    throw new Error("Process-pattern and ingredient guidance must use the same eligible reviewed family corpus.");
+  }
+  const processGuidanceEligibleSourceRecordIds = processPatterns?.eligibleProcessSourceRecordIdsByProductFamily[productFamilyKey] ?? [];
+  const processGuidanceEligibleSupplierSourceRecordIds = processPatterns?.eligibleProcessSupplierSourceRecordIdsByProductFamily[productFamilyKey] ?? {};
+  const processGuidance = (family ? processPatterns?.patterns ?? [] : [])
+    .filter((pattern) => pattern.productFamilyKey === productFamilyKey)
+    .map((pattern) => ({
+      asOf: processPatterns!.asOf,
+      patternKind: pattern.patternKind,
+      patternId: pattern.patternId,
+      sourceValue: pattern.sourceValue,
+      sourceValues: pattern.sourceValues,
+      formulaCount: pattern.formulaCount,
+      eligibleProcessFormulaCount: pattern.eligibleProcessFormulaCount,
+      frequency: pattern.frequency,
+      occurrenceCount: pattern.occurrenceCount,
+      supplierCount: pattern.supplierCount,
+      suppliers: pattern.suppliers,
+      minimumSequenceOrder: pattern.minimumSequenceOrder,
+      maximumSequenceOrder: pattern.maximumSequenceOrder,
+      sourceRecordIds: pattern.sourceRecordIds,
+      evidenceRefs: pattern.evidenceRefs,
+      interpretation: pattern.interpretation,
+    }));
+  const processGuidanceAvailable = processGuidance.length > 0;
   const contributionGuidance = (family ? contributions?.distributions ?? [] : [])
     .filter((sample) => sample.productFamilyKey === productFamilyKey)
     .map((sample) => ({
@@ -363,6 +451,9 @@ export function createReferenceFormulationGenerationContext(input: {
       ...(!cooccurrenceGuidanceAvailable ? { cooccurrenceGuidanceUnavailableReason: "no_reviewed_family_cooccurrence" as const } : {}),
       contributionGuidance, contributionGuidanceAvailable,
       ...(!contributionGuidanceAvailable ? { contributionGuidanceUnavailableReason: "no_reviewed_family_contributions" as const } : {}),
+      processGuidance, processGuidanceAvailable,
+      ...(!processGuidanceAvailable ? { processGuidanceUnavailableReason: "no_reviewed_family_process_pattern" as const } : {}),
+      processGuidanceEligibleSourceRecordIds: [], processGuidanceEligibleSupplierSourceRecordIds: {},
       dosageGuidance, dosageGuidanceAvailable, ...(!dosageGuidanceAvailable ? { dosageGuidanceUnavailableReason: "no_reviewed_family_dosage" as const } : {}),
       interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
     });
@@ -390,6 +481,10 @@ export function createReferenceFormulationGenerationContext(input: {
     ...(!cooccurrenceGuidanceAvailable ? { cooccurrenceGuidanceUnavailableReason: "no_reviewed_family_cooccurrence" as const } : {}),
     contributionGuidance, contributionGuidanceAvailable,
     ...(!contributionGuidanceAvailable ? { contributionGuidanceUnavailableReason: "no_reviewed_family_contributions" as const } : {}),
+    processGuidance, processGuidanceAvailable,
+    ...(!processGuidanceAvailable ? { processGuidanceUnavailableReason: "no_reviewed_family_process_pattern" as const } : {}),
+    processGuidanceEligibleSourceRecordIds,
+    processGuidanceEligibleSupplierSourceRecordIds,
     dosageGuidance, dosageGuidanceAvailable, ...(!dosageGuidanceAvailable ? { dosageGuidanceUnavailableReason: "no_reviewed_family_dosage" as const } : {}),
     interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
   });

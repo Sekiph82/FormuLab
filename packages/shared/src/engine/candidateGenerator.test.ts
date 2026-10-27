@@ -129,7 +129,7 @@ function baseInput(overrides: Partial<GenerationInput> = {}): GenerationInput {
 describe("generateCandidates", () => {
   it("generates deterministically with reviewed reference context when network and LLM services are unavailable", () => {
     const referenceContext = referenceFormulationGenerationContextSchema.parse({
-      schemaVersion: "formulab-reference-formulation-generation-context-v4", available: true, productFamilyKey: "hand dishwash",
+      schemaVersion: "formulab-reference-formulation-generation-context-v5", available: true, productFamilyKey: "hand dishwash",
       asOf: "2026-10-26T12:00:00.000Z", eligibleFormulaCount: 1, supplierCount: 1,
       eligibleSourceRecordIds: ["reference-1"],
       eligibleSupplierSourceRecordIds: { "supplier-a": ["reference-1"] },
@@ -140,6 +140,9 @@ describe("generateCandidates", () => {
       cooccurrenceGuidanceUnavailableReason: "no_reviewed_family_cooccurrence",
       contributionGuidance: [], contributionGuidanceAvailable: false,
       contributionGuidanceUnavailableReason: "no_reviewed_family_contributions",
+      processGuidance: [], processGuidanceAvailable: false,
+      processGuidanceUnavailableReason: "no_reviewed_family_process_pattern",
+      processGuidanceEligibleSourceRecordIds: [], processGuidanceEligibleSupplierSourceRecordIds: {},
       dosageGuidance: [], dosageGuidanceAvailable: false,
       dosageGuidanceUnavailableReason: "no_reviewed_family_dosage",
       interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
@@ -267,7 +270,30 @@ describe("generateCandidates", () => {
         },
       ],
     };
-    const context = createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences, dosageDistributions, cooccurrence, contributionDistributions });
+    const processPatterns = {
+      schemaVersion: "formulab-reference-formulation-process-patterns-v2" as const,
+      asOf,
+      eligibleFormulaCount: 2,
+      excludedFormulaCount: 0,
+      eligibleProcessFormulaCount: 1,
+      excludedProcessEvidenceCount: 0,
+      eligibilityDecisions: ["reference-1", "reference-2"].map((sourceRecordId, index) => ({
+        sourceRecordId, queryRecordId: `query-${index + 1}`, normalizationId: `normalization-${index + 1}`, eligible: true, reasons: [] as [],
+      })),
+      eligibleSourceRecordIdsByProductFamily: { "hand dishwash": ["reference-1", "reference-2"] },
+      eligibleProcessSourceRecordIdsByProductFamily: { "hand dishwash": ["reference-1"] },
+      eligibleProcessSupplierSourceRecordIdsByProductFamily: { "hand dishwash": { "supplier-a": ["reference-1"] } },
+      patterns: [{
+        productFamilyKey: "hand dishwash", productFamilyLabel: "Hand Dishwash", patternKind: "condition" as const,
+        patternId: "temperature:40°c", sourceValue: "40 °C", sourceValues: ["40 °C"], formulaCount: 1,
+        eligibleProcessFormulaCount: 1, frequency: 1, occurrenceCount: 1, supplierCount: 1,
+        suppliers: [{ supplierId: "supplier-a", formulaCount: 1, share: 1, sourceRecordIds: ["reference-1"] }],
+        minimumSequenceOrder: 1, maximumSequenceOrder: 1, sourceRecordIds: ["reference-1"], evidenceRefs: ["procedure:reference-1:step-1:condition"],
+        interpretation: "reviewed_supplier_process_pattern" as const,
+      }],
+      interpretation: "supplier_reference_process_only" as const,
+    };
+    const context = createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences, dosageDistributions, cooccurrence, contributionDistributions, processPatterns });
     const original = baseInput();
     const adapted = adaptGenerationInputWithReferenceContext(original, context);
 
@@ -284,6 +310,9 @@ describe("generateCandidates", () => {
       contributionGuidanceAvailable: true,
       contributionGuidance: [expect.objectContaining({ quantityKind: "active_matter_claim", formulaCount: 1, sourceRecordIds: ["reference-1"] }),
         expect.objectContaining({ quantityKind: "component_contribution", canonicalChemistryId: "chemical-a", formulaCount: 1, sourceRecordIds: ["reference-1"] })],
+      processGuidanceAvailable: true,
+      processGuidance: [{ patternKind: "condition", patternId: "temperature:40°c", sourceValue: "40 °C", formulaCount: 1,
+        eligibleProcessFormulaCount: 1, sourceRecordIds: ["reference-1"], evidenceRefs: ["procedure:reference-1:step-1:condition"] }],
       interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval" });
     expect(original.referenceContext).toBeUndefined();
     expect(adapted.referenceContext).toEqual(context);
@@ -353,6 +382,20 @@ describe("generateCandidates", () => {
     expect(() => createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences,
       contributionDistributions: separateCorpusContributions,
     })).toThrow(/same eligible reviewed family corpus/);
+    const separateCorpusProcessPatterns = {
+      ...processPatterns,
+      eligibilityDecisions: ["other-reference-1", "other-reference-2"].map((sourceRecordId, index) => ({
+        sourceRecordId, queryRecordId: `other-query-${index + 1}`, normalizationId: `other-normalization-${index + 1}`, eligible: true, reasons: [] as [],
+      })),
+      eligibleSourceRecordIdsByProductFamily: { "hand dishwash": ["other-reference-1", "other-reference-2"] },
+      eligibleProcessSourceRecordIdsByProductFamily: { "hand dishwash": ["other-reference-1"] },
+      eligibleProcessSupplierSourceRecordIdsByProductFamily: { "hand dishwash": { "supplier-a": ["other-reference-1"] } },
+      patterns: [{ ...processPatterns.patterns[0]!, sourceRecordIds: ["other-reference-1"],
+        suppliers: [{ supplierId: "supplier-a", formulaCount: 1, share: 1, sourceRecordIds: ["other-reference-1"] }] }],
+    };
+    expect(() => createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences,
+      processPatterns: separateCorpusProcessPatterns,
+    })).toThrow(/same eligible reviewed family corpus/);
     expect(() => createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences,
       dosageDistributions: { ...dosageDistributions, distributions: [{
         ...dosageDistributions.distributions[0]!,
@@ -368,7 +411,7 @@ describe("generateCandidates", () => {
       canonicalProductFamilyKey: "hand dishwash",
       mappedIngredients: [{ ...original.mappedIngredients[0]!, canonicalIdentityReview: canonicalIdentityReview("MAT-001", "chemical-a") }],
       referenceContext: {
-        schemaVersion: "formulab-reference-formulation-generation-context-v4",
+        schemaVersion: "formulab-reference-formulation-generation-context-v5",
         available: true,
         productFamilyKey: "hand dishwash",
         asOf: "2026-10-26T12:00:00.000Z",
@@ -405,6 +448,16 @@ describe("generateCandidates", () => {
           sourceRecordIds: ["reference-1"], evidenceRefs: ["formula:reference-1:component"], interpretation: "reviewed_source_bounded_distribution",
         }],
         contributionGuidanceAvailable: true,
+        processGuidance: [{
+          asOf: "2026-10-26T12:00:00.000Z", patternKind: "action", patternId: "mix", sourceValue: "mix", sourceValues: ["mix"],
+          formulaCount: 1, eligibleProcessFormulaCount: 1, frequency: 1, occurrenceCount: 1, supplierCount: 1,
+          suppliers: [{ supplierId: "supplier-a", formulaCount: 1, share: 1, sourceRecordIds: ["reference-1"] }],
+          minimumSequenceOrder: 1, maximumSequenceOrder: 1, sourceRecordIds: ["reference-1"],
+          evidenceRefs: ["procedure:reference-1:step-1"], interpretation: "reviewed_supplier_process_pattern",
+        }],
+        processGuidanceAvailable: true,
+        processGuidanceEligibleSourceRecordIds: ["reference-1"],
+        processGuidanceEligibleSupplierSourceRecordIds: { "supplier-a": ["reference-1"] },
         dosageGuidance: [{
           asOf: "2026-10-26T12:00:00.000Z",
           canonicalChemistryId: "chemical-a", functionAssignment: "unassigned_or_unreviewed", formulaCount: 1, supplierCount: 1,
@@ -441,6 +494,11 @@ describe("generateCandidates", () => {
       canonicalChemistryId: "chemical-a", candidateComparisonAvailable: false,
       unavailableReason: "candidate_component_composition_not_available", sourceRecordIds: ["reference-1"],
     })]);
+    expect(withGuidance!.processPatternGuidance).toEqual([expect.objectContaining({
+      patternKind: "action", patternId: "mix", formulaCount: 1, sourceRecordIds: ["reference-1"],
+      interpretation: "reviewed_supplier_process_pattern_not_candidate_recipe_or_requirement",
+    })]);
+    expect(withGuidance!.notes.some((note) => /no missing temperatures, times, speeds, or required process steps were inferred/i.test(note))).toBe(true);
     const knownActiveCandidate = generateCandidates({
       ...input, availableMaterials: [material({ activeMatterState: "known", activeMatterPercent: "50" })],
     })[0]!;
@@ -458,6 +516,7 @@ describe("generateCandidates", () => {
     expect(wrongFamily.dosageGuidance).toBeUndefined();
     expect(wrongFamily.ingredientGuidance).toBeUndefined();
     expect(wrongFamily.cooccurrenceGuidance).toBeUndefined();
+    expect(wrongFamily.processPatternGuidance).toBeUndefined();
     expect(wrongFamily.formula).toEqual(withoutGuidance!.formula);
     const reviewForDifferentMaterial = generateCandidates({ ...input, mappedIngredients: [{
       ...input.mappedIngredients[0]!, canonicalIdentityReview: canonicalIdentityReview("MAT-OTHER", "chemical-a"),

@@ -624,8 +624,15 @@ describe("reference formulation corpus eligibility", () => {
 
     expect(result).toMatchObject({ eligibleFormulaCount: 4, excludedFormulaCount: 0, eligibleProcessFormulaCount: 4, excludedProcessEvidenceCount: 0,
       interpretation: "supplier_reference_process_only" });
+    expect(result.eligibleSourceRecordIdsByProductFamily).toEqual({ "hand dishwash": ["process-a", "process-b", "process-c", "process-negated"] });
+    expect(result.eligibleProcessSourceRecordIdsByProductFamily).toEqual({ "hand dishwash": ["process-a", "process-b", "process-c", "process-negated"] });
     expect(result.patterns.find((pattern) => pattern.patternKind === "action" && pattern.patternId === "mix"))
-      .toMatchObject({ formulaCount: 3, eligibleProcessFormulaCount: 4, frequency: 3 / 4, sourceRecordIds: ["process-a", "process-b", "process-c"] });
+      .toMatchObject({ formulaCount: 3, eligibleProcessFormulaCount: 4, frequency: 3 / 4, sourceRecordIds: ["process-a", "process-b", "process-c"],
+        suppliers: expect.arrayContaining([
+          expect.objectContaining({ supplierId: "supplier-a", sourceRecordIds: ["process-a"] }),
+          expect.objectContaining({ supplierId: "supplier-b", sourceRecordIds: ["process-b"] }),
+          expect.objectContaining({ supplierId: "supplier-c", sourceRecordIds: ["process-c"] }),
+        ]) });
     expect(result.patterns.find((pattern) => pattern.patternKind === "action" && pattern.patternId === "adjust_ph"))
       .toMatchObject({ formulaCount: 2, frequency: 1 / 2, sourceRecordIds: ["process-a", "process-c"] });
     expect(result.patterns.find((pattern) => pattern.patternKind === "action_sequence" && pattern.patternId === "addition->adjust_ph"))
