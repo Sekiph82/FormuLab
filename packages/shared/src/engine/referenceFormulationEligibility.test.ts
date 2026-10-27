@@ -583,14 +583,20 @@ describe("reference formulation corpus eligibility", () => {
 
     expect(result).toMatchObject({ eligibleFormulaCount: 5, excludedFormulaCount: 0, excludedSampleCount: 4,
       excludedSamplesByReason: { active_claim_percent_not_supported: 1, component_evidence_incomplete: 1, component_not_quantified: 2 } });
+    expect(result.eligibleSourceRecordIdsByProductFamily).toEqual({
+      "hand dishwash": ["contribution-active", "contribution-active-unsupported", "contribution-component", "contribution-component-clean", "contribution-component-unknown"],
+    });
     expect(result.distributions).toEqual(expect.arrayContaining([
       expect.objectContaining({
         quantityKind: "active_matter_claim", formulaCount: 1, minimumLowerBound: 10, maximumUpperBound: 15,
+        suppliers: [{ supplierId: "supplier-a", formulaCount: 1, share: 1, sourceRecordIds: ["contribution-active"] }],
         sourceRecordIds: ["contribution-active"], evidenceRefs: [`formula:${HASH}:1:1:text:text`],
       }),
       expect.objectContaining({
         quantityKind: "component_contribution", canonicalChemistryId: componentId, formulaCount: 1,
-        minimumLowerBound: 5, maximumUpperBound: 5, sourceRecordIds: ["contribution-component-clean"],
+        minimumLowerBound: 5, maximumUpperBound: 5,
+        suppliers: [{ supplierId: "supplier-c", formulaCount: 1, share: 1, sourceRecordIds: ["contribution-component-clean"] }],
+        sourceRecordIds: ["contribution-component-clean"],
       }),
     ]));
   });

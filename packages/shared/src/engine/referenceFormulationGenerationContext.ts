@@ -15,9 +15,13 @@ import {
   referenceFormulationCooccurrenceResultSchema,
   type ReferenceFormulationCooccurrenceResult,
 } from "./referenceFormulationCooccurrence";
+import {
+  referenceFormulationContributionDistributionsSchema,
+  type ReferenceFormulationContributionDistributions,
+} from "./referenceFormulationContributionDistributions";
 import type { GenerationInput } from "./candidateGenerator";
 
-export const REFERENCE_FORMULATION_GENERATION_CONTEXT_VERSION = "formulab-reference-formulation-generation-context-v3";
+export const REFERENCE_FORMULATION_GENERATION_CONTEXT_VERSION = "formulab-reference-formulation-generation-context-v4";
 const ingredientPriorSchema = z.object({
   canonicalChemistryId: z.string().trim().min(1),
   formulaCount: z.number().int().positive(),
@@ -125,6 +129,45 @@ const cooccurrenceGuidanceSchema = z.object({
     context.addIssue({ code: "custom", path: ["sourceRecordIds"], message: "Co-occurrence guidance must preserve its exact denominator and supplier-attributed source evidence." });
   }
 });
+const contributionGuidanceSchema = z.object({
+  asOf: z.string().datetime({ offset: true }),
+  quantityKind: z.enum(["active_matter_claim", "component_contribution"]),
+  canonicalChemistryId: z.string().trim().min(1).optional(),
+  formulaCount: z.number().int().positive(),
+  supplierCount: z.number().int().positive(),
+  minimumLowerBound: z.number().finite().min(0).max(100),
+  maximumUpperBound: z.number().finite().min(0).max(100),
+  lowerBoundQuantiles: z.object({ p25: z.number().finite().min(0).max(100), p50: z.number().finite().min(0).max(100), p75: z.number().finite().min(0).max(100) }).strict(),
+  upperBoundQuantiles: z.object({ p25: z.number().finite().min(0).max(100), p50: z.number().finite().min(0).max(100), p75: z.number().finite().min(0).max(100) }).strict(),
+  suppliers: z.array(z.object({
+    supplierId: z.string().trim().min(1), formulaCount: z.number().int().positive(), share: z.number().finite().min(0).max(1),
+    sourceRecordIds: z.array(z.string().trim().min(1)).min(1),
+  }).strict()).min(1),
+  sourceRecordIds: z.array(z.string().trim().min(1)).min(1),
+  evidenceRefs: z.array(z.string().trim().min(1)).min(1),
+  interpretation: z.literal("reviewed_source_bounded_distribution"),
+}).strict().superRefine((sample, context) => {
+  const supplierSourceIds = sample.suppliers.flatMap((supplier) => supplier.sourceRecordIds);
+  if ((sample.quantityKind === "component_contribution") !== (sample.canonicalChemistryId !== undefined)
+    || sample.suppliers.length !== sample.supplierCount
+    || sample.suppliers.reduce((sum, supplier) => sum + supplier.formulaCount, 0) !== sample.formulaCount
+    || sample.suppliers.some((supplier) => supplier.share !== supplier.formulaCount / sample.formulaCount
+      || supplier.sourceRecordIds.length !== supplier.formulaCount || new Set(supplier.sourceRecordIds).size !== supplier.sourceRecordIds.length)
+    || sample.sourceRecordIds.length !== sample.formulaCount || new Set(sample.sourceRecordIds).size !== sample.sourceRecordIds.length
+    || new Set(supplierSourceIds).size !== supplierSourceIds.length
+    || JSON.stringify([...supplierSourceIds].sort()) !== JSON.stringify([...sample.sourceRecordIds].sort())
+    || sample.minimumLowerBound > sample.maximumUpperBound
+    || sample.lowerBoundQuantiles.p25 > sample.lowerBoundQuantiles.p50 || sample.lowerBoundQuantiles.p50 > sample.lowerBoundQuantiles.p75
+    || sample.upperBoundQuantiles.p25 > sample.upperBoundQuantiles.p50 || sample.upperBoundQuantiles.p50 > sample.upperBoundQuantiles.p75
+    || [sample.lowerBoundQuantiles.p25, sample.lowerBoundQuantiles.p50, sample.lowerBoundQuantiles.p75,
+      sample.upperBoundQuantiles.p25, sample.upperBoundQuantiles.p50, sample.upperBoundQuantiles.p75]
+      .some((value) => value < sample.minimumLowerBound || value > sample.maximumUpperBound)
+    || sample.lowerBoundQuantiles.p25 > sample.upperBoundQuantiles.p25
+    || sample.lowerBoundQuantiles.p50 > sample.upperBoundQuantiles.p50
+    || sample.lowerBoundQuantiles.p75 > sample.upperBoundQuantiles.p75) {
+    context.addIssue({ code: "custom", path: ["sourceRecordIds"], message: "Contribution guidance must preserve reviewed bounds, exact supplier source samples and quantity identity." });
+  }
+});
 export const referenceFormulationGenerationContextSchema = z.object({
   schemaVersion: z.literal(REFERENCE_FORMULATION_GENERATION_CONTEXT_VERSION),
   available: z.boolean(),
@@ -133,12 +176,16 @@ export const referenceFormulationGenerationContextSchema = z.object({
   asOf: z.string().datetime({ offset: true }),
   eligibleFormulaCount: z.number().int().nonnegative(),
   eligibleSourceRecordIds: z.array(z.string().trim().min(1)),
+  eligibleSupplierSourceRecordIds: z.record(z.string().trim().min(1), z.array(z.string().trim().min(1))),
   supplierCount: z.number().int().nonnegative(),
   ingredientPriors: z.array(ingredientPriorSchema),
   nearestReferences: z.array(nearestReferenceContextSchema),
   cooccurrenceGuidance: z.array(cooccurrenceGuidanceSchema),
   cooccurrenceGuidanceAvailable: z.boolean(),
   cooccurrenceGuidanceUnavailableReason: z.enum(["no_reviewed_family_cooccurrence"]).optional(),
+  contributionGuidance: z.array(contributionGuidanceSchema),
+  contributionGuidanceAvailable: z.boolean(),
+  contributionGuidanceUnavailableReason: z.enum(["no_reviewed_family_contributions"]).optional(),
   dosageGuidance: z.array(dosageGuidanceSchema),
   dosageGuidanceAvailable: z.boolean(),
   dosageGuidanceUnavailableReason: z.enum(["no_reviewed_family_dosage"]).optional(),
@@ -148,12 +195,19 @@ export const referenceFormulationGenerationContextSchema = z.object({
     || (contextValue.available && (contextValue.eligibleFormulaCount === 0 || contextValue.supplierCount === 0))
     || (!contextValue.available && (contextValue.unavailableReason === undefined || contextValue.eligibleFormulaCount !== 0
       || contextValue.eligibleSourceRecordIds.length !== 0 || contextValue.supplierCount !== 0 || contextValue.ingredientPriors.length !== 0 || contextValue.nearestReferences.length !== 0))
+    || (!contextValue.available && Object.keys(contextValue.eligibleSupplierSourceRecordIds).length !== 0)
     || (contextValue.available && (contextValue.eligibleSourceRecordIds.length !== contextValue.eligibleFormulaCount
       || new Set(contextValue.eligibleSourceRecordIds).size !== contextValue.eligibleSourceRecordIds.length))
+    || (contextValue.available && (Object.keys(contextValue.eligibleSupplierSourceRecordIds).length !== contextValue.supplierCount
+      || new Set(Object.values(contextValue.eligibleSupplierSourceRecordIds).flat()).size !== contextValue.eligibleFormulaCount
+      || JSON.stringify(Object.values(contextValue.eligibleSupplierSourceRecordIds).flat().sort()) !== JSON.stringify([...contextValue.eligibleSourceRecordIds].sort())
+      || Object.values(contextValue.eligibleSupplierSourceRecordIds).some((ids) => ids.length === 0 || new Set(ids).size !== ids.length)))
     || new Set(contextValue.ingredientPriors.map((prior) => prior.canonicalChemistryId)).size !== contextValue.ingredientPriors.length
     || contextValue.ingredientPriors.some((prior) => prior.eligibleFormulaCount !== contextValue.eligibleFormulaCount
       || prior.supplierCount !== contextValue.supplierCount
-      || prior.supplierMix.reduce((sum, supplier) => sum + supplier.eligibleFormulaCount, 0) !== contextValue.eligibleFormulaCount)
+      || prior.supplierMix.reduce((sum, supplier) => sum + supplier.eligibleFormulaCount, 0) !== contextValue.eligibleFormulaCount
+      || prior.supplierMix.some((supplier) => supplier.eligibleFormulaCount !== contextValue.eligibleSupplierSourceRecordIds[supplier.supplierId]?.length
+        || supplier.sourceRecordIds.some((sourceId) => !contextValue.eligibleSupplierSourceRecordIds[supplier.supplierId]?.includes(sourceId))))
     || new Set(contextValue.nearestReferences.map((reference) => reference.sourceRecordId)).size !== contextValue.nearestReferences.length
     || (contextValue.dosageGuidanceAvailable !== (contextValue.dosageGuidance.length > 0))
     || (contextValue.dosageGuidanceAvailable === (contextValue.dosageGuidanceUnavailableReason !== undefined))
@@ -164,6 +218,13 @@ export const referenceFormulationGenerationContextSchema = z.object({
       ? pair.eligibleFormulaCount !== contextValue.eligibleFormulaCount
       : pair.eligibleFormulaCount > contextValue.eligibleFormulaCount)
     || contextValue.cooccurrenceGuidance.some((pair) => pair.sourceRecordIds.some((sourceRecordId) => !contextValue.eligibleSourceRecordIds.includes(sourceRecordId)))
+    || (contextValue.contributionGuidanceAvailable !== (contextValue.contributionGuidance.length > 0))
+    || (contextValue.contributionGuidanceAvailable === (contextValue.contributionGuidanceUnavailableReason !== undefined))
+    || contextValue.contributionGuidance.some((sample) => sample.sourceRecordIds.some((sourceId) => !contextValue.eligibleSourceRecordIds.includes(sourceId))
+      || sample.formulaCount > (contextValue.eligibleSupplierSourceRecordIds
+        ? Object.values(contextValue.eligibleSupplierSourceRecordIds).flat().length : 0)
+      || sample.suppliers.some((supplier) => !contextValue.eligibleSupplierSourceRecordIds[supplier.supplierId]
+        || supplier.sourceRecordIds.some((sourceId) => !contextValue.eligibleSupplierSourceRecordIds[supplier.supplierId]!.includes(sourceId))))
     || contextValue.cooccurrenceGuidance.some((pair) => {
       const materialIds = pair.pairKind === "material_pair" ? [pair.firstId, pair.secondId]
         : pair.pairKind === "material_function_pair" ? [pair.firstId, pair.secondId].filter((id) => contextValue.ingredientPriors.some((prior) => prior.canonicalChemistryId === id))
@@ -199,6 +260,7 @@ export function createReferenceFormulationGenerationContext(input: {
   nearestReferences: ReferenceFormulationNearestReferences;
   dosageDistributions?: ReferenceFormulationDosageDistributions;
   cooccurrence?: ReferenceFormulationCooccurrenceResult;
+  contributionDistributions?: ReferenceFormulationContributionDistributions;
 }): ReferenceFormulationGenerationContext {
   const productFamilyKey = input.productFamilyKey.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
   if (!productFamilyKey) throw new Error("A canonical product family key is required for generator reference context.");
@@ -209,6 +271,9 @@ export function createReferenceFormulationGenerationContext(input: {
     : undefined;
   const cooccurrence = input.cooccurrence
     ? referenceFormulationCooccurrenceResultSchema.parse(input.cooccurrence)
+    : undefined;
+  const contributions = input.contributionDistributions
+    ? referenceFormulationContributionDistributionsSchema.parse(input.contributionDistributions)
     : undefined;
   if (nearest.productFamilyKey !== productFamilyKey) throw new Error("Nearest references must be retrieved for the requested canonical product family.");
   const family = priors.productFamilies.find((item) => item.productFamilyKey === productFamilyKey);
@@ -227,6 +292,28 @@ export function createReferenceFormulationGenerationContext(input: {
       throw new Error("Co-occurrence and ingredient guidance must use the same eligible reviewed family corpus.");
     }
   }
+  const familyEligibleSourceIds = contributions?.eligibleSourceRecordIdsByProductFamily[productFamilyKey] ?? [];
+  if (contributions && family && JSON.stringify([...familyEligibleSourceIds].sort()) !== JSON.stringify(familySourceRecordIds)) {
+    throw new Error("Contribution and ingredient guidance must use the same eligible reviewed family corpus.");
+  }
+  const contributionGuidance = (family ? contributions?.distributions ?? [] : [])
+    .filter((sample) => sample.productFamilyKey === productFamilyKey)
+    .map((sample) => ({
+      asOf: contributions!.asOf,
+      quantityKind: sample.quantityKind,
+      ...(sample.canonicalChemistryId ? { canonicalChemistryId: sample.canonicalChemistryId } : {}),
+      formulaCount: sample.formulaCount,
+      supplierCount: sample.supplierCount,
+      minimumLowerBound: sample.minimumLowerBound,
+      maximumUpperBound: sample.maximumUpperBound,
+      lowerBoundQuantiles: sample.lowerBoundQuantiles,
+      upperBoundQuantiles: sample.upperBoundQuantiles,
+      suppliers: sample.suppliers,
+      sourceRecordIds: sample.sourceRecordIds,
+      evidenceRefs: sample.evidenceRefs,
+      interpretation: sample.interpretation,
+    }));
+  const contributionGuidanceAvailable = contributionGuidance.length > 0;
   const cooccurrenceGuidance = (family ? cooccurrence?.cooccurrences ?? [] : [])
     .filter((pair) => pair.productFamilyKey === productFamilyKey)
     .map((pair) => ({
@@ -271,16 +358,19 @@ export function createReferenceFormulationGenerationContext(input: {
   if (!family) {
     return referenceFormulationGenerationContextSchema.parse({
       schemaVersion: REFERENCE_FORMULATION_GENERATION_CONTEXT_VERSION, available: false, unavailableReason: "no_eligible_family_prior",
-      productFamilyKey, asOf: priors.asOf, eligibleFormulaCount: 0, eligibleSourceRecordIds: [], supplierCount: 0, ingredientPriors: [], nearestReferences: [],
+      productFamilyKey, asOf: priors.asOf, eligibleFormulaCount: 0, eligibleSourceRecordIds: [], eligibleSupplierSourceRecordIds: {}, supplierCount: 0, ingredientPriors: [], nearestReferences: [],
       cooccurrenceGuidance, cooccurrenceGuidanceAvailable,
       ...(!cooccurrenceGuidanceAvailable ? { cooccurrenceGuidanceUnavailableReason: "no_reviewed_family_cooccurrence" as const } : {}),
+      contributionGuidance, contributionGuidanceAvailable,
+      ...(!contributionGuidanceAvailable ? { contributionGuidanceUnavailableReason: "no_reviewed_family_contributions" as const } : {}),
       dosageGuidance, dosageGuidanceAvailable, ...(!dosageGuidanceAvailable ? { dosageGuidanceUnavailableReason: "no_reviewed_family_dosage" as const } : {}),
       interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
     });
   }
   return referenceFormulationGenerationContextSchema.parse({
     schemaVersion: REFERENCE_FORMULATION_GENERATION_CONTEXT_VERSION, available: true, productFamilyKey, asOf: priors.asOf,
-    eligibleFormulaCount: family.eligibleFormulaCount, eligibleSourceRecordIds: familySourceRecordIds, supplierCount: family.supplierCount,
+    eligibleFormulaCount: family.eligibleFormulaCount, eligibleSourceRecordIds: familySourceRecordIds,
+    eligibleSupplierSourceRecordIds: Object.fromEntries(family.suppliers.map((supplier) => [supplier.supplierId, supplier.sourceRecordIds])), supplierCount: family.supplierCount,
     ingredientPriors: family.ingredients.map((ingredient) => ({
       canonicalChemistryId: ingredient.canonicalChemistryId, formulaCount: ingredient.formulaCount,
       eligibleFormulaCount: family.eligibleFormulaCount,
@@ -298,6 +388,8 @@ export function createReferenceFormulationGenerationContext(input: {
     })),
     cooccurrenceGuidance, cooccurrenceGuidanceAvailable,
     ...(!cooccurrenceGuidanceAvailable ? { cooccurrenceGuidanceUnavailableReason: "no_reviewed_family_cooccurrence" as const } : {}),
+    contributionGuidance, contributionGuidanceAvailable,
+    ...(!contributionGuidanceAvailable ? { contributionGuidanceUnavailableReason: "no_reviewed_family_contributions" as const } : {}),
     dosageGuidance, dosageGuidanceAvailable, ...(!dosageGuidanceAvailable ? { dosageGuidanceUnavailableReason: "no_reviewed_family_dosage" as const } : {}),
     interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
   });

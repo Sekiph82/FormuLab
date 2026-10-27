@@ -94,6 +94,36 @@ export interface GeneratedCandidate {
     sourceRecordIds: string[];
     interpretation: "empirical_joint_appearance_only_not_compatibility_or_function_assignment";
   }>;
+  /** Comparison against reviewed finished-product active claims; absent input active values remain unknown. */
+  activeMatterGuidance?: Array<{
+    asOf: string;
+    candidatePercent?: number;
+    candidateComparisonAvailable: boolean;
+    unavailableReason?: "candidate_active_matter_incomplete";
+    typicalRangePercent: { lower: number; upper: number };
+    observedRangePercent: { lower: number; upper: number };
+    position?: "below_typical_range" | "within_typical_range" | "above_typical_range";
+    formulaCount: number;
+    supplierCount: number;
+    sourceRecordIds: string[];
+    evidenceRefs: string[];
+    interpretation: "reviewed_active_matter_claim_distribution_advisory_only_not_candidate_validation";
+  }>;
+  /** Reviewed component ranges are exposed, but no candidate projection is made without an exact composition mapping. */
+  componentContributionGuidance?: Array<{
+    asOf: string;
+    canonicalChemistryId: string;
+    minimumLowerBound: number;
+    maximumUpperBound: number;
+    medianRangePercent: { lower: number; upper: number };
+    formulaCount: number;
+    supplierCount: number;
+    sourceRecordIds: string[];
+    evidenceRefs: string[];
+    candidateComparisonAvailable: false;
+    unavailableReason: "candidate_component_composition_not_available";
+    interpretation: "reviewed_component_distribution_not_candidate_composition_or_validation";
+  }>;
 }
 
 /** Result of one generation method: a candidate, or an honest reason it
@@ -157,6 +187,7 @@ export function generateCandidates(input: GenerationInput): GeneratedCandidate[]
   for (const candidate of candidates) {
     applyEmpiricalDosageGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
     applyEmpiricalIngredientGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
+    applyEmpiricalContributionGuidance(candidate, input.availableMaterials, referenceContext, input.canonicalProductFamilyKey);
   }
 
   // If we have no candidates, return an explicit, explained fallback rather
@@ -309,6 +340,73 @@ function applyEmpiricalIngredientGuidance(
     candidate.cooccurrenceGuidance = cooccurrenceGuidance;
     candidate.notes.push(...cooccurrenceGuidance.map((item) =>
       `Reviewed ${referenceContext.productFamilyKey} formulas jointly included ${item.materialId} and ${item.otherId} in ${item.formulaCount}/${item.eligibleFormulaCount} eligible formulas (${(item.frequency * 100).toFixed(1)}%; ${item.supplierCount} suppliers; source records: ${item.sourceRecordIds.join(", ")}). Joint appearance only; it is not a compatibility result or function assignment.`));
+  }
+}
+
+/** Compare candidate active matter only when every formula line has an explicitly known catalog value. */
+function applyEmpiricalContributionGuidance(
+  candidate: GeneratedCandidate,
+  availableMaterials: RawMaterial[],
+  referenceContext: ReferenceFormulationGenerationContext | undefined,
+  canonicalProductFamilyKey: string | undefined,
+): void {
+  if (!referenceContext?.available || canonicalProductFamilyKey !== referenceContext.productFamilyKey
+    || !referenceContext.contributionGuidanceAvailable) return;
+  const activeSamples = referenceContext.contributionGuidance.filter((sample) => sample.quantityKind === "active_matter_claim");
+  const componentSamples = referenceContext.contributionGuidance.filter((sample) => sample.quantityKind === "component_contribution" && sample.canonicalChemistryId);
+  if (activeSamples.length > 0) {
+    let candidateActivePercent = 0;
+    let complete = candidate.formula.length > 0
+      && Math.abs(candidate.formula.reduce((sum, line) => sum + line.percentage, 0) - 100) < 0.01;
+    for (const line of candidate.formula) {
+      const material = availableMaterials.find((item) => item.code === line.materialId);
+      const active = material?.activeMatterPercent === undefined ? Number.NaN : Number(material.activeMatterPercent);
+      if (!material || material.activeMatterState !== "known" || !Number.isFinite(active) || active < 0 || active > 100
+        || !Number.isFinite(line.percentage) || line.percentage < 0 || line.percentage > 100) {
+        complete = false;
+        break;
+      }
+      candidateActivePercent += line.percentage * active / 100;
+    }
+    candidate.activeMatterGuidance = activeSamples.map((sample) => {
+      const typicalRangePercent = { lower: sample.lowerBoundQuantiles.p50, upper: sample.upperBoundQuantiles.p50 };
+      const candidatePercent = complete ? Number(candidateActivePercent.toFixed(6)) : undefined;
+      const position = candidatePercent === undefined ? undefined
+        : candidatePercent < typicalRangePercent.lower ? "below_typical_range"
+          : candidatePercent > typicalRangePercent.upper ? "above_typical_range" : "within_typical_range";
+      candidate.notes.push(candidatePercent === undefined
+        ? `Reviewed ${referenceContext.productFamilyKey} active-matter claims are available (${sample.formulaCount} formulas), but candidate active matter cannot be compared because at least one formula ingredient has no known active-matter value. Unknown values were not treated as zero.`
+        : `Candidate active matter (${candidatePercent.toFixed(2)}%) is ${position!.replace(/_/gu, " ")} the reviewed ${referenceContext.productFamilyKey} typical claim range (${typicalRangePercent.lower}-${typicalRangePercent.upper}%; ${sample.formulaCount} formulas; source records: ${sample.sourceRecordIds.join(", ")}). This is advisory context, not candidate validation.`);
+      return {
+        asOf: sample.asOf,
+        ...(candidatePercent !== undefined ? { candidatePercent, position } : { unavailableReason: "candidate_active_matter_incomplete" as const }),
+        candidateComparisonAvailable: candidatePercent !== undefined,
+        typicalRangePercent,
+        observedRangePercent: { lower: sample.minimumLowerBound, upper: sample.maximumUpperBound },
+        formulaCount: sample.formulaCount,
+        supplierCount: sample.supplierCount,
+        sourceRecordIds: sample.sourceRecordIds,
+        evidenceRefs: sample.evidenceRefs,
+        interpretation: "reviewed_active_matter_claim_distribution_advisory_only_not_candidate_validation",
+      };
+    });
+  }
+  if (componentSamples.length > 0) {
+    candidate.componentContributionGuidance = componentSamples.map((sample) => ({
+      asOf: sample.asOf,
+      canonicalChemistryId: sample.canonicalChemistryId!,
+      minimumLowerBound: sample.minimumLowerBound,
+      maximumUpperBound: sample.maximumUpperBound,
+      medianRangePercent: { lower: sample.lowerBoundQuantiles.p50, upper: sample.upperBoundQuantiles.p50 },
+      formulaCount: sample.formulaCount,
+      supplierCount: sample.supplierCount,
+      sourceRecordIds: sample.sourceRecordIds,
+      evidenceRefs: sample.evidenceRefs,
+      candidateComparisonAvailable: false,
+      unavailableReason: "candidate_component_composition_not_available",
+      interpretation: "reviewed_component_distribution_not_candidate_composition_or_validation",
+    }));
+    candidate.notes.push(`Reviewed component-contribution ranges exist for ${componentSamples.length} component identity or identities, but candidate component amounts are unavailable because the generator input has no source-reviewed raw-material composition mapping. SDS component ranges were not assumed to represent candidate composition.`);
   }
 }
 

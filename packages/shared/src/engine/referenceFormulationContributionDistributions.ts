@@ -6,7 +6,7 @@ import type { ReferenceFormulationRecord } from "../schemas/referenceFormulation
 import { referenceFormulationReviewSchema, type ReferenceFormulationReview } from "../schemas/referenceFormulationReview";
 import { filterEligibleReferenceFormulationCorpus, referenceFormulationEligibilityDecisionSchema } from "./referenceFormulationEligibility";
 
-export const REFERENCE_FORMULATION_CONTRIBUTION_DISTRIBUTION_VERSION = "formulab-reference-formulation-contribution-distribution-v1";
+export const REFERENCE_FORMULATION_CONTRIBUTION_DISTRIBUTION_VERSION = "formulab-reference-formulation-contribution-distribution-v2";
 
 const distributionSchema = z.object({
   productFamilyKey: z.string().trim().min(1),
@@ -19,7 +19,10 @@ const distributionSchema = z.object({
   maximumUpperBound: z.number().finite().min(0).max(100),
   lowerBoundQuantiles: z.object({ p25: z.number().finite().min(0).max(100), p50: z.number().finite().min(0).max(100), p75: z.number().finite().min(0).max(100) }).strict(),
   upperBoundQuantiles: z.object({ p25: z.number().finite().min(0).max(100), p50: z.number().finite().min(0).max(100), p75: z.number().finite().min(0).max(100) }).strict(),
-  suppliers: z.array(z.object({ supplierId: z.string().trim().min(1), formulaCount: z.number().int().positive(), share: z.number().finite().min(0).max(1) }).strict()),
+  suppliers: z.array(z.object({
+    supplierId: z.string().trim().min(1), formulaCount: z.number().int().positive(), share: z.number().finite().min(0).max(1),
+    sourceRecordIds: z.array(z.string().trim().min(1)).min(1),
+  }).strict()),
   sourceRecordIds: z.array(z.string().trim().min(1)),
   evidenceRefs: z.array(z.string().trim().min(1)),
   interpretation: z.literal("reviewed_source_bounded_distribution"),
@@ -27,9 +30,18 @@ const distributionSchema = z.object({
   if (sample.sourceRecordIds.length !== sample.formulaCount || new Set(sample.sourceRecordIds).size !== sample.sourceRecordIds.length
     || sample.suppliers.length !== sample.supplierCount
     || sample.suppliers.reduce((total, supplier) => total + supplier.formulaCount, 0) !== sample.formulaCount
-    || sample.suppliers.some((supplier) => supplier.share !== supplier.formulaCount / sample.formulaCount)
+    || sample.suppliers.some((supplier) => supplier.share !== supplier.formulaCount / sample.formulaCount
+      || supplier.sourceRecordIds.length !== supplier.formulaCount || new Set(supplier.sourceRecordIds).size !== supplier.sourceRecordIds.length)
+    || JSON.stringify(sample.suppliers.flatMap((supplier) => supplier.sourceRecordIds).sort(stableCompare))
+      !== JSON.stringify([...sample.sourceRecordIds].sort(stableCompare))
     || (sample.quantityKind === "component_contribution") !== (sample.canonicalChemistryId !== undefined)
-    || sample.minimumLowerBound > sample.maximumUpperBound) {
+    || sample.minimumLowerBound > sample.maximumUpperBound
+    || [sample.lowerBoundQuantiles.p25, sample.lowerBoundQuantiles.p50, sample.lowerBoundQuantiles.p75,
+      sample.upperBoundQuantiles.p25, sample.upperBoundQuantiles.p50, sample.upperBoundQuantiles.p75]
+      .some((value) => value < sample.minimumLowerBound || value > sample.maximumUpperBound)
+    || sample.lowerBoundQuantiles.p25 > sample.upperBoundQuantiles.p25
+    || sample.lowerBoundQuantiles.p50 > sample.upperBoundQuantiles.p50
+    || sample.lowerBoundQuantiles.p75 > sample.upperBoundQuantiles.p75) {
     context.addIssue({ code: "custom", path: ["formulaCount"], message: "Contribution distribution counts, evidence, kind and bounds must agree." });
   }
 });
@@ -47,11 +59,18 @@ export const referenceFormulationContributionDistributionsSchema = z.object({
   excludedSampleCount: z.number().int().nonnegative(),
   excludedSamplesByReason: z.partialRecord(exclusionReasonSchema, z.number().int().positive()),
   eligibilityDecisions: z.array(referenceFormulationEligibilityDecisionSchema),
+  eligibleSourceRecordIdsByProductFamily: z.record(z.string().trim().min(1), z.array(z.string().trim().min(1))),
   distributions: z.array(distributionSchema),
 }).strict().superRefine((result, context) => {
   const exclusions = Object.values(result.excludedSamplesByReason).reduce((sum, count) => sum + count, 0);
+  const eligibleFamilySourceIds = Object.values(result.eligibleSourceRecordIdsByProductFamily).flat();
+  const eligibleDecisionSourceIds = result.eligibilityDecisions.filter((decision) => decision.eligible).map((decision) => decision.sourceRecordId);
   if (result.eligibleFormulaCount + result.excludedFormulaCount !== result.eligibilityDecisions.length
-    || exclusions !== result.excludedSampleCount) {
+    || exclusions !== result.excludedSampleCount
+    || new Set(eligibleFamilySourceIds).size !== eligibleFamilySourceIds.length
+    || JSON.stringify([...eligibleFamilySourceIds].sort(stableCompare)) !== JSON.stringify([...eligibleDecisionSourceIds].sort(stableCompare))
+    || Object.values(result.eligibleSourceRecordIdsByProductFamily).some((ids) => new Set(ids).size !== ids.length)
+    || result.distributions.some((sample) => sample.sourceRecordIds.some((sourceId) => !result.eligibleSourceRecordIdsByProductFamily[sample.productFamilyKey]?.includes(sourceId)))) {
     context.addIssue({ code: "custom", path: ["eligibilityDecisions"], message: "Contribution distribution totals must match eligibility and exclusion evidence." });
   }
 });
@@ -113,11 +132,15 @@ export function calculateReferenceFormulationContributionDistributions(input: {
   const latest = reviewIndex(input.reviews);
   const builders = new Map<string, Builder>();
   const exclusions = new Map<ExclusionReason, number>();
+  const eligibleSourceRecordIdsByProductFamily = new Map<string, string[]>();
   const exclude = (reason: ExclusionReason) => exclusions.set(reason, (exclusions.get(reason) ?? 0) + 1);
 
   for (const query of eligibility.eligible) {
     const family = query.productFamily.candidates[0]!;
     const familyId = familyKey(family.rawValue);
+    const familySourceIds = eligibleSourceRecordIdsByProductFamily.get(familyId) ?? [];
+    familySourceIds.push(query.sourceRecordId);
+    eligibleSourceRecordIdsByProductFamily.set(familyId, familySourceIds);
     if (query.activeMatterClaims.length > 0) {
       if (query.activeMatterClaims.length !== 1) exclude("active_claim_not_unique");
       else {
@@ -230,7 +253,10 @@ export function calculateReferenceFormulationContributionDistributions(input: {
       minimumLowerBound: Math.min(...lower), maximumUpperBound: Math.max(...upper),
       lowerBoundQuantiles: { p25: quantile(lower, 0.25), p50: quantile(lower, 0.5), p75: quantile(lower, 0.75) },
       upperBoundQuantiles: { p25: quantile(upper, 0.25), p50: quantile(upper, 0.5), p75: quantile(upper, 0.75) },
-      suppliers: [...suppliers.entries()].sort(([a], [b]) => stableCompare(a, b)).map(([supplierId, formulaCount]) => ({ supplierId, formulaCount, share: formulaCount / observations.length })),
+      suppliers: [...suppliers.entries()].sort(([a], [b]) => stableCompare(a, b)).map(([supplierId, formulaCount]) => ({
+        supplierId, formulaCount, share: formulaCount / observations.length,
+        sourceRecordIds: observations.filter((item) => item.supplierId === supplierId).map((item) => item.sourceRecordId),
+      })),
       sourceRecordIds: observations.map((item) => item.sourceRecordId), evidenceRefs: [...new Set(observations.flatMap((item) => item.evidenceRefs))].sort(stableCompare),
       interpretation: "reviewed_source_bounded_distribution" as const,
     }];
@@ -240,6 +266,9 @@ export function calculateReferenceFormulationContributionDistributions(input: {
     schemaVersion: REFERENCE_FORMULATION_CONTRIBUTION_DISTRIBUTION_VERSION, asOf: input.asOf,
     eligibleFormulaCount: eligibility.eligible.length, excludedFormulaCount: eligibility.excluded.length,
     excludedSampleCount: [...exclusions.values()].reduce((sum, value) => sum + value, 0), excludedSamplesByReason,
-    eligibilityDecisions: eligibility.decisions, distributions,
+    eligibilityDecisions: eligibility.decisions,
+    eligibleSourceRecordIdsByProductFamily: Object.fromEntries([...eligibleSourceRecordIdsByProductFamily.entries()]
+      .sort(([left], [right]) => stableCompare(left, right)).map(([key, ids]) => [key, ids.sort(stableCompare)])),
+    distributions,
   });
 }
