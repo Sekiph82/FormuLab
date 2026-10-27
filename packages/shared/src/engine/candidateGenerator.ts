@@ -7,7 +7,11 @@ import {
   IngredientDeclarationLine,
 } from '../schemas/reverseFormulation';
 import { computeTargetMatchScore } from './scoringModel';
-import type { ReferenceFormulationGenerationContext } from './referenceFormulationGenerationContext';
+import {
+  referenceFormulationGenerationContextSchema,
+  type ReferenceFormulationGenerationContext,
+} from './referenceFormulationGenerationContext';
+import { identityFieldReviewSchema, type IdentityFieldReview } from '../schemas/identityFieldReview';
 
 /**
  * Input for candidate generation.
@@ -17,6 +21,8 @@ export interface GenerationInput {
   mappedIngredients: Array<{
     line: IngredientDeclarationLine;
     mapping: IngredientMappingResult;
+    /** Accepted/edited human identity review tied to this RawMaterial; only its reviewed snapshot may identify chemistry. */
+    canonicalIdentityReview?: IdentityFieldReview;
   }>;
   /** Analytical insights. */
   analysis: AnalyticalAnalysis;
@@ -28,6 +34,8 @@ export interface GenerationInput {
   availableMaterials: RawMaterial[];
   /** Optional reviewed, source-linked reference context. Generation remains valid without it. */
   referenceContext?: ReferenceFormulationGenerationContext;
+  /** Exact normalized product-family key selected by reviewed identity resolution. */
+  canonicalProductFamilyKey?: string;
 }
 
 /**
@@ -46,6 +54,21 @@ export interface GeneratedCandidate {
   matchScore: number;
   /** Reasoning. */
   notes: string[];
+  /** Source-linked dosage comparison. It is advisory metadata and never mutates the generated formula. */
+  dosageGuidance?: Array<{
+    asOf: string;
+    materialId: string;
+    canonicalChemistryId: string;
+    functionAssignment: "unassigned_or_unreviewed";
+    candidatePercent: number;
+    typicalRangePercent: { lower: number; upper: number };
+    observedRangePercent: { lower: number; upper: number };
+    position: "below_typical_range" | "within_typical_range" | "above_typical_range";
+    formulaCount: number;
+    supplierCount: number;
+    sourceRecordIds: string[];
+    interpretation: "advisory_reviewed_empirical_dosage_not_hard_constraint_or_validated_recommendation";
+  }>;
 }
 
 /** Result of one generation method: a candidate, or an honest reason it
@@ -64,6 +87,9 @@ interface GenerationAttempt {
  */
 export function generateCandidates(input: GenerationInput): GeneratedCandidate[] {
   const { mappedIngredients, analysis, target, constraints, availableMaterials } = input;
+  const referenceContext = input.referenceContext === undefined
+    ? undefined
+    : referenceFormulationGenerationContextSchema.parse(input.referenceContext);
 
   // If no mapped ingredients, we cannot generate meaningful candidates.
   if (mappedIngredients.length === 0) {
@@ -103,6 +129,10 @@ export function generateCandidates(input: GenerationInput): GeneratedCandidate[]
     candidates.push(attempt.candidate);
   }
 
+  for (const candidate of candidates) {
+    applyEmpiricalDosageGuidance(candidate, mappedIngredients, referenceContext, input.canonicalProductFamilyKey);
+  }
+
   // If we have no candidates, return an explicit, explained fallback rather
   // than a misleading empty-but-unexplained result.
   if (candidates.length === 0) {
@@ -115,6 +145,76 @@ export function generateCandidates(input: GenerationInput): GeneratedCandidate[]
   }
 
   return candidates;
+}
+
+/** Attach reviewed family dosage context only through caller-supplied exact identity links. */
+function applyEmpiricalDosageGuidance(
+  candidate: GeneratedCandidate,
+  mappedIngredients: GenerationInput["mappedIngredients"],
+  referenceContext: ReferenceFormulationGenerationContext | undefined,
+  canonicalProductFamilyKey: string | undefined,
+): void {
+  if (!referenceContext?.dosageGuidanceAvailable || canonicalProductFamilyKey !== referenceContext.productFamilyKey) return;
+  const guidance: NonNullable<GeneratedCandidate["dosageGuidance"]> = [];
+  for (const item of mappedIngredients) {
+    const material = item.mapping.material;
+    const canonicalChemistryId = reviewedCanonicalChemistryId(item.canonicalIdentityReview, material?.code);
+    if (!material || !canonicalChemistryId) continue;
+    const formulaLine = candidate.formula.find((line) => line.materialId === material.code);
+    if (!formulaLine) continue;
+    const matches = referenceContext.dosageGuidance.filter((entry) => entry.canonicalChemistryId === canonicalChemistryId
+      && entry.functionAssignment === "unassigned_or_unreviewed"
+      && entry.canonicalFunctionId === undefined);
+    if (matches.length !== 1) continue;
+    const sample = matches[0]!;
+    const position = formulaLine.percentage < sample.typicalRangePercent.lower
+      ? "below_typical_range"
+      : formulaLine.percentage > sample.typicalRangePercent.upper
+        ? "above_typical_range"
+        : "within_typical_range";
+    guidance.push({
+      asOf: sample.asOf,
+      materialId: material.code,
+      canonicalChemistryId,
+      functionAssignment: "unassigned_or_unreviewed",
+      candidatePercent: formulaLine.percentage,
+      typicalRangePercent: sample.typicalRangePercent,
+      observedRangePercent: sample.observedRangePercent,
+      position,
+      formulaCount: sample.formulaCount,
+      supplierCount: sample.supplierCount,
+      sourceRecordIds: sample.sourceRecordIds,
+      interpretation: "advisory_reviewed_empirical_dosage_not_hard_constraint_or_validated_recommendation",
+    });
+  }
+  if (guidance.length === 0) return;
+  candidate.dosageGuidance = guidance;
+  candidate.notes.push(...guidance.map((item) => {
+    const range = `${item.typicalRangePercent.lower.toFixed(2)}–${item.typicalRangePercent.upper.toFixed(2)}% w/w`;
+    const position = item.position === "within_typical_range" ? "within"
+      : item.position === "below_typical_range" ? "below" : "above";
+    return `Reviewed reference dosage context for ${item.materialId} as of ${item.asOf}: ${item.candidatePercent.toFixed(2)}% w/w is ${position} the observed central range ${range} (${item.formulaCount} reviewed formula${item.formulaCount === 1 ? "" : "s"}, ${item.supplierCount} supplier${item.supplierCount === 1 ? "" : "s"}; sources: ${item.sourceRecordIds.join(", ")}). Advisory only; not a hard constraint, safety approval, or validated recommendation.`;
+  }));
+}
+
+/** Resolve a dosage identity only from a named human's accepted RawMaterial canonical-identity review. */
+function reviewedCanonicalChemistryId(review: IdentityFieldReview | undefined, materialCode: string | undefined): string | undefined {
+  if (!review || !materialCode) return undefined;
+  const parsedReview = identityFieldReviewSchema.safeParse(review);
+  if (!parsedReview.success) return undefined;
+  const acceptedReview = parsedReview.data;
+  if (acceptedReview.targetRecordId !== materialCode || acceptedReview.field !== "canonical_identity"
+    || (acceptedReview.decision !== "accepted" && acceptedReview.decision !== "edited")) return undefined;
+  const snapshot = acceptedReview.decision === "edited" ? acceptedReview.reviewedValueSnapshot : acceptedReview.proposedValueSnapshot;
+  if (!snapshot) return undefined;
+  try {
+    const identity = JSON.parse(snapshot) as { canonicalChemistryId?: unknown };
+    return typeof identity.canonicalChemistryId === "string" && identity.canonicalChemistryId.trim()
+      ? identity.canonicalChemistryId.trim()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Canonical, order-independent identity of a formula: same materials at

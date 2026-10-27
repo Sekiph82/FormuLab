@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 118
-- Remaining: 38
-- Completion: 75.6%
-- Current task: V01-08.003 - Implement empirical dosage guidance
+- Completed: 119
+- Remaining: 37
+- Completion: 76.3%
+- Current task: V01-08.004 - Implement empirical ingredient/function guidance
 - Current status: IN PROGRESS
-- Next task: V01-08.004 - Implement empirical ingredient/function guidance
+- Next task: V01-08.005 - Implement active/component-aware guidance
+- Acceptance note: V01-08.003 adds source-bound empirical dosage context to the existing deterministic generator. Dosage distribution v2 records eligible formula IDs by product family and supplier-level source IDs; context construction requires the exact same reviewed family corpus and chemistry/supplier source support as ingredient priors. Guidance appears only for the exact family, a matching RawMaterial canonical-identity review, and unassigned/unreviewed function samples; it reports observed/central ranges, counts, dates and source IDs without changing formula percentages or hard constraints. Invalid/tampered context is rejected. Focused shared tests (28 across dosage eligibility and generator), shared/desktop typechecks, V01 tracker validation, `git diff --check`, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-08.002 proves the existing deterministic generator runs with an available reviewed reference context and no network/LLM service: it produces a non-empty candidate, repeated calls return identical ordered output, and a `fetch` spy records no request. The generator and direct dependencies remain synchronous/local. Focused shared suite (13), shared/desktop typechecks, V01 tracker validation, `git diff --check`, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-08.001 adds a strict adapter that validates the existing eligible ingredient-prior and nearest-reference results, then attaches family-matched supplier-neutral frequencies, supplier denominator/source mix, nearest-reference distances, feature keys and evidence links to the existing deterministic generator input. Inconsistent priors, supplier denominators, distance/similarity pairs, or a family mismatch are rejected; absent family evidence is explicitly unavailable. The adapter is immutable and does not add a second generation engine or change candidate output. Tests cover evidence pass-through, no-family behavior, tampering rejection, unchanged input, unchanged deterministic generation and family mismatch. Focused shared suite (12), shared/desktop typechecks, V01 tracker validation, `git diff --check`, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-08.001 adds a strict adapter that validates the existing eligible ingredient-prior and nearest-reference results, then attaches family-matched supplier-neutral frequencies, supplier denominator/source mix, nearest-reference distances, feature keys and evidence links to the existing deterministic generator input. Inconsistent priors, supplier denominators, distance/similarity pairs, or a family mismatch are rejected; absent family evidence is explicitly unavailable. The adapter is immutable and does not add a second generation engine or change candidate output. Tests cover evidence pass-through, no-family behavior, tampering rejection, unchanged input, unchanged deterministic generation and family mismatch. Focused shared suite (12), shared/desktop typechecks, V01 tracker validation, `git diff --check`, and independent read-only review passed. Full regression not run.
@@ -319,8 +320,8 @@ Codex must execute the tasks below in the exact order listed.
 
 - [x] **V01-08.001 - Implement reference-context adapter for existing deterministic generator**: Feed eligible priors and nearest references into the current generator without creating a second generation engine.
 - [x] **V01-08.002 - Preserve zero-LLM operation**: Prove reference intelligence works with the deterministic generator when all LLM features are unavailable.
-- [~] **V01-08.003 - Implement empirical dosage guidance**: Use reviewed family priors as soft empirical guidance, never hard chemistry truth unless an existing hard rule separately requires it.
-- [ ] **V01-08.004 - Implement empirical ingredient/function guidance**: Use frequency/co-occurrence as advisory candidate context while preserving compatibility, safety, regulatory, manufacturing and availability authorities.
+- [x] **V01-08.003 - Implement empirical dosage guidance**: Use reviewed family priors as soft empirical guidance, never hard chemistry truth unless an existing hard rule separately requires it.
+- [~] **V01-08.004 - Implement empirical ingredient/function guidance**: Use frequency/co-occurrence as advisory candidate context while preserving compatibility, safety, regulatory, manufacturing and availability authorities.
 - [ ] **V01-08.005 - Implement active/component-aware guidance**: When defensible, compare candidate active/component contributions with reviewed corpus ranges; otherwise show unavailable rather than guess.
 - [ ] **V01-08.006 - Implement process-pattern guidance**: Offer evidence-backed process-pattern context without manufacturing unprovided temperature/time/speed requirements.
 - [ ] **V01-08.007 - Implement hard-gate precedence regression**: Safety, Regulatory, compatibility/manufacturing feasibility, availability and explicit formulation constraints always outrank reference popularity.

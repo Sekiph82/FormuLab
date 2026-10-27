@@ -9,12 +9,13 @@ import {
   referenceFormulationEligibilityDecisionSchema,
 } from "./referenceFormulationEligibility";
 
-export const REFERENCE_FORMULATION_DOSAGE_DISTRIBUTION_VERSION = "formulab-reference-formulation-dosage-distribution-v1";
+export const REFERENCE_FORMULATION_DOSAGE_DISTRIBUTION_VERSION = "formulab-reference-formulation-dosage-distribution-v2";
 
 const supplierSampleSchema = z.object({
   supplierId: z.string().trim().min(1),
   formulaCount: z.number().int().positive(),
   share: z.number().finite().min(0).max(1),
+  sourceRecordIds: z.array(z.string().trim().min(1)).min(1),
 }).strict();
 
 const quantilesSchema = z.object({ p25: z.number().finite().min(0).max(100), p50: z.number().finite().min(0).max(100), p75: z.number().finite().min(0).max(100) }).strict()
@@ -41,7 +42,9 @@ const dosageSampleSchema = z.object({
     || new Set(sample.sourceRecordIds).size !== sample.sourceRecordIds.length
     || sample.suppliers.length !== sample.supplierCount
     || sample.suppliers.reduce((total, supplier) => total + supplier.formulaCount, 0) !== sample.formulaCount
-    || sample.suppliers.some((supplier) => supplier.share !== supplier.formulaCount / sample.formulaCount)) {
+    || sample.suppliers.some((supplier) => supplier.share !== supplier.formulaCount / sample.formulaCount
+      || supplier.sourceRecordIds.length !== supplier.formulaCount || new Set(supplier.sourceRecordIds).size !== supplier.sourceRecordIds.length)
+    || JSON.stringify(sample.suppliers.flatMap((supplier) => supplier.sourceRecordIds).sort(stableCompare)) !== JSON.stringify([...sample.sourceRecordIds].sort(stableCompare))) {
     context.addIssue({ code: "custom", path: ["suppliers"], message: "Dosage sample counts, supplier mix and supporting source IDs must agree." });
   }
   if (sample.minimumLowerBound > sample.maximumUpperBound
@@ -58,15 +61,24 @@ export const referenceFormulationDosageDistributionsSchema = z.object({
   eligibleFormulaCount: z.number().int().nonnegative(),
   excludedFormulaCount: z.number().int().nonnegative(),
   excludedDosageSampleCount: z.number().int().nonnegative(),
-  excludedDosageSamplesByReason: z.record(z.enum(["amount_not_reviewed", "unit_not_reviewed", "basis_not_reviewed", "amount_not_explicit_percent_w_w", "formula_amount_not_parseable"]), z.number().int().positive()),
+  excludedDosageSamplesByReason: z.partialRecord(z.enum(["amount_not_reviewed", "unit_not_reviewed", "basis_not_reviewed", "amount_not_explicit_percent_w_w", "formula_amount_not_parseable"]), z.number().int().positive()),
   eligibilityDecisions: z.array(referenceFormulationEligibilityDecisionSchema),
+  eligibleSourceRecordIdsByProductFamily: z.record(z.string().trim().min(1), z.array(z.string().trim().min(1))),
   distributions: z.array(dosageSampleSchema),
 }).strict().superRefine((result, context) => {
   const excluded = Object.values(result.excludedDosageSamplesByReason).reduce((sum, count) => sum + count, 0);
+  const familySourceIds = Object.values(result.eligibleSourceRecordIdsByProductFamily).flat();
+  const eligibleDecisionSourceIds = result.eligibilityDecisions.filter((decision) => decision.eligible).map((decision) => decision.sourceRecordId);
   if (result.eligibleFormulaCount + result.excludedFormulaCount !== result.eligibilityDecisions.length
     || result.eligibleFormulaCount !== result.eligibilityDecisions.filter((decision) => decision.eligible).length
     || result.excludedFormulaCount !== result.eligibilityDecisions.filter((decision) => !decision.eligible).length
-    || excluded !== result.excludedDosageSampleCount) {
+    || excluded !== result.excludedDosageSampleCount
+    || new Set(familySourceIds).size !== familySourceIds.length
+    || new Set(eligibleDecisionSourceIds).size !== eligibleDecisionSourceIds.length
+    || JSON.stringify([...familySourceIds].sort()) !== JSON.stringify([...eligibleDecisionSourceIds].sort())
+    || Object.values(result.eligibleSourceRecordIdsByProductFamily).some((sourceIds) => new Set(sourceIds).size !== sourceIds.length)
+    || result.distributions.some((distribution) => distribution.sourceRecordIds.some((sourceRecordId) =>
+      !result.eligibleSourceRecordIdsByProductFamily[distribution.productFamilyKey]?.includes(sourceRecordId)))) {
     context.addIssue({ code: "custom", path: ["eligibilityDecisions"], message: "Dosage totals must match eligibility and sample-exclusion evidence." });
   }
 });
@@ -175,11 +187,15 @@ export function calculateReferenceFormulationDosageDistributions(input: {
   const latestReviews = latestReviewIndex(input.reviews);
   const builders = new Map<string, SampleBuilder>();
   const exclusions = new Map<ExclusionReason, number>();
+  const eligibleSourceRecordIdsByProductFamily = new Map<string, string[]>();
   const exclude = (reason: ExclusionReason) => exclusions.set(reason, (exclusions.get(reason) ?? 0) + 1);
 
   for (const query of eligibility.eligible) {
     const family = query.productFamily.candidates[0]!;
     const productFamilyKey = familyKey(family.rawValue);
+    const familySourceIds = eligibleSourceRecordIdsByProductFamily.get(productFamilyKey) ?? [];
+    familySourceIds.push(query.sourceRecordId);
+    eligibleSourceRecordIdsByProductFamily.set(productFamilyKey, familySourceIds);
     const groups = new Map<string, { chemicalId: string; functionId?: string; lines: typeof query.lines }>();
     for (const line of query.lines) {
       const chemicalId = line.canonicalChemistry.candidateIds[0]!;
@@ -218,18 +234,23 @@ export function calculateReferenceFormulationDosageDistributions(input: {
     if (observations.length === 0) return [];
     const lower = observations.map((observation) => observation.lower.toNumber());
     const upper = observations.map((observation) => observation.upper.toNumber());
-    const supplierCounts = new Map<string, number>();
-    for (const observation of observations) supplierCounts.set(observation.supplierId, (supplierCounts.get(observation.supplierId) ?? 0) + 1);
+    const supplierSourceIds = new Map<string, string[]>();
+    for (const observation of observations) {
+      const sourceIds = supplierSourceIds.get(observation.supplierId) ?? [];
+      sourceIds.push(observation.sourceRecordId);
+      supplierSourceIds.set(observation.supplierId, sourceIds);
+    }
     return [{
       productFamilyKey: productFamilyKey!, productFamilyLabel: builder.familyLabel, canonicalChemistryId: builder.chemicalId,
       ...(builder.functionId ? { canonicalFunctionId: builder.functionId } : {}),
       functionAssignment: builder.functionId ? "reviewed" as const : "unassigned_or_unreviewed" as const,
-      formulaCount: observations.length, supplierCount: supplierCounts.size,
+      formulaCount: observations.length, supplierCount: supplierSourceIds.size,
       minimumLowerBound: Math.min(...lower), maximumUpperBound: Math.max(...upper),
       lowerBoundQuantiles: { p25: quantile(lower, 0.25), p50: quantile(lower, 0.5), p75: quantile(lower, 0.75) },
       upperBoundQuantiles: { p25: quantile(upper, 0.25), p50: quantile(upper, 0.5), p75: quantile(upper, 0.75) },
-      suppliers: [...supplierCounts.entries()].sort(([left], [right]) => stableCompare(left, right)).map(([supplierId, formulaCount]) => ({
-        supplierId, formulaCount, share: formulaCount / observations.length,
+      suppliers: [...supplierSourceIds.entries()].sort(([left], [right]) => stableCompare(left, right)).map(([supplierId, sourceRecordIds]) => ({
+        supplierId, formulaCount: sourceRecordIds.length, share: sourceRecordIds.length / observations.length,
+        sourceRecordIds: sourceRecordIds.sort(stableCompare),
       })),
       sourceRecordIds: observations.map((observation) => observation.sourceRecordId),
     }];
@@ -245,6 +266,9 @@ export function calculateReferenceFormulationDosageDistributions(input: {
     excludedDosageSampleCount,
     excludedDosageSamplesByReason,
     eligibilityDecisions: eligibility.decisions,
+    eligibleSourceRecordIdsByProductFamily: Object.fromEntries([...eligibleSourceRecordIdsByProductFamily.entries()]
+      .sort(([left], [right]) => stableCompare(left, right))
+      .map(([familyKeyValue, sourceIds]) => [familyKeyValue, sourceIds.sort(stableCompare)])),
     distributions,
   };
 }

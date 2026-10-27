@@ -11,6 +11,7 @@ import type { RawMaterial } from "../schemas/materials";
 import type { IngredientDeclarationLine, ReverseConstraintSet, TargetProductProfile } from "../schemas/reverseFormulation";
 import type { AnalyticalAnalysis } from "./analyticalInference";
 import type { IngredientMappingResult } from "./ingredientMapper";
+import { recordIdentityFieldReview } from "../schemas/identityFieldReview";
 
 function material(overrides: Partial<RawMaterial> = {}): RawMaterial {
   return {
@@ -99,6 +100,20 @@ function mapping(overrides: Partial<IngredientMappingResult> = {}): IngredientMa
   };
 }
 
+function canonicalIdentityReview(materialCode: string, canonicalChemistryId: string) {
+  return recordIdentityFieldReview({
+    id: `identity-review-${materialCode}-${canonicalChemistryId}`,
+    commercialProductId: `commercial-${materialCode}`,
+    sourceEvidenceId: `identity-evidence-${materialCode}`,
+    targetRecordId: materialCode,
+    field: "canonical_identity",
+    decision: "accepted",
+    proposedValueSnapshot: JSON.stringify({ canonicalChemistryId }),
+    evidenceRefs: [`identity:${materialCode}:${canonicalChemistryId}`],
+    reviewedAt: "2026-10-26T12:00:00.000Z",
+  }, { kind: "human", role: "raw_material", userId: "reviewer-1" });
+}
+
 function baseInput(overrides: Partial<GenerationInput> = {}): GenerationInput {
   const mat = material();
   return {
@@ -114,12 +129,14 @@ function baseInput(overrides: Partial<GenerationInput> = {}): GenerationInput {
 describe("generateCandidates", () => {
   it("generates deterministically with reviewed reference context when network and LLM services are unavailable", () => {
     const referenceContext = referenceFormulationGenerationContextSchema.parse({
-      schemaVersion: "formulab-reference-formulation-generation-context-v1", available: true, productFamilyKey: "hand dishwash",
+      schemaVersion: "formulab-reference-formulation-generation-context-v2", available: true, productFamilyKey: "hand dishwash",
       asOf: "2026-10-26T12:00:00.000Z", eligibleFormulaCount: 1, supplierCount: 1,
       ingredientPriors: [{ canonicalChemistryId: "chemical-a", formulaCount: 1, eligibleFormulaCount: 1,
         formulaWeightedFrequency: 1, supplierNeutralFrequency: 1, supplierCount: 1, sourceRecordIds: ["reference-1"],
         supplierMix: [{ supplierId: "supplier-a", eligibleFormulaCount: 1, ingredientFormulaCount: 1, frequency: 1, sourceRecordIds: ["reference-1"] }] }],
-      nearestReferences: [], interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
+      nearestReferences: [], dosageGuidance: [], dosageGuidanceAvailable: false,
+      dosageGuidanceUnavailableReason: "no_reviewed_family_dosage",
+      interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
     });
     const input = adaptGenerationInputWithReferenceContext(baseInput(), referenceContext);
     const fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -177,7 +194,26 @@ describe("generateCandidates", () => {
     const nearestReferences = retrieveNearestReferenceFormulations({
       query, references: [formulaFeatures("reference-1", "chemical-a")],
     });
-    const context = createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences });
+    const dosageDistributions = {
+      schemaVersion: "formulab-reference-formulation-dosage-distribution-v2" as const,
+      asOf,
+      eligibleFormulaCount: 2,
+      excludedFormulaCount: 0,
+      excludedDosageSampleCount: 0,
+      excludedDosageSamplesByReason: {},
+      eligibilityDecisions: ["reference-1", "reference-2"].map((sourceRecordId, index) => ({
+        sourceRecordId, queryRecordId: `query-${index + 1}`, normalizationId: `normalization-${index + 1}`, eligible: true, reasons: [] as [],
+      })),
+      eligibleSourceRecordIdsByProductFamily: { "hand dishwash": ["reference-1", "reference-2"] },
+      distributions: [{
+        productFamilyKey: "hand dishwash", productFamilyLabel: "Hand Dishwash", canonicalChemistryId: "chemical-a",
+        functionAssignment: "unassigned_or_unreviewed" as const, formulaCount: 1, supplierCount: 1,
+        minimumLowerBound: 1, maximumUpperBound: 9,
+        lowerBoundQuantiles: { p25: 2, p50: 3, p75: 4 }, upperBoundQuantiles: { p25: 4, p50: 5, p75: 8 },
+        suppliers: [{ supplierId: "supplier-a", formulaCount: 1, share: 1, sourceRecordIds: ["reference-1"] }], sourceRecordIds: ["reference-1"],
+      }],
+    };
+    const context = createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences, dosageDistributions });
     const original = baseInput();
     const adapted = adaptGenerationInputWithReferenceContext(original, context);
 
@@ -185,6 +221,9 @@ describe("generateCandidates", () => {
       ingredientPriors: [{ canonicalChemistryId: "chemical-a", formulaWeightedFrequency: 0.5, supplierNeutralFrequency: 0.5,
         supplierMix: [{ supplierId: "supplier-a", frequency: 1 }, { supplierId: "supplier-b", frequency: 0 }] }],
       nearestReferences: [{ sourceRecordId: "reference-1", distance: 0, evidenceRefs: expect.arrayContaining(["chemistry:new-request", "chemistry:reference-1"]) }],
+      dosageGuidanceAvailable: true, dosageGuidance: [{ canonicalChemistryId: "chemical-a", formulaCount: 1, supplierCount: 1,
+        typicalRangePercent: { lower: 2, upper: 8 }, observedRangePercent: { lower: 1, upper: 9 },
+        medianRangePercent: { lower: 3, upper: 5 }, asOf, sourceRecordIds: ["reference-1"] }],
       interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval" });
     expect(original.referenceContext).toBeUndefined();
     expect(adapted.referenceContext).toEqual(context);
@@ -207,6 +246,103 @@ describe("generateCandidates", () => {
       nearestReferences,
     });
     expect(unavailable).toMatchObject({ available: false, unavailableReason: "no_eligible_family_prior", eligibleFormulaCount: 0, ingredientPriors: [], nearestReferences: [] });
+    expect(() => createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences,
+      dosageDistributions: { ...dosageDistributions, distributions: [{ ...dosageDistributions.distributions[0]!, sourceRecordIds: ["not-eligible"] }] },
+    })).toThrow();
+    expect(() => createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences,
+      dosageDistributions: { ...dosageDistributions, distributions: [{ ...dosageDistributions.distributions[0]!, productFamilyKey: "shampoo" }] },
+    })).toThrow();
+    const separateCorpusDosage = {
+      ...dosageDistributions,
+      eligibilityDecisions: ["other-reference-1", "other-reference-2"].map((sourceRecordId, index) => ({
+        sourceRecordId, queryRecordId: `other-query-${index + 1}`, normalizationId: `other-normalization-${index + 1}`, eligible: true, reasons: [] as [],
+      })),
+      eligibleSourceRecordIdsByProductFamily: { "hand dishwash": ["other-reference-1", "other-reference-2"] },
+      distributions: [{ ...dosageDistributions.distributions[0]!,
+        sourceRecordIds: ["other-reference-1"],
+        suppliers: [{ supplierId: "supplier-a", formulaCount: 1, share: 1, sourceRecordIds: ["other-reference-1"] }],
+      }],
+    };
+    expect(() => createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences,
+      dosageDistributions: separateCorpusDosage,
+    })).toThrow(/same eligible reviewed family corpus/);
+    expect(() => createReferenceFormulationGenerationContext({ productFamilyKey: "hand dishwash", ingredientPriors, nearestReferences,
+      dosageDistributions: { ...dosageDistributions, distributions: [{
+        ...dosageDistributions.distributions[0]!,
+        suppliers: [{ supplierId: "supplier-b", formulaCount: 1, share: 1, sourceRecordIds: ["reference-1"] }],
+      }] },
+    })).toThrow();
+  });
+
+  it("surfaces exact-identity empirical dosage as source-linked advisory context without changing formula percentages", () => {
+    const original = baseInput();
+    const input: GenerationInput = {
+      ...original,
+      canonicalProductFamilyKey: "hand dishwash",
+      mappedIngredients: [{ ...original.mappedIngredients[0]!, canonicalIdentityReview: canonicalIdentityReview("MAT-001", "chemical-a") }],
+      referenceContext: {
+        schemaVersion: "formulab-reference-formulation-generation-context-v2",
+        available: true,
+        productFamilyKey: "hand dishwash",
+        asOf: "2026-10-26T12:00:00.000Z",
+        eligibleFormulaCount: 1,
+        supplierCount: 1,
+        ingredientPriors: [{
+          canonicalChemistryId: "chemical-a", formulaCount: 1, eligibleFormulaCount: 1,
+          formulaWeightedFrequency: 1, supplierNeutralFrequency: 1, supplierCount: 1, sourceRecordIds: ["reference-1"],
+          supplierMix: [{ supplierId: "supplier-a", eligibleFormulaCount: 1, ingredientFormulaCount: 1, frequency: 1, sourceRecordIds: ["reference-1"] }],
+        }],
+        nearestReferences: [],
+        dosageGuidance: [{
+          asOf: "2026-10-26T12:00:00.000Z",
+          canonicalChemistryId: "chemical-a", functionAssignment: "unassigned_or_unreviewed", formulaCount: 1, supplierCount: 1,
+          observedRangePercent: { lower: 2, upper: 8 }, typicalRangePercent: { lower: 3, upper: 7 },
+          medianRangePercent: { lower: 4, upper: 5 },
+          suppliers: [{ supplierId: "supplier-a", formulaCount: 1, share: 1, sourceRecordIds: ["reference-1"] }], sourceRecordIds: ["reference-1"],
+        }],
+        dosageGuidanceAvailable: true,
+        interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
+      },
+    };
+    const [withGuidance] = generateCandidates(input);
+    const [withoutGuidance] = generateCandidates(original);
+
+    expect(withGuidance!.formula).toEqual(withoutGuidance!.formula);
+    expect(withGuidance!.dosageGuidance).toEqual([expect.objectContaining({
+      materialId: "MAT-001", canonicalChemistryId: "chemical-a", functionAssignment: "unassigned_or_unreviewed", candidatePercent: 100,
+      typicalRangePercent: { lower: 3, upper: 7 }, observedRangePercent: { lower: 2, upper: 8 },
+      position: "above_typical_range", formulaCount: 1, supplierCount: 1, sourceRecordIds: ["reference-1"],
+    })]);
+    expect(withGuidance!.notes[withGuidance!.notes.length - 1]).toMatch(/advisory only; not a hard constraint, safety approval, or validated recommendation/i);
+    const unlinked = generateCandidates({ ...input, mappedIngredients: original.mappedIngredients })[0]!;
+    expect(unlinked.dosageGuidance).toBeUndefined();
+    expect(unlinked.formula).toEqual(withoutGuidance!.formula);
+    const wrongFamily = generateCandidates({ ...input, canonicalProductFamilyKey: "shampoo" })[0]!;
+    expect(wrongFamily.dosageGuidance).toBeUndefined();
+    expect(wrongFamily.formula).toEqual(withoutGuidance!.formula);
+    const reviewForDifferentMaterial = generateCandidates({ ...input, mappedIngredients: [{
+      ...input.mappedIngredients[0]!, canonicalIdentityReview: canonicalIdentityReview("MAT-OTHER", "chemical-a"),
+    }] })[0]!;
+    expect(reviewForDifferentMaterial.dosageGuidance).toBeUndefined();
+    expect(reviewForDifferentMaterial.formula).toEqual(withoutGuidance!.formula);
+    const functionSpecificContext = {
+      ...input.referenceContext!,
+      dosageGuidance: [{ ...input.referenceContext!.dosageGuidance[0]!,
+        functionAssignment: "reviewed" as const, canonicalFunctionId: "anionic_surfactant" }],
+    };
+    const unresolvedFunction = generateCandidates({ ...input, referenceContext: functionSpecificContext })[0]!;
+    expect(unresolvedFunction.dosageGuidance).toBeUndefined();
+    expect(unresolvedFunction.formula).toEqual(withoutGuidance!.formula);
+    const tamperedContext = {
+      ...input.referenceContext!,
+      dosageGuidance: [{ ...input.referenceContext!.dosageGuidance[0]!, formulaCount: 2 }],
+    };
+    expect(() => generateCandidates({ ...input, referenceContext: tamperedContext })).toThrow();
+    const unsupportedChemistryContext = {
+      ...input.referenceContext!,
+      dosageGuidance: [{ ...input.referenceContext!.dosageGuidance[0]!, canonicalChemistryId: "chemical-unmatched" }],
+    };
+    expect(() => generateCandidates({ ...input, referenceContext: unsupportedChemistryContext })).toThrow();
   });
 
   it("returns an explicit empty-formula fallback rather than fabricating a candidate for no mapped ingredients", () => {

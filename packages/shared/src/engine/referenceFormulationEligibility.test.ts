@@ -21,7 +21,7 @@ import type { ReferenceFormulationRights } from "../schemas/referenceFormulation
 import type { ReferenceFormulationRecord } from "../schemas/referenceFormulationRecord";
 import { filterEligibleReferenceFormulationCorpus } from "./referenceFormulationEligibility";
 import { calculateReferenceFormulationIngredientFrequencyPriors } from "./referenceFormulationIngredientFrequencyPriors";
-import { calculateReferenceFormulationDosageDistributions } from "./referenceFormulationDosageDistributions";
+import { calculateReferenceFormulationDosageDistributions, referenceFormulationDosageDistributionsSchema } from "./referenceFormulationDosageDistributions";
 import { calculateReferenceFormulationCooccurrence } from "./referenceFormulationCooccurrence";
 import { createReferenceFormulationProcessNormalization } from "../schemas/referenceFormulationProcessNormalization";
 import { createReferenceFormulationTargetNormalization } from "../schemas/referenceFormulationTargetNormalization";
@@ -416,6 +416,11 @@ describe("reference formulation corpus eligibility", () => {
       amount_not_reviewed: 1,
       amount_not_explicit_percent_w_w: 1,
     });
+    expect(result.eligibleSourceRecordIdsByProductFamily).toEqual({ "hand dishwash": queries.map((item) => item.sourceRecordId).sort() });
+    expect(() => referenceFormulationDosageDistributionsSchema.parse({
+      ...result,
+      distributions: result.distributions.map((sample) => ({ ...sample, productFamilyKey: "shampoo" })),
+    })).toThrow();
     expect(reviewedFunction).toMatchObject({
       productFamilyKey: "hand dishwash", canonicalChemistryId: "chemical-1", functionAssignment: "reviewed",
       formulaCount: 3, supplierCount: 2, minimumLowerBound: 2, maximumUpperBound: 10,
