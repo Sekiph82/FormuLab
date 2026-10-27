@@ -24,6 +24,7 @@ import { calculateReferenceFormulationDosageDistributions } from "./referenceFor
 import { calculateReferenceFormulationCooccurrence } from "./referenceFormulationCooccurrence";
 import { createReferenceFormulationProcessNormalization } from "../schemas/referenceFormulationProcessNormalization";
 import { createReferenceFormulationTargetNormalization } from "../schemas/referenceFormulationTargetNormalization";
+import { referenceFormulationIngredientFrequencyPriorsSchema } from "./referenceFormulationIngredientFrequencyPriors";
 
 const HASH = "a".repeat(64);
 const AS_OF = "2026-10-26T12:00:00.000Z";
@@ -360,14 +361,34 @@ describe("reference formulation corpus eligibility", () => {
     expect(result.productFamilies[0]).toMatchObject({
       productFamilyKey: "hand dishwash", eligibleFormulaCount: 3, supplierCount: 2,
       suppliers: [
-        { supplierId: "supplier-a", formulaCount: 2, familyShare: 2 / 3 },
-        { supplierId: "supplier-b", formulaCount: 1, familyShare: 1 / 3 },
+        { supplierId: "supplier-a", formulaCount: 2, familyShare: 2 / 3, sourceRecordIds: ["formula-a", "formula-b"] },
+        { supplierId: "supplier-b", formulaCount: 1, familyShare: 1 / 3, sourceRecordIds: ["formula-c"] },
       ],
       ingredients: [
-        { canonicalChemistryId: "chem-a", formulaCount: 2, frequency: 2 / 3, sourceRecordIds: ["formula-a", "formula-b"] },
+        { canonicalChemistryId: "chem-a", formulaCount: 2, frequency: 2 / 3, frequencyWeighting: "formula_weighted_corpus", sourceRecordIds: ["formula-a", "formula-b"], supplierNeutral: {
+          weighting: "equal_supplier", supplierCount: 2, interpretation: "equal_supplier_mean_of_supplier_formula_prevalence", pooledFrequency: 0.5,
+          suppliers: [
+            { supplierId: "supplier-a", eligibleFormulaCount: 2, ingredientFormulaCount: 2, frequency: 1, equalSupplierWeight: 0.5, sourceRecordIds: ["formula-a", "formula-b"] },
+            { supplierId: "supplier-b", eligibleFormulaCount: 1, ingredientFormulaCount: 0, frequency: 0, equalSupplierWeight: 0.5, sourceRecordIds: [] },
+          ],
+        } },
         { canonicalChemistryId: "chem-b", formulaCount: 1, frequency: 1 / 3, sourceRecordIds: ["formula-c"] },
       ],
     });
+    const mismatchedSupplierEvidence = structuredClone(result);
+    mismatchedSupplierEvidence.productFamilies[0]!.ingredients[0]!.supplierNeutral.suppliers[1]!.sourceRecordIds.push("formula-a");
+    expect(() => referenceFormulationIngredientFrequencyPriorsSchema.parse(mismatchedSupplierEvidence)).toThrow();
+    const duplicatedSupplier = structuredClone(result);
+    duplicatedSupplier.productFamilies[0]!.suppliers[1]!.supplierId = "supplier-a";
+    expect(() => referenceFormulationIngredientFrequencyPriorsSchema.parse(duplicatedSupplier)).toThrow();
+    const omittedPresentSupplier = structuredClone(result);
+    omittedPresentSupplier.productFamilies[0]!.ingredients[0]!.suppliers[0]!.supplierId = "supplier-b";
+    expect(() => referenceFormulationIngredientFrequencyPriorsSchema.parse(omittedPresentSupplier)).toThrow();
+    const supplierOwnershipMismatch = structuredClone(result);
+    const chemB = supplierOwnershipMismatch.productFamilies[0]!.ingredients[1]!;
+    chemB.sourceRecordIds = ["formula-a"];
+    chemB.supplierNeutral.suppliers[1]!.sourceRecordIds = ["formula-a"];
+    expect(() => referenceFormulationIngredientFrequencyPriorsSchema.parse(supplierOwnershipMismatch)).toThrow();
     expect(calculateReferenceFormulationIngredientFrequencyPriors({
       ...allowed([unresolved, formulaC, formulaB, currentA, oldA], reviews),
     })).toEqual(result);
