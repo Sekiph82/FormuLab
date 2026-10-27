@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { PDFDocumentLoadingTask, RenderTask } from "pdfjs-dist";
 
-export function SupplierSdsPdfPagePreview({ bytes, pageNumber, lineNumber }: { bytes: Uint8Array; pageNumber: number; lineNumber: number }) {
+export function SupplierSdsPdfPagePreview({ bytes, pageNumber, lineNumber, documentLabel = "Supplier SDS" }: { bytes: Uint8Array; pageNumber: number; lineNumber: number; documentLabel?: string }) {
   const { t } = useTranslation("session");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState(false);
@@ -53,7 +53,7 @@ export function SupplierSdsPdfPagePreview({ bytes, pageNumber, lineNumber }: { b
     <section className="rounded-input border border-accent/40 bg-surface-1 p-3">
       <h4 className="mb-2 text-[11px] font-semibold text-text">{t("dataExchange.connectors.sdsReview.pagePreview", { page: pageNumber, line: lineNumber })}</h4>
       {error ? <p role="alert" className="text-[10px] text-error">{t("dataExchange.connectors.sdsReview.renderError")}</p>
-        : <canvas ref={canvasRef} aria-label={`Supplier SDS PDF page ${pageNumber}`} className="mx-auto block max-h-[70vh] max-w-full border border-border-faint" />}
+        : <canvas ref={canvasRef} aria-label={`${documentLabel} PDF page ${pageNumber}`} className="mx-auto block max-h-[70vh] max-w-full border border-border-faint" />}
     </section>
   );
 }

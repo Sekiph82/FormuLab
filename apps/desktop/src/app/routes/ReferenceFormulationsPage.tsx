@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, ClipboardCheck, Edit3, Eye, RotateCcw, X } from "lucide-react";
 import type { ReferenceFormulationRecord, ReferenceFormulationReview } from "@formulab/shared";
@@ -7,6 +7,8 @@ import { appendReferenceFormulationReview, listReferenceFormulationReviews } fro
 import { listReferenceFormulations } from "@/lib/referenceFormulations";
 import { buildReferenceFormulationReviewItems, type ReferenceFormulationReviewItem } from "@/lib/referenceFormulationReviewItems";
 import { getReferenceFormulationCorpusReviewData, type ReferenceFormulationCorpusReviewData } from "@/lib/referenceFormulationCorpusReview";
+import { readSupplierDocumentPdf } from "@/lib/masterdata";
+import { SupplierSdsPdfPagePreview } from "@/components/dataExchange/connectors/SupplierSdsPdfPagePreview";
 
 const DECISIONS = [
   { value: "accepted", label: "Accept", icon: Check },
@@ -25,6 +27,10 @@ export function ReferenceFormulationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sourcePdf, setSourcePdf] = useState<{ sha256: string; bytes: Uint8Array } | null>(null);
+  const [sourcePage, setSourcePage] = useState<{ pageNumber: number; excerpt: string } | null>(null);
+  const [sourcePdfError, setSourcePdfError] = useState<string | null>(null);
+  const pdfReadToken = useRef(0);
   const actor = useTrustedActor();
 
   const refresh = useCallback(async () => {
@@ -54,6 +60,32 @@ export function ReferenceFormulationsPage() {
 
   const selected = records.find((record) => record.id === recordId) ?? null;
   const items = useMemo(() => selected ? buildReferenceFormulationReviewItems(selected) : [], [selected]);
+  useEffect(() => {
+    pdfReadToken.current += 1;
+    setSourcePdf(null);
+    setSourcePage(null);
+    setSourcePdfError(null);
+  }, [selected?.id]);
+
+  const openSourcePage = async (pageNumber: number, excerpt: string) => {
+    if (!selected || !Number.isInteger(pageNumber) || pageNumber < 1) return;
+    const expectedHash = selected.sourceDocumentHash.toLowerCase();
+    if (expectedHash !== selected.source.sourcePdfSha256.toLowerCase()) {
+      setSourcePdfError("The reference record and source metadata PDF hashes do not match.");
+      return;
+    }
+    setSourcePdfError(null);
+    setSourcePage({ pageNumber, excerpt });
+    if (sourcePdf?.sha256.toLowerCase() === expectedHash) return;
+    const requestToken = ++pdfReadToken.current;
+    try {
+      const bytes = await readSupplierDocumentPdf(expectedHash);
+      if (requestToken !== pdfReadToken.current) return;
+      setSourcePdf({ sha256: expectedHash, bytes });
+    } catch (cause) {
+      if (requestToken === pdfReadToken.current) setSourcePdfError(cause instanceof Error ? cause.message : "The source PDF could not be read.");
+    }
+  };
   const latestByTarget = useMemo(() => {
     const latest = new Map<string, ReferenceFormulationReview>();
     for (const review of reviews) latest.set(review.targetKey, review);
@@ -134,13 +166,24 @@ export function ReferenceFormulationsPage() {
       {error && <p role="alert" className="mb-4 rounded-md border border-error/30 bg-error/5 p-3 text-sm text-error">{error}</p>}
       {notice && <p role="status" className="mb-4 rounded-md border border-success/30 bg-success/5 p-3 text-sm text-success">{notice}</p>}
       {!actor && <p role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm text-text">Sign in to record a named human review decision.</p>}
+      <div className="mb-5 grid items-start gap-4 xl:grid-cols-2">
+        <section aria-label="Source formulation PDF" className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="mb-2 text-sm font-semibold text-text">Source formulation PDF</h2>
+          <p className="mb-3 break-all font-mono text-[10px] text-muted">{selected.source.originalFilename ?? selected.source.title} · SHA-256 {selected.sourceDocumentHash}</p>
+          {sourcePdfError && <p role="alert" className="mb-2 text-xs text-error">{sourcePdfError}</p>}
+          {sourcePage && sourcePdf?.sha256.toLowerCase() === selected.sourceDocumentHash.toLowerCase()
+            ? <><SupplierSdsPdfPagePreview bytes={sourcePdf.bytes} pageNumber={sourcePage.pageNumber} lineNumber={1} documentLabel="Supplier formulation" /><p className="mt-2 whitespace-pre-wrap text-xs text-muted">{sourcePage.excerpt}</p></>
+            : <p className="rounded bg-surface-2 p-3 text-xs text-muted">Select a cited extraction value to load its verified source PDF page here.</p>}
+        </section>
+        <FormulationExtractionOverview record={selected} reviewItems={items} onOpenPage={openSourcePage} />
+      </div>
       <div className="mb-4 flex items-center justify-between text-sm text-muted">
         <span>{items.length} reviewable extraction fields</span>
         <button type="button" onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded border border-border px-3 py-1.5 text-text hover:bg-surface-2"><RotateCcw size={13} />Refresh</button>
       </div>
       {items.length === 0 ? <p className="rounded-lg border border-border bg-surface p-5 text-sm text-muted">This source has no identity, ingredient, process, or target values to review.</p> : (
         <div className="space-y-3">
-          {items.map((item) => <ReviewCard key={item.targetKey} item={item} review={latestByTarget.get(item.targetKey)} disabled={!actor} onSave={saveDecision} />)}
+          {items.map((item) => <ReviewCard key={item.targetKey} item={item} review={latestByTarget.get(item.targetKey)} disabled={!actor} onSave={saveDecision} onOpenSourcePage={openSourcePage} />)}
         </div>
       )}
       {traceData && <ReferenceFormulationNormalizationTrace data={traceData} />}
@@ -198,13 +241,78 @@ function ReferenceFormulationNormalizationTrace({ data }: { data: ReferenceFormu
   );
 }
 
+function FormulationExtractionOverview({ record, reviewItems, onOpenPage }: {
+  record: ReferenceFormulationRecord;
+  reviewItems: ReferenceFormulationReviewItem[];
+  onOpenPage: (pageNumber: number, excerpt: string) => Promise<void>;
+}) {
+  const itemFor = (targetKey: string) => reviewItems.find((item) => item.targetKey === targetKey);
+  const cite = (item: ReferenceFormulationReviewItem | undefined) => item?.pageNumber
+    ? <button type="button" onClick={() => void onOpenPage(item.pageNumber!, item.evidenceExcerpt)} className="ml-2 text-[10px] text-accent underline">View PDF page {item.pageNumber}</button>
+    : null;
+  return (
+    <section aria-label="Formulation extraction overview" className="max-h-[76vh] space-y-4 overflow-y-auto rounded-lg border border-border bg-surface p-4">
+      <h2 className="text-sm font-semibold text-text">Extracted formulation evidence · review required</h2>
+      <section aria-label="Extracted formula lines" className="rounded border border-border-faint p-3">
+        <h3 className="mb-2 text-xs font-semibold text-text">Formula lines, functions, amounts and commercial products</h3>
+        {record.ingredientLines.length === 0 ? <p className="text-xs text-muted">No ingredient lines were extracted.</p> : <div className="space-y-2">{record.ingredientLines.map((line) => {
+          const match = record.productMatches.find((candidate) => candidate.ingredientLineId === line.id);
+          const productItem = itemFor(`ingredient:${line.id}:supplierProductCode`)
+            ?? itemFor(`ingredient:${line.id}:ingredientName`);
+          return <article key={line.id} className="rounded border border-border-faint bg-surface-1 p-2">
+            <p className="text-[10px] font-medium text-text">{line.orderIndex}. {line.ingredientName?.rawValue ?? line.inciOrChemicalName?.rawValue ?? line.supplierProductCode?.rawValue ?? "Ingredient name not stated"}</p>
+            {line.rawRow.length > 0 && <p className="mt-1 break-words text-[10px] text-muted">Source row: {line.rawRow.join(" | ")}</p>}
+            <div className="mt-2 grid gap-1 text-[10px] sm:grid-cols-2">
+              <SourceValue label="Supplier-stated function" value={line.function?.rawValue ?? "Not stated"} citation={cite(itemFor(`ingredient:${line.id}:function`))} />
+              <SourceValue label="Amount / unit / basis" value={[line.amount?.rawValue, line.unit?.rawValue, line.basis?.rawValue].filter(Boolean).join(" ") || (line.quantitySemantics === "q_s" ? "q.s. · source amount retained" : "Not stated")} citation={cite(itemFor(`ingredient:${line.id}:amount`))} />
+              <SourceValue label="Phase / sequence" value={line.phase?.rawValue ?? String(line.orderIndex)} citation={cite(itemFor(`ingredient:${line.id}:phase`))} />
+              <SourceValue label="Quantity semantics" value={line.quantitySemantics} />
+            </div>
+            <div className="mt-2 rounded border border-border-faint px-2 py-1.5">
+              <p className="text-[10px] font-medium text-text">Commercial-product link candidates</p>
+              <p className="mt-0.5 text-[10px] text-muted">{match ? `${match.resolution.replace(/_/gu, " ")} · ${match.autoLinked ? "auto-linked" : "not auto-linked"} · review required` : "No product match record"}</p>
+              {match?.candidates.length ? <ul className="mt-1 space-y-1">{match.candidates.map((candidate) => <li key={candidate.commercialProductId} className="break-words text-[10px] text-muted"><code className="text-accent">{candidate.commercialProductId}</code> · {candidate.tier.replace(/_/gu, " ")} · {candidate.matchedOn.join(", ") || "identifier match"}{candidate.matchedValues.length ? ` · ${candidate.matchedValues.join(", ")}` : ""}{candidate.similarity !== undefined ? ` · similarity proposal ${(candidate.similarity * 100).toFixed(1)}%` : ""}</li>)}</ul>
+                : <p className="mt-1 text-[10px] text-muted">No commercial product candidate; the source line remains unresolved.</p>}
+              {cite(productItem)}
+            </div>
+          </article>;
+        })}</div>}
+      </section>
+      <section aria-label="Extracted procedure" className="rounded border border-border-faint p-3">
+        <h3 className="mb-2 text-xs font-semibold text-text">Procedure and stated conditions</h3>
+        {record.procedureSteps.length === 0 ? <p className="text-xs text-muted">No procedure steps were extracted.</p> : <ol className="space-y-2">{record.procedureSteps.map((step) => <li key={step.id} className="rounded border border-border-faint bg-surface-1 p-2">
+          <p className="text-[10px] font-medium text-text">{step.sequenceOrder}. {step.phase?.rawValue ? `${step.phase.rawValue} · ` : ""}{step.rawInstruction}</p>
+          <p className="mt-1 text-[10px] text-muted">Actions: {step.actions.join(", ") || "not classified"} · Conditions: {step.conditions.map((condition) => `${condition.kind}: ${condition.rawValue}`).join("; ") || "not stated"}</p>
+          {cite(itemFor(`procedure:${step.id}:instruction`))}
+        </li>)}</ol>}
+      </section>
+      <section aria-label="Extracted formulation targets" className="rounded border border-border-faint p-3">
+        <h3 className="mb-2 text-xs font-semibold text-text">Source-stated targets and reported results</h3>
+        {record.targetCandidates.length === 0 ? <p className="text-xs text-muted">No target or result candidates were extracted.</p> : <ul className="space-y-2">{record.targetCandidates.map((target) => {
+          const item = itemFor(`target:${target.id}`);
+          return <li key={target.id} className="rounded border border-border-faint bg-surface-1 p-2">
+            <p className="text-[10px] font-medium text-text">{target.rawPropertyLabel}: {target.rawValue}</p>
+            <p className="mt-1 text-[10px] text-muted">{target.resultSemantics.replace(/_/gu, " ")} · {target.valueShape.replace(/_/gu, " ")}</p>
+            {cite(item)}
+          </li>;
+        })}</ul>}
+      </section>
+    </section>
+  );
+}
+
+function SourceValue({ label, value, citation }: { label: string; value: string; citation?: ReactNode }) {
+  return <p className="break-words text-muted">{label}: <span className="text-text">{value}</span>{citation}</p>;
+}
+
 function ReviewCard({
-  item, review, disabled, onSave,
+  item, review, disabled, onSave, onOpenSourcePage,
 }: {
   item: ReferenceFormulationReviewItem;
   review?: ReferenceFormulationReview;
   disabled: boolean;
   onSave: (item: ReferenceFormulationReviewItem, decision: Decision, value?: string, note?: string) => Promise<void>;
+  onOpenSourcePage: (pageNumber: number, excerpt: string) => Promise<void>;
 }) {
   const [decision, setDecision] = useState<Decision>("needs_review");
   const [value, setValue] = useState(review?.decision === "edited" ? review.reviewedValue ?? "" : item.sourceValue);
@@ -230,6 +338,7 @@ function ReviewCard({
           <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Source evidence {location && `· ${location}`}</h3>
           <blockquote className="whitespace-pre-wrap break-words rounded bg-surface-2 p-3 text-sm text-text">{item.evidenceExcerpt || "No source excerpt was retained."}</blockquote>
           {item.sourceKind && <p className="mt-2 text-[11px] text-muted">{item.sourceKind}{item.confidence !== undefined ? ` · ${(item.confidence * 100).toFixed(0)}% extraction confidence` : ""}</p>}
+          {item.pageNumber !== undefined && <button type="button" onClick={() => void onOpenSourcePage(item.pageNumber!, item.evidenceExcerpt)} className="mt-2 text-[11px] text-accent underline">View source PDF page {item.pageNumber}</button>}
         </section>
         <section className="p-4" aria-label="Extracted value">
           <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Extracted value</h3>

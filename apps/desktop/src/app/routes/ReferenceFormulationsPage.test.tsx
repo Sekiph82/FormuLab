@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReferenceFormulationRecord } from "@formulab/shared";
 import { ReferenceFormulationsPage } from "./ReferenceFormulationsPage";
 
-const bridge = { list: vi.fn(), listReviews: vi.fn(), appendReview: vi.fn(), trace: vi.fn() };
+const bridge = { list: vi.fn(), listReviews: vi.fn(), appendReview: vi.fn(), trace: vi.fn(), readPdf: vi.fn() };
 const actor = { role: "formulator", userId: "reviewer-1", displayName: "Review Chemist" };
 let activeActor: typeof actor | null = actor;
 vi.mock("@/lib/referenceFormulations", () => ({ listReferenceFormulations: () => bridge.list() }));
@@ -15,6 +15,10 @@ vi.mock("@/lib/referenceFormulationReviews", () => ({
 }));
 vi.mock("@/lib/referenceFormulationCorpusReview", () => ({ getReferenceFormulationCorpusReviewData: (...args: [string]) => bridge.trace(...args) }));
 vi.mock("@/lib/currentActor", () => ({ useTrustedActor: () => activeActor }));
+vi.mock("@/lib/masterdata", () => ({ readSupplierDocumentPdf: (...args: [string]) => bridge.readPdf(...args) }));
+vi.mock("@/components/dataExchange/connectors/SupplierSdsPdfPagePreview", () => ({
+  SupplierSdsPdfPagePreview: ({ pageNumber, documentLabel }: { pageNumber: number; documentLabel: string }) => <div>{documentLabel} PDF page {pageNumber}</div>,
+}));
 
 const record = {
   id: "reference-formula-1",
@@ -36,6 +40,7 @@ describe("reference formulation evidence review page", () => {
     bridge.list.mockResolvedValue([record]);
     bridge.listReviews.mockResolvedValue([]);
     bridge.trace.mockResolvedValue({ source: record, versions: [] });
+    bridge.readPdf.mockResolvedValue(new Uint8Array([1, 2, 3]));
     bridge.appendReview.mockImplementation(async (input: Record<string, unknown>) => ({
       ...input, schemaVersion: "1.0", id: "rfreview-1", code: "rfreview-1", reviewedAt: "2026-10-26T10:00:00.000Z",
     }));
@@ -143,5 +148,49 @@ describe("reference formulation evidence review page", () => {
     expect(screen.getByText(/sds-acquisition-1/)).toBeInTheDocument();
     expect(screen.getByText(/sds-component-1/)).toBeInTheDocument();
     expect(screen.getByText(/Sodium laureth sulfate/)).toBeInTheDocument();
+  });
+
+  it("pairs the hash-verified source PDF with formula, function, amount, process, target and product-link evidence", async () => {
+    const sourceHash = "a".repeat(64);
+    const sourceRecord = {
+      ...record,
+      source: { ...record.source, title: "Dishwash Formula", originalFilename: "dishwash.pdf", sourcePdfSha256: sourceHash, supplierId: "supplier-test", acquisitionCode: "supplierdoc-formula-1" },
+      ingredientLines: [{
+        id: "ingredient-1", orderIndex: 1, rawRow: ["Surfactant X", "surfactant", "4%", "w/w"], quantitySemantics: "explicit_amount",
+        ingredientName: { rawValue: "Surfactant X", evidence: { sourceDocumentHash: sourceHash, pageNumber: 2, blockIndex: 3, rowIndex: 1, cellIndex: 0, headerRowIndex: 0, header: "Ingredient", excerpt: "Surfactant X", source: "digital" } },
+        function: { rawValue: "surfactant", evidence: { sourceDocumentHash: sourceHash, pageNumber: 2, blockIndex: 3, rowIndex: 1, cellIndex: 1, headerRowIndex: 0, header: "Function", excerpt: "surfactant", source: "digital" } },
+        amount: { rawValue: "4%", evidence: { sourceDocumentHash: sourceHash, pageNumber: 2, blockIndex: 3, rowIndex: 1, cellIndex: 2, headerRowIndex: 0, header: "Amount", excerpt: "4%", source: "digital" } },
+      }],
+      productMatches: [{ ingredientLineId: "ingredient-1", sourceSupplierId: "supplier-test", resolution: "exact_match_candidate", candidates: [{ commercialProductId: "commercial-croda-1", tier: "exact", matchedOn: ["trade_name"], matchedValues: ["Surfactant X"], sourceDocumentCodes: ["supplierdoc-formula-1"] }], autoLinked: false, reviewRequired: true }],
+      procedureSteps: [{ id: "step-1", sequenceOrder: 1, rawInstruction: "Mix until clear", actions: ["mix", "appearance_check"], conditions: [], extractionMethod: "procedure_section_text", evidence: { sourceDocumentHash: sourceHash, pageNumber: 3, blockIndex: 2, excerpt: "Mix until clear", source: "digital" }, reviewRequired: true }],
+      targetCandidates: [{ id: "target-1", field: "ph", rawPropertyLabel: "pH", rawValue: "5.0-5.5", valueShape: "range", resultSemantics: "target", evidence: { sourceDocumentHash: sourceHash, pageNumber: 4, blockIndex: 1, excerpt: "pH: 5.0-5.5", source: "digital" }, reviewRequired: true }],
+    } as unknown as ReferenceFormulationRecord;
+    bridge.list.mockResolvedValue([sourceRecord]);
+    bridge.trace.mockResolvedValue({ source: sourceRecord, versions: [] });
+    const user = userEvent.setup();
+    renderPage();
+    const overview = await screen.findByRole("region", { name: "Formulation extraction overview" });
+    expect(overview).toHaveTextContent("Surfactant X");
+    expect(overview).toHaveTextContent("Supplier-stated function: surfactant");
+    expect(overview).toHaveTextContent("Amount / unit / basis: 4%");
+    expect(overview).toHaveTextContent("Mix until clear");
+    expect(overview).toHaveTextContent("pH: 5.0-5.5");
+    expect(overview.querySelector("code")).toHaveTextContent("commercial-croda-1");
+    await user.click(screen.getAllByRole("button", { name: "View PDF page 2" })[0]!);
+    expect(await screen.findByText("Supplier formulation PDF page 2")).toBeInTheDocument();
+    expect(bridge.readPdf).toHaveBeenCalledWith(sourceHash);
+    expect(bridge.appendReview).not.toHaveBeenCalled();
+  });
+
+  it("refuses to load a PDF when record and source-metadata hashes disagree", async () => {
+    bridge.list.mockResolvedValue([{
+      ...record,
+      source: { ...record.source, sourcePdfSha256: "b".repeat(64) },
+    }]);
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "View source PDF page 1" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("reference record and source metadata PDF hashes do not match");
+    expect(bridge.readPdf).not.toHaveBeenCalled();
   });
 });
