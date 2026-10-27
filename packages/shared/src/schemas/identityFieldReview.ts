@@ -54,7 +54,7 @@ export function isAuthorizedIdentityFieldReviewer(actor: Actor): actor is Extrac
 
 function requireIdentityReviewer(actor: Actor): asserts actor is Extract<Actor, { kind: "human" }> {
   if (!isAuthorizedIdentityFieldReviewer(actor)) {
-    throw new Error("Only a named human with raw-material or supplier-document edit access may review commercial-product identity fields.");
+    throw new Error("Only a human with a named identity and raw-material or supplier-document edit access may review commercial-product identity fields.");
   }
 }
 
