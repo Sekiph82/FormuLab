@@ -1,6 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { referenceFormulationImportFileSchema, referenceFormulationImportJobSchema } from "@formulab/shared";
+import {
+  buildReferenceFormulationUnresolvedQueue,
+  createReferenceFormulationContribution,
+  createReferenceFormulationNormalizationVersion,
+  createReferenceFormulationRecord,
+  createReferenceFormulationSource,
+  extractReferenceFormulationIdentity,
+  extractReferenceFormulationIngredientLines,
+  extractReferenceFormulationProcedure,
+  extractReferenceFormulationTargets,
+  matchReferenceFormulationProducts,
+  referenceFormulationImportFileSchema,
+  referenceFormulationImportJobSchema,
+  searchReferenceFormulationLocalIndex,
+  supplierDocumentAcquisitionSchema,
+  validateReferenceFormulationArithmetic,
+} from "@formulab/shared";
 
 const { collections, listRecordsMock, upsertRecordsMock, nowIsoMock, storePdfMock, failUpsertOnce } = vi.hoisted(() => {
   const collections = new Map<string, Record<string, unknown>[]>();
@@ -68,10 +84,96 @@ function selectedFile(name: string, bytes: Uint8Array, type = "application/pdf")
   };
 }
 
-async function validPdf(width = 300): Promise<Uint8Array> {
+async function validPdf(width = 300, title?: string): Promise<Uint8Array> {
   const document = await PDFDocument.create();
+  if (title) document.setTitle(title);
   document.addPage([width, 300]);
   return document.save();
+}
+
+const SCALE_FIXTURE_DATE = "2026-10-26T12:00:00.000Z";
+
+function buildSyntheticScaleFormula(index: number) {
+  const ordinal = index.toString().padStart(4, "0");
+  const id = `synthetic-scale-${ordinal}`;
+  const hash = index.toString(16).padStart(64, "0");
+  const acquisition = supplierDocumentAcquisitionSchema.parse({
+    schemaVersion: "1.0",
+    code: `acquisition-${id}`,
+    supplierId: "supplier-synthetic-formula-corpus",
+    providerId: "synthetic-structural-fixture",
+    surfaceId: "synthetic-scale-acceptance",
+    documentType: "FORMULATION",
+    acquisitionMethod: "manual_assisted",
+    sourceFileSelection: {
+      selectionId: `selection-${id}`,
+      originalFilename: `${id}.pdf`,
+      sourceFileSha256: hash,
+      selectedAt: SCALE_FIXTURE_DATE,
+      selectedBy: "synthetic-test-fixture",
+    },
+    sourceProduct: { tradeName: `Synthetic scale formula ${ordinal}` },
+    market: "test",
+    language: "en",
+    originalFilename: `${id}.pdf`,
+    mimeType: "application/pdf",
+    sha256: hash,
+    byteSize: 1024,
+    parserStatus: "completed",
+    acquiredAt: SCALE_FIXTURE_DATE,
+    createdAt: SCALE_FIXTURE_DATE,
+  });
+  const source = createReferenceFormulationSource({
+    id: `source-${id}`,
+    acquisition,
+    title: `Synthetic scale formula ${ordinal}`,
+    parserVersion: "synthetic-structural-fixture-v1",
+    rights: { status: "owner_provided", redistribution: "unknown", evidenceRefs: ["synthetic-structural-fixture"] },
+    createdAt: SCALE_FIXTURE_DATE,
+  });
+  const pages = [{ pageNumber: 1, blocks: [
+    { type: "heading" as const, blockIndex: 0, text: "Synthetic Fixture Formula" },
+    { type: "table" as const, blockIndex: 1, rows: [
+      ["Ingredient", "Amount", "Unit", "Basis"],
+      [`Synthetic fixture ingredient ${ordinal}`, "1", "%", "w/w"],
+    ] },
+  ] }];
+  const identity = extractReferenceFormulationIdentity({ acquisition, pages });
+  const ingredientResult = extractReferenceFormulationIngredientLines({ source, pages });
+  const arithmetic = validateReferenceFormulationArithmetic({ source, lines: ingredientResult.lines });
+  const procedure = extractReferenceFormulationProcedure({ source, pages });
+  const targets = extractReferenceFormulationTargets({ source, pages });
+  const matching = matchReferenceFormulationProducts({ source, lines: ingredientResult.lines, products: [] });
+  const unresolved = buildReferenceFormulationUnresolvedQueue({ source, lines: ingredientResult.lines, matching, products: [] });
+  const record = createReferenceFormulationRecord({
+    id: `record-${id}`,
+    code: `record-${id}`,
+    source,
+    identityCandidates: identity.candidates,
+    identityMetadataComparisons: identity.metadataComparisons,
+    identityWarnings: identity.warnings,
+    ingredientLines: ingredientResult.lines,
+    arithmetic,
+    procedureSteps: procedure.steps,
+    procedureWarnings: procedure.warnings,
+    targetCandidates: targets.candidates,
+    targetWarnings: targets.warnings,
+    productMatches: matching.lines,
+    productMatchWarnings: matching.warnings,
+    unresolvedEntries: unresolved.entries,
+    createdAt: SCALE_FIXTURE_DATE,
+  });
+  const componentContributions = Object.fromEntries(record.ingredientLines.map((line) => [line.id, [
+    createReferenceFormulationContribution({ source: record, sourceFormulaLineId: line.id }),
+  ]]));
+  const normalization = createReferenceFormulationNormalizationVersion({
+    id: `normalization-${id}`,
+    source: record,
+    version: 1,
+    componentContributions,
+    createdAt: SCALE_FIXTURE_DATE,
+  });
+  return { record, normalization };
 }
 
 describe("reference formulation bulk import", () => {
@@ -309,4 +411,90 @@ describe("reference formulation bulk import", () => {
     expect(collections.get("reference_formulations")).toHaveLength(3);
     expect(collections.has("materials")).toBe(false);
   });
+
+  it("benchmarks 2,000 PDF imports and 2,000 normalized synthetic formulas", async () => {
+    const formulaCount = 2_000;
+    const productionSentinels = new Map<string, Record<string, unknown>[]>([
+      ["materials", [{ id: "owner-material-sentinel", code: "OWNER-MATERIAL", name: "Unchanged owner material" }]],
+      ["formulations", [{ id: "owner-formulation-sentinel", code: "OWNER-FORMULA", name: "Unchanged owner formulation" }]],
+      ["formula_versions", [{ id: "owner-version-sentinel", code: "OWNER-VERSION", version: 7 }]],
+    ]);
+    for (const [collection, rows] of productionSentinels) collections.set(collection, structuredClone(rows));
+    const productionSnapshot = new Map([...productionSentinels.keys()].map((collection) => [
+      collection,
+      structuredClone(collections.get(collection)),
+    ]));
+    const totalStartedAt = performance.now();
+    const pdfs: Uint8Array[] = [];
+    for (let index = 0; index < formulaCount; index += 1) {
+      // Unique valid, empty PDFs exercise the structural bulk path without
+      // introducing supplier claims, chemistry, or fabricated formula lines.
+      pdfs.push(await validPdf(300, `synthetic-scale-fixture-${index.toString().padStart(4, "0")}`));
+    }
+    const selected = pdfs.map((bytes, index) => selectedFile(`synthetic-formula-${index.toString().padStart(4, "0")}.pdf`, bytes));
+    const ingestionStartedAt = performance.now();
+    const imported = await startReferenceFormulationBulkImport(selected, {
+      ...metadata,
+      supplierId: "supplier-synthetic-scale-fixture",
+      rights: { ...metadata.rights, evidenceRefs: ["synthetic-structural-fixture"] },
+    });
+    const ingestionMs = Math.round(performance.now() - ingestionStartedAt);
+
+    expect(imported.job).toMatchObject({
+      status: "completed",
+      totalFiles: formulaCount,
+      processedFiles: formulaCount,
+      reviewRequiredFiles: formulaCount,
+      duplicateFiles: 0,
+      failedFiles: 0,
+    });
+    expect(imported.files).toHaveLength(formulaCount);
+    expect(imported.files.every((item) => item.status === "review_required")).toBe(true);
+    expect(collections.get("reference_formulations")).toHaveLength(formulaCount);
+    expect(collections.get("supplier_document_acquisitions")).toHaveLength(formulaCount);
+    for (const collection of productionSentinels.keys()) {
+      expect(collections.get(collection)).toEqual(productionSnapshot.get(collection));
+    }
+
+    // Separately exercise source-line normalization over a 2,000-formula
+    // structural corpus. These records use synthetic labels/amounts and have
+    // no supplier SDS or canonical chemistry assertions.
+    const structuralCorpus = Array.from({ length: formulaCount }, (_, index) => buildSyntheticScaleFormula(index + 1));
+    collections.set("reference_formulations", [
+      ...(collections.get("reference_formulations") ?? []),
+      ...structuralCorpus.map(({ record }) => record),
+    ]);
+    collections.set("reference_formulation_normalizations", structuralCorpus.map(({ normalization }) => normalization));
+
+    const rebuildStartedAt = performance.now();
+    const firstRebuild = await rebuildReferenceFormulationCorpusIndex();
+    const rebuildMs = Math.round(performance.now() - rebuildStartedAt);
+    expect(firstRebuild.queryRecords).toHaveLength(formulaCount * 2);
+    const normalizedFixtures = firstRebuild.queryRecords.filter((record) => record.supplierId === "supplier-synthetic-formula-corpus");
+    expect(normalizedFixtures).toHaveLength(formulaCount);
+    expect(normalizedFixtures.every((record) => record.lines.length === 1 && record.reviewRequired)).toBe(true);
+    expect(normalizedFixtures.every((record) => record.lines[0]?.componentContributions.some((item) => item.status === "unknown" && item.sourceSds.status === "missing"))).toBe(true);
+    expect(firstRebuild.index.queryRecordIds).toHaveLength(formulaCount * 2);
+    const matchingFormulaIds = searchReferenceFormulationLocalIndex(firstRebuild.index, {
+      aliases: ["Synthetic scale formula 1000"],
+      supplierIds: ["supplier-synthetic-formula-corpus"],
+    });
+    expect(matchingFormulaIds).toHaveLength(1);
+    expect(matchingFormulaIds[0]).toContain("record-synthetic-scale-1000");
+    for (const collection of productionSentinels.keys()) {
+      expect(collections.get(collection)).toEqual(productionSnapshot.get(collection));
+    }
+    expect(await rebuildReferenceFormulationCorpusIndex()).toEqual(firstRebuild);
+
+    console.info(JSON.stringify({
+      benchmark: "synthetic-reference-formulation-corpus-v1",
+      importedPdfCount: formulaCount,
+      normalizedFormulaCount: normalizedFixtures.length,
+      indexedQueryRecordCount: firstRebuild.queryRecords.length,
+      ingestionMs,
+      rebuildMsForIndexedQueryRecordCount: rebuildMs,
+      totalMs: Math.round(performance.now() - totalStartedAt),
+      fixture: "separate unique empty PDFs and structural formula records; no supplier chemistry or formula claims",
+    }));
+  }, 180_000);
 });
