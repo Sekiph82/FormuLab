@@ -135,6 +135,8 @@ pub fn run() {
             attachments::open_attachment,
             masterdata::list_master_records,
             masterdata::upsert_master_records,
+            masterdata::append_supplier_document_acquisitions,
+            masterdata::append_reference_formulations,
             masterdata::append_reference_formulation_review,
             masterdata::append_reference_formulation_normalization,
             supplier_document_store::store_supplier_document_pdf,

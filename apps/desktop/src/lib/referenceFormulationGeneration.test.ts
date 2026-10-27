@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { summarizeReferenceFormulationSupport } from "./referenceFormulationGeneration";
+import { referenceFormulationEvaluationTimestamp, summarizeReferenceFormulationSupport } from "./referenceFormulationGeneration";
+import { evaluateReferenceFormulationSourceUse } from "@formulab/shared";
 
 describe("reference formulation support quality", () => {
+  it("evaluates retention against request time instead of the old source or review timestamp", () => {
+    const asOf = referenceFormulationEvaluationTimestamp(new Date("2026-10-28T12:00:00.000Z"));
+    const decision = evaluateReferenceFormulationSourceUse({
+      use: "internalResearch",
+      asOf,
+      rights: {
+        status: "owner_provided", redistribution: "unknown", evidenceRefs: ["owner:permission"],
+        usePermissions: { internalResearch: { status: "allowed", evidenceRefs: ["owner:research-use"] } },
+        retentionPolicy: { status: "retain_until_date", expiresAt: "2026-10-27T23:59:59.000Z", evidenceRefs: ["owner:expiry"] },
+      },
+    });
+    expect(decision).toMatchObject({ allowed: false, reason: "retention_expired" });
+    expect(asOf).toBe("2026-10-28T12:00:00.000Z");
+  });
+
   function fixture(input: { total: number; eligible: number; suppliers: number; unresolved?: number; uncited?: number }) {
     const total = input.total;
     const queryRecords = Array.from({ length: total }, (_, index) => ({

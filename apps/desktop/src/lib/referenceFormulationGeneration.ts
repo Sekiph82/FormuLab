@@ -23,6 +23,13 @@ function familyKey(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
 }
 
+/** Source-retention permissions are evaluated when guidance is requested, not
+ * against the historical time at which its evidence happened to be recorded. */
+export function referenceFormulationEvaluationTimestamp(now: Date = new Date()): string {
+  if (!Number.isFinite(now.getTime())) throw new RangeError("Reference evaluation time must be valid.");
+  return now.toISOString();
+}
+
 const identityResolutionReasons = new Set<ReferenceFormulationEligibilityDecision["reasons"][number]>([
   "missing_product_family", "ambiguous_product_family", "product_family_not_reviewed", "missing_ingredient_lines", "missing_line_identity",
   "line_identity_not_reviewed", "canonical_chemistry_unresolved", "canonical_chemistry_ambiguous",
@@ -90,11 +97,7 @@ export async function loadReferenceFormulationGenerationContext(productFamilyCod
     listRecords("reference_formulation_reviews"),
   ]);
   const reviews = reviewRows.map((row) => referenceFormulationReviewSchema.parse(row));
-  const evidenceTimestamps = [
-    ...sourceRecords.map((source) => source.createdAt),
-    ...reviews.map((review) => review.reviewedAt),
-  ].filter((value): value is string => typeof value === "string" && Number.isFinite(Date.parse(value))).sort();
-  const asOf = evidenceTimestamps[evidenceTimestamps.length - 1] ?? "1970-01-01T00:00:00.000Z";
+  const asOf = referenceFormulationEvaluationTimestamp();
   const metricsInput = { queryRecords, sourceRecords, reviews, asOf };
   const ingredientPriors = calculateReferenceFormulationIngredientFrequencyPriors(metricsInput);
   const dosageDistributions = calculateReferenceFormulationDosageDistributions(metricsInput);

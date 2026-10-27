@@ -285,6 +285,12 @@ export async function upsertRecords<C extends Collection>(
   collection: C,
   records: CollectionTypes[C][],
 ): Promise<UpsertResult> {
+  if (collection === "supplier_document_acquisitions") {
+    return call<UpsertResult>("append_supplier_document_acquisitions", { records });
+  }
+  if (collection === "reference_formulations") {
+    return call<UpsertResult>("append_reference_formulations", { records });
+  }
   return call<UpsertResult>("upsert_master_records", { collection, records });
 }
 

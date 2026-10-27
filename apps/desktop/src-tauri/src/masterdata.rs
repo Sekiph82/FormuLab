@@ -130,6 +130,8 @@ static REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK: Mutex<()> = Mutex::new(()
 static REFERENCE_FORMULATION_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static SUPPLIER_SDS_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static IDENTITY_FIELD_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static SUPPLIER_DOCUMENT_ACQUISITION_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static REFERENCE_FORMULATION_SOURCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Collections the UI may address, and whether history is preserved.
 ///
@@ -633,6 +635,68 @@ pub async fn upsert_master_records(
     }))
 }
 
+/// Append supplier-document receipts only after verifying the content-addressed
+/// PDF exists in this project and its bytes match the receipt SHA-256.
+#[tauri::command(async)]
+pub async fn append_supplier_document_acquisitions(
+    app: AppHandle,
+    token: String,
+    records: Vec<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    authz::authorize_any_app(&app, &token, "rawMaterials", &WRITE_CAPABILITIES)?;
+    let _guard = SUPPLIER_DOCUMENT_ACQUISITION_WRITE_LOCK.lock()
+        .map_err(|_| "supplier document acquisition storage is unavailable".to_string())?;
+    let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
+    for record in &records {
+        validate_supplier_document_acquisition_record(record)?;
+        let hash = record["sha256"].as_str().unwrap_or_default();
+        let bytes = crate::supplier_document_store::read_pdf_bytes(&data_root, hash)?;
+        if bytes.len() as u64 != record["byteSize"].as_u64().unwrap_or(0) {
+            return Err("supplier acquisition byte size does not match its stored PDF".to_string());
+        }
+    }
+    let path = collection_path(&app, "supplier_document_acquisitions")?;
+    let existing = read_array(&path);
+    let pending = new_immutable_records(&existing, records, "supplier_document_acquisitions")?;
+    let (rows, inserted, _) = apply_upsert(existing, pending, true, "supplier_document_acquisitions")?;
+    write_array(&path, &rows)?;
+    Ok(serde_json::json!({ "inserted": inserted, "updated": 0, "total": rows.len() }))
+}
+
+/// Append extracted formulation snapshots only when their source identity
+/// exactly matches an already verified FORMULATION acquisition and stored PDF.
+#[tauri::command(async)]
+pub async fn append_reference_formulations(
+    app: AppHandle,
+    token: String,
+    records: Vec<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    authz::authorize_any_app(&app, &token, "formulation", &WRITE_CAPABILITIES)?;
+    let _guard = REFERENCE_FORMULATION_SOURCE_WRITE_LOCK.lock()
+        .map_err(|_| "reference formulation storage is unavailable".to_string())?;
+    let acquisition_path = collection_path(&app, "supplier_document_acquisitions")?;
+    let acquisitions = read_array(&acquisition_path);
+    let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
+    for record in &records {
+        let acquisition_code = record["source"]["acquisitionCode"].as_str()
+            .ok_or_else(|| "reference formulation is missing its source acquisition".to_string())?;
+        let acquisition = acquisitions.iter().find(|item| item["code"].as_str() == Some(acquisition_code))
+            .ok_or_else(|| "reference formulation must cite a persisted supplier acquisition".to_string())?;
+        validate_reference_formulation_source_record(record, acquisition)?;
+        let hash = record["sourceDocumentHash"].as_str().unwrap_or_default();
+        let bytes = crate::supplier_document_store::read_pdf_bytes(&data_root, hash)?;
+        if bytes.len() as u64 != record["source"]["sourceByteSize"].as_u64().unwrap_or(0) {
+            return Err("reference formulation byte size does not match its stored source PDF".to_string());
+        }
+    }
+    let path = collection_path(&app, "reference_formulations")?;
+    let existing = read_array(&path);
+    let pending = new_immutable_records(&existing, records, "reference_formulations")?;
+    let (rows, inserted, _) = apply_upsert(existing, pending, true, "reference_formulations")?;
+    write_array(&path, &rows)?;
+    Ok(serde_json::json!({ "inserted": inserted, "updated": 0, "total": rows.len() }))
+}
+
 /// Append a reference-formulation decision using the authenticated actor from
 /// the native session. The renderer may propose a review payload, but it may
 /// not choose the reviewer identity or attach the decision to a different
@@ -662,6 +726,18 @@ pub async fn append_reference_formulation_review(
     let Some(source) = source else {
         return Err("review must cite an existing immutable reference formulation source".to_string());
     };
+    let source_acquisition_code = source["source"]["acquisitionCode"].as_str()
+        .ok_or_else(|| "review source is missing its supplier acquisition link".to_string())?;
+    let acquisitions = read_array(&collection_path(&app, "supplier_document_acquisitions")?);
+    let acquisition = acquisitions.iter().find(|item| item["code"].as_str() == Some(source_acquisition_code))
+        .ok_or_else(|| "review source must cite a persisted supplier acquisition".to_string())?;
+    validate_supplier_document_acquisition_record(acquisition)?;
+    validate_reference_formulation_source_record(source, acquisition)?;
+    let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
+    let bytes = crate::supplier_document_store::read_pdf_bytes(&data_root, source["sourceDocumentHash"].as_str().unwrap_or_default())?;
+    if bytes.len() as u64 != acquisition["byteSize"].as_u64().unwrap_or(0) {
+        return Err("review source PDF failed its persisted byte-size check".to_string());
+    }
     validate_review_evidence(&review, source)?;
     if review["id"].as_str() != Some(reference_formulation_review_id(&review)?.as_str()) {
         return Err("review id and code must match the deterministic decision idempotency key".to_string());
@@ -757,6 +833,15 @@ pub async fn append_supplier_sds_product_evidence(
     let acquisition_rows = read_array(&acquisition_path);
     let acquisition = acquisition_rows.iter().find(|row| row["code"].as_str() == Some(acquisition_code))
         .ok_or_else(|| "SDS evidence must reference a persisted supplier document acquisition".to_string())?;
+    validate_supplier_document_acquisition_record(acquisition)?;
+    if acquisition["documentType"].as_str() != Some("SDS") {
+        return Err("SDS evidence must reference an SDS acquisition".to_string());
+    }
+    let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
+    let bytes = crate::supplier_document_store::read_pdf_bytes(&data_root, acquisition["sha256"].as_str().unwrap_or_default())?;
+    if bytes.len() as u64 != acquisition["byteSize"].as_u64().unwrap_or(0) {
+        return Err("SDS acquisition failed its persisted byte-size check".to_string());
+    }
     let crosswalk_path = collection_path(&app, "external_id_crosswalks")?;
     let crosswalk_rows = read_array(&crosswalk_path);
     validate_supplier_sds_product_evidence_record(&evidence, acquisition, &crosswalk_rows)?;
@@ -1558,6 +1643,387 @@ fn ensure_object_keys(value: &serde_json::Value, allowed: &[&str], label: &str) 
     Ok(())
 }
 
+fn required_nonempty_string(value: &serde_json::Value, field: &str, label: &str) -> Result<String, String> {
+    value.get(field).and_then(|item| item.as_str()).filter(|item| !item.trim().is_empty())
+        .map(str::to_string).ok_or_else(|| format!("{label} requires {field}"))
+}
+
+fn validate_supplier_document_acquisition_record(record: &serde_json::Value) -> Result<(), String> {
+    ensure_object_keys(record, &[
+        "schemaVersion", "code", "supplierId", "providerId", "surfaceId", "documentType", "acquisitionMethod",
+        "sourceUrl", "sourceFileSelection", "sourceProduct", "market", "language", "sourceRevision", "revisionDate",
+        "publicationDate", "supersedesCode", "idempotencyKey", "originalFilename", "mimeType", "sha256", "byteSize",
+        "parserStatus", "acquiredAt", "createdAt",
+    ], "supplier acquisition")?;
+    for field in ["code", "supplierId", "providerId", "surfaceId", "documentType", "acquisitionMethod", "market", "language", "originalFilename", "mimeType", "sha256", "parserStatus", "acquiredAt", "createdAt"] {
+        required_nonempty_string(record, field, "supplier acquisition")?;
+    }
+    ensure_object_keys(&record["sourceProduct"], &["sourceProductId", "supplierItemCode", "tradeName", "grade"], "supplier acquisition source product")?;
+    for field in ["sourceProductId", "supplierItemCode", "tradeName", "grade"] {
+        if record["sourceProduct"].get(field).is_some_and(|value| value.as_str().map_or(true, |text| text.trim().is_empty())) {
+            return Err("supplier acquisition source-product identity is invalid".to_string());
+        }
+    }
+    if record["schemaVersion"].as_str() != Some("1.0")
+        || !["SDS", "TDS", "FORMULATION", "COA", "CERTIFICATE", "OTHER"].contains(&record["documentType"].as_str().unwrap_or_default())
+        || !["automated", "manual_assisted"].contains(&record["acquisitionMethod"].as_str().unwrap_or_default())
+        || !["application/pdf", "application/octet-stream"].contains(&record["mimeType"].as_str().unwrap_or_default())
+        || !["not_started", "completed", "failed", "unsupported"].contains(&record["parserStatus"].as_str().unwrap_or_default())
+        || !is_sha256_hex(record["sha256"].as_str().unwrap_or_default())
+        || record["byteSize"].as_u64().map_or(true, |size| size == 0 || size > 100 * 1024 * 1024)
+    {
+        return Err("supplier acquisition metadata is invalid".to_string());
+    }
+    let filename = record["originalFilename"].as_str().unwrap_or_default();
+    if filename.len() > 160 || filename.trim() != filename || filename.contains("..") || filename.chars().any(|ch| matches!(ch, '/' | '\\' | ':' | '\u{7f}') || ch.is_control()) || filename.ends_with('.') || filename.ends_with(' ') {
+        return Err("supplier acquisition filename is unsafe".to_string());
+    }
+    let product = &record["sourceProduct"];
+    if record["documentType"] != "FORMULATION" && ["sourceProductId", "supplierItemCode", "tradeName", "grade"].iter().all(|field| product[*field].as_str().map_or(true, |value| value.trim().is_empty())) {
+        return Err("supplier acquisition requires a source-product identity".to_string());
+    }
+    let method = record["acquisitionMethod"].as_str().unwrap_or_default();
+    if method == "automated" {
+        let raw = required_nonempty_string(record, "sourceUrl", "automated supplier acquisition")?;
+        let url = reqwest::Url::parse(&raw).map_err(|_| "supplier source URL is invalid".to_string())?;
+        if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() || url.fragment().is_some()
+            || url.query_pairs().any(|(_, value)| value != "[redacted]") {
+            return Err("supplier source URL must be sanitized HTTPS provenance".to_string());
+        }
+        if record.get("sourceFileSelection").is_some() { return Err("automated acquisition cannot claim manual file selection".to_string()); }
+    } else {
+        let selection = &record["sourceFileSelection"];
+        ensure_object_keys(selection, &["selectionId", "originalFilename", "sourceFileSha256", "selectedAt", "selectedBy"], "manual source selection")?;
+        for field in ["selectionId", "originalFilename", "sourceFileSha256", "selectedAt", "selectedBy"] { required_nonempty_string(selection, field, "manual source selection")?; }
+        if selection["originalFilename"] != record["originalFilename"]
+            || !selection["sourceFileSha256"].as_str().unwrap_or_default().eq_ignore_ascii_case(record["sha256"].as_str().unwrap_or_default()) {
+            return Err("manual file selection must match the acquired source file".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn validate_source_hashes(value: &serde_json::Value, expected_hash: &str) -> Result<(), String> {
+    match value {
+        serde_json::Value::Object(object) => {
+            for (key, child) in object {
+                if matches!(key.as_str(), "sourceDocumentHash" | "sourcePdfSha256")
+                    && child.as_str().map_or(true, |hash| !hash.eq_ignore_ascii_case(expected_hash)) {
+                    return Err("reference formulation contains evidence linked to another source hash".to_string());
+                }
+                validate_source_hashes(child, expected_hash)?;
+            }
+        }
+        serde_json::Value::Array(items) => for item in items { validate_source_hashes(item, expected_hash)?; },
+        _ => {}
+    }
+    Ok(())
+}
+
+fn ensure_schema_object(value: &serde_json::Value, required: &[&str], optional: &[&str], label: &str) -> Result<(), String> {
+    ensure_object_keys(value, &required.iter().chain(optional).copied().collect::<Vec<_>>(), label)?;
+    if required.iter().any(|key| !value.as_object().is_some_and(|object| object.contains_key(*key))) {
+        return Err(format!("{label} is missing a required schema field"));
+    }
+    Ok(())
+}
+
+fn validate_string_array(value: &serde_json::Value, label: &str, minimum: usize) -> Result<(), String> {
+    let items = value.as_array().ok_or_else(|| format!("{label} must be an array"))?;
+    if items.len() < minimum || items.iter().any(|item| item.as_str().map_or(true, |text| text.trim().is_empty())) {
+        return Err(format!("{label} contains an invalid string"));
+    }
+    Ok(())
+}
+
+fn validate_reference_evidence(value: &serde_json::Value, field_evidence: bool, label: &str) -> Result<(), String> {
+    let mut required = vec!["sourceDocumentHash", "pageNumber", "blockIndex", "excerpt", "source"];
+    if field_evidence { required.extend(["rowIndex", "cellIndex", "headerRowIndex", "header"]); }
+    let optional = if field_evidence { vec!["confidence", "position"] } else { vec!["rowIndex", "cellIndex", "confidence", "position"] };
+    ensure_schema_object(value, &required, &optional, label)?;
+    if !is_sha256_hex(value["sourceDocumentHash"].as_str().unwrap_or_default())
+        || value["pageNumber"].as_u64().unwrap_or(0) == 0
+        || value["blockIndex"].as_u64().is_none()
+        || value["excerpt"].as_str().map_or(true, str::is_empty)
+        || !["digital", "ocr", "mixed", "unknown"].contains(&value["source"].as_str().unwrap_or_default())
+        || (field_evidence && (value["rowIndex"].as_u64().is_none() || value["cellIndex"].as_u64().is_none()
+            || value["headerRowIndex"].as_u64().is_none() || value["header"].as_str().map_or(true, str::is_empty)))
+        || value.get("confidence").is_some_and(|v| v.as_f64().map_or(true, |n| !(0.0..=1.0).contains(&n)))
+    {
+        return Err(format!("{label} does not match the versioned evidence schema"));
+    }
+    if let Some(position) = value.get("position") {
+        ensure_schema_object(position, &["x", "y"], &[], "evidence position")?;
+        if position["x"].as_f64().map_or(true, |n| n < 0.0) || position["y"].as_f64().map_or(true, |n| n < 0.0) {
+            return Err("evidence position is invalid".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn validate_reference_formulation_record_schema(record: &serde_json::Value) -> Result<(), String> {
+    ensure_schema_object(record, &[
+        "schemaVersion", "recordKind", "id", "code", "source", "sourceDocumentHash", "parserVersions", "identityCandidates",
+        "identityMetadataComparisons", "identityWarnings", "ingredientLines", "arithmetic", "procedureSteps", "procedureWarnings",
+        "targetCandidates", "targetWarnings", "productMatches", "productMatchWarnings", "unresolvedEntries", "reviewStatus", "createdAt",
+    ], &[], "reference formulation")?;
+    for field in ["identityCandidates", "identityMetadataComparisons", "identityWarnings", "ingredientLines", "procedureSteps", "procedureWarnings", "targetCandidates", "targetWarnings", "productMatches", "productMatchWarnings", "unresolvedEntries"] {
+        if !record[field].is_array() { return Err(format!("reference formulation {field} must be an array")); }
+    }
+    ensure_schema_object(&record["parserVersions"], &["identity", "ingredients", "arithmetic", "procedure", "targets", "productMatcher", "unresolvedQueue"], &[], "parser versions")?;
+    let versions = &record["parserVersions"];
+    if versions["identity"] != "formulab-reference-formulation-identity-v1"
+        || versions["ingredients"] != "formulab-reference-formulation-ingredients-v1"
+        || versions["arithmetic"] != "formulab-reference-formulation-arithmetic-v1"
+        || !["formulab-reference-formulation-procedure-v1", "formulab-reference-formulation-procedure-v2"].contains(&versions["procedure"].as_str().unwrap_or_default())
+        || versions["targets"] != "formulab-reference-formulation-targets-v1"
+        || !["formulab-reference-formulation-product-matcher-v1", "formulab-reference-formulation-product-matcher-v2"].contains(&versions["productMatcher"].as_str().unwrap_or_default())
+        || versions["unresolvedQueue"] != "formulab-reference-formulation-unresolved-queue-v1"
+    { return Err("reference formulation parser versions are unsupported".to_string()); }
+
+    for candidate in record["identityCandidates"].as_array().unwrap() {
+        ensure_schema_object(candidate, &["field", "rawValue", "extractionMethod", "evidence", "reviewRequired"], &[], "identity candidate")?;
+        if !["supplier_name", "application", "product_family", "formulation_title", "formulation_code", "revision_identifier", "revision_date", "publication_date", "document_version", "source_identifier"].contains(&candidate["field"].as_str().unwrap_or_default())
+            || !["labeled_field", "semantic_heading", "embedded_formulation_code"].contains(&candidate["extractionMethod"].as_str().unwrap_or_default())
+            || candidate["reviewRequired"] != true || candidate["rawValue"].as_str().map_or(true, |value| value.trim().is_empty())
+            || candidate["evidence"].as_array().map_or(true, |items| items.is_empty())
+        { return Err("identity candidate does not match the versioned schema".to_string()); }
+        for evidence in candidate["evidence"].as_array().unwrap() { validate_reference_evidence(evidence, false, "identity evidence")?; }
+    }
+
+    for comparison in record["identityMetadataComparisons"].as_array().unwrap() {
+        ensure_schema_object(comparison, &["field", "acquisitionValue", "extractedValues", "result", "acquisitionCode", "reviewRequired"], &[], "identity metadata comparison")?;
+        if !["revision_identifier", "revision_date", "publication_date"].contains(&comparison["field"].as_str().unwrap_or_default())
+            || !["matches", "differs", "ambiguous"].contains(&comparison["result"].as_str().unwrap_or_default())
+            || comparison["acquisitionValue"].as_str().map_or(true, str::is_empty)
+            || comparison["acquisitionCode"].as_str().map_or(true, str::is_empty)
+            || comparison["extractedValues"].as_array().map_or(true, |items| items.is_empty() || items.iter().any(|item| item.as_str().map_or(true, str::is_empty)))
+            || comparison["reviewRequired"] != true
+        { return Err("identity metadata comparison does not match the versioned schema".to_string()); }
+    }
+    for (field, allowed) in [
+        ("identityWarnings", &["no_identity_candidates", "conflicting_identity_candidates", "acquisition_metadata_differs"][..]),
+        ("procedureWarnings", &["procedure_section_not_detected", "no_procedure_steps", "ambiguous_procedure_columns", "ocr_process_requires_review"][..]),
+        ("targetWarnings", &["no_target_result_section", "no_target_result_candidates", "ambiguous_property_columns", "ocr_target_results_require_review"][..]),
+        ("productMatchWarnings", &["ambiguous_product_candidates", "fuzzy_matches_are_proposals_only", "unmatched_ingredient_lines", "supplier_products_excluded"][..]),
+    ] {
+        if record[field].as_array().unwrap().iter().any(|entry| !allowed.contains(&entry.as_str().unwrap_or_default())) {
+            return Err(format!("reference formulation {field} contains an unsupported value"));
+        }
+    }
+
+    for line in record["ingredientLines"].as_array().unwrap() {
+        ensure_schema_object(line, &["id", "sourceDocumentHash", "orderIndex", "pageNumber", "tableBlockIndex", "rowIndex", "rawRow", "quantitySemantics", "reviewRequired"], &["ingredientName", "supplierProductCode", "inciOrChemicalName", "function", "phase", "amount", "unit", "basis"], "ingredient line")?;
+        if !is_sha256_hex(line["sourceDocumentHash"].as_str().unwrap_or_default()) || line["orderIndex"].as_u64().unwrap_or(0) == 0
+            || line["pageNumber"].as_u64().unwrap_or(0) == 0 || line["tableBlockIndex"].as_u64().is_none() || line["rowIndex"].as_u64().is_none()
+            || line["rawRow"].as_array().is_none() || !["explicit_amount", "q_s", "not_stated"].contains(&line["quantitySemantics"].as_str().unwrap_or_default())
+            || line["reviewRequired"] != true { return Err("ingredient line does not match the versioned schema".to_string()); }
+        validate_string_array(&line["rawRow"], "ingredient source row", 0)?;
+        for field in ["ingredientName", "supplierProductCode", "inciOrChemicalName", "function", "phase", "amount", "unit", "basis"] {
+            if let Some(cell) = line.get(field) {
+                ensure_schema_object(cell, &["rawValue", "evidence"], &[], "ingredient source cell")?;
+                if cell["rawValue"].as_str().map_or(true, |value| value.trim().is_empty()) { return Err("ingredient source value is invalid".to_string()); }
+                validate_reference_evidence(&cell["evidence"], true, "ingredient field evidence")?;
+            }
+        }
+    }
+
+    for step in record["procedureSteps"].as_array().unwrap() {
+        ensure_schema_object(step, &["id", "sequenceOrder", "rawInstruction", "rawContextCells", "actions", "conditions", "extractionMethod", "evidence", "reviewRequired"], &["printedStepNumber", "phase"], "procedure step")?;
+        required_nonempty_string(step, "id", "procedure step")?;
+        if step["sequenceOrder"].as_u64().unwrap_or(0) == 0 || step["rawInstruction"].as_str().map_or(true, |v| v.is_empty() || v.len() > 4000)
+            || step["rawContextCells"].as_array().is_none() || step["actions"].as_array().map_or(true, |items| items.is_empty())
+            || step["conditions"].as_array().is_none() || !["procedure_section_text", "procedure_table_column"].contains(&step["extractionMethod"].as_str().unwrap_or_default())
+            || step["reviewRequired"] != true { return Err("procedure step does not match the versioned schema".to_string()); }
+        validate_string_array(&step["rawContextCells"], "procedure source cells", 0)?;
+        if step["actions"].as_array().unwrap().iter().any(|action| !["addition", "dissolve", "mix", "hold", "heat", "cool", "adjust_ph", "thicken", "appearance_check", "finish", "other"].contains(&action.as_str().unwrap_or_default())) {
+            return Err("procedure step contains an unsupported action".to_string());
+        }
+        validate_reference_evidence(&step["evidence"], false, "procedure evidence")?;
+        if let Some(phase) = step.get("phase") { ensure_schema_object(phase, &["rawValue", "evidence"], &[], "procedure phase")?; if phase["rawValue"].as_str().map_or(true, str::is_empty) { return Err("procedure phase is invalid".to_string()); } validate_reference_evidence(&phase["evidence"], false, "phase evidence")?; }
+        for condition in step["conditions"].as_array().unwrap() {
+            ensure_schema_object(condition, &["kind", "rawValue", "evidence"], &[], "procedure condition")?;
+            if !["temperature", "time", "speed", "ph", "appearance", "homogeneity"].contains(&condition["kind"].as_str().unwrap_or_default()) { return Err("procedure condition kind is invalid".to_string()); }
+            if condition["rawValue"].as_str().map_or(true, str::is_empty) { return Err("procedure condition value is invalid".to_string()); }
+            validate_reference_evidence(&condition["evidence"], false, "condition evidence")?;
+        }
+    }
+
+    for target in record["targetCandidates"].as_array().unwrap() {
+        ensure_schema_object(target, &["id", "field", "rawPropertyLabel", "rawValue", "valueShape", "resultSemantics", "evidence", "reviewRequired"], &[], "target candidate")?;
+        required_nonempty_string(target, "id", "target candidate")?;
+        if !["ph", "viscosity", "density", "appearance", "other"].contains(&target["field"].as_str().unwrap_or_default())
+            || !["point_or_exact", "range", "approximate", "approximate_range", "unparsed"].contains(&target["valueShape"].as_str().unwrap_or_default())
+            || !["target", "typical_result", "unspecified"].contains(&target["resultSemantics"].as_str().unwrap_or_default()) || target["reviewRequired"] != true
+            || target["rawPropertyLabel"].as_str().map_or(true, str::is_empty) || target["rawValue"].as_str().map_or(true, str::is_empty)
+        { return Err("target candidate does not match the versioned schema".to_string()); }
+        validate_reference_evidence(&target["evidence"], false, "target evidence")?;
+    }
+
+    let arithmetic = &record["arithmetic"];
+    ensure_schema_object(arithmetic, &["sourceId", "acquisitionCode", "sourceDocumentHash", "parserVersion", "arithmeticStatus", "lineCount", "duplicateLineGroups", "warnings", "reviewRequired"], &["sourceDeclaredTotal", "calculatedTotal"], "arithmetic snapshot")?;
+    if !["calculated_only", "incomplete", "source_total_not_comparable", "consistent", "overlap", "inconsistent", "no_ingredient_rows"].contains(&arithmetic["arithmeticStatus"].as_str().unwrap_or_default())
+        || arithmetic["parserVersion"] != "formulab-reference-formulation-arithmetic-v1" || arithmetic["lineCount"].as_u64().is_none()
+        || arithmetic["duplicateLineGroups"].as_array().is_none() || arithmetic["warnings"].as_array().is_none() || arithmetic["reviewRequired"] != true
+    { return Err("arithmetic snapshot does not match the versioned schema".to_string()); }
+    if arithmetic["warnings"].as_array().unwrap().iter().any(|warning| !["no_ingredient_rows", "missing_amount", "q_s_prevents_total", "unknown_unit_or_basis", "invalid_amount_format", "percentage_out_of_range", "duplicate_ingredient_rows", "source_total_not_comparable", "source_total_mismatch", "source_total_overlap", "ocr_arithmetic_requires_review"].contains(&warning.as_str().unwrap_or_default())) {
+        return Err("arithmetic snapshot contains an unsupported warning".to_string());
+    }
+    for group in arithmetic["duplicateLineGroups"].as_array().unwrap() { validate_string_array(group, "duplicate ingredient group", 2)?; }
+    if let Some(total) = arithmetic.get("sourceDeclaredTotal") {
+        ensure_schema_object(total, &["rawValue", "evidence"], &["unit", "basis"], "source declared total")?;
+        if total["rawValue"].as_str().map_or(true, str::is_empty)
+            || ["unit", "basis"].iter().any(|field| total.get(*field).is_some_and(|value| value.as_str().map_or(true, str::is_empty)))
+        { return Err("declared source total is invalid".to_string()); }
+        validate_reference_evidence(&total["evidence"], false, "declared total evidence")?;
+    }
+    if let Some(total) = arithmetic.get("calculatedTotal") {
+        ensure_schema_object(total, &["kind", "lowerBound", "upperBound", "unit"], &[], "calculated total")?;
+        let lower = total["lowerBound"].as_str().and_then(|value| value.parse::<f64>().ok());
+        let upper = total["upperBound"].as_str().and_then(|value| value.parse::<f64>().ok());
+        if !["exact", "range"].contains(&total["kind"].as_str().unwrap_or_default()) || total["unit"] != "% w/w"
+            || lower.map_or(true, |value| !value.is_finite() || value < 0.0)
+            || upper.map_or(true, |value| !value.is_finite() || value < lower.unwrap_or(0.0))
+            || (total["kind"] == "exact") != (total["lowerBound"] == total["upperBound"])
+        { return Err("calculated total is invalid".to_string()); }
+    }
+
+    for matches in record["productMatches"].as_array().unwrap() {
+        ensure_schema_object(matches, &["ingredientLineId", "sourceSupplierId", "resolution", "candidates", "autoLinked", "reviewRequired"], &[], "product match")?;
+        if !["external_id_crosswalk_candidate", "exact_match_candidate", "alias_match_candidate", "fuzzy_proposal", "ambiguous", "unmatched"].contains(&matches["resolution"].as_str().unwrap_or_default())
+            || matches["candidates"].as_array().is_none() || matches["autoLinked"] != false || matches["reviewRequired"] != true
+            || matches["ingredientLineId"].as_str().map_or(true, str::is_empty)
+            || matches["sourceSupplierId"] != record["source"]["supplierId"]
+            || !record["ingredientLines"].as_array().unwrap().iter().any(|line| line["id"] == matches["ingredientLineId"])
+        { return Err("product match does not match the versioned schema or source lines".to_string()); }
+        for candidate in matches["candidates"].as_array().unwrap() {
+            ensure_schema_object(candidate, &["commercialProductId", "tier", "matchedOn", "matchedValues", "sourceDocumentCodes"], &["externalIdCrosswalkCode", "similarity"], "commercial-product match candidate")?;
+            if !["external_id_crosswalk", "exact", "controlled_alias", "fuzzy_proposal"].contains(&candidate["tier"].as_str().unwrap_or_default())
+                || candidate["matchedOn"].as_array().is_none() || candidate["matchedValues"].as_array().is_none() || candidate["sourceDocumentCodes"].as_array().is_none()
+                || (candidate["tier"] == "external_id_crosswalk") != candidate.get("externalIdCrosswalkCode").is_some()
+                || candidate["commercialProductId"].as_str().map_or(true, str::is_empty)
+                || candidate.get("externalIdCrosswalkCode").is_some_and(|value| value.as_str().map_or(true, str::is_empty))
+                || candidate.get("similarity").is_some_and(|value| value.as_f64().map_or(true, |score| !(0.0..=1.0).contains(&score)))
+            { return Err("commercial-product match candidate is invalid".to_string()); }
+            validate_string_array(&candidate["matchedOn"], "product match fields", 0)?;
+            validate_string_array(&candidate["matchedValues"], "product match values", 0)?;
+            validate_string_array(&candidate["sourceDocumentCodes"], "product match source documents", 0)?;
+            if candidate["matchedOn"].as_array().unwrap().iter().any(|item| !["product_code", "trade_name", "alias"].contains(&item.as_str().unwrap_or_default())) {
+                return Err("product match contains an unsupported matching field".to_string());
+            }
+        }
+    }
+    for entry in record["unresolvedEntries"].as_array().unwrap() {
+        ensure_schema_object(entry, &["id", "sourceId", "sourceDocumentHash", "sourceSupplierId", "ingredientLine", "status", "reasons", "candidateCommercialProductIds", "supportingSdsDocumentCodes", "requestedDocumentKinds", "nextActions", "reviewRequired"], &[], "unresolved entry")?;
+        if !["ready_for_acquisition", "ready_for_review"].contains(&entry["status"].as_str().unwrap_or_default())
+            || entry["reasons"].as_array().map_or(true, |items| items.is_empty()) || entry["candidateCommercialProductIds"].as_array().is_none()
+            || entry["supportingSdsDocumentCodes"].as_array().is_none() || entry["requestedDocumentKinds"].as_array().map_or(true, |items| items.is_empty())
+            || entry["nextActions"].as_array().map_or(true, |items| items.is_empty()) || entry["reviewRequired"] != true
+        { return Err("unresolved entry does not match the versioned schema".to_string()); }
+        if entry["id"].as_str().map_or(true, str::is_empty) || entry["sourceId"] != record["source"]["id"]
+            || entry["sourceSupplierId"] != record["source"]["supplierId"]
+            || !entry["sourceDocumentHash"].as_str().unwrap_or_default().eq_ignore_ascii_case(record["sourceDocumentHash"].as_str().unwrap_or_default())
+            || !record["ingredientLines"].as_array().unwrap().iter().any(|line| line == &entry["ingredientLine"])
+            || entry["reasons"].as_array().unwrap().iter().any(|item| !["product_identity_unmatched", "product_identity_ambiguous", "fuzzy_match_requires_review", "product_match_requires_human_review", "supporting_sds_missing"].contains(&item.as_str().unwrap_or_default()))
+            || entry["requestedDocumentKinds"].as_array().unwrap().iter().any(|item| !["SDS", "TDS"].contains(&item.as_str().unwrap_or_default()))
+            || entry["nextActions"].as_array().unwrap().iter().any(|item| !["identify_supplier_product", "review_product_candidates", "acquire_supplier_documents"].contains(&item.as_str().unwrap_or_default()))
+        { return Err("unresolved entry is not a valid source-line review record".to_string()); }
+        validate_string_array(&entry["reasons"], "unresolved reasons", 1)?;
+        validate_string_array(&entry["candidateCommercialProductIds"], "unresolved product candidates", 0)?;
+        validate_string_array(&entry["supportingSdsDocumentCodes"], "unresolved SDS references", 0)?;
+        validate_string_array(&entry["requestedDocumentKinds"], "requested document kinds", 1)?;
+        validate_string_array(&entry["nextActions"], "unresolved next actions", 1)?;
+        validate_source_hashes(&entry["ingredientLine"], record["sourceDocumentHash"].as_str().unwrap_or_default())?;
+    }
+    let line_ids = record["ingredientLines"].as_array().unwrap().iter().filter_map(|line| line["id"].as_str()).collect::<Vec<_>>();
+    let matched_ids = record["productMatches"].as_array().unwrap().iter().filter_map(|row| row["ingredientLineId"].as_str()).collect::<Vec<_>>();
+    let unresolved_ids = record["unresolvedEntries"].as_array().unwrap().iter().filter_map(|row| row["ingredientLine"]["id"].as_str()).collect::<Vec<_>>();
+    let unique_lines = line_ids.iter().collect::<std::collections::HashSet<_>>();
+    if unique_lines.len() != line_ids.len() || matched_ids.len() != line_ids.len() || unresolved_ids.len() != line_ids.len()
+        || line_ids.iter().any(|id| matched_ids.iter().filter(|candidate| *candidate == id).count() != 1 || unresolved_ids.iter().filter(|candidate| *candidate == id).count() != 1)
+        || record["arithmetic"]["lineCount"].as_u64() != Some(line_ids.len() as u64)
+    { return Err("reference-formulation lines, product matches, unresolved entries and arithmetic counts must agree".to_string()); }
+
+    let source = &record["source"];
+    let rights = &source["rights"];
+    ensure_schema_object(rights, &["status"], &["redistribution", "rightsHolder", "licenseName", "licenseUrl", "permissionReference", "evidenceRefs", "usePermissions", "retentionPolicy"], "source rights")?;
+    if !["unknown", "publicly_available", "licensed", "permission_granted", "owner_provided", "restricted"].contains(&rights["status"].as_str().unwrap_or_default())
+        || rights.get("redistribution").is_some_and(|v| !["unknown", "allowed", "prohibited"].contains(&v.as_str().unwrap_or_default()))
+    { return Err("source rights do not match the versioned schema".to_string()); }
+    if rights.get("evidenceRefs").is_some() { validate_string_array(&rights["evidenceRefs"], "source-rights evidence references", 0)?; }
+    if (rights["status"] != "unknown" || rights.get("redistribution").is_some_and(|v| v != "unknown"))
+        && rights.get("evidenceRefs").and_then(serde_json::Value::as_array).map_or(true, |items| items.is_empty())
+    { return Err("asserted source rights require evidence references".to_string()); }
+    if rights["status"] == "licensed" && rights.get("licenseName").is_none() && rights.get("licenseUrl").is_none() {
+        return Err("licensed source rights require license metadata".to_string());
+    }
+    if rights["status"] == "permission_granted" && rights.get("permissionReference").is_none() {
+        return Err("granted source rights require a permission reference".to_string());
+    }
+    if let Some(permissions) = rights.get("usePermissions") {
+        ensure_object_keys(permissions, &["internalResearch", "sameSupplierPrior", "crossSupplierPrior", "sourceExport", "derivedExport"], "source-use permissions")?;
+        for (_, decision) in permissions.as_object().unwrap() {
+            ensure_schema_object(decision, &["status"], &["evidenceRefs"], "source-use permission")?;
+            if !["unknown", "allowed", "prohibited"].contains(&decision["status"].as_str().unwrap_or_default()) { return Err("source-use permission status is invalid".to_string()); }
+            if decision.get("evidenceRefs").is_some() { validate_string_array(&decision["evidenceRefs"], "source-use evidence references", 0)?; }
+            if decision["status"] != "unknown" && decision.get("evidenceRefs").and_then(serde_json::Value::as_array).map_or(true, |items| items.is_empty()) {
+                return Err("asserted source-use permission requires evidence references".to_string());
+            }
+        }
+    }
+    if let Some(retention) = rights.get("retentionPolicy") {
+        ensure_schema_object(retention, &["status"], &["expiresAt", "evidenceRefs"], "source retention policy")?;
+        if !["unknown", "retain_until_revoked", "retain_until_date", "delete_after_use"].contains(&retention["status"].as_str().unwrap_or_default())
+            || (retention["status"] == "retain_until_date") != retention.get("expiresAt").is_some()
+        { return Err("source retention policy is invalid".to_string()); }
+        if retention.get("evidenceRefs").is_some() { validate_string_array(&retention["evidenceRefs"], "retention evidence references", 0)?; }
+        if retention["status"] != "unknown" && retention.get("evidenceRefs").and_then(serde_json::Value::as_array).map_or(true, |items| items.is_empty()) {
+            return Err("asserted source retention requires evidence references".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn validate_reference_formulation_source_record(record: &serde_json::Value, acquisition: &serde_json::Value) -> Result<(), String> {
+    validate_reference_formulation_record_schema(record)?;
+    ensure_object_keys(record, &[
+        "schemaVersion", "recordKind", "id", "code", "source", "sourceDocumentHash", "parserVersions", "identityCandidates",
+        "identityMetadataComparisons", "identityWarnings", "ingredientLines", "arithmetic", "procedureSteps", "procedureWarnings",
+        "targetCandidates", "targetWarnings", "productMatches", "productMatchWarnings", "unresolvedEntries", "reviewStatus", "createdAt",
+    ], "reference formulation")?;
+    let source = &record["source"];
+    ensure_object_keys(source, &[
+        "schemaVersion", "id", "supplierId", "providerId", "surfaceId", "sourceProduct", "acquisitionCode", "sourcePdfSha256",
+        "acquisitionMethod", "sourceUrl", "sourceFileSelection", "originalFilename", "sourceByteSize", "acquiredAt", "publicationDate",
+        "revisionDate", "sourceRevision", "formulationCode", "title", "market", "language", "parserVersion", "rights", "supersedesSourceId", "createdAt",
+    ], "reference formulation source")?;
+    for field in ["id", "code", "createdAt"] { required_nonempty_string(record, field, "reference formulation")?; }
+    for field in ["id", "acquisitionCode", "supplierId", "providerId", "surfaceId", "sourcePdfSha256", "acquisitionMethod", "originalFilename", "acquiredAt", "title", "market", "language", "parserVersion", "createdAt"] {
+        required_nonempty_string(source, field, "reference formulation source")?;
+    }
+    let hash = required_nonempty_string(record, "sourceDocumentHash", "reference formulation")?;
+    if record["schemaVersion"].as_str() != Some("1.0") || record["recordKind"].as_str() != Some("supplier_reference_formula")
+        || record["reviewStatus"].as_str() != Some("unreviewed") || !is_sha256_hex(&hash)
+        || acquisition["documentType"].as_str() != Some("FORMULATION")
+        || source["schemaVersion"].as_str() != Some("1.0")
+        || !source["sourcePdfSha256"].as_str().unwrap_or_default().eq_ignore_ascii_case(&hash)
+        || !acquisition["sha256"].as_str().unwrap_or_default().eq_ignore_ascii_case(&hash)
+        || source["acquisitionCode"] != acquisition["code"]
+        || source["supplierId"] != acquisition["supplierId"] || source["providerId"] != acquisition["providerId"]
+        || source["surfaceId"] != acquisition["surfaceId"] || source["sourceProduct"] != acquisition["sourceProduct"]
+        || source["acquisitionMethod"] != acquisition["acquisitionMethod"] || source["originalFilename"] != acquisition["originalFilename"]
+        || source["sourceByteSize"] != acquisition["byteSize"] || source["market"] != acquisition["market"]
+        || source["language"] != acquisition["language"] || source["acquiredAt"] != acquisition["acquiredAt"]
+        || source.get("sourceUrl") != acquisition.get("sourceUrl")
+        || source.get("sourceFileSelection") != acquisition.get("sourceFileSelection")
+        || record["arithmetic"]["sourceId"] != source["id"] || record["arithmetic"]["acquisitionCode"] != acquisition["code"]
+        || !record["arithmetic"]["sourceDocumentHash"].as_str().unwrap_or_default().eq_ignore_ascii_case(&hash)
+    {
+        return Err("reference formulation source must match a verified FORMULATION acquisition".to_string());
+    }
+    validate_source_hashes(record, &hash)
+}
+
 fn validate_normalization_candidates(value: &serde_json::Value, label: &str) -> Result<Vec<String>, String> {
     ensure_object_keys(value, &["status", "candidateIds"], &format!("{label} candidates"))?;
     let ids = value["candidateIds"].as_array()
@@ -1936,8 +2402,8 @@ fn stamp_reference_formulation_review(
 }
 
 fn ensure_generic_collection_write_allowed(name: &str) -> Result<(), String> {
-    if matches!(name, "reference_formulation_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence" | "identity_field_reviews") {
-        return Err("immutable evidence and normalization records must use their dedicated append command".to_string());
+    if matches!(name, "supplier_document_acquisitions" | "reference_formulations" | "reference_formulation_reviews" | "reference_formulation_normalizations" | "supplier_sds_product_evidence" | "identity_field_reviews") {
+        return Err("immutable supplier evidence must use its dedicated validated append command".to_string());
     }
     Ok(())
 }
@@ -2133,6 +2599,29 @@ fn apply_upsert(
     }
 
     Ok((rows, inserted, updated))
+}
+
+/// Permit only byte-for-byte-equivalent retries for the immutable supplier
+/// evidence endpoints; callers cannot rewrite an existing source identity.
+fn new_immutable_records(
+    existing: &[serde_json::Value],
+    records: Vec<serde_json::Value>,
+    collection: &str,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut pending = Vec::with_capacity(records.len());
+    for record in records {
+        let key = row_key(&record).ok_or_else(|| format!("a {collection} record has no `code` or `id`"))?;
+        if let Some(prior) = existing.iter().find(|row| row_key(row).as_deref() == Some(key.as_str())) {
+            if prior != &record {
+                return Err(format!("{collection} record {key} already exists and cannot be rewritten"));
+            }
+        } else if pending.iter().any(|row: &serde_json::Value| row_key(row).as_deref() == Some(key.as_str())) {
+            return Err(format!("{collection} request contains a duplicate source identity"));
+        } else {
+            pending.push(record);
+        }
+    }
+    Ok(pending)
 }
 
 /// Remove a row by code. Refused on append-only collections.
@@ -2659,6 +3148,49 @@ mod tests {
     }
 
     #[test]
+    fn immutable_supplier_endpoints_require_verified_source_lineage_and_reject_conflicting_retries() {
+        let hash = "a".repeat(64);
+        let acquisition = serde_json::json!({
+            "schemaVersion":"1.0", "code":"supplierdoc-one", "supplierId":"supplier-one", "providerId":"provider-one",
+            "surfaceId":"surface-one", "documentType":"FORMULATION", "acquisitionMethod":"manual_assisted",
+            "sourceFileSelection":{"selectionId":"selection-one","originalFilename":"formula.pdf","sourceFileSha256":hash,"selectedAt":"2026-10-27T10:00:00Z","selectedBy":"owner"},
+            "sourceProduct":{}, "market":"US", "language":"en", "originalFilename":"formula.pdf",
+            "mimeType":"application/pdf", "sha256":hash, "byteSize":128, "parserStatus":"not_started",
+            "acquiredAt":"2026-10-27T10:00:00Z", "createdAt":"2026-10-27T10:00:00Z"
+        });
+        validate_supplier_document_acquisition_record(&acquisition).unwrap();
+        let mut invalid_acquisition = acquisition.clone();
+        invalid_acquisition["sha256"] = serde_json::json!("not-a-hash");
+        assert!(validate_supplier_document_acquisition_record(&invalid_acquisition).is_err());
+
+        let source = serde_json::json!({
+            "schemaVersion":"1.0", "id":"source-one", "supplierId":"supplier-one", "providerId":"provider-one",
+            "surfaceId":"surface-one", "sourceProduct":{}, "acquisitionCode":"supplierdoc-one", "sourcePdfSha256":hash,
+            "acquisitionMethod":"manual_assisted", "sourceFileSelection":acquisition["sourceFileSelection"],
+            "originalFilename":"formula.pdf", "sourceByteSize":128, "acquiredAt":"2026-10-27T10:00:00Z",
+            "title":"Synthetic fixture", "market":"US", "language":"en", "parserVersion":"fixture-v1",
+            "rights":{}, "createdAt":"2026-10-27T10:00:00Z"
+        });
+        let record = serde_json::json!({
+            "schemaVersion":"1.0", "recordKind":"supplier_reference_formula", "id":"record-one", "code":"record-one",
+            "source":source, "sourceDocumentHash":hash, "arithmetic":{"sourceId":"source-one","acquisitionCode":"supplierdoc-one","sourceDocumentHash":hash},
+            "reviewStatus":"unreviewed", "createdAt":"2026-10-27T10:00:00Z"
+        });
+        // A well-linked PDF is not sufficient: native persistence rejects a
+        // source that omits required schema sections or rights fields.
+        assert!(validate_reference_formulation_source_record(&record, &acquisition).is_err());
+        let mut unrelated_source = record.clone();
+        unrelated_source["source"]["supplierId"] = serde_json::json!("other-supplier");
+        assert!(validate_reference_formulation_source_record(&unrelated_source, &acquisition).is_err());
+
+        let rows = vec![acquisition.clone()];
+        assert!(new_immutable_records(&rows, vec![acquisition.clone()], "supplier_document_acquisitions").unwrap().is_empty());
+        let mut conflicting = acquisition;
+        conflicting["providerId"] = serde_json::json!("provider-tampered");
+        assert!(new_immutable_records(&rows, vec![conflicting], "supplier_document_acquisitions").is_err());
+    }
+
+    #[test]
     fn reference_formulations_are_allow_listed_and_append_only() {
         assert_eq!(
             collection_spec("reference_formulations"),
@@ -2705,7 +3237,8 @@ mod tests {
         assert!(apply_upsert(rows, vec![review], true, "reference_formulation_reviews").is_err());
         assert_eq!(collection_spec("reference_formulation_normalizations"), Ok(("reference_formulation_normalizations", true)));
         assert!(ensure_generic_collection_write_allowed("reference_formulation_normalizations").is_err());
-        assert!(ensure_generic_collection_write_allowed("reference_formulations").is_ok());
+        assert!(ensure_generic_collection_write_allowed("reference_formulations").is_err());
+        assert!(ensure_generic_collection_write_allowed("supplier_document_acquisitions").is_err());
         assert_eq!(collection_spec("supplier_sds_product_evidence"), Ok(("supplier_sds_product_evidence", true)));
         assert!(ensure_generic_collection_write_allowed("supplier_sds_product_evidence").is_err());
     }
@@ -2907,7 +3440,7 @@ mod tests {
         forged["evidenceExcerpt"] = serde_json::json!("invented evidence");
         assert!(validate_review_evidence(&forged, &source).unwrap_err().contains("immutable source evidence"));
         assert!(ensure_generic_collection_write_allowed("reference_formulation_reviews").is_err());
-        assert!(ensure_generic_collection_write_allowed("reference_formulations").is_ok());
+        assert!(ensure_generic_collection_write_allowed("reference_formulations").is_err());
     }
 
     #[test]
