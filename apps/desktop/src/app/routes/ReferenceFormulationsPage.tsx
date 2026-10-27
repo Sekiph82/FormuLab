@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, ClipboardCheck, Edit3, Eye, RotateCcw, X } from "lucide-react";
-import type { ReferenceFormulationRecord, ReferenceFormulationReview } from "@formulab/shared";
+import type { ReferenceFormulationQueryRecord, ReferenceFormulationRecord, ReferenceFormulationReview } from "@formulab/shared";
 import { useTrustedActor } from "@/lib/currentActor";
 import { appendReferenceFormulationReview, listReferenceFormulationReviews } from "@/lib/referenceFormulationReviews";
 import { listReferenceFormulations } from "@/lib/referenceFormulations";
+import { rebuildReferenceFormulationCorpusIndex } from "@/lib/referenceFormulationNormalizations";
 import { buildReferenceFormulationReviewItems, type ReferenceFormulationReviewItem } from "@/lib/referenceFormulationReviewItems";
 import { getReferenceFormulationCorpusReviewData, type ReferenceFormulationCorpusReviewData } from "@/lib/referenceFormulationCorpusReview";
 import { readSupplierDocumentPdf } from "@/lib/masterdata";
@@ -22,6 +23,9 @@ type Decision = typeof DECISIONS[number]["value"];
 export function ReferenceFormulationsPage() {
   const { recordId } = useParams();
   const [records, setRecords] = useState<ReferenceFormulationRecord[]>([]);
+  const [queryRecords, setQueryRecords] = useState<ReferenceFormulationQueryRecord[]>([]);
+  const [searchText, setSearchText] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
   const [reviews, setReviews] = useState<ReferenceFormulationReview[]>([]);
   const [traceData, setTraceData] = useState<ReferenceFormulationCorpusReviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +40,7 @@ export function ReferenceFormulationsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    if (!recordId) setQueryRecords([]);
     try {
       const available = await listReferenceFormulations();
       setRecords(available.sort((left, right) => left.source.title.localeCompare(right.source.title)));
@@ -46,6 +51,8 @@ export function ReferenceFormulationsPage() {
         setReviews(reviewHistory);
         setTraceData(trace);
       } else {
+        const corpus = await rebuildReferenceFormulationCorpusIndex();
+        setQueryRecords(corpus.queryRecords);
         setReviews([]);
         setTraceData(null);
       }
@@ -59,6 +66,31 @@ export function ReferenceFormulationsPage() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const selected = records.find((record) => record.id === recordId) ?? null;
+  const queryBySourceId = useMemo(() => {
+    const recordById = new Map(records.map((record) => [record.id, record]));
+    return new Map(queryRecords.filter((query) => recordById.get(query.sourceRecordId)?.sourceDocumentHash.toLowerCase() === query.sourceDocumentHash.toLowerCase())
+      .map((query) => [query.sourceRecordId, query]));
+  }, [queryRecords, records]);
+  const suppliers = useMemo(() => [...new Set(records.map((record) => record.source.supplierId))].sort((left, right) => left.localeCompare(right)), [records]);
+  const filteredRecords = useMemo(() => {
+    const needle = searchText.normalize("NFKC").trim().toLocaleLowerCase("en-US");
+    return records.filter((record) => {
+      const query = queryBySourceId.get(record.id);
+      if (supplierFilter && record.source.supplierId !== supplierFilter) return false;
+      if (!needle) return true;
+      const sourceText = [record.source.title, record.source.supplierId, record.source.formulationCode,
+        record.source.originalFilename, record.source.acquisitionCode, record.source.sourceRevision,
+        record.source.revisionDate, record.source.publicationDate, record.source.market, record.source.language,
+        record.sourceDocumentHash, ...record.ingredientLines.flatMap((line) => [line.ingredientName?.rawValue,
+          line.supplierProductCode?.rawValue, line.inciOrChemicalName?.rawValue, line.function?.rawValue,
+          line.amount?.rawValue, line.unit?.rawValue, line.basis?.rawValue]),
+        ...record.procedureSteps.map((step) => step.rawInstruction),
+        ...record.targetCandidates.flatMap((target) => [target.rawPropertyLabel, target.rawValue])]
+        .filter(Boolean).join(" ");
+      const normalized = `${sourceText} ${query ? collectSearchStrings(query).join(" ") : ""}`.normalize("NFKC").toLocaleLowerCase("en-US");
+      return normalized.includes(needle);
+    });
+  }, [records, queryBySourceId, searchText, supplierFilter]);
   const items = useMemo(() => selected ? buildReferenceFormulationReviewItems(selected) : [], [selected]);
   useEffect(() => {
     pdfReadToken.current += 1;
@@ -122,7 +154,7 @@ export function ReferenceFormulationsPage() {
   };
 
   if (loading) return <div className="p-8 text-sm text-muted">Loading reference formulations…</div>;
-  if (error && !records.length) return <div role="alert" className="p-8 text-sm text-error">{error}</div>;
+  if (error && !records.length && recordId) return <div role="alert" className="p-8 text-sm text-error">{error}</div>;
   if (recordId && !selected) return <div role="alert" className="p-8 text-sm text-error">Reference formulation not found.</div>;
 
   if (!selected) {
@@ -130,21 +162,30 @@ export function ReferenceFormulationsPage() {
       <main className="mx-auto w-full max-w-6xl p-6">
         <header className="mb-6">
           <h1 className="text-xl font-semibold text-text">Reference formulation review</h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted">Review supplier-extracted identity, ingredient lines, process steps, and targets. Decisions are stored separately from immutable source snapshots and never update RawMaterial or production formulas.</p>
+          <p className="mt-2 max-w-3xl text-sm text-muted">Search the reference corpus across supplier, product family, commercial-product and canonical-chemistry candidates, function, dosage, process, and targets. Results are supplier-source evidence, not measured validation; candidate normalizations remain review-required.</p>
         </header>
+        {error && <div role="alert" className="mb-4 rounded-lg border border-error/30 bg-error/5 p-4 text-sm text-error"><p>{error}</p><button type="button" onClick={() => void refresh()} className="mt-2 underline">Retry corpus load</button></div>}
+        <div className="mb-4 grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-[minmax(0,1fr)_16rem]">
+          <label className="block text-sm font-medium text-text">Search corpus fields
+            <input type="search" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Supplier, product, chemical, function, 4%, process, pH…" className="mt-1 w-full rounded border border-border bg-surface-2 px-3 py-2 text-sm text-text" />
+            <span className="mt-1 block text-xs text-muted">Searches source metadata and indexed, review-required formulation candidates, including amount, process, and target evidence.</span>
+          </label>
+          <label className="block text-sm font-medium text-text">Supplier
+            <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="mt-1 w-full rounded border border-border bg-surface-2 px-3 py-2 text-sm text-text">
+              <option key="all-suppliers" value="">All suppliers</option>
+              {suppliers.map((supplier) => <option key={supplier} value={supplier}>{supplier}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p role="status" className="text-xs text-muted">Showing {filteredRecords.length} of {records.length} source records</p>
+          <button type="button" onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-2"><RotateCcw size={13} />Refresh corpus</button>
+        </div>
         {records.length === 0 ? (
           <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">No extracted reference formulations are available yet.</div>
-        ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
-            {records.map((record) => <li key={record.id}>
-              <Link to={`/reference-formulations/${encodeURIComponent(record.id)}`} className="block rounded-lg border border-border bg-surface p-4 hover:border-accent">
-                <span className="font-medium text-text">{record.source.title}</span>
-                <span className="mt-1 block text-xs text-muted">{record.source.supplierId} · {record.source.formulationCode ?? record.code}</span>
-                <span className="mt-2 block text-xs text-muted">{record.ingredientLines.length} ingredient lines · {record.procedureSteps.length} process steps · {record.targetCandidates.length} targets</span>
-              </Link>
-            </li>)}
-          </ul>
-        )}
+        ) : filteredRecords.length === 0 ? (
+          <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">No source records match these filters. Search uses source and candidate text; it does not imply a validated product or chemical identity.</div>
+        ) : <ul className="grid gap-3 md:grid-cols-2">{filteredRecords.map((record) => <ReferenceFormulationCorpusCard key={record.id} record={record} query={queryBySourceId.get(record.id)} />)}</ul>}
       </main>
     );
   }
@@ -189,6 +230,56 @@ export function ReferenceFormulationsPage() {
       {traceData && <ReferenceFormulationNormalizationTrace data={traceData} />}
     </main>
   );
+}
+
+function collectSearchStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (typeof value === "number") return [String(value)];
+  if (Array.isArray(value)) return value.flatMap(collectSearchStrings);
+  if (value && typeof value === "object") return Object.values(value).flatMap(collectSearchStrings);
+  return [];
+}
+
+function ReferenceFormulationCorpusCard({ record, query }: { record: ReferenceFormulationRecord; query?: ReferenceFormulationQueryRecord }) {
+  const unique = (values: Array<string | undefined>) => [...new Set(values.filter((value): value is string => Boolean(value)))];
+  const families = query?.productFamily.candidates.map((candidate) => candidate.rawValue) ?? [];
+  const products = unique(query?.lines.flatMap((line) => line.commercialProducts.candidateIds) ?? []);
+  const chemistry = unique(query?.lines.flatMap((line) => line.canonicalChemistry.candidateIds) ?? []);
+  const functions = unique(query?.lines.flatMap((line) => [line.supplierFunction.originalValue, ...line.canonicalFunctions.candidateIds]) ?? []);
+  const amounts = unique(query?.lines.map((line) => [line.amount.originalValue, line.amount.unit, line.amount.basis].filter(Boolean).join(" ")) ?? []);
+  const process = unique(query?.processSteps.map((step) => step.originalInstruction) ?? []);
+  const targets = unique(query?.targets.map((target) => [target.property, target.originalValue, target.resultSemantics].filter(Boolean).join(" ")) ?? []);
+  const revisions = unique([record.source.sourceRevision, record.source.revisionDate, record.source.publicationDate]);
+  const evidenceRefs = unique(query?.lines.flatMap((line) => [...line.sourceLineEvidenceRefs, ...line.amount.evidenceRefs]) ?? []);
+  return (
+    <li>
+      <Link to={`/reference-formulations/${encodeURIComponent(record.id)}`} className="block h-full rounded-lg border border-border bg-surface p-4 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+        <span className="font-medium text-text">{record.source.title}</span>
+        <span className="mt-1 block text-xs text-muted">{record.source.supplierId} · {record.source.formulationCode ?? record.code} · {record.source.sourceProduct.tradeName ?? "Product not stated"}{record.source.sourceProduct.grade ? ` (${record.source.sourceProduct.grade})` : ""}</span>
+        <span className="mt-2 block text-xs text-muted">{record.ingredientLines.length} ingredient lines · {record.procedureSteps.length} process steps · {record.targetCandidates.length} targets · {query ? `normalization v${query.normalizationVersion}` : "candidate index unavailable"}</span>
+        <div className="mt-3 space-y-1.5 text-xs">
+          <CorpusField label="Product family candidates" values={families} />
+          <CorpusField label="Commercial product candidates" values={products} />
+          <CorpusField label="Canonical chemistry candidates" values={chemistry} />
+          <CorpusField label="Functions" values={functions} />
+          <CorpusField label="Source dosages" values={amounts} />
+          <CorpusField label="Process evidence" values={process} />
+          <CorpusField label="Target evidence" values={targets} />
+        </div>
+        <div className="mt-3 border-t border-border pt-2 text-[10px] text-muted">
+          <p>Source: {record.source.providerId} / {record.source.surfaceId} · {record.source.market} · {record.source.language} · revision {revisions.join(" / ") || "not stated"}</p>
+          <p>Acquisition: {record.source.acquisitionCode} · {record.source.originalFilename}</p>
+          <p className="mt-1 break-all font-mono">SHA-256 {record.sourceDocumentHash}</p>
+          <p className="mt-1 break-all">Source evidence refs: {evidenceRefs.slice(0, 3).join(", ") || "open record for cited extraction details"}</p>
+          <p className="mt-2 font-medium">Source evidence only · normalization candidates require review · not measured validation</p>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
+function CorpusField({ label, values }: { label: string; values: string[] }) {
+  return <p className="break-words"><span className="font-medium text-text">{label}:</span> <span className="text-muted">{values.join("; ") || "not stated or unresolved"}</span></p>;
 }
 
 function ReferenceFormulationNormalizationTrace({ data }: { data: ReferenceFormulationCorpusReviewData }) {

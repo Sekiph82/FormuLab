@@ -5,10 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReferenceFormulationRecord } from "@formulab/shared";
 import { ReferenceFormulationsPage } from "./ReferenceFormulationsPage";
 
-const bridge = { list: vi.fn(), listReviews: vi.fn(), appendReview: vi.fn(), trace: vi.fn(), readPdf: vi.fn() };
+const bridge = { list: vi.fn(), listReviews: vi.fn(), appendReview: vi.fn(), trace: vi.fn(), readPdf: vi.fn(), index: vi.fn() };
 const actor = { role: "formulator", userId: "reviewer-1", displayName: "Review Chemist" };
 let activeActor: typeof actor | null = actor;
 vi.mock("@/lib/referenceFormulations", () => ({ listReferenceFormulations: () => bridge.list() }));
+vi.mock("@/lib/referenceFormulationNormalizations", () => ({ rebuildReferenceFormulationCorpusIndex: () => bridge.index() }));
 vi.mock("@/lib/referenceFormulationReviews", () => ({
   listReferenceFormulationReviews: (...args: [string]) => bridge.listReviews(...args),
   appendReferenceFormulationReview: (...args: [unknown]) => bridge.appendReview(...args),
@@ -24,7 +25,7 @@ const record = {
   id: "reference-formula-1",
   code: "croda-formula-1",
   sourceDocumentHash: "a".repeat(64),
-  source: { title: "Synthetic Review Formula", supplierId: "supplier-test", formulationCode: "TEST-1" },
+  source: { title: "Synthetic Review Formula", supplierId: "supplier-test", formulationCode: "TEST-1", sourceProduct: {} },
   identityCandidates: [{
     field: "formulation_title", rawValue: "Synthetic Review Formula", extractionMethod: "labeled_field",
     evidence: [{ sourceDocumentHash: "a".repeat(64), pageNumber: 1, blockIndex: 1, excerpt: "Title: Synthetic Review Formula", source: "digital" }],
@@ -38,6 +39,7 @@ describe("reference formulation evidence review page", () => {
     vi.clearAllMocks();
     activeActor = actor;
     bridge.list.mockResolvedValue([record]);
+    bridge.index.mockResolvedValue({ queryRecords: [], index: {} });
     bridge.listReviews.mockResolvedValue([]);
     bridge.trace.mockResolvedValue({ source: record, versions: [] });
     bridge.readPdf.mockResolvedValue(new Uint8Array([1, 2, 3]));
@@ -51,6 +53,89 @@ describe("reference formulation evidence review page", () => {
       <Routes><Route path="/reference-formulations/:recordId" element={<ReferenceFormulationsPage />} /></Routes>
     </MemoryRouter>);
   }
+
+  function renderListPage() {
+    return render(<MemoryRouter initialEntries={["/reference-formulations"]}>
+      <Routes><Route path="/reference-formulations" element={<ReferenceFormulationsPage />} /></Routes>
+    </MemoryRouter>);
+  }
+
+  it("searches indexed identity, function, dosage, process, and target candidates and opens the source lineage", async () => {
+    const corpusRecord = {
+      ...record,
+      source: {
+        ...record.source, title: "Dishwash Reference", supplierId: "croda", providerId: "croda-provider", surfaceId: "croda-library",
+        sourceProduct: { tradeName: "Trade Blend", grade: "Grade A" }, acquisitionCode: "acq-1", originalFilename: "formula.pdf",
+        sourceRevision: "Rev 2", revisionDate: "2026-01-05", publicationDate: "2026-01-01", market: "EU", language: "en",
+      },
+      ingredientLines: [{ id: "line-1", orderIndex: 1, rawRow: ["Trade Blend"], ingredientName: { rawValue: "Trade Blend" } }],
+      procedureSteps: [{ id: "step-1", sequenceOrder: 1, rawInstruction: "Mix until clear" }],
+      targetCandidates: [{ id: "target-1", field: "ph", rawPropertyLabel: "pH", rawValue: "5.0-5.5" }],
+    } as unknown as ReferenceFormulationRecord;
+    bridge.list.mockResolvedValue([corpusRecord]);
+    bridge.index.mockResolvedValue({ queryRecords: [{
+      id: "query-1", sourceRecordId: corpusRecord.id, normalizationId: "norm-1", normalizationVersion: 1,
+      supplierId: "croda", sourceDocumentHash: "a".repeat(64),
+      supplierProduct: { tradeName: "Trade Blend", grade: "Grade A" },
+      productFamily: { candidates: [{ rawValue: "Dishwashing", evidenceRefs: ["identity:family"] }] },
+      lines: [{
+        sourceLineEvidenceRefs: ["formula:line"],
+        commercialProducts: { candidateIds: ["commercial-croda-1"] },
+        canonicalChemistry: { candidateIds: ["chemistry-candidate-1"] },
+        supplierFunction: { originalValue: "surfactant" }, canonicalFunctions: { candidateIds: ["anionic_surfactant"] },
+        amount: { originalValue: "4.0", unit: "%", basis: "w/w", evidenceRefs: ["formula:amount"] },
+      }],
+      processSteps: [{ originalInstruction: "Mix until clear" }],
+      targets: [{ property: "ph", originalLabel: "pH", originalValue: "5.0-5.5", resultSemantics: "target" }],
+    }], index: {} });
+    const user = userEvent.setup();
+    renderListPage();
+    expect(await screen.findByText("Dishwash Reference")).toBeInTheDocument();
+    expect(screen.getByText("chemistry-candidate-1")).toBeInTheDocument();
+    expect(screen.getByText(/Acquisition: acq-1/)).toBeInTheDocument();
+    expect(screen.getByText(/SHA-256/)).toHaveTextContent("a".repeat(64));
+
+    const search = screen.getByRole("searchbox", { name: /Search corpus fields/i });
+    for (const term of ["Dishwashing", "commercial-croda-1", "chemistry-candidate-1", "surfactant", "4.0", "Mix until clear", "5.0-5.5"]) {
+      await user.clear(search);
+      await user.type(search, term);
+      expect(await screen.findByText("Dishwash Reference")).toBeInTheDocument();
+    }
+    await user.clear(search);
+    await user.selectOptions(screen.getByLabelText("Supplier"), "croda");
+    expect(screen.getByText("Showing 1 of 1 source records")).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, "no-such-source-term");
+    expect(screen.getByText(/No source records match these filters/)).toBeInTheDocument();
+  });
+
+  it("reports corpus-index load failures and provides a retry action", async () => {
+    bridge.list.mockResolvedValue([]);
+    bridge.index.mockRejectedValueOnce(new Error("corpus index unavailable"));
+    const user = userEvent.setup();
+    renderListPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent("corpus index unavailable");
+    bridge.index.mockResolvedValue({ queryRecords: [], index: {} });
+    await user.click(screen.getByRole("button", { name: "Retry corpus load" }));
+    await waitFor(() => expect(bridge.index).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("No extracted reference formulations are available yet.")).toBeInTheDocument();
+  });
+
+  it("clears old normalization candidates when a later corpus rebuild fails", async () => {
+    bridge.index.mockResolvedValueOnce({ queryRecords: [{
+      sourceRecordId: record.id, sourceDocumentHash: "a".repeat(64), supplierId: "supplier-test",
+      productFamily: { candidates: [{ rawValue: "stale-candidate" }] },
+      lines: [], processSteps: [], targets: [],
+    }], index: {} });
+    const user = userEvent.setup();
+    renderListPage();
+    expect(await screen.findByText("stale-candidate")).toBeInTheDocument();
+    bridge.index.mockRejectedValueOnce(new Error("index rebuild failed"));
+    await user.click(screen.getByRole("button", { name: "Refresh corpus" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("index rebuild failed");
+    expect(screen.queryByText("stale-candidate")).not.toBeInTheDocument();
+    expect(screen.getByText(/candidate index unavailable/)).toBeInTheDocument();
+  });
 
   it("shows cited source evidence beside the extraction and stores a named acceptance separately", async () => {
     const user = userEvent.setup();

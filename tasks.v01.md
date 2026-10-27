@@ -98,12 +98,12 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 135
-- Remaining: 21
-- Completion: 86.5%
-- Current task: V01-09.008 - Implement reference corpus browser
+- Completed: 136
+- Remaining: 20
+- Completion: 87.2%
+- Current task: V01-09.009 - Implement reference intelligence explainability UI
 - Current status: IN PROGRESS
-- Next task: V01-09.009 - Implement reference intelligence explainability UI
+- Next task: V01-09.010 - UI accessibility/localization/error-state acceptance
 - Acceptance note: V01-09.007 adds an append-only, authorized field-review path for SDS Section 1 CAS/EC identifiers and compares each accepted value with the selected RawMaterial. The generated proposal is revalidated against the persisted accepted review and current material, then routed through the existing Data Exchange preview/commit dialog; the proposal file is locked and exact review/evidence IDs and citations are preserved in the existing import job and row history. No direct RawMaterial write or auto-verification was added. Focused desktop tests (53), shared tests (9), desktop typecheck, a focused native Rust test (1), V01 task validation, `git diff --check`, and independent read-only review passed. Full regression remains for milestone closure.
 - Acceptance note: V01-09.006 extends the existing reference-formulation review workflow with a side-by-side source PDF and extracted evidence view. Ingredient source rows show supplier-stated function, amount/unit/basis, phase, quantity semantics and per-line commercial-product candidates with match tier/reason; procedure steps include source-stated conditions, and target/result candidates retain their stated semantics. Citation buttons load the exact source page through the existing hash-verified project document command, only when the record and source metadata hashes agree. PDF preview state is tagged to the source hash and pending reads are invalidated when changing records. Source viewing does not write records or trigger review decisions. Focused route tests (6), desktop typecheck, V01 task validation, `git diff --check`, and independent read-only review passed.
 - Acceptance note: V01-09.005 adds a read-only commercial-product resolver surface to existing Data Exchange workflows. It joins each SDS to its acquisition, verifies both saved Section 1/3 source hashes against the selected PDF SHA-256, classifies product type only from cited evidence, and shows supplier identity, disclosed Section 3 components, citations and explicit undisclosed remainder. A persisted canonical-chemical catalogue is not available in this repository, so canonical candidates are truthfully marked not evaluated and RawMaterial is never used as a substitute. Hash mismatch hides classification and citation links; pending PDF reads are invalidated on selection/refresh and tagged by source hash. Focused UI/race/hash tests (4), locale parity (23), existing product-type/blend/identity resolver suites (18), desktop typecheck, task validation, `git diff --check`, and independent read-only review passed.
@@ -362,8 +362,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-09.005 - Implement commercial-product resolver UI**: Show original supplier product, product type, disclosed components, canonical candidates, confidence reasons and unresolved remainder.
 - [x] **V01-09.006 - Implement formulation extraction review UI**: Show source PDF alongside extracted formula lines, functions, amounts, procedure, targets and commercial-product links.
 - [x] **V01-09.007 - Implement RawMaterial proposal UI**: Show accepted evidence versus existing master values and require explicit authorized field-level application.
-- [~] **V01-09.008 - Implement reference corpus browser**: Search supplier/product family/commercial product/canonical chemical/function/dosage/process/target and inspect source lineage.
-- [ ] **V01-09.009 - Implement reference intelligence explainability UI**: Display priors, supplier composition, nearest references, support quality and distinction from measured validation/prediction.
+- [x] **V01-09.008 - Implement reference corpus browser**: Search supplier/product family/commercial product/canonical chemical/function/dosage/process/target and inspect source lineage.
+- [~] **V01-09.009 - Implement reference intelligence explainability UI**: Display priors, supplier composition, nearest references, support quality and distinction from measured validation/prediction.
 - [ ] **V01-09.010 - UI accessibility/localization/error-state acceptance**: Verify keyboard/screen-reader behavior, non-color-only states, localization hooks, empty/partial/error/retry states and no misleading completeness claims.
 
 ## Milestone V01-10 - Scientific integrity, security, and end-to-end acceptance
