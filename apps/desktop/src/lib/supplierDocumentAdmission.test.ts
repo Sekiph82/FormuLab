@@ -45,6 +45,23 @@ describe("supplier PDF admission and quarantine", () => {
       .resolves.toMatchObject({ status: "quarantined", reason: "page_limit_exceeded" });
   });
 
+  it("quarantines parser failures without returning exception text, URLs or secrets", async () => {
+    const privateDetails = "https://supplier.example/sds.pdf?token=TOPSECRET password=PRIVATE-CREDENTIAL";
+    const loadSpy = vi.spyOn(PDFDocument, "load").mockRejectedValueOnce(new Error(privateDetails));
+
+    const result = await admitSupplierPdf({
+      bytes: await validPdf(),
+      filename: "supplier.pdf",
+      declaredMimeType: "application/pdf",
+    });
+
+    expect(result).toEqual({ status: "quarantined", reason: "malformed_pdf" });
+    expect(JSON.stringify(result)).not.toContain("TOPSECRET");
+    expect(JSON.stringify(result)).not.toContain("PRIVATE-CREDENTIAL");
+    expect(JSON.stringify(result)).not.toContain("supplier.example");
+    loadSpy.mockRestore();
+  });
+
   it.each(["../escape.pdf", "C:\\temp\\source.pdf", "CON.pdf", "bad:name.pdf", ".hidden.pdf", "a..b.pdf"])(
     "quarantines unsafe filename %s", async (filename) => {
       await expect(admitSupplierPdf({ bytes: await validPdf(), filename, declaredMimeType: "application/pdf" }))
