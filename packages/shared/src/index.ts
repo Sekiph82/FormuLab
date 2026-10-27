@@ -704,6 +704,7 @@ export * from "./engine/referenceFormulationCooccurrence";
 export * from "./engine/referenceFormulationContributionDistributions";
 export * from "./engine/referenceFormulationProcessPatterns";
 export * from "./engine/referenceFormulationTargetDistributions";
+export * from "./engine/referenceFormulationSimilarityFeatures";
 export * from "./engine/referenceFormulationTargetExtraction";
 export * from "./engine/referenceFormulationProductMatching";
 export * from "./engine/referenceFormulationUnresolvedQueue";

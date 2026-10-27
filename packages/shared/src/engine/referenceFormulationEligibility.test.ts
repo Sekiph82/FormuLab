@@ -3,6 +3,7 @@ import {
   buildReferenceFormulationUnresolvedQueue,
   calculateReferenceFormulationContributionDistributions,
   calculateReferenceFormulationProcessPatterns,
+  createReferenceFormulationSimilarityFeatures,
   calculateReferenceFormulationTargetDistributions,
   createReferenceFormulationRecord,
   createReferenceFormulationSource,
@@ -670,5 +671,65 @@ describe("reference formulation corpus eligibility", () => {
       ...allowed([duplicate], [...acceptedReviews(duplicate), ...acceptedTargetReviews(duplicate)]),
     });
     expect(duplicateResult).toMatchObject({ excludedTargetCount: 2, excludedTargetsByReason: { duplicate_property_context: 2 }, distributions: [] });
+  });
+
+  it("builds supplier-neutral similarity features from reviewed chemistry, function, dosage, process and targets", () => {
+    const record = query({ sourceRecordId: "similarity-a", supplierId: "supplier-private-a", functionId: "nonionic_surfactant",
+      processInstructions: ["Add water and mix in Phase A.", "Adjust pH to 5.0 and finish."],
+      targetValues: [{ label: "pH", value: "5.0–5.5" }] });
+    const line = record.lines[0]!;
+    line.commercialProducts = { status: "proposed", candidateIds: ["product-a"], reviewRequired: true };
+    line.componentContributions = [{
+      contributionId: "similarity-contribution", status: "exact", commercialProductId: "product-a",
+      canonicalChemistry: { status: "proposed", candidateIds: ["component-chemistry-a"], reviewRequired: true },
+      formulaAmount: { originalValue: "10", unit: "%", basis: "w/w", interpretation: "exact",
+        percentRange: { lowerBound: 10, upperBound: 10 }, evidenceRefs: [...line.sourceLineEvidenceRefs, ...line.amount.evidenceRefs] },
+      componentContributionPercentRange: { lowerBound: 5, upperBound: 5 },
+      sourceSds: { status: "available", evidenceId: "similarity-sds-evidence", acquisitionCode: "similarity-sds-acquisition",
+        commercialProductId: "product-a", documentHash: "b".repeat(64), sectionNumber: 3, sourceComponentId: "sds-component-a",
+        disclosure: "disclosed", sourceFactId: "sds-fact-a", originalValue: "50% w/w", interpretation: "exact",
+        fractionRange: { lowerBound: 0.5, upperBound: 0.5 }, evidenceRefs: ["pdf:section3:similarity-component:fact-a"] },
+      unknownReasons: [], reviewRequired: true,
+    }];
+    const contributionReview = review({ sourceRecordId: record.sourceRecordId, targetType: "ingredient",
+      targetKey: `normalization:${record.normalizationId}:contribution:similarity-contribution:canonicalChemistry:component-chemistry-a`,
+      fieldPath: `normalizations[${record.normalizationId}].lines[${line.sourceLineId}].componentContributions[similarity-contribution].canonicalChemistry`,
+      sourceValue: "component-chemistry-a" });
+    const phaseReviews = record.processSteps.flatMap((step) => step.phaseCandidates.candidateValues.map((phase) => review({
+      sourceRecordId: record.sourceRecordId, targetType: "procedure", targetKey: `procedure:${step.sourceProcedureStepId}:phase`,
+      fieldPath: `procedureSteps[${step.sourceProcedureStepId}].phase`, sourceValue: phase.rawValue,
+    })));
+    const reviews = [...acceptedDosageReviews(record), ...acceptedProcessReviews(record), ...phaseReviews, ...acceptedTargetReviews(record), contributionReview];
+    const result = createReferenceFormulationSimilarityFeatures({ ...allowed([record], reviews) });
+    expect(result).toMatchObject({
+      eligibleFormulaCount: 1, excludedFormulaCount: 0,
+      interpretation: "supplier_neutral_reviewed_reference_features_not_similarity_scores",
+      formulas: [{
+        sourceRecordId: "similarity-a", productFamilyKey: "hand dishwash",
+        categoricalFeatures: expect.arrayContaining([
+          expect.objectContaining({ group: "product_family", value: "hand dishwash" }),
+          expect.objectContaining({ group: "canonical_chemistry", value: "chemical-1" }),
+          expect.objectContaining({ group: "canonical_function", value: "nonionic_surfactant" }),
+          expect.objectContaining({ group: "process", value: "addition" }),
+          expect.objectContaining({ group: "process", value: "mix" }),
+          expect.objectContaining({ group: "process", value: "phase:a" }),
+          expect.objectContaining({ group: "process", value: "mix->adjust_ph" }),
+          expect.objectContaining({ group: "target", value: expect.stringContaining("ph:target") }),
+        ]),
+        quantitativeFeatures: expect.arrayContaining([
+          expect.objectContaining({ group: "dosage", canonicalChemistryId: "chemical-1", lowerBound: 10, upperBound: 10, unit: "% w/w" }),
+          expect.objectContaining({ group: "component_contribution", canonicalChemistryId: "component-chemistry-a", lowerBound: 5, upperBound: 5, unit: "% w/w" }),
+        ]),
+      }],
+    });
+    expect(JSON.stringify(result)).not.toContain("supplier-private-a");
+    expect(createReferenceFormulationSimilarityFeatures({ ...allowed([record], [...reviews].reverse()) })).toEqual(result);
+    const noFieldReviews = createReferenceFormulationSimilarityFeatures({ ...allowed([record], acceptedReviews(record)) });
+    expect(noFieldReviews.formulas[0]!.quantitativeFeatures).toEqual([]);
+    expect(noFieldReviews.formulas[0]!.categoricalFeatures.some((feature) => feature.group === "process" || feature.group === "target")).toBe(false);
+    const noPhaseReviews = createReferenceFormulationSimilarityFeatures({
+      ...allowed([record], reviews.filter((item) => !item.targetKey.endsWith(":phase"))),
+    });
+    expect(noPhaseReviews.formulas[0]!.categoricalFeatures.some((feature) => feature.featureKey.startsWith("process:phase:"))).toBe(false);
   });
 });
