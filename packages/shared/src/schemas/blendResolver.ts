@@ -126,7 +126,13 @@ export function resolveBlend(input: BlendResolverInput): z.infer<typeof blendRep
     evidenceRefs,
     reviewRequired: true,
   });
-  if (input.productType.productType !== "MULTICOMPONENT_BLEND") return unresolved("product_not_classified_as_multicomponent_blend");
+  // A supplier may classify a mixture as proprietary because one or more
+  // components are withheld. Keep it on the blend path when its cited SDS
+  // still discloses at least two separate components; the hidden identities
+  // remain withheld below and no product-level chemical is inferred.
+  if (input.productType.productType !== "MULTICOMPONENT_BLEND" && input.productType.productType !== "PROPRIETARY_BLEND") {
+    return unresolved("product_not_classified_as_multicomponent_blend");
+  }
   if (!input.productType.evidenceRefs.length || input.productType.evidenceRefs.some((ref) => !sourceRefs.has(ref))) {
     return unresolved("product_type_evidence_not_linked_to_source_record");
   }
