@@ -696,6 +696,7 @@ export * from "./schemas/referenceFormulationQuery";
 export * from "./schemas/referenceFormulationBulkImport";
 export * from "./engine/referenceFormulationIndex";
 export * from "./engine/referenceFormulationQualityMetrics";
+export * from "./engine/referenceFormulationRealismEvaluation";
 export * from "./engine/referenceFormulationSupplierRights";
 export * from "./engine/referenceFormulationEligibility";
 export * from "./engine/referenceFormulationIngredientFrequencyPriors";
