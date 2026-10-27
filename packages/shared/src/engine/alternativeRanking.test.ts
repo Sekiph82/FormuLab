@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createAlternativeRankingRecord, rankAlternatives, verifyAlternativeRankingRecord } from "./alternativeRanking";
-import { alternativeRankingRecordSchema, type AlternativeRankingCandidate } from "../schemas/alternativeRanking";
+import { alternativeRankingRecordSchema, rankingReferenceSupportSchema, type AlternativeRankingCandidate } from "../schemas/alternativeRanking";
+import { CANONICALIZATION_ALGORITHM, DIGEST_ALGORITHM } from "../schemas/datasetManifest";
+import { canonicalizeForFingerprint, sha256Hex } from "./datasetManifestBuilder";
 
 function candidate(id: string, overrides: Partial<AlternativeRankingCandidate["dimensions"]> = {}, formulaStatus: AlternativeRankingCandidate["formulaStatus"] = "VALID"): AlternativeRankingCandidate {
   const dimensionSnapshot = { evaluator: "fixture", resultId: `${id}-result` };
@@ -21,13 +23,14 @@ function candidate(id: string, overrides: Partial<AlternativeRankingCandidate["d
       regulatory: { status: "PASS", sourceSnapshot: dimensionSnapshot },
       manufacturing: { status: "READY", sourceSnapshot: dimensionSnapshot },
       evidence: { status: "NO_LINKED_EVIDENCE", ingredientCount: 2, linkedIngredientCount: 0, uniqueSourceCount: 0, sourceSnapshot: dimensionSnapshot },
+      referenceSupport: { status: "UNKNOWN", formulaCount: 0, supplierCount: 0, sourceRecordIds: [] },
       ...overrides,
     },
   };
 }
 
 describe("FVL-08 alternative ranking", () => {
-  it("keeps nine dimensions separate and ranks deterministically without an aggregate score", () => {
+  it("keeps dimensions separate and ranks deterministically without an aggregate score", () => {
     const inputs = [
       candidate("B", { performance: { status: "PREDICTED", numericValue: 12, unit: "%", modelId: "m1", modelVersion: 1 }, cost: { status: "AVAILABLE", costPerKg: 3, currency: "KES" } }),
       candidate("A", { performance: { status: "PREDICTED", numericValue: 10, unit: "%", modelId: "m1", modelVersion: 1 }, cost: { status: "AVAILABLE", costPerKg: 2, currency: "KES" } }),
@@ -44,6 +47,7 @@ describe("FVL-08 alternative ranking", () => {
     expect(first[0]!.candidate.dimensions).toHaveProperty("regulatory");
     expect(first[0]!.candidate.dimensions).toHaveProperty("manufacturing");
     expect(first[0]!.candidate.dimensions).toHaveProperty("evidence");
+    expect(first[0]!.candidate.dimensions).toHaveProperty("referenceSupport");
     expect(first[0]).not.toHaveProperty("score");
   });
 
@@ -134,6 +138,26 @@ describe("FVL-08 alternative ranking", () => {
     expect(rankAlternatives([uncertain, reliable])[0]!.candidate.candidateId).toBe("reliable");
   });
 
+  it("uses reviewed reference support only as a late tie-break and never as performance", () => {
+    const supported = candidate("supported", {
+      performance: { status: "PREDICTED", numericValue: 10 },
+      referenceSupport: { status: "SUPPORTED", formulaCount: 2, supplierCount: 2, sourceRecordIds: ["ref-1", "ref-2"] },
+    });
+    const unknown = candidate("unknown", { performance: { status: "PREDICTED", numericValue: 10 } });
+    expect(rankAlternatives([unknown, supported])[0]!.candidate.candidateId).toBe("supported");
+
+    const betterPerformance = candidate("better-performance", { performance: { status: "PREDICTED", numericValue: 11 } });
+    expect(rankAlternatives([supported, betterPerformance])[0]!.candidate.candidateId).toBe("better-performance");
+    expect(supported.dimensions.performance).toEqual({ status: "PREDICTED", numericValue: 10 });
+    expect(supported.dimensions.referenceSupport).toMatchObject({ status: "SUPPORTED", formulaCount: 2, supplierCount: 2 });
+  });
+
+  it("requires source-backed counts for supported reference evidence", () => {
+    expect(() => rankingReferenceSupportSchema.parse({ status: "SUPPORTED", formulaCount: 0, supplierCount: 0, sourceRecordIds: [] })).toThrow();
+    expect(() => rankingReferenceSupportSchema.parse({ status: "UNKNOWN", formulaCount: 1, supplierCount: 1, sourceRecordIds: ["ref-1"] })).toThrow();
+    expect(rankingReferenceSupportSchema.parse({ status: "UNKNOWN", formulaCount: 0, supplierCount: 0, sourceRecordIds: [] }).status).toBe("UNKNOWN");
+  });
+
   it("creates a checksummed immutable input snapshot and detects tampering", async () => {
     const record = await createAlternativeRankingRecord({
       code: "rank-1",
@@ -142,14 +166,61 @@ describe("FVL-08 alternative ranking", () => {
       context: { batchKg: "100", currency: "KES" },
       rankings: rankAlternatives([candidate("A")]),
     });
-    expect(record.rankingPolicyVersion).toBe("1.1");
+    expect(record.rankingPolicyVersion).toBe("1.2");
+    expect(record.schemaVersion).toBe("1.1");
     expect(alternativeRankingRecordSchema.shape.rankingPolicyVersion.safeParse("1.0").success).toBe(true);
-    expect(record.dimensionOrder).toEqual(["performance", "uncertainty", "cost", "availability", "compatibility", "safety", "regulatory", "manufacturing", "evidence"]);
+    expect(alternativeRankingRecordSchema.shape.rankingPolicyVersion.safeParse("1.1").success).toBe(true);
+    expect(record.dimensionOrder).toEqual(["performance", "uncertainty", "cost", "availability", "compatibility", "safety", "regulatory", "manufacturing", "evidence", "referenceSupport"]);
     expect(await verifyAlternativeRankingRecord(record)).toBe(true);
     const roundTripped = alternativeRankingRecordSchema.parse(JSON.parse(JSON.stringify(record)));
     expect(await verifyAlternativeRankingRecord(roundTripped)).toBe(true);
     expect(rankAlternatives(roundTripped.rankings.map(({ candidate: item }) => item))).toEqual(roundTripped.rankings);
     expect(await verifyAlternativeRankingRecord({ ...record, context: { ...record.context, currency: "USD" } })).toBe(false);
+  });
+
+  it("continues to parse and verify immutable policy 1.1 records without the new dimension", async () => {
+    const current = await createAlternativeRankingRecord({
+      code: "rank-legacy", sessionId: "session-1", capturedAt: "2026-10-20T20:00:00.000Z",
+      context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate("legacy")]),
+    });
+    const legacyBase = {
+      ...current,
+      schemaVersion: "1.0" as const,
+      rankingPolicyVersion: "1.1" as const,
+      dimensionOrder: current.dimensionOrder.slice(0, 9),
+      rankings: current.rankings.map((entry) => {
+        const { referenceSupport: _referenceSupport, ...dimensions } = entry.candidate.dimensions;
+        return { ...entry, candidate: { ...entry.candidate, dimensions } };
+      }),
+    };
+    const { artifactChecksum: _checksum, ...base } = legacyBase;
+    const legacyRaw = {
+      ...legacyBase,
+      artifactChecksum: {
+        algorithm: DIGEST_ALGORITHM,
+        canonicalization: CANONICALIZATION_ALGORITHM,
+        digest: await sha256Hex(canonicalizeForFingerprint(base)),
+      },
+    };
+    const parsed = alternativeRankingRecordSchema.parse(legacyRaw);
+    expect(parsed.rankingPolicyVersion).toBe("1.1");
+    expect(parsed.rankings[0]!.candidate.dimensions).not.toHaveProperty("referenceSupport");
+    expect(await verifyAlternativeRankingRecord(parsed)).toBe(true);
+  });
+
+  it("requires reference-support data on every policy 1.2 ranking candidate", async () => {
+    const current = await createAlternativeRankingRecord({
+      code: "rank-incomplete-current", sessionId: "session-1", capturedAt: "2026-10-20T20:00:00.000Z",
+      context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate("current")]),
+    });
+    const malformed = {
+      ...current,
+      rankings: current.rankings.map((entry) => {
+        const { referenceSupport: _referenceSupport, ...dimensions } = entry.candidate.dimensions;
+        return { ...entry, candidate: { ...entry.candidate, dimensions } };
+      }),
+    };
+    expect(alternativeRankingRecordSchema.safeParse(malformed).success).toBe(false);
   });
 
   it("rejects duplicate candidate identities", () => {

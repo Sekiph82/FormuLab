@@ -40,6 +40,21 @@ describe("FVL-08 result-page authority adapter", () => {
     expect(row.dimensions.regulatory.status).toBe("PASS");
     expect(row.dimensions.manufacturing.status).toBe("READY");
     expect(row.dimensions.evidence).toMatchObject({ status: "NO_LINKED_EVIDENCE", ingredientCount: 1, linkedIngredientCount: 0 });
+    expect(row.dimensions.referenceSupport).toEqual({ status: "UNKNOWN", formulaCount: 0, supplierCount: 0, sourceRecordIds: [] });
+  });
+
+  it("keeps supplier-reference support source-linked and separate from literature evidence", async () => {
+    const [row] = await buildAlternativeRankingCandidates({
+      sessionId: "session-1", cards: [card("v1")], costSnapshots: [undefined], availability: [undefined],
+      compatibility: [undefined], safety: [undefined], regulatory: [undefined],
+      referenceSupportByVersion: new Map([["v1", {
+        status: "SUPPORTED", formulaCount: 3, supplierCount: 2, sourceRecordIds: ["ref-a", "ref-b", "ref-c"],
+        sourceSnapshot: { productFamilyKey: "hand_dishwash", eligibleCorpusId: "corpus-1" },
+      }]]),
+    });
+    expect(row!.dimensions.referenceSupport).toMatchObject({ status: "SUPPORTED", formulaCount: 3, supplierCount: 2, sourceRecordIds: ["ref-a", "ref-b", "ref-c"] });
+    expect(row!.dimensions.evidence).toMatchObject({ status: "NO_LINKED_EVIDENCE", linkedIngredientCount: 0 });
+    expect(row!.dimensions.performance.status).toBe("UNAVAILABLE_MODEL");
   });
 
   it("maps authoritative FAIL and UNKNOWN states without converting either to PASS", async () => {

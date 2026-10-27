@@ -131,7 +131,15 @@ function compareCandidate(a: AlternativeRankingCandidate, b: AlternativeRankingC
   result = compareOptionalHigher(aCoverage, bCoverage);
   if (result) return result;
   result = compareOptionalHigher(ae.uniqueSourceCount, be.uniqueSourceCount);
-  return result || ordinal(a.candidateId, b.candidateId);
+  if (result) return result;
+
+  // Reference support is a late, independent tie-break only. Do not compare
+  // popularity/sample counts, and never let it compensate for any earlier
+  // performance, cost, uncertainty, evidence, or hard-gate dimension.
+  const ar = a.dimensions.referenceSupport?.status === "SUPPORTED";
+  const br = b.dimensions.referenceSupport?.status === "SUPPORTED";
+  if (ar !== br) return ar ? -1 : 1;
+  return ordinal(a.candidateId, b.candidateId);
 }
 
 export function rankAlternatives(candidates: AlternativeRankingCandidate[]): RankedAlternative[] {
