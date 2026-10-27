@@ -126,7 +126,7 @@ export function SupplierSdsExtractionReviewScreen() {
           </button>
         </div>
       )}
-      {selected && <p className="mb-3 break-all text-[10px] text-muted">{selected.supplierId} · {selected.providerId} · SHA-256 {selected.sha256}</p>}
+      {selected && <p className="mb-3 break-all text-[10px] text-muted">{t("dataExchange.connectors.sdsReview.sourceIdentity", { supplier: selected.supplierId, provider: selected.providerId, hash: selected.sha256 })}</p>}
       {error && <p role="alert" className="mb-3 text-[11px] text-error">{error}</p>}
       {review?.status === "quarantined" && <p role="alert" className="mb-3 text-[11px] text-error">{t("dataExchange.connectors.sdsReview.quarantined", { reason: review.reason })}</p>}
       {data && (

@@ -109,16 +109,39 @@ describe("reference formulation evidence review page", () => {
     expect(screen.getByText(/No source records match these filters/)).toBeInTheDocument();
   });
 
+  it("supports keyboard focus and search entry with an accessible search label", async () => {
+    const user = userEvent.setup();
+    renderListPage();
+    const search = await screen.findByRole("searchbox", { name: /Search corpus fields/ });
+
+    await user.tab();
+    expect(search).toHaveFocus();
+    await user.keyboard("dishwash");
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 0 of 1 source records");
+    expect(screen.getByText(/No source records match these filters/)).toBeInTheDocument();
+  });
+
   it("reports corpus-index load failures and provides a retry action", async () => {
     bridge.list.mockResolvedValue([]);
     bridge.index.mockRejectedValueOnce(new Error("corpus index unavailable"));
     const user = userEvent.setup();
     renderListPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("corpus index unavailable");
+    expect(screen.queryByText("No extracted reference formulations are available yet.")).not.toBeInTheDocument();
     bridge.index.mockResolvedValue({ queryRecords: [], index: {} });
-    await user.click(screen.getByRole("button", { name: "Retry corpus load" }));
+    await user.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(bridge.index).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("No extracted reference formulations are available yet.")).toBeInTheDocument();
+  });
+
+  it("reports detail-load failures and retries without leaving the user stranded", async () => {
+    bridge.list.mockRejectedValueOnce(new Error("source records unavailable"));
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent("source records unavailable");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Title: Synthetic Review Formula")).toBeInTheDocument();
+    expect(bridge.list).toHaveBeenCalledTimes(2);
   });
 
   it("clears old normalization candidates when a later corpus rebuild fails", async () => {
@@ -135,6 +158,8 @@ describe("reference formulation evidence review page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("index rebuild failed");
     expect(screen.queryByText("stale-candidate")).not.toBeInTheDocument();
     expect(screen.getByText(/candidate index unavailable/)).toBeInTheDocument();
+    await user.type(screen.getByRole("searchbox", { name: /Search corpus fields/ }), "stale-candidate");
+    expect(screen.queryByText(/No source records match these filters/)).not.toBeInTheDocument();
   });
 
   it("shows cited source evidence beside the extraction and stores a named acceptance separately", async () => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, ClipboardCheck, Edit3, Eye, RotateCcw, X } from "lucide-react";
 import type { ReferenceFormulationQueryRecord, ReferenceFormulationRecord, ReferenceFormulationReview } from "@formulab/shared";
@@ -12,15 +13,16 @@ import { readSupplierDocumentPdf } from "@/lib/masterdata";
 import { SupplierSdsPdfPagePreview } from "@/components/dataExchange/connectors/SupplierSdsPdfPagePreview";
 
 const DECISIONS = [
-  { value: "accepted", label: "Accept", icon: Check },
-  { value: "edited", label: "Edit proposal", icon: Edit3 },
-  { value: "rejected", label: "Reject", icon: X },
-  { value: "needs_review", label: "Needs review", icon: Eye },
+  { value: "accepted", labelKey: "decisionAccept", icon: Check },
+  { value: "edited", labelKey: "decisionEdit", icon: Edit3 },
+  { value: "rejected", labelKey: "decisionReject", icon: X },
+  { value: "needs_review", labelKey: "decisionNeedsReview", icon: Eye },
 ] as const;
 
 type Decision = typeof DECISIONS[number]["value"];
 
 export function ReferenceFormulationsPage() {
+  const { t } = useTranslation("session");
   const { recordId } = useParams();
   const [records, setRecords] = useState<ReferenceFormulationRecord[]>([]);
   const [queryRecords, setQueryRecords] = useState<ReferenceFormulationQueryRecord[]>([]);
@@ -103,7 +105,7 @@ export function ReferenceFormulationsPage() {
     if (!selected || !Number.isInteger(pageNumber) || pageNumber < 1) return;
     const expectedHash = selected.sourceDocumentHash.toLowerCase();
     if (expectedHash !== selected.source.sourcePdfSha256.toLowerCase()) {
-      setSourcePdfError("The reference record and source metadata PDF hashes do not match.");
+      setSourcePdfError(t("referenceFormulations.pdfHashMismatch"));
       return;
     }
     setSourcePdfError(null);
@@ -115,7 +117,7 @@ export function ReferenceFormulationsPage() {
       if (requestToken !== pdfReadToken.current) return;
       setSourcePdf({ sha256: expectedHash, bytes });
     } catch (cause) {
-      if (requestToken === pdfReadToken.current) setSourcePdfError(cause instanceof Error ? cause.message : "The source PDF could not be read.");
+      if (requestToken === pdfReadToken.current) setSourcePdfError(t("referenceFormulations.pdfReadError", { message: cause instanceof Error ? cause.message : "" }));
     }
   };
   const latestByTarget = useMemo(() => {
@@ -147,44 +149,44 @@ export function ReferenceFormulationsPage() {
         reviewer: { userId: actor.userId, displayName: actor.displayName },
       });
       setReviews((current) => [...current, review]);
-      setNotice(`${item.label}: ${DECISIONS.find((entry) => entry.value === decision)?.label} saved.`);
+      setNotice(t("referenceFormulations.decisionSaved", { field: item.label, decision: t(`referenceFormulations.${DECISIONS.find((entry) => entry.value === decision)?.labelKey ?? "decisionNeedsReview"}`) }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
   };
 
-  if (loading) return <div className="p-8 text-sm text-muted">Loading reference formulations…</div>;
-  if (error && !records.length && recordId) return <div role="alert" className="p-8 text-sm text-error">{error}</div>;
-  if (recordId && !selected) return <div role="alert" className="p-8 text-sm text-error">Reference formulation not found.</div>;
+  if (loading) return <div className="p-8 text-sm text-muted">{t("referenceFormulations.loading")}</div>;
+  if (error && !records.length && recordId) return <div role="alert" className="p-8 text-sm text-error"><p>{t("referenceFormulations.loadError", { message: error })}</p><button type="button" onClick={() => void refresh()} className="mt-2 underline">{t("referenceFormulations.retry")}</button></div>;
+  if (recordId && !selected) return <div role="alert" className="p-8 text-sm text-error">{t("referenceFormulations.notFound")}</div>;
 
   if (!selected) {
     return (
       <main className="mx-auto w-full max-w-6xl p-6">
         <header className="mb-6">
-          <h1 className="text-xl font-semibold text-text">Reference formulation review</h1>
-          <p className="mt-2 max-w-3xl text-sm text-muted">Search the reference corpus across supplier, product family, commercial-product and canonical-chemistry candidates, function, dosage, process, and targets. Results are supplier-source evidence, not measured validation; candidate normalizations remain review-required.</p>
+          <h1 className="text-xl font-semibold text-text">{t("referenceFormulations.title")}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-muted">{t("referenceFormulations.intro")}</p>
         </header>
-        {error && <div role="alert" className="mb-4 rounded-lg border border-error/30 bg-error/5 p-4 text-sm text-error"><p>{error}</p><button type="button" onClick={() => void refresh()} className="mt-2 underline">Retry corpus load</button></div>}
+        {error && <div role="alert" className="mb-4 rounded-lg border border-error/30 bg-error/5 p-4 text-sm text-error"><p>{t("referenceFormulations.loadError", { message: error })}</p><button type="button" onClick={() => void refresh()} className="mt-2 underline">{t("referenceFormulations.retry")}</button></div>}
         <div className="mb-4 grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-[minmax(0,1fr)_16rem]">
-          <label className="block text-sm font-medium text-text">Search corpus fields
-            <input type="search" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Supplier, product, chemical, function, 4%, process, pH…" className="mt-1 w-full rounded border border-border bg-surface-2 px-3 py-2 text-sm text-text" />
-            <span className="mt-1 block text-xs text-muted">Searches source metadata and indexed, review-required formulation candidates, including amount, process, and target evidence.</span>
+          <label className="block text-sm font-medium text-text">{t("referenceFormulations.searchLabel")}
+            <input type="search" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder={t("referenceFormulations.searchPlaceholder")} className="mt-1 w-full rounded border border-border bg-surface-2 px-3 py-2 text-sm text-text" />
+            <span className="mt-1 block text-xs text-muted">{t("referenceFormulations.searchHint")}</span>
           </label>
-          <label className="block text-sm font-medium text-text">Supplier
+          <label className="block text-sm font-medium text-text">{t("referenceFormulations.supplierFilter")}
             <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="mt-1 w-full rounded border border-border bg-surface-2 px-3 py-2 text-sm text-text">
-              <option key="all-suppliers" value="">All suppliers</option>
+              <option key="all-suppliers" value="">{t("referenceFormulations.allSuppliers")}</option>
               {suppliers.map((supplier) => <option key={supplier} value={supplier}>{supplier}</option>)}
             </select>
           </label>
         </div>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <p role="status" className="text-xs text-muted">Showing {filteredRecords.length} of {records.length} source records</p>
-          <button type="button" onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-2"><RotateCcw size={13} />Refresh corpus</button>
+          <p role="status" className="text-xs text-muted">{t("referenceFormulations.showingRecords", { filtered: filteredRecords.length, total: records.length })}</p>
+          <button type="button" onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded border border-border px-3 py-1.5 text-xs text-text hover:bg-surface-2"><RotateCcw size={13} />{t("referenceFormulations.refreshCorpus")}</button>
         </div>
-        {records.length === 0 ? (
-          <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">No extracted reference formulations are available yet.</div>
-        ) : filteredRecords.length === 0 ? (
-          <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">No source records match these filters. Search uses source and candidate text; it does not imply a validated product or chemical identity.</div>
+        {records.length === 0 && !error ? (
+          <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">{t("referenceFormulations.empty")}</div>
+        ) : records.length > 0 && !error && filteredRecords.length === 0 ? (
+          <div className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">{t("referenceFormulations.noMatches")}</div>
         ) : <ul className="grid gap-3 md:grid-cols-2">{filteredRecords.map((record) => <ReferenceFormulationCorpusCard key={record.id} record={record} query={queryBySourceId.get(record.id)} />)}</ul>}
       </main>
     );
@@ -192,37 +194,37 @@ export function ReferenceFormulationsPage() {
 
   return (
     <main className="mx-auto w-full max-w-7xl p-6">
-      <Link to="/reference-formulations" className="mb-4 inline-flex items-center gap-2 text-sm text-accent hover:underline"><ArrowLeft size={15} />All reference formulations</Link>
+      <Link to="/reference-formulations" className="mb-4 inline-flex items-center gap-2 text-sm text-accent hover:underline"><ArrowLeft size={15} />{t("referenceFormulations.allFormulations")}</Link>
       <header className="mb-5 rounded-lg border border-border bg-surface p-5">
         <div className="flex items-start gap-3">
           <ClipboardCheck size={20} className="mt-1 text-accent" />
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold text-text">{selected.source.title}</h1>
-            <p className="mt-1 text-sm text-muted">{selected.source.supplierId} · {selected.source.formulationCode ?? selected.code} · {selected.source.originalFilename} · acquisition {selected.source.acquisitionCode}</p>
-            <p className="mt-2 break-all font-mono text-[11px] text-muted">Source SHA-256: {selected.sourceDocumentHash}</p>
+            <p className="mt-1 text-sm text-muted">{t("referenceFormulations.detailIdentity", { supplier: selected.source.supplierId, code: selected.source.formulationCode ?? selected.code, filename: selected.source.originalFilename, acquisition: selected.source.acquisitionCode })}</p>
+            <p className="mt-2 break-all font-mono text-[11px] text-muted">{t("referenceFormulations.sourceHash", { hash: selected.sourceDocumentHash })}</p>
           </div>
         </div>
-        <p className="mt-4 rounded-md bg-surface-2 px-3 py-2 text-xs text-muted">Source snippets and page/cell coordinates are shown beside each extracted value. A decision records a review outcome only; the source snapshot, RawMaterial, and production formulas remain unchanged.</p>
+        <p className="mt-4 rounded-md bg-surface-2 px-3 py-2 text-xs text-muted">{t("referenceFormulations.reviewBoundary")}</p>
       </header>
-      {error && <p role="alert" className="mb-4 rounded-md border border-error/30 bg-error/5 p-3 text-sm text-error">{error}</p>}
+      {error && <p role="alert" className="mb-4 rounded-md border border-error/30 bg-error/5 p-3 text-sm text-error">{t("referenceFormulations.reviewSaveError", { message: error })}</p>}
       {notice && <p role="status" className="mb-4 rounded-md border border-success/30 bg-success/5 p-3 text-sm text-success">{notice}</p>}
-      {!actor && <p role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm text-text">Sign in to record a named human review decision.</p>}
+      {!actor && <p role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm text-text">{t("referenceFormulations.signInReview")}</p>}
       <div className="mb-5 grid items-start gap-4 xl:grid-cols-2">
-        <section aria-label="Source formulation PDF" className="rounded-lg border border-border bg-surface p-4">
-          <h2 className="mb-2 text-sm font-semibold text-text">Source formulation PDF</h2>
-          <p className="mb-3 break-all font-mono text-[10px] text-muted">{selected.source.originalFilename ?? selected.source.title} · SHA-256 {selected.sourceDocumentHash}</p>
+        <section aria-label={t("referenceFormulations.sourcePdfSection")} className="rounded-lg border border-border bg-surface p-4">
+          <h2 className="mb-2 text-sm font-semibold text-text">{t("referenceFormulations.sourcePdfTitle")}</h2>
+          <p className="mb-3 break-all font-mono text-[10px] text-muted">{t("referenceFormulations.sourceFileHash", { file: selected.source.originalFilename ?? selected.source.title, hash: selected.sourceDocumentHash })}</p>
           {sourcePdfError && <p role="alert" className="mb-2 text-xs text-error">{sourcePdfError}</p>}
           {sourcePage && sourcePdf?.sha256.toLowerCase() === selected.sourceDocumentHash.toLowerCase()
-            ? <><SupplierSdsPdfPagePreview bytes={sourcePdf.bytes} pageNumber={sourcePage.pageNumber} lineNumber={1} documentLabel="Supplier formulation" /><p className="mt-2 whitespace-pre-wrap text-xs text-muted">{sourcePage.excerpt}</p></>
-            : <p className="rounded bg-surface-2 p-3 text-xs text-muted">Select a cited extraction value to load its verified source PDF page here.</p>}
+            ? <><SupplierSdsPdfPagePreview bytes={sourcePdf.bytes} pageNumber={sourcePage.pageNumber} lineNumber={1} documentLabel={t("referenceFormulations.supplierFormulation")} /><p className="mt-2 whitespace-pre-wrap text-xs text-muted">{sourcePage.excerpt}</p></>
+            : <p className="rounded bg-surface-2 p-3 text-xs text-muted">{t("referenceFormulations.pdfPageHint")}</p>}
         </section>
         <FormulationExtractionOverview record={selected} reviewItems={items} onOpenPage={openSourcePage} />
       </div>
       <div className="mb-4 flex items-center justify-between text-sm text-muted">
-        <span>{items.length} reviewable extraction fields</span>
-        <button type="button" onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded border border-border px-3 py-1.5 text-text hover:bg-surface-2"><RotateCcw size={13} />Refresh</button>
+        <span>{t("referenceFormulations.reviewFieldCount", { count: items.length })}</span>
+        <button type="button" onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded border border-border px-3 py-1.5 text-text hover:bg-surface-2"><RotateCcw size={13} />{t("referenceFormulations.refresh")}</button>
       </div>
-      {items.length === 0 ? <p className="rounded-lg border border-border bg-surface p-5 text-sm text-muted">This source has no identity, ingredient, process, or target values to review.</p> : (
+      {items.length === 0 ? <p className="rounded-lg border border-border bg-surface p-5 text-sm text-muted">{t("referenceFormulations.noReviewValues")}</p> : (
         <div className="space-y-3">
           {items.map((item) => <ReviewCard key={item.targetKey} item={item} review={latestByTarget.get(item.targetKey)} disabled={!actor} onSave={saveDecision} onOpenSourcePage={openSourcePage} />)}
         </div>
@@ -241,6 +243,7 @@ function collectSearchStrings(value: unknown): string[] {
 }
 
 function ReferenceFormulationCorpusCard({ record, query }: { record: ReferenceFormulationRecord; query?: ReferenceFormulationQueryRecord }) {
+  const { t } = useTranslation("session");
   const unique = (values: Array<string | undefined>) => [...new Set(values.filter((value): value is string => Boolean(value)))];
   const families = query?.productFamily.candidates.map((candidate) => candidate.rawValue) ?? [];
   const products = unique(query?.lines.flatMap((line) => line.commercialProducts.candidateIds) ?? []);
@@ -255,69 +258,70 @@ function ReferenceFormulationCorpusCard({ record, query }: { record: ReferenceFo
     <li>
       <Link to={`/reference-formulations/${encodeURIComponent(record.id)}`} className="block h-full rounded-lg border border-border bg-surface p-4 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
         <span className="font-medium text-text">{record.source.title}</span>
-        <span className="mt-1 block text-xs text-muted">{record.source.supplierId} · {record.source.formulationCode ?? record.code} · {record.source.sourceProduct.tradeName ?? "Product not stated"}{record.source.sourceProduct.grade ? ` (${record.source.sourceProduct.grade})` : ""}</span>
-        <span className="mt-2 block text-xs text-muted">{record.ingredientLines.length} ingredient lines · {record.procedureSteps.length} process steps · {record.targetCandidates.length} targets · {query ? `normalization v${query.normalizationVersion}` : "candidate index unavailable"}</span>
+        <span className="mt-1 block text-xs text-muted">{t("referenceFormulations.cardIdentity", { supplier: record.source.supplierId, code: record.source.formulationCode ?? record.code, product: record.source.sourceProduct.tradeName ?? t("referenceFormulations.productNotStated"), grade: record.source.sourceProduct.grade ? ` (${record.source.sourceProduct.grade})` : "" })}</span>
+        <span className="mt-2 block text-xs text-muted">{t("referenceFormulations.cardCounts", { lines: record.ingredientLines.length, process: record.procedureSteps.length, targets: record.targetCandidates.length, normalization: query ? t("referenceFormulations.normalizationVersion", { version: query.normalizationVersion }) : t("referenceFormulations.indexUnavailable") })}</span>
         <div className="mt-3 space-y-1.5 text-xs">
-          <CorpusField label="Product family candidates" values={families} />
-          <CorpusField label="Commercial product candidates" values={products} />
-          <CorpusField label="Canonical chemistry candidates" values={chemistry} />
-          <CorpusField label="Functions" values={functions} />
-          <CorpusField label="Source dosages" values={amounts} />
-          <CorpusField label="Process evidence" values={process} />
-          <CorpusField label="Target evidence" values={targets} />
+          <CorpusField label={t("referenceFormulations.familyCandidates")} values={families} emptyText={t("referenceFormulations.notStatedOrUnresolved")} />
+          <CorpusField label={t("referenceFormulations.commercialCandidates")} values={products} emptyText={t("referenceFormulations.notStatedOrUnresolved")} />
+          <CorpusField label={t("referenceFormulations.chemistryCandidates")} values={chemistry} emptyText={t("referenceFormulations.notStatedOrUnresolved")} />
+          <CorpusField label={t("referenceFormulations.functions")} values={functions} emptyText={t("referenceFormulations.notStatedOrUnresolved")} />
+          <CorpusField label={t("referenceFormulations.dosages")} values={amounts} emptyText={t("referenceFormulations.notStatedOrUnresolved")} />
+          <CorpusField label={t("referenceFormulations.processEvidence")} values={process} emptyText={t("referenceFormulations.notStatedOrUnresolved")} />
+          <CorpusField label={t("referenceFormulations.targetEvidence")} values={targets} emptyText={t("referenceFormulations.notStatedOrUnresolved")} />
         </div>
         <div className="mt-3 border-t border-border pt-2 text-[10px] text-muted">
-          <p>Source: {record.source.providerId} / {record.source.surfaceId} · {record.source.market} · {record.source.language} · revision {revisions.join(" / ") || "not stated"}</p>
-          <p>Acquisition: {record.source.acquisitionCode} · {record.source.originalFilename}</p>
-          <p className="mt-1 break-all font-mono">SHA-256 {record.sourceDocumentHash}</p>
-          <p className="mt-1 break-all">Source evidence refs: {evidenceRefs.slice(0, 3).join(", ") || "open record for cited extraction details"}</p>
-          <p className="mt-2 font-medium">Source evidence only · normalization candidates require review · not measured validation</p>
+          <p>{t("referenceFormulations.sourceLineage", { provider: record.source.providerId, surface: record.source.surfaceId, market: record.source.market, language: record.source.language, revision: revisions.join(" / ") || t("referenceFormulations.notStated") })}</p>
+          <p>{t("referenceFormulations.acquisitionLineage", { code: record.source.acquisitionCode, filename: record.source.originalFilename })}</p>
+          <p className="mt-1 break-all font-mono">{t("referenceFormulations.sha256", { hash: record.sourceDocumentHash })}</p>
+          <p className="mt-1 break-all">{t("referenceFormulations.evidenceRefs", { refs: evidenceRefs.slice(0, 3).join(", ") || t("referenceFormulations.openForCitations") })}</p>
+          <p className="mt-2 font-medium">{t("referenceFormulations.candidateOnly")}</p>
         </div>
       </Link>
     </li>
   );
 }
 
-function CorpusField({ label, values }: { label: string; values: string[] }) {
-  return <p className="break-words"><span className="font-medium text-text">{label}:</span> <span className="text-muted">{values.join("; ") || "not stated or unresolved"}</span></p>;
+function CorpusField({ label, values, emptyText }: { label: string; values: string[]; emptyText: string }) {
+  return <p className="break-words"><span className="font-medium text-text">{label}:</span> <span className="text-muted">{values.join("; ") || emptyText}</span></p>;
 }
 
 function ReferenceFormulationNormalizationTrace({ data }: { data: ReferenceFormulationCorpusReviewData }) {
+  const { t } = useTranslation("session");
   return (
-    <section aria-label="Normalization source trace" className="mt-8 rounded-lg border border-border bg-surface p-5">
-      <h2 className="text-lg font-semibold text-text">Normalized lines and contribution evidence</h2>
-      <p className="mb-5 mt-1 text-sm text-muted">Each candidate remains review-required. Source formulation lines and SDS Section 3 facts are linked by immutable record IDs and document hashes; SDS disclosure is not treated as a complete commercial composition.</p>
-      {data.versions.length === 0 ? <p className="rounded border border-border bg-surface-2 p-4 text-sm text-muted">No normalization versions have been recorded for this source.</p> : (
+    <section aria-label={t("referenceFormulations.normalizationTraceLabel")} className="mt-8 rounded-lg border border-border bg-surface p-5">
+      <h2 className="text-lg font-semibold text-text">{t("referenceFormulations.normalizationTraceTitle")}</h2>
+      <p className="mb-5 mt-1 text-sm text-muted">{t("referenceFormulations.normalizationTraceIntro")}</p>
+      {data.versions.length === 0 ? <p className="rounded border border-border bg-surface-2 p-4 text-sm text-muted">{t("referenceFormulations.noNormalizationVersions")}</p> : (
         <div className="space-y-5">
           {data.versions.map(({ version, lines }) => <section key={version.id} aria-label={`Normalization version ${version.version}`} className="rounded-md border border-border p-4">
             <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-medium text-text">Version {version.version} · {version.createdAt}</h3>
-              <span className="font-mono text-[10px] text-muted">{version.id} · source {version.sourceDocumentHash}</span>
+              <h3 className="font-medium text-text">{t("referenceFormulations.normalizationVersionCreated", { version: version.version, createdAt: version.createdAt })}</h3>
+              <span className="font-mono text-[10px] text-muted">{t("referenceFormulations.normalizationSourceHash", { id: version.id, hash: version.sourceDocumentHash })}</span>
             </header>
             <div className="space-y-3">
-              {lines.map(({ sourceLine, normalizedLine, contributions }) => <article key={sourceLine.id} aria-label={`Normalized source line ${sourceLine.id}`} className="rounded border border-border bg-surface-2 p-4">
-                <h4 className="text-sm font-semibold text-text">Source line {sourceLine.orderIndex} · {sourceLine.id}</h4>
+              {lines.map(({ sourceLine, normalizedLine, contributions }) => <article key={sourceLine.id} aria-label={t("referenceFormulations.normalizedSourceLineLabel", { id: sourceLine.id })} className="rounded border border-border bg-surface-2 p-4">
+                <h4 className="text-sm font-semibold text-text">{t("referenceFormulations.sourceLine", { order: sourceLine.orderIndex, id: sourceLine.id })}</h4>
                 <p className="mt-1 break-words text-sm text-text">{sourceLine.rawRow.join(" | ")}</p>
-                <p className="mt-1 break-all font-mono text-[10px] text-muted">{sourceLine.ingredientName?.evidence.pageNumber !== undefined ? `Page ${sourceLine.ingredientName.evidence.pageNumber} · block ${sourceLine.ingredientName.evidence.blockIndex} · ` : ""}{sourceLine.ingredientName?.evidence.excerpt ?? "Source-row evidence retained with the immutable formulation record."} · {data.source.sourceDocumentHash}</p>
+                <p className="mt-1 break-all font-mono text-[10px] text-muted">{sourceLine.ingredientName?.evidence.pageNumber !== undefined ? `${t("referenceFormulations.sourceCoordinates", { page: sourceLine.ingredientName.evidence.pageNumber, block: sourceLine.ingredientName.evidence.blockIndex })} · ` : ""}{sourceLine.ingredientName?.evidence.excerpt ?? t("referenceFormulations.sourceRowEvidenceRetained")} · {data.source.sourceDocumentHash}</p>
                 <div className="mt-3 grid gap-3 text-xs md:grid-cols-2">
-                  <div><span className="font-semibold text-text">Commercial product candidates:</span> <span className="text-muted">{normalizedLine.commercialProduct.candidateIds.join(", ") || "unresolved"} · review required</span></div>
-                  <div><span className="font-semibold text-text">Canonical chemistry candidates:</span> <span className="text-muted">{normalizedLine.canonicalChemistry.candidateIds.join(", ") || "unresolved"} · review required</span></div>
-                  <div><span className="font-semibold text-text">Supplier function:</span> <span className="text-muted">{normalizedLine.functionNormalization?.supplierFunction.originalValue ?? "not stated"}</span></div>
-                  <div><span className="font-semibold text-text">Function candidates:</span> <span className="text-muted">{normalizedLine.functionNormalization?.canonicalFunction.candidateIds.join(", ") || "unresolved"} · review required</span></div>
+                  <div><span className="font-semibold text-text">{t("referenceFormulations.commercialCandidates")}:</span> <span className="text-muted">{normalizedLine.commercialProduct.candidateIds.join(", ") || t("referenceFormulations.unresolved")} · {t("referenceFormulations.reviewRequired")}</span></div>
+                  <div><span className="font-semibold text-text">{t("referenceFormulations.chemistryCandidates")}:</span> <span className="text-muted">{normalizedLine.canonicalChemistry.candidateIds.join(", ") || t("referenceFormulations.unresolved")} · {t("referenceFormulations.reviewRequired")}</span></div>
+                  <div><span className="font-semibold text-text">{t("referenceFormulations.supplierFunction")}:</span> <span className="text-muted">{normalizedLine.functionNormalization?.supplierFunction.originalValue ?? t("referenceFormulations.notStated")}</span></div>
+                  <div><span className="font-semibold text-text">{t("referenceFormulations.functions")}:</span> <span className="text-muted">{normalizedLine.functionNormalization?.canonicalFunction.candidateIds.join(", ") || t("referenceFormulations.unresolved")} · {t("referenceFormulations.reviewRequired")}</span></div>
                 </div>
-                {contributions.length === 0 ? <p className="mt-3 rounded border border-border p-3 text-xs text-muted">No component contribution has been recorded for this line in this normalization version.</p> : (
+                {contributions.length === 0 ? <p className="mt-3 rounded border border-border p-3 text-xs text-muted">{t("referenceFormulations.noContribution")}</p> : (
                   <div className="mt-3 space-y-2">
                     {contributions.map(({ contribution, sds }) => <section key={contribution.id} aria-label={`Component contribution ${contribution.id}`} className="rounded border border-border p-3">
-                      <h5 className="text-xs font-semibold text-text">Component contribution · {contribution.id} · {contribution.status} · review required</h5>
-                      <p className="mt-1 text-xs text-muted">Component chemistry candidates: {contribution.canonicalChemistry.candidateIds.join(", ") || "unresolved"} · review required</p>
-                      <p className="mt-1 text-xs text-muted">Formula amount: {contribution.formulaAmount.originalValue ?? "unknown"} {contribution.formulaAmount.unit ?? ""} {contribution.formulaAmount.basis ?? ""} · source line {contribution.sourceFormulaLineId} · formula SHA-256 {contribution.sourceFormulaDocumentHash}</p>
-                      <p className="mt-1 text-xs text-muted">Calculated contribution: {contribution.contributionPercentRange ? `${contribution.contributionPercentRange.lowerBound}–${contribution.contributionPercentRange.upperBound}% w/w` : "unknown"} · evidence refs: {[...contribution.formulaAmount.evidenceRefs, ...contribution.sourceSds.evidenceRefs].join(", ") || "none"}</p>
-                      {!sds ? <p className="mt-2 rounded bg-surface-2 p-2 text-xs text-muted">SDS evidence missing; composition remains unknown. Reasons: {contribution.unknownReasons.join(", ") || "not supplied"}.</p> : (
+                      <h5 className="text-xs font-semibold text-text">{t("referenceFormulations.componentContributionTitle", { id: contribution.id, status: t(`referenceFormulations.status.${contribution.status}`) })}</h5>
+                      <p className="mt-1 text-xs text-muted">{t("referenceFormulations.componentChemistryCandidates", { candidates: contribution.canonicalChemistry.candidateIds.join(", ") || t("referenceFormulations.unresolved") })}</p>
+                      <p className="mt-1 text-xs text-muted">{t("referenceFormulations.formulaAmountLineage", { amount: contribution.formulaAmount.originalValue ?? t("referenceFormulations.unknown"), unit: contribution.formulaAmount.unit ?? "", basis: contribution.formulaAmount.basis ?? "", line: contribution.sourceFormulaLineId, hash: contribution.sourceFormulaDocumentHash })}</p>
+                      <p className="mt-1 text-xs text-muted">{t("referenceFormulations.calculatedContribution", { contribution: contribution.contributionPercentRange ? `${contribution.contributionPercentRange.lowerBound}–${contribution.contributionPercentRange.upperBound}% w/w` : t("referenceFormulations.unknown"), refs: [...contribution.formulaAmount.evidenceRefs, ...contribution.sourceSds.evidenceRefs].join(", ") || t("referenceFormulations.none") })}</p>
+                      {!sds ? <p className="mt-2 rounded bg-surface-2 p-2 text-xs text-muted">{t("referenceFormulations.sdsEvidenceMissing", { reasons: contribution.unknownReasons.join(", ") || t("referenceFormulations.notSupplied") })}</p> : (
                         <div className="mt-2 rounded bg-surface-2 p-3 text-xs text-muted">
-                          <p><span className="font-semibold text-text">SDS:</span> {sds.acquisition.sourceProduct.tradeName ?? sds.acquisition.sourceProduct.supplierItemCode ?? sds.acquisition.originalFilename} · supplier {sds.acquisition.supplierId} · acquisition {sds.acquisition.code} · {sds.acquisition.revisionDate ?? sds.acquisition.sourceRevision ?? "revision not stated"}</p>
-                          <p className="mt-1 break-all font-mono text-[10px]">Evidence {sds.evidence.code} · SDS SHA-256 {sds.acquisition.sha256} · Section 3 component {contribution.sourceSds.sourceComponentId ?? "not resolved"} · fact {contribution.sourceSds.sourceFactId ?? "not resolved"}</p>
-                          <p className="mt-1">Disclosure: {contribution.sourceSds.disclosure ?? "unknown"} · source value: {contribution.sourceSds.originalValue ?? "not disclosed or not extracted"} · normalized fraction: {contribution.sourceSds.fractionRange ? `${contribution.sourceSds.fractionRange.lowerBound}–${contribution.sourceSds.fractionRange.upperBound}` : "unknown"}</p>
-                          <p className="mt-1 break-words">Section 3 component: {sds.sourceComponent?.componentName?.rawValue ?? "name not disclosed"} · CAS {sds.sourceComponent?.casNumber?.rawValue ?? "not stated"} · EC {sds.sourceComponent?.ecNumber?.rawValue ?? "not stated"} · material number {sds.sourceComponent?.materialNumber?.rawValue ?? "not stated"} · cited evidence: {contribution.sourceSds.evidenceRefs.join(", ") || "none"}</p>
+                          <p>{t("referenceFormulations.sdsLineage", { product: sds.acquisition.sourceProduct.tradeName ?? sds.acquisition.sourceProduct.supplierItemCode ?? sds.acquisition.originalFilename, supplier: sds.acquisition.supplierId, code: sds.acquisition.code, revision: sds.acquisition.revisionDate ?? sds.acquisition.sourceRevision ?? t("referenceFormulations.revisionNotStated") })}</p>
+                          <p className="mt-1 break-all font-mono text-[10px]">{t("referenceFormulations.sdsEvidenceIdentity", { evidence: sds.evidence.code, hash: sds.acquisition.sha256, component: contribution.sourceSds.sourceComponentId ?? t("referenceFormulations.notResolved"), fact: contribution.sourceSds.sourceFactId ?? t("referenceFormulations.notResolved") })}</p>
+                          <p className="mt-1">{t("referenceFormulations.sdsDisclosure", { disclosure: contribution.sourceSds.disclosure ?? t("referenceFormulations.unknown"), value: contribution.sourceSds.originalValue ?? t("referenceFormulations.notDisclosed"), fraction: contribution.sourceSds.fractionRange ? `${contribution.sourceSds.fractionRange.lowerBound}–${contribution.sourceSds.fractionRange.upperBound}` : t("referenceFormulations.unknown") })}</p>
+                          <p className="mt-1 break-words">{t("referenceFormulations.sdsComponentFacts", { name: sds.sourceComponent?.componentName?.rawValue ?? t("referenceFormulations.nameNotDisclosed"), cas: sds.sourceComponent?.casNumber?.rawValue ?? t("referenceFormulations.notStated"), ec: sds.sourceComponent?.ecNumber?.rawValue ?? t("referenceFormulations.notStated"), material: sds.sourceComponent?.materialNumber?.rawValue ?? t("referenceFormulations.notStated"), refs: contribution.sourceSds.evidenceRefs.join(", ") || t("referenceFormulations.none") })}</p>
                         </div>
                       )}
                     </section>)}
@@ -337,53 +341,54 @@ function FormulationExtractionOverview({ record, reviewItems, onOpenPage }: {
   reviewItems: ReferenceFormulationReviewItem[];
   onOpenPage: (pageNumber: number, excerpt: string) => Promise<void>;
 }) {
+  const { t } = useTranslation("session");
   const itemFor = (targetKey: string) => reviewItems.find((item) => item.targetKey === targetKey);
   const cite = (item: ReferenceFormulationReviewItem | undefined) => item?.pageNumber
-    ? <button type="button" onClick={() => void onOpenPage(item.pageNumber!, item.evidenceExcerpt)} className="ml-2 text-[10px] text-accent underline">View PDF page {item.pageNumber}</button>
+    ? <button type="button" onClick={() => void onOpenPage(item.pageNumber!, item.evidenceExcerpt)} className="ml-2 text-[10px] text-accent underline">{t("referenceFormulations.viewPdfPage", { page: item.pageNumber })}</button>
     : null;
   return (
-    <section aria-label="Formulation extraction overview" className="max-h-[76vh] space-y-4 overflow-y-auto rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-text">Extracted formulation evidence · review required</h2>
-      <section aria-label="Extracted formula lines" className="rounded border border-border-faint p-3">
-        <h3 className="mb-2 text-xs font-semibold text-text">Formula lines, functions, amounts and commercial products</h3>
-        {record.ingredientLines.length === 0 ? <p className="text-xs text-muted">No ingredient lines were extracted.</p> : <div className="space-y-2">{record.ingredientLines.map((line) => {
+    <section aria-label={t("referenceFormulations.extractionOverviewLabel")} className="max-h-[76vh] space-y-4 overflow-y-auto rounded-lg border border-border bg-surface p-4">
+      <h2 className="text-sm font-semibold text-text">{t("referenceFormulations.extractionOverviewTitle")}</h2>
+      <section aria-label={t("referenceFormulations.formulaLinesLabel")} className="rounded border border-border-faint p-3">
+        <h3 className="mb-2 text-xs font-semibold text-text">{t("referenceFormulations.formulaLinesTitle")}</h3>
+        {record.ingredientLines.length === 0 ? <p className="text-xs text-muted">{t("referenceFormulations.noIngredientLines")}</p> : <div className="space-y-2">{record.ingredientLines.map((line) => {
           const match = record.productMatches.find((candidate) => candidate.ingredientLineId === line.id);
           const productItem = itemFor(`ingredient:${line.id}:supplierProductCode`)
             ?? itemFor(`ingredient:${line.id}:ingredientName`);
           return <article key={line.id} className="rounded border border-border-faint bg-surface-1 p-2">
-            <p className="text-[10px] font-medium text-text">{line.orderIndex}. {line.ingredientName?.rawValue ?? line.inciOrChemicalName?.rawValue ?? line.supplierProductCode?.rawValue ?? "Ingredient name not stated"}</p>
-            {line.rawRow.length > 0 && <p className="mt-1 break-words text-[10px] text-muted">Source row: {line.rawRow.join(" | ")}</p>}
+            <p className="text-[10px] font-medium text-text">{line.orderIndex}. {line.ingredientName?.rawValue ?? line.inciOrChemicalName?.rawValue ?? line.supplierProductCode?.rawValue ?? t("referenceFormulations.ingredientNameNotStated")}</p>
+            {line.rawRow.length > 0 && <p className="mt-1 break-words text-[10px] text-muted">{t("referenceFormulations.sourceRow", { row: line.rawRow.join(" | ") })}</p>}
             <div className="mt-2 grid gap-1 text-[10px] sm:grid-cols-2">
-              <SourceValue label="Supplier-stated function" value={line.function?.rawValue ?? "Not stated"} citation={cite(itemFor(`ingredient:${line.id}:function`))} />
-              <SourceValue label="Amount / unit / basis" value={[line.amount?.rawValue, line.unit?.rawValue, line.basis?.rawValue].filter(Boolean).join(" ") || (line.quantitySemantics === "q_s" ? "q.s. · source amount retained" : "Not stated")} citation={cite(itemFor(`ingredient:${line.id}:amount`))} />
-              <SourceValue label="Phase / sequence" value={line.phase?.rawValue ?? String(line.orderIndex)} citation={cite(itemFor(`ingredient:${line.id}:phase`))} />
-              <SourceValue label="Quantity semantics" value={line.quantitySemantics} />
+              <SourceValue label={t("referenceFormulations.supplierFunction")} value={line.function?.rawValue ?? t("referenceFormulations.notStated")} citation={cite(itemFor(`ingredient:${line.id}:function`))} />
+              <SourceValue label={t("referenceFormulations.amountUnitBasis")} value={[line.amount?.rawValue, line.unit?.rawValue, line.basis?.rawValue].filter(Boolean).join(" ") || (line.quantitySemantics === "q_s" ? t("referenceFormulations.qsAmountRetained") : t("referenceFormulations.notStated"))} citation={cite(itemFor(`ingredient:${line.id}:amount`))} />
+              <SourceValue label={t("referenceFormulations.phaseSequence")} value={line.phase?.rawValue ?? String(line.orderIndex)} citation={cite(itemFor(`ingredient:${line.id}:phase`))} />
+              <SourceValue label={t("referenceFormulations.quantitySemantics")} value={t(`referenceFormulations.quantity.${line.quantitySemantics}`)} />
             </div>
             <div className="mt-2 rounded border border-border-faint px-2 py-1.5">
-              <p className="text-[10px] font-medium text-text">Commercial-product link candidates</p>
-              <p className="mt-0.5 text-[10px] text-muted">{match ? `${match.resolution.replace(/_/gu, " ")} · ${match.autoLinked ? "auto-linked" : "not auto-linked"} · review required` : "No product match record"}</p>
-              {match?.candidates.length ? <ul className="mt-1 space-y-1">{match.candidates.map((candidate) => <li key={candidate.commercialProductId} className="break-words text-[10px] text-muted"><code className="text-accent">{candidate.commercialProductId}</code> · {candidate.tier.replace(/_/gu, " ")} · {candidate.matchedOn.join(", ") || "identifier match"}{candidate.matchedValues.length ? ` · ${candidate.matchedValues.join(", ")}` : ""}{candidate.similarity !== undefined ? ` · similarity proposal ${(candidate.similarity * 100).toFixed(1)}%` : ""}</li>)}</ul>
-                : <p className="mt-1 text-[10px] text-muted">No commercial product candidate; the source line remains unresolved.</p>}
+              <p className="text-[10px] font-medium text-text">{t("referenceFormulations.commercialLinkCandidates")}</p>
+              <p className="mt-0.5 text-[10px] text-muted">{match ? t("referenceFormulations.matchStatus", { resolution: t(`referenceFormulations.resolution.${match.resolution}`), linkage: t(match.autoLinked ? "referenceFormulations.autoLinked" : "referenceFormulations.notAutoLinked") }) : t("referenceFormulations.noProductMatch")}</p>
+              {match?.candidates.length ? <ul className="mt-1 space-y-1">{match.candidates.map((candidate) => <li key={candidate.commercialProductId} className="break-words text-[10px] text-muted"><code className="text-accent">{candidate.commercialProductId}</code> · {t(`referenceFormulations.matchTier.${candidate.tier}`)} · {candidate.matchedOn.join(", ") || t("referenceFormulations.identifierMatch")}{candidate.matchedValues.length ? ` · ${candidate.matchedValues.join(", ")}` : ""}{candidate.similarity !== undefined ? ` · ${t("referenceFormulations.similarityProposal", { percent: (candidate.similarity * 100).toFixed(1) })}` : ""}</li>)}</ul>
+                : <p className="mt-1 text-[10px] text-muted">{t("referenceFormulations.noCommercialCandidate")}</p>}
               {cite(productItem)}
             </div>
           </article>;
         })}</div>}
       </section>
-      <section aria-label="Extracted procedure" className="rounded border border-border-faint p-3">
-        <h3 className="mb-2 text-xs font-semibold text-text">Procedure and stated conditions</h3>
-        {record.procedureSteps.length === 0 ? <p className="text-xs text-muted">No procedure steps were extracted.</p> : <ol className="space-y-2">{record.procedureSteps.map((step) => <li key={step.id} className="rounded border border-border-faint bg-surface-1 p-2">
+      <section aria-label={t("referenceFormulations.procedureLabel")} className="rounded border border-border-faint p-3">
+        <h3 className="mb-2 text-xs font-semibold text-text">{t("referenceFormulations.procedureTitle")}</h3>
+        {record.procedureSteps.length === 0 ? <p className="text-xs text-muted">{t("referenceFormulations.noProcedureSteps")}</p> : <ol className="space-y-2">{record.procedureSteps.map((step) => <li key={step.id} className="rounded border border-border-faint bg-surface-1 p-2">
           <p className="text-[10px] font-medium text-text">{step.sequenceOrder}. {step.phase?.rawValue ? `${step.phase.rawValue} · ` : ""}{step.rawInstruction}</p>
-          <p className="mt-1 text-[10px] text-muted">Actions: {step.actions.join(", ") || "not classified"} · Conditions: {step.conditions.map((condition) => `${condition.kind}: ${condition.rawValue}`).join("; ") || "not stated"}</p>
+          <p className="mt-1 text-[10px] text-muted">{t("referenceFormulations.processStepDetails", { actions: step.actions.join(", ") || t("referenceFormulations.notClassified"), conditions: step.conditions.map((condition) => `${condition.kind}: ${condition.rawValue}`).join("; ") || t("referenceFormulations.notStated") })}</p>
           {cite(itemFor(`procedure:${step.id}:instruction`))}
         </li>)}</ol>}
       </section>
-      <section aria-label="Extracted formulation targets" className="rounded border border-border-faint p-3">
-        <h3 className="mb-2 text-xs font-semibold text-text">Source-stated targets and reported results</h3>
-        {record.targetCandidates.length === 0 ? <p className="text-xs text-muted">No target or result candidates were extracted.</p> : <ul className="space-y-2">{record.targetCandidates.map((target) => {
+      <section aria-label={t("referenceFormulations.targetsLabel")} className="rounded border border-border-faint p-3">
+        <h3 className="mb-2 text-xs font-semibold text-text">{t("referenceFormulations.targetsTitle")}</h3>
+        {record.targetCandidates.length === 0 ? <p className="text-xs text-muted">{t("referenceFormulations.noTargetCandidates")}</p> : <ul className="space-y-2">{record.targetCandidates.map((target) => {
           const item = itemFor(`target:${target.id}`);
           return <li key={target.id} className="rounded border border-border-faint bg-surface-1 p-2">
             <p className="text-[10px] font-medium text-text">{target.rawPropertyLabel}: {target.rawValue}</p>
-            <p className="mt-1 text-[10px] text-muted">{target.resultSemantics.replace(/_/gu, " ")} · {target.valueShape.replace(/_/gu, " ")}</p>
+            <p className="mt-1 text-[10px] text-muted">{t(`referenceFormulations.resultSemantics.${target.resultSemantics}`)} · {t(`referenceFormulations.valueShape.${target.valueShape}`)}</p>
             {cite(item)}
           </li>;
         })}</ul>}
@@ -405,6 +410,7 @@ function ReviewCard({
   onSave: (item: ReferenceFormulationReviewItem, decision: Decision, value?: string, note?: string) => Promise<void>;
   onOpenSourcePage: (pageNumber: number, excerpt: string) => Promise<void>;
 }) {
+  const { t } = useTranslation("session");
   const [decision, setDecision] = useState<Decision>("needs_review");
   const [value, setValue] = useState(review?.decision === "edited" ? review.reviewedValue ?? "" : item.sourceValue);
   const [note, setNote] = useState("");
@@ -415,40 +421,40 @@ function ReviewCard({
     try { await onSave(item, decision, value, note); }
     finally { setSaving(false); }
   };
-  const location = [item.pageNumber ? `Page ${item.pageNumber}` : undefined, item.rowIndex !== undefined ? `row ${item.rowIndex}` : undefined, item.cellIndex !== undefined ? `cell ${item.cellIndex}` : undefined]
+  const location = [item.pageNumber ? t("referenceFormulations.pageNumber", { page: item.pageNumber }) : undefined, item.rowIndex !== undefined ? t("referenceFormulations.rowNumber", { row: item.rowIndex }) : undefined, item.cellIndex !== undefined ? t("referenceFormulations.cellNumber", { cell: item.cellIndex }) : undefined]
     .filter(Boolean).join(" · ");
 
   return (
     <article className="overflow-hidden rounded-lg border border-border bg-surface">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div><h2 className="text-sm font-semibold capitalize text-text">{item.label}</h2><p className="text-[11px] text-muted">{item.targetType} · {item.fieldPath}</p></div>
-        {review && <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs text-text">{review.decision.replace(/_/g, " ")} · {review.reviewer.displayName}</span>}
+        {review && <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs text-text">{t(`referenceFormulations.decision.${review.decision}`)} · {review.reviewer.displayName}</span>}
       </header>
       <div className="grid md:grid-cols-2">
-        <section className="border-b border-border p-4 md:border-b-0 md:border-r" aria-label="Source evidence">
-          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Source evidence {location && `· ${location}`}</h3>
-          <blockquote className="whitespace-pre-wrap break-words rounded bg-surface-2 p-3 text-sm text-text">{item.evidenceExcerpt || "No source excerpt was retained."}</blockquote>
-          {item.sourceKind && <p className="mt-2 text-[11px] text-muted">{item.sourceKind}{item.confidence !== undefined ? ` · ${(item.confidence * 100).toFixed(0)}% extraction confidence` : ""}</p>}
-          {item.pageNumber !== undefined && <button type="button" onClick={() => void onOpenSourcePage(item.pageNumber!, item.evidenceExcerpt)} className="mt-2 text-[11px] text-accent underline">View source PDF page {item.pageNumber}</button>}
+        <section className="border-b border-border p-4 md:border-b-0 md:border-r" aria-label={t("referenceFormulations.sourceEvidenceLabel")}>
+          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("referenceFormulations.sourceEvidenceHeading", { location })}</h3>
+          <blockquote className="whitespace-pre-wrap break-words rounded bg-surface-2 p-3 text-sm text-text">{item.evidenceExcerpt || t("referenceFormulations.noSourceExcerpt")}</blockquote>
+          {item.sourceKind && <p className="mt-2 text-[11px] text-muted">{t(({ digital: "referenceFormulations.sourceKind.digital", ocr: "referenceFormulations.sourceKind.ocr", mixed: "referenceFormulations.sourceKind.mixed", unknown: "referenceFormulations.sourceKind.unknown" } as const)[item.sourceKind] ?? "referenceFormulations.sourceKind.unknown")}{item.confidence !== undefined ? ` · ${t("referenceFormulations.extractionConfidence", { percent: (item.confidence * 100).toFixed(0) })}` : ""}</p>}
+          {item.pageNumber !== undefined && <button type="button" onClick={() => void onOpenSourcePage(item.pageNumber!, item.evidenceExcerpt)} className="mt-2 text-[11px] text-accent underline">{t("referenceFormulations.viewSourcePdfPage", { page: item.pageNumber })}</button>}
         </section>
-        <section className="p-4" aria-label="Extracted value">
-          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Extracted value</h3>
-          <p className="mb-3 whitespace-pre-wrap break-words rounded border border-border p-3 text-sm text-text">{item.sourceValue || "(empty)"}</p>
-          <label className="mb-2 block text-xs text-muted">Review decision
+        <section className="p-4" aria-label={t("referenceFormulations.extractedValueLabel")}>
+          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("referenceFormulations.extractedValueHeading")}</h3>
+          <p className="mb-3 whitespace-pre-wrap break-words rounded border border-border p-3 text-sm text-text">{item.sourceValue || t("referenceFormulations.emptyValue")}</p>
+          <label className="mb-2 block text-xs text-muted">{t("referenceFormulations.reviewDecision")}
             <select value={decision} onChange={(event) => setDecision(event.target.value as Decision)} disabled={disabled || saving} className="mt-1 block w-full rounded border border-border bg-surface px-2 py-2 text-sm text-text">
-              {DECISIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {DECISIONS.map((option) => <option key={option.value} value={option.value}>{t(`referenceFormulations.${option.labelKey}`)}</option>)}
             </select>
           </label>
-          {decision === "edited" && <label className="mb-2 block text-xs text-muted">Proposed reviewed value
+          {decision === "edited" && <label className="mb-2 block text-xs text-muted">{t("referenceFormulations.proposedValue")}
             <input value={value} onChange={(event) => setValue(event.target.value)} disabled={disabled || saving} className="mt-1 block w-full rounded border border-border bg-surface px-2 py-2 text-sm text-text" />
           </label>}
-          <label className="mb-3 block text-xs text-muted">Review note (optional)
+          <label className="mb-3 block text-xs text-muted">{t("referenceFormulations.reviewNote")}
             <input value={note} onChange={(event) => setNote(event.target.value)} disabled={disabled || saving} maxLength={2000} className="mt-1 block w-full rounded border border-border bg-surface px-2 py-2 text-sm text-text" />
           </label>
           <button type="button" onClick={() => void submit()} disabled={disabled || saving || (decision === "edited" && !value.trim())} className="rounded bg-accent px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-            {saving ? "Saving…" : "Save review decision"}
+            {saving ? t("referenceFormulations.saving") : t("referenceFormulations.saveDecision")}
           </button>
-          {review && <p className="mt-2 text-[11px] text-muted">Previous decision retained · {new Date(review.reviewedAt).toLocaleString()}</p>}
+          {review && <p className="mt-2 text-[11px] text-muted">{t("referenceFormulations.previousDecisionRetained", { date: new Date(review.reviewedAt).toLocaleString() })}</p>}
         </section>
       </div>
     </article>
