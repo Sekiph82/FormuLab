@@ -121,11 +121,13 @@
 //     price change must not silently rewrite what a formula cost last March.
 use std::{path::PathBuf, sync::Mutex};
 
+use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 
 use crate::authz;
 
 static REFERENCE_FORMULATION_NORMALIZATION_WRITE_LOCK: Mutex<()> = Mutex::new(());
+static REFERENCE_FORMULATION_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static SUPPLIER_SDS_EVIDENCE_WRITE_LOCK: Mutex<()> = Mutex::new(());
 static IDENTITY_FIELD_REVIEW_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -661,9 +663,21 @@ pub async fn append_reference_formulation_review(
         return Err("review must cite an existing immutable reference formulation source".to_string());
     };
     validate_review_evidence(&review, source)?;
+    if review["id"].as_str() != Some(reference_formulation_review_id(&review)?.as_str()) {
+        return Err("review id and code must match the deterministic decision idempotency key".to_string());
+    }
 
+    let _guard = REFERENCE_FORMULATION_REVIEW_WRITE_LOCK
+        .lock()
+        .map_err(|_| "reference formulation review storage is unavailable".to_string())?;
     let path = collection_path(&app, "reference_formulation_reviews")?;
     let rows = read_array(&path);
+    if let Some(existing) = rows.iter().find(|row| row["id"] == review["id"]) {
+        if reference_formulation_review_retry_matches(existing, &review) {
+            return Ok(existing.clone());
+        }
+        return Err("reference formulation review idempotency key conflicts with an existing decision".to_string());
+    }
     let (rows, inserted, _) = apply_upsert(
         rows,
         vec![review.clone()],
@@ -1806,6 +1820,57 @@ fn normalization_candidate_status_matches(status: Option<&str>, count: usize) ->
     matches!((status, count), (Some("unresolved"), 0) | (Some("proposed"), 1) | (Some("ambiguous"), 2..))
 }
 
+fn reference_formulation_review_retry_matches(
+    existing: &serde_json::Value,
+    candidate: &serde_json::Value,
+) -> bool {
+    let mut existing = existing.clone();
+    let mut candidate = candidate.clone();
+    if let Some(object) = existing.as_object_mut() {
+        object.remove("reviewedAt");
+    }
+    if let Some(object) = candidate.as_object_mut() {
+        object.remove("reviewedAt");
+    }
+    existing == candidate
+}
+
+fn reference_formulation_review_id(review: &serde_json::Value) -> Result<String, String> {
+    let required = |field: &str| {
+        review.get(field)
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("review field {field} is required"))
+    };
+    let reviewer_id = review.get("reviewer").and_then(|value| value.get("userId"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "review reviewer identity is required".to_string())?;
+    let reviewer_name = review.get("reviewer").and_then(|value| value.get("displayName"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "review reviewer identity is required".to_string())?;
+    let optional = |field: &str| review.get(field).cloned().unwrap_or(serde_json::Value::Null);
+    let identity = serde_json::json!([
+        required("referenceFormulationRecordId")?,
+        required("sourceDocumentHash")?.to_ascii_lowercase(),
+        required("targetType")?,
+        required("targetKey")?,
+        required("fieldPath")?,
+        required("sourceValue")?,
+        required("evidenceExcerpt")?,
+        optional("pageNumber"),
+        optional("blockIndex"),
+        optional("rowIndex"),
+        optional("cellIndex"),
+        required("decision")?,
+        optional("reviewedValue"),
+        optional("note"),
+        reviewer_id,
+        reviewer_name,
+    ]);
+    let serialized = serde_json::to_vec(&identity).map_err(|error| error.to_string())?;
+    let digest = Sha256::digest(serialized);
+    Ok(format!("rfreview-{digest:x}"))
+}
+
 fn stamp_reference_formulation_review(
     mut review: serde_json::Value,
     user_id: &str,
@@ -2843,6 +2908,60 @@ mod tests {
         assert!(validate_review_evidence(&forged, &source).unwrap_err().contains("immutable source evidence"));
         assert!(ensure_generic_collection_write_allowed("reference_formulation_reviews").is_err());
         assert!(ensure_generic_collection_write_allowed("reference_formulations").is_ok());
+    }
+
+    #[test]
+    fn identical_reference_formulation_review_retry_returns_same_append_only_decision() {
+        let first = serde_json::json!({
+            "id": "rfreview-stable-key", "code": "rfreview-stable-key",
+            "referenceFormulationRecordId": "reference-1", "sourceDocumentHash": "a".repeat(64),
+            "targetType": "identity", "targetKey": "identity:formulation_code:0",
+            "fieldPath": "identityCandidates[0].formulation_code", "sourceValue": "HC/DW/22",
+            "evidenceExcerpt": "Formulation HC/DW/22", "decision": "accepted",
+            "reviewer": { "userId": "chemist-1", "displayName": "Chemist" },
+            "reviewedAt": "2026-10-27T08:00:00Z"
+        });
+        let retry = serde_json::json!({
+            "id": "rfreview-stable-key", "code": "rfreview-stable-key",
+            "referenceFormulationRecordId": "reference-1", "sourceDocumentHash": "a".repeat(64),
+            "targetType": "identity", "targetKey": "identity:formulation_code:0",
+            "fieldPath": "identityCandidates[0].formulation_code", "sourceValue": "HC/DW/22",
+            "evidenceExcerpt": "Formulation HC/DW/22", "decision": "accepted",
+            "reviewer": { "userId": "chemist-1", "displayName": "Chemist" },
+            "reviewedAt": "2026-10-27T08:05:00Z"
+        });
+        assert!(reference_formulation_review_retry_matches(&first, &retry));
+
+        let mut conflicting_retry = retry.clone();
+        conflicting_retry["decision"] = serde_json::json!("rejected");
+        assert!(!reference_formulation_review_retry_matches(&first, &conflicting_retry));
+    }
+
+    #[test]
+    fn reference_formulation_review_id_binds_content_to_authenticated_reviewer() {
+        let payload = serde_json::json!({
+            "schemaVersion": "1.0", "id": "pending", "code": "pending",
+            "referenceFormulationRecordId": "reference-1", "sourceDocumentHash": "a".repeat(64),
+            "targetType": "identity", "targetKey": "identity:formulation_code:0",
+            "fieldPath": "identityCandidates[0].formulation_code", "sourceValue": "HC/DW/22",
+            "evidenceExcerpt": "Formulation HC/DW/22", "decision": "accepted",
+            "reviewer": { "userId": "untrusted", "displayName": "Untrusted" }
+        });
+        let stamped = stamp_reference_formulation_review(
+            payload, "chemist-1", "Chemist", "2026-10-27T08:00:00Z",
+        ).unwrap();
+        let expected = reference_formulation_review_id(&stamped).unwrap();
+        assert!(expected.strip_prefix("rfreview-").map_or(false, is_sha256_hex));
+
+        let mut fresh_arbitrary_id = stamped.clone();
+        fresh_arbitrary_id["id"] = serde_json::json!("rfreview-fresh-random-id");
+        fresh_arbitrary_id["code"] = serde_json::json!("rfreview-fresh-random-id");
+        assert_ne!(fresh_arbitrary_id["id"].as_str(), Some(expected.as_str()));
+        assert_eq!(stamped["reviewer"]["userId"], "chemist-1");
+        assert_eq!(reference_formulation_review_id(&fresh_arbitrary_id).unwrap(), expected);
+        let mut untrusted_reviewer = stamped.clone();
+        untrusted_reviewer["reviewer"]["userId"] = serde_json::json!("untrusted");
+        assert_ne!(reference_formulation_review_id(&untrusted_reviewer).unwrap(), expected);
     }
 
     #[test]

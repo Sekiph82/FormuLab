@@ -2,12 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { referenceFormulationImportFileSchema, referenceFormulationImportJobSchema } from "@formulab/shared";
 
-const { collections, listRecordsMock, upsertRecordsMock, nowIsoMock, storePdfMock } = vi.hoisted(() => {
+const { collections, listRecordsMock, upsertRecordsMock, nowIsoMock, storePdfMock, failUpsertOnce } = vi.hoisted(() => {
   const collections = new Map<string, Record<string, unknown>[]>();
+  const failUpsertOnce: { collection: string; matches: (rows: Record<string, unknown>[]) => boolean }[] = [];
   return {
     collections,
+    failUpsertOnce,
     listRecordsMock: vi.fn(async (collection: string) => collections.get(collection) ?? []),
     upsertRecordsMock: vi.fn(async (collection: string, rows: Record<string, unknown>[]) => {
+      const failureIndex = failUpsertOnce.findIndex((failure) => failure.collection === collection && failure.matches(rows));
+      if (failureIndex >= 0) {
+        failUpsertOnce.splice(failureIndex, 1);
+        throw new Error("simulated transient persistence interruption");
+      }
       const existing = collections.get(collection) ?? [];
       for (const row of rows) {
         const key = String(row.code ?? row.id);
@@ -70,6 +77,7 @@ async function validPdf(width = 300): Promise<Uint8Array> {
 describe("reference formulation bulk import", () => {
   beforeEach(() => {
     collections.clear();
+    failUpsertOnce.length = 0;
     vi.clearAllMocks();
   });
 
@@ -128,6 +136,68 @@ describe("reference formulation bulk import", () => {
     expect(resumed.job.status).toBe("completed");
     expect(resumed.files[0]?.status).toBe("duplicate");
     expect(collections.get("reference_formulations")).toHaveLength(1);
+  });
+
+  it("retries after PDF storage succeeds but acquisition persistence is interrupted", async () => {
+    const bytes = await validPdf();
+    failUpsertOnce.push({ collection: "supplier_document_acquisitions", matches: () => true });
+
+    const interrupted = await startReferenceFormulationBulkImport([selectedFile("downloaded.pdf", bytes)], metadata);
+    expect(interrupted.job).toMatchObject({ status: "completed_with_errors", failedFiles: 1 });
+    expect(interrupted.files[0]).toMatchObject({ status: "failed", errorCode: "acquisition_failed", attemptCount: 1 });
+    expect(storePdfMock).toHaveBeenCalledTimes(1);
+    expect(collections.get("supplier_document_acquisitions") ?? []).toHaveLength(0);
+
+    const resumed = await resumeReferenceFormulationBulkImport(interrupted.job.id, [selectedFile("downloaded.pdf", bytes)]);
+
+    expect(resumed.job).toMatchObject({ status: "completed", reviewRequiredFiles: 1, failedFiles: 0 });
+    expect(resumed.files[0]).toMatchObject({ status: "review_required", attemptCount: 2 });
+    expect(storePdfMock).toHaveBeenCalledTimes(2);
+    expect(storePdfMock.mock.calls[0]?.[1]).toBe(storePdfMock.mock.calls[1]?.[1]);
+    expect(collections.get("supplier_document_acquisitions")).toHaveLength(1);
+    expect(collections.get("reference_formulations")).toHaveLength(1);
+  });
+
+  it("retries parsing from the existing acquisition without duplicating the stored source", async () => {
+    const bytes = await validPdf();
+    failUpsertOnce.push({ collection: "reference_formulations", matches: () => true });
+
+    const interrupted = await startReferenceFormulationBulkImport([selectedFile("parse-retry.pdf", bytes)], metadata);
+    expect(interrupted.files[0]).toMatchObject({ status: "failed", errorCode: "parser_failed", attemptCount: 1 });
+    expect(collections.get("supplier_document_acquisitions")).toHaveLength(1);
+    expect(collections.get("reference_formulations") ?? []).toHaveLength(0);
+
+    const resumed = await resumeReferenceFormulationBulkImport(interrupted.job.id, [selectedFile("parse-retry.pdf", bytes)]);
+
+    expect(resumed.job).toMatchObject({ status: "completed", reviewRequiredFiles: 1, failedFiles: 0 });
+    expect(resumed.files[0]).toMatchObject({ status: "review_required", attemptCount: 2 });
+    expect(storePdfMock).toHaveBeenCalledTimes(1);
+    expect(collections.get("supplier_document_acquisitions")).toHaveLength(1);
+    expect(collections.get("reference_formulations")).toHaveLength(1);
+  });
+
+  it("recovers a processing checkpoint and avoids a duplicate formula when completion persistence is interrupted", async () => {
+    const bytes = await validPdf();
+    failUpsertOnce.push({
+      collection: "reference_formulation_import_files",
+      matches: (rows) => rows.some((row) => row.status === "review_required"),
+    });
+
+    const interrupted = await startReferenceFormulationBulkImport([selectedFile("commit-retry.pdf", bytes)], metadata);
+    expect(interrupted.files[0]).toMatchObject({ status: "failed", errorCode: "parser_failed", attemptCount: 1 });
+    expect(collections.get("reference_formulations")).toHaveLength(1);
+
+    const persistedRecordId = (collections.get("reference_formulations")![0] as { id: string }).id;
+    const currentFile = collections.get("reference_formulation_import_files")![0]!;
+    collections.set("reference_formulation_import_files", [{ ...currentFile, status: "processing", errorCode: undefined, errorMessage: undefined }]);
+    const resumed = await resumeReferenceFormulationBulkImport(interrupted.job.id, [selectedFile("commit-retry.pdf", bytes)]);
+
+    expect(resumed.job).toMatchObject({ status: "completed", duplicateFiles: 1, reviewRequiredFiles: 0, failedFiles: 0 });
+    expect(resumed.files[0]).toMatchObject({ status: "duplicate", attemptCount: 2 });
+    expect(resumed.files[0]?.duplicateOfSourceRecordId).toBe(persistedRecordId);
+    expect(collections.get("supplier_document_acquisitions")).toHaveLength(1);
+    expect(collections.get("reference_formulations")).toHaveLength(1);
+    expect(storePdfMock).toHaveBeenCalledTimes(1);
   });
 
   it("repairs an interrupted partial file manifest when the original selection is restored", async () => {

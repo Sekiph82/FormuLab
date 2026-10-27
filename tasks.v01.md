@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 143
-- Remaining: 13
-- Completion: 91.7%
-- Current task: V01-10.006 - Implement retry/idempotency acceptance
+- Completed: 144
+- Remaining: 12
+- Completion: 92.3%
+- Current task: V01-10.007 - Implement backup/restore acceptance
 - Current status: IN PROGRESS
-- Next task: V01-10.007 - Implement backup/restore acceptance
+- Next task: V01-10.008 - Implement Croda end-to-end fixture acceptance
+- Acceptance note: V01-10.006 covers scan-page replay/checkpoint idempotency, exact acquisition retry, content-addressed PDF blob deduplication, and bulk formula import recovery at blob-storage/acquisition, acquisition/parsing, and record/manifest persistence boundaries. Review decisions now use a schema-normalized deterministic SHA-256 identity bound to the authenticated reviewer; native append serializes retry lookup/write, returns an identical prior decision, and rejects conflicting or caller-invented keys. Focused desktop tests (29 across bulk import, review retries, acquisition jobs and receipts), native review tests (4), native blob-store deduplication (1), desktop typecheck, task validation, `git diff --check`, and independent read-only review passed. Full regression remains for milestone closure.
 - Acceptance note: V01-10.005 adds a parser-failure redaction regression and confirms the existing supplier-document defenses: exact HTTPS host admission, private/reserved address and redirect rejection, MIME plus PDF signature checks, byte/page caps, encrypted/malformed-file quarantine, path/filename sanitization, content-address/hash integrity, and safe source-URL handling. Focused desktop PDF admission tests (17), native network admission (7) and supplier blob store tests (6), shared supplier-document schema tests (7), desktop typecheck, task validation, `git diff --check`, and independent read-only security review passed. The test surface exercises the validation predicates used by the fetch path; no live external HTTP test was run. Full regression remains for milestone closure.
 - Acceptance note: V01-10.004 adds revision-lineage regressions. Rev 1 and Rev 2 supplier formulation records retain their own PDF hashes and extraction citations while the historical snapshot remains unchanged; SDS evidence is accepted only with its exact acquisition and both acquisition/evidence rows append without rewriting prior versions; re-import with mapping v2 is classified as changed while the prior row remains pinned to v1; nearest-reference evidence preserves the selected revision's source hash when a newer sibling exists. Focused shared suites (64 tests), one focused native Rust test, shared typecheck, V01 task validation, `git diff --check`, and independent read-only review passed. Full regression remains for milestone closure.
 - Acceptance note: V01-10.003 adds focused negative regressions: absent Section 1 CAS remains absent, SDS Section 3 concentration cannot be converted into active-matter evidence, unmatched formula ingredients continue to request both SDS and TDS, missing/undisclosed composition remains partial, absent process conditions stay empty, and unsupported Section 9 fields produce no property candidates. Six focused shared suites (45 tests), shared typecheck, V01 task validation, `git diff --check`, and independent read-only review passed. No production behavior changed; full regression remains for milestone closure.
@@ -379,8 +380,8 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-10.003 - Implement unknown/missing-data regressions**: Verify missing CAS, undisclosed remainder, unknown active matter, missing SDS/TDS, absent process values and unsupported properties remain unknown/unresolved.
 - [x] **V01-10.004 - Implement revision immutability regressions**: Historical formulas, mappings, SDS extractions and generator evidence remain pinned to exact source versions after newer documents/mappings exist.
 - [x] **V01-10.005 - Implement security acceptance**: Test SSRF, redirect abuse, path traversal, spoofed MIME, oversized/encrypted/malformed PDFs, parser failures, secret leakage and hostile filenames.
-- [~] **V01-10.006 - Implement retry/idempotency acceptance**: Verify interrupted scans/downloads/parsing/bulk imports resume without duplicate blobs/products/reference formulas/reviews or split-brain lineage.
-- [ ] **V01-10.007 - Implement backup/restore acceptance**: Verify all V01 persisted records, binaries, mappings, reviews and lineage restore exactly and derived indexes rebuild deterministically.
+- [x] **V01-10.006 - Implement retry/idempotency acceptance**: Verify interrupted scans/downloads/parsing/bulk imports resume without duplicate blobs/products/reference formulas/reviews or split-brain lineage.
+- [~] **V01-10.007 - Implement backup/restore acceptance**: Verify all V01 persisted records, binaries, mappings, reviews and lineage restore exactly and derived indexes rebuild deterministically.
 - [ ] **V01-10.008 - Implement Croda end-to-end fixture acceptance**: HC/DW/22 PDF + four Croda SDS: acquisition/import -> formula extraction -> product matching -> SDS evidence -> commercial-product resolution -> normalized/indexed reference formula -> retrieval-ready record, with unsupported identities unresolved.
 - [ ] **V01-10.009 - Implement Evonik resolver acceptance**: ABIL ME 45 as complex silicone-quat blend and DERMOFEEL PA as phytic-acid solution, preserving component disclosure, trade-secret limits and context-bound properties.
 - [ ] **V01-10.010 - Implement Clariant resolver acceptance**: Aristoflex TAC as polymer/near-pure product with material number, chemical nature, CAS, 90-100% crosspolymer evidence, storage and condition-bound physical properties.
