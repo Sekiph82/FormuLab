@@ -8,6 +8,12 @@ describe("candidate reference evidence", () => {
   it("shows reviewed prior counts, supplier mix, dosage ranges, similar references, and source links", () => {
     const candidate = {
       formula: [], estimatedProperties: {}, matchScore: 0, notes: [], referenceProductFamilyKey: "hand_dishwash",
+      referenceSupportQuality: {
+        status: "BROAD", policyVersion: "formulab-reference-support-quality-v1", familyFormulaCount: 10,
+        eligibleFormulaCount: 10, supplierCount: 3, identityResolvedFormulaCount: 9, identityResolutionPercent: 90,
+        ingredientLineCount: 25, sourceCitedIngredientLineCount: 24, sourceCitationCoveragePercent: 96,
+        interpretation: "deterministic_reviewed_corpus_sample_resolution_and_source_coverage_not_ai_confidence_or_validation",
+      },
       ingredientGuidance: [{
         materialId: "RM-SURF-1", canonicalChemistryId: "chem-surf-1", formulaCount: 2, eligibleFormulaCount: 4,
         formulaWeightedFrequency: 0.5, supplierNeutralFrequency: 0.625, supplierCount: 2,
@@ -40,6 +46,9 @@ describe("candidate reference evidence", () => {
 
     expect(screen.getByRole("region", { name: "Reviewed reference evidence" })).toBeInTheDocument();
     expect(screen.getByText("hand_dishwash")).toBeInTheDocument();
+    expect(screen.getByText("Reference support: BROAD")).toBeInTheDocument();
+    expect(screen.getByText(/10 family records; 10 fully eligible reviewed formulas across 3 suppliers; identity resolved 9\/10 \(90.0%\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Deterministic tiers: BROAD/)).toBeInTheDocument();
     expect(screen.getByText(/2 \/ 4 reviewed formulas/)).toBeInTheDocument();
     expect(screen.getByText(/Supplier sample mix: supplier-a \(1\/2, 50.0%\), supplier-b \(1\/2, 50.0%\)/)).toBeInTheDocument();
     expect(screen.getByText(/Candidate 5.00% w\/w; typical 3.00–7.00%/)).toBeInTheDocument();

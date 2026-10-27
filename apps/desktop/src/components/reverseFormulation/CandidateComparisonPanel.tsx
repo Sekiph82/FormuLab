@@ -177,8 +177,11 @@ export function CandidateComparisonPanel({
       const analysis = analyzeAnalyticalResults(analyticalResults);
       const effectiveConstraints = constraints ?? emptyConstraints(study.id);
       let referenceContext: ReferenceFormulationGenerationContext | undefined;
+      let referenceSupportQuality: GeneratedCandidate["referenceSupportQuality"];
       try {
-        referenceContext = await loadReferenceFormulationGenerationContext(target.productFamilyCode);
+        const reference = await loadReferenceFormulationGenerationContext(target.productFamilyCode);
+        referenceContext = reference.context;
+        referenceSupportQuality = reference.supportQuality;
         if (!referenceContext.available) setReferenceNotice(t("reverseFormulation.candidates.noReviewedReferenceCorpus"));
       } catch (cause) {
         setReferenceNotice(t("reverseFormulation.candidates.referenceContextLoadFailed", { message: cause instanceof Error ? cause.message : String(cause) }));
@@ -193,7 +196,7 @@ export function CandidateComparisonPanel({
         availableMaterials: materials,
         ...(referenceContext ? { referenceContext } : {}),
         ...(referenceContext?.available ? { canonicalProductFamilyKey } : {}),
-      });
+      }).map((candidate) => referenceSupportQuality ? { ...candidate, referenceSupportQuality } : candidate);
 
       const scored: ScoredCandidate[] = generated
         .map((candidate, index) => ({
@@ -463,6 +466,7 @@ function CandidateCard({
 export function CandidateReferenceEvidence({ candidate }: { candidate: GeneratedCandidate }) {
   const { t } = useTranslation("session");
   const guidanceCount = (candidate.ingredientGuidance?.length ?? 0)
+    + (candidate.referenceSupportQuality ? 1 : 0)
     + (candidate.referenceCorpusGuidance ? 1 : 0)
     + (candidate.dosageGuidance?.length ?? 0)
     + (candidate.nearestReferenceGuidance?.length ?? 0)
@@ -502,6 +506,22 @@ export function CandidateReferenceEvidence({ candidate }: { candidate: Generated
         {candidate.referenceProductFamilyKey && <span className="font-mono text-muted">{candidate.referenceProductFamilyKey}</span>}
       </div>
       <div className="space-y-2.5">
+        {candidate.referenceSupportQuality && (
+          <div className="border-t border-border-faint pt-2 first:border-0 first:pt-0" data-testid="reference-support-quality">
+            <p className="font-medium text-text">{t("reverseFormulation.candidates.referenceSupportQuality", { status: candidate.referenceSupportQuality.status })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceSupportQualityCounts", {
+              family: candidate.referenceSupportQuality.familyFormulaCount,
+              eligible: candidate.referenceSupportQuality.eligibleFormulaCount,
+              suppliers: candidate.referenceSupportQuality.supplierCount,
+              resolved: candidate.referenceSupportQuality.identityResolvedFormulaCount,
+              resolution: candidate.referenceSupportQuality.identityResolutionPercent.toFixed(1),
+              cited: candidate.referenceSupportQuality.sourceCitedIngredientLineCount,
+              lines: candidate.referenceSupportQuality.ingredientLineCount,
+              coverage: candidate.referenceSupportQuality.sourceCitationCoveragePercent.toFixed(1),
+            })}</p>
+            <p className="text-muted">{t("reverseFormulation.candidates.referenceSupportQualityCriteria")}</p>
+          </div>
+        )}
         {candidate.referenceCorpusGuidance && (
           <div className="border-t border-border-faint pt-2 first:border-0 first:pt-0">
             <p className="font-medium text-text">{t("reverseFormulation.candidates.referenceCorpusSummary", { count: candidate.referenceCorpusGuidance.eligibleFormulaCount, suppliers: candidate.referenceCorpusGuidance.supplierCount })}</p>

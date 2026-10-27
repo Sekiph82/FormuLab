@@ -38,6 +38,20 @@ export interface GenerationInput {
   canonicalProductFamilyKey?: string;
 }
 
+export interface ReferenceFormulationSupportQuality {
+  status: "BROAD" | "MODERATE" | "SPARSE" | "UNAVAILABLE";
+  policyVersion: "formulab-reference-support-quality-v1";
+  familyFormulaCount: number;
+  eligibleFormulaCount: number;
+  supplierCount: number;
+  identityResolvedFormulaCount: number;
+  identityResolutionPercent: number;
+  ingredientLineCount: number;
+  sourceCitedIngredientLineCount: number;
+  sourceCitationCoveragePercent: number;
+  interpretation: "deterministic_reviewed_corpus_sample_resolution_and_source_coverage_not_ai_confidence_or_validation";
+}
+
 /**
  * A generated formula candidate.
  */
@@ -63,6 +77,7 @@ export interface GeneratedCandidate {
     sourceRecordIds: string[];
     interpretation: "reviewed_eligible_reference_corpus_summary_not_validation";
   };
+  referenceSupportQuality?: ReferenceFormulationSupportQuality;
   /** Source-linked dosage comparison. It is advisory metadata and never mutates the generated formula. */
   dosageGuidance?: Array<{
     asOf: string;

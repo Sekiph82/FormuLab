@@ -9,6 +9,10 @@ import {
   referenceFormulationReviewSchema,
   REFERENCE_FORMULATION_NEAREST_REFERENCES_VERSION,
   REFERENCE_FORMULATION_SIMILARITY_FEATURES_VERSION,
+  filterEligibleReferenceFormulationCorpus,
+  type ReferenceFormulationEligibilityDecision,
+  type ReferenceFormulationQueryRecord,
+  type ReferenceFormulationSupportQuality,
   type ReferenceFormulationGenerationContext,
 } from "@formulab/shared";
 import { listRecords } from "./masterdata";
@@ -19,8 +23,65 @@ function familyKey(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
 }
 
+const identityResolutionReasons = new Set<ReferenceFormulationEligibilityDecision["reasons"][number]>([
+  "missing_product_family", "ambiguous_product_family", "product_family_not_reviewed", "missing_ingredient_lines", "missing_line_identity",
+  "line_identity_not_reviewed", "canonical_chemistry_unresolved", "canonical_chemistry_ambiguous",
+  "canonical_chemistry_not_reviewed",
+]);
+
+/** Deterministic corpus quality summary; thresholds are labels, never an AI confidence estimate. */
+export function summarizeReferenceFormulationSupport(input: {
+  queryRecords: ReferenceFormulationQueryRecord[];
+  decisions: ReferenceFormulationEligibilityDecision[];
+  context: Pick<ReferenceFormulationGenerationContext, "eligibleFormulaCount" | "supplierCount">;
+  productFamilyKey: string;
+}): ReferenceFormulationSupportQuality {
+  const productFamilyKey = familyKey(input.productFamilyKey);
+  const queryById = new Map(input.queryRecords.map((query) => [query.id, query]));
+  const familyDecisions = input.decisions.filter((decision) => {
+    const query = queryById.get(decision.queryRecordId);
+    return query?.productFamily.candidates.some((family) => familyKey(family.rawValue) === productFamilyKey);
+  });
+  const familyFormulaCount = familyDecisions.length;
+  const identityResolvedFormulaCount = familyDecisions.filter((decision) =>
+    !decision.reasons.some((reason) => identityResolutionReasons.has(reason)),
+  ).length;
+  const familyQueries = familyDecisions.map((decision) => queryById.get(decision.queryRecordId)!).filter(Boolean);
+  const ingredientLineCount = familyQueries.reduce((sum, query) => sum + query.lines.length, 0);
+  const sourceCitedIngredientLineCount = familyQueries.reduce(
+    (sum, query) => sum + query.lines.filter((line) => line.sourceLineEvidenceRefs.length > 0).length,
+    0,
+  );
+  const percent = (numerator: number, denominator: number) => denominator ? Math.round((numerator / denominator) * 1000) / 10 : 0;
+  const identityResolutionPercent = percent(identityResolvedFormulaCount, familyFormulaCount);
+  const sourceCitationCoveragePercent = percent(sourceCitedIngredientLineCount, ingredientLineCount);
+  const eligibleFormulaCount = input.context.eligibleFormulaCount;
+  const supplierCount = input.context.supplierCount;
+  const status = eligibleFormulaCount >= 10 && supplierCount >= 3 && identityResolutionPercent >= 80 && sourceCitationCoveragePercent >= 90
+    ? "BROAD"
+    : eligibleFormulaCount >= 3 && supplierCount >= 2 && identityResolutionPercent >= 60 && sourceCitationCoveragePercent >= 75
+      ? "MODERATE"
+      : eligibleFormulaCount > 0 ? "SPARSE" : "UNAVAILABLE";
+  return {
+    status,
+    policyVersion: "formulab-reference-support-quality-v1",
+    familyFormulaCount,
+    eligibleFormulaCount,
+    supplierCount,
+    identityResolvedFormulaCount,
+    identityResolutionPercent,
+    ingredientLineCount,
+    sourceCitedIngredientLineCount,
+    sourceCitationCoveragePercent,
+    interpretation: "deterministic_reviewed_corpus_sample_resolution_and_source_coverage_not_ai_confidence_or_validation",
+  };
+}
+
 /** Build local reference guidance only from the existing reviewed corpus and its exact source identities. */
-export async function loadReferenceFormulationGenerationContext(productFamilyCode: string): Promise<ReferenceFormulationGenerationContext> {
+export async function loadReferenceFormulationGenerationContext(productFamilyCode: string): Promise<{
+  context: ReferenceFormulationGenerationContext;
+  supportQuality: ReferenceFormulationSupportQuality;
+}> {
   const productFamilyKey = familyKey(productFamilyCode);
   if (!productFamilyKey) throw new Error("A product-family code is required for reference guidance.");
   const [{ queryRecords }, sourceRecords, reviewRows] = await Promise.all([
@@ -40,6 +101,7 @@ export async function loadReferenceFormulationGenerationContext(productFamilyCod
   const cooccurrence = calculateReferenceFormulationCooccurrence(metricsInput);
   const contributionDistributions = calculateReferenceFormulationContributionDistributions(metricsInput);
   const processPatterns = calculateReferenceFormulationProcessPatterns(metricsInput);
+  const eligibility = filterEligibleReferenceFormulationCorpus(metricsInput);
 
   // Similarity needs a distinct, evidence-linked query feature vector. The
   // reverse-formulation screen does not yet retain accepted canonical identity
@@ -69,7 +131,7 @@ export async function loadReferenceFormulationGenerationContext(productFamilyCod
     references: [],
   });
 
-  return createReferenceFormulationGenerationContext({
+  const context = createReferenceFormulationGenerationContext({
     productFamilyKey,
     ingredientPriors,
     nearestReferences,
@@ -78,4 +140,13 @@ export async function loadReferenceFormulationGenerationContext(productFamilyCod
     contributionDistributions,
     processPatterns,
   });
+  return {
+    context,
+    supportQuality: summarizeReferenceFormulationSupport({
+      queryRecords,
+      decisions: eligibility.decisions,
+      context,
+      productFamilyKey,
+    }),
+  };
 }
