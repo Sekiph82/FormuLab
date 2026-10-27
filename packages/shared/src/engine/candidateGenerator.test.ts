@@ -424,7 +424,10 @@ describe("generateCandidates", () => {
           formulaWeightedFrequency: 1, supplierNeutralFrequency: 1, supplierCount: 1, sourceRecordIds: ["reference-1"],
           supplierMix: [{ supplierId: "supplier-a", eligibleFormulaCount: 1, ingredientFormulaCount: 1, frequency: 1, sourceRecordIds: ["reference-1"] }],
         }],
-        nearestReferences: [],
+        nearestReferences: [{
+          sourceRecordId: "reference-1", sourceDocumentHash: "a".repeat(64), distance: 0, similarity: 1, featureCoverage: 1,
+          contributingFeatureKeys: ["ingredient:chemical-a"], evidenceRefs: ["chemistry:reference-1"],
+        }],
         cooccurrenceGuidance: [{
           asOf: "2026-10-26T12:00:00.000Z", pairKind: "material_function_pair", scope: "same_formula",
           denominatorScope: "eligible_formulas_in_family", firstId: "chemical-a", secondId: "nonionic_surfactant",
@@ -477,11 +480,18 @@ describe("generateCandidates", () => {
       materialId: "MAT-001", canonicalChemistryId: "chemical-a", functionAssignment: "unassigned_or_unreviewed", candidatePercent: 100,
       typicalRangePercent: { lower: 3, upper: 7 }, observedRangePercent: { lower: 2, upper: 8 },
       position: "above_typical_range", formulaCount: 1, supplierCount: 1, sourceRecordIds: ["reference-1"],
+      suppliers: [{ supplierId: "supplier-a", formulaCount: 1, share: 1, sourceRecordIds: ["reference-1"] }],
     })]);
     expect(withGuidance!.ingredientGuidance).toEqual([expect.objectContaining({
       materialId: "MAT-001", canonicalChemistryId: "chemical-a", formulaCount: 1, eligibleFormulaCount: 1,
       formulaWeightedFrequency: 1, supplierNeutralFrequency: 1, sourceRecordIds: ["reference-1"],
+      suppliers: [{ supplierId: "supplier-a", eligibleFormulaCount: 1, ingredientFormulaCount: 1, frequency: 1, sourceRecordIds: ["reference-1"] }],
     })]);
+    expect(withGuidance!.nearestReferenceGuidance).toEqual([expect.objectContaining({
+      sourceRecordId: "reference-1", similarity: 1, distance: 0, featureCoverage: 1,
+      interpretation: "supplier_neutral_reference_similarity_not_validation_or_compatibility",
+    })]);
+    expect(withGuidance!.referenceProductFamilyKey).toBe("hand dishwash");
     expect(withGuidance!.cooccurrenceGuidance).toEqual([expect.objectContaining({
       materialId: "MAT-001", canonicalChemistryId: "chemical-a", pairKind: "material_function_pair",
       otherId: "nonionic_surfactant", frequency: 1, sourceRecordIds: ["reference-1"],

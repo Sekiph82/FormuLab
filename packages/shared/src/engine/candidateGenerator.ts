@@ -54,6 +54,15 @@ export interface GeneratedCandidate {
   matchScore: number;
   /** Reasoning. */
   notes: string[];
+  /** Exact reviewed product-family key used for the advisory reference context. */
+  referenceProductFamilyKey?: string;
+  referenceCorpusGuidance?: {
+    eligibleFormulaCount: number;
+    supplierCount: number;
+    suppliers: Array<{ supplierId: string; formulaCount: number; sourceRecordIds: string[] }>;
+    sourceRecordIds: string[];
+    interpretation: "reviewed_eligible_reference_corpus_summary_not_validation";
+  };
   /** Source-linked dosage comparison. It is advisory metadata and never mutates the generated formula. */
   dosageGuidance?: Array<{
     asOf: string;
@@ -66,6 +75,7 @@ export interface GeneratedCandidate {
     position: "below_typical_range" | "within_typical_range" | "above_typical_range";
     formulaCount: number;
     supplierCount: number;
+    suppliers: Array<{ supplierId: string; formulaCount: number; share: number; sourceRecordIds: string[] }>;
     sourceRecordIds: string[];
     interpretation: "advisory_reviewed_empirical_dosage_not_hard_constraint_or_validated_recommendation";
   }>;
@@ -78,8 +88,20 @@ export interface GeneratedCandidate {
     formulaWeightedFrequency: number;
     supplierNeutralFrequency: number;
     supplierCount: number;
+    suppliers: Array<{ supplierId: string; eligibleFormulaCount: number; ingredientFormulaCount: number; frequency: number; sourceRecordIds: string[] }>;
     sourceRecordIds: string[];
     interpretation: "reviewed_formula_appearance_only_not_suitability_safety_compatibility_or_efficacy";
+  }>;
+  /** Nearest reviewed examples are descriptive similarity results, not validated matches. */
+  nearestReferenceGuidance?: Array<{
+    sourceRecordId: string;
+    sourceDocumentHash: string;
+    distance: number;
+    similarity: number;
+    featureCoverage: number;
+    contributingFeatureKeys: string[];
+    evidenceRefs: string[];
+    interpretation: "supplier_neutral_reference_similarity_not_validation_or_compatibility";
   }>;
   /** Joint appearance in reviewed corpus formulas; never a compatibility or function assignment decision. */
   cooccurrenceGuidance?: Array<{
@@ -258,6 +280,7 @@ function applyEmpiricalDosageGuidance(
       position,
       formulaCount: sample.formulaCount,
       supplierCount: sample.supplierCount,
+      suppliers: sample.suppliers,
       sourceRecordIds: sample.sourceRecordIds,
       interpretation: "advisory_reviewed_empirical_dosage_not_hard_constraint_or_validated_recommendation",
     });
@@ -300,6 +323,20 @@ function applyEmpiricalIngredientGuidance(
   canonicalProductFamilyKey: string | undefined,
 ): void {
   if (!referenceContext?.available || canonicalProductFamilyKey !== referenceContext.productFamilyKey) return;
+  candidate.referenceProductFamilyKey = referenceContext.productFamilyKey;
+  candidate.referenceCorpusGuidance = {
+    eligibleFormulaCount: referenceContext.eligibleFormulaCount,
+    supplierCount: referenceContext.supplierCount,
+    suppliers: Object.entries(referenceContext.eligibleSupplierSourceRecordIds).map(([supplierId, sourceRecordIds]) => ({
+      supplierId, formulaCount: sourceRecordIds.length, sourceRecordIds,
+    })),
+    sourceRecordIds: referenceContext.eligibleSourceRecordIds,
+    interpretation: "reviewed_eligible_reference_corpus_summary_not_validation",
+  };
+  candidate.nearestReferenceGuidance = referenceContext.nearestReferences.filter((reference) => reference.evidenceRefs.length > 0).map((reference) => ({
+    ...reference,
+    interpretation: "supplier_neutral_reference_similarity_not_validation_or_compatibility",
+  }));
   const ingredientGuidance: NonNullable<GeneratedCandidate["ingredientGuidance"]> = [];
   const cooccurrenceGuidance: NonNullable<GeneratedCandidate["cooccurrenceGuidance"]> = [];
   const seenIngredients = new Set<string>();
@@ -321,6 +358,13 @@ function applyEmpiricalIngredientGuidance(
         formulaWeightedFrequency: prior.formulaWeightedFrequency,
         supplierNeutralFrequency: prior.supplierNeutralFrequency,
         supplierCount: prior.supplierCount,
+        suppliers: prior.supplierMix.map((supplier) => ({
+          supplierId: supplier.supplierId,
+          eligibleFormulaCount: supplier.eligibleFormulaCount,
+          ingredientFormulaCount: supplier.ingredientFormulaCount,
+          frequency: supplier.frequency,
+          sourceRecordIds: supplier.sourceRecordIds,
+        })),
         sourceRecordIds: prior.sourceRecordIds,
         interpretation: "reviewed_formula_appearance_only_not_suitability_safety_compatibility_or_efficacy",
       });
