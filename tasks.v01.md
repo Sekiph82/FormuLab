@@ -98,12 +98,13 @@ Codex must execute the tasks below in the exact order listed.
 ## V01 progress
 
 - Total tasks: 156
-- Completed: 127
-- Remaining: 29
-- Completion: 81.4%
-- Current task: V01-08.012 - Generator integration acceptance
+- Completed: 128
+- Remaining: 28
+- Completion: 82.1%
+- Current task: V01-09.001 - Implement Supplier Connections UI
 - Current status: IN PROGRESS
-- Next task: V01-09.001 - Implement Supplier Connections UI
+- Next task: V01-09.002 - Implement catalog/document acquisition UI
+- Acceptance note: V01-08.012 closes reference-intelligence integration acceptance. Focused suites passed and full regression passed (shared: 173 files / 2,681 tests; desktop: 188 files / 1,865 tests), along with shared/desktop typechecks, V01 task validation and `git diff --check`. Six locale files now satisfy candidate-key parity; 26 newly supplied strings currently use English text pending localization refinement. Independent read-only review confirmed the closure fixture updates preserve production behavior and introduce no source/reference mutation. The existing comparison harness verifies deterministic zero-network behavior, unchanged formulas/scores, excluded-material hard-gate precedence, and source-linked reference influence.
 - Acceptance note: V01-08.011 adds a deterministic reference-intelligence on/off comparison harness over the same generator input. Formula lines, estimated properties and match scores remain exactly equal while the enabled run exposes eligible-family counts and source-record-linked reference metadata; repeated enabled runs remain identical and make no network request. The harness also proves an excluded-material hard constraint yields exactly the same rejection output with reference context enabled or disabled. Focused shared candidate-generator tests (14), shared typecheck, V01 task validation, `git diff --check`, and independent read-only review passed. Full regression deferred to the milestone closure task.
 - Acceptance note: V01-08.010 computes a deterministic support tier from latest exact-family query projections and eligibility decisions, exposing eligible sample and supplier counts, reviewed identity-resolution rate, and source-citation coverage with explicit denominators. BROAD/MODERATE/SPARSE/UNAVAILABLE thresholds are versioned and visible; the UI states these are corpus-coverage labels, not AI confidence or product validation. Metadata is attached after deterministic generation and does not alter candidate formulas or scores. Focused support-quality/UI tests (5), shared and desktop typechecks, V01 task validation, `git diff --check`, and independent read-only review passed. Full regression not run.
 - Acceptance note: V01-08.010 computes a deterministic support tier from latest exact-family query projections and eligibility decisions, exposing eligible sample and supplier counts, reviewed identity-resolution rate, and source-citation coverage with explicit denominators. BROAD/MODERATE/SPARSE/UNAVAILABLE thresholds are versioned and visible; the UI states these are corpus-coverage labels, not AI confidence or product validation. Metadata is attached after deterministic generation and does not alter candidate formulas or scores. Focused support-quality/UI tests (5), shared and desktop typechecks, V01 task validation, `git diff --check`, and independent read-only review passed. Full regression not run.
@@ -340,11 +341,11 @@ Codex must execute the tasks below in the exact order listed.
 - [x] **V01-08.009 - Implement generator explainability**: Show relevant priors, sample counts, supplier mix, similar references, dosage ranges and source links for generated candidates.
 - [x] **V01-08.010 - Implement reference-support confidence**: Report corpus support quality based on reviewed sample counts/resolution/evidence, not an opaque AI confidence score.
 - [x] **V01-08.011 - Implement reference intelligence on/off comparison harness**: Generate with identical deterministic inputs with feature enabled/disabled and prove hard-rule equivalence plus explainable candidate differences.
-- [~] **V01-08.012 - Generator integration acceptance**: Run multi-family acceptance and confirm no source/reference record mutation, no auto-validation, deterministic zero-LLM behavior, hard-gate precedence and traceable reference influence.
+- [x] **V01-08.012 - Generator integration acceptance**: Run multi-family acceptance and confirm no source/reference record mutation, no auto-validation, deterministic zero-LLM behavior, hard-gate precedence and traceable reference influence.
 
 ## Milestone V01-09 - User workflows and review surfaces
 
-- [ ] **V01-09.001 - Implement Supplier Connections UI**: Show provider/surface, access mode, authentication state, last check, scope and coverage limitations.
+- [~] **V01-09.001 - Implement Supplier Connections UI**: Show provider/surface, access mode, authentication state, last check, scope and coverage limitations.
 - [ ] **V01-09.002 - Implement catalog/document acquisition UI**: Show search/scan progress, pages/products scanned, documents found/acquired/skipped/failed and per-item retry.
 - [ ] **V01-09.003 - Implement acquired document browser**: Open stored source PDFs, metadata, hash, provider, source URL, revision lineage and extraction state.
 - [ ] **V01-09.004 - Implement SDS extraction review UI**: Show Section 1/3/7/8/9 and other evidence, original text, normalized value, context, confidence and page link.

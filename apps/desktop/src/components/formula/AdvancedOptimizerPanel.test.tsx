@@ -222,6 +222,7 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
         cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
         availability: { status: "FEASIBLE" as const }, compatibility: { status: "PASS" as const }, safety: { status: "PASS" as const }, regulatory: { status: "PASS" as const },
         manufacturing: { status: "READY" as const }, evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+        referenceSupport: { status: "UNKNOWN" as const, formulaCount: 0, supplierCount: 0, sourceRecordIds: [] },
       },
     };
     return createAlternativeRankingRecord({ code, sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
@@ -237,6 +238,7 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
         cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
         availability: { status: "FEASIBLE" as const }, compatibility: { status: "PASS" as const }, safety: { status: "PASS" as const }, regulatory: { status: "PASS" as const },
         manufacturing: { status: "READY" as const }, evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+        referenceSupport: { status: "UNKNOWN" as const, formulaCount: 0, supplierCount: 0, sourceRecordIds: [] },
       },
     };
     const rankingRecord = await createAlternativeRankingRecord({ code: "ranking-1", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
@@ -260,6 +262,7 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
         cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
         availability: { status: "FEASIBLE" as const }, compatibility: { status: "PASS" as const }, safety: { status: "FAIL" as const }, regulatory: { status: "PASS" as const },
         manufacturing: { status: "READY" as const }, evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+        referenceSupport: { status: "UNKNOWN" as const, formulaCount: 0, supplierCount: 0, sourceRecordIds: [] },
       },
     };
     const rankingRecord = await createAlternativeRankingRecord({ code: "ranking-blocked", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
@@ -284,6 +287,7 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
         cost: { status: "AVAILABLE" as const, costPerKg: 2, currency: "KES", batchKg: "100", sourceSnapshot: { authority: "FormuLab Cost Engine" as const } },
         availability: { status: "FEASIBLE" as const }, compatibility: { status: "PASS" as const }, safety: { status: "PASS" as const }, regulatory: { status: "FAIL" as const },
         manufacturing: { status: "READY" as const }, evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 1, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+        referenceSupport: { status: "UNKNOWN" as const, formulaCount: 0, supplierCount: 0, sourceRecordIds: [] },
       },
     };
     const record = await createAlternativeRankingRecord({ code: "ranking-regulatory-blocked", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
@@ -345,6 +349,7 @@ describe("AdvancedOptimizerPanel — run and result rendering", () => {
         cost: { status: "MISSING" as const }, availability: { status: "UNKNOWN" as const }, compatibility: { status: "PASS" as const },
         safety: { status: "PASS" as const }, regulatory: { status: "PASS" as const }, manufacturing: { status: "READY" as const },
         evidence: { status: "NO_LINKED_EVIDENCE" as const, ingredientCount: 0, linkedIngredientCount: 0, uniqueSourceCount: 0 },
+        referenceSupport: { status: "UNKNOWN" as const, formulaCount: 0, supplierCount: 0, sourceRecordIds: [] },
       },
     };
     const record = await createAlternativeRankingRecord({ code: "ranking-project-mismatch", sessionId: "session-1", capturedAt: "2026-10-21T12:00:00Z", context: { batchKg: "100", currency: "KES" }, rankings: rankAlternatives([candidate]) });
