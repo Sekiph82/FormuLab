@@ -3056,10 +3056,40 @@
           "storage_failed": "Storage failed", "parser_failed": "Parser failed", "unknown_failure": "Unknown failure"
         }
       },
+      "acquiredDocuments": {
+        "title": "Acquired Supplier Documents",
+        "intro": "Stored supplier PDFs, immutable source receipts and parser state. Source documents never change raw material records automatically.",
+        "refresh": "Refresh",
+        "loading": "Loading acquired documents…",
+        "loadError": "Could not load acquired documents or extraction records.",
+        "empty": "No supplier documents have been acquired.",
+        "filename": "Filename",
+        "hash": "SHA-256",
+        "size": "Size",
+        "revision": "Source revision",
+        "revisionDate": "Revision / publication date",
+        "extraction": "Extraction state",
+        "lineage": "Revision lineage",
+        "sourceUrl": "Source URL",
+        "notProvided": "Not provided",
+        "rootRevision": "First recorded revision",
+        "extractionEvidence": "Extraction record: {{status}}",
+        "supplierSource": "Supplier source",
+        "openPdf": "Open PDF",
+        "opening": "Opening…",
+        "openError": "Could not open document {{document}}.",
+        "parserStatus": {
+          "not_started": "Not started",
+          "completed": "Completed",
+          "failed": "Failed",
+          "unsupported": "Unsupported"
+        }
+      },
       "tabs": {
         "connections": "Connections",
         "suppliers": "Supplier Surfaces",
         "acquisitions": "Acquisition Jobs",
+        "documents": "Acquired Documents",
         "explorer": "Source Explorer",
         "mapping": "Mapping Profiles",
         "crosswalks": "Crosswalks",

@@ -302,6 +302,12 @@ export async function storeSupplierDocumentPdf(
   return call("store_supplier_document_pdf", { bytes: Array.from(bytes), expectedSha256 });
 }
 
+/** Open an acquired source PDF through the native hash-verified project boundary. */
+export async function openSupplierDocumentPdf(sha256: string): Promise<void> {
+  if (!/^[a-f0-9]{64}$/i.test(sha256)) throw new Error("Supplier document hash is invalid.");
+  await call("open_supplier_document_pdf", { sha256 });
+}
+
 export async function deleteRecord(collection: Collection, code: string): Promise<void> {
   await call("delete_master_record", { collection, code });
 }

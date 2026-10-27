@@ -38,6 +38,21 @@ fn normalize_hash(value: &str) -> Result<String, String> {
     Ok(value.to_ascii_lowercase())
 }
 
+fn verified_pdf_path(data_root: &Path, sha256: &str) -> Result<PathBuf, String> {
+    let digest = normalize_hash(sha256)?;
+    let base =
+        fs::canonicalize(data_root).map_err(|_| "project data root is unavailable".to_string())?;
+    let parent = data_root.join(STORE_RELATIVE_ROOT).join(&digest[..2]);
+    let canonical_parent = fs::canonicalize(&parent)
+        .map_err(|_| "supplier document blob is unavailable".to_string())?;
+    if !canonical_parent.starts_with(&base) {
+        return Err("supplier document storage path is unsafe".into());
+    }
+    let path = canonical_parent.join(format!("{digest}.pdf"));
+    verify_existing(&path, &digest)?;
+    Ok(path)
+}
+
 fn ensure_store_dir(data_root: &Path, digest: &str) -> Result<(PathBuf, PathBuf), String> {
     let base =
         fs::canonicalize(data_root).map_err(|_| "project data root is unavailable".to_string())?;
@@ -167,23 +182,32 @@ pub async fn store_supplier_document_pdf(
     .map_err(|_| "supplier document storage failed".to_string())?
 }
 
+/// Open an immutable source PDF by its content hash. The renderer cannot
+/// provide a path; the active project root, hash path and file bytes are
+/// resolved and verified by the native boundary on every request.
+#[tauri::command(async)]
+pub async fn open_supplier_document_pdf(
+    app: AppHandle,
+    token: String,
+    sha256: String,
+) -> Result<(), String> {
+    crate::authz::authorize_any_app(&app, &token, "formulation", &["view"])?;
+    let data_root = crate::formulation_v2::project_data_dir(&app, "data")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = verified_pdf_path(&data_root, &sha256)?;
+        opener::open(path).map_err(|_| "could not open supplier document".to_string())
+    })
+    .await
+    .map_err(|_| "could not open supplier document".to_string())?
+}
+
 /// Read a blob only by its validated content identity and verify it again on
 /// every read. No renderer-provided path is accepted.
 #[allow(dead_code)] // Consumed by document preview/export work after blob acquisition.
 pub(crate) fn read_pdf_bytes(data_root: &Path, sha256: &str) -> Result<Vec<u8>, String> {
     let digest = normalize_hash(sha256)?;
-    let base =
-        fs::canonicalize(data_root).map_err(|_| "project data root is unavailable".to_string())?;
-    let parent = data_root.join(STORE_RELATIVE_ROOT).join(&digest[..2]);
-    let canonical_parent = fs::canonicalize(&parent)
-        .map_err(|_| "supplier document blob is unavailable".to_string())?;
-    if !canonical_parent.starts_with(&base) {
-        return Err("supplier document storage path is unsafe".into());
-    }
-    let path = canonical_parent.join(format!("{digest}.pdf"));
-    verify_existing(&path, &digest)?;
-    let file =
-        File::open(path).map_err(|_| "supplier document blob is unavailable".to_string())?;
+    let path = verified_pdf_path(data_root, &digest)?;
+    let file = File::open(path).map_err(|_| "supplier document blob is unavailable".to_string())?;
     let mut bytes = Vec::new();
     file.take((MAX_PDF_BYTES + 1) as u64)
         .read_to_end(&mut bytes)
@@ -276,6 +300,18 @@ mod tests {
         let root = temporary_data_root("invalid-hash");
         assert!(read_pdf_bytes(&root, "../../outside").is_err());
         assert!(!root.join(STORE_RELATIVE_ROOT).exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn resolves_only_verified_hash_paths_inside_the_project_data_root() {
+        let root = temporary_data_root("verified-path");
+        let bytes = pdf("open source fixture");
+        let stored = store_pdf_bytes(&root, &bytes, None).unwrap();
+        let path = verified_pdf_path(&root, &stored.sha256).unwrap();
+        assert!(path.starts_with(fs::canonicalize(&root).unwrap()));
+        assert_eq!(fs::read(path).unwrap(), bytes);
+        assert!(verified_pdf_path(&root, "../outside").is_err());
         fs::remove_dir_all(root).unwrap();
     }
 }

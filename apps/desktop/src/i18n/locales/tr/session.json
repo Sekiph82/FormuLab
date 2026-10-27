@@ -3056,10 +3056,40 @@
           "storage_failed": "Depolama başarısız", "parser_failed": "Ayrıştırma başarısız", "unknown_failure": "Bilinmeyen hata"
         }
       },
+      "acquiredDocuments": {
+        "title": "Edinilmiş Tedarikçi Belgeleri",
+        "intro": "Kaydedilmiş tedarikçi PDF’leri, değişmez kaynak makbuzları ve ayrıştırma durumu. Kaynak belgeler ham madde kayıtlarını kendiliğinden değiştirmez.",
+        "refresh": "Yenile",
+        "loading": "Edinilmiş belgeler yükleniyor…",
+        "loadError": "Edinilmiş belgeler veya çıkarım kayıtları yüklenemedi.",
+        "empty": "Henüz edinilmiş tedarikçi belgesi yok.",
+        "filename": "Dosya adı",
+        "hash": "SHA-256",
+        "size": "Boyut",
+        "revision": "Kaynak sürüm",
+        "revisionDate": "Sürüm / yayın tarihi",
+        "extraction": "Çıkarım durumu",
+        "lineage": "Sürüm bağlantısı",
+        "sourceUrl": "Kaynak URL",
+        "notProvided": "Belirtilmemiş",
+        "rootRevision": "İlk kayıtlı sürüm",
+        "extractionEvidence": "Çıkarım kaydı: {{status}}",
+        "supplierSource": "Tedarikçi kaynağı",
+        "openPdf": "PDF’yi aç",
+        "opening": "Açılıyor…",
+        "openError": "{{document}} belgesi açılamadı.",
+        "parserStatus": {
+          "not_started": "Başlatılmadı",
+          "completed": "Tamamlandı",
+          "failed": "Başarısız",
+          "unsupported": "Desteklenmiyor"
+        }
+      },
       "tabs": {
         "connections": "Bağlantılar",
         "suppliers": "Tedarikçi Yüzeyleri",
         "acquisitions": "Edinim İşleri",
+        "documents": "Edinilmiş Belgeler",
         "explorer": "Kaynak Gezgini",
         "mapping": "Eşleme Profilleri",
         "crosswalks": "Kimlik Eşleştirmeleri",
