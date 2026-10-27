@@ -293,6 +293,14 @@ describe("reference formulation bulk import", () => {
     expect(firstRebuild.queryRecords.map((record) => record.supplierId).sort()).toEqual([...suppliers].sort());
     expect(firstRebuild.index.queryRecordIds).toHaveLength(3);
 
+    const persistedCorpus = new Map([
+      "reference_formulations", "reference_formulation_normalizations", "supplier_sds_product_evidence",
+    ].map((collection) => [collection, structuredClone(collections.get(collection) ?? [])]));
+    collections.clear();
+    for (const [collection, rows] of persistedCorpus) collections.set(collection, rows);
+    const restoredRebuild = await rebuildReferenceFormulationCorpusIndex();
+    expect(restoredRebuild).toEqual(firstRebuild);
+
     const duplicate = await startReferenceFormulationBulkImport(
       [selectedFile("supplier-croda-duplicate.pdf", supplierBytes.get("supplier-croda")!)],
       { ...metadata, supplierId: "supplier-croda" },

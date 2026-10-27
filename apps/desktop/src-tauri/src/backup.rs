@@ -1681,28 +1681,60 @@ mod tests {
         let source_root = verify_tmp_dir(&format!("supplier-roundtrip-source-{stamp}"));
         let restore_root = verify_tmp_dir(&format!("supplier-roundtrip-restore-{stamp}"));
         let package_dir = verify_tmp_dir(&format!("supplier-roundtrip-package-{stamp}"));
-        let pdf_bytes = b"%PDF-1.7\nsupplier SDS fixture\n%%EOF\n";
+        let pdf_bytes = b"%PDF-1.7\nsupplier formulation fixture\n%%EOF\n";
         let digest = sha256_bytes(pdf_bytes);
-        let blob_path = source_root.join(format!(
-            "data/supplier-documents/sha256/{}/{}.pdf",
-            &digest[..2], digest
-        ));
-        std::fs::create_dir_all(blob_path.parent().unwrap()).unwrap();
-        std::fs::write(&blob_path, pdf_bytes).unwrap();
+        let sds_pdf_bytes = b"%PDF-1.7\nsupplier safety data fixture\n%%EOF\n";
+        let sds_digest = sha256_bytes(sds_pdf_bytes);
+        for (blob_digest, bytes) in [(digest.clone(), pdf_bytes), (sds_digest.clone(), sds_pdf_bytes)] {
+            let blob_path = source_root.join(format!(
+                "data/supplier-documents/sha256/{}/{}.pdf",
+                &blob_digest[..2], blob_digest
+            ));
+            std::fs::create_dir_all(blob_path.parent().unwrap()).unwrap();
+            std::fs::write(&blob_path, bytes).unwrap();
+        }
         let metadata = format!(
-            r#"[{{"schemaVersion":"1.0","code":"supplierdoc-current","sha256":"{digest}","supersedesCode":"supplierdoc-prior","supplierId":"supplier-1"}}]"#
+            r#"[{{"schemaVersion":"1.0","code":"supplierdoc-formula","documentType":"FORMULATION","sha256":"{digest}","supplierId":"supplier-1"}},{{"schemaVersion":"1.0","code":"supplierdoc-sds","documentType":"SDS","sha256":"{sds_digest}","supplierId":"supplier-1"}}]"#
         ).into_bytes();
         std::fs::create_dir_all(source_root.join("data/master")).unwrap();
         let metadata_path = source_root.join("data/master/supplier_document_acquisitions.json");
         std::fs::write(&metadata_path, &metadata).unwrap();
-        let corpus_metadata: [(&str, &[u8]); 5] = [
-            ("reference_formulations.json", br#"[{"id":"reference-formula-1","sourceDocumentHash":"source-hash"}]"#),
-            ("reference_formulation_normalizations.json", br#"[{"id":"normalization-1","sourceDocumentHash":"source-hash"}]"#),
-            ("reference_formulation_reviews.json", br#"[{"id":"review-1","sourceDocumentHash":"source-hash"}]"#),
-            ("supplier_sds_product_evidence.json", br#"[{"id":"sds-evidence-1","acquisitionCode":"supplierdoc-current"}]"#),
-            ("external_id_crosswalks.json", br#"[{"id":"crosswalk-1","sourceId":"supplier-product-1"}]"#),
+        let corpus_metadata: Vec<(&str, Vec<u8>)> = vec![
+            ("reference_formulations.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "reference-formula-1", "sourceDocumentHash": digest,
+                "source": { "id": "reference-source-1", "sourcePdfSha256": digest, "acquisitionCode": "supplierdoc-formula" }
+            }])).unwrap()),
+            ("reference_formulation_normalizations.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "normalization-1", "referenceFormulationRecordId": "reference-formula-1", "sourceDocumentHash": digest
+            }])).unwrap()),
+            ("reference_formulation_reviews.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "review-1", "referenceFormulationRecordId": "reference-formula-1", "sourceDocumentHash": digest
+            }])).unwrap()),
+            ("supplier_sds_product_evidence.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "sds-evidence-1", "acquisitionCode": "supplierdoc-sds", "sourceDocumentHash": sds_digest
+            }])).unwrap()),
+            ("external_id_crosswalks.json", serde_json::to_vec(&serde_json::json!([{
+                "code": "mapping-profile-1::supplier_products::supplier-product-1::CommercialProduct",
+                "sourceSystemId": "mapping-profile-1", "sourceRecordId": "supplier-product-1", "mappingProfileCode": "mapping-profile-1::v1"
+            }])).unwrap()),
+            ("mapping_profiles.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "mapping-profile-1", "profileVersion": 1, "code": "mapping-profile-1::v1"
+            }])).unwrap()),
+            ("reference_formulation_import_jobs.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "formula-import-1", "status": "paused", "supplierId": "supplier-1"
+            }])).unwrap()),
+            ("reference_formulation_import_files.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "formula-import-1:file:1", "jobId": "formula-import-1", "sourceDocumentHash": digest, "status": "queued"
+            }])).unwrap()),
+            ("supplier_acquisition_jobs.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "supplier-scan-1", "status": "resumed", "supplierId": "supplier-1"
+            }])).unwrap()),
+            ("supplier_acquisition_job_items.json", serde_json::to_vec(&serde_json::json!([{
+                "id": "supplier-item-1", "jobId": "supplier-scan-1", "acquisitionCode": "supplierdoc-sds",
+                "sourceDocumentHash": sds_digest, "attemptCount": 2
+            }])).unwrap()),
         ];
-        for (name, bytes) in corpus_metadata {
+        for (name, bytes) in &corpus_metadata {
             std::fs::write(source_root.join("data/master").join(name), bytes).unwrap();
         }
 
@@ -1712,7 +1744,7 @@ mod tests {
             base_root: source_root.clone(),
         };
         let (files, warnings) = collect_included(&source_roots).unwrap();
-        assert_eq!(files.len(), 7);
+        assert_eq!(files.len(), 13);
         let mut manifest = base_manifest();
         manifest.warnings = warnings;
         let mut package_contents = Vec::<(String, Vec<u8>)>::new();
@@ -1760,10 +1792,13 @@ mod tests {
             staged.push((entry.path.clone(), live));
         }
         let restored_paths = activate_staged_files(&staged, &staging).unwrap();
-        assert_eq!(restored_paths.len(), 7);
+        assert_eq!(restored_paths.len(), 13);
         assert_eq!(std::fs::read(restore_root.join(format!(
             "data/supplier-documents/sha256/{}/{}.pdf", &digest[..2], digest
         ))).unwrap(), pdf_bytes);
+        assert_eq!(std::fs::read(restore_root.join(format!(
+            "data/supplier-documents/sha256/{}/{}.pdf", &sds_digest[..2], sds_digest
+        ))).unwrap(), sds_pdf_bytes);
         assert_eq!(
             std::fs::read(restore_root.join("data/master/supplier_document_acquisitions.json")).unwrap(),
             metadata
@@ -1771,6 +1806,38 @@ mod tests {
         for (name, bytes) in corpus_metadata {
             assert_eq!(std::fs::read(restore_root.join("data/master").join(name)).unwrap(), bytes);
         }
+        let restored_formula: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/reference_formulations.json")).unwrap(),
+        ).unwrap();
+        let restored_normalization: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/reference_formulation_normalizations.json")).unwrap(),
+        ).unwrap();
+        let restored_review: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/reference_formulation_reviews.json")).unwrap(),
+        ).unwrap();
+        let restored_sds_evidence: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/supplier_sds_product_evidence.json")).unwrap(),
+        ).unwrap();
+        let restored_import_file: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/reference_formulation_import_files.json")).unwrap(),
+        ).unwrap();
+        let restored_acquisition_item: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(restore_root.join("data/master/supplier_acquisition_job_items.json")).unwrap(),
+        ).unwrap();
+        assert_eq!(restored_formula[0]["sourceDocumentHash"], digest);
+        assert_eq!(restored_formula[0]["source"]["sourcePdfSha256"], digest);
+        assert_eq!(restored_formula[0]["source"]["acquisitionCode"], "supplierdoc-formula");
+        assert_eq!(restored_normalization[0]["referenceFormulationRecordId"], restored_formula[0]["id"]);
+        assert_eq!(restored_normalization[0]["sourceDocumentHash"], digest);
+        assert_eq!(restored_review[0]["referenceFormulationRecordId"], restored_formula[0]["id"]);
+        assert_eq!(restored_review[0]["sourceDocumentHash"], digest);
+        assert_eq!(restored_sds_evidence[0]["acquisitionCode"], "supplierdoc-sds");
+        assert_eq!(restored_sds_evidence[0]["sourceDocumentHash"], sds_digest);
+        assert_eq!(restored_import_file[0]["jobId"], "formula-import-1");
+        assert_eq!(restored_import_file[0]["sourceDocumentHash"], digest);
+        assert_eq!(restored_acquisition_item[0]["jobId"], "supplier-scan-1");
+        assert_eq!(restored_acquisition_item[0]["acquisitionCode"], "supplierdoc-sds");
+        assert_eq!(restored_acquisition_item[0]["sourceDocumentHash"], sds_digest);
 
         let _ = std::fs::remove_dir_all(&source_root);
         let _ = std::fs::remove_dir_all(&restore_root);
