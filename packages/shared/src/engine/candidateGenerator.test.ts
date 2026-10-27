@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { generateCandidates, type GenerationInput } from "./candidateGenerator";
 import {
   adaptGenerationInputWithReferenceContext,
@@ -112,6 +112,31 @@ function baseInput(overrides: Partial<GenerationInput> = {}): GenerationInput {
 }
 
 describe("generateCandidates", () => {
+  it("generates deterministically with reviewed reference context when network and LLM services are unavailable", () => {
+    const referenceContext = referenceFormulationGenerationContextSchema.parse({
+      schemaVersion: "formulab-reference-formulation-generation-context-v1", available: true, productFamilyKey: "hand dishwash",
+      asOf: "2026-10-26T12:00:00.000Z", eligibleFormulaCount: 1, supplierCount: 1,
+      ingredientPriors: [{ canonicalChemistryId: "chemical-a", formulaCount: 1, eligibleFormulaCount: 1,
+        formulaWeightedFrequency: 1, supplierNeutralFrequency: 1, supplierCount: 1, sourceRecordIds: ["reference-1"],
+        supplierMix: [{ supplierId: "supplier-a", eligibleFormulaCount: 1, ingredientFormulaCount: 1, frequency: 1, sourceRecordIds: ["reference-1"] }] }],
+      nearestReferences: [], interpretation: "advisory_supplier_neutral_reference_context_not_truth_or_approval",
+    });
+    const input = adaptGenerationInputWithReferenceContext(baseInput(), referenceContext);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    let first: ReturnType<typeof generateCandidates>;
+    let second: ReturnType<typeof generateCandidates>;
+    try {
+      first = generateCandidates(input);
+      second = generateCandidates(input);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+    expect(input.referenceContext?.available).toBe(true);
+    expect(first!).toEqual(second!);
+    expect(first![0]!.formula.length).toBeGreaterThan(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("attaches eligible supplier-neutral priors and nearest references without replacing the deterministic generator", () => {
     const asOf = "2026-10-26T12:00:00.000Z";
     const ingredientPriors: ReferenceFormulationIngredientFrequencyPriors = {
