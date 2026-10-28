@@ -84,6 +84,13 @@ function normalizeSdsField(field: string): { fieldCode: string; subject: "produc
     recommended_use: "recommended_use", use_restrictions: "use_restrictions", industry_sector: "industry_sector", product_description: "product_description",
   };
   if (section1[field]) return { fieldCode: section1[field]!, subject: "product", sectionNumber: 1 };
+  const section3: Record<string, string> = {
+    substance_or_mixture: "substance_or_mixture", component_name: "disclosed_component_name", cas_number: "disclosed_component_cas",
+    ec_number: "disclosed_component_ec", concentration: "disclosed_component_concentration", m_factor: "component_m_factor",
+    specific_concentration_limit: "component_specific_concentration_limit", acute_toxicity_estimate: "component_acute_toxicity_estimate",
+    composition_disclosure: "composition_disclosure", undisclosed_remainder: "undisclosed_remainder",
+  };
+  if (section3[field]) return { fieldCode: section3[field]!, subject: field === "substance_or_mixture" ? "product" : "disclosed_component", sectionNumber: 3 };
   const section7: Record<string, string> = {
     handling_constraints: "handling_constraints", storage_temperature: "storage_temperature", storage_conditions: "storage_conditions",
     storage_stability: "storage_stability", container_material_compatibility: "container_material_compatibility", shelf_life: "sds_shelf_life",
@@ -118,6 +125,7 @@ async function extractSdsEvidence(acquisition: SupplierDocumentAcquisition, byte
   const review = preparedReview ?? await extractSupplierSdsReview(acquisition, bytes);
   if (review.status !== "extracted") throw new Error(`SDS could not be extracted: ${review.reason}`);
   const hash = acquisition.sha256.toLowerCase();
+  const evidenceId = await createSupplierProductEvidenceId(acquisition, review.extraction.parserVersion, review.ocr.parserVersion);
   const claims: SupplierProductClaimEvidence[] = [];
   let sequence = 0;
   const add = (field: string, rawValue: string, lines: EvidenceLine[], method?: string, measurement?: CandidateMeasurementContext) => {
@@ -126,7 +134,7 @@ async function extractSdsEvidence(acquisition: SupplierDocumentAcquisition, byte
     const citations = citedEvidence(hash, lines);
     if (!rawValue.trim() || !citations.length) return;
     claims.push({
-      id: `${acquisition.code}:claim:${++sequence}`,
+      id: `${evidenceId}:claim:${++sequence}`,
       fieldCode: mapped.fieldCode,
       sectionNumber: mapped.sectionNumber,
       subject: mapped.subject,
@@ -151,17 +159,24 @@ async function extractSdsEvidence(acquisition: SupplierDocumentAcquisition, byte
   for (const candidate of review.section1.candidates) add(candidate.field, candidate.rawValue, candidateLines(candidate), candidate.extractionMethod);
   for (const candidate of review.section3.components) {
     const component = candidate as unknown as Record<string, unknown>;
-    for (const [property, field] of [["originalName", "component_name"], ["casNumber", "cas_number"], ["ecNumber", "ec_number"], ["concentration", "concentration"]] as const) {
+    for (const [property, field] of [
+      ["originalName", "component_name"], ["casNumber", "cas_number"], ["ecNumber", "ec_number"], ["concentration", "concentration"],
+      ["mFactor", "m_factor"], ["specificConcentrationLimit", "specific_concentration_limit"], ["acuteToxicityEstimate", "acute_toxicity_estimate"],
+    ] as const) {
       const fact = component[property] as { rawValue?: string; evidence?: EvidenceLine[] } | undefined;
-      if (fact?.rawValue && fact.evidence) add(field === "component_name" ? "disclosed_component_name" : field === "cas_number" ? "disclosed_component_cas" : field === "ec_number" ? "disclosed_component_ec" : "disclosed_component_concentration", fact.rawValue, fact.evidence, "explicit_label");
+      if (fact?.rawValue && fact.evidence) add(field, fact.rawValue, fact.evidence, "explicit_label");
     }
+    const disclosures = component.tradeSecretDisclosures as Array<{ rawValue?: string; evidence?: EvidenceLine[] }> | undefined;
+    for (const disclosure of disclosures ?? []) if (disclosure.rawValue && disclosure.evidence) add("composition_disclosure", disclosure.rawValue, disclosure.evidence, "explicit_label");
   }
   if (review.section3.declaration) add("substance_or_mixture", review.section3.declaration.rawValue, review.section3.declaration.evidence, "explicit_label");
+  for (const alternate of review.section3.declarationAlternates) add("substance_or_mixture", alternate.rawValue, alternate.evidence, "explicit_label");
+  for (const disclosure of review.section3.disclosureEvidence) add("composition_disclosure", disclosure.rawValue, disclosure.evidence, "explicit_label");
   for (const candidate of review.section7.candidates) add(candidate.field, candidate.rawValue, candidateLines(candidate), candidate.extractionMethod);
   for (const candidate of review.section9.candidates) add(candidate.field, candidate.rawValue, candidateLines(candidate), candidate.extractionMethod, candidate.measurementContext);
   for (const candidate of review.sections10To15.candidates.filter((item) => item.sectionNumber === 15)) add(candidate.field, candidate.rawValue, candidateLines(candidate), candidate.extractionMethod);
   return supplierProductDocumentEvidenceSchema.parse({
-    recordType: "document", schemaVersion: "1.0", id: `product-evidence-${crypto.randomUUID()}`,
+    recordType: "document", schemaVersion: "1.0", id: evidenceId,
     acquisitionCode: acquisition.code, productCardId, documentType: "SDS", documentHash: hash,
     parserVersion: review.extraction.parserVersion, ocrVersion: review.ocr.parserVersion,
     claims, reviewStatus: "unreviewed", createdAt: new Date().toISOString(),
@@ -179,6 +194,7 @@ async function extractTdsEvidence(acquisition: SupplierDocumentAcquisition, byte
   ].sort((left, right) => left.pageNumber - right.pageNumber || (("lineNumber" in left ? left.lineNumber : 0) - ("lineNumber" in right ? right.lineNumber : 0)));
   const claims: SupplierProductClaimEvidence[] = [];
   const hash = acquisition.sha256.toLowerCase();
+  const evidenceId = await createSupplierProductEvidenceId(acquisition, `${extraction.parserVersion}+${SUPPLIER_TDS_PARSER_VERSION}`, ocr.parserVersion);
   const used = new Set<string>();
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]!;
@@ -200,7 +216,8 @@ async function extractTdsEvidence(acquisition: SupplierDocumentAcquisition, byte
     if (!value || used.has(dedupeKey)) continue;
     used.add(dedupeKey);
     claims.push({
-      id: `${acquisition.code}:claim:${claims.length + 1}`, fieldCode: mapping.field, subject: "product", rawValue: value,
+      id: `${evidenceId}:claim:${claims.length + 1}`, fieldCode: mapping.field, subject: "product", rawValue: value,
+      ...(tdsOriginalUnit(value) ? { originalUnit: tdsOriginalUnit(value) } : {}),
       qualifier: tdsQualifier(mapping.field, value),
       basis: tdsBasis(value),
       context: tdsContext(value),
@@ -209,11 +226,19 @@ async function extractTdsEvidence(acquisition: SupplierDocumentAcquisition, byte
     });
   }
   return supplierProductDocumentEvidenceSchema.parse({
-    recordType: "document", schemaVersion: "1.0", id: `product-evidence-${crypto.randomUUID()}`,
+    recordType: "document", schemaVersion: "1.0", id: evidenceId,
     acquisitionCode: acquisition.code, productCardId, documentType: "TDS", documentHash: hash,
     parserVersion: `${extraction.parserVersion}+${SUPPLIER_TDS_PARSER_VERSION}`, ocrVersion: ocr.parserVersion,
     claims, reviewStatus: "unreviewed", createdAt: new Date().toISOString(),
   });
+}
+
+async function createSupplierProductEvidenceId(acquisition: SupplierDocumentAcquisition, parserVersion: string, ocrVersion?: string): Promise<string> {
+  const identity = [acquisition.code, acquisition.documentType, acquisition.sha256.toLowerCase(), parserVersion, ocrVersion ?? "no-ocr"]
+    .map((value) => `${value.length}:${value}`).join("|");
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity)));
+  const hex = Array.from(digest, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `product-evidence-${hex}`;
 }
 
 function normalizeLabel(value: string): string {
@@ -254,8 +279,15 @@ function tdsBasis(value: string): SupplierProductClaimEvidence["basis"] {
 function tdsContext(value: string): SupplierProductClaimEvidence["context"] {
   const temperature = /(?:at|@|at a temperature of|sıcaklıkta)\s*(-?\d+(?:[.,]\d+)?)\s*(°\s*[CF]|°?\s*C|°?\s*F|K)\b/iu.exec(value)?.[0];
   const method = /\b(Brookfield(?:\s+[A-Za-z0-9-]+)?|ASTM\s+[A-Z0-9.-]+|ISO\s+[0-9.-]+|DIN\s+[0-9.-]+)\b/iu.exec(value)?.[0];
+  const sampleConcentration = /(?:at|in|tested at|measured at|solution of|at a concentration of|derişimde|konsantrasyonda)\s*(\d+(?:[.,]\d+)?\s*(?:wt\s*%|w\/w|%|g\/l|mg\/l))(?:\s*(?:aqueous\s+)?solution)?/iu.exec(value)?.[0];
   return {
     ...(method ? { testMethod: method } : {}),
     ...(temperature ? { temperature: temperature.trim() } : {}),
+    ...(sampleConcentration ? { sampleConcentration: sampleConcentration.trim() } : {}),
   };
+}
+
+function tdsOriginalUnit(value: string): string | undefined {
+  const match = /(?:^|\s)(wt\s*%\s*(?:w\s*\/\s*w)?|w\s*\/\s*w|%\s*w\s*\/\s*w|%|ppm|ppb|mg\s*\/\s*l|g\s*\/\s*l|kg\s*\/\s*m(?:3|³)|g\s*\/\s*cm(?:3|³)|kg\s*\/\s*l|g\s*\/\s*ml|mPa\s*[.]?\s*s|cP|mPa[.]s|Pa\s*s|°\s*C|°\s*F|\bCelsius\b|\bFahrenheit\b)/iu.exec(value);
+  return match?.[1]?.replace(/\s+/gu, " ").trim();
 }

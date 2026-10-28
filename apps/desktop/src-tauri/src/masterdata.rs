@@ -879,14 +879,30 @@ pub async fn append_supplier_product_evidence(
         return Err("a product evidence update must include one document snapshot and one product-card version".to_string());
     }
     validate_supplier_product_document_evidence(&app, &evidence)?;
+    if card_version["productCardId"] != evidence["productCardId"] {
+        return Err("the new product-card version must belong to the extracted product card".to_string());
+    }
+    if let Some(previous_evidence) = rows.iter().find(|row| row["recordType"].as_str() == Some("document") && row["id"] == evidence["id"]) {
+        let without_created_at = |mut value: serde_json::Value| {
+            if let Some(object) = value.as_object_mut() { object.remove("createdAt"); }
+            value
+        };
+        if without_created_at(previous_evidence.clone()) != without_created_at(evidence.clone()) {
+            return Err("an existing immutable product-evidence identity cannot be reused for different extraction content".to_string());
+        }
+        let previous_card = rows.iter()
+            .filter(|row| row["recordType"].as_str() == Some("card_version")
+                && row["productCardId"] == evidence["productCardId"]
+                && row["evidenceRecordIds"].as_array().is_some_and(|ids| ids.iter().any(|id| id == &evidence["id"])))
+            .max_by_key(|row| row["version"].as_u64().unwrap_or(0))
+            .ok_or_else(|| "persisted product evidence is missing its card-version receipt".to_string())?;
+        return Ok(serde_json::json!({ "evidence": previous_evidence, "cardVersion": previous_card }));
+    }
     if let Some(object) = evidence.as_object_mut() {
         object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
     }
     let (rows_with_evidence, inserted_evidence, _) = apply_upsert(rows, vec![evidence.clone()], true, "supplier_product_evidence")?;
     if inserted_evidence != 1 { return Err("supplier product evidence was not appended".to_string()); }
-    if card_version["productCardId"] != evidence["productCardId"] {
-        return Err("the new product-card version must belong to the extracted product card".to_string());
-    }
     validate_supplier_product_card_version(&card_version, &rows_with_evidence)?;
     if let Some(object) = card_version.as_object_mut() {
         object.insert("createdAt".to_string(), serde_json::Value::String(now_rfc3339_utc()));
